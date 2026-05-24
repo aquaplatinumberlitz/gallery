@@ -181,10 +181,18 @@ const isLoadingMore = computed(() => galleryStore.loadingMoreImages);
 
 // --- Virtual scroller state ---
 const GAP = 20;
-const MIN_COLS = 3;
+const MIN_COLS = 1;
 const MAX_COLS = 8;
 const GRID_SIZE_KEY = "gallery-grid-size";
-const columnCount = ref(4);
+const getDefaultCols = () => {
+  if (typeof window === "undefined") return 4;
+  const w = window.innerWidth;
+  if (w >= 1024) return 5;
+  if (w >= 640) return 3;
+  return 2;
+};
+
+const columnCount = ref(getDefaultCols());
 const rowHeight = ref(0);
 let resizeObserver: ResizeObserver | null = null;
 const lastGridWidth = ref(0);
@@ -383,8 +391,8 @@ onBeforeUnmount(() => {
             :max="MAX_COLS"
           />
           <div class="slider-progress" :style="{ width: ((columnCount - MIN_COLS) / (MAX_COLS - MIN_COLS)) * 100 + '%' }"></div>
+          <div class="slider-tooltip" :style="{ left: ((columnCount - MIN_COLS) / (MAX_COLS - MIN_COLS)) * 100 + '%' }">{{ columnCount }}</div>
         </div>
-        <span class="slider-value">{{ columnCount }}</span>
       </div>
 
       <div v-if="isLoading" class="loading-badge">
@@ -956,10 +964,10 @@ h2 {
 .slider-track-wrapper {
   position: relative;
   width: 100px;
-  height: 6px;
+  min-height: 48px;
   background: rgba(0, 0, 0, 0.1);
   border-radius: 3px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .slider-progress {
@@ -976,9 +984,9 @@ h2 {
 .grid-slider input[type="range"] {
   position: absolute;
   top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  left: -10px;
+  width: calc(100% + 20px);
+  height: 48px;
   margin: 0;
   opacity: 0;
   cursor: pointer;
@@ -988,16 +996,30 @@ h2 {
 /* Custom thumb for webkit browsers */
 .grid-slider input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 16px;
-  height: 16px;
+  width: 28px;
+  height: 28px;
   background: var(--primary-color);
+  border: 3px solid #fff;
   border-radius: 50%;
   cursor: pointer;
   box-shadow: 0 2px 6px rgba(255, 107, 53, 0.4);
 }
 
-.slider-value {
-  min-width: 28px;
+.grid-slider input[type="range"]::-moz-range-thumb {
+  width: 28px;
+  height: 28px;
+  background: var(--primary-color);
+  border: 3px solid #fff;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(255, 107, 53, 0.4);
+}
+
+.slider-tooltip {
+  position: absolute;
+  top: -32px;
+  left: 0;
+  transform: translateX(-50%);
   padding: 4px 8px;
   background: linear-gradient(135deg, var(--primary-color), #ff8f5a);
   color: #fff;
@@ -1007,6 +1029,20 @@ h2 {
   border-radius: 6px;
   text-align: center;
   box-shadow: 0 2px 8px rgba(255, 107, 53, 0.3);
+  white-space: nowrap;
+  pointer-events: none;
+  transition: left 0.15s ease;
+  z-index: 3;
+}
+
+.slider-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--primary-color);
 }
 
 .loading-badge {
@@ -1126,7 +1162,9 @@ h2 {
   }
 
   .slider-track-wrapper {
-    width: 80px;
+    flex: 1;
+    max-width: 180px;
+    min-height: 48px;
   }
 }
 
@@ -1150,12 +1188,9 @@ h2 {
   }
 
   .slider-track-wrapper {
-    width: 60px;
-  }
-
-  .slider-value {
-    min-width: 22px;
-    font-size: 12px;
+    flex: 1;
+    max-width: 150px;
+    min-height: 48px;
   }
 }
 
