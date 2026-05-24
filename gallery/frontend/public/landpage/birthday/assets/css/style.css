@@ -1,0 +1,795 @@
+@charset "UTF-8";
+
+/* ============================================ */
+/* RESET CSS */
+/* ============================================ */
+body,div,pre,p,blockquote,
+form,fieldset,input,textarea,select,option,
+dl,dt,dd,ul,ol,li,h1,h2,h3,h4,h5,h6,
+table,th,td,map {
+margin: 0;
+padding: 0;
+vertical-align: baseline;
+-webkit-text-size-adjust: none;
+}
+embed,object {
+	font-size:1px;
+	vertical-align: middle;
+}
+table{
+	border-spacing:0;
+}
+table,th,td,img{
+	border:0;
+}
+img,input{
+	vertical-align:middle;
+}
+ul:after{
+	content: "";
+	display: block;
+	clear:both;
+}
+
+/* ============================================ */
+/* NIVO SLIDER CSS */
+/* ============================================ */
+.nivoSlider {
+	position:relative;
+	width:100%;
+	height:auto;
+	overflow: hidden;
+}
+.nivoSlider img {
+	position:absolute;
+	top:0px;
+	left:0px;
+	max-width: none;
+}
+.nivo-main-image {
+	display: block !important;
+	position: relative !important; 
+	width: 100% !important;
+}
+.nivoSlider a.nivo-imageLink {
+	position:absolute;
+	top:0px;
+	left:0px;
+	width:100%;
+	height:100%;
+	border:0;
+	padding:0;
+	margin:0;
+	z-index:6;
+	display:none;
+	background:white; 
+	filter:alpha(opacity=0); 
+	opacity:0;
+}
+.nivo-slice {
+	display:block;
+	position:absolute;
+	z-index:5;
+	height:100%;
+	top:0;
+}
+.nivo-box {
+	display:block;
+	position:absolute;
+	z-index:5;
+	overflow:hidden;
+}
+.nivo-box img { display:block; }
+.nivo-caption {
+	position:absolute;
+	left:0px;
+	bottom:0px;
+	background:#000;
+	color:#fff;
+	width:100%;
+	z-index:8;
+	padding: 5px 10px;
+	opacity: 0.8;
+	overflow: hidden;
+	display: none;
+	-moz-opacity: 0.8;
+	filter:alpha(opacity=8);
+	-webkit-box-sizing: border-box;
+	-moz-box-sizing: border-box;
+	box-sizing: border-box;
+}
+.nivo-caption p {
+	padding:5px;
+	margin:0;
+}
+.nivo-caption a {
+	display:inline !important;
+}
+.nivo-html-caption {
+    display:none;
+}
+.nivo-directionNav a {
+	position:absolute;
+	top:45%;
+	z-index:9;
+	cursor:pointer;
+}
+.nivo-prevNav {
+	left:0px;
+}
+.nivo-nextNav {
+	right:0px;
+}
+.nivo-controlNav {
+	text-align:center;
+	padding: 15px 0;
+}
+.nivo-controlNav a {
+	cursor:pointer;
+}
+.nivo-controlNav a.active {
+	font-weight:bold;
+}
+
+/* ============================================ */
+/* NIVO DEFAULT THEME */
+/* ============================================ */
+.theme-default .nivoSlider {
+	position:relative;
+	background:#fff url(../img/loading.gif) no-repeat 50% 50%;
+    margin-bottom:0px;
+}
+.theme-default .nivoSlider img {
+	position:absolute;
+	top:0px;
+	left:0px;
+	display:none;
+}
+.theme-default .nivoSlider a {
+	border:0;
+	display:block;
+}
+.theme-default .nivo-controlNav {
+	text-align: center;
+	padding: 20px 0;
+}
+.theme-default .nivo-controlNav a {
+	display:inline-block;
+	width:22px;
+	height:22px;
+	background:url(../img/bullets.png) no-repeat;
+	text-indent:-9999px;
+	border:0;
+	margin: 85px 0 0 0;
+}
+.theme-default .nivo-controlNav a.active {
+	background-position:0 -22px;
+}
+.theme-default .nivo-directionNav a {
+	display:block;
+	text-indent:-9999px;
+	border:0;
+	opacity: 0;
+	-webkit-transition: all 200ms ease-in-out;
+    -moz-transition: all 200ms ease-in-out;
+    -o-transition: all 200ms ease-in-out;
+    transition: all 200ms ease-in-out;
+}
+.theme-default:hover .nivo-directionNav a { opacity: 1; }
+.theme-default a.nivo-nextNav {
+	background-position:-40px 0;
+	right:5px;
+}
+.theme-default a.nivo-prevNav {
+	left:5px;
+}
+.theme-default .nivo-caption {
+    font-family: Helvetica, Arial, sans-serif;
+}
+.theme-default .nivo-caption a {
+    color:#fff;
+    border-bottom:1px dotted #fff;
+}
+.theme-default .nivo-caption a:hover {
+    color:#fff;
+}
+.theme-default .nivo-controlNav.nivo-thumbs-enabled {
+	width: 100%;
+}
+.theme-default .nivo-controlNav.nivo-thumbs-enabled a {
+	width: auto;
+	height: auto;
+	background: none;
+	margin-bottom: 5px;
+}
+.theme-default .nivo-controlNav.nivo-thumbs-enabled img {
+	display: block;
+	width: 120px;
+	height: auto;
+}
+
+/* ============================================ */
+/* MAIN STYLES */
+/* ============================================ */
+*{
+margin:0;
+padding:0;
+line-height:1.5em;
+list-style-type:none;
+}
+body{
+background-color:#fff;
+color:#717171;
+font-family:Arial,sans-serif;
+}
+a{
+color:#717171;
+}
+a img {
+border-style:none;
+}
+.new{
+width:30px;
+height:30px;
+background:url(../img/new.png) no-repeat 0% 0%;
+text-indent:-9999px;
+position:absolute;
+z-index:2;
+}
+
+#game .new{
+margin:0;
+}
+#recommend .new{
+margin:10px 0 0 35px;
+}
+#present .new{
+margin:10px 0 0 0;
+}
+#download .new{
+margin:0px 0 0 0;
+}
+#comic .new{
+margin:0px 0 0 0;
+}
+#topMenu .new{
+width:24px;
+height:24px;
+background:url(../img/new_mini.png) no-repeat 0% 0%;
+margin:16px 0 0 0;
+}
+#doradio .new{
+width:24px;
+height:24px;
+background:url(../img/new_mini.png) no-repeat 0% 0%;
+margin:10px 0 0 135px;
+}
+
+/* ============================================ */
+/* HEADER */
+/* ============================================ */
+#header980{
+position:relative;
+height:480px;
+width:980px;
+margin:0 auto;
+z-index:2;
+}
+#header{
+width:100%;
+min-width:980px;
+height:460px;
+background:url(../img/top_head_14birth.png) repeat-x center top;
+position:absolute;
+z-index:2;
+}
+#headerBG{
+width:100%;
+min-width:980px;
+height:460px;
+background:url(../img/top_headbg_14birth.gif) repeat-x center top;
+position:relative;
+overflow:hidden;
+}
+#headlogo{
+background:url(../img/head_logo.png) repeat-x center top;
+width:178px;
+height:104px;
+text-indent:-9999px;
+position:absolute;
+top:10px;
+left:10px;
+z-index:100;
+}
+
+#flashContent{
+position:absolute;
+width:380px;
+height:330px;
+left:299px;
+top:85px;
+z-index:11;
+}
+
+#channel{
+position:absolute;
+width:66px;
+height:66px;
+top:255px;
+left:156px;
+z-index:10;
+}
+.slider-wrapper{
+z-index:1000;
+}
+
+/* ============================================ */
+/* BIRTHDAY ELEMENTS */
+/* ============================================ */
+#birth14dora{
+position:absolute;
+top:190px;
+left:790px;
+z-index:10;
+overflow:hidden;
+}
+#birth14baloon{
+position:absolute;
+width:180px;
+height:360px;
+overflow:hidden;
+top:20px;
+left:690px;
+z-index:10;
+}
+#birth14photocon{
+position:absolute;
+width:136px;
+height:136px;
+top:310px;
+left:660px;
+z-index:10;
+}
+#birth14door{
+position:absolute;
+width:250px;
+height:232px;
+top:220px;
+left:40px;
+z-index:10;
+}
+#birthday{
+display:block;
+margin:0 auto 40px auto;
+}
+
+.tri{
+	font-size:1px;
+}
+
+/* ============================================ */
+/* FLOAT SECTIONS */
+/* ============================================ */
+#float2{
+background:#26B0D1;
+min-width:960px;
+color:#FFF;
+overflow:hidden;  
+height:auto;  
+}
+#float2 div{
+padding-bottom:9999px;  
+margin-bottom:-9999px; 
+}
+#f80{
+width:50%;
+text-align:center;
+background:#FFBB00;
+float:left;
+}
+.float2CTS{
+width:460px;
+margin:20px auto;
+text-align:left;
+position: relative;
+}
+.float2CTS h2{
+font-size:50px;
+line-height:0.85em
+}
+.float2CTS h2 p{
+font-size:16px;
+margin:5px 0 0 0;
+}
+
+#legendBanner{
+clear:both;
+display:block;
+width:380px;
+margin:30px 35px 0 35px;
+}
+#legendBanner img{
+width:380px;
+}
+#f80Info{
+text-align:center;
+font-size:12px;
+margin:0px 0 10px 0;
+}
+#f80Info span{
+color:#FF0;
+}
+#recommend{
+width:50%;
+text-align:center;
+float:right;
+background:#26B0D1;
+}
+#recommend a img{
+margin:10px 35px 0px 35px;
+width:380px;
+height:100px;
+}
+#recommend a img#recommendLast{
+display:block;
+margin:10px 35px 30px 35px;
+}
+
+#float3{
+background:#acd241;
+min-width:960px;
+color:#FFF;
+overflow:hidden;  
+height:auto;  
+}
+#float3 div{
+padding-bottom:9999px;  
+margin-bottom:-9999px; 
+}
+#present{
+width:33%;
+height:auto;
+text-align:center;
+float:left;
+background:#F78C98;
+}
+#presentTTL{
+	width:280px;
+	height:auto;
+}
+#presentImage{
+width:280px;
+height:auto;
+margin:10px auto;
+}
+#presentInfo{
+text-align:center;
+font-size:14px;
+line-height:1.2em;
+font-weight:bold;
+}
+#presentInfo span{
+display:block;
+font-size:14px;
+line-height:18px;
+margin-top:5px;
+color:#FFFF49;
+font-weight:bold;
+}
+
+#float3_r{
+float:right;
+width:33%;
+height:auto;
+background:#76c694;
+}
+#float3_m{
+height:auto;
+background:#5bb4ed;
+}
+.float3CTS{
+width:280px;
+margin:10px auto;
+text-align:left;
+position: relative;
+}
+.float3CTS h2{
+font-size:28px;
+line-height:28px;
+margin:0;
+padding:0;
+}
+.float3CTS h2 p{
+font-size:12px;
+line-height:12px;
+margin:5px 0 5px 0;
+padding:0;
+}
+#download{
+width:100%;
+height:350px;
+text-align:center;
+background:#76c694;
+}
+#doradio{
+width:100%;
+text-align:center;
+float:right;
+background:#fd8b46;
+}
+#drbg{
+width:280px;
+height:152px;
+position:absolute;
+}
+#drInfo{
+position:relative;
+margin:20px 22px 0 146px;
+}
+#drInfo p{
+display:block;
+width:124px;
+height:99px;
+font-size:12px;
+line-height:1.4em;
+}
+#drInfo p span{
+font-size:10px;
+}
+#doradio .more{
+position:relative;
+margin-top:18px;
+z-index:1;
+}
+#download a img{
+margin:0px auto 2px auto;
+}
+#dwInfo{
+text-align:center;
+font-size:12px;
+margin-bottom:2px;
+}
+#game{
+width:100%;
+height:350px;
+text-align:center;
+background:#5bb4ed;
+}
+#gamelistL{
+text-align:center;
+width:135px;
+float:left;
+font-size:10px;
+line-height:1.2em;
+}
+#gamelistR{
+text-align:center;
+width:135px;
+float:right;
+font-size:10px;
+line-height:1.2em;
+}
+#gamelistR a img,
+#gamelistL a img{
+margin:0px 0 3px 0;
+padding:0;
+}
+#gamelistR a.gameIcon2 img,
+#gamelistL a.gameIcon2 img{
+margin-top:5px;
+}
+#comic{
+width:100%;
+text-align:center;
+background:#887ec1;
+}
+.soutei{
+margin:0px 9px 0px 0;
+}
+#souteiLast{
+margin:0;
+}
+.w980{
+width:980px;
+min-width:980px;
+margin:0 auto;
+}
+
+#topMenu ul{
+margin:0 20px;
+padding:0;
+}
+#topMenu li{
+float:left;
+margin:0 8px 0px 0;
+padding:0;
+position: relative;
+}
+#topMenu li#topMenuCircle1{
+margin:0 8px 0px 0;
+}
+#topMenu li#topMenuCircle2{
+margin:0 8px 0px 0;
+}
+#topMenu li#topMenuCircle3{
+margin:0 10px 0px 0;
+}
+#topMenu li#topMenuLast{
+margin:0;
+}
+
+h2{
+font-family:Arial,sans-serif;
+font-size:36px;
+line-height:36px;
+margin:0;
+padding:0;
+}
+h2 img{
+vertical-align:baseline;
+}
+.h2_sub{
+font-size:16px;
+}
+
+#bannerArea{
+background:url(../img/border.png);
+padding:15px;
+}
+.banners{
+width:950px;
+margin:10px auto;
+}
+.banners a img,
+.banners img{
+width:230px;
+height:70px;
+margin-right:10px;
+}
+.banners a img.lastbanner,
+.banners img.lastbanner{
+margin:0;
+}
+
+.more{
+float:right;
+margin:10px auto 20px auto;
+}
+.floatClear{
+clear:both;
+}
+.floatClearMargin{
+clear:both;
+height:20px;
+}
+
+/* ============================================ */
+/* WHAT'S NEW SECTION */
+/* ============================================ */
+#wn{
+margin:0 20px;
+}
+#wnTTL{
+padding-top:20px;
+color:#898989;
+}
+hr{
+clear:both;
+margin:10px 0;
+border-top-width: 1px;
+border-right-width: 0px;
+border-bottom-width: 0px;
+border-left-width: 0px;
+border-top-style: dotted;
+border-top-color: #717171;
+}
+.wnhr{
+margin-bottom:10px;
+}
+.wnList{
+margin:0 auto;
+}
+.wnDate{
+width: 70px;
+vertical-align: middle;
+text-align:left;
+font-size:12px;
+line-height:1.0em;
+}
+.wnDate .newTXT{
+display:block;
+font-weight:bold;
+color:#f20005;
+}
+.wnPt{
+width:20px;
+background:url(../img/whatsnew_date.png) no-repeat center center;
+}
+.wnTopics{
+width: 800px;
+vertical-align: middle;
+text-align:left;
+}
+.wnTopics p{
+clear:both;
+font-size:14px;
+-webkit-text-size-adjust: 100%;
+text-size-adjust: 100%;
+margin:0;
+padding:0;
+color:#CCC;
+}
+.wnTopics a{
+color:#717171;
+}
+.wnTopics p span{
+display:block;
+float:left;
+margin:0 10px 3px 5px;
+font-size:10px;
+font-weight:bold;
+padding:2px;
+width:74px;
+text-align:center;
+color:#FFF;
+}
+.wnNEWS{
+background-color:#5a97e9;
+}
+.wnBOOK{
+background-color:#fbb841;
+}
+.wnDVD{
+background-color:#73cfd1;
+}
+.wnGOODS{
+background-color:#acd241;
+}
+.wnEVENT{
+background-color:#d577be;
+}
+.wnAPP{
+background-color:#4ba8c9;
+}
+.wnEIGA{
+background-color:#caba7e;
+}
+.wnGAME{
+background-color:#5bb4ed;
+}
+.wnCOMIC{
+background-color:#887ec1;
+}
+.wnDORADIO{
+background-color:#fd8b46;
+}
+.wnDOWNLOAD{
+background-color:#76c694;
+}
+.wnNURIE{
+background-color:#f988b7;
+}
+.wnSP{
+background-color:#FF6000;
+}
+.wnPRESENT{
+background-color:#FF8C98;
+}
+.wnF80{
+background:#B365AC;
+}
+
+.wnTopics a{
+text-decoration:none;
+}
+.topicSP a{
+	color:#F60;
+}
+.wnTopics a:hover{
+background-color:#FF6;
+text-decoration:none;
+}
+.wnTopics a:active{
+color:#FA0;
+text-decoration:none;
+}

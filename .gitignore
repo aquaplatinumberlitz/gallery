@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+*.egg
+.venv*/
+venv/
+*.venv/
+
+# Node
+node_modules/
+*.tsbuildinfo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Temp / archives
+*.zip
+*.tar.gz
+
+# Test images (large)
+test-images/

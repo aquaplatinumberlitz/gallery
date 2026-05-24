@@ -1,0 +1,641 @@
+@charset "UTF-8";
+/* Christmas Landing Page - Noel Theme */
+
+/* ===== CSS RESET ===== */
+body,div,pre,p,blockquote,
+form,fieldset,input,textarea,select,option,
+dl,dt,dd,ul,ol,li,h1,h2,h3,h4,h5,h6,
+table,th,td,map {
+	margin: 0;
+	padding: 0;
+	vertical-align: baseline;
+	-webkit-text-size-adjust: none;
+}
+
+embed,object {
+	font-size: 1px;
+	vertical-align: middle;
+}
+
+table {
+	border-spacing: 0;
+}
+
+table,th,td,img {
+	border: 0;
+}
+
+img,input {
+	vertical-align: middle;
+}
+
+ul:after {
+	content: "";
+	display: block;
+	clear: both;
+}
+
+* {
+	margin: 0;
+	padding: 0;
+	line-height: 1.5em;
+	list-style-type: none;
+}
+
+/* ===== BASE STYLES ===== */
+body {
+	background-color: #fff;
+	min-height: 100vh;
+	overflow-x: hidden;
+	position: relative;
+	color: #717171;
+	font-family: Arial, sans-serif;
+}
+
+body::before {
+	content: none;
+}
+	pointer-events: none;
+	z-index: 1;
+}
+
+a {
+	color: #717171;
+}
+
+a img {
+	border-style: none;
+}
+
+/* ===== SNOWFALL EFFECT ===== */
+.snowflake {
+	animation: snowfall-sway 4s ease-in-out infinite;
+	transition: opacity 0.3s ease;
+}
+
+.snowflake:nth-child(3n) {
+	animation-duration: 6s;
+	animation-delay: -2s;
+}
+
+.snowflake:nth-child(3n+1) {
+	animation-duration: 5s;
+	animation-delay: -1s;
+}
+
+@keyframes snowfall-sway {
+	0%, 100% {
+		transform: translateX(-15px) rotate(0deg);
+	}
+	25% {
+		transform: translateX(10px) rotate(90deg);
+	}
+	50% {
+		transform: translateX(15px) rotate(180deg);
+	}
+	75% {
+		transform: translateX(-5px) rotate(270deg);
+	}
+}
+
+@keyframes sparkle {
+	0%, 100% { opacity: 0.3; transform: scale(1); }
+	50% { opacity: 1; transform: scale(1.2); }
+}
+
+.snowflake.sparkle {
+	animation: sparkle 2s ease-in-out infinite, snowfall-sway 4s ease-in-out infinite;
+}
+
+/* ===== HEADER ===== */
+#headerBG {
+	width: 100%;
+	min-width: 980px;
+	height: 480px;
+	background: url(../img/top_headbg_anniv.gif) repeat-x center top;
+	position: relative;
+	overflow: hidden;
+	z-index: 10;
+}
+
+#header {
+	width: 100%;
+	min-width: 980px;
+	height: 460px;
+	background: url(../img/top_head_anniv.png) repeat-x center top;
+	position: absolute;
+	z-index: 2;
+}
+
+#header980 {
+	position: relative;
+	height: 480px;
+	width: 980px;
+	margin: 0 auto;
+	z-index: 2;
+}
+
+#headlogo {
+	background: url(../img/head_logo.png) repeat-x center top;
+	width: 172px;
+	height: 174px;
+	text-indent: -9999px;
+	position: absolute;
+	top: 15px;
+	left: 40px;
+	z-index: 100;
+}
+
+/* ===== FLASH CONTENT / SLIDER ===== */
+#flashContent {
+	position: absolute;
+	width: 380px;
+	height: 330px;
+	left: 299px;
+	top: 85px;
+	z-index: 11;
+}
+
+.slider-wrapper {
+	z-index: 1000;
+}
+
+#sliderWrapper {
+	position: absolute;
+	width: 380px;
+	height: 240px;
+	top: 75px;
+	left: 300px;
+	z-index: 10;
+}
+
+#channel {
+	position: absolute;
+	width: 66px;
+	height: 66px;
+	top: 255px;
+	left: 156px;
+	z-index: 10;
+}
+
+/* ===== SANTA CHARACTERS ===== */
+#santa_dora {
+	position: absolute;
+	left: 1px;
+	top: 200px;
+	z-index: 12;
+	animation: santaSway 2s ease-in-out infinite;
+}
+
+#santa_nobi {
+	position: absolute;
+	right: 1px;
+	top: 200px;
+	z-index: 12;
+	animation: santaSway 2s ease-in-out infinite reverse;
+}
+
+#santa_minidora {
+	position: absolute;
+	right: 1px;
+	top: 1px;
+	z-index: 12;
+}
+
+#santa_sori {
+	position: absolute;
+	top: 10px;
+	right: -100px;
+	z-index: 1;
+}
+
+@keyframes santaSway {
+	0%, 100% {
+		transform: rotate(-5deg) translateX(-3px);
+	}
+	50% {
+		transform: rotate(5deg) translateX(3px);
+	}
+}
+
+/* ===== ANNIVERSARY ELEMENTS ===== */
+#top_anniv_balloon {
+	position: absolute;
+	top: 0px;
+	left: 75px;
+	z-index: 10;
+}
+
+#top_anniv_adballoon1 {
+	position: absolute;
+	top: 20px;
+	left: 740px;
+	z-index: 1;
+}
+
+#top_anniv_adballoon2 {
+	position: absolute;
+	top: 20px;
+	left: 800px;
+	z-index: 1;
+}
+
+#top_anniv_dora {
+	position: absolute;
+	top: 250px;
+	left: 670px;
+	z-index: 10;
+}
+
+#top_anniv_doraLink {
+	position: absolute;
+	top: 245px;
+	left: 685px;
+	z-index: 10;
+	width: 180px;
+	height: 220px;
+}
+
+#top_anniv_doraLink a {
+	display: block;
+	width: 100%;
+	height: 100%;
+}
+
+/* ===== CLOUDS ===== */
+#cloud1 {
+	position: absolute;
+	top: 10px;
+	left: 40%;
+	z-index: 1;
+}
+
+#cloud2 {
+	position: absolute;
+	top: 90px;
+	left: 10%;
+	z-index: 1;
+}
+
+#cloud3 {
+	position: absolute;
+	top: 100px;
+	left: 80%;
+	z-index: 1;
+}
+
+#cloud4 {
+	position: absolute;
+	top: 160px;
+	left: 60%;
+	z-index: 1;
+}
+
+#cloud5 {
+	position: absolute;
+	top: 180px;
+	left: -20%;
+	z-index: 1;
+}
+
+/* ===== TYPOGRAPHY ===== */
+h1 {
+	width: 768px;
+	height: 300px;
+	margin: 0 auto;
+	padding: 10px 0;
+	text-indent: -9999px;
+}
+
+h2 {
+	font-family: Arial, sans-serif;
+	font-size: 36px;
+	line-height: 36px;
+	margin: 0;
+	padding: 0;
+}
+
+h2 img {
+	vertical-align: baseline;
+}
+
+.h2_sub {
+	font-size: 16px;
+}
+
+h2 p span {
+	font-size: 12px;
+	font-weight: normal;
+}
+
+h3 {
+	margin-bottom: 6px;
+	text-align: left;
+	color: #333;
+	font-size: 20px;
+	line-height: 26px;
+}
+
+h3.date {
+	float: right;
+	font-size: 12px;
+}
+
+h4 {
+	font-size: 20px;
+	line-height: 26px;
+	color: #4C4948;
+}
+
+h5 {
+	margin: 0 0 2px 0;
+	font-size: 14px;
+}
+
+p {
+	margin-top: 20px;
+	font-size: 14px;
+}
+
+/* ===== LAYOUT ===== */
+.w980 {
+	width: 1000px;
+	min-width: 980px;
+	margin: 0 auto;
+}
+
+#container {
+	text-align: center;
+}
+
+.floatClear {
+	clear: both;
+}
+
+.floatClearMargin {
+	clear: both;
+	height: 20px;
+}
+
+.more {
+	float: right;
+	margin: 10px auto 20px auto;
+}
+
+/* ===== BANNER AREA ===== */
+#bannerArea {
+	background: url(../img/border.png);
+	padding: 15px;
+}
+
+.banners {
+	width: 950px;
+	margin: 10px auto;
+}
+
+.banners a img,
+.banners img {
+	width: 230px;
+	height: 70px;
+	margin-right: 10px;
+}
+
+.banners a img.lastbanner,
+.banners img.lastbanner {
+	margin: 0;
+}
+
+/* ===== CONTENT SECTIONS ===== */
+.content1 {
+	position: relative;
+	padding: 30px;
+	background-color: #fff;
+}
+
+.content2 {
+	padding: 30px;
+	border: dotted 3px #539EE8;
+	background-color: #fff;
+	overflow: hidden;
+}
+
+.photo {
+	float: left;
+}
+
+.text {
+	margin-left: 395px;
+	text-align: left;
+}
+
+.notes {
+	color: #FF73A0;
+}
+
+.data {
+	padding: 10px 15px;
+	background-color: #e6e6e6;
+	font-size: 12px;
+}
+
+.detail {
+	text-indent: -9999px;
+}
+
+.detail a {
+	display: block;
+	width: 190px;
+	height: 40px;
+}
+
+/* ===== IMAGE COPYRIGHT ===== */
+#imageCR {
+	text-align: right;
+	font-size: 10px;
+	line-height: 14px;
+	margin: 10px 20px;
+	color: #AAA;
+}
+
+/* ===== NIVO SLIDER ===== */
+.nivoSlider {
+	position: relative;
+	width: 100%;
+	height: auto;
+	overflow: hidden;
+}
+
+.nivoSlider img {
+	position: absolute;
+	top: 0;
+	left: 0;
+	max-width: none;
+}
+
+.nivo-main-image {
+	display: block !important;
+	position: relative !important;
+	width: 100% !important;
+}
+
+.nivoSlider a.nivo-imageLink {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	border: 0;
+	padding: 0;
+	margin: 0;
+	z-index: 6;
+	display: none;
+	background: white;
+	opacity: 0;
+}
+
+.nivo-slice {
+	display: block;
+	position: absolute;
+	z-index: 5;
+	height: 100%;
+	top: 0;
+}
+
+.nivo-box {
+	display: block;
+	position: absolute;
+	z-index: 5;
+	overflow: hidden;
+}
+
+.nivo-box img {
+	display: block;
+}
+
+.nivo-caption {
+	position: absolute;
+	left: 0;
+	bottom: 0;
+	background: #000;
+	color: #fff;
+	width: 100%;
+	z-index: 8;
+	padding: 5px 10px;
+	opacity: 0.8;
+	overflow: hidden;
+	display: none;
+	box-sizing: border-box;
+}
+
+.nivo-caption p {
+	padding: 5px;
+	margin: 0;
+}
+
+.nivo-caption a {
+	display: inline !important;
+}
+
+.nivo-html-caption {
+	display: none;
+}
+
+.nivo-directionNav a {
+	position: absolute;
+	top: 45%;
+	z-index: 9;
+	cursor: pointer;
+}
+
+.nivo-prevNav {
+	left: 0;
+}
+
+.nivo-nextNav {
+	right: 0;
+}
+
+.nivo-controlNav {
+	text-align: center;
+	padding: 15px 0;
+}
+
+.nivo-controlNav a {
+	cursor: pointer;
+}
+
+.nivo-controlNav a.active {
+	font-weight: bold;
+}
+
+/* Nivo Default Theme */
+.theme-default .nivoSlider {
+	position: relative;
+	background: #fff url(../img/loading.gif) no-repeat 50% 50%;
+	margin-bottom: 0;
+}
+
+.theme-default .nivoSlider img {
+	position: absolute;
+	top: 0;
+	left: 0;
+	display: none;
+}
+
+.theme-default .nivoSlider a {
+	border: 0;
+	display: block;
+}
+
+.theme-default .nivo-controlNav {
+	text-align: center;
+	padding: 20px 0;
+}
+
+.theme-default .nivo-controlNav a {
+	display: inline-block;
+	width: 22px;
+	height: 22px;
+	background: url(../img/bullets.png) no-repeat;
+	text-indent: -9999px;
+	border: 0;
+	margin: 80px 0 0 0;
+}
+
+.theme-default .nivo-controlNav a.active {
+	background-position: 0 -22px;
+}
+
+.theme-default .nivo-directionNav a {
+	display: block;
+	text-indent: -9999px;
+	border: 0;
+	opacity: 0;
+	transition: all 200ms ease-in-out;
+}
+
+.theme-default:hover .nivo-directionNav a {
+	opacity: 1;
+}
+
+.theme-default a.nivo-nextNav {
+	background-position: -40px 0;
+	right: 5px;
+}
+
+.theme-default a.nivo-prevNav {
+	left: 5px;
+}
+
+.theme-default .nivo-caption {
+	font-family: Helvetica, Arial, sans-serif;
+}
+
+.theme-default .nivo-caption a {
+	color: #fff;
+	border-bottom: 1px dotted #fff;
+}
+
+.theme-default .nivo-caption a:hover {
+	color: #fff;
+}

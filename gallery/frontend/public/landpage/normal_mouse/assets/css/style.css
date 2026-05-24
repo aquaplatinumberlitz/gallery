@@ -1,0 +1,445 @@
+@charset "UTF-8";
+/* 3F Fansub Portal - Day/Night Theme Landing Page */
+
+/* ===== CSS RESET ===== */
+body, div, p, h1, h2, ul, li, img {
+	margin: 0;
+	padding: 0;
+	vertical-align: baseline;
+}
+
+img {
+	border: 0;
+	vertical-align: middle;
+}
+
+* {
+	margin: 0;
+	padding: 0;
+	line-height: 1.5em;
+	list-style-type: none;
+}
+
+/* ===== BASE STYLES ===== */
+body {
+	background-color: #fff;
+	color: #717171;
+	font-family: Arial, sans-serif;
+}
+
+a {
+	color: #717171;
+}
+
+a img {
+	border-style: none;
+}
+
+/* ===== LAYOUT ===== */
+.w980 {
+	width: 980px;
+	min-width: 980px;
+	margin: 0 auto;
+}
+
+.floatClear {
+	clear: both;
+}
+
+.floatClearMargin {
+	clear: both;
+	height: 20px;
+}
+
+/* ===== HEADER ===== */
+#headerBG {
+	width: 100%;
+	min-width: 980px;
+	height: 480px;
+	background: url(../img/top_headbg_day.gif) repeat-x center top;
+	position: relative;
+	overflow: hidden;
+}
+
+#header {
+	width: 100%;
+	min-width: 980px;
+	height: 550px;
+	background: url(../img/top_head.png) repeat-x center top;
+	position: absolute;
+	z-index: 2;
+}
+
+#header980 {
+	position: relative;
+	height: 480px;
+	width: 980px;
+	margin: 0 auto;
+	z-index: 2;
+}
+
+#headlogo {
+	background: url(../img/head_logo.png) repeat-x center top;
+	width: 172px;
+	height: 174px;
+	text-indent: -9999px;
+	position: absolute;
+	top: 15px;
+	left: 40px;
+	z-index: 100;
+}
+
+/* ===== FLASH CONTENT / SLIDER ===== */
+#flashContent {
+	position: absolute;
+	width: 380px;
+	height: 330px;
+	left: 299px;
+	top: 85px;
+	z-index: 11;
+}
+
+.slider-wrapper {
+	z-index: 1000;
+}
+
+/* ===== DAY THEME ELEMENTS ===== */
+#minidora_day {
+	position: absolute;
+	top: 30px;
+	left: 180px;
+	z-index: 10;
+}
+
+#dora_day {
+	position: absolute;
+	top: 210px;
+	left: 700px;
+	z-index: 10;
+}
+
+#mouse {
+	position: absolute;
+	top: 400px;
+	left: 666px;
+	z-index: 10;
+}
+
+#dorami_day {
+	position: absolute;
+	top: 240px;
+	left: 0;
+	z-index: 10;
+}
+
+/* ===== CLOUDS ===== */
+#cloud1 {
+	position: absolute;
+	top: 10px;
+	left: 40%;
+	z-index: 1;
+}
+
+#cloud2 {
+	position: absolute;
+	top: 90px;
+	left: 10%;
+	z-index: 1;
+}
+
+#cloud3 {
+	position: absolute;
+	top: 100px;
+	left: 80%;
+	z-index: 1;
+}
+
+#cloud4 {
+	position: absolute;
+	top: 160px;
+	left: 60%;
+	z-index: 1;
+}
+
+#cloud5 {
+	position: absolute;
+	top: 180px;
+	left: -20%;
+	z-index: 1;
+}
+
+/* ===== NIGHT THEME ===== */
+#headerBG.night-theme {
+	background: url(../img/top_headbg_night.gif) repeat-x center top;
+}
+
+/* Hide day elements in night theme */
+.night-theme #minidora_day,
+.night-theme #dora_day,
+.night-theme #dorami_day,
+.night-theme #mouse,
+.night-theme #cloud1,
+.night-theme #cloud2,
+.night-theme #cloud3,
+.night-theme #cloud4,
+.night-theme #cloud5 {
+	display: none;
+}
+
+/* Hide night elements by default */
+#dora_night,
+#dorami_night,
+#mood {
+	display: none;
+}
+
+/* Show night elements in night theme */
+.night-theme #dora_night,
+.night-theme #dorami_night,
+.night-theme #mood {
+	display: block;
+}
+
+#dora_night {
+	position: absolute;
+	top: -30px;
+	left: 690px;
+	z-index: 10;
+}
+
+#dorami_night {
+	position: absolute;
+	top: 260px;
+	left: -40px;
+	z-index: 10;
+}
+
+#mood {
+	position: absolute;
+	top: 350px;
+	left: 670px;
+	z-index: 10;
+}
+
+/* ===== THEME TOGGLE BUTTON ===== */
+#themeToggle {
+	position: absolute;
+	top: 20px;
+	right: 20px;
+	z-index: 1000;
+	cursor: pointer;
+	background: rgba(255, 255, 255, 0.3);
+	padding: 5px 10px;
+	border-radius: 5px;
+	font-size: 14px;
+	color: #333;
+	border: 1px solid rgba(0, 0, 0, 0.2);
+	transition: all 0.3s ease;
+}
+
+#themeToggle:hover {
+	background: rgba(255, 255, 255, 0.5);
+}
+
+.night-theme #themeToggle {
+	background: rgba(0, 0, 0, 0.3);
+	color: #fff;
+	border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.night-theme #themeToggle:hover {
+	background: rgba(0, 0, 0, 0.5);
+}
+
+/* ===== CHANNEL ICON ===== */
+#channel {
+	position: absolute;
+	width: 66px;
+	height: 66px;
+	top: 255px;
+	left: 156px;
+	z-index: 10;
+}
+
+/* ===== NIVO SLIDER ===== */
+.nivoSlider {
+	position: relative;
+	width: 100%;
+	height: auto;
+	overflow: hidden;
+}
+
+.nivoSlider img {
+	position: absolute;
+	top: 0;
+	left: 0;
+	max-width: none;
+}
+
+.nivo-main-image {
+	display: block !important;
+	position: relative !important;
+	width: 100% !important;
+}
+
+.nivoSlider a.nivo-imageLink {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	border: 0;
+	padding: 0;
+	margin: 0;
+	z-index: 6;
+	display: none;
+	background: white;
+	opacity: 0;
+}
+
+.nivo-slice {
+	display: block;
+	position: absolute;
+	z-index: 5;
+	height: 100%;
+	top: 0;
+}
+
+.nivo-box {
+	display: block;
+	position: absolute;
+	z-index: 5;
+	overflow: hidden;
+}
+
+.nivo-box img {
+	display: block;
+}
+
+.nivo-caption {
+	position: absolute;
+	left: 0;
+	bottom: 0;
+	background: #000;
+	color: #fff;
+	width: 100%;
+	z-index: 8;
+	padding: 5px 10px;
+	opacity: 0.8;
+	overflow: hidden;
+	display: none;
+	box-sizing: border-box;
+}
+
+.nivo-caption p {
+	padding: 5px;
+	margin: 0;
+}
+
+.nivo-caption a {
+	display: inline !important;
+}
+
+.nivo-html-caption {
+	display: none;
+}
+
+.nivo-directionNav a {
+	position: absolute;
+	top: 45%;
+	z-index: 9;
+	cursor: pointer;
+}
+
+.nivo-prevNav {
+	left: 0;
+}
+
+.nivo-nextNav {
+	right: 0;
+}
+
+.nivo-controlNav {
+	text-align: center;
+	padding: 15px 0;
+}
+
+.nivo-controlNav a {
+	cursor: pointer;
+}
+
+.nivo-controlNav a.active {
+	font-weight: bold;
+}
+
+/* Nivo Default Theme */
+.theme-default .nivoSlider {
+	position: relative;
+	background: #fff url(../img/loading.gif) no-repeat 50% 50%;
+	margin-bottom: 0;
+}
+
+.theme-default .nivoSlider img {
+	position: absolute;
+	top: 0;
+	left: 0;
+	display: none;
+}
+
+.theme-default .nivoSlider a {
+	border: 0;
+	display: block;
+}
+
+.theme-default .nivo-controlNav {
+	text-align: center;
+	padding: 20px 0;
+}
+
+.theme-default .nivo-controlNav a {
+	display: inline-block;
+	width: 22px;
+	height: 22px;
+	background: url(../img/bullets.png) no-repeat;
+	text-indent: -9999px;
+	border: 0;
+	margin: 80px 0 0 0;
+}
+
+.theme-default .nivo-controlNav a.active {
+	background-position: 0 -22px;
+}
+
+.theme-default .nivo-directionNav a {
+	display: block;
+	text-indent: -9999px;
+	border: 0;
+	opacity: 0;
+	transition: all 200ms ease-in-out;
+}
+
+.theme-default:hover .nivo-directionNav a {
+	opacity: 1;
+}
+
+.theme-default a.nivo-nextNav {
+	background-position: -40px 0;
+	right: 5px;
+}
+
+.theme-default a.nivo-prevNav {
+	left: 5px;
+}
+
+.theme-default .nivo-caption {
+	font-family: Helvetica, Arial, sans-serif;
+}
+
+.theme-default .nivo-caption a {
+	color: #fff;
+	border-bottom: 1px dotted #fff;
+}
+
+.theme-default .nivo-caption a:hover {
+	color: #fff;
+}

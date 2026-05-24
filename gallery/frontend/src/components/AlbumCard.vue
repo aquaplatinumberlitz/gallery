@@ -1,0 +1,281 @@
+<script setup lang="ts">
+import type { FileNode } from "../types";
+import { getThumbnailUrl } from "../services/api";
+import { Images } from "lucide-vue-next";
+
+const emit = defineEmits<{
+  (e: "click"): void;
+}>();
+
+defineProps<{
+  node: FileNode;
+}>();
+</script>
+
+<template>
+  <div 
+    class="album-card" 
+    @click="emit('click')"
+    @keydown.enter="emit('click')"
+    @keydown.space.prevent="emit('click')"
+  >
+    <div class="album-cover-diagonal">
+      <div class="album-layer album-layer-back">
+        <img v-if="node.cover_images?.[1]" :src="getThumbnailUrl(node.cover_images[1])" loading="lazy" alt="" />
+        <div v-else class="placeholder"></div>
+      </div>
+      <div class="album-layer album-layer-front">
+        <img v-if="node.cover_images?.[0]" :src="getThumbnailUrl(node.cover_images[0])" loading="lazy" alt="" />
+        <div v-else class="placeholder flex-center"><Images /></div>
+      </div>
+      <div class="album-count">Folder</div>
+    </div>
+
+    <div class="album-info">
+      <h3>{{ node.name }}</h3>
+      <p class="meta">ALBUM</p>
+    </div>
+  </div>
+</template>
+
+<style scoped lang="scss">
+.album-card {
+  width: 100%;
+  cursor: pointer;
+  perspective: 1000px; // Important for 3D transforms
+  border-radius: 12px;
+  padding-top: 20px; // Space above for hover animation
+  padding-left: 20px; // Space on left for hover animation (layers fan out left)
+  transition: 
+    transform 280ms cubic-bezier(0.4, 0, 0.2, 1), 
+    box-shadow 280ms cubic-bezier(0.4, 0, 0.2, 1);
+  /* MD3 Elevation Level 1 - disabled */
+  box-shadow: none;
+
+  .album-cover-diagonal {
+    position: relative;
+    height: 280px; // Standard height
+    transform-style: preserve-3d;
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); // Elastic bounce
+  }
+
+  @media (max-width: 640px) {
+    .album-cover-diagonal {
+      height: 200px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .album-cover-diagonal {
+      height: 160px;
+    }
+
+    .album-info h3 {
+      font-size: 14px;
+    }
+
+    .album-info .meta {
+      font-size: 10px;
+    }
+  }
+
+  .album-layer {
+    position: absolute;
+    width: 70%;
+    height: 75%;
+    border-radius: 1px;
+    overflow: hidden;
+    transition: all 0.4s ease;
+    border: 4px solid var(--album-border-color); // Separate border color
+    background: var(--surface-color);
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .placeholder {
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.1);
+      display: grid;
+      place-items: center;
+      font-size: 2rem;
+      color: var(--muted-text);
+    }
+  }
+
+  .album-layer-back {
+    top: 15px;
+    left: 15px;
+    transform: rotate(-12deg) translateZ(0); // Standard rotation from original design
+    opacity: 0.9;
+    z-index: 1;
+    /* MD3 Level 1 */
+    box-shadow: 
+      0 1px 2px rgba(0, 0, 0, 0.3),
+      0 1px 3px 1px rgba(0, 0, 0, 0.15);
+  }
+
+  .album-layer-front {
+    top: 5px;
+    right: 15px;
+    transform: rotate(8deg) translateZ(20px); // Standard rotation angle
+    z-index: 10;
+    /* MD3 Level 2 */
+    box-shadow: 
+      0 1px 2px rgba(0, 0, 0, 0.3),
+      0 2px 6px 2px rgba(0, 0, 0, 0.15);
+  }
+
+  .album-count {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    background: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: var(--font-code); // JetBrains Mono
+    z-index: 15;
+    backdrop-filter: blur(4px);
+  }
+
+  .album-info {
+    margin-top: 12px;
+    padding: 0 12px 12px;
+    position: relative;
+    z-index: 20;
+
+    h3 {
+      font-family: var(--font-body); // Inter font
+      font-weight: 600;
+      font-size: 16px;
+      color: var(--title-color);
+      margin: 0;
+      text-overflow: ellipsis;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+
+    .meta {
+      font-family: var(--font-code); // JetBrains Mono
+      font-size: 11px;
+      color: var(--muted-text);
+      margin: 4px 0 0;
+      letter-spacing: 1px;
+    }
+  }
+
+  // HOVER EFFECT & DARK MODE
+  &:hover {
+    transform: translateY(-2px);
+    /* MD3 Elevation Level 3 */
+    box-shadow: 
+      0 1px 3px rgba(0, 0, 0, 0.3),
+      0 4px 8px 3px rgba(0, 0, 0, 0.15);
+
+    .album-cover-diagonal {
+      transform: translateY(-10px);
+    }
+
+    .album-layer-back {
+      transform: translate(-20px, 5px) rotate(-15deg); // Fan out to the left
+    }
+
+    .album-layer-front {
+      transform: translate(10px, -5px) rotate(12deg) scale(1.05);
+      /* MD3 Level 4 for front card */
+      box-shadow: 
+        0 2px 3px rgba(0, 0, 0, 0.3),
+        0 6px 10px 4px rgba(0, 0, 0, 0.15);
+    }
+  }
+
+  // Dark mode hover - using html attribute selector within scoped style
+  html[data-theme="dark"] & {
+    box-shadow: none;
+
+    .album-layer-back {
+      box-shadow: 
+        0 1px 3px 1px rgba(0, 0, 0, 0.5),
+        0 1px 2px rgba(0, 0, 0, 0.7);
+    }
+
+    .album-layer-front {
+      box-shadow: 
+        0 2px 6px 2px rgba(0, 0, 0, 0.5),
+        0 1px 2px rgba(0, 0, 0, 0.7),
+        0 0 12px rgba(255, 107, 53, 0.2);
+    }
+
+    .album-info h3 {
+      color: var(--neon-color);
+    }
+
+    &:hover {
+      /* Multi-layer neon glow effect - CSS-Tricks best practice */
+      box-shadow: 
+        /* White inner glow for brightness core */
+        0 0 2px #fff,
+        0 0 5px #fff,
+        /* Orange neon glow - multiple layers for depth */
+        0 0 10px rgba(255, 107, 53, 0.6),
+        0 0 20px rgba(255, 107, 53, 0.5),
+        0 0 35px rgba(255, 107, 53, 0.4),
+        0 0 50px rgba(255, 107, 53, 0.25);
+
+      .album-layer-front {
+        box-shadow: 
+          /* White core */
+          0 0 2px #fff,
+          0 0 4px rgba(255, 255, 255, 0.6),
+          /* Neon glow layers */
+          0 0 8px rgba(255, 107, 53, 0.7),
+          0 0 15px rgba(255, 107, 53, 0.5),
+          0 0 25px rgba(255, 107, 53, 0.35),
+          /* Depth shadow */
+          0 4px 10px rgba(0, 0, 0, 0.4);
+      }
+
+      .album-layer-back {
+        box-shadow:
+          0 0 8px rgba(255, 107, 53, 0.4),
+          0 0 15px rgba(255, 107, 53, 0.25);
+      }
+    }
+
+    &:active {
+      box-shadow: 
+        0 0 3px #fff,
+        0 0 8px rgba(255, 107, 53, 0.5),
+        0 0 15px rgba(255, 107, 53, 0.3);
+    }
+  }
+
+  &:active {
+    transform: translateY(0);
+    box-shadow: 
+      0 1px 2px rgba(0, 0, 0, 0.3),
+      0 2px 6px 2px rgba(0, 0, 0, 0.15);
+  }
+}
+
+.flex-center {
+  display: grid;
+  place-items: center;
+}
+
+// Focus styles for keyboard navigation
+.album-card:focus {
+  outline: none;
+}
+
+.album-card:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring-shadow);
+  border-radius: 8px;
+}
+</style>
