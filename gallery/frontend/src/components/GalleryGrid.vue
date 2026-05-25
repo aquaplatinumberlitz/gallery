@@ -1151,7 +1151,7 @@ onBeforeUnmount(() => {
 
 @media (max-width: 640px) {
   .gallery-grid {
-    gap: 8px;
+    gap: 6px;
   }
 
   .grid-header {
@@ -1195,64 +1195,16 @@ onBeforeUnmount(() => {
     display: none;
   }
 
-  /* Sort: icon only trigger */
+  /* Sort: hidden on mobile */
   .sort-dropdown {
-    flex-shrink: 0;
-    margin-left: auto;
-  }
-
-  .sort-trigger {
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .sort-trigger .sort-label,
-  .sort-trigger .sort-chevron {
     display: none;
   }
 
-  .sort-menu {
-    right: 0;
-    left: auto;
-  }
-
-  /* Grid slider compact inline */
+  /* Grid slider: hidden on mobile */
   .grid-slider {
-    flex-shrink: 0;
-    padding: 4px 8px;
-    gap: 4px;
-    width: auto;
-  }
-
-  .slider-track-wrapper {
-    max-width: 80px;
-    min-height: 32px;
-  }
-
-  .slider-tooltip {
     display: none;
   }
 
-  .slider-count-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 20px;
-    height: 20px;
-    padding: 0 5px;
-    background: color-mix(in srgb, var(--primary-color) 12%, transparent);
-    color: var(--primary-color);
-    font-size: 11px;
-    font-weight: 700;
-    font-family: var(--font-code);
-    border-radius: 999px;
-  }
-
-  /* Mobile folder info bar */
   .mobile-folder-bar {
     display: flex;
     align-items: center;
@@ -1308,12 +1260,13 @@ onBeforeUnmount(() => {
   }
 
   .album-grid {
-    gap: 12px;
+    gap: 8px;
   }
 
   /* Reduce photo row gap and spacers on mobile */
   .virtual-row {
-    gap: 8px;
+    gap: 6px;
+    padding: 0 4px;
   }
 
   .scroller-header {
@@ -1334,28 +1287,6 @@ onBeforeUnmount(() => {
   .nav-btn {
     width: 30px;
     height: 30px;
-  }
-
-  .sort-trigger {
-    width: 30px;
-    height: 30px;
-  }
-
-  .grid-slider {
-    padding: 3px 6px;
-    gap: 3px;
-  }
-
-  .slider-track-wrapper {
-    max-width: 60px;
-    min-height: 32px;
-  }
-
-  .slider-count-badge {
-    min-width: 18px;
-    height: 18px;
-    font-size: 10px;
-    padding: 0 4px;
   }
 }
 

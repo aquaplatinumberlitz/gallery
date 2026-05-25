@@ -4,6 +4,7 @@ import { useGalleryStore } from "./stores/gallery";
 import SidebarHeader from "./components/SidebarHeader.vue";
 import FolderTreeItem from "./components/FolderTreeItem.vue";
 import GalleryGrid from "./components/GalleryGrid.vue";
+import BottomNavigationBar from "./components/BottomNavigationBar.vue";
 import ToastContainer from "./components/ToastContainer.vue";
 import SettingsModal from "./components/SettingsModal.vue";
 import IntroScreen from "./components/IntroScreen.vue";
@@ -30,11 +31,7 @@ const handlePreviewIntro = (url: string) => {
 };
 // ------------------------
 
-// Mobile search toggle
-const isSearchExpanded = ref(false);
-const toggleMobileSearch = () => {
-  isSearchExpanded.value = !isSearchExpanded.value;
-};
+// ------------------------
 
 const galleryStore = useGalleryStore();
 
@@ -79,6 +76,16 @@ const handleResize = () => {
     isSidebarOpen.value = false;
   }
 };
+
+// Bottom navigation state
+const activeBottomTab = ref('photos')
+
+function handleBottomNav(tabId: string) {
+  activeBottomTab.value = tabId
+  if (tabId === 'more') {
+    isSettingsOpen.value = true
+  }
+}
 
 // Handle Escape key to close sidebar on mobile
 const handleGlobalKeydown = (e: KeyboardEvent) => {
@@ -189,6 +196,7 @@ watch(theme, (val) => {
       <header class="content-header">
         <div class="header-left">
           <button 
+            v-if="!isMobile"
             class="hamburger-btn"
             @click="toggleSidebar"
             title="Toggle sidebar"
@@ -232,8 +240,8 @@ watch(theme, (val) => {
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="16" height="16" class="icon-right"><path fill="currentColor" d="M423.7 85.9C336.6 107.5 272 186.2 272 280C272 390.4 361.5 480 472 480C490.5 480 508.4 477.5 525.4 472.8C478.8 535.4 404.1 576 320 576C178.6 576 64 461.4 64 320C64 178.6 178.6 64 320 64C356.9 64 392 71.8 423.7 85.9z"/></svg>
             </span>
           </button>
-          <div class="search-box" :class="{ expanded: isSearchExpanded }">
-            <Search :size="18" class="search-icon-btn" @click.stop="toggleMobileSearch" />
+          <div class="search-box">
+            <Search :size="18" class="search-icon" />
             <input
               id="gallery-search"
               v-model="galleryStore.searchQuery"
@@ -250,11 +258,6 @@ watch(theme, (val) => {
               <X :size="12" />
             </button>
           </div>
-          <div
-            v-if="isSearchExpanded"
-            class="search-backdrop"
-            @click="toggleMobileSearch"
-          ></div>
         </div>
       </header>
 
@@ -263,6 +266,14 @@ watch(theme, (val) => {
       </div>
     </section>
   </div>
+
+  <!-- Bottom nav - only on mobile/tablet -->
+  <BottomNavigationBar 
+    v-if="isMobile"
+    active-tab="photos"
+    @navigate="handleBottomNav"
+  />
+
   <Lightbox />
   <ToastContainer />
   <SettingsModal 
@@ -833,6 +844,8 @@ h1 {
     flex-shrink: 0;
     width: 30px;
     height: 30px;
+    min-width: 44px;
+    min-height: 44px;
   }
 
   .hamburger-btn svg {
@@ -896,21 +909,19 @@ h1 {
     margin-left: auto;
   }
 
+  /* Mobile full-width search bar */
   .search-box {
+    flex: 1;
     min-width: 0;
-    width: 34px;
-    height: 34px;
-    padding: 0;
-    display: inline-flex;
+    height: 36px;
+    padding: 0 10px;
+    display: flex;
     align-items: center;
-    justify-content: center;
-    cursor: pointer;
+    gap: 6px;
     border-radius: 10px;
     border: 1px solid rgba(0, 0, 0, 0.12);
     background: var(--surface-color);
-    color: var(--text-color);
-    transition: transform 120ms ease, box-shadow 150ms ease, border-color 120ms ease;
-    flex-shrink: 0;
+    transition: border-color 0.2s, box-shadow 0.2s;
   }
 
   .search-box:hover {
@@ -918,115 +929,50 @@ h1 {
     box-shadow: 0 4px 12px rgba(214, 161, 93, 0.25);
   }
 
-  .search-box input,
-  .search-box .clear-btn {
-    display: none;
+  .search-box:focus-within {
+    border-color: var(--primary-color);
+    box-shadow: 0 4px 12px rgba(214, 161, 93, 0.25);
   }
 
-  .search-box.expanded {
-    position: fixed;
-    top: 8px;
-    left: 6px;
-    right: 6px;
-    width: auto;
-    height: 40px;
-    padding: 0 8px;
-    z-index: 110;
-    border-radius: 10px;
-    justify-content: flex-start;
-    gap: 8px;
-  }
-
-  .search-box.expanded input {
-    display: block;
+  .search-box input {
     flex: 1;
     border: none;
     background: transparent;
-    padding: 0 4px;
+    padding: 0;
     font-size: 14px;
     color: var(--text-color);
     outline: none;
     min-width: 0;
   }
 
-  .search-box.expanded .clear-btn {
-    display: inline-flex;
+  .search-box input::placeholder {
+    color: var(--muted-text);
   }
 
-  .search-box .search-icon-btn {
+  .search-box .clear-btn {
+    background: transparent;
+    border: none;
+    color: var(--muted-text);
+    cursor: pointer;
+    padding: 4px;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 100%;
-    height: 100%;
+    border-radius: 50%;
+    flex-shrink: 0;
   }
 
-  .search-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.3);
-    z-index: 109;
-    backdrop-filter: blur(2px);
+  .search-box .clear-btn:hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--text-color);
   }
 
   .theme-toggle {
-    width: 28px;
-    height: 28px;
-    min-width: 28px;
-    min-height: 28px;
-    flex-shrink: 0;
-    margin-left: auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .theme-toggle .icon-left,
-  .theme-toggle .icon-right {
     display: none;
   }
 
-  .theme-toggle .toggle-track {
-    padding: 0;
-  }
-
-  .theme-toggle .toggle-thumb {
-    left: 0;
-    top: 0;
-    transform: none;
-  }
-  .theme-toggle.is-dark .toggle-thumb {
-    left: 0;
-    top: 0;
-    transform: none;
-  }
-
   .settings-btn {
-    width: 30px;
-    height: 30px;
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 10px;
-    border: 1px solid rgba(0, 0, 0, 0.12);
-    background: var(--surface-color);
-    color: var(--text-color);
-    cursor: pointer;
-    transition: transform 120ms ease, box-shadow 150ms ease, border-color 120ms ease;
-    font-size: 16px;
-  }
-
-  .settings-btn svg {
-    width: 16px;
-    height: 16px;
-  }
-
-  .settings-btn:hover {
-    border-color: var(--primary-color);
-    box-shadow: 0 4px 12px rgba(214, 161, 93, 0.25);
-    transform: translateY(-1px);
-    color: var(--primary-color);
+    display: none;
   }
 
   .brand-hero {
@@ -1035,6 +981,7 @@ h1 {
 
   .content {
     padding: 8px 6px;
+    padding-bottom: 0;
     gap: 8px;
   }
 
@@ -1092,6 +1039,7 @@ h1 {
 
   .content {
     padding: 6px 4px;
+    padding-bottom: 0;
     gap: 6px;
   }
 
