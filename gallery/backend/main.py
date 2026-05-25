@@ -505,6 +505,15 @@ def parse_ai_text_parameters(params_text: str) -> dict:
         'Seed': r'Seed:\s*(\d+)',
         'Model': r'Model:\s*([^,\n]+?)(?:,|\n|$)',
         'Scheduler': r'Scheduler:\s*([^,\n]+?)(?:,|\n|$)',
+        'model_hash': r'Model hash:\s*(\w+)',
+        'clip_skip': r'Clip skip:\s*(\d+)',
+        'hires_upscale': r'Hires upscale:\s*([\d.]+)',
+        'hires_steps': r'Hires steps:\s*(\d+)',
+        'denoising_strength': r'Denoising strength:\s*([\d.]+)',
+        'Size': r'Size:\s*(\d+x\d+)',
+        'vae': r'VAE:\s*([^,\n]+?)(?:,|\n|$)',
+        'ensd': r'ENSD:\s*(\d+)',
+        'aesthetic_score': r'Aesthetic score:\s*([\d.]+)',
     }
     
     params = {}
@@ -512,6 +521,14 @@ def parse_ai_text_parameters(params_text: str) -> dict:
         match = re.search(pattern, params_text, re.IGNORECASE)
         if match:
             params[key] = match.group(1).strip()
+    
+    # Parse Size into width/height
+    size_val = params.pop('Size', None)
+    if size_val:
+        size_match = re.match(r'(\d+)x(\d+)', size_val)
+        if size_match:
+            params['Width'] = size_match.group(1)
+            params['Height'] = size_match.group(2)
     
     # Extract LoRAs using the shared utility function
     # We combine prompt and negative prompt to search for LoRAs, 
@@ -541,6 +558,17 @@ def parse_comfy(prompt_json: str, workflow_json: Optional[str]) -> dict:
 
     nodes = data.get("nodes") if isinstance(data.get("nodes"), list) else data
 
+    # Build a lookup dict of all nodes by ID for resolving references
+    nodes_by_id: dict = {}
+    if isinstance(nodes, dict):
+        nodes_by_id = nodes
+    elif isinstance(nodes, list):
+        for node in nodes:
+            if isinstance(node, dict):
+                nid = node.get("id") if isinstance(node, dict) else None
+                if nid is not None:
+                    nodes_by_id[str(nid)] = node
+
     def iter_nodes():
         if isinstance(nodes, dict):
             for node_id, node in nodes.items():
@@ -550,9 +578,44 @@ def parse_comfy(prompt_json: str, workflow_json: Optional[str]) -> dict:
                 node_id = node.get("id") if isinstance(node, dict) else None
                 yield node_id, node
 
+    def resolve_value(val, max_depth=5):
+        """Resolve a ComfyUI input value, following node references.
+        
+        In ComfyUI JSON, inputs can be:
+        - scalar: 20, "model.safetensors", -2
+        - node reference: ["27", 0] -> node 27's output 0
+        """
+        if max_depth <= 0:
+            return None
+        if isinstance(val, list) and len(val) == 2:
+            # Node reference: [node_id, output_index]
+            ref_node_id = str(val[0])
+            ref_node = nodes_by_id.get(ref_node_id)
+            if ref_node and isinstance(ref_node, dict):
+                ref_inputs = ref_node.get("inputs", {})
+                ref_type = ref_node.get("class_type") or ref_node.get("type", "")
+                # Try to get the widget_values or inputs that match this output
+                output_idx = val[1] if len(val) > 1 else 0
+                # Look for the value in the referenced node's primary input
+                for input_key, input_val in ref_inputs.items():
+                    if not isinstance(input_val, list):
+                        return resolve_value(input_val, max_depth - 1)
+                # If all inputs are references, just return the ref key
+                return None
+        return val
+
+    def get_scalar(val):
+        """Extract a scalar value, returning None for node references."""
+        resolved = resolve_value(val)
+        if resolved is None:
+            return None
+        if isinstance(resolved, list):
+            return None  # Still a reference after resolution
+        return resolved
+
     prompts: list[str] = []
-    negative_prompts: list[str] = []
     params: dict[str, str | list[str]] = {}
+    lora_list: list[str] = []
 
     for _, node in iter_nodes():
         if not isinstance(node, dict):
@@ -564,10 +627,10 @@ def parse_comfy(prompt_json: str, workflow_json: Optional[str]) -> dict:
             if isinstance(text, str):
                 prompts.append(text)
         if ctype in {"KSampler", "KSamplerAdvanced"}:
-            seed = inputs.get("seed")
-            steps = inputs.get("steps")
-            cfg = inputs.get("cfg") or inputs.get("cfg_scale")
-            sampler = inputs.get("sampler_name") or inputs.get("sampler")
+            seed = get_scalar(inputs.get("seed"))
+            steps = get_scalar(inputs.get("steps"))
+            cfg = get_scalar(inputs.get("cfg") or inputs.get("cfg_scale"))
+            sampler = get_scalar(inputs.get("sampler_name") or inputs.get("sampler"))
             if seed is not None:
                 params["Seed"] = str(seed)
             if steps is not None:
@@ -578,22 +641,158 @@ def parse_comfy(prompt_json: str, workflow_json: Optional[str]) -> dict:
                 params["Sampler"] = str(sampler)
         if ctype == "CheckpointLoaderSimple":
             model = inputs.get("ckpt_name")
-            if model:
+            if model and isinstance(model, str):
                 params["Model"] = str(model)
+        # VAE extraction
+        if ctype in {"VAEDecode", "VAELoader"}:
+            vae_name = inputs.get("vae_name") or inputs.get("vae")
+            if vae_name and isinstance(vae_name, str):
+                params["VAE"] = str(vae_name)
+        # Upscale model
+        if ctype == "UpscaleModelLoader":
+            upscale = inputs.get("model_name")
+            if upscale and isinstance(upscale, str):
+                params["UpscaleModel"] = str(upscale)
+        # ControlNet
+        if ctype == "ControlNetLoader":
+            cn = inputs.get("control_net_name")
+            if cn and isinstance(cn, str):
+                params["ControlNet"] = str(cn)
+        # LoRA
+        if ctype in {"LoraLoader", "LoraLoaderModelOnly"}:
+            lora_name = inputs.get("lora_name")
+            lora_strength = inputs.get("strength_model")
+            if lora_name and isinstance(lora_name, str):
+                name = str(lora_name)
+                if name.endswith('.safetensors'):
+                    name = name[:-12]
+                if lora_strength is not None and not isinstance(lora_strength, list):
+                    lora_list.append(f"{name}:{lora_strength}")
+                else:
+                    lora_list.append(name)
+        # Clip skip
+        if ctype == "CLIPSetLastLayer":
+            clip_skip = get_scalar(inputs.get("stop_at_clip_layer"))
+            if clip_skip is not None:
+                params["clip_skip"] = str(clip_skip)
 
     prompts_sorted = sorted(prompts, key=lambda x: len(x), reverse=True)
     prompt = prompts_sorted[0] if prompts_sorted else ""
     negative_prompt = prompts_sorted[1] if len(prompts_sorted) > 1 else ""
 
-    loras = extract_loras(" ".join(prompts))
-    if loras:
-        params["Lora"] = loras
+    # Merge LoRAs from nodes with those from prompt text
+    loras_from_text = extract_loras(" ".join(prompts))
+    all_loras = list(dict.fromkeys(lora_list + loras_from_text))
+    if all_loras:
+        params["Lora"] = all_loras
 
     return {
         "tool": "ComfyUI",
         "prompt": prompt,
         "negative_prompt": negative_prompt,
         "params": params,
+    }
+
+
+def _parse_novelai_metadata(text: str) -> dict | None:
+    """Parse NovelAI metadata from PNG parameters text."""
+    try:
+        data = json.loads(text)
+    except (json.JSONDecodeError, ValueError):
+        return None
+
+    # NovelAI signature: "Software": "NovelAI"
+    software = data.get("Software", "")
+    if "NovelAI" not in software:
+        return None
+
+    params = {}
+
+    # Extract prompt and negative prompt
+    prompt = data.get("prompt", "")
+    negative_prompt = data.get("negative_prompt", "")
+
+    # NovelAI params
+    for key, field in [
+        ('Steps', 'steps'),
+        ('Sampler', 'sampler'),
+        ('Seed', 'seed'),
+        ('CFG', 'scale'),
+        ('Model', 'model'),
+    ]:
+        val = data.get(field)
+        if val is not None:
+            params[key] = str(val)
+
+    # NovelAI specific: sm, sm_dyn, noise_schedule, etc.
+    for key in ['sm', 'sm_dyn', 'noise_schedule', 'width', 'height', 'cfg_rescale']:
+        val = data.get(key)
+        if val is not None:
+            params[key] = str(val)
+
+    # Parse width/height from data
+    width = data.get('width')
+    height = data.get('height')
+
+    loras = extract_loras(f"{prompt} {negative_prompt}")
+    if loras:
+        params['Lora'] = loras
+
+    return {
+        "tool": "NovelAI",
+        "prompt": prompt,
+        "negative_prompt": negative_prompt,
+        "params": params,
+        "width": int(width) if width else 0,
+        "height": int(height) if height else 0,
+    }
+
+
+def _parse_easydiffusion_metadata(text: str) -> dict | None:
+    """Parse EasyDiffusion metadata from JSON parameters text."""
+    try:
+        data = json.loads(text)
+    except (json.JSONDecodeError, ValueError):
+        return None
+
+    # EasyDiffusion signature: has prompt, negative_prompt, width, height keys
+    # but NOT sui_image_params (which would be SwarmUI)
+    if not isinstance(data, dict):
+        return None
+    if 'sui_image_params' in data:
+        return None  # This is SwarmUI, not EasyDiffusion
+    if not all(k in data for k in ['prompt', 'negative_prompt', 'width', 'height']):
+        return None
+
+    params = {}
+    prompt = data.get('prompt', '')
+    negative_prompt = data.get('negative_prompt', '')
+
+    for key, field in [
+        ('Seed', 'seed'),
+        ('Steps', 'steps'),
+        ('Sampler', 'sampler'),
+        ('CFG', 'cfg_scale'),
+        ('Model', 'model'),
+    ]:
+        val = data.get(field)
+        if val is not None:
+            params[key] = str(val)
+
+    width = data.get('width')
+    height = data.get('height')
+
+    loras = extract_loras(f"{prompt} {negative_prompt}")
+    if loras:
+        params['Lora'] = loras
+
+    return {
+        "tool": "EasyDiffusion",
+        "prompt": prompt,
+        "negative_prompt": negative_prompt,
+        "params": params,
+        "width": int(width) if width else 0,
+        "height": int(height) if height else 0,
     }
 
 
@@ -739,20 +938,71 @@ def _parse_metadata_uncached(path: Path) -> dict:
             if gen_time:
                 result['generation_time'] = gen_time
 
-        # 3. Try A1111 (Text in parameters)
-        if not result and parameters:
-            parsed = parse_ai_text_parameters(parameters)
-            if parsed:
-                result = {
-                    "tool": "A1111",
-                    "prompt": parsed.get('prompt', ''),
-                    "negative_prompt": parsed.get('negative_prompt', ''),
-                    "params": parsed.get('params', {})
-                }
-
-        # 4. Try ComfyUI
+        # 3. Try ComfyUI (check before text parsers since ComfyUI often stores
+        #    prompt text in 'parameters' chunk AND full JSON in 'prompt' chunk)
         if not result and (prompt_json or workflow_json):
             result = parse_comfy(prompt_json or "", workflow_json)
+
+        # 4. Try A1111 (Text in parameters) or NovelAI/EasyDiffusion (JSON parameters)
+        #    Only if ComfyUI didn't find anything (to avoid ComfyUI images being
+        #    misidentified as A1111 when they have both prompt text and JSON)
+        if not result and parameters:
+            # Detect JSON-based formats (NovelAI, EasyDiffusion)
+            if parameters.strip().startswith('{'):
+                # Try NovelAI first
+                novelai_result = _parse_novelai_metadata(parameters)
+                if novelai_result:
+                    result = novelai_result
+                else:
+                    # Try EasyDiffusion
+                    easy_result = _parse_easydiffusion_metadata(parameters)
+                    if easy_result:
+                        result = easy_result
+                    else:
+                        # Try generic A1111 text parsing (may also match some JSON text)
+                        parsed = parse_ai_text_parameters(parameters)
+                        if parsed and parsed.get('params'):
+                            result = {
+                                "tool": "A1111",
+                                "prompt": parsed.get('prompt', ''),
+                                "negative_prompt": parsed.get('negative_prompt', ''),
+                                "params": parsed.get('params', {})
+                            }
+            else:
+                # Plain text parameters - A1111 style
+                parsed = parse_ai_text_parameters(parameters)
+                if parsed and parsed.get('params'):
+                    # Check if this looks like NovelAI (signature prompt prefix)
+                    prompt_text = parsed.get('prompt', '')
+                    if prompt_text.startswith('masterpiece, best quality,'):
+                        result = {
+                            "tool": "NovelAI",
+                            "prompt": prompt_text,
+                            "negative_prompt": parsed.get('negative_prompt', ''),
+                            "params": parsed.get('params', {})
+                        }
+                    else:
+                        result = {
+                            "tool": "A1111",
+                            "prompt": prompt_text,
+                            "negative_prompt": parsed.get('negative_prompt', ''),
+                            "params": parsed.get('params', {})
+                        }
+
+        # 5. Try .txt sidecar file (for images with companion metadata files)
+        if not result:
+            txt_path = path.with_suffix('.txt')
+            if txt_path.exists():
+                text = txt_path.read_text(encoding='utf-8', errors='ignore')
+                # Try A1111 format on the text file
+                parsed = parse_ai_text_parameters(text)
+                if parsed and parsed.get('params'):
+                    result = {
+                        "tool": "A1111",
+                        "prompt": parsed.get('prompt', ''),
+                        "negative_prompt": parsed.get('negative_prompt', ''),
+                        "params": parsed.get('params', {})
+                    }
 
         if not result:
             result = {"tool": "Unknown", "prompt": "", "negative_prompt": "", "params": {}}

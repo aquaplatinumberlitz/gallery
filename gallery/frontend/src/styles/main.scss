@@ -432,6 +432,15 @@ pre {
     min-height: 44px;
     min-width: 44px;
   }
+
+  /* Reset compact controls that have their own visual size */
+  .theme-toggle,
+  .search-box,
+  .hamburger-btn,
+  .settings-btn {
+    min-width: auto;
+    min-height: auto;
+  }
 }
 
 /* Ensure text remains visible during webfont load */
@@ -458,8 +467,8 @@ body {
    RESPONSIVE DESIGN SYSTEM
    Breakpoints:
      Desktop:  >1024px
-     Tablet:   768-1024px (744px iPad Mini viewport)
-     Phone:    <768px
+     Tablet:   641-1024px
+     Phone:    <=640px
      Small:    <480px (390px iPhone viewport)
    ========================================================================== */
 
@@ -497,6 +506,15 @@ body {
   /* Make breadcrumb crumbs easier to tap */
   .crumb {
     padding: 6px 10px !important;
+  }
+
+  /* Reset compact controls that have their own visual size */
+  .theme-toggle,
+  .search-box,
+  .hamburger-btn,
+  .settings-btn {
+    min-width: auto;
+    min-height: auto;
   }
 }
 

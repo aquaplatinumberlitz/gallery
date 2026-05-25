@@ -117,10 +117,27 @@ const getCopyLabel = (id: string): string => {
 const copyText = async (text: string | undefined, id: string) => {
   if (!text) return;
   try {
-    await navigator.clipboard.writeText(text);
+    const str = String(text);
+
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(str);
+    } else {
+      // Fallback cho HTTP — clipboard API không khả dụng
+      const textarea = document.createElement('textarea');
+      textarea.value = str;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
+
     copyStatus.value[id] = true;
     const label = getCopyLabel(id);
-    toast.success(`${label} copied`, 'Copied to clipboard', { duration: 3000 }); // Short duration for copy
+    toast.success(`${label} copied`, 'Copied to clipboard', { duration: 3000 });
     setTimeout(() => {
       copyStatus.value[id] = false;
     }, 1500);
@@ -200,11 +217,16 @@ watch(show, (isOpen) => {
 onMounted(() => {
   window.addEventListener("keydown", handleKeydown);
   document.addEventListener("fullscreenchange", handleFullscreenChange);
+  // Reactive mobile detection
+  mobileMql.value = window.matchMedia("(max-width: 640px)");
+  handleMobileChange(mobileMql.value);
+  mobileMql.value.addEventListener("change", handleMobileChange);
 });
 
 onUnmounted(() => {
   window.removeEventListener("keydown", handleKeydown);
   document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  mobileMql.value?.removeEventListener("change", handleMobileChange);
   focusTrap.deactivate();
 });
 
@@ -260,6 +282,40 @@ const exitFullscreen = async () => {
     console.error("Failed to exit fullscreen", e);
   }
 };
+
+// Mobile bottom sheet — reactive via matchMedia
+const isMobile = ref(false);
+const mobileMql = ref<MediaQueryList | null>(null);
+
+function handleMobileChange(e: MediaQueryListEvent | MediaQueryList) {
+  isMobile.value = e.matches;
+}
+const showSheet = ref(false);
+const sheetExpanded = ref(false);
+const activeTab = ref('prompt');
+const sheetStartY = ref(0);
+
+function toggleSheet() {
+  showSheet.value = !showSheet.value;
+  if (!showSheet.value) sheetExpanded.value = false;
+}
+
+function closeSheet() {
+  showSheet.value = false;
+  sheetExpanded.value = false;
+}
+
+function onSheetTouchStart(e: TouchEvent) {
+  sheetStartY.value = e.touches[0].clientY;
+}
+
+function onSheetTouchMove(e: TouchEvent) {
+  const delta = e.touches[0].clientY - sheetStartY.value;
+  if (delta > 50) closeSheet();     // swipe down >50px = close
+  if (delta < -50) sheetExpanded.value = true; // swipe up >50px = expand
+}
+
+function onSheetTouchEnd() { /* no-op */ }
 </script>
 
 <template>
@@ -317,6 +373,11 @@ const exitFullscreen = async () => {
             <div class="sr-only">
               Image {{ lightbox.currentIndex + 1 }} of {{ lightbox.galleryItems.length }}
             </div>
+
+            <!-- Mobile info button -->
+            <button class="mobile-info-btn" v-if="isMobile" @click.stop="toggleSheet" title="Image Info">
+              <Info :size="20" :stroke-width="1.5" />
+            </button>
           </div>
 
           <!-- Right: Metadata Panel -->
@@ -421,7 +482,7 @@ const exitFullscreen = async () => {
                       <div class="param-pill" v-if="meta?.params?.Seed">
                         <span class="label">Seed</span>
                         <span class="value">{{ meta.params.Seed }}</span>
-                        <button class="icon-btn" @click="copyText(meta.params.Seed, 'seed')" title="Copy Seed">
+                        <button class="icon-btn" @click="copyText(String(meta.params.Seed), 'seed')" title="Copy Seed">
                           <Check v-if="copyStatus['seed']" :size="12" :stroke-width="1.5" style="color: #4ade80" />
                           <Sprout v-else :size="12" :stroke-width="1.5" />
                         </button>
@@ -514,6 +575,145 @@ const exitFullscreen = async () => {
             >
               <X :size="20" :stroke-width="1.5" />
             </button>
+          </div>
+        </div>
+
+        <!-- Mobile bottom sheet for metadata -->
+        <div class="mobile-sheet" v-if="isMobile && showSheet && !isFullscreen" @click.self="closeSheet">
+          <div class="sheet-backdrop" @click.self="closeSheet" />
+          <div 
+            class="sheet-panel"
+            :class="{ 'sheet-expanded': sheetExpanded }"
+            @touchstart="onSheetTouchStart"
+            @touchmove="onSheetTouchMove"
+            @touchend="onSheetTouchEnd"
+          >
+            <div class="sheet-handle-wrapper">
+              <div class="sheet-handle" />
+            </div>
+            
+            <div class="sheet-tabs" v-if="meta">
+              <button class="sheet-tab" :class="{ active: activeTab === 'prompt' }" @click="activeTab='prompt'">
+                Prompt
+              </button>
+              <button class="sheet-tab" :class="{ active: activeTab === 'params' }" @click="activeTab='params'">
+                Params
+              </button>
+              <button class="sheet-tab" :class="{ active: activeTab === 'model' }" @click="activeTab='model'">
+                Model
+              </button>
+            </div>
+            
+            <div class="sheet-content">
+              <!-- Loading state -->
+              <div v-if="isLoading && !meta" class="meta-loading">
+                <Loader :size="24" :stroke-width="1.5" class="lucide-spin" />
+                <span>Loading info...</span>
+              </div>
+              
+              <!-- Error state -->
+              <div v-else-if="!meta" class="meta-error">
+                <TriangleAlert :size="24" :stroke-width="1.5" />
+                <span>No metadata available</span>
+              </div>
+              
+              <template v-else>
+                <!-- Tab: Prompt -->
+                <div v-show="activeTab === 'prompt'" class="sheet-tab-content">
+                  <div class="meta-section">
+                    <div class="section-top">
+                      <label class="sheet-label">Prompt</label>
+                      <button class="copy-btn" @click="copyText(meta?.prompt || '', 'prompt')">
+                        <Check v-if="copyStatus['prompt']" :size="14" :stroke-width="1.5" style="color: #4ade80" />
+                        <Copy v-else :size="14" :stroke-width="1.5" />
+                      </button>
+                    </div>
+                    <div
+                      class="sheet-text"
+                      v-html="loraHighlighter(meta?.prompt || 'No prompt available')"
+                    ></div>
+                  </div>
+                  <div class="meta-section" v-if="meta?.negative_prompt">
+                    <div class="section-top">
+                      <label class="sheet-label negative-label">Negative Prompt</label>
+                      <button class="copy-btn" @click="copyText(meta?.negative_prompt || '', 'neg')">
+                        <Check v-if="copyStatus['neg']" :size="14" :stroke-width="1.5" style="color: #4ade80" />
+                        <Copy v-else :size="14" :stroke-width="1.5" />
+                      </button>
+                    </div>
+                    <div
+                      class="sheet-text"
+                      v-html="loraHighlighter(meta.negative_prompt)"
+                    ></div>
+                  </div>
+                </div>
+                
+                <!-- Tab: Params -->
+                <div v-show="activeTab === 'params'" class="sheet-tab-content">
+                  <!-- Tool label -->
+                  <div class="meta-section" v-if="meta?.tool">
+                    <div class="tool-label">{{ meta.tool }}</div>
+                  </div>
+
+                  <!-- Generation params grid -->
+                  <div class="meta-section" v-if="meta?.params && Object.keys(meta.params).length">
+                    <div class="params-grid">
+                      <!-- Seed first with copy button -->
+                      <div class="param-pill seed-row" v-if="meta?.params?.Seed">
+                        <span class="label">Seed</span>
+                        <span class="value">{{ meta.params.Seed }}</span>
+                        <button class="copy-btn-mini" @click="copyText(String(meta.params.Seed), 'seed')" title="Copy seed">
+                          <Check v-if="copyStatus['seed']" :size="12" :stroke-width="1.5" style="color: #4ade80" />
+                          <Copy v-else :size="12" :stroke-width="1.5" />
+                        </button>
+                      </div>
+                      <div class="param-pill" v-if="meta?.params?.Steps"><span class="label">Steps</span><span class="value">{{ meta.params.Steps }}</span></div>
+                      <div class="param-pill" v-if="meta?.params?.CFG"><span class="label">CFG</span><span class="value">{{ meta.params.CFG }}</span></div>
+                      <div class="param-pill" v-if="meta?.params?.Sampler"><span class="label">Sampler</span><span class="value">{{ meta.params.Sampler }}</span></div>
+                      <div class="param-pill" v-if="meta?.params?.Scheduler"><span class="label">Scheduler</span><span class="value">{{ meta.params.Scheduler }}</span></div>
+                      <div class="param-pill" v-if="meta?.params?.Model"><span class="label">Model</span><span class="value">{{ meta.params.Model }}</span></div>
+                      <div class="param-pill" v-if="meta?.params?.model_hash"><span class="label">Hash</span><span class="value">{{ meta.params.model_hash }}</span></div>
+                      <div class="param-pill" v-if="meta?.params?.clip_skip"><span class="label">Clip Skip</span><span class="value">{{ meta.params.clip_skip }}</span></div>
+                      <div class="param-pill" v-if="meta?.params?.hires_upscale"><span class="label">Hires</span><span class="value">{{ meta.params.hires_upscale }}</span></div>
+                      <div class="param-pill" v-if="meta?.params?.hires_steps"><span class="label">Hires Steps</span><span class="value">{{ meta.params.hires_steps }}</span></div>
+                      <div class="param-pill" v-if="meta?.params?.denoising_strength"><span class="label">Denoising</span><span class="value">{{ meta.params.denoising_strength }}</span></div>
+                      <div class="param-pill" v-if="meta?.params?.vae"><span class="label">VAE</span><span class="value">{{ meta.params.vae }}</span></div>
+                      <div class="param-pill" v-if="meta?.width && meta?.height"><span class="label">Size</span><span class="value">{{ meta.width }} × {{ meta.height }}</span></div>
+                      <div class="param-pill" v-if="meta?.params?.ensd"><span class="label">ENSD</span><span class="value">{{ meta.params.ensd }}</span></div>
+                      <div class="param-pill" v-if="meta?.params?.aesthetic_score"><span class="label">Aesthetic</span><span class="value">{{ meta.params.aesthetic_score }}</span></div>
+                      <div class="param-pill" v-if="meta?.params?.AspectRatio"><span class="label">Ratio</span><span class="value">{{ meta.params.AspectRatio }}</span></div>
+                    </div>
+                  </div>
+                  <div class="meta-section" v-else>
+                    <p class="sheet-text">No generation parameters available</p>
+                  </div>
+                </div>
+                
+                <!-- Tab: Model -->
+                <div v-show="activeTab === 'model'" class="sheet-tab-content">
+                  <div class="meta-section" v-if="meta?.params?.Model">
+                    <label class="sheet-label">Checkpoint</label>
+                    <p class="sheet-text">{{ meta.params.Model }}</p>
+                  </div>
+                  <div class="meta-section" v-if="meta?.params?.Lora?.length">
+                    <label class="sheet-label">LoRAs</label>
+                    <p class="sheet-text" v-for="(lora, idx) in meta.params.Lora" :key="idx">{{ lora }}</p>
+                  </div>
+                  <div class="meta-section" v-if="meta?.models?.length">
+                    <label class="sheet-label">{{ meta.models.length === 1 ? 'Model' : 'Models' }}</label>
+                    <div v-for="m in meta.models" :key="m.name">
+                      <p class="sheet-text">
+                        {{ m.name }}
+                        <span v-if="m.hash" class="res-hash">#{{ m.hash.substring(0, 8) }}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <div class="meta-section" v-if="!meta?.params?.Model && !meta?.models?.length">
+                    <p class="sheet-text">No model information available</p>
+                  </div>
+                </div>
+              </template>
+            </div>
           </div>
         </div>
       </div>
@@ -679,17 +879,6 @@ const exitFullscreen = async () => {
   color: #e0e0e0;
   font-family: 'Inter', sans-serif;
 
-  @media (max-width: 1024px) {
-    width: 350px;
-  }
-
-  @media (max-width: 640px) {
-    position: fixed;
-    inset: 0;
-    width: 100%;
-    max-width: 100%;
-    z-index: 10;
-  }
 }
 
 .meta-loading,
@@ -1053,18 +1242,51 @@ const exitFullscreen = async () => {
 }
 
 /* =============================================
+   MOBILE INFO BUTTON (base style)
+   ============================================= */
+
+.mobile-info-btn {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 5;
+  backdrop-filter: blur(6px);
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.5);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring-shadow);
+  }
+}
+
+/* =============================================
    RESPONSIVE — Lightbox Mobile
    ============================================= */
 
 /* Tablet: narrow metadata panel */
 @media (max-width: 1024px) {
   .lightbox-right {
-    width: 320px;
+    width: clamp(280px, 34vw, 380px);
     min-width: 280px;
   }
 }
 
-/* Phone: nav buttons always visible, metadata becomes bottom sheet */
+/* Phone: bottom sheet replaces sidebar */
 @media (max-width: 640px) {
   .lightbox-shell {
     flex-direction: column;
@@ -1087,34 +1309,20 @@ const exitFullscreen = async () => {
     pointer-events: none;
   }
 
+  /* Hide desktop sidebar on mobile — replaced by bottom sheet */
   .lightbox-right {
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-    height: auto;
-    max-height: 45vh;
-    border-left: none;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    position: relative;
-    flex-shrink: 0;
+    display: none;
   }
 
-  .meta-header {
-    padding: 12px 16px;
+  /* Show mobile info button */
+  .mobile-info-btn {
+    display: flex;
   }
 
-  .scroll-content {
-    padding: 12px 16px;
-    gap: 12px;
-  }
-
-  .header-top h3 {
-    font-size: 14px;
-  }
-
-  .prompt-body {
-    max-height: 120px;
-    font-size: 12px;
+  /* Fullscreen: show sidebar instead of bottom sheet */
+  .lightbox-shell:fullscreen .lightbox-right,
+  .lightbox-shell:-webkit-full-screen .lightbox-right {
+    display: flex;
   }
 }
 
@@ -1124,10 +1332,6 @@ const exitFullscreen = async () => {
     width: 40px;
     height: 56px;
     font-size: 18px;
-  }
-
-  .lightbox-right {
-    max-height: 40vh;
   }
 
   .meta-header {
@@ -1149,15 +1353,208 @@ const exitFullscreen = async () => {
   }
 }
 
-/* Auto-fullscreen on very small screens (<640px) */
-@media (max-width: 640px) {
-  .lightbox-right {
-    display: none;
+/* =============================================
+   MOBILE BOTTOM SHEET STYLES
+   ============================================= */
+
+.mobile-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  pointer-events: auto;
+}
+
+.sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.sheet-panel {
+  position: relative;
+  background: #1a1a1a;
+  border-radius: 16px 16px 0 0;
+  max-height: 75vh;
+  min-height: 30vh;
+  display: flex;
+  flex-direction: column;
+  transition: max-height 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  overflow: hidden;
+
+  &.sheet-expanded {
+    max-height: 85vh;
+  }
+}
+
+.sheet-handle-wrapper {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 4px;
+  touch-action: none;
+  flex-shrink: 0;
+}
+
+.sheet-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.sheet-tabs {
+  display: flex;
+  gap: 0;
+  padding: 0 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+
+.sheet-tab {
+  flex: 1;
+  padding: 10px 0;
+  background: none;
+  border: none;
+  color: #a09888;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &.active {
+    color: #ff6b35;
+    border-bottom-color: #ff6b35;
   }
 
-  .lightbox-shell:fullscreen .lightbox-right,
-  .lightbox-shell:-webkit-full-screen .lightbox-right {
-    display: flex;
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring-shadow);
+  }
+}
+
+.sheet-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px 24px;
+  -webkit-overflow-scrolling: touch;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+  }
+}
+
+.sheet-tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.meta-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sheet-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #86efac;
+  font-weight: 600;
+
+  &.negative-label {
+    color: #fca5a5;
+  }
+}
+
+.sheet-text {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #d1d5db;
+  white-space: pre-wrap;
+  margin: 0;
+  word-break: break-word;
+}
+
+.meta-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pill {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: #e5e7eb;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Mobile sheet section-top with copy button */
+.section-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.copy-btn {
+  background: none;
+  border: none;
+  color: #a09888;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  transition: color 0.2s;
+
+  &:hover { color: var(--primary-color); }
+}
+
+.seed-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  .value { flex: 1; }
+}
+
+.copy-btn-mini {
+  background: none;
+  border: none;
+  color: #a09888;
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  transition: color 0.2s;
+
+  &:hover { color: var(--primary-color); }
+}
+
+.tool-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: #fb7185;
+  padding: 0 8px;
+  margin-bottom: 8px;
+  user-select: none;
+
+  &::before {
+    content: '// ';
+    color: #f43f5e;
   }
 }
 

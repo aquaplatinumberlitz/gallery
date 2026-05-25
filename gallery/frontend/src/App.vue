@@ -215,7 +215,6 @@ watch(theme, (val) => {
             </h1>
           </div>
         </div>
-        <span class="mobile-header-title">Museum Art Gallery</span>
         <div class="header-actions">
           <button 
             class="theme-toggle" 
@@ -234,7 +233,7 @@ watch(theme, (val) => {
             </span>
           </button>
           <div class="search-box" :class="{ expanded: isSearchExpanded }">
-            <Search :size="16" class="search-icon-btn" @click.stop="toggleMobileSearch" />
+            <Search :size="18" class="search-icon-btn" @click.stop="toggleMobileSearch" />
             <input
               id="gallery-search"
               v-model="galleryStore.searchQuery"
@@ -524,6 +523,8 @@ h1 {
 .toggle-thumb {
   position: absolute;
   left: 4px;
+  top: 50%;
+  transform: translateY(-50%);
   width: 28px;
   height: 28px;
   background: linear-gradient(180deg, #fff 0%, #f0f0f0 100%);
@@ -657,12 +658,7 @@ h1 {
   text-align: center;
 }
 
-/* Mobile header title - hidden on desktop */
-.mobile-header-title {
-  display: none;
-}
-
-/* Trong file frontend/src/App.vue */
+/* === Trong file frontend/src/App.vue === */
 
 .brand-icon {
   /* --- 1. CẤU TRÚC CHUNG (Giữ nguyên kích thước cho cả 2 theme) --- */
@@ -819,6 +815,11 @@ h1 {
   .sidebar-backdrop {
     display: none;
   }
+
+  .brand-hero {
+    transform: scale(0.8);
+    transform-origin: left center;
+  }
 }
 
 /* Phone: <640px — sidebar becomes overlay, hamburger appears */
@@ -829,7 +830,6 @@ h1 {
 
   .hamburger-btn {
     display: inline-flex;
-    order: 1;
     flex-shrink: 0;
   }
 
@@ -868,17 +868,28 @@ h1 {
     display: flex;
     align-items: center;
     gap: 6px;
+    padding-left: 16px;
+    padding-right: 16px;
   }
 
-  /* Unwrap nested groups so their children become direct flex items */
+  /* Explicit flex wrappers for header-left and header-actions (no display:contents) */
   .header-left,
   .header-actions {
-    display: contents;
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 
-  /* Reorder flex children for mobile: hamburger | search | title | theme | settings */
+  .header-left {
+    flex-shrink: 0;
+  }
+
+  .header-actions {
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+
   .search-box {
-    order: 2;
     min-width: 0;
     width: 38px;
     height: 38px;
@@ -951,20 +962,39 @@ h1 {
     backdrop-filter: blur(2px);
   }
 
-  .mobile-header-title {
+  .theme-toggle {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    min-height: 28px;
+    flex-shrink: 0;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .theme-toggle .icon-left,
+  .theme-toggle .icon-right {
     display: none;
   }
 
-  .theme-toggle {
-    order: 4;
-    width: 36px;
-    height: 28px;
-    flex-shrink: 0;
-    margin-left: auto;
+  .theme-toggle .toggle-track {
+    padding: 0;
+  }
+
+  .theme-toggle .toggle-thumb {
+    left: 0;
+    top: 0;
+    transform: none;
+  }
+  .theme-toggle.is-dark .toggle-thumb {
+    left: 0;
+    top: 0;
+    transform: none;
   }
 
   .settings-btn {
-    order: 5;
     width: 34px;
     height: 34px;
     flex-shrink: 0;
@@ -1037,10 +1067,6 @@ h1 {
   .settings-btn svg {
     width: 14px;
     height: 14px;
-  }
-
-  .mobile-header-title {
-    display: none;
   }
 
   .search-box.expanded {

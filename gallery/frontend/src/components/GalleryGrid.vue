@@ -194,7 +194,7 @@ const getDefaultCols = () => {
   if (typeof window === "undefined") return 4;
   const w = window.innerWidth;
   if (w >= 1024) return 5;
-  if (w >= 640) return 3;
+  if (w > 640) return 3;
   return 2;
 };
 
@@ -1100,6 +1100,14 @@ onBeforeUnmount(() => {
 }
 
 /* Responsive Album Grid */
+
+/* Tablet: 641-1024px */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .album-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
+}
+
 @media (max-width: 640px) {
   .album-grid {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -1137,7 +1145,7 @@ onBeforeUnmount(() => {
 
   .breadcrumb-wrap {
     min-width: 0;
-    max-width: 300px;
+    max-width: min(300px, 50vw);
   }
 }
 
@@ -1147,6 +1155,7 @@ onBeforeUnmount(() => {
     align-items: center;
     gap: 6px;
     flex-wrap: nowrap;
+    padding-top: 4px;
   }
 
   .loading-badge {
