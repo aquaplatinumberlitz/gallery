@@ -1150,6 +1150,10 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 640px) {
+  .gallery-grid {
+    gap: 8px;
+  }
+
   .grid-header {
     display: flex;
     align-items: center;
@@ -1305,6 +1309,20 @@ onBeforeUnmount(() => {
 
   .album-grid {
     gap: 12px;
+  }
+
+  /* Reduce photo row gap and spacers on mobile */
+  .virtual-row {
+    gap: 8px;
+  }
+
+  .scroller-header {
+    padding-bottom: 8px;
+  }
+
+  .scroller-footer {
+    padding-top: 8px;
+    padding-bottom: 20px;
   }
 }
 

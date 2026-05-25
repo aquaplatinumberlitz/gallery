@@ -831,6 +831,13 @@ h1 {
   .hamburger-btn {
     display: inline-flex;
     flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+  }
+
+  .hamburger-btn svg {
+    width: 16px;
+    height: 16px;
   }
 
   .sidebar-edge-toggle {
@@ -867,9 +874,9 @@ h1 {
   .content-header {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding-left: 16px;
-    padding-right: 16px;
+    gap: 8px;
+    padding: 8px 16px;
+    min-height: 48px;
   }
 
   /* Explicit flex wrappers for header-left and header-actions (no display:contents) */
@@ -891,8 +898,8 @@ h1 {
 
   .search-box {
     min-width: 0;
-    width: 38px;
-    height: 38px;
+    width: 34px;
+    height: 34px;
     padding: 0;
     display: inline-flex;
     align-items: center;
@@ -995,8 +1002,8 @@ h1 {
   }
 
   .settings-btn {
-    width: 34px;
-    height: 34px;
+    width: 30px;
+    height: 30px;
     flex-shrink: 0;
     display: inline-flex;
     align-items: center;
@@ -1008,6 +1015,11 @@ h1 {
     cursor: pointer;
     transition: transform 120ms ease, box-shadow 150ms ease, border-color 120ms ease;
     font-size: 16px;
+  }
+
+  .settings-btn svg {
+    width: 16px;
+    height: 16px;
   }
 
   .settings-btn:hover {
@@ -1027,7 +1039,7 @@ h1 {
   }
 
   .content-body {
-    padding: 6px;
+    padding: 4px 0;
     border-radius: 8px;
   }
 
@@ -1046,22 +1058,24 @@ h1 {
 /* Small phone: <480px — compact layout */
 @media (max-width: 480px) {
   .content-header {
+    padding: 4px 12px;
+    min-height: 44px;
     gap: 4px;
   }
 
   .search-box {
-    width: 34px;
-    height: 34px;
+    width: 30px;
+    height: 30px;
   }
 
   .hamburger-btn {
-    width: 34px;
-    height: 34px;
+    width: 28px;
+    height: 28px;
   }
 
   .settings-btn {
-    width: 30px;
-    height: 30px;
+    width: 28px;
+    height: 28px;
   }
 
   .settings-btn svg {
