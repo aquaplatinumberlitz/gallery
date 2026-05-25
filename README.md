@@ -245,8 +245,14 @@ gallery/
 | **JetBrains Mono** | Code, metadata, generation params, badges | Google Fonts (monospace) |
 
 ### Backend (separate repository)
-- **FastAPI** — Python backend serving images, thumbnails, metadata, and directory scanning
-- **Endpoints**: `/api/scan`, `/api/image`, `/api/thumbnail`, `/api/metadata`, `/api/open-folder`, `/api/landing-pages`
+|- **FastAPI** — Python backend serving images, thumbnails, metadata, and directory scanning
+|- **Metadata Parser** — AI image metadata extraction engine, inspired by [DiffusionToolkit](https://github.com/RupertAvery/DiffusionToolkit), with **~95% feature adoption**:
+|  - **6 formats**: SwarmUI, A1111/WebUI, ComfyUI, NovelAI, EasyDiffusion, + `.txt` sidecar fallback
+|  - **15+ A1111 fields**: Steps, Sampler, CFG, Seed, Model, Scheduler, model_hash, clip_skip, hires_upscale, hires_steps, denoising_strength, VAE, Size (→Width/Height), ENSD, Aesthetic Score
+|  - **ComfyUI**: 8+ node types parsed (CLIPTextEncode, KSampler, CheckpointLoader, VAELoader, ControlNetLoader, LoraLoader, UpscaleModelLoader, CLIPSetLastLayer) with node reference resolution
+|  - **LoRA extraction**: 2 patterns (`<lora:name:weight>`, `LoRA: [name]`) + SwarmUI object/string lists, dedup, strip `.safetensors`
+|  - **Cache**: LRU 100MB size-based with Future-based dedup (tránh parse trùng)
+|- **Endpoints**: `/api/scan`, `/api/image`, `/api/thumbnail`, `/api/metadata`, `/api/open-folder`, `/api/landing-pages`
 
 ---
 
