@@ -8,8 +8,8 @@ import ToastContainer from "./components/ToastContainer.vue";
 import SettingsModal from "./components/SettingsModal.vue";
 import IntroScreen from "./components/IntroScreen.vue";
 import {
-  Loader, ChevronLeft, ChevronRight, Settings, Landmark, Sparkles,
-  Search, X, Sun, Moon, Menu
+  Loader, ChevronLeft, ChevronRight, Settings, Landmark,
+  Search, X, Menu
 } from "lucide-vue-next";
 
 const Lightbox = defineAsyncComponent(() => import("./components/Lightbox.vue"));
@@ -29,6 +29,12 @@ const handlePreviewIntro = (url: string) => {
   isSettingsOpen.value = false;
 };
 // ------------------------
+
+// Mobile search toggle
+const isSearchExpanded = ref(false);
+const toggleMobileSearch = () => {
+  isSearchExpanded.value = !isSearchExpanded.value;
+};
 
 const galleryStore = useGalleryStore();
 
@@ -198,15 +204,18 @@ watch(theme, (val) => {
           </button>
         </div>
         <div class="brand-hero">
-          <Landmark :size="32" class="brand-icon flicker-effect" />
+          <div class="brand-icon flicker-effect">
+            <Landmark :size="40" />
+          </div>
           <div class="brand-text">
             <p class="eyebrow">Local collections</p>
             <h1 class="brand-title">
-              <Sparkles :size="18" class="title-sparkle" />
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="18" height="18" class="title-sparkle"><path fill="currentColor" d="M480 96L512 24L544 96L616 128L544 160L512 232L480 160L408 128L480 96zM160 256L224 112L288 256L432 320L288 384L224 528L160 384L16 320L160 256zM480 408L512 480L584 512L512 544L480 616L448 544L376 512L448 480L480 408z"/></svg>
               Museum Art Gallery
             </h1>
           </div>
         </div>
+        <span class="mobile-header-title">Museum Art Gallery</span>
         <div class="header-actions">
           <button 
             class="theme-toggle" 
@@ -217,15 +226,15 @@ watch(theme, (val) => {
           >
             <span class="toggle-track">
               <span class="toggle-thumb">
-                <Sun v-if="theme === 'dark'" :size="14" />
-                <Moon v-else :size="14" />
+                <svg v-if="theme === 'dark'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="18" height="18"><path fill="currentColor" d="M423.7 85.9C336.6 107.5 272 186.2 272 280C272 390.4 361.5 480 472 480C490.5 480 508.4 477.5 525.4 472.8C478.8 535.4 404.1 576 320 576C178.6 576 64 461.4 64 320C64 178.6 178.6 64 320 64C356.9 64 392 71.8 423.7 85.9z"/></svg>
+                <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="18" height="18"><path fill="currentColor" d="M340.8 43.6L396.3 136.2C477.1 115.9 525 104 539.9 100.2C536.2 115.1 524.2 163 503.9 243.8C575.4 286.6 617.7 312 630.9 319.9C617.7 327.8 575.4 353.2 503.9 396C524.2 476.8 536.2 524.7 539.9 539.6C525 535.9 477.1 523.9 396.3 503.6C353.5 575.1 328.1 617.4 320.2 630.6C312.3 617.4 286.9 575.1 244.1 503.6C163.3 523.9 115.5 535.9 100.5 539.6C104.2 524.7 116.2 476.8 136.5 396C65 353.2 22.7 327.8 9.5 319.9C22.7 312 65 286.6 136.5 243.8C116.2 163 104.3 115.2 100.5 100.2C115.4 103.9 163.3 115.9 244.1 136.2C286.9 64.7 312.3 22.4 320.2 9.2L340.8 43.5zM320.2 176C240.7 175.9 176.1 240.3 176 319.8C175.9 399.3 240.3 463.9 319.8 464C399.3 464.1 463.9 399.7 464 320.2C464.1 240.7 399.7 176.1 320.2 176zM319.8 416C266.8 415.9 223.9 372.8 224 319.8C224.1 266.8 267.2 223.9 320.2 224C373.2 224.1 416.1 267.2 416 320.2C415.9 373.2 372.8 416.1 319.8 416z"/></svg>
               </span>
-              <Sun :size="12" class="icon-left" />
-              <Moon :size="12" class="icon-right" />
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="16" height="16" class="icon-left"><path fill="currentColor" d="M340.8 43.6L396.3 136.2C477.1 115.9 525 104 539.9 100.2C536.2 115.1 524.2 163 503.9 243.8C575.4 286.6 617.7 312 630.9 319.9C617.7 327.8 575.4 353.2 503.9 396C524.2 476.8 536.2 524.7 539.9 539.6C525 535.9 477.1 523.9 396.3 503.6C353.5 575.1 328.1 617.4 320.2 630.6C312.3 617.4 286.9 575.1 244.1 503.6C163.3 523.9 115.5 535.9 100.5 539.6C104.2 524.7 116.2 476.8 136.5 396C65 353.2 22.7 327.8 9.5 319.9C22.7 312 65 286.6 136.5 243.8C116.2 163 104.3 115.2 100.5 100.2C115.4 103.9 163.3 115.9 244.1 136.2C286.9 64.7 312.3 22.4 320.2 9.2L340.8 43.5zM320.2 176C240.7 175.9 176.1 240.3 176 319.8C175.9 399.3 240.3 463.9 319.8 464C399.3 464.1 463.9 399.7 464 320.2C464.1 240.7 399.7 176.1 320.2 176zM319.8 416C266.8 415.9 223.9 372.8 224 319.8C224.1 266.8 267.2 223.9 320.2 224C373.2 224.1 416.1 267.2 416 320.2C415.9 373.2 372.8 416.1 319.8 416z"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="16" height="16" class="icon-right"><path fill="currentColor" d="M423.7 85.9C336.6 107.5 272 186.2 272 280C272 390.4 361.5 480 472 480C490.5 480 508.4 477.5 525.4 472.8C478.8 535.4 404.1 576 320 576C178.6 576 64 461.4 64 320C64 178.6 178.6 64 320 64C356.9 64 392 71.8 423.7 85.9z"/></svg>
             </span>
           </button>
-          <div class="search-box">
-            <Search :size="16" />
+          <div class="search-box" :class="{ expanded: isSearchExpanded }">
+            <Search :size="16" class="search-icon-btn" @click.stop="toggleMobileSearch" />
             <input
               id="gallery-search"
               v-model="galleryStore.searchQuery"
@@ -242,6 +251,11 @@ watch(theme, (val) => {
               <X :size="12" />
             </button>
           </div>
+          <div
+            v-if="isSearchExpanded"
+            class="search-backdrop"
+            @click="toggleMobileSearch"
+          ></div>
         </div>
       </header>
 
@@ -283,7 +297,7 @@ watch(theme, (val) => {
 
 .settings-btn:hover {
   border-color: var(--primary-color);
-  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.25);
+  box-shadow: 0 4px 12px rgba(214, 161, 93, 0.25);
   transform: translateY(-1px);
   color: var(--primary-color);
 }
@@ -305,7 +319,7 @@ watch(theme, (val) => {
 
 .hamburger-btn:hover {
   border-color: var(--primary-color);
-  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.25);
+  box-shadow: 0 4px 12px rgba(214, 161, 93, 0.25);
   transform: translateY(-1px);
   color: var(--primary-color);
 }
@@ -400,8 +414,7 @@ watch(theme, (val) => {
   flex-direction: column;
   gap: 16px;
   height: 100%;
-  overflow-x: visible;
-  overflow-y: hidden;
+  overflow: hidden;
 }
 
 .content-header {
@@ -443,17 +456,12 @@ watch(theme, (val) => {
 .sidebar-edge-toggle:hover {
   color: var(--primary-color);
   background: var(--surface-color);
-  box-shadow: 2px 0 12px rgba(255, 107, 53, 0.3);
+  box-shadow: 2px 0 12px rgba(214, 161, 93, 0.3);
 }
 
 .sidebar-edge-toggle:not(.sidebar-open) {
   left: 0;
   border-radius: 0 8px 8px 0;
-}
-
-.sidebar-edge-toggle i {
-  font-size: 12px;
-  transition: transform 0.3s ease;
 }
 
 .content-body {
@@ -462,8 +470,7 @@ watch(theme, (val) => {
   padding: 20px;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04);
   flex: 1;
-  overflow-x: visible;
-  overflow-y: hidden;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -539,19 +546,21 @@ h1 {
     0 0 20px rgba(255, 213, 79, 0.3);
 }
 
-.toggle-thumb i {
-  font-size: 14px;
+.toggle-thumb svg {
+  width: 18px;
+  height: 18px;
   color: #764ba2;
   transition: all 0.3s ease;
 }
 
-.theme-toggle.is-dark .toggle-thumb i {
+.theme-toggle.is-dark .toggle-thumb svg {
   color: #1a1a2e;
 }
 
 .icon-left,
 .icon-right {
-  font-size: 12px;
+  width: 16px;
+  height: 16px;
   opacity: 0.6;
   transition: all 0.3s ease;
   z-index: 1;
@@ -600,17 +609,12 @@ h1 {
 
 .search-box:hover {
   border-color: var(--primary-color);
-  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.25);
+  box-shadow: 0 4px 12px rgba(214, 161, 93, 0.25);
 }
 
 .search-box:focus-within {
   border-color: var(--primary-color);
-  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.25);
-}
-
-.search-box i {
-  color: var(--muted-text);
-  font-size: 14px;
+  box-shadow: 0 4px 12px rgba(214, 161, 93, 0.25);
 }
 
 .search-box input {
@@ -638,22 +642,11 @@ h1 {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  font-size: 12px;
 }
 
 .search-box .clear-btn:hover {
   background: rgba(0, 0, 0, 0.05);
   color: var(--text-color);
-}
-
-.current-path {
-  margin: 12px 0 0;
-}
-
-code {
-  background: rgba(0, 0, 0, 0.05);
-  padding: 2px 6px;
-  border-radius: 6px;
 }
 
 .brand-hero {
@@ -664,11 +657,15 @@ code {
   text-align: center;
 }
 
+/* Mobile header title - hidden on desktop */
+.mobile-header-title {
+  display: none;
+}
+
 /* Trong file frontend/src/App.vue */
 
 .brand-icon {
   /* --- 1. CẤU TRÚC CHUNG (Giữ nguyên kích thước cho cả 2 theme) --- */
-  font-size: 32px;
   width: 60px;
   height: 60px;
   display: flex;
@@ -780,7 +777,6 @@ code {
   .brand-icon {
     width: 48px;
     height: 48px;
-    font-size: 24px;
     margin-right: 10px;
   }
 
@@ -833,6 +829,8 @@ code {
 
   .hamburger-btn {
     display: inline-flex;
+    order: 1;
+    flex-shrink: 0;
   }
 
   .sidebar-edge-toggle {
@@ -867,39 +865,145 @@ code {
   }
 
   .content-header {
-    grid-template-columns: 1fr;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Unwrap nested groups so their children become direct flex items */
+  .header-left,
+  .header-actions {
+    display: contents;
+  }
+
+  /* Reorder flex children for mobile: hamburger | search | title | theme | settings */
+  .search-box {
+    order: 2;
+    min-width: 0;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 10px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    background: var(--surface-color);
+    color: var(--text-color);
+    transition: transform 120ms ease, box-shadow 150ms ease, border-color 120ms ease;
+    flex-shrink: 0;
+  }
+
+  .search-box:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 4px 12px rgba(214, 161, 93, 0.25);
+  }
+
+  .search-box input,
+  .search-box .clear-btn {
+    display: none;
+  }
+
+  .search-box.expanded {
+    position: fixed;
+    top: 8px;
+    left: 6px;
+    right: 6px;
+    width: auto;
+    height: 40px;
+    padding: 0 8px;
+    z-index: 110;
+    border-radius: 10px;
+    justify-content: flex-start;
     gap: 8px;
   }
 
-  .header-left {
+  .search-box.expanded input {
+    display: block;
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 0 4px;
+    font-size: 14px;
+    color: var(--text-color);
+    outline: none;
+    min-width: 0;
+  }
+
+  .search-box.expanded .clear-btn {
+    display: inline-flex;
+  }
+
+  .search-box .search-icon-btn {
     display: flex;
-    justify-content: flex-start;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+  }
+
+  .search-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 109;
+    backdrop-filter: blur(2px);
+  }
+
+  .mobile-header-title {
+    display: none;
+  }
+
+  .theme-toggle {
+    order: 4;
+    width: 36px;
+    height: 28px;
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+
+  .settings-btn {
+    order: 5;
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    background: var(--surface-color);
+    color: var(--text-color);
+    cursor: pointer;
+    transition: transform 120ms ease, box-shadow 150ms ease, border-color 120ms ease;
+    font-size: 16px;
+  }
+
+  .settings-btn:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 4px 12px rgba(214, 161, 93, 0.25);
+    transform: translateY(-1px);
+    color: var(--primary-color);
   }
 
   .brand-hero {
-    justify-content: flex-start;
-  }
-
-  .header-actions {
-    flex-direction: row;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 8px;
-    flex-wrap: wrap;
+    display: none;
   }
 
   .content {
-    padding: 16px 8px;
+    padding: 8px 6px;
+    gap: 8px;
   }
 
   .content-body {
-    padding: 12px;
+    padding: 6px;
+    border-radius: 8px;
   }
 
   .brand-icon {
     width: 44px;
     height: 44px;
-    font-size: 20px;
     margin-right: 8px;
     margin-top: 8px;
   }
@@ -912,61 +1016,48 @@ code {
 /* Small phone: <480px — compact layout */
 @media (max-width: 480px) {
   .content-header {
-    display: grid;
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto;
-    gap: 6px;
-  }
-
-  .header-left {
-    grid-row: 1;
-  }
-
-  .brand-hero {
-    grid-row: 1;
-    gap: 8px;
-  }
-
-  .header-actions {
-    grid-row: 2;
-    grid-column: 1 / -1;
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 6px;
-    width: 100%;
-  }
-
-  .header-actions .search-box {
-    flex: 1;
-    min-width: 140px;
-  }
-
-  .brand-icon {
-    width: 40px;
-    height: 40px;
-    font-size: 18px;
-  }
-
-  .brand-title {
-    font-size: clamp(16px, 4vw, 22px) !important;
-  }
-
-  .eyebrow {
-    font-size: 10px;
+    gap: 4px;
   }
 
   .search-box {
-    min-width: 140px;
+    width: 34px;
+    height: 34px;
+  }
+
+  .hamburger-btn {
+    width: 34px;
+    height: 34px;
+  }
+
+  .settings-btn {
+    width: 30px;
+    height: 30px;
+  }
+
+  .settings-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .mobile-header-title {
+    display: none;
+  }
+
+  .search-box.expanded {
     height: 36px;
+    top: 6px;
+    left: 4px;
+    right: 4px;
   }
 
   .content {
-    padding: 12px 6px;
+    padding: 6px 4px;
+    gap: 6px;
   }
 
   .content-body {
-    padding: 8px;
-    border-radius: 8px;
+    padding: 4px;
+    border-radius: 6px;
   }
 
   .sidebar {

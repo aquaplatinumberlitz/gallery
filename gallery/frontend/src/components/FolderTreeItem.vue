@@ -119,11 +119,12 @@ const handleKeydown = (e: KeyboardEvent) => {
 .tree-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
+  gap: 6px;
+  padding: 3px 6px;
   border-radius: 8px;
   cursor: pointer;
   color: var(--text-color);
+  font-size: 13px;
   transition: background-color 120ms ease, color 120ms ease;
 }
 
@@ -132,25 +133,25 @@ const handleKeydown = (e: KeyboardEvent) => {
 }
 
 .tree-row.active {
-  background: rgba(255, 107, 53, 0.12);
+  background: rgba(214, 161, 93, 0.16);
   color: var(--primary-color);
   position: relative;
 }
 
 .tree-row.active .folder-icon,
 .tree-row:hover .folder-icon {
-  color: var(--primary-color);
+  color: var(--folder-color);
 }
 
 .tree-row.active::before {
   content: "";
   position: absolute;
-  left: 4px;
+  left: 0;
   top: 4px;
   bottom: 4px;
-  width: 3px;
+  width: 1.5px;
   border-radius: 999px;
-  background: var(--primary-color);
+  background: #d6a15d;
 }
 
 .toggle-btn {
@@ -179,7 +180,6 @@ const handleKeydown = (e: KeyboardEvent) => {
 
 .folder-icon {
   color: var(--folder-color);
-  font-size: 16px;
   transition: color 120ms ease;
 }
 
@@ -189,10 +189,6 @@ const handleKeydown = (e: KeyboardEvent) => {
   text-overflow: ellipsis;
   white-space: nowrap;
   overflow: hidden;
-}
-
-.spinner {
-  font-size: 14px;
 }
 
 .children {

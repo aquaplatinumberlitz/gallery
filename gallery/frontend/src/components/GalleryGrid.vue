@@ -15,8 +15,7 @@ import {
   Type, Clock 
 } from "lucide-vue-next";
 
-// @ts-expect-error: used via :is dynamic component binding
-const _icons = { ArrowUp, ArrowDown, Type, Clock }
+const _icons: Record<string, any> = { ArrowUp, ArrowDown, Type, Clock }
 
 const galleryStore = useGalleryStore();
 const lightboxStore = useLightboxStore();
@@ -164,6 +163,13 @@ const noSearchResults = computed(
     hasAnyItems.value
 );
 const errorMessage = computed(() => galleryStore.errorMessage);
+
+// Folder display name for mobile bar
+const folderDisplayName = computed(() => {
+  if (!currentPath.value) return 'Albums';
+  const parts = currentPath.value.replace(/\/+$/, '').split('/');
+  return parts[parts.length - 1] || 'Albums';
+});
 
 const handleOpenFolder = (path: string) => {
   galleryStore.selectFolder(path);
@@ -367,11 +373,11 @@ onBeforeUnmount(() => {
               :class="{ active: sortField === option.field }"
               @click="selectSort(option.field)"
             >
-              <component :is="option.icon" :size="14" />
+              <component :is="_icons[option.icon]" :size="14" />
               <span>{{ option.label }}</span>
               <component 
                 v-if="sortField === option.field" 
-                :is="sortOrder === 'asc' ? 'ArrowUp' : 'ArrowDown'" 
+                :is="sortOrder === 'asc' ? ArrowUp : ArrowDown" 
                 class="sort-direction"
                 :size="12"
               />
@@ -382,6 +388,7 @@ onBeforeUnmount(() => {
 
       <div class="grid-slider" title="Columns per Row">
         <LayoutGrid :size="16" class="slider-icon" />
+        <span class="slider-count-badge">{{ columnCount }}</span>
         <div class="slider-track-wrapper">
           <input
             id="grid-size"
@@ -399,6 +406,15 @@ onBeforeUnmount(() => {
         <Loader :size="16" class="lucide-spin" /> 
         <span>Loading</span>
       </div>
+    </div>
+
+    <!-- Mobile folder info bar -->
+    <div v-if="(images.length > 0 || folders.length > 0) && currentPath" class="mobile-folder-bar">
+      <span class="folder-name">
+        <FolderOpen :size="16" class="folder-icon" />
+        <span class="folder-text">{{ folderDisplayName }}</span>
+      </span>
+      <span class="photo-count">{{ images.length }} photo{{ images.length !== 1 ? 's' : '' }}</span>
     </div>
 
     <div v-if="errorMessage" class="error-banner">
@@ -590,14 +606,19 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
+/* Hidden by default, shown on mobile */
+.mobile-folder-bar {
+  display: none;
+}
+
 .error-banner {
   margin-top: 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  background: rgba(255, 107, 53, 0.12);
-  border: 1px solid rgba(255, 107, 53, 0.4);
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary-color) 40%, transparent);
   color: var(--title-color);
   padding: 10px 12px;
   border-radius: 10px;
@@ -734,21 +755,6 @@ onBeforeUnmount(() => {
 
 /* ...existing code... */
 
-.eyebrow {
-  margin: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 12px;
-  color: var(--muted-text);
-}
-
-h2 {
-  margin: 4px 0 0;
-  font-family: var(--font-code);
-  font-size: 20px;
-  color: var(--title-color);
-}
-
 .nav-group {
   display: inline-flex;
   align-items: center;
@@ -785,30 +791,24 @@ h2 {
   transform: translateY(-1px);
 }
 
-/* Open Folder Button - Highlighted Style */
+/* Open Folder Button - Tinted Pill Style */
 .nav-btn.open-folder {
-  background: linear-gradient(135deg, var(--primary-color), #ff8f5a);
-  border: none;
-  color: #fff;
-  box-shadow:
-    0 10px 24px rgba(255, 107, 53, 0.18),
-    0 2px 6px rgba(255, 107, 53, 0.26);
+  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary-color) 20%, transparent);
+  color: var(--primary-color);
+  box-shadow: none;
 }
 
 .nav-btn.open-folder:hover {
-  background: linear-gradient(135deg, #e55a2b, var(--primary-color));
-  box-shadow:
-    0 14px 32px rgba(255, 107, 53, 0.26),
-    0 6px 12px rgba(255, 107, 53, 0.22),
-    0 0 0 1px rgba(255, 107, 53, 0.35);
-  transform: translateY(-1px) scale(1.02);
+  background: color-mix(in srgb, var(--primary-color) 16%, transparent);
+  border-color: var(--primary-color);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--primary-color) 12%, transparent);
+  transform: translateY(-1px);
 }
 
 .nav-btn.open-folder:active {
   transform: translateY(0) scale(0.98);
-  box-shadow:
-    0 8px 16px rgba(255, 107, 53, 0.22),
-    0 3px 8px rgba(255, 107, 53, 0.18);
+  box-shadow: none;
 }
 
 .breadcrumb-wrap {
@@ -837,12 +837,12 @@ h2 {
 
 .sort-trigger:hover {
   border-color: var(--primary-color);
-  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.25);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--primary-color) 25%, transparent);
 }
 
 .sort-dropdown.open .sort-trigger {
   border-color: var(--primary-color);
-  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.25);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--primary-color) 25%, transparent);
 }
 
 .sort-label {
@@ -850,7 +850,6 @@ h2 {
 }
 
 .sort-chevron {
-  font-size: 10px;
   opacity: 0.6;
   transition: transform 0.2s ease;
 }
@@ -895,24 +894,13 @@ h2 {
 }
 
 .sort-option.active {
-  background: rgba(255, 107, 53, 0.1);
+  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
   color: var(--primary-color);
   font-weight: 500;
 }
 
-.sort-option i:first-child {
-  width: 16px;
-  text-align: center;
-  opacity: 0.7;
-}
-
-.sort-option.active i:first-child {
-  opacity: 1;
-}
-
 .sort-direction {
   margin-left: auto;
-  font-size: 11px;
 }
 
 /* Dropdown animation */
@@ -941,7 +929,7 @@ h2 {
 
 .grid-slider:hover {
   border-color: var(--primary-color);
-  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.25);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--primary-color) 25%, transparent);
 }
 
 /* Focus style when slider input is focused */
@@ -957,17 +945,29 @@ h2 {
 }
 
 .slider-icon {
-  font-size: 14px;
   color: var(--primary-color);
+}
+
+.slider-count-badge {
+  min-width: 28px;
+  padding: 2px 10px;
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+  color: var(--primary-color);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-code);
+  border-radius: 999px;
+  text-align: center;
+  box-shadow: none;
 }
 
 .slider-track-wrapper {
   position: relative;
   width: 100px;
-  min-height: 48px;
+  height: 6px;
   background: rgba(0, 0, 0, 0.1);
   border-radius: 3px;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .slider-progress {
@@ -975,7 +975,7 @@ h2 {
   top: 0;
   left: 0;
   height: 100%;
-  background: linear-gradient(90deg, var(--primary-color), #ff8f5a);
+  background: linear-gradient(90deg, var(--primary-color), #e8c07a);
   border-radius: 3px;
   pointer-events: none;
   transition: width 0.15s ease;
@@ -984,9 +984,9 @@ h2 {
 .grid-slider input[type="range"] {
   position: absolute;
   top: 0;
-  left: -10px;
-  width: calc(100% + 20px);
-  height: 48px;
+  left: 0;
+  width: 100%;
+  height: 100%;
   margin: 0;
   opacity: 0;
   cursor: pointer;
@@ -1002,7 +1002,7 @@ h2 {
   border: 3px solid #fff;
   border-radius: 50%;
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(255, 107, 53, 0.4);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--primary-color) 40%, transparent);
 }
 
 .grid-slider input[type="range"]::-moz-range-thumb {
@@ -1012,23 +1012,24 @@ h2 {
   border: 3px solid #fff;
   border-radius: 50%;
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(255, 107, 53, 0.4);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--primary-color) 40%, transparent);
 }
 
 .slider-tooltip {
+  display: none;
   position: absolute;
   top: -32px;
   left: 0;
   transform: translateX(-50%);
   padding: 4px 8px;
-  background: linear-gradient(135deg, var(--primary-color), #ff8f5a);
+  background: linear-gradient(135deg, var(--primary-color), #e8c07a);
   color: #fff;
   font-size: 12px;
   font-weight: 600;
   font-family: var(--font-code);
   border-radius: 6px;
   text-align: center;
-  box-shadow: 0 2px 8px rgba(255, 107, 53, 0.3);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary-color) 30%, transparent);
   white-space: nowrap;
   pointer-events: none;
   transition: left 0.15s ease;
@@ -1063,17 +1064,31 @@ h2 {
 
   h3 {
     margin: 0;
-    font-family: var(--font-body);
-    font-size: 18px;
-    color: var(--title-color);
+    font-family: "Cinzel", serif;
+    font-size: 16px;
+    color: var(--primary-color);
+    position: relative;
+    display: inline-block;
+
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: -4px;
+      left: 0;
+      width: 100%;
+      height: 1.5px;
+      background: linear-gradient(90deg, var(--primary-color, #d6a15d) 0%, transparent 100%);
+      border-radius: 1px;
+    }
   }
 
   span {
     padding: 2px 8px;
     border-radius: 999px;
-    background: rgba(0, 0, 0, 0.08);
+    background: color-mix(in srgb, var(--primary-color) 12%, transparent);
     font-size: 12px;
-    color: var(--muted-text);
+    font-family: var(--font-code);
+    color: var(--primary-color);
   }
 }
 
@@ -1109,11 +1124,6 @@ h2 {
   gap: 20px;
 }
 
-.empty {
-  margin: 0;
-  color: var(--muted-text);
-}
-
 .virtual-row {
   display: grid;
   gap: 20px;
@@ -1133,64 +1143,192 @@ h2 {
 
 @media (max-width: 640px) {
   .grid-header {
-    grid-template-columns: 1fr;
-    align-items: start;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: nowrap;
+  }
+
+  .loading-badge {
+    display: none;
+  }
+
+  /* Hide open-folder button from mobile nav — icon moved to folder bar */
+  .nav-btn.open-folder {
+    display: none;
+  }
+
+  /* Photos section title redundant with mobile folder bar */
+  .photos-title {
+    display: none;
+  }
+
+  /* Folder icon in Row 3 — orange like the old button */
+  .folder-icon {
+    opacity: 1;
+    color: var(--primary-color);
   }
 
   .nav-group {
-    order: 2;
+    flex-shrink: 0;
+  }
+
+  .nav-btn {
+    width: 32px;
+    height: 32px;
   }
 
   .breadcrumb-wrap {
-    order: 1;
-    max-width: 100%;
+    display: none;
   }
 
+  /* Sort: icon only trigger */
   .sort-dropdown {
-    order: 3;
+    flex-shrink: 0;
+    margin-left: auto;
   }
 
-  .grid-slider {
-    order: 4;
-    width: 100%;
-    justify-content: space-between;
+  .sort-trigger {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sort-trigger .sort-label,
+  .sort-trigger .sort-chevron {
+    display: none;
   }
 
   .sort-menu {
-    right: auto;
-    left: 0;
+    right: 0;
+    left: auto;
+  }
+
+  /* Grid slider compact inline */
+  .grid-slider {
+    flex-shrink: 0;
+    padding: 4px 8px;
+    gap: 4px;
+    width: auto;
   }
 
   .slider-track-wrapper {
-    flex: 1;
-    max-width: 180px;
-    min-height: 48px;
+    max-width: 80px;
+    min-height: 32px;
+  }
+
+  .slider-tooltip {
+    display: none;
+  }
+
+  .slider-count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+    color: var(--primary-color);
+    font-size: 11px;
+    font-weight: 700;
+    font-family: var(--font-code);
+    border-radius: 999px;
+  }
+
+  /* Mobile folder info bar */
+  .mobile-folder-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 4px 4px;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .folder-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .folder-icon {
+    flex-shrink: 0;
+    opacity: 0.7;
+  }
+
+  .folder-text {
+    font-weight: 700;
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text-color);
+  }
+
+  .photo-count {
+    flex-shrink: 0;
+    background: var(--bg-secondary);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    opacity: 1;
+    white-space: nowrap;
+  }
+
+  .albums-section {
+    margin-bottom: 8px;
+  }
+
+  .section-title {
+    margin-bottom: 6px;
+  }
+
+  .section-title h3 {
+    font-size: 14px;
+  }
+
+  .album-grid {
+    gap: 12px;
   }
 }
 
 @media (max-width: 480px) {
   .grid-header {
-    gap: 6px;
+    gap: 4px;
   }
 
   .nav-btn {
-    width: 36px;
-    height: 36px;
+    width: 30px;
+    height: 30px;
   }
 
   .sort-trigger {
-    padding: 6px 10px;
-    font-size: 12px;
+    width: 30px;
+    height: 30px;
   }
 
   .grid-slider {
-    padding: 6px 10px;
+    padding: 3px 6px;
+    gap: 3px;
   }
 
   .slider-track-wrapper {
-    flex: 1;
-    max-width: 150px;
-    min-height: 48px;
+    max-width: 60px;
+    min-height: 32px;
+  }
+
+  .slider-count-badge {
+    min-width: 18px;
+    height: 18px;
+    font-size: 10px;
+    padding: 0 4px;
   }
 }
 

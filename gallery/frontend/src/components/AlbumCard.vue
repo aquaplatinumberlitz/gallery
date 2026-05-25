@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import type { FileNode } from "../types";
 import { getThumbnailUrl } from "../services/api";
-import { Images } from "lucide-vue-next";
+
+// FA SVG placeholder icon
+const placeholderSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path fill="currentColor" d="M128 96L576 96L576 480L128 480L128 96zM80 192L80 528L480 528L480 576L32 576L32 192L80 192zM224 224C241.7 224 256 209.7 256 192C256 174.3 241.7 160 224 160C206.3 160 192 174.3 192 192C192 209.7 206.3 224 224 224zM272 272L176 416L528 416L400 208L318.1 341.1L272 272z"/></svg>`;
 
 const emit = defineEmits<{
   (e: "click"): void;
@@ -26,7 +28,7 @@ defineProps<{
       </div>
       <div class="album-layer album-layer-front">
         <img v-if="node.cover_images?.[0]" :src="getThumbnailUrl(node.cover_images[0])" loading="lazy" alt="" />
-        <div v-else class="placeholder flex-center"><Images /></div>
+        <div v-else class="placeholder flex-center"><span class="fa-placeholder-svg" v-html="placeholderSvg"></span></div>
       </div>
       <div class="album-count">Folder</div>
     </div>
@@ -221,7 +223,7 @@ defineProps<{
         /* White inner glow for brightness core */
         0 0 2px #fff,
         0 0 5px #fff,
-        /* Orange neon glow - multiple layers for depth */
+        /* Gold neon glow - multiple layers for depth */
         0 0 10px rgba(255, 107, 53, 0.6),
         0 0 20px rgba(255, 107, 53, 0.5),
         0 0 35px rgba(255, 107, 53, 0.4),
@@ -277,5 +279,13 @@ defineProps<{
   outline: none;
   box-shadow: var(--focus-ring-shadow);
   border-radius: 8px;
+}
+
+// FA placeholder SVG - :deep needed because v-html lacks scoped attr
+.fa-placeholder-svg :deep(svg) {
+  width: 32px;
+  height: 32px;
+  display: block;
+  color: var(--muted-text);
 }
 </style>

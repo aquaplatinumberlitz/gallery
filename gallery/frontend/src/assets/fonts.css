@@ -1,2 +1,31 @@
-/* Google Fonts: InterVariable + JetBrains Mono */
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
+/* Google Fonts: InterVariable + JetBrains Mono + Cinzel */
+/* Uses CDN delivery — font files are automatically served and cached */
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400..700&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
+
+/*
+ * Local font-face declarations (uncomment + place font files in src/assets/fonts/ to use offline):
+ *
+ * @font-face {
+ *   font-family: "Cinzel";
+ *   src: url("./fonts/Cinzel-VariableFont_wght.ttf") format("truetype");
+ *   font-weight: 400 700;
+ *   font-style: normal;
+ *   font-display: swap;
+ * }
+ *
+ * @font-face {
+ *   font-family: "InterVariable";
+ *   src: url("./fonts/InterVariable.woff2") format("woff2");
+ *   font-weight: 100 900;
+ *   font-style: normal;
+ *   font-display: swap;
+ * }
+ *
+ * @font-face {
+ *   font-family: "JetBrains Mono";
+ *   src: url("./fonts/JetBrainsMono-VariableFont_wght.ttf") format("truetype");
+ *   font-weight: 400;
+ *   font-style: normal;
+ *   font-display: swap;
+ * }
+ */

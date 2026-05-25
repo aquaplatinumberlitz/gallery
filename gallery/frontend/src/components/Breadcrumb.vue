@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { vClickOutside } from "../directives/clickOutside";
-import { ChevronRight, Ellipsis, Folder, ArrowsUpFromLine, Minimize } from "lucide-vue-next";
+import { ChevronRight, Ellipsis, Folder, ArrowsUpFromLine, Minimize, Home } from "lucide-vue-next";
 
 const props = defineProps<{
   path?: string;
@@ -113,6 +113,9 @@ const closeMenu = () => {
 <template>
   <nav class="breadcrumb" v-click-outside="closeMenu">
     <ol class="breadcrumb-list">
+      <li class="breadcrumb-item home-item">
+        <Home :size="14" class="home-icon" />
+      </li>
       <template v-if="allSegments.length">
         <template v-for="seg in visibleSegments" :key="seg.fullPath">
           <!-- Regular breadcrumb item -->
@@ -374,12 +377,6 @@ const closeMenu = () => {
   text-overflow: ellipsis;
 }
 
-.ellipsis-menu-item i {
-  flex-shrink: 0;
-  color: var(--muted-text);
-  width: 16px;
-}
-
 .ellipsis-menu-item span {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -401,10 +398,6 @@ const closeMenu = () => {
 }
 
 .expand-btn {
-  color: var(--primary-color, #ff6b35);
-}
-
-.expand-btn i {
   color: var(--primary-color, #ff6b35);
 }
 
@@ -484,6 +477,25 @@ const closeMenu = () => {
   .dropdown-leave-active {
     transition: none;
   }
+}
+
+/* Home icon */
+.home-item {
+  display: inline-flex;
+  align-items: center;
+}
+
+.home-icon {
+  color: var(--primary-color);
+  opacity: 0.8;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--primary-color) 30%, transparent));
+  transition: opacity 0.15s ease, filter 0.15s ease;
+}
+
+.home-icon:hover {
+  opacity: 1;
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--primary-color) 50%, transparent));
 }
 
 /* Responsive: reduce breadcrumb text max-width on phones */

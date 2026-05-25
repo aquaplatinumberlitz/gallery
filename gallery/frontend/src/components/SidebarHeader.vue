@@ -106,7 +106,6 @@ watch(
 
 .field-icon {
   color: var(--primary-color, #ff6b35);
-  font-size: 16px;
   flex-shrink: 0;
 }
 
@@ -117,10 +116,6 @@ watch(
   margin: 8px 0 0;
   font-size: 12px;
   color: var(--muted-text, #65676b);
-}
-
-.field-hint i {
-  font-size: 12px;
 }
 
 input {

@@ -3,8 +3,7 @@ import { computed, ref, onMounted, onUnmounted } from 'vue';
 import type { Toast } from '../stores/toast';
 import { CheckCircle, XCircle, TriangleAlert, Info, X } from 'lucide-vue-next';
 
-// @ts-expect-error: used via :is dynamic component binding
-const _icons = { CheckCircle, XCircle, TriangleAlert, Info }
+const _icons: Record<string, any> = { CheckCircle, XCircle, TriangleAlert, Info }
 
 const props = defineProps<{
   toast: Toast;
@@ -94,7 +93,7 @@ onUnmounted(() => {
   >
     <!-- Icon -->
     <div class="toast__icon">
-      <component :is="iconClass" :size="18" :stroke-width="1.5" />
+      <component :is="_icons[iconClass]" :size="18" :stroke-width="1.5" />
     </div>
     
     <!-- Content -->

@@ -7,7 +7,7 @@ import { getImageUrl, getThumbnailUrl } from "../services/api";
 import {
   Loader, Image, ChevronLeft, ChevronRight, Minimize, Maximize, X,
   Calendar, Clock, MessageSquareText, Check, Copy, MessageSquareOff,
-  SlidersHorizontal, ChevronDown, Sprout, Cpu, Box, Puzzle, Layers,
+  SlidersHorizontal, ChevronDown, Sprout, BrainCircuit, Box, Puzzle, Layers,
   TriangleAlert, Info, ArrowUp, ArrowDown, CheckCircle, Search,
   Settings, Folder, FolderOpen, RotateCcw
 } from "lucide-vue-next";
@@ -459,7 +459,7 @@ const exitFullscreen = async () => {
                     @keydown.enter="showResources = !showResources"
                     @keydown.space.prevent="showResources = !showResources"
                   >
-                    <h4><Cpu :size="14" :stroke-width="1.5" /> Model & Resources</h4>
+                    <h4><BrainCircuit :size="14" :stroke-width="1.5" /> Model & Resources</h4>
                     <ChevronDown :size="12" :stroke-width="1.5" :class="{ rotate: !showResources }" />
                   </div>
                   <div class="group-content" v-show="showResources">
@@ -702,15 +702,6 @@ const exitFullscreen = async () => {
   gap: 12px;
   color: #999;
   font-size: 14px;
-
-  i {
-    font-size: 24px;
-    color: #666;
-  }
-}
-
-.meta-error i {
-  color: #ef4444;
 }
 
 .meta-header {
@@ -895,13 +886,6 @@ const exitFullscreen = async () => {
     align-items: center;
     gap: 8px;
   }
-
-  i {
-    font-size: 12px;
-    color: #999;
-    transition: transform 0.2s;
-    &.rotate { transform: rotate(-90deg); }
-  }
 }
 
 .group-content {
@@ -965,8 +949,6 @@ const exitFullscreen = async () => {
   padding: 8px;
   background: rgba(255, 255, 255, 0.03);
   border-radius: 6px;
-
-  i { color: #60a5fa; }
 
   .res-info {
     display: flex;
