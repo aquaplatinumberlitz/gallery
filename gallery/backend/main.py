@@ -71,6 +71,7 @@ class FileNode(BaseModel):
     has_children: bool
     cover_images: list[str] = []
     mtime: float = 0  # Modified time (Unix timestamp)
+    image_count: int = 0  # Number of images in folder (applies to "folder" type only)
 
 
 app = FastAPI(title="Museum Art Gallery API")
@@ -182,6 +183,17 @@ def has_any_children(dir_path: Path) -> bool:
         return False
 
 
+def count_images_in_dir(dir_path: Path) -> int:
+    """Count the number of image files directly inside a directory (non-recursive)."""
+    try:
+        return sum(
+            1 for entry in dir_path.iterdir()
+            if not entry.name.startswith(".") and entry.is_file() and is_image(entry)
+        )
+    except (PermissionError, OSError):
+        return 0
+
+
 def natural_sort_key(s: str) -> list:
     """
     Split string into text and numeric chunks for natural sorting.
@@ -217,6 +229,7 @@ def scan_directory(target_path: Path) -> tuple[list[FileNode], list[FileNode]]:
                         has_children=has_any_children(entry),
                         cover_images=first_images_in_dir(entry, limit=3),
                         mtime=mtime,
+                        image_count=count_images_in_dir(entry),
                     )
                 )
             elif entry.is_file() and is_image(entry):

@@ -7,6 +7,7 @@ export interface FileNode {
   isOpen?: boolean;
   cover_images?: string[];
   mtime?: number; // Modified time from backend
+  image_count?: number; // Number of images in folder (from backend)
 }
 
 export type SortField = "name" | "date";

@@ -37,7 +37,7 @@ defineProps<{
       <h3 class="album-name">{{ node.name }}</h3>
       <div class="album-meta">
         <FolderOpen :size="11" class="album-meta-icon" />
-        <span>Album</span>
+        <span>Album<span v-if="node.image_count !== undefined && node.image_count !== null"> · {{ node.image_count }} {{ node.image_count === 1 ? 'photo' : 'photos' }}</span></span>
       </div>
     </div>
   </div>
