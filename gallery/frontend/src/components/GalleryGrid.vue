@@ -1046,11 +1046,6 @@ onBeforeUnmount(() => {
     display: none;
   }
 
-  /* Photos section title redundant with mobile folder bar */
-  .photos-title {
-    display: none;
-  }
-
   /* Folder icon in Row 3 — orange like the old button */
   .folder-icon {
     opacity: 1;
