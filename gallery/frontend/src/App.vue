@@ -419,12 +419,12 @@ watch(theme, (val) => {
 }
 
 .content {
-  padding: 24px 12px;
+  padding: 44px 44px 24px 44px;
   display: flex;
   flex-direction: column;
   gap: 16px;
   height: 100%;
-  overflow: hidden;
+  overflow: clip;
 }
 
 .content-header {
@@ -480,7 +480,8 @@ watch(theme, (val) => {
   padding: 20px;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04);
   flex: 1;
-  overflow: hidden;
+  min-height: 0;
+  overflow: visible;
   display: flex;
   flex-direction: column;
 }
@@ -778,7 +779,7 @@ h1 {
   }
 
   .content {
-    padding: 20px 10px;
+    padding: 36px 36px 20px 36px;
   }
 
   .brand-icon {
@@ -980,9 +981,9 @@ h1 {
   }
 
   .content {
-    padding: 8px 6px;
-    padding-bottom: 0;
+    padding: 12px 12px 0 12px;
     gap: 8px;
+    overflow: hidden; /* mobile: use hidden instead of clip for Safari iOS compatibility */
   }
 
   .content-body {
@@ -1038,9 +1039,9 @@ h1 {
   }
 
   .content {
-    padding: 6px 4px;
-    padding-bottom: 0;
+    padding: 8px 8px 0 8px;
     gap: 6px;
+    overflow: hidden; /* mobile: use hidden instead of clip for Safari iOS compatibility */
   }
 
   .content-body {

@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from "vue";
 import { RecycleScroller } from "vue-virtual-scroller";
 import { useGalleryStore } from "../stores/gallery";
 import { useLightboxStore } from "../stores/lightbox";
 import type { SortField } from "../types";
-import AlbumCard from "./AlbumCard.vue";
 import AlbumScroller from "./AlbumScroller.vue";
 import PhotoCard from "./PhotoCard.vue";
 import SkeletonLoader from "./SkeletonLoader.vue";
