@@ -905,7 +905,7 @@ h1 {
   }
 
   .header-actions {
-    flex-shrink: 0;
+    flex: 1;
     margin-left: auto;
   }
 

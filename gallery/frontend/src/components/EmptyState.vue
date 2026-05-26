@@ -391,6 +391,7 @@ const actionIconComponent = computed(() => {
 .action-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   margin-top: 20px;
   padding: 10px 20px;
@@ -425,6 +426,10 @@ const actionIconComponent = computed(() => {
   width: 14px;
   height: 14px;
   display: block;
+}
+
+.action-btn .action-icon-fa {
+  color: #fff;
 }
 
 /* Animations */
