@@ -459,13 +459,15 @@ onBeforeUnmount(() => {
                 <h3>Albums</h3>
                 <span>{{ folders.length }}</span>
               </div>
-              <div class="album-grid">
-                <AlbumCard
-                  v-for="item in folders"
-                  :key="item.path"
-                  :node="item"
-                  @click="handleOpenFolder(item.path)"
-                />
+              <div class="album-grid-wrapper">
+                <div class="album-grid">
+                  <AlbumCard
+                    v-for="item in folders"
+                    :key="item.path"
+                    :node="item"
+                    @click="handleOpenFolder(item.path)"
+                  />
+                </div>
               </div>
             </section>
 
@@ -523,13 +525,15 @@ onBeforeUnmount(() => {
             <h3>Albums</h3>
             <span>{{ folders.length }}</span>
           </div>
-          <div class="album-grid">
-            <AlbumCard
-              v-for="item in folders"
-              :key="item.path"
-              :node="item"
-              @click="handleOpenFolder(item.path)"
-            />
+          <div class="album-grid-wrapper">
+            <div class="album-grid">
+              <AlbumCard
+                v-for="item in folders"
+                :key="item.path"
+                :node="item"
+                @click="handleOpenFolder(item.path)"
+              />
+            </div>
           </div>
         </section>
         
@@ -702,7 +706,7 @@ onBeforeUnmount(() => {
 
 .scroller-header {
   padding-top: 10px; /* Space for hover animation on top row */
-  padding-bottom: 20px;
+  padding-bottom: 8px;
 }
 
 .folders-only-container {
@@ -726,7 +730,7 @@ onBeforeUnmount(() => {
 }
 
 .albums-section {
-  margin-bottom: 24px;
+  margin-bottom: 8px;
 }
 
 .photos-title {
@@ -1092,35 +1096,70 @@ onBeforeUnmount(() => {
   }
 }
 
-.album-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  /* MD3 spacing-lg (24px) + extra for hover animation */
-  gap: 32px;
+/* ── Album Horizontal Scroll ── */
+.album-grid-wrapper {
+  position: relative;
+  margin: 0 -12px;          /* bleed để gradient fade lộ ra */
 }
 
-/* Responsive Album Grid */
+/* Gradient fade 2 đầu */
+.album-grid-wrapper::before,
+.album-grid-wrapper::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 48px;
+  z-index: 2;
+  pointer-events: none;
+}
+.album-grid-wrapper::before {
+  left: 0;
+  background: linear-gradient(to right, var(--bg-color) 0%, transparent 100%);
+}
+.album-grid-wrapper::after {
+  right: 0;
+  background: linear-gradient(to left, var(--bg-color) 0%, transparent 100%);
+}
 
-/* Tablet: 641-1024px */
-@media (min-width: 641px) and (max-width: 1024px) {
-  .album-grid {
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  }
+.album-grid {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 24px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 8px 4px 16px;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+
+  /* Ẩn scrollbar */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.album-grid::-webkit-scrollbar {
+  display: none;
+}
+
+.album-grid > * {
+  scroll-snap-align: start;
+  flex-shrink: 0;
+  min-width: 180px;
+  max-width: 240px;
 }
 
 @media (max-width: 640px) {
-  .album-grid {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 24px;
-  }
+  .album-grid { gap: 12px; padding: 4px 0 12px; }
+  .album-grid > * { min-width: 130px; max-width: 170px; }
+  .album-grid-wrapper::before,
+  .album-grid-wrapper::after { display: none; }
 }
 
 @media (max-width: 480px) {
-  .album-grid {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 16px;
-  }
+  .album-grid { gap: 8px; }
+  .album-grid > * { min-width: 110px; max-width: 140px; }
 }
+
 
 .skeleton-container {
   flex: 1;
@@ -1257,10 +1296,6 @@ onBeforeUnmount(() => {
 
   .section-title h3 {
     font-size: 14px;
-  }
-
-  .album-grid {
-    gap: 8px;
   }
 
   /* Reduce photo row gap and spacers on mobile */
