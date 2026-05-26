@@ -223,10 +223,12 @@ onBeforeUnmount(() => {
 }
 
 .album-arrows {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 4px;
+  justify-content: flex-end;
   margin-left: auto;
+  margin-bottom: 4px;
 }
 
 /* ── Album Grid ── */
@@ -391,17 +393,8 @@ onBeforeUnmount(() => {
   opacity: 1;
 }
 
-/* ── Album arrows row (now outside section-title) ── */
-.album-arrows {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  justify-content: flex-end;
-  margin-bottom: 4px;
-}
-
 /* Mobile: hide album arrows (snap-scroll instead) */
 @media (max-width: 640px) {
-  .album-arrows { display: none !important; }
+  .album-arrows { display: none; }
 }
 </style>
