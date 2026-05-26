@@ -374,7 +374,7 @@ const scrollAlbums = (direction: number) => {
   if (!card) return;
   const cardWidth = card.offsetWidth || 200;
   const gap = parseInt(getComputedStyle(grid).gap) || 24;
-  grid.scrollBy({ left: (cardWidth + gap) * direction, behavior: 'smooth' });
+  grid.scrollLeft += (cardWidth + gap) * direction;
   // Re-check arrow visibility after scroll
   setTimeout(() => {
     if (grid === albumGridRef.value) handleAlbumScroll1();
