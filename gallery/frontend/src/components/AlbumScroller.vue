@@ -211,7 +211,7 @@ onBeforeUnmount(() => {
   gap: 24px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 8px 4px 16px;
+  padding: 56px 50px;  /* 56px top/bottom = 50px glow + 6px margin; 50px left/right cho horizontal glow */
   scrollbar-width: none;
   -ms-overflow-style: none;
   /* Smooth scroll behavior */
