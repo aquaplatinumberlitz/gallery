@@ -508,6 +508,45 @@ const scrollAlbums = (direction: number) => {
 
     <!-- Has content: images or folders -->
     <div v-else-if="images.length > 0 || folders.length > 0" class="scroller-container" :ref="setGridRef">
+      <!-- Albums: rendered OUTSIDE RecycleScroller to avoid virtual DOM scroll interference -->
+      <section v-if="folders.length" class="albums-section">
+        <div class="section-title">
+          <h3>Albums</h3>
+          <span class="album-count-badge">
+            <FolderOpen :size="13" />
+            {{ folders.length }}
+          </span>
+          <div class="album-arrows">
+            <button
+              v-if="showLeftArrow1"
+              class="album-scroll-btn"
+              @click="scrollAlbums(-1)"
+              aria-label="Scroll left"
+            >
+              <ArrowLeft :size="24" />
+            </button>
+            <button
+              v-if="showRightArrow1"
+              class="album-scroll-btn"
+              @click="scrollAlbums(1)"
+              aria-label="Scroll right"
+            >
+              <ArrowRight :size="24" />
+            </button>
+          </div>
+        </div>
+        <div class="album-grid-wrapper">
+          <div class="album-grid" ref="albumGridRef" @scroll="handleAlbumScroll1">
+            <AlbumCard
+              v-for="item in folders"
+              :key="item.path"
+              :node="item"
+              @click="handleOpenFolder(item.path)"
+            />
+          </div>
+        </div>
+      </section>
+
       <RecycleScroller
         v-if="imageRows.length > 0 && rowHeight > 0"
         :key="`${columnCount}-${imageRows.length}`"
@@ -519,44 +558,6 @@ const scrollAlbums = (direction: number) => {
       >
         <template #before>
           <div class="scroller-header">
-            <section v-if="folders.length" class="albums-section">
-              <div class="section-title">
-                <h3>Albums</h3>
-                <span class="album-count-badge">
-                  <FolderOpen :size="13" />
-                  {{ folders.length }}
-                </span>
-                <div class="album-arrows">
-                  <button
-                    v-if="showLeftArrow1"
-                    class="album-scroll-btn"
-                    @click="scrollAlbums(-1)"
-                    aria-label="Scroll left"
-                  >
-                    <ArrowLeft :size="24" />
-                  </button>
-                  <button
-                    v-if="showRightArrow1"
-                    class="album-scroll-btn"
-                    @click="scrollAlbums(1)"
-                    aria-label="Scroll right"
-                  >
-                    <ArrowRight :size="24" />
-                  </button>
-                </div>
-              </div>
-              <div class="album-grid-wrapper">
-                <div class="album-grid" ref="albumGridRef" @scroll="handleAlbumScroll1">
-                  <AlbumCard
-                    v-for="item in folders"
-                    :key="item.path"
-                    :node="item"
-                    @click="handleOpenFolder(item.path)"
-                  />
-                </div>
-              </div>
-            </section>
-
             <div v-if="images.length" class="section-title photos-title">
               <h3>Photos</h3>
               <span>{{ images.length }}</span>
