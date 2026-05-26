@@ -494,16 +494,26 @@ const scrollAlbums = (direction: number) => {
               <div class="section-title">
                 <h3>Albums</h3>
                 <span>{{ folders.length }}</span>
+                <div class="album-arrows">
+                  <button
+                    v-if="showLeftArrow1"
+                    class="album-scroll-btn"
+                    @click="scrollAlbums(-1)"
+                    aria-label="Scroll left"
+                  >
+                    <ArrowLeft :size="16" />
+                  </button>
+                  <button
+                    v-if="showRightArrow1"
+                    class="album-scroll-btn"
+                    @click="scrollAlbums(1)"
+                    aria-label="Scroll right"
+                  >
+                    <ArrowRight :size="16" />
+                  </button>
+                </div>
               </div>
               <div class="album-grid-wrapper">
-                <button
-                  v-if="showLeftArrow1"
-                  class="album-scroll-btn album-scroll-left"
-                  @click="scrollAlbums(-1)"
-                  aria-label="Scroll left"
-                >
-                  <ArrowLeft :size="20" />
-                </button>
                 <div class="album-grid" ref="albumGridRef" @scroll="handleAlbumScroll1">
                   <AlbumCard
                     v-for="item in folders"
@@ -512,14 +522,6 @@ const scrollAlbums = (direction: number) => {
                     @click="handleOpenFolder(item.path)"
                   />
                 </div>
-                <button
-                  v-if="showRightArrow1"
-                  class="album-scroll-btn album-scroll-right"
-                  @click="scrollAlbums(1)"
-                  aria-label="Scroll right"
-                >
-                  <ArrowRight :size="20" />
-                </button>
               </div>
             </section>
 
@@ -576,16 +578,26 @@ const scrollAlbums = (direction: number) => {
           <div class="section-title">
             <h3>Albums</h3>
             <span>{{ folders.length }}</span>
+            <div class="album-arrows">
+              <button
+                v-if="showLeftArrow2"
+                class="album-scroll-btn"
+                @click="scrollAlbums(-1)"
+                aria-label="Scroll left"
+              >
+                <ArrowLeft :size="16" />
+              </button>
+              <button
+                v-if="showRightArrow2"
+                class="album-scroll-btn"
+                @click="scrollAlbums(1)"
+                aria-label="Scroll right"
+              >
+                <ArrowRight :size="16" />
+              </button>
+            </div>
           </div>
           <div class="album-grid-wrapper">
-            <button
-              v-if="showLeftArrow2"
-              class="album-scroll-btn album-scroll-left"
-              @click="scrollAlbums(-1)"
-              aria-label="Scroll left"
-            >
-              <ArrowLeft :size="20" />
-            </button>
             <div class="album-grid" ref="albumGridRef2" @scroll="handleAlbumScroll2">
               <AlbumCard
                 v-for="item in folders"
@@ -594,14 +606,6 @@ const scrollAlbums = (direction: number) => {
                 @click="handleOpenFolder(item.path)"
               />
             </div>
-            <button
-              v-if="showRightArrow2"
-              class="album-scroll-btn album-scroll-right"
-              @click="scrollAlbums(1)"
-              aria-label="Scroll right"
-            >
-              <ArrowRight :size="20" />
-            </button>
           </div>
         </section>
         
@@ -1167,27 +1171,6 @@ const scrollAlbums = (direction: number) => {
 /* ── Album Horizontal Scroll ── */
 .album-grid-wrapper {
   position: relative;
-  margin: 0 -12px;          /* bleed để gradient fade lộ ra */
-}
-
-/* Gradient fade 2 đầu */
-.album-grid-wrapper::before,
-.album-grid-wrapper::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 48px;
-  z-index: 2;
-  pointer-events: none;
-}
-.album-grid-wrapper::before {
-  left: 0;
-  background: linear-gradient(to right, var(--bg-color) 0%, transparent 100%);
-}
-.album-grid-wrapper::after {
-  right: 0;
-  background: linear-gradient(to left, var(--bg-color) 0%, transparent 100%);
 }
 
 .album-grid {
@@ -1218,50 +1201,50 @@ const scrollAlbums = (direction: number) => {
 
 /* ── Album Scroll Arrow Buttons ── */
 .album-scroll-btn {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
+  position: relative;
+  top: auto;
+  transform: none;
   z-index: 5;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   border: none;
   background: var(--surface-color, #fff);
   color: var(--text-color, #333);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   opacity: 0;
   transition: opacity 0.2s, transform 0.2s;
+  flex-shrink: 0;
 }
 .album-scroll-btn:hover {
-  transform: translateY(-50%) scale(1.1);
+  transform: scale(1.15);
   background: var(--bg-hover, #f0f0f0);
 }
-.album-grid-wrapper:hover .album-scroll-btn {
+.albums-section:hover .album-scroll-btn {
   opacity: 1;
 }
 .album-scroll-btn:active {
-  transform: translateY(-50%) scale(0.95);
+  transform: scale(0.95);
 }
-.album-scroll-left { left: 8px; }
-.album-scroll-right { right: 8px; }
+
+.album-arrows {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
 
 @media (max-width: 640px) {
   .album-grid { gap: 12px; padding: 4px 0 12px; }
   .album-grid > * { min-width: 130px; max-width: 170px; }
-  .album-grid-wrapper::before,
-  .album-grid-wrapper::after { display: none; }
   /* Always show arrows on mobile */
   .album-scroll-btn {
     opacity: 1;
-    width: 28px;
-    height: 28px;
   }
-  .album-scroll-left { left: 4px; }
-  .album-scroll-right { right: 4px; }
 }
 
 @media (max-width: 480px) {
