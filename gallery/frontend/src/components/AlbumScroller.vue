@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { FileNode } from "../types";
-import { ArrowLeft, ArrowRight, FolderOpen } from "lucide-vue-next";
+import { ArrowLeft, ArrowRight, ChevronDown, FolderOpen } from "lucide-vue-next";
 import AlbumCard from "./AlbumCard.vue";
 
 const props = defineProps<{
@@ -11,6 +11,28 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: "open-folder", path: string): void;
 }>();
+
+// ── Collapse state — persist to localStorage ──
+const COLLAPSE_KEY = "gallery-albums-collapsed";
+const collapsed = ref(false);
+
+onMounted(() => {
+  try {
+    const saved = localStorage.getItem(COLLAPSE_KEY);
+    if (saved !== null) collapsed.value = saved === "true";
+  } catch {
+    /* localStorage unavailable */
+  }
+});
+
+function toggleCollapsed() {
+  collapsed.value = !collapsed.value;
+  try {
+    localStorage.setItem(COLLAPSE_KEY, String(collapsed.value));
+  } catch {
+    /* localStorage unavailable */
+  }
+}
 
 // ── Refs ──
 const gridRef = ref<HTMLElement | null>(null);
@@ -104,45 +126,53 @@ onBeforeUnmount(() => {
 
 <template>
   <section v-if="folders.length" class="album-scroller">
-    <div class="section-title">
+    <button
+      class="section-title album-toggle"
+      @click="toggleCollapsed"
+      :aria-expanded="!collapsed"
+      :aria-label="collapsed ? 'Expand albums' : 'Collapse albums'"
+    >
       <h3>Albums</h3>
       <span class="album-count-badge">
         <FolderOpen :size="13" />
         {{ folders.length }}
       </span>
-      <div class="album-arrows">
-        <button
-          v-if="showLeftArrow"
-          class="album-scroll-btn"
-          @click="scrollAlbums(-1)"
-          aria-label="Scroll left"
-        >
-          <ArrowLeft :size="24" />
-        </button>
-        <button
-          v-if="showRightArrow"
-          class="album-scroll-btn"
-          @click="scrollAlbums(1)"
-          aria-label="Scroll right"
-        >
-          <ArrowRight :size="24" />
-        </button>
-      </div>
-    </div>
-    <div class="album-grid-wrapper">
-      <div
-        ref="gridRef"
-        class="album-grid"
-        @scroll="onGridScroll"
+      <ChevronDown :size="18" class="toggle-chevron" :class="{ collapsed }" />
+    </button>
+    <div class="album-arrows" v-show="!collapsed">
+      <button
+        v-if="showLeftArrow"
+        class="album-scroll-btn"
+        @click="scrollAlbums(-1)"
+        aria-label="Scroll left"
       >
-        <AlbumCard
-          v-for="item in folders"
-          :key="item.path"
-          :node="item"
-          @click="emit('open-folder', item.path)"
-        />
-      </div>
+        <ArrowLeft :size="24" />
+      </button>
+      <button
+        v-if="showRightArrow"
+        class="album-scroll-btn"
+        @click="scrollAlbums(1)"
+        aria-label="Scroll right"
+      >
+        <ArrowRight :size="24" />
+      </button>
     </div>
+    <Transition name="album-collapse">
+      <div class="album-grid-wrapper" v-show="!collapsed">
+        <div
+          ref="gridRef"
+          class="album-grid"
+          @scroll="onGridScroll"
+        >
+          <AlbumCard
+            v-for="item in folders"
+            :key="item.path"
+            :node="item"
+            @click="emit('open-folder', item.path)"
+          />
+        </div>
+      </div>
+    </Transition>
   </section>
 </template>
 
@@ -297,5 +327,64 @@ onBeforeUnmount(() => {
   }
   .album-grid { gap: 8px; }
   .album-grid > * { min-width: 110px; max-width: 140px; }
+}
+
+/* ── Collapsible toggle button ── */
+.album-toggle {
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  width: 100%;
+  text-align: left;
+}
+
+.toggle-chevron {
+  transition: transform 0.3s ease;
+  margin-left: auto;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.toggle-chevron.collapsed {
+  transform: rotate(-90deg);
+}
+
+.album-toggle:hover .toggle-chevron {
+  opacity: 1;
+}
+
+/* ── Collapse animation ── */
+.album-collapse-enter-active,
+.album-collapse-leave-active {
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+.album-collapse-enter-from,
+.album-collapse-leave-to {
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.album-collapse-enter-to,
+.album-collapse-leave-from {
+  max-height: 600px;
+  opacity: 1;
+}
+
+/* ── Album arrows row (now outside section-title) ── */
+.album-arrows {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: flex-end;
+  margin-bottom: 4px;
 }
 </style>
