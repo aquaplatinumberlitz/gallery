@@ -589,6 +589,19 @@ onBeforeUnmount(() => {
   width: 6px;
 }
 
+.scroller::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scroller::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 6px;
+}
+
+.scroller::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
 .scroller-header {
   /* Glow bleed is now handled by overflow chain fix (Item 1) */
 }

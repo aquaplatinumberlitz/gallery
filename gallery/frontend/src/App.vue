@@ -317,7 +317,7 @@ watch(theme, (val) => {
   flex-direction: column;
   gap: 16px;
   height: 100%;
-  overflow: clip;
+  overflow: hidden;
 }
 
 /* Sidebar Edge Toggle Button */
