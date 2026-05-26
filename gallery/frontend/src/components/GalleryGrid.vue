@@ -493,7 +493,10 @@ const scrollAlbums = (direction: number) => {
             <section v-if="folders.length" class="albums-section">
               <div class="section-title">
                 <h3>Albums</h3>
-                <span>{{ folders.length }}</span>
+                <span class="album-count-badge">
+                  <FolderOpen :size="13" />
+                  {{ folders.length }}
+                </span>
                 <div class="album-arrows">
                   <button
                     v-if="showLeftArrow1"
@@ -577,7 +580,10 @@ const scrollAlbums = (direction: number) => {
         <section class="albums-section">
           <div class="section-title">
             <h3>Albums</h3>
-            <span>{{ folders.length }}</span>
+            <span class="album-count-badge">
+              <FolderOpen :size="13" />
+              {{ folders.length }}
+            </span>
             <div class="album-arrows">
               <button
                 v-if="showLeftArrow2"
@@ -1166,6 +1172,18 @@ const scrollAlbums = (direction: number) => {
     font-family: var(--font-code);
     color: var(--primary-color);
   }
+}
+
+.album-count-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px 3px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+  font-size: 12px;
+  font-family: var(--font-code);
+  color: var(--primary-color);
 }
 
 /* ── Album Horizontal Scroll ── */
