@@ -39,6 +39,7 @@ const containerStyle = computed(() => {
 .glow-container {
   position: relative;
   overflow: visible;
+  pointer-events: none; /* prevent negative-margin overflow from intercepting header hover events */
 }
 
 .glow-disabled {

@@ -149,6 +149,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .album-scroller {
   margin-bottom: 8px;
+  pointer-events: auto; /* restore interactivity — GlowContainer sets pointer-events:none */
 }
 
 .section-title {
