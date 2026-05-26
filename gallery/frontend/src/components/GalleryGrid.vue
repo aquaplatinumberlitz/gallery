@@ -5,6 +5,7 @@ import { useGalleryStore } from "../stores/gallery";
 import { useLightboxStore } from "../stores/lightbox";
 import type { SortField } from "../types";
 import AlbumCard from "./AlbumCard.vue";
+import AlbumScroller from "./AlbumScroller.vue";
 import PhotoCard from "./PhotoCard.vue";
 import SkeletonLoader from "./SkeletonLoader.vue";
 import Breadcrumb from "./Breadcrumb.vue";
@@ -317,70 +318,7 @@ onBeforeUnmount(() => {
   }
 });
 
-// ── Album Horizontal Scroll Arrows ──
-const albumGridRef = ref<HTMLElement | null>(null);
-const albumGridRef2 = ref<HTMLElement | null>(null);
-const showLeftArrow1 = ref(false);
-const showRightArrow1 = ref(false);
-const showLeftArrow2 = ref(false);
-const showRightArrow2 = ref(false);
-
-const updateArrowVisibility = (
-  grid: HTMLElement,
-  leftArrow: { value: boolean },
-  rightArrow: { value: boolean }
-) => {
-  const { scrollLeft, scrollWidth, clientWidth } = grid;
-  leftArrow.value = scrollLeft > 4;
-  rightArrow.value = scrollLeft < scrollWidth - clientWidth - 4;
-};
-
-const handleAlbumScroll1 = () => {
-  if (albumGridRef.value) updateArrowVisibility(albumGridRef.value, showLeftArrow1, showRightArrow1);
-};
-const handleAlbumScroll2 = () => {
-  if (albumGridRef2.value) updateArrowVisibility(albumGridRef2.value, showLeftArrow2, showRightArrow2);
-};
-
-// Init arrow visibility after mount and when data changes
-const initArrowVisibility = () => {
-  if (albumGridRef.value) handleAlbumScroll1();
-  if (albumGridRef2.value) handleAlbumScroll2();
-};
-
-// Watch folders to re-init arrows when data arrives
-watch(folders, () => {
-  nextTick(() => initArrowVisibility());
-});
-
-// Initialize arrow visibility when component mounts
-onMounted(() => {
-  // Try immediately — refs may already be resolved
-  nextTick(() => initArrowVisibility());
-});
-
-// Re-init whenever the refs change (e.g., RecycleScroller slot renders)
-watch(albumGridRef, (newVal) => {
-  if (newVal) nextTick(() => handleAlbumScroll1());
-});
-watch(albumGridRef2, (newVal) => {
-  if (newVal) nextTick(() => handleAlbumScroll2());
-});
-
-const scrollAlbums = (direction: number) => {
-  const grid = albumGridRef.value || albumGridRef2.value;
-  if (!grid) return;
-  const card = grid.children[0] as HTMLElement | undefined;
-  if (!card) return;
-  const cardWidth = card.offsetWidth || 200;
-  const gap = parseInt(getComputedStyle(grid).gap) || 24;
-  grid.scrollLeft += (cardWidth + gap) * direction;
-  // Re-check arrow visibility after scroll
-  setTimeout(() => {
-    if (grid === albumGridRef.value) handleAlbumScroll1();
-    else if (grid === albumGridRef2.value) handleAlbumScroll2();
-  }, 350);
-};
+// ── Album Horizontal Scroll (handled by AlbumScroller component) ──
 </script>
 
 <template>
@@ -508,44 +446,12 @@ const scrollAlbums = (direction: number) => {
 
     <!-- Has content: images or folders -->
     <div v-else-if="images.length > 0 || folders.length > 0" class="scroller-container" :ref="setGridRef">
-      <!-- Albums: rendered OUTSIDE RecycleScroller to avoid virtual DOM scroll interference -->
-      <section v-if="folders.length" class="albums-section">
-        <div class="section-title">
-          <h3>Albums</h3>
-          <span class="album-count-badge">
-            <FolderOpen :size="13" />
-            {{ folders.length }}
-          </span>
-          <div class="album-arrows">
-            <button
-              v-if="showLeftArrow1"
-              class="album-scroll-btn"
-              @click="scrollAlbums(-1)"
-              aria-label="Scroll left"
-            >
-              <ArrowLeft :size="24" />
-            </button>
-            <button
-              v-if="showRightArrow1"
-              class="album-scroll-btn"
-              @click="scrollAlbums(1)"
-              aria-label="Scroll right"
-            >
-              <ArrowRight :size="24" />
-            </button>
-          </div>
-        </div>
-        <div class="album-grid-wrapper">
-          <div class="album-grid" ref="albumGridRef" @scroll="handleAlbumScroll1">
-            <AlbumCard
-              v-for="item in folders"
-              :key="item.path"
-              :node="item"
-              @click="handleOpenFolder(item.path)"
-            />
-          </div>
-        </div>
-      </section>
+      <!-- Albums: handled by standalone AlbumScroller component -->
+      <AlbumScroller
+        v-if="folders.length"
+        :folders="folders"
+        @open-folder="handleOpenFolder"
+      />
 
       <RecycleScroller
         v-if="imageRows.length > 0 && rowHeight > 0"
@@ -607,43 +513,10 @@ const scrollAlbums = (direction: number) => {
 
       <!-- Fallback: Only folders, no images (when RecycleScroller is not rendered) -->
       <div v-else-if="folders.length > 0" class="folders-only-container">
-        <section class="albums-section">
-          <div class="section-title">
-            <h3>Albums</h3>
-            <span class="album-count-badge">
-              <FolderOpen :size="13" />
-              {{ folders.length }}
-            </span>
-            <div class="album-arrows">
-              <button
-                v-if="showLeftArrow2"
-                class="album-scroll-btn"
-                @click="scrollAlbums(-1)"
-                aria-label="Scroll left"
-              >
-                <ArrowLeft :size="24" />
-              </button>
-              <button
-                v-if="showRightArrow2"
-                class="album-scroll-btn"
-                @click="scrollAlbums(1)"
-                aria-label="Scroll right"
-              >
-                <ArrowRight :size="24" />
-              </button>
-            </div>
-          </div>
-          <div class="album-grid-wrapper">
-            <div class="album-grid" ref="albumGridRef2" @scroll="handleAlbumScroll2">
-              <AlbumCard
-                v-for="item in folders"
-                :key="item.path"
-                :node="item"
-                @click="handleOpenFolder(item.path)"
-              />
-            </div>
-          </div>
-        </section>
+        <AlbumScroller
+          :folders="folders"
+          @open-folder="handleOpenFolder"
+        />
         
         <!-- Has only folders, no images -->
         <EmptyState
@@ -1208,110 +1081,7 @@ const scrollAlbums = (direction: number) => {
   }
 }
 
-.album-count-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 10px 3px 8px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
-  font-size: 12px;
-  font-family: var(--font-code);
-  color: var(--primary-color);
-}
-
-/* ── Album Horizontal Scroll ── */
-.album-grid-wrapper {
-  position: relative;
-  overflow: visible; /* glow bleed only — scroll container is .album-grid */
-  padding-top: 56px;
-  padding-bottom: 32px;
-  padding-left: 50px;
-  padding-right: 50px;
-  margin-top: -56px;
-  margin-bottom: -32px;
-  margin-left: -50px;
-  margin-right: -50px;
-}
-
-.album-grid-wrapper::-webkit-scrollbar {
-  display: none;
-}
-
-.album-grid {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 24px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding: 8px 4px 16px;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.album-grid::-webkit-scrollbar {
-  display: none;
-}
-
-.album-grid > * {
-  flex-shrink: 0;
-  min-width: 180px;
-  max-width: 240px;
-}
-
-/* ── Album Scroll Arrow Buttons ── */
-.album-scroll-btn {
-  position: relative;
-  top: auto;
-  transform: none;
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  border: none;
-  background: var(--surface-color, #fff);
-  color: var(--text-color, #333);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transition: opacity 0.2s, transform 0.2s;
-  flex-shrink: 0;
-}
-.album-scroll-btn:hover {
-  transform: scale(1.15);
-  background: var(--bg-hover, #f0f0f0);
-}
-.albums-section:hover .album-scroll-btn {
-  opacity: 1;
-}
-.album-scroll-btn:active {
-  transform: scale(0.95);
-}
-
-.album-arrows {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: auto;
-}
-
-@media (max-width: 640px) {
-  .album-grid { gap: 12px; padding: 4px 0 12px; }
-  .album-grid > * { min-width: 130px; max-width: 170px; }
-  /* Always show arrows on mobile */
-  .album-scroll-btn {
-    opacity: 1;
-    width: 42px;
-    height: 42px;
-  }
-}
-
-@media (max-width: 480px) {
-  .album-grid { gap: 8px; }
-  .album-grid > * { min-width: 110px; max-width: 140px; }
-}
+/* ── Album scroll styles are in AlbumScroller.vue ── */
 
 
 .skeleton-container {
