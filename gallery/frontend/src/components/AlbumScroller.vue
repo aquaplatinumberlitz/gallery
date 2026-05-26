@@ -339,6 +339,8 @@ onBeforeUnmount(() => {
   color: inherit;
   width: 100%;
   text-align: left;
+  position: relative;
+  z-index: 3;
 }
 
 .toggle-chevron {
