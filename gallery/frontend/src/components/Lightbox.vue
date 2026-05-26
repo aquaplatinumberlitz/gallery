@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useLightboxStore } from "../stores/lightbox";
 import { useFocusTrap } from "../composables/useFocusTrap";
-import { useToast } from "../composables/useToast";
+import { useClipboard } from "../composables/useClipboard";
 import { getImageUrl, getThumbnailUrl } from "../services/api";
 import {
   Loader, Image, ChevronLeft, ChevronRight, Minimize, Maximize, X,
@@ -16,7 +16,7 @@ import {
 const _icons = { Info, ArrowUp, ArrowDown, CheckCircle, Search, Settings, Folder, FolderOpen, RotateCcw }
 
 const lightbox = useLightboxStore();
-const toast = useToast();
+const { copyStatus, copyText } = useClipboard();
 
 // Refs for focus management
 const lightboxRef = ref<HTMLElement | null>(null);
@@ -99,52 +99,6 @@ const loraHighlighter = (text: string) => {
   }
 
   return out;
-};
-
-// Copy feedback state
-const copyStatus = ref<Record<string, boolean>>({});
-
-// Get friendly name for copy toast
-const getCopyLabel = (id: string): string => {
-  switch (id) {
-    case 'prompt': return 'Prompt';
-    case 'neg': return 'Negative prompt';
-    case 'seed': return 'Seed';
-    default: return 'Text';
-  }
-};
-
-const copyText = async (text: string | undefined, id: string) => {
-  if (!text) return;
-  try {
-    const str = String(text);
-
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(str);
-    } else {
-      // Fallback cho HTTP — clipboard API không khả dụng
-      const textarea = document.createElement('textarea');
-      textarea.value = str;
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      textarea.style.left = '-9999px';
-      document.body.appendChild(textarea);
-      textarea.focus();
-      textarea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textarea);
-    }
-
-    copyStatus.value[id] = true;
-    const label = getCopyLabel(id);
-    toast.success(`${label} copied`, 'Copied to clipboard', { duration: 3000 });
-    setTimeout(() => {
-      copyStatus.value[id] = false;
-    }, 1500);
-  } catch (e) {
-    console.error("Copy failed", e);
-    toast.error('Copy failed', 'Unable to copy to clipboard');
-  }
 };
 
 // Mouse wheel navigation
