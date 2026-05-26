@@ -684,24 +684,12 @@ onBeforeUnmount(() => {
 }
 
 .scroller-header {
-  /* ── Glow bleed padding ──
-     Dark mode hover: box-shadow blur 50px + translateY(-2px) on album-card
-     + translateY(-10px) on album-cover-diagonal → ~52px glow extension upward */
-  --glow-bleed-x: 48px;
-  --glow-bleed-y: 56px;
-  padding-top: var(--glow-bleed-y);
-  padding-bottom: var(--glow-bleed-y);
+  /* Glow bleed is now handled by overflow chain fix (Item 1) */
 }
 
 .folders-only-container {
-  --glow-bleed-x: 48px;
-  --glow-bleed-y: 56px;
-  padding-left: calc(10px + var(--glow-bleed-x));
-  padding-right: calc(14px + var(--glow-bleed-x));
-  padding-top: var(--glow-bleed-y);
-  padding-bottom: var(--glow-bleed-y);
-  margin-left: calc(-1 * var(--glow-bleed-x));
-  margin-right: calc(-1 * var(--glow-bleed-x));
+  padding-left: 10px;
+  padding-right: 14px;
   overflow-y: auto;
   overflow-x: hidden;
   height: 100%;

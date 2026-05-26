@@ -200,9 +200,9 @@ onBeforeUnmount(() => {
 /* ── Album Grid ── */
 .album-grid-wrapper {
   position: relative;
-  overflow: visible; /* glow bleed only — scroll container is .album-grid */
-  padding: 56px 50px 32px;
-  margin: -56px -50px -32px;
+  overflow: visible;
+  padding: var(--glow-bleed-y, 56px) var(--glow-bleed-x, 50px) var(--glow-bleed-bottom, 32px);
+  margin: calc(-1 * var(--glow-bleed-y, 56px)) calc(-1 * var(--glow-bleed-x, 50px)) calc(-1 * var(--glow-bleed-bottom, 32px));
 }
 
 .album-grid {
@@ -274,6 +274,11 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 640px) {
+  .album-grid-wrapper {
+    --glow-bleed-x: 12px;
+    --glow-bleed-y: 12px;
+    --glow-bleed-bottom: 12px;
+  }
   .album-grid { gap: 12px; padding: 4px 0 12px; }
   .album-grid > * { min-width: 130px; max-width: 170px; }
   .album-scroll-btn {
@@ -284,6 +289,11 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 480px) {
+  .album-grid-wrapper {
+    --glow-bleed-x: 8px;
+    --glow-bleed-y: 8px;
+    --glow-bleed-bottom: 8px;
+  }
   .album-grid { gap: 8px; }
   .album-grid > * { min-width: 110px; max-width: 140px; }
 }
