@@ -780,14 +780,24 @@ const scrollAlbums = (direction: number) => {
 }
 
 .scroller-header {
-  padding-top: 10px; /* Space for hover animation on top row */
-  padding-bottom: 8px;
+  /* ── Glow bleed padding ──
+     Dark mode hover: box-shadow blur 50px + translateY(-2px) on album-card
+     + translateY(-10px) on album-cover-diagonal → ~52px glow extension upward */
+  --glow-bleed-x: 48px;
+  --glow-bleed-y: 56px;
+  padding-top: var(--glow-bleed-y);
+  padding-bottom: var(--glow-bleed-y);
 }
 
 .folders-only-container {
-  padding-top: 10px;
-  padding-right: 14px;
-  padding-left: 10px;
+  --glow-bleed-x: 48px;
+  --glow-bleed-y: 56px;
+  padding-left: calc(10px + var(--glow-bleed-x));
+  padding-right: calc(14px + var(--glow-bleed-x));
+  padding-top: var(--glow-bleed-y);
+  padding-bottom: var(--glow-bleed-y);
+  margin-left: calc(-1 * var(--glow-bleed-x));
+  margin-right: calc(-1 * var(--glow-bleed-x));
   overflow-y: auto;
   overflow-x: hidden;
   height: 100%;
@@ -1190,6 +1200,14 @@ const scrollAlbums = (direction: number) => {
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  /* ── Glow bleed padding ──
+     overflow-y: hidden clips vertical glow (50px blur + 2px translateY).
+     Padding creates room inside the clipping boundary; negative margins
+     keep the grid visually positioned where it was. */
+  padding-top: 56px;
+  padding-bottom: 32px;
+  margin-top: -56px;
+  margin-bottom: -32px;
 }
 
 .album-grid-wrapper::-webkit-scrollbar {
@@ -1410,7 +1428,8 @@ const scrollAlbums = (direction: number) => {
   }
 
   .scroller-header {
-    padding-bottom: 8px;
+    padding-top: 40px;
+    padding-bottom: 40px;
   }
 
   .scroller-footer {
