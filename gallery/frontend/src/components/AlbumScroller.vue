@@ -236,7 +236,7 @@ onBeforeUnmount(() => {
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  border: none;
+  border: 1px solid var(--border-color, rgba(0,0,0,0.12));
   background: var(--surface-color, #fff);
   color: var(--text-color, #333);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
@@ -245,14 +245,17 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   opacity: 0;
-  transition: opacity 0.2s, transform 0.2s;
+  transition: opacity 0.2s, transform 0.2s, border-color 0.2s, box-shadow 0.2s, background 0.2s;
   flex-shrink: 0;
   z-index: 2;
 }
 
 .album-scroll-btn:hover {
   transform: scale(1.15);
-  background: var(--bg-hover, #f0f0f0);
+  border-color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 10%, var(--surface-color));
+  color: var(--primary-color);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--primary-color) 25%, transparent);
 }
 
 .album-scroller:hover .album-scroll-btn {
@@ -261,6 +264,13 @@ onBeforeUnmount(() => {
 
 .album-scroll-btn:active {
   transform: scale(0.95);
+  box-shadow: none;
+}
+
+/* Dark theme: subtle glow on hover */
+:root[data-theme="dark"] .album-scroll-btn:hover {
+  box-shadow: 0 0 8px color-mix(in srgb, var(--primary-color) 40%, transparent),
+              0 4px 12px color-mix(in srgb, var(--primary-color) 20%, transparent);
 }
 
 @media (max-width: 640px) {
