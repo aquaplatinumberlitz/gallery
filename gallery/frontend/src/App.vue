@@ -4,7 +4,6 @@ import { useGalleryStore } from "./stores/gallery";
 import SidebarHeader from "./components/SidebarHeader.vue";
 import FolderTreeItem from "./components/FolderTreeItem.vue";
 import GalleryGrid from "./components/GalleryGrid.vue";
-import BottomNavigationBar from "./components/BottomNavigationBar.vue";
 import ToastContainer from "./components/ToastContainer.vue";
 import SettingsModal from "./components/SettingsModal.vue";
 import IntroScreen from "./components/IntroScreen.vue";
@@ -77,15 +76,6 @@ const handleResize = () => {
   }
 };
 
-// Bottom navigation state
-const activeBottomTab = ref('photos')
-
-function handleBottomNav(tabId: string) {
-  activeBottomTab.value = tabId
-  if (tabId === 'more') {
-    isSettingsOpen.value = true
-  }
-}
 
 // Handle Escape key to close sidebar on mobile
 const handleGlobalKeydown = (e: KeyboardEvent) => {
@@ -209,13 +199,6 @@ watch(theme, (val) => {
       </div>
     </section>
   </div>
-
-  <!-- Bottom nav - only on mobile/tablet -->
-  <BottomNavigationBar 
-    v-if="isMobile"
-    active-tab="photos"
-    @navigate="handleBottomNav"
-  />
 
   <Lightbox />
   <ToastContainer />
