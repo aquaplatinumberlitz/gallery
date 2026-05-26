@@ -1,5 +1,6 @@
 import "./assets/fonts.css";
 import "./styles/main.scss";
+import "./styles/tokens.css";
 import "vue-virtual-scroller/dist/vue-virtual-scroller.css";
 
 import { createApp } from "vue";

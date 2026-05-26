@@ -117,10 +117,7 @@ defineProps<{
     transform: rotate(-12deg) translateZ(0); // Standard rotation from original design
     opacity: 0.9;
     z-index: 1;
-    /* MD3 Level 1 */
-    box-shadow: 
-      0 1px 2px rgba(0, 0, 0, 0.3),
-      0 1px 3px 1px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--shadow-card);
   }
 
   .album-layer-front {
@@ -128,10 +125,7 @@ defineProps<{
     right: 15px;
     transform: rotate(8deg) translateZ(20px); // Standard rotation angle
     z-index: 10;
-    /* MD3 Level 2 */
-    box-shadow: 
-      0 1px 2px rgba(0, 0, 0, 0.3),
-      0 2px 6px 2px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--shadow-card-level2);
   }
 
   .album-info {
@@ -170,10 +164,7 @@ defineProps<{
   // HOVER EFFECT & DARK MODE
   &:hover {
     transform: translateY(-2px);
-    /* MD3 Elevation Level 3 */
-    box-shadow: 
-      0 1px 3px rgba(0, 0, 0, 0.3),
-      0 4px 8px 3px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--shadow-card-hover);
 
     .album-cover-diagonal {
       transform: translateY(-10px);
@@ -185,10 +176,7 @@ defineProps<{
 
     .album-layer-front {
       transform: translate(10px, -5px) rotate(12deg) scale(1.05);
-      /* MD3 Level 4 for front card */
-      box-shadow: 
-        0 2px 3px rgba(0, 0, 0, 0.3),
-        0 6px 10px 4px rgba(0, 0, 0, 0.15);
+      box-shadow: var(--shadow-card-level4);
     }
   }
 
@@ -197,16 +185,11 @@ defineProps<{
     box-shadow: none;
 
     .album-layer-back {
-      box-shadow: 
-        0 1px 3px 1px rgba(0, 0, 0, 0.5),
-        0 1px 2px rgba(0, 0, 0, 0.7);
+      box-shadow: var(--shadow-dark-layer-back);
     }
 
     .album-layer-front {
-      box-shadow: 
-        0 2px 6px 2px rgba(0, 0, 0, 0.5),
-        0 1px 2px rgba(0, 0, 0, 0.7),
-        0 0 12px rgba(255, 107, 53, 0.2);
+      box-shadow: var(--shadow-dark-layer-front);
     }
 
     .album-name {
@@ -214,50 +197,25 @@ defineProps<{
     }
 
     &:hover {
-      /* Multi-layer neon glow effect - CSS-Tricks best practice */
-      box-shadow: 
-        /* White inner glow for brightness core */
-        0 0 2px #fff,
-        0 0 5px #fff,
-        /* Gold neon glow - multiple layers for depth */
-        0 0 10px rgba(255, 107, 53, 0.6),
-        0 0 20px rgba(255, 107, 53, 0.5),
-        0 0 35px rgba(255, 107, 53, 0.4),
-        0 0 50px rgba(255, 107, 53, 0.25);
+      box-shadow: var(--glow-card-hover);
 
       .album-layer-front {
-        box-shadow: 
-          /* White core */
-          0 0 2px #fff,
-          0 0 4px rgba(255, 255, 255, 0.6),
-          /* Neon glow layers */
-          0 0 8px rgba(255, 107, 53, 0.7),
-          0 0 15px rgba(255, 107, 53, 0.5),
-          0 0 25px rgba(255, 107, 53, 0.35),
-          /* Depth shadow */
-          0 4px 10px rgba(0, 0, 0, 0.4);
+        box-shadow: var(--glow-card-hover-front);
       }
 
       .album-layer-back {
-        box-shadow:
-          0 0 8px rgba(255, 107, 53, 0.4),
-          0 0 15px rgba(255, 107, 53, 0.25);
+        box-shadow: var(--glow-card-hover-back);
       }
     }
 
     &:active {
-      box-shadow: 
-        0 0 3px #fff,
-        0 0 8px rgba(255, 107, 53, 0.5),
-        0 0 15px rgba(255, 107, 53, 0.3);
+      box-shadow: var(--glow-card-active);
     }
   }
 
   &:active {
     transform: translateY(0);
-    box-shadow: 
-      0 1px 2px rgba(0, 0, 0, 0.3),
-      0 2px 6px 2px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--shadow-card-level2);
   }
 }
 
