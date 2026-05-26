@@ -1200,14 +1200,14 @@ const scrollAlbums = (direction: number) => {
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   -ms-overflow-style: none;
-  /* ── Glow bleed padding ──
-     overflow-y: hidden clips vertical glow (50px blur + 2px translateY).
-     Padding creates room inside the clipping boundary; negative margins
-     keep the grid visually positioned where it was. */
   padding-top: 56px;
   padding-bottom: 32px;
+  padding-left: 50px;
+  padding-right: 50px;
   margin-top: -56px;
   margin-bottom: -32px;
+  margin-left: -50px;
+  margin-right: -50px;
 }
 
 .album-grid-wrapper::-webkit-scrollbar {
@@ -1219,7 +1219,7 @@ const scrollAlbums = (direction: number) => {
   flex-wrap: nowrap;
   gap: 24px;
   overflow: visible;
-  padding: 8px calc(4px + 50px) 16px;
+  padding: 8px 4px 16px;
 }
 
 .album-grid > * {
@@ -1268,7 +1268,7 @@ const scrollAlbums = (direction: number) => {
 }
 
 @media (max-width: 640px) {
-  .album-grid { gap: 12px; padding: 4px calc(0 + 50px) 12px; }
+  .album-grid { gap: 12px; padding: 4px 0 12px; }
   .album-grid > * { min-width: 130px; max-width: 170px; }
   /* Always show arrows on mobile */
   .album-scroll-btn {
