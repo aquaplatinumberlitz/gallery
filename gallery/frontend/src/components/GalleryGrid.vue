@@ -15,7 +15,7 @@ import { useColumnResize } from "../composables/useColumnResize";
 import { 
   ArrowLeft, ArrowRight, FolderOpen, ArrowUpDown, ChevronDown, 
   ArrowUp, ArrowDown, LayoutGrid, Loader, TriangleAlert, X, 
-  Type, Clock 
+  Type, Clock, Images 
 } from "lucide-vue-next";
 
 const _icons: Record<string, any> = { ArrowUp, ArrowDown, Type, Clock }
@@ -369,7 +369,10 @@ onBeforeUnmount(() => {
           <div class="scroller-header">
             <div v-if="images.length" class="section-title photos-title">
               <h3>Photos</h3>
-              <span>{{ images.length }}</span>
+              <span class="photo-count-badge">
+                <Images :size="13" />
+                {{ images.length }}
+              </span>
             </div>
           </div>
         </template>
@@ -622,6 +625,13 @@ onBeforeUnmount(() => {
 
 .photos-title {
   margin-bottom: 12px;
+}
+
+.photo-count-badge {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px 3px 8px !important;
 }
 
 .scroller-footer {

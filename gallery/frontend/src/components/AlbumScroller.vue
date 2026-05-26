@@ -132,13 +132,13 @@ onBeforeUnmount(() => {
       :aria-expanded="!collapsed"
       :aria-label="collapsed ? 'Expand albums' : 'Collapse albums'"
     >
-      <h3>Albums</h3>
-      <span class="album-count-badge">
-        <FolderOpen :size="13" />
-        {{ folders.length }}
-      </span>
-      <ChevronDown :size="18" class="toggle-chevron" :class="{ collapsed }" />
-    </button>
+     <h3>Albums</h3>
+     <span class="album-count-badge">
+       <FolderOpen :size="13" />
+       {{ folders.length }}
+       <ChevronDown :size="14" class="toggle-chevron-inline" :class="{ collapsed }" />
+     </span>
+   </button>
     <div class="album-arrows" v-show="!collapsed">
       <button
         v-if="showLeftArrow"
@@ -179,6 +179,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .album-scroller {
   margin-bottom: 8px;
+  padding-left: 10px;
   pointer-events: auto; /* restore interactivity — GlowContainer sets pointer-events:none */
 }
 
@@ -343,18 +344,19 @@ onBeforeUnmount(() => {
   z-index: 3;
 }
 
-.toggle-chevron {
+.toggle-chevron-inline {
+  margin-left: 4px;
+  vertical-align: middle;
   transition: transform 0.3s ease;
-  margin-left: auto;
   opacity: 0.6;
   flex-shrink: 0;
 }
 
-.toggle-chevron.collapsed {
+.toggle-chevron-inline.collapsed {
   transform: rotate(-90deg);
 }
 
-.album-toggle:hover .toggle-chevron {
+.album-toggle:hover .toggle-chevron-inline {
   opacity: 1;
 }
 
