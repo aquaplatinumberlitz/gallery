@@ -312,7 +312,7 @@ watch(theme, (val) => {
 }
 
 .content {
-  padding: 44px 44px 24px 44px;
+  padding: 16px 16px 24px 16px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -379,7 +379,7 @@ watch(theme, (val) => {
   }
 
   .content {
-    padding: 36px 36px 20px 36px;
+    padding: 16px 12px 20px 12px;
   }
 
   .sidebar-edge-toggle {
