@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from "vue";
 import { RecycleScroller } from "vue-virtual-scroller";
 import { useGalleryStore } from "../stores/gallery";
 import { useLightboxStore } from "../stores/lightbox";
@@ -342,17 +342,75 @@ const handleAlbumScroll2 = () => {
   if (albumGridRef2.value) updateArrowVisibility(albumGridRef2.value, showLeftArrow2, showRightArrow2);
 };
 
+// Init arrow visibility after mount and when data changes
+const initArrowVisibility = () => {
+  if (albumGridRef.value) handleAlbumScroll1();
+  if (albumGridRef2.value) handleAlbumScroll2();
+};
+
+// Watch folders to re-init arrows when data arrives
+watch(folders, () => {
+  nextTick(() => initArrowVisibility());
+});
+
+// Initialize arrow visibility when component mounts
+onMounted(() => {
+  // Try immediately — refs may already be resolved
+  nextTick(() => initArrowVisibility());
+});
+
+// Re-init whenever the refs change (e.g., RecycleScroller slot renders)
+watch(albumGridRef, (newVal) => {
+  if (newVal) nextTick(() => handleAlbumScroll1());
+});
+watch(albumGridRef2, (newVal) => {
+  if (newVal) nextTick(() => handleAlbumScroll2());
+});
+
 const scrollAlbums = (direction: number) => {
+  console.log('[scrollAlbums] called with direction:', direction);
   const grid = albumGridRef.value || albumGridRef2.value;
-  if (!grid) return;
+  if (!grid) {
+    console.log('[scrollAlbums] EARLY RETURN: grid ref is null', {
+      albumGridRef: albumGridRef.value,
+      albumGridRef2: albumGridRef2.value
+    });
+    return;
+  }
   const albumGridEl = grid.children[0] as HTMLElement | undefined;
-  if (!albumGridEl) return;
+  if (!albumGridEl) {
+    console.log('[scrollAlbums] EARLY RETURN: grid has no children, tag:', grid.tagName, 'children:', grid.children.length);
+    return;
+  }
   const card = albumGridEl.children[0] as HTMLElement | undefined;
-  if (!card) return;
+  if (!card) {
+    console.log('[scrollAlbums] EARLY RETURN: albumGridEl has no children, tag:', albumGridEl.tagName, 'children:', albumGridEl.children.length);
+    return;
+  }
   const cardWidth = card.offsetWidth || 200;
   const gap = parseInt(getComputedStyle(albumGridEl).gap) || 24;
   const scrollAmount = cardWidth + gap;
+  console.log('[scrollAlbums] BEFORE scrollBy:', {
+    grid: grid.tagName,
+    gridScrollLeft: grid.scrollLeft,
+    gridScrollWidth: grid.scrollWidth,
+    gridClientWidth: grid.clientWidth,
+    albumGridElTag: albumGridEl.tagName,
+    albumGridElChildren: albumGridEl.children.length,
+    cardTag: card.tagName,
+    cardWidth,
+    gap,
+    scrollAmount,
+    direction
+  });
   grid.scrollBy({ left: scrollAmount * direction, behavior: 'smooth' });
+  // Log after a small delay to see if scrollBy actually moved
+  setTimeout(() => {
+    console.log('[scrollAlbums] AFTER scrollBy - scrollLeft:', grid.scrollLeft);
+    // Re-check arrow visibility after scroll
+    if (grid === albumGridRef.value) handleAlbumScroll1();
+    else if (grid === albumGridRef2.value) handleAlbumScroll2();
+  }, 50);
 };
 </script>
 
