@@ -5,6 +5,7 @@ import { useGalleryStore } from "../stores/gallery";
 import { useLightboxStore } from "../stores/lightbox";
 import type { SortField } from "../types";
 import AlbumScroller from "./AlbumScroller.vue";
+import GlowContainer from "./GlowContainer.vue";
 import PhotoCard from "./PhotoCard.vue";
 import SkeletonLoader from "./SkeletonLoader.vue";
 import Breadcrumb from "./Breadcrumb.vue";
@@ -347,11 +348,12 @@ onBeforeUnmount(() => {
     <!-- Has content: images or folders -->
     <template v-else-if="images.length > 0 || folders.length > 0">
       <!-- Album scroller: outside scroller-container để glow khong bi clip boi content-body overflow:hidden -->
-      <AlbumScroller
-        v-if="folders.length"
-        :folders="folders"
-        @open-folder="handleOpenFolder"
-      />
+      <GlowContainer v-if="folders.length" :bleed="50">
+        <AlbumScroller
+          :folders="folders"
+          @open-folder="handleOpenFolder"
+        />
+      </GlowContainer>
       <div class="scroller-container" :ref="setGridRef">
 
       <RecycleScroller
@@ -414,10 +416,12 @@ onBeforeUnmount(() => {
 
       <!-- Fallback: Only folders, no images (when RecycleScroller is not rendered) -->
       <div v-else-if="folders.length > 0" class="folders-only-container">
-        <AlbumScroller
-          :folders="folders"
-          @open-folder="handleOpenFolder"
-        />
+        <GlowContainer :bleed="50">
+          <AlbumScroller
+            :folders="folders"
+            @open-folder="handleOpenFolder"
+          />
+        </GlowContainer>
         
         <!-- Has only folders, no images -->
         <EmptyState
