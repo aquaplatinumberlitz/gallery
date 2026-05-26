@@ -321,7 +321,6 @@ onBeforeUnmount(() => {
     max-width: 170px;
     scroll-snap-align: start;
   }
-  .album-arrows { display: none; }
   .album-scroll-btn {
     opacity: 1;
     width: 42px;
@@ -399,5 +398,10 @@ onBeforeUnmount(() => {
   gap: 4px;
   justify-content: flex-end;
   margin-bottom: 4px;
+}
+
+/* Mobile: hide album arrows (snap-scroll instead) */
+@media (max-width: 640px) {
+  .album-arrows { display: none !important; }
 }
 </style>
