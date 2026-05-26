@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { RecycleScroller } from "vue-virtual-scroller";
 import { useGalleryStore } from "../stores/gallery";
 import { useLightboxStore } from "../stores/lightbox";
@@ -10,6 +10,7 @@ import SkeletonLoader from "./SkeletonLoader.vue";
 import Breadcrumb from "./Breadcrumb.vue";
 import EmptyState from "./EmptyState.vue";
 import { compareNatural } from "../composables/useNaturalSort";
+import { useColumnResize } from "../composables/useColumnResize";
 import { 
   ArrowLeft, ArrowRight, FolderOpen, ArrowUpDown, ChevronDown, 
   ArrowUp, ArrowDown, LayoutGrid, Loader, TriangleAlert, X, 
@@ -163,35 +164,7 @@ const openFolder = () => galleryStore.openInExplorer();
 const isLoadingMore = computed(() => galleryStore.loadingMoreImages);
 
 // --- Virtual scroller state ---
-const GAP = 20;
-const MIN_COLS = 1;
-const MAX_COLS = 8;
-const GRID_SIZE_KEY = "gallery-grid-size";
-const getDefaultCols = () => {
-  if (typeof window === "undefined") return 4;
-  const w = window.innerWidth;
-  if (w >= 1024) return 5;
-  if (w > 640) return 3;
-  return 2;
-};
-
-const columnCount = ref(getDefaultCols());
-const rowHeight = ref(0);
-let resizeObserver: ResizeObserver | null = null;
-const lastGridWidth = ref(0);
-
-const loadGridSize = () => {
-  if (typeof window === "undefined") return;
-  const stored = Number(localStorage.getItem(GRID_SIZE_KEY));
-  if (!Number.isNaN(stored) && stored >= MIN_COLS && stored <= MAX_COLS) {
-    columnCount.value = stored;
-  }
-};
-
-const saveGridSize = (val: number) => {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(GRID_SIZE_KEY, String(val));
-};
+const { columnCount, rowHeight, setGridRef, MIN_COLS, MAX_COLS } = useColumnResize();
 
 const imageRows = computed(() => {
   const rows: { id: string; items: typeof images.value }[] = [];
@@ -202,55 +175,6 @@ const imageRows = computed(() => {
     });
   }
   return rows;
-});
-
-const recomputeRowHeight = (width: number) => {
-  if (!width) return;
-  lastGridWidth.value = width;
-  const totalGap = GAP * (columnCount.value - 1);
-  const itemWidth = (width - totalGap) / columnCount.value;
-  rowHeight.value = itemWidth + GAP; // include vertical gap
-};
-
-const setGridRef = (el: Element | ComponentPublicInstance | null) => {
-  if (el && el instanceof HTMLElement) {
-    // Disconnect existing if any (though usually null here)
-    if (resizeObserver) resizeObserver.disconnect();
-
-    resizeObserver = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (entry) {
-        recomputeRowHeight(entry.contentRect.width);
-      }
-    });
-    
-    resizeObserver.observe(el);
-    // Initial compute
-    const initialWidth = el.getBoundingClientRect().width;
-    if (initialWidth) {
-      recomputeRowHeight(initialWidth);
-    }
-  } else {
-    if (resizeObserver) {
-      resizeObserver.disconnect();
-      resizeObserver = null;
-    }
-  }
-};
-
-onBeforeUnmount(() => {
-  if (resizeObserver) resizeObserver.disconnect();
-});
-
-onMounted(() => {
-  loadGridSize();
-});
-
-watch(columnCount, (val: number) => {
-  saveGridSize(val);
-  if (lastGridWidth.value) {
-    recomputeRowHeight(lastGridWidth.value);
-  }
 });
 
 const skeletonItems = computed(() => Array.from({ length: 12 }, (_, i) => i));
