@@ -415,14 +415,8 @@ onBeforeUnmount(() => {
       </RecycleScroller>
 
       <!-- Fallback: Only folders, no images (when RecycleScroller is not rendered) -->
+      <!-- AlbumScroller is rendered above (outside scroller-container), so no duplicate here -->
       <div v-else-if="folders.length > 0" class="folders-only-container">
-        <GlowContainer :bleed="50">
-          <AlbumScroller
-            :folders="folders"
-            @open-folder="handleOpenFolder"
-          />
-        </GlowContainer>
-        
         <!-- Has only folders, no images -->
         <EmptyState
           v-if="!images.length && !isLoading"
