@@ -1,0 +1,274 @@
+// ============================================
+// Lightbox Tablet Styles
+// iPad/tablet bottom sheet with 2-column layout
+// ============================================
+
+/* Tablet bottom sheet — wider, 2-column layout */
+.tablet-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  pointer-events: auto;
+}
+
+.tablet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.tablet-panel {
+  position: relative;
+  background: #1a1a1a;
+  border-radius: 20px 20px 0 0;
+  max-height: 65vh;
+  min-height: 28vh;
+  display: flex;
+  flex-direction: column;
+  transition: max-height 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  overflow: hidden;
+  margin: 0 16px;
+
+  &.tablet-expanded {
+    max-height: 80vh;
+  }
+}
+
+.tablet-handle-wrapper {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 6px;
+  touch-action: none;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.tablet-handle {
+  width: 44px;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+/* Tablet header with name, metadata tags, and close button */
+.tablet-header {
+  padding: 0 20px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+
+  .header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+
+    h3 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 600;
+      color: #fff;
+      word-break: break-all;
+      line-height: 1.4;
+      flex: 1;
+    }
+  }
+
+  .header-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+}
+
+.tablet-close-btn {
+  background: transparent;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: color 0.2s;
+
+  &:hover { color: #fff; }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring-shadow);
+  }
+}
+
+/* 2-column grid layout */
+.tablet-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  flex: 1;
+  min-height: 0;
+}
+
+.tablet-col {
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  -webkit-overflow-scrolling: touch;
+
+  &:first-child {
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+  }
+}
+
+/* Tablet section labels */
+.tablet-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  .tablet-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #86efac;
+
+    &.negative-label {
+      color: #fca5a5;
+    }
+  }
+}
+
+/* Tablet prompt text */
+.tablet-text {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #d1d5db;
+  white-space: pre-wrap;
+  margin: 0;
+  word-break: break-word;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+/* Tablet section top with copy button */
+.tablet-section-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* Tablet copy button */
+.tablet-copy-btn {
+  background: none;
+  border: none;
+  color: #a09888;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  transition: color 0.2s;
+
+  &:hover { color: var(--primary-color); }
+}
+
+/* Tablet tool label */
+.tablet-tool-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: #fb7185;
+  user-select: none;
+
+  &::before {
+    content: '// ';
+    color: #f43f5e;
+  }
+}
+
+/* Tablet pill grid (reuses params-grid from shared, tweaked for tablet) */
+.tablet-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Tablet model list */
+.tablet-model-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  .tablet-model-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    .tablet-model-name {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: #e5e7eb;
+    }
+
+    .tablet-model-type {
+      font-size: 10px;
+      color: #666;
+      text-transform: uppercase;
+    }
+  }
+}
+
+.tablet-hash {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: #999;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 1px 4px;
+  border-radius: 4px;
+  margin-left: 4px;
+}
+
+/* Override shared meta-tag for tablet — more compact */
+.tablet-header .meta-tag {
+  font-size: 11px;
+  padding: 3px 6px;
+}
+
+/* Tablet landscape: wider margins, slightly taller */
+@media (min-width: 900px) {
+  .tablet-panel {
+    margin: 0 32px;
+  }
+}
+
+/* Reduce height for smaller tablets in portrait */
+@media (max-height: 800px) {
+  .tablet-panel {
+    max-height: 55vh;
+    min-height: 22vh;
+
+    &.tablet-expanded {
+      max-height: 72vh;
+    }
+  }
+}
