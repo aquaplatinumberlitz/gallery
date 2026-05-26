@@ -735,7 +735,7 @@ const scrollAlbums = (direction: number) => {
 }
 
 .scroller {
-  --glow-bleed: 18px; /* Space for glow/hover within scrollport */
+  --glow-bleed: 50px; /* Space for glow/hover within scrollport */
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
@@ -788,7 +788,7 @@ const scrollAlbums = (direction: number) => {
 }
 
 .folders-only-container {
-  --glow-bleed: 18px; /* Space for glow/hover - same as .scroller */
+  --glow-bleed: 50px; /* Space for glow/hover - same as .scroller */
   padding-top: 10px;
   padding-right: calc(14px + var(--glow-bleed));
   padding-left: calc(10px + var(--glow-bleed));
@@ -1197,7 +1197,8 @@ const scrollAlbums = (direction: number) => {
   gap: 24px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 8px 4px 16px;
+  padding: 8px calc(4px + 50px) 16px;
+  margin: 0 calc(-50px);
   scroll-snap-type: x mandatory;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
@@ -1256,7 +1257,7 @@ const scrollAlbums = (direction: number) => {
 }
 
 @media (max-width: 640px) {
-  .album-grid { gap: 12px; padding: 4px 0 12px; }
+  .album-grid { gap: 12px; padding: 4px calc(0 + 50px) 12px; margin: 0 calc(-50px); }
   .album-grid > * { min-width: 130px; max-width: 170px; }
   /* Always show arrows on mobile */
   .album-scroll-btn {
