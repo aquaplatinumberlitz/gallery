@@ -13,7 +13,7 @@ import EmptyState from "./EmptyState.vue";
 import { compareNatural } from "../composables/useNaturalSort";
 import { useColumnResize } from "../composables/useColumnResize";
 import { 
-  ArrowLeft, ArrowRight, FolderOpen, ArrowUpDown, ChevronDown, 
+  ArrowLeft, ArrowRight, ArrowUpRight, FolderOpen, ArrowUpDown, ChevronDown, 
   ArrowUp, ArrowDown, LayoutGrid, Loader, TriangleAlert, X, 
   Type, Clock, Images 
 } from "lucide-vue-next";
@@ -242,15 +242,16 @@ onBeforeUnmount(() => {
         >
           <ArrowRight :size="18" />
         </button>
-        <button 
-          class="nav-btn open-folder" 
-          @click="openFolder" 
-          title="Open in new window"
-        >
-          <FolderOpen :size="18" />
-        </button>
       </div>
       <Breadcrumb class="breadcrumb-wrap" :path="currentPath" @navigate="handleOpenFolder" />
+
+      <button 
+        class="nav-btn open-folder" 
+        @click="openFolder" 
+        title="Open current folder in file explorer"
+      >
+        <ArrowUpRight :size="18" />
+      </button>
 
       <!-- Sort Dropdown (Google Photos style) -->
       <div class="sort-dropdown" :class="{ open: showSortMenu }">
@@ -489,7 +490,7 @@ onBeforeUnmount(() => {
 
 .grid-header {
   display: grid;
-  grid-template-columns: auto 1fr auto auto auto;
+  grid-template-columns: auto 1fr auto auto auto auto;
   align-items: center;
   gap: 12px;
   flex-shrink: 0;
