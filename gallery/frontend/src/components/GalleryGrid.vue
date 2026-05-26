@@ -501,7 +501,7 @@ const scrollAlbums = (direction: number) => {
                     @click="scrollAlbums(-1)"
                     aria-label="Scroll left"
                   >
-                    <ArrowLeft :size="16" />
+                    <ArrowLeft :size="24" />
                   </button>
                   <button
                     v-if="showRightArrow1"
@@ -509,7 +509,7 @@ const scrollAlbums = (direction: number) => {
                     @click="scrollAlbums(1)"
                     aria-label="Scroll right"
                   >
-                    <ArrowRight :size="16" />
+                    <ArrowRight :size="24" />
                   </button>
                 </div>
               </div>
@@ -585,7 +585,7 @@ const scrollAlbums = (direction: number) => {
                 @click="scrollAlbums(-1)"
                 aria-label="Scroll left"
               >
-                <ArrowLeft :size="16" />
+                <ArrowLeft :size="24" />
               </button>
               <button
                 v-if="showRightArrow2"
@@ -593,7 +593,7 @@ const scrollAlbums = (direction: number) => {
                 @click="scrollAlbums(1)"
                 aria-label="Scroll right"
               >
-                <ArrowRight :size="16" />
+                <ArrowRight :size="24" />
               </button>
             </div>
           </div>
@@ -1204,9 +1204,8 @@ const scrollAlbums = (direction: number) => {
   position: relative;
   top: auto;
   transform: none;
-  z-index: 5;
-  width: 28px;
-  height: 28px;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
   border: none;
   background: var(--surface-color, #fff);
@@ -1244,6 +1243,8 @@ const scrollAlbums = (direction: number) => {
   /* Always show arrows on mobile */
   .album-scroll-btn {
     opacity: 1;
+    width: 42px;
+    height: 42px;
   }
 }
 
