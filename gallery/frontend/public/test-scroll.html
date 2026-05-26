@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Test Album Scroll</title>
+<style>
+/* Replicate exact GalleryGrid scoped CSS for album-grid */
+body {
+  margin: 0;
+  padding: 20px;
+  font-family: sans-serif;
+  background: #1a1a2e;
+  color: #eee;
+}
+.test-container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.albums-section {
+  margin-bottom: 8px;
+}
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.album-arrows {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+.album-scroll-btn {
+  position: relative;
+  top: auto;
+  transform: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: none;
+  background: #fff;
+  color: #333;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 18px;
+}
+.album-scroll-btn:hover {
+  transform: scale(1.15);
+  background: #f0f0f0;
+}
+.album-grid-wrapper {
+  position: relative;
+  overflow: visible;
+  padding-top: 56px;
+  padding-bottom: 32px;
+  padding-left: 50px;
+  padding-right: 50px;
+  margin-top: -56px;
+  margin-bottom: -32px;
+  margin-left: -50px;
+  margin-right: -50px;
+}
+.album-grid {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 24px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 8px 4px 16px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.album-grid::-webkit-scrollbar {
+  display: none;
+}
+.album-grid > * {
+  flex-shrink: 0;
+  min-width: 180px;
+  max-width: 240px;
+}
+/* AlbumCard simulation */
+.album-card {
+  width: 100%;
+  cursor: pointer;
+  border-radius: 12px;
+  background: #16213e;
+  padding: 8px;
+  text-align: center;
+}
+.album-cover {
+  height: 170px;
+  background: linear-gradient(135deg, #0f3460, #533483);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+.album-name {
+  font-weight: 600;
+  color: #e0e0e0;
+}
+
+/* Arrows always visible for testing */
+.show-arrows .album-scroll-btn {
+  opacity: 1 !important;
+}
+
+/* Debug info */
+#debug-info {
+  margin-top: 16px;
+  padding: 12px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 8px;
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.6;
+}
+</style>
+</head>
+<body>
+<div class="test-container">
+  <h2>Album Scroll Test</h2>
+  
+  <section class="albums-section">
+    <div class="section-title">
+      <h3>Albums</h3>
+      <span class="album-count-badge">12</span>
+      <div class="album-arrows">
+        <button class="album-scroll-btn" id="scrollLeft" aria-label="Scroll left">◀</button>
+        <button class="album-scroll-btn" id="scrollRight" aria-label="Scroll right">▶</button>
+      </div>
+    </div>
+    <div class="album-grid-wrapper">
+      <div class="album-grid" id="albumGrid">
+        <!-- Album cards injected by JS -->
+      </div>
+    </div>
+  </section>
+
+  <div id="debug-info">
+    Loading...
+  </div>
+</div>
+
+<script>
+const albumNames = [
+  'Summer Vacation', 'Birthday Party', 'Wedding', 'Nature',
+  'City Life', 'Food & Drink', 'Travel', 'Family',
+  'Friends', 'Pets', 'Art', 'Music'
+];
+
+const grid = document.getElementById('albumGrid');
+const debugInfo = document.getElementById('debug-info');
+const scrollLeftBtn = document.getElementById('scrollLeft');
+const scrollRightBtn = document.getElementById('scrollRight');
+
+// Populate album cards
+albumNames.forEach(name => {
+  const card = document.createElement('div');
+  card.className = 'album-card';
+  card.innerHTML = `
+    <div class="album-cover"></div>
+    <div class="album-name">${name}</div>
+  `;
+  grid.appendChild(card);
+});
+
+function updateDebug() {
+  const firstCard = grid.children[0];
+  const cardWidth = firstCard ? firstCard.offsetWidth : 'N/A';
+  const gap = parseInt(getComputedStyle(grid).gap) || 0;
+  
+  debugInfo.innerHTML = `
+    <strong>Debug Info:</strong><br>
+    scrollLeft: <span id="debug-scrollLeft">${grid.scrollLeft}</span><br>
+    scrollWidth: ${grid.scrollWidth}<br>
+    clientWidth: ${grid.clientWidth}<br>
+    scrollable: ${grid.scrollWidth - grid.clientWidth}px<br>
+    card#0 offsetWidth: ${cardWidth}<br>
+    gap: ${gap}px<br>
+    children: ${grid.children.length}<br>
+    canScrollRight: ${grid.scrollLeft < grid.scrollWidth - grid.clientWidth - 4}<br>
+    canScrollLeft: ${grid.scrollLeft > 4}
+  `;
+}
+
+scrollRightBtn.addEventListener('click', () => {
+  const card = grid.children[0];
+  const cardWidth = card ? card.offsetWidth : 200;
+  const gap = parseInt(getComputedStyle(grid).gap) || 24;
+  const oldScroll = grid.scrollLeft;
+  grid.scrollLeft += (cardWidth + gap) * 1;
+  console.log('scrollRight:', { oldScroll, newScroll: grid.scrollLeft, cardWidth, gap, delta: (cardWidth + gap) });
+  updateDebug();
+});
+
+scrollLeftBtn.addEventListener('click', () => {
+  const card = grid.children[0];
+  const cardWidth = card ? card.offsetWidth : 200;
+  const gap = parseInt(getComputedStyle(grid).gap) || 24;
+  const oldScroll = grid.scrollLeft;
+  grid.scrollLeft += (cardWidth + gap) * -1;
+  console.log('scrollLeft:', { oldScroll, newScroll: grid.scrollLeft, cardWidth, gap, delta: (cardWidth + gap) });
+  updateDebug();
+});
+
+grid.addEventListener('scroll', () => {
+  updateDebug();
+});
+
+// Initial debug
+updateDebug();
+
+// Also test: what happens when album-grid-wrapper has overflow:hidden?
+document.getElementById('test-overflow').addEventListener('click', () => {
+  const wrapper = document.querySelector('.album-grid-wrapper');
+  wrapper.style.overflow = 'hidden';
+  alert('Wrapper overflow set to hidden. Try arrows now.');
+});
+</script>
+
+<button id="test-overflow" style="margin-top:12px;padding:8px 16px;cursor:pointer;">
+  Test: set wrapper overflow:hidden
+</button>
+</body>
+</html>

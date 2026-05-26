@@ -1,0 +1,280 @@
+<script setup lang="ts">
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import type { FileNode } from "../types";
+import { ArrowLeft, ArrowRight, FolderOpen } from "lucide-vue-next";
+import AlbumCard from "./AlbumCard.vue";
+
+const props = defineProps<{
+  folders: FileNode[];
+}>();
+
+const emit = defineEmits<{
+  (e: "open-folder", path: string): void;
+}>();
+
+// ── Refs ──
+const gridRef = ref<HTMLElement | null>(null);
+const showLeftArrow = ref(false);
+const showRightArrow = ref(false);
+
+// ── ResizeObserver for realtime overflow tracking ──
+let resizeObserver: ResizeObserver | null = null;
+let scrollTick = false; // RAF throttle
+
+const updateArrows = (grid: HTMLElement) => {
+  const { scrollLeft, scrollWidth, clientWidth } = grid;
+  showLeftArrow.value = scrollLeft > 4;
+  showRightArrow.value = scrollLeft < scrollWidth - clientWidth - 4;
+};
+
+// Called by both scroll event and ResizeObserver
+const scheduleArrowsUpdate = (grid: HTMLElement) => {
+  if (scrollTick) return;
+  scrollTick = true;
+  requestAnimationFrame(() => {
+    scrollTick = false;
+    updateArrows(grid);
+  });
+};
+
+const onGridScroll = () => {
+  if (gridRef.value) scheduleArrowsUpdate(gridRef.value);
+};
+
+// ── Scroll logic (thay vì đọc children[0], dùng querySelector) ──
+const scrollAlbums = (direction: number) => {
+  const grid = gridRef.value;
+  if (!grid) return;
+
+  // Safer: querySelector thay children[0] (tránh Vue component wrapper issue)
+  const card = grid.querySelector<HTMLElement>('[class*="album-card"]');
+  if (!card) return;
+
+  const cardWidth = card.offsetWidth || 200;
+  const gap = parseInt(getComputedStyle(grid).gap) || 24;
+  const scrollAmount = (cardWidth + gap) * direction;
+
+  grid.scrollBy({ left: scrollAmount, behavior: "smooth" });
+
+  // Update arrows after scroll animation completes
+  setTimeout(() => scheduleArrowsUpdate(grid), 350);
+};
+
+// ── Lifecycle ──
+const init = () => {
+  if (!gridRef.value) return;
+  updateArrows(gridRef.value);
+
+  // Set up ResizeObserver to recalculate when grid size changes
+  if (resizeObserver) resizeObserver.disconnect();
+  resizeObserver = new ResizeObserver(([entry]) => {
+    if (entry && gridRef.value) {
+      updateArrows(gridRef.value);
+    }
+  });
+  resizeObserver.observe(gridRef.value);
+};
+
+onMounted(() => {
+  nextTick(() => init());
+});
+
+onBeforeUnmount(() => {
+  if (resizeObserver) resizeObserver.disconnect();
+  resizeObserver = null;
+});
+
+// Re-init when folders data changes
+watch(() => props.folders.length, () => {
+  nextTick(() => init());
+});
+
+// Re-init on window resize (phòng trường hợp sidebar toggle)
+let resizeHandler: (() => void) | null = null;
+onMounted(() => {
+  resizeHandler = () => {
+    if (gridRef.value) updateArrows(gridRef.value);
+  };
+  window.addEventListener("resize", resizeHandler);
+});
+onBeforeUnmount(() => {
+  if (resizeHandler) window.removeEventListener("resize", resizeHandler);
+});
+</script>
+
+<template>
+  <section v-if="folders.length" class="album-scroller">
+    <div class="section-title">
+      <h3>Albums</h3>
+      <span class="album-count-badge">
+        <FolderOpen :size="13" />
+        {{ folders.length }}
+      </span>
+      <div class="album-arrows">
+        <button
+          v-if="showLeftArrow"
+          class="album-scroll-btn"
+          @click="scrollAlbums(-1)"
+          aria-label="Scroll left"
+        >
+          <ArrowLeft :size="24" />
+        </button>
+        <button
+          v-if="showRightArrow"
+          class="album-scroll-btn"
+          @click="scrollAlbums(1)"
+          aria-label="Scroll right"
+        >
+          <ArrowRight :size="24" />
+        </button>
+      </div>
+    </div>
+    <div class="album-grid-wrapper">
+      <div
+        ref="gridRef"
+        class="album-grid"
+        @scroll="onGridScroll"
+      >
+        <AlbumCard
+          v-for="item in folders"
+          :key="item.path"
+          :node="item"
+          @click="emit('open-folder', item.path)"
+        />
+      </div>
+    </div>
+  </section>
+</template>
+
+<style scoped>
+.album-scroller {
+  margin-bottom: 8px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.section-title h3 {
+  margin: 0;
+  font-family: "Cinzel", serif;
+  font-size: 16px;
+  color: var(--primary-color);
+  position: relative;
+  display: inline-block;
+}
+
+.section-title h3::after {
+  content: "";
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  width: 100%;
+  height: 1.5px;
+  background: linear-gradient(90deg, var(--primary-color, #d6a15d) 0%, transparent 100%);
+  border-radius: 1px;
+}
+
+.album-count-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px 3px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+  font-size: 12px;
+  font-family: var(--font-code);
+  color: var(--primary-color);
+}
+
+.album-arrows {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+/* ── Album Grid ── */
+.album-grid-wrapper {
+  position: relative;
+  overflow: visible; /* glow bleed only — scroll container is .album-grid */
+  padding: 56px 50px 32px;
+  margin: -56px -50px -32px;
+}
+
+.album-grid {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 24px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 8px 4px 16px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  /* Smooth scroll behavior */
+  scroll-behavior: smooth;
+}
+
+.album-grid::-webkit-scrollbar {
+  display: none;
+}
+
+.album-grid > * {
+  flex-shrink: 0;
+  min-width: 180px;
+  max-width: 240px;
+}
+
+/* ── Arrow Buttons ── */
+.album-scroll-btn {
+  position: relative;
+  top: auto;
+  transform: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: none;
+  background: var(--surface-color, #fff);
+  color: var(--text-color, #333);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s, transform 0.2s;
+  flex-shrink: 0;
+  z-index: 2;
+}
+
+.album-scroll-btn:hover {
+  transform: scale(1.15);
+  background: var(--bg-hover, #f0f0f0);
+}
+
+.album-scroller:hover .album-scroll-btn {
+  opacity: 1;
+}
+
+.album-scroll-btn:active {
+  transform: scale(0.95);
+}
+
+@media (max-width: 640px) {
+  .album-grid { gap: 12px; padding: 4px 0 12px; }
+  .album-grid > * { min-width: 130px; max-width: 170px; }
+  .album-scroll-btn {
+    opacity: 1;
+    width: 42px;
+    height: 42px;
+  }
+}
+
+@media (max-width: 480px) {
+  .album-grid { gap: 8px; }
+  .album-grid > * { min-width: 110px; max-width: 140px; }
+}
+</style>
