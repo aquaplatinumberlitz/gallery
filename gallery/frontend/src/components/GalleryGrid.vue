@@ -368,49 +368,18 @@ watch(albumGridRef2, (newVal) => {
 });
 
 const scrollAlbums = (direction: number) => {
-  console.log('[scrollAlbums] called with direction:', direction);
   const grid = albumGridRef.value || albumGridRef2.value;
-  if (!grid) {
-    console.log('[scrollAlbums] EARLY RETURN: grid ref is null', {
-      albumGridRef: albumGridRef.value,
-      albumGridRef2: albumGridRef2.value
-    });
-    return;
-  }
-  const albumGridEl = grid.children[0] as HTMLElement | undefined;
-  if (!albumGridEl) {
-    console.log('[scrollAlbums] EARLY RETURN: grid has no children, tag:', grid.tagName, 'children:', grid.children.length);
-    return;
-  }
-  const card = albumGridEl.children[0] as HTMLElement | undefined;
-  if (!card) {
-    console.log('[scrollAlbums] EARLY RETURN: albumGridEl has no children, tag:', albumGridEl.tagName, 'children:', albumGridEl.children.length);
-    return;
-  }
+  if (!grid) return;
+  const card = grid.children[0] as HTMLElement | undefined;
+  if (!card) return;
   const cardWidth = card.offsetWidth || 200;
-  const gap = parseInt(getComputedStyle(albumGridEl).gap) || 24;
-  const scrollAmount = cardWidth + gap;
-  console.log('[scrollAlbums] BEFORE scrollBy:', {
-    grid: grid.tagName,
-    gridScrollLeft: grid.scrollLeft,
-    gridScrollWidth: grid.scrollWidth,
-    gridClientWidth: grid.clientWidth,
-    albumGridElTag: albumGridEl.tagName,
-    albumGridElChildren: albumGridEl.children.length,
-    cardTag: card.tagName,
-    cardWidth,
-    gap,
-    scrollAmount,
-    direction
-  });
-  grid.scrollBy({ left: scrollAmount * direction, behavior: 'smooth' });
-  // Log after a small delay to see if scrollBy actually moved
+  const gap = parseInt(getComputedStyle(grid).gap) || 24;
+  grid.scrollBy({ left: (cardWidth + gap) * direction, behavior: 'smooth' });
+  // Re-check arrow visibility after scroll
   setTimeout(() => {
-    console.log('[scrollAlbums] AFTER scrollBy - scrollLeft:', grid.scrollLeft);
-    // Re-check arrow visibility after scroll
     if (grid === albumGridRef.value) handleAlbumScroll1();
     else if (grid === albumGridRef2.value) handleAlbumScroll2();
-  }, 50);
+  }, 350);
 };
 </script>
 
@@ -576,8 +545,8 @@ const scrollAlbums = (direction: number) => {
                   </button>
                 </div>
               </div>
-              <div class="album-grid-wrapper" ref="albumGridRef" @scroll="handleAlbumScroll1">
-                <div class="album-grid">
+              <div class="album-grid-wrapper">
+                <div class="album-grid" ref="albumGridRef" @scroll="handleAlbumScroll1">
                   <AlbumCard
                     v-for="item in folders"
                     :key="item.path"
@@ -663,8 +632,8 @@ const scrollAlbums = (direction: number) => {
               </button>
             </div>
           </div>
-          <div class="album-grid-wrapper" ref="albumGridRef2" @scroll="handleAlbumScroll2">
-            <div class="album-grid">
+          <div class="album-grid-wrapper">
+            <div class="album-grid" ref="albumGridRef2" @scroll="handleAlbumScroll2">
               <AlbumCard
                 v-for="item in folders"
                 :key="item.path"
@@ -1253,13 +1222,7 @@ const scrollAlbums = (direction: number) => {
 /* ── Album Horizontal Scroll ── */
 .album-grid-wrapper {
   position: relative;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scroll-snap-type: x mandatory;
-  scroll-behavior: smooth;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  overflow: visible; /* glow bleed only — scroll container is .album-grid */
   padding-top: 56px;
   padding-bottom: 32px;
   padding-left: 50px;
@@ -1278,12 +1241,18 @@ const scrollAlbums = (direction: number) => {
   display: flex;
   flex-wrap: nowrap;
   gap: 24px;
-  overflow: visible;
+  overflow-x: auto;
+  overflow-y: hidden;
   padding: 8px 4px 16px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.album-grid::-webkit-scrollbar {
+  display: none;
 }
 
 .album-grid > * {
-  scroll-snap-align: start;
   flex-shrink: 0;
   min-width: 180px;
   max-width: 240px;
