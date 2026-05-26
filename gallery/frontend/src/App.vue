@@ -234,7 +234,7 @@ watch(theme, (val) => {
   display: grid;
   grid-template-columns: 280px 1fr;
   overflow-x: visible;
-  overflow-y: hidden;
+  overflow-y: clip;
 }
 
 .layout.collapsed {
