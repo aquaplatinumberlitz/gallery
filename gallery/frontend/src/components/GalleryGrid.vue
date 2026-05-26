@@ -735,14 +735,11 @@ const scrollAlbums = (direction: number) => {
 }
 
 .scroller {
-  --glow-bleed: 50px; /* Space for glow/hover within scrollport */
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  padding-right: calc(14px + var(--glow-bleed));
-  padding-left: calc(10px + var(--glow-bleed));
-  margin-left: calc(-1 * var(--glow-bleed));
-  margin-right: calc(-1 * var(--glow-bleed));
+  padding-right: 14px;
+  padding-left: 10px;
   scrollbar-width: thin; /* Slim size for Firefox */
   outline: none;
 }
@@ -788,12 +785,9 @@ const scrollAlbums = (direction: number) => {
 }
 
 .folders-only-container {
-  --glow-bleed: 50px; /* Space for glow/hover - same as .scroller */
   padding-top: 10px;
-  padding-right: calc(14px + var(--glow-bleed));
-  padding-left: calc(10px + var(--glow-bleed));
-  margin-left: calc(-1 * var(--glow-bleed));
-  margin-right: calc(-1 * var(--glow-bleed));
+  padding-right: 14px;
+  padding-left: 10px;
   overflow-y: auto;
   overflow-x: hidden;
   height: 100%;
@@ -1189,26 +1183,25 @@ const scrollAlbums = (direction: number) => {
 /* ── Album Horizontal Scroll ── */
 .album-grid-wrapper {
   position: relative;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.album-grid-wrapper::-webkit-scrollbar {
+  display: none;
 }
 
 .album-grid {
   display: flex;
   flex-wrap: nowrap;
   gap: 24px;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: visible;
   padding: 8px calc(4px + 50px) 16px;
-  margin: 0 calc(-50px);
-  scroll-snap-type: x mandatory;
-  scroll-behavior: smooth;
-  -webkit-overflow-scrolling: touch;
-
-  /* Ẩn scrollbar */
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-.album-grid::-webkit-scrollbar {
-  display: none;
 }
 
 .album-grid > * {
@@ -1257,7 +1250,7 @@ const scrollAlbums = (direction: number) => {
 }
 
 @media (max-width: 640px) {
-  .album-grid { gap: 12px; padding: 4px calc(0 + 50px) 12px; margin: 0 calc(-50px); }
+  .album-grid { gap: 12px; padding: 4px calc(0 + 50px) 12px; }
   .album-grid > * { min-width: 130px; max-width: 170px; }
   /* Always show arrows on mobile */
   .album-scroll-btn {
