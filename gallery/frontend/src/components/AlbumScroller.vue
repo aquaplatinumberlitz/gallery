@@ -311,8 +311,17 @@ onBeforeUnmount(() => {
     --glow-bleed-y: 12px;
     --glow-bleed-bottom: 12px;
   }
-  .album-grid { gap: 12px; padding: 4px 0 12px; }
-  .album-grid > * { min-width: 130px; max-width: 170px; }
+  .album-grid {
+    gap: 12px;
+    padding: 4px 0 12px;
+    scroll-snap-type: x mandatory;
+  }
+  .album-grid > * {
+    min-width: 130px;
+    max-width: 170px;
+    scroll-snap-align: start;
+  }
+  .album-arrows { display: none; }
   .album-scroll-btn {
     opacity: 1;
     width: 42px;
