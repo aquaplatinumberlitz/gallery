@@ -32,7 +32,7 @@ defineProps<{
         <div v-else class="placeholder flex-center"><span class="fa-placeholder-svg" v-html="placeholderSvg"></span></div>
       </div>
       <div class="album-count">
-        <FolderOpen :size="12" />
+        <FolderOpen :size="24" />
       </div>
     </div>
 
@@ -141,8 +141,8 @@ defineProps<{
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
+    width: 48px;
+    height: 48px;
     border-radius: 50%;
     background: color-mix(in srgb, var(--primary-color) 15%, transparent);
     color: var(--primary-color);
