@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { FileNode } from "../types";
 import { getThumbnailUrl } from "../services/api";
+import { FolderOpen } from "lucide-vue-next";
 
 // FA SVG placeholder icon
 const placeholderSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path fill="currentColor" d="M128 96L576 96L576 480L128 480L128 96zM80 192L80 528L480 528L480 576L32 576L32 192L80 192zM224 224C241.7 224 256 209.7 256 192C256 174.3 241.7 160 224 160C206.3 160 192 174.3 192 192C192 209.7 206.3 224 224 224zM272 272L176 416L528 416L400 208L318.1 341.1L272 272z"/></svg>`;
@@ -30,7 +31,9 @@ defineProps<{
         <img v-if="node.cover_images?.[0]" :src="getThumbnailUrl(node.cover_images[0])" loading="lazy" alt="" />
         <div v-else class="placeholder flex-center"><span class="fa-placeholder-svg" v-html="placeholderSvg"></span></div>
       </div>
-      <div class="album-count">Folder</div>
+      <div class="album-count">
+        <FolderOpen :size="12" />
+      </div>
     </div>
 
     <div class="album-info">
@@ -133,16 +136,18 @@ defineProps<{
 
   .album-count {
     position: absolute;
-    bottom: 10px;
-    right: 10px;
-    background: rgba(0, 0, 0, 0.8);
-    color: #fff;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 12px;
-    font-family: var(--font-code); // JetBrains Mono
-    z-index: 15;
+    bottom: 8px;
+    right: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--primary-color) 15%, transparent);
+    color: var(--primary-color);
     backdrop-filter: blur(4px);
+    z-index: 15;
   }
 
   .album-info {
