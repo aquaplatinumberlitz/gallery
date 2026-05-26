@@ -31,14 +31,14 @@ defineProps<{
         <img v-if="node.cover_images?.[0]" :src="getThumbnailUrl(node.cover_images[0])" loading="lazy" alt="" />
         <div v-else class="placeholder flex-center"><span class="fa-placeholder-svg" v-html="placeholderSvg"></span></div>
       </div>
-      <div class="album-count">
-        <FolderOpen :size="24" />
-      </div>
     </div>
 
     <div class="album-info">
-      <h3>{{ node.name }}</h3>
-      <p class="meta">ALBUM</p>
+      <h3 class="album-name">{{ node.name }}</h3>
+      <div class="album-meta">
+        <FolderOpen :size="11" class="album-meta-icon" />
+        <span>Album</span>
+      </div>
     </div>
   </div>
 </template>
@@ -75,11 +75,11 @@ defineProps<{
       height: 160px;
     }
 
-    .album-info h3 {
+    .album-name {
       font-size: 14px;
     }
 
-    .album-info .meta {
+    .album-meta {
       font-size: 10px;
     }
   }
@@ -134,29 +134,13 @@ defineProps<{
       0 2px 6px 2px rgba(0, 0, 0, 0.15);
   }
 
-  .album-count {
-    position: absolute;
-    bottom: 8px;
-    right: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: color-mix(in srgb, var(--primary-color) 15%, transparent);
-    color: var(--primary-color);
-    backdrop-filter: blur(4px);
-    z-index: 15;
-  }
-
   .album-info {
     margin-top: 12px;
     padding: 0 12px 12px;
     position: relative;
     z-index: 20;
 
-    h3 {
+    .album-name {
       font-family: var(--font-body); // Inter font
       font-weight: 600;
       font-size: 16px;
@@ -167,12 +151,19 @@ defineProps<{
       white-space: nowrap;
     }
 
-    .meta {
+    .album-meta {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
       font-family: var(--font-code); // JetBrains Mono
       font-size: 11px;
       color: var(--muted-text);
       margin: 4px 0 0;
-      letter-spacing: 1px;
+      letter-spacing: 0.5px;
+    }
+    .album-meta-icon {
+      flex-shrink: 0;
+      color: var(--muted-text);
     }
   }
 
@@ -218,7 +209,7 @@ defineProps<{
         0 0 12px rgba(255, 107, 53, 0.2);
     }
 
-    .album-info h3 {
+    .album-name {
       color: var(--neon-color);
     }
 
