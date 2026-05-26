@@ -487,6 +487,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 20px;
   height: 100%;
+  min-height: 0; /* override flex default min-height:auto — content-body overflow:visible means parent is NOT a scroll container, so flex children's min-height:auto resolves to content size, breaking the height constraint chain */
 }
 
 .grid-header {
