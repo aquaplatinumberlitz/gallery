@@ -516,8 +516,8 @@ const scrollAlbums = (direction: number) => {
                   </button>
                 </div>
               </div>
-              <div class="album-grid-wrapper">
-                <div class="album-grid" ref="albumGridRef" @scroll="handleAlbumScroll1">
+              <div class="album-grid-wrapper" ref="albumGridRef" @scroll="handleAlbumScroll1">
+                <div class="album-grid">
                   <AlbumCard
                     v-for="item in folders"
                     :key="item.path"
@@ -603,8 +603,8 @@ const scrollAlbums = (direction: number) => {
               </button>
             </div>
           </div>
-          <div class="album-grid-wrapper">
-            <div class="album-grid" ref="albumGridRef2" @scroll="handleAlbumScroll2">
+          <div class="album-grid-wrapper" ref="albumGridRef2" @scroll="handleAlbumScroll2">
+            <div class="album-grid">
               <AlbumCard
                 v-for="item in folders"
                 :key="item.path"
