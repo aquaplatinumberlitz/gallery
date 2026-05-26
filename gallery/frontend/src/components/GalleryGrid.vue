@@ -1038,6 +1038,10 @@ onBeforeUnmount(() => {
     display: none;
   }
 
+  .nav-group {
+    display: none;
+  }
+
   /* Sort: hidden on mobile */
   .sort-dropdown {
     display: none;
