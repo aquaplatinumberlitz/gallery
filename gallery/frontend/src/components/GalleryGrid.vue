@@ -316,6 +316,42 @@ onBeforeUnmount(() => {
     loadObserver = null;
   }
 });
+
+// ── Album Horizontal Scroll Arrows ──
+const albumGridRef = ref<HTMLElement | null>(null);
+const albumGridRef2 = ref<HTMLElement | null>(null);
+const showLeftArrow1 = ref(false);
+const showRightArrow1 = ref(false);
+const showLeftArrow2 = ref(false);
+const showRightArrow2 = ref(false);
+
+const updateArrowVisibility = (
+  grid: HTMLElement,
+  leftArrow: { value: boolean },
+  rightArrow: { value: boolean }
+) => {
+  const { scrollLeft, scrollWidth, clientWidth } = grid;
+  leftArrow.value = scrollLeft > 4;
+  rightArrow.value = scrollLeft < scrollWidth - clientWidth - 4;
+};
+
+const handleAlbumScroll1 = () => {
+  if (albumGridRef.value) updateArrowVisibility(albumGridRef.value, showLeftArrow1, showRightArrow1);
+};
+const handleAlbumScroll2 = () => {
+  if (albumGridRef2.value) updateArrowVisibility(albumGridRef2.value, showLeftArrow2, showRightArrow2);
+};
+
+const scrollAlbums = (direction: number) => {
+  const grid = albumGridRef.value || albumGridRef2.value;
+  if (!grid) return;
+  const card = grid.children[0] as HTMLElement | undefined;
+  if (!card) return;
+  const cardWidth = card.offsetWidth || 200;
+  const gap = parseInt(getComputedStyle(grid).gap) || 24;
+  const scrollAmount = cardWidth + gap;
+  grid.scrollBy({ left: scrollAmount * direction, behavior: 'smooth' });
+};
 </script>
 
 <template>
@@ -460,7 +496,15 @@ onBeforeUnmount(() => {
                 <span>{{ folders.length }}</span>
               </div>
               <div class="album-grid-wrapper">
-                <div class="album-grid">
+                <button
+                  v-if="showLeftArrow1"
+                  class="album-scroll-btn album-scroll-left"
+                  @click="scrollAlbums(-1)"
+                  aria-label="Scroll left"
+                >
+                  <ArrowLeft :size="20" />
+                </button>
+                <div class="album-grid" ref="albumGridRef" @scroll="handleAlbumScroll1">
                   <AlbumCard
                     v-for="item in folders"
                     :key="item.path"
@@ -468,6 +512,14 @@ onBeforeUnmount(() => {
                     @click="handleOpenFolder(item.path)"
                   />
                 </div>
+                <button
+                  v-if="showRightArrow1"
+                  class="album-scroll-btn album-scroll-right"
+                  @click="scrollAlbums(1)"
+                  aria-label="Scroll right"
+                >
+                  <ArrowRight :size="20" />
+                </button>
               </div>
             </section>
 
@@ -526,7 +578,15 @@ onBeforeUnmount(() => {
             <span>{{ folders.length }}</span>
           </div>
           <div class="album-grid-wrapper">
-            <div class="album-grid">
+            <button
+              v-if="showLeftArrow2"
+              class="album-scroll-btn album-scroll-left"
+              @click="scrollAlbums(-1)"
+              aria-label="Scroll left"
+            >
+              <ArrowLeft :size="20" />
+            </button>
+            <div class="album-grid" ref="albumGridRef2" @scroll="handleAlbumScroll2">
               <AlbumCard
                 v-for="item in folders"
                 :key="item.path"
@@ -534,6 +594,14 @@ onBeforeUnmount(() => {
                 @click="handleOpenFolder(item.path)"
               />
             </div>
+            <button
+              v-if="showRightArrow2"
+              class="album-scroll-btn album-scroll-right"
+              @click="scrollAlbums(1)"
+              aria-label="Scroll right"
+            >
+              <ArrowRight :size="20" />
+            </button>
           </div>
         </section>
         
@@ -1148,11 +1216,52 @@ onBeforeUnmount(() => {
   max-width: 240px;
 }
 
+/* ── Album Scroll Arrow Buttons ── */
+.album-scroll-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: var(--surface-color, #fff);
+  color: var(--text-color, #333);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s, transform 0.2s;
+}
+.album-scroll-btn:hover {
+  transform: translateY(-50%) scale(1.1);
+  background: var(--bg-hover, #f0f0f0);
+}
+.album-grid-wrapper:hover .album-scroll-btn {
+  opacity: 1;
+}
+.album-scroll-btn:active {
+  transform: translateY(-50%) scale(0.95);
+}
+.album-scroll-left { left: 8px; }
+.album-scroll-right { right: 8px; }
+
 @media (max-width: 640px) {
   .album-grid { gap: 12px; padding: 4px 0 12px; }
   .album-grid > * { min-width: 130px; max-width: 170px; }
   .album-grid-wrapper::before,
   .album-grid-wrapper::after { display: none; }
+  /* Always show arrows on mobile */
+  .album-scroll-btn {
+    opacity: 1;
+    width: 28px;
+    height: 28px;
+  }
+  .album-scroll-left { left: 4px; }
+  .album-scroll-right { right: 4px; }
 }
 
 @media (max-width: 480px) {
