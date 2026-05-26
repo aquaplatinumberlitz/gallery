@@ -184,6 +184,7 @@ watch(theme, (val) => {
 
     <section class="content" id="main-content" tabindex="-1">
       <AppHeader
+        v-if="!isMobile"
         :is-mobile="isMobile"
         :is-sidebar-open="isSidebarOpen"
         :is-dark="theme === 'dark'"
