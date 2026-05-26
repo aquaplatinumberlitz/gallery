@@ -1,0 +1,125 @@
+// ============================================
+// Lightbox Shared Styles
+// Used by both desktop metadata panel and mobile bottom sheet
+// ============================================
+
+/* Loading & Error states (used in both desktop sidebar and mobile sheet) */
+.meta-loading,
+.meta-error {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #999;
+  font-size: 14px;
+}
+
+/* LoRA highlighter — shared across panels */
+:deep(.lora-pill) {
+  color: #c084fc;
+  font-weight: 600;
+}
+
+/* Params Grid — used in both desktop Generation Data section and mobile Params tab */
+.params-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.param-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+
+  .label {
+    color: #999;
+    text-transform: uppercase;
+    font-size: 10px;
+    font-weight: 600;
+  }
+
+  .value {
+    color: #fff;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .icon-btn {
+    background: transparent;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    font-size: 12px;
+    &:hover { color: #fff; }
+  }
+}
+
+/* ==========================================
+   FOCUS STYLES - WCAG 2.1 Compliant
+   Using box-shadow for consistent full border
+   ========================================== */
+
+/* Copy buttons in prompt boxes */
+.copy-btn {
+  border-radius: 4px;
+  padding: 4px 6px;
+  
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring-shadow);
+  }
+}
+
+/* Icon buttons (seed copy, etc) */
+.icon-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring-shadow);
+  border-radius: 4px;
+}
+
+/* Collapsible group headers */
+.group-header:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring-shadow);
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .lightbox-overlay {
+    background: #000;
+  }
+  
+  .lightbox-right {
+    background: #000;
+    border-left: 2px solid #fff;
+  }
+  
+  .nav-btn {
+    border: 2px solid #fff;
+  }
+  
+  .prompt-box {
+    border: 2px solid #fff;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .fade-enter-active,
+  .fade-leave-active {
+    transition: none;
+  }
+  
+  .hero-image {
+    transition: none;
+  }
+}
