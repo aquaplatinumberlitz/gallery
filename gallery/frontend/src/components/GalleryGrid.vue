@@ -13,7 +13,7 @@ import EmptyState from "./EmptyState.vue";
 import { compareNatural } from "../composables/useNaturalSort";
 import { useColumnResize } from "../composables/useColumnResize";
 import { 
-  ArrowLeft, ArrowRight, ArrowUpRight, FolderOpen, ArrowUpDown, ChevronDown, 
+  ArrowLeft, ArrowRight, ArrowUpRight, ArrowUpDown, ChevronDown, 
   ArrowUp, ArrowDown, LayoutGrid, Loader, TriangleAlert, X, 
   Type, Clock, Images 
 } from "lucide-vue-next";
@@ -142,13 +142,6 @@ const noSearchResults = computed(
     hasAnyItems.value
 );
 const errorMessage = computed(() => galleryStore.errorMessage);
-
-// Folder display name for mobile bar
-const folderDisplayName = computed(() => {
-  if (!currentPath.value) return 'Albums';
-  const parts = currentPath.value.replace(/\/+$/, '').split('/');
-  return parts[parts.length - 1] || 'Albums';
-});
 
 const handleOpenFolder = (path: string) => {
   galleryStore.selectFolder(path);
@@ -311,15 +304,6 @@ onBeforeUnmount(() => {
         <Loader :size="16" class="lucide-spin" /> 
         <span>Loading</span>
       </div>
-    </div>
-
-    <!-- Mobile folder info bar -->
-    <div v-if="(images.length > 0 || folders.length > 0) && currentPath" class="mobile-folder-bar">
-      <span class="folder-name">
-        <FolderOpen :size="16" class="folder-icon" />
-        <span class="folder-text">{{ folderDisplayName }}</span>
-      </span>
-      <span class="photo-count">{{ images.length }} photo{{ images.length !== 1 ? 's' : '' }}</span>
     </div>
 
     <div v-if="errorMessage" class="error-banner">
@@ -494,11 +478,6 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 12px;
   flex-shrink: 0;
-}
-
-/* Hidden by default, shown on mobile */
-.mobile-folder-bar {
-  display: none;
 }
 
 .error-banner {
@@ -1046,12 +1025,6 @@ onBeforeUnmount(() => {
     display: none;
   }
 
-  /* Folder icon in Row 3 — orange like the old button */
-  .folder-icon {
-    opacity: 1;
-    color: var(--primary-color);
-  }
-
   .nav-group {
     flex-shrink: 0;
   }
@@ -1073,48 +1046,6 @@ onBeforeUnmount(() => {
   /* Grid slider: hidden on mobile */
   .grid-slider {
     display: none;
-  }
-
-  .mobile-folder-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 4px 4px;
-    gap: 8px;
-    min-width: 0;
-  }
-
-  .folder-name {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-  }
-
-  .folder-icon {
-    flex-shrink: 0;
-    opacity: 0.7;
-  }
-
-  .folder-text {
-    font-weight: 700;
-    font-size: 14px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: var(--text-color);
-  }
-
-  .photo-count {
-    flex-shrink: 0;
-    background: var(--bg-secondary);
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    opacity: 1;
-    white-space: nowrap;
   }
 
   .albums-section {
