@@ -445,13 +445,14 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- Has content: images or folders -->
-    <div v-else-if="images.length > 0 || folders.length > 0" class="scroller-container" :ref="setGridRef">
-      <!-- Albums: handled by standalone AlbumScroller component -->
+    <template v-else-if="images.length > 0 || folders.length > 0">
+      <!-- Album scroller: outside scroller-container để glow khong bi clip boi content-body overflow:hidden -->
       <AlbumScroller
         v-if="folders.length"
         :folders="folders"
         @open-folder="handleOpenFolder"
       />
+      <div class="scroller-container" :ref="setGridRef">
 
       <RecycleScroller
         v-if="imageRows.length > 0 && rowHeight > 0"
@@ -528,6 +529,7 @@ onBeforeUnmount(() => {
         />
       </div>
     </div>
+    </template>
 
     <!-- Empty States (when scroller-container is not rendered) -->
     <div v-else class="empty-state-container">
