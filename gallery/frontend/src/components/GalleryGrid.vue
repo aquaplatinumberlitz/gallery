@@ -9,6 +9,7 @@ import PhotoCard from "./PhotoCard.vue";
 import SkeletonLoader from "./SkeletonLoader.vue";
 import Breadcrumb from "./Breadcrumb.vue";
 import EmptyState from "./EmptyState.vue";
+import { compareNatural } from "../composables/useNaturalSort";
 import { 
   ArrowLeft, ArrowRight, FolderOpen, ArrowUpDown, ChevronDown, 
   ArrowUp, ArrowDown, LayoutGrid, Loader, TriangleAlert, X, 
@@ -85,30 +86,6 @@ onMounted(() => {
 onBeforeUnmount(() => {
   document.removeEventListener("click", closeSortMenu);
 });
-
-// Natural sort helper
-const naturalSortKey = (s: string): (string | number)[] => {
-  return s.split(/(\d+)/).map(part => {
-    const num = parseInt(part, 10);
-    return isNaN(num) ? part.toLowerCase() : num;
-  });
-};
-
-const compareNatural = (a: string, b: string): number => {
-  const aParts = naturalSortKey(a);
-  const bParts = naturalSortKey(b);
-  for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
-    const aPart = aParts[i] ?? "";
-    const bPart = bParts[i] ?? "";
-    if (typeof aPart === "number" && typeof bPart === "number") {
-      if (aPart !== bPart) return aPart - bPart;
-    } else {
-      const cmp = String(aPart).localeCompare(String(bPart));
-      if (cmp !== 0) return cmp;
-    }
-  }
-  return 0;
-};
 
 const sortItems = <T extends { name: string; mtime?: number }>(items: T[]): T[] => {
   const sorted = [...items];
