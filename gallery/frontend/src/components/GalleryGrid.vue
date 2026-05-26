@@ -345,10 +345,12 @@ const handleAlbumScroll2 = () => {
 const scrollAlbums = (direction: number) => {
   const grid = albumGridRef.value || albumGridRef2.value;
   if (!grid) return;
-  const card = grid.children[0] as HTMLElement | undefined;
+  const albumGridEl = grid.children[0] as HTMLElement | undefined;
+  if (!albumGridEl) return;
+  const card = albumGridEl.children[0] as HTMLElement | undefined;
   if (!card) return;
   const cardWidth = card.offsetWidth || 200;
-  const gap = parseInt(getComputedStyle(grid).gap) || 24;
+  const gap = parseInt(getComputedStyle(albumGridEl).gap) || 24;
   const scrollAmount = cardWidth + gap;
   grid.scrollBy({ left: scrollAmount * direction, behavior: 'smooth' });
 };
