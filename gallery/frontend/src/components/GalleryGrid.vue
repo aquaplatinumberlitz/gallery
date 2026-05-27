@@ -524,8 +524,6 @@ onBeforeUnmount(() => {
 .scroller-container {
   flex: 1;
   min-height: 0; /* Important for flex child scrolling */
-  overflow-y: auto;
-  overflow-x: hidden;
 }
 
 .scroller {
@@ -612,6 +610,7 @@ onBeforeUnmount(() => {
 
 .photos-title {
   margin-bottom: 12px;
+  padding-left: 10px;
 }
 
 .photo-count-badge {
