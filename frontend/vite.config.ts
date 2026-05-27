@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 
 const DEV_PORT = Number(process.env.VITE_PORT) || 5173;
-const API_TARGET = process.env.VITE_API_URL || "http://localhost:8000";
+const API_TARGET = process.env.VITE_API_URL || "http://localhost:4180";
 
 export default defineConfig({
   plugins: [vue()],
