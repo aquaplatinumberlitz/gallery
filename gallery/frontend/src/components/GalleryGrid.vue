@@ -1071,13 +1071,13 @@ onBeforeUnmount(() => {
   }
 
   .scroller-header {
-    padding-top: 40px;
+    padding-top: 60px;
     padding-bottom: 40px;
   }
 
   .scroller-footer {
     padding-top: 8px;
-    padding-bottom: 20px;
+    padding-bottom: 90px;
   }
 }
 
