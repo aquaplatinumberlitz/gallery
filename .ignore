@@ -1,0 +1,21 @@
+node_modules/
+dist/
+.git/
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+.venv*/
+venv/
+*.venv/
+.env
+test-images/
+test mika/
+backup*/
+*.zip
+*.tar.gz
+.DS_Store
+Thumbs.db
+*.tsbuildinfo
+.vscode/
+.idea/
