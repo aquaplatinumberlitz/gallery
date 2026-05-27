@@ -339,6 +339,14 @@ onBeforeUnmount(() => {
           @open-folder="handleOpenFolder"
         />
       </GlowContainer>
+      <!-- Photos title: outside scroller so it stays fixed (like Albums) -->
+      <div v-if="images.length" class="section-title photos-title">
+        <h3>Photos</h3>
+        <span class="photo-count-badge">
+          <Images :size="13" />
+          {{ images.length }}
+        </span>
+      </div>
       <div class="scroller-container" :ref="setGridRef">
 
       <RecycleScroller
@@ -351,15 +359,6 @@ onBeforeUnmount(() => {
         :buffer="200"
       >
         <template #before>
-          <div class="scroller-header">
-            <div v-if="images.length" class="section-title photos-title">
-              <h3>Photos</h3>
-              <span class="photo-count-badge">
-                <Images :size="13" />
-                {{ images.length }}
-              </span>
-            </div>
-          </div>
         </template>
 
         <template #default="{ item: row }">
@@ -1071,8 +1070,8 @@ onBeforeUnmount(() => {
   }
 
   .scroller-header {
-    padding-top: 60px;
-    padding-bottom: 40px;
+    padding-top: 0;
+    padding-bottom: 8px;
   }
 
   .scroller-footer {
