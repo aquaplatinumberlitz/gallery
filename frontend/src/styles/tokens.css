@@ -58,3 +58,12 @@
     0 0 8px var(--glow-color-50),
     0 0 15px var(--glow-color-30);
 }
+
+/* Mobile override: glow vars (overridden by _mobile-overrides.scss with !important) */
+@media (max-width: 767px) {
+  :root {
+    --glow-color: transparent;
+    --glow-card-hover: none;
+    --glow-card-active: none;
+  }
+}

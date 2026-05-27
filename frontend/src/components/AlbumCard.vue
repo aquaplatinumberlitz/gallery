@@ -47,7 +47,7 @@ defineProps<{
 .album-card {
   width: 100%;
   cursor: pointer;
-  perspective: 1000px; // Important for 3D transforms
+  perspective: 1000px; // Important for 3D transforms (desktop only)
   border-radius: 12px;
   padding-top: 20px; // Space above for hover animation
   padding-left: 20px; // Space on left for hover animation (layers fan out left)
@@ -161,22 +161,24 @@ defineProps<{
     }
   }
 
-  // HOVER EFFECT & DARK MODE
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-card-hover);
+  // HOVER EFFECT & DARK MODE — Desktop only, not sticky on touch
+  @media (hover: hover) {
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-card-hover);
 
-    .album-cover-diagonal {
-      transform: translateY(-10px);
-    }
+      .album-cover-diagonal {
+        transform: translateY(-10px);
+      }
 
-    .album-layer-back {
-      transform: translate(-20px, 5px) rotate(-15deg); // Fan out to the left
-    }
+      .album-layer-back {
+        transform: translate(-20px, 5px) rotate(-15deg); // Fan out to the left
+      }
 
-    .album-layer-front {
-      transform: translate(10px, -5px) rotate(12deg) scale(1.05);
-      box-shadow: var(--shadow-card-level4);
+      .album-layer-front {
+        transform: translate(10px, -5px) rotate(12deg) scale(1.05);
+        box-shadow: var(--shadow-card-level4);
+      }
     }
   }
 
@@ -196,15 +198,17 @@ defineProps<{
       color: var(--neon-color);
     }
 
-    &:hover {
-      box-shadow: var(--glow-card-hover);
+    @media (hover: hover) {
+      &:hover {
+        box-shadow: var(--glow-card-hover);
 
-      .album-layer-front {
-        box-shadow: var(--glow-card-hover-front);
-      }
+        .album-layer-front {
+          box-shadow: var(--glow-card-hover-front);
+        }
 
-      .album-layer-back {
-        box-shadow: var(--glow-card-hover-back);
+        .album-layer-back {
+          box-shadow: var(--glow-card-hover-back);
+        }
       }
     }
 
@@ -216,6 +220,16 @@ defineProps<{
   &:active {
     transform: translateY(0);
     box-shadow: var(--shadow-card-level2);
+  }
+
+  /* ── Mobile overrides ── */
+  @media (max-width: 767px) {
+    perspective: none;
+
+    &:active {
+      transform: scale(0.97);
+      box-shadow: none;
+    }
   }
 }
 

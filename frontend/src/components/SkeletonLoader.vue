@@ -92,6 +92,29 @@ const props = withDefaults(
   }
 }
 
+/* Disable shimmer animation on touch devices — use static gradient */
+@media (hover: none) {
+  .shimmer-wave {
+    animation: none;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.11) 50%,
+      transparent 100%
+    );
+    transform: translateX(0);
+  }
+
+  :global(html[data-theme="dark"]) .shimmer-wave {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.06) 50%,
+      transparent 100%
+    );
+  }
+}
+
 :global(html[data-theme="dark"]) .skeleton-block,
 :global(html[data-theme="dark"]) .skeleton-line {
   background: linear-gradient(90deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.08));

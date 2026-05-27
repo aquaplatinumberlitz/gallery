@@ -1,3 +1,5 @@
+@use 'mobile-overrides';
+
 :root {
   --bg-color: #f5eee6;
   --text-color: #143d60;
@@ -431,15 +433,6 @@ pre {
   textarea {
     min-height: 44px;
     min-width: 44px;
-  }
-
-  /* Reset compact controls that have their own visual size */
-  .theme-toggle,
-  .search-box,
-  .hamburger-btn,
-  .settings-btn {
-    min-width: auto;
-    min-height: auto;
   }
 }
 

@@ -260,6 +260,7 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
   min-width: 180px;
   max-width: 240px;
+  will-change: transform, opacity; /* Optimize for scroll animations */
 }
 
 /* ── Arrow Buttons ── */
@@ -309,11 +310,13 @@ onBeforeUnmount(() => {
 
 @media (max-width: 767px) {
   .album-grid-wrapper {
-    --glow-bleed-x: 12px;
-    --glow-bleed-y: 12px;
-    --glow-bleed-bottom: 12px;
+    --glow-bleed-x: 0px;  /* Zero glow bleed on mobile */
+    --glow-bleed-y: 0px;
+    --glow-bleed-bottom: 0px;
+    padding: 0;
+    margin: 0;
   }
-  .album-grid {
+  .album-grid-wrapper .album-grid {
     gap: 12px;
     padding: 4px 0 8px;
     scroll-snap-type: x mandatory;
@@ -324,19 +327,25 @@ onBeforeUnmount(() => {
     scroll-snap-align: start;
   }
   .album-scroll-btn {
-    opacity: 1;
+    opacity: 1 !important; /* Always visible on mobile */
     width: 42px;
     height: 42px;
   }
+  .album-scroller .album-grid-wrapper .album-grid {
+    padding: 4px 0 8px;
+  }
+  .album-arrows { display: none; }
 }
 
 @media (max-width: 480px) {
   .album-grid-wrapper {
-    --glow-bleed-x: 8px;
-    --glow-bleed-y: 8px;
-    --glow-bleed-bottom: 8px;
+    --glow-bleed-x: 0px;
+    --glow-bleed-y: 0px;
+    --glow-bleed-bottom: 0px;
+    padding: 0;
+    margin: 0;
   }
-  .album-grid { gap: 6px; }
+  .album-grid-wrapper .album-grid { gap: 6px; }
   .album-grid > * { min-width: 110px; max-width: 140px; }
 }
 
@@ -393,8 +402,4 @@ onBeforeUnmount(() => {
   opacity: 1;
 }
 
-/* Mobile: hide album arrows (snap-scroll instead) */
-@media (max-width: 767px) {
-  .album-arrows { display: none; }
-}
 </style>

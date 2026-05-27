@@ -1,0 +1,58 @@
+/* ==========================================================================
+   MOBILE OVERRIDES — Global resets for touch/hover/glow
+   Import as LAST in main.scss via @use or @import
+   Targets: (max-width: 767px) layout, (hover: none) hover, (pointer: coarse) touch
+   ========================================================================== */
+
+/* --- Disable glow on mobile (max-width: 767px) --- */
+@media (max-width: 767px) {
+  :root {
+    --glow-color: transparent;
+    --glow-card-hover: none !important;
+    --glow-card-active: none !important;
+    --glow-card-hover-front: none !important;
+    --glow-card-hover-back: none !important;
+  }
+
+  /* Shadow opacity override: light 0.20 / dark 0.50 */
+  :root {
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.20), 0 1px 3px 1px rgba(0, 0, 0, 0.10);
+    --shadow-card-hover: 0 1px 3px rgba(0, 0, 0, 0.20), 0 4px 8px 3px rgba(0, 0, 0, 0.10);
+    --shadow-card-level2: 0 1px 2px rgba(0, 0, 0, 0.20), 0 2px 6px 2px rgba(0, 0, 0, 0.10);
+    --shadow-card-level4: 0 2px 3px rgba(0, 0, 0, 0.20), 0 6px 10px 4px rgba(0, 0, 0, 0.10);
+  }
+
+  :root[data-theme="dark"] {
+    --shadow-card: 0 1px 3px 1px rgba(0, 0, 0, 0.50), 0 1px 2px rgba(0, 0, 0, 0.70);
+    --shadow-card-level2: 0 2px 6px 2px rgba(0, 0, 0, 0.50), 0 1px 2px rgba(0, 0, 0, 0.70);
+  }
+}
+
+/* --- Kill all sticky hover on touch devices --- */
+@media (hover: none) {
+  /* Reset sticky hover artifacts — these override component-level hovers */
+  *:hover {
+    transform: none !important;
+    box-shadow: none !important;
+    border-color: var(--border-color) !important;
+    background: transparent !important;
+  }
+
+  /* Allow :active to work normally */
+  *:active {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* --- Touch target expansion (pointer: coarse) --- */
+@media (pointer: coarse) {
+  button,
+  [role="button"],
+  a,
+  input,
+  select,
+  textarea {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

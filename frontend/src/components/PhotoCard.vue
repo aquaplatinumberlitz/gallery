@@ -28,6 +28,9 @@ const shouldPlay = ref(false);
 const previewSrc = ref("");
 
 const onMouseEnter = () => {
+  // Guard: skip hover animation on touch devices (prevents sticky hover state)
+  if (window.matchMedia('(hover: none)').matches) return;
+
   isHovering.value = true;
   if (!isAnimated.value) return;
   
@@ -146,13 +149,16 @@ onBeforeUnmount(() => {
     display: block;
   }
 
-  &:hover {
-    transform: translateY(-2px) scale(1.02);
-    box-shadow: var(--shadow-card-hover);
+  /* Desktop hover only — not sticky on touch */
+  @media (hover: hover) {
+    &:hover {
+      transform: translateY(-2px) scale(1.02);
+      box-shadow: var(--shadow-card-hover);
 
-    .thumbnail-img {
-      transform: scale(1.05);
-      transition: transform 280ms cubic-bezier(0.4, 0, 0.2, 1);
+      .thumbnail-img {
+        transform: scale(1.05);
+        transition: transform 280ms cubic-bezier(0.4, 0, 0.2, 1);
+      }
     }
   }
 
@@ -182,14 +188,23 @@ onBeforeUnmount(() => {
       transform 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
       border-color 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
 
-    &:hover {
-      border-color: rgba(255, 255, 255, 0.25);
-      transform: translateY(-4px) scale(1.02);
+    @media (hover: hover) {
+      &:hover {
+        border-color: rgba(255, 255, 255, 0.25);
+        transform: translateY(-4px) scale(1.02);
+      }
     }
 
     &:active {
       border-color: rgba(255, 255, 255, 0.35);
       transform: translateY(-2px) scale(1.01);
+    }
+  }
+
+  /* ── Mobile overrides ── */
+  @media (max-width: 767px) {
+    &:active {
+      transform: scale(0.97);
     }
   }
 }
