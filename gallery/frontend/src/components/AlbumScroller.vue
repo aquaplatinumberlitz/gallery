@@ -309,13 +309,13 @@ onBeforeUnmount(() => {
 
 @media (max-width: 640px) {
   .album-grid-wrapper {
-    --glow-bleed-x: 12px;
-    --glow-bleed-y: 12px;
-    --glow-bleed-bottom: 12px;
+    --glow-bleed-x: 16px;
+    --glow-bleed-y: 16px;
+    --glow-bleed-bottom: 16px;
   }
   .album-grid {
     gap: 12px;
-    padding: 4px 0 12px;
+    padding: 4px 16px 12px;
     scroll-snap-type: x mandatory;
   }
   .album-grid > * {
@@ -336,7 +336,7 @@ onBeforeUnmount(() => {
     --glow-bleed-y: 8px;
     --glow-bleed-bottom: 8px;
   }
-  .album-grid { gap: 8px; }
+  .album-grid { gap: 8px; padding: 4px 8px 12px; }
   .album-grid > * { min-width: 110px; max-width: 140px; }
 }
 

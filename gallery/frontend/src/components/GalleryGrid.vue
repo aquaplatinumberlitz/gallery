@@ -339,7 +339,7 @@ onBeforeUnmount(() => {
     <!-- Has content: images or folders -->
     <template v-else-if="images.length > 0 || folders.length > 0">
       <!-- Album scroller: outside scroller-container để glow khong bi clip boi content-body overflow:hidden -->
-      <GlowContainer v-if="folders.length" :bleed="props.isMobile ? 12 : 50">
+      <GlowContainer v-if="folders.length" :bleed="props.isMobile ? 16 : 50">
         <AlbumScroller
           :folders="folders"
           @open-folder="handleOpenFolder"
@@ -524,6 +524,8 @@ onBeforeUnmount(() => {
 .scroller-container {
   flex: 1;
   min-height: 0; /* Important for flex child scrolling */
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .scroller {
