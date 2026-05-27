@@ -235,3 +235,46 @@
     color: #f43f5e;
   }
 }
+
+/* Compact (<480px): smaller text, tighter spacing */
+@media (max-width: 480px) {
+  .sheet-panel {
+    max-height: 65vh;
+    min-height: 25vh;
+  }
+
+  .sheet-tab {
+    font-size: 13px;
+    padding: 8px 0;
+  }
+
+  .sheet-content {
+    padding: 8px 12px 20px;
+  }
+
+  .sheet-tab-content {
+    gap: 8px;
+  }
+
+  .meta-section {
+    gap: 4px;
+  }
+
+  .sheet-text {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .sheet-label {
+    font-size: 10px;
+  }
+
+  .params-grid {
+    gap: 4px;
+  }
+
+  .param-pill {
+    padding: 3px 6px;
+    font-size: 10px;
+  }
+}

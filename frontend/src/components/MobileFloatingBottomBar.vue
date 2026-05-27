@@ -127,4 +127,34 @@ const folderName = computed(() => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Compact (<480px): smaller pill, tighter spacing */
+@media (max-width: 480px) {
+  .mobile-bottom-bar {
+    bottom: 12px;
+    padding: 4px 6px;
+    border-radius: 20px;
+    gap: 2px;
+  }
+
+  .mbb-btn {
+    width: 32px;
+    height: 32px;
+  }
+
+  .mbb-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .mbb-path {
+    padding: 0 6px;
+    gap: 4px;
+    max-width: 120px;
+  }
+
+  .path-text {
+    font-size: 12px;
+  }
+}
 </style>

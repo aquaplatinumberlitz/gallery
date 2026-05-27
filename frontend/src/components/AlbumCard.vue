@@ -72,7 +72,7 @@ defineProps<{
 
   @media (max-width: 480px) {
     .album-cover-diagonal {
-      height: 160px;
+      height: 130px;
     }
 
     .album-name {

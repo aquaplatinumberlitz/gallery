@@ -194,4 +194,32 @@ function clearSearch() {
   background: rgba(0, 0, 0, 0.06);
   color: var(--text-color);
 }
+
+/* Compact (<480px): tighter padding, smaller controls */
+@media (max-width: 480px) {
+  .mobile-header {
+    padding: 8px 8px;
+    padding-top: max(8px, env(safe-area-inset-top));
+    gap: 4px;
+  }
+
+  .mh-btn {
+    width: 34px;
+    height: 34px;
+  }
+
+  .mh-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .search-input-wrap {
+    height: 32px;
+    font-size: 14px;
+  }
+
+  .search-input-wrap input {
+    font-size: 14px;
+  }
+}
 </style>

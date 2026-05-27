@@ -426,7 +426,7 @@ watch(theme, (val) => {
     position: fixed;
     top: 0;
     left: 0;
-    width: 260px;
+    width: 240px;
     height: 100vh;
     z-index: 100;
     transform: translateX(-100%);
