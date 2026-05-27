@@ -212,9 +212,11 @@ def scan_directory(target_path: Path) -> tuple[list[FileNode], list[FileNode]]:
     folders: list[FileNode] = []
     images: list[FileNode] = []
     try:
-        for entry in target_path.iterdir():
+        for entry in os.scandir(target_path):
             if entry.name.startswith("."):
                 continue  # skip hidden
+
+            entry_path = Path(entry.path)
 
             if entry.is_dir():
                 try:
@@ -224,15 +226,15 @@ def scan_directory(target_path: Path) -> tuple[list[FileNode], list[FileNode]]:
                 folders.append(
                     FileNode(
                         name=entry.name,
-                        path=str(entry.resolve()),
+                        path=str(entry_path.resolve()),
                         type="folder",
-                        has_children=has_any_children(entry),
-                        cover_images=first_images_in_dir(entry, limit=3),
+                        has_children=has_any_children(entry_path),
+                        cover_images=first_images_in_dir(entry_path, limit=3),
                         mtime=mtime,
-                        image_count=count_images_in_dir(entry),
+                        image_count=count_images_in_dir(entry_path),
                     )
                 )
-            elif entry.is_file() and is_image(entry):
+            elif entry.is_file() and is_image(entry_path):
                 try:
                     mtime = entry.stat().st_mtime
                 except OSError:
@@ -240,7 +242,7 @@ def scan_directory(target_path: Path) -> tuple[list[FileNode], list[FileNode]]:
                 images.append(
                     FileNode(
                         name=entry.name,
-                        path=str(entry.resolve()),
+                        path=str(entry_path.resolve()),
                         type="image",
                         has_children=False,
                         cover_images=[],

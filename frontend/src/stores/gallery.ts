@@ -41,6 +41,47 @@ const normalizeNodes = (nodes: FileNode[]): FileNode[] =>
       children: undefined,
     }));
 
+/**
+ * Private helper that wraps an async operation with consistent error handling.
+ * On success, clears errorMessage and returns the result.
+ * On error, checks for GalleryAPIError, sets errorMessage, shows toast, and returns undefined.
+ */
+async function _withError<T>(
+  store: any,
+  fn: () => Promise<T>,
+  fallbackMsg: string,
+  retry?: () => void,
+  options?: { noFallbackRetry?: boolean }
+): Promise<T | undefined> {
+  const toast = useToastStore();
+  try {
+    store.errorMessage = null;
+    return await fn();
+  } catch (error: unknown) {
+    console.error(fallbackMsg, error);
+    if (error instanceof GalleryAPIError) {
+      store.errorMessage = error.suggestion;
+      toast.error(
+        error.userMessage,
+        error.suggestion,
+        error.canRetry && retry
+          ? { action: { label: 'Retry', onClick: retry } }
+          : undefined
+      );
+    } else {
+      store.errorMessage = fallbackMsg;
+      toast.error(
+        'Error',
+        fallbackMsg,
+        !options?.noFallbackRetry && retry
+          ? { action: { label: 'Retry', onClick: retry } }
+          : undefined
+      );
+    }
+    return undefined;
+  }
+}
+
 export const useGalleryStore = defineStore("gallery", {
   state: () => {
     const storedSort = getStoredSort();
@@ -94,7 +135,6 @@ export const useGalleryStore = defineStore("gallery", {
     },
 
     async setRootPath(path: string) {
-      const toast = useToastStore();
       if (!path) {
         this.resetRootPath();
         return;
@@ -103,65 +143,52 @@ export const useGalleryStore = defineStore("gallery", {
       this.galleryLoading = true;
       this.loadingMoreImages = false;
       this.rootPath = path;
-      try {
-        const data = await scanDirectory(path, { imageLimit: IMAGE_PAGE_SIZE, imageCursor: 0 });
-        this.sidebarTree = normalizeNodes(data.folders);
-        this.galleryFolders = data.folders;
-        this.galleryImages = data.images;
-        this.nextImageCursor = data.next_cursor;
-        this.totalImages = data.total_images;
-        this.currentPath = path;
-        if (typeof window !== "undefined") {
-          localStorage.setItem(STORAGE_KEY, path);
-        }
-        this.pushHistory(path);
-        this.errorMessage = null;
-        
-        // Show summary toast on first load (when entering root path)
-        const imageCount = this.totalImages || this.galleryImages.length;
-        const albumCount = this.galleryFolders.length;
-        
-        toast.success(
-          'Gallery loaded',
-          `<span class="toast-stat toast-stat--album">${albumCount} albums</span> • <span class="toast-stat toast-stat--image">${imageCount} images</span>`,
-          { html: true }
-        );
-      } catch (error: unknown) {
-        console.error("Failed to load root path", error);
-        
-        if (error instanceof GalleryAPIError) {
-          this.errorMessage = error.suggestion;
-          toast.error(error.userMessage, error.suggestion, 
-            error.canRetry ? {
-              action: {
-                label: 'Retry',
-                onClick: () => this.setRootPath(path)
-              }
-            } : undefined
-          );
-        } else {
-          this.errorMessage = "Unable to load the root folder. Check the path or backend connection.";
-          toast.error('Failed to load folder', 'Check the path or backend connection', {
-            action: {
-              label: 'Retry',
-              onClick: () => this.setRootPath(path)
-            }
-          });
-        }
+
+      const data = await _withError(
+        this,
+        () => scanDirectory(path, { imageLimit: IMAGE_PAGE_SIZE, imageCursor: 0 }),
+        "Unable to load the root folder. Check the path or backend connection.",
+        () => this.setRootPath(path)
+      );
+
+      if (!data) {
         this.sidebarTree = [];
         this.galleryFolders = [];
         this.galleryImages = [];
         this.nextImageCursor = null;
         this.totalImages = 0;
         this.currentPath = "";
-      } finally {
         this.isLoading = false;
         this.galleryLoading = false;
+        return;
       }
+
+      this.sidebarTree = normalizeNodes(data.folders);
+      this.galleryFolders = data.folders;
+      this.galleryImages = data.images;
+      this.nextImageCursor = data.next_cursor;
+      this.totalImages = data.total_images;
+      this.currentPath = path;
+      if (typeof window !== "undefined") {
+        localStorage.setItem(STORAGE_KEY, path);
+      }
+      this.pushHistory(path);
+
+      // Show summary toast on first load (when entering root path)
+      const imageCount = this.totalImages || this.galleryImages.length;
+      const albumCount = this.galleryFolders.length;
+      const toast = useToastStore();
+      toast.success(
+        'Gallery loaded',
+        `<span class="toast-stat toast-stat--album">${albumCount} albums</span> • <span class="toast-stat toast-stat--image">${imageCount} images</span>`,
+        { html: true }
+      );
+
+      this.isLoading = false;
+      this.galleryLoading = false;
     },
 
     async toggleFolder(node: FileNode) {
-      const toast = useToastStore();
       node.isOpen = !node.isOpen;
 
       const shouldLoadChildren =
@@ -172,36 +199,27 @@ export const useGalleryStore = defineStore("gallery", {
       }
 
       this.loadingMap = { ...this.loadingMap, [node.path]: true };
-      try {
-        const children = await scanDirectory(node.path);
-        node.children = normalizeNodes(children.folders);
-        this.errorMessage = null;
-      } catch (error: unknown) {
-        console.error("Failed to load children for", node.path, error);
-        
-        if (error instanceof GalleryAPIError) {
-          this.errorMessage = error.suggestion;
-          toast.error(error.userMessage, error.suggestion,
-            error.canRetry ? {
-              action: {
-                label: 'Retry',
-                onClick: () => {
-                  node.isOpen = false; // Reset to closed
-                  node.children = undefined; // Clear children to retry
-                  this.toggleFolder(node);
-                }
-              }
-            } : undefined
-          );
-        } else {
-          this.errorMessage = "Unable to load folder contents. Please try again.";
-          toast.error('Failed to load folder', node.name || 'Unable to load folder contents');
-        }
+
+      const children = await _withError(
+        this,
+        () => scanDirectory(node.path),
+        "Unable to load folder contents. Please try again.",
+        () => {
+          node.isOpen = false;
+          node.children = undefined;
+          this.toggleFolder(node);
+        },
+        { noFallbackRetry: true }
+      );
+
+      if (!children) {
         node.children = [];
-      } finally {
-        const { [node.path]: _, ...rest } = this.loadingMap;
-        this.loadingMap = rest;
+      } else {
+        node.children = normalizeNodes(children.folders);
       }
+
+      const { [node.path]: _, ...rest } = this.loadingMap;
+      this.loadingMap = rest;
     },
 
     async selectFolder(nodeOrPath: FileNode | string) {
@@ -212,7 +230,6 @@ export const useGalleryStore = defineStore("gallery", {
     },
 
     async scanFolder(path?: string) {
-      const toast = useToastStore();
       const target = path || this.currentPath || this.rootPath;
       if (!target) {
         this.galleryFolders = [];
@@ -222,87 +239,60 @@ export const useGalleryStore = defineStore("gallery", {
         return;
       }
       this.galleryLoading = true;
-      try {
-        const data = await scanDirectory(target, { imageLimit: IMAGE_PAGE_SIZE, imageCursor: 0 });
-        this.galleryFolders = data.folders;
-        this.galleryImages = data.images;
-        this.nextImageCursor = data.next_cursor;
-        this.totalImages = data.total_images;
-        this.currentPath = target;
-        this.errorMessage = null;
-      } catch (error: unknown) {
-        console.error("Failed to scan folder", target, error);
-        
-        if (error instanceof GalleryAPIError) {
-          this.errorMessage = error.suggestion;
-          toast.error(error.userMessage, error.suggestion,
-            error.canRetry ? {
-              action: {
-                label: 'Retry',
-                onClick: () => this.scanFolder(target)
-              }
-            } : undefined
-          );
-        } else {
-          this.errorMessage = "Unable to scan the folder. Check the backend connection.";
-          toast.error('Failed to scan folder', 'Check backend connection', {
-            action: {
-              label: 'Retry',
-              onClick: () => this.scanFolder(target)
-            }
-          });
-        }
+
+      const data = await _withError(
+        this,
+        () => scanDirectory(target, { imageLimit: IMAGE_PAGE_SIZE, imageCursor: 0 }),
+        "Unable to scan the folder. Check the backend connection.",
+        () => this.scanFolder(target)
+      );
+
+      if (!data) {
         this.galleryFolders = [];
         this.galleryImages = [];
         this.nextImageCursor = null;
         this.totalImages = 0;
-      } finally {
         this.galleryLoading = false;
+        return;
       }
+
+      this.galleryFolders = data.folders;
+      this.galleryImages = data.images;
+      this.nextImageCursor = data.next_cursor;
+      this.totalImages = data.total_images;
+      this.currentPath = target;
+      this.galleryLoading = false;
     },
 
     async loadMoreImages() {
       if (this.loadingMoreImages || this.nextImageCursor === null) return;
-      const toast = useToastStore();
       const target = this.currentPath || this.rootPath;
       if (!target) return;
       this.loadingMoreImages = true;
-      try {
-        const data = await scanDirectory(target, { imageLimit: IMAGE_PAGE_SIZE, imageCursor: this.nextImageCursor });
+
+      const data = await _withError(
+        this,
+        () => scanDirectory(target, { imageLimit: IMAGE_PAGE_SIZE, imageCursor: this.nextImageCursor! }),
+        "Unable to fetch more images"
+      );
+
+      if (data) {
         this.galleryImages = [...this.galleryImages, ...data.images];
         this.nextImageCursor = data.next_cursor;
         this.totalImages = data.total_images;
-      } catch (error: unknown) {
-        console.error("Failed to load more images", error);
-        if (error instanceof GalleryAPIError) {
-          this.errorMessage = error.suggestion;
-          toast.error(error.userMessage, error.suggestion);
-        } else {
-          toast.error('Failed to load more', 'Unable to fetch more images');
-        }
-      } finally {
-        this.loadingMoreImages = false;
       }
+
+      this.loadingMoreImages = false;
     },
 
     async openInExplorer() {
-      const toast = useToastStore();
       if (!this.currentPath) return;
-      try {
-        await openFolder(this.currentPath);
-        this.errorMessage = null;
-        // No success toast - Explorer window opening is feedback enough
-      } catch (error: unknown) {
-        console.error("Failed to open folder", error);
-        
-        if (error instanceof GalleryAPIError) {
-          this.errorMessage = error.suggestion;
-          toast.error(error.userMessage, error.suggestion);
-        } else {
-          this.errorMessage = "Unable to open the folder in your operating system.";
-          toast.error('Failed to open folder', 'Unable to open in file explorer');
-        }
-      }
+      await _withError(
+        this,
+        () => openFolder(this.currentPath),
+        "Unable to open the folder in your operating system."
+      );
+      // No success toast - Explorer window opening is feedback enough
     },
 
     resetRootPath() {

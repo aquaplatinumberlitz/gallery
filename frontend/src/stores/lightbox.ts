@@ -1,11 +1,11 @@
 import { defineStore } from "pinia";
 import type { FileNode, MetadataResponse } from "../types";
-import { fetchMetadata, getImageUrl } from "../services/api";
+import { fetchMetadata, getThumbnailUrl } from "../services/api";
 
 const preloadImage = (path: string) => {
   if (typeof Image === "undefined") return;
   const img = new Image();
-  img.src = getImageUrl(path);
+  img.src = getThumbnailUrl(path, 800);
 };
 
 export const useLightboxStore = defineStore("lightbox", {

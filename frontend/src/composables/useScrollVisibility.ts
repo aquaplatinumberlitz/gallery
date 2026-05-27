@@ -6,6 +6,8 @@ export function useScrollVisibility() {
   let lastScrollY = 0
   let observer: MutationObserver | null = null
   let rafId = 0
+  let intervalId: ReturnType<typeof setInterval> | null = null
+  let cleanupScroll: (() => void) | null = null
 
   function attachToElement(el: HTMLElement) {
     const handler = () => {
@@ -32,26 +34,41 @@ export function useScrollVisibility() {
 
   onMounted(() => {
     // Poll for .vue-recycle-scroller (may not render immediately)
-    const tryAttach = setInterval(() => {
+    intervalId = setInterval(() => {
       const el = document.querySelector<HTMLElement>('.vue-recycle-scroller')
       if (el && el.scrollHeight > el.clientHeight) {
-        clearInterval(tryAttach)
-        let cleanup = attachToElement(el)
-        // Watch for DOM re-creation (key change on RecycleScroller)
-        observer = new MutationObserver(() => {
-          const newEl = document.querySelector<HTMLElement>('.vue-recycle-scroller')
-          if (newEl && newEl !== el) {
-            cleanup()
-            cleanup = attachToElement(newEl)
-          }
-        })
-        observer.observe(document.body, { childList: true, subtree: true })
+        clearInterval(intervalId!)
+        intervalId = null
+        cleanupScroll = attachToElement(el)
+        // Watch for DOM re-creation within the scroller's parent container
+        const scrollerParent = el.parentElement
+        if (scrollerParent) {
+          observer = new MutationObserver(() => {
+            const newEl = document.querySelector<HTMLElement>('.vue-recycle-scroller')
+            if (newEl && newEl !== el) {
+              cleanupScroll?.()
+              cleanupScroll = attachToElement(newEl)
+            }
+          })
+          observer.observe(scrollerParent, { childList: true, subtree: true })
+        }
       }
     }, 200)
   })
 
   onBeforeUnmount(() => {
+    if (intervalId !== null) {
+      clearInterval(intervalId)
+      intervalId = null
+    }
     observer?.disconnect()
+    observer = null
+    cleanupScroll?.()
+    cleanupScroll = null
+    if (rafId) {
+      cancelAnimationFrame(rafId)
+      rafId = 0
+    }
   })
 
   return { barsVisible, isScrollingDown }
