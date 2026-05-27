@@ -8,7 +8,7 @@ from concurrent.futures import Future
 
 import sys
 import subprocess
-from fastapi import FastAPI, HTTPException, Query, Response
+from fastapi import FastAPI, HTTPException, Query, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.concurrency import run_in_threadpool
@@ -95,9 +95,12 @@ def _get_cors_origins() -> list[str]:
     return origins
 
 
+VPS_IP = "http://150.230.56.153"
+VPS_ORIGINS = [f"{VPS_IP}:4180", f"{VPS_IP}:4173", f"{VPS_IP}:5173"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_get_cors_origins(),
+    allow_origins=_get_cors_origins() + VPS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -1164,14 +1167,37 @@ def get_landing_pages():
     return pages
 
 
+# =============================================================================
+# PRODUCTION MODE — SPA catch-all serving
+# =============================================================================
+import mimetypes
+
+PRODUCTION = os.getenv("PRODUCTION", "0") == "1"
+FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
+
+
+@app.api_route("/{path:path}", methods=["GET"], include_in_schema=False)
+async def catch_all(path: str):
+    if not PRODUCTION:
+        raise HTTPException(status_code=404, detail="Only available in production mode")
+    if path.startswith("api/") or path.startswith("openapi") or path.startswith("docs"):
+        raise HTTPException(status_code=404, detail="Not Found")
+    file_path = FRONTEND_DIST / path
+    if path and (FRONTEND_DIST / path).is_file():
+        media_type, _ = mimetypes.guess_type(str(file_path))
+        return FileResponse(str(file_path), media_type=media_type)
+    return FileResponse(str(FRONTEND_DIST / "index.html"), media_type="text/html")
+
+
 if __name__ == "__main__":
     import uvicorn
 
-    # Bind to 127.0.0.1 only for local security
     port_env = os.getenv("PORT")
     try:
         port_val = int(port_env) if port_env else 8000
     except ValueError:
         port_val = 8000
 
-    uvicorn.run("main:app", host="127.0.0.1", port=port_val, reload=True)
+    host = "0.0.0.0" if PRODUCTION else "127.0.0.1"
+    reload_flag = not PRODUCTION
+    uvicorn.run("main:app", host=host, port=port_val, reload=reload_flag)
