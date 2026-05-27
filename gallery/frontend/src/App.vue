@@ -212,7 +212,7 @@ watch(theme, (val) => {
       />
 
       <div class="content-body">
-        <GalleryGrid />
+        <GalleryGrid :is-mobile="isMobile" />
       </div>
 
       <MobileFloatingBottomBar
@@ -465,7 +465,7 @@ watch(theme, (val) => {
   }
 
   .content {
-    padding: 60px 12px 0 12px;
+    padding: 60px 16px 0 16px;
     gap: 8px;
     overflow: hidden; /* mobile: use hidden instead of clip for Safari iOS compatibility */
   }
@@ -479,7 +479,7 @@ watch(theme, (val) => {
 /* Small phone: <480px — compact layout */
 @media (max-width: 480px) {
   .content {
-    padding: 56px 8px 0 8px;
+    padding: 56px 12px 0 12px;
     gap: 6px;
     overflow: hidden; /* mobile: use hidden instead of clip for Safari iOS compatibility */
   }

@@ -23,6 +23,12 @@ const _icons: Record<string, any> = { ArrowUp, ArrowDown, Type, Clock }
 const galleryStore = useGalleryStore();
 const lightboxStore = useLightboxStore();
 
+interface Props {
+  isMobile: boolean
+}
+
+const props = defineProps<Props>()
+
 const searchQuery = computed(() => galleryStore.searchQuery);
 const sortField = computed(() => galleryStore.sortField);
 const sortOrder = computed(() => galleryStore.sortOrder);
@@ -333,7 +339,7 @@ onBeforeUnmount(() => {
     <!-- Has content: images or folders -->
     <template v-else-if="images.length > 0 || folders.length > 0">
       <!-- Album scroller: outside scroller-container để glow khong bi clip boi content-body overflow:hidden -->
-      <GlowContainer v-if="folders.length" :bleed="50">
+      <GlowContainer v-if="folders.length" :bleed="props.isMobile ? 12 : 50">
         <AlbumScroller
           :folders="folders"
           @open-folder="handleOpenFolder"
