@@ -58,7 +58,7 @@
   min-height: 30vh;
   display: flex;
   flex-direction: column;
-  transition: max-height 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  transition: max-height 0.3s cubic-bezier(0.2, 0, 0, 1);
   overflow: hidden;
 
   &.sheet-expanded {
@@ -276,5 +276,34 @@
   .param-pill {
     padding: 3px 6px;
     font-size: 10px;
+  }
+}
+
+/* ── Spring scale enter animation for sheet content ── */
+.sheet-content-enter {
+  animation: sheetContentEnter 300ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@keyframes sheetContentEnter {
+  0% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Reduced motion: no scale animation */
+@media (prefers-reduced-motion: reduce) {
+  .sheet-panel {
+    transition: max-height 0.15s ease;
+  }
+  
+  .sheet-content-enter {
+    animation: none;
+    opacity: 1;
+    transform: none;
   }
 }

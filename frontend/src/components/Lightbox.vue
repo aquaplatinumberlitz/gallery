@@ -63,6 +63,67 @@ const isAnimated = computed(() => {
 
 // Mouse wheel navigation
 let lastWheelTime = 0;
+let swipeStartX = 0;
+let swipeDeltaX = 0;
+let isSwiping = false;
+const SWIPE_THRESHOLD_PX = 100;
+const SWIPE_THRESHOLD_RATIO = 0.3;
+
+const prefersReducedMotion = ref(false);
+
+onMounted(() => {
+  const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+  prefersReducedMotion.value = mq.matches;
+  mq.addEventListener('change', (e) => { prefersReducedMotion.value = e.matches; });
+});
+
+function handleSwipeStart(e: TouchEvent) {
+  swipeStartX = e.touches[0].clientX;
+  swipeDeltaX = 0;
+  isSwiping = true;
+}
+
+function handleSwipeMove(e: TouchEvent) {
+  if (!isSwiping) return;
+  swipeDeltaX = e.touches[0].clientX - swipeStartX;
+  const img = document.querySelector('.hero-image') as HTMLElement;
+  if (img) {
+    img.style.transition = prefersReducedMotion.value ? 'none' : 'transform 0.05s linear';
+    img.style.transform = `translateX(${swipeDeltaX}px) scale(${1 - Math.abs(swipeDeltaX) * 0.001})`;
+  }
+}
+
+function handleSwipeEnd() {
+  if (!isSwiping) return;
+  isSwiping = false;
+  const img = document.querySelector('.hero-image') as HTMLElement;
+  const viewportW = window.innerWidth;
+  const threshold = Math.max(SWIPE_THRESHOLD_PX, viewportW * SWIPE_THRESHOLD_RATIO);
+
+  if (Math.abs(swipeDeltaX) > threshold) {
+    // Dismiss — navigate
+    if (swipeDeltaX > 0) {
+      handlePrev();
+    } else {
+      handleNext();
+    }
+    // Reset immediately
+    if (img) {
+      img.style.transition = 'none';
+      img.style.transform = '';
+    }
+  } else {
+    // Snap back with spring
+    if (img) {
+      img.style.transition = prefersReducedMotion.value 
+        ? 'none' 
+        : 'transform 0.4s cubic-bezier(0.2, 0, 0, 1)';
+      img.style.transform = '';
+    }
+  }
+  swipeDeltaX = 0;
+}
+
 const handleWheel = (e: WheelEvent) => {
   const now = Date.now();
   if (now - lastWheelTime < 60) return; // Throttle
@@ -226,6 +287,9 @@ function handleToggleFullscreen() {
             class="lightbox-left"
             @click.self="handleClose"
             @wheel.prevent="handleWheel"
+            @touchstart="handleSwipeStart"
+            @touchmove="handleSwipeMove"
+            @touchend="handleSwipeEnd"
           >
             <div v-if="isLoading" class="image-loading">
               <Loader :size="24" :stroke-width="1.5" class="lucide-spin" />

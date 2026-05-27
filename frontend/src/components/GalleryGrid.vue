@@ -4,6 +4,7 @@ import { RecycleScroller } from "vue-virtual-scroller";
 import { useGalleryStore } from "../stores/gallery";
 import { useLightboxStore } from "../stores/lightbox";
 import type { SortField } from "../types";
+import { useHaptic } from "../composables/useHaptic";
 import AlbumScroller from "./AlbumScroller.vue";
 import GlowContainer from "./GlowContainer.vue";
 import PhotoCard from "./PhotoCard.vue";
@@ -15,6 +16,7 @@ import { useColumnResize } from "../composables/useColumnResize";
 import { 
   ArrowLeft, ArrowRight, ArrowUpRight, ArrowUpDown, ChevronDown, 
   ArrowUp, ArrowDown, LayoutGrid, Loader, TriangleAlert, X, 
+  ArrowDownToLine,
   Type, Clock, Images 
 } from "lucide-vue-next";
 
@@ -22,6 +24,59 @@ const _icons: Record<string, any> = { ArrowUp, ArrowDown, Type, Clock }
 
 const galleryStore = useGalleryStore();
 const lightboxStore = useLightboxStore();
+const { medium: hapticMedium } = useHaptic();
+
+// ── Pull-to-refresh state ──
+const pullDistance = ref(0);
+const isPulling = ref(false);
+const isRefreshing = ref(false);
+const pullStartY = ref(0);
+const PULL_THRESHOLD = 80; // px to trigger refresh
+const PULL_MAX = 120; // max stretch
+
+function onPullTouchStart(e: TouchEvent) {
+  if (isRefreshing.value) return;
+  // Only activate if we're at the top of the page
+  const scrollEl = document.querySelector('.scroller') || document.querySelector('.folders-only-container');
+  if (scrollEl && scrollEl.scrollTop > 5) return;
+  pullStartY.value = e.touches[0].clientY;
+  isPulling.value = true;
+}
+
+function onPullTouchMove(e: TouchEvent) {
+  if (!isPulling.value || isRefreshing.value) return;
+  const delta = e.touches[0].clientY - pullStartY.value;
+  if (delta <= 0) {
+    pullDistance.value = 0;
+    return;
+  }
+  // Progressive resistance
+  pullDistance.value = Math.min(delta * 0.5, PULL_MAX);
+}
+
+function onPullTouchEnd() {
+  if (!isPulling.value) return;
+  isPulling.value = false;
+  if (pullDistance.value >= PULL_THRESHOLD) {
+    // Trigger refresh
+    isRefreshing.value = true;
+    hapticMedium();
+    galleryStore.scanFolder().then(() => {
+      isRefreshing.value = false;
+      pullDistance.value = 0;
+    }).catch(() => {
+      isRefreshing.value = false;
+      pullDistance.value = 0;
+    });
+  } else {
+    pullDistance.value = 0;
+  }
+}
+
+const pullProgress = computed(() => Math.min(pullDistance.value / PULL_THRESHOLD, 1));
+const pullTransform = computed(() => `translateY(${Math.min(pullDistance.value, PULL_MAX)}px)`);
+const pullOpacity = computed(() => Math.min(pullDistance.value / (PULL_THRESHOLD * 0.5), 1));
+const showPullIndicator = computed(() => pullDistance.value > 10 || isRefreshing.value);
 
 interface Props {
   isMobile: boolean
@@ -234,7 +289,23 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="gallery-grid">
+  <div 
+    class="gallery-grid"
+    @touchstart="onPullTouchStart"
+    @touchmove="onPullTouchMove"
+    @touchend="onPullTouchEnd"
+  >
+    <!-- Pull-to-refresh indicator -->
+    <div v-if="showPullIndicator" class="pull-indicator" :style="{ transform: pullTransform, opacity: pullOpacity }">
+      <div v-if="isRefreshing" class="pull-spinner">
+        <Loader :size="18" class="lucide-spin" />
+      </div>
+      <div v-else class="pull-arrow" :style="{ transform: `rotate(${pullProgress * 180}deg)` }">
+        <ArrowDownToLine :size="18" />
+      </div>
+      <span class="pull-label">{{ isRefreshing ? 'Refreshing...' : 'Pull to refresh' }}</span>
+    </div>
+
     <div class="grid-header">
       <div class="nav-group">
         <button 
@@ -1185,6 +1256,49 @@ onBeforeUnmount(() => {
   
   .dropdown-enter-active,
   .dropdown-leave-active {
+    transition: none;
+  }
+}
+
+/* ── Pull-to-refresh indicator ── */
+.pull-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 0 8px;
+  color: var(--primary-color);
+  font-size: 13px;
+  font-weight: 500;
+  transition: transform 0.3s cubic-bezier(0.2, 0, 0, 1), opacity 0.2s ease;
+  will-change: transform;
+  flex-shrink: 0;
+}
+
+.pull-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease;
+  color: var(--primary-color);
+}
+
+.pull-spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary-color);
+}
+
+.pull-label {
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pull-indicator {
+    transition: none;
+  }
+  .pull-arrow {
     transition: none;
   }
 }

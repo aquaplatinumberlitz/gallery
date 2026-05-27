@@ -4,7 +4,7 @@
       v-for="tab in tabs" :key="tab.id"
       class="nav-item" 
       :class="{ active: activeTab === tab.id }"
-      @click="$emit('navigate', tab.id)"
+      @click="onNavigate(tab.id)"
     >
       <component :is="tab.icon" :size="22" />
       <span class="nav-label">{{ tab.label }}</span>
@@ -14,15 +14,23 @@
 
 <script setup lang="ts">
 import { Home, FolderOpen, Search, Settings } from 'lucide-vue-next'
+import { useHaptic } from '../composables/useHaptic'
+
+const { light: hapticLight } = useHaptic()
 
 defineProps<{
   activeTab: string
   barsVisible: boolean
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   navigate: [tabId: string]
 }>()
+
+function onNavigate(tabId: string) {
+  hapticLight()
+  emit('navigate', tabId)
+}
 
 const tabs = [
   { id: 'photos', icon: Home, label: 'Photos' },

@@ -2,9 +2,12 @@
 import { ref } from "vue";
 import { loraHighlighter } from "../utils/loraHighlighter";
 import type { MetadataResponse } from "../types";
+import { useHaptic } from "../composables/useHaptic";
 import {
   Loader, Check, Copy, TriangleAlert,
 } from "lucide-vue-next";
+
+const { light: hapticLight } = useHaptic();
 
 const props = defineProps<{
   meta: MetadataResponse | null;
@@ -21,6 +24,11 @@ const emit = defineEmits<{
 const sheetExpanded = ref(false);
 const activeTab = ref('prompt');
 const sheetStartY = ref(0);
+
+function setTab(tab: string) {
+  activeTab.value = tab;
+  hapticLight();
+}
 
 function toggleExpanded() {
   sheetExpanded.value = !sheetExpanded.value;
@@ -59,18 +67,18 @@ function onSheetTouchEnd() { /* no-op */ }
       </div>
       
       <div class="sheet-tabs" v-if="props.meta">
-        <button class="sheet-tab" :class="{ active: activeTab === 'prompt' }" @click="activeTab='prompt'">
+        <button class="sheet-tab" :class="{ active: activeTab === 'prompt' }" @click="setTab('prompt')">
           Prompt
         </button>
-        <button class="sheet-tab" :class="{ active: activeTab === 'params' }" @click="activeTab='params'">
+        <button class="sheet-tab" :class="{ active: activeTab === 'params' }" @click="setTab('params')">
           Params
         </button>
-        <button class="sheet-tab" :class="{ active: activeTab === 'model' }" @click="activeTab='model'">
+        <button class="sheet-tab" :class="{ active: activeTab === 'model' }" @click="setTab('model')">
           Model
         </button>
       </div>
       
-      <div class="sheet-content">
+      <div class="sheet-content" :class="{ 'sheet-content-enter': true }">
         <!-- Loading state -->
         <div v-if="props.isLoading && !props.meta" class="meta-loading">
           <Loader :size="24" :stroke-width="1.5" class="lucide-spin" />
