@@ -467,12 +467,14 @@ watch(theme, (val) => {
   .content {
     padding: 60px 16px 0 16px;
     gap: 8px;
-    overflow: hidden; /* mobile: use hidden instead of clip for Safari iOS compatibility */
+    overflow: clip;
   }
 
   .content-body {
-    padding: 4px 0;
-    border-radius: 8px;
+    background: transparent;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 4px 4px;
   }
 }
 
@@ -481,12 +483,14 @@ watch(theme, (val) => {
   .content {
     padding: 56px 12px 0 12px;
     gap: 6px;
-    overflow: hidden; /* mobile: use hidden instead of clip for Safari iOS compatibility */
+    overflow: clip;
   }
 
   .content-body {
-    padding: 4px;
-    border-radius: 6px;
+    padding: 4px 4px;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
   }
 
   .sidebar {
