@@ -64,7 +64,7 @@ defineProps<{
     transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); // Elastic bounce
   }
 
-  @media (max-width: 640px) {
+  @media (max-width: 767px) {
     .album-cover-diagonal {
       height: 200px;
     }

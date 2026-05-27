@@ -307,7 +307,7 @@ onBeforeUnmount(() => {
               0 4px 12px color-mix(in srgb, var(--primary-color) 20%, transparent);
 }
 
-@media (max-width: 640px) {
+@media (max-width: 767px) {
   .album-grid-wrapper {
     --glow-bleed-x: 12px;
     --glow-bleed-y: 12px;
@@ -394,7 +394,7 @@ onBeforeUnmount(() => {
 }
 
 /* Mobile: hide album arrows (snap-scroll instead) */
-@media (max-width: 640px) {
+@media (max-width: 767px) {
   .album-arrows { display: none; }
 }
 </style>

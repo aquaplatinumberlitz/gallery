@@ -467,8 +467,8 @@ h1 {
   }
 }
 
-/* NEW: Tablet range (640-1024px) — sidebar 240px persistent + hamburger always visible, edge-toggle hidden */
-@media (min-width: 641px) and (max-width: 1024px) {
+/* NEW: Tablet range (768-1024px) — sidebar 240px persistent + hamburger always visible, edge-toggle hidden */
+@media (min-width: 768px) and (max-width: 1024px) {
   .hamburger-btn {
     display: inline-flex;
   }
@@ -479,8 +479,8 @@ h1 {
   }
 }
 
-/* Phone: <640px — sidebar becomes overlay, hamburger appears */
-@media (max-width: 640px) {
+/* Phone: <768px — sidebar becomes overlay, hamburger appears */
+@media (max-width: 767px) {
   .hamburger-btn {
     display: inline-flex;
     flex-shrink: 0;

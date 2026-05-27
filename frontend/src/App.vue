@@ -11,6 +11,7 @@ import AppHeader from "./components/AppHeader.vue";
 import MobileHeader from "./components/MobileHeader.vue";
 import MobileFloatingBottomBar from "./components/MobileFloatingBottomBar.vue";
 import { useScrollVisibility } from "./composables/useScrollVisibility";
+import { useDevice } from "./composables/useDevice";
 import {
   Loader, ChevronLeft, ChevronRight
 } from "lucide-vue-next";
@@ -48,13 +49,12 @@ const handleMediaChange = (e: MediaQueryListEvent) => {
   }
 };
 const isSidebarOpen = ref(true);
-const isMobile = ref(false);
-const isTablet = ref(false);
 const tree = computed(() => galleryStore.sidebarTree);
 const isLoading = computed(() => galleryStore.isLoading);
 const currentPath = computed(() => galleryStore.currentPath);
 
 const { barsVisible } = useScrollVisibility();
+const { isMobile } = useDevice();
 
 const toggleTheme = () => {
   theme.value = theme.value === "light" ? "dark" : "light";
@@ -69,18 +69,6 @@ const closeSidebar = () => {
     isSidebarOpen.value = false;
   }
 };
-
-const handleResize = () => {
-  const width = window.innerWidth;
-  isMobile.value = width < 640;
-  isTablet.value = width >= 640 && width < 1024;
-  if (!isMobile.value) {
-    isSidebarOpen.value = true;
-  } else {
-    isSidebarOpen.value = false;
-  }
-};
-
 
 // Handle Escape key to close sidebar on mobile
 const handleGlobalKeydown = (e: KeyboardEvent) => {
@@ -106,13 +94,10 @@ onMounted(() => {
     : null;
   themeMediaQuery?.addEventListener("change", handleMediaChange);
 
-  handleResize();
-  window.addEventListener("resize", handleResize);
   window.addEventListener('keydown', handleGlobalKeydown);
 });
 
 onBeforeUnmount(() => {
-  window.removeEventListener("resize", handleResize);
   window.removeEventListener('keydown', handleGlobalKeydown);
   themeMediaQuery?.removeEventListener("change", handleMediaChange);
 });
@@ -407,8 +392,8 @@ watch(theme, (val) => {
   }
 }
 
-/* NEW: Tablet range (640-1024px) — sidebar 240px persistent + hamburger always visible, edge-toggle hidden */
-@media (min-width: 641px) and (max-width: 1024px) {
+/* NEW: Tablet range (768-1024px) — sidebar 240px persistent + hamburger always visible, edge-toggle hidden */
+@media (min-width: 768px) and (max-width: 1024px) {
   .sidebar-edge-toggle {
     display: none !important;
   }
@@ -427,8 +412,8 @@ watch(theme, (val) => {
   }
 }
 
-/* Phone: <640px — sidebar becomes overlay, hamburger appears */
-@media (max-width: 640px) {
+/* Phone: <768px — sidebar becomes overlay, hamburger appears */
+@media (max-width: 767px) {
   .layout {
     grid-template-columns: 1fr;
   }

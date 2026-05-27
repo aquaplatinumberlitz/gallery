@@ -1,4 +1,5 @@
 import { onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue'
+import { BREAKPOINTS } from './useDevice'
 
 const GAP = 20
 const MIN_COLS = 1
@@ -8,9 +9,10 @@ const GRID_SIZE_KEY = 'gallery-grid-size'
 function getDefaultCols(): number {
   if (typeof window === 'undefined') return 4
   const w = window.innerWidth
-  if (w >= 1024) return 5
-  if (w > 640) return 3
-  return 2
+  if (w >= BREAKPOINTS.tablet) return 4
+  if (w >= BREAKPOINTS.phone) return 3
+  if (w >= BREAKPOINTS.compact) return 2
+  return 1
 }
 
 export function useColumnResize() {

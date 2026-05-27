@@ -4,6 +4,7 @@ export const BREAKPOINTS = {
   compact: 480,
   phone: 768,
   tablet: 1024,
+  desktop: Infinity,
 } as const
 
 export type Breakpoint = 'compact' | 'phone' | 'tablet' | 'desktop'

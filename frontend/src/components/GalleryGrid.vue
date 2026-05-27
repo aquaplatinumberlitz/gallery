@@ -1009,7 +1009,7 @@ onBeforeUnmount(() => {
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 767px) {
   .gallery-grid {
     gap: 6px;
   }

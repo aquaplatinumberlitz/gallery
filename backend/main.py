@@ -265,6 +265,8 @@ async def api_scan(
     image_cursor: int = Query(0, ge=0, description="Cursor/offset for images"),
 ):
     target = resolve_path(path) if path else DEFAULT_ROOT
+    if not is_path_safe(target):
+        raise APIError(403, "permission", "Access denied: path outside allowed root")
     folders, images = await run_in_threadpool(scan_directory, target)
 
     total_images = len(images)
@@ -281,8 +283,14 @@ async def api_scan(
     }
 
 
+# Open folder via xdg-open — disabled by default (security for public deployments)
+OPEN_FOLDER_ENABLED = os.getenv("GALLERY_OPEN_FOLDER", "false").lower() == "true"
+
+
 @app.post("/api/open-folder")
 async def api_open_folder(path: str = Query(..., description="Absolute path to folder")):
+    if not OPEN_FOLDER_ENABLED:
+        raise APIError(403, ErrorType.PERMISSION_DENIED, "Open folder is disabled on this server")
     folder_path = resolve_path(path)
     if not folder_path.exists():
         raise APIError(404, ErrorType.NOT_FOUND, "Folder not found")
@@ -479,6 +487,11 @@ async def api_thumbnail(
             "ETag": etag
         }
     )
+
+
+@app.get("/api/health")
+async def api_health():
+    return {"status": "ok"}
 
 
 @app.get("/favicon.ico", include_in_schema=False)
@@ -1113,7 +1126,7 @@ def parse_metadata(path: Path) -> dict:
 @app.get("/api/metadata")
 async def api_metadata(path: str = Query(..., description="Absolute path to image file")):
     file_path = resolve_path(path)
-    if not is_accessible_path(file_path):
+    if not is_path_safe(file_path):
         raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied")
     if not is_image(file_path):
         raise APIError(400, ErrorType.INVALID_FILE, "Not a valid image file")

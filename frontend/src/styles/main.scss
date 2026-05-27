@@ -467,8 +467,8 @@ body {
    RESPONSIVE DESIGN SYSTEM
    Breakpoints:
      Desktop:  >1024px
-     Tablet:   641-1024px
-     Phone:    <=640px
+     Tablet:   768-1024px
+     Phone:    <=767px
      Small:    <480px (390px iPhone viewport)
    ========================================================================== */
 
@@ -482,7 +482,7 @@ body {
   .show-tablet { display: block !important; }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 767px) {
   .hide-phone { display: none !important; }
   .show-phone { display: block !important; }
   .hide-desktop { display: block !important; }
