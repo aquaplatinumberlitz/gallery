@@ -506,6 +506,8 @@ async def favicon():
 
 @app.get("/")
 async def read_root():
+    if PRODUCTION:
+        return FileResponse(str(FRONTEND_DIST / "index.html"), media_type="text/html")
     return {"message": "Museum Art Gallery API"}
 
 
