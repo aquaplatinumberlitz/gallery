@@ -228,7 +228,7 @@ watch(theme, (val) => {
       </div>
 
       <MobileFloatingBottomBar
-        v-if="isMobile && activeTab === 'photos'"
+        v-if="!isMobile && activeTab === 'photos'"
         :can-back="galleryStore.historyIndex > 0"
         :can-forward="galleryStore.historyIndex < galleryStore.history.length - 1"
         :current-path="galleryStore.currentPath"
@@ -490,10 +490,10 @@ watch(theme, (val) => {
   }
 
   .content-body {
-    background: transparent;
-    border-radius: 0;
+    background: var(--surface-color);
+    border-radius: 8px;
     box-shadow: none;
-    padding: 4px 4px;
+    padding: 4px 6px;
   }
 
   .tab-empty-placeholder {
@@ -510,9 +510,9 @@ watch(theme, (val) => {
   }
 
   .content-body {
-    padding: 4px 4px;
-    border-radius: 0;
-    background: transparent;
+    padding: 4px 6px;
+    border-radius: 8px;
+    background: var(--surface-color);
     box-shadow: none;
   }
 
@@ -536,6 +536,11 @@ watch(theme, (val) => {
 /* ── Content bottom padding for bottom nav bar ── */
 .content.has-bottom-nav {
   padding-bottom: 72px;
+}
+
+/* ── Dark mode: ensure content-body is dark ── */
+:root[data-theme="dark"] .content-body {
+  background: var(--surface-color);
 }
 
 </style>
