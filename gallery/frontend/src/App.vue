@@ -460,7 +460,7 @@ watch(theme, (val) => {
   }
 
   .content {
-    padding: 12px 12px 0 12px;
+    padding: 60px 12px 0 12px;
     gap: 8px;
     overflow: hidden; /* mobile: use hidden instead of clip for Safari iOS compatibility */
   }
@@ -474,7 +474,7 @@ watch(theme, (val) => {
 /* Small phone: <480px — compact layout */
 @media (max-width: 480px) {
   .content {
-    padding: 8px 8px 0 8px;
+    padding: 56px 8px 0 8px;
     gap: 6px;
     overflow: hidden; /* mobile: use hidden instead of clip for Safari iOS compatibility */
   }
