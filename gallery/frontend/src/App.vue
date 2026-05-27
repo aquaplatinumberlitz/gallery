@@ -8,6 +8,9 @@ import ToastContainer from "./components/ToastContainer.vue";
 import SettingsModal from "./components/SettingsModal.vue";
 import IntroScreen from "./components/IntroScreen.vue";
 import AppHeader from "./components/AppHeader.vue";
+import MobileHeader from "./components/MobileHeader.vue";
+import MobileFloatingBottomBar from "./components/MobileFloatingBottomBar.vue";
+import { useScrollVisibility } from "./composables/useScrollVisibility";
 import {
   Loader, ChevronLeft, ChevronRight
 } from "lucide-vue-next";
@@ -50,6 +53,8 @@ const isTablet = ref(false);
 const tree = computed(() => galleryStore.sidebarTree);
 const isLoading = computed(() => galleryStore.isLoading);
 const currentPath = computed(() => galleryStore.currentPath);
+
+const { barsVisible } = useScrollVisibility();
 
 const toggleTheme = () => {
   theme.value = theme.value === "light" ? "dark" : "light";
@@ -183,6 +188,17 @@ watch(theme, (val) => {
     ></div>
 
     <section class="content" id="main-content" tabindex="-1">
+      <MobileHeader
+        v-if="isMobile"
+        :is-dark="theme === 'dark'"
+        :search-query="galleryStore.searchQuery"
+        :bars-visible="barsVisible"
+        @update:search-query="galleryStore.searchQuery = $event"
+        @toggle-sidebar="toggleSidebar"
+        @toggle-theme="toggleTheme"
+        @open-settings="isSettingsOpen = true"
+      />
+
       <AppHeader
         v-if="!isMobile"
         :is-mobile="isMobile"
@@ -198,6 +214,17 @@ watch(theme, (val) => {
       <div class="content-body">
         <GalleryGrid />
       </div>
+
+      <MobileFloatingBottomBar
+        v-if="isMobile"
+        :can-back="galleryStore.historyIndex > 0"
+        :can-forward="galleryStore.historyIndex < galleryStore.history.length - 1"
+        :current-path="galleryStore.currentPath"
+        :bars-visible="barsVisible"
+        @back="galleryStore.goBack()"
+        @forward="galleryStore.goForward()"
+        @open-folder="galleryStore.openInExplorer()"
+      />
     </section>
   </div>
 
