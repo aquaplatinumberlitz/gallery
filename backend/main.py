@@ -103,9 +103,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Get root path from environment variable, default to current directory
-env_root = os.getenv("GALLERY_ROOT")
-DEFAULT_ROOT = Path(env_root).resolve() if env_root else Path(".").resolve()
+# Get root path from environment variable, default to '/'
+GALLERY_ROOT = Path(os.getenv("GALLERY_ROOT", "/")).resolve()
+DEFAULT_ROOT = GALLERY_ROOT
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff"}
 
 # Hard limits to avoid decompression bombs or extremely large files.
@@ -300,24 +300,36 @@ async def api_open_folder(path: str = Query(..., description="Absolute path to f
         raise APIError(500, ErrorType.SERVER_ERROR, f"Failed to open: {str(e)}")
 
 
-def is_accessible_path(path: Path) -> bool:
+def is_path_safe(path: Path) -> bool:
     """
-    Local-only build: intentionally allow any absolute path.
-    Keep this hook so we can reintroduce path whitelisting if ever exposed publicly.
+    Check that the resolved path is under GALLERY_ROOT.
+    Resolves symlinks, blocks path traversal (.., \\0, symlink escapes).
     """
-    return True
+    try:
+        resolved = path.resolve()
+        return GALLERY_ROOT in resolved.parents or resolved == GALLERY_ROOT
+    except (RuntimeError, OSError):
+        return False
 
 
 @app.get("/api/image")
 async def api_image(path: str = Query(..., description="Absolute path to image file")):
     file_path = resolve_path(path)
-    if not is_accessible_path(file_path):
+    if not is_path_safe(file_path):
         raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied")
     if not file_path.exists() or not file_path.is_file():
         raise APIError(404, ErrorType.NOT_FOUND, "Image file not found")
     if not is_image(file_path):
         raise APIError(400, ErrorType.INVALID_FILE, "Not a valid image file")
-    return FileResponse(file_path)
+    stat = file_path.stat()
+    etag = f'"{stat.st_mtime}-{stat.st_size}"'
+    return FileResponse(
+        file_path,
+        headers={
+            "Cache-Control": "public, max-age=3600",
+            "ETag": etag
+        }
+    )
 
 
 def _thumbnail_cache_key(path: Path, max_size: int, quality: int) -> tuple:
@@ -439,7 +451,7 @@ async def api_thumbnail(
     `max_size` allows sharing this endpoint for Lightbox display (e.g., 2048px).
     """
     file_path = resolve_path(path)
-    if not is_accessible_path(file_path):
+    if not is_path_safe(file_path):
         raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied")
     if not file_path.exists() or not file_path.is_file():
         raise APIError(404, ErrorType.NOT_FOUND, "Image file not found")
@@ -457,7 +469,16 @@ async def api_thumbnail(
         # Includes PIL.UnidentifiedImageError and IO errors
         raise APIError(400, ErrorType.INVALID_FILE, "Unable to process image")
     
-    return Response(content=thumbnail_bytes, media_type="image/webp")
+    stat = file_path.stat()
+    etag = f'"{stat.st_mtime}-{stat.st_size}"'
+    return Response(
+        content=thumbnail_bytes,
+        media_type="image/webp",
+        headers={
+            "Cache-Control": "public, max-age=3600, immutable",
+            "ETag": etag
+        }
+    )
 
 
 @app.get("/favicon.ico", include_in_schema=False)
