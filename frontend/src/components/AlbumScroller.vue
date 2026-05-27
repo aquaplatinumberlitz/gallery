@@ -14,7 +14,7 @@ const emit = defineEmits<{
 
 // ── Collapse state — persist to localStorage ──
 const COLLAPSE_KEY = "gallery-albums-collapsed";
-const collapsed = ref(false);
+const collapsed = ref(true);
 
 onMounted(() => {
   try {
@@ -245,7 +245,7 @@ onBeforeUnmount(() => {
   gap: 24px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 56px 50px;  /* 56px top/bottom = 50px glow + 6px margin; 50px left/right cho horizontal glow */
+  padding: 24px 50px;  /* 24px top/bottom, 50px left/right cho horizontal glow */
   scrollbar-width: none;
   -ms-overflow-style: none;
   /* Smooth scroll behavior */
@@ -315,7 +315,7 @@ onBeforeUnmount(() => {
   }
   .album-grid {
     gap: 12px;
-    padding: 4px 0 12px;
+    padding: 4px 0 8px;
     scroll-snap-type: x mandatory;
   }
   .album-grid > * {
@@ -336,7 +336,7 @@ onBeforeUnmount(() => {
     --glow-bleed-y: 8px;
     --glow-bleed-bottom: 8px;
   }
-  .album-grid { gap: 8px; }
+  .album-grid { gap: 6px; }
   .album-grid > * { min-width: 110px; max-width: 140px; }
 }
 

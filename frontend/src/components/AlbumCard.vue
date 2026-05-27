@@ -59,20 +59,20 @@ defineProps<{
 
   .album-cover-diagonal {
     position: relative;
-    height: 280px; // Standard height
+    height: 175px; // Standard height
     transform-style: preserve-3d;
     transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); // Elastic bounce
   }
 
   @media (max-width: 767px) {
     .album-cover-diagonal {
-      height: 200px;
+      height: 130px;
     }
   }
 
   @media (max-width: 480px) {
     .album-cover-diagonal {
-      height: 130px;
+      height: 90px;
     }
 
     .album-name {
