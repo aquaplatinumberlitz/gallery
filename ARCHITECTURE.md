@@ -413,22 +413,22 @@ The component sets `--glow-bleed-x` and `--glow-bleed-y` CSS variables, applies 
 
 Breakpoints are handled in two layers:
 
-### App.vue Layout Breakpoints (mobile detection)
+### App.vue Layout Breakpoints (via useDevice — single source of truth)
 
 | Breakpoint | Width | Layout |
 |-----------|-------|--------|
-| Desktop | ≥ 1025px | 280px sidebar + content grid, AppHeader, sidebar edge toggle |
-| Tablet | 641–1024px | 240px persistent sidebar, AppHeader (hamburger visible), edge toggle hidden |
-| Phone | ≤ 640px | Sidebar becomes fixed overlay, MobileHeader + MobileFloatingBottomBar, 1-column grid |
-| Small phone | ≤ 480px | Compact padding, sidebar full-width overlay |
+| **compact** | < 480px (iPhone 6.1") | Sidebar full-width overlay, MobileHeader compact (8px padding), 1-column grid, BottomBar 36px pill, AlbumCard 130px cover |
+| **phone** | 480–767px (iPad Mini 8.4") | 240px sidebar overlay, MobileHeader + MobileFloatingBottomBar, 2-column grid |
+| **tablet** | 768–1023px (iPad 10.2", Pro 11") | 240px persistent sidebar, AppHeader tablet mode (hamburger visible), 3-column grid |
+| **desktop** | ≥ 1024px (iPad Pro 13", PC 27") | 280px persistent sidebar, full AppHeader with brand hero, 4+ column grid |
 
 ### useDevice Breakpoints (component-level)
 
 | Breakpoint | Width Range | Typical Devices |
 |-----------|-------------|-----------------|
 | `compact` | < 480px | iPhone 6.1", small phones |
-| `phone` | 480–767px | Larger phones, phone landscape |
-| `tablet` | 768–1023px | iPad Mini 8.4", iPad 10.2", iPad Pro 11" |
+| `phone` | 480–767px | iPad Mini 8.4", larger phones, phone landscape |
+| `tablet` | 768–1023px | iPad 10.2", iPad Pro 11" |
 | `desktop` | ≥ 1024px | iPad Pro 13", desktop monitors |
 
 **Used by**: Lightbox panels, GalleryGrid column count, other device-aware components.
@@ -538,10 +538,11 @@ Core TypeScript interfaces:
 
 **Endpoints:**
 - `GET /api/scan` — paginated directory scan with sorting (cursor-based pagination, 200 images/page)
-- `POST /api/open-folder` — returns folder tree structure for sidebar
-- `GET /api/thumbnail` — on-the-fly thumbnail generation (WebP, cached)
+- `GET /api/open-folder` — returns folder tree structure for sidebar (disabled by default on VPS, enable via `GALLERY_OPEN_FOLDER=true`)
+- `GET /api/thumbnail` — on-the-fly thumbnail generation (WebP, cached, with ETag + Cache-Control headers)
 - `GET /api/metadata` — extract generation metadata from image EXIF/PNG info
-- `GET /api/image` — serve full-resolution image
+- `GET /api/image` — serve full-resolution image (with ETag + Cache-Control: public, max-age=3600)
+- `GET /api/health` — health check returning `{"status": "ok"}`
 - `GET /api/preview` — preview image for intro screen landing pages
 
 **Caching:**
@@ -549,17 +550,35 @@ Core TypeScript interfaces:
 - **Metadata cache**: 100MB LRU cache for parsed generation metadata
 - Both use `cachetools.LRUCache` with `threading.Lock` for concurrent access
 
+**Security (added in 2026-05 refactor):**
+- **Path confinement**: All endpoints validate path via `is_path_safe()` — checks resolved path is under `GALLERY_ROOT` (env var, default `/`). Blocks `..`, symlink escapes, and traversal.
+- **xdg-open disabled by default**: `/api/open-folder` returns 403 unless `GALLERY_OPEN_FOLDER=true`
+- **Cache headers**: `/api/image` returns `ETag` + `Cache-Control: public, max-age=3600`; thumbnails get `immutable` flag
+- **Rate limiting**: Handled at nginx level (`limit_req zone=gallery rate=30r/s`)
+- **Health check**: `/api/health` for deployment monitoring
+
+**Image processing:**
+- Anti-bomb limits: max 75MB file size, 100 megapixels
+- `ImageOps.exif_transpose` for auto-rotation
+- RGBA → RGB conversion with white background for WebP compatibility
+- LANCZOS resampling + WebP `method=6` for optimal compression
+- Quality configurable via query param (default 75)
+
 **Error handling**: Custom `APIError` class with typed error codes (`not_found`, `not_directory`, `permission`, `invalid_file`, `timeout`, `server_error`) for granular frontend error handling.
 
 ---
 
 ## Known Limitations
 
-1. **Glow clipping on mobile `overflow-x:auto`**: On mobile devices, the horizontal album scroller uses `overflow-x: auto`. The glow bleed from `GlowContainer` with negative margins can be clipped by the auto-scroll container, causing the neon glow shadow to be cut off at the edges. This is a CSS limitation — `overflow: auto` clips visual overflow even with `overflow: clip` on ancestor elements. A potential fix would require restructuring the scroll container to use `overflow: clip` with programmatic scroll controls.
+1. **Glow clipping on mobile `overflow-x:auto`**: On mobile devices, the horizontal album scroller uses `overflow-x: auto`. The glow bleed from `GlowContainer` with negative margins can be clipped by the auto-scroll container, causing the neon glow shadow to be cut off at the edges. This is a CSS limitation — `overflow: auto` clips visual overflow even with `overflow: clip` on ancestor elements.
 
 2. **`BottomNavigationBar.vue` is legacy**: This component still exists in the codebase but is no longer used in the App.vue component tree. It has been replaced by `MobileFloatingBottomBar.vue`. Consider removing it in future cleanup.
 
-3. **No WebSocket support**: Folder changes on disk require manual refresh. Real-time updates (e.g., via WebSocket or file watcher) are on the roadmap.
+3. **No WebSocket support**: Folder changes on disk require manual refresh.
+
+4. **GalleryGrid.vue (1122 lines) still large**: While error handling has been extracted into `_withError`, the component remains large and could benefit from further decomposition in future refactoring.
+
+5. **AppHeader.vue (633 lines) oversized**: Contains brand hero, search bar, theme toggle, hamburger — consider splitting into `BrandHero.vue`, `SearchBar.vue`, `ThemeToggle.vue`.
 
 ---
 

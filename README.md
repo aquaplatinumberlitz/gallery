@@ -23,12 +23,17 @@
 - **Breadcrumb Navigation** - Điều hướng nhanh với dropdown cho đường dẫn dài
 - **Infinite Scroll** - Tự động load thêm ảnh khi cuộn xuống (200 ảnh/trang)
 
-### 📱 Mobile-First UX
+### 📱 Device-Optimized UX (480/768/1024 Breakpoints)
+- **Breakpoints unified**: `useDevice.ts` là single source of truth — không còn inline `window.innerWidth`
+- **4 device tiers**: compact (<480px), phone (480-767px), tablet (768-1023px), desktop (≥1024px)
+- **iPhone 6.1" (<480px)**: 1-column grid, compact MobileHeader (8px padding), BottomBar 36px pill, AlbumCard 130px cover, LightboxMobileSheet tighter spacing
+- **iPad Mini 8.4" (480-767px)**: 2-column grid, sidebar overlay 240px
+- **iPad 10.2" / Pro 11" (768-1023px)**: 3-column grid, sidebar persistent 240px
+- **iPad Pro 13" / PC 27" (≥1024px)**: 4+ column grid, sidebar 280px, full desktop AppHeader
 - **MobileHeader** - Thanh header riêng cho mobile với hamburger menu, search expandable, theme toggle
 - **MobileFloatingBottomBar** - Thanh điều hướng dạng pill nổi: Back/Forward, tên folder, mở Explorer
-- **Ẩn/hiện thanh khi cuộn** - Các thanh điều hướng tự ẩn khi cuộn xuống, hiện lại khi cuộn lên
-- **Sidebar overlay** - Sidebar chuyển sang dạng overlay trên mobile (≤ 640px)
-- **Breakpoints responsive**: Desktop (≥1025px), Tablet (641-1024px), Phone (≤640px), Small Phone (≤480px)
+- **Ẩn/hiện khi scroll** - Dùng rAF-throttled scroll listener (không còn polling 200ms)
+- **Sidebar overlay** - Chuyển sang overlay trên mobile (<768px)
 
 ### 🔍 Hỗ trợ Metadata AI Mạnh Mẽ
 - **Auto-detect Tool**: Tự động nhận diện **A1111, SwarmUI, ComfyUI**
@@ -52,6 +57,9 @@
 - **LRU Cache**: 1GB cho thumbnails, 100MB cho metadata
 - **Thumbnail API**: Trả về WebP tối ưu thay vì ảnh gốc
 - **Lazy Loading**: Chỉ load ảnh khi vào viewport
+- **Lightbox preload → thumbnail**: Preload ảnh kế tiếp dùng thumbnail 800px (tiết kiệm ~80% bandwidth)
+- **os.scandir()**: Backend scan dùng iterator thay vì `iterdir()` (không extra stat syscall)
+- **Scroll visibility**: rAF-throttled + MutationObserver limited scope (không còn polling 200ms, không còn observer toàn document.body)
 - **Natural Sort**: Sắp xếp giống Windows Explorer (1, 2, 10 thay vì 1, 10, 2)
 - **Instant Search**: Lọc ảnh theo tên real-time
 - **Code Splitting**: Lightbox được lazy-load qua `defineAsyncComponent`
@@ -194,7 +202,8 @@ gallery-app/
 | `GET` | `/api/image?path=...` | Serve ảnh gốc |
 | `GET` | `/api/thumbnail?path=...&max_size=600` | Serve thumbnail WebP (cached) |
 | `GET` | `/api/metadata?path=...` | Đọc metadata AI từ ảnh |
-| `POST` | `/api/open-folder` | Mở folder trong Explorer |
+| `GET` | `/api/open-folder` | Mở folder trong Explorer (disabled mặc định trên VPS) |
+| `GET` | `/api/health` | Health check: `{\"status\": \"ok\"}` |
 | `GET` | `/api/landing-pages` | Lấy danh sách intro pages |
 
 ---
