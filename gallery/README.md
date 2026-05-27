@@ -3,7 +3,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Vue.js-3.5-4FC08D?style=flat-square&logo=vue.js" alt="Vue 3">
   <img src="https://img.shields.io/badge/FastAPI-0.100+-009688?style=flat-square&logo=fastapi" alt="FastAPI">
-  <img src="https://img.shields.io/badge/Vite-7.2-646CFF?style=flat-square&logo=vite" alt="Vite">
+  <img src="https://img.shields.io/badge/Vite-Latest-646CFF?style=flat-square&logo=vite" alt="Vite">
   <img src="https://img.shields.io/badge/TypeScript-5.9-3178C6?style=flat-square&logo=typescript" alt="TypeScript">
   <img src="https://img.shields.io/badge/License-Personal_Use-orange?style=flat-square" alt="License">
 </p>
@@ -18,9 +18,17 @@
 
 ### 📁 Duyệt File & Thư Mục
 - **Quét thư mục đệ quy** - Hiển thị cây thư mục (Folder Tree) dạng collapsible
-- **Virtual Scrolling** - Xử lý mượt mà hàng nghìn ảnh với `vue-virtual-scroller`
-- **Album Preview** - Hiển thị 3 ảnh mới nhất làm cover cho mỗi folder
+- **Virtual Scrolling** - Xử lý mượt mà hàng nghìn ảnh với `vue-virtual-scroller` (RecycleScroller)
+- **Album Preview** - Hiển thị ảnh cover cho mỗi folder, scroll ngang với điều hướng mũi tên
 - **Breadcrumb Navigation** - Điều hướng nhanh với dropdown cho đường dẫn dài
+- **Infinite Scroll** - Tự động load thêm ảnh khi cuộn xuống (200 ảnh/trang)
+
+### 📱 Mobile-First UX
+- **MobileHeader** - Thanh header riêng cho mobile với hamburger menu, search expandable, theme toggle
+- **MobileFloatingBottomBar** - Thanh điều hướng dạng pill nổi: Back/Forward, tên folder, mở Explorer
+- **Ẩn/hiện thanh khi cuộn** - Các thanh điều hướng tự ẩn khi cuộn xuống, hiện lại khi cuộn lên
+- **Sidebar overlay** - Sidebar chuyển sang dạng overlay trên mobile (≤ 640px)
+- **Breakpoints responsive**: Desktop (≥1025px), Tablet (641-1024px), Phone (≤640px), Small Phone (≤480px)
 
 ### 🔍 Hỗ trợ Metadata AI Mạnh Mẽ
 - **Auto-detect Tool**: Tự động nhận diện **A1111, SwarmUI, ComfyUI**
@@ -35,9 +43,10 @@
 - **Lightbox Pro**: 
   - Fullscreen mode
   - Điều hướng bằng phím mũi tên & cuộn chuột
-  - Metadata panel chi tiết
+  - 3 biến thể panel theo thiết bị: Desktop (sidebar phải), Tablet (2 cột), Mobile (bottom sheet dạng tab)
   - Preload ảnh kế tiếp để chuyển ảnh mượt mà
 - **Material Design 3**: Elevation shadows, smooth transitions
+- **Glow Bleed Effect**: Hiệu ứng glow neon cam tràn viền thông qua `GlowContainer` pattern
 
 ### ⚡ Performance & UX
 - **LRU Cache**: 1GB cho thumbnails, 100MB cho metadata
@@ -45,16 +54,18 @@
 - **Lazy Loading**: Chỉ load ảnh khi vào viewport
 - **Natural Sort**: Sắp xếp giống Windows Explorer (1, 2, 10 thay vì 1, 10, 2)
 - **Instant Search**: Lọc ảnh theo tên real-time
+- **Code Splitting**: Lightbox được lazy-load qua `defineAsyncComponent`
 
 ### ♿ Accessibility (WCAG 2.1)
 - Screen reader support với ARIA labels
-- Keyboard navigation đầy đủ
-- Focus trap cho modals
+- Keyboard navigation đầy đủ (Tab, Escape, Arrow keys)
+- Focus trap cho modals và Lightbox
 - Hỗ trợ `prefers-reduced-motion` và `prefers-contrast: high`
 
 ### 🎭 Intro Page
 - Hiển thị ngẫu nhiên trang chào mừng mỗi lần mở app
 - Nút "Enter Gallery" với hiệu ứng Glassmorphism
+- Preview mode từ Settings
 - Dễ dàng tùy biến bằng cách thêm HTML vào `public/landpage/`
 
 ---
@@ -111,39 +122,65 @@ npm run dev   # hoặc: pnpm dev
 
 ```
 gallery-app/
-├── start.py                 # 🚀 Script khởi động tự động
+├── start.py                      # 🚀 Script khởi động tự động
 ├── backend/
-│   ├── main.py              # FastAPI server + API endpoints
-│   └── requirements.txt     # Python dependencies
+│   ├── main.py                   # FastAPI server + API endpoints
+│   └── requirements.txt          # Python dependencies
 ├── frontend/
 │   ├── public/
-│   │   └── landpage/        # 🎭 HTML templates cho intro page
+│   │   └── landpage/             # 🎭 HTML templates cho intro page
 │   └── src/
-│       ├── App.vue          # Layout chính (Sidebar + Content)
-│       ├── main.ts          # Entry point
+│       ├── App.vue               # Layout chính (Sidebar + Content + Mobile UI)
+│       ├── main.ts               # Entry point
 │       ├── components/
-│       │   ├── GalleryGrid.vue      # Lưới ảnh + Virtual scroll
-│       │   ├── Lightbox.vue         # Xem ảnh chi tiết + Metadata
-│       │   ├── PhotoCard.vue        # Card ảnh với shimmer loading
-│       │   ├── AlbumCard.vue        # Card folder với 3D effect
-│       │   ├── FolderTreeItem.vue   # Cây thư mục recursive
-│       │   ├── Breadcrumb.vue       # Navigation path
-│       │   ├── EmptyState.vue       # Các trạng thái rỗng
-│       │   └── Toast*.vue           # Notification system
+│       │   ├── GalleryGrid.vue          # Lưới ảnh + Virtual scroll + Sort
+│       │   ├── Lightbox.vue             # Xem ảnh chi tiết + Metadata (lazy-loaded)
+│       │   ├── LightboxDesktopPanel.vue # Metadata panel cho desktop
+│       │   ├── LightboxTabletPanel.vue  # 2-column sheet cho iPad
+│       │   ├── LightboxMobileSheet.vue  # Bottom sheet dạng tab cho phone
+│       │   ├── PhotoCard.vue            # Card ảnh với loading placeholder
+│       │   ├── AlbumCard.vue            # Card folder với neon glow effect
+│       │   ├── AlbumScroller.vue        # Scroll ngang albums + arrow navigation
+│       │   ├── GlowContainer.vue        # Wrapper cho hiệu ứng glow bleed
+│       │   ├── FolderTreeItem.vue       # Cây thư mục recursive
+│       │   ├── Breadcrumb.vue           # Navigation path với dropdown
+│       │   ├── AppHeader.vue            # Header cho desktop/tablet
+│       │   ├── MobileHeader.vue         # Header riêng cho mobile
+│       │   ├── MobileFloatingBottomBar.vue # Thanh điều hướng pill cho mobile
+│       │   ├── BottomNavigationBar.vue  # Legacy: bottom nav cũ (không dùng)
+│       │   ├── IntroScreen.vue          # Màn hình chào mừng
+│       │   ├── SettingsModal.vue        # Hộp thoại cài đặt
+│       │   ├── SidebarHeader.vue        # Header của sidebar
+│       │   ├── SkeletonLoader.vue       # Loading skeleton
+│       │   ├── EmptyState.vue           # Các trạng thái rỗng
+│       │   └── Toast*.vue               # Hệ thống notification
 │       ├── stores/
-│       │   ├── gallery.ts    # State: folders, images, navigation
+│       │   ├── gallery.ts    # State: folders, images, navigation, search
 │       │   ├── lightbox.ts   # State: xem ảnh, metadata
 │       │   └── toast.ts      # State: notifications
 │       ├── services/
 │       │   └── api.ts        # Axios client + error handling
 │       ├── composables/
-│       │   ├── useAnnouncer.ts   # Screen reader announcements
-│       │   ├── useFocusTrap.ts   # Modal focus management
-│       │   └── useToast.ts       # Toast helper
+│       │   ├── useScrollVisibility.ts  # Ẩn/hiện mobile bars khi scroll
+│       │   ├── useDevice.ts            # Breakpoint detection (singleton)
+│       │   ├── useColumnResize.ts      # Tính toán cột/resize grid
+│       │   ├── useNaturalSort.ts       # Natural sort cho filename
+│       │   ├── useClipboard.ts         # Copy to clipboard
+│       │   ├── useFocusTrap.ts         # Focus trap cho modals
+│       │   └── useToast.ts             # Toast helper
+│       ├── directives/
+│       │   └── clickOutside.ts         # Click-outside directive
 │       ├── styles/
-│       │   └── main.scss     # CSS Variables + Theme styles
-│       └── types/
-│           └── index.ts      # TypeScript interfaces
+│       │   ├── main.scss               # CSS Variables + Global styles + Theme
+│       │   ├── tokens.css              # Design tokens (shadows, glow)
+│       │   ├── _lightbox-shared.scss   # Shared lightbox styles
+│       │   ├── _lightbox-desktop.scss  # Desktop panel styles
+│       │   ├── _lightbox-tablet.scss   # iPad panel styles
+│       │   └── _lightbox-mobile.scss   # Phone panel styles
+│       ├── types/
+│       │   └── index.ts                # TypeScript interfaces
+│       └── utils/
+│           └── loraHighlighter.ts      # Highlight <lora:...> trong prompt
 └── resource/                 # Tài liệu tham khảo (palette, poses)
 ```
 
@@ -157,26 +194,26 @@ gallery-app/
 | `GET` | `/api/image?path=...` | Serve ảnh gốc |
 | `GET` | `/api/thumbnail?path=...&max_size=600` | Serve thumbnail WebP (cached) |
 | `GET` | `/api/metadata?path=...` | Đọc metadata AI từ ảnh |
-| `POST` | `/api/open-folder?path=...` | Mở folder trong Explorer |
+| `POST` | `/api/open-folder` | Mở folder trong Explorer |
 | `GET` | `/api/landing-pages` | Lấy danh sách intro pages |
 
 ---
 
 ## 📊 Tech Stack
 
-| Layer | Technology | Version | Ghi chú |
+| Layer | Technology | Phiên bản | Ghi chú |
 |-------|------------|---------|---------|
 | **Backend** | FastAPI | Latest | Async, high performance |
 | **Image Processing** | Pillow | Latest | Metadata extraction, thumbnail generation |
 | **Cache** | cachetools (LRU) | Latest | 1GB thumbnails + 100MB metadata |
-| **Frontend** | Vue 3 | 3.5.24 | Composition API |
-| **Build Tool** | Vite | 7.2.4 | HMR, fast builds |
-| **State** | Pinia | 3.0.4 | Type-safe stores |
-| **HTTP Client** | Axios | 1.13.2 | API calls |
-| **Virtual Scroll** | vue-virtual-scroller | 2.0.0-beta.8 | Large lists |
-| **Styling** | SCSS | 1.94.2 | CSS Variables for theming |
-| **Icons** | FontAwesome Pro | 7.1 | Duotone, Solid, Regular |
-| **Fonts** | Cinzel, Inter, JetBrains Mono | - | Local fonts |
+| **Frontend** | Vue 3 | 3.5 | Composition API + `<script setup>` |
+| **Build Tool** | Vite | Latest | HMR, fast builds |
+| **State** | Pinia | Latest | Type-safe stores |
+| **HTTP Client** | Axios | Latest | API calls |
+| **Virtual Scroll** | vue-virtual-scroller | 2.0 | Large lists (RecycleScroller) |
+| **Styling** | SCSS | Latest | CSS Variables for theming |
+| **Icons** | Lucide Vue Next | Latest | Feather-style icons |
+| **Fonts** | Cinzel, Inter, JetBrains Mono | - | Google Fonts |
 
 ---
 
@@ -208,16 +245,20 @@ gallery-app/
 | `Esc` | Đóng Lightbox / Sidebar (mobile) |
 | `Scroll` | Chuyển ảnh trong Lightbox |
 | `Tab` | Focus navigation |
+| `F` | Fullscreen (trong Lightbox) |
 
 ---
 
 ## 📝 Ghi chú kỹ thuật
 
-- **Natural Sort**: Sử dụng `re.split(r'(\d+)', s)` để sắp xếp `1, 2, 10` thay vì `1, 10, 2`
+- **Natural Sort**: Sử dụng `Intl.Collator` với `numeric: true` để sắp xếp `1, 2, 10` thay vì `1, 10, 2`
 - **SwarmUI Metadata**: Hỗ trợ cả format cũ (List String) và mới (List Object) cho LoRAs
 - **Path Access**: `is_safe_path()` return `True` cho phép truy cập mọi ổ đĩa (Local Use Only)
 - **Intro System**: Dùng `iframe` để load HTML từ `public/landpage/`, tách biệt hoàn toàn với app
 - **Image Limits**: Max 75MB file size, 100 megapixels để tránh decompression bombs
+- **Glow Bleed**: Sử dụng `overflow: clip` (không phải `hidden`) để box-shadow tràn viền, `GlowContainer` wrapper với `pointer-events: none` tránh xung đột hover
+- **Mobile Scroll Visibility**: `useScrollVisibility` gắn vào `.vue-recycle-scroller`, dùng `MutationObserver` để re-attach khi DOM thay đổi. Các mobile bars ẩn khi cuộn xuống, hiện khi cuộn lên
+- **Sidebar responsive**: Desktop (280px persistent), Tablet (240px persistent), Phone (overlay fixed)
 
 ---
 
@@ -238,6 +279,5 @@ Personal Use Only - Không dành cho deploy public.
 ---
 
 <p align="center">
-  <i>Made with ❤️ for AI Art enthusiasts</i><br>
-  <i>Document generated by GitHub Copilot - November 2025</i>
+  <i>Made with ❤️ for AI Art enthusiasts</i>
 </p>

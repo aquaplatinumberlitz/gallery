@@ -8,7 +8,7 @@
 | **Language** | TypeScript |
 | **Styling** | SCSS + CSS Custom Properties (design tokens) |
 | **Build Tool** | Vite |
-| **State Management** | Pinia (3 stores) |
+| **State Management** | Pinia (3 stores: gallery, lightbox, toast) |
 | **Virtual Scrolling** | vue-virtual-scroller (RecycleScroller) |
 | **Icons** | Lucide Vue Next |
 | **HTTP Client** | Axios |
@@ -25,26 +25,29 @@ gallery/
 │   ├── package.json
 │   ├── vite.config.ts
 │   └── src/
-│       ├── App.vue                          (482 lines — layout orchestrator, theme/intro/settings)
+│       ├── App.vue                          (502 lines — layout orchestrator, theme/intro/settings)
 │       ├── main.ts                          (13 lines — app bootstrap)
 │       ├── constants.ts                     (1 line — IMAGE_PAGE_SIZE = 200)
+│       ├── env.d.ts                         (7 lines — Vite/Vue type declarations)
 │       ├── assets/
 │       │   └── fonts.css                    (31 lines — Google Fonts @import)
 │       ├── components/
-│       │   ├── AppHeader.vue                (633 lines — search, theme toggle, brand hero, hamburger)
+│       │   ├── AppHeader.vue                (633 lines — desktop search, theme toggle, brand hero, hamburger)
 │       │   ├── AlbumCard.vue                (245 lines — album card with neon glow)
-│       │   ├── AlbumScroller.vue            (300 lines — horizontal album scroll + arrows)
-│       │   ├── BottomNavigationBar.vue      (76 lines — mobile bottom nav)
+│       │   ├── AlbumScroller.vue            (400 lines — horizontal album scroll + arrows)
+│       │   ├── BottomNavigationBar.vue      (76 lines — legacy mobile bottom nav, superseded by MobileFloatingBottomBar)
 │       │   ├── Breadcrumb.vue               (526 lines — path breadcrumb with dropdown)
 │       │   ├── EmptyState.vue               (491 lines — empty state illustrations)
 │       │   ├── FolderTreeItem.vue           (221 lines — recursive folder tree item)
-│       │   ├── GalleryGrid.vue              (1167 lines — main grid orchestrator)
-│       │   ├── GlowContainer.vue            (48 lines — glow bleed wrapper, CSS variable-driven)
+│       │   ├── GalleryGrid.vue              (1122 lines — main grid orchestrator)
+│       │   ├── GlowContainer.vue            (49 lines — glow bleed wrapper, CSS variable-driven)
 │       │   ├── IntroScreen.vue              (429 lines — intro/landing page with animations)
 │       │   ├── Lightbox.vue                 (581 lines — image viewer orchestrator)
 │       │   ├── LightboxDesktopPanel.vue     (217 lines — desktop metadata sidebar panel)
 │       │   ├── LightboxTabletPanel.vue      (207 lines — iPad 2-column bottom sheet)
 │       │   ├── LightboxMobileSheet.vue      (190 lines — phone bottom sheet, tabbed)
+│       │   ├── MobileFloatingBottomBar.vue  (130 lines — mobile floating pill: back/forward, path, open in explorer)
+│       │   ├── MobileHeader.vue             (197 lines — mobile header: hamburger, search, theme, settings)
 │       │   ├── PhotoCard.vue                (304 lines — image thumbnail card, MD3 elevation)
 │       │   ├── SettingsModal.vue            (390 lines — settings dialog)
 │       │   ├── SidebarHeader.vue            (186 lines — sidebar top section)
@@ -57,6 +60,7 @@ gallery/
 │       │   ├── useDevice.ts                 (50 lines — singleton breakpoint detection)
 │       │   ├── useFocusTrap.ts              (138 lines — focus trap for modals/lightbox)
 │       │   ├── useNaturalSort.ts            (32 lines — natural sort for filenames)
+│       │   ├── useScrollVisibility.ts       (58 lines — mobile header/bottom-bar show/hide on scroll)
 │       │   └── useToast.ts                  (97 lines — toast notification management)
 │       ├── directives/
 │       │   └── clickOutside.ts              (30 lines — click-outside directive)
@@ -68,7 +72,6 @@ gallery/
 │       │   └── toast.ts                     (148 lines — toast queue store)
 │       ├── types/
 │       │   ├── index.ts                     (62 lines — TypeScript interfaces/types)
-│       │   ├── env.d.ts                     (Vite env type declarations)
 │       │   └── vue-virtual-scroller.d.ts    (vue-virtual-scroller type declarations)
 │       ├── utils/
 │       │   └── loraHighlighter.ts           (36 lines — highlight <lora:...> tokens)
@@ -95,105 +98,135 @@ App.vue
 ├── SidebarHeader.vue            (sidebar top section: root folder, reset, info)
 │   └── FolderTreeItem.vue       (recursive, 1 per folder node)
 ├── Breadcrumb.vue               (path breadcrumb with folder dropdown)
-├── AppHeader.vue                (search bar, theme toggle, brand hero, hamburger, settings)
-├── GalleryGrid.vue              (main content area — async component)
+├── AppHeader.vue                (desktop/tablet: search bar, theme toggle, brand hero, hamburger, settings)
+├── MobileHeader.vue             (mobile only: hamburger, expandable search, theme, settings)
+│                                — uses barsVisible from useScrollVisibility for show/hide
+├── GalleryGrid.vue              (main content area)
 │   ├── AlbumScroller.vue        (horizontal scroll with arrow navigation)
 │   │   └── AlbumCard.vue        (neon glow card — 1 per album)
 │   │       └── GlowContainer.vue
 │   ├── PhotoCard.vue            (thumbnail card — 1 per image, inside RecycleScroller)
 │   ├── SkeletonLoader.vue       (loading state)
 │   └── EmptyState.vue           (no results / empty folder state)
+├── MobileFloatingBottomBar.vue  (mobile only: back/forward nav, path pill, open-in-explorer)
+│                                — uses barsVisible from useScrollVisibility for show/hide
 ├── SettingsModal.vue            (conditional — settings dialog)
 ├── Lightbox.vue                 (lazy-loaded async component)
 │   ├── LightboxDesktopPanel.vue (breakpoint: desktop)
 │   ├── LightboxTabletPanel.vue  (breakpoint: tablet)
 │   └── LightboxMobileSheet.vue  (breakpoint: phone/compact)
-├── BottomNavigationBar.vue      (mobile bottom nav)
 └── ToastContainer.vue
     └── ToastItem.vue            (1 per active toast)
 ```
 
 ### Component Responsibilities
 
-#### `App.vue` — Layout Orchestrator
+#### `App.vue` — Layout Orchestrator (502 lines)
 - Sidebar + content CSS Grid layout
 - Theme controller (light/dark) via `data-theme` attribute on `:root`
 - Intro screen show/hide orchestration
 - Settings modal state
-- Sidebar collapse/expand on mobile
+- Sidebar collapse/expand with responsive breakpoints (mobile overlay, tablet persistent)
+- Mobile detection via `window.innerWidth` (640px threshold)
+- Uses `useScrollVisibility` composable for mobile header/bar show/hide
+- **Responsive breakpoints** (handled in App.vue + scoped CSS):
+  - **≥ 1025px**: Full sidebar (280px), AppHeader + edge toggle
+  - **641–1024px** (tablet): Persistent sidebar (240px), AppHeader, edge toggle hidden
+  - **≤ 640px** (phone): Sidebar becomes fixed overlay, MobileHeader + MobileFloatingBottomBar appear
+  - **≤ 480px** (small phone): Compact padding, sidebar full-width overlay
 
-#### `AppHeader.vue` — Header UI
+#### `MobileHeader.vue` — Mobile Top Bar (197 lines)
+- Fixed top bar shown only on mobile (≤ 640px)
+- Hamburger menu for sidebar toggle
+- Expandable search bar with inline input
+- Theme toggle (sun/moon SVG icons matching AppHeader)
+- Settings gear button
+- Smooth slide-away animation when scrolling down (`barsVisible` prop from `useScrollVisibility`)
+
+#### `MobileFloatingBottomBar.vue` — Mobile Navigation Pill (130 lines)
+- Floating pill bar at bottom of screen, only on mobile (≤ 640px)
+- Back/Forward navigation buttons (disabled when at history bounds)
+- Current folder name display with FolderOpen icon
+- "Open in File Explorer" button
+- Smooth slide-away when scrolling down (`barsVisible` prop from `useScrollVisibility`)
+
+#### `AppHeader.vue` — Desktop/Tablet Header UI (633 lines)
 - Search bar with debounced input
 - Theme toggle button (sun/moon icon)
 - Brand hero / logo display
-- Mobile hamburger menu trigger
+- Mobile hamburger menu trigger (tablet only)
 - Settings gear button
 
-#### `SidebarHeader.vue` — Sidebar Top
+#### `SidebarHeader.vue` — Sidebar Top (186 lines)
 - Current root folder display
 - Reset/refresh button
 - Info/help trigger
 
-#### `FolderTreeItem.vue` — Recursive Folder Tree
+#### `FolderTreeItem.vue` — Recursive Folder Tree (221 lines)
 - Self-referential: renders children as more `FolderTreeItem` instances
 - Expand/collapse toggle
 - Active folder highlighting
 - Lazy-loading of children on expand
 
-#### `Breadcrumb.vue` — Path Navigation
+#### `Breadcrumb.vue` — Path Navigation (526 lines)
 - Breadcrumb trail from root to current folder
 - Each segment is a clickable dropdown showing sibling folders
 - Handles deep folder navigation
 
-#### `BottomNavigationBar.vue` — Mobile Nav
-- Fixed bottom bar on mobile devices
-- Quick access to main sections
+#### `BottomNavigationBar.vue` — Legacy Mobile Nav (76 lines)
+- Superseded by `MobileFloatingBottomBar.vue`
+- No longer rendered in App.vue component tree
+- Kept in codebase for potential future use or reference
 
 ### Gallery Grid
 
-#### `GalleryGrid.vue` — Main Orchestrator
-The largest component (1167 lines). Responsibilities:
+#### `GalleryGrid.vue` — Main Orchestrator (1122 lines)
+The largest component. Responsibilities:
 - **Album scroller**: renders `AlbumScroller` above the grid
 - **Photo grid**: `RecycleScroller` with `PhotoCard` items
 - **Sort controls**: dropdown for sort field (name/date) and order (asc/desc)
-- **Infinite scroll**: detects scroll near bottom, loads next page
+- **Infinite scroll**: detects scroll near bottom, loads next page (200 images/page)
 - **Column count**: delegates to `useColumnResize`
 - **Natural sort**: delegates to `useNaturalSort`
 - **Click handler**: opens `Lightbox` on image click
 
-#### `AlbumScroller.vue` — Horizontal Album Scroll
+#### `AlbumScroller.vue` — Horizontal Album Scroll (400 lines)
 - Horizontal scroll container with left/right arrow navigation
 - Renders `AlbumCard` for each album
 - Wrapped in `GlowContainer` for glow bleed
+- Handles dynamic album loading as user navigates folders
 
-#### `AlbumCard.vue` — Album Card with Glow
+#### `AlbumCard.vue` — Album Card with Glow (245 lines)
 - Thumbnail with album name and image count
 - Neon orange glow effect on hover (dark mode only)
 - Consumes `--glow-*` CSS variables from ancestor `GlowContainer`
 
-#### `PhotoCard.vue` — Image Thumbnail
+#### `PhotoCard.vue` — Image Thumbnail (304 lines)
 - Image thumbnail with MD3 elevation shadow
 - Lazy-loaded image with aspect-ratio placeholder
 - Filename overlay on hover
 - Click emits `select` event to open lightbox
 
-#### `SkeletonLoader.vue` — Loading State
+#### `SkeletonLoader.vue` — Loading State (108 lines)
 - Animated placeholder cards matching grid layout
 - Shown during initial load and page transitions
 
-#### `EmptyState.vue` — Empty States
+#### `EmptyState.vue` — Empty States (491 lines)
 - Multiple illustrations for: no images, no results (search), error states
 - Inline SVG illustrations
 - Contextual help text
 
-#### `GlowContainer.vue` — Glow Bleed Wrapper
+#### `GlowContainer.vue` — Glow Bleed Wrapper (49 lines)
 - Reusable wrapper component
-- Accepts `bleed` prop (px) to set `--glow-bleed-x` / `--glow-bleed-y` CSS variables
+- Accepts `bleed`, `bleedX`, `bleedY` props (px) to set `--glow-bleed-x` / `--glow-bleed-y` CSS variables
+- Accepts `disabled` prop to disable glow (sets padding/margin to 0)
+- Applies negative margin + positive padding equal to bleed value for overflow space
+- Uses `pointer-events: none` to prevent negative-margin overflow from intercepting hover events on sibling elements
 - Single source of truth for glow bleed padding across components
 
 ### Lightbox (Image Viewer)
 
-#### `Lightbox.vue` — Orchestrator
+#### `Lightbox.vue` — Orchestrator (581 lines)
 - Lazy-loaded via `defineAsyncComponent` in `App.vue`
 - Full-screen overlay with image display
 - **Keyboard navigation**: Arrow keys (prev/next), Escape (close), F (fullscreen)
@@ -202,21 +235,21 @@ The largest component (1167 lines). Responsibilities:
 - **Preloading**: preloads adjacent images for instant navigation
 - **Focus trap**: delegates to `useFocusTrap`
 
-#### `LightboxDesktopPanel.vue` — Desktop Metadata Sidebar
+#### `LightboxDesktopPanel.vue` — Desktop Metadata Sidebar (217 lines)
 - Breakpoint: `desktop` (≥1024px)
 - Right sidebar panel with full metadata display
 - Prompt, negative prompt, generation parameters (model, seed, steps, CFG, sampler, LoRAs)
 - LoRA highlighting via `loraHighlighter`
 - Copy-to-clipboard buttons via `useClipboard`
 
-#### `LightboxTabletPanel.vue` — iPad 2-Column Bottom Sheet
+#### `LightboxTabletPanel.vue` — iPad 2-Column Bottom Sheet (207 lines)
 - Breakpoint: `tablet` (768–1023px)
 - Two-column layout at the bottom of the viewport
 - Left column: image info (filename, dimensions, date)
 - Right column: generation parameters
 - Optimized for iPad Mini 8.4", iPad 10.2", iPad Pro 11"
 
-#### `LightboxMobileSheet.vue` — Phone Bottom Sheet
+#### `LightboxMobileSheet.vue` — Phone Bottom Sheet (190 lines)
 - Breakpoint: `compact` / `phone` (<768px)
 - Bottom sheet with tabbed interface (tabs: Info / Prompt / Params)
 - Swipe-to-dismiss gesture area
@@ -224,21 +257,23 @@ The largest component (1167 lines). Responsibilities:
 
 ### UI Components
 
-#### `SettingsModal.vue` — Settings Dialog
+#### `SettingsModal.vue` — Settings Dialog (390 lines)
 - Modal overlay with settings options
 - Default sort field/order preferences
 - Theme preference
+- Intro page preview mode
 - Other configurable options
 
-#### `IntroScreen.vue` — Landing Page
+#### `IntroScreen.vue` — Landing Page (429 lines)
 - Full-screen animated intro shown on first visit
 - Animated entrance with particle effects
-- Preview mode from settings
+- Preview mode triggered from settings
 - "Enter Gallery" button
+- Loads HTML landing pages from `public/landpage/` via iframe
 
 #### `ToastContainer.vue` / `ToastItem.vue` — Notifications
-- `ToastContainer` renders all active toasts from `toastStore`
-- `ToastItem` handles individual toast: enter/exit animations, auto-dismiss, action buttons
+- `ToastContainer` (85 lines) renders all active toasts from `toastStore`
+- `ToastItem` (349 lines) handles individual toast: enter/exit animations, auto-dismiss, action buttons
 - 4 types: success, error, warning, info
 
 ---
@@ -303,8 +338,9 @@ The largest component (1167 lines). Responsibilities:
 1. **Folder navigation**: User clicks folder → `galleryStore.openFolder(path)` → `api.openFolder()` → updates `folders`/`images` state → `GalleryGrid` re-renders
 2. **Infinite scroll**: `GalleryGrid` detects scroll near bottom → `galleryStore.loadMoreImages()` → `api.scanDirectory(cursor)` → appends to `images` array
 3. **Lightbox**: User clicks image → `lightboxStore.open(image)` → fetches metadata + preloads adjacent images → `Lightbox.vue` renders with appropriate device panel
-4. **Theme toggle**: `AppHeader` toggles → sets `data-theme` on `:root` → CSS variables switch light/dark
+4. **Theme toggle**: `AppHeader` or `MobileHeader` toggles → sets `data-theme` on `:root` → CSS variables switch light/dark
 5. **Toast**: Any component calls `toastStore.add({ type, message })` → `ToastContainer` renders `ToastItem` → auto-dismiss after timeout
+6. **Mobile scroll visibility**: `App.vue` calls `useScrollVisibility()` → `barsVisible` reactively controls MobileHeader/MobileFloatingBottomBar show/hide based on scroll direction inside `.vue-recycle-scroller`
 
 ---
 
@@ -345,7 +381,7 @@ The largest component (1167 lines). Responsibilities:
 ```
 .content {
   overflow: clip;      ← allows children to render past boundary
-  padding: 44px;       ← space for glow bleed
+  padding: 44px;       ← space for glow bleed (desktop)
 }
   └── .content-body {
         overflow: visible;
@@ -369,7 +405,33 @@ The largest component (1167 lines). Responsibilities:
 </GlowContainer>
 ```
 
-The component sets `--glow-bleed-x` and `--glow-bleed-y` CSS variables consumed by child components to calculate their negative margins / overflow space.
+The component sets `--glow-bleed-x` and `--glow-bleed-y` CSS variables, applies negative margin + positive padding, and uses `pointer-events: none` on the container to prevent overflow regions from intercepting pointer events on adjacent elements. The `disabled` prop can disable glow entirely.
+
+---
+
+## Responsive Breakpoints
+
+Breakpoints are handled in two layers:
+
+### App.vue Layout Breakpoints (mobile detection)
+
+| Breakpoint | Width | Layout |
+|-----------|-------|--------|
+| Desktop | ≥ 1025px | 280px sidebar + content grid, AppHeader, sidebar edge toggle |
+| Tablet | 641–1024px | 240px persistent sidebar, AppHeader (hamburger visible), edge toggle hidden |
+| Phone | ≤ 640px | Sidebar becomes fixed overlay, MobileHeader + MobileFloatingBottomBar, 1-column grid |
+| Small phone | ≤ 480px | Compact padding, sidebar full-width overlay |
+
+### useDevice Breakpoints (component-level)
+
+| Breakpoint | Width Range | Typical Devices |
+|-----------|-------------|-----------------|
+| `compact` | < 480px | iPhone 6.1", small phones |
+| `phone` | 480–767px | Larger phones, phone landscape |
+| `tablet` | 768–1023px | iPad Mini 8.4", iPad 10.2", iPad Pro 11" |
+| `desktop` | ≥ 1024px | iPad Pro 13", desktop monitors |
+
+**Used by**: Lightbox panels, GalleryGrid column count, other device-aware components.
 
 ---
 
@@ -396,6 +458,7 @@ Singleton composable with ref-counted resize listener. Multiple component instan
 
 | Composable | Lines | Primary User | Purpose |
 |-----------|-------|-------------|---------|
+| `useScrollVisibility` | 58 | App.vue (MobileHeader, MobileFloatingBottomBar) | Detects scroll direction inside RecycleScroller, returns `barsVisible` + `isScrollingDown` refs. Uses MutationObserver to re-attach when DOM changes. |
 | `useDevice` | 50 | App, Lightbox, GalleryGrid | Singleton breakpoint detection via resize listener |
 | `useNaturalSort` | 32 | GalleryGrid | Natural sorting (handles numbers in filenames) |
 | `useColumnResize` | 85 | GalleryGrid | Column count computation, row height, grid persistence |
@@ -425,8 +488,8 @@ Singleton composable with ref-counted resize listener. Multiple component instan
 
 ### `galleryStore` (345 lines)
 The central data store. Manages:
-- **State**: `folders[]`, `images[]`, `currentPath`, `sortField`, `sortOrder`, `cursor`, `loading`, `totalImages`
-- **Actions**: `openFolder(path)`, `loadImages()`, `loadMoreImages()`, `setSort(field, order)`, navigation history
+- **State**: `folders[]`, `images[]`, `currentPath`, `sortField`, `sortOrder`, `cursor`, `loading`, `totalImages`, `searchQuery`, `history[]`, `historyIndex`, `sidebarTree[]`
+- **Actions**: `openFolder(path)`, `loadImages()`, `loadMoreImages()`, `setSort(field, order)`, `goBack()`, `goForward()`, `openInExplorer()`
 - **Search**: client-side filtering of loaded images by filename
 - **Error handling**: typed API errors surfaced to UI
 
@@ -490,6 +553,16 @@ Core TypeScript interfaces:
 
 ---
 
+## Known Limitations
+
+1. **Glow clipping on mobile `overflow-x:auto`**: On mobile devices, the horizontal album scroller uses `overflow-x: auto`. The glow bleed from `GlowContainer` with negative margins can be clipped by the auto-scroll container, causing the neon glow shadow to be cut off at the edges. This is a CSS limitation — `overflow: auto` clips visual overflow even with `overflow: clip` on ancestor elements. A potential fix would require restructuring the scroll container to use `overflow: clip` with programmatic scroll controls.
+
+2. **`BottomNavigationBar.vue` is legacy**: This component still exists in the codebase but is no longer used in the App.vue component tree. It has been replaced by `MobileFloatingBottomBar.vue`. Consider removing it in future cleanup.
+
+3. **No WebSocket support**: Folder changes on disk require manual refresh. Real-time updates (e.g., via WebSocket or file watcher) are on the roadmap.
+
+---
+
 ## Key Architectural Decisions
 
 1. **No Lightbox template split until 2+ device variants existed** — Premature abstraction avoided. The lightbox started as a single component; device-specific panels (`DesktopPanel`, `TabletPanel`, `MobileSheet`) were extracted only when three distinct layouts were needed.
@@ -500,9 +573,9 @@ Core TypeScript interfaces:
 
 4. **CSS variables over inline values** — All shadows and glow effects are tokenized in `tokens.css`. One change to `--glow-color-*` propagates to every component. Dark/light mode switching is a single attribute change on `:root`.
 
-5. **GlowContainer over per-component bleed** — A single reusable wrapper sets `--glow-bleed-x`/`--glow-bleed-y` variables, consumed by any child needing glow overflow. Avoids duplicating bleed logic across `AlbumScroller`, `PhotoCard`, etc.
+5. **GlowContainer over per-component bleed** — A single reusable wrapper sets `--glow-bleed-x`/`--glow-bleed-y` variables, consumed by any child needing glow overflow. Also handles `pointer-events: none` to prevent interaction issues. Avoids duplicating bleed logic across `AlbumScroller`, `PhotoCard`, etc.
 
-6. **overflow:clip over overflow:hidden** — `overflow: clip` clips layout without clipping visual overflow (box-shadows). This is essential for the glow bleed effect where orange neon shadows extend past the content boundary.
+6. **`overflow:clip` over `overflow:hidden`** — `overflow: clip` clips layout without clipping visual overflow (box-shadows). This is essential for the glow bleed effect where orange neon shadows extend past the content boundary.
 
 7. **Singleton useDevice with ref-counting** — A single `resize` listener serves all components, avoiding N listeners for N component instances. Reference counting ensures the listener is removed when the last component unmounts.
 
@@ -511,3 +584,5 @@ Core TypeScript interfaces:
 9. **Typed backend errors** — Backend returns structured errors (`{"error": "not_found", "message": "..."}`) mapped to `GalleryAPIError` on the frontend, enabling specific UI responses (retry, different empty state, etc.).
 
 10. **LRU caches with size-based eviction** — Backend thumbnail (1GB) and metadata (100MB) caches use `cachetools.LRUCache` with `getsizeof` for byte-aware eviction, rather than item-count eviction. This prevents memory exhaustion from large thumbnails.
+
+11. **Mobile bar visibility via scroll direction** — `useScrollVisibility` composable attaches to `.vue-recycle-scroller` element, tracking scroll direction with rAF-throttled handler. Uses `MutationObserver` to handle DOM re-creation when RecycleScroller's key changes. Bars slide away on scroll-down, return on scroll-up, creating a reading-mode UX pattern.

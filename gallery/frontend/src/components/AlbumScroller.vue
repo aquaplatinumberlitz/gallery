@@ -309,13 +309,13 @@ onBeforeUnmount(() => {
 
 @media (max-width: 640px) {
   .album-grid-wrapper {
-    --glow-bleed-x: 16px;
-    --glow-bleed-y: 16px;
-    --glow-bleed-bottom: 16px;
+    --glow-bleed-x: 12px;
+    --glow-bleed-y: 12px;
+    --glow-bleed-bottom: 12px;
   }
   .album-grid {
     gap: 12px;
-    padding: 32px 16px 32px;
+    padding: 4px 0 12px;
     scroll-snap-type: x mandatory;
   }
   .album-grid > * {
@@ -328,17 +328,6 @@ onBeforeUnmount(() => {
     width: 42px;
     height: 42px;
   }
-
-  /* Reduce glow spread to match available padding budget (32px) */
-  .album-grid {
-    --glow-card-hover:
-      0 0 2px #fff,
-      0 0 5px #fff,
-      0 0 10px var(--glow-color-60),
-      0 0 18px var(--glow-color-50),
-      0 0 24px var(--glow-color-40),
-      0 0 32px var(--glow-color-25);
-  }
 }
 
 @media (max-width: 480px) {
@@ -347,18 +336,7 @@ onBeforeUnmount(() => {
     --glow-bleed-y: 8px;
     --glow-bleed-bottom: 8px;
   }
-  .album-grid {
-    gap: 8px;
-    padding: 24px 8px 24px;
-    /* Compact glow: 20px max (8px grid + 12px content = 20px budget) */
-    --glow-card-hover:
-      0 0 2px #fff,
-      0 0 4px #fff,
-      0 0 8px var(--glow-color-60),
-      0 0 12px var(--glow-color-50),
-      0 0 16px var(--glow-color-40),
-      0 0 20px var(--glow-color-25);
-  }
+  .album-grid { gap: 8px; }
   .album-grid > * { min-width: 110px; max-width: 140px; }
 }
 
