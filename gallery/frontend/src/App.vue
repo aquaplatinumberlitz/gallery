@@ -187,7 +187,7 @@ watch(theme, (val) => {
       @click="closeSidebar"
     ></div>
 
-    <section class="content" id="main-content" tabindex="-1">
+    <section class="content" :class="{ 'bars-hidden': isMobile && !barsVisible }" id="main-content" tabindex="-1">
       <MobileHeader
         v-if="isMobile"
         :is-dark="theme === 'dark'"
@@ -329,6 +329,11 @@ watch(theme, (val) => {
   gap: 16px;
   height: 100%;
   overflow: hidden;
+  transition: padding-top 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.content.bars-hidden {
+  padding-top: max(8px, env(safe-area-inset-top));
 }
 
 /* Sidebar Edge Toggle Button */
