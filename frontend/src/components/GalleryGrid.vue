@@ -338,21 +338,6 @@ onBeforeUnmount(() => {
 
     <!-- Has content: images or folders -->
     <template v-else-if="images.length > 0 || folders.length > 0">
-      <!-- Album scroller: outside scroller-container để glow khong bi clip boi content-body overflow:hidden -->
-      <GlowContainer v-if="folders.length" :bleed="props.isMobile ? 16 : 50">
-        <AlbumScroller
-          :folders="folders"
-          @open-folder="handleOpenFolder"
-        />
-      </GlowContainer>
-      <!-- Photos title: outside scroller so it stays fixed (like Albums) -->
-      <div v-if="images.length" class="section-title photos-title">
-        <h3>Photos</h3>
-        <span class="photo-count-badge">
-          <Images :size="13" />
-          {{ images.length }}
-        </span>
-      </div>
       <div class="scroller-container" :ref="setGridRef">
 
       <RecycleScroller
@@ -365,6 +350,19 @@ onBeforeUnmount(() => {
         :buffer="200"
       >
         <template #before>
+          <GlowContainer v-if="folders.length" :bleed="props.isMobile ? 16 : 50">
+            <AlbumScroller
+              :folders="folders"
+              @open-folder="handleOpenFolder"
+            />
+          </GlowContainer>
+          <div v-if="images.length" class="section-title photos-title">
+            <h3>Photos</h3>
+            <span class="photo-count-badge">
+              <Images :size="13" />
+              {{ images.length }}
+            </span>
+          </div>
         </template>
 
         <template #default="{ item: row }">
@@ -408,9 +406,13 @@ onBeforeUnmount(() => {
       </RecycleScroller>
 
       <!-- Fallback: Only folders, no images (when RecycleScroller is not rendered) -->
-      <!-- AlbumScroller is rendered above (outside scroller-container), so no duplicate here -->
       <div v-else-if="folders.length > 0" class="folders-only-container">
-        <!-- Has only folders, no images -->
+        <GlowContainer :bleed="props.isMobile ? 16 : 50">
+          <AlbumScroller
+            :folders="folders"
+            @open-folder="handleOpenFolder"
+          />
+        </GlowContainer>
         <EmptyState
           v-if="!images.length && !isLoading"
           type="no-images"
