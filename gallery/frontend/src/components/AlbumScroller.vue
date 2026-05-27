@@ -328,6 +328,17 @@ onBeforeUnmount(() => {
     width: 42px;
     height: 42px;
   }
+
+  /* Reduce glow spread to match available padding budget (32px) */
+  .album-grid {
+    --glow-card-hover:
+      0 0 2px #fff,
+      0 0 5px #fff,
+      0 0 10px var(--glow-color-60),
+      0 0 18px var(--glow-color-50),
+      0 0 24px var(--glow-color-40),
+      0 0 32px var(--glow-color-25);
+  }
 }
 
 @media (max-width: 480px) {

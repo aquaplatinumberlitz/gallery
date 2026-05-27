@@ -467,7 +467,7 @@ watch(theme, (val) => {
   .content {
     padding: 60px 16px 0 16px;
     gap: 8px;
-    overflow: visible;
+    overflow: hidden;
   }
 
   .content-body {
@@ -483,7 +483,7 @@ watch(theme, (val) => {
   .content {
     padding: 56px 12px 0 12px;
     gap: 6px;
-    overflow: visible;
+    overflow: hidden;
   }
 
   .content-body {
