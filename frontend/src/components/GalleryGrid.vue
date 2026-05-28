@@ -193,6 +193,13 @@ const canForward = computed(
   () => galleryStore.historyIndex < galleryStore.history.length - 1
 );
 const hasMoreImages = computed(() => galleryStore.nextImageCursor !== null);
+const currentFolderName = computed(() => {
+  if (!currentPath.value) return '';
+  const sep = currentPath.value.includes('\\') ? '\\' : '/';
+  const parts = currentPath.value.split(sep).filter(Boolean);
+  return parts.length > 0 ? parts[parts.length - 1] : '';
+});
+
 const hasAnyItems = computed(() => galleryStore.galleryFolders.length + galleryStore.galleryImages.length > 0);
 const hasNoPath = computed(() => !galleryStore.currentPath && !galleryStore.rootPath);
 const noSearchResults = computed(
@@ -313,7 +320,10 @@ onBeforeUnmount(() => {
           <ArrowRight :size="18" />
         </button>
       </div>
-      <Breadcrumb class="breadcrumb-wrap" :path="currentPath" @navigate="handleOpenFolder" />
+      <Breadcrumb v-if="!props.isMobile" class="breadcrumb-wrap" :path="currentPath" @navigate="handleOpenFolder" />
+      <div v-else class="breadcrumb-compact">
+        <span class="compact-folder-name">{{ currentFolderName || 'Albums' }}</span>
+      </div>
 
       <button 
         class="nav-btn open-folder" 
@@ -1186,6 +1196,28 @@ onBeforeUnmount(() => {
     overflow: hidden;
   }
 
+  .breadcrumb-compact {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+  }
+
+  .compact-folder-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--title-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 4px 10px;
+    background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--primary-color) 20%, transparent);
+    border-radius: 999px;
+    max-width: 100%;
+    display: inline-block;
+  }
+
   .nav-group {
     display: flex;
   }
@@ -1251,6 +1283,11 @@ onBeforeUnmount(() => {
   .nav-btn {
     width: 30px;
     height: 30px;
+  }
+
+  .compact-folder-name {
+    font-size: 12px;
+    padding: 3px 8px;
   }
 }
 
