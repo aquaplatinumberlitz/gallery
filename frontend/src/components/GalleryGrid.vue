@@ -4,7 +4,6 @@ import { RecycleScroller } from "vue-virtual-scroller";
 import { useGalleryStore } from "../stores/gallery";
 import { useLightboxStore } from "../stores/lightbox";
 import type { SortField } from "../types";
-import { useHaptic } from "../composables/useHaptic";
 import AlbumScroller from "./AlbumScroller.vue";
 import GlowContainer from "./GlowContainer.vue";
 import PhotoCard from "./PhotoCard.vue";
@@ -13,6 +12,7 @@ import Breadcrumb from "./Breadcrumb.vue";
 import EmptyState from "./EmptyState.vue";
 import { compareNatural } from "../composables/useNaturalSort";
 import { useColumnResize } from "../composables/useColumnResize";
+import { usePullToRefresh } from "../composables/usePullToRefresh";
 import { 
   ArrowLeft, ArrowRight, ArrowUpRight, ArrowUpDown, ChevronDown, 
   ArrowUp, ArrowDown, LayoutGrid, Loader, TriangleAlert, X, 
@@ -24,89 +24,20 @@ const _icons: Record<string, any> = { ArrowUp, ArrowDown, Type, Clock }
 
 const galleryStore = useGalleryStore();
 const lightboxStore = useLightboxStore();
-const { medium: hapticMedium } = useHaptic();
 
-// ── Pull-to-refresh state ──
-const pullDistance = ref(0);
-const isPulling = ref(false);
-const isRefreshing = ref(false);
-const pullStartY = ref(0);
-const pullStartX = ref(0);
-const pullAxis = ref<"vertical" | "horizontal" | null>(null);
-const PULL_THRESHOLD = 80; // px to trigger refresh
-const PULL_MAX = 120; // max stretch
-const PULL_AXIS_LOCK_THRESHOLD = 8; // px before deciding gesture direction
-
-function resetPullState() {
-  pullDistance.value = 0;
-  pullAxis.value = null;
-  isPulling.value = false;
-}
-
-function isHorizontalAlbumScrollTarget(target: EventTarget | null) {
-  if (!(target instanceof Element)) return false;
-  return !!target.closest(".album-grid, .albums-grid");
-}
-
-function onPullTouchStart(e: TouchEvent) {
-  if (isRefreshing.value) return;
-  if (isHorizontalAlbumScrollTarget(e.target)) return;
-  // Only activate if we're at the top of the page
-  const scrollEl = document.querySelector('.scroller') || document.querySelector('.folders-only-container');
-  if (scrollEl && scrollEl.scrollTop > 5) return;
-  pullStartX.value = e.touches[0].clientX;
-  pullStartY.value = e.touches[0].clientY;
-  pullAxis.value = null;
-  isPulling.value = true;
-}
-
-function onPullTouchMove(e: TouchEvent) {
-  if (!isPulling.value || isRefreshing.value) return;
-  const deltaX = e.touches[0].clientX - pullStartX.value;
-  const deltaY = e.touches[0].clientY - pullStartY.value;
-  const absX = Math.abs(deltaX);
-  const absY = Math.abs(deltaY);
-
-  if (!pullAxis.value && Math.max(absX, absY) >= PULL_AXIS_LOCK_THRESHOLD) {
-    pullAxis.value = absX > absY ? "horizontal" : "vertical";
-  }
-
-  if (pullAxis.value === "horizontal") {
-    resetPullState();
-    return;
-  }
-
-  if (deltaY <= 0) {
-    pullDistance.value = 0;
-    return;
-  }
-  // Progressive resistance
-  pullDistance.value = Math.min(deltaY * 0.5, PULL_MAX);
-}
-
-function onPullTouchEnd() {
-  if (!isPulling.value) return;
-  isPulling.value = false;
-  if (pullDistance.value >= PULL_THRESHOLD) {
-    // Trigger refresh
-    isRefreshing.value = true;
-    hapticMedium();
-    galleryStore.scanFolder().then(() => {
-      isRefreshing.value = false;
-      pullDistance.value = 0;
-    }).catch(() => {
-      isRefreshing.value = false;
-      pullDistance.value = 0;
-    });
-  } else {
-    pullDistance.value = 0;
-  }
-}
-
-const pullProgress = computed(() => Math.min(pullDistance.value / PULL_THRESHOLD, 1));
-const pullTransform = computed(() => `translateY(${Math.min(pullDistance.value, PULL_MAX)}px)`);
-const pullOpacity = computed(() => Math.min(pullDistance.value / (PULL_THRESHOLD * 0.5), 1));
-const showPullIndicator = computed(() => pullDistance.value > 10 || isRefreshing.value);
+const {
+  pullDistance,
+  isRefreshing,
+  showPullIndicator,
+  pullProgress,
+  pullTransform,
+  pullOpacity,
+  onTouchStart,
+  onTouchMove,
+  onTouchEnd,
+} = usePullToRefresh({
+  onRefresh: () => galleryStore.scanFolder(),
+});
 
 interface Props {
   isMobile: boolean
@@ -309,12 +240,17 @@ onBeforeUnmount(() => {
 <template>
   <div 
     class="gallery-grid"
-    @touchstart="onPullTouchStart"
-    @touchmove="onPullTouchMove"
-    @touchend="onPullTouchEnd"
+    @touchstart="onTouchStart"
+    @touchmove="onTouchMove"
+    @touchend="onTouchEnd"
   >
     <!-- Pull-to-refresh indicator -->
-    <div v-if="showPullIndicator" class="pull-indicator" :style="{ transform: pullTransform, opacity: pullOpacity }">
+    <div
+      v-if="showPullIndicator"
+      class="pull-indicator"
+      :data-pull-distance="Math.round(pullDistance)"
+      :style="{ transform: pullTransform, opacity: pullOpacity }"
+    >
       <div v-if="isRefreshing" class="pull-spinner">
         <Loader :size="18" class="lucide-spin" />
       </div>
