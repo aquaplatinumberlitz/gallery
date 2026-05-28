@@ -215,10 +215,6 @@ const closeMenu = () => {
   min-width: 0;
   max-width: 100%;
   gap: 6px;
-  background: var(--surface-color);
-  padding: 4px 8px;
-  border-radius: 8px;
-  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.06));
 }
 
 .breadcrumb-list {

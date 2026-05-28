@@ -480,19 +480,6 @@ const actionIconComponent = computed(() => {
   opacity: 0.5;
 }
 
-:root[data-theme="dark"] .title {
-  color: var(--title-color);
-}
-
-:root[data-theme="dark"] .description {
-  color: var(--muted-text);
-}
-
-:root[data-theme="dark"] .fa-icon-wrap {
-  color: var(--accent-color);
-  filter: brightness(1.3);
-}
-
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .bg-circle,
