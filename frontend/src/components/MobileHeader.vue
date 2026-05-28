@@ -95,10 +95,8 @@ function clearSearch() {
   display: flex;
   align-items: center;
   gap: 6px;
-  box-sizing: border-box;
-  min-height: var(--mobile-header-height);
   padding: 8px 12px;
-  padding-top: calc(var(--mobile-safe-top) + 8px);
+  padding-top: max(8px, env(safe-area-inset-top));
   background: color-mix(in srgb, var(--surface-color) 85%, transparent);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -106,22 +104,6 @@ function clearSearch() {
   transform: translateY(0);
   opacity: 1;
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
-}
-
-.mobile-header::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: var(--mobile-safe-top);
-  background: var(--surface-color);
-  pointer-events: none;
-}
-
-.mobile-header > * {
-  position: relative;
-  z-index: 1;
 }
 
 .mobile-header.hidden {
@@ -217,7 +199,7 @@ function clearSearch() {
 @media (max-width: 480px) {
   .mobile-header {
     padding: 8px 8px;
-    padding-top: calc(var(--mobile-safe-top) + 8px);
+    padding-top: max(8px, env(safe-area-inset-top));
     gap: 4px;
   }
 
