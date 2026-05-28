@@ -466,18 +466,18 @@ const actionIconComponent = computed(() => {
 
 /* Dark mode adjustments */
 :root[data-theme="dark"] .icon-ring {
-  background: linear-gradient(135deg, var(--surface-color) 0%, var(--surface-elevated) 100%);
+  background: linear-gradient(135deg, var(--surface-color) 0%, #1a1a1a 100%);
   box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.4),
-    0 0 0 8px rgba(232, 184, 122, 0.06);
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    0 0 0 8px rgba(255, 255, 255, 0.05);
 }
 
 :root[data-theme="dark"] .bg-circle {
-  opacity: 0.12;
+  opacity: 0.15;
 }
 
 :root[data-theme="dark"] .float-dot {
-  opacity: 0.4;
+  opacity: 0.5;
 }
 
 :root[data-theme="dark"] .title {
@@ -490,7 +490,7 @@ const actionIconComponent = computed(() => {
 
 :root[data-theme="dark"] .fa-icon-wrap {
   color: var(--accent-color);
-  filter: brightness(1.1);
+  filter: brightness(1.3);
 }
 
 /* Reduced motion */

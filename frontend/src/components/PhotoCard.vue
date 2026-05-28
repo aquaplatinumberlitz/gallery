@@ -181,22 +181,22 @@ onBeforeUnmount(() => {
   // Content-first: image fills 100%, no padding
   // Subtle border glow for hover feedback
   html[data-theme="dark"] & {
-    background: var(--surface-elevated, #2d2620);
-    border: 1px solid rgba(232, 184, 122, 0.08);
-    box-shadow: 0 1px 3px 1px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.5);
+    background: #1c1c1e;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow: none;
     transition: 
       transform 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
       border-color 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
 
     @media (hover: hover) {
       &:hover {
-        border-color: rgba(232, 184, 122, 0.3);
+        border-color: rgba(255, 255, 255, 0.25);
         transform: translateY(-4px) scale(1.02);
       }
     }
 
     &:active {
-      border-color: rgba(232, 184, 122, 0.4);
+      border-color: rgba(255, 255, 255, 0.35);
       transform: translateY(-2px) scale(1.01);
     }
   }
@@ -275,7 +275,7 @@ onBeforeUnmount(() => {
   overflow: hidden;
 
   html[data-theme="dark"] & {
-    background: linear-gradient(90deg, rgba(232, 184, 122, 0.05), rgba(232, 184, 122, 0.03), rgba(232, 184, 122, 0.05));
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.08));
   }
 }
 

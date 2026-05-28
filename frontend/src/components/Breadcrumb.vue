@@ -446,33 +446,33 @@ const closeMenu = () => {
 
 /* Dark mode support */
 :root[data-theme="dark"] .ellipsis-btn {
-  background: rgba(232, 184, 122, 0.08);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 :root[data-theme="dark"] .ellipsis-btn:hover {
-  background: rgba(232, 184, 122, 0.15);
+  background: rgba(255, 255, 255, 0.15);
 }
 
 :root[data-theme="dark"] .ellipsis-menu {
-  background: var(--surface-elevated, #2d2620);
-  border-color: rgba(232, 184, 122, 0.1);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  background: var(--bg-secondary, #1e1e1e);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
 :root[data-theme="dark"] .ellipsis-menu-item:hover {
-  background: rgba(232, 184, 122, 0.08);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 :root[data-theme="dark"] .collapse-btn {
-  background: rgba(232, 184, 122, 0.08);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 :root[data-theme="dark"] .collapse-btn:hover {
-  background: rgba(232, 184, 122, 0.15);
+  background: rgba(255, 255, 255, 0.15);
 }
 
 :root[data-theme="dark"] .crumb:hover:not(:disabled) {
-  background-color: rgba(232, 184, 122, 0.08);
+  background-color: rgba(255, 255, 255, 0.08);
 }
 
 /* Reduced motion */
@@ -493,13 +493,13 @@ const closeMenu = () => {
   color: var(--primary-color);
   opacity: 0.8;
   flex-shrink: 0;
-  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--primary-color) 25%, transparent));
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--primary-color) 30%, transparent));
   transition: opacity 0.15s ease, filter 0.15s ease;
 }
 
 .home-icon:hover {
   opacity: 1;
-  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--primary-color) 40%, transparent));
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--primary-color) 50%, transparent));
 }
 
 /* Responsive: reduce breadcrumb text max-width on phones */

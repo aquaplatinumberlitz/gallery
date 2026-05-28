@@ -14,36 +14,36 @@
 }
 
 :root[data-theme="dark"] {
-  /* Dark mode layer shadows — warm depth, not harsh black */
-  --shadow-card: 0 1px 3px 1px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.5);
-  --shadow-card-level2: 0 2px 6px 2px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.5);
+  /* Dark mode layer shadows */
+  --shadow-card: 0 1px 3px 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.7);
+  --shadow-card-level2: 0 2px 6px 2px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.7);
 
-  /* Glow color (warm peachy coral #e8946a) */
-  --glow-color-20: rgba(232, 148, 106, 0.2);
-  --glow-color-25: rgba(232, 148, 106, 0.25);
-  --glow-color-30: rgba(232, 148, 106, 0.3);
-  --glow-color-35: rgba(232, 148, 106, 0.35);
-  --glow-color-40: rgba(232, 148, 106, 0.4);
-  --glow-color-50: rgba(232, 148, 106, 0.5);
-  --glow-color-60: rgba(232, 148, 106, 0.6);
-  --glow-color-70: rgba(232, 148, 106, 0.7);
+  /* Glow color (orange #FF6B35) */
+  --glow-color-20: rgba(255, 107, 53, 0.2);
+  --glow-color-25: rgba(255, 107, 53, 0.25);
+  --glow-color-30: rgba(255, 107, 53, 0.3);
+  --glow-color-35: rgba(255, 107, 53, 0.35);
+  --glow-color-40: rgba(255, 107, 53, 0.4);
+  --glow-color-50: rgba(255, 107, 53, 0.5);
+  --glow-color-60: rgba(255, 107, 53, 0.6);
+  --glow-color-70: rgba(255, 107, 53, 0.7);
 
-  /* Dark layer default shadows — warm undertone */
-  --shadow-dark-layer-back: 0 1px 3px 1px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.5);
-  --shadow-dark-layer-front: 0 2px 6px 2px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.5), 0 0 12px var(--glow-color-20);
+  /* Dark layer default shadows */
+  --shadow-dark-layer-back: 0 1px 3px 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.7);
+  --shadow-dark-layer-front: 0 2px 6px 2px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.7), 0 0 12px var(--glow-color-20);
 
-  /* Composite glow shadows — warm subtle glow */
+  /* Composite glow shadows */
   --glow-card-hover:
-    0 0 2px rgba(232, 184, 122, 0.3),
-    0 0 5px rgba(232, 184, 122, 0.2),
+    0 0 2px #fff,
+    0 0 5px #fff,
     0 0 10px var(--glow-color-60),
     0 0 20px var(--glow-color-50),
     0 0 35px var(--glow-color-40),
     0 0 50px var(--glow-color-25);
 
   --glow-card-hover-front:
-    0 0 2px rgba(232, 184, 122, 0.3),
-    0 0 4px rgba(232, 184, 122, 0.2),
+    0 0 2px #fff,
+    0 0 4px rgba(255, 255, 255, 0.6),
     0 0 8px var(--glow-color-70),
     0 0 15px var(--glow-color-50),
     0 0 25px var(--glow-color-35),
@@ -54,7 +54,7 @@
     0 0 15px var(--glow-color-25);
 
   --glow-card-active:
-    0 0 3px rgba(232, 184, 122, 0.3),
+    0 0 3px #fff,
     0 0 8px var(--glow-color-50),
     0 0 15px var(--glow-color-30);
 }

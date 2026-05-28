@@ -18,22 +18,21 @@
 }
 
 :root[data-theme="dark"] {
-  --bg-color: #171210;
-  --text-color: #e8dccc;
-  --title-color: #e8b87a;
-  --surface-color: #241e19;
-  --surface-elevated: #2d2620;
-  --album-border-color: #3a2f28;
-  --border-color: rgba(232, 184, 122, 0.1);
-  --muted-text: #a09080;
-  --neon-color: #e8b87a;
-  --primary-color: #e8946a;
-  --neon-border-color: #e8946a;
-  --folder-color: #e8b87a;
+  --bg-color: #080808;
+  --text-color: #eaeaea;
+  --title-color: #d6a15d;
+  --surface-color: #11100f;
+  --album-border-color: #eaeaea;
+  --border-color: rgba(255, 255, 255, 0.075);
+  --muted-text: #b3b3b3;
+  --neon-color: #d6a15d;
+  --primary-color: #d6a15d;
+  --neon-border-color: #08f;
+  --folder-color: #f2a007;
   --font-body: "InterVariable", "Segoe UI", "SF Pro Display", system-ui,
     -apple-system, sans-serif;
   --font-code: "JetBrains Mono", monospace;
-  --focus-ring-shadow: 0 0 0 2px #171210, 0 0 0 4px var(--primary-color, #e8946a);
+  --focus-ring-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--primary-color, #d6a15d);
 }
 
 /* --- DARK MODE OVERRIDES (Moved from App.vue) --- */
@@ -63,15 +62,15 @@
 
 /* Dark mode styles cho brand-icon */
 html[data-theme="dark"] .brand-icon {
-  color: #e8946a;
-  border: 0.1rem solid rgba(232, 184, 122, 0.4);
-  background: rgba(23, 18, 16, 0.8);
+  color: #ff6b35;
+  border: 0.1rem solid #fff;
+  background: rgba(10, 10, 10, 0.7);
   backdrop-filter: blur(3px);
   box-shadow: 
-    0 0 10px rgba(232, 148, 106, 0.25) inset, 
-    0 0 15px rgba(232, 148, 106, 0.15);
+    0 0 10px var(--neon-border-color, #08f) inset, 
+    0 0 15px var(--neon-border-color, #08f);
   filter: drop-shadow(0 0 6px var(--neon-color));
-  --neon-border-color: #e8946a;
+  --neon-border-color: #08f;
 }
 
 /* Animation trigger cho dark mode */
@@ -92,26 +91,26 @@ html[data-theme="dark"] .brand-icon.flicker-effect {
 @keyframes dark-title-glow {
   0%, 100% {
     filter: 
-      drop-shadow(0 0 4px rgba(232, 184, 122, 0.5))
-      drop-shadow(0 0 12px rgba(232, 184, 122, 0.3))
-      drop-shadow(0 0 20px rgba(232, 184, 122, 0.2));
+      drop-shadow(0 0 4px rgba(214, 161, 93, 0.5))
+      drop-shadow(0 0 12px rgba(214, 161, 93, 0.3))
+      drop-shadow(0 0 20px rgba(214, 161, 93, 0.2));
   }
   50% {
     filter: 
-      drop-shadow(0 0 8px rgba(232, 184, 122, 0.7))
-      drop-shadow(0 0 18px rgba(232, 184, 122, 0.5))
-      drop-shadow(0 0 30px rgba(232, 184, 122, 0.3));
+      drop-shadow(0 0 8px rgba(214, 161, 93, 0.7))
+      drop-shadow(0 0 18px rgba(214, 161, 93, 0.5))
+      drop-shadow(0 0 30px rgba(214, 161, 93, 0.3));
   }
 }
 
 @keyframes dark-underline-pulse {
   0%, 100% {
     opacity: 0.7;
-    box-shadow: 0 0 8px rgba(232, 184, 122, 0.4);
+    box-shadow: 0 0 8px rgba(214, 161, 93, 0.4);
   }
   50% {
     opacity: 1;
-    box-shadow: 0 0 15px rgba(232, 184, 122, 0.7);
+    box-shadow: 0 0 15px rgba(214, 161, 93, 0.7);
   }
 }
 
@@ -123,13 +122,13 @@ html[data-theme="dark"] .brand-title {
   /* Gradient text with warm gold shimmer */
   background: linear-gradient(
     90deg,
-    #e8b87a 0%,
-    #e8c88a 15%,
-    #f0d090 35%,
-    #f5dc9a 50%,
-    #f0d090 65%,
-    #e8c88a 85%,
-    #e8b87a 100%
+    #d6a15d 0%,
+    #e8c07a 15%,
+    #ffd700 35%,
+    #ffec8b 50%,
+    #ffd700 65%,
+    #e8c07a 85%,
+    #d6a15d 100%
   );
   background-size: 200% 100%;
   -webkit-background-clip: text;
@@ -139,9 +138,9 @@ html[data-theme="dark"] .brand-title {
   
   /* Multi-layer glow effect using filter */
   filter: 
-    drop-shadow(0 0 4px rgba(232, 184, 122, 0.5))
-    drop-shadow(0 0 12px rgba(232, 184, 122, 0.3))
-    drop-shadow(0 0 20px rgba(232, 184, 122, 0.2));
+    drop-shadow(0 0 4px rgba(214, 161, 93, 0.5))
+    drop-shadow(0 0 12px rgba(214, 161, 93, 0.3))
+    drop-shadow(0 0 20px rgba(214, 161, 93, 0.2));
   
   /* Shimmer + glow animation */
   animation: dark-title-shimmer 4s linear infinite, dark-title-glow 3s ease-in-out infinite;
@@ -152,14 +151,14 @@ html[data-theme="dark"] .brand-title::after {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    #e8b87a 15%,
-    #f0d090 50%,
-    #e8b87a 85%,
+    #d6a15d 15%,
+    #ffd700 50%,
+    #d6a15d 85%,
     transparent 100%
   );
   transform: scaleX(0.6);
   transform-origin: center;
-  box-shadow: 0 0 8px rgba(232, 184, 122, 0.5);
+  box-shadow: 0 0 8px rgba(214, 161, 93, 0.5);
   animation: dark-underline-pulse 3s ease-in-out infinite;
 }
 
@@ -210,61 +209,61 @@ html[data-theme="dark"] .brand-hero:hover .title-sparkle {
 html[data-theme="dark"] .brand-hero:hover .brand-title {
   animation: dark-title-shimmer 2s linear infinite, dark-title-glow 1.5s ease-in-out infinite;
   filter: 
-    drop-shadow(0 0 8px rgba(232, 184, 122, 0.7))
-    drop-shadow(0 0 20px rgba(232, 184, 122, 0.5))
-    drop-shadow(0 0 35px rgba(232, 184, 122, 0.3));
+    drop-shadow(0 0 8px rgba(214, 161, 93, 0.7))
+    drop-shadow(0 0 20px rgba(214, 161, 93, 0.5))
+    drop-shadow(0 0 35px rgba(214, 161, 93, 0.3));
 }
 
 html[data-theme="dark"] .brand-hero:hover .brand-title::after {
   transform: scaleX(1);
-  box-shadow: 0 0 15px rgba(232, 184, 122, 0.8), 0 0 25px rgba(232, 184, 122, 0.4);
+  box-shadow: 0 0 15px rgba(214, 161, 93, 0.8), 0 0 25px rgba(255, 215, 0, 0.4);
 }
 
 /* Dark mode neon effect for search box (Global Override) */
 html[data-theme="dark"] .search-box {
   border: 1px solid var(--neon-color);
-  box-shadow: 0 0 6px rgba(232, 184, 122, 0.3);
+  box-shadow: 0 0 6px rgba(214, 161, 93, 0.4);
 }
 
 html[data-theme="dark"] .search-box:focus-within {
   border-color: var(--neon-color);
-  box-shadow: 0 0 10px rgba(232, 184, 122, 0.25), inset 0 0 4px rgba(232, 184, 122, 0.15);
+  box-shadow: 0 0 12px var(--neon-color), inset 0 0 4px rgba(214, 161, 93, 0.3);
 }
 
 /* Dark mode neon effect for sidebar field-container */
 html[data-theme="dark"] .field-container {
   border: 1px solid var(--neon-color);
-  box-shadow: 0 0 6px rgba(232, 184, 122, 0.3);
+  box-shadow: 0 0 6px rgba(214, 161, 93, 0.4);
 }
 
 html[data-theme="dark"] .field-container:focus-within {
   border-color: var(--neon-color);
-  box-shadow: 0 0 10px rgba(232, 184, 122, 0.25), inset 0 0 4px rgba(232, 184, 122, 0.15);
+  box-shadow: 0 0 12px var(--neon-color), inset 0 0 4px rgba(214, 161, 93, 0.3);
 }
 
 /* Dark mode neon effect for sidebar edge toggle */
 html[data-theme="dark"] .sidebar-edge-toggle {
   background: var(--surface-color);
-  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.3), 0 0 6px rgba(232, 184, 122, 0.2);
-  border: 1px solid rgba(232, 184, 122, 0.2);
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.3), 0 0 6px rgba(214, 161, 93, 0.3);
+  border: 1px solid rgba(214, 161, 93, 0.3);
   border-left: none;
 }
 
 html[data-theme="dark"] .sidebar-edge-toggle:hover {
-  box-shadow: 2px 0 12px rgba(232, 184, 122, 0.35), 0 0 8px rgba(232, 184, 122, 0.3);
+  box-shadow: 2px 0 12px rgba(214, 161, 93, 0.5), 0 0 8px rgba(214, 161, 93, 0.4);
 }
 
 /* Dark mode neon effect for theme-toggle button */
 html[data-theme="dark"] .theme-toggle {
-  border-color: rgba(232, 184, 122, 0.3);
+  border-color: rgba(255, 236, 179, 0.3);
   background: var(--surface-color);
-  color: #e8c88a;
+  color: #ffe4a0;
 }
 
 html[data-theme="dark"] .theme-toggle:hover {
-  border-color: #e8b87a;
-  color: #e8b87a;
-  box-shadow: 0 0 10px rgba(232, 184, 122, 0.35), 0 0 4px rgba(232, 184, 122, 0.2) inset;
+  border-color: #ffd54f;
+  color: #ffd54f;
+  box-shadow: 0 0 12px rgba(255, 213, 79, 0.6), 0 0 4px rgba(255, 213, 79, 0.4) inset;
 }
 
 *,
@@ -398,8 +397,8 @@ pre {
   }
   
   :root[data-theme="dark"] {
-    --primary-color: #e8b87a;
-    --border-color: #e8dccc;
+    --primary-color: #e8c07a;
+    --border-color: #fff;
   }
   
   button, a, [role="button"] {
