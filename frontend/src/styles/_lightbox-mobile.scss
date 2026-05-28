@@ -11,7 +11,7 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--gallery-lightbox-overlay, rgba(0,0,0,0.6));
   border: 1px solid rgba(255, 255, 255, 0.3);
   color: #fff;
   display: none;
@@ -47,12 +47,12 @@
 .sheet-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--gallery-lightbox-overlay, rgba(0,0,0,0.4));
 }
 
 .sheet-panel {
   position: relative;
-  background: #1a1a1a;
+  background: var(--gallery-lightbox-bg, #1a1a1a);
   border-radius: 16px 16px 0 0;
   max-height: 75vh;
   min-height: 30vh;
@@ -85,7 +85,7 @@
   display: flex;
   gap: 0;
   padding: 0 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--gallery-lightbox-border, rgba(255,255,255,0.1));
   flex-shrink: 0;
 }
 
@@ -145,11 +145,11 @@
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #86efac;
+  color: var(--gallery-lightbox-accent, #86efac);
   font-weight: 600;
 
   &.negative-label {
-    color: #fca5a5;
+    color: var(--gallery-lightbox-accent-negative, #fca5a5);
   }
 }
 

@@ -17,12 +17,12 @@
 .tablet-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--gallery-lightbox-overlay, rgba(0,0,0,0.4));
 }
 
 .tablet-panel {
   position: relative;
-  background: #1a1a1a;
+  background: var(--gallery-lightbox-bg, #1a1a1a);
   border-radius: 20px 20px 0 0;
   max-height: 65vh;
   min-height: 28vh;
@@ -89,7 +89,7 @@
 .tablet-close-btn {
   background: transparent;
   border: none;
-  color: #999;
+  color: var(--gallery-lightbox-text-muted, #999);
   cursor: pointer;
   padding: 4px;
   display: flex;
@@ -150,10 +150,10 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    color: #86efac;
+    color: var(--gallery-lightbox-accent, #86efac);
 
     &.negative-label {
-      color: #fca5a5;
+      color: var(--gallery-lightbox-accent-negative, #fca5a5);
     }
   }
 }
@@ -241,7 +241,7 @@
 .tablet-hash {
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px;
-  color: #999;
+  color: var(--gallery-lightbox-text-muted, #999);
   background: rgba(255, 255, 255, 0.1);
   padding: 1px 4px;
   border-radius: 4px;

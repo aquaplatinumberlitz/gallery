@@ -167,7 +167,7 @@ onMounted(() => {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: #000;
+  background: var(--gallery-lightbox-bg, #000);
   display: flex;
   flex-direction: column;
 }
@@ -413,7 +413,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
+  color: var(--gallery-text-inverse, #ffffff);
   font-size: 16px;
   padding: 24px;
   background: radial-gradient(circle at center, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.9));
