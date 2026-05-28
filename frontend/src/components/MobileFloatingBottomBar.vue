@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ArrowLeft, ArrowRight, ArrowUpRight, FolderOpen } from 'lucide-vue-next'
+import { ArrowLeft, ArrowRight, FolderOpen } from 'lucide-vue-next'
 
 interface Props {
   canBack: boolean
@@ -14,7 +14,6 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   'back': []
   'forward': []
-  'open-folder': []
 }>()
 
 const folderName = computed(() => {
@@ -27,26 +26,23 @@ const folderName = computed(() => {
 <template>
   <nav class="mobile-bottom-bar" :class="{ hidden: !barsVisible }">
     <button class="mbb-btn" :disabled="!canBack" @click="emit('back')" aria-label="Go back">
-      <ArrowLeft :size="18" />
+      <ArrowLeft />
     </button>
     
     <div class="mbb-path">
-      <FolderOpen :size="14" class="path-icon" />
+      <FolderOpen class="path-icon" />
       <span class="path-text">{{ folderName }}</span>
     </div>
     
     <button class="mbb-btn" :disabled="!canForward" @click="emit('forward')" aria-label="Go forward">
-      <ArrowRight :size="18" />
-    </button>
-    
-    <button class="mbb-btn mbb-open" @click="emit('open-folder')" aria-label="Open in file explorer">
-      <ArrowUpRight :size="18" />
+      <ArrowRight />
     </button>
   </nav>
 </template>
 
 <style scoped>
 .mobile-bottom-bar {
+  --icon-size: 22px;
   position: fixed;
   bottom: 16px;
   left: 50%;
@@ -56,6 +52,7 @@ const folderName = computed(() => {
   z-index: 80;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
   padding: 6px 8px;
   margin-bottom: env(safe-area-inset-bottom, 0px);
@@ -92,6 +89,11 @@ const folderName = computed(() => {
   transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
 }
 
+.mbb-btn svg {
+  width: var(--icon-size);
+  height: var(--icon-size);
+}
+
 .mbb-btn:hover:not(:disabled) {
   background: color-mix(in srgb, var(--text-color) 8%, transparent);
 }
@@ -105,15 +107,11 @@ const folderName = computed(() => {
   cursor: default;
 }
 
-.mbb-open {
-  margin-left: 4px;
-}
-
 .mbb-path {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   padding: 0 8px;
   min-width: 0;
 }
@@ -135,6 +133,7 @@ const folderName = computed(() => {
 /* Compact (<480px): smaller pill, tighter spacing */
 @media (max-width: 480px) {
   .mobile-bottom-bar {
+    --icon-size: 22px;
     bottom: 12px;
     padding: 4px 6px;
     border-radius: 20px;
@@ -144,11 +143,6 @@ const folderName = computed(() => {
   .mbb-btn {
     width: 44px;
     height: 44px;
-  }
-
-  .mbb-btn svg {
-    width: 16px;
-    height: 16px;
   }
 
   .mbb-path {

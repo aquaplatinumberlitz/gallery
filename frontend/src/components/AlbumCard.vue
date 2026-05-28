@@ -54,8 +54,9 @@ defineProps<{
   transition: 
     transform 280ms cubic-bezier(0.4, 0, 0.2, 1), 
     box-shadow 280ms cubic-bezier(0.4, 0, 0.2, 1);
-  /* MD3 Elevation Level 1 - disabled */
-  box-shadow: none;
+  background: var(--gallery-surface-elevated, #ffffff);
+  border: 1px solid var(--gallery-border-default, #e5ddd4);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 
   .album-cover-diagonal {
     position: relative;

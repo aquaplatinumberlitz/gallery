@@ -101,12 +101,12 @@
   --text-color: #143d60;
   --title-color: #143d60;
   --surface-color: #ffffff;
-  --album-border-color: #ffffff;
+  --album-border-color: #e5ddd4;
   --border-color: rgba(0, 0, 0, 0.12);
   --muted-text: #4a6587;
   --neon-color: #ff6b35;
   --primary-color: #ff6b35;
-  --placeholder-bg: rgba(0,0,0,0.06);
+  --placeholder-bg: rgba(0,0,0,0.10);
   --folder-color: #f2a007;
   --font-body: "InterVariable", "Segoe UI", "SF Pro Display", system-ui, -apple-system, sans-serif;
   --font-code: "JetBrains Mono", monospace;
