@@ -92,17 +92,6 @@ const sortOrder = computed(() => galleryStore.sortOrder);
 const showSortMenu = ref(false);
 const sortMenuRef = ref<HTMLElement | null>(null);
 
-// Mobile sort bottom sheet state
-const showSortSheet = ref(false);
-
-const openSortSheet = () => {
-  showSortSheet.value = true;
-};
-
-const closeSortSheet = () => {
-  showSortSheet.value = false;
-};
-
 const sortOptions: { field: SortField; label: string; icon: string }[] = [
   { field: "name", label: "Name", icon: "Type" },
   { field: "date", label: "Date modified", icon: "Clock" },
@@ -125,7 +114,6 @@ const selectSort = (field: SortField) => {
     galleryStore.setSortOrder(field === "date" ? "desc" : "asc");
   }
   showSortMenu.value = false;
-  showSortSheet.value = false;
 };
 
 const closeSortMenu = (e: MouseEvent) => {
@@ -393,16 +381,6 @@ onBeforeUnmount(() => {
         <Loader :size="16" class="lucide-spin" /> 
         <span>Loading</span>
       </div>
-
-      <!-- Mobile sort trigger -->
-      <button 
-        class="mobile-sort-trigger"
-        v-if="isMobile"
-        @click="openSortSheet"
-        title="Sort by"
-      >
-        <ArrowUpDown :size="16" />
-      </button>
     </div>
 
     <div v-if="errorMessage" class="error-banner">
@@ -564,41 +542,6 @@ onBeforeUnmount(() => {
       />
     </div>
 
-    <!-- Mobile Sort Bottom Sheet -->
-    <Transition name="sort-sheet">
-      <div v-if="showSortSheet" class="sort-sheet-overlay" @click.self="closeSortSheet">
-        <div class="sort-sheet-backdrop" @click.self="closeSortSheet" />
-        <div class="sort-sheet-panel">
-          <div class="sort-sheet-handle-wrapper">
-            <div class="sort-sheet-handle" />
-          </div>
-          <div class="sort-sheet-header">
-            <span class="sort-sheet-title">Sort by</span>
-            <button class="sort-sheet-close" @click="closeSortSheet" aria-label="Close sort menu">
-              <X :size="16" />
-            </button>
-          </div>
-          <div class="sort-sheet-options">
-            <button
-              v-for="option in sortOptions"
-              :key="option.field"
-              class="sort-sheet-option"
-              :class="{ active: sortField === option.field }"
-              @click="selectSort(option.field)"
-            >
-              <component :is="_icons[option.icon]" :size="18" />
-              <span>{{ option.label }}</span>
-              <component 
-                v-if="sortField === option.field" 
-                :is="sortOrder === 'asc' ? ArrowUp : ArrowDown" 
-                class="sort-sheet-direction"
-                :size="16"
-              />
-            </button>
-          </div>
-        </div>
-      </div>
-    </Transition>
   </div>
 </template>
 
@@ -1178,11 +1121,13 @@ onBeforeUnmount(() => {
   }
 
   .breadcrumb-wrap {
-    display: none;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
   }
 
   .nav-group {
-    display: none;
+    display: flex;
   }
 
   /* Sort: hidden on mobile */
@@ -1221,6 +1166,16 @@ onBeforeUnmount(() => {
   .scroller-footer {
     padding-top: 8px;
     padding-bottom: 120px; /* Extra bottom padding for mobile nav bar */
+  }
+
+  .scroller {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+
+  .folders-only-container {
+    padding-left: 4px;
+    padding-right: 4px;
   }
 
   .skeleton-grid {
@@ -1303,173 +1258,12 @@ onBeforeUnmount(() => {
   }
 }
 
-/* ── Mobile Sort Trigger ── */
-.mobile-sort-trigger {
-  display: none;
-}
-
-@media (max-width: 767px) {
-  .mobile-sort-trigger {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 44px;
-    height: 44px;
-    min-width: 44px;
-    min-height: 44px;
-    border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
-    border-radius: 12px;
-    background: var(--surface-color);
-    color: var(--text-color);
-    cursor: pointer;
-    flex-shrink: 0;
-    transition: border-color 0.15s ease, color 0.15s ease;
-  }
-
-  .mobile-sort-trigger:active {
-    border-color: var(--primary-color);
-    color: var(--primary-color);
-  }
-}
-
-/* ── Mobile Sort Bottom Sheet ── */
-.sort-sheet-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 200;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-}
-
-.sort-sheet-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  z-index: -1;
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-}
-
-.sort-sheet-panel {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  max-width: 480px;
-  background: var(--surface-color);
-  border-radius: 20px 20px 0 0;
-  padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px));
-  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.12);
-}
-
-.sort-sheet-handle-wrapper {
-  display: flex;
-  justify-content: center;
-  padding: 8px 0;
-}
-
-.sort-sheet-handle {
-  width: 36px;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--border-color, rgba(0, 0, 0, 0.2));
-}
-
-.sort-sheet-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 4px 0 12px;
-}
-
-.sort-sheet-title {
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--title-color);
-}
-
-.sort-sheet-close {
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--muted-text);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.15s ease;
-}
-
-.sort-sheet-close:active {
-  background: rgba(0, 0, 0, 0.08);
-}
-
-.sort-sheet-options {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.sort-sheet-option {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 14px 12px;
-  border: none;
-  border-radius: 12px;
-  background: transparent;
-  color: var(--text-color);
-  font-size: 15px;
-  font-family: var(--font-body);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  text-align: left;
-}
-
-.sort-sheet-option:active {
-  background: rgba(0, 0, 0, 0.05);
-}
-
-.sort-sheet-option.active {
-  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
-  color: var(--primary-color);
-  font-weight: 500;
-}
-
-.sort-sheet-direction {
-  margin-left: auto;
-  color: var(--primary-color);
-}
-
-/* ── Sort Bottom Sheet Transition ── */
-.sort-sheet-enter-active,
-.sort-sheet-leave-active {
-  transition: opacity 0.25s ease;
-}
-
-.sort-sheet-enter-active .sort-sheet-panel,
-.sort-sheet-leave-active .sort-sheet-panel {
-  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.sort-sheet-enter-from,
-.sort-sheet-leave-to {
-  opacity: 0;
-}
-
-.sort-sheet-enter-from .sort-sheet-panel,
-.sort-sheet-leave-to .sort-sheet-panel {
-  transform: translateY(100%);
-}
-
+/* Pull-to-refresh indicator — reduced motion */
 @media (prefers-reduced-motion: reduce) {
-  .sort-sheet-enter-active,
-  .sort-sheet-leave-active,
-  .sort-sheet-enter-active .sort-sheet-panel,
-  .sort-sheet-leave-active .sort-sheet-panel {
+  .pull-indicator {
+    transition: none;
+  }
+  .pull-arrow {
     transition: none;
   }
 }

@@ -398,7 +398,7 @@ const closeMenu = () => {
 }
 
 .expand-btn {
-  color: var(--primary-color, #ff6b35);
+  color: var(--primary-color);
 }
 
 /* Collapse Button */
@@ -487,15 +487,13 @@ const closeMenu = () => {
 
 .home-icon {
   color: var(--primary-color);
-  opacity: 0.8;
+  opacity: 0.5;
   flex-shrink: 0;
-  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--primary-color) 30%, transparent));
-  transition: opacity 0.15s ease, filter 0.15s ease;
+  transition: opacity 0.15s ease;
 }
 
 .home-icon:hover {
-  opacity: 1;
-  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--primary-color) 50%, transparent));
+  opacity: 0.8;
 }
 
 /* Responsive: reduce breadcrumb text max-width on phones */

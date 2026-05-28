@@ -237,7 +237,9 @@ const actionIconComponent = computed(() => {
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--surface-color) 0%, var(--bg-color) 100%);
+  background: rgba(255,255,255,0.1);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   border: 2px solid var(--accent-color);
   box-shadow: 
     0 8px 32px rgba(0, 0, 0, 0.08),
@@ -397,7 +399,7 @@ const actionIconComponent = computed(() => {
   padding: 10px 20px;
   border: none;
   border-radius: 8px;
-  background: var(--accent-color);
+  background: var(--primary-color);
   color: #fff;
   font-size: 14px;
   font-weight: 500;
@@ -465,13 +467,6 @@ const actionIconComponent = computed(() => {
 }
 
 /* Dark mode adjustments */
-:root[data-theme="dark"] .icon-ring {
-  background: linear-gradient(135deg, var(--surface-color) 0%, #1a1a1a 100%);
-  box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.3),
-    0 0 0 8px rgba(255, 255, 255, 0.05);
-}
-
 :root[data-theme="dark"] .bg-circle {
   opacity: 0.15;
 }

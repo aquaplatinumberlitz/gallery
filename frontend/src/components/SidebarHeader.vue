@@ -105,7 +105,7 @@ watch(
 }
 
 .field-icon {
-  color: var(--primary-color, #ff6b35);
+  color: var(--primary-color);
   flex-shrink: 0;
 }
 

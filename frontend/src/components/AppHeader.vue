@@ -216,7 +216,7 @@ h1 {
   transform: translateY(-50%);
   width: 28px;
   height: 28px;
-  background: linear-gradient(180deg, #fff 0%, #f0f0f0 100%);
+  background: var(--surface-color);
   border-radius: 50%;
   display: flex;
   align-items: center;

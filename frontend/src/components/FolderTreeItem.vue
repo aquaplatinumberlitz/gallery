@@ -133,7 +133,7 @@ const handleKeydown = (e: KeyboardEvent) => {
 }
 
 .tree-row.active {
-  background: rgba(214, 161, 93, 0.16);
+  background: color-mix(in srgb, var(--primary-color) 16%, transparent);
   color: var(--primary-color);
   position: relative;
 }
@@ -151,7 +151,7 @@ const handleKeydown = (e: KeyboardEvent) => {
   bottom: 4px;
   width: 1.5px;
   border-radius: 999px;
-  background: #d6a15d;
+  background: var(--primary-color);
 }
 
 .toggle-btn {

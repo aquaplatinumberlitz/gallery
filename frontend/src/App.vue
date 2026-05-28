@@ -10,8 +10,6 @@ import IntroScreen from "./components/IntroScreen.vue";
 import AppHeader from "./components/AppHeader.vue";
 import MobileHeader from "./components/MobileHeader.vue";
 import MobileFloatingBottomBar from "./components/MobileFloatingBottomBar.vue";
-import BottomNavigationBar from "./components/BottomNavigationBar.vue";
-import AlbumsTabView from "./components/AlbumsTabView.vue";
 import { useScrollVisibility } from "./composables/useScrollVisibility";
 import { useDevice } from "./composables/useDevice";
 import {
@@ -34,21 +32,6 @@ const handlePreviewIntro = (url: string) => {
   showIntro.value = true;
   isSettingsOpen.value = false;
 };
-// ------------------------
-
-// --- TAB NAVIGATION ---
-const activeTab = ref<'photos' | 'albums' | 'search' | 'more'>('photos');
-
-const handleTabChange = (tabId: string) => {
-  activeTab.value = tabId as 'photos' | 'albums' | 'search' | 'more';
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-  // Open settings when 'more' tab is selected
-  if (tabId === 'more') {
-    isSettingsOpen.value = true;
-  }
-};
-// ------------------------
-
 // ------------------------
 
 const galleryStore = useGalleryStore();
@@ -187,7 +170,7 @@ watch(theme, (val) => {
       @click="closeSidebar"
     ></div>
 
-    <section class="content" :class="{ 'bars-hidden': isMobile && !barsVisible, 'has-bottom-nav': isMobile }" id="main-content" tabindex="-1">
+    <section class="content" :class="{ 'bars-hidden': isMobile && !barsVisible }" id="main-content" tabindex="-1">
       <MobileHeader
         v-if="isMobile"
         :is-dark="theme === 'dark'"
@@ -212,23 +195,13 @@ watch(theme, (val) => {
       />
 
       <div class="content-body">
-        <Transition name="tab-fade" mode="out-in">
-          <GalleryGrid
-            v-if="activeTab === 'photos' || activeTab === 'search'"
-            key="gallery"
-            :is-mobile="isMobile"
-          />
-          <AlbumsTabView
-            v-else-if="activeTab === 'albums'"
-            key="albums"
-            :is-mobile="isMobile"
-          />
-          <div v-else key="empty" class="tab-empty-placeholder"></div>
-        </Transition>
+        <GalleryGrid
+          :is-mobile="isMobile"
+        />
       </div>
 
       <MobileFloatingBottomBar
-        v-if="isMobile && activeTab === 'photos'"
+        v-if="isMobile"
         :can-back="galleryStore.historyIndex > 0"
         :can-forward="galleryStore.historyIndex < galleryStore.history.length - 1"
         :current-path="galleryStore.currentPath"
@@ -238,13 +211,6 @@ watch(theme, (val) => {
         @open-folder="galleryStore.openInExplorer()"
       />
     </section>
-
-    <BottomNavigationBar
-      v-if="isMobile"
-      :active-tab="activeTab"
-      :bars-visible="barsVisible"
-      @navigate="handleTabChange"
-    />
   </div>
 
   <Lightbox />
@@ -484,7 +450,7 @@ watch(theme, (val) => {
   }
 
   .content {
-    padding: 60px 16px 0 16px;
+    padding: 60px 16px 72px 16px;
     gap: 8px;
     overflow: hidden;
   }
@@ -504,7 +470,7 @@ watch(theme, (val) => {
 /* Small phone: <480px — compact layout */
 @media (max-width: 480px) {
   .content {
-    padding: 56px 12px 0 12px;
+    padding: 56px 12px 72px 12px;
     gap: 6px;
     overflow: hidden;
   }
@@ -521,21 +487,4 @@ watch(theme, (val) => {
     max-width: 300px;
   }
 }
-
-/* ── Tab transition (tab-fade) ── */
-.tab-fade-enter-active,
-.tab-fade-leave-active {
-  transition: opacity 200ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.tab-fade-enter-from,
-.tab-fade-leave-to {
-  opacity: 0;
-}
-
-/* ── Content bottom padding for bottom nav bar ── */
-.content.has-bottom-nav {
-  padding-bottom: 72px;
-}
-
 </style>

@@ -104,8 +104,8 @@
   transition: all 0.2s ease;
 
   &.active {
-    color: #ff6b35;
-    border-bottom-color: #ff6b35;
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
   }
 
   &:focus-visible {

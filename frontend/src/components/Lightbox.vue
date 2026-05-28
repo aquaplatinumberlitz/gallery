@@ -540,14 +540,14 @@ function handleToggleFullscreen() {
   &:hover {
     background: rgba(255, 255, 255, 0.16);
     border-color: rgba(255, 255, 255, 0.35);
-    color: #ff6b35; /* pastel orange from palette */
+    color: var(--primary-color);
     text-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
     transform: translateY(-50%) scale(1.02);
   }
 
-  &.prev { left: 20px; }
-  &.next { right: 20px; }
+  &.prev { left: 12px; }
+  &.next { right: 12px; }
 
   &:disabled {
     opacity: 0;

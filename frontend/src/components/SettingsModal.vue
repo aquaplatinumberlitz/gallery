@@ -192,7 +192,7 @@ onUnmounted(() => {
 
 [data-theme="dark"] .modal-content {
   border: 1px solid rgba(255, 255, 255, 0.1);
-  background: #1e293b;
+  background: var(--surface-color);
 }
 
 .modal-header {
@@ -217,7 +217,7 @@ onUnmounted(() => {
 }
 
 [data-theme="dark"] .modal-title {
-  color: #f1f5f9;
+  color: var(--text-color);
 }
 
 .close-text-btn {
@@ -343,15 +343,15 @@ onUnmounted(() => {
 }
 
 [data-theme="dark"] .theme-select {
-  background: #0f172a;
+  background: var(--bg-color);
   border-color: rgba(255, 255, 255, 0.2);
-  color: #f1f5f9;
+  color: var(--text-color);
   color-scheme: dark;
 }
 
 [data-theme="dark"] .theme-select option {
-  background-color: #0f172a;
-  color: #f1f5f9;
+  background-color: var(--bg-color);
+  color: var(--text-color);
 }
 
 .theme-select:focus {

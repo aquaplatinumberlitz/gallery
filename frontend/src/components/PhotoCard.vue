@@ -181,7 +181,7 @@ onBeforeUnmount(() => {
   // Content-first: image fills 100%, no padding
   // Subtle border glow for hover feedback
   html[data-theme="dark"] & {
-    background: #1c1c1e;
+    background: var(--surface-color);
     border: 1px solid rgba(255, 255, 255, 0.06);
     box-shadow: none;
     transition: 
