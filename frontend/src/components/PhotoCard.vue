@@ -3,6 +3,10 @@ import { ref, watch, computed, onBeforeUnmount } from "vue";
 import { getThumbnailUrl, getImageUrl } from "../services/api";
 import { Image } from "lucide-vue-next";
 
+// ── Global image load cache ──
+// Persists across RecycleScroller mount/unmount cycles so shimmer doesn't re-appear
+const loadedImages = new Set<string>()
+
 const props = defineProps<{
   src?: string;
   name?: string;
@@ -12,7 +16,7 @@ const emit = defineEmits<{
   (e: "click"): void;
 }>();
 
-const isLoaded = ref(false);
+const isLoaded = ref(props.src ? loadedImages.has(props.src) : false);
 const hasError = ref(false);
 const isHovering = ref(false);
 let hoverTimer: ReturnType<typeof setTimeout> | null = null;
@@ -54,6 +58,8 @@ const onMouseLeave = () => {
 
 const onImageLoad = () => {
   isLoaded.value = true;
+  // Register in global cache so shimmer doesn't re-appear on recycle
+  if (props.src) loadedImages.add(props.src);
 };
 
 const onImageError = () => {
@@ -62,11 +68,16 @@ const onImageError = () => {
 
 watch(
   () => props.src,
-  () => {
-    isLoaded.value = false;
+  (newSrc) => {
     hasError.value = false;
     shouldPlay.value = false;
     previewSrc.value = "";
+    // If image was already loaded in a previous render cycle, skip shimmer
+    if (newSrc && loadedImages.has(newSrc)) {
+      isLoaded.value = true;
+    } else {
+      isLoaded.value = false;
+    }
   },
 );
 
@@ -137,6 +148,7 @@ onBeforeUnmount(() => {
   background: var(--surface-color, #fff);
   /* Facebook-inspired: no shadow */
   box-shadow: none;
+  contain: content; /* Isolate layout/paint — prevents reflows during scroll */
   transition: 
     transform 280ms cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;

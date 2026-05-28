@@ -412,13 +412,14 @@ onBeforeUnmount(() => {
       <div class="scroller-container" :ref="setGridRef">
 
       <RecycleScroller
-        v-if="imageRows.length > 0 && rowHeight > 0"
+        v-if="!props.isMobile && imageRows.length > 0 && rowHeight > 0"
         :key="`${columnCount}-${imageRows.length}`"
-        class="scroller fade-slide"
+        :class="['scroller', { 'fade-slide': !isMobile }]"
         :items="imageRows"
         :item-size="rowHeight"
         key-field="id"
-        :buffer="200"
+        page-mode
+        :buffer="600"
       >
         <template #before>
           <GlowContainer v-if="folders.length" :disabled="props.isMobile">
@@ -476,6 +477,63 @@ onBeforeUnmount(() => {
           </div>
         </template>
       </RecycleScroller>
+
+      <!-- Mobile: native scroll (no virtual scroller) -->
+      <div
+        v-else-if="props.isMobile && imageRows.length > 0"
+        class="scroller mobile-scroller"
+      >
+        <GlowContainer v-if="folders.length" :disabled="true">
+          <AlbumScroller
+            :folders="folders"
+            @open-folder="handleOpenFolder"
+          />
+        </GlowContainer>
+
+        <div v-if="images.length" class="section-title photos-title">
+          <h3>Photos</h3>
+          <span class="photo-count-badge">
+            <Images :size="13" />
+            {{ images.length }}
+          </span>
+        </div>
+
+        <div
+          v-for="row in imageRows"
+          :key="row.id"
+          class="virtual-row"
+          :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }"
+        >
+          <PhotoCard
+            v-for="img in row.items"
+            :key="img.path"
+            :src="img.path"
+            :name="img.name"
+            @click="handleOpenImage(img.path, img.name)"
+            @keydown.enter="handleOpenImage(img.path, img.name)"
+            @keydown.space.prevent="handleOpenImage(img.path, img.name)"
+          />
+        </div>
+
+        <div class="scroller-footer">
+          <div ref="loadMoreSentinel" class="load-more-sentinel"></div>
+          <div v-if="isLoadingMore" class="loading-more">
+            <Loader :size="16" class="lucide-spin" />
+            <span>Loading more photos...</span>
+          </div>
+
+          <EmptyState
+            v-if="noSearchResults"
+            type="no-results"
+            :title="`No results for '${searchQuery}'`"
+            description="Try a different search term or clear the search"
+            action-label="Clear search"
+            action-icon="xmark"
+            compact
+            @action="galleryStore.clearSearch()"
+          />
+        </div>
+      </div>
 
       <!-- Fallback: Only folders, no images (when RecycleScroller is not rendered) -->
       <div v-else-if="folders.length > 0" class="folders-only-container">
@@ -1073,8 +1131,10 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 20px;
   padding: 0 8px; /* Space for shadow on first and last column images */
-  content-visibility: auto; /* Optimize rendering for virtual rows */
+  contain: layout style; /* Safer than content-visibility:auto — no Safari flicker bug */
 }
+/* content-visibility:auto removed - conflicts with RecycleScroller's own DOM recycling
+   and causes flicker on mobile Safari */
 
 @media (max-width: 1024px) {
   .grid-header {
