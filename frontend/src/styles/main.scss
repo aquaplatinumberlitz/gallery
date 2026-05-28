@@ -468,6 +468,7 @@ body {
     padding: 6px 10px !important;
   }
 
+  /* EXCEPTIONS: compact controls override 44px baseline */
   /* Reset compact controls that have their own visual size */
   .theme-toggle,
   .search-box,

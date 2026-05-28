@@ -111,12 +111,16 @@
   --font-body: "InterVariable", "Segoe UI", "SF Pro Display", system-ui, -apple-system, sans-serif;
   --font-code: "JetBrains Mono", monospace;
   --focus-ring-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--primary-color, #ff6b35);
+  --photocard-border: transparent;
 
   /* Legacy shadow tokens (giữ tương thích) */
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px 1px rgba(0, 0, 0, 0.15);
   --shadow-card-hover: 0 1px 3px rgba(0, 0, 0, 0.3), 0 4px 8px 3px rgba(0, 0, 0, 0.15);
   --shadow-card-level2: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 6px 2px rgba(0, 0, 0, 0.15);
   --shadow-card-level4: 0 2px 3px rgba(0, 0, 0, 0.3), 0 6px 10px 4px rgba(0, 0, 0, 0.15);
+
+  /* Mobile shadow opacity baseline */
+  --shadow-opacity-mobile: 0.20;
 
   /* Legacy glow variables */
   --glow-color: transparent;
@@ -173,6 +177,7 @@
   --neon-border-color: #08f;
   --folder-color: #f2a007;
   --focus-ring-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--primary-color, #d6a15d);
+  --photocard-border: rgba(255, 255, 255, 0.06);
 
   /* Legacy shadow tokens (dark mode) */
   --shadow-card: 0 1px 3px 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.7);
@@ -191,6 +196,9 @@
   /* Dark layer default shadows (giữ cho AlbumCard 3D) */
   --shadow-dark-layer-back: 0 1px 3px 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.7);
   --shadow-dark-layer-front: 0 2px 6px 2px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.7), 0 0 12px var(--glow-color-20);
+
+  /* Mobile shadow opacity (dark mode) */
+  --shadow-opacity-mobile: 0.50;
 
   /* Composite glow shadows (giữ cho album-card 3D) */
   --glow-card-hover:
@@ -219,11 +227,19 @@
     0 0 15px var(--glow-color-30);
 }
 
-/* Mobile override: glow vars (overridden by _mobile-overrides.scss with !important) */
+/* Mobile override: glow vars */
 @media (max-width: 767px) {
   :root {
     --glow-color: transparent;
     --glow-card-hover: none;
+    --glow-card-active: none;
+  }
+
+  :root[data-theme="dark"] {
+    --glow-color: transparent;
+    --glow-card-hover: none;
+    --glow-card-hover-front: none;
+    --glow-card-hover-back: none;
     --glow-card-active: none;
   }
 }
