@@ -1119,11 +1119,7 @@ onBeforeUnmount(() => {
   }
 
   .grid-header {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-wrap: nowrap;
-    padding-top: 4px;
+    display: none;
   }
 
   .loading-badge {
