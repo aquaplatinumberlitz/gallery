@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watchEffect, watch, onMounted, onBeforeUnmount, defineAsyncComponent } from "vue";
+import { computed, ref, watchEffect, watch, onMounted, onBeforeUnmount, defineAsyncComponent, provide } from "vue";
 import { useGalleryStore } from "./stores/gallery";
 import SidebarHeader from "./components/SidebarHeader.vue";
 import FolderTreeItem from "./components/FolderTreeItem.vue";
@@ -12,6 +12,7 @@ import MobileHeader from "./components/MobileHeader.vue";
 import MobileFloatingBottomBar from "./components/MobileFloatingBottomBar.vue";
 import { useScrollVisibility } from "./composables/useScrollVisibility";
 import { useDevice } from "./composables/useDevice";
+import { galleryScrollContainerRefKey } from "./injectionKeys";
 import {
   Loader, ChevronLeft, ChevronRight
 } from "lucide-vue-next";
@@ -67,7 +68,10 @@ const tree = computed(() => galleryStore.sidebarTree);
 const isLoading = computed(() => galleryStore.isLoading);
 const currentPath = computed(() => galleryStore.currentPath);
 
-const { barsVisible } = useScrollVisibility();
+const scrollerRef = ref<HTMLElement | null>(null);
+provide(galleryScrollContainerRefKey, scrollerRef);
+
+const { barsVisible } = useScrollVisibility(scrollerRef);
 const { isMobile } = useDevice();
 
 const toggleTheme = () => {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from "vue";
 import { RecycleScroller } from "vue-virtual-scroller";
 import { useGalleryStore } from "../stores/gallery";
 import { useLightboxStore } from "../stores/lightbox";
@@ -13,6 +13,7 @@ import EmptyState from "./EmptyState.vue";
 import { compareNatural } from "../composables/useNaturalSort";
 import { useColumnResize } from "../composables/useColumnResize";
 import { usePullToRefresh } from "../composables/usePullToRefresh";
+import { galleryScrollContainerRefKey } from "../injectionKeys";
 import { 
   ArrowLeft, ArrowRight, ArrowUpRight, ArrowUpDown, ChevronDown, 
   ArrowUp, ArrowDown, LayoutGrid, Loader, TriangleAlert, X, 
@@ -44,6 +45,24 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const injectedScrollContainerRef = inject(galleryScrollContainerRefKey, null)
+
+const setScrollContainerRef = (target: Element | ComponentPublicInstance | null) => {
+  if (!injectedScrollContainerRef) return;
+
+  if (!target) {
+    injectedScrollContainerRef.value = null;
+    return;
+  }
+
+  const el = target instanceof HTMLElement
+    ? target
+    : "$el" in target && target.$el instanceof HTMLElement
+      ? target.$el
+      : null;
+
+  injectedScrollContainerRef.value = el;
+};
 
 const searchQuery = computed(() => galleryStore.searchQuery);
 const sortField = computed(() => galleryStore.sortField);
@@ -379,6 +398,7 @@ onBeforeUnmount(() => {
 
       <RecycleScroller
         v-if="!props.isMobile && imageRows.length > 0 && rowHeight > 0"
+        :ref="setScrollContainerRef"
         :key="`${columnCount}-${imageRows.length}`"
         :class="['scroller', { 'fade-slide': !isMobile }]"
         :items="imageRows"
@@ -447,6 +467,7 @@ onBeforeUnmount(() => {
       <!-- Mobile: native scroll (no virtual scroller) -->
       <div
         v-else-if="props.isMobile && imageRows.length > 0"
+        :ref="setScrollContainerRef"
         class="scroller mobile-scroller"
       >
         <GlowContainer v-if="folders.length" :disabled="true">
@@ -502,7 +523,7 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- Fallback: Only folders, no images (when RecycleScroller is not rendered) -->
-      <div v-else-if="folders.length > 0" class="folders-only-container">
+      <div v-else-if="folders.length > 0" :ref="setScrollContainerRef" class="folders-only-container">
         <GlowContainer :disabled="props.isMobile">
           <AlbumScroller
             :folders="folders"

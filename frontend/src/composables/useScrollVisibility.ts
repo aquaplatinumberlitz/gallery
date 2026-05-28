@@ -1,6 +1,8 @@
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch, type Ref, type WatchStopHandle } from 'vue'
 
-export function useScrollVisibility() {
+const SCROLL_SELECTOR = '.vue-recycle-scroller, .scroller, .folders-only-container'
+
+export function useScrollVisibility(containerRef?: Ref<HTMLElement | null>) {
   const barsVisible = ref(true)
   const isScrollingDown = ref(false)
   let lastScrollY = 0
@@ -8,6 +10,8 @@ export function useScrollVisibility() {
   let rafId = 0
   let intervalId: ReturnType<typeof setInterval> | null = null
   let cleanupScroll: (() => void) | null = null
+  let stopContainerWatch: WatchStopHandle | null = null
+  let attachedElement: HTMLElement | null = null
 
   function attachToElement(el: HTMLElement) {
     const handler = () => {
@@ -32,22 +36,50 @@ export function useScrollVisibility() {
     return () => el.removeEventListener('scroll', handler)
   }
 
+  function cleanupAttachedElement() {
+    cleanupScroll?.()
+    cleanupScroll = null
+    attachedElement = null
+  }
+
+  function attach(el: HTMLElement) {
+    if (attachedElement === el) return
+    cleanupAttachedElement()
+    attachedElement = el
+    lastScrollY = el.scrollTop
+    cleanupScroll = attachToElement(el)
+  }
+
   onMounted(() => {
+    if (containerRef) {
+      stopContainerWatch = watch(
+        containerRef,
+        (el) => {
+          if (el) {
+            attach(el)
+          } else {
+            cleanupAttachedElement()
+          }
+        },
+        { immediate: true }
+      )
+      return
+    }
+
     // Poll for .vue-recycle-scroller (may not render immediately)
     intervalId = setInterval(() => {
-      const el = document.querySelector<HTMLElement>('.vue-recycle-scroller')
+      const el = document.querySelector<HTMLElement>(SCROLL_SELECTOR)
       if (el && el.scrollHeight > el.clientHeight) {
         clearInterval(intervalId!)
         intervalId = null
-        cleanupScroll = attachToElement(el)
+        attach(el)
         // Watch for DOM re-creation within the scroller's parent container
         const scrollerParent = el.parentElement
         if (scrollerParent) {
           observer = new MutationObserver(() => {
-            const newEl = document.querySelector<HTMLElement>('.vue-recycle-scroller')
-            if (newEl && newEl !== el) {
-              cleanupScroll?.()
-              cleanupScroll = attachToElement(newEl)
+            const newEl = document.querySelector<HTMLElement>(SCROLL_SELECTOR)
+            if (newEl) {
+              attach(newEl)
             }
           })
           observer.observe(scrollerParent, { childList: true, subtree: true })
@@ -63,8 +95,9 @@ export function useScrollVisibility() {
     }
     observer?.disconnect()
     observer = null
-    cleanupScroll?.()
-    cleanupScroll = null
+    stopContainerWatch?.()
+    stopContainerWatch = null
+    cleanupAttachedElement()
     if (rafId) {
       cancelAnimationFrame(rafId)
       rafId = 0
