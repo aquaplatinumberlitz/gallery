@@ -42,6 +42,7 @@ const {
 
 interface Props {
   isMobile: boolean
+  barsVisible: boolean
 }
 
 const props = defineProps<Props>()
@@ -442,7 +443,7 @@ onBeforeUnmount(() => {
         </template>
 
         <template #after>
-          <div class="scroller-footer">
+          <div class="scroller-footer" :class="{ 'bars-hidden': !barsVisible }">
             <div ref="loadMoreSentinel" class="load-more-sentinel"></div>
             <div v-if="isLoadingMore" class="loading-more">
               <Loader :size="16" class="lucide-spin" />
@@ -502,7 +503,7 @@ onBeforeUnmount(() => {
           />
         </div>
 
-        <div class="scroller-footer">
+        <div class="scroller-footer" :class="{ 'bars-hidden': !barsVisible }">
           <div ref="loadMoreSentinel" class="load-more-sentinel"></div>
           <div v-if="isLoadingMore" class="loading-more">
             <Loader :size="16" class="lucide-spin" />
@@ -1209,6 +1210,10 @@ onBeforeUnmount(() => {
   .scroller-footer {
     padding-top: 8px;
     padding-bottom: 120px; /* Extra bottom padding for mobile nav bar */
+  }
+
+  .scroller-footer.bars-hidden {
+    padding-bottom: 20px;
   }
 
   .scroller {

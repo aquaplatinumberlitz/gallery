@@ -228,6 +228,7 @@ watch(theme, (val) => {
       <div class="content-body">
         <GalleryGrid
           :is-mobile="isMobile"
+          :bars-visible="barsVisible"
         />
       </div>
 
@@ -486,6 +487,10 @@ watch(theme, (val) => {
     overflow: hidden;
   }
 
+  .content.bars-hidden {
+    padding-bottom: 12px;
+  }
+
   .content-body {
     background: transparent;
     border-radius: 0;
@@ -504,6 +509,10 @@ watch(theme, (val) => {
     padding: 56px 12px 72px 12px;
     gap: 6px;
     overflow: hidden;
+  }
+
+  .content.bars-hidden {
+    padding-bottom: 8px;
   }
 
   .content-body {
