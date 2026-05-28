@@ -50,6 +50,8 @@ const folderName = computed(() => {
   position: fixed;
   bottom: 16px;
   left: 50%;
+  width: min(420px, calc(100vw - 32px));
+  box-sizing: border-box;
   transform: translateX(-50%) translateY(0);
   z-index: 80;
   display: flex;
@@ -74,8 +76,10 @@ const folderName = computed(() => {
 }
 
 .mbb-btn {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border: none;
   border-radius: 50%;
   background: transparent;
@@ -109,9 +113,9 @@ const folderName = computed(() => {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex: 1 1 auto;
   padding: 0 8px;
   min-width: 0;
-  max-width: 160px;
 }
 
 .path-icon {
@@ -138,8 +142,8 @@ const folderName = computed(() => {
   }
 
   .mbb-btn {
-    width: 32px;
-    height: 32px;
+    width: 44px;
+    height: 44px;
   }
 
   .mbb-btn svg {

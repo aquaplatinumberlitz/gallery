@@ -41,8 +41,14 @@
     on Safari and can expose the white canvas behind (dark theme bug).
     Use background-color reset on key container elements instead (see below).
   */
-  *:hover {
-    transform: none !important;
+  :where(
+    .album-card,
+    .album-card-mobile,
+    .photo-card,
+    .nav-btn,
+    .mh-btn,
+    .mbb-btn
+  ):hover {
     box-shadow: none !important;
     border-color: var(--border-color) !important;
   }
