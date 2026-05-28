@@ -96,12 +96,12 @@ watch(
 
 .field-container:hover {
   border-color: var(--primary-color, #ff6b35);
-  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.25);
+  box-shadow: var(--gallery-shadow-md, 0 4px 12px rgba(255, 107, 53, 0.25));
 }
 
 .field-container:focus-within {
   border-color: var(--primary-color, #ff6b35);
-  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.25);
+  box-shadow: var(--gallery-shadow-md, 0 4px 12px rgba(255, 107, 53, 0.25));
 }
 
 .field-icon {

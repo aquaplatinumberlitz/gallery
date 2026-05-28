@@ -1,24 +1,184 @@
-/* === Design Tokens: Shadows & Glow === */
+/* ==========================================================================
+   Gallery Design Tokens — v2 (Facebook-inspired warm, no-shadow)
+   Naming: Primer-inspired --gallery-{category}-{group?}-{modifier}
+   ========================================================================== */
 
 :root {
-  /* Light mode - MD3 elevation */
+  /* ── Surface (3 levels, warm, no shadow) ── */
+  --gallery-surface-dim:        #f5eee6;
+  --gallery-surface-default:    #ffffff;
+  --gallery-surface-elevated:   #ffffff;
+  --gallery-surface-hover:      #faf5ef;
+
+  /* ── Text ── */
+  --gallery-text-primary:       #143d60;
+  --gallery-text-secondary:     #4a6587;
+  --gallery-text-tertiary:      #8ba0b8;
+  --gallery-text-disabled:      #bcc8d6;
+  --gallery-text-inverse:       #ffffff;
+  --gallery-text-placeholder:   #8ba0b8;
+
+  /* ── Accent (orange — Reddit-inspired, brand = primary) ── */
+  --gallery-accent-default:     #ff6b35;
+  --gallery-accent-hover:       #e85a26;
+  --gallery-accent-muted:       #fff0ea;
+  --gallery-accent-text:        #d45420;
+  --gallery-accent-border:      #ff8f66;
+
+  /* ── Border ── */
+  --gallery-border-default:     #e5ddd4;
+  --gallery-border-subtle:      #ede7e0;
+  --gallery-border-hover:       #d6cec4;
+  --gallery-border-accent:      #ede7e0;
+
+  /* ── Semantic ── */
+  --gallery-success:            #22c55e;
+  --gallery-success-bg:         rgba(34, 197, 94, 0.1);
+  --gallery-warning:            #f59e0b;
+  --gallery-warning-bg:         rgba(245, 158, 11, 0.1);
+  --gallery-error:              #ef4444;
+  --gallery-error-bg:           rgba(239, 68, 68, 0.1);
+  --gallery-info:               #3b82f6;
+  --gallery-info-bg:            rgba(59, 130, 246, 0.1);
+
+  /* ── Radius ── */
+  --gallery-radius-sm:          4px;
+  --gallery-radius-md:          8px;
+  --gallery-radius-lg:          12px;
+  --gallery-radius-xl:          16px;
+  --gallery-radius-full:        9999px;
+
+  /* ── Shadow (modal only — NO card shadow) ── */
+  --gallery-shadow-sm:  0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.08);
+  --gallery-shadow-md:  0 2px 4px rgba(0,0,0,0.05), 0 4px 8px rgba(0,0,0,0.08);
+  --gallery-shadow-lg:  0 4px 8px rgba(0,0,0,0.06), 0 8px 16px rgba(0,0,0,0.06);
+  --gallery-shadow-xl:  0 8px 16px rgba(0,0,0,0.08), 0 16px 32px rgba(0,0,0,0.06);
+
+  /* ── Lightbox (always dark — giá trị giữ nguyên) ── */
+  --gallery-lightbox-overlay:         rgba(0, 0, 0, 0.95);
+  --gallery-lightbox-bg:              #000;
+  --gallery-lightbox-surface:         rgba(20, 20, 20, 0.8);
+  --gallery-lightbox-surface-solid:   #1a1a1a;
+  --gallery-lightbox-text:            #e0e0e0;
+  --gallery-lightbox-text-primary:    #fff;
+  --gallery-lightbox-text-secondary:  #999;
+  --gallery-lightbox-text-muted:      #666;
+  --gallery-lightbox-border:          rgba(255, 255, 255, 0.1);
+  --gallery-lightbox-prompt-label:    #86efac;
+  --gallery-lightbox-prompt-negative: #fca5a5;
+  --gallery-lightbox-tool-label:      #fb7185;
+  --gallery-lightbox-code-text:       #d1d5db;
+
+  /* ── Timing ── */
+  --gallery-timing-fast:   80ms;
+  --gallery-timing-normal: 200ms;
+  --gallery-timing-slow:   400ms;
+
+  /* ── Typography ── */
+  --gallery-font-family:    "InterVariable", "Segoe UI", "SF Pro Display", system-ui, -apple-system, sans-serif;
+  --gallery-font-mono:      "JetBrains Mono", monospace;
+  --gallery-font-size-xs:   0.625rem;
+  --gallery-font-size-sm:   0.75rem;
+  --gallery-font-size-base: 1rem;
+  --gallery-font-size-lg:   1.25rem;
+  --gallery-font-size-xl:   1.5rem;
+  --gallery-font-size-2xl:  2rem;
+  --gallery-font-size-3xl:  2.5rem;
+  --gallery-line-height:    1.5;
+  --gallery-line-height-sm: 1.25;
+  --gallery-font-weight-normal: 400;
+  --gallery-font-weight-medium: 500;
+  --gallery-font-weight-bold:   600;
+
+  /* ── Theme-toggle (giữ nguyên gradient) ── */
+  --gallery-toggle-gradient-light:   linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --gallery-toggle-gradient-dark:    linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  --gallery-toggle-thumb-bg-dark:    linear-gradient(180deg, #ffd54f 0%, #ffb300 100%);
+
+  /* ── LEGACY MAPPINGS (giữ tương thích ngược) ── */
+  --bg-color: #f5eee6;
+  --bg-secondary: #ffffff;
+  --text-color: #143d60;
+  --title-color: #143d60;
+  --surface-color: #ffffff;
+  --album-border-color: #ffffff;
+  --border-color: rgba(0, 0, 0, 0.12);
+  --muted-text: #4a6587;
+  --neon-color: #ff6b35;
+  --primary-color: #ff6b35;
+  --placeholder-bg: rgba(0,0,0,0.06);
+  --folder-color: #f2a007;
+  --font-body: "InterVariable", "Segoe UI", "SF Pro Display", system-ui, -apple-system, sans-serif;
+  --font-code: "JetBrains Mono", monospace;
+  --focus-ring-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--primary-color, #ff6b35);
+
+  /* Legacy shadow tokens (giữ tương thích) */
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px 1px rgba(0, 0, 0, 0.15);
   --shadow-card-hover: 0 1px 3px rgba(0, 0, 0, 0.3), 0 4px 8px 3px rgba(0, 0, 0, 0.15);
   --shadow-card-level2: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 6px 2px rgba(0, 0, 0, 0.15);
   --shadow-card-level4: 0 2px 3px rgba(0, 0, 0, 0.3), 0 6px 10px 4px rgba(0, 0, 0, 0.15);
 
-  /* Dark mode glow defaults (inert in light mode) */
+  /* Legacy glow variables */
   --glow-color: transparent;
   --glow-card-hover: none;
   --glow-card-active: none;
 }
 
 :root[data-theme="dark"] {
-  /* Dark mode layer shadows */
+  /* ── Surface (warm near-black — Facebook-inspired) ── */
+  --gallery-surface-dim:        #0f0f0f;
+  --gallery-surface-default:    #1a1918;
+  --gallery-surface-elevated:   #242321;
+  --gallery-surface-hover:      #2a2826;
+
+  /* ── Text ── */
+  --gallery-text-primary:       #e4e6eb;
+  --gallery-text-secondary:     #b0b3b8;
+  --gallery-text-tertiary:      #7a7f85;
+  --gallery-text-disabled:      #505459;
+  --gallery-text-inverse:       #1a1918;
+  --gallery-text-placeholder:   #5c6065;
+
+  /* ── Accent (warm gold) ── */
+  --gallery-accent-default:     #d6a15d;
+  --gallery-accent-hover:       #e0b070;
+  --gallery-accent-muted:       #2a2218;
+  --gallery-accent-text:        #e8c07a;
+  --gallery-accent-border:      #c49040;
+
+  /* ── Border (warm subtle) ── */
+  --gallery-border-default:     #2d2b28;
+  --gallery-border-subtle:      #262422;
+  --gallery-border-hover:       #3a3734;
+  --gallery-border-accent:      #3d3528;
+
+  /* ── Shadow (dark mode) ── */
+  --gallery-shadow-sm:  0 1px 2px rgba(0,0,0,0.30), 0 1px 3px rgba(0,0,0,0.15);
+  --gallery-shadow-md:  0 2px 4px rgba(0,0,0,0.35), 0 4px 8px rgba(0,0,0,0.15);
+  --gallery-shadow-lg:  0 4px 8px rgba(0,0,0,0.40), 0 8px 16px rgba(0,0,0,0.15);
+  --gallery-shadow-xl:  0 8px 16px rgba(0,0,0,0.45), 0 16px 32px rgba(0,0,0,0.15);
+
+  /* ── LEGACY MAPPINGS (dark mode) ── */
+  --bg-color: #080808;
+  --bg-secondary: #1e1e1e;
+  --text-color: #eaeaea;
+  --title-color: #d6a15d;
+  --surface-color: #11100f;
+  --album-border-color: #eaeaea;
+  --border-color: rgba(255, 255, 255, 0.075);
+  --muted-text: #b3b3b3;
+  --neon-color: #d6a15d;
+  --primary-color: #d6a15d;
+  --placeholder-bg: rgba(255,255,255,0.06);
+  --neon-border-color: #08f;
+  --folder-color: #f2a007;
+  --focus-ring-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--primary-color, #d6a15d);
+
+  /* Legacy shadow tokens (dark mode) */
   --shadow-card: 0 1px 3px 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.7);
   --shadow-card-level2: 0 2px 6px 2px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.7);
 
-  /* Glow color (orange #FF6B35) */
+  /* Glow color (orange #FF6B35) — giữ cho brand-hero */
   --glow-color-20: rgba(255, 107, 53, 0.2);
   --glow-color-25: rgba(255, 107, 53, 0.25);
   --glow-color-30: rgba(255, 107, 53, 0.3);
@@ -28,11 +188,11 @@
   --glow-color-60: rgba(255, 107, 53, 0.6);
   --glow-color-70: rgba(255, 107, 53, 0.7);
 
-  /* Dark layer default shadows */
+  /* Dark layer default shadows (giữ cho AlbumCard 3D) */
   --shadow-dark-layer-back: 0 1px 3px 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.7);
   --shadow-dark-layer-front: 0 2px 6px 2px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.7), 0 0 12px var(--glow-color-20);
 
-  /* Composite glow shadows */
+  /* Composite glow shadows (giữ cho album-card 3D) */
   --glow-card-hover:
     0 0 2px #fff,
     0 0 5px #fff,

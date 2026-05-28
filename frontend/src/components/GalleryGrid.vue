@@ -751,7 +751,7 @@ onBeforeUnmount(() => {
 .nav-btn:not(:disabled):hover {
   border-color: var(--primary-color);
   background: rgba(0, 0, 0, 0.04);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--gallery-shadow-sm, 0 8px 18px rgba(0, 0, 0, 0.08));
   transform: translateY(-1px);
 }
 
@@ -830,7 +830,7 @@ onBeforeUnmount(() => {
   background: var(--surface-color);
   border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
   border-radius: 12px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--gallery-shadow-lg, 0 10px 40px rgba(0, 0, 0, 0.15));
   padding: 6px;
   z-index: 100;
   overflow: hidden;

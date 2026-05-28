@@ -1,43 +1,6 @@
 @use 'mobile-overrides';
 
-:root {
-  --bg-color: #f5eee6;
-  --bg-secondary: #ffffff;
-  --text-color: #143d60;
-  --title-color: #143d60;
-  --surface-color: #ffffff;
-  --album-border-color: #ffffff;
-  --border-color: rgba(0, 0, 0, 0.12);
-  --muted-text: #4a6587;
-  --neon-color: #ff6b35;
-  --primary-color: #ff6b35;
-  --placeholder-bg: rgba(0,0,0,0.06);
-  --folder-color: #f2a007;
-  --font-body: "InterVariable", "Segoe UI", "SF Pro Display", system-ui,
-    -apple-system, sans-serif;
-  --font-code: "JetBrains Mono", monospace;
-  --focus-ring-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--primary-color, #ff6b35);
-}
-
-:root[data-theme="dark"] {
-  --bg-color: #080808;
-  --bg-secondary: #1e1e1e;
-  --text-color: #eaeaea;
-  --title-color: #d6a15d;
-  --surface-color: #11100f;
-  --album-border-color: #eaeaea;
-  --border-color: rgba(255, 255, 255, 0.075);
-  --muted-text: #b3b3b3;
-  --neon-color: #d6a15d;
-  --primary-color: #d6a15d;
-  --placeholder-bg: rgba(255,255,255,0.06);
-  --neon-border-color: #08f;
-  --folder-color: #f2a007;
-  --font-body: "InterVariable", "Segoe UI", "SF Pro Display", system-ui,
-    -apple-system, sans-serif;
-  --font-code: "JetBrains Mono", monospace;
-  --focus-ring-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--primary-color, #d6a15d);
-}
+/* Legacy CSS variables are now defined in tokens.css */
 
 /* --- DARK MODE OVERRIDES (Moved from App.vue) --- */
 

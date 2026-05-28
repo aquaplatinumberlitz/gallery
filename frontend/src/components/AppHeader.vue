@@ -121,7 +121,7 @@ function clearSearch() {
 
 .settings-btn:hover {
   border-color: var(--primary-color);
-  box-shadow: 0 4px 12px rgba(214, 161, 93, 0.25);
+  box-shadow: var(--gallery-shadow-md, 0 4px 12px rgba(214, 161, 93, 0.25));
   transform: translateY(-1px);
   color: var(--primary-color);
 }
@@ -143,7 +143,7 @@ function clearSearch() {
 
 .hamburger-btn:hover {
   border-color: var(--primary-color);
-  box-shadow: 0 4px 12px rgba(214, 161, 93, 0.25);
+  box-shadow: var(--gallery-shadow-md, 0 4px 12px rgba(214, 161, 93, 0.25));
   transform: translateY(-1px);
   color: var(--primary-color);
 }
@@ -299,12 +299,12 @@ h1 {
 
 .search-box:hover {
   border-color: var(--primary-color);
-  box-shadow: 0 4px 12px rgba(214, 161, 93, 0.25);
+  box-shadow: var(--gallery-shadow-md, 0 4px 12px rgba(214, 161, 93, 0.25));
 }
 
 .search-box:focus-within {
   border-color: var(--primary-color);
-  box-shadow: 0 4px 12px rgba(214, 161, 93, 0.25);
+  box-shadow: var(--gallery-shadow-md, 0 4px 12px rgba(214, 161, 93, 0.25));
 }
 
 .search-box input {

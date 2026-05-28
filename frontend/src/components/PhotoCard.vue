@@ -135,11 +135,10 @@ onBeforeUnmount(() => {
   border-radius: 12px;
   overflow: hidden;
   background: var(--surface-color, #fff);
-  /* Material Design 3 - Elevation Level 1 */
-  box-shadow: var(--shadow-card);
+  /* Facebook-inspired: no shadow */
+  box-shadow: none;
   transition: 
-    transform 280ms cubic-bezier(0.4, 0, 0.2, 1),
-    box-shadow 280ms cubic-bezier(0.4, 0, 0.2, 1);
+    transform 280ms cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
 
   img {
@@ -153,7 +152,6 @@ onBeforeUnmount(() => {
   @media (hover: hover) {
     &:hover {
       transform: translateY(-2px) scale(1.02);
-      box-shadow: var(--shadow-card-hover);
 
       .thumbnail-img {
         transform: scale(1.05);
@@ -164,7 +162,6 @@ onBeforeUnmount(() => {
 
   &:active {
     transform: translateY(0) scale(1.01);
-    box-shadow: var(--shadow-card-level2);
   }
 
   /* Focus styles for keyboard navigation */

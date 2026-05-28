@@ -338,14 +338,14 @@ watch(theme, (val) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--gallery-shadow-sm, 2px 0 8px rgba(0, 0, 0, 0.1));
   transition: all 0.3s ease;
 }
 
 .sidebar-edge-toggle:hover {
   color: var(--primary-color);
   background: var(--surface-color);
-  box-shadow: 2px 0 12px rgba(214, 161, 93, 0.3);
+  box-shadow: var(--gallery-shadow-md, 2px 0 12px rgba(214, 161, 93, 0.3));
 }
 
 .sidebar-edge-toggle:not(.sidebar-open) {
@@ -430,7 +430,7 @@ watch(theme, (val) => {
     height: 100vh;
     z-index: 100;
     transform: translateX(-100%);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    box-shadow: var(--gallery-shadow-xl, 0 10px 30px rgba(0, 0, 0, 0.25));
   }
 
   .sidebar.mobile.open {

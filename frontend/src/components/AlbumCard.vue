@@ -195,7 +195,7 @@ defineProps<{
     }
 
     .album-name {
-      color: var(--neon-color);
+      color: var(--gallery-accent-default, var(--neon-color));
     }
 
     @media (hover: hover) {
