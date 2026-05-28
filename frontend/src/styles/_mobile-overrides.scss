@@ -1,8 +1,8 @@
 /* ==========================================================================
-   MOBILE OVERRIDES — Global resets for touch/hover/glow
-   Import as LAST in main.scss via @use or @import
-   Targets: (max-width: 767px) layout, (hover: none) hover, (pointer: coarse) touch
-   ========================================================================== */
+  MOBILE OVERRIDES — Global resets for touch/hover/glow
+  Import as LAST in main.scss via @use or @import
+  Targets: (max-width: 767px) layout, (hover: none) hover, (pointer: coarse) touch
+  ========================================================================== */
 
 /* --- Disable glow on mobile (max-width: 767px) --- */
 @media (max-width: 767px) {
@@ -14,7 +14,6 @@
     --glow-card-hover-back: none !important;
   }
 
-  /* Shadow opacity override: light 0.20 / dark 0.50 */
   :root {
     --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.20), 0 1px 3px 1px rgba(0, 0, 0, 0.10);
     --shadow-card-hover: 0 1px 3px rgba(0, 0, 0, 0.20), 0 4px 8px 3px rgba(0, 0, 0, 0.10);
@@ -40,18 +39,51 @@
 
 /* --- Kill all sticky hover on touch devices --- */
 @media (hover: none) {
-  /* Reset sticky hover artifacts — these override component-level hovers */
+  /*
+    Reset sticky hover artifacts on touch devices.
+    IMPORTANT: Do NOT use `background` here — it overrides background-color
+    on Safari and can expose the white canvas behind (dark theme bug).
+    Use background-color reset on key container elements instead (see below).
+  */
   *:hover {
     transform: none !important;
     box-shadow: none !important;
     border-color: var(--border-color) !important;
-    background: transparent !important;
   }
 
   /* Allow :active to work normally */
   *:active {
     -webkit-tap-highlight-color: transparent;
   }
+
+  /*
+    SAFARI BACKGROUND ANCHOR FIX:
+    On real iOS Safari, (hover: none) matches. Without anchoring,
+    the universal *:hover above could still collapse backgrounds via
+    other shorthand properties. Force background-color on the full
+    viewport chain so the white canvas never bleeds through.
+  */
+  html,
+  body,
+  #app,
+  .layout,
+  .content {
+    background-color: var(--bg-color) !important;
+  }
+
+  /* Dark mode override for the anchored backgrounds */
+  html[data-theme="dark"],
+  html[data-theme="dark"] body,
+  html[data-theme="dark"] #app,
+  html[data-theme="dark"] .layout,
+  html[data-theme="dark"] .content {
+    background-color: var(--bg-color) !important;
+  }
+}
+
+/* --- Proper hover effects for devices that support hover (desktop) --- */
+@media (hover: hover) and (pointer: fine) {
+  /* Reserved for future desktop-specific hover enhancements */
 }
 
 /* --- Touch target expansion (pointer: coarse) --- */
