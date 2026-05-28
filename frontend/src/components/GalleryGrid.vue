@@ -1170,7 +1170,7 @@ onBeforeUnmount(() => {
   }
 
   .nav-group {
-    display: none;
+    flex-shrink: 0;
   }
 
   .nav-btn {
@@ -1226,12 +1226,6 @@ onBeforeUnmount(() => {
   .scroller-footer {
     padding-top: 8px;
     padding-bottom: 120px; /* Extra bottom padding for mobile nav bar */
-  }
-
-  /* Mobile native scroller — no virtual scrolling */
-  .mobile-scroller {
-    overflow-y: auto;
-    padding-bottom: 80px;
   }
 
   .scroller {
