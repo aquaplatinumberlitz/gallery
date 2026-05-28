@@ -36,7 +36,23 @@ const handlePreviewIntro = (url: string) => {
 
 const galleryStore = useGalleryStore();
 
-const theme = ref<"light" | "dark">("light");
+const theme = ref<"light" | "dark">(
+  (() => {
+    // Initialize from system preference during setup to avoid initial flash
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem('gallery-theme');
+        if (saved === "dark" || saved === "light") return saved;
+      } catch (e) {
+        // Safari Private Browsing — localStorage throws
+      }
+      if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+        return "dark";
+      }
+    }
+    return "light";
+  })()
+);
 const THEME_STORAGE_KEY = "gallery-theme";
 let themeMediaQuery: MediaQueryList | null = null;
 
@@ -78,11 +94,18 @@ const handleGlobalKeydown = (e: KeyboardEvent) => {
 onMounted(() => {
   // Restore theme from storage or system preference
   if (typeof window !== "undefined") {
-    const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
-    if (savedTheme === "dark" || savedTheme === "light") {
-      theme.value = savedTheme;
-    } else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-      theme.value = "dark";
+    try {
+      const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+      if (savedTheme === "dark" || savedTheme === "light") {
+        theme.value = savedTheme;
+      } else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+        theme.value = "dark";
+      }
+    } catch (e) {
+      // Safari Private Browsing — localStorage throws; use system preference
+      if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+        theme.value = "dark";
+      }
     }
   }
 
@@ -106,7 +129,11 @@ watchEffect(() => {
 
 watch(theme, (val) => {
   if (typeof window !== "undefined") {
-    localStorage.setItem(THEME_STORAGE_KEY, val);
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, val);
+    } catch (e) {
+      // Safari Private Browsing — localStorage throws; silently ignore
+    }
   }
 });
 </script>
@@ -214,7 +241,7 @@ watch(theme, (val) => {
   </div>
 
   <Lightbox />
-  <ToastContainer />
+  <ToastContainer v-if="!isMobile" />
   <SettingsModal 
     :is-open="isSettingsOpen" 
     @close="isSettingsOpen = false"

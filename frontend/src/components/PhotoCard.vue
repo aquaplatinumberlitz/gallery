@@ -177,26 +177,9 @@ onBeforeUnmount(() => {
   // Dark mode - Apple Style
   // Content-first: image fills 100%, no padding
   // Subtle border glow for hover feedback
-  html[data-theme="dark"] & {
-    background: var(--surface-color);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    box-shadow: none;
-    transition: 
-      transform 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
-      border-color 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
-
-    @media (hover: hover) {
-      &:hover {
-        border-color: rgba(255, 255, 255, 0.25);
-        transform: translateY(-4px) scale(1.02);
-      }
-    }
-
-    &:active {
-      border-color: rgba(255, 255, 255, 0.35);
-      transform: translateY(-2px) scale(1.01);
-    }
-  }
+  // Uses --photocard-border from tokens.css (set via data-theme attribute)
+  border: 1px solid var(--photocard-border, transparent);
+  box-shadow: none;
 
   /* ── Mobile overrides ── */
   @media (max-width: 767px) {
@@ -270,10 +253,6 @@ onBeforeUnmount(() => {
   inset: 0;
   background: linear-gradient(90deg, rgba(0, 0, 0, 0.06), rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0.06));
   overflow: hidden;
-
-  html[data-theme="dark"] & {
-    background: linear-gradient(90deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.08));
-  }
 }
 
 .photo-card.loaded .shimmer-placeholder {
@@ -294,15 +273,6 @@ onBeforeUnmount(() => {
   );
   transform: translateX(-100%);
   animation: shimmer 1.5s infinite;
-
-  html[data-theme="dark"] & {
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      rgba(255, 255, 255, 0.2) 50%,
-      transparent 100%
-    );
-  }
 }
 
 @keyframes shimmer {
@@ -312,5 +282,19 @@ onBeforeUnmount(() => {
   100% {
     transform: translateX(100%);
   }
+}
+
+/* Dark mode shimmer overrides via CSS variable (set by tokens.css data-theme) */
+html[data-theme="dark"] .shimmer-placeholder {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.08));
+}
+
+html[data-theme="dark"] .shimmer-wave {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.2) 50%,
+    transparent 100%
+  );
 }
 </style>

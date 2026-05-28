@@ -10,9 +10,10 @@ function getDefaultCols(): number {
   if (typeof window === 'undefined') return 4
   const w = window.innerWidth
   if (w >= BREAKPOINTS.tablet) return 4
-  if (w >= BREAKPOINTS.phone) return 3
-  if (w >= BREAKPOINTS.compact) return 2
-  return 1
+  if (w >= BREAKPOINTS.phone) return 3    // tablet: 768-1023px
+  if (w >= 460) return 3                   // large phone: 460-767px (e.g. iPhone Plus/Pro Max)
+  if (w >= BREAKPOINTS.compact) return 2   // medium phone: 375-459px (iPhone standard)
+  return 2                                  // small phone: <375px — still at least 2 columns
 }
 
 export function useColumnResize() {
@@ -23,15 +24,23 @@ export function useColumnResize() {
 
   const loadGridSize = () => {
     if (typeof window === 'undefined') return
-    const stored = Number(localStorage.getItem(GRID_SIZE_KEY))
-    if (!Number.isNaN(stored) && stored >= MIN_COLS && stored <= MAX_COLS) {
-      columnCount.value = stored
+    try {
+      const stored = Number(localStorage.getItem(GRID_SIZE_KEY))
+      if (!Number.isNaN(stored) && stored >= MIN_COLS && stored <= MAX_COLS) {
+        columnCount.value = stored
+      }
+    } catch (e) {
+      // Safari Private Browsing — localStorage throws; use default
     }
   }
 
   const saveGridSize = (val: number) => {
     if (typeof window === 'undefined') return
-    localStorage.setItem(GRID_SIZE_KEY, String(val))
+    try {
+      localStorage.setItem(GRID_SIZE_KEY, String(val))
+    } catch (e) {
+      // Safari Private Browsing — localStorage throws; silently ignore
+    }
   }
 
   const recomputeRowHeight = (width: number) => {

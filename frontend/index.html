@@ -8,11 +8,18 @@
     <script>
       // Prevent FOUC: apply theme before CSS renders
       (function() {
-        var theme = localStorage.getItem('gallery-theme');
-        if (!theme) {
-          theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        try {
+          var theme = localStorage.getItem('gallery-theme');
+          if (theme && (theme === 'dark' || theme === 'light')) {
+            document.documentElement.setAttribute('data-theme', theme);
+            return;
+          }
+        } catch(e) {
+          // Safari Private Browsing — localStorage throws; fall through to matchMedia
         }
-        document.documentElement.setAttribute('data-theme', theme);
+        // Fallback: use system preference
+        var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
       })();
     </script>
   </head>
