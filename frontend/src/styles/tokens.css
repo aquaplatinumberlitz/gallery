@@ -121,9 +121,6 @@
 
   /* Mobile shadow opacity baseline */
   --shadow-opacity-mobile: 0.20;
-  --mobile-safe-top: env(safe-area-inset-top, 0px);
-  --mobile-header-bar-height: 54px;
-  --mobile-header-height: calc(var(--mobile-safe-top) + var(--mobile-header-bar-height));
 
   /* Legacy glow variables */
   --glow-color: transparent;
@@ -244,11 +241,5 @@
     --glow-card-hover-front: none;
     --glow-card-hover-back: none;
     --glow-card-active: none;
-  }
-}
-
-@media (max-width: 480px) {
-  :root {
-    --mobile-header-bar-height: 50px;
   }
 }
