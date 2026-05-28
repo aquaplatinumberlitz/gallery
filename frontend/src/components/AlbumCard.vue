@@ -68,18 +68,6 @@ defineProps<{
     .album-cover-diagonal {
       height: 130px;
     }
-
-    .album-name {
-      font-size: 13px;
-    }
-
-    .album-meta {
-      font-size: 10px;
-    }
-
-    .album-info {
-      padding: 0 8px 8px;
-    }
   }
 
   @media (max-width: 480px) {
@@ -88,11 +76,11 @@ defineProps<{
     }
 
     .album-name {
-      font-size: 12px;
+      font-size: 14px;
     }
 
     .album-meta {
-      font-size: 9px;
+      font-size: 10px;
     }
   }
 
