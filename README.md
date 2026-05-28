@@ -31,8 +31,13 @@
 - **iPad 10.2" / Pro 11" (768-1023px)**: 3-column grid, sidebar persistent 240px
 - **iPad Pro 13" / PC 27" (≥1024px)**: 4+ column grid, sidebar 280px, full desktop AppHeader
 - **MobileHeader** - Thanh header riêng cho mobile với hamburger menu, search expandable, theme toggle
-- **MobileFloatingBottomBar** - Thanh điều hướng dạng pill nổi: Back/Forward, tên folder, mở Explorer
-- **Ẩn/hiện khi scroll** - Dùng rAF-throttled scroll listener (không còn polling 200ms)
+- **MobileFloatingBottomBar** - Thanh điều hướng dạng pill nổi: Back/Forward, tên folder, mở Explorer (thay thế bottom nav cũ)
+- **Ẩn/hiện khi scroll** - Dùng rAF-throttled scroll listener (không còn polling 200ms) — header và bottom bar trượt ẩn khi scroll xuống, hiện khi scroll lên
+- **Haptic feedback** - Rung nhẹ (10ms) khi chạm vào interactive elements qua `useHaptic.ts`
+- **Touch targets** - Tất cả button, input, link đều có min 44×44px (`@media (pointer: coarse)`)
+- **Glow disabled on mobile** - Neon glow là desktop-only, mobile dùng `--glow-color: transparent` để tránh clipping và cải thiện performance
+- **No sticky hover** - `@media (hover: none)` reset toàn bộ sticky hover artifacts trên touch devices
+- **Pull-to-refresh** - Spring animation cho card entrances với cubic-bezier easing
 - **Sidebar overlay** - Chuyển sang overlay trên mobile (<768px)
 
 ### 🔍 Hỗ trợ Metadata AI Mạnh Mẽ
@@ -41,16 +46,19 @@
 - **LoRA Support**: Tự động tách và highlight LoRA với trọng số (hỗ trợ cả format cũ/mới của SwarmUI)
 - **Copy nhanh**: One-click copy Prompt, Seed và các thông số
 
-### 🎨 Giao Diện Hiện Đại
+### 🎨 Giao Diện Hiện Đại — Token System v2
 - **Dual Theme**: 
-  - 🌞 **Light Mode** - Museum/Elegant với màu kem ấm
-  - 🌙 **Dark Mode** - Neon/Cyberpunk với hiệu ứng glow
+  - 🌞 **Light Mode** - Museum/Elegant với màu kem ấm, surfaces flat (Facebook-inspired)
+  - 🌙 **Dark Mode** - Warm near-black surfaces (`#1a1918`), gold accent (`#d6a15d`), glow hiệu ứng cho brand-hero
+- **Design inspirations**: Facebook (warm no-shadow surfaces) × Reddit (orange/gold accent) × Material Design 3 (12px radius, timing tokens)
+- **Primer-inspired tokens**: `--gallery-{category}-{group?}-{modifier}` naming — 3 surface levels, 5 text levels, 4 border levels
+- **PhotoCard flat design**: Cards không có box-shadow (Facebook-inspired), shadow chỉ dùng cho modals và overlays
 - **Lightbox Pro**: 
   - Fullscreen mode
   - Điều hướng bằng phím mũi tên & cuộn chuột
   - 3 biến thể panel theo thiết bị: Desktop (sidebar phải), Tablet (2 cột), Mobile (bottom sheet dạng tab)
   - Preload ảnh kế tiếp để chuyển ảnh mượt mà
-- **Material Design 3**: Elevation shadows, smooth transitions
+- **Material Design 3**: Radius tokens, smooth transitions, timing scale (80/200/400ms)
 - **Glow Bleed Effect**: Hiệu ứng glow neon cam tràn viền thông qua `GlowContainer` pattern
 
 ### ⚡ Performance & UX
@@ -179,8 +187,9 @@ gallery-app/
 │       ├── directives/
 │       │   └── clickOutside.ts         # Click-outside directive
 │       ├── styles/
-│       │   ├── main.scss               # CSS Variables + Global styles + Theme
-│       │   ├── tokens.css              # Design tokens (shadows, glow)
+│       │   ├── main.scss               # CSS Variables + Global styles + Theme + @keyframes iconFlicker
+│       │   ├── tokens.css              # Design tokens v2 (Primer-inspired --gallery-*)
+│       │   ├── _mobile-overrides.scss  # Mobile touch/hover/glow resets
 │       │   ├── _lightbox-shared.scss   # Shared lightbox styles
 │       │   ├── _lightbox-desktop.scss  # Desktop panel styles
 │       │   ├── _lightbox-tablet.scss   # iPad panel styles
@@ -226,23 +235,39 @@ gallery-app/
 
 ---
 
-## 🎨 Theming
+## 🎨 Theming — Token System v2
 
-Ứng dụng hỗ trợ 2 theme được định nghĩa qua CSS Variables:
+Ứng dụng hỗ trợ 2 theme qua CSS Custom Properties (design tokens v2) với 3 design inspirations:
 
+### Design Inspirations
+- **Facebook (warm, no-shadow)**: Surfaces có 3 levels (dim, default, elevated) với tông ấm, không dùng box-shadow cho cards — chỉ shadow cho modals và overlays. PhotoCard hoàn toàn flat.
+- **Reddit (orange accent)**: Accent color `#ff6b35` (light) / `#d6a15d` (dark) — lấy cảm hứng từ Reddit's orange brand identity.
+- **Material Design 3 (radius)**: Radius tokens 4px/8px/12px/16px, timing 80ms/200ms/400ms, typography scale theo MD3.
+
+### Token Categories
+- **Surface**: `--gallery-surface-dim`, `--gallery-surface-default`, `--gallery-surface-elevated`, `--gallery-surface-hover`
+- **Text**: 5 levels — primary, secondary, tertiary, disabled, inverse
+- **Accent**: default, hover, muted, text, border variants
+- **Border**: 4 levels — default, subtle, hover, accent
+- **Shadow**: sm/md/lg/xl (modals only — cards are flat)
+- **Radius**: sm(4px), md(8px), lg(12px), xl(16px), full(9999px)
+- **Semantic**: success, warning, error, info (mỗi loại có background variant 10%)
+- **Timing**: fast (80ms), normal (200ms), slow (400ms)
+
+### Dark Mode
 ```scss
 // Light Mode (default)
---bg-color: #f5eee6;        // Kem nhẹ
---surface-color: #ffffff;   // Trắng
---title-color: #143d60;     // Navy đậm
---primary-color: #ff6b35;   // Cam neon
+--gallery-surface-default: #ffffff;
+--gallery-text-primary: #143d60;
+--gallery-accent-default: #ff6b35;
 
 // Dark Mode
---bg-color: #0a0a0a;        // Đen
---surface-color: #111111;   // Xám đậm
---title-color: #ff6b35;     // Cam neon
---neon-border-color: #08f;  // Xanh neon
+--gallery-surface-default: #1a1918;   // Warm near-black (không pure #000)
+--gallery-text-primary: #e4e6eb;
+--gallery-accent-default: #d6a15d;    // Gold (softer on dark)
 ```
+
+Legacy variables (`--bg-color`, `--text-color`, `--neon-color`, `--shadow-card*`, `--glow-*`) giữ tương thích ngược — code mới dùng `--gallery-*`.
 
 ---
 
@@ -268,6 +293,9 @@ gallery-app/
 - **Glow Bleed**: Sử dụng `overflow: clip` (không phải `hidden`) để box-shadow tràn viền, `GlowContainer` wrapper với `pointer-events: none` tránh xung đột hover
 - **Mobile Scroll Visibility**: `useScrollVisibility` gắn vào `.vue-recycle-scroller`, dùng `MutationObserver` để re-attach khi DOM thay đổi. Các mobile bars ẩn khi cuộn xuống, hiện khi cuộn lên
 - **Sidebar responsive**: Desktop (280px persistent), Tablet (240px persistent), Phone (overlay fixed)
+- **Design Tokens v2**: `tokens.css` dùng Primer-inspired `--gallery-*` naming — 3 surface levels, 5 text levels, Facebook-inspired warm no-shadow, Reddit-inspired orange/gold accent, MD3 12px radius
+- **FOUC Prevention**: `index.html` có inline script kiểm tra `localStorage['gallery-theme']` trước khi CSS render, áp dụng `data-theme` attribute ngay lập tức — không còn flash trắng/đen khi chuyển theme
+- **Mobile overrides**: `_mobile-overrides.scss` xử lý 3 vấn đề mobile: (1) tắt glow trên ≤767px, (2) reset sticky hover trên touch devices, (3) mở rộng touch targets lên 44×44px
 
 ---
 

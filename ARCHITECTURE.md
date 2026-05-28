@@ -25,7 +25,7 @@ gallery/
 │   ├── package.json
 │   ├── vite.config.ts
 │   └── src/
-│       ├── App.vue                          (502 lines — layout orchestrator, theme/intro/settings)
+|       ├── App.vue                          (490 lines — layout orchestrator, theme/intro/settings)
 │       ├── main.ts                          (13 lines — app bootstrap)
 │       ├── constants.ts                     (1 line — IMAGE_PAGE_SIZE = 200)
 │       ├── env.d.ts                         (7 lines — Vite/Vue type declarations)
@@ -33,41 +33,43 @@ gallery/
 │       │   └── fonts.css                    (31 lines — Google Fonts @import)
 │       ├── components/
 │       │   ├── AppHeader.vue                (633 lines — desktop search, theme toggle, brand hero, hamburger)
-│       │   ├── AlbumCard.vue                (245 lines — album card with neon glow)
-│       │   ├── AlbumScroller.vue            (400 lines — horizontal album scroll + arrows)
-│       │   ├── BottomNavigationBar.vue      (76 lines — legacy mobile bottom nav, superseded by MobileFloatingBottomBar)
-│       │   ├── Breadcrumb.vue               (526 lines — path breadcrumb with dropdown)
-│       │   ├── EmptyState.vue               (491 lines — empty state illustrations)
+│       │   ├── AlbumCard.vue                (259 lines — album card with neon glow)
+│       │   ├── AlbumScroller.vue            (405 lines — horizontal album scroll + arrows)
+│       │   ├── AlbumsTabView.vue            (111 lines — filtered album grid view for mobile)
+│       │   ├── BottomNavigationBar.vue      (122 lines — legacy mobile bottom nav, superseded by MobileFloatingBottomBar)
+│       │   ├── Breadcrumb.vue               (524 lines — path breadcrumb with dropdown)
+│       │   ├── EmptyState.vue               (486 lines — empty state illustrations)
 │       │   ├── FolderTreeItem.vue           (221 lines — recursive folder tree item)
-│       │   ├── GalleryGrid.vue              (1122 lines — main grid orchestrator)
+│       │   ├── GalleryGrid.vue              (1271 lines — main grid orchestrator)
 │       │   ├── GlowContainer.vue            (49 lines — glow bleed wrapper, CSS variable-driven)
 │       │   ├── IntroScreen.vue              (429 lines — intro/landing page with animations)
-│       │   ├── Lightbox.vue                 (581 lines — image viewer orchestrator)
+│       │   ├── Lightbox.vue                 (645 lines — image viewer orchestrator)
 │       │   ├── LightboxDesktopPanel.vue     (217 lines — desktop metadata sidebar panel)
 │       │   ├── LightboxTabletPanel.vue      (207 lines — iPad 2-column bottom sheet)
-│       │   ├── LightboxMobileSheet.vue      (190 lines — phone bottom sheet, tabbed)
-│       │   ├── MobileFloatingBottomBar.vue  (130 lines — mobile floating pill: back/forward, path, open in explorer)
-│       │   ├── MobileHeader.vue             (197 lines — mobile header: hamburger, search, theme, settings)
-│       │   ├── PhotoCard.vue                (304 lines — image thumbnail card, MD3 elevation)
+│       │   ├── LightboxMobileSheet.vue      (198 lines — phone bottom sheet, tabbed)
+│       │   ├── MobileFloatingBottomBar.vue  (160 lines — mobile floating pill: back/forward, path, open in explorer)
+│       │   ├── MobileHeader.vue             (225 lines — mobile header: hamburger, search, theme, settings)
+│       │   ├── PhotoCard.vue                (316 lines — image thumbnail card, no-shadow Facebook-inspired flat)
 │       │   ├── SettingsModal.vue            (390 lines — settings dialog)
 │       │   ├── SidebarHeader.vue            (186 lines — sidebar top section)
-│       │   ├── SkeletonLoader.vue           (108 lines — loading skeleton placeholders)
+│       │   ├── SkeletonLoader.vue           (131 lines — loading skeleton placeholders)
 │       │   ├── ToastContainer.vue           (85 lines — toast notification container)
 │       │   └── ToastItem.vue                (349 lines — individual toast notification)
 │       ├── composables/
 │       │   ├── useClipboard.ts              (51 lines — copy-to-clipboard with feedback)
-│       │   ├── useColumnResize.ts           (85 lines — column count, row height, grid persistence)
-│       │   ├── useDevice.ts                 (50 lines — singleton breakpoint detection)
+│       │   ├── useColumnResize.ts           (87 lines — column count, row height, grid persistence)
+│       │   ├── useDevice.ts                 (51 lines — singleton breakpoint detection)
 │       │   ├── useFocusTrap.ts              (138 lines — focus trap for modals/lightbox)
+│       │   ├── useHaptic.ts                 (17 lines — lightweight haptic feedback via navigator.vibrate)
 │       │   ├── useNaturalSort.ts            (32 lines — natural sort for filenames)
-│       │   ├── useScrollVisibility.ts       (58 lines — mobile header/bottom-bar show/hide on scroll)
+│       │   ├── useScrollVisibility.ts       (75 lines — mobile header/bottom-bar show/hide on scroll)
 │       │   └── useToast.ts                  (97 lines — toast notification management)
 │       ├── directives/
 │       │   └── clickOutside.ts              (30 lines — click-outside directive)
 │       ├── services/
 │       │   └── api.ts                       (197 lines — Axios API client)
 │       ├── stores/
-│       │   ├── gallery.ts                   (345 lines — main data store)
+│       │   ├── gallery.ts                   (335 lines — main data store)
 │       │   ├── lightbox.ts                  (111 lines — lightbox state)
 │       │   └── toast.ts                     (148 lines — toast queue store)
 │       ├── types/
@@ -76,11 +78,12 @@ gallery/
 │       ├── utils/
 │       │   └── loraHighlighter.ts           (36 lines — highlight <lora:...> tokens)
 │       └── styles/
-│           ├── main.scss                    (525 lines — global styles, dark mode overrides)
-│           ├── tokens.css                   (60 lines — CSS custom properties for shadows/glow)
+│           ├── main.scss                    (485 lines — global styles, dark mode overrides, @keyframes)
+│           ├── tokens.css                   (229 lines — CSS custom properties: design tokens v2, Primer-inspired --gallery-*)
+│           ├── _mobile-overrides.scss       (68 lines — mobile touch/hover/glow resets, @media (hover: none) cleanup)
 │           ├── _lightbox-shared.scss        (125 lines — shared lightbox panel styles)
 │           ├── _lightbox-desktop.scss       (253 lines — desktop sidebar panel styles)
-│           ├── _lightbox-mobile.scss        (237 lines — phone bottom sheet styles)
+│           ├── _lightbox-mobile.scss        (309 lines — phone bottom sheet styles)
 │           └── _lightbox-tablet.scss        (274 lines — iPad 2-column bottom sheet styles)
 └── backend/
     └── main.py                              (1141 lines — FastAPI server)
@@ -201,11 +204,12 @@ The largest component. Responsibilities:
 - Neon orange glow effect on hover (dark mode only)
 - Consumes `--glow-*` CSS variables from ancestor `GlowContainer`
 
-#### `PhotoCard.vue` — Image Thumbnail (304 lines)
-- Image thumbnail with MD3 elevation shadow
+#### `PhotoCard.vue` — Image Thumbnail (316 lines)
+- Image thumbnail with **no-shadow flat design** (Facebook-inspired — cards are flat, shadows on modals only)
 - Lazy-loaded image with aspect-ratio placeholder
 - Filename overlay on hover
 - Click emits `select` event to open lightbox
+- MD3 12px (`--gallery-radius-lg`) rounded corners
 
 #### `SkeletonLoader.vue` — Loading State (108 lines)
 - Animated placeholder cards matching grid layout
@@ -348,33 +352,63 @@ The largest component. Responsibilities:
 
 ### Design Tokens (`tokens.css`)
 
-60 lines of CSS custom properties on `:root` and `:root[data-theme="dark"]`.
+229 lines of CSS custom properties on `:root` and `:root[data-theme="dark"]`.
 
-**Light mode** (`:root`):
-- `--shadow-card`, `--shadow-card-hover`, `--shadow-card-level2`, `--shadow-card-level4` — MD3 elevation shadows
-- `--glow-color: transparent` (no glow in light mode)
+**Token System v2** — Primer-inspired `--gallery-{category}-{group?}-{modifier}` naming convention:
+
+**Surface tokens** (3 levels, warm no-shadow — Facebook-inspired):
+- `--gallery-surface-dim` — dimmest surface (e.g., `#f5eee6` light, `#0f0f0f` dark)
+- `--gallery-surface-default` — default card/surface background
+- `--gallery-surface-elevated` — elevated surface (modals, dropdowns)
+- `--gallery-surface-hover` — hover state for interactive surfaces
+
+**Text tokens** (5 levels):
+- `--gallery-text-primary` — primary text (headings, body)
+- `--gallery-text-secondary` — secondary text (descriptions, metadata labels)
+- `--gallery-text-tertiary` — tertiary text (helper text, timestamps)
+- `--gallery-text-disabled` — disabled/placeholder text
+- `--gallery-text-inverse` — inverted text (on accent backgrounds)
+
+**Accent tokens** (Reddit-inspired orange/gold):
+- Light mode: `#ff6b35` (brand orange)
+- Dark mode: `#d6a15d` (warm gold — softer on dark surface)
+
+**Radius tokens** (Material Design 3 inspired):
+- `--gallery-radius-sm`: 4px, `--gallery-radius-md`: 8px, `--gallery-radius-lg`: 12px, `--gallery-radius-xl`: 16px
+
+**Shadow tokens** (modals only — cards are FLAT, no shadow, Facebook-inspired):
+- Light: subtle low-opacity shadows
+- Dark: deeper shadows with `rgba(0,0,0,0.30-0.45)`
+
+**Border tokens**: 4 levels (default, subtle, hover, accent) with warm undertones.
+
+**Semantic tokens**: success (`#22c55e`), warning (`#f59e0b`), error (`#ef4444`), info (`#3b82f6`) — each with 10% opacity background variant.
+
+**Timing tokens**: `--gallery-timing-fast: 80ms`, `--gallery-timing-normal: 200ms`, `--gallery-timing-slow: 400ms`.
+
+**Typography tokens**: Font family stacks, size scale (xs through 3xl), weight scale.
+
+**Legacy mappings**: `--bg-color`, `--text-color`, `--neon-color`, `--shadow-card*`, `--glow-color*`, `--glow-card*` are still defined for backward compatibility — new code should use `--gallery-*` tokens.
 
 **Dark mode** (`:root[data-theme="dark"]`):
-- `--shadow-card`, `--shadow-card-level2` — dark layer shadows
-- `--shadow-dark-layer-back`, `--shadow-dark-layer-front` — layered depth
-- `--glow-color-20` through `--glow-color-70` — 8 opacity levels of `#FF6B35` (orange)
-- `--glow-card-hover` — 6-layer composite orange glow
-- `--glow-card-hover-front` — stronger glow for foreground elements
-- `--glow-card-hover-back` — softer glow for background elements
-- `--glow-card-active` — glow for active/selected state
+- Warm near-black surfaces (Facebook-inspired, not pure `#000`)
+- Gold accent (`#d6a15d`) replaces orange for reduced eye strain
+- Glow colors (`--glow-color-20` through `--glow-color-70`) — 8 opacity levels of `#FF6B35` (kept for brand-hero and legacy uses)
+- Composite glow shadows: `--glow-card-hover` (6-layer), `--glow-card-hover-front`, `--glow-card-hover-back`, `--glow-card-active`
 
-→ Change the glow color in one place, all components update.
+→ Change the accent color in one place, all components update.
 
 ### SCSS Partials
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `main.scss` | 525 | Global styles, CSS reset, layout grid, scrollbar, dark mode overrides, responsive breakpoints |
-| `tokens.css` | 60 | Design tokens (CSS custom properties) |
+| `main.scss` | 485 | Global styles, CSS reset, layout grid, scrollbar, dark mode overrides, responsive breakpoints, @keyframes iconFlicker animation for brand-hero |
+| `tokens.css` | 229 | Design tokens v2 (CSS custom properties — 3 surface levels, 5 text levels, Primer-inspired `--gallery-*` naming) |
+| `_mobile-overrides.scss` | 68 | Mobile touch/hover/glow resets: disables glow on ≤767px, kills sticky hover artifacts on touch devices, expands touch targets for pointer:coarse |
 | `_lightbox-shared.scss` | 125 | Shared styles for all lightbox panels (typography, buttons, metadata fields) |
 | `_lightbox-desktop.scss` | 253 | Desktop sidebar panel (≥1024px) |
 | `_lightbox-tablet.scss` | 274 | iPad 2-column bottom sheet (768–1023px) |
-| `_lightbox-mobile.scss` | 237 | Phone bottom sheet (<768px) |
+| `_lightbox-mobile.scss` | 309 | Phone bottom sheet (<768px) |
 
 ### Overflow Chain (Glow Bleed)
 
@@ -454,17 +488,46 @@ Singleton composable with ref-counted resize listener. Multiple component instan
 
 ---
 
+## Mobile UX (Phase 1–3 Refactor)
+
+The mobile experience underwent a 3-phase refactor to align with Facebook/Instagram-inspired patterns:
+
+### Phase 1 — Bottom Nav Removed
+- `BottomNavigationBar.vue` removed from component tree (kept for reference)
+- Replaced by `MobileFloatingBottomBar.vue` — floating pill with Back/Forward, folder name, open-in-explorer
+- Pill slides away on scroll-down via `useScrollVisibility`
+
+### Phase 2 — Pull-to-Refresh & Spring Animations
+- Spring-based physics for card entrances and transitions (CSS `transition` with cubic-bezier easing)
+- Smooth slide-away/return for MobileHeader and FloatingBottomBar
+
+### Phase 3 — Haptic Feedback & Touch Refinements
+- `useHaptic.ts` composable wraps `navigator.vibrate()` with guard (10ms light, 20ms medium taps)
+- `_mobile-overrides.scss`:
+  - Disables all glow effects on ≤767px (`--glow-color: transparent`)
+  - Kills sticky hover artifacts on touch devices (`@media (hover: none)`)
+  - Expands touch targets to 44×44px for interactive elements (`@media (pointer: coarse)`)
+  - Reduces shadow opacity on mobile for better contrast
+
+### Key Mobile Decisions
+- **No-shadow PhotoCard**: Cards are intentionally flat (Facebook-inspired) — shadows only on modals and overlays
+- **Glow disabled on mobile**: Neon glow is a desktop-only feature. Performance improvement and avoids clipping issues
+- **Touch-first**: All interactive elements have expanded touch targets, no sticky hover states
+
+---
+
 ## Composables
 
 | Composable | Lines | Primary User | Purpose |
 |-----------|-------|-------------|---------|
-| `useScrollVisibility` | 58 | App.vue (MobileHeader, MobileFloatingBottomBar) | Detects scroll direction inside RecycleScroller, returns `barsVisible` + `isScrollingDown` refs. Uses MutationObserver to re-attach when DOM changes. |
-| `useDevice` | 50 | App, Lightbox, GalleryGrid | Singleton breakpoint detection via resize listener |
+| `useScrollVisibility` | 75 | App.vue (MobileHeader, MobileFloatingBottomBar) | Detects scroll direction inside RecycleScroller, returns `barsVisible` + `isScrollingDown` refs. Uses MutationObserver to re-attach when DOM changes. |
+| `useDevice` | 51 | App, Lightbox, GalleryGrid | Singleton breakpoint detection via resize listener |
 | `useNaturalSort` | 32 | GalleryGrid | Natural sorting (handles numbers in filenames) |
-| `useColumnResize` | 85 | GalleryGrid | Column count computation, row height, grid persistence |
+| `useColumnResize` | 87 | GalleryGrid | Column count computation, row height, grid persistence |
 | `useClipboard` | 51 | LightboxDesktopPanel | Copy text to clipboard with success/error toast |
 | `useFocusTrap` | 138 | Lightbox, SettingsModal | Focus trap for modals (Tab/Shift+Tab cycling) |
 | `useToast` | 97 | Various | Convenience wrapper around toastStore for showing toasts |
+| `useHaptic` | 17 | MobileHeader, MobileFloatingBottomBar | Lightweight haptic feedback via `navigator.vibrate()` (10ms light, 20ms medium) |
 
 ---
 
@@ -570,15 +633,25 @@ Core TypeScript interfaces:
 
 ## Known Limitations
 
-1. **Glow clipping on mobile `overflow-x:auto`**: On mobile devices, the horizontal album scroller uses `overflow-x: auto`. The glow bleed from `GlowContainer` with negative margins can be clipped by the auto-scroll container, causing the neon glow shadow to be cut off at the edges. This is a CSS limitation — `overflow: auto` clips visual overflow even with `overflow: clip` on ancestor elements.
+1. **Glow clipping on mobile `overflow-x:auto`**: On mobile devices, the horizontal album scroller uses `overflow-x: auto`. The glow bleed from `GlowContainer` with negative margins can be clipped by the auto-scroll container, causing the neon glow shadow to be cut off at the edges. This is a CSS limitation — `overflow: auto` clips visual overflow even with `overflow: clip` on ancestor elements. Mobile `_mobile-overrides.scss` mitigates this by disabling glow entirely on ≤767px.
 
 2. **`BottomNavigationBar.vue` is legacy**: This component still exists in the codebase but is no longer used in the App.vue component tree. It has been replaced by `MobileFloatingBottomBar.vue`. Consider removing it in future cleanup.
 
 3. **No WebSocket support**: Folder changes on disk require manual refresh.
 
-4. **GalleryGrid.vue (1122 lines) still large**: While error handling has been extracted into `_withError`, the component remains large and could benefit from further decomposition in future refactoring.
+4. **GalleryGrid.vue (1271 lines) still large**: While error handling has been extracted into `_withError`, the component remains large and could benefit from further decomposition in future refactoring.
 
 5. **AppHeader.vue (633 lines) oversized**: Contains brand hero, search bar, theme toggle, hamburger — consider splitting into `BrandHero.vue`, `SearchBar.vue`, `ThemeToggle.vue`.
+
+### 🚫 Blacklist — Do NOT Touch
+
+The following CSS/styling elements are intentionally preserved and must NOT be modified:
+
+- **`brand-hero`** — Uses neon glow effect (`--neon-border-color: #08f`, `iconFlicker` keyframes). This is the app's signature visual identity and must remain unchanged.
+- **`theme-toggle`** — Uses gradient backgrounds (`--gallery-toggle-gradient-light`, `--gallery-toggle-gradient-dark`) and thumb animations. Defined in `tokens.css` and consumed by `AppHeader.vue` / `MobileHeader.vue`.
+- **`@keyframes iconFlicker`** — Defined in `main.scss`. 6-layer box-shadow flicker animation for `brand-hero` icon. Synced timing with `photo-counter-box` flicker. Do not modify the keyframe definition.
+- **`PhotoCard` no-shadow design** — Cards are deliberately flat (no `box-shadow`) per Facebook-inspired design decision. Shadow-only on modals and overlays.
+- **Mobile glow override** — `@media (max-width: 767px)` in both `tokens.css` and `_mobile-overrides.scss` that disables glow on mobile. These are intentional performance/UX decisions.
 
 ---
 
@@ -590,7 +663,7 @@ Core TypeScript interfaces:
 
 3. **Gallery store NOT split** — At 345 lines, the gallery store has tightly coupled concerns (folder selection → history → image loading → sorting). Splitting would introduce circular dependency risks with minimal readability gain.
 
-4. **CSS variables over inline values** — All shadows and glow effects are tokenized in `tokens.css`. One change to `--glow-color-*` propagates to every component. Dark/light mode switching is a single attribute change on `:root`.
+4. **CSS variables over inline values** — All shadows, glow effects, colors, radii, and typography are tokenized in `tokens.css` using Primer-inspired `--gallery-{category}-{group?}-{modifier}` naming. One change to `--gallery-accent-default` propagates to every component. Dark/light mode switching is a single attribute change on `:root`. Legacy `--shadow-card*`, `--glow-*` variables kept for backward compatibility.
 
 5. **GlowContainer over per-component bleed** — A single reusable wrapper sets `--glow-bleed-x`/`--glow-bleed-y` variables, consumed by any child needing glow overflow. Also handles `pointer-events: none` to prevent interaction issues. Avoids duplicating bleed logic across `AlbumScroller`, `PhotoCard`, etc.
 
