@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, nextTick } from 'vue'
-import { Menu, Search, Settings, X } from 'lucide-vue-next'
+import { ref, nextTick, onBeforeUnmount, computed, watch } from 'vue'
+import { Menu, Search, Settings, X, ArrowLeft } from 'lucide-vue-next'
 
 interface Props {
   isDark: boolean
@@ -17,75 +17,180 @@ const emit = defineEmits<{
   'open-settings': []
 }>()
 
-const searchExpanded = ref(false)
+const isSearchActive = ref(false)
 const searchInputRef = ref<HTMLInputElement | null>(null)
+const searchBtnRef = ref<HTMLButtonElement | null>(null)
+const overlayRef = ref<HTMLElement | null>(null)
 
+// ── Derived ──
+const hasQuery = computed(() => props.searchQuery.length > 0)
+
+// ── Open / Close ──
 function openSearch() {
-  searchExpanded.value = true
+  isSearchActive.value = true
   nextTick(() => {
     searchInputRef.value?.focus()
   })
 }
 
 function closeSearch() {
-  // Delay to allow clear button click to fire before collapsing
-  setTimeout(() => {
-    if (!props.searchQuery) {
-      searchExpanded.value = false
-    }
-  }, 150)
-}
-
-function onSearchInput(e: Event) {
-  const target = e.target as HTMLInputElement
-  emit('update:searchQuery', target.value)
+  emit('update:searchQuery', '')
+  isSearchActive.value = false
+  nextTick(() => {
+    searchBtnRef.value?.focus()
+  })
 }
 
 function clearSearch() {
   emit('update:searchQuery', '')
-  searchExpanded.value = false
+  nextTick(() => {
+    searchInputRef.value?.focus()
+  })
+}
+
+// ── Overlay / tap-outside handler ──
+function handleOverlayClick() {
+  if (!hasQuery.value) {
+    closeSearch()
+  } else {
+    searchInputRef.value?.blur()
+  }
+}
+
+// ── Keyboard handlers ──
+function onInputKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') {
+    e.preventDefault()
+    closeSearch()
+  } else if (e.key === 'Enter') {
+    searchInputRef.value?.blur()
+  }
+}
+
+function handleGlobalKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && isSearchActive.value) {
+    e.preventDefault()
+    closeSearch()
+  }
+}
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleGlobalKeydown)
+})
+
+// Watch for activation to add global listener
+watch(isSearchActive, (active) => {
+  if (active) {
+    window.addEventListener('keydown', handleGlobalKeydown)
+  } else {
+    window.removeEventListener('keydown', handleGlobalKeydown)
+  }
+})
+
+// ── Input handler ──
+function onSearchInput(e: Event) {
+  const target = e.target as HTMLInputElement
+  emit('update:searchQuery', target.value)
 }
 </script>
 
 <template>
-  <header class="mobile-header" :class="{ hidden: !barsVisible }">
-    <button class="mh-btn" @click="emit('toggle-sidebar')" aria-label="Toggle sidebar">
+  <header class="mobile-header" :class="{ hidden: !barsVisible, 'search-active': isSearchActive }">
+    <!-- Left: hamburger (hidden in search mode on mobile) / back button -->
+    <button
+      v-if="!isSearchActive"
+      ref="searchBtnRef"
+      class="mh-btn mh-hamburger"
+      @click="emit('toggle-sidebar')"
+      aria-label="Toggle sidebar"
+    >
       <Menu />
     </button>
-    
-    <div class="mh-search" :class="{ expanded: searchExpanded }">
-      <button v-if="!searchExpanded" class="mh-btn" @click="openSearch" aria-label="Open search">
+    <button
+      v-else
+      class="mh-btn search-focus-back"
+      @click="closeSearch"
+      aria-label="Close search"
+    >
+      <ArrowLeft />
+    </button>
+
+    <!-- Center: search area -->
+    <div class="mh-search">
+      <button
+        v-if="!isSearchActive"
+        class="mh-btn mh-search-btn"
+        @click="openSearch"
+        aria-label="Open search"
+      >
         <Search />
       </button>
-      <div v-else class="search-input-wrap">
-        <Search class="search-input-icon" />
-        <input
-          ref="searchInputRef"
-          :value="searchQuery"
-          @input="onSearchInput"
-          type="search"
-          placeholder="Search..."
-          autocomplete="off"
-          @blur="closeSearch"
-        />
-        <button v-if="searchQuery" class="clear-btn" @click="clearSearch" aria-label="Clear search">
-          <X :size="14" />
-        </button>
+      <div
+        v-else
+        class="search-focus-bar"
+      >
+        <div class="search-focus-input-wrap">
+          <Search class="search-focus-input-icon" :size="16" />
+          <input
+            ref="searchInputRef"
+            :value="searchQuery"
+            @input="onSearchInput"
+            @keydown="onInputKeydown"
+            type="text"
+            placeholder="Search albums &amp; photos"
+            autocomplete="off"
+            spellcheck="false"
+            aria-label="Search albums and photos"
+            class="search-focus-input"
+          />
+          <button
+            v-if="hasQuery"
+            class="search-focus-clear"
+            @click="clearSearch"
+            aria-label="Clear search"
+          >
+            <X :size="16" />
+          </button>
+        </div>
       </div>
     </div>
 
-    <button class="mh-btn" @click="emit('toggle-theme')" :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'">
-      <!-- SVG sun/moon from AppHeader — same icons as desktop -->
+    <!-- Right: theme & settings (hidden in search mode) -->
+    <button
+      v-if="!isSearchActive"
+      class="mh-btn"
+      @click="emit('toggle-theme')"
+      :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+    >
       <svg v-if="isDark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path fill="currentColor" d="M423.7 85.9C336.6 107.5 272 186.2 272 280C272 390.4 361.5 480 472 480C490.5 480 508.4 477.5 525.4 472.8C478.8 535.4 404.1 576 320 576C178.6 576 64 461.4 64 320C64 178.6 178.6 64 320 64C356.9 64 392 71.8 423.7 85.9z"/></svg>
       <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path fill="currentColor" d="M340.8 43.6L396.3 136.2C477.1 115.9 525 104 539.9 100.2C536.2 115.1 524.2 163 503.9 243.8C575.4 286.6 617.7 312 630.9 319.9C617.7 327.8 575.4 353.2 503.9 396C524.2 476.8 536.2 524.7 539.9 539.6C525 535.9 477.1 523.9 396.3 503.6C353.5 575.1 328.1 617.4 320.2 630.6C312.3 617.4 286.9 575.1 244.1 503.6C163.3 523.9 115.5 535.9 100.5 539.6C104.2 524.7 116.2 476.8 136.5 396C65 353.2 22.7 327.8 9.5 319.9C22.7 312 65 286.6 136.5 243.8C116.2 163 104.3 115.2 100.5 100.2C115.4 103.9 163.3 115.9 244.1 136.2C286.9 64.7 312.3 22.4 320.2 9.2L340.8 43.5zM320.2 176C240.7 175.9 176.1 240.3 176 319.8C175.9 399.3 240.3 463.9 319.8 464C399.3 464.1 463.9 399.7 464 320.2C464.1 240.7 399.7 176.1 320.2 176zM319.8 416C266.8 415.9 223.9 372.8 224 319.8C224.1 266.8 267.2 223.9 320.2 224C373.2 224.1 416.1 267.2 416 320.2C415.9 373.2 372.8 416.1 319.8 416z"/></svg>
     </button>
-    <button class="mh-btn" @click="emit('open-settings')" aria-label="Open settings">
+    <button
+      v-if="!isSearchActive"
+      class="mh-btn"
+      @click="emit('open-settings')"
+      aria-label="Open settings"
+    >
       <Settings />
     </button>
   </header>
+
+  <!-- Focus overlay — sibling element outside header -->
+  <Transition name="overlay-fade">
+    <div
+      v-if="isSearchActive"
+      ref="overlayRef"
+      class="search-focus-overlay"
+      @click="handleOverlayClick"
+      @touchend.prevent="handleOverlayClick"
+    ></div>
+  </Transition>
 </template>
 
 <style scoped>
+/* ============================================================
+   Mobile Header — Base
+   ============================================================ */
 .mobile-header {
   --icon-size: 22px;
   position: fixed;
@@ -104,7 +209,25 @@ function clearSearch() {
   border-bottom: 1px solid color-mix(in srgb, var(--border-color, rgba(0, 0, 0, 0.08)) 50%, transparent);
   transform: translateY(0);
   opacity: 1;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+  transition:
+    transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.3s ease,
+    padding 0.2s ease;
+}
+
+/* Search-active state: more compact padding */
+.mobile-header.search-active {
+  gap: 4px;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+@media (max-width: 480px) {
+  .mobile-header.search-active {
+    padding-left: 2px;
+    padding-right: 2px;
+    gap: 2px;
+  }
 }
 
 .mobile-header.hidden {
@@ -113,6 +236,9 @@ function clearSearch() {
   pointer-events: none;
 }
 
+/* ============================================================
+   Buttons — shared
+   ============================================================ */
 .mh-btn {
   width: 38px;
   height: 38px;
@@ -141,6 +267,9 @@ function clearSearch() {
   background: color-mix(in srgb, var(--text-color) 14%, transparent);
 }
 
+/* ============================================================
+   Search area — container
+   ============================================================ */
 .mh-search {
   flex: 1;
   display: flex;
@@ -148,60 +277,265 @@ function clearSearch() {
   min-width: 0;
 }
 
-.mh-search.expanded {
-  justify-content: stretch;
-}
-
-.search-input-wrap {
+/* ============================================================
+   Search button (collapsed state)
+   ============================================================ */
+.mh-search-btn {
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-color);
+  cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex: 1;
-  background: color-mix(in srgb, var(--surface-color) 60%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border-color, rgba(0, 0, 0, 0.12)) 60%, transparent);
-  border-radius: 10px;
-  padding: 0 10px;
-  height: 36px;
-}
-
-.search-input-icon {
-  color: var(--muted-text);
+  justify-content: center;
   flex-shrink: 0;
+  transition: background 0.15s ease;
 }
 
-.search-input-wrap input {
+.mh-search-btn:hover {
+  background: color-mix(in srgb, var(--text-color) 8%, transparent);
+}
+
+.mh-search-btn:active {
+  background: color-mix(in srgb, var(--text-color) 14%, transparent);
+}
+
+/* ============================================================
+   Search bar — expanded (focused) state
+   ============================================================ */
+.search-focus-bar {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  animation: searchBarExpand 200ms cubic-bezier(.2, .8, .2, 1) forwards;
+  transform-origin: right center;
+}
+
+@keyframes searchBarExpand {
+  from {
+    opacity: 0;
+    transform: scaleX(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+/* ============================================================
+   Search input wrap — pill
+   ============================================================ */
+.search-focus-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  background: var(--gallery-surface-elevated, var(--surface-color));
+  border: 1px solid color-mix(in srgb, var(--border-color, rgba(0, 0, 0, 0.12)) 80%, transparent);
+  border-radius: var(--gallery-radius-full, 9999px);
+  padding: 0 12px;
+  height: 42px;
+  box-shadow: var(--gallery-shadow-sm, 0 1px 3px rgba(0,0,0,0.08));
+  transition:
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+/* When input is focused, subtle ring */
+.search-focus-input-wrap:focus-within {
+  border-color: var(--gallery-accent-default, var(--primary-color));
+  box-shadow:
+    0 0 0 1px var(--gallery-accent-default, var(--primary-color)),
+    var(--gallery-shadow-sm, 0 1px 3px rgba(0,0,0,0.08));
+}
+
+.search-focus-input-icon {
+  color: var(--gallery-text-tertiary, var(--muted-text));
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+/* ============================================================
+   Input
+   ============================================================ */
+.search-focus-input {
   flex: 1;
   border: none;
   background: transparent;
-  font-size: 14px;
+  font-size: 16px; /* Prevent iOS auto-zoom */
   color: var(--text-color);
   outline: none;
   min-width: 0;
+  line-height: 1.3;
+  font-family: var(--gallery-font-family, inherit);
 }
 
-.search-input-wrap input::placeholder {
-  color: var(--muted-text);
+.search-focus-input::placeholder {
+  color: var(--gallery-text-placeholder, var(--muted-text));
+  font-weight: 400;
 }
 
-.clear-btn {
-  background: transparent;
+/* Prevent iOS zoom with smaller font */
+.search-focus-input:focus {
+  font-size: 16px;
+}
+
+/* Hide native search decorations */
+.search-focus-input::-webkit-search-decoration,
+.search-focus-input::-webkit-search-cancel-button,
+.search-focus-input::-webkit-search-results-button,
+.search-focus-input::-webkit-search-results-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
+/* ============================================================
+   Clear button
+   ============================================================ */
+.search-focus-clear {
+  background: color-mix(in srgb, var(--gallery-text-tertiary, var(--muted-text)) 12%, transparent);
   border: none;
-  color: var(--muted-text);
+  color: var(--gallery-text-secondary, var(--text-color));
   cursor: pointer;
-  padding: 2px;
+  padding: 0;
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
   flex-shrink: 0;
+  transition: background 0.15s ease;
 }
 
-.clear-btn:hover {
-  background: var(--gallery-surface-hover, rgba(0, 0, 0, 0.06));
+.search-focus-clear:hover {
+  background: color-mix(in srgb, var(--gallery-text-tertiary, var(--muted-text)) 20%, transparent);
+}
+
+.search-focus-clear:active {
+  background: color-mix(in srgb, var(--gallery-text-tertiary, var(--muted-text)) 30%, transparent);
+}
+
+.search-focus-clear svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ============================================================
+   Back button (search mode)
+   ============================================================ */
+.search-focus-back {
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
   color: var(--text-color);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  animation: backBtnIn 200ms cubic-bezier(.2, .8, .2, 1) forwards;
 }
 
-/* Compact (<480px): tighter padding, smaller controls */
+@keyframes backBtnIn {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.search-focus-back:hover {
+  background: color-mix(in srgb, var(--text-color) 8%, transparent);
+}
+
+.search-focus-back:active {
+  background: color-mix(in srgb, var(--text-color) 14%, transparent);
+}
+
+.search-focus-back svg {
+  width: var(--icon-size);
+  height: var(--icon-size);
+}
+
+/* ============================================================
+   Focus overlay — dims background content
+   ============================================================ */
+.search-focus-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 70;
+  background: rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  cursor: pointer;
+  /* Don't block touch on the header above */
+  touch-action: manipulation;
+  /* Prevent body scroll interference */
+  pointer-events: auto;
+}
+
+/* Dark theme: darker overlay */
+:root[data-theme="dark"] .search-focus-overlay {
+  background: rgba(0, 0, 0, 0.32);
+}
+
+/* ============================================================
+   Overlay fade transition
+   ============================================================ */
+.overlay-fade-enter-active {
+  transition:
+    opacity 200ms cubic-bezier(.2, .8, .2, 1),
+    backdrop-filter 200ms ease;
+}
+
+.overlay-fade-leave-active {
+  transition:
+    opacity 150ms ease,
+    backdrop-filter 150ms ease;
+}
+
+.overlay-fade-enter-from,
+.overlay-fade-leave-to {
+  opacity: 0;
+  backdrop-filter: blur(0px);
+  -webkit-backdrop-filter: blur(0px);
+}
+
+/* ============================================================
+   Reduced motion
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .search-focus-bar {
+    animation: none;
+  }
+
+  .search-focus-back {
+    animation: none;
+  }
+
+  .overlay-fade-enter-active,
+  .overlay-fade-leave-active {
+    transition: opacity 150ms ease;
+  }
+}
+
+/* ============================================================
+   Compact (<480px)
+   ============================================================ */
 @media (max-width: 480px) {
   .mobile-header {
     padding: 8px 8px;
@@ -209,18 +543,46 @@ function clearSearch() {
     gap: 4px;
   }
 
-  .mh-btn {
+  .mh-btn,
+  .mh-search-btn,
+  .search-focus-back {
     width: 34px;
     height: 34px;
   }
 
-  .search-input-wrap {
-    height: 32px;
-    font-size: 14px;
+  .search-focus-input-wrap {
+    height: 38px;
+    padding: 0 10px;
+    gap: 6px;
   }
 
-  .search-input-wrap input {
-    font-size: 14px;
+  .search-focus-input {
+    font-size: 16px; /* Keep 16px to prevent iOS zoom */
+  }
+
+  .search-focus-clear {
+    width: 22px;
+    height: 22px;
+  }
+
+  .search-focus-clear svg,
+  .search-focus-input-icon {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+/* ============================================================
+   Tablet: wider max-width for search bar
+   ============================================================ */
+@media (min-width: 481px) and (max-width: 1024px) {
+  .search-focus-input-wrap {
+    max-width: 520px;
+    margin: 0 auto;
+  }
+
+  .mobile-header.search-active {
+    justify-content: center;
   }
 }
 </style>
