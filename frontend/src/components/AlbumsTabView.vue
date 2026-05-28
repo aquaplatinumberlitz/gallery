@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { useGalleryStore } from "../stores/gallery";
 import AlbumCard from "./AlbumCard.vue";
+import AlbumCardMobile from "./AlbumCardMobile.vue";
 import GlowContainer from "./GlowContainer.vue";
 import EmptyState from "./EmptyState.vue";
 
@@ -52,6 +53,14 @@ const hasAlbums = computed(() => filteredAlbums.value.length > 0);
         <AlbumCard
           v-for="item in filteredAlbums"
           :key="item.path"
+          class="album-card-desktop"
+          :node="item"
+          @click="handleOpenFolder(item.path)"
+        />
+        <AlbumCardMobile
+          v-for="item in filteredAlbums"
+          :key="`mobile-${item.path}`"
+          class="album-card-mobile-item"
           :node="item"
           @click="handleOpenFolder(item.path)"
         />
@@ -80,6 +89,10 @@ const hasAlbums = computed(() => filteredAlbums.value.length > 0);
   min-width: 0;
 }
 
+.album-card-mobile-item {
+  display: none;
+}
+
 .empty-search,
 .empty-albums {
   display: flex;
@@ -92,20 +105,51 @@ const hasAlbums = computed(() => filteredAlbums.value.length > 0);
 @media (max-width: 767px) {
   .albums-tab-view {
     padding: 0;
+    overflow-y: hidden;
+    overflow-x: hidden;
   }
 
   .albums-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-    padding: 12px 10px;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 8px;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .albums-grid::-webkit-scrollbar {
+    display: none;
+  }
+
+  .album-card-desktop {
+    display: none;
+  }
+
+  .album-card-mobile-item {
+    display: block;
+    flex: 0 0 calc((100vw - 32px) / 3);
+    min-width: calc((100vw - 32px) / 3);
+    max-width: calc((100vw - 32px) / 3);
+    scroll-snap-align: start;
   }
 }
 
 @media (max-width: 480px) {
   .albums-grid {
-    grid-template-columns: repeat(2, 1fr);
     gap: 8px;
-    padding: 8px 6px;
+    padding: 8px;
+  }
+}
+
+@media (max-width: 360px) {
+  .album-card-mobile-item {
+    flex: 0 0 calc((100vw - 24px) / 2);
+    min-width: calc((100vw - 24px) / 2);
+    max-width: calc((100vw - 24px) / 2);
   }
 }
 </style>
