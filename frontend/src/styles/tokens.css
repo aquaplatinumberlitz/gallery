@@ -74,6 +74,11 @@
   --gallery-timing-normal: 200ms;
   --gallery-timing-slow:   400ms;
 
+  /* ── Mobile chrome ── */
+  --mobile-safe-top: env(safe-area-inset-top, 0px);
+  --mobile-header-bar-height: 54px;
+  --mobile-header-height: calc(var(--mobile-safe-top) + var(--mobile-header-bar-height));
+
   /* ── Typography ── */
   --gallery-font-family:    "InterVariable", "Segoe UI", "SF Pro Display", system-ui, -apple-system, sans-serif;
   --gallery-font-mono:      "JetBrains Mono", monospace;
@@ -241,5 +246,11 @@
     --glow-card-hover-front: none;
     --glow-card-hover-back: none;
     --glow-card-active: none;
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    --mobile-header-bar-height: 50px;
   }
 }
