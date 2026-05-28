@@ -117,6 +117,8 @@ const hasAlbums = computed(() => filteredAlbums.value.length > 0);
     overflow-y: hidden;
     padding: 8px;
     scroll-snap-type: x mandatory;
+    touch-action: pan-x;
+    overscroll-behavior-x: contain;
     scrollbar-width: none;
     -ms-overflow-style: none;
   }

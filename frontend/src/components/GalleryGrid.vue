@@ -31,27 +31,57 @@ const pullDistance = ref(0);
 const isPulling = ref(false);
 const isRefreshing = ref(false);
 const pullStartY = ref(0);
+const pullStartX = ref(0);
+const pullAxis = ref<"vertical" | "horizontal" | null>(null);
 const PULL_THRESHOLD = 80; // px to trigger refresh
 const PULL_MAX = 120; // max stretch
+const PULL_AXIS_LOCK_THRESHOLD = 8; // px before deciding gesture direction
+
+function resetPullState() {
+  pullDistance.value = 0;
+  pullAxis.value = null;
+  isPulling.value = false;
+}
+
+function isHorizontalAlbumScrollTarget(target: EventTarget | null) {
+  if (!(target instanceof Element)) return false;
+  return !!target.closest(".album-grid, .albums-grid");
+}
 
 function onPullTouchStart(e: TouchEvent) {
   if (isRefreshing.value) return;
+  if (isHorizontalAlbumScrollTarget(e.target)) return;
   // Only activate if we're at the top of the page
   const scrollEl = document.querySelector('.scroller') || document.querySelector('.folders-only-container');
   if (scrollEl && scrollEl.scrollTop > 5) return;
+  pullStartX.value = e.touches[0].clientX;
   pullStartY.value = e.touches[0].clientY;
+  pullAxis.value = null;
   isPulling.value = true;
 }
 
 function onPullTouchMove(e: TouchEvent) {
   if (!isPulling.value || isRefreshing.value) return;
-  const delta = e.touches[0].clientY - pullStartY.value;
-  if (delta <= 0) {
+  const deltaX = e.touches[0].clientX - pullStartX.value;
+  const deltaY = e.touches[0].clientY - pullStartY.value;
+  const absX = Math.abs(deltaX);
+  const absY = Math.abs(deltaY);
+
+  if (!pullAxis.value && Math.max(absX, absY) >= PULL_AXIS_LOCK_THRESHOLD) {
+    pullAxis.value = absX > absY ? "horizontal" : "vertical";
+  }
+
+  if (pullAxis.value === "horizontal") {
+    resetPullState();
+    return;
+  }
+
+  if (deltaY <= 0) {
     pullDistance.value = 0;
     return;
   }
   // Progressive resistance
-  pullDistance.value = Math.min(delta * 0.5, PULL_MAX);
+  pullDistance.value = Math.min(deltaY * 0.5, PULL_MAX);
 }
 
 function onPullTouchEnd() {
