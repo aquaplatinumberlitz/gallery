@@ -159,27 +159,27 @@ onUnmounted(() => {
 
 /* Type variants */
 .toast--success {
-  --toast-accent: #22c55e;
-  --toast-icon-color: #22c55e;
-  --toast-icon-bg: rgba(34, 197, 94, 0.1);
+  --toast-accent: var(--gallery-success, #22c55e);
+  --toast-icon-color: var(--gallery-success, #22c55e);
+  --toast-icon-bg: var(--gallery-success-bg, rgba(34, 197, 94, 0.1));
 }
 
 .toast--error {
-  --toast-accent: #ef4444;
-  --toast-icon-color: #ef4444;
-  --toast-icon-bg: rgba(239, 68, 68, 0.1);
+  --toast-accent: var(--gallery-error, #ef4444);
+  --toast-icon-color: var(--gallery-error, #ef4444);
+  --toast-icon-bg: var(--gallery-error-bg, rgba(239, 68, 68, 0.1));
 }
 
 .toast--warning {
-  --toast-accent: #f59e0b;
-  --toast-icon-color: #f59e0b;
-  --toast-icon-bg: rgba(245, 158, 11, 0.1);
+  --toast-accent: var(--gallery-warning, #f59e0b);
+  --toast-icon-color: var(--gallery-warning, #f59e0b);
+  --toast-icon-bg: var(--gallery-warning-bg, rgba(245, 158, 11, 0.1));
 }
 
 .toast--info {
-  --toast-accent: #3b82f6;
-  --toast-icon-color: #3b82f6;
-  --toast-icon-bg: rgba(59, 130, 246, 0.1);
+  --toast-accent: var(--gallery-info, #3b82f6);
+  --toast-icon-color: var(--gallery-info, #3b82f6);
+  --toast-icon-bg: var(--gallery-info-bg, rgba(59, 130, 246, 0.1));
 }
 
 /* Icon */
@@ -205,13 +205,13 @@ onUnmounted(() => {
 .toast__title {
   font-size: 14px;
   font-weight: 600;
-  color: var(--toast-title, #1f2937);
+  color: var(--toast-title, var(--gallery-text-primary, #1f2937));
   line-height: 1.4;
 }
 
 .toast__message {
   font-size: 13px;
-  color: var(--toast-message, #6b7280);
+  color: var(--toast-message, var(--gallery-text-secondary, #6b7280));
   line-height: 1.4;
   margin-top: 2px;
 }
@@ -278,7 +278,7 @@ onUnmounted(() => {
   height: 28px;
   border: none;
   background: transparent;
-  color: var(--toast-dismiss, #9ca3af);
+  color: var(--toast-dismiss, var(--gallery-text-tertiary, #9ca3af));
   font-size: 14px;
   cursor: pointer;
   border-radius: 6px;
@@ -315,10 +315,10 @@ onUnmounted(() => {
 
 /* Dark mode */
 :root[data-theme="dark"] .toast {
-  --toast-bg: #1f2937;
-  --toast-title: #f9fafb;
-  --toast-message: #9ca3af;
-  --toast-dismiss: #6b7280;
+  --toast-bg: var(--gallery-surface-elevated, #1f2937);
+  --toast-title: var(--gallery-text-primary, #f9fafb);
+  --toast-message: var(--gallery-text-secondary, #9ca3af);
+  --toast-dismiss: var(--gallery-text-tertiary, #6b7280);
   box-shadow: 
     0 4px 12px rgba(0, 0, 0, 0.4),
     0 0 1px rgba(0, 0, 0, 0.2);

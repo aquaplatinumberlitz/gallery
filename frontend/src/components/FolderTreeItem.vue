@@ -129,7 +129,7 @@ const handleKeydown = (e: KeyboardEvent) => {
 }
 
 .tree-row:hover {
-  background: rgba(0, 0, 0, 0.03);
+  background: var(--gallery-surface-hover, rgba(0, 0, 0, 0.03));
 }
 
 .tree-row.active {
@@ -158,7 +158,7 @@ const handleKeydown = (e: KeyboardEvent) => {
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  border: 1px solid var(--gallery-border-subtle, rgba(0, 0, 0, 0.08));
   background: transparent;
   display: inline-flex;
   align-items: center;
@@ -175,7 +175,7 @@ const handleKeydown = (e: KeyboardEvent) => {
 
 .toggle-btn:not(:disabled):hover {
   border-color: var(--primary-color);
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--gallery-surface-hover, rgba(0, 0, 0, 0.04));
 }
 
 .folder-icon {
@@ -193,7 +193,7 @@ const handleKeydown = (e: KeyboardEvent) => {
 
 .children {
   margin-left: 18px;
-  border-left: 1px dashed rgba(0, 0, 0, 0.06);
+  border-left: 1px dashed var(--gallery-border-subtle, rgba(0, 0, 0, 0.06));
   padding-left: 10px;
 }
 

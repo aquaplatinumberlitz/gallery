@@ -237,7 +237,7 @@ const actionIconComponent = computed(() => {
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background: rgba(255,255,255,0.1);
+  background: var(--gallery-surface-default, rgba(255,255,255,0.1));
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   border: 2px solid var(--accent-color);
@@ -400,7 +400,7 @@ const actionIconComponent = computed(() => {
   border: none;
   border-radius: 8px;
   background: var(--primary-color);
-  color: #fff;
+  color: var(--gallery-text-inverse, #fff);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -431,7 +431,7 @@ const actionIconComponent = computed(() => {
 }
 
 .action-btn .action-icon-fa {
-  color: #fff;
+  color: var(--gallery-text-inverse, #fff);
 }
 
 /* Animations */

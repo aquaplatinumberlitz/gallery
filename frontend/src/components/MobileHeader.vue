@@ -191,7 +191,7 @@ function clearSearch() {
 }
 
 .clear-btn:hover {
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--gallery-surface-hover, rgba(0, 0, 0, 0.06));
   color: var(--text-color);
 }
 

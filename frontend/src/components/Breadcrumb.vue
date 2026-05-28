@@ -274,7 +274,7 @@ const closeMenu = () => {
 
 .crumb:hover:not(:disabled) {
   color: var(--title-color);
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: var(--gallery-surface-hover, rgba(0, 0, 0, 0.05));
 }
 
 .crumb:focus-visible {
@@ -323,7 +323,7 @@ const closeMenu = () => {
   width: 28px;
   height: 24px;
   border: none;
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--gallery-surface-hover, rgba(0, 0, 0, 0.05));
   color: var(--muted-text);
   cursor: pointer;
   border-radius: 4px;
@@ -332,7 +332,7 @@ const closeMenu = () => {
 }
 
 .ellipsis-btn:hover {
-  background: rgba(0, 0, 0, 0.1);
+  background: var(--gallery-surface-hover, rgba(0, 0, 0, 0.1));
   color: var(--title-color);
 }
 
@@ -353,7 +353,7 @@ const closeMenu = () => {
   background: var(--bg-secondary, #fff);
   border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
   border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--gallery-shadow-lg, 0 4px 20px rgba(0, 0, 0, 0.15));
   z-index: 1000;
   padding: 4px;
 }
@@ -383,7 +383,7 @@ const closeMenu = () => {
 }
 
 .ellipsis-menu-item:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--gallery-surface-hover, rgba(0, 0, 0, 0.05));
 }
 
 .ellipsis-menu-item:focus-visible {
@@ -409,7 +409,7 @@ const closeMenu = () => {
   width: 24px;
   height: 24px;
   border: none;
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--gallery-surface-hover, rgba(0, 0, 0, 0.05));
   color: var(--muted-text);
   cursor: pointer;
   border-radius: 4px;
@@ -419,7 +419,7 @@ const closeMenu = () => {
 }
 
 .collapse-btn:hover {
-  background: rgba(0, 0, 0, 0.1);
+  background: var(--gallery-surface-hover, rgba(0, 0, 0, 0.1));
   color: var(--title-color);
 }
 
@@ -442,33 +442,33 @@ const closeMenu = () => {
 
 /* Dark mode support */
 :root[data-theme="dark"] .ellipsis-btn {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--gallery-surface-hover, rgba(255, 255, 255, 0.08));
 }
 
 :root[data-theme="dark"] .ellipsis-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--gallery-surface-elevated, rgba(255, 255, 255, 0.15));
 }
 
 :root[data-theme="dark"] .ellipsis-menu {
   background: var(--bg-secondary, #1e1e1e);
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  border-color: var(--gallery-border-default, rgba(255, 255, 255, 0.1));
+  box-shadow: var(--gallery-shadow-lg, 0 4px 20px rgba(0, 0, 0, 0.4));
 }
 
 :root[data-theme="dark"] .ellipsis-menu-item:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--gallery-surface-hover, rgba(255, 255, 255, 0.08));
 }
 
 :root[data-theme="dark"] .collapse-btn {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--gallery-surface-hover, rgba(255, 255, 255, 0.08));
 }
 
 :root[data-theme="dark"] .collapse-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--gallery-surface-elevated, rgba(255, 255, 255, 0.15));
 }
 
 :root[data-theme="dark"] .crumb:hover:not(:disabled) {
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: var(--gallery-surface-hover, rgba(255, 255, 255, 0.08));
 }
 
 /* Reduced motion */
