@@ -1,7 +1,5 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 
-const SCROLL_CONTAINER_SELECTOR = '.vue-recycle-scroller, .scroller, .folders-only-container'
-
 export function useScrollVisibility() {
   const barsVisible = ref(true)
   const isScrollingDown = ref(false)
@@ -35,9 +33,9 @@ export function useScrollVisibility() {
   }
 
   onMounted(() => {
-    // Poll for the active scroll container (may not render immediately)
+    // Poll for .vue-recycle-scroller (may not render immediately)
     intervalId = setInterval(() => {
-      const el = document.querySelector<HTMLElement>(SCROLL_CONTAINER_SELECTOR)
+      const el = document.querySelector<HTMLElement>('.vue-recycle-scroller')
       if (el && el.scrollHeight > el.clientHeight) {
         clearInterval(intervalId!)
         intervalId = null
@@ -46,7 +44,7 @@ export function useScrollVisibility() {
         const scrollerParent = el.parentElement
         if (scrollerParent) {
           observer = new MutationObserver(() => {
-            const newEl = document.querySelector<HTMLElement>(SCROLL_CONTAINER_SELECTOR)
+            const newEl = document.querySelector<HTMLElement>('.vue-recycle-scroller')
             if (newEl && newEl !== el) {
               cleanupScroll?.()
               cleanupScroll = attachToElement(newEl)
