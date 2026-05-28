@@ -477,7 +477,7 @@ watch(theme, (val) => {
   }
 
   .content {
-    padding: 60px 16px 72px 16px;
+    padding: var(--mobile-header-height) 16px 72px 16px;
     gap: 8px;
     overflow: hidden;
   }
@@ -497,7 +497,7 @@ watch(theme, (val) => {
 /* Small phone: <480px — compact layout */
 @media (max-width: 480px) {
   .content {
-    padding: 56px 12px 72px 12px;
+    padding: var(--mobile-header-height) 12px 72px 12px;
     gap: 6px;
     overflow: hidden;
   }
