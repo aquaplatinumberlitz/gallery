@@ -63,6 +63,7 @@ let swipeDeltaX = 0;
 let swipeDeltaY = 0;
 let isHorizontalSwipe: boolean | undefined = undefined;
 const isSwiping = ref(false);
+const isResettingSlide = ref(false);
 const trackOffset = ref(0);
 const SWIPE_THRESHOLD_PX = 100;
 const SWIPE_THRESHOLD_RATIO = 0.3;
@@ -186,15 +187,19 @@ function handleSwipeEnd() {
         // Swiped right → go to prev
         trackOffset.value = 0;
         setTimeout(() => {
+          isResettingSlide.value = true;
           lightbox.prev();
           resetTrackPosition();
+          requestAnimationFrame(() => { isResettingSlide.value = false; });
         }, 280);
       } else {
         // Swiped left → go to next
         trackOffset.value = -(viewportW * 2);
         setTimeout(() => {
+          isResettingSlide.value = true;
           lightbox.next();
           resetTrackPosition();
+          requestAnimationFrame(() => { isResettingSlide.value = false; });
         }, 280);
       }
     } else {
@@ -422,7 +427,7 @@ function handleToggleFullscreen() {
               <!-- 3-slide track for smooth swipe transitions -->
               <div class="lightbox-track"
                 :style="{ transform: `translate3d(${trackOffset}px, 0, 0)` }"
-                :class="{ 'is-animating': !isSwiping }"
+                :class="{ 'is-animating': !isSwiping && !isResettingSlide }"
               >
                 <!-- Previous slide -->
                 <div class="lightbox-slide" v-if="prevSrc">
