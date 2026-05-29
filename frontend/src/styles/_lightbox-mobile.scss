@@ -60,15 +60,15 @@
   position: relative;
   background: var(--gallery-lightbox-bg, #1a1a1a);
   border-radius: 16px 16px 0 0;
-  max-height: 75vh;
-  min-height: 30vh;
+  height: 44dvh;
+  max-height: 80dvh;
   display: flex;
   flex-direction: column;
-  transition: max-height 0.3s cubic-bezier(0.2, 0, 0, 1);
+  transition: height 0.3s cubic-bezier(0.2, 0, 0, 1);
   overflow: hidden;
 
   &.sheet-expanded {
-    max-height: 85vh;
+    height: 80dvh;
   }
 }
 
@@ -245,8 +245,12 @@
 /* Compact (<480px): smaller text, tighter spacing */
 @media (max-width: 480px) {
   .sheet-panel {
-    max-height: 65vh;
-    min-height: 25vh;
+    height: 40dvh;
+    max-height: 75dvh;
+
+    &.sheet-expanded {
+      height: 75dvh;
+    }
   }
 
   .sheet-tab {
@@ -304,7 +308,7 @@
 /* Reduced motion: no scale animation */
 @media (prefers-reduced-motion: reduce) {
   .sheet-panel {
-    transition: max-height 0.15s ease;
+    transition: height 0.15s ease;
   }
   
   .sheet-content-enter {
