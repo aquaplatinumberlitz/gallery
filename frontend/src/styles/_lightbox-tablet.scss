@@ -17,7 +17,13 @@
 .tablet-backdrop {
   position: absolute;
   inset: 0;
-  background: var(--gallery-lightbox-overlay, rgba(0,0,0,0.4));
+  background: linear-gradient(
+    to bottom,
+    rgba(0,0,0,0.04) 0%,
+    rgba(0,0,0,0.12) 50%,
+    rgba(0,0,0,0.28) 100%
+  );
+  pointer-events: none;
 }
 
 .tablet-panel {
