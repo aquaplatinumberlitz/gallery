@@ -109,16 +109,31 @@ const nextSrc = computed(() => {
   return getImageUrl(lightbox.galleryItems[nextIdx].path);
 });
 
-// Preload adjacent images for smooth transitions
+// Preload adjacent images for smooth transitions on iOS Safari.
+// We use <link rel="preload"> instead of new Image() because iOS Safari
+// does not reliably share the JavaScript Image() object cache with
+// <img> element rendering, causing a blank flash on src change.
+// Link rel=preload populates the browser's shared resource cache.
+let preloadLinks: HTMLLinkElement[] = [];
+
 function preloadAdjacent() {
-  const preload = (url: string | null) => {
+  // Clean up stale preload links
+  preloadLinks.forEach(link => {
+    try { link.remove(); } catch (_) {}
+  });
+  preloadLinks = [];
+
+  const addLink = (url: string | null) => {
     if (!url) return;
-    const img = new window.Image();
-    img.src = url;
-    img.decode().catch(() => {});
+    const link = document.createElement('link');
+    link.rel = 'preload';
+    link.as = 'image';
+    link.href = url;
+    document.head.appendChild(link);
+    preloadLinks.push(link);
   };
-  preload(prevSrc.value);
-  preload(nextSrc.value);
+  addLink(prevSrc.value);
+  addLink(nextSrc.value);
 }
 
 const prefersReducedMotion = ref(false);
@@ -390,6 +405,11 @@ onUnmounted(() => {
   focusTrap.deactivate();
   if (controlsTimer) clearTimeout(controlsTimer);
   controlsTimer = null;
+  // Clean up any lingering preload links
+  preloadLinks.forEach(link => {
+    try { link.remove(); } catch (_) {}
+  });
+  preloadLinks = [];
 });
 
 watch(
@@ -497,7 +517,7 @@ function handleToggleFullscreen() {
               >
                 <!-- Previous slide -->
                 <div class="lightbox-slide" v-if="prevSrc">
-                  <img :src="prevSrc" alt="" />
+                  <img :src="prevSrc" alt="" decoding="async" />
                 </div>
                 <div class="lightbox-slide" v-else />
 
@@ -510,6 +530,8 @@ function handleToggleFullscreen() {
                     :class="{ loading: isLoading }"
                     @error="handleImageError"
                     :alt="lightbox.itemName || 'Gallery image'"
+                    decoding="async"
+                    fetchpriority="high"
                   />
                   <div v-else class="hero-placeholder">
                     <Image :size="24" :stroke-width="1.5" />
@@ -519,7 +541,7 @@ function handleToggleFullscreen() {
 
                 <!-- Next slide -->
                 <div class="lightbox-slide" v-if="nextSrc">
-                  <img :src="nextSrc" alt="" />
+                  <img :src="nextSrc" alt="" decoding="async" />
                 </div>
                 <div class="lightbox-slide" v-else />
               </div>
