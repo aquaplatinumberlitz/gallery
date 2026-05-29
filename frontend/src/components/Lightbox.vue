@@ -58,12 +58,21 @@ let lastWheelTime = 0;
 
 // Swipe / 3-slide track state
 let swipeStartX = 0;
+let swipeStartY = 0;
 let swipeDeltaX = 0;
+let swipeDeltaY = 0;
+let isHorizontalSwipe: boolean | undefined = undefined;
 const isSwiping = ref(false);
 const trackOffset = ref(0);
 const SWIPE_THRESHOLD_PX = 100;
 const SWIPE_THRESHOLD_RATIO = 0.3;
 let animFrameId = 0;
+
+// Vertical swipe-to-dismiss state
+const dismissY = ref(0);
+const isDismissSnapping = ref(false);
+const backdropOpacity = ref(0.95);
+const DISMISS_THRESHOLD = 80;
 
 function resetTrackPosition() {
   const vw = window.innerWidth || 1;
@@ -108,62 +117,118 @@ onMounted(() => {
 
 function handleSwipeStart(e: TouchEvent) {
   swipeStartX = e.touches[0].clientX;
+  swipeStartY = e.touches[0].clientY;
   swipeDeltaX = 0;
-  isSwiping.value = true;
-
-  // Body scroll lock for iOS Safari — prevents page scroll during swipe
-  document.body.style.overflow = 'hidden';
-  document.body.style.position = 'fixed';
-  document.body.style.width = '100%';
+  swipeDeltaY = 0;
+  isHorizontalSwipe = undefined;
+  isSwiping.value = false; // Wait for direction detection
 }
 
 function handleSwipeMove(e: TouchEvent) {
-  if (!isSwiping.value) return;
-  e.preventDefault();
-  swipeDeltaX = e.touches[0].clientX - swipeStartX;
+  const deltaX = e.touches[0].clientX - swipeStartX;
+  const deltaY = e.touches[0].clientY - swipeStartY;
 
-  if (animFrameId) cancelAnimationFrame(animFrameId);
-  animFrameId = requestAnimationFrame(() => {
-    const vw = window.innerWidth || 1;
-    trackOffset.value = -vw + swipeDeltaX;
-    animFrameId = 0;
-  });
+  // Direction lock on first significant move
+  if (isHorizontalSwipe === undefined && (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5)) {
+    isHorizontalSwipe = Math.abs(deltaX) > Math.abs(deltaY);
+    if (isHorizontalSwipe) {
+      // Horizontal: lock body scroll for iOS
+      isSwiping.value = true;
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
+    } else if (!showSheet.value) {
+      // Vertical dismiss (only when metadata sheet is closed)
+      isSwiping.value = true;
+    }
+  }
+
+  if (isHorizontalSwipe === undefined) return;
+  e.preventDefault();
+
+  if (isHorizontalSwipe) {
+    // Horizontal swipe → image navigation (existing logic)
+    swipeDeltaX = deltaX;
+    if (animFrameId) cancelAnimationFrame(animFrameId);
+    animFrameId = requestAnimationFrame(() => {
+      const vw = window.innerWidth || 1;
+      trackOffset.value = -vw + deltaX;
+      animFrameId = 0;
+    });
+  } else {
+    // Vertical swipe downward → dismiss lightbox
+    if (deltaY < 0) return; // Only downward
+    if (showSheet.value) return; // Let metadata sheet handle vertical swipes
+
+    swipeDeltaY = deltaY;
+    if (animFrameId) cancelAnimationFrame(animFrameId);
+    animFrameId = requestAnimationFrame(() => {
+      dismissY.value = deltaY;
+      // Map backdrop from 0.95 → 0.65 as deltaY goes 0 → DISMISS_THRESHOLD
+      backdropOpacity.value = Math.max(0.65, 0.95 - (deltaY / DISMISS_THRESHOLD) * 0.3);
+      animFrameId = 0;
+    });
+  }
 }
 
 function handleSwipeEnd() {
-  if (!isSwiping.value) return;
-  isSwiping.value = false;
-  if (animFrameId) { cancelAnimationFrame(animFrameId); animFrameId = 0; }
+  if (isHorizontalSwipe === true) {
+    // Horizontal end: existing image nav logic
+    if (!isSwiping.value) { isHorizontalSwipe = undefined; return; }
+    isSwiping.value = false;
+    if (animFrameId) { cancelAnimationFrame(animFrameId); animFrameId = 0; }
 
-  const viewportW = window.innerWidth;
-  const threshold = Math.max(SWIPE_THRESHOLD_PX, viewportW * SWIPE_THRESHOLD_RATIO);
+    const viewportW = window.innerWidth;
+    const threshold = Math.max(SWIPE_THRESHOLD_PX, viewportW * SWIPE_THRESHOLD_RATIO);
 
-  if (Math.abs(swipeDeltaX) > threshold) {
-    if (swipeDeltaX > 0) {
-      // Swiped right → go to prev
-      trackOffset.value = 0;
-      setTimeout(() => {
-        lightbox.prev();
-        resetTrackPosition();
-      }, 280);
+    if (Math.abs(swipeDeltaX) > threshold) {
+      if (swipeDeltaX > 0) {
+        // Swiped right → go to prev
+        trackOffset.value = 0;
+        setTimeout(() => {
+          lightbox.prev();
+          resetTrackPosition();
+        }, 280);
+      } else {
+        // Swiped left → go to next
+        trackOffset.value = -(viewportW * 2);
+        setTimeout(() => {
+          lightbox.next();
+          resetTrackPosition();
+        }, 280);
+      }
     } else {
-      // Swiped left → go to next
-      trackOffset.value = -(viewportW * 2);
+      resetTrackPosition();
+    }
+
+    // Restore body scroll
+    document.body.style.overflow = '';
+    document.body.style.position = '';
+    document.body.style.width = '';
+    swipeDeltaX = 0;
+  } else if (isHorizontalSwipe === false && swipeDeltaY > 0) {
+    // Vertical end: dismiss or snap back
+    isSwiping.value = false;
+    isDismissSnapping.value = true;
+
+    if (swipeDeltaY > DISMISS_THRESHOLD) {
+      // Dismiss — animate content down and close
+      dismissY.value = window.innerHeight;
       setTimeout(() => {
-        lightbox.next();
-        resetTrackPosition();
+        handleClose();
+      }, 240);
+    } else {
+      // Snap back to original position
+      dismissY.value = 0;
+      backdropOpacity.value = 0.95;
+      setTimeout(() => {
+        isDismissSnapping.value = false;
       }, 280);
     }
-  } else {
-    resetTrackPosition();
+    swipeDeltaY = 0;
   }
 
-  // Restore body scroll
-  document.body.style.overflow = '';
-  document.body.style.position = '';
-  document.body.style.width = '';
-
-  swipeDeltaX = 0;
+  isHorizontalSwipe = undefined;
 }
 
 const handleWheel = (e: WheelEvent) => {
@@ -223,6 +288,10 @@ const handleKeydown = (e: KeyboardEvent) => {
 // Activate focus trap when lightbox opens
 watch(show, (isOpen) => {
   if (isOpen) {
+    // Reset dismiss state when opening
+    dismissY.value = 0;
+    backdropOpacity.value = 0.95;
+    isDismissSnapping.value = false;
     showSheet.value = false;
     focusTrap.activate();
   } else {
@@ -321,135 +390,148 @@ function handleToggleFullscreen() {
         v-if="show" 
         ref="lightboxRef"
         class="lightbox-overlay"
+        :style="{ background: `rgba(0, 0, 0, ${backdropOpacity})` }"
         @click.self="handleClose"
       >
-        <div class="lightbox-shell">
-          <!-- Left: Image Area -->
-          <div 
-            class="lightbox-left"
-            :class="{ 'is-swiping': isSwiping }"
-            @click.self="handleClose"
-            @wheel.prevent="handleWheel"
-            @touchstart="handleSwipeStart"
-            @touchmove="handleSwipeMove"
-            @touchend="handleSwipeEnd"
-          >
-            <div v-if="isLoading" class="image-loading">
-              <Loader :size="24" :stroke-width="1.5" class="lucide-spin" />
-            </div>
+        <!-- Mobile close button (visible on non-desktop) -->
+        <button v-if="!isDesktop" class="lightbox-close-btn" v-show="!isSwiping" @click.stop="handleClose" title="Close">
+          <X :size="20" :stroke-width="1.5" />
+        </button>
 
-            <!-- 3-slide track for smooth swipe transitions -->
-            <div class="lightbox-track"
-              :style="{ transform: `translate3d(${trackOffset}px, 0, 0)` }"
-              :class="{ 'is-animating': !isSwiping }"
+        <!-- Dismiss wrapper for vertical swipe-down-to-dismiss -->
+        <div
+          class="lightbox-dismiss-wrapper"
+          :style="{ transform: `translate3d(0, ${dismissY}px, 0)` }"
+          :class="{ 'is-dismiss-snapping': isDismissSnapping }"
+        >
+          <div class="lightbox-shell">
+            <!-- Left: Image Area -->
+            <div 
+              class="lightbox-left"
+              :class="{ 'is-swiping': isSwiping }"
+              @click.self="handleClose"
+              @wheel.prevent="handleWheel"
+              @touchstart="handleSwipeStart"
+              @touchmove="handleSwipeMove"
+              @touchend="handleSwipeEnd"
             >
-              <!-- Previous slide -->
-              <div class="lightbox-slide" v-if="prevSrc">
-                <img :src="prevSrc" alt="" />
+              <div v-if="isLoading" class="image-loading">
+                <Loader :size="24" :stroke-width="1.5" class="lucide-spin" />
               </div>
-              <div class="lightbox-slide" v-else />
 
-              <!-- Current slide -->
-              <div class="lightbox-slide">
-                <img
-                  v-if="lightbox.itemPath && !imageError"
-                  :src="displayUrl"
-                  class="hero-image"
-                  :class="{ loading: isLoading }"
-                  @error="handleImageError"
-                  :alt="lightbox.itemName || 'Gallery image'"
-                />
-                <div v-else class="hero-placeholder">
-                  <Image :size="24" :stroke-width="1.5" />
-                  <p>Unable to display this image.</p>
+              <!-- 3-slide track for smooth swipe transitions -->
+              <div class="lightbox-track"
+                :style="{ transform: `translate3d(${trackOffset}px, 0, 0)` }"
+                :class="{ 'is-animating': !isSwiping }"
+              >
+                <!-- Previous slide -->
+                <div class="lightbox-slide" v-if="prevSrc">
+                  <img :src="prevSrc" alt="" />
                 </div>
+                <div class="lightbox-slide" v-else />
+
+                <!-- Current slide -->
+                <div class="lightbox-slide">
+                  <img
+                    v-if="lightbox.itemPath && !imageError"
+                    :src="displayUrl"
+                    class="hero-image"
+                    :class="{ loading: isLoading }"
+                    @error="handleImageError"
+                    :alt="lightbox.itemName || 'Gallery image'"
+                  />
+                  <div v-else class="hero-placeholder">
+                    <Image :size="24" :stroke-width="1.5" />
+                    <p>Unable to display this image.</p>
+                  </div>
+                </div>
+
+                <!-- Next slide -->
+                <div class="lightbox-slide" v-if="nextSrc">
+                  <img :src="nextSrc" alt="" />
+                </div>
+                <div class="lightbox-slide" v-else />
               </div>
 
-              <!-- Next slide -->
-              <div class="lightbox-slide" v-if="nextSrc">
-                <img :src="nextSrc" alt="" />
+              <!-- Navigation Buttons (desktop only) -->
+              <template v-if="isDesktop">
+              <button 
+                class="nav-btn prev" 
+                :disabled="!hasPrev"
+                @click.stop="handlePrev" 
+                :title="hasPrev ? 'Previous (Left Arrow)' : 'No previous image'"
+              >
+                <ChevronLeft :size="24" :stroke-width="1.5" />
+              </button>
+              <button 
+                class="nav-btn next" 
+                :disabled="!hasNext"
+                @click.stop="handleNext" 
+                :title="hasNext ? 'Next (Right Arrow)' : 'No next image'"
+              >
+                <ChevronRight :size="24" :stroke-width="1.5" />
+              </button>
+              </template>
+              
+              <!-- Image counter for screen readers -->
+              <div class="sr-only">
+                Image {{ lightbox.currentIndex + 1 }} of {{ lightbox.galleryItems.length }}
               </div>
-              <div class="lightbox-slide" v-else />
+
+              <!-- Info button for bottom-sheet devices (tablet + mobile) -->
+              <button 
+                class="mobile-info-btn" 
+                v-if="!isDesktop" 
+                @click.stop="toggleSheet" 
+                title="Image Info"
+              >
+                <Info :size="20" :stroke-width="1.5" />
+              </button>
+
+              <!-- Mobile photo counter -->
+              <div v-if="!isDesktop" class="mobile-photo-counter">
+                {{ lightbox.currentIndex + 1 }} / {{ lightbox.galleryItems.length }}
+              </div>
             </div>
 
-            <!-- Navigation Buttons (desktop only) -->
-            <template v-if="isDesktop">
-            <button 
-              class="nav-btn prev" 
-              :disabled="!hasPrev"
-              @click.stop="handlePrev" 
-              :title="hasPrev ? 'Previous (Left Arrow)' : 'No previous image'"
-            >
-              <ChevronLeft :size="24" :stroke-width="1.5" />
-            </button>
-            <button 
-              class="nav-btn next" 
-              :disabled="!hasNext"
-              @click.stop="handleNext" 
-              :title="hasNext ? 'Next (Right Arrow)' : 'No next image'"
-            >
-              <ChevronRight :size="24" :stroke-width="1.5" />
-            </button>
-            </template>
-            
-            <!-- Image counter for screen readers -->
-            <div class="sr-only">
-              Image {{ lightbox.currentIndex + 1 }} of {{ lightbox.galleryItems.length }}
-            </div>
-
-            <!-- Info button for bottom-sheet devices (tablet + mobile) -->
-            <button 
-              class="mobile-info-btn" 
-              v-if="!isDesktop" 
-              @click.stop="toggleSheet" 
-              title="Image Info"
-            >
-              <Info :size="20" :stroke-width="1.5" />
-            </button>
-
-            <!-- Mobile photo counter -->
-            <div v-if="!isDesktop" class="mobile-photo-counter">
-              {{ lightbox.currentIndex + 1 }} / {{ lightbox.galleryItems.length }}
-            </div>
+            <!-- Desktop: Right Sidebar Metadata Panel -->
+            <LightboxDesktopPanel
+              v-if="isDesktop && !isFullscreen"
+              :meta="meta"
+              :is-loading="isLoading"
+              :image-name="lightbox.itemName"
+              :size-text="sizeText"
+              :date-text="dateText"
+              :gen-time-text="genTimeText"
+              :can-fullscreen="canFullscreen"
+              :is-fullscreen="isFullscreen"
+              :copy-status="copyStatus"
+              :copy-text="copyText"
+              @close="handleClose"
+              @toggle-fullscreen="handleToggleFullscreen"
+            />
           </div>
 
-          <!-- Desktop: Right Sidebar Metadata Panel -->
-          <LightboxDesktopPanel
-            v-if="isDesktop && !isFullscreen"
-            :meta="meta"
-            :is-loading="isLoading"
-            :image-name="lightbox.itemName"
-            :size-text="sizeText"
-            :date-text="dateText"
-            :gen-time-text="genTimeText"
-            :can-fullscreen="canFullscreen"
-            :is-fullscreen="isFullscreen"
-            :copy-status="copyStatus"
-            :copy-text="copyText"
-            @close="handleClose"
-            @toggle-fullscreen="handleToggleFullscreen"
-          />
+          <!-- Fullscreen overlay controls -->
+          <div v-if="isFullscreen" class="fs-controls">
+            <button 
+              class="fs-btn" 
+              @click="exitFullscreen"
+              title="Exit fullscreen"
+            >
+              <Minimize :size="20" :stroke-width="1.5" />
+            </button>
+            <button 
+              class="fs-btn" 
+              @click="handleClose"
+              title="Close"
+            >
+              <X :size="20" :stroke-width="1.5" />
+            </button>
+          </div>
         </div>
 
-        <!-- Fullscreen overlay controls -->
-        <div v-if="isFullscreen" class="fs-controls">
-          <button 
-            class="fs-btn" 
-            @click="exitFullscreen"
-            title="Exit fullscreen"
-          >
-            <Minimize :size="20" :stroke-width="1.5" />
-          </button>
-          <button 
-            class="fs-btn" 
-            @click="handleClose"
-            title="Close"
-          >
-            <X :size="20" :stroke-width="1.5" />
-          </button>
-        </div>
-
-        <!-- Tablet: Bottom Sheet with 2-column layout -->
+        <!-- Tablet: Bottom Sheet with 2-column layout (outside dismiss wrapper to preserve fixed positioning) -->
         <LightboxTabletPanel
           v-if="isTablet && showSheet && !isFullscreen"
           :meta="meta"
@@ -463,7 +545,7 @@ function handleToggleFullscreen() {
           @close="handleSheetClosed"
         />
 
-        <!-- Mobile: Bottom Sheet -->
+        <!-- Mobile: Bottom Sheet (outside dismiss wrapper to preserve fixed positioning) -->
         <LightboxMobileSheet
           v-if="isMobile && showSheet && !isFullscreen"
           :meta="meta"
@@ -499,11 +581,57 @@ function handleToggleFullscreen() {
 .lightbox-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.95);
   z-index: 9999;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Dismiss wrapper — slides down on vertical swipe */
+.lightbox-dismiss-wrapper {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  will-change: transform;
+
+  &.is-dismiss-snapping {
+    transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+/* Mobile close button (X) — top-left with safe-area-inset-top */
+.lightbox-close-btn {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 12px);
+  left: 12px;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  cursor: pointer;
+  z-index: 60;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.2s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.16);
+  }
+
+  &:active {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring-shadow);
+  }
 }
 
 .lightbox-shell {
