@@ -75,6 +75,20 @@ const isDismissSnapping = ref(false);
 const backdropOpacity = ref(0.95);
 const DISMISS_THRESHOLD = 80;
 
+// Controls visibility (tap-to-toggle + auto-hide)
+const controlsVisible = ref(true);
+let controlsTimer: ReturnType<typeof setTimeout> | null = null;
+
+function toggleControls() {
+  controlsVisible.value = !controlsVisible.value;
+  if (controlsTimer) clearTimeout(controlsTimer);
+  if (controlsVisible.value) {
+    controlsTimer = setTimeout(() => {
+      controlsVisible.value = false;
+    }, 3000);
+  }
+}
+
 function resetTrackPosition() {
   const vw = window.innerWidth || 1;
   trackOffset.value = -vw;
@@ -138,8 +152,8 @@ function handleSwipeMove(e: TouchEvent) {
       document.body.style.overflow = 'hidden';
       document.body.style.position = 'fixed';
       document.body.style.width = '100%';
-    } else if (!showSheet.value) {
-      // Vertical dismiss (only when metadata sheet is closed)
+    } else {
+      // Vertical gesture
       isSwiping.value = true;
     }
   }
@@ -157,18 +171,35 @@ function handleSwipeMove(e: TouchEvent) {
       animFrameId = 0;
     });
   } else {
-    // Vertical swipe downward → dismiss lightbox
-    if (deltaY < 0) return; // Only downward
-    if (showSheet.value) return; // Let metadata sheet handle vertical swipes
-
-    swipeDeltaY = deltaY;
-    if (animFrameId) cancelAnimationFrame(animFrameId);
-    animFrameId = requestAnimationFrame(() => {
-      dismissY.value = deltaY;
-      // Map backdrop from 0.95 → 0.65 as deltaY goes 0 → DISMISS_THRESHOLD
-      backdropOpacity.value = Math.max(0.65, 0.95 - (deltaY / DISMISS_THRESHOLD) * 0.3);
-      animFrameId = 0;
-    });
+    // Vertical gesture
+    if (showSheet.value) {
+      // Sheet is open — track gesture for sheet interaction
+      isSwiping.value = true;
+      swipeDeltaY = deltaY;
+      if (animFrameId) cancelAnimationFrame(animFrameId);
+      animFrameId = requestAnimationFrame(() => {
+        // Subtle drag feedback but less than dismiss (no full dismiss animation)
+        dismissY.value = Math.max(0, deltaY * 0.3); // Only track downward, dampened
+        if (deltaY > 0) {
+          backdropOpacity.value = Math.max(0.85, 0.95 - (deltaY / DISMISS_THRESHOLD) * 0.15);
+        }
+        animFrameId = 0;
+      });
+    } else {
+      // Sheet is closed
+      isSwiping.value = true;
+      swipeDeltaY = deltaY;
+      if (deltaY > 0) {
+        // Downward → dismiss lightbox
+        if (animFrameId) cancelAnimationFrame(animFrameId);
+        animFrameId = requestAnimationFrame(() => {
+          dismissY.value = deltaY;
+          backdropOpacity.value = Math.max(0.65, 0.95 - (deltaY / DISMISS_THRESHOLD) * 0.3);
+          animFrameId = 0;
+        });
+      }
+      // Upward (deltaY < 0) — just track, will open sheet on end
+    }
   }
 }
 
@@ -211,24 +242,45 @@ function handleSwipeEnd() {
     document.body.style.position = '';
     document.body.style.width = '';
     swipeDeltaX = 0;
-  } else if (isHorizontalSwipe === false && swipeDeltaY > 0) {
-    // Vertical end: dismiss or snap back
+  } else if (isHorizontalSwipe === false) {
+    // Vertical gesture end
     isSwiping.value = false;
-    isDismissSnapping.value = true;
 
-    if (swipeDeltaY > DISMISS_THRESHOLD) {
-      // Dismiss — animate content down and close
-      dismissY.value = window.innerHeight;
-      setTimeout(() => {
-        handleClose();
-      }, 240);
-    } else {
-      // Snap back to original position
+    if (showSheet.value) {
+      // Sheet is open — sheet interaction on the image area
+      isDismissSnapping.value = true;
+      if (swipeDeltaY > DISMISS_THRESHOLD) {
+        // Downward → close sheet
+        handleSheetClosed();
+      }
+      // Snap back
       dismissY.value = 0;
       backdropOpacity.value = 0.95;
-      setTimeout(() => {
-        isDismissSnapping.value = false;
-      }, 280);
+      setTimeout(() => { isDismissSnapping.value = false; }, 280);
+    } else {
+      // Sheet is closed
+      if (swipeDeltaY > DISMISS_THRESHOLD) {
+        // Downward → dismiss lightbox
+        isDismissSnapping.value = true;
+        dismissY.value = window.innerHeight;
+        setTimeout(() => {
+          handleClose();
+          dismissY.value = 0;
+          backdropOpacity.value = 0.95;
+          isDismissSnapping.value = false;
+        }, 240);
+      } else if (swipeDeltaY < -DISMISS_THRESHOLD) {
+        // Upward → open metadata sheet
+        toggleSheet();
+        dismissY.value = 0;
+        backdropOpacity.value = 0.95;
+      } else {
+        // Insufficient distance → snap back
+        isDismissSnapping.value = true;
+        dismissY.value = 0;
+        backdropOpacity.value = 0.95;
+        setTimeout(() => { isDismissSnapping.value = false; }, 280);
+      }
     }
     swipeDeltaY = 0;
   }
@@ -298,17 +350,29 @@ watch(show, (isOpen) => {
     backdropOpacity.value = 0.95;
     isDismissSnapping.value = false;
     showSheet.value = false;
+    controlsVisible.value = true;
+    // Start auto-hide timer
+    if (controlsTimer) clearTimeout(controlsTimer);
+    controlsTimer = setTimeout(() => {
+      controlsVisible.value = false;
+    }, 3000);
     focusTrap.activate();
   } else {
     focusTrap.deactivate();
     if (document.fullscreenElement) {
       exitFullscreen();
     }
+    // Clean up auto-hide timer
+    if (controlsTimer) clearTimeout(controlsTimer);
+    controlsTimer = null;
   }
 });
 
 function toggleSheet() {
   showSheet.value = !showSheet.value;
+  if (showSheet.value) {
+    controlsVisible.value = true;
+  }
 }
 
 function handleSheetClosed() {
@@ -324,6 +388,8 @@ onUnmounted(() => {
   window.removeEventListener("keydown", handleKeydown);
   document.removeEventListener("fullscreenchange", handleFullscreenChange);
   focusTrap.deactivate();
+  if (controlsTimer) clearTimeout(controlsTimer);
+  controlsTimer = null;
 });
 
 watch(
@@ -436,7 +502,7 @@ function handleToggleFullscreen() {
                 <div class="lightbox-slide" v-else />
 
                 <!-- Current slide -->
-                <div class="lightbox-slide">
+                <div class="lightbox-slide" @click.stop="toggleControls">
                   <img
                     v-if="lightbox.itemPath && !imageError"
                     :src="displayUrl"
@@ -487,6 +553,7 @@ function handleToggleFullscreen() {
               <button 
                 class="mobile-info-btn" 
                 v-if="!isDesktop" 
+                v-show="controlsVisible"
                 @click.stop="toggleSheet" 
                 title="Image Info"
               >
@@ -494,7 +561,7 @@ function handleToggleFullscreen() {
               </button>
 
               <!-- Mobile photo counter -->
-              <div v-if="!isDesktop" class="mobile-photo-counter">
+              <div v-if="!isDesktop" v-show="controlsVisible" class="mobile-photo-counter">
                 {{ lightbox.currentIndex + 1 }} / {{ lightbox.galleryItems.length }}
               </div>
             </div>
