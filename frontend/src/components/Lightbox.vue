@@ -65,6 +65,11 @@ const SWIPE_THRESHOLD_PX = 100;
 const SWIPE_THRESHOLD_RATIO = 0.3;
 let animFrameId = 0;
 
+function resetTrackPosition() {
+  const vw = window.innerWidth || 1;
+  trackOffset.value = -vw;
+}
+
 // Computed URLs for adjacent images (for 3-slide track)
 const prevSrc = computed(() => {
   if (lightbox.galleryItems.length <= 1) return null;
@@ -98,13 +103,13 @@ onMounted(() => {
   const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
   prefersReducedMotion.value = mq.matches;
   mq.addEventListener('change', (e) => { prefersReducedMotion.value = e.matches; });
+  resetTrackPosition();
 });
 
 function handleSwipeStart(e: TouchEvent) {
   swipeStartX = e.touches[0].clientX;
   swipeDeltaX = 0;
   isSwiping.value = true;
-  trackOffset.value = 0;
 
   // Body scroll lock for iOS Safari — prevents page scroll during swipe
   document.body.style.overflow = 'hidden';
@@ -119,7 +124,8 @@ function handleSwipeMove(e: TouchEvent) {
 
   if (animFrameId) cancelAnimationFrame(animFrameId);
   animFrameId = requestAnimationFrame(() => {
-    trackOffset.value = swipeDeltaX;
+    const vw = window.innerWidth || 1;
+    trackOffset.value = -vw + swipeDeltaX;
     animFrameId = 0;
   });
 }
@@ -133,19 +139,23 @@ function handleSwipeEnd() {
   const threshold = Math.max(SWIPE_THRESHOLD_PX, viewportW * SWIPE_THRESHOLD_RATIO);
 
   if (Math.abs(swipeDeltaX) > threshold) {
-    // Animate track completely off-screen
-    const dir = swipeDeltaX > 0 ? -1 : 1;
-    trackOffset.value = dir > 0 ? -viewportW : viewportW;
-
-    // After transition completes, reset track and navigate
-    setTimeout(() => {
+    if (swipeDeltaX > 0) {
+      // Swiped right → go to prev
       trackOffset.value = 0;
-      if (swipeDeltaX > 0) lightbox.prev();
-      else lightbox.next();
-    }, 280);
+      setTimeout(() => {
+        lightbox.prev();
+        resetTrackPosition();
+      }, 280);
+    } else {
+      // Swiped left → go to next
+      trackOffset.value = -(viewportW * 2);
+      setTimeout(() => {
+        lightbox.next();
+        resetTrackPosition();
+      }, 280);
+    }
   } else {
-    // Snap back to current slide
-    trackOffset.value = 0;
+    resetTrackPosition();
   }
 
   // Restore body scroll
@@ -698,7 +708,7 @@ function handleToggleFullscreen() {
   display: flex;
   height: 100%;
   will-change: transform;
-  contain: layout paint size;
+
 
   &.is-animating {
     transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
