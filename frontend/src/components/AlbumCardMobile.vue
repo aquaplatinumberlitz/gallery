@@ -42,6 +42,7 @@ defineProps<{
   width: 100%;
   cursor: pointer;
   border-radius: 8px;
+  overflow: hidden;            // Outer card clips content — clean straight edge at bottom
   background: var(--gallery-surface-elevated, #ffffff);
   border: 1px solid var(--gallery-border-default, #e5ddd4);
   box-shadow: none;
@@ -50,7 +51,7 @@ defineProps<{
   .album-cover {
     width: 100%;
     aspect-ratio: 1 / 1;
-    border-radius: 8px;            // Increased from 1px → 8px (MD3 standard)
+    border-radius: 8px 8px 0 0;  // Only top corners rounded — bottom is straight horizontal edge
     overflow: hidden;
     border: none;                  // Removed border for cleaner look (Apple Photos style)
     background: var(--surface-color);
