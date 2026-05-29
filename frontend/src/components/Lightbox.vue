@@ -63,11 +63,42 @@ const isAnimated = computed(() => {
 
 // Mouse wheel navigation
 let lastWheelTime = 0;
+
+// Swipe / 3-slide track state
 let swipeStartX = 0;
 let swipeDeltaX = 0;
-let isSwiping = false;
+const isSwiping = ref(false);
+const trackOffset = ref(0);
 const SWIPE_THRESHOLD_PX = 100;
 const SWIPE_THRESHOLD_RATIO = 0.3;
+let animFrameId = 0;
+
+// Computed URLs for adjacent images (for 3-slide track)
+const prevSrc = computed(() => {
+  if (lightbox.galleryItems.length <= 1) return null;
+  const prevIdx = lightbox.currentIndex - 1;
+  if (prevIdx < 0) return null;
+  return getImageUrl(lightbox.galleryItems[prevIdx].path);
+});
+
+const nextSrc = computed(() => {
+  if (lightbox.galleryItems.length <= 1) return null;
+  const nextIdx = lightbox.currentIndex + 1;
+  if (nextIdx >= lightbox.galleryItems.length) return null;
+  return getImageUrl(lightbox.galleryItems[nextIdx].path);
+});
+
+// Preload adjacent images for smooth transitions
+function preloadAdjacent() {
+  const preload = (url: string | null) => {
+    if (!url) return;
+    const img = new window.Image();
+    img.src = url;
+    img.decode().catch(() => {});
+  };
+  preload(prevSrc.value);
+  preload(nextSrc.value);
+}
 
 const prefersReducedMotion = ref(false);
 
@@ -80,47 +111,56 @@ onMounted(() => {
 function handleSwipeStart(e: TouchEvent) {
   swipeStartX = e.touches[0].clientX;
   swipeDeltaX = 0;
-  isSwiping = true;
+  isSwiping.value = true;
+  trackOffset.value = 0;
+
+  // Body scroll lock for iOS Safari — prevents page scroll during swipe
+  document.body.style.overflow = 'hidden';
+  document.body.style.position = 'fixed';
+  document.body.style.width = '100%';
 }
 
 function handleSwipeMove(e: TouchEvent) {
-  if (!isSwiping) return;
+  if (!isSwiping.value) return;
+  e.preventDefault();
   swipeDeltaX = e.touches[0].clientX - swipeStartX;
-  const img = document.querySelector('.hero-image') as HTMLElement;
-  if (img) {
-    img.style.transition = prefersReducedMotion.value ? 'none' : 'transform 0.05s linear';
-    img.style.transform = `translateX(${swipeDeltaX}px) scale(${1 - Math.abs(swipeDeltaX) * 0.001})`;
-  }
+
+  if (animFrameId) cancelAnimationFrame(animFrameId);
+  animFrameId = requestAnimationFrame(() => {
+    trackOffset.value = swipeDeltaX;
+    animFrameId = 0;
+  });
 }
 
 function handleSwipeEnd() {
-  if (!isSwiping) return;
-  isSwiping = false;
-  const img = document.querySelector('.hero-image') as HTMLElement;
+  if (!isSwiping.value) return;
+  isSwiping.value = false;
+  if (animFrameId) { cancelAnimationFrame(animFrameId); animFrameId = 0; }
+
   const viewportW = window.innerWidth;
   const threshold = Math.max(SWIPE_THRESHOLD_PX, viewportW * SWIPE_THRESHOLD_RATIO);
 
   if (Math.abs(swipeDeltaX) > threshold) {
-    // Dismiss — navigate
-    if (swipeDeltaX > 0) {
-      handlePrev();
-    } else {
-      handleNext();
-    }
-    // Reset immediately
-    if (img) {
-      img.style.transition = 'none';
-      img.style.transform = '';
-    }
+    // Animate track completely off-screen
+    const dir = swipeDeltaX > 0 ? -1 : 1;
+    trackOffset.value = dir > 0 ? -viewportW : viewportW;
+
+    // After transition completes, reset track and navigate
+    setTimeout(() => {
+      trackOffset.value = 0;
+      if (swipeDeltaX > 0) lightbox.prev();
+      else lightbox.next();
+    }, 280);
   } else {
-    // Snap back with spring
-    if (img) {
-      img.style.transition = prefersReducedMotion.value 
-        ? 'none' 
-        : 'transform 0.4s cubic-bezier(0.2, 0, 0, 1)';
-      img.style.transform = '';
-    }
+    // Snap back to current slide
+    trackOffset.value = 0;
   }
+
+  // Restore body scroll
+  document.body.style.overflow = '';
+  document.body.style.position = '';
+  document.body.style.width = '';
+
   swipeDeltaX = 0;
 }
 
@@ -219,6 +259,15 @@ watch(
   },
 );
 
+// Preload adjacent images when current index changes
+watch(
+  () => lightbox.currentIndex,
+  () => {
+    preloadAdjacent();
+  },
+  { immediate: true },
+);
+
 const handleImageError = () => {
   // If using display image, try falling back to original once
   if (!useOriginal.value && lightbox.itemPath) {
@@ -285,6 +334,7 @@ function handleToggleFullscreen() {
           <!-- Left: Image Area -->
           <div 
             class="lightbox-left"
+            :class="{ 'is-swiping': isSwiping }"
             @click.self="handleClose"
             @wheel.prevent="handleWheel"
             @touchstart="handleSwipeStart"
@@ -294,18 +344,39 @@ function handleToggleFullscreen() {
             <div v-if="isLoading" class="image-loading">
               <Loader :size="24" :stroke-width="1.5" class="lucide-spin" />
             </div>
-            
-            <img 
-              v-if="lightbox.itemPath && !imageError" 
-              :src="displayUrl" 
-              class="hero-image" 
-              :class="{ loading: isLoading }"
-              @error="handleImageError"
-              :alt="lightbox.itemName || 'Gallery image'"
-            />
-            <div v-else class="hero-placeholder">
-              <Image :size="24" :stroke-width="1.5" />
-              <p>Unable to display this image.</p>
+
+            <!-- 3-slide track for smooth swipe transitions -->
+            <div class="lightbox-track"
+              :style="{ transform: `translate3d(${trackOffset}px, 0, 0)` }"
+              :class="{ 'is-animating': !isSwiping }"
+            >
+              <!-- Previous slide -->
+              <div class="lightbox-slide" v-if="prevSrc">
+                <img :src="prevSrc" alt="" />
+              </div>
+              <div class="lightbox-slide" v-else />
+
+              <!-- Current slide -->
+              <div class="lightbox-slide">
+                <img
+                  v-if="lightbox.itemPath && !imageError"
+                  :src="displayUrl"
+                  class="hero-image"
+                  :class="{ loading: isLoading }"
+                  @error="handleImageError"
+                  :alt="lightbox.itemName || 'Gallery image'"
+                />
+                <div v-else class="hero-placeholder">
+                  <Image :size="24" :stroke-width="1.5" />
+                  <p>Unable to display this image.</p>
+                </div>
+              </div>
+
+              <!-- Next slide -->
+              <div class="lightbox-slide" v-if="nextSrc">
+                <img :src="nextSrc" alt="" />
+              </div>
+              <div class="lightbox-slide" v-else />
             </div>
 
             <!-- Navigation Buttons (desktop only) -->
@@ -498,6 +569,8 @@ function handleToggleFullscreen() {
   max-height: 100%;
   object-fit: contain;
   transition: opacity 0.2s;
+  transform: translateZ(0);
+  backface-visibility: hidden;
   
   &.loading {
     opacity: 0.5;
@@ -622,6 +695,48 @@ function handleToggleFullscreen() {
   white-space: nowrap;
   user-select: none;
   z-index: 5;
+}
+
+// =============================================
+// 3-SLIDE TRACK (mobile swipe)
+// =============================================
+
+.lightbox-left {
+  overflow: hidden;
+
+  &.is-swiping {
+    // Hide expensive overlays/effects during drag for jank-free compositing
+    .mobile-info-btn { display: none; }
+    .mobile-photo-counter { opacity: 0; }
+  }
+}
+
+.lightbox-track {
+  display: flex;
+  height: 100%;
+  will-change: transform;
+  contain: layout paint size;
+
+  &.is-animating {
+    transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+.lightbox-slide {
+  flex: 0 0 100%;
+  height: 100%;
+  width: 100%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+
+  img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
 }
 
 // =============================================
