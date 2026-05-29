@@ -4,7 +4,7 @@ import { useLightboxStore } from "../stores/lightbox";
 import { useFocusTrap } from "../composables/useFocusTrap";
 import { useClipboard } from "../composables/useClipboard";
 import { useDevice } from "../composables/useDevice";
-import { getImageUrl, getThumbnailUrl } from "../services/api";
+import { getImageUrl } from "../services/api";
 import {
   Loader, Image, ChevronLeft, ChevronRight, Minimize, X,
   Info,
@@ -52,14 +52,6 @@ const genTimeText = computed(() => {
 const hasPrev = computed(() => lightbox.currentIndex > 0);
 const hasNext = computed(() => lightbox.currentIndex < lightbox.galleryItems.length - 1);
 const imageError = ref(false);
-const manualOriginal = ref(false);
-const fallbackOriginal = ref(false);
-const useOriginal = computed(() => manualOriginal.value || fallbackOriginal.value);
-const isAnimated = computed(() => {
-  const name = lightbox.itemName || lightbox.metadata?.name || "";
-  const ext = name.split(".").pop()?.toLowerCase();
-  return ext === "gif" || ext === "webp";
-});
 
 // Mouse wheel navigation
 let lastWheelTime = 0;
@@ -254,8 +246,6 @@ watch(
   () => lightbox.itemPath,
   () => {
     imageError.value = false;
-    manualOriginal.value = false;
-    fallbackOriginal.value = false;
   },
 );
 
@@ -269,20 +259,14 @@ watch(
 );
 
 const handleImageError = () => {
-  // If using display image, try falling back to original once
-  if (!useOriginal.value && lightbox.itemPath) {
-    fallbackOriginal.value = true;
-    return;
-  }
   imageError.value = true;
 };
 
 const displayUrl = computed(() => {
   if (!lightbox.itemPath) return "";
-  const forceOriginal = isAnimated.value || useOriginal.value;
-  return forceOriginal
-    ? getImageUrl(lightbox.itemPath)
-    : getThumbnailUrl(lightbox.itemPath, 2048); // display size ~2K
+  // Always use the full original image in the lightbox for correct aspect ratio.
+  // Thumbnail pipeline can produce stretched output on some mobile browsers.
+  return getImageUrl(lightbox.itemPath);
 });
 
 // Fullscreen
@@ -291,7 +275,6 @@ const canFullscreen = computed(() => typeof document !== "undefined" && document
 const handleFullscreenChange = () => {
   const active = !!document.fullscreenElement;
   isFullscreen.value = active;
-  manualOriginal.value = active; // fullscreen prefers original image
 };
 
 const enterFullscreen = async () => {
