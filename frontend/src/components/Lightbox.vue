@@ -308,7 +308,8 @@ function handleToggleFullscreen() {
               <p>Unable to display this image.</p>
             </div>
 
-            <!-- Navigation Buttons -->
+            <!-- Navigation Buttons (desktop only) -->
+            <template v-if="isDesktop">
             <button 
               class="nav-btn prev" 
               :disabled="!hasPrev"
@@ -325,6 +326,7 @@ function handleToggleFullscreen() {
             >
               <ChevronRight :size="24" :stroke-width="1.5" />
             </button>
+            </template>
             
             <!-- Image counter for screen readers -->
             <div class="sr-only">
@@ -340,6 +342,11 @@ function handleToggleFullscreen() {
             >
               <Info :size="20" :stroke-width="1.5" />
             </button>
+
+            <!-- Mobile photo counter -->
+            <div v-if="!isDesktop" class="mobile-photo-counter">
+              {{ lightbox.currentIndex + 1 }} / {{ lightbox.galleryItems.length }}
+            </div>
           </div>
 
           <!-- Desktop: Right Sidebar Metadata Panel -->
@@ -595,6 +602,28 @@ function handleToggleFullscreen() {
   }
 }
 
+/* Mobile photo counter (shown on non-desktop) */
+.mobile-photo-counter {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  padding: 4px 12px;
+  border-radius: 100px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  pointer-events: none;
+  white-space: nowrap;
+  user-select: none;
+  z-index: 5;
+}
+
 // =============================================
 // RESPONSIVE BREAKPOINTS
 // =============================================
@@ -608,10 +637,6 @@ function handleToggleFullscreen() {
   .lightbox-left {
     flex: 1;
     min-height: 0;
-  }
-
-  .nav-btn {
-    opacity: 0.8 !important;
   }
 
   .nav-btn.prev { left: 8px; }
