@@ -19,6 +19,15 @@ export function useScrollVisibility(containerRef?: Ref<HTMLElement | null>) {
       rafId = requestAnimationFrame(() => {
         rafId = 0
         const st = el.scrollTop
+
+        // ★ BOTTOM GUARD: prevent toggle when near bottom
+        // to avoid layout-shift / rubber-band feedback loop on iOS
+        const nearBottom = el.scrollHeight - el.clientHeight - st < 150
+        if (nearBottom && st > 0) {
+          lastScrollY = st
+          return
+        }
+
         if (st <= 0) {
           barsVisible.value = true
           isScrollingDown.value = false
