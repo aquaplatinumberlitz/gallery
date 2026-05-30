@@ -3,36 +3,6 @@
 // Bottom sheet for mobile metadata display
 // ============================================
 
-/* Mobile info button */
-.mobile-info-btn {
-  position: absolute;
-  bottom: 16px;
-  right: 16px;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: var(--gallery-lightbox-overlay, rgba(0,0,0,0.6));
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: #fff;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 2000;
-  backdrop-filter: blur(6px);
-  transition: all 0.2s ease;
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.16);
-    border-color: rgba(255, 255, 255, 0.5);
-  }
-
-  &:focus-visible {
-    outline: none;
-    box-shadow: var(--focus-ring-shadow);
-  }
-}
-
 /* MOBILE BOTTOM SHEET STYLES */
 .mobile-sheet {
   position: fixed;

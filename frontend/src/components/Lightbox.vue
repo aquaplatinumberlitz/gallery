@@ -6,7 +6,6 @@ import { useClipboard } from "../composables/useClipboard";
 import { useDevice } from "../composables/useDevice";
 import {
   Minimize, X,
-  Info,
 } from "lucide-vue-next";
 import LightboxDesktopPanel from "./LightboxDesktopPanel.vue";
 import LightboxTabletPanel from "./LightboxTabletPanel.vue";
@@ -261,13 +260,12 @@ function handleToggleFullscreen() {
             :close-on-vertical-drag="false"
             :allow-pan-to-next="true"
             :thumbnail-size="2048"
+            :show-info-button="true"
+            :metadata-open="showSheet"
             @close="handleClose"
             @index-change="handleIndexChange"
+            @toggle-metadata="toggleSheet"
           />
-          <button class="mobile-info-btn" v-show="controlsVisible"
-            @click.stop="toggleSheet" title="Image Info">
-            <Info :size="20" :stroke-width="1.5" />
-          </button>
           <div v-show="controlsVisible" class="mobile-photo-counter">
             {{ lightbox.currentIndex + 1 }} / {{ lightbox.galleryItems.length }}
           </div>
@@ -295,17 +293,13 @@ function handleToggleFullscreen() {
           :items="lightbox.galleryItems"
           :current-index="lightbox.currentIndex"
           :is-open="show"
+          :metadata-open="showSheet"
           @close="handlePhotoSwipeClose"
           @index-change="handlePhotoSwipeIndexChange"
+          @toggle-metadata="toggleSheet"
         />
         <template v-if="isMobile">
-          <button
-            class="mobile-info-btn"
-            @click.stop="toggleSheet"
-            title="Image Info"
-          >
-            <Info :size="20" :stroke-width="1.5" />
-          </button>
+
           <div v-show="controlsVisible" class="mobile-photo-counter">
             {{ lightbox.currentIndex + 1 }} / {{ lightbox.galleryItems.length }}
           </div>
@@ -385,36 +379,6 @@ function handleToggleFullscreen() {
   box-shadow: var(--focus-ring-shadow);
 }
 
-/* Info button for tablet + mobile devices — fixed positioning ensures it's always tappable above all layers */
-.mobile-info-btn {
-  position: fixed;
-  bottom: max(16px, env(safe-area-inset-bottom, 16px));
-  right: 16px;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 10001;
-  backdrop-filter: blur(6px);
-  touch-action: manipulation;
-  transition: all 0.2s ease;
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.16);
-    border-color: rgba(255, 255, 255, 0.5);
-  }
-
-  &:focus-visible {
-    outline: none;
-    box-shadow: var(--focus-ring-shadow);
-  }
-}
 
 /* Mobile photo counter (shown on non-desktop) */
 .mobile-photo-counter {

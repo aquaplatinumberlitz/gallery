@@ -13,11 +13,15 @@ const props = defineProps<{
   closeOnVerticalDrag: boolean;
   allowPanToNext: boolean;
   thumbnailSize: number | null; // null = full-res
+  // Info button (tablet only)
+  showInfoButton?: boolean;
+  metadataOpen?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: "close"): void;
   (e: "indexChange", index: number): void;
+  (e: "toggleMetadata"): void;
 }>();
 
 const containerRef = ref<HTMLElement | null>(null);
@@ -68,7 +72,49 @@ function initPhotoSwipe() {
     emit("close");
   });
 
+  // Register info button as a proper PhotoSwipe 5 UI element (tablet only)
+  if (props.showInfoButton) {
+    pswp.on("uiRegister", () => {
+      pswp!.ui!.registerElement({
+        name: "metadata-info",
+        order: 9,
+        isButton: true,
+        html: {
+          isCustomSVG: true,
+          inner:
+            '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+          size: 24,
+        },
+        onInit: (el: HTMLElement) => {
+          el.classList.add("pswp__button--metadata-info");
+          if (props.metadataOpen) {
+            el.classList.add("active");
+            el.setAttribute("aria-label", "Close image info");
+          } else {
+            el.setAttribute("aria-label", "View image info");
+          }
+        },
+        onClick: () => emit("toggleMetadata"),
+      });
+    });
+  }
+
   pswp.init();
+
+  // After init, move the info button outside .photoswipe-container
+  // into .lightbox-overlay so it can stack above the bottom sheet
+  if (props.showInfoButton) {
+    const infoBtn = document.querySelector<HTMLElement>(
+      ".pswp__button--metadata-info"
+    );
+    if (infoBtn) {
+      infoBtn.classList.remove("pswp__hide-on-close");
+      const overlay = document.querySelector<HTMLElement>(".lightbox-overlay");
+      if (overlay) {
+        overlay.appendChild(infoBtn);
+      }
+    }
+  }
 }
 
 function destroyPhotoSwipe() {
@@ -104,6 +150,17 @@ watch(
     }
   }
 );
+
+// Watch metadataOpen — toggle active state on the info button
+watch(() => props.metadataOpen, (isOpen) => {
+  const btn = document.querySelector<HTMLElement>(
+    ".pswp__button--metadata-info"
+  );
+  if (btn) {
+    btn.classList.toggle("active", !!isOpen);
+    btn.setAttribute("aria-label", isOpen ? "Close image info" : "View image info");
+  }
+});
 
 onMounted(() => {
   if (props.isOpen) {
@@ -145,5 +202,40 @@ onUnmounted(() => {
 .pswp__top-bar {
   opacity: 0 !important;
   pointer-events: none !important;
+}
+
+/* Info button — registered via pswp.ui.registerElement(), moved to .lightbox-overlay */
+.pswp__button--metadata-info {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 4000;
+  backdrop-filter: blur(6px);
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.5);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring-shadow);
+  }
+
+  &.active {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.6);
+  }
 }
 </style>
