@@ -74,7 +74,7 @@ function initPhotoSwipe() {
       html: {
         isCustomSVG: true,
         inner:
-          '<circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.75"/><path d="M12 16v-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/><path d="M12 8h.01" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>',
+          '<path d="M12 11v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 7h.01" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>',
         size: 24,
       },
       onInit: (el: HTMLElement) => {
@@ -207,9 +207,8 @@ onUnmounted(() => {
   background: rgba(0, 0, 0, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.3);
   color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
   cursor: pointer;
   z-index: 4000;
   backdrop-filter: blur(6px);
@@ -233,5 +232,13 @@ onUnmounted(() => {
   &.hidden {
     display: none;
   }
+}
+
+/* Plain "i" icon SVG inside the info button — no outer circle, clean single-ring look */
+.pswp-metadata-info-icon {
+  width: 22px;
+  height: 22px;
+  display: block;
+  pointer-events: none;
 }
 </style>
