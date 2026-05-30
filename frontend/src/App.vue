@@ -19,8 +19,10 @@ import {
 
 const Lightbox = defineAsyncComponent(() => import("./components/Lightbox.vue"));
 
+const { isMobile } = useDevice();
+
 // --- INTRO PAGE LOGIC ---
-const showIntro = ref(true);
+const showIntro = ref(!isMobile.value);
 const introPreviewUrl = ref<string | null>(null);
 const isSettingsOpen = ref(false);
 const handleIntroEnter = () => {
@@ -72,7 +74,6 @@ const scrollerRef = ref<HTMLElement | null>(null);
 provide(galleryScrollContainerRefKey, scrollerRef);
 
 const { barsVisible } = useScrollVisibility(scrollerRef);
-const { isMobile } = useDevice();
 
 const toggleTheme = () => {
   theme.value = theme.value === "light" ? "dark" : "light";
@@ -210,7 +211,6 @@ watch(theme, (val) => {
         @update:search-query="galleryStore.searchQuery = $event"
         @toggle-sidebar="toggleSidebar"
         @toggle-theme="toggleTheme"
-        @open-settings="isSettingsOpen = true"
       />
 
       <AppHeader
