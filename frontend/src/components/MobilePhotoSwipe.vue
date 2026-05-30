@@ -140,13 +140,14 @@ watch(
   }
 );
 
-// Watch metadataOpen — toggle active state on the info button
+// Watch metadataOpen — toggle active state and visibility on the info button
 watch(() => props.metadataOpen, (isOpen) => {
   const btn = document.querySelector<HTMLElement>(
     ".pswp__button--metadata-info"
   );
   if (btn) {
     btn.classList.toggle("active", !!isOpen);
+    btn.classList.toggle("hidden", !!isOpen);
     btn.setAttribute("aria-label", isOpen ? "Close image info" : "View image info");
   }
 });
@@ -227,6 +228,10 @@ onUnmounted(() => {
   &.active {
     background: rgba(255, 255, 255, 0.2);
     border-color: rgba(255, 255, 255, 0.6);
+  }
+
+  &.hidden {
+    display: none;
   }
 }
 </style>

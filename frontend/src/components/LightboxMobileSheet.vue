@@ -40,10 +40,6 @@ function setTab(tab: string) {
   hapticLight();
 }
 
-function toggleExpanded() {
-  sheetExpanded.value = !sheetExpanded.value;
-}
-
 function closeSheet() {
   sheetExpanded.value = false;
   emit('close');
@@ -80,7 +76,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
       @touchmove="onSheetTouchMove"
       @touchend="onSheetTouchEnd"
     >
-      <div class="sheet-handle-wrapper" @click="toggleExpanded">
+      <div class="sheet-handle-wrapper" @click="closeSheet">
         <div class="sheet-handle" />
       </div>
 
