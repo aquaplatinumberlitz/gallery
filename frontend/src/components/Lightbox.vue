@@ -12,6 +12,7 @@ import {
 import LightboxDesktopPanel from "./LightboxDesktopPanel.vue";
 import LightboxTabletPanel from "./LightboxTabletPanel.vue";
 import LightboxMobileSheet from "./LightboxMobileSheet.vue";
+import MobilePhotoSwipe from "./MobilePhotoSwipe.vue";
 
 const { isDesktop, isTablet, isMobile } = useDevice();
 
@@ -328,13 +329,29 @@ const handleNext = () => {
   }
 };
 
-const handleClose = () => {
+function handleClose() {
   if (isFullscreen.value) {
     exitFullscreen();
   }
   showSheet.value = false;
   lightbox.close();
-};
+}
+
+// PhotoSwipe handlers (mobile only)
+function handlePhotoSwipeClose() {
+  handleClose();
+}
+
+function handlePhotoSwipeIndexChange(newIndex: number) {
+  const item = lightbox.galleryItems[newIndex];
+  if (item && item.path !== lightbox.itemPath) {
+    // Update store to reflect PhotoSwipe's new index for metadata fetching
+    lightbox.currentIndex = newIndex;
+    lightbox.itemPath = item.path;
+    lightbox.itemName = item.name || '';
+    lightbox.loadMetadata(item.path);
+  }
+}
 
 // Keyboard navigation
 const handleKeydown = (e: KeyboardEvent) => {
@@ -344,6 +361,9 @@ const handleKeydown = (e: KeyboardEvent) => {
   const target = e.target as HTMLElement;
   if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
   
+  // Skip arrow keys on mobile — PhotoSwipe handles swipe/keyboard navigation
+  if (isMobile.value && (e.key === "ArrowLeft" || e.key === "ArrowRight")) return;
+
   switch (e.key) {
     case "Escape":
       handleClose();
@@ -489,8 +509,18 @@ function handleToggleFullscreen() {
           <X :size="20" :stroke-width="1.5" />
         </button>
 
-        <!-- Dismiss wrapper for vertical swipe-down-to-dismiss -->
-        <div
+        <!-- Mobile: PhotoSwipe image viewer -->
+        <MobilePhotoSwipe
+          v-if="isMobile"
+          :items="lightbox.galleryItems"
+          :current-index="lightbox.currentIndex"
+          :is-open="show"
+          @close="handlePhotoSwipeClose"
+          @index-change="handlePhotoSwipeIndexChange"
+        />
+
+        <!-- Desktop/Tablet: dismiss wrapper with 3-slide track (unchanged) -->
+        <div v-else
           class="lightbox-dismiss-wrapper"
           :style="{ transform: `translate3d(0, ${dismissY}px, 0)` }"
           :class="{ 'is-dismiss-snapping': isDismissSnapping }"
@@ -571,10 +601,10 @@ function handleToggleFullscreen() {
                 Image {{ lightbox.currentIndex + 1 }} of {{ lightbox.galleryItems.length }}
               </div>
 
-              <!-- Info button for bottom-sheet devices (tablet + mobile) -->
+              <!-- Info button for tablet (mobile uses PhotoSwipe with separate overlay) -->
               <button 
                 class="mobile-info-btn" 
-                v-if="!isDesktop" 
+                v-if="isTablet" 
                 v-show="controlsVisible"
                 @click.stop="toggleSheet" 
                 title="Image Info"
@@ -582,8 +612,8 @@ function handleToggleFullscreen() {
                 <Info :size="20" :stroke-width="1.5" />
               </button>
 
-              <!-- Mobile photo counter -->
-              <div v-if="!isDesktop" v-show="controlsVisible" class="mobile-photo-counter">
+              <!-- Tablet photo counter -->
+              <div v-if="isTablet" v-show="controlsVisible" class="mobile-photo-counter">
                 {{ lightbox.currentIndex + 1 }} / {{ lightbox.galleryItems.length }}
               </div>
             </div>
@@ -624,6 +654,21 @@ function handleToggleFullscreen() {
             </button>
           </div>
         </div>
+
+        <!-- Mobile: info button and photo counter overlay (on top of PhotoSwipe) -->
+        <template v-if="isMobile">
+          <button
+            class="mobile-info-btn"
+            v-show="controlsVisible"
+            @click.stop="toggleSheet"
+            title="Image Info"
+          >
+            <Info :size="20" :stroke-width="1.5" />
+          </button>
+          <div v-show="controlsVisible" class="mobile-photo-counter">
+            {{ lightbox.currentIndex + 1 }} / {{ lightbox.galleryItems.length }}
+          </div>
+        </template>
 
         <!-- Tablet: Bottom Sheet with 2-column layout (outside dismiss wrapper to preserve fixed positioning) -->
         <LightboxTabletPanel
@@ -875,7 +920,7 @@ function handleToggleFullscreen() {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  z-index: 5;
+  z-index: 2000;
   backdrop-filter: blur(6px);
   transition: all 0.2s ease;
 
@@ -909,7 +954,7 @@ function handleToggleFullscreen() {
   pointer-events: none;
   white-space: nowrap;
   user-select: none;
-  z-index: 5;
+  z-index: 2000;
 }
 
 // =============================================

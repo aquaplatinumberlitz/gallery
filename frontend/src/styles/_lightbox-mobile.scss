@@ -18,7 +18,7 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  z-index: 5;
+  z-index: 2000;
   backdrop-filter: blur(6px);
   transition: all 0.2s ease;
 
@@ -37,7 +37,7 @@
 .mobile-sheet {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: 3000;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -317,3 +317,9 @@
     transform: none;
   }
 }
+
+/* ============================================
+   PhotoSwipe 5 Theme Overrides
+   Applied to .pswp elements rendered inside MobilePhotoSwipe.vue
+   Non-scoped global styles (defined here via unscoped style in component)
+   ============================================ */
