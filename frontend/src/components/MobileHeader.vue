@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { ref, nextTick, onBeforeUnmount, computed, watch } from 'vue'
-import { Menu, Search, Settings, X, ArrowLeft } from 'lucide-vue-next'
+import { ref, nextTick, onBeforeUnmount, onMounted, computed, watch } from 'vue'
+import { Menu, Search, Settings, X, ArrowLeft, ArrowUpDown } from 'lucide-vue-next'
+import { useGalleryStore } from '../stores/gallery'
+import type { SortField, SortOrder } from '../types'
 
 interface Props {
   isDark: boolean
@@ -76,6 +78,7 @@ function handleGlobalKeydown(e: KeyboardEvent) {
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleGlobalKeydown)
+  document.removeEventListener('click', closeSortPopover)
 })
 
 // Watch for activation to add global listener
@@ -92,6 +95,53 @@ function onSearchInput(e: Event) {
   const target = e.target as HTMLInputElement
   emit('update:searchQuery', target.value)
 }
+
+// ── Sort popover ──
+const galleryStore = useGalleryStore()
+
+const showSortPopover = ref(false)
+const sortPopoverRef = ref<HTMLElement | null>(null)
+
+const sortField = computed(() => galleryStore.sortField)
+const sortOrder = computed(() => galleryStore.sortOrder)
+
+interface MobileSortOption {
+  field: SortField
+  order: SortOrder
+  label: string
+}
+
+const mobileSortOptions: MobileSortOption[] = [
+  { field: 'name', order: 'asc', label: 'Tên' },
+  { field: 'date', order: 'desc', label: 'Mới nhất' },
+  { field: 'date', order: 'asc', label: 'Cũ nhất' },
+  { field: 'name', order: 'asc', label: 'A-Z' },
+  { field: 'name', order: 'desc', label: 'Z-A' },
+]
+
+const isActiveSort = (opt: MobileSortOption): boolean =>
+  sortField.value === opt.field && sortOrder.value === opt.order
+
+function toggleSortPopover() {
+  showSortPopover.value = !showSortPopover.value
+}
+
+function selectMobileSort(opt: MobileSortOption) {
+  galleryStore.setSortField(opt.field)
+  galleryStore.setSortOrder(opt.order)
+  showSortPopover.value = false
+}
+
+function closeSortPopover(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  if (!target.closest('.mobile-sort-dropdown')) {
+    showSortPopover.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', closeSortPopover)
+})
 </script>
 
 <template>
@@ -155,7 +205,33 @@ function onSearchInput(e: Event) {
       </div>
     </div>
 
-    <!-- Right: theme & settings (hidden in search mode) -->
+    <!-- Right: sort, theme & settings (hidden in search mode) -->
+    <div v-if="!isSearchActive" class="mobile-sort-dropdown" :class="{ open: showSortPopover }">
+      <button
+        class="mh-btn mh-sort-btn"
+        @click.stop="toggleSortPopover"
+        aria-label="Sort options"
+      >
+        <ArrowUpDown />
+      </button>
+      <Transition name="sort-popover">
+        <div
+          v-if="showSortPopover"
+          ref="sortPopoverRef"
+          class="mobile-sort-popover"
+        >
+          <button
+            v-for="opt in mobileSortOptions"
+            :key="`${opt.field}-${opt.order}`"
+            class="mobile-sort-option"
+            :class="{ active: isActiveSort(opt) }"
+            @click="selectMobileSort(opt)"
+          >
+            <span>{{ opt.label }}</span>
+          </button>
+        </div>
+      </Transition>
+    </div>
     <button
       v-if="!isSearchActive"
       class="mh-btn"
@@ -569,6 +645,100 @@ function onSearchInput(e: Event) {
   .search-focus-input-icon {
     width: 14px;
     height: 14px;
+  }
+}
+
+/* ============================================================
+   Mobile Sort Popover
+   ============================================================ */
+.mobile-sort-dropdown {
+  position: relative;
+}
+
+.mh-sort-btn {
+  position: relative;
+  z-index: 1;
+}
+
+.mobile-sort-popover {
+  position: absolute;
+  top: auto;
+  bottom: calc(100% + 8px);
+  right: 0;
+  min-width: 130px;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  padding: 6px;
+  z-index: 200;
+  overflow: hidden;
+}
+
+.mobile-sort-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--text-color);
+  font-size: 14px;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+  font-weight: 500;
+}
+
+.mobile-sort-option:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.mobile-sort-option:active {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.mobile-sort-option.active {
+  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+/* Dark theme active option */
+:root[data-theme="dark"] .mobile-sort-option:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:root[data-theme="dark"] .mobile-sort-option:active {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* Sort popover animation */
+.sort-popover-enter-active,
+.sort-popover-leave-active {
+  transition: all 0.2s ease;
+  transform-origin: bottom right;
+}
+
+.sort-popover-enter-from,
+.sort-popover-leave-to {
+  opacity: 0;
+  transform: scale(0.92) translateY(4px);
+}
+
+/* Compact popover on small screens */
+@media (max-width: 480px) {
+  .mobile-sort-popover {
+    min-width: 110px;
+    right: -4px;
+  }
+
+  .mobile-sort-option {
+    padding: 8px 10px;
+    font-size: 13px;
   }
 }
 
