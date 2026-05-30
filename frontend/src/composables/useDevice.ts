@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 export const BREAKPOINTS = {
   compact: 480,
   phone: 768,
-  tablet: 1024,
+  tablet: 1200,
   desktop: Infinity,
 } as const
 
