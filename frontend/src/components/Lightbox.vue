@@ -432,12 +432,22 @@ function handleToggleFullscreen() {
 }
 </style>
 
-<!-- Ensure PS5 native arrows work with desktop sidebar -->
+<!-- Lightbox CSS variable definitions + PhotoSwipe right arrow fix -->
 <style lang="scss">
-/* The sidebar .lightbox-right (z-index:10000) covers right 400px of viewport.
-   .photoswipe-container (z-index:1) is behind the sidebar (stacking context).
-   Moving the next arrow left of the sidebar avoids this without z-index hacks. */
+/*
+  The sidebar .lightbox-right sits in front of PhotoSwipe, covering the right
+  ~400px of the viewport. This makes PhotoSwipe's native next arrow (which
+  PhotoSwipe positions near the right edge) unclickable.
+
+  Instead of z-index hacks, we simply offset the next arrow left of the sidebar
+  by the sidebar width + a gap. CSS variables keep sidebar and arrow in sync.
+*/
+.lightbox-overlay {
+  --lightbox-sidebar-width: 400px;
+  --lightbox-arrow-gap: 16px;
+}
+
 .pswp__button--arrow--next {
-  right: 416px !important; /* 400px sidebar + 16px gap */
+  right: calc(var(--lightbox-sidebar-width) + var(--lightbox-arrow-gap));
 }
 </style>
