@@ -49,10 +49,6 @@ const genTimeText = computed(() => {
   return "";
 });
 
-// Controls visibility (tap-to-toggle + auto-hide)
-const controlsVisible = ref(true);
-let controlsTimer: ReturnType<typeof setTimeout> | null = null;
-
 function handleClose() {
   if (isFullscreen.value) {
     exitFullscreen();
@@ -116,31 +112,17 @@ const handleKeydown = (e: KeyboardEvent) => {
 watch(show, (isOpen) => {
   if (isOpen) {
     showSheet.value = false;
-    controlsVisible.value = true;
-    // Start auto-hide timer
-    if (controlsTimer) clearTimeout(controlsTimer);
-    controlsTimer = setTimeout(() => {
-      controlsVisible.value = false;
-    }, 3000);
     focusTrap.activate();
   } else {
     focusTrap.deactivate();
     if (document.fullscreenElement) {
       exitFullscreen();
     }
-    // Clean up auto-hide timer
-    if (controlsTimer) clearTimeout(controlsTimer);
-    controlsTimer = null;
   }
 });
 
 function toggleSheet() {
   showSheet.value = !showSheet.value;
-  controlsVisible.value = true;
-  if (controlsTimer) clearTimeout(controlsTimer);
-  controlsTimer = setTimeout(() => {
-    controlsVisible.value = false;
-  }, 5000);
 }
 
 function handleSheetClosed() {
@@ -161,8 +143,6 @@ onUnmounted(() => {
   window.removeEventListener("keydown", handleKeydown);
   document.removeEventListener("fullscreenchange", handleFullscreenChange);
   focusTrap.deactivate();
-  if (controlsTimer) clearTimeout(controlsTimer);
-  controlsTimer = null;
 });
 
 // Fullscreen
@@ -266,7 +246,7 @@ function handleToggleFullscreen() {
             @index-change="handleIndexChange"
             @toggle-metadata="toggleSheet"
           />
-          <div v-show="controlsVisible" class="mobile-photo-counter">
+          <div class="mobile-photo-counter">
             {{ lightbox.currentIndex + 1 }} / {{ lightbox.galleryItems.length }}
           </div>
           <LightboxTabletPanel
@@ -299,8 +279,7 @@ function handleToggleFullscreen() {
           @toggle-metadata="toggleSheet"
         />
         <template v-if="isMobile">
-
-          <div v-show="controlsVisible" class="mobile-photo-counter">
+          <div class="mobile-photo-counter">
             {{ lightbox.currentIndex + 1 }} / {{ lightbox.galleryItems.length }}
           </div>
           <LightboxMobileSheet
