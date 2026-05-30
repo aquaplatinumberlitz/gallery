@@ -1,13 +1,22 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { loraHighlighter } from "../utils/loraHighlighter";
 import type { MetadataResponse } from "../types";
 import {
   Loader, Maximize, Minimize, X,
   Calendar, Clock, MessageSquareText, Check, Copy, MessageSquareOff,
   SlidersHorizontal, ChevronDown, Sprout, BrainCircuit, Box, Puzzle, Layers,
-  TriangleAlert,
+  TriangleAlert, ChevronRight,
 } from "lucide-vue-next";
+import {
+  hasCoreParams,
+  hasSecondaryParams,
+  hasModelData,
+  hasAdvancedData,
+  getSecondaryEntries,
+  getExtraParamKeys,
+  EMPTY_SECTION_TEXT,
+} from "../composables/useMetadataSections";
 
 const props = defineProps<{
   meta: MetadataResponse | null;
@@ -27,9 +36,18 @@ const emit = defineEmits<{
   'toggle-fullscreen': [];
 }>();
 
-// Collapsible states — managed internally
+// Collapsible states
 const showGenParams = ref(true);
 const showResources = ref(false);
+const showAdvanced = ref(false);
+
+// Derived flags
+const hasGenData = computed(() => hasCoreParams(props.meta?.params));
+const hasExtraSettings = computed(() => hasSecondaryParams(props.meta?.params));
+const hasModels = computed(() => hasModelData(props.meta));
+const hasAdv = computed(() => hasAdvancedData(props.meta));
+const extraEntries = computed(() => getSecondaryEntries(props.meta?.params));
+const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
 </script>
 
 <template>
@@ -38,7 +56,7 @@ const showResources = ref(false);
       <Loader :size="24" :stroke-width="1.5" class="lucide-spin" />
       <span>Loading info...</span>
     </div>
-    
+
     <div v-else-if="!props.meta" class="meta-error">
       <TriangleAlert :size="24" :stroke-width="1.5" />
       <span>No metadata available</span>
@@ -49,17 +67,17 @@ const showResources = ref(false);
         <div class="header-top">
           <h3 id="lightbox-image-name" :title="props.imageName">{{ props.imageName }}</h3>
           <div class="header-actions">
-            <button 
+            <button
               v-if="props.canFullscreen"
-              class="close-btn-mini fullscreen-btn" 
+              class="close-btn-mini fullscreen-btn"
               @click="emit('toggle-fullscreen')"
               :title="props.isFullscreen ? 'Exit fullscreen' : 'Fullscreen'"
             >
               <Minimize v-if="props.isFullscreen" :size="18" :stroke-width="1.5" />
               <Maximize v-else :size="18" :stroke-width="1.5" />
             </button>
-            <button 
-              class="close-btn-mini" 
+            <button
+              class="close-btn-mini"
               @click="emit('close')"
               title="Close (Escape)"
             >
@@ -76,12 +94,13 @@ const showResources = ref(false);
       </header>
 
       <div class="scroll-content">
-        <!-- Prompt -->
-        <section class="prompt-box" v-if="props.meta?.prompt">
+        <!-- ========== Prompt (core) ========== -->
+        <section class="prompt-box" :class="{ 'is-empty': !props.meta?.prompt }">
           <div class="section-top">
             <h4><MessageSquareText :size="14" :stroke-width="1.5" /> Prompt</h4>
-            <button 
-              type="button" 
+            <button
+              v-if="props.meta?.prompt"
+              type="button"
               class="copy-btn"
               @click="props.copyText(props.meta?.prompt, 'prompt')"
             >
@@ -90,18 +109,21 @@ const showResources = ref(false);
             </button>
           </div>
           <div
+            v-if="props.meta?.prompt"
             class="prompt-body"
             tabindex="-1"
-            v-html="loraHighlighter(props.meta?.prompt || '')"
+            v-html="loraHighlighter(props.meta.prompt)"
           ></div>
+          <p v-else class="empty-text">{{ EMPTY_SECTION_TEXT.prompt }}</p>
         </section>
 
-        <!-- Negative Prompt -->
-        <section class="prompt-box negative" v-if="props.meta?.negative_prompt">
+        <!-- ========== Negative Prompt (core) ========== -->
+        <section class="prompt-box negative" :class="{ 'is-empty': !props.meta?.negative_prompt }">
           <div class="section-top">
             <h4><MessageSquareOff :size="14" :stroke-width="1.5" /> Negative</h4>
-            <button 
-              type="button" 
+            <button
+              v-if="props.meta?.negative_prompt"
+              type="button"
               class="copy-btn"
               @click="props.copyText(props.meta?.negative_prompt, 'neg')"
             >
@@ -110,25 +132,33 @@ const showResources = ref(false);
             </button>
           </div>
           <div
+            v-if="props.meta?.negative_prompt"
             class="prompt-body"
             tabindex="-1"
-            v-html="loraHighlighter(props.meta?.negative_prompt || '')"
+            v-html="loraHighlighter(props.meta.negative_prompt)"
           ></div>
+          <p v-else class="empty-text">{{ EMPTY_SECTION_TEXT.negative_prompt }}</p>
         </section>
 
-        <!-- Generation Parameters -->
-        <section class="meta-group">
-          <div 
-            class="group-header" 
-            @click="showGenParams = !showGenParams"
+        <!-- ========== Generation Data (core) ========== -->
+        <section class="meta-group" :class="{ 'is-empty': !hasGenData }">
+          <div
+            class="group-header"
+            :class="{ 'is-disabled': !hasGenData }"
+            @click="hasGenData && (showGenParams = !showGenParams)"
             tabindex="0"
-            @keydown.enter="showGenParams = !showGenParams"
-            @keydown.space.prevent="showGenParams = !showGenParams"
+            @keydown.enter="hasGenData && (showGenParams = !showGenParams)"
+            @keydown.space.prevent="hasGenData && (showGenParams = !showGenParams)"
           >
             <h4><SlidersHorizontal :size="14" :stroke-width="1.5" /> Generation Data</h4>
-            <ChevronDown :size="12" :stroke-width="1.5" :class="{ rotate: !showGenParams }" />
+            <ChevronDown
+              v-if="hasGenData"
+              :size="12"
+              :stroke-width="1.5"
+              :class="{ rotate: !showGenParams }"
+            />
           </div>
-          <div class="group-content" v-show="showGenParams">
+          <div v-if="hasGenData" class="group-content" v-show="showGenParams">
             <div class="params-grid">
               <div class="param-pill" v-if="props.meta?.params?.Seed">
                 <span class="label">Seed</span>
@@ -160,21 +190,47 @@ const showResources = ref(false);
               </div>
             </div>
           </div>
+          <p v-else class="empty-text" style="padding: 12px;">{{ EMPTY_SECTION_TEXT.generation_data }}</p>
         </section>
 
-        <!-- Models & Resources -->
-        <section class="meta-group">
-          <div 
-            class="group-header" 
-            @click="showResources = !showResources"
+        <!-- ========== Extra Settings (secondary) ========== -->
+        <section v-if="hasExtraSettings" class="meta-group">
+          <div class="group-header static">
+            <h4><SlidersHorizontal :size="14" :stroke-width="1.5" /> Extra Settings</h4>
+          </div>
+          <div class="group-content">
+            <div class="params-grid">
+              <div
+                v-for="entry in extraEntries"
+                :key="entry.key"
+                class="param-pill"
+              >
+                <span class="label">{{ entry.label }}</span>
+                <span class="value">{{ entry.value }}</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========== Model & Resources (core) ========== -->
+        <section class="meta-group" :class="{ 'is-empty': !hasModels }">
+          <div
+            class="group-header"
+            :class="{ 'is-disabled': !hasModels }"
+            @click="hasModels && (showResources = !showResources)"
             tabindex="0"
-            @keydown.enter="showResources = !showResources"
-            @keydown.space.prevent="showResources = !showResources"
+            @keydown.enter="hasModels && (showResources = !showResources)"
+            @keydown.space.prevent="hasModels && (showResources = !showResources)"
           >
             <h4><BrainCircuit :size="14" :stroke-width="1.5" /> Model & Resources</h4>
-            <ChevronDown :size="12" :stroke-width="1.5" :class="{ rotate: !showResources }" />
+            <ChevronDown
+              v-if="hasModels"
+              :size="12"
+              :stroke-width="1.5"
+              :class="{ rotate: !showResources }"
+            />
           </div>
-          <div class="group-content" v-show="showResources">
+          <div v-if="hasModels" class="group-content" v-show="showResources">
             <div class="resource-list">
               <div class="resource-item" v-if="props.meta?.params?.Model">
                 <Box :size="14" :stroke-width="1.5" />
@@ -183,7 +239,7 @@ const showResources = ref(false);
                   <span class="res-name">{{ props.meta.params.Model }}</span>
                 </div>
               </div>
-              
+
               <div class="resource-item" v-for="lora in props.meta?.params?.Lora" :key="lora">
                 <Puzzle :size="14" :stroke-width="1.5" />
                 <div class="res-info">
@@ -205,6 +261,33 @@ const showResources = ref(false);
               </div>
             </div>
           </div>
+          <p v-else class="empty-text" style="padding: 12px;">{{ EMPTY_SECTION_TEXT.model_resources }}</p>
+        </section>
+
+        <!-- ========== Advanced (debug) ========== -->
+        <section v-if="hasAdv" class="meta-group advanced">
+          <div
+            class="group-header"
+            @click="showAdvanced = !showAdvanced"
+            tabindex="0"
+            @keydown.enter="showAdvanced = !showAdvanced"
+            @keydown.space.prevent="showAdvanced = !showAdvanced"
+          >
+            <h4><ChevronRight :size="14" :stroke-width="1.5" :class="{ rotate: showAdvanced }" /> Advanced</h4>
+            <ChevronDown :size="12" :stroke-width="1.5" :class="{ rotate: !showAdvanced }" />
+          </div>
+          <div class="group-content" v-show="showAdvanced">
+            <div class="params-grid">
+              <div
+                v-for="k in extraParamKeys"
+                :key="k"
+                class="param-pill"
+              >
+                <span class="label">{{ k }}</span>
+                <span class="value">{{ props.meta?.params?.[k] }}</span>
+              </div>
+            </div>
+          </div>
         </section>
       </div>
     </template>
@@ -214,4 +297,41 @@ const showResources = ref(false);
 <style scoped lang="scss">
 @import '../styles/lightbox-shared';
 @import '../styles/lightbox-desktop';
+
+// ── Empty state overrides ─────────────────────────────────────────
+.is-empty {
+  opacity: 0.55;
+
+  .group-header.is-disabled {
+    cursor: default;
+    pointer-events: none;
+
+    .chevron,
+    :deep(.lucide-chevron-down) {
+      display: none;
+    }
+  }
+
+  .copy-btn {
+    display: none;
+  }
+}
+
+.empty-text {
+  color: #888;
+  font-size: 13px;
+  font-style: italic;
+  margin: 0;
+  padding: 0 4px;
+}
+
+// ── Advanced section ──────────────────────────────────────────────
+.meta-group.advanced {
+  .group-header h4 :deep(.lucide-chevron-right) {
+    transition: transform 0.2s ease;
+    &.rotate {
+      transform: rotate(90deg);
+    }
+  }
+}
 </style>

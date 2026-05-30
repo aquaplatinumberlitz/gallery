@@ -115,3 +115,24 @@
     transition: none;
   }
 }
+
+/* ==========================================
+   EMPTY STATE — muted placeholders for core sections
+   ========================================== */
+
+.is-empty {
+  opacity: 0.55;
+}
+
+.is-disabled {
+  cursor: default !important;
+  pointer-events: none !important;
+}
+
+.empty-text {
+  color: #888;
+  font-size: 13px;
+  font-style: italic;
+  margin: 0;
+  padding: 4px 0;
+}

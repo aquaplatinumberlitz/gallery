@@ -1,11 +1,20 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { loraHighlighter } from "../utils/loraHighlighter";
 import type { MetadataResponse } from "../types";
 import { useHaptic } from "../composables/useHaptic";
 import {
   Loader, Check, Copy, TriangleAlert,
 } from "lucide-vue-next";
+import {
+  hasCoreParams,
+  hasSecondaryParams,
+  hasModelData,
+  hasAdvancedData,
+  getSecondaryEntries,
+  getExtraParamKeys,
+  EMPTY_SECTION_TEXT,
+} from "../composables/useMetadataSections";
 
 const { light: hapticLight } = useHaptic();
 
@@ -24,6 +33,7 @@ const emit = defineEmits<{
 const sheetExpanded = ref(false);
 const activeTab = ref('prompt');
 const sheetStartY = ref(0);
+const showAdvanced = ref(false);
 
 function setTab(tab: string) {
   activeTab.value = tab;
@@ -45,17 +55,25 @@ function onSheetTouchStart(e: TouchEvent) {
 
 function onSheetTouchMove(e: TouchEvent) {
   const delta = e.touches[0].clientY - sheetStartY.value;
-  if (delta > 50) closeSheet();     // swipe down >50px = close
-  if (delta < -50) sheetExpanded.value = true; // swipe up >50px = expand
+  if (delta > 50) closeSheet();
+  if (delta < -50) sheetExpanded.value = true;
 }
 
 function onSheetTouchEnd() { /* no-op */ }
+
+// Derived
+const hasGenData = computed(() => hasCoreParams(props.meta?.params));
+const hasExtraSettings = computed(() => hasSecondaryParams(props.meta?.params));
+const hasModels = computed(() => hasModelData(props.meta));
+const hasAdv = computed(() => hasAdvancedData(props.meta));
+const extraEntries = computed(() => getSecondaryEntries(props.meta?.params));
+const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
 </script>
 
 <template>
   <div class="mobile-sheet" @click.self="closeSheet">
     <div class="sheet-backdrop" @click.self="closeSheet" />
-    <div 
+    <div
       class="sheet-panel"
       :class="{ 'sheet-expanded': sheetExpanded }"
       @touchstart="onSheetTouchStart"
@@ -65,7 +83,7 @@ function onSheetTouchEnd() { /* no-op */ }
       <div class="sheet-handle-wrapper" @click="toggleExpanded">
         <div class="sheet-handle" />
       </div>
-      
+
       <div class="sheet-tabs" v-if="props.meta">
         <button class="sheet-tab" :class="{ active: activeTab === 'prompt' }" @click="setTab('prompt')">
           Prompt
@@ -77,62 +95,66 @@ function onSheetTouchEnd() { /* no-op */ }
           Model
         </button>
       </div>
-      
+
       <div class="sheet-content" :class="{ 'sheet-content-enter': true }">
         <!-- Loading state -->
         <div v-if="props.isLoading && !props.meta" class="meta-loading">
           <Loader :size="24" :stroke-width="1.5" class="lucide-spin" />
           <span>Loading info...</span>
         </div>
-        
+
         <!-- Error state -->
         <div v-else-if="!props.meta" class="meta-error">
           <TriangleAlert :size="24" :stroke-width="1.5" />
           <span>No metadata available</span>
         </div>
-        
+
         <template v-else>
-          <!-- Tab: Prompt -->
+          <!-- ========== Tab: Prompt ========== -->
           <div v-show="activeTab === 'prompt'" class="sheet-tab-content">
-            <div class="meta-section">
+            <div class="meta-section" :class="{ 'is-empty': !props.meta?.prompt }">
               <div class="section-top">
                 <label class="sheet-label">Prompt</label>
-                <button class="copy-btn" @click="props.copyText(props.meta?.prompt || '', 'prompt')">
+                <button v-if="props.meta?.prompt" class="copy-btn" @click="props.copyText(props.meta?.prompt || '', 'prompt')">
                   <Check v-if="props.copyStatus['prompt']" :size="14" :stroke-width="1.5" style="color: #4ade80" />
                   <Copy v-else :size="14" :stroke-width="1.5" />
                 </button>
               </div>
               <div
+                v-if="props.meta?.prompt"
                 class="sheet-text"
-                v-html="loraHighlighter(props.meta?.prompt || 'No prompt available')"
+                v-html="loraHighlighter(props.meta.prompt)"
               ></div>
+              <p v-else class="empty-text">{{ EMPTY_SECTION_TEXT.prompt }}</p>
             </div>
-            <div class="meta-section" v-if="props.meta?.negative_prompt">
+            <div class="meta-section" :class="{ 'is-empty': !props.meta?.negative_prompt }">
               <div class="section-top">
                 <label class="sheet-label negative-label">Negative Prompt</label>
-                <button class="copy-btn" @click="props.copyText(props.meta?.negative_prompt || '', 'neg')">
+                <button v-if="props.meta?.negative_prompt" class="copy-btn" @click="props.copyText(props.meta?.negative_prompt || '', 'neg')">
                   <Check v-if="props.copyStatus['neg']" :size="14" :stroke-width="1.5" style="color: #4ade80" />
                   <Copy v-else :size="14" :stroke-width="1.5" />
                 </button>
               </div>
               <div
+                v-if="props.meta?.negative_prompt"
                 class="sheet-text"
                 v-html="loraHighlighter(props.meta.negative_prompt)"
               ></div>
+              <p v-else class="empty-text">{{ EMPTY_SECTION_TEXT.negative_prompt }}</p>
             </div>
           </div>
-          
-          <!-- Tab: Params -->
+
+          <!-- ========== Tab: Params ========== -->
           <div v-show="activeTab === 'params'" class="sheet-tab-content">
             <!-- Tool label -->
             <div class="meta-section" v-if="props.meta?.tool">
               <div class="tool-label">{{ props.meta.tool }}</div>
             </div>
 
-            <!-- Generation params grid -->
-            <div class="meta-section" v-if="props.meta?.params && Object.keys(props.meta.params).length">
-              <div class="params-grid">
-                <!-- Seed first with copy button -->
+            <!-- Generation Data (core) -->
+            <div class="meta-section" :class="{ 'is-empty': !hasGenData }">
+              <label class="sheet-label">Generation Data</label>
+              <div v-if="hasGenData" class="params-grid">
                 <div class="param-pill seed-row" v-if="props.meta?.params?.Seed">
                   <span class="label">Seed</span>
                   <span class="value">{{ props.meta.params.Seed }}</span>
@@ -145,45 +167,54 @@ function onSheetTouchEnd() { /* no-op */ }
                 <div class="param-pill" v-if="props.meta?.params?.CFG"><span class="label">CFG</span><span class="value">{{ props.meta.params.CFG }}</span></div>
                 <div class="param-pill" v-if="props.meta?.params?.Sampler"><span class="label">Sampler</span><span class="value">{{ props.meta.params.Sampler }}</span></div>
                 <div class="param-pill" v-if="props.meta?.params?.Scheduler"><span class="label">Scheduler</span><span class="value">{{ props.meta.params.Scheduler }}</span></div>
-                <div class="param-pill" v-if="props.meta?.params?.Model"><span class="label">Model</span><span class="value">{{ props.meta.params.Model }}</span></div>
-                <div class="param-pill" v-if="props.meta?.params?.model_hash"><span class="label">Hash</span><span class="value">{{ props.meta.params.model_hash }}</span></div>
-                <div class="param-pill" v-if="props.meta?.params?.clip_skip"><span class="label">Clip Skip</span><span class="value">{{ props.meta.params.clip_skip }}</span></div>
-                <div class="param-pill" v-if="props.meta?.params?.hires_upscale"><span class="label">Hires</span><span class="value">{{ props.meta.params.hires_upscale }}</span></div>
-                <div class="param-pill" v-if="props.meta?.params?.hires_steps"><span class="label">Hires Steps</span><span class="value">{{ props.meta.params.hires_steps }}</span></div>
-                <div class="param-pill" v-if="props.meta?.params?.denoising_strength"><span class="label">Denoising</span><span class="value">{{ props.meta.params.denoising_strength }}</span></div>
-                <div class="param-pill" v-if="props.meta?.params?.vae"><span class="label">VAE</span><span class="value">{{ props.meta.params.vae }}</span></div>
-                <div class="param-pill" v-if="props.meta?.width && props.meta?.height"><span class="label">Size</span><span class="value">{{ props.meta.width }} × {{ props.meta.height }}</span></div>
-                <div class="param-pill" v-if="props.meta?.params?.ensd"><span class="label">ENSD</span><span class="value">{{ props.meta.params.ensd }}</span></div>
-                <div class="param-pill" v-if="props.meta?.params?.aesthetic_score"><span class="label">Aesthetic</span><span class="value">{{ props.meta.params.aesthetic_score }}</span></div>
                 <div class="param-pill" v-if="props.meta?.params?.AspectRatio"><span class="label">Ratio</span><span class="value">{{ props.meta.params.AspectRatio }}</span></div>
               </div>
+              <p v-else class="empty-text">{{ EMPTY_SECTION_TEXT.generation_data }}</p>
             </div>
-            <div class="meta-section" v-else>
-              <p class="sheet-text">No generation parameters available</p>
+
+            <!-- Extra Settings (secondary) -->
+            <div class="meta-section" v-if="hasExtraSettings">
+              <label class="sheet-label">Extra Settings</label>
+              <div class="params-grid">
+                <div class="param-pill" v-for="entry in extraEntries" :key="entry.key">
+                  <span class="label">{{ entry.label }}</span>
+                  <span class="value">{{ entry.value }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Advanced (debug) -->
+            <div class="meta-section" v-if="hasAdv">
+              <div class="section-top" @click="showAdvanced = !showAdvanced" style="cursor: pointer;">
+                <label class="sheet-label advanced-label">Advanced</label>
+              </div>
+              <div v-if="showAdvanced" class="params-grid">
+                <div class="param-pill" v-for="k in extraParamKeys" :key="k">
+                  <span class="label">{{ k }}</span>
+                  <span class="value">{{ props.meta?.params?.[k] }}</span>
+                </div>
+              </div>
             </div>
           </div>
-          
-          <!-- Tab: Model -->
+
+          <!-- ========== Tab: Model ========== -->
           <div v-show="activeTab === 'model'" class="sheet-tab-content">
-            <div class="meta-section" v-if="props.meta?.params?.Model">
-              <label class="sheet-label">Checkpoint</label>
-              <p class="sheet-text">{{ props.meta.params.Model }}</p>
-            </div>
-            <div class="meta-section" v-if="props.meta?.params?.Lora?.length">
-              <label class="sheet-label">LoRAs</label>
-              <p class="sheet-text" v-for="(lora, idx) in props.meta.params.Lora" :key="idx">{{ lora }}</p>
-            </div>
-            <div class="meta-section" v-if="props.meta?.models?.length">
-              <label class="sheet-label">{{ props.meta.models.length === 1 ? 'Model' : 'Models' }}</label>
-              <div v-for="m in props.meta.models" :key="m.name">
+            <div class="meta-section" :class="{ 'is-empty': !hasModels }">
+              <label v-if="props.meta?.params?.Model" class="sheet-label">Checkpoint</label>
+              <p v-if="props.meta?.params?.Model" class="sheet-text">{{ props.meta.params.Model }}</p>
+
+              <label v-if="props.meta?.params?.Lora?.length" class="sheet-label" style="margin-top: 12px;">LoRAs</label>
+              <p class="sheet-text" v-for="(lora, idx) in props.meta?.params?.Lora" :key="idx">{{ lora }}</p>
+
+              <label v-if="props.meta?.models?.length" class="sheet-label" style="margin-top: 12px;">{{ props.meta.models.length === 1 ? 'Model' : 'Models' }}</label>
+              <div v-for="m in props.meta?.models" :key="m.name">
                 <p class="sheet-text">
                   {{ m.name }}
                   <span v-if="m.hash" class="res-hash">#{{ m.hash.substring(0, 8) }}</span>
                 </p>
               </div>
-            </div>
-            <div class="meta-section" v-if="!props.meta?.params?.Model && !props.meta?.models?.length">
-              <p class="sheet-text">No model information available</p>
+
+              <p v-if="!hasModels" class="empty-text">{{ EMPTY_SECTION_TEXT.model_resources }}</p>
             </div>
           </div>
         </template>
@@ -195,4 +226,22 @@ function onSheetTouchEnd() { /* no-op */ }
 <style scoped lang="scss">
 @import '../styles/lightbox-shared';
 @import '../styles/lightbox-mobile';
+
+// ── Empty state overrides ─────────────────────────────────────────
+.is-empty {
+  opacity: 0.55;
+
+  .copy-btn,
+  .copy-btn-mini {
+    display: none;
+  }
+}
+
+.empty-text {
+  color: #888;
+  font-size: 13px;
+  font-style: italic;
+  margin: 0;
+  padding: 4px 0;
+}
 </style>

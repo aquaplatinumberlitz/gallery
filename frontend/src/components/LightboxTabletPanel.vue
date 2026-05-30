@@ -1,11 +1,20 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { loraHighlighter } from "../utils/loraHighlighter";
 import type { MetadataResponse } from "../types";
 import {
   Loader, X, Calendar, Clock, Maximize,
   Check, Copy, TriangleAlert,
 } from "lucide-vue-next";
+import {
+  hasCoreParams,
+  hasSecondaryParams,
+  hasModelData,
+  hasAdvancedData,
+  getSecondaryEntries,
+  getExtraParamKeys,
+  EMPTY_SECTION_TEXT,
+} from "../composables/useMetadataSections";
 
 const props = defineProps<{
   meta: MetadataResponse | null;
@@ -25,6 +34,7 @@ const emit = defineEmits<{
 // Internal state
 const sheetExpanded = ref(false);
 const sheetStartY = ref(0);
+const showAdvanced = ref(false);
 
 function toggleExpanded() {
   sheetExpanded.value = !sheetExpanded.value;
@@ -41,17 +51,25 @@ function onSheetTouchStart(e: TouchEvent) {
 
 function onSheetTouchMove(e: TouchEvent) {
   const delta = e.touches[0].clientY - sheetStartY.value;
-  if (delta > 50) closeSheet();     // swipe down >50px = close
-  if (delta < -50) sheetExpanded.value = true; // swipe up >50px = expand
+  if (delta > 50) closeSheet();
+  if (delta < -50) sheetExpanded.value = true;
 }
 
 function onSheetTouchEnd() { /* no-op */ }
+
+// Derived
+const hasGenData = computed(() => hasCoreParams(props.meta?.params));
+const hasExtraSettings = computed(() => hasSecondaryParams(props.meta?.params));
+const hasModels = computed(() => hasModelData(props.meta));
+const hasAdv = computed(() => hasAdvancedData(props.meta));
+const extraEntries = computed(() => getSecondaryEntries(props.meta?.params));
+const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
 </script>
 
 <template>
   <div class="tablet-sheet" @click.self="closeSheet">
     <div class="tablet-backdrop" @click.self="closeSheet" />
-    <div 
+    <div
       class="tablet-panel"
       :class="{ 'tablet-expanded': sheetExpanded }"
       @touchstart="onSheetTouchStart"
@@ -61,26 +79,26 @@ function onSheetTouchEnd() { /* no-op */ }
       <div class="tablet-handle-wrapper" @click="toggleExpanded">
         <div class="tablet-handle" />
       </div>
-      
+
       <!-- Loading state -->
       <div v-if="props.isLoading && !props.meta" class="meta-loading" style="flex: 1; min-height: 120px;">
         <Loader :size="24" :stroke-width="1.5" class="lucide-spin" />
         <span>Loading info...</span>
       </div>
-      
+
       <!-- Error state -->
       <div v-else-if="!props.meta" class="meta-error" style="flex: 1; min-height: 120px;">
         <TriangleAlert :size="24" :stroke-width="1.5" />
         <span>No metadata available</span>
       </div>
-      
+
       <template v-else>
         <!-- Header -->
         <header class="tablet-header">
           <div class="header-row">
             <h3 :title="props.imageName">{{ props.imageName }}</h3>
-            <button 
-              class="tablet-close-btn" 
+            <button
+              class="tablet-close-btn"
               @click="closeSheet"
               title="Close"
             >
@@ -97,42 +115,43 @@ function onSheetTouchEnd() { /* no-op */ }
 
         <!-- 2-column content -->
         <div class="tablet-grid">
-          <!-- Left column: Generation Params -->
+          <!-- Left column: Generation Params + Model -->
           <div class="tablet-col">
-            <div class="tablet-section" v-if="props.meta?.params && Object.keys(props.meta.params).length">
-              <!-- Seed with copy -->
-              <div class="tablet-section-top" v-if="props.meta?.params?.Seed">
-                <label class="tablet-label">Seed</label>
-                <button class="tablet-copy-btn" @click="props.copyText(String(props.meta.params.Seed), 'seed')" title="Copy seed">
-                  <Check v-if="props.copyStatus['seed']" :size="14" :stroke-width="1.5" style="color: #4ade80" />
-                  <Copy v-else :size="14" :stroke-width="1.5" />
-                </button>
-              </div>
-              <div class="tablet-pills">
+            <!-- Generation Data (core) -->
+            <div class="tablet-section" :class="{ 'is-empty': !hasGenData }">
+              <label class="tablet-label">Generation Data</label>
+              <div v-if="hasGenData" class="tablet-pills">
                 <div class="param-pill" v-if="props.meta?.params?.Seed">
                   <span class="value">{{ props.meta.params.Seed }}</span>
+                  <button class="icon-btn" @click="props.copyText(String(props.meta.params.Seed), 'seed')" title="Copy seed">
+                    <Check v-if="props.copyStatus['seed']" :size="12" :stroke-width="1.5" style="color: #4ade80" />
+                    <Copy v-else :size="12" :stroke-width="1.5" />
+                  </button>
                 </div>
                 <div class="param-pill" v-if="props.meta?.params?.Steps"><span class="label">Steps</span><span class="value">{{ props.meta.params.Steps }}</span></div>
                 <div class="param-pill" v-if="props.meta?.params?.CFG"><span class="label">CFG</span><span class="value">{{ props.meta.params.CFG }}</span></div>
                 <div class="param-pill" v-if="props.meta?.params?.Sampler"><span class="label">Sampler</span><span class="value">{{ props.meta.params.Sampler }}</span></div>
                 <div class="param-pill" v-if="props.meta?.params?.Scheduler"><span class="label">Scheduler</span><span class="value">{{ props.meta.params.Scheduler }}</span></div>
                 <div class="param-pill" v-if="props.meta?.params?.AspectRatio"><span class="label">Ratio</span><span class="value">{{ props.meta.params.AspectRatio }}</span></div>
-                <div class="param-pill" v-if="props.meta?.params?.clip_skip"><span class="label">Clip Skip</span><span class="value">{{ props.meta.params.clip_skip }}</span></div>
-                <div class="param-pill" v-if="props.meta?.params?.hires_upscale"><span class="label">Hires</span><span class="value">{{ props.meta.params.hires_upscale }}</span></div>
-                <div class="param-pill" v-if="props.meta?.params?.hires_steps"><span class="label">Hires Steps</span><span class="value">{{ props.meta.params.hires_steps }}</span></div>
-                <div class="param-pill" v-if="props.meta?.params?.denoising_strength"><span class="label">Denoising</span><span class="value">{{ props.meta.params.denoising_strength }}</span></div>
-                <div class="param-pill" v-if="props.meta?.params?.vae"><span class="label">VAE</span><span class="value">{{ props.meta.params.vae }}</span></div>
-                <div class="param-pill" v-if="props.meta?.width && props.meta?.height"><span class="label">Size</span><span class="value">{{ props.meta.width }} × {{ props.meta.height }}</span></div>
-                <div class="param-pill" v-if="props.meta?.params?.model_hash"><span class="label">Hash</span><span class="value">{{ props.meta.params.model_hash }}</span></div>
-                <div class="param-pill" v-if="props.meta?.params?.ensd"><span class="label">ENSD</span><span class="value">{{ props.meta.params.ensd }}</span></div>
-                <div class="param-pill" v-if="props.meta?.params?.aesthetic_score"><span class="label">Aesthetic</span><span class="value">{{ props.meta.params.aesthetic_score }}</span></div>
+              </div>
+              <p v-else class="empty-text">{{ EMPTY_SECTION_TEXT.generation_data }}</p>
+            </div>
+
+            <!-- Extra Settings (secondary) -->
+            <div class="tablet-section" v-if="hasExtraSettings">
+              <label class="tablet-label">Extra Settings</label>
+              <div class="tablet-pills">
+                <div class="param-pill" v-for="entry in extraEntries" :key="entry.key">
+                  <span class="label">{{ entry.label }}</span>
+                  <span class="value">{{ entry.value }}</span>
+                </div>
               </div>
             </div>
 
-            <!-- Models section -->
-            <div class="tablet-section" v-if="props.meta?.params?.Model || props.meta?.params?.Lora?.length || props.meta?.models?.length">
+            <!-- Model & Resources (core) -->
+            <div class="tablet-section" :class="{ 'is-empty': !hasModels }">
               <label class="tablet-label">Model & Resources</label>
-              <div class="tablet-model-list">
+              <div v-if="hasModels" class="tablet-model-list">
                 <div class="tablet-model-item" v-if="props.meta?.params?.Model">
                   <span class="tablet-model-type">Checkpoint</span>
                   <span class="tablet-model-name">{{ props.meta.params.Model }}</span>
@@ -149,50 +168,55 @@ function onSheetTouchEnd() { /* no-op */ }
                   </span>
                 </div>
               </div>
+              <p v-else class="empty-text">{{ EMPTY_SECTION_TEXT.model_resources }}</p>
             </div>
 
-            <!-- Empty state -->
-            <div class="tablet-section" v-if="!props.meta?.params || !Object.keys(props.meta.params).length">
-              <p class="tablet-text">No generation parameters available</p>
+            <!-- Advanced (debug) -->
+            <div class="tablet-section" v-if="hasAdv">
+              <div class="tablet-section-top" @click="showAdvanced = !showAdvanced" style="cursor: pointer;">
+                <label class="tablet-label advanced-label">Advanced</label>
+              </div>
+              <div v-if="showAdvanced" class="tablet-pills">
+                <div class="param-pill" v-for="k in extraParamKeys" :key="k">
+                  <span class="label">{{ k }}</span>
+                  <span class="value">{{ props.meta?.params?.[k] }}</span>
+                </div>
+              </div>
             </div>
           </div>
 
           <!-- Right column: Prompts -->
           <div class="tablet-col">
-            <div class="tablet-section" v-if="props.meta?.tool">
-              <div class="tablet-tool-label">{{ props.meta.tool }}</div>
-            </div>
-
-            <div class="tablet-section" v-if="props.meta?.prompt">
+            <div class="tablet-section" :class="{ 'is-empty': !props.meta?.prompt }">
               <div class="tablet-section-top">
                 <label class="tablet-label">Prompt</label>
-                <button class="tablet-copy-btn" @click="props.copyText(props.meta?.prompt, 'prompt')">
+                <button v-if="props.meta?.prompt" class="tablet-copy-btn" @click="props.copyText(props.meta?.prompt, 'prompt')">
                   <Check v-if="props.copyStatus['prompt']" :size="14" :stroke-width="1.5" style="color: #4ade80" />
                   <Copy v-else :size="14" :stroke-width="1.5" />
                 </button>
               </div>
               <div
+                v-if="props.meta?.prompt"
                 class="tablet-text"
-                v-html="loraHighlighter(props.meta?.prompt || 'No prompt available')"
+                v-html="loraHighlighter(props.meta.prompt)"
               ></div>
+              <p v-else class="empty-text">{{ EMPTY_SECTION_TEXT.prompt }}</p>
             </div>
 
-            <div class="tablet-section" v-if="props.meta?.negative_prompt">
+            <div class="tablet-section" :class="{ 'is-empty': !props.meta?.negative_prompt }">
               <div class="tablet-section-top">
                 <label class="tablet-label negative-label">Negative Prompt</label>
-                <button class="tablet-copy-btn" @click="props.copyText(props.meta?.negative_prompt, 'neg')">
+                <button v-if="props.meta?.negative_prompt" class="tablet-copy-btn" @click="props.copyText(props.meta?.negative_prompt, 'neg')">
                   <Check v-if="props.copyStatus['neg']" :size="14" :stroke-width="1.5" style="color: #4ade80" />
                   <Copy v-else :size="14" :stroke-width="1.5" />
                 </button>
               </div>
               <div
+                v-if="props.meta?.negative_prompt"
                 class="tablet-text"
                 v-html="loraHighlighter(props.meta.negative_prompt)"
               ></div>
-            </div>
-
-            <div class="tablet-section" v-if="!props.meta?.prompt && !props.meta?.negative_prompt">
-              <p class="tablet-text">No prompt information available</p>
+              <p v-else class="empty-text">{{ EMPTY_SECTION_TEXT.negative_prompt }}</p>
             </div>
           </div>
         </div>
@@ -204,4 +228,23 @@ function onSheetTouchEnd() { /* no-op */ }
 <style scoped lang="scss">
 @import '../styles/lightbox-shared';
 @import '../styles/lightbox-tablet';
+
+// ── Empty state overrides ─────────────────────────────────────────
+.is-empty {
+  opacity: 0.55;
+
+  .copy-btn,
+  .tablet-copy-btn,
+  .icon-btn {
+    display: none;
+  }
+}
+
+.empty-text {
+  color: #888;
+  font-size: 13px;
+  font-style: italic;
+  margin: 0;
+  padding: 4px 0;
+}
 </style>
