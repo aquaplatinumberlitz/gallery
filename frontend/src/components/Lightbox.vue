@@ -14,7 +14,7 @@ import LightboxMobileSheet from "./LightboxMobileSheet.vue";
 import MobilePhotoSwipe from "./MobilePhotoSwipe.vue";
 import PhotoSwipeViewer from "./PhotoSwipeViewer.vue";
 
-const { isDesktop, isTablet, isMobile } = useDevice();
+const { isDesktop, isTablet, isMobile, isWide } = useDevice();
 
 const lightbox = useLightboxStore();
 const { copyStatus, copyText } = useClipboard();
@@ -205,8 +205,8 @@ function handleToggleFullscreen() {
         ref="lightboxRef"
         class="lightbox-overlay"
       >
-        <!-- Desktop: PhotoSwipe + Sidebar -->
-        <template v-if="isDesktop">
+        <!-- Desktop/Wide: PhotoSwipe + Sidebar -->
+        <template v-if="isDesktop || isWide">
           <PhotoSwipeViewer
             :items="lightbox.galleryItems"
             :current-index="lightbox.currentIndex"
