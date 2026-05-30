@@ -662,8 +662,8 @@ onMounted(() => {
 
 .mobile-sort-popover {
   position: absolute;
-  top: auto;
-  bottom: calc(100% + 8px);
+  bottom: auto;
+  top: calc(100% + 8px);
   right: 0;
   min-width: 130px;
   background: var(--surface-color);
@@ -720,7 +720,7 @@ onMounted(() => {
 .sort-popover-enter-active,
 .sort-popover-leave-active {
   transition: all 0.2s ease;
-  transform-origin: bottom right;
+  transform-origin: top right;
 }
 
 .sort-popover-enter-from,
