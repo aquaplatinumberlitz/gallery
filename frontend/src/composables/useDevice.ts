@@ -26,11 +26,11 @@ export function useDevice() {
   })
 
   const isCompact = computed(() => breakpoint.value === 'compact')
-  const isPhone = computed(() => breakpoint.value === 'mobile')
+  const isMobileOnly = computed(() => breakpoint.value === 'mobile')
   const isTablet = computed(() => breakpoint.value === 'tablet')
   const isDesktop = computed(() => breakpoint.value === 'desktop')
   const isWide = computed(() => breakpoint.value === 'wide')
-  const isMobile = computed(() => isCompact.value || isPhone.value)
+  const isMobile = computed(() => isCompact.value || isMobileOnly.value)
   const isLargeScreen = computed(() => isTablet.value || isDesktop.value || isWide.value)
 
   onMounted(() => {
@@ -50,5 +50,5 @@ export function useDevice() {
     }
   })
 
-  return { breakpoint, isCompact, isPhone, isTablet, isDesktop, isWide, isMobile, isLargeScreen }
+  return { breakpoint, isCompact, isMobileOnly, isTablet, isDesktop, isWide, isMobile, isLargeScreen }
 }

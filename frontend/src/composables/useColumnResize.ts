@@ -10,7 +10,7 @@ function getDefaultCols(): number {
   if (typeof window === 'undefined') return 4
   const w = window.innerWidth
   if (w >= BREAKPOINTS.tablet) return 4
-  if (w >= BREAKPOINTS.phone) return 3    // tablet: 768-1023px
+  if (w >= BREAKPOINTS.mobile) return 3    // tablet: 768-1023px
   // Grid density threshold — not a device breakpoint.
   // At this width the grid can fit 3 columns without overflow.
   const GRID_THREE_COL_MIN_WIDTH = 460
