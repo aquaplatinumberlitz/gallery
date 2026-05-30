@@ -213,7 +213,7 @@ function handleToggleFullscreen() {
             :is-open="show"
             :close-on-vertical-drag="false"
             :allow-pan-to-next="false"
-            :thumbnail-size="null"
+            :thumbnail-size="2400"
             @close="handleClose"
             @index-change="handleIndexChange"
           />
@@ -417,6 +417,7 @@ function handleToggleFullscreen() {
     transform: translateY(-50%) scale(1.02);
   }
 
+  z-index: 10001;
   &.prev { left: 12px; }
   &.next { right: 12px; }
 
