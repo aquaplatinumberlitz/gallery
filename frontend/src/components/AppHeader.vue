@@ -605,7 +605,7 @@ h1 {
   }
 }
 
-/* Small phone: <480px — compact layout */
+/* Compact: <480px — compact layout */
 @media (max-width: 480px) {
   .content-header {
     padding: 4px 12px;

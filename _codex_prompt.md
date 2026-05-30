@@ -1,145 +1,128 @@
-# Implement: Responsive Breakpoint Cleanup
+# Audit & Cleanup: Dead Code After PhotoSwipe Migration
 
-Project tại /home/ubuntu/gallery-repo/frontend/
-Git ready với tag baseline-pre-photoswipe (hoặc commit mới hơn).
+Project at /home/ubuntu/gallery-repo/frontend/
+Git ready (latest commit: dedab16, includes PS5 migration + breakpoint cleanup).
 
-## KHÔNG được làm
-- KHÔNG redesign PhotoSwipe UI, metadata sheet, sidebar, grid, bottom nav, header
-- KHÔNG thay đổi visual design intentionally
-- KHÔNG chạy dev server (chỉ build)
-- KHÔNG implement container queries (quá lớn cho task này)
-- KHÔNG sửa LightboxDesktopPanel.vue, LightboxTabletPanel.vue, LightboxMobileSheet.vue
+## CRITICAL RULES
+- DO NOT delete code blindly.
+- First inspect, classify, and report.
+- Only remove items that are clearly unused and safe.
+- If uncertain, mark as suspicious and ask before deleting.
+- DO NOT delete PhotoSwipeViewer.vue, LightboxMobileSheet.vue, copy/clipboard fallback, breakpoint mixins, external PhotoSwipe CSS
+- DO NOT delete anything dynamically referenced unless verified
+- DO NOT delete anything needed by desktop lightbox/sidebar/metadata
+- DO NOT install new npm packages (like knip) without asking
 
-## Target breakpoint system (source of truth)
+## Context
+- PhotoSwipe 5 replaced old custom 3-slide lightbox track
+- Lightbox.vue was reduced from ~1045 to ~500 lines
+- PhotoSwipeViewer.vue created as shared PS5 wrapper
+- Breakpoints standardized: compact<480, mobile<768, tablet 768–1199, desktop>=1200, wide>=1440
+- _breakpoints.scss added
+- Old 1024px breakpoint rules removed
+- AlbumScroller now uses useDevice
+- phone→mobile rename done
 
-JS (useDevice.ts):
-```typescript
-BREAKPOINTS = {
-  compact: 480,
-  mobile: 768,
-  desktop: 1200,
-  wide: 1440,
-}
+## Tasks
+
+### A. Run existing checks
+Run:
+1. `npx vite build` — report pass/fail
+2. If vue-tsc exists: `npx vue-tsc --noEmit` — report pass/fail
+3. If lint script exists: run lint
+4. If test script exists: run test
+
+### B. Dead code scan
+Search ALL .vue, .ts, .js, .scss files in src/ for these stale names:
+
+Old lightbox track:
+- lightbox-track
+- trackOffset
+- isResettingSlide
+- handleSwipeStart
+- handleSwipeMove
+- handleSwipeEnd
+- resetTrackPosition
+- preloadAdjacent
+- preloadExtended
+- slot-prev, slot-current, slot-next
+
+Old device/breakpoint:
+- max-width: 1024px (as tablet breakpoint)
+- min-width: 1025px
+- isPhone (as exported/computed name)
+- BREAKPOINTS.phone
+
+For each match, classify: active-needed / legacy-referenced / dead-safe / suspicious
+
+### C. Component reachability
+List all .vue files in src/components/
+For each, report if it's imported by another file.
+Check specifically:
+- MobilePhotoSwipe.vue — is it still imported? (was replaced by PhotoSwipeViewer for desktop/tablet but still used for mobile)
+- PhotoSwipeViewer.vue — is it imported in Lightbox.vue?
+
+### D. Unused imports scan
+Manually check these files for imports that are no longer used:
+- src/components/Lightbox.vue
+- src/components/PhotoSwipeViewer.vue
+- src/components/MobilePhotoSwipe.vue
+- src/composables/useDevice.ts
+- src/composables/useColumnResize.ts
+- src/components/AlbumScroller.vue
+- src/App.vue
+- src/styles/main.scss
+
+### E. SCSS dead selector audit
+Search for these old selectors:
+- .lightbox-track
+- .lightbox-slide
+- .lightbox-dismiss-wrapper
+- .is-swiping
+- .is-resetting
+- .hero-image
+- .lightbox-shell
+- .lightbox-left
+- .image-loading
+- .is-dismiss-snapping
+- .is-animating
+
+For each: does it appear in any .vue template or runtime class binding?
+If not, mark as dead CSS candidate.
+
+### F. Breakpoint consistency re-check
+Verify:
+- No max-width: 1024px used as tablet breakpoint
+- No min-width: 1025px
+- No docs saying tablet 768–1024 or desktop >1024
+- No separate matchMedia mobile detection
+
+### G. Dependency audit
+Check package.json:
+- Is photoswipe dependency present?
+- Any old/swipe libraries still installed?
+
+## Final deliverables
+1. Report: dead code candidates found
+2. Report: safe removals
+3. Report: suspicious items needing approval
+4. Build/test results
+
+If safe removals are obvious (clearly unused CSS, unused imports, dead comments, etc.), implement them:
+- Remove dead imports
+- Remove dead CSS selectors
+- Remove dead code blocks
+- Update stale comments
+- Run build again to verify
+- Report final diff summary
+
+## Output format
+Use this structure for the report:
 ```
-- isCompact: width < 480
-- isMobile: width < 768
-- isTablet: width >= 768 && width < 1200
-- isDesktop: width >= 1200
-- isWide: width >= 1440
-
-SCSS (_breakpoints.scss - file mới):
-```scss
-$bp-compact: 480px;
-$bp-mobile: 768px;
-$bp-desktop: 1200px;
-$bp-wide: 1440px;
-
-@mixin compact { @media (max-width: 479px) { @content; } }
-@mixin mobile { @media (max-width: 767px) { @content; } }
-@mixin tablet { @media (min-width: 768px) and (max-width: 1199px) { @content; } }
-@mixin below-desktop { @media (max-width: 1199px) { @content; } }
-@mixin desktop { @media (min-width: 1200px) { @content; } }
-@mixin wide { @media (min-width: 1440px) { @content; } }
+## [Category]
+### [File] — [Finding type]
+- Location: line X
+- Status: dead/safe/active/suspicious
+- Action: remove/keep/review
+- Note: ...
 ```
-
-## Step-by-step
-
-### Step 1: Tạo _breakpoints.scss
-Tạo file src/styles/_breakpoints.scss với đầy đủ variables + mixins như trên.
-
-### Step 2: Import _breakpoints.scss vào main.scss
-Thêm `@import 'breakpoints';` vào main.scss sau dòng `@import 'mobile-overrides';` (hoặc đầu file).
-
-### Step 3: Sửa useDevice.ts
-Mở rộng BREAKPOINTS thêm `wide: 1440`.
-Thêm `isWide` computed.
-Cập nhật comments cho rõ ràng.
-
-### Step 4: Fix CSS docs trong main.scss
-Tìm block comment:
-```
-Desktop:  >1024px
-Tablet:   768-1024px
-Phone:    <=767px
-Small:    <480px (390px iPhone viewport)
-```
-Đổi thành:
-```
-Desktop:  >=1200px
-Tablet:   768-1199px
-Phone:    <=767px
-Compact:  <480px (iPhone viewport)
-```
-
-### Step 5: Fix App.vue media queries
-Đọc App.vue style scoped section.
-Tìm `@media (max-width: 1024px)` — những rule nào thực sự là "tablet & below" thì nên giữ hoặc chuyển sang @include below-desktop.
-Xác định: Nếu 1025-1199px cần layout này, giữ. Nếu ko, chuyển.
-
-Các vị trí:
-- Dòng ~405: `@media (max-width: 1024px)` — sidebar/grid layout
-  → Đánh giá: Có cần cho 1025-1199 ko? App.vue render theo `isMobile`/`isTablet`/`isDesktop` của JS, CSS chỉ là style refinement. Các style sidebar fixed, grid columns... Ở 1100px (tablet theo JS), CSS này nên active. Vậy **đổi thành `@media (max-width: 1199px)`**.
-- Dòng ~428: `@media (min-width: 768px) and (max-width: 1024px)` — sidebar persistent
-  → Đây rõ ràng là tablet range. **Đổi max-width thành 1199px và import _breakpoints.scss, dùng @include tablet.**
-
-### Step 6: Fix _lightbox-tablet.scss
-- Tìm `min-width: 900px` — đây là spacing refinement cho tablet-wide. Giữ lại nhưng thêm comment: "// Tablet-wide spacing refinement, not a device breakpoint"
-- Tìm `max-height: 800px` — đây là viewport-height refinement. Giữ lại với comment: "// Short viewport tablet refinement"
-
-### Step 7: Fix AlbumScroller.vue
-Tìm `window.matchMedia("(max-width: 767px)")` hoặc `"(max-width: 767px)"`.
-Thay bằng dùng `useDevice()` composable.
-Cụ thể:
-- Import `useDevice` từ `"../../composables/useDevice"` (hoặc đường dẫn đúng)
-- Xoá `isMobile` ref riêng
-- Xoá `matchMedia` listener riêng
-- Xoá resize listener riêng (nếu chỉ để detect mobile)
-- Dùng `const { isMobile } = useDevice()` thay thế
-
-### Step 8: Fix useColumnResize.ts 460
-Tìm `460`. Giải pháp: đặt tên constant:
-```typescript
-// Grid density threshold — not a device breakpoint.
-// At this width the grid can fit 3 columns without overflow.
-const GRID_THREE_COL_MIN_WIDTH = 460;
-```
-Hoặc chuyển thành 480 nếu visual không bị ảnh hưởng.
-
-PREFER: đặt tên + comment. Không đổi giá trị để tránh thay đổi visual.
-
-### Step 9: Fix AppHeader.vue
-Tìm `@media (max-width: 1024px)` — dòng ~454.
-Nếu style là "tablet trở xuống" → đổi thành `@include below-desktop` hoặc `@media (max-width: 1199px)`.
-Tìm `@media (min-width: 768px) and (max-width: 1024px)` — dòng ~471.
-→ Đổi thành `@include tablet` (max-width: 1199px).
-
-### Step 10: Fix MobileHeader.vue
-Tìm `min-width: 481px` và `max-width: 1024px` — dòng ~578.
-→ Đổi max-width thành 1199px. Comment: "// Tablet-range search input sizing".
-
-### Step 11: Fix GalleryGrid.vue
-Tìm `@media (max-width: 1024px)` — dòng ~1127.
-→ Nếu là tablet/below, đổi thành `@media (max-width: 1199px)` hoặc `@include below-desktop`.
-
-### Step 12: Fix GalleryGrid.vue tablet lock
-Tìm `@media (max-width: 767px)` — 15 locations. Đây là mobile range, KHÔNG cần đổi (767px = mobile).
-Tìm `@media (max-width: 480px)` — compact. Giữ nguyên.
-Tìm `@media (max-width: 360px)` — tiny phone. Giữ nguyên.
-
-### Step 13: Fix main.scss utility classes
-Tìm `.hide-tablet`, `.show-tablet`, `.hide-phone`, `.show-phone`, `.hide-desktop` (dòng ~440-449).
-Đổi `@media (max-width: 1024px)` → `@include below-desktop` hoặc `@media (max-width: 1199px)`.
-Đổi `@media (min-width: 1025px)` → `@include desktop` hoặc `@media (min-width: 1200px)`.
-
-### Step 14: Kiểm tra các file còn lại
-Scan toàn bộ .vue, .scss, .ts, .css trong src/ cho:
-- `max-width: 1024` — đã xử lý hết chưa? Nếu còn, đánh giá từng cái.
-- `max-width: 1023` — cái nào còn?
-- `min-width: 1025` — cái nào còn?
-
-### Step 15: Build
-Chạy `cd /home/ubuntu/gallery-repo/frontend && npx vite build`
-
-## Sau khi hoàn thành
-Chạy: `cd /home/ubuntu/gallery-repo/frontend && npx vite build`
-Kiểm tra build ko lỗi.

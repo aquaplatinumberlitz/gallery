@@ -447,7 +447,7 @@ watch(theme, (val) => {
   }
 }
 
-/* Phone: <768px — sidebar becomes overlay, hamburger appears */
+/* Mobile: <768px — sidebar becomes overlay, hamburger appears */
 @media (max-width: 767px) {
   .layout {
     grid-template-columns: 1fr;
@@ -506,7 +506,7 @@ watch(theme, (val) => {
   }
 }
 
-/* Small phone: <480px — compact layout */
+/* Compact: <480px — compact layout */
 @media (max-width: 480px) {
   .content {
     padding: 56px 12px 72px 12px;

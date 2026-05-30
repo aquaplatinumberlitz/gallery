@@ -9,14 +9,14 @@ const GRID_SIZE_KEY = 'gallery-grid-size'
 function getDefaultCols(): number {
   if (typeof window === 'undefined') return 4
   const w = window.innerWidth
-  if (w >= BREAKPOINTS.tablet) return 4
-  if (w >= BREAKPOINTS.mobile) return 3    // tablet: 768-1023px
+  if (w >= BREAKPOINTS.desktop) return 4
+  if (w >= BREAKPOINTS.mobile) return 3    // tablet: 768-1199px
   // Grid density threshold — not a device breakpoint.
   // At this width the grid can fit 3 columns without overflow.
   const GRID_THREE_COL_MIN_WIDTH = 460
-  if (w >= GRID_THREE_COL_MIN_WIDTH) return 3  // large phone: 460-767px (e.g. iPhone Plus/Pro Max)
-  if (w >= BREAKPOINTS.compact) return 2   // medium phone: 375-459px (iPhone standard)
-  return 2                                  // small phone: <375px — still at least 2 columns
+  if (w >= GRID_THREE_COL_MIN_WIDTH) return 3  // large mobile: 460-767px (e.g. iPhone Plus/Pro Max)
+  if (w >= BREAKPOINTS.compact) return 2   // medium mobile: 375-459px (iPhone standard)
+  return 2                                  // small: <375px — still at least 2 columns
 }
 
 export function useColumnResize() {

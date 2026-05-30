@@ -57,16 +57,6 @@ const hasNext = computed(() => lightbox.currentIndex < lightbox.galleryItems.len
 const controlsVisible = ref(true);
 let controlsTimer: ReturnType<typeof setTimeout> | null = null;
 
-function toggleControls() {
-  controlsVisible.value = !controlsVisible.value;
-  if (controlsTimer) clearTimeout(controlsTimer);
-  if (controlsVisible.value) {
-    controlsTimer = setTimeout(() => {
-      controlsVisible.value = false;
-    }, 3000);
-  }
-}
-
 function handleClose() {
   if (isFullscreen.value) {
     exitFullscreen();

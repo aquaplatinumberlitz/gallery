@@ -429,25 +429,11 @@ body {
    Breakpoints:
      Desktop:  >=1200px
      Tablet:   768-1199px
-     Phone:    <=767px
+     Mobile:   <=767px
      Compact:  <480px (iPhone viewport)
    ========================================================================== */
 
 /* Utility: visually hide on specific breakpoints */
-.hide-desktop { display: none !important; }
-.hide-tablet { display: block !important; }
-.hide-phone { display: block !important; }
-
-@include below-desktop {
-  .hide-tablet { display: none !important; }
-  .show-tablet { display: block !important; }
-}
-
-@media (max-width: 767px) {
-  .hide-phone { display: none !important; }
-  .show-phone { display: block !important; }
-  .hide-desktop { display: block !important; }
-}
 
 /* Touch device refinements — ensure interactive controls meet 44px minimum */
 @media (pointer: coarse) {
