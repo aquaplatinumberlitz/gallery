@@ -137,13 +137,20 @@ watch(show, (isOpen) => {
 
 function toggleSheet() {
   showSheet.value = !showSheet.value;
-  if (showSheet.value) {
-    controlsVisible.value = true;
-  }
+  controlsVisible.value = true;
+  if (controlsTimer) clearTimeout(controlsTimer);
+  controlsTimer = setTimeout(() => {
+    controlsVisible.value = false;
+  }, 5000);
 }
 
 function handleSheetClosed() {
   showSheet.value = false;
+  controlsVisible.value = true;
+  if (controlsTimer) clearTimeout(controlsTimer);
+  controlsTimer = setTimeout(() => {
+    controlsVisible.value = false;
+  }, 5000);
 }
 
 onMounted(() => {
@@ -294,7 +301,6 @@ function handleToggleFullscreen() {
         <template v-if="isMobile">
           <button
             class="mobile-info-btn"
-            v-show="controlsVisible"
             @click.stop="toggleSheet"
             title="Image Info"
           >
@@ -379,10 +385,10 @@ function handleToggleFullscreen() {
   box-shadow: var(--focus-ring-shadow);
 }
 
-/* Info button for tablet + mobile devices */
+/* Info button for tablet + mobile devices — fixed positioning ensures it's always tappable above all layers */
 .mobile-info-btn {
-  position: absolute;
-  bottom: 16px;
+  position: fixed;
+  bottom: max(16px, env(safe-area-inset-bottom, 16px));
   right: 16px;
   width: 40px;
   height: 40px;
@@ -394,8 +400,9 @@ function handleToggleFullscreen() {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  z-index: 2000;
+  z-index: 10001;
   backdrop-filter: blur(6px);
+  touch-action: manipulation;
   transition: all 0.2s ease;
 
   &:hover {
