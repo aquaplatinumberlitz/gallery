@@ -1,7 +1,7 @@
 import axios, { AxiosError } from "axios";
 import type { MetadataResponse, ScanResponse } from "../types";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_URL || "";
 
 // Error types from backend
 export type ErrorType = 
