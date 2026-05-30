@@ -82,7 +82,7 @@ function initPhotoSwipe() {
         html: {
           isCustomSVG: true,
           inner:
-            '<path d="M12 11v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 7h.01" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>',
+            '<circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 16v-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 8h.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
           size: 24,
         },
         onInit: (el: HTMLElement) => {
@@ -206,36 +206,32 @@ onUnmounted(() => {
 }
 
 /* Info button — registered via pswp.ui.registerElement(), moved to .lightbox-overlay */
+/* Transparent outer button — only the Lucide Info circle is visible */
 .pswp__button--metadata-info {
   position: fixed;
   bottom: 16px;
   right: 16px;
   width: 48px;
   height: 48px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: #fff;
   display: grid;
   place-items: center;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: rgba(255, 255, 255, 0.92);
   cursor: pointer;
   z-index: 4000;
-  backdrop-filter: blur(6px);
-  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 
-  &:hover {
-    background: rgba(255, 255, 255, 0.16);
-    border-color: rgba(255, 255, 255, 0.5);
-  }
-
-  &:focus-visible {
-    outline: none;
-    box-shadow: var(--focus-ring-shadow);
+  &::before,
+  &::after {
+    display: none;
   }
 
   &.active {
     background: rgba(255, 255, 255, 0.2);
-    border-color: rgba(255, 255, 255, 0.6);
   }
 
   &.hidden {
@@ -243,10 +239,10 @@ onUnmounted(() => {
   }
 }
 
-/* Plain "i" icon SVG inside the info button — no outer circle, clean single-ring look */
-.pswp-metadata-info-icon {
-  width: 22px;
-  height: 22px;
+/* Lucide Info icon — 32x32px, circle + i with transparent fill */
+.pswp__button--metadata-info .pswp-metadata-info-icon {
+  width: 32px;
+  height: 32px;
   display: block;
   pointer-events: none;
 }
