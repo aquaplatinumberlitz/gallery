@@ -82,7 +82,7 @@ function initPhotoSwipe() {
         html: {
           isCustomSVG: true,
           inner:
-            '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+            '<circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.75"/><path d="M12 16v-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/><path d="M12 8h.01" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>',
           size: 24,
         },
         onInit: (el: HTMLElement) => {
