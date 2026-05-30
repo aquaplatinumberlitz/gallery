@@ -405,7 +405,6 @@ onBeforeUnmount(() => {
         :items="imageRows"
         :item-size="rowHeight"
         key-field="id"
-        page-mode
         :buffer="600"
       >
         <template #before>
