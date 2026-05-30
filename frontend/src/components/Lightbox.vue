@@ -432,9 +432,12 @@ function handleToggleFullscreen() {
 }
 </style>
 
-<!-- Ensure PS5 native right arrow is above sidebar -->
+<!-- Ensure PS5 native arrows work with desktop sidebar -->
 <style lang="scss">
+/* The sidebar .lightbox-right (z-index:10000) covers right 400px of viewport.
+   .photoswipe-container (z-index:1) is behind the sidebar (stacking context).
+   Moving the next arrow left of the sidebar avoids this without z-index hacks. */
 .pswp__button--arrow--next {
-  z-index: 10001;
+  right: 416px !important; /* 400px sidebar + 16px gap */
 }
 </style>
