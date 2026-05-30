@@ -5,7 +5,7 @@ import { useFocusTrap } from "../composables/useFocusTrap";
 import { useClipboard } from "../composables/useClipboard";
 import { useDevice } from "../composables/useDevice";
 import {
-  ChevronLeft, ChevronRight, Minimize, X,
+  Minimize, X,
   Info,
 } from "lucide-vue-next";
 import LightboxDesktopPanel from "./LightboxDesktopPanel.vue";
@@ -49,9 +49,6 @@ const genTimeText = computed(() => {
   if (meta.value?.generation_time) return meta.value.generation_time;
   return "";
 });
-
-const hasPrev = computed(() => lightbox.currentIndex > 0);
-const hasNext = computed(() => lightbox.currentIndex < lightbox.galleryItems.length - 1);
 
 // Controls visibility (tap-to-toggle + auto-hide)
 const controlsVisible = ref(true);
@@ -217,13 +214,6 @@ function handleToggleFullscreen() {
             @close="handleClose"
             @index-change="handleIndexChange"
           />
-          <!-- Nav buttons -->
-          <button class="nav-btn prev" :disabled="!hasPrev" @click.stop="lightbox.prev()">
-            <ChevronLeft :size="24" :stroke-width="1.5" />
-          </button>
-          <button class="nav-btn next" :disabled="!hasNext" @click.stop="lightbox.next()">
-            <ChevronRight :size="24" :stroke-width="1.5" />
-          </button>
           <!-- Image counter for screen readers -->
           <div class="sr-only">
             Image {{ lightbox.currentIndex + 1 }} of {{ lightbox.galleryItems.length }}
@@ -389,54 +379,6 @@ function handleToggleFullscreen() {
   box-shadow: var(--focus-ring-shadow);
 }
 
-.nav-btn {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  background: rgba(0, 0, 0, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: #f5f7fb;
-  width: 48px;
-  height: 80px;
-  font-size: 24px;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  backdrop-filter: blur(6px);
-  opacity: 0; /* Hidden by default */
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.16);
-    border-color: rgba(255, 255, 255, 0.35);
-    color: var(--primary-color);
-    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
-    transform: translateY(-50%) scale(1.02);
-  }
-
-  z-index: 10001;
-  &.prev { left: 12px; }
-  &.next { right: 12px; }
-
-  &:disabled {
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  &:focus-visible {
-    outline: none;
-    box-shadow: var(--focus-ring-shadow);
-    opacity: 1;
-  }
-}
-
-.lightbox-overlay:hover .nav-btn:not(:disabled) {
-  opacity: 1;
-}
-
 /* Info button for tablet + mobile devices */
 .mobile-info-btn {
   position: absolute;
@@ -487,5 +429,12 @@ function handleToggleFullscreen() {
   white-space: nowrap;
   user-select: none;
   z-index: 2000;
+}
+</style>
+
+<!-- Ensure PS5 native right arrow is above sidebar -->
+<style lang="scss">
+.pswp__button--arrow--next {
+  z-index: 10001;
 }
 </style>
