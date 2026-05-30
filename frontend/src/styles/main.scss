@@ -1,4 +1,5 @@
 @use 'mobile-overrides';
+@import 'breakpoints';
 
 /* Legacy CSS variables are now defined in tokens.css */
 
@@ -426,10 +427,10 @@ body {
 /* ==========================================================================
    RESPONSIVE DESIGN SYSTEM
    Breakpoints:
-     Desktop:  >1024px
-     Tablet:   768-1024px
+     Desktop:  >=1200px
+     Tablet:   768-1199px
      Phone:    <=767px
-     Small:    <480px (390px iPhone viewport)
+     Compact:  <480px (iPhone viewport)
    ========================================================================== */
 
 /* Utility: visually hide on specific breakpoints */
@@ -437,7 +438,7 @@ body {
 .hide-tablet { display: block !important; }
 .hide-phone { display: block !important; }
 
-@media (max-width: 1024px) {
+@include below-desktop {
   .hide-tablet { display: none !important; }
   .show-tablet { display: block !important; }
 }

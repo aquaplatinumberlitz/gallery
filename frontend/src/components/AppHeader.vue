@@ -446,12 +446,15 @@ h1 {
   animation: none;
 }
 
+/* Import breakpoint mixins */
+@import "../styles/breakpoints";
+
 /* =============================================
    RESPONSIVE BREAKPOINTS
    ============================================= */
 
-/* Tablet: 768px - 1024px */
-@media (max-width: 1024px) {
+/* Tablet & below: 1199px */
+@media (max-width: 1199px) {
   .brand-icon {
     width: 48px;
     height: 48px;
@@ -467,8 +470,8 @@ h1 {
   }
 }
 
-/* NEW: Tablet range (768-1024px) — sidebar 240px persistent + hamburger always visible, edge-toggle hidden */
-@media (min-width: 768px) and (max-width: 1024px) {
+/* Tablet range (768-1199px) — sidebar 240px persistent + hamburger always visible, edge-toggle hidden */
+@include tablet {
   .hamburger-btn {
     display: inline-flex;
   }

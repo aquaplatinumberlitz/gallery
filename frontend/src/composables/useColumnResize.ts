@@ -11,7 +11,10 @@ function getDefaultCols(): number {
   const w = window.innerWidth
   if (w >= BREAKPOINTS.tablet) return 4
   if (w >= BREAKPOINTS.phone) return 3    // tablet: 768-1023px
-  if (w >= 460) return 3                   // large phone: 460-767px (e.g. iPhone Plus/Pro Max)
+  // Grid density threshold — not a device breakpoint.
+  // At this width the grid can fit 3 columns without overflow.
+  const GRID_THREE_COL_MIN_WIDTH = 460
+  if (w >= GRID_THREE_COL_MIN_WIDTH) return 3  // large phone: 460-767px (e.g. iPhone Plus/Pro Max)
   if (w >= BREAKPOINTS.compact) return 2   // medium phone: 375-459px (iPhone standard)
   return 2                                  // small phone: <375px — still at least 2 columns
 }

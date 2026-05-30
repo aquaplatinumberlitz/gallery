@@ -397,12 +397,15 @@ watch(theme, (val) => {
   flex-direction: column;
 }
 
+/* Import breakpoint mixins */
+@import "../styles/breakpoints";
+
 /* =============================================
    RESPONSIVE BREAKPOINTS
    ============================================= */
 
-/* Tablet: 768px - 1024px */
-@media (max-width: 1024px) {
+/* Tablet & below: 1199px */
+@media (max-width: 1199px) {
   .layout {
     grid-template-columns: 240px 1fr;
   }
@@ -424,8 +427,8 @@ watch(theme, (val) => {
   }
 }
 
-/* NEW: Tablet range (768-1024px) — sidebar 240px persistent + hamburger always visible, edge-toggle hidden */
-@media (min-width: 768px) and (max-width: 1024px) {
+/* Tablet range (768-1199px) — sidebar 240px persistent + hamburger always visible, edge-toggle hidden */
+@include tablet {
   .sidebar-edge-toggle {
     display: none !important;
   }

@@ -1124,7 +1124,7 @@ onBeforeUnmount(() => {
 /* content-visibility:auto removed - conflicts with RecycleScroller's own DOM recycling
    and causes flicker on mobile Safari */
 
-@media (max-width: 1024px) {
+@media (max-width: 1199px) {
   .grid-header {
     gap: 8px;
   }

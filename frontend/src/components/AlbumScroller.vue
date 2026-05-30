@@ -4,6 +4,7 @@ import type { FileNode } from "../types";
 import { ArrowLeft, ArrowRight, ChevronDown, FolderOpen } from "lucide-vue-next";
 import AlbumCard from "./AlbumCard.vue";
 import AlbumCardMobile from "./AlbumCardMobile.vue";
+import { useDevice } from "../composables/useDevice";
 
 const props = defineProps<{
   folders: FileNode[];
@@ -39,7 +40,7 @@ function toggleCollapsed() {
 const gridRef = ref<HTMLElement | null>(null);
 const showLeftArrow = ref(false);
 const showRightArrow = ref(false);
-const isMobile = ref(false);
+const { isMobile } = useDevice();
 
 // ── ResizeObserver for realtime overflow tracking ──
 let resizeObserver: ResizeObserver | null = null;
@@ -63,10 +64,6 @@ const scheduleArrowsUpdate = (grid: HTMLElement) => {
 
 const onGridScroll = () => {
   if (gridRef.value) scheduleArrowsUpdate(gridRef.value);
-};
-
-const updateIsMobile = () => {
-  isMobile.value = window.matchMedia("(max-width: 767px)").matches;
 };
 
 // ── Scroll logic (thay vì đọc children[0], dùng querySelector) ──
@@ -104,7 +101,6 @@ const init = () => {
 };
 
 onMounted(() => {
-  updateIsMobile();
   nextTick(() => init());
 });
 
@@ -122,7 +118,6 @@ watch(() => props.folders.length, () => {
 let resizeHandler: (() => void) | null = null;
 onMounted(() => {
   resizeHandler = () => {
-    updateIsMobile();
     if (gridRef.value) updateArrows(gridRef.value);
   };
   window.addEventListener("resize", resizeHandler);

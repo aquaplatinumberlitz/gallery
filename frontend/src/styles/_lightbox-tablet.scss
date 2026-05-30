@@ -261,6 +261,7 @@
 }
 
 /* Tablet landscape: wider margins, slightly taller */
+// Tablet-wide spacing refinement, not a device breakpoint
 @media (min-width: 900px) {
   .tablet-panel {
     margin: 0 32px;
@@ -268,6 +269,7 @@
 }
 
 /* Reduce height for smaller tablets in portrait */
+// Short viewport tablet refinement
 @media (max-height: 800px) {
   .tablet-panel {
     max-height: 55vh;

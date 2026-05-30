@@ -575,7 +575,8 @@ function onSearchInput(e: Event) {
 /* ============================================================
    Tablet: wider max-width for search bar
    ============================================================ */
-@media (min-width: 481px) and (max-width: 1024px) {
+/* Tablet-range search input sizing */
+@media (min-width: 481px) and (max-width: 1199px) {
   .search-focus-input-wrap {
     max-width: 520px;
     margin: 0 auto;

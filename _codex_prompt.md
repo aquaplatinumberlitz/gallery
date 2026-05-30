@@ -1,160 +1,145 @@
-# Plan: Migrate toàn bộ Lightbox từ custom pipeline sang PhotoSwipe 5
+# Implement: Responsive Breakpoint Cleanup
 
-## Context
+Project tại /home/ubuntu/gallery-repo/frontend/
+Git ready với tag baseline-pre-photoswipe (hoặc commit mới hơn).
 
-Gallery project tại `/home/ubuntu/gallery-repo/`
-Frontend: Vue 3 + TypeScript + SCSS + Vite
-Backend: FastAPI Python
+## KHÔNG được làm
+- KHÔNG redesign PhotoSwipe UI, metadata sheet, sidebar, grid, bottom nav, header
+- KHÔNG thay đổi visual design intentionally
+- KHÔNG chạy dev server (chỉ build)
+- KHÔNG implement container queries (quá lớn cho task này)
+- KHÔNG sửa LightboxDesktopPanel.vue, LightboxTabletPanel.vue, LightboxMobileSheet.vue
 
-### Hiện trạng Lightbox
+## Target breakpoint system (source of truth)
 
-File chính: `src/components/Lightbox.vue` (~1045 lines)
-
-Lightbox hiện tại có 3 mode render:
-1. **Mobile** (`v-if="isMobile"`): **Đã dùng PhotoSwipe 5** thành công (component `MobilePhotoSwipe.vue`)
-2. **Desktop** (`isDesktop`): 3-slide track custom (CSS translate3d + touch handlers + preload)
-3. **Tablet** (`isTablet`): 3-slide track custom + bottom sheet metadata
-
-### Các file liên quan
-
-- `src/components/Lightbox.vue` — Component lightbox chính (1045 lines)
-- `src/components/MobilePhotoSwipe.vue` — PhotoSwipe 5 wrapper cho mobile (146 lines, đã hoạt động tốt)
-- `src/components/LightboxDesktopPanel.vue` — Sidebar metadata cho desktop
-- `src/components/LightboxTabletPanel.vue` — Bottom sheet metadata cho tablet
-- `src/components/LightboxMobileSheet.vue` — Bottom sheet metadata cho mobile
-- `src/stores/lightbox.ts` — Pinia store cho lightbox state
-- `src/composables/useDevice.ts` — Device detection (isMobile, isTablet, isDesktop)
-- `src/services/api.ts` — API helpers (getImageUrl, getThumbnailUrl)
-- `src/styles/_lightbox-mobile.scss` — PhotoSwipe 5 theme overrides + mobile lightbox styles
-- `src/styles/_lightbox-desktop.scss` — Desktop lightbox styles (sidebar)
-- `src/styles/_lightbox-tablet.scss` — Tablet lightbox styles (bottom sheet)
-- `src/styles/_lightbox-shared.scss` — Shared lightbox styles
-
-### PhotoSwipe 5 đã install
-
-```
-node_modules/photoswipe/dist/ có sẵn
-```
-
-PhotoSwipe 5 API:
+JS (useDevice.ts):
 ```typescript
-import PhotoSwipe from "photoswipe";
+BREAKPOINTS = {
+  compact: 480,
+  mobile: 768,
+  desktop: 1200,
+  wide: 1440,
+}
+```
+- isCompact: width < 480
+- isMobile: width < 768
+- isTablet: width >= 768 && width < 1200
+- isDesktop: width >= 1200
+- isWide: width >= 1440
 
-const pswp = new PhotoSwipe({
-  dataSource: items[],  // { src, width, height, alt, ... }
-  index: 0,
-  pswpModule: () => Promise.resolve(PhotoSwipe),
-  appendToEl: containerElement,
-  closeOnVerticalDrag: true,
-  showHideAnimationType: "zoom",  // "fade" | "zoom" | "none"
-  allowPanToNext: true,
-  wheelToZoom: false,
-  bgOpacity: 1,
-  // Có thể custom UI element positioning
-});
+SCSS (_breakpoints.scss - file mới):
+```scss
+$bp-compact: 480px;
+$bp-mobile: 768px;
+$bp-desktop: 1200px;
+$bp-wide: 1440px;
 
-pswp.on("change", () => { /* index changed */ });
-pswp.on("close", () => { /* closed */ });
-pswp.init();
-pswp.destroy();
+@mixin compact { @media (max-width: 479px) { @content; } }
+@mixin mobile { @media (max-width: 767px) { @content; } }
+@mixin tablet { @media (min-width: 768px) and (max-width: 1199px) { @content; } }
+@mixin below-desktop { @media (max-width: 1199px) { @content; } }
+@mixin desktop { @media (min-width: 1200px) { @content; } }
+@mixin wide { @media (min-width: 1440px) { @content; } }
 ```
 
-PhotoSwipe DOM structure:
+## Step-by-step
+
+### Step 1: Tạo _breakpoints.scss
+Tạo file src/styles/_breakpoints.scss với đầy đủ variables + mixins như trên.
+
+### Step 2: Import _breakpoints.scss vào main.scss
+Thêm `@import 'breakpoints';` vào main.scss sau dòng `@import 'mobile-overrides';` (hoặc đầu file).
+
+### Step 3: Sửa useDevice.ts
+Mở rộng BREAKPOINTS thêm `wide: 1440`.
+Thêm `isWide` computed.
+Cập nhật comments cho rõ ràng.
+
+### Step 4: Fix CSS docs trong main.scss
+Tìm block comment:
 ```
-.pswp (fullscreen container)
-  .pswp__bg (background)
-  .pswp__scroll-wrap
-    .pswp__container (slides)
-      .pswp__item (slide holder) × 3
-    .pswp__ui (default UI — close btn, zoom, counter)
-      .pswp__top-bar
-      .pswp__button--close
-      .pswp__button--zoom
-      .pswp__counter
+Desktop:  >1024px
+Tablet:   768-1024px
+Phone:    <=767px
+Small:    <480px (390px iPhone viewport)
+```
+Đổi thành:
+```
+Desktop:  >=1200px
+Tablet:   768-1199px
+Phone:    <=767px
+Compact:  <480px (iPhone viewport)
 ```
 
-PhotoSwipe có thể custom UI bằng cách:
-- `.pswp__ui` chỉnh position để nhường chỗ cho sidebar
-- Hide default buttons (đã làm: `display: none` cho close/zoom/top-bar)
-- Thêm custom elements với z-index > .pswp
+### Step 5: Fix App.vue media queries
+Đọc App.vue style scoped section.
+Tìm `@media (max-width: 1024px)` — những rule nào thực sự là "tablet & below" thì nên giữ hoặc chuyển sang @include below-desktop.
+Xác định: Nếu 1025-1199px cần layout này, giữ. Nếu ko, chuyển.
 
-### Pipeline custom hiện tại (Desktop + Tablet)
+Các vị trí:
+- Dòng ~405: `@media (max-width: 1024px)` — sidebar/grid layout
+  → Đánh giá: Có cần cho 1025-1199 ko? App.vue render theo `isMobile`/`isTablet`/`isDesktop` của JS, CSS chỉ là style refinement. Các style sidebar fixed, grid columns... Ở 1100px (tablet theo JS), CSS này nên active. Vậy **đổi thành `@media (max-width: 1199px)`**.
+- Dòng ~428: `@media (min-width: 768px) and (max-width: 1024px)` — sidebar persistent
+  → Đây rõ ràng là tablet range. **Đổi max-width thành 1199px và import _breakpoints.scss, dùng @include tablet.**
 
-Xử lý ảnh:
-- Desktop: 3-slide `translate3d` track + `<link rel="preload">` cho adjacent slides
-- Ảnh dùng full-res `getImageUrl(path)` — 4096x6144 gốc
-- Touch events tự viết (`handleSwipeStart/Move/End`) + direction lock
-- `setTimeout(280)` cho animation timing — KHÔNG dùng `transitionend`
-- KHÔNG có `img.decode()` pipeline
-- Keyboard navigation (arrow keys)
-- Mouse wheel navigation (desktop)
+### Step 6: Fix _lightbox-tablet.scss
+- Tìm `min-width: 900px` — đây là spacing refinement cho tablet-wide. Giữ lại nhưng thêm comment: "// Tablet-wide spacing refinement, not a device breakpoint"
+- Tìm `max-height: 800px` — đây là viewport-height refinement. Giữ lại với comment: "// Short viewport tablet refinement"
 
-Metadata:
-- Desktop: Sidebar `.lightbox-right` với panel `.lightbox-desktop-panel`
-- Tablet: Bottom sheet `.lightbox-tablet-sheet`
-- Mobile: Bottom sheet `.lightbox-mobile-sheet` (giữ nguyên, chạy trên PhotoSwipe)
-- Full metadata: prompt, negative prompt, seed, steps, CFG, model, LoRAs, dates
+### Step 7: Fix AlbumScroller.vue
+Tìm `window.matchMedia("(max-width: 767px)")` hoặc `"(max-width: 767px)"`.
+Thay bằng dùng `useDevice()` composable.
+Cụ thể:
+- Import `useDevice` từ `"../../composables/useDevice"` (hoặc đường dẫn đúng)
+- Xoá `isMobile` ref riêng
+- Xoá `matchMedia` listener riêng
+- Xoá resize listener riêng (nếu chỉ để detect mobile)
+- Dùng `const { isMobile } = useDevice()` thay thế
 
-### Kết quả mobile migration
+### Step 8: Fix useColumnResize.ts 460
+Tìm `460`. Giải pháp: đặt tên constant:
+```typescript
+// Grid density threshold — not a device breakpoint.
+// At this width the grid can fit 3 columns without overflow.
+const GRID_THREE_COL_MIN_WIDTH = 460;
+```
+Hoặc chuyển thành 480 nếu visual không bị ảnh hưởng.
 
-Mobile đã migrate thành công — không còn swipe flash. Lý do PhotoSwipe thắng:
-1. `img.decode()` trước khi append vào DOM
-2. Hidden `<img>` preload (renderer cache) thay vì `<link rel="preload">` (HTTP cache)
-3. Thumbnail 1600px cho adjacent slides thay vì full-res
+PREFER: đặt tên + comment. Không đổi giá trị để tránh thay đổi visual.
 
-## Yêu cầu
+### Step 9: Fix AppHeader.vue
+Tìm `@media (max-width: 1024px)` — dòng ~454.
+Nếu style là "tablet trở xuống" → đổi thành `@include below-desktop` hoặc `@media (max-width: 1199px)`.
+Tìm `@media (min-width: 768px) and (max-width: 1024px)` — dòng ~471.
+→ Đổi thành `@include tablet` (max-width: 1199px).
 
-### Mục tiêu
+### Step 10: Fix MobileHeader.vue
+Tìm `min-width: 481px` và `max-width: 1024px` — dòng ~578.
+→ Đổi max-width thành 1199px. Comment: "// Tablet-range search input sizing".
 
-Migrate TOÀN BỘ lightbox (desktop, tablet, iPad Mini, iPad 10.2, iPad Pro 11", 13") từ:
-- Custom 3-slide track + CSS translate3d + touch handlers + preload
-→ PhotoSwipe 5 unified pipeline
+### Step 11: Fix GalleryGrid.vue
+Tìm `@media (max-width: 1024px)` — dòng ~1127.
+→ Nếu là tablet/below, đổi thành `@media (max-width: 1199px)` hoặc `@include below-desktop`.
 
-### Điều kiện bắt buộc
+### Step 12: Fix GalleryGrid.vue tablet lock
+Tìm `@media (max-width: 767px)` — 15 locations. Đây là mobile range, KHÔNG cần đổi (767px = mobile).
+Tìm `@media (max-width: 480px)` — compact. Giữ nguyên.
+Tìm `@media (max-width: 360px)` — tiny phone. Giữ nguyên.
 
-1. **GIỮ LẠI metadata sidebar cho desktop** (`.lightbox-desktop-panel`) — PhotoSwipe ko có sẵn sidebar
-2. **GIỮ LẠI bottom sheet cho tablet + mobile** (`.lightbox-tablet-sheet`, `.lightbox-mobile-sheet`)
-3. **PhotoSwipe fullscreen chiếm toàn màn hình**, sidebar đè lên bên phải hoặc bên cạnh
-4. **iPad sizing support**: iPad Mini (768×1024), iPad 10.2" (810×1080), iPad Pro 11" (834×1194), iPad Pro 13" (1024×1366)
+### Step 13: Fix main.scss utility classes
+Tìm `.hide-tablet`, `.show-tablet`, `.hide-phone`, `.show-phone`, `.hide-desktop` (dòng ~440-449).
+Đổi `@media (max-width: 1024px)` → `@include below-desktop` hoặc `@media (max-width: 1199px)`.
+Đổi `@media (min-width: 1025px)` → `@include desktop` hoặc `@media (min-width: 1200px)`.
 
-### Cần phân tích và đưa ra trong plan
+### Step 14: Kiểm tra các file còn lại
+Scan toàn bộ .vue, .scss, .ts, .css trong src/ cho:
+- `max-width: 1024` — đã xử lý hết chưa? Nếu còn, đánh giá từng cái.
+- `max-width: 1023` — cái nào còn?
+- `min-width: 1025` — cái nào còn?
 
-#### A. Desktop layout strategy
-- PhotoSwipe chiếm toàn màn hình, sidebar `.lightbox-desktop-panel` đặt ở đâu?
-  - Option 1: Bên phải PhotoSwipe (giống layout hiện tại) — PhotoSwipe `.pswp__scroll-wrap` co lại
-  - Option 2: Overlay trên PhotoSwipe (absolute, right:0, z-index cao) — PhotoSwipe full width
-  - Option 3: PhotoSwipe dùng `pswpModule` custom UI để inject panel vào `.pswp__ui`
-  - Option 4: Sidebar toggle — nút info mở sidebar overlay
+### Step 15: Build
+Chạy `cd /home/ubuntu/gallery-repo/frontend && npx vite build`
 
-#### B. Tablet layout strategy
-- iPad Mini (768px) vs iPad Pro 13" (1024px) — breakpoint nào?
-- PhotoSwipe full width, bottom sheet metadata (giống mobile nhưng 2-column layout)
-- Giữ nguyên `LightboxTabletPanel.vue` hay tối ưu lại?
-
-#### C. PhotoSwipe configuration per device
-- Desktop: `allowPanToNext: false`? (desktop thường dùng nav buttons)
-- Tablet: `allowPanToNext: true`, pinch to zoom?
-- Same `bgOpacity: 1` cho tất cả?
-- Thumbnail size: 1600px cho mobile, 2048px cho tablet, 4096px full-res cho desktop?
-
-#### D. Keyboard/mouse wheel
-- PhotoSwipe built-in keyboard navigation (arrow keys, esc)
-- Cần thêm mouse wheel? PhotoSwipe ko có sẵn — custom event listener
-
-#### E. Files cần thay đổi
-Liệt kê exactly files cần:
-- SỬA: `Lightbox.vue` — thay `v-if="isDesktop/isTablet"` section bằng PhotoSwipe
-- SỬA: `LightboxDesktopPanel.vue` — adjust layout để đặt bên cạnh/trên PhotoSwipe
-- SỬA: CSS files (_lightbox-desktop.scss, _lightbox-shared.scss, _lightbox-mobile.scss)
-- THÊM/XÓA: components nào?
-- GIỮ NGUYÊN: store, composables, LightboxMobileSheet, LightboxTabletPanel?
-
-#### F. Risks & tradeoffs
-- Desktop sidebar position: nếu để PhotoSwipe ko full-width, aspect ratio có bị bóp ko?
-- iPad: tablet layout đã tối ưu chưa? Có cần chia thêm breakpoint ko?
-- PhotoSwipe default UI (close button, counter) — cần hide/restyle những gì?
-- Fullscreen mode trên desktop có còn hoạt động ko?
-
-## Output
-
-Viết plan chi tiết dưới dạng markdown, lưu vào `.hermes/plans/` với filename timestamp + `migrate-photoswipe-full.md`.
+## Sau khi hoàn thành
+Chạy: `cd /home/ubuntu/gallery-repo/frontend && npx vite build`
+Kiểm tra build ko lỗi.
