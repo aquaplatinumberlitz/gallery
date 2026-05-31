@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, inject } from "vue";
+import { ref, watch, inject, nextTick } from "vue";
 import { FolderOpen, ClipboardPaste, X, AlertCircle } from "lucide-vue-next";
 import { useDevice } from "../composables/useDevice";
 import { useGalleryStore } from "../stores/gallery";
@@ -28,13 +28,16 @@ const handleOpen = () => {
 };
 
 const handlePaste = async () => {
+  // Blur any focused element first to prevent iOS native paste bubble
+  (document.activeElement as HTMLElement | null)?.blur();
+  await nextTick();
   try {
     const text = await navigator.clipboard.readText();
     if (text) {
       localPath.value = text;
     }
   } catch (e) {
-    console.warn("Clipboard read not available or denied");
+    errorMessage.value = "Unable to access clipboard. Please paste manually or check permissions.";
   }
 };
 
@@ -137,7 +140,7 @@ watch(
 
         <!-- Action buttons -->
         <div class="sheet-actions">
-          <button class="action-btn" type="button" @click="handlePaste" title="Paste from clipboard">
+          <button class="action-btn" type="button" @pointerdown.prevent @click="handlePaste" title="Paste from clipboard">
             <ClipboardPaste :size="16" />
             <span>Paste</span>
           </button>
