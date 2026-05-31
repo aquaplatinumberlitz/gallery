@@ -127,11 +127,6 @@ function toggleSheet() {
 
 function handleSheetClosed() {
   showSheet.value = false;
-  controlsVisible.value = true;
-  if (controlsTimer) clearTimeout(controlsTimer);
-  controlsTimer = setTimeout(() => {
-    controlsVisible.value = false;
-  }, 5000);
 }
 
 onMounted(() => {

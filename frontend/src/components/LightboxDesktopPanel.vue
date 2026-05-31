@@ -150,6 +150,9 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
             :class="{ 'is-disabled': !hasGenData }"
             @click="hasGenData && (showGenParams = !showGenParams)"
             tabindex="0"
+            role="button"
+            :aria-expanded="hasGenData ? showGenParams : undefined"
+            aria-controls="gen-data-content"
             @keydown.enter="hasGenData && (showGenParams = !showGenParams)"
             @keydown.space.prevent="hasGenData && (showGenParams = !showGenParams)"
           >
@@ -161,7 +164,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
               :class="{ rotate: !showGenParams }"
             />
           </div>
-          <div v-if="hasGenData" class="group-content" v-show="showGenParams">
+          <div id="gen-data-content" v-if="hasGenData" class="group-content" v-show="showGenParams">
             <div class="params-grid">
               <div class="param-pill" v-if="props.meta?.params?.Seed">
                 <span class="label">Seed</span>
@@ -222,6 +225,9 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
             :class="{ 'is-disabled': !hasModels }"
             @click="hasModels && (showResources = !showResources)"
             tabindex="0"
+            role="button"
+            :aria-expanded="hasModels ? showResources : undefined"
+            aria-controls="model-resources-content"
             @keydown.enter="hasModels && (showResources = !showResources)"
             @keydown.space.prevent="hasModels && (showResources = !showResources)"
           >
@@ -233,7 +239,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
               :class="{ rotate: !showResources }"
             />
           </div>
-          <div v-if="hasModels" class="group-content" v-show="showResources">
+          <div id="model-resources-content" v-if="hasModels" class="group-content" v-show="showResources">
             <div class="resource-list">
               <div class="resource-item" v-if="props.meta?.params?.Model">
                 <Box :size="14" :stroke-width="1.5" />
