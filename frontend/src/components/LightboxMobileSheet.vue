@@ -144,7 +144,10 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
           <div v-show="activeTab === 'params'" class="sheet-tab-content">
             <!-- Tool label -->
             <div class="meta-section" v-if="props.meta?.tool">
-              <div class="tool-label">{{ props.meta.tool }}</div>
+              <div class="source-badge">
+                <span class="source-label">SOURCE</span>
+                <span class="source-chip">{{ props.meta.tool }}</span>
+              </div>
             </div>
 
             <!-- Generation Data (core) -->

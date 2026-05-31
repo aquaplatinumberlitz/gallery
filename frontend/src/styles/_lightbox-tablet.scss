@@ -199,19 +199,6 @@
   &:hover { color: var(--primary-color); }
 }
 
-/* Tablet tool label */
-.tablet-tool-label {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  color: #fb7185;
-  user-select: none;
-
-  &::before {
-    content: '// ';
-    color: #f43f5e;
-  }
-}
-
 /* Tablet pill grid (reuses params-grid from shared, tweaked for tablet) */
 .tablet-pills {
   display: flex;

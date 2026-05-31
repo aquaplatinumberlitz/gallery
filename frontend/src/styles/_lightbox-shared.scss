@@ -136,3 +136,34 @@
   margin: 0;
   padding: 4px 0;
 }
+
+/* ==========================================
+   SOURCE BADGE — structured tool/source display
+   Replaces old "// toolname" comment-style labels
+   ========================================== */
+
+.source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  .source-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    color: var(--gallery-lightbox-text-muted, #999);
+  }
+
+  .source-chip {
+    font-size: 11px;
+    font-weight: 500;
+    background: rgba(59, 130, 246, 0.15);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    color: #93c5fd;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-family: 'Inter', sans-serif;
+    white-space: nowrap;
+  }
+}

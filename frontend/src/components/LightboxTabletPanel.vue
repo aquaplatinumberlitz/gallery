@@ -109,7 +109,10 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
             <span v-if="props.sizeText" class="meta-tag"><Maximize :size="11" :stroke-width="1.5" /> {{ props.sizeText }}</span>
             <span v-if="props.dateText" class="meta-tag"><Calendar :size="11" :stroke-width="1.5" /> {{ props.dateText }}</span>
             <span v-if="props.genTimeText" class="meta-tag"><Clock :size="11" :stroke-width="1.5" /> {{ props.genTimeText }}</span>
-            <span v-if="props.meta?.tool" class="meta-tag tool-tag">{{ props.meta.tool }}</span>
+            <span v-if="props.meta?.tool" class="source-badge">
+              <span class="source-label">SOURCE</span>
+              <span class="source-chip">{{ props.meta.tool }}</span>
+            </span>
           </div>
         </header>
 

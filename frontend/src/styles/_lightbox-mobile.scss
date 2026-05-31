@@ -198,20 +198,6 @@
   &:hover { color: var(--primary-color); }
 }
 
-.tool-label {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  color: #fb7185;
-  padding: 0 8px;
-  margin-bottom: 8px;
-  user-select: none;
-
-  &::before {
-    content: '// ';
-    color: #f43f5e;
-  }
-}
-
 /* Compact (<480px): smaller text, tighter spacing */
 @media (max-width: 480px) {
   .sheet-panel {
