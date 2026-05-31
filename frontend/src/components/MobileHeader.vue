@@ -113,8 +113,8 @@ interface MobileSortOption {
 const mobileSortOptions: MobileSortOption[] = [
   { field: 'date', order: 'desc', label: 'Newest' },
   { field: 'date', order: 'asc', label: 'Oldest' },
-  { field: 'name', order: 'asc', label: 'Name A-Z' },
-  { field: 'name', order: 'desc', label: 'Name Z-A' },
+  { field: 'name', order: 'asc', label: 'Name A–Z' },
+  { field: 'name', order: 'desc', label: 'Name Z–A' },
 ]
 
 const isActiveSort = (opt: MobileSortOption): boolean =>
@@ -225,8 +225,8 @@ onMounted(() => {
             :class="{ active: isActiveSort(opt) }"
             @click="selectMobileSort(opt)"
           >
-            <span v-if="isActiveSort(opt)" class="sort-checkmark">✓</span>
-            <span>{{ opt.label }}</span>
+            <span class="sort-checkmark" :class="{ visible: isActiveSort(opt) }">✓</span>
+            <span class="sort-label">{{ opt.label }}</span>
           </button>
         </div>
       </Transition>
@@ -664,7 +664,7 @@ onMounted(() => {
   bottom: auto;
   top: calc(100% + 8px);
   right: 0;
-  min-width: 130px;
+  min-width: 220px;
   background: var(--surface-color);
   border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
   border-radius: 12px;
@@ -675,11 +675,12 @@ onMounted(() => {
 }
 
 .mobile-sort-option {
-  display: flex;
+  display: grid;
+  grid-template-columns: 24px 1fr;
   align-items: center;
-  justify-content: flex-start;
   gap: 8px;
   width: 100%;
+  min-height: 48px;
   padding: 10px 14px;
   background: transparent;
   border: none;
@@ -710,7 +711,15 @@ onMounted(() => {
 .sort-checkmark {
   font-size: 14px;
   line-height: 1;
-  flex-shrink: 0;
+  visibility: hidden;
+}
+
+.sort-checkmark.visible {
+  visibility: visible;
+}
+
+.sort-label {
+  white-space: nowrap;
 }
 
 /* Dark theme active option */
@@ -738,7 +747,7 @@ onMounted(() => {
 /* Compact popover on small screens */
 @media (max-width: 480px) {
   .mobile-sort-popover {
-    min-width: 110px;
+    min-width: 200px;
     right: -4px;
   }
 
