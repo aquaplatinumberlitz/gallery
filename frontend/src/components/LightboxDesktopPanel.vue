@@ -6,7 +6,7 @@ import {
   Loader, Maximize, Minimize, X,
   Calendar, Clock, MessageSquareText, Check, Copy, MessageSquareOff,
   SlidersHorizontal, ChevronDown, Sprout, BrainCircuit, Box, Puzzle, Layers,
-  TriangleAlert, ChevronRight,
+  TriangleAlert,
 } from "lucide-vue-next";
 import {
   hasCoreParams,
@@ -286,11 +286,11 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
             @keydown.space.prevent="showAdvanced = !showAdvanced"
           >
             <h4>
-              <ChevronRight :size="14" :stroke-width="1.5" :class="{ rotate: showAdvanced }" /> Advanced
+              Advanced
               <span class="count-badge">{{ extraParamKeys.length }}</span>
             </h4>
             <ChevronDown
-              :size="12"
+              :size="14"
               :stroke-width="1.5"
               :class="{ rotate: !showAdvanced }"
             />
@@ -346,13 +346,6 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
 
 // ── Advanced section ──────────────────────────────────────────────
 .meta-group.advanced {
-  .group-header h4 :deep(.lucide-chevron-right) {
-    transition: transform 0.2s ease;
-    &.rotate {
-      transform: rotate(90deg);
-    }
-  }
-
   .count-badge {
     display: inline-flex;
     align-items: center;

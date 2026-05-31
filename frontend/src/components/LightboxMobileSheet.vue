@@ -247,15 +247,12 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
   align-items: center;
   gap: 8px;
   min-height: 44px;
-  padding: 6px 10px;
   cursor: pointer;
   user-select: none;
-  border-radius: 8px;
   transition: background 0.2s;
-  margin: -6px -10px;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.03);
   }
 
   &:focus-visible {
