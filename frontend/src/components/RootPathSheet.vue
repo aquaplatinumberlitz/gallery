@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
-import { FolderOpen, ClipboardPaste, X } from "lucide-vue-next";
+import { ref, watch, inject } from "vue";
+import { FolderOpen, ClipboardPaste, X, AlertCircle } from "lucide-vue-next";
+import { useDevice } from "../composables/useDevice";
+import { useGalleryStore } from "../stores/gallery";
+import { closeSidebarKey } from "../injectionKeys";
 
 const props = defineProps<{
   modelValue: boolean;
@@ -9,14 +12,19 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: "update:modelValue", val: boolean): void;
-  (e: "load", path: string): void;
 }>();
+
+const { isMobile } = useDevice();
+const galleryStore = useGalleryStore();
+const closeSidebar = inject(closeSidebarKey, () => {});
 
 const localPath = ref("");
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
+const errorMessage = ref<string | null>(null);
 
 const handleOpen = () => {
   localPath.value = props.currentPath;
+  errorMessage.value = null;
 };
 
 const handlePaste = async () => {
@@ -32,17 +40,35 @@ const handlePaste = async () => {
 
 const handleClear = async () => {
   localPath.value = "";
+  errorMessage.value = null;
 };
 
 const handleCancel = () => {
+  errorMessage.value = null;
   emit("update:modelValue", false);
 };
 
-const handleLoad = () => {
+const handleLoad = async () => {
+  errorMessage.value = null;
   const cleaned = localPath.value.trim().replace(/^["']|["']$/g, "");
-  emit("load", cleaned);
-  textareaRef.value?.blur();
-  emit("update:modelValue", false);
+  if (!cleaned) {
+    errorMessage.value = "Please enter a folder path.";
+    return;
+  }
+
+  const success = await galleryStore.setRootPath(cleaned);
+
+  if (success) {
+    textareaRef.value?.blur();
+    emit("update:modelValue", false);
+    // On mobile, close the left drawer after successful load
+    if (isMobile.value) {
+      closeSidebar();
+    }
+  } else {
+    errorMessage.value = galleryStore.errorMessage
+      || "Unable to load the root folder. Check the path or backend connection.";
+  }
 };
 
 const handleKeydown = (e: KeyboardEvent) => {
@@ -93,6 +119,7 @@ watch(
           ref="textareaRef"
           v-model="localPath"
           class="root-path-textarea"
+          :class="{ 'has-error': errorMessage }"
           placeholder="Enter folder path..."
           inputmode="text"
           autocapitalize="off"
@@ -101,6 +128,12 @@ watch(
           enterkeyhint="go"
           @keydown="handleKeydown"
         ></textarea>
+
+        <!-- Error message -->
+        <div v-if="errorMessage" class="sheet-error">
+          <AlertCircle :size="14" />
+          <span>{{ errorMessage }}</span>
+        </div>
 
         <!-- Action buttons -->
         <div class="sheet-actions">
@@ -207,6 +240,11 @@ watch(
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
+.root-path-textarea.has-error {
+  border-color: #e74c3c;
+  box-shadow: 0 0 0 2px rgba(231, 76, 60, 0.15);
+}
+
 [data-theme="dark"] .root-path-textarea {
   background: var(--bg-color, #2c2c2e);
   border-color: rgba(255, 255, 255, 0.12);
@@ -218,8 +256,31 @@ watch(
   box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.15);
 }
 
+.root-path-textarea.has-error:focus {
+  border-color: #e74c3c;
+  box-shadow: 0 0 0 2px rgba(231, 76, 60, 0.15);
+}
+
 .root-path-textarea::placeholder {
   color: var(--muted-text, #aaa);
+}
+
+.sheet-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #e74c3c;
+  background: rgba(231, 76, 60, 0.08);
+}
+
+.sheet-error svg {
+  flex-shrink: 0;
+  margin-top: 1px;
 }
 
 .sheet-actions {

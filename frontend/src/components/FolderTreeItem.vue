@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, inject } from "vue";
 import { useGalleryStore } from "../stores/gallery";
 import type { FileNode } from "../types";
 import { ChevronDown, ChevronRight, Folder, FolderOpen, Loader } from "lucide-vue-next";
+import { useDevice } from "../composables/useDevice";
+import { closeSidebarKey } from "../injectionKeys";
 
 defineOptions({ name: "FolderTreeItem" });
 
@@ -15,6 +17,8 @@ const props = withDefaults(defineProps<{
 });
 
 const galleryStore = useGalleryStore();
+const { isMobile } = useDevice();
+const closeSidebar = inject(closeSidebarKey, () => {});
 const itemRef = ref<HTMLElement | null>(null);
 
 const isActive = computed(() => props.activePath === props.node.path);
@@ -37,6 +41,9 @@ const onToggle = () => {
 
 const onSelect = () => {
   galleryStore.selectFolder(props.node);
+  if (isMobile.value) {
+    closeSidebar();
+  }
 };
 
 // Keyboard navigation following WAI-ARIA TreeView pattern

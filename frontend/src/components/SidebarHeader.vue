@@ -17,11 +17,6 @@ const onLoad = async () => {
   inputRef.value?.blur();
 };
 
-const onMobileLoad = async (path: string) => {
-  pathInput.value = path;
-  await galleryStore.setRootPath(path);
-};
-
 const onReset = () => {
   galleryStore.resetRootPath();
   pathInput.value = "";
@@ -70,7 +65,6 @@ watch(
       <RootPathSheet
         v-model="showSheet"
         :current-path="pathInput"
-        @load="onMobileLoad"
       />
     </template>
 

@@ -134,10 +134,10 @@ export const useGalleryStore = defineStore("gallery", {
       saveSort(this.sortField, this.sortOrder);
     },
 
-    async setRootPath(path: string) {
+    async setRootPath(path: string): Promise<boolean> {
       if (!path) {
         this.resetRootPath();
-        return;
+        return false;
       }
       this.isLoading = true;
       this.galleryLoading = true;
@@ -160,7 +160,7 @@ export const useGalleryStore = defineStore("gallery", {
         this.currentPath = "";
         this.isLoading = false;
         this.galleryLoading = false;
-        return;
+        return false;
       }
 
       this.sidebarTree = normalizeNodes(data.folders);
@@ -186,6 +186,7 @@ export const useGalleryStore = defineStore("gallery", {
 
       this.isLoading = false;
       this.galleryLoading = false;
+      return true;
     },
 
     async toggleFolder(node: FileNode) {

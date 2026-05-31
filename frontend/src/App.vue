@@ -13,6 +13,7 @@ import MobileFloatingBottomBar from "./components/MobileFloatingBottomBar.vue";
 import { useScrollVisibility } from "./composables/useScrollVisibility";
 import { useDevice } from "./composables/useDevice";
 import { galleryScrollContainerRefKey } from "./injectionKeys";
+import { closeSidebarKey } from "./injectionKeys";
 import {
   Loader, ChevronLeft, ChevronRight
 } from "lucide-vue-next";
@@ -88,6 +89,7 @@ const closeSidebar = () => {
     isSidebarOpen.value = false;
   }
 };
+provide(closeSidebarKey, closeSidebar);
 
 // Handle Escape key to close sidebar on mobile
 const handleGlobalKeydown = (e: KeyboardEvent) => {
