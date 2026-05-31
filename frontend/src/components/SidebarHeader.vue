@@ -5,10 +5,12 @@ import { FolderOpen, RotateCcw, Info } from "lucide-vue-next";
 
 const galleryStore = useGalleryStore();
 const pathInput = ref(galleryStore.rootPath || "");
+const inputRef = ref<HTMLInputElement | null>(null);
 
 const onLoad = async () => {
   const cleaned = pathInput.value.trim().replace(/^["']|["']$/g, "");
   await galleryStore.setRootPath(cleaned);
+  inputRef.value?.blur();
 };
 
 const onReset = () => {
@@ -41,6 +43,7 @@ watch(
       <FolderOpen class="field-icon" :size="16" />
       <input
         id="root-path"
+        ref="inputRef"
         v-model="pathInput"
         type="text"
         placeholder="Enter folder path..."
@@ -166,20 +169,25 @@ input::placeholder {
   transform: scale(0.95);
 }
 
-/* Responsive: reduce input min-width on phones */
-@media (max-width: 480px) {
+/* Responsive: iOS Safari zoom fix — font-size >= 16px prevents auto-zoom on input focus */
+@media (max-width: 767px) {
   .sidebar-header {
     padding: 12px;
   }
 
   .field-container {
-    height: 36px;
+    height: 40px;
     padding: 0 10px;
   }
 
   input {
-    font-size: 13px;
+    font-size: 16px;
     min-width: 140px;
+    touch-action: manipulation;
+  }
+
+  .action-btn {
+    touch-action: manipulation;
   }
 }
 
