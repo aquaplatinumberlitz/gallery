@@ -15,16 +15,15 @@ const emit = defineEmits<{
 const localPath = ref("");
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
 
-const handleOpen = () => {
+const handleOpen = async () => {
   localPath.value = props.currentPath;
-  nextTick(() => {
-    textareaRef.value?.focus();
-    // Move cursor to end
-    if (textareaRef.value) {
-      const len = textareaRef.value.value.length;
-      textareaRef.value.setSelectionRange(len, len);
-    }
-  });
+  await nextTick();
+  textareaRef.value?.focus({ preventScroll: true });
+  // Move cursor to end
+  if (textareaRef.value) {
+    const len = textareaRef.value.value.length;
+    textareaRef.value.setSelectionRange(len, len);
+  }
 };
 
 const handlePaste = async () => {
@@ -32,21 +31,22 @@ const handlePaste = async () => {
     const text = await navigator.clipboard.readText();
     if (text) {
       localPath.value = text;
-      nextTick(() => {
-        if (textareaRef.value) {
-          const len = textareaRef.value.value.length;
-          textareaRef.value.setSelectionRange(len, len);
-        }
-      });
+      await nextTick();
+      if (textareaRef.value) {
+        const len = textareaRef.value.value.length;
+        textareaRef.value.setSelectionRange(len, len);
+        textareaRef.value.focus({ preventScroll: true });
+      }
     }
   } catch (e) {
     // Clipboard read not available or denied — silently handle
   }
 };
 
-const handleClear = () => {
+const handleClear = async () => {
   localPath.value = "";
-  nextTick(() => textareaRef.value?.focus());
+  await nextTick();
+  textareaRef.value?.focus({ preventScroll: true });
 };
 
 const handleCancel = () => {
@@ -109,7 +109,7 @@ watch(
           v-model="localPath"
           class="root-path-textarea"
           placeholder="Enter folder path..."
-          inputmode="url"
+          inputmode="text"
           autocapitalize="off"
           autocorrect="off"
           spellcheck="false"
