@@ -184,7 +184,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                 aria-controls="tablet-advanced-content"
               >
                 <label class="tablet-label advanced-label">Advanced</label>
-                <span class="count-pill">[{{ extraParamKeys.length }}]</span>
+                <span class="count-pill">{{ extraParamKeys.length }}</span>
                 <ChevronDown
                   :size="16"
                   :stroke-width="1.5"

@@ -178,7 +178,7 @@ const modelCount = computed(() => {
             aria-controls="gen-data-content"
           >
             <h4><SlidersHorizontal :size="14" :stroke-width="1.5" /> Generation Data</h4>
-            <span v-if="hasGenData" class="count-pill">[{{ genParamsCount }}]</span>
+            <span v-if="hasGenData" class="count-pill">{{ genParamsCount }}</span>
             <ChevronDown
               v-if="hasGenData"
               :size="16"
@@ -252,7 +252,7 @@ const modelCount = computed(() => {
             aria-controls="model-resources-content"
           >
             <h4><BrainCircuit :size="14" :stroke-width="1.5" /> Model & Resources</h4>
-            <span v-if="hasModels" class="count-pill">[{{ modelCount }}]</span>
+            <span v-if="hasModels" class="count-pill">{{ modelCount }}</span>
             <ChevronDown
               v-if="hasModels"
               :size="16"
@@ -305,7 +305,7 @@ const modelCount = computed(() => {
             aria-controls="advanced-content"
           >
             <h4>Advanced</h4>
-            <span class="count-pill">[{{ extraParamKeys.length }}]</span>
+            <span class="count-pill">{{ extraParamKeys.length }}</span>
             <ChevronDown
               :size="16"
               :stroke-width="1.5"
