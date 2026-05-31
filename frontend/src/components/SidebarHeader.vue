@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from "vue";
 import { useGalleryStore } from "../stores/gallery";
-import { FolderOpen, RotateCcw, Info } from "lucide-vue-next";
+import { FolderOpen, RotateCcw, Info, Edit3 } from "lucide-vue-next";
+import { useDevice } from "../composables/useDevice";
+import RootPathSheet from "./RootPathSheet.vue";
 
+const { isMobile } = useDevice();
 const galleryStore = useGalleryStore();
 const pathInput = ref(galleryStore.rootPath || "");
 const inputRef = ref<HTMLInputElement | null>(null);
+const showSheet = ref(false);
 
 const onLoad = async () => {
   const cleaned = pathInput.value.trim().replace(/^["']|["']$/g, "");
@@ -13,9 +17,18 @@ const onLoad = async () => {
   inputRef.value?.blur();
 };
 
+const onMobileLoad = async (path: string) => {
+  pathInput.value = path;
+  await galleryStore.setRootPath(path);
+};
+
 const onReset = () => {
   galleryStore.resetRootPath();
   pathInput.value = "";
+};
+
+const editOnMobile = () => {
+  showSheet.value = true;
 };
 
 onMounted(() => {
@@ -37,36 +50,63 @@ watch(
 
 <template>
   <div class="sidebar-header">
-    <label class="field-label" for="root-path">ROOT PATH</label>
-    
-    <div class="field-container">
-      <FolderOpen class="field-icon" :size="16" />
-      <input
-        id="root-path"
-        ref="inputRef"
-        v-model="pathInput"
-        type="text"
-        placeholder="Enter folder path..."
-        @keyup.enter="onLoad"
-        autocomplete="off"
-        :title="pathInput"
+    <!-- MOBILE: Compact display with tappable edit -->
+    <template v-if="isMobile">
+      <label class="field-label">ROOT PATH</label>
+      <div class="mobile-root-display" @click="editOnMobile" role="button" tabindex="0" @keydown.enter="editOnMobile">
+        <FolderOpen class="field-icon" :size="16" />
+        <span class="mobile-path-text" :title="pathInput || 'Not set'">
+          {{ pathInput || "Not set" }}
+        </span>
+        <button class="mobile-edit-btn" type="button" @click.stop="editOnMobile" title="Edit root path">
+          <Edit3 :size="14" />
+        </button>
+      </div>
+      <p class="field-hint">
+        <Info :size="12" />
+        Tap to edit
+      </p>
+
+      <RootPathSheet
+        v-model="showSheet"
+        :current-path="pathInput"
+        @load="onMobileLoad"
       />
+    </template>
+
+    <!-- DESKTOP: Full input with controls (unchanged) -->
+    <template v-else>
+      <label class="field-label" for="root-path">ROOT PATH</label>
       
-      <button 
-        v-if="pathInput"
-        class="action-btn" 
-        type="button" 
-        @click="onReset" 
-        title="Reset path"
-      >
-        <RotateCcw :size="14" />
-      </button>
-    </div>
-    
-    <p id="root-path-hint" class="field-hint">
-      <Info :size="12" />
-      Press Enter to load
-    </p>
+      <div class="field-container">
+        <FolderOpen class="field-icon" :size="16" />
+        <input
+          id="root-path"
+          ref="inputRef"
+          v-model="pathInput"
+          type="text"
+          placeholder="Enter folder path..."
+          @keyup.enter="onLoad"
+          autocomplete="off"
+          :title="pathInput"
+        />
+        
+        <button 
+          v-if="pathInput"
+          class="action-btn" 
+          type="button" 
+          @click="onReset" 
+          title="Reset path"
+        >
+          <RotateCcw :size="14" />
+        </button>
+      </div>
+      
+      <p class="field-hint">
+        <Info :size="12" />
+        Press Enter to load
+      </p>
+    </template>
   </div>
 </template>
 
@@ -188,6 +228,66 @@ input::placeholder {
 
   .action-btn {
     touch-action: manipulation;
+  }
+
+  /* Compact root path display for mobile */
+  .mobile-root-display {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px;
+    height: 40px;
+    border-radius: 10px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  [data-theme="dark"] .mobile-root-display {
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .mobile-root-display:active {
+    border-color: var(--primary-color, #ff6b35);
+    box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.15);
+  }
+
+  .mobile-root-display .field-icon {
+    flex-shrink: 0;
+  }
+
+  .mobile-path-text {
+    flex: 1;
+    min-width: 0;
+    font-size: 14px;
+    color: var(--text-color, #050505);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-edit-btn {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: var(--muted-text, #65676b);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    touch-action: manipulation;
+  }
+
+  .mobile-edit-btn:active {
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--primary-color, #ff6b35);
   }
 }
 
