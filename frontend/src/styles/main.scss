@@ -242,7 +242,9 @@ html[data-theme="dark"] .theme-toggle:hover {
 
 body {
   margin: 0;
-  min-height: 100vh;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
   font-family: var(--font-body);
   background-color: var(--bg-color);
   background-image: radial-gradient(ellipse 80% 50% at 50% 0%, color-mix(in srgb, var(--primary-color) 4%, transparent) 0%, transparent 100%);
@@ -261,7 +263,8 @@ button {
 }
 
 #app {
-  min-height: 100vh;
+  height: 100%;
+  overflow: hidden;
 }
 
 h1,
@@ -406,6 +409,8 @@ pre {
 
 /* Ensure text remains visible during webfont load */
 html {
+  height: 100%;
+  overflow: hidden;
   font-display: swap;
 }
 

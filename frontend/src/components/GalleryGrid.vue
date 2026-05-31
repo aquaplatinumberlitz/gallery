@@ -652,6 +652,8 @@ onBeforeUnmount(() => {
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
   padding-right: 14px;
   padding-left: 10px;
   scrollbar-width: thin; /* Slim size for Firefox */
@@ -724,6 +726,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   min-height: 300px;
+  height: 100%;
 }
 
 .albums-section {

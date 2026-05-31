@@ -258,13 +258,13 @@ watch(theme, (val) => {
 
 <style scoped>
 .layout {
-  height: 100vh;
+  height: 100dvh;
+  height: 100vh; /* fallback */
   background: var(--bg-color);
   color: var(--text-color);
   display: grid;
   grid-template-columns: 280px 1fr;
-  overflow-x: visible;
-  overflow-y: hidden;
+  overflow: hidden;
 }
 
 .layout.collapsed {
@@ -464,7 +464,8 @@ watch(theme, (val) => {
     top: 0;
     left: 0;
     width: 240px;
-    height: 100vh;
+    height: 100dvh;
+    height: 100vh; /* fallback */
     z-index: 100;
     transform: translateX(-100%);
     box-shadow: var(--gallery-shadow-xl, 0 10px 30px rgba(0, 0, 0, 0.25));

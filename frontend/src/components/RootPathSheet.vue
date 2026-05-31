@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, inject, nextTick } from "vue";
+import { ref, watch, inject } from "vue";
 import { FolderOpen, ClipboardPaste, X, AlertCircle } from "lucide-vue-next";
 import { useDevice } from "../composables/useDevice";
 import { useGalleryStore } from "../stores/gallery";
@@ -21,6 +21,7 @@ const closeSidebar = inject(closeSidebarKey, () => {});
 const localPath = ref("");
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
 const errorMessage = ref<string | null>(null);
+const isPathTextareaFocused = ref(false);
 
 const handleOpen = () => {
   localPath.value = props.currentPath;
@@ -28,22 +29,23 @@ const handleOpen = () => {
 };
 
 const handlePaste = async () => {
-  // Blur any focused element first to prevent iOS native paste bubble
-  (document.activeElement as HTMLElement | null)?.blur();
-  await nextTick();
+  errorMessage.value = null;
   try {
     const text = await navigator.clipboard.readText();
     if (text) {
       localPath.value = text;
     }
   } catch (e) {
-    errorMessage.value = "Unable to access clipboard. Please paste manually or check permissions.";
+    errorMessage.value = "Paste unavailable. Tap the field and use iOS Paste.";
   }
 };
 
-const handleClear = async () => {
+const handleClear = () => {
   localPath.value = "";
   errorMessage.value = null;
+  // Do NOT blur textarea — user might want to type again immediately
+  // Do NOT focus textarea manually
+  // Do NOT trigger any paste/keyboard changes
 };
 
 const handleCancel = () => {
@@ -123,12 +125,14 @@ watch(
           v-model="localPath"
           class="root-path-textarea"
           :class="{ 'has-error': errorMessage }"
-          placeholder="Enter folder path..."
+          placeholder="Paste or type folder path"
           inputmode="text"
           autocapitalize="off"
           autocorrect="off"
           spellcheck="false"
           enterkeyhint="go"
+          @focus="isPathTextareaFocused = true"
+          @blur="isPathTextareaFocused = false"
           @keydown="handleKeydown"
         ></textarea>
 
@@ -140,11 +144,11 @@ watch(
 
         <!-- Action buttons -->
         <div class="sheet-actions">
-          <button class="action-btn" type="button" @pointerdown.prevent @click="handlePaste" title="Paste from clipboard">
+          <button v-if="!isPathTextareaFocused" class="action-btn" type="button" @pointerdown.prevent @click="handlePaste" title="Paste from clipboard">
             <ClipboardPaste :size="16" />
             <span>Paste</span>
           </button>
-          <button class="action-btn clear-btn" type="button" @click="handleClear" title="Clear path">
+          <button class="action-btn clear-btn" type="button" @pointerdown.prevent.stop="handleClear" title="Clear path">
             <X :size="16" />
             <span>Clear</span>
           </button>
@@ -224,21 +228,22 @@ watch(
 .root-path-textarea {
   display: block;
   width: 100%;
-  min-height: 72px;
-  max-height: 120px;
-  padding: 12px;
+  min-height: 112px;
+  max-height: 180px;
+  padding: 14px 16px;
   font-size: 16px;
   font-family: inherit;
-  line-height: 1.4;
+  line-height: 1.45;
   color: var(--text-color, #050505);
   background: var(--bg-color, #f5f5f5);
   border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 10px;
   outline: none;
-  resize: vertical;
+  resize: none;
   overflow-wrap: break-word;
-  word-break: break-all;
+  word-break: break-word;
   white-space: pre-wrap;
+  overflow-y: auto;
   box-sizing: border-box;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
