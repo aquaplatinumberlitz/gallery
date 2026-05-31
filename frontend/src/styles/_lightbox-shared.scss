@@ -86,10 +86,92 @@
   border-radius: 4px;
 }
 
-/* Collapsible group headers */
+/* Collapsible group headers — legacy (non-accordion) */
 .group-header:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring-shadow);
+}
+
+/* ==========================================
+   ACCORDION — shared lightweight accordion header
+   Used by desktop, tablet, and mobile collapsible sections
+   ========================================== */
+
+.accordion-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  margin: 0;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  user-select: none;
+  text-align: left;
+  transition: background 0.15s ease;
+  -webkit-appearance: none;
+  appearance: none;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring-shadow);
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.55;
+    pointer-events: none;
+  }
+
+  h4 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: #e5e7eb;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+}
+
+.accordion-header .count-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.4);
+  white-space: nowrap;
+  font-family: inherit;
+  letter-spacing: 0.02em;
+}
+
+.accordion-header .chevron-icon {
+  display: inline-flex;
+  align-items: center;
+  color: rgba(255, 255, 255, 0.25);
+  transition: transform 0.2s ease;
+  margin-left: auto;
+  flex-shrink: 0;
+
+  &.is-collapsed {
+    transform: rotate(-90deg);
+  }
+}
+
+/* Legacy group-header used by non-collapsible sections (e.g. Extra Settings) */
+.group-header.static {
+  cursor: default;
+  h4 {
+    color: #e5e7eb;
+  }
 }
 
 /* High contrast mode support */

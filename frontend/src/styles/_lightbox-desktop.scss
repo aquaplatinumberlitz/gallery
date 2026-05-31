@@ -176,38 +176,10 @@
 
 /* Collapsible Groups */
 .meta-group {
-  border: var(--gallery-lightbox-border, rgba(255,255,255,0.1));
-  border-radius: 8px;
-}
-
-.group-header {
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.05);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  cursor: pointer;
-  user-select: none;
-  transition: background 0.2s;
-  border-radius: 8px 8px 0 0;
-
-  &:hover { background: rgba(255, 255, 255, 0.08); }
-
-  h4 {
-    margin: 0;
-    font-size: 13px;
-    font-weight: 600;
-    color: #e5e7eb;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
 }
 
 .group-content {
-  padding: 12px;
-  background: rgba(0, 0, 0, 0.2);
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 8px 12px 12px;
 }
 
 /* Resource List */

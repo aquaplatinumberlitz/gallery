@@ -48,6 +48,30 @@ const hasModels = computed(() => hasModelData(props.meta));
 const hasAdv = computed(() => hasAdvancedData(props.meta));
 const extraEntries = computed(() => getSecondaryEntries(props.meta?.params));
 const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
+
+// Counts for accordion pills
+const genParamsCount = computed(() => {
+  if (!props.meta?.params) return 0;
+  let c = 0;
+  const p = props.meta.params;
+  if (p.Seed) c++;
+  if (p.Steps) c++;
+  if (p.CFG) c++;
+  if (p.Sampler) c++;
+  if (p.Scheduler) c++;
+  if (p.AspectRatio) c++;
+  return c;
+});
+
+const modelCount = computed(() => {
+  if (!hasModels.value) return 0;
+  let c = 0;
+  const p = props.meta?.params;
+  if (p?.Model) c++;
+  if (p?.Lora) c += p.Lora.length;
+  if (props.meta?.models) c += props.meta.models.length;
+  return c;
+});
 </script>
 
 <template>
@@ -145,25 +169,24 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
 
         <!-- ========== Generation Data (core) ========== -->
         <section class="meta-group" :class="{ 'is-empty': !hasGenData }">
-          <div
-            class="group-header"
-            :class="{ 'is-disabled': !hasGenData }"
-            @click="hasGenData && (showGenParams = !showGenParams)"
-            tabindex="0"
-            role="button"
+          <button
+            type="button"
+            class="accordion-header"
+            :disabled="!hasGenData"
+            @click="showGenParams = !showGenParams"
             :aria-expanded="hasGenData ? showGenParams : undefined"
             aria-controls="gen-data-content"
-            @keydown.enter="hasGenData && (showGenParams = !showGenParams)"
-            @keydown.space.prevent="hasGenData && (showGenParams = !showGenParams)"
           >
             <h4><SlidersHorizontal :size="14" :stroke-width="1.5" /> Generation Data</h4>
+            <span v-if="hasGenData" class="count-pill">[{{ genParamsCount }}]</span>
             <ChevronDown
               v-if="hasGenData"
-              :size="12"
+              :size="16"
               :stroke-width="1.5"
-              :class="{ rotate: !showGenParams }"
+              class="chevron-icon"
+              :class="{ 'is-collapsed': !showGenParams }"
             />
-          </div>
+          </button>
           <div id="gen-data-content" v-if="hasGenData" class="group-content" v-show="showGenParams">
             <div class="params-grid">
               <div class="param-pill" v-if="props.meta?.params?.Seed">
@@ -220,25 +243,24 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
 
         <!-- ========== Model & Resources (core) ========== -->
         <section class="meta-group" :class="{ 'is-empty': !hasModels }">
-          <div
-            class="group-header"
-            :class="{ 'is-disabled': !hasModels }"
-            @click="hasModels && (showResources = !showResources)"
-            tabindex="0"
-            role="button"
+          <button
+            type="button"
+            class="accordion-header"
+            :disabled="!hasModels"
+            @click="showResources = !showResources"
             :aria-expanded="hasModels ? showResources : undefined"
             aria-controls="model-resources-content"
-            @keydown.enter="hasModels && (showResources = !showResources)"
-            @keydown.space.prevent="hasModels && (showResources = !showResources)"
           >
             <h4><BrainCircuit :size="14" :stroke-width="1.5" /> Model & Resources</h4>
+            <span v-if="hasModels" class="count-pill">[{{ modelCount }}]</span>
             <ChevronDown
               v-if="hasModels"
-              :size="12"
+              :size="16"
               :stroke-width="1.5"
-              :class="{ rotate: !showResources }"
+              class="chevron-icon"
+              :class="{ 'is-collapsed': !showResources }"
             />
-          </div>
+          </button>
           <div id="model-resources-content" v-if="hasModels" class="group-content" v-show="showResources">
             <div class="resource-list">
               <div class="resource-item" v-if="props.meta?.params?.Model">
@@ -275,26 +297,22 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
 
         <!-- ========== Advanced (debug) ========== -->
         <section v-if="hasAdv" class="meta-group advanced">
-          <div
-            class="group-header"
+          <button
+            type="button"
+            class="accordion-header"
             @click="showAdvanced = !showAdvanced"
-            tabindex="0"
-            role="button"
             :aria-expanded="showAdvanced"
             aria-controls="advanced-content"
-            @keydown.enter="showAdvanced = !showAdvanced"
-            @keydown.space.prevent="showAdvanced = !showAdvanced"
           >
-            <h4>
-              Advanced
-              <span class="count-badge">{{ extraParamKeys.length }}</span>
-            </h4>
+            <h4>Advanced</h4>
+            <span class="count-pill">[{{ extraParamKeys.length }}]</span>
             <ChevronDown
-              :size="14"
+              :size="16"
               :stroke-width="1.5"
-              :class="{ rotate: !showAdvanced }"
+              class="chevron-icon"
+              :class="{ 'is-collapsed': !showAdvanced }"
             />
-          </div>
+          </button>
           <div id="advanced-content" class="group-content" v-show="showAdvanced">
             <div class="params-grid">
               <div
@@ -321,16 +339,6 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
 .is-empty {
   opacity: 0.55;
 
-  .group-header.is-disabled {
-    cursor: default;
-    pointer-events: none;
-
-    .chevron,
-    :deep(.lucide-chevron-down) {
-      display: none;
-    }
-  }
-
   .copy-btn {
     display: none;
   }
@@ -342,23 +350,5 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
   font-style: italic;
   margin: 0;
   padding: 0 4px;
-}
-
-// ── Advanced section ──────────────────────────────────────────────
-.meta-group.advanced {
-  .count-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 20px;
-    height: 18px;
-    padding: 0 6px;
-    font-size: 11px;
-    font-weight: 600;
-    border-radius: 9px;
-    background: rgba(255, 255, 255, 0.1);
-    color: #aaa;
-    line-height: 1;
-  }
 }
 </style>

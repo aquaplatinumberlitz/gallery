@@ -184,24 +184,22 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
 
             <!-- Advanced (debug) -->
             <div class="meta-section" v-if="hasAdv">
-              <div
-                class="section-top accordion-header"
+              <button
+                type="button"
+                class="accordion-header"
                 @click="showAdvanced = !showAdvanced"
-                tabindex="0"
-                role="button"
                 :aria-expanded="showAdvanced"
                 aria-controls="mobile-advanced-content"
-                @keydown.enter="showAdvanced = !showAdvanced"
-                @keydown.space.prevent="showAdvanced = !showAdvanced"
               >
                 <label class="sheet-label advanced-label">Advanced</label>
-                <span class="count-badge">{{ extraParamKeys.length }}</span>
+                <span class="count-pill">[{{ extraParamKeys.length }}]</span>
                 <ChevronDown
-                  :size="12"
+                  :size="16"
                   :stroke-width="1.5"
-                  :class="{ collapsed: !showAdvanced }"
+                  class="chevron-icon"
+                  :class="{ 'is-collapsed': !showAdvanced }"
                 />
-              </div>
+              </button>
               <div id="mobile-advanced-content" v-if="showAdvanced" class="params-grid">
                 <div class="param-pill" v-for="k in extraParamKeys" :key="k">
                   <span class="label">{{ k }}</span>
@@ -240,52 +238,6 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
 <style scoped lang="scss">
 @import '../styles/lightbox-shared';
 @import '../styles/lightbox-mobile';
-
-// ── Accordion header for Advanced section ─────────────────────────
-.accordion-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  cursor: pointer;
-  user-select: none;
-  transition: background 0.2s;
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.03);
-  }
-
-  &:focus-visible {
-    outline: none;
-    box-shadow: var(--focus-ring-shadow);
-  }
-
-  .sheet-label {
-    flex: 1;
-  }
-
-  .count-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 20px;
-    height: 18px;
-    padding: 0 6px;
-    font-size: 11px;
-    font-weight: 600;
-    border-radius: 9px;
-    background: rgba(255, 255, 255, 0.1);
-    color: #aaa;
-    line-height: 1;
-  }
-
-  :deep(.lucide-chevron-down) {
-    transition: transform 0.2s ease;
-    &.collapsed {
-      transform: rotate(-90deg);
-    }
-  }
-}
 
 // ── Empty state overrides ─────────────────────────────────────────
 .is-empty {
