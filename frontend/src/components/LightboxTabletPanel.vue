@@ -4,7 +4,7 @@ import { loraHighlighter } from "../utils/loraHighlighter";
 import type { MetadataResponse } from "../types";
 import {
   Loader, X, Calendar, Clock, Maximize,
-  Check, Copy, TriangleAlert,
+  Check, Copy, TriangleAlert, ChevronDown,
 } from "lucide-vue-next";
 import {
   hasCoreParams,
@@ -176,10 +176,25 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
 
             <!-- Advanced (debug) -->
             <div class="tablet-section" v-if="hasAdv">
-              <div class="tablet-section-top" @click="showAdvanced = !showAdvanced" style="cursor: pointer;">
+              <div
+                class="tablet-section-top accordion-header"
+                @click="showAdvanced = !showAdvanced"
+                tabindex="0"
+                role="button"
+                :aria-expanded="showAdvanced"
+                aria-controls="tablet-advanced-content"
+                @keydown.enter="showAdvanced = !showAdvanced"
+                @keydown.space.prevent="showAdvanced = !showAdvanced"
+              >
                 <label class="tablet-label advanced-label">Advanced</label>
+                <span class="count-badge">{{ extraParamKeys.length }}</span>
+                <ChevronDown
+                  :size="12"
+                  :stroke-width="1.5"
+                  :class="{ collapsed: !showAdvanced }"
+                />
               </div>
-              <div v-if="showAdvanced" class="tablet-pills">
+              <div id="tablet-advanced-content" v-if="showAdvanced" class="tablet-pills">
                 <div class="param-pill" v-for="k in extraParamKeys" :key="k">
                   <span class="label">{{ k }}</span>
                   <span class="value">{{ props.meta?.params?.[k] }}</span>
@@ -231,6 +246,56 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
 <style scoped lang="scss">
 @import '../styles/lightbox-shared';
 @import '../styles/lightbox-tablet';
+
+// ── Accordion header for Advanced section ─────────────────────────
+.accordion-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 8px;
+  transition: background 0.2s;
+  margin: -8px -12px;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring-shadow);
+  }
+
+  .tablet-label {
+    margin: 0;
+    flex: 1;
+  }
+
+  .count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 18px;
+    padding: 0 6px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #aaa;
+    line-height: 1;
+  }
+
+  :deep(.lucide-chevron-down) {
+    transition: transform 0.2s ease;
+    &.collapsed {
+      transform: rotate(-90deg);
+    }
+  }
+}
 
 // ── Empty state overrides ─────────────────────────────────────────
 .is-empty {

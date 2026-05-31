@@ -273,13 +273,23 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
             class="group-header"
             @click="showAdvanced = !showAdvanced"
             tabindex="0"
+            role="button"
+            :aria-expanded="showAdvanced"
+            aria-controls="advanced-content"
             @keydown.enter="showAdvanced = !showAdvanced"
             @keydown.space.prevent="showAdvanced = !showAdvanced"
           >
-            <h4><ChevronRight :size="14" :stroke-width="1.5" :class="{ rotate: showAdvanced }" /> Advanced</h4>
-            <ChevronDown :size="12" :stroke-width="1.5" :class="{ rotate: !showAdvanced }" />
+            <h4>
+              <ChevronRight :size="14" :stroke-width="1.5" :class="{ rotate: showAdvanced }" /> Advanced
+              <span class="count-badge">{{ extraParamKeys.length }}</span>
+            </h4>
+            <ChevronDown
+              :size="12"
+              :stroke-width="1.5"
+              :class="{ rotate: !showAdvanced }"
+            />
           </div>
-          <div class="group-content" v-show="showAdvanced">
+          <div id="advanced-content" class="group-content" v-show="showAdvanced">
             <div class="params-grid">
               <div
                 v-for="k in extraParamKeys"
@@ -335,6 +345,21 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
     &.rotate {
       transform: rotate(90deg);
     }
+  }
+
+  .count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 18px;
+    padding: 0 6px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #aaa;
+    line-height: 1;
   }
 }
 </style>
