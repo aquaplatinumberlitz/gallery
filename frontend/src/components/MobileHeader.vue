@@ -111,11 +111,10 @@ interface MobileSortOption {
 }
 
 const mobileSortOptions: MobileSortOption[] = [
-  { field: 'name', order: 'asc', label: 'Tên' },
-  { field: 'date', order: 'desc', label: 'Mới nhất' },
-  { field: 'date', order: 'asc', label: 'Cũ nhất' },
-  { field: 'name', order: 'asc', label: 'A-Z' },
-  { field: 'name', order: 'desc', label: 'Z-A' },
+  { field: 'date', order: 'desc', label: 'Newest' },
+  { field: 'date', order: 'asc', label: 'Oldest' },
+  { field: 'name', order: 'asc', label: 'Name A-Z' },
+  { field: 'name', order: 'desc', label: 'Name Z-A' },
 ]
 
 const isActiveSort = (opt: MobileSortOption): boolean =>
@@ -226,6 +225,7 @@ onMounted(() => {
             :class="{ active: isActiveSort(opt) }"
             @click="selectMobileSort(opt)"
           >
+            <span v-if="isActiveSort(opt)" class="sort-checkmark">✓</span>
             <span>{{ opt.label }}</span>
           </button>
         </div>
@@ -677,7 +677,8 @@ onMounted(() => {
 .mobile-sort-option {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  gap: 8px;
   width: 100%;
   padding: 10px 14px;
   background: transparent;
@@ -688,7 +689,7 @@ onMounted(() => {
   font-family: var(--font-body);
   cursor: pointer;
   transition: all 0.15s ease;
-  text-align: center;
+  text-align: left;
   font-weight: 500;
 }
 
@@ -704,6 +705,12 @@ onMounted(() => {
   background: color-mix(in srgb, var(--primary-color) 10%, transparent);
   color: var(--primary-color);
   font-weight: 600;
+}
+
+.sort-checkmark {
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
 }
 
 /* Dark theme active option */
