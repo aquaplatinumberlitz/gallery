@@ -15,15 +15,8 @@ const emit = defineEmits<{
 const localPath = ref("");
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
 
-const handleOpen = async () => {
+const handleOpen = () => {
   localPath.value = props.currentPath;
-  await nextTick();
-  textareaRef.value?.focus({ preventScroll: true });
-  // Move cursor to end
-  if (textareaRef.value) {
-    const len = textareaRef.value.value.length;
-    textareaRef.value.setSelectionRange(len, len);
-  }
 };
 
 const handlePaste = async () => {
