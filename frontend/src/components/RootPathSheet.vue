@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, nextTick, watch } from "vue";
+import { ref, watch } from "vue";
 import { FolderOpen, ClipboardPaste, X } from "lucide-vue-next";
 
 const props = defineProps<{
@@ -24,22 +24,14 @@ const handlePaste = async () => {
     const text = await navigator.clipboard.readText();
     if (text) {
       localPath.value = text;
-      await nextTick();
-      if (textareaRef.value) {
-        const len = textareaRef.value.value.length;
-        textareaRef.value.setSelectionRange(len, len);
-        textareaRef.value.focus({ preventScroll: true });
-      }
     }
   } catch (e) {
-    // Clipboard read not available or denied — silently handle
+    console.warn("Clipboard read not available or denied");
   }
 };
 
 const handleClear = async () => {
   localPath.value = "";
-  await nextTick();
-  textareaRef.value?.focus({ preventScroll: true });
 };
 
 const handleCancel = () => {
