@@ -561,11 +561,13 @@ onMounted(() => {
   background: rgba(0, 0, 0, 0.32);
 }
 
-/* When user has typed a query — remove blur/dim so results/empty state are readable */
+/* When user has typed a query — remove blur/dim so results/empty state are readable.
+   Also let clicks pass through so the "Clear search" button in the empty state works. */
 .search-focus-overlay.search-focus-has-query {
   background: transparent;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+  pointer-events: none;
 }
 
 /* ============================================================
