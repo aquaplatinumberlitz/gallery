@@ -248,6 +248,7 @@ onMounted(() => {
       v-if="isSearchActive"
       ref="overlayRef"
       class="search-focus-overlay"
+      :class="{ 'search-focus-has-query': hasQuery }"
       @click="handleOverlayClick"
       @touchend.prevent="handleOverlayClick"
     ></div>
@@ -558,6 +559,13 @@ onMounted(() => {
 /* Dark theme: darker overlay */
 :root[data-theme="dark"] .search-focus-overlay {
   background: rgba(0, 0, 0, 0.32);
+}
+
+/* When user has typed a query — remove blur/dim so results/empty state are readable */
+.search-focus-overlay.search-focus-has-query {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 /* ============================================================
