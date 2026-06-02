@@ -142,8 +142,6 @@ export function useColumnResize() {
     columnCount,
     rowHeight,
     setGridRef,
-    MIN_COLS: 1 as const,
-    MAX_COLS: PHOTO_GRID_LEVELS.length as 5,
     GAP,
   }
 }

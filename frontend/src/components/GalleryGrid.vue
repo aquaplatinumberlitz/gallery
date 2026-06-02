@@ -21,7 +21,7 @@ import {
   Type, Clock, Images 
 } from "lucide-vue-next";
 
-const _icons: Record<string, any> = { ArrowUp, ArrowDown, Type, Clock }
+const _icons: Record<string, any> = { Type, Clock }
 
 const galleryStore = useGalleryStore();
 const lightboxStore = useLightboxStore();
@@ -740,9 +740,6 @@ onBeforeUnmount(() => {
   background: rgba(0, 0, 0, 0.25);
 }
 
-.scroller-header {
-  /* Glow bleed is now handled by overflow chain fix (Item 1) */
-}
 
 .folders-only-container {
   padding-left: 10px;
@@ -1274,11 +1271,6 @@ onBeforeUnmount(() => {
     padding: 0 4px;
   }
 
-  .scroller-header {
-    padding-top: 0;
-    padding-bottom: 8px;
-  }
-
   .scroller-footer {
     padding-top: 8px;
     padding-bottom: 120px; /* Extra bottom padding for mobile nav bar */
@@ -1369,16 +1361,6 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .pull-indicator {
-    transition: none;
-  }
-  .pull-arrow {
-    transition: none;
-  }
-}
-
-/* Pull-to-refresh indicator — reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .pull-indicator {
     transition: none;
