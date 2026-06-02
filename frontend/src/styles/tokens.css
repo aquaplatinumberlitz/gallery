@@ -203,26 +203,26 @@
   /* Composite glow shadows (giữ cho album-card 3D) */
   --glow-card-hover:
     0 0 2px #fff,
-    0 0 4px rgba(255, 255, 255, 0.6),
-    0 0 8px var(--glow-color-50),
-    0 0 16px var(--glow-color-30),
-    0 0 24px var(--glow-color-15);
+    0 0 5px #fff,
+    0 0 10px var(--glow-color-60),
+    0 0 18px var(--glow-color-50),
+    0 0 24px var(--glow-color-35);
 
   --glow-card-hover-front:
     0 0 2px #fff,
-    0 0 3px rgba(255, 255, 255, 0.5),
-    0 0 6px var(--glow-color-60),
-    0 0 12px var(--glow-color-40),
-    0 0 18px var(--glow-color-20);
+    0 0 4px rgba(255, 255, 255, 0.6),
+    0 0 8px var(--glow-color-70),
+    0 0 14px var(--glow-color-50),
+    0 0 20px var(--glow-color-30);
 
   --glow-card-hover-back:
-    0 0 6px var(--glow-color-30),
-    0 0 12px var(--glow-color-15);
+    0 0 6px var(--glow-color-40),
+    0 0 12px var(--glow-color-25);
 
   --glow-card-active:
     0 0 3px #fff,
-    0 0 6px var(--glow-color-40),
-    0 0 12px var(--glow-color-20);
+    0 0 8px var(--glow-color-50),
+    0 0 14px var(--glow-color-30);
 }
 
 /* Mobile override: glow vars */
