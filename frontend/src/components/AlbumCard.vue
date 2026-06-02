@@ -175,7 +175,7 @@ defineProps<{
   // HOVER EFFECT & DARK MODE — Desktop only, not sticky on touch
   @media (hover: hover) {
     &:hover {
-      transform: translateY(-2px);
+      transform: translateY(-4px);
       box-shadow: var(--album-hover-shadow);
 
       .album-cover-diagonal {
