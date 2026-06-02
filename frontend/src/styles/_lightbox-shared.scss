@@ -173,7 +173,13 @@
   cursor: default;
   padding: 10px 0;
   h4 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
     color: #e5e7eb;
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 }
 
