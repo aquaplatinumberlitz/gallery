@@ -49,6 +49,7 @@ defineProps<{
   --album-card-bg: var(--gallery-surface-elevated, #ffffff);
   --album-card-border: 1px solid var(--gallery-border-default, #e5ddd4);
   --album-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --album-layer-border-color: var(--album-border-color);
   --album-back-shadow: var(--shadow-card);
   --album-front-shadow: var(--shadow-card-level2);
   --album-hover-shadow: var(--shadow-card-hover);
@@ -101,7 +102,7 @@ defineProps<{
     border-radius: 1px;
     overflow: hidden;
     transition: all 0.4s ease;
-    border: 4px solid var(--album-border-color); // Separate border color
+    border: 4px solid var(--album-layer-border-color, var(--album-border-color)); // Separate border color
     background: var(--surface-color);
 
     img {
@@ -273,6 +274,7 @@ html[data-theme="light"] .album-card,
   --album-card-bg: transparent;
   --album-card-border: none;
   --album-card-shadow: none;
+  --album-layer-border-color: #ffffff;
   --album-back-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 1px 3px 1px rgba(0,0,0,0.15);
   --album-front-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 2px 6px 2px rgba(0,0,0,0.15);
   --album-hover-shadow: 0 1px 3px rgba(0,0,0,0.3), 0 4px 8px 3px rgba(0,0,0,0.15);
