@@ -11,7 +11,7 @@ import SkeletonLoader from "./SkeletonLoader.vue";
 import Breadcrumb from "./Breadcrumb.vue";
 import EmptyState from "./EmptyState.vue";
 import { compareNatural } from "../composables/useNaturalSort";
-import { useColumnResize } from "../composables/useColumnResize";
+import { useColumnResize, PHOTO_GRID_LEVELS } from "../composables/useColumnResize";
 import { usePullToRefresh } from "../composables/usePullToRefresh";
 import { galleryScrollContainerRefKey } from "../injectionKeys";
 import { 
@@ -200,7 +200,21 @@ const openFolder = () => galleryStore.openInExplorer();
 const isLoadingMore = computed(() => galleryStore.loadingMoreImages);
 
 // --- Virtual scroller state ---
-const { columnCount, rowHeight, setGridRef, MIN_COLS, MAX_COLS } = useColumnResize();
+const { columnCount, sliderLevel, rowHeight, setGridRef } = useColumnResize();
+
+const currentLevel = computed(() => PHOTO_GRID_LEVELS.find(l => l.level === sliderLevel.value) ?? PHOTO_GRID_LEVELS[2])
+
+// Keyboard accessibility for slider — guard against double-fire from native <input type="range">
+const handleSliderKeydown = (e: KeyboardEvent) => {
+  if (e.target instanceof HTMLInputElement) return // native range handles arrows
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+    e.preventDefault()
+    if (sliderLevel.value > 1) sliderLevel.value--
+  } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+    e.preventDefault()
+    if (sliderLevel.value < 5) sliderLevel.value++
+  }
+}
 
 const imageRows = computed(() => {
   const rows: { id: string; items: typeof images.value }[] = [];
@@ -347,20 +361,38 @@ onBeforeUnmount(() => {
         </Transition>
       </div>
 
-      <div class="grid-slider" title="Columns per Row">
-        <LayoutGrid :size="16" class="slider-icon" />
-        <span class="slider-count-badge">{{ columnCount }}</span>
-        <div class="slider-track-wrapper">
+      <div
+        class="grid-slider"
+        role="group"
+        aria-label="Adjust photo thumbnail size"
+        title="Adjust photo thumbnail size"
+        @keydown="handleSliderKeydown"
+      >
+        <LayoutGrid :size="14" class="slider-icon-left" />
+        <div class="slider-control">
           <input
             id="grid-size"
-            v-model.number="columnCount"
+            v-model.number="sliderLevel"
             type="range"
-            :min="MIN_COLS"
-            :max="MAX_COLS"
+            min="1"
+            max="5"
+            step="1"
+            aria-label="Thumbnail size"
+            aria-valuemin="1"
+            aria-valuemax="5"
+            :aria-valuenow="sliderLevel"
+            :aria-valuetext="`${currentLevel.label}, ${currentLevel.columns} columns`"
           />
-          <div class="slider-progress" :style="{ width: ((columnCount - MIN_COLS) / (MAX_COLS - MIN_COLS)) * 100 + '%' }"></div>
-          <div class="slider-tooltip" :style="{ left: ((columnCount - MIN_COLS) / (MAX_COLS - MIN_COLS)) * 100 + '%' }">{{ columnCount }}</div>
+          <div class="slider-track">
+            <div class="slider-fill" :style="{ width: ((sliderLevel - 1) / 4) * 100 + '%' }"></div>
+          </div>
+          <div class="slider-thumb" :style="{ left: ((sliderLevel - 1) / 4) * 100 + '%' }"></div>
+          <div class="slider-tick-marks" aria-hidden="true">
+            <span v-for="i in 5" :key="i" class="tick" :class="{ active: i <= sliderLevel }"></span>
+          </div>
         </div>
+        <span class="slider-badge" aria-hidden="true">{{ columnCount }}<span class="badge-label">cols</span></span>
+        <span class="slider-icon-right">{{ currentLevel.label[0] }}</span>
       </div>
 
       <div v-if="isLoading" class="loading-badge">
@@ -931,131 +963,169 @@ onBeforeUnmount(() => {
 .grid-slider {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   background: var(--surface-color);
   border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
-  padding: 8px 14px;
-  border-radius: 12px;
+  padding: 6px 12px;
+  border-radius: 10px;
   transition: all 0.2s ease;
+  user-select: none;
 }
 
 .grid-slider:hover {
   border-color: var(--primary-color);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--primary-color) 25%, transparent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary-color) 18%, transparent);
 }
 
-/* Focus style when slider input is focused */
-.grid-slider:has(input:focus-visible) {
-  border-color: var(--border-color, rgba(0, 0, 0, 0.1));
-  box-shadow: none;
-}
-
-/* Fallback for browsers that don't support :has() */
+/* Focus style */
 .grid-slider:focus-within {
-  border-color: var(--border-color, rgba(0, 0, 0, 0.1));
-  box-shadow: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 25%, transparent);
 }
 
-.slider-icon {
-  color: var(--primary-color);
+.slider-icon-left {
+  color: var(--text-color);
+  opacity: 0.5;
+  flex-shrink: 0;
+  transition: opacity 0.2s ease;
 }
 
-.slider-count-badge {
-  min-width: 28px;
-  padding: 2px 10px;
-  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
-  color: var(--primary-color);
-  font-size: 12px;
-  font-weight: 600;
-  font-family: var(--font-code);
-  border-radius: 999px;
-  text-align: center;
-  box-shadow: none;
+.grid-slider:hover .slider-icon-left {
+  opacity: 0.7;
 }
 
-.slider-track-wrapper {
+/* Slider control container — relative positioning for overlay elements */
+.slider-control {
   position: relative;
-  width: 100px;
-  height: 6px;
-  background: rgba(0, 0, 0, 0.1);
-  border-radius: 3px;
-  overflow: hidden;
+  width: 80px;
+  height: 20px;
+  display: flex;
+  align-items: center;
 }
 
-.slider-progress {
+/* Native range input — invisible but functional */
+.slider-control input[type="range"] {
   position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
-  background: linear-gradient(90deg, var(--primary-color), #e8c07a);
-  border-radius: 3px;
-  pointer-events: none;
-  transition: width 0.15s ease;
-}
-
-.grid-slider input[type="range"] {
-  position: absolute;
-  top: 0;
-  left: 0;
+  inset: 0;
   width: 100%;
   height: 100%;
   margin: 0;
   opacity: 0;
   cursor: pointer;
-  z-index: 2;
-}
-
-/* Custom thumb for webkit browsers */
-.grid-slider input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 28px;
-  height: 28px;
-  background: var(--primary-color);
-  border: 3px solid #fff;
-  border-radius: 50%;
-  cursor: pointer;
-  box-shadow: 0 2px 6px color-mix(in srgb, var(--primary-color) 40%, transparent);
-}
-
-.grid-slider input[type="range"]::-moz-range-thumb {
-  width: 28px;
-  height: 28px;
-  background: var(--primary-color);
-  border: 3px solid #fff;
-  border-radius: 50%;
-  cursor: pointer;
-  box-shadow: 0 2px 6px color-mix(in srgb, var(--primary-color) 40%, transparent);
-}
-
-.slider-tooltip {
-  display: none;
-  position: absolute;
-  top: -32px;
-  left: 0;
-  transform: translateX(-50%);
-  padding: 4px 8px;
-  background: linear-gradient(135deg, var(--primary-color), #e8c07a);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 600;
-  font-family: var(--font-code);
-  border-radius: 6px;
-  text-align: center;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary-color) 30%, transparent);
-  white-space: nowrap;
-  pointer-events: none;
-  transition: left 0.15s ease;
   z-index: 3;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
-.slider-tooltip::after {
-  content: '';
+/* Track background */
+.slider-track {
   position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  border: 5px solid transparent;
-  border-top-color: var(--primary-color);
+  left: 2px;
+  right: 2px;
+  height: 4px;
+  background: var(--border-color, rgba(0, 0, 0, 0.1));
+  border-radius: 2px;
+  overflow: hidden;
+  z-index: 1;
+}
+
+/* Filled portion of track (left side) */
+.slider-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: var(--primary-color);
+  border-radius: 2px;
+  transition: width 0.12s ease;
+  opacity: 0.7;
+}
+
+/* Custom thumb overlay */
+.slider-thumb {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  background: var(--primary-color);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  pointer-events: none;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  transition: left 0.12s ease;
+}
+
+/* Tick marks */
+.slider-tick-marks {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  bottom: 2px;
+  display: flex;
+  justify-content: space-between;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.tick {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--border-color, rgba(0, 0, 0, 0.2));
+  transition: background 0.15s ease;
+}
+
+.tick.active {
+  background: var(--primary-color);
+  opacity: 0.5;
+}
+
+/* Column count badge */
+.slider-badge {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-code, monospace);
+  color: var(--text-color);
+  background: var(--border-color, rgba(0, 0, 0, 0.06));
+  border-radius: 4px;
+  line-height: 1.4;
+  min-width: 28px;
+  text-align: center;
+  flex-shrink: 0;
+  transition: background 0.2s ease;
+}
+
+.grid-slider:hover .slider-badge {
+  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+}
+
+.badge-label {
+  font-size: 9px;
+  font-weight: 400;
+  opacity: 0.5;
+  text-transform: lowercase;
+}
+
+/* Right-side label (first letter of level name) */
+.slider-icon-right {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-color);
+  opacity: 0.4;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+  transition: opacity 0.2s ease;
+}
+
+.grid-slider:hover .slider-icon-right {
+  opacity: 0.6;
 }
 
 .loading-badge {
