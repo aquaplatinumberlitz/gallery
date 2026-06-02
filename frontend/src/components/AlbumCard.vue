@@ -257,4 +257,12 @@ defineProps<{
   display: block;
   color: var(--muted-text);
 }
+
+/* ── Light theme: match original transparent card ── */
+html[data-theme="light"] .album-card,
+:root:not([data-theme="dark"]) .album-card {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
 </style>
