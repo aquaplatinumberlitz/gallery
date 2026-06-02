@@ -49,12 +49,10 @@ defineProps<{
   --album-card-bg: var(--gallery-surface-elevated, #ffffff);
   --album-card-border: 1px solid var(--gallery-border-default, #e5ddd4);
   --album-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-  --album-cover-height: 175px;
   --album-back-shadow: var(--shadow-card);
   --album-front-shadow: var(--shadow-card-level2);
   --album-hover-shadow: var(--shadow-card-hover);
   --album-front-hover-shadow: var(--shadow-card-level4);
-  --album-placeholder-bg: var(--placeholder-bg);
 
   width: 100%;
   cursor: pointer;
@@ -71,7 +69,7 @@ defineProps<{
 
   .album-cover-diagonal {
     position: relative;
-    height: var(--album-cover-height); // Standard height
+    height: 175px; // Standard height
     transform-style: preserve-3d;
     transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); // Elastic bounce
   }
@@ -115,7 +113,7 @@ defineProps<{
     .placeholder {
       width: 100%;
       height: 100%;
-      background: var(--album-placeholder-bg);
+      background: var(--placeholder-bg);
       display: grid;
       place-items: center;
       font-size: 2rem;
@@ -275,30 +273,9 @@ html[data-theme="light"] .album-card,
   --album-card-bg: transparent;
   --album-card-border: none;
   --album-card-shadow: none;
-  --album-cover-height: 280px;
   --album-back-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 1px 3px 1px rgba(0,0,0,0.15);
   --album-front-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 2px 6px 2px rgba(0,0,0,0.15);
   --album-hover-shadow: 0 1px 3px rgba(0,0,0,0.3), 0 4px 8px 3px rgba(0,0,0,0.15);
   --album-front-hover-shadow: 0 2px 3px rgba(0,0,0,0.3), 0 6px 10px 4px rgba(0,0,0,0.15);
-  --album-placeholder-bg: rgba(0,0,0,0.1);
-}
-
-html[data-theme="light"] .album-card:hover,
-:root:not([data-theme="dark"]) .album-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--album-hover-shadow);
-
-  .album-cover-diagonal {
-    transform: translateY(-10px);
-  }
-
-  .album-layer-back {
-    transform: translate(-20px, 5px) rotate(-15deg);
-  }
-
-  .album-layer-front {
-    transform: translate(10px, -5px) rotate(12deg) scale(1.05);
-    box-shadow: var(--album-front-hover-shadow);
-  }
 }
 </style>
