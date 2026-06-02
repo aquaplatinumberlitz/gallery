@@ -45,6 +45,15 @@ defineProps<{
 
 <style scoped lang="scss">
 .album-card {
+  // Component-level tokens
+  --album-card-bg: var(--gallery-surface-elevated, #ffffff);
+  --album-card-border: 1px solid var(--gallery-border-default, #e5ddd4);
+  --album-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --album-back-shadow: var(--shadow-card);
+  --album-front-shadow: var(--shadow-card-level2);
+  --album-hover-shadow: var(--shadow-card-hover);
+  --album-front-hover-shadow: var(--shadow-card-level4);
+
   width: 100%;
   cursor: pointer;
   perspective: 1000px; // Important for 3D transforms (desktop only)
@@ -54,9 +63,9 @@ defineProps<{
   transition: 
     transform 280ms cubic-bezier(0.4, 0, 0.2, 1), 
     box-shadow 280ms cubic-bezier(0.4, 0, 0.2, 1);
-  background: var(--gallery-surface-elevated, #ffffff);
-  border: 1px solid var(--gallery-border-default, #e5ddd4);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  background: var(--album-card-bg);
+  border: var(--album-card-border);
+  box-shadow: var(--album-card-shadow);
 
   .album-cover-diagonal {
     position: relative;
@@ -118,7 +127,7 @@ defineProps<{
     transform: rotate(-12deg) translateZ(0); // Standard rotation from original design
     opacity: 0.9;
     z-index: 1;
-    box-shadow: var(--shadow-card);
+    box-shadow: var(--album-back-shadow);
   }
 
   .album-layer-front {
@@ -126,7 +135,7 @@ defineProps<{
     right: 15px;
     transform: rotate(8deg) translateZ(20px); // Standard rotation angle
     z-index: 10;
-    box-shadow: var(--shadow-card-level2);
+    box-shadow: var(--album-front-shadow);
   }
 
   .album-info {
@@ -166,7 +175,7 @@ defineProps<{
   @media (hover: hover) {
     &:hover {
       transform: translateY(-2px);
-      box-shadow: var(--shadow-card-hover);
+      box-shadow: var(--album-hover-shadow);
 
       .album-cover-diagonal {
         transform: translateY(-10px);
@@ -178,7 +187,7 @@ defineProps<{
 
       .album-layer-front {
         transform: translate(10px, -5px) rotate(12deg) scale(1.05);
-        box-shadow: var(--shadow-card-level4);
+        box-shadow: var(--album-front-hover-shadow);
       }
     }
   }
@@ -261,8 +270,12 @@ defineProps<{
 /* ── Light theme: match original transparent card ── */
 html[data-theme="light"] .album-card,
 :root:not([data-theme="dark"]) .album-card {
-  background: transparent;
-  border: none;
-  box-shadow: none;
+  --album-card-bg: transparent;
+  --album-card-border: none;
+  --album-card-shadow: none;
+  --album-back-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 1px 3px 1px rgba(0,0,0,0.15);
+  --album-front-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 2px 6px 2px rgba(0,0,0,0.15);
+  --album-hover-shadow: 0 1px 3px rgba(0,0,0,0.3), 0 4px 8px 3px rgba(0,0,0,0.15);
+  --album-front-hover-shadow: 0 2px 3px rgba(0,0,0,0.3), 0 6px 10px 4px rgba(0,0,0,0.15);
 }
 </style>
