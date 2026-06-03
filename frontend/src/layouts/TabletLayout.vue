@@ -18,7 +18,6 @@ const emit = defineEmits<{
   (e: "update:searchQuery", value: string): void;
   (e: "toggleSidebar"): void;
   (e: "toggleTheme"): void;
-  (e: "openSettings"): void;
 }>();
 </script>
 
@@ -28,8 +27,7 @@ const emit = defineEmits<{
       <aside
         v-if="isSidebarOpen"
         id="sidebar"
-        class="sidebar tablet-overlay"
-        :class="{ open: isSidebarOpen }"
+        class="sidebar tablet-overlay open"
       >
         <SidebarHeader />
         <div class="sidebar-body">
