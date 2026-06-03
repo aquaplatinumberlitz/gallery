@@ -250,7 +250,7 @@ def scan_directory(target_path: Path) -> tuple[list[FileNode], list[FileNode]]:
                 try:
                     with Image.open(entry.path) as img:
                         img_width, img_height = img.size
-                except Exception:
+                except (UnidentifiedImageError, OSError):
                     pass  # If extraction fails, dimensions remain None
                 images.append(
                     FileNode(

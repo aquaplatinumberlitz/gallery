@@ -229,6 +229,52 @@
 }
 
 /* ==========================================
+   PHOTOSWIPE INFO BUTTON — shared between desktop + mobile PhotoSwipe components
+   ========================================== */
+
+/* Info button — registered via pswp.ui.registerElement(), moved to .lightbox-overlay */
+/* Transparent outer button — only the Lucide Info circle is visible */
+.pswp__button--metadata-info {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: rgba(255, 255, 255, 0.92);
+  cursor: pointer;
+  z-index: 4000;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+
+  &::before,
+  &::after {
+    display: none;
+  }
+
+  &.active {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  &.hidden {
+    display: none;
+  }
+}
+
+/* Lucide Info icon — 32x32px, circle + i with transparent fill */
+.pswp__button--metadata-info .pswp-metadata-info-icon {
+  width: 32px;
+  height: 32px;
+  display: block;
+  pointer-events: none;
+}
+
+/* ==========================================
    SOURCE BADGE — structured tool/source display
    Replaces old "// toolname" comment-style labels
    ========================================== */
