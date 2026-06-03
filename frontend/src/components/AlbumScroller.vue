@@ -4,6 +4,7 @@ import type { FileNode } from "../types";
 import { ArrowLeft, ArrowRight, FolderOpen } from "lucide-vue-next";
 import AlbumCard from "./AlbumCard.vue";
 import AlbumCardMobile from "./AlbumCardMobile.vue";
+import AlbumCardTablet from "./AlbumCardTablet.vue";
 import GallerySectionHeader from "./GallerySectionHeader.vue";
 import { useDevice } from "../composables/useDevice";
 
@@ -41,7 +42,7 @@ function toggleCollapsed() {
 const gridRef = ref<HTMLElement | null>(null);
 const showLeftArrow = ref(false);
 const showRightArrow = ref(false);
-const { isMobile } = useDevice();
+const { isMobile, isTablet } = useDevice();
 
 // ── ResizeObserver for realtime overflow tracking ──
 let resizeObserver: ResizeObserver | null = null;
@@ -170,7 +171,7 @@ onBeforeUnmount(() => {
           @scroll="onGridScroll"
         >
           <component
-            :is="isMobile ? AlbumCardMobile : AlbumCard"
+            :is="isMobile ? AlbumCardMobile : isTablet ? AlbumCardTablet : AlbumCard"
             v-for="item in folders"
             :key="item.path"
             :node="item"

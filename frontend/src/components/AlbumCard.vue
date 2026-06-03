@@ -81,29 +81,6 @@ defineProps<{
     }
   }
 
-  /* ── Tablet (768px–1199px): compact sizing ── */
-  @media (min-width: 768px) and (max-width: 1199px) {
-    padding-top: 10px;
-    padding-left: 10px;
-
-    .album-cover-diagonal {
-      height: 130px;
-    }
-
-    .album-info {
-      margin-top: 8px;
-      padding: 0 10px 10px;
-
-      .album-name {
-        font-size: 15px;
-      }
-
-      .album-meta {
-        font-size: 12px;
-      }
-    }
-  }
-
   @media (max-width: 480px) {
     .album-cover-diagonal {
       height: 90px;
