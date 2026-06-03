@@ -1,4 +1,4 @@
-import { computed, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance, type Ref } from 'vue'
 import { BREAKPOINTS } from './useDevice'
 
 const GAP = 20
@@ -21,10 +21,17 @@ export const PHOTO_GRID_LEVELS = [
 export type PhotoGridLevel = (typeof PHOTO_GRID_LEVELS)[number]['level']
 export const DEFAULT_PHOTO_GRID_LEVEL: PhotoGridLevel = 3
 
-function levelToColumns(level: number): number {
-  const entry = PHOTO_GRID_LEVELS.find(l => l.level === level)
-  return entry?.columns ?? PHOTO_GRID_LEVELS[DEFAULT_PHOTO_GRID_LEVEL - 1].columns
-}
+/**
+ * Responsive column mapping by device category.
+ * Maps slider level (1-5) to actual column count per device category.
+ */
+export const GRID_COLUMN_MAP = {
+  desktop: [8, 7, 6, 5, 4],
+  tablet: [5, 5, 4, 3, 3],
+  mobile: [3, 3, 2, 2, 2],
+} as const
+
+export type DeviceCategory = keyof typeof GRID_COLUMN_MAP
 
 /**
  * Migrate old localStorage value (1–8 raw column count) to new level-based value.
@@ -47,14 +54,26 @@ function getDefaultLevel(): number {
   return DEFAULT_PHOTO_GRID_LEVEL
 }
 
-export function useColumnResize() {
+export function useColumnResize(deviceCategory: DeviceCategory | Ref<DeviceCategory> = 'desktop') {
   const sliderLevel = ref(getDefaultLevel())
   const rowHeight = ref(0)
   let resizeObserver: ResizeObserver | null = null
   const lastGridWidth = ref(0)
 
-  /** Effective photo grid column count derived from slider level */
-  const effectiveColumnCount = computed(() => levelToColumns(sliderLevel.value))
+  /** Reactive device category — works with plain string, ref, or computed ref */
+  const _deviceCategory = typeof deviceCategory === 'string'
+    ? ref(deviceCategory)
+    : deviceCategory
+
+  /**
+   * Effective photo grid column count derived from slider level,
+   * mapped through the responsive grid column map for the current device category.
+   */
+  const effectiveColumnCount = computed(() => {
+    const map = GRID_COLUMN_MAP[_deviceCategory.value] ?? GRID_COLUMN_MAP.desktop
+    const idx = Math.min(Math.max(sliderLevel.value - 1, 0), 4)
+    return map[idx]
+  })
 
   /** Alias for backward compatibility with template bindings */
   const columnCount = effectiveColumnCount

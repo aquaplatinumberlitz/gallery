@@ -12,6 +12,7 @@ import Breadcrumb from "./Breadcrumb.vue";
 import EmptyState from "./EmptyState.vue";
 import { compareNatural } from "../composables/useNaturalSort";
 import { useColumnResize, PHOTO_GRID_LEVELS } from "../composables/useColumnResize";
+import { useDevice } from "../composables/useDevice";
 import { usePullToRefresh } from "../composables/usePullToRefresh";
 import { galleryScrollContainerRefKey } from "../injectionKeys";
 import { 
@@ -200,7 +201,9 @@ const openFolder = () => galleryStore.openInExplorer();
 const isLoadingMore = computed(() => galleryStore.loadingMoreImages);
 
 // --- Virtual scroller state ---
-const { columnCount, sliderLevel, rowHeight, setGridRef } = useColumnResize();
+const { isTablet } = useDevice()
+const deviceCategory = computed(() => props.isMobile ? 'mobile' : isTablet.value ? 'tablet' : 'desktop')
+const { columnCount, sliderLevel, rowHeight, setGridRef } = useColumnResize(deviceCategory);
 
 const currentLevel = computed(() => PHOTO_GRID_LEVELS.find(l => l.level === sliderLevel.value) ?? PHOTO_GRID_LEVELS[2])
 
