@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, nextTick, onBeforeUnmount, watch, computed } from 'vue'
-import { Menu, Search, X, ArrowLeft, Grid3X3 } from 'lucide-vue-next'
+import { Menu, Search, X, ArrowLeft } from 'lucide-vue-next'
 import Breadcrumb from './Breadcrumb.vue'
 
 interface Props {
@@ -154,15 +154,6 @@ function onSearchInput(e: Event) {
         title="Search"
       >
         <Search :size="20" />
-      </button>
-
-      <!-- Density shortcut -->
-      <button
-        class="th-btn th-density-btn"
-        aria-label="Toggle density"
-        title="Toggle density"
-      >
-        <Grid3X3 :size="20" />
       </button>
 
       <!-- Theme toggle -->
