@@ -1155,6 +1155,26 @@ onBeforeUnmount(() => {
 
 /* ── Album scroll styles are in AlbumScroller.vue ── */
 
+/* ── SVG icon sizing via CSS variables (overridden per breakpoint) ── */
+/* Nav button icons (ArrowLeft, ArrowRight) — default 18px */
+.nav-btn svg {
+  width: var(--nav-icon-size, 18px);
+  height: var(--nav-icon-size, 18px);
+}
+
+/* Sort/density trigger main icons (ArrowUpDown, LayoutGrid) — default 16px */
+.sort-trigger > svg:not(.sort-chevron),
+.density-trigger > svg:not(.density-chevron) {
+  width: var(--trigger-icon-size, 16px);
+  height: var(--trigger-icon-size, 16px);
+}
+
+/* Chevron icons inside sort/density triggers — default 12px */
+.sort-trigger svg.sort-chevron,
+.density-trigger svg.density-chevron {
+  width: var(--chevron-size, 12px);
+  height: var(--chevron-size, 12px);
+}
 
 .skeleton-container {
   flex: 1;
@@ -1207,6 +1227,17 @@ onBeforeUnmount(() => {
   .density-trigger {
     padding: 10px 14px;
     min-height: 44px;
+  }
+
+  /* SVG icon sizing for tablet */
+  .gallery-grid {
+    --nav-icon-size: 22px;
+    --trigger-icon-size: 18px;
+    --chevron-size: 16px;
+  }
+
+  .photos-title {
+    margin-bottom: 8px;
   }
 
   .section-title span {
