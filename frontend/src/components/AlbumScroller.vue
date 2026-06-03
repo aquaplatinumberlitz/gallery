@@ -142,26 +142,26 @@ onBeforeUnmount(() => {
        <ChevronDown :size="14" class="toggle-chevron-inline" :class="{ collapsed }" />
      </span>
    </button>
-    <div class="album-arrows" v-show="!collapsed">
-      <button
-        v-if="showLeftArrow"
-        class="album-scroll-btn"
-        @click="scrollAlbums(-1)"
-        aria-label="Scroll left"
-      >
-        <ArrowLeft :size="24" />
-      </button>
-      <button
-        v-if="showRightArrow"
-        class="album-scroll-btn"
-        @click="scrollAlbums(1)"
-        aria-label="Scroll right"
-      >
-        <ArrowRight :size="24" />
-      </button>
-    </div>
     <Transition name="album-collapse">
       <div class="album-grid-wrapper" v-show="!collapsed">
+        <div class="album-arrows">
+          <button
+            v-if="showLeftArrow"
+            class="album-scroll-btn"
+            @click="scrollAlbums(-1)"
+            aria-label="Scroll left"
+          >
+            <ArrowLeft :size="24" />
+          </button>
+          <button
+            v-if="showRightArrow"
+            class="album-scroll-btn"
+            @click="scrollAlbums(1)"
+            aria-label="Scroll right"
+          >
+            <ArrowRight :size="24" />
+          </button>
+        </div>
         <div
           ref="gridRef"
           class="album-grid"
@@ -227,12 +227,14 @@ onBeforeUnmount(() => {
 }
 
 .album-arrows {
+  position: absolute;
   display: flex;
   align-items: center;
   gap: 4px;
   justify-content: flex-end;
-  margin-left: auto;
-  margin-bottom: 4px;
+  top: 12px;
+  right: 50px;
+  z-index: 2;
 }
 
 /* ── Album Grid ── */
@@ -316,17 +318,60 @@ onBeforeUnmount(() => {
 
 /* ── Tablet (768px–1199px) ── */
 @media (min-width: 768px) and (max-width: 1199px) {
+  .section-title {
+    margin-bottom: 8px;
+  }
+
+  .album-count-badge {
+    font-size: 13px;
+  }
+
   .album-grid {
     gap: 12px;
-    padding: 12px 50px 20px;
+    padding: 4px 50px 20px;
   }
   .album-grid > * {
     min-width: 150px;
     max-width: 200px;
   }
+
+  /* Arrows: absolute overlay on card row edges */
+  .album-arrows {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 0;
+    gap: 0;
+    pointer-events: none;
+    z-index: 2;
+  }
+
   .album-scroll-btn {
-    width: 38px;
-    height: 38px;
+    width: 42px;
+    height: 42px;
+    opacity: 0.5;
+    pointer-events: auto;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  .album-scroll-btn:hover {
+    opacity: 1;
+    transform: translateY(-50%) scale(1.1);
+  }
+
+  .album-scroll-btn:first-child {
+    left: 8px;
+  }
+
+  .album-scroll-btn:last-child {
+    right: 8px;
   }
 }
 

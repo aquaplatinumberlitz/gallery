@@ -95,11 +95,11 @@ defineProps<{
       padding: 0 10px 10px;
 
       .album-name {
-        font-size: 14px;
+        font-size: 15px;
       }
 
       .album-meta {
-        font-size: 10.5px;
+        font-size: 12px;
       }
     }
   }

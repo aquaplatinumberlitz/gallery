@@ -44,10 +44,12 @@ const {
 interface Props {
   isMobile: boolean
   barsVisible?: boolean
+  showToolbarBreadcrumb?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   barsVisible: true,
+  showToolbarBreadcrumb: true,
 })
 const injectedScrollContainerRef = inject(galleryScrollContainerRefKey, null)
 
@@ -361,9 +363,10 @@ onBeforeUnmount(() => {
           <ArrowRight :size="18" />
         </button>
       </div>
-      <Breadcrumb class="breadcrumb-wrap" :path="currentPath" @navigate="handleOpenFolder" />
+      <Breadcrumb v-if="showToolbarBreadcrumb" class="breadcrumb-wrap" :path="currentPath" @navigate="handleOpenFolder" />
 
       <button 
+        v-if="!isTablet"
         class="nav-btn open-folder" 
         @click="openFolder" 
         title="Open current folder in file explorer"
@@ -1187,6 +1190,27 @@ onBeforeUnmount(() => {
 @media (min-width: 768px) and (max-width: 1199px) {
   .gallery-grid {
     gap: 12px;
+  }
+
+  .grid-header {
+    gap: 6px;
+  }
+
+  .nav-btn {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .sort-trigger,
+  .density-trigger {
+    padding: 10px 14px;
+    min-height: 44px;
+  }
+
+  .section-title span {
+    font-size: 13px;
   }
 
   .virtual-row {

@@ -74,6 +74,7 @@ const emit = defineEmits<{
       <div class="content-body">
         <GalleryGrid
           :is-mobile="false"
+          :show-toolbar-breadcrumb="false"
         />
       </div>
     </section>

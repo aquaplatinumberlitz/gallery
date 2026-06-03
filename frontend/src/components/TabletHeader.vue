@@ -437,6 +437,20 @@ function onSearchInput(e: Event) {
 }
 
 /* ============================================================
+   Tablet: larger touch targets (44×44)
+   ============================================================ */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .tablet-header {
+    --th-icon-size: 22px;
+  }
+
+  .th-btn {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* ============================================================
    Reduced motion
    ============================================================ */
 @media (prefers-reduced-motion: reduce) {
