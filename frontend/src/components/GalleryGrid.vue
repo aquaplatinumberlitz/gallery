@@ -10,6 +10,7 @@ import PhotoCard from "./PhotoCard.vue";
 import SkeletonLoader from "./SkeletonLoader.vue";
 import Breadcrumb from "./Breadcrumb.vue";
 import EmptyState from "./EmptyState.vue";
+import TabletGalleryToolbar from "./TabletGalleryToolbar.vue";
 import { compareNatural } from "../composables/useNaturalSort";
 import { useColumnResize, PHOTO_GRID_LEVELS, GRID_COLUMN_MAP } from "../composables/useColumnResize";
 import { useDevice } from "../composables/useDevice";
@@ -344,7 +345,10 @@ onBeforeUnmount(() => {
       <span class="pull-label">{{ isRefreshing ? 'Refreshing...' : 'Pull to refresh' }}</span>
     </div>
 
-    <div class="grid-header">
+    <!-- ============================================================
+         Desktop toolbar
+         ============================================================ -->
+    <div v-if="deviceCategory === 'desktop'" class="grid-header">
       <div class="nav-group">
         <button 
           class="nav-btn ghost" 
@@ -366,7 +370,6 @@ onBeforeUnmount(() => {
       <Breadcrumb v-if="showToolbarBreadcrumb" class="breadcrumb-wrap" :path="currentPath" @navigate="handleOpenFolder" />
 
       <button 
-        v-if="!isTablet"
         class="nav-btn open-folder" 
         @click="openFolder" 
         title="Open current folder in file explorer"
@@ -460,6 +463,30 @@ onBeforeUnmount(() => {
         <span>Loading</span>
       </div>
     </div>
+
+    <!-- ============================================================
+         Tablet toolbar (dedicated component)
+         ============================================================ -->
+    <TabletGalleryToolbar
+      v-else-if="deviceCategory === 'tablet'"
+      :can-go-back="canBack"
+      :can-go-forward="canForward"
+      :current-sort="sortField"
+      :sort-options="sortOptions"
+      :show-sort-menu="showSortMenu"
+      :current-sort-label="currentSortLabel"
+      :sort-order="sortOrder"
+      :slider-level="sliderLevel"
+      :column-count="columnCount"
+      :density-options="densityOptions"
+      :show-density-menu="showDensityMenu"
+      @back="goBack"
+      @forward="goForward"
+      @toggle-sort-menu="toggleSortMenu"
+      @select-sort="selectSort"
+      @toggle-density-menu="toggleDensityMenu"
+      @select-density="selectDensity"
+    />
 
     <div v-if="errorMessage" class="error-banner">
       <div class="error-text">
@@ -1210,30 +1237,6 @@ onBeforeUnmount(() => {
 @media (min-width: 768px) and (max-width: 1199px) {
   .gallery-grid {
     gap: 12px;
-  }
-
-  .grid-header {
-    gap: 6px;
-  }
-
-  .nav-btn {
-    width: 44px;
-    height: 44px;
-    min-width: 44px;
-    min-height: 44px;
-  }
-
-  .sort-trigger,
-  .density-trigger {
-    padding: 10px 14px;
-    min-height: 44px;
-  }
-
-  /* SVG icon sizing for tablet */
-  .gallery-grid {
-    --nav-icon-size: 22px;
-    --trigger-icon-size: 18px;
-    --chevron-size: 16px;
   }
 
   .photos-title {
