@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted, watch, computed } from "vue";
 import PhotoSwipe from "photoswipe";
 import "photoswipe/dist/photoswipe.css";
 import type { FileNode } from "../types";
-import { getImageUrl, getThumbnailUrl } from "../services/api";
+import { buildPhotoSwipeItem } from "../utils/lightbox";
 
 const props = defineProps<{
   items: FileNode[];
@@ -27,22 +27,9 @@ const emit = defineEmits<{
 const containerRef = ref<HTMLElement | null>(null);
 let pswp: PhotoSwipe | null = null;
 
-// Build PhotoSwipe data source from our items
+// Build PhotoSwipe data source from our items using shared helper
 const pswpItems = computed(() =>
-  props.items.map((item) => {
-    // Use full-res or thumbnail depending on config
-    const src =
-      props.thumbnailSize !== null
-        ? getThumbnailUrl(item.path, props.thumbnailSize)
-        : getImageUrl(item.path);
-    return {
-      src,
-      width: 1200,
-      height: 1600,
-      alt: item.name || "",
-      path: item.path,
-    };
-  })
+  props.items.map((item) => buildPhotoSwipeItem(item, props.thumbnailSize))
 );
 
 function initPhotoSwipe() {

@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted, watch, computed } from "vue";
 import PhotoSwipe from "photoswipe";
 import "photoswipe/dist/photoswipe.css";
 import type { FileNode } from "../types";
-import { getThumbnailUrl } from "../services/api";
+import { buildPhotoSwipeItem } from "../utils/lightbox";
 
 const props = defineProps<{
   items: FileNode[];
@@ -21,19 +21,10 @@ const emit = defineEmits<{
 const containerRef = ref<HTMLElement | null>(null);
 let pswp: PhotoSwipe | null = null;
 
-// Build PhotoSwipe data source from our items
+// Build PhotoSwipe data source from our items using shared helper
+// Mobile always uses 1600px thumbnails
 const pswpItems = computed(() =>
-  props.items.map((item) => {
-    // Use a large thumbnail URL for mobile — PhotoSwipe handles sizing.
-    // Store original path for metadata lookup after index change.
-    return {
-      src: getThumbnailUrl(item.path, 1600),
-      width: 1200,
-      height: 1600,
-      alt: item.name || "",
-      path: item.path,
-    };
-  })
+  props.items.map((item) => buildPhotoSwipeItem(item, 1600))
 );
 
 function initPhotoSwipe() {

@@ -72,6 +72,8 @@ class FileNode(BaseModel):
     cover_images: list[str] = []
     mtime: float = 0  # Modified time (Unix timestamp)
     image_count: int = 0  # Number of images in folder (applies to "folder" type only)
+    width: int | None = None  # Image width in pixels (only for type="image")
+    height: int | None = None  # Image height in pixels (only for type="image")
 
 
 app = FastAPI(title="Museum Art Gallery API")
@@ -242,6 +244,14 @@ def scan_directory(target_path: Path) -> tuple[list[FileNode], list[FileNode]]:
                     mtime = entry.stat().st_mtime
                 except OSError:
                     mtime = 0
+                # Extract real image dimensions using PIL
+                img_width: int | None = None
+                img_height: int | None = None
+                try:
+                    with Image.open(entry.path) as img:
+                        img_width, img_height = img.size
+                except Exception:
+                    pass  # If extraction fails, dimensions remain None
                 images.append(
                     FileNode(
                         name=entry.name,
@@ -250,6 +260,8 @@ def scan_directory(target_path: Path) -> tuple[list[FileNode], list[FileNode]]:
                         has_children=False,
                         cover_images=[],
                         mtime=mtime,
+                        width=img_width,
+                        height=img_height,
                     )
                 )
             else:
