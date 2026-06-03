@@ -85,6 +85,7 @@ const currentSortLabel = computed(() => {
 });
 
 const toggleSortMenu = () => {
+  showDensityMenu.value = false;
   showSortMenu.value = !showSortMenu.value;
 };
 
@@ -227,6 +228,7 @@ const densityOptions = computed(() => {
 })
 
 const toggleDensityMenu = () => {
+  showSortMenu.value = false;
   showDensityMenu.value = !showDensityMenu.value;
 };
 
@@ -929,12 +931,14 @@ onBeforeUnmount(() => {
   transition: all 0.2s ease;
 }
 
-.sort-trigger:hover {
+.sort-trigger:hover,
+.density-trigger:hover {
   border-color: var(--primary-color);
   box-shadow: 0 4px 12px color-mix(in srgb, var(--primary-color) 25%, transparent);
 }
 
-.sort-dropdown.open .sort-trigger {
+.sort-dropdown.open .sort-trigger,
+.density-dropdown.open .density-trigger {
   border-color: var(--primary-color);
   box-shadow: 0 4px 12px color-mix(in srgb, var(--primary-color) 25%, transparent);
 }
@@ -1028,14 +1032,6 @@ onBeforeUnmount(() => {
   font-family: var(--font-body);
   cursor: pointer;
   transition: all 0.2s ease;
-}
-
-.density-trigger:hover {
-  border-color: var(--primary-color);
-}
-
-.density-dropdown.open .density-trigger {
-  border-color: var(--primary-color);
 }
 
 .density-label {
