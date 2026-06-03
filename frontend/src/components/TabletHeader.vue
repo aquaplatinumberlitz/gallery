@@ -220,7 +220,7 @@ function onSearchInput(e: Event) {
   transition: background 0.15s ease, color 0.15s ease;
 }
 
-.th-btn svg {
+.th-btn :deep(svg) {
   width: var(--th-icon-size);
   height: var(--th-icon-size);
 }
