@@ -1,5 +1,4 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance, type Ref } from 'vue'
-import { BREAKPOINTS } from './useDevice'
 
 const GAP = 20
 const GRID_SIZE_KEY = 'gallery-grid-size'
@@ -47,10 +46,6 @@ function migrateColumnsToLevel(stored: number): number {
 }
 
 function getDefaultLevel(): number {
-  if (typeof window === 'undefined') return DEFAULT_PHOTO_GRID_LEVEL
-  const w = window.innerWidth
-  if (w >= BREAKPOINTS.desktop) return DEFAULT_PHOTO_GRID_LEVEL
-  if (w >= BREAKPOINTS.mobile) return DEFAULT_PHOTO_GRID_LEVEL
   return DEFAULT_PHOTO_GRID_LEVEL
 }
 
