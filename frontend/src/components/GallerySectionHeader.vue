@@ -88,4 +88,19 @@ defineProps<{
     font-size: 13px;
   }
 }
+
+/* ── Mobile (≤767px) ── */
+@media (max-width: 767px) {
+  .gallery-section-header {
+    margin-bottom: 12px;
+  }
+
+  .gallery-section-header h3 {
+    font-size: 16px;
+  }
+
+  .section-count-badge {
+    font-size: 12px;
+  }
+}
 </style>
