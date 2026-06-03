@@ -3,7 +3,7 @@ import SidebarHeader from "../components/SidebarHeader.vue";
 import FolderTreeItem from "../components/FolderTreeItem.vue";
 import TabletHeader from "../components/TabletHeader.vue";
 import GalleryGrid from "../components/GalleryGrid.vue";
-import { ChevronLeft, ChevronRight, Loader } from "lucide-vue-next";
+import { Loader } from "lucide-vue-next";
 
 defineProps<{
   theme: "light" | "dark";
@@ -23,46 +23,45 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="layout" :class="{ collapsed: !isSidebarOpen }">
-    <aside
-      id="sidebar"
-      class="sidebar"
-      :class="{ closed: !isSidebarOpen }"
-    >
-      <SidebarHeader />
-      <div class="sidebar-body">
-        <div class="sidebar-title" id="folder-tree-label">
-          <span>Folder Tree</span>
-          <span v-if="isLoading" class="loading-pill">
-            <Loader :size="16" class="lucide-spin" /> Loading
-          </span>
+  <div class="layout">
+    <Transition name="sidebar-drawer">
+      <aside
+        v-if="isSidebarOpen"
+        id="sidebar"
+        class="sidebar tablet-overlay"
+        :class="{ open: isSidebarOpen }"
+      >
+        <SidebarHeader />
+        <div class="sidebar-body">
+          <div class="sidebar-title" id="folder-tree-label">
+            <span>Folder Tree</span>
+            <span v-if="isLoading" class="loading-pill">
+              <Loader :size="16" class="lucide-spin" /> Loading
+            </span>
+          </div>
+          <div class="tree-container">
+            <p v-if="!isLoading && !tree.length" class="empty-state">
+              Enter a root path and click Load to start.
+            </p>
+            <FolderTreeItem
+              v-for="node in tree"
+              :key="node.path"
+              :node="node"
+              :active-path="currentPath"
+              :level="1"
+            />
+          </div>
         </div>
-        <div class="tree-container">
-          <p v-if="!isLoading && !tree.length" class="empty-state">
-            Enter a root path and click Load to start.
-          </p>
-          <FolderTreeItem
-            v-for="node in tree"
-            :key="node.path"
-            :node="node"
-            :active-path="currentPath"
-            :level="1"
-          />
-        </div>
-      </div>
-    </aside>
+      </aside>
+    </Transition>
 
-    <!-- Sidebar Edge Toggle Button -->
-    <button
-      class="sidebar-edge-toggle"
-      :class="{ 'sidebar-open': isSidebarOpen }"
-      type="button"
-      @click="emit('toggleSidebar')"
-      :title="isSidebarOpen ? 'Hide Sidebar' : 'Show Sidebar'"
-    >
-      <ChevronLeft v-if="isSidebarOpen" :size="14" />
-      <ChevronRight v-else :size="14" />
-    </button>
+    <Transition name="sidebar-backdrop">
+      <div
+        v-if="isSidebarOpen"
+        class="sidebar-backdrop"
+        @click="emit('toggleSidebar')"
+      ></div>
+    </Transition>
 
     <section class="content" id="main-content" tabindex="-1">
       <TabletHeader
@@ -90,26 +89,8 @@ const emit = defineEmits<{
   background: var(--bg-color);
   color: var(--text-color);
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 1fr;
   overflow: hidden;
-}
-
-.layout.collapsed {
-  grid-template-columns: 0 1fr;
-}
-
-.sidebar {
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.04)), var(--surface-color);
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.sidebar.closed {
-  transform: translateX(0);
-  width: 240px;
 }
 
 .sidebar-body {
@@ -178,11 +159,6 @@ const emit = defineEmits<{
   transition: padding-top 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Sidebar Edge Toggle Button */
-.sidebar-edge-toggle {
-  display: none !important;
-}
-
 .content-body {
   background: var(--surface-color);
   border-radius: 12px;
@@ -193,5 +169,62 @@ const emit = defineEmits<{
   overflow: visible;
   display: flex;
   flex-direction: column;
+}
+
+/* Tablet overlay drawer */
+.sidebar.tablet-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 280px;
+  height: 100dvh;
+  z-index: 100;
+  transform: translateX(-100%);
+  box-shadow: var(--gallery-shadow-xl);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.04)), var(--surface-color);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebar.tablet-overlay.open {
+  transform: translateX(0);
+}
+
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 90;
+  backdrop-filter: blur(2px);
+}
+
+/* Transitions */
+.sidebar-drawer-enter-active {
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.sidebar-drawer-leave-active {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.sidebar-drawer-enter-from,
+.sidebar-drawer-leave-to {
+  transform: translateX(-100%);
+}
+.sidebar-drawer-enter-to,
+.sidebar-drawer-leave-from {
+  transform: translateX(0);
+}
+
+.sidebar-backdrop-enter-active,
+.sidebar-backdrop-leave-active {
+  transition: opacity 0.2s ease;
+}
+.sidebar-backdrop-enter-from,
+.sidebar-backdrop-leave-to {
+  opacity: 0;
+}
+.sidebar-backdrop-enter-to,
+.sidebar-backdrop-leave-from {
+  opacity: 1;
 }
 </style>
