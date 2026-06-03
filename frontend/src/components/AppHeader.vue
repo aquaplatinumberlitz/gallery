@@ -97,7 +97,7 @@ function clearSearch() {
   </header>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 .header-left {
   display: flex;
   align-items: center;

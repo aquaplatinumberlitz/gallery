@@ -87,7 +87,6 @@ defineProps<{
       display: -webkit-box;
       -webkit-box-orient: vertical;
       -webkit-line-clamp: 2;
-      line-clamp: 2;
       overflow: hidden;
       text-overflow: ellipsis;
       word-break: break-word;      // Prevent long words breaking layout

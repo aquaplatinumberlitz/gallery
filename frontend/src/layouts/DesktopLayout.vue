@@ -85,7 +85,7 @@ const emit = defineEmits<{
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 .layout {
   height: 100dvh;
   height: 100vh; /* fallback */

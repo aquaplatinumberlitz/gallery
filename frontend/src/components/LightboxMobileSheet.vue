@@ -239,6 +239,12 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
 @import '../styles/lightbox-shared';
 @import '../styles/lightbox-mobile';
 
+/* LoRA highlighter — penetrate v-html injected spans */
+:deep(.lora-pill) {
+  color: #c084fc;
+  font-weight: 600;
+}
+
 // ── Empty state overrides ─────────────────────────────────────────
 .is-empty {
   opacity: 0.55;

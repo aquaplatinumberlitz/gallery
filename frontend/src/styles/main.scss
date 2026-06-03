@@ -411,14 +411,12 @@ pre {
 html {
   height: 100%;
   overflow: hidden;
-  font-display: swap;
 }
 
 /* Improve text legibility */
 body {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Lucide spinner animation */

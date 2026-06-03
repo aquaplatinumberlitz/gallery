@@ -335,6 +335,12 @@ const modelCount = computed(() => {
 @import '../styles/lightbox-shared';
 @import '../styles/lightbox-desktop';
 
+/* LoRA highlighter — penetrate v-html injected spans */
+:deep(.lora-pill) {
+  color: #c084fc;
+  font-weight: 600;
+}
+
 // ── Empty state overrides ─────────────────────────────────────────
 .is-empty {
   opacity: 0.55;

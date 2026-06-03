@@ -8,7 +8,7 @@ import { createPinia } from "pinia";
 import App from "./App.vue";
 
 // Dev logging: page lifecycle debugging
-if (import.meta.env.DEV || true) {
+if (import.meta.env.DEV) {
   window.addEventListener('pageshow', (e) => {
     console.log('[LIFECYCLE] pageshow', {
       persisted: e.persisted,
