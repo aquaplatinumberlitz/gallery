@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import SidebarHeader from "../components/SidebarHeader.vue";
 import FolderTreeItem from "../components/FolderTreeItem.vue";
-import AppHeader from "../components/AppHeader.vue";
+import TabletHeader from "../components/TabletHeader.vue";
 import GalleryGrid from "../components/GalleryGrid.vue";
 import { ChevronLeft, ChevronRight, Loader } from "lucide-vue-next";
 
@@ -65,15 +65,13 @@ const emit = defineEmits<{
     </button>
 
     <section class="content" id="main-content" tabindex="-1">
-      <AppHeader
-        :is-mobile="false"
-        :is-sidebar-open="isSidebarOpen"
+      <TabletHeader
         :is-dark="theme === 'dark'"
         :search-query="searchQuery"
+        :current-path="currentPath"
         @update:search-query="emit('update:searchQuery', $event)"
         @toggle-sidebar="emit('toggleSidebar')"
         @toggle-theme="emit('toggleTheme')"
-        @open-settings="emit('openSettings')"
       />
 
       <div class="content-body">
