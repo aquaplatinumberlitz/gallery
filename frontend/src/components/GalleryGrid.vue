@@ -11,14 +11,14 @@ import SkeletonLoader from "./SkeletonLoader.vue";
 import Breadcrumb from "./Breadcrumb.vue";
 import EmptyState from "./EmptyState.vue";
 import { compareNatural } from "../composables/useNaturalSort";
-import { useColumnResize, PHOTO_GRID_LEVELS } from "../composables/useColumnResize";
+import { useColumnResize, PHOTO_GRID_LEVELS, GRID_COLUMN_MAP } from "../composables/useColumnResize";
 import { useDevice } from "../composables/useDevice";
 import { usePullToRefresh } from "../composables/usePullToRefresh";
 import { galleryScrollContainerRefKey } from "../injectionKeys";
 import { 
   ArrowLeft, ArrowRight, ArrowUpRight, ArrowUpDown, ChevronDown, 
   ArrowUp, ArrowDown, LayoutGrid, Loader, TriangleAlert, X, 
-  ArrowDownToLine,
+  ArrowDownToLine, Check,
   Type, Clock, Images 
 } from "lucide-vue-next";
 
@@ -126,10 +126,12 @@ const handleSortMenuKeydown = (e: KeyboardEvent) => {
 
 onMounted(() => {
   document.addEventListener("click", closeSortMenu);
+  document.addEventListener("click", closeDensityMenu);
 });
 
 onBeforeUnmount(() => {
   document.removeEventListener("click", closeSortMenu);
+  document.removeEventListener("click", closeDensityMenu);
 });
 
 const sortItems = <T extends { name: string; mtime?: number }>(items: T[]): T[] => {
@@ -205,19 +207,58 @@ const { isTablet } = useDevice()
 const deviceCategory = computed(() => props.isMobile ? 'mobile' : isTablet.value ? 'tablet' : 'desktop')
 const { columnCount, sliderLevel, rowHeight, setGridRef } = useColumnResize(deviceCategory);
 
-const currentLevel = computed(() => PHOTO_GRID_LEVELS.find(l => l.level === sliderLevel.value) ?? PHOTO_GRID_LEVELS[2])
+// Density dropdown state
+const showDensityMenu = ref(false);
+const densityMenuRef = ref<HTMLElement | null>(null);
 
-// Keyboard accessibility for slider — guard against double-fire from native <input type="range">
-const handleSliderKeydown = (e: KeyboardEvent) => {
-  if (e.target instanceof HTMLInputElement) return // native range handles arrows
-  if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
-    e.preventDefault()
-    if (sliderLevel.value > 1) sliderLevel.value--
-  } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
-    e.preventDefault()
-    if (sliderLevel.value < 5) sliderLevel.value++
+const densityOptions = computed(() => {
+  if (deviceCategory.value !== 'tablet') return PHOTO_GRID_LEVELS
+  const map = GRID_COLUMN_MAP.tablet
+  const seen = new Set<number>()
+  const result: Array<{ level: number; label: string; columns: number }> = []
+  for (let i = 0; i < PHOTO_GRID_LEVELS.length; i++) {
+    const cols = map[i]
+    if (!seen.has(cols)) {
+      seen.add(cols)
+      result.push({ ...PHOTO_GRID_LEVELS[i], columns: cols })
+    }
   }
-}
+  return result
+})
+
+const toggleDensityMenu = () => {
+  showDensityMenu.value = !showDensityMenu.value;
+};
+
+const selectDensity = (level: number) => {
+  sliderLevel.value = level;
+  showDensityMenu.value = false;
+};
+
+const closeDensityMenu = (e: MouseEvent) => {
+  const target = e.target as HTMLElement;
+  if (!target.closest('.density-dropdown')) {
+    showDensityMenu.value = false;
+  }
+};
+
+const handleDensityMenuKeydown = (e: KeyboardEvent) => {
+  if (!showDensityMenu.value) return;
+  
+  if (e.key === 'Escape') {
+    showDensityMenu.value = false;
+  } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    const buttons = densityMenuRef.value?.querySelectorAll('button');
+    if (buttons) {
+      const currentIndex = Array.from(buttons).findIndex(b => b === document.activeElement);
+      const nextIndex = e.key === 'ArrowDown' 
+        ? (currentIndex + 1) % buttons.length 
+        : (currentIndex - 1 + buttons.length) % buttons.length;
+      (buttons[nextIndex] as HTMLElement).focus();
+    }
+  }
+};
 
 const imageRows = computed(() => {
   const rows: { id: string; items: typeof images.value }[] = [];
@@ -364,38 +405,47 @@ onBeforeUnmount(() => {
         </Transition>
       </div>
 
-      <div
-        class="grid-slider"
-        role="group"
-        aria-label="Adjust photo thumbnail size"
-        title="Adjust photo thumbnail size"
-        @keydown="handleSliderKeydown"
+      <!-- Density Dropdown -->
+      <div 
+        class="density-dropdown" 
+        :class="{ open: showDensityMenu }"
       >
-        <LayoutGrid :size="14" class="slider-icon-left" />
-        <div class="slider-control">
-          <input
-            id="grid-size"
-            v-model.number="sliderLevel"
-            type="range"
-            min="1"
-            max="5"
-            step="1"
-            aria-label="Thumbnail size"
-            aria-valuemin="1"
-            aria-valuemax="5"
-            :aria-valuenow="sliderLevel"
-            :aria-valuetext="`${currentLevel.label}, ${currentLevel.columns} columns`"
-          />
-          <div class="slider-track">
-            <div class="slider-fill" :style="{ width: ((sliderLevel - 1) / 4) * 100 + '%' }"></div>
+        <button 
+          class="density-trigger" 
+          @click.stop="toggleDensityMenu" 
+          aria-haspopup="true"
+          :aria-expanded="showDensityMenu"
+          title="Thumbnail size"
+        >
+          <LayoutGrid :size="16" />
+          <span class="density-label">{{ columnCount }} cols</span>
+          <ChevronDown :size="12" class="density-chevron" />
+        </button>
+        <Transition name="dropdown">
+          <div 
+            v-if="showDensityMenu" 
+            ref="densityMenuRef"
+            class="density-menu"
+            @keydown="handleDensityMenuKeydown"
+          >
+            <button
+              v-for="option in densityOptions"
+              :key="option.level"
+              class="density-option"
+              :class="{ active: sliderLevel === option.level }"
+              @click="selectDensity(option.level)"
+            >
+              <LayoutGrid :size="14" />
+              <span>{{ option.label }}</span>
+              <span class="density-cols">{{ option.columns }} cols</span>
+              <Check 
+                v-if="sliderLevel === option.level" 
+                class="density-check"
+                :size="12"
+              />
+            </button>
           </div>
-          <div class="slider-thumb" :style="{ left: ((sliderLevel - 1) / 4) * 100 + '%' }"></div>
-          <div class="slider-tick-marks" aria-hidden="true">
-            <span v-for="i in 5" :key="i" class="tick" :class="{ active: i <= sliderLevel }"></span>
-          </div>
-        </div>
-        <span class="slider-badge" aria-hidden="true">{{ columnCount }}<span class="badge-label">cols</span></span>
-        <span class="slider-icon-right">{{ currentLevel.label[0] }}</span>
+        </Transition>
       </div>
 
       <div v-if="isLoading" class="loading-badge">
@@ -960,172 +1010,100 @@ onBeforeUnmount(() => {
   transform: scale(0.95) translateY(-4px);
 }
 
-.grid-slider {
+/* Density Dropdown */
+.density-dropdown {
+  position: relative;
+}
+
+.density-trigger {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  padding: 8px 12px;
   background: var(--surface-color);
   border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
-  padding: 6px 12px;
   border-radius: 10px;
-  transition: all 0.2s ease;
-  user-select: none;
-}
-
-.grid-slider:hover {
-  border-color: var(--primary-color);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary-color) 18%, transparent);
-}
-
-/* Focus style */
-.grid-slider:focus-within {
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 25%, transparent);
-}
-
-.slider-icon-left {
   color: var(--text-color);
-  opacity: 0.5;
-  flex-shrink: 0;
-  transition: opacity 0.2s ease;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.grid-slider:hover .slider-icon-left {
-  opacity: 0.7;
+.density-trigger:hover {
+  border-color: var(--primary-color);
 }
 
-/* Slider control container — relative positioning for overlay elements */
-.slider-control {
-  position: relative;
-  width: 80px;
-  height: 20px;
+.density-dropdown.open .density-trigger {
+  border-color: var(--primary-color);
+}
+
+.density-label {
+  font-weight: 500;
+}
+
+.density-chevron {
+  opacity: 0.6;
+  transition: transform 0.2s ease;
+}
+
+.density-dropdown.open .density-chevron {
+  transform: rotate(180deg);
+}
+
+.density-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 180px;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
+  border-radius: 12px;
+  box-shadow: var(--gallery-shadow-lg, 0 10px 40px rgba(0, 0, 0, 0.15));
+  padding: 6px;
+  z-index: 100;
+  overflow: hidden;
+}
+
+.density-option {
   display: flex;
   align-items: center;
-}
-
-/* Native range input — invisible but functional */
-.slider-control input[type="range"] {
-  position: absolute;
-  inset: 0;
+  gap: 10px;
   width: 100%;
-  height: 100%;
-  margin: 0;
-  opacity: 0;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--text-color);
+  font-size: 13px;
+  font-family: var(--font-body);
   cursor: pointer;
-  z-index: 3;
-  -webkit-appearance: none;
-  appearance: none;
+  transition: all 0.15s ease;
+  text-align: left;
+  position: relative;
 }
 
-/* Track background */
-.slider-track {
-  position: absolute;
-  left: 2px;
-  right: 2px;
-  height: 4px;
-  background: var(--border-color, rgba(0, 0, 0, 0.1));
-  border-radius: 2px;
-  overflow: hidden;
-  z-index: 1;
+.density-option:hover {
+  background: rgba(0, 0, 0, 0.05);
 }
 
-/* Filled portion of track (left side) */
-.slider-fill {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
-  background: var(--primary-color);
-  border-radius: 2px;
-  transition: width 0.12s ease;
-  opacity: 0.7;
-}
-
-/* Custom thumb overlay */
-.slider-thumb {
-  position: absolute;
-  top: 50%;
-  width: 14px;
-  height: 14px;
-  background: var(--primary-color);
-  border: 2px solid #fff;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 2;
-  pointer-events: none;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
-  transition: left 0.12s ease;
-}
-
-/* Tick marks */
-.slider-tick-marks {
-  position: absolute;
-  left: 4px;
-  right: 4px;
-  bottom: 2px;
-  display: flex;
-  justify-content: space-between;
-  z-index: 1;
-  pointer-events: none;
-}
-
-.tick {
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: var(--border-color, rgba(0, 0, 0, 0.2));
-  transition: background 0.15s ease;
-}
-
-.tick.active {
-  background: var(--primary-color);
-  opacity: 0.5;
-}
-
-/* Column count badge */
-.slider-badge {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 1px;
-  padding: 1px 6px;
-  font-size: 11px;
-  font-weight: 600;
-  font-family: var(--font-code, monospace);
-  color: var(--text-color);
-  background: var(--border-color, rgba(0, 0, 0, 0.06));
-  border-radius: 4px;
-  line-height: 1.4;
-  min-width: 28px;
-  text-align: center;
-  flex-shrink: 0;
-  transition: background 0.2s ease;
-}
-
-.grid-slider:hover .slider-badge {
+.density-option.active {
   background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+  color: var(--primary-color);
+  font-weight: 500;
 }
 
-.badge-label {
-  font-size: 9px;
-  font-weight: 400;
-  opacity: 0.5;
-  text-transform: lowercase;
-}
-
-/* Right-side label (first letter of level name) */
-.slider-icon-right {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--text-color);
-  opacity: 0.4;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  flex-shrink: 0;
-  transition: opacity 0.2s ease;
-}
-
-.grid-slider:hover .slider-icon-right {
+.density-cols {
   opacity: 0.6;
+  font-weight: 400;
+}
+
+.density-option.active .density-cols {
+  opacity: 0.8;
+}
+
+.density-check {
+  margin-left: auto;
 }
 
 .loading-badge {
@@ -1251,8 +1229,8 @@ onBeforeUnmount(() => {
     display: none;
   }
 
-  /* Grid slider: hidden on mobile */
-  .grid-slider {
+  /* Density: hidden on mobile */
+  .density-dropdown {
     display: none;
   }
 
@@ -1313,7 +1291,9 @@ onBeforeUnmount(() => {
 /* Focus styles for keyboard navigation */
 .nav-btn:focus-visible,
 .sort-trigger:focus-visible,
-.sort-option:focus-visible {
+.sort-option:focus-visible,
+.density-trigger:focus-visible,
+.density-option:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring-shadow);
 }
