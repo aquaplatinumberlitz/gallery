@@ -43,10 +43,12 @@ const {
 
 interface Props {
   isMobile: boolean
-  barsVisible: boolean
+  barsVisible?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  barsVisible: true,
+})
 const injectedScrollContainerRef = inject(galleryScrollContainerRefKey, null)
 
 const setScrollContainerRef = (target: Element | ComponentPublicInstance | null) => {

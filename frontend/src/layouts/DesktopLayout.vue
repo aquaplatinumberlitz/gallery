@@ -12,7 +12,6 @@ defineProps<{
   isLoading: boolean;
   currentPath: string;
   searchQuery: string;
-  barsVisible: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -80,7 +79,6 @@ const emit = defineEmits<{
       <div class="content-body">
         <GalleryGrid
           :is-mobile="false"
-          :bars-visible="barsVisible"
         />
       </div>
     </section>
