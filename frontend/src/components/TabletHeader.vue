@@ -441,7 +441,7 @@ function onSearchInput(e: Event) {
    ============================================================ */
 @media (min-width: 768px) and (max-width: 1199px) {
   .tablet-header {
-    --th-icon-size: 22px;
+    --th-icon-size: 24px;
   }
 
   .th-btn {

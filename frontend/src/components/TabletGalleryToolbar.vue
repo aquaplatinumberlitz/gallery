@@ -107,7 +107,7 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
         title="Back"
         aria-label="Go back"
       >
-        <ArrowLeft :size="22" />
+        <ArrowLeft :size="24" />
       </button>
       <button
         class="tgt-btn"
@@ -116,7 +116,7 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
         title="Forward"
         aria-label="Go forward"
       >
-        <ArrowRight :size="22" />
+        <ArrowRight :size="24" />
       </button>
     </div>
 
@@ -131,7 +131,7 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
         aria-haspopup="true"
         :aria-expanded="showSortMenu"
       >
-        <ArrowUpDown :size="20" />
+        <ArrowUpDown :size="22" />
         <span class="tgt-trigger-label">{{ currentSortLabel }}</span>
         <ChevronDown :size="16" class="tgt-chevron" />
       </button>
@@ -170,7 +170,7 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
         :aria-expanded="showDensityMenu"
         title="Thumbnail size"
       >
-        <LayoutGrid :size="20" />
+        <LayoutGrid :size="22" />
         <span class="tgt-trigger-label">{{ columnCount }} cols</span>
         <ChevronDown :size="16" class="tgt-chevron" />
       </button>

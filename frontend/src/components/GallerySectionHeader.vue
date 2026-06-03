@@ -15,9 +15,9 @@ defineProps<{
   <div class="gallery-section-header" :class="{ 'is-clickable': clickable }">
     <h3>{{ title }}</h3>
     <span v-if="count !== undefined" class="section-count-badge">
-      <component :is="badgeIcon" v-if="badgeIcon" :size="13" />
+      <component :is="badgeIcon" v-if="badgeIcon" :size="16" />
       {{ count }}
-      <ChevronDown v-if="clickable" :size="14" class="toggle-chevron" :class="{ collapsed }" />
+      <ChevronDown v-if="clickable" :size="16" class="toggle-chevron" :class="{ collapsed }" />
     </span>
   </div>
 </template>
