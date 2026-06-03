@@ -5,6 +5,7 @@ import { useGalleryStore } from "../stores/gallery";
 import { useLightboxStore } from "../stores/lightbox";
 import type { SortField } from "../types";
 import AlbumScroller from "./AlbumScroller.vue";
+import GallerySectionHeader from "./GallerySectionHeader.vue";
 import GlowContainer from "./GlowContainer.vue";
 import PhotoCard from "./PhotoCard.vue";
 import SkeletonLoader from "./SkeletonLoader.vue";
@@ -534,13 +535,12 @@ onBeforeUnmount(() => {
             />
           </GlowContainer>
 
-          <div v-if="images.length" class="section-title photos-title">
-            <h3>Photos</h3>
-            <span class="photo-count-badge">
-              <Images :size="13" />
-              {{ images.length }}
-            </span>
-          </div>
+          <GallerySectionHeader
+            v-if="images.length"
+            title="Photos"
+            :count="images.length"
+            :badge-icon="Images"
+          />
         </template>
 
         <template #default="{ item: row }">
@@ -596,13 +596,12 @@ onBeforeUnmount(() => {
           />
         </GlowContainer>
 
-        <div v-if="images.length" class="section-title photos-title">
-          <h3>Photos</h3>
-          <span class="photo-count-badge">
-            <Images :size="13" />
-            {{ images.length }}
-          </span>
-        </div>
+        <GallerySectionHeader
+          v-if="images.length"
+          title="Photos"
+          :count="images.length"
+          :badge-icon="Images"
+        />
 
         <div
           v-for="row in imageRows"
@@ -847,18 +846,6 @@ onBeforeUnmount(() => {
 
 .albums-section {
   margin-bottom: 8px;
-}
-
-.photos-title {
-  margin-bottom: 12px;
-  padding-left: 10px;
-}
-
-.photo-count-badge {
-  display: inline-flex !important;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 10px 3px 8px !important;
 }
 
 .scroller-footer {
@@ -1144,42 +1131,6 @@ onBeforeUnmount(() => {
   font-size: 13px;
 }
 
-.section-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-
-  h3 {
-    margin: 0;
-    font-family: "Cinzel", serif;
-    font-size: 16px;
-    color: var(--primary-color);
-    position: relative;
-    display: inline-block;
-
-    &::after {
-      content: '';
-      position: absolute;
-      bottom: -4px;
-      left: 0;
-      width: 100%;
-      height: 1.5px;
-      background: linear-gradient(90deg, var(--primary-color, #d6a15d) 0%, transparent 100%);
-      border-radius: 1px;
-    }
-  }
-
-  span {
-    padding: 2px 8px;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--primary-color) 12%, transparent);
-    font-size: 12px;
-    font-family: var(--font-code);
-    color: var(--primary-color);
-  }
-}
-
 /* ── Album scroll styles are in AlbumScroller.vue ── */
 
 /* ── SVG icon sizing via CSS variables (overridden per breakpoint) ── */
@@ -1237,14 +1188,6 @@ onBeforeUnmount(() => {
 @media (min-width: 768px) and (max-width: 1199px) {
   .gallery-grid {
     gap: 12px;
-  }
-
-  .photos-title {
-    margin-bottom: 8px;
-  }
-
-  .section-title span {
-    font-size: 13px;
   }
 
   .virtual-row {
@@ -1317,14 +1260,6 @@ onBeforeUnmount(() => {
 
   .albums-section {
     margin-bottom: 8px;
-  }
-
-  .section-title {
-    margin-bottom: 6px;
-  }
-
-  .section-title h3 {
-    font-size: 14px;
   }
 
   /* Reduce photo row gap and spacers on mobile */

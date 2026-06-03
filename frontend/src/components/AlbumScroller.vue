@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { FileNode } from "../types";
-import { ArrowLeft, ArrowRight, ChevronDown, FolderOpen } from "lucide-vue-next";
+import { ArrowLeft, ArrowRight, FolderOpen } from "lucide-vue-next";
 import AlbumCard from "./AlbumCard.vue";
 import AlbumCardMobile from "./AlbumCardMobile.vue";
+import GallerySectionHeader from "./GallerySectionHeader.vue";
 import { useDevice } from "../composables/useDevice";
 
 const props = defineProps<{
@@ -130,17 +131,18 @@ onBeforeUnmount(() => {
 <template>
   <section v-if="folders.length" class="album-scroller">
     <button
-      class="section-title album-toggle"
+      class="album-toggle"
       @click="toggleCollapsed"
       :aria-expanded="!collapsed"
       :aria-label="collapsed ? 'Expand albums' : 'Collapse albums'"
     >
-     <h3>Albums</h3>
-     <span class="album-count-badge">
-       <FolderOpen :size="13" />
-       {{ folders.length }}
-       <ChevronDown :size="14" class="toggle-chevron-inline" :class="{ collapsed }" />
-     </span>
+      <GallerySectionHeader
+        title="Albums"
+        :count="folders.length"
+        :badge-icon="FolderOpen"
+        :clickable="true"
+        :collapsed="collapsed"
+      />
    </button>
     <Transition name="album-collapse">
       <div class="album-grid-wrapper" v-show="!collapsed">
@@ -185,45 +187,6 @@ onBeforeUnmount(() => {
   margin-bottom: 8px;
   padding-left: 10px;
   pointer-events: auto; /* restore interactivity — GlowContainer sets pointer-events:none */
-}
-
-.section-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.section-title h3 {
-  margin: 0;
-  font-family: "Cinzel", serif;
-  font-size: 16px;
-  color: var(--primary-color);
-  position: relative;
-  display: inline-block;
-}
-
-.section-title h3::after {
-  content: "";
-  position: absolute;
-  bottom: -4px;
-  left: 0;
-  width: 100%;
-  height: 1.5px;
-  background: linear-gradient(90deg, var(--primary-color, #d6a15d) 0%, transparent 100%);
-  border-radius: 1px;
-}
-
-.album-count-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 10px 3px 8px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
-  font-size: 12px;
-  font-family: var(--font-code);
-  color: var(--primary-color);
 }
 
 .album-arrows {
@@ -318,14 +281,6 @@ onBeforeUnmount(() => {
 
 /* ── Tablet (768px–1199px) ── */
 @media (min-width: 768px) and (max-width: 1199px) {
-  .section-title {
-    margin-bottom: 8px;
-  }
-
-  .album-count-badge {
-    font-size: 13px;
-  }
-
   .album-grid {
     gap: 12px;
     padding: 4px 50px 20px;
@@ -428,22 +383,6 @@ onBeforeUnmount(() => {
   text-align: left;
   position: relative;
   z-index: 3;
-}
-
-.toggle-chevron-inline {
-  margin-left: 4px;
-  vertical-align: middle;
-  transition: transform 0.3s ease;
-  opacity: 0.6;
-  flex-shrink: 0;
-}
-
-.toggle-chevron-inline.collapsed {
-  transform: rotate(-90deg);
-}
-
-.album-toggle:hover .toggle-chevron-inline {
-  opacity: 1;
 }
 
 /* ── Collapse animation ── */
