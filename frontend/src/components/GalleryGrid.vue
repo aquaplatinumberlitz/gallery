@@ -1183,6 +1183,31 @@ onBeforeUnmount(() => {
   }
 }
 
+/* ── Tablet (768px–1199px) spacing ── */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .gallery-grid {
+    gap: 12px;
+  }
+
+  .virtual-row {
+    gap: 12px;
+  }
+
+  .skeleton-grid {
+    gap: 12px;
+  }
+
+  .scroller {
+    padding-left: 6px;
+    padding-right: 10px;
+  }
+
+  .folders-only-container {
+    padding-left: 6px;
+    padding-right: 10px;
+  }
+}
+
 @media (max-width: 767px) {
   .gallery-grid {
     gap: 6px;

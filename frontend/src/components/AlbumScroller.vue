@@ -314,6 +314,22 @@ onBeforeUnmount(() => {
               0 4px 12px color-mix(in srgb, var(--primary-color) 20%, transparent);
 }
 
+/* ── Tablet (768px–1199px) ── */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .album-grid {
+    gap: 12px;
+    padding: 12px 50px 20px;
+  }
+  .album-grid > * {
+    min-width: 150px;
+    max-width: 200px;
+  }
+  .album-scroll-btn {
+    width: 38px;
+    height: 38px;
+  }
+}
+
 @media (max-width: 767px) {
   .album-grid-wrapper {
     --glow-bleed-x: 0px;  /* Zero glow bleed on mobile */
