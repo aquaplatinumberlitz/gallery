@@ -34,7 +34,7 @@ const emit = defineEmits<{
         <div class="sidebar-title" id="folder-tree-label">
           <span>Folder Tree</span>
           <span v-if="isLoading" class="loading-pill">
-            <Loader :size="16" class="lucide-spin" /> Loading
+            <Loader class="gallery-icon-md lucide-spin" /> Loading
           </span>
         </div>
         <div class="tree-container">
@@ -60,8 +60,8 @@ const emit = defineEmits<{
       @click="emit('toggleSidebar')"
       :title="isSidebarOpen ? 'Hide Sidebar' : 'Show Sidebar'"
     >
-      <ChevronLeft v-if="isSidebarOpen" :size="14" />
-      <ChevronRight v-else :size="14" />
+      <ChevronLeft v-if="isSidebarOpen" class="gallery-icon-sm" />
+      <ChevronRight v-else class="gallery-icon-sm" />
     </button>
 
     <section class="content" id="main-content" tabindex="-1">
@@ -226,6 +226,16 @@ const emit = defineEmits<{
 
 /* Import breakpoint mixins */
 @import "../styles/breakpoints";
+
+/* Icon sizes using design tokens */
+.gallery-icon-md {
+  width: var(--gallery-icon-md);
+  height: var(--gallery-icon-md);
+}
+.gallery-icon-sm {
+  width: var(--gallery-icon-sm);
+  height: var(--gallery-icon-sm);
+}
 
 /* =============================================
    RESPONSIVE BREAKPOINTS

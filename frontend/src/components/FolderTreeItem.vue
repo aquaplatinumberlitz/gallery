@@ -89,11 +89,11 @@ const handleKeydown = (e: KeyboardEvent) => {
         :disabled="!node.has_children"
         @click.stop="onToggle"
       >
-        <component :is="arrowIcon" :size="12" />
+        <component :is="arrowIcon" class="gallery-icon-xs" />
       </button>
-      <component :is="folderIcon" :size="16" class="folder-icon" />
+      <component :is="folderIcon" class="folder-icon gallery-icon-md" />
       <span class="name">{{ node.name }}</span>
-      <Loader v-if="isLoading" :size="14" class="lucide-spin spinner" />
+      <Loader v-if="isLoading" class="gallery-icon-sm lucide-spin spinner" />
     </div>
 
     <div 
@@ -224,5 +224,19 @@ const handleKeydown = (e: KeyboardEvent) => {
 .tree-row:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring-shadow);
+}
+
+/* Icon sizes using design tokens */
+.gallery-icon-md {
+  width: var(--gallery-icon-md);
+  height: var(--gallery-icon-md);
+}
+.gallery-icon-sm {
+  width: var(--gallery-icon-sm);
+  height: var(--gallery-icon-sm);
+}
+.gallery-icon-xs {
+  width: var(--gallery-icon-xs);
+  height: var(--gallery-icon-xs);
 }
 </style>

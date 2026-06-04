@@ -114,7 +114,7 @@ const closeMenu = () => {
   <nav class="breadcrumb" v-click-outside="closeMenu">
     <ol class="breadcrumb-list">
       <li class="breadcrumb-item home-item">
-        <Home :size="14" class="home-icon" />
+        <Home class="gallery-icon-sm home-icon" />
       </li>
       <template v-if="allSegments.length">
         <template v-for="seg in visibleSegments" :key="seg.fullPath">
@@ -135,7 +135,7 @@ const closeMenu = () => {
           <!-- Ellipsis dropdown after first segment -->
           <li v-if="showEllipsisAfter(seg.index)" class="breadcrumb-item ellipsis-item">
             <span class="separator">
-              <ChevronRight :size="12" />
+              <ChevronRight class="gallery-icon-xs" />
             </span>
             
             <div class="ellipsis-container">
@@ -145,7 +145,7 @@ const closeMenu = () => {
                 @click="toggleEllipsisMenu"
                 :title="`${hiddenSegments.length} more folders`"
               >
-                <Ellipsis :size="16" />
+                <Ellipsis class="gallery-icon-md" />
               </button>
               
               <!-- Dropdown menu for hidden segments -->
@@ -161,7 +161,7 @@ const closeMenu = () => {
                     @click="onNavigate(hidden)"
                     :title="hidden.fullPath"
                   >
-                    <Folder :size="14" />
+                    <Folder class="gallery-icon-sm" />
                     <span>{{ hidden.name }}</span>
                   </button>
                   
@@ -171,7 +171,7 @@ const closeMenu = () => {
                     class="ellipsis-menu-item expand-btn"
                     @click="expandAll"
                   >
-                    <ArrowsUpFromLine :size="14" />
+                    <ArrowsUpFromLine class="gallery-icon-sm" />
                     <span>Show full path</span>
                   </button>
                 </div>
@@ -185,7 +185,7 @@ const closeMenu = () => {
             class="breadcrumb-separator"
           >
             <span class="separator">
-              <ChevronRight :size="12" />
+              <ChevronRight class="gallery-icon-xs" />
             </span>
           </li>
         </template>
@@ -203,7 +203,7 @@ const closeMenu = () => {
       @click="isExpanded = false"
       title="Collapse path"
     >
-      <Minimize :size="14" />
+      <Minimize class="gallery-icon-sm" />
     </button>
   </nav>
 </template>
@@ -520,5 +520,19 @@ const closeMenu = () => {
     width: 24px;
     height: 20px;
   }
+}
+
+/* Icon sizes using design tokens */
+.gallery-icon-md {
+  width: var(--gallery-icon-md);
+  height: var(--gallery-icon-md);
+}
+.gallery-icon-sm {
+  width: var(--gallery-icon-sm);
+  height: var(--gallery-icon-sm);
+}
+.gallery-icon-xs {
+  width: var(--gallery-icon-xs);
+  height: var(--gallery-icon-xs);
 }
 </style>

@@ -49,16 +49,16 @@ watch(
     <template v-if="isMobile">
       <label class="field-label">ROOT PATH</label>
       <div class="mobile-root-display" @click="editOnMobile" role="button" tabindex="0" @keydown.enter="editOnMobile">
-        <FolderOpen class="field-icon" :size="16" />
+        <FolderOpen class="field-icon gallery-icon-md" />
         <span class="mobile-path-text" :title="pathInput || 'Not set'">
           {{ pathInput || "Not set" }}
         </span>
         <button class="mobile-edit-btn" type="button" @click.stop="editOnMobile" title="Edit root path">
-          <Edit3 :size="14" />
+          <Edit3 class="gallery-icon-sm" />
         </button>
       </div>
       <p class="field-hint">
-        <Info :size="12" />
+        <Info class="gallery-icon-xs" />
         Tap to edit
       </p>
 
@@ -73,7 +73,7 @@ watch(
       <label class="field-label" for="root-path">ROOT PATH</label>
       
       <div class="field-container">
-        <FolderOpen class="field-icon" :size="16" />
+        <FolderOpen class="field-icon gallery-icon-md" />
         <input
           id="root-path"
           ref="inputRef"
@@ -92,12 +92,12 @@ watch(
           @click="onReset" 
           title="Reset path"
         >
-          <RotateCcw :size="14" />
+          <RotateCcw class="gallery-icon-sm" />
         </button>
       </div>
       
       <p class="field-hint">
-        <Info :size="12" />
+        <Info class="gallery-icon-xs" />
         Press Enter to load
       </p>
     </template>
@@ -285,4 +285,17 @@ input::placeholder {
   }
 }
 
+/* Icon sizes using design tokens */
+.gallery-icon-md {
+  width: var(--gallery-icon-md);
+  height: var(--gallery-icon-md);
+}
+.gallery-icon-sm {
+  width: var(--gallery-icon-sm);
+  height: var(--gallery-icon-sm);
+}
+.gallery-icon-xs {
+  width: var(--gallery-icon-xs);
+  height: var(--gallery-icon-xs);
+}
 </style>
