@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, nextTick, onBeforeUnmount, onMounted, computed, watch } from 'vue'
-import { Menu, Search, X, ArrowLeft, ArrowUpDown } from 'lucide-vue-next'
+import { Menu, Search, X, ArrowLeft, ArrowUpDown, Type, Clock, ArrowUp, ArrowDown } from 'lucide-vue-next'
 import { useGalleryStore } from '../stores/gallery'
-import type { SortField, SortOrder } from '../types'
+import type { SortField } from '../types'
 
 interface Props {
   isDark: boolean
@@ -96,6 +96,7 @@ function onSearchInput(e: Event) {
 }
 
 // ── Sort popover ──
+const sortIcons: Record<string, any> = { Type, Clock }
 const galleryStore = useGalleryStore()
 
 const showSortPopover = ref(false)
@@ -106,27 +107,29 @@ const sortOrder = computed(() => galleryStore.sortOrder)
 
 interface MobileSortOption {
   field: SortField
-  order: SortOrder
   label: string
+  icon: string
 }
 
 const mobileSortOptions: MobileSortOption[] = [
-  { field: 'date', order: 'desc', label: 'Newest' },
-  { field: 'date', order: 'asc', label: 'Oldest' },
-  { field: 'name', order: 'asc', label: 'Name A–Z' },
-  { field: 'name', order: 'desc', label: 'Name Z–A' },
+  { field: 'name', label: 'Name', icon: 'Type' },
+  { field: 'date', label: 'Date modified', icon: 'Clock' },
 ]
 
 const isActiveSort = (opt: MobileSortOption): boolean =>
-  sortField.value === opt.field && sortOrder.value === opt.order
+  sortField.value === opt.field
 
 function toggleSortPopover() {
   showSortPopover.value = !showSortPopover.value
 }
 
 function selectMobileSort(opt: MobileSortOption) {
-  galleryStore.setSortField(opt.field)
-  galleryStore.setSortOrder(opt.order)
+  if (sortField.value === opt.field) {
+    galleryStore.toggleSortOrder()
+  } else {
+    galleryStore.setSortField(opt.field)
+    galleryStore.setSortOrder(opt.field === 'date' ? 'desc' : 'asc')
+  }
   showSortPopover.value = false
 }
 
@@ -220,13 +223,18 @@ onMounted(() => {
         >
           <button
             v-for="opt in mobileSortOptions"
-            :key="`${opt.field}-${opt.order}`"
+            :key="opt.field"
             class="mobile-sort-option"
             :class="{ active: isActiveSort(opt) }"
             @click="selectMobileSort(opt)"
           >
-            <span class="sort-checkmark" :class="{ visible: isActiveSort(opt) }">✓</span>
+            <component :is="sortIcons[opt.icon]" class="sort-icon" />
             <span class="sort-label">{{ opt.label }}</span>
+            <component
+              v-if="isActiveSort(opt)"
+              :is="sortOrder === 'asc' ? ArrowUp : ArrowDown"
+              class="sort-direction"
+            />
           </button>
         </div>
       </Transition>
@@ -676,10 +684,9 @@ onMounted(() => {
 }
 
 .mobile-sort-option {
-  display: grid;
-  grid-template-columns: 24px 1fr;
+  display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
   min-height: 48px;
   padding: 10px 14px;
@@ -709,18 +716,21 @@ onMounted(() => {
   font-weight: 600;
 }
 
-.sort-checkmark {
-  font-size: 14px;
-  line-height: 1;
-  visibility: hidden;
-}
-
-.sort-checkmark.visible {
-  visibility: visible;
+.sort-icon {
+  width: var(--gallery-icon-sm);
+  height: var(--gallery-icon-sm);
+  flex-shrink: 0;
 }
 
 .sort-label {
   white-space: nowrap;
+}
+
+.sort-direction {
+  width: var(--gallery-icon-xs);
+  height: var(--gallery-icon-xs);
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 /* Dark theme active option */
@@ -748,13 +758,14 @@ onMounted(() => {
 /* Compact popover on small screens */
 @media (max-width: 480px) {
   .mobile-sort-popover {
-    min-width: 200px;
+    min-width: 180px;
     right: -4px;
   }
 
   .mobile-sort-option {
     padding: 8px 10px;
     font-size: 13px;
+    min-height: 44px;
   }
 }
 
