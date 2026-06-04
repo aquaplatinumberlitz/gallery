@@ -90,6 +90,21 @@
   --gallery-font-weight-medium: 500;
   --gallery-font-weight-bold:   600;
 
+  /* ── Icon sizes ── */
+  --gallery-icon-xs:     12px;
+  --gallery-icon-sm:     14px;
+  --gallery-icon-md:     16px;
+  --gallery-icon-lg:     18px;
+  --gallery-icon-xl:     22px;
+  --gallery-icon-xxl:    24px;
+  --gallery-icon-meta:   11px;
+
+  --gallery-icon-toolbar:           var(--gallery-icon-lg);
+  --gallery-icon-tablet-toolbar:    var(--gallery-icon-xl);
+  --gallery-icon-mobile-toolbar:    var(--gallery-icon-xl);
+  --gallery-icon-nav:               var(--gallery-icon-xxl);
+  --gallery-icon-card:              var(--gallery-icon-md);
+
   /* ── Theme-toggle (giữ nguyên gradient) ── */
   --gallery-toggle-gradient-light:   linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   --gallery-toggle-gradient-dark:    linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
