@@ -154,7 +154,7 @@ onBeforeUnmount(() => {
             @click="scrollAlbums(-1)"
             aria-label="Scroll left"
           >
-            <ArrowLeft :size="24" />
+            <ArrowLeft class="gallery-icon-nav" />
           </button>
           <button
             v-if="showRightArrow"
@@ -162,7 +162,7 @@ onBeforeUnmount(() => {
             @click="scrollAlbums(1)"
             aria-label="Scroll right"
           >
-            <ArrowRight :size="24" />
+            <ArrowRight class="gallery-icon-nav" />
           </button>
         </div>
         <div
@@ -255,6 +255,11 @@ onBeforeUnmount(() => {
   transition: opacity 0.2s, transform 0.2s, border-color 0.2s, box-shadow 0.2s, background 0.2s;
   flex-shrink: 0;
   z-index: 2;
+}
+
+.gallery-icon-nav {
+  width: var(--gallery-icon-nav);
+  height: var(--gallery-icon-nav);
 }
 
 .album-scroll-btn:hover {

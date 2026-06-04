@@ -30,7 +30,7 @@ defineProps<{
     <div class="album-info">
       <h3 class="album-name">{{ node.name }}</h3>
       <div class="album-meta">
-        <FolderOpen :size="11" class="album-meta-icon" />
+        <FolderOpen class="gallery-icon-meta album-meta-icon" />
         <span v-if="node.image_count !== undefined && node.image_count !== null">{{ node.image_count }} {{ node.image_count === 1 ? 'photo' : 'photos' }}</span>
       </div>
     </div>
@@ -106,6 +106,10 @@ defineProps<{
     .album-meta-icon {
       flex-shrink: 0;
       color: var(--muted-text);
+    }
+    .gallery-icon-meta {
+      width: var(--gallery-icon-meta);
+      height: var(--gallery-icon-meta);
     }
   }
 

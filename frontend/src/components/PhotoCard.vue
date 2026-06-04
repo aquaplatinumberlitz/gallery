@@ -132,7 +132,7 @@ onBeforeUnmount(() => {
     </div>
 
     <div v-if="!props.src || hasError" class="placeholder">
-      <Image :size="22" />
+      <Image class="gallery-icon-xl" />
       <span class="placeholder-text">{{ hasError ? "Preview unavailable" : "" }}</span>
     </div>
   </div>
@@ -253,6 +253,11 @@ onBeforeUnmount(() => {
   text-align: center;
   gap: 6px;
   padding: 10px;
+}
+
+.gallery-icon-xl {
+  width: var(--gallery-icon-xl);
+  height: var(--gallery-icon-xl);
 }
 
 .placeholder-text {
