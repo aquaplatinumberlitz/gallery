@@ -338,10 +338,10 @@ onBeforeUnmount(() => {
       :style="{ transform: pullTransform, opacity: pullOpacity }"
     >
       <div v-if="isRefreshing" class="pull-spinner">
-        <Loader :size="18" class="lucide-spin" />
+        <Loader class="gallery-icon-toolbar lucide-spin" />
       </div>
       <div v-else class="pull-arrow" :style="{ transform: `rotate(${pullProgress * 180}deg)` }">
-        <ArrowDownToLine :size="18" />
+        <ArrowDownToLine class="gallery-icon-toolbar" />
       </div>
       <span class="pull-label">{{ isRefreshing ? 'Refreshing...' : 'Pull to refresh' }}</span>
     </div>
@@ -357,7 +357,7 @@ onBeforeUnmount(() => {
           @click="goBack" 
           title="Back"
         >
-          <ArrowLeft :size="18" />
+          <ArrowLeft />
         </button>
         <button 
           class="nav-btn ghost" 
@@ -365,7 +365,7 @@ onBeforeUnmount(() => {
           @click="goForward" 
           title="Forward"
         >
-          <ArrowRight :size="18" />
+          <ArrowRight />
         </button>
       </div>
       <Breadcrumb v-if="showToolbarBreadcrumb" class="breadcrumb-wrap" :path="currentPath" @navigate="handleOpenFolder" />
@@ -375,7 +375,7 @@ onBeforeUnmount(() => {
         @click="openFolder" 
         title="Open current folder in file explorer"
       >
-        <ArrowUpRight :size="18" />
+        <ArrowUpRight />
       </button>
 
       <!-- Sort Dropdown (Google Photos style) -->
@@ -385,9 +385,9 @@ onBeforeUnmount(() => {
           @click.stop="toggleSortMenu" 
           title="Sort by"
         >
-          <ArrowUpDown :size="16" />
+          <ArrowUpDown />
           <span class="sort-label">{{ currentSortLabel }}</span>
-          <ChevronDown :size="12" class="sort-chevron" />
+          <ChevronDown class="sort-chevron" />
         </button>
         <Transition name="dropdown">
           <div 
@@ -403,13 +403,12 @@ onBeforeUnmount(() => {
               :class="{ active: sortField === option.field }"
               @click="selectSort(option.field)"
             >
-              <component :is="_icons[option.icon]" :size="14" />
+              <component :is="_icons[option.icon]" class="gallery-icon-sm" />
               <span>{{ option.label }}</span>
               <component 
                 v-if="sortField === option.field" 
                 :is="sortOrder === 'asc' ? ArrowUp : ArrowDown" 
-                class="sort-direction"
-                :size="12"
+                class="sort-direction gallery-icon-xs"
               />
             </button>
           </div>
@@ -428,9 +427,9 @@ onBeforeUnmount(() => {
           :aria-expanded="showDensityMenu"
           title="Thumbnail size"
         >
-          <LayoutGrid :size="16" />
+          <LayoutGrid />
           <span class="density-label">{{ columnCount }} cols</span>
-          <ChevronDown :size="12" class="density-chevron" />
+          <ChevronDown class="density-chevron" />
         </button>
         <Transition name="dropdown">
           <div 
@@ -446,13 +445,12 @@ onBeforeUnmount(() => {
               :class="{ active: sliderLevel === option.level }"
               @click="selectDensity(option.level)"
             >
-              <LayoutGrid :size="14" />
+              <LayoutGrid class="gallery-icon-sm" />
               <span>{{ option.label }}</span>
               <span class="density-cols">{{ option.columns }} cols</span>
               <Check 
                 v-if="sliderLevel === option.level" 
-                class="density-check"
-                :size="12"
+                class="density-check gallery-icon-xs"
               />
             </button>
           </div>
@@ -460,7 +458,7 @@ onBeforeUnmount(() => {
       </div>
 
       <div v-if="isLoading" class="loading-badge">
-        <Loader :size="16" class="lucide-spin" /> 
+        <Loader class="gallery-icon-md lucide-spin" /> 
         <span>Loading</span>
       </div>
     </div>
@@ -491,7 +489,7 @@ onBeforeUnmount(() => {
 
     <div v-if="errorMessage" class="error-banner">
       <div class="error-text">
-        <TriangleAlert :size="16" />
+        <TriangleAlert class="gallery-icon-md" />
         <span>{{ errorMessage }}</span>
       </div>
       <button 
@@ -499,7 +497,7 @@ onBeforeUnmount(() => {
         type="button" 
         @click="galleryStore.clearError()"
       >
-        <X :size="14" />
+        <X class="gallery-icon-sm" />
       </button>
     </div>
 
@@ -564,7 +562,7 @@ onBeforeUnmount(() => {
           <div class="scroller-footer" :class="{ 'bars-hidden': !barsVisible }">
             <div ref="loadMoreSentinel" class="load-more-sentinel"></div>
             <div v-if="isLoadingMore" class="loading-more">
-              <Loader :size="16" class="lucide-spin" />
+              <Loader class="gallery-icon-md lucide-spin" />
               <span>Loading more photos...</span>
             </div>
 
@@ -623,7 +621,7 @@ onBeforeUnmount(() => {
         <div class="scroller-footer" :class="{ 'bars-hidden': !barsVisible }">
           <div ref="loadMoreSentinel" class="load-more-sentinel"></div>
           <div v-if="isLoadingMore" class="loading-more">
-            <Loader :size="16" class="lucide-spin" />
+            <Loader class="gallery-icon-md lucide-spin" />
             <span>Loading more photos...</span>
           </div>
 
@@ -1133,25 +1131,43 @@ onBeforeUnmount(() => {
 
 /* ── Album scroll styles are in AlbumScroller.vue ── */
 
-/* ── SVG icon sizing via CSS variables (overridden per breakpoint) ── */
-/* Nav button icons (ArrowLeft, ArrowRight) — default 18px */
+/* ── SVG icon sizing via design tokens ── */
+/* Nav button icons (ArrowLeft, ArrowRight, ArrowUpRight) */
 .nav-btn svg {
-  width: var(--nav-icon-size, 18px);
-  height: var(--nav-icon-size, 18px);
+  width: var(--gallery-icon-toolbar);
+  height: var(--gallery-icon-toolbar);
 }
 
-/* Sort/density trigger main icons (ArrowUpDown, LayoutGrid) — default 16px */
+/* Sort/density trigger main icons (ArrowUpDown, LayoutGrid) */
 .sort-trigger > svg:not(.sort-chevron),
 .density-trigger > svg:not(.density-chevron) {
-  width: var(--trigger-icon-size, 16px);
-  height: var(--trigger-icon-size, 16px);
+  width: var(--gallery-icon-md);
+  height: var(--gallery-icon-md);
 }
 
-/* Chevron icons inside sort/density triggers — default 12px */
+/* Chevron icons inside sort/density triggers */
 .sort-trigger svg.sort-chevron,
 .density-trigger svg.density-chevron {
-  width: var(--chevron-size, 12px);
-  height: var(--chevron-size, 12px);
+  width: var(--gallery-icon-xs);
+  height: var(--gallery-icon-xs);
+}
+
+/* Generic icon size classes */
+.gallery-icon-toolbar {
+  width: var(--gallery-icon-toolbar);
+  height: var(--gallery-icon-toolbar);
+}
+.gallery-icon-md {
+  width: var(--gallery-icon-md);
+  height: var(--gallery-icon-md);
+}
+.gallery-icon-sm {
+  width: var(--gallery-icon-sm);
+  height: var(--gallery-icon-sm);
+}
+.gallery-icon-xs {
+  width: var(--gallery-icon-xs);
+  height: var(--gallery-icon-xs);
 }
 
 .skeleton-container {

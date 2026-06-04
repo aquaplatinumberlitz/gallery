@@ -35,14 +35,14 @@ function clearSearch() {
         @click="emit('toggle-sidebar')"
         title="Toggle sidebar"
       >
-        <Menu :size="18" />
+        <Menu class="gallery-icon-toolbar" />
       </button>
       <button 
         class="settings-btn" 
         @click="emit('open-settings')"
         title="Change Intro Page"
       >
-        <Settings :size="18" />
+        <Settings class="gallery-icon-toolbar" />
       </button>
     </div>
     <div class="brand-hero">
@@ -75,7 +75,7 @@ function clearSearch() {
         </span>
       </button>
       <div class="search-box">
-        <Search :size="18" class="search-icon" />
+        <Search class="gallery-icon-toolbar search-icon" />
         <input
           id="gallery-search"
           :value="searchQuery"
@@ -90,7 +90,7 @@ function clearSearch() {
           @click="clearSearch"
           type="button"
         >
-          <X :size="12" />
+          <X class="gallery-icon-xs" />
         </button>
       </div>
     </div>
@@ -337,6 +337,16 @@ h1 {
 .search-box .clear-btn:hover {
   background: rgba(0, 0, 0, 0.05);
   color: var(--text-color);
+}
+
+/* Icon sizes using design tokens */
+.gallery-icon-toolbar {
+  width: var(--gallery-icon-toolbar);
+  height: var(--gallery-icon-toolbar);
+}
+.gallery-icon-xs {
+  width: var(--gallery-icon-xs);
+  height: var(--gallery-icon-xs);
 }
 
 .brand-hero {
