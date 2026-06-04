@@ -33,6 +33,12 @@ if (import.meta.env.DEV) {
       timestamp: Date.now()
     });
   });
+  // Icon debug overlay for tablet icon sizing investigation
+  import('./utils/iconDebugOverlay')
+    .then(({ initIconDebugOverlay }) => initIconDebugOverlay())
+    .catch((error) => {
+      console.warn('[IconDebug] failed to load', error);
+    });
 }
 
 const app = createApp(App);

@@ -433,9 +433,10 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
 /* ============================================================
    Icon size tokens
    ============================================================ */
-.tgt-nav-icon {
+:deep(.tgt-nav-icon) {
   width: var(--gallery-icon-nav);
   height: var(--gallery-icon-nav);
+  flex-shrink: 0;
 }
 
 .tgt-trigger-icon {

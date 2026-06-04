@@ -230,14 +230,16 @@ function onSearchInput(e: Event) {
 /* ============================================================
    Icon sizing — CSS token classes (no :size prop, Lucide defaults 2px stroke)
    ============================================================ */
-.th-header-icon {
+:deep(.th-header-icon) {
   width: var(--gallery-icon-nav);
   height: var(--gallery-icon-nav);
+  flex-shrink: 0;
 }
 
-.th-theme-icon {
+:deep(.th-theme-icon) {
   width: var(--gallery-icon-nav);
   height: var(--gallery-icon-nav);
+  flex-shrink: 0;
 }
 
 /* ============================================================
