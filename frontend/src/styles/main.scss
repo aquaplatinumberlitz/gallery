@@ -372,10 +372,6 @@ pre {
     --border-color: #fff;
   }
   
-  button, a, [role="button"] {
-    border: 2px solid currentColor !important;
-  }
-  
   :focus-visible {
     outline: 3px solid currentColor !important;
     outline-offset: 3px !important;

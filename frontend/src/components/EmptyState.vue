@@ -142,7 +142,7 @@ const actionIconComponent = computed(() => {
     </div>
     
     <!-- Text content -->
-    <div class="content">
+    <div class="empty-state-content">
       <h3 class="title">{{ displayTitle }}</h3>
       <p v-if="displayDescription" class="description">{{ displayDescription }}</p>
       
@@ -169,6 +169,7 @@ const actionIconComponent = computed(() => {
   padding: 48px 24px;
   text-align: center;
   min-height: 300px;
+  background: transparent;
 }
 
 .empty-state.compact {
@@ -363,8 +364,9 @@ const actionIconComponent = computed(() => {
 }
 
 /* Content */
-.content {
+.empty-state-content {
   max-width: 320px;
+  background: transparent;
 }
 
 .title {

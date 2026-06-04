@@ -146,25 +146,31 @@ onBeforeUnmount(() => {
       />
    </button>
     <Transition name="album-collapse">
-      <div class="album-grid-wrapper" v-show="!collapsed">
-        <div class="album-arrows">
-          <button
-            v-if="showLeftArrow"
-            class="album-scroll-btn"
-            @click="scrollAlbums(-1)"
-            aria-label="Scroll left"
-          >
-            <ArrowLeft class="gallery-icon-nav" />
-          </button>
-          <button
-            v-if="showRightArrow"
-            class="album-scroll-btn"
-            @click="scrollAlbums(1)"
-            aria-label="Scroll right"
-          >
-            <ArrowRight class="gallery-icon-nav" />
-          </button>
-        </div>
+      <div
+        class="album-grid-wrapper"
+        :class="{ 'has-overflow': showLeftArrow || showRightArrow }"
+        v-show="!collapsed"
+      >
+        <button
+          v-show="showLeftArrow"
+          class="album-scroll-btn album-scroll-btn--left"
+          :class="{ 'album-scroll-btn--disabled': !showLeftArrow }"
+          :disabled="!showLeftArrow"
+          @click="scrollAlbums(-1)"
+          aria-label="Scroll left"
+        >
+          <ArrowLeft class="gallery-icon-nav" />
+        </button>
+        <button
+          v-show="showRightArrow"
+          class="album-scroll-btn album-scroll-btn--right"
+          :class="{ 'album-scroll-btn--disabled': !showRightArrow }"
+          :disabled="!showRightArrow"
+          @click="scrollAlbums(1)"
+          aria-label="Scroll right"
+        >
+          <ArrowRight class="gallery-icon-nav" />
+        </button>
         <div
           ref="gridRef"
           class="album-grid"
@@ -183,30 +189,42 @@ onBeforeUnmount(() => {
   </section>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
+@import "../styles/breakpoints";
+
 .album-scroller {
+  position: relative;
   margin-bottom: 8px;
   padding-left: 10px;
   pointer-events: auto; /* restore interactivity — GlowContainer sets pointer-events:none */
-}
-
-.album-arrows {
-  position: absolute;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  justify-content: flex-end;
-  top: 12px;
-  right: 50px;
-  z-index: 2;
 }
 
 /* ── Album Grid ── */
 .album-grid-wrapper {
   position: relative;
   overflow: visible;
-  padding: var(--glow-bleed-y, 56px) var(--glow-bleed-x, 50px) var(--glow-bleed-bottom, 32px);
-  margin: calc(-1 * var(--glow-bleed-y, 56px)) calc(-1 * var(--glow-bleed-x, 50px)) calc(-1 * var(--glow-bleed-bottom, 32px));
+}
+
+/* Edge fade overlays — indicate horizontal scroll */
+.album-grid-wrapper.has-overflow::before,
+.album-grid-wrapper.has-overflow::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 48px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.album-grid-wrapper.has-overflow::before {
+  left: 0;
+  background: linear-gradient(to right, var(--surface-color), transparent);
+}
+
+.album-grid-wrapper.has-overflow::after {
+  right: 0;
+  background: linear-gradient(to left, var(--surface-color), transparent);
 }
 
 .album-grid {
@@ -215,12 +233,11 @@ onBeforeUnmount(() => {
   gap: 24px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 24px 50px;  /* 24px top/bottom, 50px left/right cho horizontal glow */
+  padding: 24px 12px;
   scrollbar-width: none;
   -ms-overflow-style: none;
   touch-action: pan-x;
   overscroll-behavior-x: contain;
-  /* Smooth scroll behavior */
   scroll-behavior: smooth;
 }
 
@@ -232,118 +249,163 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
   min-width: 180px;
   max-width: 240px;
-  will-change: transform, opacity; /* Optimize for scroll animations */
+  will-change: transform, opacity;
 }
 
-/* ── Arrow Buttons ── */
+/* ── Arrow Buttons (absolute overlay pill) ── */
 .album-scroll-btn {
-  position: relative;
-  top: auto;
-  transform: none;
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  border: 1px solid var(--border-color, rgba(0,0,0,0.12));
-  background: var(--surface-color, #fff);
-  color: var(--text-color, #333);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 3;
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(20, 61, 96, 0.22);
+  color: var(--text-color);
+  box-shadow:
+    0 10px 24px rgba(20, 61, 96, 0.14),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.48);
   cursor: pointer;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0;
-  transition: opacity 0.2s, transform 0.2s, border-color 0.2s, box-shadow 0.2s, background 0.2s;
-  flex-shrink: 0;
-  z-index: 2;
-}
-
-.gallery-icon-nav {
-  width: var(--gallery-icon-nav);
-  height: var(--gallery-icon-nav);
-}
-
-.album-scroll-btn:hover {
-  transform: scale(1.15);
-  border-color: var(--primary-color);
-  background: color-mix(in srgb, var(--primary-color) 10%, var(--surface-color));
-  color: var(--primary-color);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--primary-color) 25%, transparent);
-}
-
-.album-scroller:hover .album-scroll-btn {
+  transition: opacity 0.25s, transform 0.2s, border-color 0.2s, box-shadow 0.2s, background 0.2s, color 0.2s;
+  pointer-events: auto;
   opacity: 1;
 }
 
-.album-scroll-btn:active {
-  transform: scale(0.95);
-  box-shadow: none;
+.album-scroll-btn--left {
+  left: 12px;
 }
 
-/* Dark theme: subtle glow on hover */
-:root[data-theme="dark"] .album-scroll-btn:hover {
-  box-shadow: 0 0 8px color-mix(in srgb, var(--primary-color) 40%, transparent),
-              0 4px 12px color-mix(in srgb, var(--primary-color) 20%, transparent);
+.album-scroll-btn--right {
+  right: 12px;
+}
+
+.album-scroll-btn .gallery-icon-nav {
+  width: var(--gallery-icon-nav);
+  height: var(--gallery-icon-nav);
+  stroke-width: 2.45;
+  flex-shrink: 0;
+}
+
+.album-scroll-btn--left .gallery-icon-nav {
+  transform: translateX(-1px);
+}
+
+.album-scroll-btn--right .gallery-icon-nav {
+  transform: translateX(1px);
+}
+
+/* Hover */
+.album-scroll-btn:not(:disabled):hover {
+  transform: translateY(-50%) scale(1.035);
+  color: var(--primary-color);
+  border-color: rgba(255, 184, 77, 0.48);
+  background: rgba(255, 248, 238, 0.96);
+}
+
+/* Active */
+.album-scroll-btn:not(:disabled):active {
+  transform: translateY(-50%) scale(0.97);
+}
+
+/* ── Disabled state: hidden entirely ── */
+.album-scroll-btn--disabled,
+.album-scroll-btn:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Dark theme */
+:root[data-theme="dark"] .album-scroll-btn {
+  background: rgba(32, 28, 24, 0.96);
+  border-color: rgba(255, 184, 77, 0.38);
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.52),
+    inset 0 0 0 1px rgba(255, 216, 138, 0.08);
+}
+
+:root[data-theme="dark"] .album-scroll-btn:not(:disabled):hover {
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.52),
+    inset 0 0 0 1px rgba(255, 184, 77, 0.24);
+}
+
+/* color-mix() enhancements (browsers that support it) */
+@supports (background: color-mix(in srgb, white 90%, black 10%)) {
+  .album-scroll-btn {
+    background: color-mix(in srgb, var(--surface-color, #ffffff) 94%, var(--text-color, #143d60) 6%);
+    border: 1px solid color-mix(in srgb, var(--text-color, #143d60) 22%, transparent);
+    box-shadow:
+      var(--gallery-shadow-md, 0 4px 12px rgba(0, 0, 0, 0.12)),
+      inset 0 0 0 1px color-mix(in srgb, #ffffff 48%, transparent);
+  }
+
+  :root[data-theme="dark"] .album-scroll-btn {
+    background: color-mix(in srgb, var(--surface-color, #1a1918) 88%, var(--primary-color, #ffb84d) 12%);
+    border-color: color-mix(in srgb, var(--primary-color, #ffb84d) 40%, transparent);
+    box-shadow:
+      var(--gallery-shadow-md, 0 4px 12px rgba(0, 0, 0, 0.4)),
+      inset 0 0 0 1px color-mix(in srgb, #ffffff 12%, transparent);
+  }
+
+  .album-scroll-btn:not(:disabled):hover {
+    border-color: color-mix(in srgb, var(--primary-color, #ffb84d) 48%, transparent);
+    background: color-mix(in srgb, var(--surface-color, #ffffff) 88%, var(--primary-color, #ffb84d) 12%);
+  }
+
+  :root[data-theme="dark"] .album-scroll-btn:not(:disabled):hover {
+    box-shadow:
+      var(--gallery-shadow-md, 0 4px 12px rgba(0, 0, 0, 0.4)),
+      inset 0 0 0 1px color-mix(in srgb, var(--primary-color, #ffb84d) 24%, transparent);
+  }
 }
 
 /* ── Tablet (768px–1199px) ── */
-@media (min-width: 768px) and (max-width: 1199px) {
+@include tablet {
   .album-grid {
     gap: 12px;
-    padding: 4px 50px 20px;
+    padding: 4px 8px 20px;
   }
   .album-grid > * {
     min-width: 150px;
     max-width: 200px;
   }
 
-  /* Arrows: absolute overlay on card row edges */
-  .album-arrows {
-    position: absolute;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    padding: 0;
-    gap: 0;
-    pointer-events: none;
-    z-index: 2;
+  .album-grid-wrapper.has-overflow::before,
+  .album-grid-wrapper.has-overflow::after {
+    width: 48px;
   }
 
   .album-scroll-btn {
-    width: 42px;
-    height: 42px;
-    opacity: 0.5;
-    pointer-events: auto;
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
+    width: 46px;
+    height: 46px;
   }
 
-  .album-scroll-btn:hover {
-    opacity: 1;
-    transform: translateY(-50%) scale(1.1);
-  }
-
-  .album-scroll-btn:first-child {
+  .album-scroll-btn--left {
     left: 8px;
   }
 
-  .album-scroll-btn:last-child {
+  .album-scroll-btn--right {
     right: 8px;
   }
 }
 
+/* ── Mobile (<768px): unchanged ── */
 @media (max-width: 767px) {
   .album-grid-wrapper {
-    --glow-bleed-x: 0px;  /* Zero glow bleed on mobile */
-    --glow-bleed-y: 0px;
-    --glow-bleed-bottom: 0px;
     padding: 0;
     margin: 0;
   }
+
+  .album-grid-wrapper.has-overflow::before,
+  .album-grid-wrapper.has-overflow::after {
+    display: none;
+  }
+
   .album-grid-wrapper .album-grid {
     gap: 12px;
     padding: 4px 0 8px;
@@ -355,21 +417,15 @@ onBeforeUnmount(() => {
     scroll-snap-align: start;
   }
   .album-scroll-btn {
-    opacity: 1 !important; /* Always visible on mobile */
-    width: 42px;
-    height: 42px;
+    display: none;
   }
   .album-scroller .album-grid-wrapper .album-grid {
     padding: 4px 0 8px;
   }
-  .album-arrows { display: none; }
 }
 
 @media (max-width: 480px) {
   .album-grid-wrapper {
-    --glow-bleed-x: 0px;
-    --glow-bleed-y: 0px;
-    --glow-bleed-bottom: 0px;
     padding: 0;
     margin: 0;
   }
