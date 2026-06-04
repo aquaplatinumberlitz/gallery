@@ -27,6 +27,7 @@ const emit = defineEmits<{
       id="sidebar"
       class="sidebar tablet-overlay"
       :class="{ open: isSidebarOpen }"
+      :inert="!isSidebarOpen"
     >
       <SidebarHeader />
       <div class="sidebar-body">
@@ -176,6 +177,7 @@ const emit = defineEmits<{
   width: 280px;
   height: 100dvh;
   z-index: 100;
+  pointer-events: none;
   transform: translateX(-100%);
   transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: var(--gallery-shadow-xl);
@@ -188,6 +190,7 @@ const emit = defineEmits<{
 
 .sidebar.tablet-overlay.open {
   transform: translateX(0);
+  pointer-events: auto;
 }
 
 .sidebar-backdrop {
