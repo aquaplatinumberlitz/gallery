@@ -218,10 +218,10 @@ function handleToggleFullscreen() {
           <!-- Fullscreen overlay controls -->
           <div v-if="isFullscreen" class="fs-controls">
             <button class="fs-btn" @click="exitFullscreen" title="Exit fullscreen">
-              <Minimize class="gallery-icon-lg" :stroke-width="1.5" />
+              <Minimize class="gallery-icon-xl" :stroke-width="1.5" />
             </button>
             <button class="fs-btn" @click="handleClose" title="Close">
-              <X class="gallery-icon-lg" :stroke-width="1.5" />
+              <X class="gallery-icon-xl" :stroke-width="1.5" />
             </button>
           </div>
         </template>
@@ -357,6 +357,10 @@ function handleToggleFullscreen() {
 .gallery-icon-lg {
   width: var(--gallery-icon-lg);
   height: var(--gallery-icon-lg);
+}
+.gallery-icon-xl {
+  width: var(--gallery-icon-xl);
+  height: var(--gallery-icon-xl);
 }
 
 
