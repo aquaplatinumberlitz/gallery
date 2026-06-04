@@ -249,6 +249,7 @@ def scan_directory(target_path: Path) -> tuple[list[FileNode], list[FileNode]]:
                 img_height: int | None = None
                 try:
                     with Image.open(entry.path) as img:
+                        img = ImageOps.exif_transpose(img)
                         img_width, img_height = img.size
                 except (UnidentifiedImageError, OSError):
                     pass  # If extraction fails, dimensions remain None
