@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted, watch, computed } from "vue";
 import PhotoSwipe from "photoswipe";
 import "photoswipe/dist/photoswipe.css";
-import { X } from "lucide-vue-next";
+import { X, ZoomIn, ZoomOut, Info } from "lucide-vue-next";
 import type { FileNode } from "../types";
 import { buildPhotoSwipeItem } from "../utils/lightbox";
 
@@ -21,13 +21,26 @@ const emit = defineEmits<{
 
 const containerRef = ref<HTMLElement | null>(null);
 let pswp: PhotoSwipe | null = null;
+const isZoomed = ref(false);
 
 const counter = computed(() => `${props.currentIndex + 1} / ${props.items.length}`);
 
-// Build PhotoSwipe data source — tablet uses 2048px thumbnails
 const pswpItems = computed(() =>
   props.items.map((item) => buildPhotoSwipeItem(item, 2048))
 );
+
+function toggleZoom() {
+  if (!pswp || !pswp.currSlide) return;
+  const slide = pswp.currSlide;
+  const center = pswp.getViewportCenterPoint();
+  if (slide.currZoomLevel > slide.zoomLevels.initial + 0.01) {
+    pswp.zoomTo(slide.zoomLevels.initial, center);
+    isZoomed.value = false;
+  } else {
+    pswp.zoomTo(slide.zoomLevels.secondary, center);
+    isZoomed.value = true;
+  }
+}
 
 function initPhotoSwipe() {
   if (!containerRef.value || !props.isOpen || pswp) return;
@@ -46,6 +59,7 @@ function initPhotoSwipe() {
   pswp.on("change", () => {
     if (pswp) {
       emit("indexChange", pswp.currIndex);
+      isZoomed.value = false;
     }
   });
 
@@ -54,43 +68,7 @@ function initPhotoSwipe() {
     emit("close");
   });
 
-  pswp.on("uiRegister", () => {
-    pswp!.ui!.registerElement({
-      name: "metadata-info",
-      order: 9,
-      isButton: true,
-      html: {
-        isCustomSVG: true,
-        inner:
-          '<circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 16v-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 8h.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
-        size: 24,
-      },
-      onInit: (el: HTMLElement) => {
-        el.classList.add("pswp__button--metadata-info");
-        if (props.metadataOpen) {
-          el.classList.add("active");
-          el.setAttribute("aria-label", "Close image info");
-        } else {
-          el.setAttribute("aria-label", "View image info");
-        }
-      },
-      onClick: () => emit("toggleMetadata"),
-    });
-  });
-
   pswp.init();
-
-  // Move the info button outside .tablet-photoswipe-container into .lightbox-overlay
-  const infoBtn = document.querySelector<HTMLElement>(
-    ".pswp__button--metadata-info"
-  );
-  if (infoBtn) {
-    infoBtn.classList.remove("pswp__hide-on-close");
-    const overlay = document.querySelector<HTMLElement>(".lightbox-overlay");
-    if (overlay) {
-      overlay.appendChild(infoBtn);
-    }
-  }
 }
 
 function destroyPhotoSwipe() {
@@ -104,7 +82,6 @@ function destroyPhotoSwipe() {
   }
 }
 
-// Watch isOpen — init when opening, destroy when closing
 watch(
   () => props.isOpen,
   (open) => {
@@ -116,7 +93,6 @@ watch(
   }
 );
 
-// Watch currentIndex — sync PhotoSwipe if instance exists
 watch(
   () => props.currentIndex,
   (index) => {
@@ -125,18 +101,6 @@ watch(
     }
   }
 );
-
-// Watch metadataOpen — toggle active state on the info button
-watch(() => props.metadataOpen, (isOpen) => {
-  const btn = document.querySelector<HTMLElement>(
-    ".pswp__button--metadata-info"
-  );
-  if (btn) {
-    btn.classList.toggle("active", !!isOpen);
-    btn.classList.toggle("hidden", !!isOpen);
-    btn.setAttribute("aria-label", isOpen ? "Close image info" : "View image info");
-  }
-});
 
 onMounted(() => {
   if (props.isOpen) {
@@ -151,14 +115,34 @@ onUnmounted(() => {
 
 <template>
   <div ref="containerRef" class="tablet-photoswipe-container"></div>
-  <button
-    class="tablet-photoswipe-close"
-    aria-label="Close"
-    @click="emit('close')"
-  >
-    <X :size="24" :stroke-width="1.5" />
-  </button>
+
   <div class="tablet-photoswipe-counter">{{ counter }}</div>
+
+  <div class="tablet-photoswipe-bar">
+    <button
+      class="tablet-photoswipe-btn"
+      aria-label="Close"
+      @click="emit('close')"
+    >
+      <X :size="24" :stroke-width="1.5" />
+    </button>
+    <button
+      class="tablet-photoswipe-btn"
+      :aria-label="isZoomed ? 'Zoom out' : 'Zoom in'"
+      @click="toggleZoom"
+    >
+      <ZoomOut v-if="isZoomed" :size="24" :stroke-width="1.5" />
+      <ZoomIn v-else :size="24" :stroke-width="1.5" />
+    </button>
+    <button
+      class="tablet-photoswipe-btn"
+      :class="{ active: metadataOpen }"
+      :aria-label="metadataOpen ? 'Close image info' : 'View image info'"
+      @click="emit('toggleMetadata')"
+    >
+      <Info :size="24" :stroke-width="1.5" />
+    </button>
+  </div>
 </template>
 
 <style scoped lang="scss">
@@ -168,38 +152,9 @@ onUnmounted(() => {
   z-index: 1;
 }
 
-.tablet-photoswipe-close {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  background: rgba(0, 0, 0, 0.5);
-  border: none;
-  border-radius: 50%;
-  color: #fff;
-  cursor: pointer;
-  z-index: 5000;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-  transition: background 0.2s ease;
-
-  &:hover {
-    background: rgba(0, 0, 0, 0.7);
-  }
-
-  &:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.6);
-  }
-}
-
 .tablet-photoswipe-counter {
   position: fixed;
-  bottom: 24px;
+  top: 20px;
   left: 50%;
   transform: translateX(-50%);
   background: rgba(0, 0, 0, 0.55);
@@ -217,26 +172,62 @@ onUnmounted(() => {
   user-select: none;
   z-index: 5000;
 }
+
+.tablet-photoswipe-bar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 5000;
+}
+
+.tablet-photoswipe-btn {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.5);
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background 0.2s ease;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.7);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.6);
+  }
+
+  &.active {
+    background: rgba(255, 255, 255, 0.2);
+  }
+}
 </style>
 
-<!-- Global PhotoSwipe 5 theme overrides — not scoped since PhotoSwipe DOM is generated by the library -->
 <style lang="scss">
 @import '../styles/lightbox-shared';
 
-/* Theme the PhotoSwipe background to match our dark gallery theme */
 .pswp {
   --pswp-bg: #000;
   --pswp-icon-color: #fff;
   --pswp-icon-color-secondary: #a09888;
 }
 
-/* Hide PhotoSwipe's own close/zoom — we use our own overlay controls */
 .pswp__button--close,
 .pswp__button--zoom {
   display: none !important;
 }
 
-/* Hide top bar (counter, close) — we have our own */
 .pswp__top-bar {
   opacity: 0 !important;
   pointer-events: none !important;
