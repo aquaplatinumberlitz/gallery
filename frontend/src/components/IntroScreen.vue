@@ -156,7 +156,7 @@ onMounted(() => {
         autofocus
       >
         <span class="btn-text">ENTER GALLERY</span>
-        <span class="btn-icon"><ArrowRight :size="16" /></span>
+        <span class="btn-icon"><ArrowRight class="icon-md" /></span>
       </button>
     </div>
   </div>
@@ -425,5 +425,11 @@ onMounted(() => {
   line-height: 1.5;
   letter-spacing: 0.02em;
   margin: 0;
+}
+
+/* Icon sizing tokens */
+.icon-md {
+  width: var(--gallery-icon-md);
+  height: var(--gallery-icon-md);
 }
 </style>

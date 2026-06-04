@@ -82,13 +82,13 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
 
       <!-- Loading state -->
       <div v-if="props.isLoading && !props.meta" class="meta-loading" style="flex: 1; min-height: 120px;">
-        <Loader :size="24" :stroke-width="1.5" class="lucide-spin" />
+        <Loader :stroke-width="1.5" class="lucide-spin icon-nav" />
         <span>Loading info...</span>
       </div>
 
       <!-- Error state -->
       <div v-else-if="!props.meta" class="meta-error" style="flex: 1; min-height: 120px;">
-        <TriangleAlert :size="24" :stroke-width="1.5" />
+        <TriangleAlert :stroke-width="1.5" class="icon-nav" />
         <span>No metadata available</span>
       </div>
 
@@ -102,13 +102,13 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
               @click="closeSheet"
               title="Close"
             >
-              <X :size="18" :stroke-width="1.5" />
+              <X :stroke-width="1.5" class="icon-lg" />
             </button>
           </div>
           <div class="header-meta">
-            <span v-if="props.sizeText" class="meta-tag"><Maximize :size="11" :stroke-width="1.5" /> {{ props.sizeText }}</span>
-            <span v-if="props.dateText" class="meta-tag"><Calendar :size="11" :stroke-width="1.5" /> {{ props.dateText }}</span>
-            <span v-if="props.genTimeText" class="meta-tag"><Clock :size="11" :stroke-width="1.5" /> {{ props.genTimeText }}</span>
+            <span v-if="props.sizeText" class="meta-tag"><Maximize :stroke-width="1.5" class="icon-meta" /> {{ props.sizeText }}</span>
+            <span v-if="props.dateText" class="meta-tag"><Calendar :stroke-width="1.5" class="icon-meta" /> {{ props.dateText }}</span>
+            <span v-if="props.genTimeText" class="meta-tag"><Clock :stroke-width="1.5" class="icon-meta" /> {{ props.genTimeText }}</span>
             <span v-if="props.meta?.tool" class="source-badge">
               <span class="source-label">SOURCE</span>
               <span class="source-chip">{{ props.meta.tool }}</span>
@@ -127,8 +127,8 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                 <div class="param-pill" v-if="props.meta?.params?.Seed">
                   <span class="value">{{ props.meta.params.Seed }}</span>
                   <button class="icon-btn" @click="props.copyText(String(props.meta.params.Seed), 'seed')" title="Copy seed">
-                    <Check v-if="props.copyStatus['seed']" :size="12" :stroke-width="1.5" style="color: #4ade80" />
-                    <Copy v-else :size="12" :stroke-width="1.5" />
+                    <Check v-if="props.copyStatus['seed']" :stroke-width="1.5" class="icon-xs" style="color: #4ade80" />
+                    <Copy v-else :stroke-width="1.5" class="icon-xs" />
                   </button>
                 </div>
                 <div class="param-pill" v-if="props.meta?.params?.Steps"><span class="label">Steps</span><span class="value">{{ props.meta.params.Steps }}</span></div>
@@ -186,9 +186,8 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                 <label class="tablet-label advanced-label">Advanced</label>
                 <span class="count-pill">{{ extraParamKeys.length }}</span>
                 <ChevronDown
-                  :size="16"
                   :stroke-width="1.5"
-                  class="chevron-icon"
+                  class="chevron-icon icon-md"
                   :class="{ 'is-collapsed': !showAdvanced }"
                 />
               </button>
@@ -207,8 +206,8 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
               <div class="tablet-section-top">
                 <label class="tablet-label">Prompt</label>
                 <button v-if="props.meta?.prompt" class="tablet-copy-btn" @click="props.copyText(props.meta?.prompt, 'prompt')">
-                  <Check v-if="props.copyStatus['prompt']" :size="14" :stroke-width="1.5" style="color: #4ade80" />
-                  <Copy v-else :size="14" :stroke-width="1.5" />
+                  <Check v-if="props.copyStatus['prompt']" :stroke-width="1.5" class="icon-sm" style="color: #4ade80" />
+                  <Copy v-else :stroke-width="1.5" class="icon-sm" />
                 </button>
               </div>
               <div
@@ -223,8 +222,8 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
               <div class="tablet-section-top">
                 <label class="tablet-label negative-label">Negative Prompt</label>
                 <button v-if="props.meta?.negative_prompt" class="tablet-copy-btn" @click="props.copyText(props.meta?.negative_prompt, 'neg')">
-                  <Check v-if="props.copyStatus['neg']" :size="14" :stroke-width="1.5" style="color: #4ade80" />
-                  <Copy v-else :size="14" :stroke-width="1.5" />
+                  <Check v-if="props.copyStatus['neg']" :stroke-width="1.5" class="icon-sm" style="color: #4ade80" />
+                  <Copy v-else :stroke-width="1.5" class="icon-sm" />
                 </button>
               </div>
               <div
@@ -268,5 +267,36 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
   font-style: italic;
   margin: 0;
   padding: 4px 0;
+}
+
+/* Icon sizing tokens */
+.icon-nav {
+  width: var(--gallery-icon-nav);
+  height: var(--gallery-icon-nav);
+}
+
+.icon-lg {
+  width: var(--gallery-icon-lg);
+  height: var(--gallery-icon-lg);
+}
+
+.icon-md {
+  width: var(--gallery-icon-md);
+  height: var(--gallery-icon-md);
+}
+
+.icon-sm {
+  width: var(--gallery-icon-sm);
+  height: var(--gallery-icon-sm);
+}
+
+.icon-xs {
+  width: var(--gallery-icon-xs);
+  height: var(--gallery-icon-xs);
+}
+
+.icon-meta {
+  width: var(--gallery-icon-meta);
+  height: var(--gallery-icon-meta);
 }
 </style>

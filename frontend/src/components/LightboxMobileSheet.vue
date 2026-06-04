@@ -95,7 +95,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
       <div class="sheet-content" :class="{ 'sheet-content-enter': true }">
         <!-- Loading state -->
         <div v-if="props.isLoading && !props.meta" class="meta-loading">
-          <Loader :size="24" :stroke-width="1.5" class="lucide-spin" />
+          <Loader :stroke-width="1.5" class="lucide-spin icon-nav" />
           <span>Loading info...</span>
         </div>
 

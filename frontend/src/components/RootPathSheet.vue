@@ -115,7 +115,7 @@ watch(
 
         <!-- Title -->
         <div class="sheet-title">
-          <FolderOpen :size="18" class="title-icon" />
+          <FolderOpen class="title-icon icon-lg" />
           <span>Edit Root Path</span>
         </div>
 
@@ -138,18 +138,18 @@ watch(
 
         <!-- Error message -->
         <div v-if="errorMessage" class="sheet-error">
-          <AlertCircle :size="14" />
+          <AlertCircle class="icon-sm" />
           <span>{{ errorMessage }}</span>
         </div>
 
         <!-- Action buttons -->
         <div class="sheet-actions">
           <button v-if="!isPathTextareaFocused" class="action-btn" type="button" @pointerdown.prevent @click="handlePaste" title="Paste from clipboard">
-            <ClipboardPaste :size="16" />
+            <ClipboardPaste class="icon-md" />
             <span>Paste</span>
           </button>
           <button class="action-btn clear-btn" type="button" @pointerdown.prevent.stop="handleClear" title="Clear path">
-            <X :size="16" />
+            <X class="icon-md" />
             <span>Clear</span>
           </button>
           <button class="action-btn cancel-btn" type="button" @click="handleCancel" title="Cancel">
@@ -351,5 +351,21 @@ watch(
 @keyframes slideUp {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
+}
+
+/* Icon sizing tokens */
+.icon-sm {
+  width: var(--gallery-icon-sm);
+  height: var(--gallery-icon-sm);
+}
+
+.icon-md {
+  width: var(--gallery-icon-md);
+  height: var(--gallery-icon-md);
+}
+
+.icon-lg {
+  width: var(--gallery-icon-lg);
+  height: var(--gallery-icon-lg);
 }
 </style>

@@ -77,12 +77,12 @@ const modelCount = computed(() => {
 <template>
   <aside v-if="!props.isFullscreen" class="lightbox-right">
     <div v-if="props.isLoading && !props.meta" class="meta-loading">
-      <Loader :size="24" :stroke-width="1.5" class="lucide-spin" />
+      <Loader :stroke-width="1.5" class="lucide-spin icon-nav" />
       <span>Loading info...</span>
     </div>
 
     <div v-else-if="!props.meta" class="meta-error">
-      <TriangleAlert :size="24" :stroke-width="1.5" />
+      <TriangleAlert :stroke-width="1.5" class="icon-nav" />
       <span>No metadata available</span>
     </div>
 
@@ -97,22 +97,22 @@ const modelCount = computed(() => {
               @click="emit('toggle-fullscreen')"
               :title="props.isFullscreen ? 'Exit fullscreen' : 'Fullscreen'"
             >
-              <Minimize v-if="props.isFullscreen" :size="18" :stroke-width="1.5" />
-              <Maximize v-else :size="18" :stroke-width="1.5" />
+              <Minimize v-if="props.isFullscreen" :stroke-width="1.5" class="icon-lg" />
+              <Maximize v-else :stroke-width="1.5" class="icon-lg" />
             </button>
             <button
               class="close-btn-mini"
               @click="emit('close')"
               title="Close (Escape)"
             >
-              <X :size="18" :stroke-width="1.5" />
+              <X :stroke-width="1.5" class="icon-lg" />
             </button>
           </div>
         </div>
         <div class="header-meta">
-          <span v-if="props.sizeText" class="meta-tag"><Maximize :size="12" :stroke-width="1.5" /> {{ props.sizeText }}</span>
-          <span v-if="props.dateText" class="meta-tag"><Calendar :size="12" :stroke-width="1.5" /> {{ props.dateText }}</span>
-          <span v-if="props.genTimeText" class="meta-tag"><Clock :size="12" :stroke-width="1.5" /> {{ props.genTimeText }}</span>
+          <span v-if="props.sizeText" class="meta-tag"><Maximize :stroke-width="1.5" class="icon-xs" /> {{ props.sizeText }}</span>
+          <span v-if="props.dateText" class="meta-tag"><Calendar :stroke-width="1.5" class="icon-xs" /> {{ props.dateText }}</span>
+          <span v-if="props.genTimeText" class="meta-tag"><Clock :stroke-width="1.5" class="icon-xs" /> {{ props.genTimeText }}</span>
           <span v-if="props.meta?.tool" class="source-badge">
             <span class="source-label">SOURCE</span>
             <span class="source-chip">{{ props.meta.tool }}</span>
@@ -124,15 +124,15 @@ const modelCount = computed(() => {
         <!-- ========== Prompt (core) ========== -->
         <section class="prompt-box" :class="{ 'is-empty': !props.meta?.prompt }">
           <div class="section-top">
-            <h4><MessageSquareText :size="14" :stroke-width="1.5" /> Prompt</h4>
+            <h4><MessageSquareText :stroke-width="1.5" class="icon-sm" /> Prompt</h4>
             <button
               v-if="props.meta?.prompt"
               type="button"
               class="copy-btn"
               @click="props.copyText(props.meta?.prompt, 'prompt')"
             >
-              <Check v-if="props.copyStatus['prompt']" :size="14" :stroke-width="1.5" style="color: #4ade80" />
-              <Copy v-else :size="14" :stroke-width="1.5" />
+              <Check v-if="props.copyStatus['prompt']" :stroke-width="1.5" class="icon-sm" style="color: #4ade80" />
+              <Copy v-else :stroke-width="1.5" class="icon-sm" />
             </button>
           </div>
           <div
@@ -147,15 +147,15 @@ const modelCount = computed(() => {
         <!-- ========== Negative Prompt (core) ========== -->
         <section class="prompt-box negative" :class="{ 'is-empty': !props.meta?.negative_prompt }">
           <div class="section-top">
-            <h4><MessageSquareOff :size="14" :stroke-width="1.5" /> Negative</h4>
+            <h4><MessageSquareOff :stroke-width="1.5" class="icon-sm" /> Negative</h4>
             <button
               v-if="props.meta?.negative_prompt"
               type="button"
               class="copy-btn"
               @click="props.copyText(props.meta?.negative_prompt, 'neg')"
             >
-              <Check v-if="props.copyStatus['neg']" :size="14" :stroke-width="1.5" style="color: #4ade80" />
-              <Copy v-else :size="14" :stroke-width="1.5" />
+              <Check v-if="props.copyStatus['neg']" :stroke-width="1.5" class="icon-sm" style="color: #4ade80" />
+              <Copy v-else :stroke-width="1.5" class="icon-sm" />
             </button>
           </div>
           <div
@@ -177,13 +177,12 @@ const modelCount = computed(() => {
             :aria-expanded="hasGenData ? showGenParams : undefined"
             aria-controls="gen-data-content"
           >
-            <h4><SlidersHorizontal :size="14" :stroke-width="1.5" /> Generation Data</h4>
+            <h4><SlidersHorizontal :stroke-width="1.5" class="icon-sm" /> Generation Data</h4>
             <span v-if="hasGenData" class="count-pill">{{ genParamsCount }}</span>
             <ChevronDown
               v-if="hasGenData"
-              :size="16"
               :stroke-width="1.5"
-              class="chevron-icon"
+              class="chevron-icon icon-md"
               :class="{ 'is-collapsed': !showGenParams }"
             />
           </button>
@@ -193,8 +192,8 @@ const modelCount = computed(() => {
                 <span class="label">Seed</span>
                 <span class="value">{{ props.meta.params.Seed }}</span>
                 <button class="icon-btn" @click="props.copyText(String(props.meta.params.Seed), 'seed')" title="Copy Seed">
-                  <Check v-if="props.copyStatus['seed']" :size="12" :stroke-width="1.5" style="color: #4ade80" />
-                  <Sprout v-else :size="12" :stroke-width="1.5" />
+                  <Check v-if="props.copyStatus['seed']" :stroke-width="1.5" class="icon-xs" style="color: #4ade80" />
+                  <Sprout v-else :stroke-width="1.5" class="icon-xs" />
                 </button>
               </div>
               <div class="param-pill" v-if="props.meta?.params?.Steps">
@@ -225,7 +224,7 @@ const modelCount = computed(() => {
         <!-- ========== Extra Settings (secondary) ========== -->
         <section v-if="hasExtraSettings" class="meta-group">
           <div class="group-header static">
-            <h4><SlidersHorizontal :size="14" :stroke-width="1.5" /> Extra Settings</h4>
+            <h4><SlidersHorizontal :stroke-width="1.5" class="icon-sm" /> Extra Settings</h4>
           </div>
           <div class="group-content">
             <div class="params-grid">
@@ -251,20 +250,19 @@ const modelCount = computed(() => {
             :aria-expanded="hasModels ? showResources : undefined"
             aria-controls="model-resources-content"
           >
-            <h4><BrainCircuit :size="14" :stroke-width="1.5" /> Model & Resources</h4>
+            <h4><BrainCircuit :stroke-width="1.5" class="icon-sm" /> Model & Resources</h4>
             <span v-if="hasModels" class="count-pill">{{ modelCount }}</span>
             <ChevronDown
               v-if="hasModels"
-              :size="16"
               :stroke-width="1.5"
-              class="chevron-icon"
+              class="chevron-icon icon-md"
               :class="{ 'is-collapsed': !showResources }"
             />
           </button>
           <div id="model-resources-content" v-if="hasModels" class="group-content" v-show="showResources">
             <div class="resource-list">
               <div class="resource-item" v-if="props.meta?.params?.Model">
-                <Box :size="14" :stroke-width="1.5" />
+                <Box :stroke-width="1.5" class="icon-sm" />
                 <div class="res-info">
                   <span class="res-type">Checkpoint</span>
                   <span class="res-name">{{ props.meta.params.Model }}</span>
@@ -272,7 +270,7 @@ const modelCount = computed(() => {
               </div>
 
               <div class="resource-item" v-for="lora in props.meta?.params?.Lora" :key="lora">
-                <Puzzle :size="14" :stroke-width="1.5" />
+                <Puzzle :stroke-width="1.5" class="icon-sm" />
                 <div class="res-info">
                   <span class="res-type">LoRA</span>
                   <span class="res-name">{{ lora }}</span>
@@ -281,7 +279,7 @@ const modelCount = computed(() => {
 
               <!-- Swarm Specific Models List -->
               <div class="resource-item" v-for="m in props.meta?.models" :key="m.name">
-                <Layers :size="14" :stroke-width="1.5" />
+                <Layers :stroke-width="1.5" class="icon-sm" />
                 <div class="res-info">
                   <span class="res-type">{{ m.param || 'Model' }}</span>
                   <span class="res-name">
@@ -307,9 +305,8 @@ const modelCount = computed(() => {
             <h4>Advanced</h4>
             <span class="count-pill">{{ extraParamKeys.length }}</span>
             <ChevronDown
-              :size="16"
               :stroke-width="1.5"
-              class="chevron-icon"
+              class="chevron-icon icon-md"
               :class="{ 'is-collapsed': !showAdvanced }"
             />
           </button>
@@ -356,5 +353,31 @@ const modelCount = computed(() => {
   font-style: italic;
   margin: 0;
   padding: 0 4px;
+}
+
+/* Icon sizing tokens */
+.icon-nav {
+  width: var(--gallery-icon-nav);
+  height: var(--gallery-icon-nav);
+}
+
+.icon-lg {
+  width: var(--gallery-icon-lg);
+  height: var(--gallery-icon-lg);
+}
+
+.icon-md {
+  width: var(--gallery-icon-md);
+  height: var(--gallery-icon-md);
+}
+
+.icon-sm {
+  width: var(--gallery-icon-sm);
+  height: var(--gallery-icon-sm);
+}
+
+.icon-xs {
+  width: var(--gallery-icon-xs);
+  height: var(--gallery-icon-xs);
 }
 </style>

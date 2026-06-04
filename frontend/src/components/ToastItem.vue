@@ -93,7 +93,7 @@ onUnmounted(() => {
   >
     <!-- Icon -->
     <div class="toast__icon">
-      <component :is="_icons[iconClass]" :size="18" :stroke-width="1.5" />
+      <component :is="_icons[iconClass]" :stroke-width="1.5" class="icon-lg" />
     </div>
     
     <!-- Content -->
@@ -124,7 +124,7 @@ onUnmounted(() => {
       type="button"
       @click="emit('dismiss')"
     >
-      <X :size="14" />
+      <X class="icon-sm" />
     </button>
     
     <!-- Progress bar -->
@@ -338,6 +338,17 @@ onUnmounted(() => {
   .toast {
     border: 2px solid var(--toast-accent);
   }
+}
+
+/* Icon sizing tokens */
+.icon-lg {
+  width: var(--gallery-icon-lg);
+  height: var(--gallery-icon-lg);
+}
+
+.icon-sm {
+  width: var(--gallery-icon-sm);
+  height: var(--gallery-icon-sm);
 }
 
 /* Reduced motion */
