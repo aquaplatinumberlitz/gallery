@@ -17,7 +17,7 @@ const Lightbox = defineAsyncComponent(() => import("./components/Lightbox.vue"))
 const { isMobile, isTablet } = useDevice();
 
 // --- INTRO PAGE LOGIC ---
-const showIntro = ref(!isMobile.value);
+const showIntro = ref(!isMobile.value && !isTablet.value);
 const introPreviewUrl = ref<string | null>(null);
 const isSettingsOpen = ref(false);
 const handleIntroEnter = () => {
