@@ -1287,6 +1287,10 @@ onBeforeUnmount(() => {
     margin-bottom: 8px;
   }
 
+  .scroller-container {
+    padding-top: 8px;
+  }
+
   /* Reduce photo row gap and spacers on mobile */
   .virtual-row {
     gap: 4px;
