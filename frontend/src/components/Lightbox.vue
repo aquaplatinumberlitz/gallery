@@ -11,6 +11,7 @@ import LightboxDesktopPanel from "./LightboxDesktopPanel.vue";
 import LightboxTabletPanel from "./LightboxTabletPanel.vue";
 import LightboxMobileSheet from "./LightboxMobileSheet.vue";
 import MobilePhotoSwipe from "./MobilePhotoSwipe.vue";
+import TabletPhotoSwipe from "./TabletPhotoSwipe.vue";
 import PhotoSwipeViewer from "./PhotoSwipeViewer.vue";
 
 const { isDesktop, isTablet, isMobile, isWide } = useDevice();
@@ -228,22 +229,15 @@ function handleToggleFullscreen() {
 
         <!-- Tablet: PhotoSwipe + Bottom Sheet -->
         <template v-if="isTablet">
-          <PhotoSwipeViewer
+          <TabletPhotoSwipe
             :items="lightbox.galleryItems"
             :current-index="lightbox.currentIndex"
             :is-open="show"
-            :close-on-vertical-drag="false"
-            :allow-pan-to-next="true"
-            :thumbnail-size="2048"
-            :show-info-button="true"
             :metadata-open="showSheet"
             @close="handleClose"
             @index-change="handleIndexChange"
             @toggle-metadata="toggleSheet"
           />
-          <div class="mobile-photo-counter">
-            {{ lightbox.currentIndex + 1 }} / {{ lightbox.galleryItems.length }}
-          </div>
           <LightboxTabletPanel
             v-if="showSheet && !isFullscreen"
             :meta="meta"

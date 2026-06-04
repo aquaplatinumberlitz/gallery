@@ -13,15 +13,11 @@ const props = defineProps<{
   closeOnVerticalDrag: boolean;
   allowPanToNext: boolean;
   thumbnailSize: number | null; // null = full-res
-  // Info button (tablet only)
-  showInfoButton?: boolean;
-  metadataOpen?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: "close"): void;
   (e: "indexChange", index: number): void;
-  (e: "toggleMetadata"): void;
 }>();
 
 const containerRef = ref<HTMLElement | null>(null);
@@ -59,49 +55,7 @@ function initPhotoSwipe() {
     emit("close");
   });
 
-  // Register info button as a proper PhotoSwipe 5 UI element (tablet only)
-  if (props.showInfoButton) {
-    pswp.on("uiRegister", () => {
-      pswp!.ui!.registerElement({
-        name: "metadata-info",
-        order: 9,
-        isButton: true,
-        html: {
-          isCustomSVG: true,
-          inner:
-            '<circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 16v-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 8h.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
-          size: 24,
-        },
-        onInit: (el: HTMLElement) => {
-          el.classList.add("pswp__button--metadata-info");
-          if (props.metadataOpen) {
-            el.classList.add("active");
-            el.setAttribute("aria-label", "Close image info");
-          } else {
-            el.setAttribute("aria-label", "View image info");
-          }
-        },
-        onClick: () => emit("toggleMetadata"),
-      });
-    });
-  }
-
   pswp.init();
-
-  // After init, move the info button outside .photoswipe-container
-  // into .lightbox-overlay so it can stack above the bottom sheet
-  if (props.showInfoButton) {
-    const infoBtn = document.querySelector<HTMLElement>(
-      ".pswp__button--metadata-info"
-    );
-    if (infoBtn) {
-      infoBtn.classList.remove("pswp__hide-on-close");
-      const overlay = document.querySelector<HTMLElement>(".lightbox-overlay");
-      if (overlay) {
-        overlay.appendChild(infoBtn);
-      }
-    }
-  }
 }
 
 function destroyPhotoSwipe() {
@@ -137,18 +91,6 @@ watch(
     }
   }
 );
-
-// Watch metadataOpen — toggle active state and visibility on the info button
-watch(() => props.metadataOpen, (isOpen) => {
-  const btn = document.querySelector<HTMLElement>(
-    ".pswp__button--metadata-info"
-  );
-  if (btn) {
-    btn.classList.toggle("active", !!isOpen);
-    btn.classList.toggle("hidden", !!isOpen);
-    btn.setAttribute("aria-label", isOpen ? "Close image info" : "View image info");
-  }
-});
 
 onMounted(() => {
   if (props.isOpen) {
