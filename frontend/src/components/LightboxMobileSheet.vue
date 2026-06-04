@@ -95,7 +95,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
       <div class="sheet-content" :class="{ 'sheet-content-enter': true }">
         <!-- Loading state -->
         <div v-if="props.isLoading && !props.meta" class="meta-loading">
-          <Loader :stroke-width="1.5" class="lucide-spin icon-nav" />
+          <Loader :stroke-width="1.5" class="lucide-spin gallery-icon-nav" />
           <span>Loading info...</span>
         </div>
 
@@ -261,5 +261,11 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
   font-style: italic;
   margin: 0;
   padding: 4px 0;
+}
+
+/* ── Token-based icon sizes ────────────────────────────────── */
+.gallery-icon-nav {
+  width: var(--gallery-icon-nav);
+  height: var(--gallery-icon-nav);
 }
 </style>

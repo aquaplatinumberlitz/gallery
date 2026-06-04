@@ -218,10 +218,10 @@ function handleToggleFullscreen() {
           <!-- Fullscreen overlay controls -->
           <div v-if="isFullscreen" class="fs-controls">
             <button class="fs-btn" @click="exitFullscreen" title="Exit fullscreen">
-              <Minimize :size="20" :stroke-width="1.5" />
+              <Minimize class="gallery-icon-lg" :stroke-width="1.5" />
             </button>
             <button class="fs-btn" @click="handleClose" title="Close">
-              <X :size="20" :stroke-width="1.5" />
+              <X class="gallery-icon-lg" :stroke-width="1.5" />
             </button>
           </div>
         </template>
@@ -351,6 +351,12 @@ function handleToggleFullscreen() {
 .fs-btn:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring-shadow);
+}
+
+/* ── Token-based icon sizes ────────────────────────────────── */
+.gallery-icon-lg {
+  width: var(--gallery-icon-lg);
+  height: var(--gallery-icon-lg);
 }
 
 

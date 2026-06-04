@@ -15,9 +15,9 @@ defineProps<{
   <div class="gallery-section-header" :class="{ 'is-clickable': clickable }">
     <h3>{{ title }}</h3>
     <span v-if="count !== undefined" class="section-count-badge">
-      <component :is="badgeIcon" v-if="badgeIcon" :size="16" />
+      <component :is="badgeIcon" v-if="badgeIcon" class="gallery-icon-md" />
       {{ count }}
-      <ChevronDown v-if="clickable" :size="16" class="toggle-chevron" :class="{ collapsed }" />
+      <ChevronDown v-if="clickable" class="toggle-chevron gallery-icon-md" :class="{ collapsed }" />
     </span>
   </div>
 </template>
@@ -76,6 +76,12 @@ defineProps<{
 
 .is-clickable:hover .toggle-chevron {
   opacity: 1;
+}
+
+/* ── Token-based icon sizes ────────────────────────────────── */
+.gallery-icon-md {
+  width: var(--gallery-icon-md);
+  height: var(--gallery-icon-md);
 }
 
 /* ── Tablet (768px–1199px) ── */
