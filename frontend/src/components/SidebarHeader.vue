@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from "vue";
+import { onMounted, ref, watch, inject } from "vue";
 import { useGalleryStore } from "../stores/gallery";
 import { FolderOpen, RotateCcw, Info, Edit3 } from "lucide-vue-next";
 import { useDevice } from "../composables/useDevice";
 import RootPathSheet from "./RootPathSheet.vue";
+import { closeSidebarKey } from "../injectionKeys";
 
 const { isMobile } = useDevice();
+const closeSidebar = inject(closeSidebarKey, () => {});
 const galleryStore = useGalleryStore();
 const pathInput = ref(galleryStore.rootPath || "");
 const inputRef = ref<HTMLInputElement | null>(null);
@@ -13,7 +15,10 @@ const showSheet = ref(false);
 
 const onLoad = async () => {
   const cleaned = pathInput.value.trim().replace(/^["']|["']$/g, "");
-  await galleryStore.setRootPath(cleaned);
+  const success = await galleryStore.setRootPath(cleaned);
+  if (success) {
+    closeSidebar();
+  }
   inputRef.value?.blur();
 };
 
@@ -29,7 +34,6 @@ const editOnMobile = () => {
 onMounted(() => {
   if (galleryStore.rootPath) {
     pathInput.value = galleryStore.rootPath;
-    galleryStore.setRootPath(galleryStore.rootPath);
   }
 });
 

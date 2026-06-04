@@ -195,7 +195,6 @@ onBeforeUnmount(() => {
 .album-scroller {
   position: relative;
   margin-bottom: 8px;
-  padding-left: 10px;
   pointer-events: auto; /* restore interactivity — GlowContainer sets pointer-events:none */
 }
 

@@ -17,7 +17,7 @@ const props = withDefaults(defineProps<{
 });
 
 const galleryStore = useGalleryStore();
-const { isMobile } = useDevice();
+const { isMobile, isTablet } = useDevice();
 const closeSidebar = inject(closeSidebarKey, () => {});
 const itemRef = ref<HTMLElement | null>(null);
 
@@ -41,7 +41,7 @@ const onToggle = () => {
 
 const onSelect = () => {
   galleryStore.selectFolder(props.node);
-  if (isMobile.value) {
+  if (isMobile.value || isTablet.value) {
     closeSidebar();
   }
 };

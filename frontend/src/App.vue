@@ -79,7 +79,7 @@ const toggleSidebar = () => {
 };
 
 const closeSidebar = () => {
-  if (isMobile.value) {
+  if (isMobile.value || isTablet.value) {
     isSidebarOpen.value = false;
   }
 };
@@ -87,7 +87,7 @@ provide(closeSidebarKey, closeSidebar);
 
 // Handle Escape key to close sidebar on mobile
 const handleGlobalKeydown = (e: KeyboardEvent) => {
-  if (e.key === 'Escape' && isMobile.value && isSidebarOpen.value) {
+  if (e.key === 'Escape' && (isMobile.value || isTablet.value) && isSidebarOpen.value) {
     closeSidebar();
   }
 };

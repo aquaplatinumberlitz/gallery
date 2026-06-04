@@ -23,35 +23,33 @@ const emit = defineEmits<{
 
 <template>
   <div class="layout">
-    <Transition name="sidebar-drawer">
-      <aside
-        v-if="isSidebarOpen"
-        id="sidebar"
-        class="sidebar tablet-overlay open"
-      >
-        <SidebarHeader />
-        <div class="sidebar-body">
-          <div class="sidebar-title" id="folder-tree-label">
-            <span>Folder Tree</span>
-            <span v-if="isLoading" class="loading-pill">
-              <Loader :size="16" class="lucide-spin" /> Loading
-            </span>
-          </div>
-          <div class="tree-container">
-            <p v-if="!isLoading && !tree.length" class="empty-state">
-              Enter a root path and click Load to start.
-            </p>
-            <FolderTreeItem
-              v-for="node in tree"
-              :key="node.path"
-              :node="node"
-              :active-path="currentPath"
-              :level="1"
-            />
-          </div>
+    <aside
+      id="sidebar"
+      class="sidebar tablet-overlay"
+      :class="{ open: isSidebarOpen }"
+    >
+      <SidebarHeader />
+      <div class="sidebar-body">
+        <div class="sidebar-title" id="folder-tree-label">
+          <span>Folder Tree</span>
+          <span v-if="isLoading" class="loading-pill">
+            <Loader :size="16" class="lucide-spin" /> Loading
+          </span>
         </div>
-      </aside>
-    </Transition>
+        <div class="tree-container">
+          <p v-if="!isLoading && !tree.length" class="empty-state">
+            Enter a root path and click Load to start.
+          </p>
+          <FolderTreeItem
+            v-for="node in tree"
+            :key="node.path"
+            :node="node"
+            :active-path="currentPath"
+            :level="1"
+          />
+        </div>
+      </div>
+    </aside>
 
     <Transition name="sidebar-backdrop">
       <div
@@ -179,11 +177,13 @@ const emit = defineEmits<{
   height: 100dvh;
   z-index: 100;
   transform: translateX(-100%);
+  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: var(--gallery-shadow-xl);
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.04)), var(--surface-color);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  will-change: transform;
 }
 
 .sidebar.tablet-overlay.open {
@@ -195,28 +195,15 @@ const emit = defineEmits<{
   inset: 0;
   background: rgba(0, 0, 0, 0.4);
   z-index: 90;
-  backdrop-filter: blur(2px);
 }
 
-/* Transitions */
-.sidebar-drawer-enter-active {
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+/* Backdrop transition */
+.sidebar-backdrop-enter-active {
+  transition: opacity 0.18s ease;
 }
-.sidebar-drawer-leave-active {
-  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.sidebar-drawer-enter-from,
-.sidebar-drawer-leave-to {
-  transform: translateX(-100%);
-}
-.sidebar-drawer-enter-to,
-.sidebar-drawer-leave-from {
-  transform: translateX(0);
-}
-
-.sidebar-backdrop-enter-active,
 .sidebar-backdrop-leave-active {
-  transition: opacity 0.2s ease;
+  transition: opacity 0.18s ease;
+  pointer-events: none;
 }
 .sidebar-backdrop-enter-from,
 .sidebar-backdrop-leave-to {
