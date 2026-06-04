@@ -109,12 +109,17 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
           <!-- ========== Tab: Prompt ========== -->
           <div v-show="activeTab === 'prompt'" class="sheet-tab-content">
             <div class="meta-section" :class="{ 'is-empty': !props.meta?.prompt }">
-              <div class="section-top">
+              <div
+                class="section-top"
+                :class="{ 'metadata-copyable': props.meta?.prompt }"
+                @click="props.meta?.prompt && props.copyText(props.meta?.prompt, 'prompt')"
+                :title="props.meta?.prompt ? 'Copy prompt' : undefined"
+              >
                 <label class="sheet-label">Prompt</label>
-                <button v-if="props.meta?.prompt" class="copy-btn" @click="props.copyText(props.meta?.prompt || '', 'prompt')">
-                  <Check v-if="props.copyStatus['prompt']" :size="14" :stroke-width="1.5" style="color: #4ade80" />
-                  <Copy v-else :size="14" :stroke-width="1.5" />
-                </button>
+                <template v-if="props.meta?.prompt">
+                  <Check v-if="props.copyStatus['prompt']" :size="14" :stroke-width="1.5" style="color: #4ade80" class="inline-copy-icon" />
+                  <Copy v-else :size="14" :stroke-width="1.5" class="inline-copy-icon" />
+                </template>
               </div>
               <div
                 v-if="props.meta?.prompt"
@@ -124,12 +129,17 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
               <p v-else class="empty-text">{{ EMPTY_SECTION_TEXT.prompt }}</p>
             </div>
             <div class="meta-section" :class="{ 'is-empty': !props.meta?.negative_prompt }">
-              <div class="section-top">
+              <div
+                class="section-top"
+                :class="{ 'metadata-copyable': props.meta?.negative_prompt }"
+                @click="props.meta?.negative_prompt && props.copyText(props.meta?.negative_prompt, 'neg')"
+                :title="props.meta?.negative_prompt ? 'Copy negative prompt' : undefined"
+              >
                 <label class="sheet-label negative-label">Negative Prompt</label>
-                <button v-if="props.meta?.negative_prompt" class="copy-btn" @click="props.copyText(props.meta?.negative_prompt || '', 'neg')">
-                  <Check v-if="props.copyStatus['neg']" :size="14" :stroke-width="1.5" style="color: #4ade80" />
-                  <Copy v-else :size="14" :stroke-width="1.5" />
-                </button>
+                <template v-if="props.meta?.negative_prompt">
+                  <Check v-if="props.copyStatus['neg']" :size="14" :stroke-width="1.5" style="color: #4ade80" class="inline-copy-icon" />
+                  <Copy v-else :size="14" :stroke-width="1.5" class="inline-copy-icon" />
+                </template>
               </div>
               <div
                 v-if="props.meta?.negative_prompt"
@@ -154,13 +164,16 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
             <div class="meta-section" :class="{ 'is-empty': !hasGenData }">
               <label class="sheet-label">Generation Data</label>
               <div v-if="hasGenData" class="params-grid">
-                <div class="param-pill seed-row" v-if="props.meta?.params?.Seed">
+                <div
+                  class="param-pill seed-row metadata-copyable"
+                  v-if="props.meta?.params?.Seed"
+                  @click="props.copyText(String(props.meta.params.Seed), 'seed')"
+                  title="Copy seed"
+                >
                   <span class="label">Seed</span>
                   <span class="value">{{ props.meta.params.Seed }}</span>
-                  <button class="copy-btn-mini" @click="props.copyText(String(props.meta.params.Seed), 'seed')" title="Copy seed">
-                    <Check v-if="props.copyStatus['seed']" :size="12" :stroke-width="1.5" style="color: #4ade80" />
-                    <Copy v-else :size="12" :stroke-width="1.5" />
-                  </button>
+                  <Check v-if="props.copyStatus['seed']" :size="14" :stroke-width="1.5" style="color: #4ade80" class="inline-copy-icon" />
+                  <Copy v-else :size="14" :stroke-width="1.5" class="inline-copy-icon" />
                 </div>
                 <div class="param-pill" v-if="props.meta?.params?.Steps"><span class="label">Steps</span><span class="value">{{ props.meta.params.Steps }}</span></div>
                 <div class="param-pill" v-if="props.meta?.params?.CFG"><span class="label">CFG</span><span class="value">{{ props.meta.params.CFG }}</span></div>
@@ -249,8 +262,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
 .is-empty {
   opacity: 0.55;
 
-  .copy-btn,
-  .copy-btn-mini {
+  .inline-copy-icon {
     display: none;
   }
 }

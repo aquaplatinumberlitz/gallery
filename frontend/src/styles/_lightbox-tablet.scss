@@ -185,18 +185,24 @@
   gap: 8px;
 }
 
-/* Tablet copy button */
-.tablet-copy-btn {
-  background: none;
-  border: none;
-  color: #a09888;
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  transition: color 0.2s;
+/* Inline copy icon — subtle hint only, no button frame */
+.inline-copy-icon {
+  width: 14px;
+  height: 14px;
+  opacity: 0.65;
+  flex-shrink: 0;
+  pointer-events: none;
+  color: #888;
+}
 
-  &:hover { color: var(--primary-color); }
+/* Copyable chip/field — whole element is tappable */
+.metadata-copyable {
+  cursor: pointer;
+
+  &:active {
+    transform: scale(0.985);
+    background: rgba(255, 255, 255, 0.08);
+  }
 }
 
 /* Tablet pill grid (reuses params-grid from shared, tweaked for tablet) */

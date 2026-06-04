@@ -186,6 +186,7 @@ const canForward = computed(
 const hasMoreImages = computed(() => galleryStore.nextImageCursor !== null);
 const hasAnyItems = computed(() => galleryStore.galleryFolders.length + galleryStore.galleryImages.length > 0);
 const hasNoPath = computed(() => !galleryStore.currentPath && !galleryStore.rootPath);
+const hasNotLoaded = computed(() => !galleryStore.hasEverLoaded && (!!galleryStore.currentPath || !!galleryStore.rootPath));
 const noSearchResults = computed(
   () =>
     !!searchQuery.value &&
@@ -689,6 +690,14 @@ onBeforeUnmount(() => {
         type="no-path"
         title="Welcome to Gallery"
         description="Enter a folder path in the sidebar to start browsing your images"
+      />
+      
+      <!-- Not Loaded Yet -->
+      <EmptyState
+        v-else-if="hasNotLoaded"
+        type="not-loaded"
+        title="Gallery not loaded"
+        description="Click Load in the sidebar or press Enter to browse your images"
       />
       
       <!-- Empty Folder -->

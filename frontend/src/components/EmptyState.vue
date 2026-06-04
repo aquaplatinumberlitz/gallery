@@ -20,6 +20,7 @@ export type EmptyStateType =
   | 'no-images' 
   | 'error' 
   | 'no-path'
+  | 'not-loaded'
   | 'loading';
 
 const props = withDefaults(defineProps<{
@@ -75,6 +76,13 @@ const defaults = computed(() => {
         description: 'Enter a folder path to start browsing your images',
         icon: 'FolderTree',
         color: '#f2a007',
+      };
+    case 'not-loaded':
+      return {
+        title: 'Gallery not loaded',
+        description: 'Click Load in the sidebar or press Enter to browse your images',
+        icon: 'FolderOpen',
+        color: '#a78bfa',
       };
     case 'loading':
       return {

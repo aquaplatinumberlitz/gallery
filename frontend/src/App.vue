@@ -93,6 +93,11 @@ const handleGlobalKeydown = (e: KeyboardEvent) => {
 };
 
 onMounted(() => {
+  // Auto-load persisted root path on app start
+  if (galleryStore.rootPath && !galleryStore.hasEverLoaded) {
+    galleryStore.setRootPath(galleryStore.rootPath);
+  }
+
   // Restore theme from storage or system preference
   if (typeof window !== "undefined") {
     try {

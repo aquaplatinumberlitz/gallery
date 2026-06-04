@@ -124,12 +124,15 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
             <div class="tablet-section" :class="{ 'is-empty': !hasGenData }">
               <label class="tablet-label">Generation Data</label>
               <div v-if="hasGenData" class="tablet-pills">
-                <div class="param-pill" v-if="props.meta?.params?.Seed">
+                <div
+                  class="param-pill metadata-copyable"
+                  v-if="props.meta?.params?.Seed"
+                  @click="props.copyText(String(props.meta.params.Seed), 'seed')"
+                  title="Copy seed"
+                >
                   <span class="value">{{ props.meta.params.Seed }}</span>
-                  <button class="icon-btn" @click="props.copyText(String(props.meta.params.Seed), 'seed')" title="Copy seed">
-                    <Check v-if="props.copyStatus['seed']" :stroke-width="1.5" class="icon-xs" style="color: #4ade80" />
-                    <Copy v-else :stroke-width="1.5" class="icon-xs" />
-                  </button>
+                  <Check v-if="props.copyStatus['seed']" :stroke-width="1.5" :size="14" style="color: #4ade80" class="inline-copy-icon" />
+                  <Copy v-else :stroke-width="1.5" :size="14" class="inline-copy-icon" />
                 </div>
                 <div class="param-pill" v-if="props.meta?.params?.Steps"><span class="label">Steps</span><span class="value">{{ props.meta.params.Steps }}</span></div>
                 <div class="param-pill" v-if="props.meta?.params?.CFG"><span class="label">CFG</span><span class="value">{{ props.meta.params.CFG }}</span></div>
@@ -203,12 +206,17 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
           <!-- Right column: Prompts -->
           <div class="tablet-col">
             <div class="tablet-section" :class="{ 'is-empty': !props.meta?.prompt }">
-              <div class="tablet-section-top">
+              <div
+                class="tablet-section-top"
+                :class="{ 'metadata-copyable': props.meta?.prompt }"
+                @click="props.meta?.prompt && props.copyText(props.meta?.prompt, 'prompt')"
+                :title="props.meta?.prompt ? 'Copy prompt' : undefined"
+              >
                 <label class="tablet-label">Prompt</label>
-                <button v-if="props.meta?.prompt" class="tablet-copy-btn" @click="props.copyText(props.meta?.prompt, 'prompt')">
-                  <Check v-if="props.copyStatus['prompt']" :stroke-width="1.5" class="icon-sm" style="color: #4ade80" />
-                  <Copy v-else :stroke-width="1.5" class="icon-sm" />
-                </button>
+                <template v-if="props.meta?.prompt">
+                  <Check v-if="props.copyStatus['prompt']" :stroke-width="1.5" :size="14" style="color: #4ade80" class="inline-copy-icon" />
+                  <Copy v-else :stroke-width="1.5" :size="14" class="inline-copy-icon" />
+                </template>
               </div>
               <div
                 v-if="props.meta?.prompt"
@@ -219,12 +227,17 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
             </div>
 
             <div class="tablet-section" :class="{ 'is-empty': !props.meta?.negative_prompt }">
-              <div class="tablet-section-top">
+              <div
+                class="tablet-section-top"
+                :class="{ 'metadata-copyable': props.meta?.negative_prompt }"
+                @click="props.meta?.negative_prompt && props.copyText(props.meta?.negative_prompt, 'neg')"
+                :title="props.meta?.negative_prompt ? 'Copy negative prompt' : undefined"
+              >
                 <label class="tablet-label negative-label">Negative Prompt</label>
-                <button v-if="props.meta?.negative_prompt" class="tablet-copy-btn" @click="props.copyText(props.meta?.negative_prompt, 'neg')">
-                  <Check v-if="props.copyStatus['neg']" :stroke-width="1.5" class="icon-sm" style="color: #4ade80" />
-                  <Copy v-else :stroke-width="1.5" class="icon-sm" />
-                </button>
+                <template v-if="props.meta?.negative_prompt">
+                  <Check v-if="props.copyStatus['neg']" :stroke-width="1.5" :size="14" style="color: #4ade80" class="inline-copy-icon" />
+                  <Copy v-else :stroke-width="1.5" :size="14" class="inline-copy-icon" />
+                </template>
               </div>
               <div
                 v-if="props.meta?.negative_prompt"
@@ -254,9 +267,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
 .is-empty {
   opacity: 0.55;
 
-  .copy-btn,
-  .tablet-copy-btn,
-  .icon-btn {
+  .inline-copy-icon {
     display: none;
   }
 }

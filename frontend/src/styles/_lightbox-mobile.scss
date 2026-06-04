@@ -163,39 +163,33 @@
   gap: 8px;
 }
 
-/* Mobile copy button — simplified override with different colors */
-.copy-btn {
-  background: none;
-  border: none;
-  color: #a09888;
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  transition: color 0.2s;
-
-  &:hover { color: var(--primary-color); }
+/* Inline copy icon — subtle hint only, no button frame */
+.inline-copy-icon {
+  width: 14px;
+  height: 14px;
+  opacity: 0.65;
+  flex-shrink: 0;
+  pointer-events: none;
+  color: #888;
 }
 
+/* Copyable chip/field — whole element is tappable */
+.metadata-copyable {
+  cursor: pointer;
+
+  &:active {
+    transform: scale(0.985);
+    background: rgba(255, 255, 255, 0.08);
+  }
+}
+
+/* Seed pill layout */
 .seed-row {
   display: flex;
   align-items: center;
   gap: 4px;
 
   .value { flex: 1; }
-}
-
-.copy-btn-mini {
-  background: none;
-  border: none;
-  color: #a09888;
-  cursor: pointer;
-  padding: 2px;
-  display: flex;
-  align-items: center;
-  transition: color 0.2s;
-
-  &:hover { color: var(--primary-color); }
 }
 
 /* Compact (<480px): smaller text, tighter spacing */

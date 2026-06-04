@@ -99,6 +99,7 @@ export const useGalleryStore = defineStore("gallery", {
       loadingMap: {} as LoadingMap,
       history: [] as string[],
       historyIndex: -1,
+      hasEverLoaded: false,
       errorMessage: "" as string | null,
       searchQuery: "",
       sortField: storedSort.field as SortField,
@@ -173,6 +174,7 @@ export const useGalleryStore = defineStore("gallery", {
         localStorage.setItem(STORAGE_KEY, path);
       }
       this.pushHistory(path);
+      this.hasEverLoaded = true;
 
       // Show summary toast on first load (when entering root path)
       const imageCount = this.totalImages || this.galleryImages.length;
@@ -263,6 +265,7 @@ export const useGalleryStore = defineStore("gallery", {
       this.totalImages = data.total_images;
       this.currentPath = target;
       this.galleryLoading = false;
+      this.hasEverLoaded = true;
     },
 
     async loadMoreImages() {
@@ -302,6 +305,7 @@ export const useGalleryStore = defineStore("gallery", {
       this.sidebarTree = [];
       this.galleryFolders = [];
       this.galleryImages = [];
+      this.hasEverLoaded = false;
       if (typeof window !== "undefined") {
         localStorage.removeItem(STORAGE_KEY);
       }
