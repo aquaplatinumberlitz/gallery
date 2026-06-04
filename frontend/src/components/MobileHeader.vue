@@ -178,7 +178,7 @@ onMounted(() => {
         class="search-focus-bar"
       >
         <div class="search-focus-input-wrap">
-          <Search class="search-focus-input-icon" :size="16" />
+          <Search class="search-focus-input-icon" />
           <input
             ref="searchInputRef"
             :value="searchQuery"
@@ -197,7 +197,7 @@ onMounted(() => {
             @click="clearSearch"
             aria-label="Clear search"
           >
-            <X :size="16" />
+            <X />
           </button>
         </div>
       </div>
@@ -260,7 +260,6 @@ onMounted(() => {
    Mobile Header — Base
    ============================================================ */
 .mobile-header {
-  --icon-size: 22px;
   position: fixed;
   top: 0;
   left: 0;
@@ -323,8 +322,8 @@ onMounted(() => {
 }
 
 .mh-btn svg {
-  width: var(--icon-size);
-  height: var(--icon-size);
+  width: var(--gallery-icon-mobile-toolbar);
+  height: var(--gallery-icon-mobile-toolbar);
 }
 
 .mh-btn:hover {
@@ -423,8 +422,8 @@ onMounted(() => {
 .search-focus-input-icon {
   color: var(--gallery-text-tertiary, var(--muted-text));
   flex-shrink: 0;
-  width: 16px;
-  height: 16px;
+  width: var(--gallery-icon-md);
+  height: var(--gallery-icon-md);
 }
 
 /* ============================================================
@@ -490,8 +489,8 @@ onMounted(() => {
 }
 
 .search-focus-clear svg {
-  width: 16px;
-  height: 16px;
+  width: var(--gallery-icon-md);
+  height: var(--gallery-icon-md);
 }
 
 /* ============================================================
@@ -532,8 +531,8 @@ onMounted(() => {
 }
 
 .search-focus-back svg {
-  width: var(--icon-size);
-  height: var(--icon-size);
+  width: var(--gallery-icon-mobile-toolbar);
+  height: var(--gallery-icon-mobile-toolbar);
 }
 
 /* ============================================================

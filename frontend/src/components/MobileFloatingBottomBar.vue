@@ -42,7 +42,6 @@ const folderName = computed(() => {
 
 <style scoped>
 .mobile-bottom-bar {
-  --icon-size: 22px;
   position: fixed;
   bottom: 16px;
   left: 50%;
@@ -90,8 +89,8 @@ const folderName = computed(() => {
 }
 
 .mbb-btn svg {
-  width: var(--icon-size);
-  height: var(--icon-size);
+  width: var(--gallery-icon-mobile-toolbar);
+  height: var(--gallery-icon-mobile-toolbar);
 }
 
 .mbb-btn:hover:not(:disabled) {
@@ -133,7 +132,6 @@ const folderName = computed(() => {
 /* Compact (<480px): smaller pill, tighter spacing */
 @media (max-width: 480px) {
   .mobile-bottom-bar {
-    --icon-size: 22px;
     bottom: 12px;
     padding: 4px 6px;
     border-radius: 20px;

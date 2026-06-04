@@ -124,7 +124,7 @@ function onSearchInput(e: Event) {
     <!-- Center: expandable search input (search mode) -->
     <div v-show="isSearchActive" class="th-search-expanded">
       <div class="th-search-input-wrap">
-        <Search :size="16" class="th-search-icon" />
+        <Search class="th-search-icon" />
         <input
           ref="searchInputRef"
           :value="searchQuery"
@@ -143,7 +143,7 @@ function onSearchInput(e: Event) {
           @click="clearSearch"
           aria-label="Clear search"
         >
-          <X :size="16" />
+          <X />
         </button>
       </div>
     </div>
@@ -307,8 +307,8 @@ function onSearchInput(e: Event) {
 .th-search-icon {
   color: var(--gallery-text-tertiary, var(--muted-text));
   flex-shrink: 0;
-  width: 16px;
-  height: 16px;
+  width: var(--gallery-icon-md);
+  height: var(--gallery-icon-md);
 }
 
 .th-search-input {
@@ -363,8 +363,8 @@ function onSearchInput(e: Event) {
 }
 
 .th-search-clear svg {
-  width: 16px;
-  height: 16px;
+  width: var(--gallery-icon-md);
+  height: var(--gallery-icon-md);
 }
 
 /* ============================================================

@@ -107,7 +107,7 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
         title="Back"
         aria-label="Go back"
       >
-        <ArrowLeft :size="24" />
+        <ArrowLeft class="tgt-nav-icon" />
       </button>
       <button
         class="tgt-btn"
@@ -116,7 +116,7 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
         title="Forward"
         aria-label="Go forward"
       >
-        <ArrowRight :size="24" />
+        <ArrowRight class="tgt-nav-icon" />
       </button>
     </div>
 
@@ -131,9 +131,9 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
         aria-haspopup="true"
         :aria-expanded="showSortMenu"
       >
-        <ArrowUpDown :size="22" />
+        <ArrowUpDown class="tgt-trigger-icon" />
         <span class="tgt-trigger-label">{{ currentSortLabel }}</span>
-        <ChevronDown :size="16" class="tgt-chevron" />
+        <ChevronDown class="tgt-chevron" />
       </button>
       <Transition name="dropdown">
         <div
@@ -148,13 +148,12 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
             :class="{ active: currentSort === option.field }"
             @click="selectSort(option.field)"
           >
-            <component :is="icons[option.icon]" :size="14" />
+            <component :is="icons[option.icon]" class="tgt-option-icon" />
             <span>{{ option.label }}</span>
             <component
               v-if="currentSort === option.field"
               :is="sortOrder === 'asc' ? ArrowUp : ArrowDown"
-              class="sort-direction"
-              :size="12"
+              class="tgt-dir-icon"
             />
           </button>
         </div>
@@ -170,9 +169,9 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
         :aria-expanded="showDensityMenu"
         title="Thumbnail size"
       >
-        <LayoutGrid :size="22" />
+        <LayoutGrid class="tgt-trigger-icon" />
         <span class="tgt-trigger-label">{{ columnCount }} cols</span>
-        <ChevronDown :size="16" class="tgt-chevron" />
+        <ChevronDown class="tgt-chevron" />
       </button>
       <Transition name="dropdown">
         <div
@@ -187,13 +186,12 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
             :class="{ active: sliderLevel === option.level }"
             @click="selectDensity(option.level)"
           >
-            <LayoutGrid :size="14" />
+            <LayoutGrid class="tgt-option-icon" />
             <span>{{ option.label }}</span>
             <span class="density-cols">{{ option.columns }} cols</span>
             <Check
               v-if="sliderLevel === option.level"
-              class="density-check"
-              :size="12"
+              class="density-check tgt-check-icon"
             />
           </button>
         </div>
@@ -297,11 +295,6 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
   font-weight: 500;
 }
 
-.tgt-chevron {
-  opacity: 0.6;
-  transition: transform 0.2s ease;
-}
-
 .sort-dropdown.open .tgt-chevron,
 .density-dropdown.open .tgt-chevron {
   transform: rotate(180deg);
@@ -373,10 +366,6 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
   font-weight: 500;
 }
 
-.sort-direction {
-  margin-left: auto;
-}
-
 .density-option {
   display: flex;
   align-items: center;
@@ -414,10 +403,6 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
   opacity: 0.8;
 }
 
-.density-check {
-  margin-left: auto;
-}
-
 /* Dropdown animation */
 .dropdown-enter-active,
 .dropdown-leave-active {
@@ -443,6 +428,43 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
 /* Dark mode support: surface adjustments */
 :root[data-theme="dark"] .tablet-gallery-toolbar {
   border-color: color-mix(in srgb, var(--border-color, rgba(255, 255, 255, 0.08)) 50%, transparent);
+}
+
+/* ============================================================
+   Icon size tokens
+   ============================================================ */
+.tgt-nav-icon {
+  width: var(--gallery-icon-nav);
+  height: var(--gallery-icon-nav);
+}
+
+.tgt-trigger-icon {
+  width: var(--gallery-icon-tablet-toolbar);
+  height: var(--gallery-icon-tablet-toolbar);
+}
+
+.tgt-chevron {
+  opacity: 0.6;
+  transition: transform 0.2s ease;
+  width: var(--gallery-icon-md);
+  height: var(--gallery-icon-md);
+}
+
+.tgt-option-icon {
+  width: var(--gallery-icon-sm);
+  height: var(--gallery-icon-sm);
+}
+
+.tgt-dir-icon {
+  width: var(--gallery-icon-xs);
+  height: var(--gallery-icon-xs);
+  margin-left: auto;
+}
+
+.tgt-check-icon {
+  width: var(--gallery-icon-xs);
+  height: var(--gallery-icon-xs);
+  margin-left: auto;
 }
 
 /* Reduced motion */
