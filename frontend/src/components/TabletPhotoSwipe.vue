@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, computed } from "vue";
-import PhotoSwipe from "photoswipe";
+import { ref, computed, toRef } from "vue";
 import "photoswipe/dist/photoswipe.css";
 import { X, ZoomIn, ZoomOut, Info } from "lucide-vue-next";
 import type { FileNode } from "../types";
-import { buildPhotoSwipeItem } from "../utils/lightbox";
+import { usePhotoSwipe } from "../composables/usePhotoSwipe";
 
 const props = defineProps<{
   items: FileNode[];
@@ -20,97 +19,39 @@ const emit = defineEmits<{
 }>();
 
 const containerRef = ref<HTMLElement | null>(null);
-let pswp: PhotoSwipe | null = null;
 const isZoomed = ref(false);
 
 const counter = computed(() => `${props.currentIndex + 1} / ${props.items.length}`);
 
-const pswpItems = computed(() =>
-  props.items.map((item) => buildPhotoSwipeItem(item, 2048))
-);
+const { pswp } = usePhotoSwipe({
+  containerRef,
+  items: computed(() => props.items),
+  currentIndex: toRef(props, "currentIndex"),
+  isOpen: toRef(props, "isOpen"),
+  photoSwipeOptions: {
+    closeOnVerticalDrag: true,
+    allowPanToNext: true,
+  },
+  thumbnailSize: 2048,
+  onIndexChange: (index) => {
+    emit("indexChange", index);
+    isZoomed.value = false;
+  },
+  onClose: () => emit("close"),
+});
 
 function toggleZoom() {
-  if (!pswp || !pswp.currSlide) return;
-  const slide = pswp.currSlide;
-  const center = pswp.getViewportCenterPoint();
+  if (!pswp.value || !pswp.value.currSlide) return;
+  const slide = pswp.value.currSlide;
+  const center = pswp.value.getViewportCenterPoint();
   if (slide.currZoomLevel > slide.zoomLevels.initial + 0.01) {
-    pswp.zoomTo(slide.zoomLevels.initial, center);
+    pswp.value.zoomTo(slide.zoomLevels.initial, center);
     isZoomed.value = false;
   } else {
-    pswp.zoomTo(slide.zoomLevels.secondary, center);
+    pswp.value.zoomTo(slide.zoomLevels.secondary, center);
     isZoomed.value = true;
   }
 }
-
-function initPhotoSwipe() {
-  if (!containerRef.value || !props.isOpen || pswp) return;
-
-  pswp = new PhotoSwipe({
-    dataSource: pswpItems.value,
-    index: props.currentIndex,
-    appendToEl: containerRef.value,
-    closeOnVerticalDrag: true,
-    allowPanToNext: true,
-    showHideAnimationType: "zoom",
-    wheelToZoom: false,
-    bgOpacity: 1,
-  });
-
-  pswp.on("change", () => {
-    if (pswp) {
-      emit("indexChange", pswp.currIndex);
-      isZoomed.value = false;
-    }
-  });
-
-  pswp.on("close", () => {
-    destroyPhotoSwipe();
-    emit("close");
-  });
-
-  pswp.init();
-}
-
-function destroyPhotoSwipe() {
-  if (pswp) {
-    try {
-      pswp.destroy();
-    } catch (_) {
-      // Already destroyed
-    }
-    pswp = null;
-  }
-}
-
-watch(
-  () => props.isOpen,
-  (open) => {
-    if (open) {
-      setTimeout(() => initPhotoSwipe(), 0);
-    } else {
-      destroyPhotoSwipe();
-    }
-  }
-);
-
-watch(
-  () => props.currentIndex,
-  (index) => {
-    if (pswp && pswp.currIndex !== index) {
-      pswp.goTo(index);
-    }
-  }
-);
-
-onMounted(() => {
-  if (props.isOpen) {
-    initPhotoSwipe();
-  }
-});
-
-onUnmounted(() => {
-  destroyPhotoSwipe();
-});
 </script>
 
 <template>

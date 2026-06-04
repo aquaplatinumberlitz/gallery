@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, computed } from "vue";
-import PhotoSwipe from "photoswipe";
+import { ref, computed, toRef } from "vue";
 import "photoswipe/dist/photoswipe.css";
 import type { FileNode } from "../types";
-import { buildPhotoSwipeItem } from "../utils/lightbox";
+import { usePhotoSwipe } from "../composables/usePhotoSwipe";
 
 const props = defineProps<{
   items: FileNode[];
@@ -21,85 +20,19 @@ const emit = defineEmits<{
 }>();
 
 const containerRef = ref<HTMLElement | null>(null);
-let pswp: PhotoSwipe | null = null;
 
-// Build PhotoSwipe data source from our items using shared helper
-const pswpItems = computed(() =>
-  props.items.map((item) => buildPhotoSwipeItem(item, props.thumbnailSize))
-);
-
-function initPhotoSwipe() {
-  if (!containerRef.value || !props.isOpen || pswp) return;
-
-  pswp = new PhotoSwipe({
-    dataSource: pswpItems.value,
-    index: props.currentIndex,
-    appendToEl: containerRef.value,
+usePhotoSwipe({
+  containerRef,
+  items: computed(() => props.items),
+  currentIndex: toRef(props, "currentIndex"),
+  isOpen: toRef(props, "isOpen"),
+  photoSwipeOptions: {
     closeOnVerticalDrag: props.closeOnVerticalDrag,
     allowPanToNext: props.allowPanToNext,
-    showHideAnimationType: "zoom",
-    wheelToZoom: false,
-    bgOpacity: 1,
-  });
-
-  // Listen for index changes → emit so parent can fetch metadata
-  pswp.on("change", () => {
-    if (pswp) {
-      emit("indexChange", pswp.currIndex);
-    }
-  });
-
-  // Listen for close (swipe-down, escape key, etc.)
-  pswp.on("close", () => {
-    destroyPhotoSwipe();
-    emit("close");
-  });
-
-  pswp.init();
-}
-
-function destroyPhotoSwipe() {
-  if (pswp) {
-    try {
-      pswp.destroy();
-    } catch (_) {
-      // Already destroyed
-    }
-    pswp = null;
-  }
-}
-
-// Watch isOpen — init when opening, destroy when closing
-watch(
-  () => props.isOpen,
-  (open) => {
-    if (open) {
-      // Small delay to ensure DOM is ready
-      setTimeout(() => initPhotoSwipe(), 0);
-    } else {
-      destroyPhotoSwipe();
-    }
-  }
-);
-
-// Watch currentIndex — sync PhotoSwipe if instance exists
-watch(
-  () => props.currentIndex,
-  (index) => {
-    if (pswp && pswp.currIndex !== index) {
-      pswp.goTo(index);
-    }
-  }
-);
-
-onMounted(() => {
-  if (props.isOpen) {
-    initPhotoSwipe();
-  }
-});
-
-onUnmounted(() => {
-  destroyPhotoSwipe();
+  },
+  thumbnailSize: props.thumbnailSize,
+  onIndexChange: (index) => emit("indexChange", index),
+  onClose: () => emit("close"),
 });
 </script>
 

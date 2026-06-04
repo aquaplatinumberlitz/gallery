@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, computed } from "vue";
-import PhotoSwipe from "photoswipe";
+import { ref, computed, toRef, watch } from "vue";
 import "photoswipe/dist/photoswipe.css";
 import type { FileNode } from "../types";
-import { buildPhotoSwipeItem } from "../utils/lightbox";
+import { usePhotoSwipe } from "../composables/usePhotoSwipe";
 
 const props = defineProps<{
   items: FileNode[];
@@ -19,46 +18,21 @@ const emit = defineEmits<{
 }>();
 
 const containerRef = ref<HTMLElement | null>(null);
-let pswp: PhotoSwipe | null = null;
 
-// Build PhotoSwipe data source from our items using shared helper
-// Mobile always uses 1600px thumbnails
-const pswpItems = computed(() =>
-  props.items.map((item) => buildPhotoSwipeItem(item, 1600))
-);
-
-function initPhotoSwipe() {
-  if (!containerRef.value || !props.isOpen || pswp) return;
-
-  pswp = new PhotoSwipe({
-    dataSource: pswpItems.value,
-    index: props.currentIndex,
-    pswpModule: () => Promise.resolve(PhotoSwipe),
-    appendToEl: containerRef.value,
-    // Let PhotoSwipe handle swipe-down-to-close
+usePhotoSwipe({
+  containerRef,
+  items: computed(() => props.items),
+  currentIndex: toRef(props, "currentIndex"),
+  isOpen: toRef(props, "isOpen"),
+  photoSwipeOptions: {
     closeOnVerticalDrag: true,
-    showHideAnimationType: "zoom",
     allowPanToNext: true,
-    wheelToZoom: false,
-    bgOpacity: 1,
-  });
-
-  // Listen for index changes → emit so parent can fetch metadata
-  pswp.on("change", () => {
-    if (pswp) {
-      emit("indexChange", pswp.currIndex);
-    }
-  });
-
-  // Listen for close (swipe-down, escape key, etc.)
-  pswp.on("close", () => {
-    destroyPhotoSwipe();
-    emit("close");
-  });
-
-  // Register info button as a proper PhotoSwipe 5 UI element (mobile)
-  pswp.on("uiRegister", () => {
-    pswp!.ui!.registerElement({
+  },
+  thumbnailSize: 1600,
+  onIndexChange: (index) => emit("indexChange", index),
+  onClose: () => emit("close"),
+  onRegisterUi: (_pswp) => {
+    _pswp.ui!.registerElement({
       name: "metadata-info",
       order: 9,
       isButton: true,
@@ -79,57 +53,20 @@ function initPhotoSwipe() {
       },
       onClick: () => emit("toggleMetadata"),
     });
-  });
-
-  pswp.init();
-
-  // After init, move the info button outside .mobile-photoswipe-container
-  // into .lightbox-overlay so it can stack above the bottom sheet
-  const infoBtn = document.querySelector<HTMLElement>(
-    ".pswp__button--metadata-info"
-  );
-  if (infoBtn) {
-    infoBtn.classList.remove("pswp__hide-on-close");
-    const overlay = document.querySelector<HTMLElement>(".lightbox-overlay");
-    if (overlay) {
-      overlay.appendChild(infoBtn);
+  },
+  onAfterInit: () => {
+    const infoBtn = document.querySelector<HTMLElement>(
+      ".pswp__button--metadata-info"
+    );
+    if (infoBtn) {
+      infoBtn.classList.remove("pswp__hide-on-close");
+      const overlay = document.querySelector<HTMLElement>(".lightbox-overlay");
+      if (overlay) {
+        overlay.appendChild(infoBtn);
+      }
     }
-  }
-}
-
-function destroyPhotoSwipe() {
-  if (pswp) {
-    try {
-      pswp.destroy();
-    } catch (_) {
-      // Already destroyed
-    }
-    pswp = null;
-  }
-}
-
-// Watch isOpen — init when opening, destroy when closing
-watch(
-  () => props.isOpen,
-  (open) => {
-    if (open) {
-      // Small delay to ensure DOM is ready
-      setTimeout(() => initPhotoSwipe(), 0);
-    } else {
-      destroyPhotoSwipe();
-    }
-  }
-);
-
-// Watch currentIndex — sync PhotoSwipe if instance exists
-watch(
-  () => props.currentIndex,
-  (index) => {
-    if (pswp && pswp.currIndex !== index) {
-      pswp.goTo(index);
-    }
-  }
-);
+  },
+});
 
 // Watch metadataOpen — toggle active state and visibility on the info button
 watch(() => props.metadataOpen, (isOpen) => {
@@ -141,16 +78,6 @@ watch(() => props.metadataOpen, (isOpen) => {
     btn.classList.toggle("hidden", !!isOpen);
     btn.setAttribute("aria-label", isOpen ? "Close image info" : "View image info");
   }
-});
-
-onMounted(() => {
-  if (props.isOpen) {
-    initPhotoSwipe();
-  }
-});
-
-onUnmounted(() => {
-  destroyPhotoSwipe();
 });
 </script>
 
