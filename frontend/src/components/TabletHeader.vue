@@ -2,6 +2,7 @@
 import { ref, nextTick, onBeforeUnmount, watch, computed } from 'vue'
 import { Menu, Search, X, ArrowLeft } from 'lucide-vue-next'
 import Breadcrumb from './Breadcrumb.vue'
+import { useGalleryStore } from '../stores/gallery'
 
 interface Props {
   isDark: boolean
@@ -15,6 +16,12 @@ const emit = defineEmits<{
   'toggle-theme': []
   'update:searchQuery': [value: string]
 }>()
+
+const galleryStore = useGalleryStore()
+
+const handleBreadcrumbNavigate = (path: string) => {
+  galleryStore.selectFolder(path)
+}
 
 // ── Expandable search ──
 const isSearchActive = ref(false)
@@ -113,7 +120,7 @@ function onSearchInput(e: Event) {
 
     <!-- Center: breadcrumb (hidden in search mode) -->
     <div v-show="!isSearchActive" class="th-center">
-      <Breadcrumb :path="currentPath" />
+      <Breadcrumb :path="currentPath" @navigate="handleBreadcrumbNavigate" />
       <span v-if="!currentPath" class="th-path-empty">Gallery</span>
     </div>
 

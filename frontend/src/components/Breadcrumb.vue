@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch, nextTick, onBeforeUnmount } from "vue";
 import { vClickOutside } from "../directives/clickOutside";
 import { ChevronRight, Ellipsis, Folder, ArrowsUpFromLine, Minimize, Home } from "lucide-vue-next";
 
@@ -16,6 +16,35 @@ const emit = defineEmits<{
 // State for expanded/collapsed ellipsis menu
 const isExpanded = ref(false);
 const ellipsisMenuOpen = ref(false);
+const ellipsisBtnRef = ref<HTMLElement | null>(null);
+const menuPosition = ref({ top: 0, left: 0 });
+
+// Calculate fixed position from the ellipsis button's bounding rect
+function updateMenuPosition() {
+  if (!ellipsisBtnRef.value) return;
+  const rect = ellipsisBtnRef.value.getBoundingClientRect();
+  menuPosition.value = {
+    top: Math.min(rect.bottom + 4, window.innerHeight - 320),
+    left: Math.min(rect.left, window.innerWidth - 310),
+  };
+}
+
+watch(ellipsisMenuOpen, async (open) => {
+  if (open) {
+    await nextTick();
+    updateMenuPosition();
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, { passive: true, capture: true });
+  } else {
+    window.removeEventListener("resize", updateMenuPosition);
+    window.removeEventListener("scroll", updateMenuPosition, { capture: true } as any);
+  }
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("resize", updateMenuPosition);
+  window.removeEventListener("scroll", updateMenuPosition, { capture: true } as any);
+});
 
 const separator = computed(() => (props.path?.includes("\\") ? "\\" : "/"));
 
@@ -140,6 +169,7 @@ const closeMenu = () => {
             
             <div class="ellipsis-container">
               <button
+                ref="ellipsisBtnRef"
                 class="ellipsis-btn"
                 type="button"
                 @click="toggleEllipsisMenu"
@@ -148,11 +178,12 @@ const closeMenu = () => {
                 <Ellipsis class="gallery-icon-md" />
               </button>
               
-              <!-- Dropdown menu for hidden segments -->
+              <!-- Dropdown menu for hidden segments (position:fixed escapes overflow:hidden parents) -->
               <Transition name="dropdown">
                 <div 
                   v-if="ellipsisMenuOpen" 
                   class="ellipsis-menu"
+                  :style="{ top: menuPosition.top + 'px', left: menuPosition.left + 'px' }"
                 >
                   <button
                     v-for="hidden in hiddenSegments"
@@ -320,8 +351,9 @@ const closeMenu = () => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 24px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 4px 8px;
   border: none;
   background: var(--gallery-surface-hover, rgba(0, 0, 0, 0.05));
   color: var(--muted-text);
@@ -341,11 +373,9 @@ const closeMenu = () => {
   box-shadow: var(--focus-ring-shadow);
 }
 
-/* Dropdown Menu */
+/* Dropdown Menu — position:fixed to escape overflow:hidden parents */
 .ellipsis-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
+  position: fixed;
   min-width: 200px;
   max-width: 300px;
   max-height: 300px;
@@ -363,6 +393,7 @@ const closeMenu = () => {
   align-items: center;
   gap: 10px;
   width: 100%;
+  min-height: 40px;
   padding: 8px 12px;
   border: none;
   background: transparent;
@@ -517,8 +548,9 @@ const closeMenu = () => {
   }
 
   .ellipsis-btn {
-    width: 24px;
-    height: 20px;
+    min-width: 36px;
+    min-height: 36px;
+    padding: 2px 6px;
   }
 }
 
