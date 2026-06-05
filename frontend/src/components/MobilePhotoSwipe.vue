@@ -57,7 +57,7 @@ usePhotoSwipe({
 .lightbox-floating-control--mobile {
   position: fixed;
   right: max(18px, env(safe-area-inset-right) + 14px);
-  bottom: max(92px, env(safe-area-inset-bottom) + 80px);
+  bottom: max(24px, env(safe-area-inset-bottom) + 12px);
   z-index: 5000;
 }
 </style>
