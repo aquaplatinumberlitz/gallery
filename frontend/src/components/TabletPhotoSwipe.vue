@@ -157,20 +157,4 @@ function toggleZoom() {
 
 <style lang="scss">
 @import '../styles/lightbox-shared';
-
-.pswp {
-  --pswp-bg: #000;
-  --pswp-icon-color: #fff;
-  --pswp-icon-color-secondary: #a09888;
-}
-
-.pswp__button--close,
-.pswp__button--zoom {
-  display: none !important;
-}
-
-.pswp__top-bar {
-  opacity: 0 !important;
-  pointer-events: none !important;
-}
 </style>

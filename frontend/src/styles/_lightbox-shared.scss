@@ -3,6 +3,66 @@
 // Used by both desktop metadata panel and mobile bottom sheet
 // ============================================
 
+// ============================================
+// PhotoSwipe 5 Theme Overrides
+// ============================================
+
+.pswp {
+  --pswp-bg: #000;
+  --pswp-icon-color: #fff;
+  --pswp-icon-color-secondary: #a09888;
+}
+
+.pswp__button--close,
+.pswp__button--zoom {
+  display: none !important;
+}
+
+.pswp__top-bar {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* PhotoSwipe metadata-info button — registered via pswp.ui.registerElement() in MobilePhotoSwipe.vue */
+.pswp__button--metadata-info {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: rgba(255, 255, 255, 0.92);
+  cursor: pointer;
+  z-index: 4000;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+
+  &::before,
+  &::after {
+    display: none;
+  }
+
+  &.active {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  &.hidden {
+    display: none;
+  }
+}
+
+.pswp__button--metadata-info .pswp-metadata-info-icon {
+  width: 32px;
+  height: 32px;
+  display: block;
+  pointer-events: none;
+}
+
 /* Loading & Error states (used in both desktop sidebar and mobile sheet) */
 .meta-loading,
 .meta-error {
@@ -226,52 +286,6 @@
   font-style: italic;
   margin: 0;
   padding: 4px 0;
-}
-
-/* ==========================================
-   PHOTOSWIPE INFO BUTTON — shared between desktop + mobile PhotoSwipe components
-   ========================================== */
-
-/* Info button — registered via pswp.ui.registerElement(), moved to .lightbox-overlay */
-/* Transparent outer button — only the Lucide Info circle is visible */
-.pswp__button--metadata-info {
-  position: fixed;
-  bottom: 16px;
-  right: 16px;
-  width: 48px;
-  height: 48px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  background: transparent;
-  border: 0;
-  box-shadow: none;
-  color: rgba(255, 255, 255, 0.92);
-  cursor: pointer;
-  z-index: 4000;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-
-  &::before,
-  &::after {
-    display: none;
-  }
-
-  &.active {
-    background: rgba(255, 255, 255, 0.2);
-  }
-
-  &.hidden {
-    display: none;
-  }
-}
-
-/* Lucide Info icon — 32x32px, circle + i with transparent fill */
-.pswp__button--metadata-info .pswp-metadata-info-icon {
-  width: 32px;
-  height: 32px;
-  display: block;
-  pointer-events: none;
 }
 
 /* ==========================================
