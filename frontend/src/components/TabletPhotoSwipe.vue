@@ -61,27 +61,27 @@ function toggleZoom() {
 
   <div class="tablet-photoswipe-bar">
     <button
-      class="tablet-photoswipe-btn"
+      class="lightbox-floating-control lightbox-floating-control--tablet"
       aria-label="Close"
       @click="emit('close')"
     >
-      <X :size="24" :stroke-width="1.5" />
+      <X :size="22" :stroke-width="2.2" />
     </button>
     <button
-      class="tablet-photoswipe-btn"
+      class="lightbox-floating-control lightbox-floating-control--tablet"
       :aria-label="isZoomed ? 'Zoom out' : 'Zoom in'"
       @click="toggleZoom"
     >
-      <ZoomOut v-if="isZoomed" :size="24" :stroke-width="1.5" />
-      <ZoomIn v-else :size="24" :stroke-width="1.5" />
+      <ZoomOut v-if="isZoomed" :size="22" :stroke-width="2.2" />
+      <ZoomIn v-else :size="22" :stroke-width="2.2" />
     </button>
     <button
-      class="tablet-photoswipe-btn"
+      class="lightbox-floating-control lightbox-floating-control--tablet"
       :class="{ active: metadataOpen }"
       :aria-label="metadataOpen ? 'Close image info' : 'View image info'"
       @click="emit('toggleMetadata')"
     >
-      <Info :size="24" :stroke-width="1.5" />
+      <Info :size="22" :stroke-width="2.2" />
     </button>
   </div>
 </template>
@@ -123,35 +123,6 @@ function toggleZoom() {
   align-items: center;
   gap: 12px;
   z-index: 5000;
-}
-
-.tablet-photoswipe-btn {
-  width: 48px;
-  height: 48px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  background: rgba(0, 0, 0, 0.5);
-  border: none;
-  border-radius: 50%;
-  color: #fff;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-  transition: background 0.2s ease;
-
-  &:hover {
-    background: rgba(0, 0, 0, 0.7);
-  }
-
-  &:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.6);
-  }
-
-  &.active {
-    background: rgba(255, 255, 255, 0.2);
-  }
 }
 </style>
 

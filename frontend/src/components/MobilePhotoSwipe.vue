@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, toRef, watch } from "vue";
+import { ref, computed, toRef } from "vue";
+import { Info } from "lucide-vue-next";
 import "photoswipe/dist/photoswipe.css";
 import type { FileNode } from "../types";
 import { usePhotoSwipe } from "../composables/usePhotoSwipe";
@@ -31,58 +32,19 @@ usePhotoSwipe({
   thumbnailSize: 1600,
   onIndexChange: (index) => emit("indexChange", index),
   onClose: () => emit("close"),
-  onRegisterUi: (_pswp) => {
-    _pswp.ui!.registerElement({
-      name: "metadata-info",
-      order: 9,
-      isButton: true,
-      html: {
-        isCustomSVG: true,
-        inner:
-          '<circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 16v-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 8h.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
-        size: 24,
-      },
-      onInit: (el: HTMLElement) => {
-        el.classList.add("pswp__button--metadata-info");
-        if (props.metadataOpen) {
-          el.classList.add("active");
-          el.setAttribute("aria-label", "Close image info");
-        } else {
-          el.setAttribute("aria-label", "View image info");
-        }
-      },
-      onClick: () => emit("toggleMetadata"),
-    });
-  },
-  onAfterInit: () => {
-    const infoBtn = document.querySelector<HTMLElement>(
-      ".pswp__button--metadata-info"
-    );
-    if (infoBtn) {
-      infoBtn.classList.remove("pswp__hide-on-close");
-      const overlay = document.querySelector<HTMLElement>(".lightbox-overlay");
-      if (overlay) {
-        overlay.appendChild(infoBtn);
-      }
-    }
-  },
-});
-
-// Watch metadataOpen — toggle active state and visibility on the info button
-watch(() => props.metadataOpen, (isOpen) => {
-  const btn = document.querySelector<HTMLElement>(
-    ".pswp__button--metadata-info"
-  );
-  if (btn) {
-    btn.classList.toggle("active", !!isOpen);
-    btn.classList.toggle("hidden", !!isOpen);
-    btn.setAttribute("aria-label", isOpen ? "Close image info" : "View image info");
-  }
 });
 </script>
 
 <template>
   <div ref="containerRef" class="mobile-photoswipe-container"></div>
+  <button
+    class="lightbox-floating-control lightbox-floating-control--mobile"
+    :class="{ 'is-active': metadataOpen }"
+    :aria-label="metadataOpen ? 'Close image info' : 'View image info'"
+    @click.stop="emit('toggleMetadata')"
+  >
+    <Info :size="22" :stroke-width="2.2" />
+  </button>
 </template>
 
 <style scoped lang="scss">
@@ -90,6 +52,13 @@ watch(() => props.metadataOpen, (isOpen) => {
   position: fixed;
   inset: 0;
   z-index: 1;
+}
+
+.lightbox-floating-control--mobile {
+  position: fixed;
+  right: max(18px, env(safe-area-inset-right) + 14px);
+  bottom: max(92px, env(safe-area-inset-bottom) + 80px);
+  z-index: 5000;
 }
 </style>
 
