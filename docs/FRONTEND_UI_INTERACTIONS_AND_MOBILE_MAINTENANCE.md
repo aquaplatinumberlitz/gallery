@@ -5,28 +5,24 @@
 The gallery has three main UI modes selected by viewport width (see `useDevice.ts`):
 
 ### Desktop (≥1200px)
-- **Sidebar**: 280px persistent folder tree (collapsible via edge toggle button)
-- **Header**: `AppHeader` — search box, sort dropdown, column slider, theme toggle, settings
+- **Layout**: `DesktopLayout.vue` — 280px persistent sidebar (collapsible via edge toggle) + `AppHeader` + `GalleryGrid`
 - **Gallery**: `GalleryGrid` with `RecycleScroller` (virtual scroll), breadcrumb, AlbumScroller, PhotoCard grid
-- **Lightbox**: `PhotoSwipeViewer` (full-res 2400px thumbnail) + `LightboxDesktopPanel` (right sidebar, 400px, `z-index: 10000`, `backdrop-filter: blur(20px)`)
+- **Lightbox**: `PhotoSwipeViewer` (full-res 2400px thumbnail, thin wrapper around shared composable) + `LightboxDesktopPanel` (right sidebar, 400px, `z-index: 10000`, `backdrop-filter: blur(20px)`)
 
 ### Tablet (768-1199px)
-- **Sidebar**: 240px persistent (no edge toggle — hamburger always visible)
-- **Grid**: 3-column default, no column slider
-- **Lightbox**: `PhotoSwipeViewer` (2048px thumbnail, `allowPanToNext: true`) + Info button → `LightboxTabletPanel` (2-column bottom sheet, max 65vh)
+- **Layout**: `TabletLayout.vue` — 280px drawer sidebar (transform animation, `inert` when closed) + `TabletHeader` + `GalleryGrid` + `TabletGalleryToolbar`
+- **Grid**: `RecycleScroller` (operates like desktop, virtual scroll). Grid columns mapped via `GRID_COLUMN_MAP.tablet` — slider level 1→5 maps to 5,5,4,3,3 columns.
+- **Lightbox**: `TabletPhotoSwipe` (2048px thumbnail) — dedicated component with own counter, zoom toggle, bottom toolbar (close/zoom/info buttons). Info button emits `toggleMetadata` → `LightboxTabletPanel` (2-column bottom sheet, max 65vh)
 
 ### Mobile (<768px)
-- **Sidebar**: Overlay (fixed, 240px, slides in from left, `z-index: 100`)
-- **Header**: `MobileHeader` — hamburger + expandable search + theme toggle + settings
-- **Bottom Bar**: `MobileFloatingBottomBar` — pill-shaped nav (back/forward, path, open-explorer)
-- **Grid**: Native scroll (no RecycleScroller), 2-3 columns, no sort/column slider
-- **Lightbox**: `MobilePhotoSwipe` (1600px thumbnail, `closeOnVerticalDrag: true`, `allowPanToNext: true`) + Info button → `LightboxMobileSheet` (tabbed bottom sheet, 44dvh, 3 tabs: Prompt, Params, Advanced)
+- **Layout**: `MobileLayout.vue` — Overlay sidebar (240px, slides from left, `z-index: 100`) + `MobileHeader` + `GalleryGrid` (native scroll) + `MobileFloatingBottomBar`
+- **Grid**: Native scroll (no RecycleScroller), 2-3 columns via `GRID_COLUMN_MAP.mobile`. No sort/column slider.
+- **Lightbox**: `MobilePhotoSwipe` (1600px thumbnail) + Info button (self-registered in PS5 UI) → `LightboxMobileSheet` (tabbed bottom sheet, 44dvh, tabs: Prompt, Params, Advanced)
 
 ### Compact (<480px)
 - Same as mobile with tighter spacing in all components
-- `LightboxMobileSheet`: 40dvh default, 75dvh expanded
+- `LightboxMobileSheet`: 44dvh default, 80dvh expanded
 - `MobileHeader`: 8px padding
-- Grid: 1-column on smallest screens (but `useColumnResize` keeps 2 columns minimum — verify behavior)
 
 ---
 
@@ -36,15 +32,17 @@ The gallery has three main UI modes selected by viewport width (see `useDevice.t
 |-------------|----------------------------------|-----------------------------------|
 | **Click folder in sidebar** | `FolderTreeItem` → `galleryStore.toggleFolder()` or `selectFolder()` → `api.scanDirectory()` → `GET /api/scan` |
 | **Click album card** | `AlbumScroller` → emits `open-folder` → `galleryStore.selectFolder(path)` |
-| **Search query typed** | `AppHeader.vue` / `MobileHeader.vue` → emits `update:search-query` → `galleryStore.searchQuery = $event` → `GalleryGrid` computed `images` filter |
-| **Sort changed** | `GalleryGrid` sort dropdown → `galleryStore.setSortField()` / `toggleSortOrder()` → persisted to localStorage → computed re-sort |
-| **Grid column slider** | `GalleryGrid` `<input type="range">` → `useColumnResize().columnCount` → saved to localStorage → RecycleScroller re-keyed |
+| **Search query typed** | `AppHeader.vue` / `TabletHeader.vue` / `MobileHeader.vue` → emits `update:search-query` → `galleryStore.searchQuery = $event` → `GalleryGrid` computed `images` filter |
+| **Sort changed** | `TabletGalleryToolbar` / `GalleryGrid` sort dropdown → `galleryStore.setSortField()` / `toggleSortOrder()` → persisted to localStorage → computed re-sort |
+| **Grid density slider** | `TabletGalleryToolbar` / `GalleryGrid` → `useColumnResize().sliderLevel` → saved to localStorage → RecycleScroller re-keyed |
 | **Click photo** | `PhotoCard` → `GalleryGrid.handleOpenImage()` → `lightboxStore.open()` → metadata fetch |
-| **Arrow keys (desktop)** | `Lightbox.handleKeydown()` → `lightboxStore.prev()`/`next()` → `loadMetadata()` → PhotoSwipe sync |
-| **Swipe (mobile)** | `MobilePhotoSwipe` PS5 gesture → emits `change` → `Lightbox.handlePhotoSwipeIndexChange()` → `lightboxStore.loadMetadata()` |
-| **Theme toggle** | `AppHeader`/`MobileHeader` → `App.vue.toggleTheme()` → `document.documentElement.setAttribute('data-theme', val)` → `localStorage.setItem('gallery-theme', val)` |
+| **PS5 swipe/change** | `usePhotoSwipe` composable `on("change")` → emits → Lightbox handler → `lightboxStore.loadMetadata()` |
+| **Tablet zoom/close/info** | `TabletPhotoSwipe` toolbar buttons → zoom via `pswp.zoomTo()` / emit close / emit toggleMetadata |
+| **Mobile info toggle** | `MobilePhotoSwipe` PS5 UI button → emit toggleMetadata → `MobilePhotoSwipe` watches metadataOpen for button active state |
+| **Theme toggle** | `AppHeader`/`TabletHeader`/`MobileHeader` → `App.vue.toggleTheme()` → `document.documentElement.setAttribute('data-theme', val)` → `localStorage.setItem('gallery-theme', val)` |
 | **Pull to refresh (mobile)** | `GalleryGrid` touch events → `usePullToRefresh` → on threshold: `galleryStore.scanFolder()` |
 | **Sidebar toggle** | Edge toggle / hamburger → `App.vue.toggleSidebar()` → `isSidebarOpen` reactive → CSS class toggle |
+| **Tablet drawer close** | Escape key / backdrop click → `closeSidebar()` → `isSidebarOpen = false` → CSS transform + inert |
 | **Lightbox close** | Escape key / PS5 close / Close button → `lightboxStore.close()` → focus trap deactivate |
 
 ---
@@ -113,9 +111,12 @@ BREAKPOINTS = {
 - Same row structure as RecycleScroller
 
 ### Row Height Computation (`useColumnResize.ts`)
+- `GRID_COLUMN_MAP` maps slider level (1–5) to column count per device category (`desktop` / `tablet` / `mobile`)
+- Default: level 3 → 6 cols (desktop), 4 cols (tablet), 2 cols (mobile)
 - `rowHeight = itemWidth + GAP(20)` — where `itemWidth = (containerWidth - totalGap) / columnCount`
 - Uses `ResizeObserver` on `.scroller-container` for responsive recompute
-- Column count persisted to `localStorage` key `gallery-grid-size`
+- Column level persisted to `localStorage` key `gallery-grid-size` (as level 1–5; legacy raw column counts auto-migrated)
+- Takes `deviceCategory` parameter for responsive column mapping
 
 ### Infinite Scroll (IntersectionObserver)
 - `loadMoreSentinel`: a 1px-tall `<div>` placed at end of photo list
@@ -299,23 +300,29 @@ This prevents the bars from toggling when the user scrolls near the bottom, avoi
 - Too high: Bars don't hide near bottom when they should
 - Too low: iOS rubber-band causes rapid show/hide flicker
 
-### 8. Swipe on Mobile — PhotoSwipe Configuration Mismatch
+### 8. Swipe on Mobile — PhotoSwipe Configuration
 
 **File**: 
-- `frontend/src/components/MobilePhotoSwipe.vue` (line 43) — dead `pswpModule` parameter
-- `frontend/src/components/MobilePhotoSwipe.vue` vs `PhotoSwipeViewer.vue` — different `closeOnVerticalDrag` and `allowPanToNext` values
+- `frontend/src/components/MobilePhotoSwipe.vue` — uses `usePhotoSwipe` composable, self-registers info button via `onRegisterUi` callback
+- `frontend/src/components/TabletPhotoSwipe.vue` — dedicated component with own toolbar, `allowPanToNext: true`, `closeOnVerticalDrag: true`
+- `frontend/src/components/PhotoSwipeViewer.vue` — thin wrapper for desktop, `allowPanToNext: false`, `closeOnVerticalDrag: false`
 
-MobilePhotoSwipe uses `thumbnailSize: 1600px` (large thumbnail, not full-res). PhotoSwipeViewer on desktop uses `2400px` or `null` (full-res via `getImageUrl`). The mobile PS5 uses thumbnails for bandwidth — but if the image quality is insufficient, the 1600px size may look blurry on retina displays.
+MobilePhotoSwipe uses `thumbnailSize: 1600px` (large thumbnail, not full-res). Tablet uses 2048px. Desktop uses 2400px. All three use the shared `usePhotoSwipe` composable which handles init/destroy lifecycle, index syncing, and shared `buildPhotoSwipeItem()` item construction.
 
-### 9. Grid Column Slider Persistence
+### 9. TabletPhotoSwipe zoom toggle**
+**File**: `frontend/src/components/TabletPhotoSwipe.vue`
+The tablet zoom button uses `pswp.value.currSlide` to check zoom level. The `isZoomed` ref tracks state. If the PS5 instance isn't ready when the button is clicked, nothing happens. The `pswp` ref is exposed by `usePhotoSwipe` specifically for this use case.
 
-**File**: `frontend/src/composables/useColumnResize.ts` (lines 28-47)
+### 10. Tablet drawer stays in DOM**
+**File**: `frontend/src/layouts/TabletLayout.vue` (lines 26-53)
+The tablet sidebar is always in DOM (`v-if` is not used). It uses `class.open` for transform animation and `inert` attr when closed. The backdrop is wrapped in `<Transition>` for opacity fade. On successful path submit (SidebarHeader), `closeSidebar()` from injection key is called which sets `isSidebarOpen = false`. Invalid paths keep the drawer open.
 
-Column count is saved to `localStorage` under `gallery-grid-size`. The default is computed from viewport width with a `GRID_THREE_COL_MIN_WIDTH = 460` threshold for large phones. 
+### 11. Grid Column Slider Persistence**
 
-**Issue**: The saved preference affects ALL folders. A user who sets 8 columns on desktop may want 3 on tablet — but the setting persists globally. The user would need to re-adjust on each device.
+**File**: `frontend/src/composables/useColumnResize.ts` (lines 52-75)
+Column count is saved as a slider level (1–5) under `gallery-grid-size`. The `GRID_COLUMN_MAP` translates this to actual columns per device. Legacy raw values (1–8) are auto-migrated. The saved preference affects ALL device categories globally — slider level 3 means different column counts on different devices.
 
-### 10. Breadcrumb with Deep Paths
+### 12. Breadcrumb with Deep Paths
 
 **File**: `frontend/src/components/Breadcrumb.vue` (lines 22-23)
 
@@ -325,25 +332,34 @@ const maxSegments = computed(() => props.maxVisible ?? 4);
 
 If the path has more than 4 segments, breadcrumb shows an ellipsis dropdown. The dropdown path reconstruction uses `props.path` directly — if the path contains mixed separators (both `/` and `\`), parsing may produce incorrect segment boundaries.
 
+### 13. TabletGalleryToolbar — Popover Menus
+
+**File**: `frontend/src/components/TabletGalleryToolbar.vue`
+
+Tablet-specific toolbar with popover menus for sort and density. Uses `v-click-outside` directive for dismissal. Sits inside `GalleryGrid` when on tablet. Sort options and density levels are rendered from props arrays.
+
 ---
 
 ## Debug Checklist
 
 | Symptom | Likely File(s) | What to Check |
 |---------|----------------|---------------|
-| **Grid shows no photos** | `GalleryGrid.vue` (646-659), `App.vue` (388-398) | `.scroller-container` height chain — is `flex: 1; min-height: 0` intact? |
-| **Scroll doesn't load more** | `GalleryGrid.vue` (219-255) | IntersectionObserver `rootMargin: "400px"`, `loadMoreSentinel` in DOM |
-| **Mobile bars don't hide** | `useScrollVisibility.ts` (16-46) | Polling selector `.vue-recycle-scroller`, rAF handler, scroll event listener |
-| **Grid layout wrong columns** | `useColumnResize.ts` (9-19, 49-55) | `getDefaultCols()` logic, `recomputeRowHeight()` formula |
-| **Lightbox black screen** | `PhotoSwipeViewer.vue` (27-42) | `pswpItems` array — check URL construction. `getThumbnailUrl` vs `getImageUrl` |
-| **Lightbox right arrow hidden** | `Lightbox.vue` (436-452) | `.pswp__button--arrow--next` `right` calc — sidebar width mismatch |
-| **Lightbox metadata slow** | `backend/main.py` (1081-1131) | `parse_metadata()` cache — is it hitting cache or re-parsing? |
-| **Swipe on mobile broken** | `MobilePhotoSwipe.vue` (37-51) | `closeOnVerticalDrag`, `allowPanToNext`, PS5 init timing |
-| **Search doesn't filter** | `GalleryGrid.vue` (161-168) | `images` computed — `name.toLowerCase().includes(searchQuery)` |
-| **Sort doesn't persist** | `gallery.ts` (16-33) | `SORT_STORAGE_KEY`, `getStoredSort()`, `saveSort()` |
+| **Grid shows no photos** | layout CSS, `GalleryGrid.vue` scroller | `.scroller-container` height chain — is `flex: 1; min-height: 0` intact? |
+| **Scroll doesn't load more** | `GalleryGrid.vue` | IntersectionObserver `rootMargin: "400px"`, `loadMoreSentinel` in DOM |
+| **Mobile bars don't hide** | `useScrollVisibility.ts` | Polling selector `.vue-recycle-scroller`, rAF handler, scroll event listener |
+| **Grid layout wrong columns** | `useColumnResize.ts` | `GRID_COLUMN_MAP` for current deviceCategory, `sliderLevel` value |
+| **Lightbox black screen** | `usePhotoSwipe.ts` | `initPhotoSwipe()` guard: `containerRef.value && isOpen.value && !pswp.value`. Check `buildPhotoSwipeItem()` URL |
+| **Lightbox right arrow hidden** | `Lightbox.vue` | `.pswp__button--arrow--next` `right` calc — sidebar width mismatch |
+| **Tablet lightbox toolbar missing** | `TabletPhotoSwipe.vue` | Check `v-if="isTablet"` in Lightbox.vue template, counter/bar z-index 5000 |
+| **Lightbox metadata slow** | `lightbox.ts` store or backend | metadata fetch pipeline, request ID race check, caching |
+| **Swipe on mobile broken** | `usePhotoSwipe.ts` | `initPhotoSwipe()` called with correct options at right time, `isOpen` watchers |
+| **Search doesn't filter** | `GalleryGrid.vue` | `images` computed — `name.toLowerCase().includes(searchQuery)` |
+| **Sort doesn't persist** | `gallery.ts` | `SORT_STORAGE_KEY`, `getStoredSort()`, `saveSort()` |
 | **Theme flash on load** | `frontend/index.html` (inline script) | `localStorage['gallery-theme']` read before CSS render |
-| **PhotoSwipe arrows don't show** | `PhotoSwipeViewer.vue` (138-148) | `.pswp__button--close`, `.pswp__top-bar` hidden via `display: none` / `opacity: 0` |
-| **Pull-to-refresh conflicts** | `usePullToRefresh.ts` (33-36, 67-75) | `isHorizontalScrollTarget` check, `axisLockThreshold`, `canStart` |
-| **Grid slider not working** | `GalleryGrid.vue` (350-364) | `input[type="range"]`, `columnCount` v-model, opacity hidden slider |
-| **Sidebar overlay on wrong breakpoint** | `App.vue` (451-507) | `@media (max-width: 767px)` — sidebar becomes fixed/overlay |
-| **Clipboard copy fails** | `useClipboard.ts` (22-35) | `navigator.clipboard.writeText` vs `document.execCommand('copy')` fallback |
+| **PhotoSwipe arrows don't show** | style `<style lang="scss">` | `.pswp__top-bar` hidden via `opacity: 0; pointer-events: none` |
+| **Pull-to-refresh conflicts** | `usePullToRefresh.ts` | `isHorizontalScrollTarget` check, `axisLockThreshold`, `canStart` |
+| **Grid slider not working** | `GalleryGrid.vue` or `TabletGalleryToolbar.vue` | Slider hidden on mobile via CSS. Level binding to `sliderLevel` |
+| **Tablet drawer doesn't close** | `TabletLayout.vue`, `App.vue` | `closeSidebar()` injection key, `isSidebarOpen`, Escape key listener |
+| **Sidebar overlay on wrong breakpoint** | layout components | Mobile: always overlay. Tablet: always drawer (transform + inert). Desktop: always persistent + edge toggle |
+| **Clipboard copy fails** | `useClipboard.ts` | `navigator.clipboard.writeText` vs `document.execCommand('copy')` fallback |
+| **Tablet zoom button unresponsive** | `TabletPhotoSwipe.vue` | `pswp.value?.currSlide` null check, `isZoomed` ref state |

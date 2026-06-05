@@ -18,7 +18,7 @@ The app is designed for **local/personal use only** (`is_safe_path` returns `Tru
 gallery-repo/
 ├── start.py                          # Auto-launch script (venv, pip, npm, servers)
 ├── backend/
-│   ├── main.py                       # FastAPI server (~1205 lines) — all endpoints
+│   ├── main.py                       # FastAPI server (~1218 lines) — all endpoints
 │   └── requirements.txt
 ├── frontend/
 │   ├── package.json                  # Vue 3.5, Vite 7, Pinia 3, PhotoSwipe 5.4, vue-virtual-scroller 3
@@ -26,25 +26,29 @@ gallery-repo/
 │   ├── public/
 │   │   └── landpage/                 # Intro screen HTML templates
 │   └── src/
-│       ├── main.ts                   # Entry: Pinia + global styles + mount App.vue
-│       ├── App.vue                   # Root layout (sidebar + content + mobile bars + Lightbox)
+│       ├── main.ts                   # Entry: Pinia + global styles + eruda debug + mount App.vue
+│       ├── App.vue                   # Root: dispatches per-device layout + Lightbox + modals
 │       ├── constants.ts              # IMAGE_PAGE_SIZE = 200
-│       ├── injectionKeys.ts          # Vue provide/inject keys (scroll container ref)
+│       ├── injectionKeys.ts          # Vue provide/inject keys (scroll container ref, closeSidebar)
 │       ├── types/
 │       │   └── index.ts              # FileNode, ScanResponse, MetadataResponse, etc.
 │       ├── services/
 │       │   └── api.ts                # Axios client + error types (GalleryAPIError)
 │       ├── stores/
-│       │   ├── gallery.ts            # Gallery state: folders, images, nav, search, sort
+│       │   ├── gallery.ts            # Gallery state: folders, images, nav, search, sort, hasEverLoaded
 │       │   ├── lightbox.ts           # Lightbox state: open/close, metadata, navigation
 │       │   └── toast.ts              # Toast notification state (max 3, auto-dismiss)
 │       ├── composables/              # (listed below)
 │       ├── components/               # (listed below)
+│       ├── layouts/                  # (listed below)
 │       ├── styles/                   # (listed below)
 │       ├── directives/
 │       │   └── clickOutside.ts       # v-click-outside directive
 │       └── utils/
-│           └── loraHighlighter.ts    # LoRA tag regex highlighting
+│           ├── loraHighlighter.ts    # LoRA tag regex highlighting
+│           ├── lightbox.ts           # buildPhotoSwipeItem() shared helper
+│           ├── erudaDebug.ts         # Eruda mobile debug console (dev-only)
+│           └── iconDebugOverlay.ts   # Icon metrics overlay (dev-only, ?iconDebug=1)
 └── resource/                         # Reference materials (palettes, poses)
 ```
 
@@ -52,38 +56,43 @@ gallery-repo/
 
 | File | Role |
 |------|------|
-| `App.vue` | Root layout: sidebar tree + GalleryGrid + MobileHeader/MobileFloatingBottomBar + Lightbox (lazy-loaded) |
-| `GalleryGrid.vue` | Photo grid with RecycleScroller (desktop) / native scroll (mobile), search/sort, pull-to-refresh |
-| `Lightbox.vue` | Lazy-loaded lightbox: dispatches to PhotoSwipeViewer/MobilePhotoSwipe + metadata panel per device |
-| `PhotoSwipeViewer.vue` | PhotoSwipe 5 wrapper for desktop & tablet |
-| `MobilePhotoSwipe.vue` | PhotoSwipe 5 wrapper for mobile (uses thumbnail 1600px) |
-| `LightboxDesktopPanel.vue` | Right sidebar metadata panel (desktop/wide) |
-| `LightboxTabletPanel.vue` | 2-column bottom sheet (tablet) |
-| `LightboxMobileSheet.vue` | Tabbed bottom sheet (mobile) |
-| `AlbumScroller.vue` | Horizontal album scroll with arrow navigation |
+| `App.vue` | Root layout: dispatches to DesktopLayout / TabletLayout / MobileLayout + Lightbox (lazy-loaded) + SettingsModal + ToastContainer |
+| `GalleryGrid.vue` | Photo grid with RecycleScroller (desktop) / native scroll (mobile), search/sort, tablet toolbar, pull-to-refresh |
+| `Lightbox.vue` | Per-device lightbox: dispatches to PhotoSwipeViewer / TabletPhotoSwipe / MobilePhotoSwipe + metadata panels |
+| `PhotoSwipeViewer.vue` | Thin PhotoSwipe 5 wrapper for desktop/wide (uses shared usePhotoSwipe composable) |
+| `TabletPhotoSwipe.vue` | Dedicated PhotoSwipe 5 wrapper for tablet — owns counter, zoom toggle, bottom toolbar with close/zoom/info buttons |
+| `MobilePhotoSwipe.vue` | PhotoSwipe 5 wrapper for mobile — self-registers metadata info button via PS5 UI API |
+| `LightboxDesktopPanel.vue` | Right sidebar metadata panel (desktop/wide) — accordion sections |
+| `LightboxTabletPanel.vue` | 2-column bottom sheet (tablet) — accordion, touch-to-expand |
+| `LightboxMobileSheet.vue` | Tabbed bottom sheet (mobile) — Prompt/Params tabs, haptic feedback |
+| `AlbumScroller.vue` | Horizontal album scroll with arrow navigation, collapse toggle |
 | `AlbumCard.vue` | Folder card with neon glow (desktop) |
+| `AlbumCardTablet.vue` | Folder card for tablet |
 | `AlbumCardMobile.vue` | Folder card for mobile |
 | `PhotoCard.vue` | Image card in grid |
 | `AppHeader.vue` | Desktop header: search, sort, theme, settings |
 | `MobileHeader.vue` | Mobile header: hamburger, search (expandable), theme |
+| `TabletHeader.vue` | Tablet header: hamburger, breadcrumb, expandable search, theme |
 | `MobileFloatingBottomBar.vue` | Mobile pill nav: back/forward, folder name, open-explorer |
 | `SidebarHeader.vue` | Sidebar title + root path input + load button |
 | `FolderTreeItem.vue` | Recursive folder tree (collapsible) |
 | `Breadcrumb.vue` | Path breadcrumb with dropdown ellipsis |
+| `TabletGalleryToolbar.vue` | Tablet toolbar: nav arrows, sort, density (popover menus) |
 | `GlowContainer.vue` | CSS glow bleed wrapper |
 | `SettingsModal.vue` | Settings dialog (intro preview, etc.) |
 | `IntroScreen.vue` | Welcome/landing page (loads HTML from public/landpage) |
 | `SkeletonLoader.vue` | Loading skeleton |
-| `EmptyState.vue` | Empty/error/no-results states |
+| `EmptyState.vue` | 7 empty/error states with inline SVG icons |
 | `Toast*.vue` | Toast notification components |
 
 ### Composables
 
 | File | Purpose |
 |------|---------|
-| `useDevice.ts` | Singleton breakpoint detection (compact <480, mobile <768, tablet 768-1199, desktop 1200-1439, wide >=1440) |
-| `useColumnResize.ts` | Grid column count via ResizeObserver, persisted to localStorage |
-| `useScrollVisibility.ts` | Mobile header/bottom-bar hide/show on scroll (rAF-throttled) |
+| `useDevice.ts` | Singleton breakpoint detection (compact <480, mobile <768, tablet <1200, desktop <1440, wide >=1440). Uses ref-count pattern for shared resize listener. |
+| `usePhotoSwipe.ts` | Shared PhotoSwipe 5 lifecycle: init on isOpen, destroy on close/unmount, currentIndex sync, shared item building via buildPhotoSwipeItem(), avoids duplicate instances |
+| `useColumnResize.ts` | Grid density: slider level (1–5) mapped to columns via GRID_COLUMN_MAP per device category (desktop/tablet/mobile). ResizeObserver on grid container, localStorage persistence |
+| `useScrollVisibility.ts` | Mobile header/bottom-bar hide/show on scroll (rAF-throttled), polling fallback, MutationObserver |
 | `usePullToRefresh.ts` | Touch pull-to-refresh gesture handler |
 | `useMetadataSections.ts` | Metadata section config: core/secondary/advanced categories |
 | `useClipboard.ts` | Clipboard copy with HTTP fallback (`document.execCommand('copy')`) |
@@ -96,22 +105,39 @@ gallery-repo/
 
 | Store | State | Actions |
 |-------|-------|---------|
-| `gallery.ts` | rootPath, sidebarTree, currentPath, galleryFolders, galleryImages, nextImageCursor, totalImages, history[], searchQuery, sortField/Order | `setRootPath`, `toggleFolder`, `selectFolder`, `scanFolder`, `loadMoreImages`, `goBack`/`goForward`, `openInExplorer` |
-| `lightbox.ts` | isOpen, itemPath, itemName, metadata, galleryItems[], currentIndex | `open`, `loadMetadata`, `next`, `prev`, `close`, `preloadNeighbors` |
+| `gallery.ts` | rootPath, sidebarTree, currentPath, galleryFolders, galleryImages, nextImageCursor, totalImages, history[], searchQuery, sortField/Order, hasEverLoaded | `setRootPath`, `toggleFolder`, `selectFolder`, `scanFolder`, `loadMoreImages`, `goBack`/`goForward`, `openInExplorer` |
+| `lightbox.ts` | isOpen, itemPath, itemName, width, height, metadata, galleryItems[], currentIndex | `open`, `loadMetadata`, `next`, `prev`, `close`, `preloadNeighbors` |
 | `toast.ts` | toasts[] | `addToast`, `removeToast`, `clearAll`, `success`, `error`, `warning`, `info` |
 
 ### Styles
 
 | File | Content |
 |------|---------|
-| `main.scss` | Global styles, animations (iconFlicker, dark-title-shimmer), accessibility, responsive breakpoints |
-| `tokens.css` | Design tokens v2: `--gallery-*` vars, light + dark theme, legacy variable mappings |
-| `_breakpoints.scss` | SCSS mixins: compact (≤479px), mobile (≤767px), tablet (768-1199px), desktop (≥1200px), wide (≥1440px) |
+| `main.scss` | Global styles, animations (iconFlicker, dark-title-shimmer), accessibility, responsive breakpoints, scroll-container chain |
+| `tokens.css` | Design tokens v2: `--gallery-*` vars (surface, text, accent, border, shadow, radius, timing, typography, icon-sizes), light + dark theme, legacy variable mappings |
+| `_breakpoints.scss` | SCSS mixins: compact (≤479px), mobile (≤767px), tablet (768-1199px), below-desktop (≤1199px), desktop (≥1200px), wide (≥1440px) |
 | `_mobile-overrides.scss` | Mobile: disable glow, reset sticky hover, 44×44px touch targets, Safari background fix |
 | `_lightbox-shared.scss` | Shared lightbox: loading/error, LoRA highlighter, param-pill, focus styles |
 | `_lightbox-desktop.scss` | Desktop metadata panel: right sidebar 400px, backdrop-filter blur |
-| `_lightbox-tablet.scss` | Tablet bottom sheet: 2-column grid, max-height 65vh |
+| `_lightbox-tablet.scss` | Tablet bottom sheet: 2-column grid, max-height 65vh, expandable |
 | `_lightbox-mobile.scss` | Mobile bottom sheet: tabbed (Prompt/Params), draggable handle, 44dvh height |
+
+### Layouts
+
+| File | Role |
+|------|------|
+| `DesktopLayout.vue` | Desktop layout: 280px persistent sidebar + edge toggle + AppHeader + GalleryGrid |
+| `TabletLayout.vue` | Tablet layout: 280px animated drawer (transform + inert) + backdrop + TabletHeader + GalleryGrid |
+| `MobileLayout.vue` | Mobile layout: 240px overlay sidebar + MobileHeader + GalleryGrid + MobileFloatingBottomBar |
+
+### Utilities
+
+| File | Role |
+|------|------|
+| `lightbox.ts` | Shared `buildPhotoSwipeItem()` — builds PhotoSwipe data from FileNode with thumbnail/full-res URL, real dimensions (1200×1200 fallback) |
+| `loraHighlighter.ts` | LoRA tag regex highlighting |
+| `erudaDebug.ts` | Eruda mobile debug console — enable via `?eruda=1`, disable via `?eruda=0`, dev-only guard, localStorage persistence |
+| `iconDebugOverlay.ts` | Icon SVG metrics overlay — enable via `?iconDebug=1`, shows viewport, layout presence, SVG computed metrics, force-40px buttons, dev-only |
 
 ---
 
@@ -150,38 +176,35 @@ import styles → createApp(App) → use(Pinia) → mount(#app)
 ```
 <App>
   <IntroScreen />                           (v-if showIntro)
-  <div.layout>                              (v-else)
-    <aside.sidebar>                         (sidebar tree)
-      <SidebarHeader />
-      <FolderTreeItem /> (recursive)
-    </aside>
-    <button.sidebar-edge-toggle />          (collapse sidebar)
-    <div.sidebar-backdrop />                (mobile overlay)
-    <section.content>
-      <MobileHeader />                      (v-if isMobile)
-      <AppHeader />                         (v-if !isMobile)
-      <div.content-body>
-        <GalleryGrid />
-      </div>
-      <MobileFloatingBottomBar />           (v-if isMobile)
-    </section>
-  </div>
-  <Lightbox />                              (always mounted, v-if show)
-  <ToastContainer />                        (v-if !isMobile)
+  <MobileLayout v-else-if="isMobile" />      (props + events for store actions)
+  <TabletLayout v-else-if="isTablet" />      (props + events for store actions)
+  <DesktopLayout v-else />                   (props + events for store actions)
+  <Lightbox />                               (defineAsyncComponent, always mounted, v-if show)
+  <ToastContainer v-if="!isMobile" />
   <SettingsModal />
 ```
 
-### Device Breakpoints (from `useDevice.ts` + `_breakpoints.scss`)
+Each layout component is self-contained with its own sidebar, header, and GalleryGrid sections. App.vue acts as a state-passing orchestration layer.
 
-| Breakpoint | JS Constant | SCSS Mixin | Range | Grid Columns |
-|------------|-------------|------------|-------|-------------|
-| Compact | `BREAKPOINTS.compact = 480` | `@include compact` | ≤479px | 2 |
-| Mobile | `BREAKPOINTS.mobile = 768` | `@include mobile` | 480-767px | 2-3 |
-| Tablet | n/a | `@include tablet` | 768-1199px | 3 |
-| Desktop | `BREAKPOINTS.desktop = 1200` | `@include desktop` | 1200-1439px | 4 |
-| Wide | `BREAKPOINTS.wide = 1440` | `@include wide` | ≥1440px | 4-8 (adjustable) |
+### Device Breakpoints (from `useDevice.ts` + `_breakpoints.scss` + `useColumnResize.ts`)
 
-**NOTE**: The `useDevice.ts` breakpoints (compact: <480, mobile: <768, desktop: <1200, wide: <1440) and `_breakpoints.scss` mixins (compact: ≤479, mobile: ≤767, tablet: 768-1199, desktop: ≥1200, wide: ≥1440) are **slightly mismatched** — the JS does not have a "tablet" range boundary at 1200 (it uses 1199 in SCSS but 1200 in JS). This means `isMobile` in JS covers <768 which includes compact (<480) and mobile (480-767). In SCSS, `@include mobile` is ≤767px.
+| Breakpoint | JS Constant | SCSS Mixin | Range | Default Grid | Grid Range |
+|------------|-------------|------------|-------|--------------|------------|
+| Compact | `BREAKPOINTS.compact = 480` | `@include compact` | <480px | 2 col | 2–3 col |
+| Mobile | `BREAKPOINTS.mobile = 768` | `@include mobile` | 480–767px | 2 col | 2–3 col |
+| Tablet | n/a | `@include tablet` | 768–1199px | 4 col | 3–5 col |
+| Desktop | `BREAKPOINTS.desktop = 1200` | `@include desktop` | 1200–1439px | 6 col | 4–8 col |
+| Wide | `BREAKPOINTS.wide = 1440` | `@include wide` | ≥1440px | 6 col | 4–8 col |
+
+Grid columns are derived from slider level (1–5) mapped through `GRID_COLUMN_MAP` in `useColumnResize.ts`:
+```typescript
+GRID_COLUMN_MAP = {
+  desktop: [8, 7, 6, 5, 4],  // level 1=8 cols, ..., level 5=4 cols
+  tablet:  [5, 5, 4, 3, 3],  // level 1=5 cols, ..., level 5=3 cols
+  mobile:  [3, 3, 2, 2, 2],  // level 1=3 cols, ..., level 5=2 cols
+}
+```
+The slider defaults to level 3 (Medium). Each `isMobile`/`isTablet`/`isDesktop` computed property in `useDevice` covers the correct range. JS `< 768` matches SCSS `max-width: 767px`; JS `< 1200` matches SCSS `max-width: 1199px`. These are functionally equivalent.
 
 ---
 
@@ -204,6 +227,31 @@ Click folder in sidebar → FolderTreeItem emits
 
 ### 2. User Clicks a Photo (grid → lightbox)
 
+```
+Click PhotoCard
+→ GalleryGrid.handleOpenImage(path, name)
+→ lightboxStore.open({ path, name }, images)
+→ Store: isOpen=true, galleryItems=[...filtered images], currentIndex=N
+→ lightboxStore.preloadNeighbors() — creates Image objects for +-1
+→ lightboxStore.loadMetadata(path)
+→ GET /api/metadata?path=...
+→ Lightbox.vue: Transition "fade" renders
+→ Desktop:  PhotoSwipeViewer + LightboxDesktopPanel (right sidebar, 400px)
+→ Tablet:   TabletPhotoSwipe (bottom bar: counter + zoom + close + info) + toggle → LightboxTabletPanel
+→ Mobile:   MobilePhotoSwipe (registers info button in PS5 UI) + toggle → LightboxMobileSheet
+```
+
+### 5. Lightbox Navigation (arrow keys / PS5 swipe / toolbar)
+
+```
+Desktop/Tablet/Mobile: usePhotoSwipe composable handles PS5 lifecycle
+→ on("change") → emit("indexChange", index)
+→ Lightbox.handleIndexChange / handlePhotoSwipeIndexChange
+→ lightboxStore.currentIndex = newIndex; loadMetadata()
+→ usePhotoSwipe watcher: pswp.goTo(index) only when pswp.currIndex !== index
+
+Tablet: TabletPhotoSwipe additionally owns zoom toggle (via pswp ref)
+Mobile: MobilePhotoSwipe additionally owns PS5 UI registration for info button
 ```
 Click PhotoCard
 → GalleryGrid.handleOpenImage(path, name)
@@ -291,25 +339,31 @@ Mobile: PhotoSwipe handles swipe gestures
    - If `.lightbox-right` width changes (min-width 320px, max-width 450px), the arrow position must be adjusted.
 
 4. **`useDevice.ts` breakpoint changes**
-   Any change to `BREAKPOINTS` values must be mirrored in `_breakpoints.scss` mixins AND in `useColumnResize.ts` (which has its own hardcoded thresholds for grid columns). These are NOT DRY — updating one requires updating all three.
+   Any change to `BREAKPOINTS` values must be mirrored in `_breakpoints.scss` mixins AND in `useColumnResize.ts` (which has its own deviceCategory mapping). These are NOT DRY — updating one requires updating all three.
 
 5. **`useScrollVisibility.ts` polling fallback**
-   When no `containerRef` is provided (mobile path without injected ref), it falls back to polling `document.querySelector('.vue-recycle-scroller')` every 200ms until found. This is fragile if the scroller CSS class changes.
+   When no `containerRef` is provided (mobile path without injected ref), it falls back to polling `document.querySelector('.vue-recycle-scroller, .scroller, .folders-only-container')` every 200ms until found. This is fragile if the scroller CSS class changes.
 
-6. **PhotoSwipe `pswpModule` dead code**
-   `MobilePhotoSwipe.vue` line 43: `pswpModule: () => Promise.resolve(PhotoSwipe)` — this parameter is not actually used by PhotoSwipe 5's constructor. It's dead code that can be removed.
+6. **TabletPhotoSwipe vs PhotoSwipeViewer — separate component files**
+   Tablet and Desktop lightbox now use different wrapper components. TabletPhotoSwipe owns its own bottom toolbar (counter, zoom, close, info buttons) and manages zoom state. Changes to the shared `usePhotoSwipe` composable must be tested on both. The `thumbnailSize` differs: desktop 2400px, tablet 2048px, mobile 1600px.
 
-7. **Thumbnail cache invalidation**
+7. **GRID_COLUMN_MAP — device-specific column mapping**
+   Changing slider level values or device column maps affects all three devices. The map entries are indexed by deviceCategory string. If a new device category is added, a corresponding entry must be added to the map or it falls back to `desktop`.
+
+8. **Thumbnail cache invalidation**
    Cache key includes `(path, mtime, size, max_size, quality)`. If the file's mtime or size changes, the cache entry is re-created. However, the 1GB LRU cache has no TTL — old entries are only evicted when the cache is full.
 
-8. **Decompression bomb guards**
+9. **Decompression bomb guards**
    `_check_image_limits()` (backend/main.py lines 354-384) checks file size (75MB) and pixel dimensions (100MP) before opening. If these limits are hit, the user gets a 400 error. The frontend displays this as "Invalid file" via `GalleryAPIError`.
 
-9. **`useColumnResize.ts` grid size localStorage key**
-   `GRID_SIZE_KEY = 'gallery-grid-size'` — stored per origin. If the app is served from different ports/URLs, column preferences may conflict or feel inconsistent.
+10. **`useColumnResize.ts` grid size localStorage key**
+    `GRID_SIZE_KEY = 'gallery-grid-size'` — stored per origin. Column count is now a slider level (1–5), not raw column count. Legacy raw values (1–8) are migrated via `migrateColumnsToLevel()`. The column mapping is per deviceCategory.
 
-10. **Safari Private Browsing — localStorage**
-   Multiple files wrap `localStorage` calls in try/catch for Safari Private Browsing compatibility: `App.vue`, `gallery.ts`, `useColumnResize.ts`. If a new localStorage access is added without the try/catch, the app will crash in Private Browsing mode.
+11. **Safari Private Browsing — localStorage**
+    Multiple files wrap `localStorage` calls in try/catch for Safari Private Browsing compatibility: `App.vue`, `gallery.ts`, `useColumnResize.ts`, `AlbumScroller.vue`. If a new localStorage access is added without the try/catch, the app will crash in Private Browsing mode.
+
+12. **Layout components — App.vue orchestration**
+    App.vue no longer contains inline layout markup. Desktop/tablet/mobile layouts are separate components receiving props + emitting events. Props/event name changes in App.vue must be reflected in all three layout components.
 
 ---
 
@@ -318,26 +372,61 @@ Mobile: PhotoSwipe handles swipe gestures
 ```
 App.vue
 ├── IntroScreen.vue (v-if showIntro)
-├── [v-else]
-│   ├── SidebarHeader.vue (inside <aside.sidebar>)
-│   ├── FolderTreeItem.vue (recursive, v-for tree)
-│   ├── GalleryGrid.vue (inside <section.content>)
-│   │   ├── AlbumScroller.vue (v-if folders.length)
-│   │   │   ├── AlbumCard.vue / AlbumCardMobile.vue
-│   │   │   └── GlowContainer.vue
-│   │   ├── PhotoCard.vue (v-for in RecycleScroller rows)
-│   │   ├── SkeletonLoader.vue (v-if isLoading)
-│   │   ├── Breadcrumb.vue
-│   │   └── EmptyState.vue
-│   ├── MobileHeader.vue (v-if isMobile)
-│   ├── AppHeader.vue (v-if !isMobile)
-│   └── MobileFloatingBottomBar.vue (v-if isMobile)
+├── MobileLayout.vue (v-else-if isMobile)
+│   ├── aside.sidebar (overlay, 240px)
+│   │   ├── SidebarHeader.vue
+│   │   └── FolderTreeItem.vue (recursive, v-for tree)
+│   ├── section.content
+│   │   ├── MobileHeader.vue
+│   │   ├── div.content-body
+│   │   │   └── GalleryGrid.vue
+│   │   │       ├── pull-to-refresh
+│   │   │       ├── AlbumScroller.vue (v-if folders.length)
+│   │   │       │   ├── AlbumCardMobile.vue
+│   │   │       │   └── GlowContainer.vue
+│   │   │       ├── PhotoCard.vue (native scroll, v-for rows)
+│   │   │       ├── SkeletonLoader.vue (v-if isLoading)
+│   │   │       ├── Breadcrumb.vue
+│   │   │       └── EmptyState.vue
+│   │   └── MobileFloatingBottomBar.vue
+│   └── sidebar-backdrop
+├── TabletLayout.vue (v-else-if isTablet)
+│   ├── aside.sidebar (drawer, 280px, transform + inert)
+│   │   ├── SidebarHeader.vue
+│   │   └── FolderTreeItem.vue
+│   ├── sidebar-backdrop (Transition)
+│   ├── section.content
+│   │   ├── TabletHeader.vue
+│   │   ├── div.content-body
+│   │   │   └── GalleryGrid.vue
+│   │   │       ├── TabletGalleryToolbar.vue
+│   │   │       ├── AlbumScroller.vue
+│   │   │       │   ├── AlbumCardTablet.vue
+│   │   │       │   └── GlowContainer.vue
+│   │   │       ├── PhotoCard.vue (RecycleScroller)
+│   │   │       ├── SkeletonLoader.vue
+│   │   │       └── EmptyState.vue
+├── DesktopLayout.vue (v-else)
+│   ├── aside.sidebar (persistent, 280px, collapsible)
+│   │   ├── SidebarHeader.vue
+│   │   ├── sidebar-edge-toggle
+│   │   └── FolderTreeItem.vue
+│   ├── section.content
+│   │   ├── AppHeader.vue
+│   │   ├── div.content-body
+│   │   │   └── GalleryGrid.vue
+│   │   │       ├── AlbumScroller.vue
+│   │   │       │   ├── AlbumCard.vue
+│   │   │       │   └── GlowContainer.vue
+│   │   │       ├── PhotoCard.vue (RecycleScroller)
+│   │   │       └── EmptyState.vue
 ├── Lightbox.vue (lazy-loaded, Teleport to body)
-│   ├── PhotoSwipeViewer.vue (desktop/tablet)
-│   ├── MobilePhotoSwipe.vue (mobile)
-│   ├── LightboxDesktopPanel.vue (desktop/wide)
-│   ├── LightboxTabletPanel.vue (tablet)
-│   └── LightboxMobileSheet.vue (mobile)
+│   ├── PhotoSwipeViewer.vue (desktop/wide)
+│   ├── TabletPhotoSwipe.vue (tablet) — counter + zoom/close/info toolbar
+│   ├── MobilePhotoSwipe.vue (mobile) — self-registers info button
+│   ├── LightboxDesktopPanel.vue (desktop/wide, v-if !isFullscreen)
+│   ├── LightboxTabletPanel.vue (tablet, v-if showSheet)
+│   └── LightboxMobileSheet.vue (mobile, v-if showSheet)
 ├── ToastContainer.vue (v-if !isMobile)
 │   └── ToastItem.vue
 └── SettingsModal.vue

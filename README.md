@@ -93,11 +93,12 @@ gallery-repo/
 │   ├── public/landpage/      # Intro screen HTML templates
 │   ├── dist/                 # Production build output
 │   └── src/
-│       ├── App.vue           # Root layout orchestrator
-│       ├── main.ts           # Entry point (Pinia + mount)
-│       ├── components/       # GalleryGrid, Lightbox, PhotoSwipeViewer, etc.
+│       ├── App.vue           # Root orchestrator (dispatches to layout components + Lightbox + modals)
+│       ├── main.ts           # Entry point (Pinia + global styles + eruda debug + mount)
+│       ├── components/       # GalleryGrid, Lightbox, PhotoSwipeViewer, TabletPhotoSwipe, MobilePhotoSwipe, etc.
 │       ├── stores/           # Pinia: gallery.ts, lightbox.ts, toast.ts
-│       ├── composables/      # useDevice.ts, useColumnResize.ts, useScrollVisibility.ts, etc.
+│       ├── composables/      # useDevice.ts, useColumnResize.ts, useScrollVisibility.ts, usePhotoSwipe.ts, etc.
+│       ├── layouts/          # DesktopLayout.vue, TabletLayout.vue, MobileLayout.vue
 │       ├── styles/           # main.scss, tokens.css, _breakpoints.scss, lightbox variants
 │       ├── types/index.ts    # TypeScript interfaces
 │       └── services/api.ts   # Axios client
@@ -126,13 +127,15 @@ Auto-detects A1111, SwarmUI, ComfyUI, NovelAI, and EasyDiffusion from PNG chunks
 
 ## Responsive Breakpoints
 
-| Tier | Width | Grid | Lightbox Panel | Sidebar |
-|------|-------|------|---------------|---------|
-| **Compact** | <480px | 2 col | Tabbed bottom sheet (40dvh) | Overlay |
-| **Mobile** | 480–767px | 2–3 col | Tabbed bottom sheet (44dvh) | Overlay |
-| **Tablet** | 768–1199px | 3 col | 2-column bottom sheet (65vh) | 240px persistent |
-| **Desktop** | 1200–1439px | 4 col | Right sidebar (400px) | 280px persistent |
-| **Wide** | ≥1440px | 4–8 col | Right sidebar (400px) | 280px persistent |
+| Tier | Width | Grid (level 3 default) | Grid range (levels 1–5) | Lightbox | Sidebar |
+|------|-------|------------------------|-------------------------|----------|---------|
+| **Compact** | <480px | 2 col | 2–3 col | MobilePhotoSwipe + MobileSheet | Overlay |
+| **Mobile** | 480–767px | 2 col | 2–3 col | MobilePhotoSwipe + MobileSheet | Overlay |
+| **Tablet** | 768–1199px | 4 col | 3–5 col | TabletPhotoSwipe + TabletPanel | 280px drawer |
+| **Desktop** | 1200–1439px | 6 col | 4–8 col | PhotoSwipeViewer + DesktopPanel | 280px persistent |
+| **Wide** | ≥1440px | 6 col | 4–8 col | PhotoSwipeViewer + DesktopPanel | 280px persistent |
+
+Grid columns are responsive by device category via `GRID_COLUMN_MAP` in `useColumnResize.ts`. The slider controls density level (1–5), which maps to different column counts per device (e.g., level 3 = 6 cols on desktop, 4 on tablet, 2 on mobile).
 
 ---
 
@@ -142,21 +145,28 @@ For detailed information about the codebase, data flow, and maintenance, see:
 
 - **[Codebase Architecture & Data Flow](docs/CODEBASE_ARCHITECTURE_AND_DATA_FLOW_MAINTENANCE.md)** — Backend internals, frontend stores/composables, component tree, API endpoints, data flow diagrams, known regression risks.
 - **[Frontend UI Interactions & Mobile Maintenance](docs/FRONTEND_UI_INTERACTIONS_AND_MOBILE_MAINTENANCE.md)** — Device-specific UI behavior, PhotoSwipe integration, virtual scroll, scroll visibility, mobile quirks (Safari, touch targets), debug checklist.
+- **[Frontend Lightbox Architecture](docs/frontend-lightbox-architecture.md)** — Per-device PhotoSwipe wrappers, shared composable, metadata panels, index/close/toggle flows, regression boundaries.
+- **[Responsive Layout & Breakpoints](docs/responsive-layout-and-breakpoints.md)** — Device detection, layout components, grid column mapping, breakpoint sync.
+- **[Image Scan & Dimensions](docs/image-scan-and-dimensions.md)** — EXIF handling, dimension extraction, thumbnail pipeline.
+- **[UI Components Maintenance](docs/ui-components-maintenance.md)** — EmptyState, sidebar/drawer, toolbar, icon tokens.
+- **[Debugging iPad Safari & Eruda](docs/debugging-ipad-safari-eruda.md)** — Debug tools, icon overlay, eruda console.
 
 ---
 
 ## Key Features
 
 - **Virtual Scrolling** — RecycleScroller handles thousands of images efficiently
-- **PhotoSwipe 5 Lightbox** — Desktop/tablet/mobile variants with device-optimized metadata panels
-- **AI Metadata** — Deep parsing of generation parameters (prompt, seed, CFG, LoRAs, etc.)
+- **PhotoSwipe 5 Lightbox** — Device-specific wrappers (PhotoSwipeViewer / TabletPhotoSwipe / MobilePhotoSwipe) with dedicated metadata panels and zoom controls
+- **AI Metadata** — Deep parsing of generation parameters (prompt, seed, CFG, LoRAs, etc.) across 5 app formats
 - **Dual Theme** — Light (warm cream) + Dark (warm near-black with gold accents)
-- **Design Tokens v2** — Primer-inspired `--gallery-*` CSS custom properties
-- **Responsive** — 5 breakpoints with distinct layouts per device tier
-- **Mobile UX** — Hide/show bars on scroll, pull-to-refresh, haptic feedback, 44×44px touch targets
+- **Design Tokens v2** — Primer-inspired `--gallery-*` CSS custom properties with icon size tokens
+- **Responsive** — 5 breakpoints, 3 layout components (DesktopLayout / TabletLayout / MobileLayout), per-device grid column mapping
+- **Mobile UX** — Hide/show bars on scroll, pull-to-refresh, haptic feedback, 44×44px touch targets, full Ionic compatibility
+- **Tablet UX** — Animated drawer sidebar (transform + inert), dedicated TabletPhotoSwipe with bottom toolbar, TabletGalleryToolbar
 - **LRU Caching** — 1GB thumbnails, 100MB metadata
-- **Accessibility** — WCAG 2.1 with keyboard nav, focus traps, ARIA labels
+- **Accessibility** — WCAG 2.1 with keyboard nav, focus traps, ARIA labels, inert on closed drawers
 - **FOUC Prevention** — Inline theme detection before CSS render
+- **Dev Debug Tools** — Eruda mobile console (`?eruda=1`), icon debug overlay (`?iconDebug=1`), dev-only safety guards
 
 ---
 
