@@ -30,14 +30,21 @@ const emit = defineEmits<{
   close: [];
 }>();
 
-// Internal state
+const DRAG_THRESHOLD = 60;
+const MAX_DRAG = 120;
+const TAP_THRESHOLD = 10;
+
 const sheetExpanded = ref(false);
 const activeTab = ref('prompt');
-const sheetStartY = ref(0);
 const showAdvanced = ref(false);
 const promptExpanded = ref(false);
 const negPromptExpanded = ref(false);
 const anyTextExpanded = computed(() => promptExpanded.value || negPromptExpanded.value);
+
+const sheetDragState = ref<'idle' | 'dragging'>('idle');
+const dragStartY = ref(0);
+const dragDelta = ref(0);
+const handleRef = ref<HTMLElement | null>(null);
 
 function setTab(tab: string) {
   activeTab.value = tab;
@@ -49,17 +56,51 @@ function closeSheet() {
   emit('close');
 }
 
-function onSheetTouchStart(e: TouchEvent) {
-  sheetStartY.value = e.touches[0].clientY;
+function applyClamp(delta: number): number {
+  return Math.max(-MAX_DRAG, Math.min(MAX_DRAG, delta));
 }
 
-function onSheetTouchMove(e: TouchEvent) {
-  const delta = e.touches[0].clientY - sheetStartY.value;
-  if (delta > 50) closeSheet();
-  if (delta < -50) sheetExpanded.value = true;
+function onHandlePointerDown(e: PointerEvent) {
+  sheetDragState.value = 'dragging';
+  dragStartY.value = e.clientY;
+  dragDelta.value = 0;
+  handleRef.value?.setPointerCapture(e.pointerId);
+  e.preventDefault();
 }
 
-function onSheetTouchEnd() { /* no-op */ }
+function onHandlePointerMove(e: PointerEvent) {
+  if (sheetDragState.value !== 'dragging') return;
+  dragDelta.value = applyClamp(e.clientY - dragStartY.value);
+}
+
+function onHandlePointerUp(e: PointerEvent) {
+  if (sheetDragState.value !== 'dragging') return;
+  const delta = dragDelta.value;
+  handleRef.value?.releasePointerCapture(e.pointerId);
+
+  if (Math.abs(delta) < TAP_THRESHOLD) {
+    sheetExpanded.value = !sheetExpanded.value;
+    hapticLight();
+  } else if (delta > DRAG_THRESHOLD) {
+    if (sheetExpanded.value) {
+      sheetExpanded.value = false;
+    } else {
+      closeSheet();
+      return;
+    }
+  } else if (delta < -DRAG_THRESHOLD && !sheetExpanded.value) {
+    sheetExpanded.value = true;
+  }
+
+  sheetDragState.value = 'idle';
+  dragDelta.value = 0;
+}
+
+function onHandlePointerCancel() {
+  if (sheetDragState.value !== 'dragging') return;
+  sheetDragState.value = 'idle';
+  dragDelta.value = 0;
+}
 
 // Derived
 const hasGenData = computed(() => hasCoreParams(props.meta?.params));
@@ -75,12 +116,22 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
     <div class="sheet-backdrop" @click.self="closeSheet" />
     <div
       class="sheet-panel"
-      :class="{ 'sheet-expanded': sheetExpanded, 'is-expanded': anyTextExpanded }"
-      @touchstart="onSheetTouchStart"
-      @touchmove="onSheetTouchMove"
-      @touchend="onSheetTouchEnd"
+      :class="{
+        'sheet-expanded': sheetExpanded,
+        'is-expanded': anyTextExpanded,
+        'no-transition': sheetDragState === 'dragging',
+        'is-dragging': sheetDragState === 'dragging',
+      }"
+      :style="{ transform: `translateY(${dragDelta}px)` }"
     >
-      <div class="sheet-handle-wrapper" @click="closeSheet">
+      <div
+        ref="handleRef"
+        class="sheet-handle-wrapper"
+        @pointerdown="onHandlePointerDown"
+        @pointermove="onHandlePointerMove"
+        @pointerup="onHandlePointerUp"
+        @pointercancel="onHandlePointerCancel"
+      >
         <div class="sheet-handle" />
       </div>
 

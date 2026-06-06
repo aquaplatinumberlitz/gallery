@@ -34,7 +34,7 @@
   max-height: 80dvh;
   display: flex;
   flex-direction: column;
-  transition: height 0.3s cubic-bezier(0.2, 0, 0, 1);
+  transition: height 0.3s cubic-bezier(0.2, 0, 0, 1), transform 0.2s ease-out;
   overflow: hidden;
 
   &.sheet-expanded {
@@ -44,7 +44,15 @@
   &.is-expanded {
     height: auto;
     max-height: min(70dvh, calc(100dvh - 160px));
-    transition: height 0.22s ease, max-height 0.22s ease;
+    transition: height 0.22s ease, max-height 0.22s ease, transform 0.2s ease-out;
+  }
+
+  &.no-transition {
+    transition: none !important;
+  }
+
+  &.is-dragging {
+    user-select: none;
   }
 }
 
@@ -54,6 +62,19 @@
   padding: 8px 0 4px;
   touch-action: none;
   flex-shrink: 0;
+  position: relative;
+
+  /* Extend invisible hit area to ~48px without visible padding */
+  &::before {
+    content: '';
+    position: absolute;
+    top: -12px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: auto;
+    z-index: 1;
+  }
 }
 
 .sheet-handle {
@@ -99,6 +120,8 @@
 .sheet-content {
   flex: 1;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
   padding: 12px 16px 24px;
   -webkit-overflow-scrolling: touch;
 
