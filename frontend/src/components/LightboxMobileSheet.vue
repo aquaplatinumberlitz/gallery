@@ -5,7 +5,7 @@ import ExpandableText from "./ExpandableText.vue";
 import type { MetadataResponse } from "../types";
 import { useHaptic } from "../composables/useHaptic";
 import {
-  Loader, Check, Copy, TriangleAlert, ChevronDown,
+  Loader, Check, Copy, TriangleAlert, ChevronDown, ChevronUp,
 } from "lucide-vue-next";
 import {
   hasCoreParams,
@@ -32,13 +32,13 @@ const emit = defineEmits<{
 
 const DRAG_THRESHOLD = 60;
 const MAX_DRAG = 120;
-const TAP_THRESHOLD = 10;
 
 const sheetExpanded = ref(false);
 const activeTab = ref('prompt');
 const showAdvanced = ref(false);
 const promptExpanded = ref(false);
 const negPromptExpanded = ref(false);
+const textResetKey = ref(0);
 const anyTextExpanded = computed(() => promptExpanded.value || negPromptExpanded.value);
 
 const sheetDragState = ref<'idle' | 'dragging'>('idle');
@@ -54,6 +54,17 @@ function setTab(tab: string) {
 function closeSheet() {
   sheetExpanded.value = false;
   emit('close');
+}
+
+function toggleSheetExpanded() {
+  if (sheetExpanded.value) {
+    promptExpanded.value = false;
+    negPromptExpanded.value = false;
+    textResetKey.value += 1;
+  }
+
+  sheetExpanded.value = !sheetExpanded.value;
+  hapticLight();
 }
 
 function applyClamp(delta: number): number {
@@ -78,10 +89,7 @@ function onHandlePointerUp(e: PointerEvent) {
   const delta = dragDelta.value;
   handleRef.value?.releasePointerCapture(e.pointerId);
 
-  if (Math.abs(delta) < TAP_THRESHOLD) {
-    sheetExpanded.value = !sheetExpanded.value;
-    hapticLight();
-  } else if (delta > DRAG_THRESHOLD) {
+  if (delta > DRAG_THRESHOLD) {
     if (sheetExpanded.value) {
       sheetExpanded.value = false;
     } else {
@@ -135,15 +143,27 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
         <div class="sheet-handle" />
       </div>
 
-      <div class="sheet-tabs" v-if="props.meta">
-        <button class="sheet-tab" :class="{ active: activeTab === 'prompt' }" @click="setTab('prompt')">
-          Prompt
-        </button>
-        <button class="sheet-tab" :class="{ active: activeTab === 'params' }" @click="setTab('params')">
-          Params
-        </button>
-        <button class="sheet-tab" :class="{ active: activeTab === 'model' }" @click="setTab('model')">
-          Model
+      <div class="sheet-header" v-if="props.meta">
+        <div class="sheet-tabs">
+          <button class="sheet-tab" :class="{ active: activeTab === 'prompt' }" @click="setTab('prompt')">
+            Prompt
+          </button>
+          <button class="sheet-tab" :class="{ active: activeTab === 'params' }" @click="setTab('params')">
+            Params
+          </button>
+          <button class="sheet-tab" :class="{ active: activeTab === 'model' }" @click="setTab('model')">
+            Model
+          </button>
+        </div>
+        <button
+          type="button"
+          class="sheet-expand-toggle"
+          :aria-label="sheetExpanded ? 'Collapse metadata sheet' : 'Expand metadata sheet'"
+          :aria-expanded="sheetExpanded"
+          @click="toggleSheetExpanded"
+        >
+          <ChevronDown v-if="sheetExpanded" :size="22" :stroke-width="2.25" />
+          <ChevronUp v-else :size="22" :stroke-width="2.25" />
         </button>
       </div>
 
@@ -177,7 +197,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                 </template>
               </div>
               <div v-if="props.meta?.prompt" class="sheet-text">
-                <ExpandableText :collapsed-lines="5" :text="props.meta.prompt" @expanded-change="(val: boolean) => promptExpanded = val">
+                <ExpandableText :key="`prompt-${textResetKey}`" :collapsed-lines="5" :text="props.meta.prompt" @expanded-change="(val: boolean) => promptExpanded = val">
                   <span v-html="loraHighlighter(props.meta.prompt)"></span>
                 </ExpandableText>
               </div>
@@ -197,7 +217,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                 </template>
               </div>
               <div v-if="props.meta?.negative_prompt" class="sheet-text">
-                <ExpandableText :collapsed-lines="5" :text="props.meta.negative_prompt" @expanded-change="(val: boolean) => negPromptExpanded = val">
+                <ExpandableText :key="`neg-prompt-${textResetKey}`" :collapsed-lines="5" :text="props.meta.negative_prompt" @expanded-change="(val: boolean) => negPromptExpanded = val">
                   <span v-html="loraHighlighter(props.meta.negative_prompt)"></span>
                 </ExpandableText>
               </div>
