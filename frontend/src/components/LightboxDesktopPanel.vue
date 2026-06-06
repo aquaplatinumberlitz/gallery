@@ -97,6 +97,7 @@ const modelCount = computed(() => {
               class="close-btn-mini fullscreen-btn"
               @click="emit('toggle-fullscreen')"
               :title="props.isFullscreen ? 'Exit fullscreen' : 'Fullscreen'"
+              aria-label="Toggle fullscreen"
             >
               <Minimize v-if="props.isFullscreen" :stroke-width="1.5" class="icon-lg" />
               <Maximize v-else :stroke-width="1.5" class="icon-lg" />
@@ -105,6 +106,7 @@ const modelCount = computed(() => {
               class="close-btn-mini"
               @click="emit('close')"
               title="Close (Escape)"
+              aria-label="Close lightbox"
             >
               <X :stroke-width="1.5" class="icon-lg" />
             </button>

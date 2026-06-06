@@ -196,6 +196,12 @@ function handleToggleFullscreen() {
             @close="handleClose"
             @index-change="handleIndexChange"
           />
+          <div
+            v-if="lightbox.galleryItems.length > 1"
+            class="desktop-lightbox-counter"
+          >
+            {{ lightbox.currentIndex + 1 }} / {{ lightbox.galleryItems.length }}
+          </div>
           <!-- Image counter for screen readers -->
           <div class="sr-only">
             Image {{ lightbox.currentIndex + 1 }} of {{ lightbox.galleryItems.length }}
@@ -378,6 +384,30 @@ function handleToggleFullscreen() {
   white-space: nowrap;
   user-select: none;
   z-index: 2000;
+}
+
+/* Desktop image counter — top-center of image viewport */
+.desktop-lightbox-counter {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  pointer-events: none;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.52);
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  white-space: nowrap;
+  user-select: none;
 }
 </style>
 
