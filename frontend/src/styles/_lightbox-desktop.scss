@@ -23,18 +23,21 @@
   flex-direction: column;
   color: var(--gallery-lightbox-text, #e0e0e0);
   font-family: 'Inter', sans-serif;
+  overflow: hidden;
 }
 
 .meta-header {
   padding: 20px;
   border-bottom: 1px solid var(--gallery-lightbox-border, rgba(255,255,255,0.1));
   background: rgba(0, 0, 0, 0.2);
+  min-width: 0;
+  overflow: hidden;
 }
 
 .header-top {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
   margin-bottom: 12px;
 
@@ -43,8 +46,10 @@
     font-size: 16px;
     font-weight: 600;
     color: #fff;
-    word-break: break-all;
-    line-height: 1.4;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 
@@ -52,6 +57,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .close-btn-mini {
@@ -62,6 +68,7 @@
   font-size: 18px;
   padding: 4px;
   transition: color 0.2s;
+  flex-shrink: 0;
 
   &:hover { color: #fff; }
 }
@@ -91,12 +98,14 @@
   background: rgba(255, 255, 255, 0.05);
   padding: 4px 8px;
   border-radius: 4px;
+  min-width: 0;
 }
 
 .scroll-content {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -104,6 +113,7 @@
 
   & > * {
     flex-shrink: 0;
+    min-width: 0;
   }
 
   &::-webkit-scrollbar {
@@ -162,6 +172,8 @@
 .prompt-body {
   padding: 12px;
   font-size: 13px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 /* Collapsible Groups */
@@ -170,6 +182,7 @@
 
 .group-content {
   padding: 8px 12px 12px;
+  min-width: 0;
 }
 
 /* Resource List */
@@ -177,30 +190,50 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
 }
 
 .resource-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  overflow: hidden;
   padding: 8px;
   background: rgba(255, 255, 255, 0.03);
   border-radius: 6px;
 
+  > :first-child {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+
   .res-info {
     display: flex;
     flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
   }
 
   .res-type {
     font-size: 10px;
     color: #666;
     text-transform: uppercase;
+    flex-shrink: 0;
+    white-space: nowrap;
   }
 
   .res-name {
     font-size: 13px;
     color: #e5e7eb;
+    min-width: 0;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
   }
 
   .res-hash {

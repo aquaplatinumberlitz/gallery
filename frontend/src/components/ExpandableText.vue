@@ -91,6 +91,8 @@ watch(() => props.text, () => {
 .expandable-text-content {
   white-space: pre-wrap;
   overflow-wrap: break-word;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   font-family: 'JetBrains Mono', monospace;
   color: #d1d5db;
   line-height: 1.5;

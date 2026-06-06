@@ -58,17 +58,26 @@
   padding: 4px 8px;
   border-radius: 6px;
   font-size: 12px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 
   .label {
     color: #999;
     text-transform: uppercase;
     font-size: 10px;
     font-weight: 600;
+    flex-shrink: 0;
+    white-space: nowrap;
   }
 
   .value {
     color: #fff;
     font-family: 'JetBrains Mono', monospace;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .icon-btn {
@@ -79,6 +88,7 @@
     padding: 0;
     display: flex;
     font-size: 12px;
+    flex-shrink: 0;
     &:hover { color: #fff; }
   }
 }
@@ -257,6 +267,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
 
   .source-label {
     font-size: 9px;
@@ -264,6 +275,7 @@
     letter-spacing: 0.08em;
     font-weight: 700;
     color: var(--gallery-lightbox-text-muted, #999);
+    flex-shrink: 0;
   }
 
   .source-chip {
@@ -276,6 +288,9 @@
     border-radius: 4px;
     font-family: 'Inter', sans-serif;
     white-space: nowrap;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 
