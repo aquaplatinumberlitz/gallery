@@ -61,35 +61,52 @@ watch(() => props.text, () => {
 </script>
 
 <template>
-  <div class="expandable-text">
+  <div
+    class="expandable-text"
+    :class="{
+      'is-clamped': !isExpanded && showToggle,
+      'is-expanded': isExpanded
+    }"
+    :style="{ '--line-clamp': props.collapsedLines }"
+  >
     <div
       ref="textRef"
-      class="expandable-text-content"
+      class="expandable-text__content"
       :class="{ 'is-clamped': !isExpanded }"
-      :style="{ WebkitLineClamp: isExpanded ? 'unset' : props.collapsedLines }"
     >
       <slot />
     </div>
+    <span
+      v-if="showToggle && !isExpanded"
+      class="expandable-text__fade-toggle"
+    >
+      <button
+        type="button"
+        class="expandable-text__toggle"
+        :aria-expanded="false"
+        @click="toggle"
+      >
+        Show more
+      </button>
+    </span>
     <button
-      v-if="showToggle"
+      v-if="showToggle && isExpanded"
       type="button"
-      class="expandable-text-toggle"
-      :aria-expanded="isExpanded"
+      class="expandable-text__toggle expandable-text__toggle--inline"
+      :aria-expanded="true"
       @click="toggle"
     >
-      {{ isExpanded ? 'Show less' : 'Show more' }}
+      Show less
     </button>
   </div>
 </template>
 
 <style scoped>
 .expandable-text {
-  display: flex;
-  flex-direction: column;
+  position: relative;
 }
 
-.expandable-text-content {
-  white-space: pre-wrap;
+.expandable-text__content {
   overflow-wrap: break-word;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -98,35 +115,86 @@ watch(() => props.text, () => {
   line-height: 1.5;
 }
 
-.expandable-text-content.is-clamped {
+.expandable-text__content.is-clamped {
+  white-space: normal;
   display: -webkit-box;
   -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--line-clamp);
   overflow: hidden;
 }
 
-.expandable-text-toggle {
+/* ------------------------------------------------------------------ */
+/* Collapsed: overlay at bottom-right with gradient fade              */
+/* ------------------------------------------------------------------ */
+
+.expandable-text__fade-toggle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
   display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: none;
-  border: none;
-  color: #86efac;
-  cursor: pointer;
-  font-size: 11px;
-  font-family: 'Inter', sans-serif;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  align-items: flex-end;
+  height: 1lh;
+  line-height: inherit;
+  background: var(--metadata-panel-bg, #000);
+}
+
+.expandable-text__fade-toggle::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3em;
+  width: 3em;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0), var(--metadata-panel-bg, #000));
+}
+
+/* ------------------------------------------------------------------ */
+/* Expanded: full text, button inline after                           */
+/* ------------------------------------------------------------------ */
+
+.expandable-text.is-expanded .expandable-text__content {
+  white-space: pre-wrap;
+  display: block;
+  overflow: visible;
+}
+
+.expandable-text__toggle--inline {
+  display: inline-block;
   margin-top: 6px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Toggle button – CivitAI-style blue link                            */
+/* ------------------------------------------------------------------ */
+
+.expandable-text__toggle {
+  display: inline;
+  height: auto;
+  min-height: 0;
+  line-height: inherit;
   padding: 0;
-  align-self: flex-start;
+  margin: 0;
+  border: 0;
+  background: none;
+  appearance: none;
+  font: inherit;
+  margin-left: 4px;
+  color: rgba(96, 190, 255, 0.96);
+  font-weight: 500;
+  cursor: pointer;
+  text-transform: none;
+  white-space: nowrap;
 }
 
-.expandable-text-toggle:hover {
-  color: #bbf7d0;
+.expandable-text__toggle:hover {
+  color: rgba(145, 215, 255, 1);
+  text-decoration: underline;
 }
 
-.expandable-text-toggle:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring-shadow);
+.expandable-text__toggle:focus-visible {
+  outline: 2px solid rgba(96, 190, 255, 0.75);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 </style>

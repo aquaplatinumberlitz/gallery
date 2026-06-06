@@ -38,9 +38,9 @@ usePhotoSwipe({
 <template>
   <div ref="containerRef" class="mobile-photoswipe-container"></div>
   <button
+    v-if="!metadataOpen"
     class="lightbox-floating-control lightbox-floating-control--mobile"
-    :class="{ 'is-active': metadataOpen }"
-    :aria-label="metadataOpen ? 'Close image info' : 'View image info'"
+    :aria-label="'View image info'"
     @click.stop="emit('toggleMetadata')"
   >
     <Info :size="22" :stroke-width="2.2" />
