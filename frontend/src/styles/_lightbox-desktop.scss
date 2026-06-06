@@ -166,12 +166,12 @@
   line-height: 1.5;
   color: #d1d5db;
   white-space: pre-wrap;
-  max-height: 200px;
+  overflow-wrap: break-word;
+  overflow: visible;
   /* Prevent focus on scrollable text - only interactive elements should be focusable */
   &:focus {
     outline: none;
   }
-  overflow-y: auto;
 }
 
 /* Collapsible Groups */
