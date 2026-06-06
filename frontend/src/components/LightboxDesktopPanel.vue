@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { loraHighlighter } from "../utils/loraHighlighter";
+import ExpandableText from "./ExpandableText.vue";
 import type { MetadataResponse } from "../types";
 import {
   Loader, Maximize, Minimize, X,
@@ -135,12 +136,11 @@ const modelCount = computed(() => {
               <Copy v-else :stroke-width="1.5" class="icon-sm" />
             </button>
           </div>
-          <div
-            v-if="props.meta?.prompt"
-            class="prompt-body"
-            tabindex="-1"
-            v-html="loraHighlighter(props.meta.prompt)"
-          ></div>
+          <div v-if="props.meta?.prompt" class="prompt-body">
+            <ExpandableText :collapsed-lines="8" :text="props.meta.prompt">
+              <span v-html="loraHighlighter(props.meta.prompt)"></span>
+            </ExpandableText>
+          </div>
           <p v-else class="empty-text">{{ EMPTY_SECTION_TEXT.prompt }}</p>
         </section>
 
@@ -158,12 +158,11 @@ const modelCount = computed(() => {
               <Copy v-else :stroke-width="1.5" class="icon-sm" />
             </button>
           </div>
-          <div
-            v-if="props.meta?.negative_prompt"
-            class="prompt-body"
-            tabindex="-1"
-            v-html="loraHighlighter(props.meta.negative_prompt)"
-          ></div>
+          <div v-if="props.meta?.negative_prompt" class="prompt-body">
+            <ExpandableText :collapsed-lines="8" :text="props.meta.negative_prompt">
+              <span v-html="loraHighlighter(props.meta.negative_prompt)"></span>
+            </ExpandableText>
+          </div>
           <p v-else class="empty-text">{{ EMPTY_SECTION_TEXT.negative_prompt }}</p>
         </section>
 

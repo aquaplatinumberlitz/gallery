@@ -161,17 +161,7 @@
 
 .prompt-body {
   padding: 12px;
-  font-family: 'JetBrains Mono', monospace;
   font-size: 13px;
-  line-height: 1.5;
-  color: #d1d5db;
-  white-space: pre-wrap;
-  overflow-wrap: break-word;
-  overflow: visible;
-  /* Prevent focus on scrollable text - only interactive elements should be focusable */
-  &:focus {
-    outline: none;
-  }
 }
 
 /* Collapsible Groups */

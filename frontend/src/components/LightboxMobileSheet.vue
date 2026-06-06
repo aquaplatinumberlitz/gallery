@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { loraHighlighter } from "../utils/loraHighlighter";
+import ExpandableText from "./ExpandableText.vue";
 import type { MetadataResponse } from "../types";
 import { useHaptic } from "../composables/useHaptic";
 import {
@@ -34,6 +35,9 @@ const sheetExpanded = ref(false);
 const activeTab = ref('prompt');
 const sheetStartY = ref(0);
 const showAdvanced = ref(false);
+const promptExpanded = ref(false);
+const negPromptExpanded = ref(false);
+const anyTextExpanded = computed(() => promptExpanded.value || negPromptExpanded.value);
 
 function setTab(tab: string) {
   activeTab.value = tab;
@@ -71,7 +75,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
     <div class="sheet-backdrop" @click.self="closeSheet" />
     <div
       class="sheet-panel"
-      :class="{ 'sheet-expanded': sheetExpanded }"
+      :class="{ 'sheet-expanded': sheetExpanded, 'is-expanded': anyTextExpanded }"
       @touchstart="onSheetTouchStart"
       @touchmove="onSheetTouchMove"
       @touchend="onSheetTouchEnd"
@@ -121,11 +125,11 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                   <Copy v-else :size="14" :stroke-width="1.5" class="inline-copy-icon" />
                 </template>
               </div>
-              <div
-                v-if="props.meta?.prompt"
-                class="sheet-text"
-                v-html="loraHighlighter(props.meta.prompt)"
-              ></div>
+              <div v-if="props.meta?.prompt" class="sheet-text">
+                <ExpandableText :collapsed-lines="5" :text="props.meta.prompt" @expanded-change="(val: boolean) => promptExpanded = val">
+                  <span v-html="loraHighlighter(props.meta.prompt)"></span>
+                </ExpandableText>
+              </div>
               <p v-else class="empty-text">{{ EMPTY_SECTION_TEXT.prompt }}</p>
             </div>
             <div class="meta-section" :class="{ 'is-empty': !props.meta?.negative_prompt }">
@@ -141,11 +145,11 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                   <Copy v-else :size="14" :stroke-width="1.5" class="inline-copy-icon" />
                 </template>
               </div>
-              <div
-                v-if="props.meta?.negative_prompt"
-                class="sheet-text"
-                v-html="loraHighlighter(props.meta.negative_prompt)"
-              ></div>
+              <div v-if="props.meta?.negative_prompt" class="sheet-text">
+                <ExpandableText :collapsed-lines="5" :text="props.meta.negative_prompt" @expanded-change="(val: boolean) => negPromptExpanded = val">
+                  <span v-html="loraHighlighter(props.meta.negative_prompt)"></span>
+                </ExpandableText>
+              </div>
               <p v-else class="empty-text">{{ EMPTY_SECTION_TEXT.negative_prompt }}</p>
             </div>
           </div>

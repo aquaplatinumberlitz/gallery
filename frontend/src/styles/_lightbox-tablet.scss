@@ -124,6 +124,7 @@
 .tablet-col {
   overflow-y: auto;
   padding: 16px;
+  padding-bottom: 96px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -166,15 +167,8 @@
 
 /* Tablet prompt text */
 .tablet-text {
-  font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
-  line-height: 1.5;
-  color: #d1d5db;
-  white-space: pre-wrap;
   margin: 0;
-  word-break: break-word;
-  max-height: 160px;
-  overflow-y: auto;
 }
 
 /* Tablet section top with copy button */
