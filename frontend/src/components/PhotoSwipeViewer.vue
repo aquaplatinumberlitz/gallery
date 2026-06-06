@@ -12,6 +12,7 @@ const props = defineProps<{
   closeOnVerticalDrag: boolean;
   allowPanToNext: boolean;
   thumbnailSize: number | null; // null = full-res
+  paddingFn?: (viewportSize: { x: number; y: number }, itemData: unknown, index: number) => { top: number; bottom: number; left: number; right: number };
 }>();
 
 const emit = defineEmits<{
@@ -29,6 +30,7 @@ usePhotoSwipe({
   photoSwipeOptions: {
     closeOnVerticalDrag: props.closeOnVerticalDrag,
     allowPanToNext: props.allowPanToNext,
+    ...(props.paddingFn ? { paddingFn: props.paddingFn } : {}),
   },
   thumbnailSize: props.thumbnailSize,
   onIndexChange: (index) => emit("indexChange", index),

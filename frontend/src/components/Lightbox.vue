@@ -4,6 +4,7 @@ import { useLightboxStore } from "../stores/lightbox";
 import { useFocusTrap } from "../composables/useFocusTrap";
 import { useClipboard } from "../composables/useClipboard";
 import { useDevice } from "../composables/useDevice";
+import { DESKTOP_METADATA_WIDTH } from "../constants";
 import {
   Minimize, X,
 } from "lucide-vue-next";
@@ -48,6 +49,19 @@ const dateText = computed(() => {
 const genTimeText = computed(() => {
   if (meta.value?.generation_time) return meta.value.generation_time;
   return "";
+});
+
+const sidebarWidthStyle = computed(() =>
+  (isDesktop.value || isWide.value) && !isFullscreen.value
+    ? `${DESKTOP_METADATA_WIDTH}px`
+    : "0px"
+);
+
+const desktopPaddingFn = (_viewportSize: { x: number; y: number }, _itemData: unknown, _index: number) => ({
+  top: 0,
+  bottom: 0,
+  left: 0,
+  right: isFullscreen.value ? 0 : DESKTOP_METADATA_WIDTH,
 });
 
 function handleClose() {
@@ -147,6 +161,7 @@ const canFullscreen = computed(() => typeof document !== "undefined" && document
 const handleFullscreenChange = () => {
   const active = !!document.fullscreenElement;
   isFullscreen.value = active;
+  window.dispatchEvent(new Event("resize"));
 };
 
 const enterFullscreen = async () => {
@@ -183,6 +198,7 @@ function handleToggleFullscreen() {
         v-if="show"
         ref="lightboxRef"
         class="lightbox-overlay"
+        :style="{ '--lightbox-sidebar-width': sidebarWidthStyle }"
       >
         <!-- Desktop/Wide: PhotoSwipe + Sidebar -->
         <template v-if="isDesktop || isWide">
@@ -193,6 +209,7 @@ function handleToggleFullscreen() {
             :close-on-vertical-drag="false"
             :allow-pan-to-next="false"
             :thumbnail-size="2400"
+            :padding-fn="desktopPaddingFn"
             @close="handleClose"
             @index-change="handleIndexChange"
           />
@@ -390,7 +407,7 @@ function handleToggleFullscreen() {
 .desktop-lightbox-counter {
   position: absolute;
   top: 18px;
-  left: 50%;
+  left: calc(50% - var(--lightbox-sidebar-width, 400px) / 2);
   transform: translateX(-50%);
   z-index: 20;
   pointer-events: none;
@@ -414,18 +431,21 @@ function handleToggleFullscreen() {
 <!-- Lightbox CSS variable definitions + PhotoSwipe right arrow fix -->
 <style lang="scss">
 /*
-  The sidebar .lightbox-right sits in front of PhotoSwipe, covering the right
-  ~400px of the viewport. This makes PhotoSwipe's native next arrow (which
-  PhotoSwipe positions near the right edge) unclickable.
-
-  Instead of z-index hacks, we simply offset the next arrow left of the sidebar
-  by the sidebar width + a gap. CSS variables keep sidebar and arrow in sync.
+  CSS variables for desktop lightbox layout.
+  --lightbox-sidebar-width is set via inline :style on .lightbox-overlay
+  (400px when sidebar visible, 0px when fullscreen or non-desktop).
+  Fallback declared here for non-desktop contexts.
 */
 .lightbox-overlay {
-  --lightbox-sidebar-width: 400px;
+  --lightbox-sidebar-width: 0px;
   --lightbox-arrow-gap: 16px;
 }
 
+/*
+  Offset PhotoSwipe's next arrow left of the sidebar so it remains clickable
+  and visually belongs to the image viewport. When sidebar is hidden (fullscreen
+  or non-desktop), --lightbox-sidebar-width is 0px, restoring the default position.
+*/
 .pswp__button--arrow--next {
   right: calc(var(--lightbox-sidebar-width) + var(--lightbox-arrow-gap));
 }
