@@ -221,31 +221,74 @@
   font-family: 'JetBrains Mono', monospace;
 }
 
-/* Mobile sheet section-top with copy button — simplified override */
+/* Mobile sheet section heading with inline copy action */
 .section-top {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  justify-content: flex-start;
+  align-self: flex-start;
+  gap: 0;
+}
+
+.inline-copy-button {
+  position: static;
+  width: 28px;
+  height: 28px;
+  margin: -7px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+
+  &:active {
+    transform: scale(0.94);
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.86);
+  }
+
+  &:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.45);
+    outline-offset: 2px;
+  }
 }
 
 /* Inline copy icon — subtle hint only, no button frame */
 .inline-copy-icon {
+  position: static;
   width: 14px;
   height: 14px;
-  opacity: 0.65;
+  margin-left: 6px;
+  opacity: 1;
   flex-shrink: 0;
   pointer-events: none;
-  color: #888;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.inline-copy-button .inline-copy-icon {
+  margin-left: 0;
+  color: currentColor;
 }
 
 /* Copyable chip/field — whole element is tappable */
 .metadata-copyable {
-  cursor: pointer;
+  &.section-top {
+    cursor: default;
+  }
 
-  &:active {
-    transform: scale(0.985);
-    background: rgba(255, 255, 255, 0.08);
+  &:not(.section-top) {
+    cursor: pointer;
+
+    &:active {
+      transform: scale(0.985);
+      background: rgba(255, 255, 255, 0.08);
+    }
   }
 }
 

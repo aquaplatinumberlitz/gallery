@@ -220,14 +220,19 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
               <div
                 class="section-top"
                 :class="{ 'metadata-copyable': props.meta?.prompt }"
-                @click="props.meta?.prompt && props.copyText(props.meta?.prompt, 'prompt')"
-                :title="props.meta?.prompt ? 'Copy prompt' : undefined"
               >
                 <label class="sheet-label">Prompt</label>
-                <template v-if="props.meta?.prompt">
+                <button
+                  v-if="props.meta?.prompt"
+                  type="button"
+                  class="inline-copy-button"
+                  title="Copy prompt"
+                  aria-label="Copy prompt"
+                  @click.stop="props.copyText(props.meta?.prompt, 'prompt')"
+                >
                   <Check v-if="props.copyStatus['prompt']" :size="14" :stroke-width="1.5" style="color: #4ade80" class="inline-copy-icon" />
                   <Copy v-else :size="14" :stroke-width="1.5" class="inline-copy-icon" />
-                </template>
+                </button>
               </div>
               <div v-if="props.meta?.prompt" class="sheet-text">
                 <ExpandableText :key="`prompt-${textResetKey}`" :collapsed-lines="5" :text="props.meta.prompt" :expanded="promptExpanded" @expanded-change="onPromptExpandedChange">
@@ -240,14 +245,19 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
               <div
                 class="section-top"
                 :class="{ 'metadata-copyable': props.meta?.negative_prompt }"
-                @click="props.meta?.negative_prompt && props.copyText(props.meta?.negative_prompt, 'neg')"
-                :title="props.meta?.negative_prompt ? 'Copy negative prompt' : undefined"
               >
                 <label class="sheet-label negative-label">Negative Prompt</label>
-                <template v-if="props.meta?.negative_prompt">
+                <button
+                  v-if="props.meta?.negative_prompt"
+                  type="button"
+                  class="inline-copy-button"
+                  title="Copy negative prompt"
+                  aria-label="Copy negative prompt"
+                  @click.stop="props.copyText(props.meta?.negative_prompt, 'neg')"
+                >
                   <Check v-if="props.copyStatus['neg']" :size="14" :stroke-width="1.5" style="color: #4ade80" class="inline-copy-icon" />
                   <Copy v-else :size="14" :stroke-width="1.5" class="inline-copy-icon" />
-                </template>
+                </button>
               </div>
               <div v-if="props.meta?.negative_prompt" class="sheet-text">
                 <ExpandableText :key="`neg-prompt-${textResetKey}`" :collapsed-lines="5" :text="props.meta.negative_prompt" :expanded="negPromptExpanded" @expanded-change="onNegPromptExpandedChange">
