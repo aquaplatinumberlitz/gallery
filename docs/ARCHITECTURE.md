@@ -1,6 +1,6 @@
 # Architecture
 
-Last reviewed: 2026-06-06
+Last reviewed: 2026-06-07
 
 ## Overview
 
@@ -131,7 +131,22 @@ Metadata panels:
 
 - Desktop: fixed right sidebar, accordions, fullscreen and close controls.
 - Tablet: two-column bottom sheet, expandable.
-- Mobile: tabbed bottom sheet with Prompt, Params, and Model tabs; handle-only drag; safe-area-aware controls.
+- Mobile: tabbed VSBS bottom sheet with Prompt, Params, and Model tabs; library-managed drag/snap/scroll; safe-area-aware controls.
+
+Mobile sheet integration:
+
+- `LightboxMobileSheet.vue` uses `@douxcode/vue-spring-bottom-sheet` for mobile metadata only. Desktop and tablet lightbox panels are separate components and should not share this sheet code.
+- VSBS handles drag, snap, swipe-close, and scroll behavior. The previous custom pointer drag implementation was removed and should not be restored.
+- `blocking=false` is required because the VSBS focus trap conflicts with PhotoSwipe focus management.
+- VSBS DOM is teleported to `<body>`, so the component keeps its VSBS overrides in a non-scoped global style block.
+- Width and background overrides keep `[data-vsbs-sheet]`, `[data-vsbs-scroll]`, `[data-vsbs-content]`, `.sheet-content`, and `.expandable-text` full-width and dark themed.
+- Approved UX: info opens the sheet, the info button is hidden while open, the chevron expands/collapses Prompt and Negative Prompt text, Prompt/Params/Model tabs work, copy buttons work, and PhotoSwipe image swipes continue to work.
+
+Dependency audit, 2026-06-07:
+
+- `npm audit` reported 6 vulnerabilities: axios high, follow-redirects moderate, immutable high, picomatch high, rollup high, and vite high.
+- `npm audit --omit=dev` reported 2 production vulnerabilities: axios high and follow-redirects moderate.
+- Audit output suggested `npm audit fix`; no automatic fix was applied during the VSBS cleanup.
 
 ## Layout Dispatch
 
@@ -155,6 +170,6 @@ Each layout owns its sidebar/header/content shell and receives data/actions from
 
 - Keep `useDevice.ts`, `_breakpoints.scss`, and `useColumnResize.ts` synchronized when changing breakpoints.
 - Keep desktop lightbox `DESKTOP_METADATA_WIDTH`, `--lightbox-sidebar-width`, PhotoSwipe `paddingFn`, counter positioning, and next-arrow offset synchronized.
-- Keep mobile sheet drag handlers on the handle, not the whole sheet, so content scrolling remains independent.
+- Keep mobile sheet drag/snap/scroll behavior delegated to VSBS; do not restore `.sheet-panel` pointer-drag code.
 - Keep `pswp.currIndex !== index` in the PhotoSwipe index watcher to prevent feedback loops.
 - Keep `hasEverLoaded` behavior in the gallery store so the UI does not show a false empty state before the first scan finishes.
