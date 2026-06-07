@@ -9,12 +9,13 @@ The backend is already built on a reasonable foundation: FastAPI, Pydantic model
 Recommended direction:
 
 - Keep FastAPI. Alternatives do not remove meaningful custom code in this backend.
-- Add `pydantic-settings` in a low-risk configuration cleanup phase.
-- Replace custom natural sort with `natsort` if sort behavior needs to be more robust across filenames.
+- Make a backend refactor plus `pydantic-settings` the Phase 1 priority. Plan the module split first, then move code with zero behavior change.
+- Add tests before replacing logic: path safety, natural sort, metadata parser fixtures, and thumbnail guardrails.
 - Keep the current path safety implementation. `pathvalidate` solves different problems: validating/sanitizing path strings, not authorizing resolved filesystem access under `GALLERY_ROOT`.
-- Keep Pillow for now. Prototype `pyvips` only if thumbnail throughput or memory usage becomes a measured bottleneck.
-- Keep `cachetools` memory cache for now. Prototype `diskcache` only for persistent thumbnails or cross-process cache reuse.
-- Treat folder indexing, SQLite FTS5, and `sd-parsers` as prototypes behind tests. They can improve capability, but they change semantics and add operational complexity.
+- Use Fuse.js in the frontend first for search. SQLite FTS5 is optional later if large-scale search needs a backend index.
+- Keep the custom Stable Diffusion metadata parser. It is project-specific and currently supports more relevant formats, including SwarmUI, EasyDiffusion, sidecar files, and LoRA extraction.
+- Keep Pillow. Do not prioritize `pyvips` unless thumbnail throughput or memory usage becomes a measured bottleneck.
+- Keep `cachetools` memory cache. Prototype `diskcache` only if persistent thumbnails or cross-process cache reuse becomes necessary.
 - Keep `/api/open-folder` custom and disabled by default.
 
 No runtime code or dependency files were changed for this investigation.
@@ -58,7 +59,7 @@ Current backend responsibilities:
 | Path safety | pathvalidate | https://pathvalidate.readthedocs.io/en/latest/ | Filename/path string validation | Production/stable; PyPI 3.3.1 | Medium if confused with authorization | Do not replace path safety; optional input validation only |
 | Folder indexing | watchdog | https://watchdog.readthedocs.io/en/stable/ | Poll/rescan model with filesystem events | Production/stable; PyPI 6.0.0; GitHub ~7.3k stars | Medium-high; platform-specific watcher behavior | Prototype only if indexing is added |
 | Folder indexing | watchfiles | https://watchfiles.helpmanual.io/ | Modern file watching | Production/stable; PyPI 1.2.0; GitHub ~2.5k stars | Medium; Rust-backed dependency, event semantics | Prototype only if indexing is added |
-| Folder indexing/search | SQLite index | https://www.sqlite.org/ | Persist folder/image metadata, paging, search | Extremely mature, stdlib `sqlite3` available | Medium-high; requires schema, invalidation, rebuild strategy | Phase 2 prototype |
+| Folder indexing/search | SQLite index | https://www.sqlite.org/ | Persist folder/image metadata, paging, search | Extremely mature, stdlib `sqlite3` available | Medium-high; requires schema, invalidation, rebuild strategy | Optional later for large scale |
 | Thumbnails | Pillow | https://pillow.readthedocs.io/ | Current image decode/resize/WebP/EXIF transpose | Mature and already integrated; PyPI 12.0.0 in requirements | Low | Keep |
 | Thumbnails | pyvips | https://libvips.github.io/pyvips/ | Faster/lower-memory thumbnail pipeline | Production/stable; PyPI 3.1.1; GitHub ~800 stars; backed by libvips | Medium-high; native libvips dependency and behavior parity testing | Prototype only for measured bottlenecks |
 | Thumbnails | Wand/ImageMagick | https://docs.wand-py.org/en/latest/ | Alternative image pipeline | Production/stable; PyPI 0.7.1; GitHub ~1.5k stars | High; native ImageMagick dependency and policy/config concerns | Do not prefer |
@@ -68,8 +69,9 @@ Current backend responsibilities:
 | EXIF | piexif | https://piexif.readthedocs.io/en/latest/ | EXIF read/write manipulation | Production/stable; PyPI 1.1.3, but less active | Medium; extra dependency mostly for writes | Do not add unless EXIF write/edit is needed |
 | EXIF | ExifRead | https://exif-py.readthedocs.io/en/latest/ | Read-only EXIF extraction | Production/stable; PyPI 3.5.1; GitHub ~950 stars | Low-medium | Consider only if Pillow misses needed EXIF tags |
 | EXIF | PyExifTool | https://sylikc.github.io/pyexiftool/ | Wrapper around external ExifTool | Beta on PyPI; active fork; requires ExifTool binary | High operational dependency | Optional advanced metadata tool, not default |
-| SD metadata | sd-parsers | https://github.com/d3x-at/sd-parsers | Stable Diffusion metadata parser library | Small project; PyPI 0.6; GitHub ~45 stars | Medium-high; output schema differs; no SwarmUI listed | Prototype, not direct replacement yet |
-| Search | SQLite FTS5 | https://sqlite.org/fts5.html | Backend full-text search over filename/path/metadata | Built into SQLite builds when enabled | Medium; needs index and query API | Best backend search candidate |
+| SD metadata | sd-parsers | https://github.com/d3x-at/sd-parsers | Stable Diffusion metadata parser library | Small project; PyPI 0.6; GitHub ~45 stars | Medium-high; output schema differs; no SwarmUI listed | Do not prioritize; keep custom parser |
+| Search | Fuse.js | https://www.fusejs.io/ | Frontend fuzzy search over loaded gallery data | Mature and frontend-local | Low; no backend schema or index | Recommended first |
+| Search | SQLite FTS5 | https://sqlite.org/fts5.html | Backend full-text search over filename/path/metadata | Built into SQLite builds when enabled | Medium; needs index and query API | Optional later for large scale |
 | Search | Whoosh | https://whoosh.readthedocs.io/en/latest/ | Pure-Python full-text indexing | Stable but old; PyPI 2.7.4 | Medium; extra index format, older maintenance profile | Avoid unless SQLite FTS5 is unavailable |
 | Sort | natsort | https://natsort.readthedocs.io/en/stable/ | Custom regex natural sort | Production/stable; PyPI 8.4.0; GitHub ~1k stars | Low | Adopt if filename sort bugs appear |
 | Static serving | WhiteNoise | https://whitenoise.readthedocs.io/en/latest/ | Production static asset serving | Production/stable; PyPI 6.12.0; GitHub ~2.7k stars | Medium; WSGI-focused docs, ASGI integration less direct | Do not add for this app |
@@ -101,6 +103,8 @@ Cons:
 
 Recommendation: Keep FastAPI.
 
+Final project decision: Keep FastAPI. The framework is not the problem.
+
 ### 2. Config/env settings - pydantic-settings
 
 Current code manually reads env vars in several places. `pydantic-settings` provides a typed `BaseSettings` model that reads values from environment variables, supports defaults, `.env` files, env prefixes, and secrets files.
@@ -127,6 +131,8 @@ Integration risk: Low.
 
 Recommendation: Adopt in Phase 1, preserving current env names and defaults exactly.
 
+Final project decision: `pydantic-settings` is part of the Phase 1 backend refactor priority.
+
 ### 3. Path safety/filesystem - pathvalidate or keep custom
 
 Current path safety is an authorization check: resolve a user-supplied path and ensure it remains under `GALLERY_ROOT`. This guards traversal and symlink escape by checking the resolved path.
@@ -146,6 +152,8 @@ Cons:
 Integration risk: Medium if misapplied.
 
 Recommendation: Keep the custom containment check. Consider `pathvalidate` only if the app later creates or renames files from user input.
+
+Final project decision: Preserve current `GALLERY_ROOT` safety behavior during the refactor. Production hardening can be documented separately, but it is not part of the behavior-preserving Phase 1 change.
 
 ### 4. Folder scanning/indexing - watchdog, watchfiles, SQLite index
 
@@ -171,7 +179,7 @@ Cons:
 
 Integration risk: Medium-high.
 
-Recommendation: Prototype a SQLite index in Phase 2. Use watchers only to invalidate or enqueue index refreshes, not as the sole correctness mechanism.
+Recommendation: Do not prioritize backend indexing yet. Use the Phase 1 refactor and test coverage to make scanning safer to change later. Consider a SQLite index only after scale issues are measured.
 
 ### 5. Thumbnail generation - Pillow, pyvips, Wand/ImageMagick
 
@@ -195,6 +203,8 @@ Cons of pyvips:
 Integration risk: Medium-high.
 
 Recommendation: Keep Pillow. Prototype pyvips only after profiling shows thumbnail generation is the bottleneck.
+
+Final project decision: Do not prioritize `pyvips`. Keep Pillow unless a bottleneck is measured.
 
 ### 6. Cache - cachetools, diskcache
 
@@ -223,6 +233,8 @@ Cons of diskcache:
 Integration risk: Low for keeping `cachetools`, medium for `diskcache`.
 
 Recommendation: Keep `cachetools`. Prototype `diskcache` for thumbnail bytes only if restart regeneration or multi-worker use becomes painful.
+
+Final project decision: Keep `cachetools`. `diskcache` is optional later only if persistent cache behavior is needed.
 
 ### 7. Metadata extraction/EXIF - Pillow, piexif, ExifRead, ExifTool wrappers
 
@@ -260,20 +272,20 @@ Integration risk: Low-medium for ExifRead, high for PyExifTool.
 
 Recommendation: Keep Pillow for current metadata extraction. Consider ExifRead only for a specific missing EXIF tag requirement. Keep ExifTool wrappers out of default local setup.
 
-### 8. SD metadata parsing - sd-parsers
+### 8. SD metadata parsing - custom parser, sd-parsers
 
 Current custom parser supports A1111/WebUI, ComfyUI, SwarmUI, NovelAI, EasyDiffusion, LoRA extraction, and sidecar `.txt` fallback. The detection order is documented and important.
 
 `sd-parsers` supports Automatic1111, ComfyUI, Fooocus, InvokeAI, and NovelAI according to its README. It exposes structured `PromptInfo` objects, parser configuration, metadata extraction eagerness, and custom parser/extractor extension points.
 
-Pros:
+Pros of `sd-parsers`:
 
 - Purpose-built for Stable Diffusion metadata.
 - Supports several generators not currently covered, including Fooocus and InvokeAI.
 - Has tests and typed package structure.
 - Depends on Pillow, which is already in the backend.
 
-Cons:
+Cons of `sd-parsers`:
 
 - Small project: PyPI 0.6, GitHub ~45 stars.
 - README notes custom ComfyUI nodes may parse incorrectly or incompletely.
@@ -283,15 +295,31 @@ Cons:
 
 Integration risk: Medium-high.
 
-Recommendation: Prototype as an additional parser path, not a replacement. Compare output against the current parser on representative A1111, ComfyUI, SwarmUI, NovelAI, EasyDiffusion, and sidecar samples before considering adoption.
+Recommendation: Keep the custom parser as the recommended path. Do not prioritize `sd-parsers` as a prototype path because it does not cover all project-specific behavior and would still require compatibility glue.
 
-### 9. Search/full-text - SQLite FTS5, Whoosh
+Final project decision: Remove `sd-parsers` from the recommended path. The current parser supports more relevant formats for this app, including SwarmUI, EasyDiffusion, sidecar files, and existing frontend response conventions.
+
+### 9. Search/full-text - Fuse.js first, SQLite FTS5 optional later
 
 The backend currently has no search endpoint. The frontend filters currently loaded image data client-side, so search scope is limited by what has been loaded.
 
-SQLite FTS5 is the best candidate if backend search is added. It can index paths, names, prompts, negative prompts, model names, LoRAs, sampler values, and other parsed metadata in one local database. SQLite also fits a local-first app and is available through Python's stdlib `sqlite3`, though FTS5 availability should be verified in the target Python build.
+Fuse.js is the preferred first step because search is currently a frontend concern over loaded gallery data. It can improve fuzzy filename and metadata matching without adding backend schema design, index invalidation, query escaping, or rebuild UX.
+
+SQLite FTS5 is the best backend candidate if search must later scale beyond loaded client-side data. It can index paths, names, prompts, negative prompts, model names, LoRAs, sampler values, and other parsed metadata in one local database. SQLite also fits a local-first app and is available through Python's stdlib `sqlite3`, though FTS5 availability should be verified in the target Python build.
 
 Whoosh is a pure-Python full-text search library. It is stable but old, and it would add a separate indexing format when SQLite can likely cover both indexing and FTS.
+
+Pros of Fuse.js:
+
+- Keeps search in the frontend where search state already lives.
+- Avoids backend behavior changes.
+- Does not require database schema, background indexing, or invalidation rules.
+- Low implementation risk.
+
+Cons of Fuse.js:
+
+- Search remains limited to data loaded in the frontend.
+- Very large result sets may eventually need backend indexing.
 
 Pros of SQLite FTS5:
 
@@ -307,7 +335,9 @@ Cons:
 
 Integration risk: Medium.
 
-Recommendation: Use SQLite FTS5 if backend search becomes a requirement. Avoid Whoosh unless FTS5 is unavailable.
+Recommendation: Use Fuse.js in the frontend first. Use SQLite FTS5 only if backend search becomes necessary for large galleries or metadata-wide search. Avoid Whoosh unless FTS5 is unavailable.
+
+Final project decision: Do not prioritize backend search yet.
 
 ### 10. Sort - natsort
 
@@ -328,7 +358,9 @@ Cons:
 
 Integration risk: Low.
 
-Recommendation: Adopt in Phase 1 or leave custom sort until a bug appears. If adopted, lock expected ordering with tests.
+Recommendation: Keep the current sort logic for now. Add tests before any replacement, and consider `natsort` only if filename ordering bugs appear.
+
+Final project decision: Add natural-sort tests before replacing sorting logic.
 
 ### 11. Static serving - FileResponse, WhiteNoise
 
@@ -382,34 +414,93 @@ Recommendation: Keep custom and disabled by default. Do not enable in public dep
 
 ## Recommended migration plan
 
-### Phase 1 low risk
+### Phase 1 backend refactor and settings
 
-1. Add `pydantic-settings` for a typed settings object.
-2. Preserve all current env variable names and defaults.
-3. Optionally replace `natural_sort_key()` with `natsort`, after adding ordering tests.
-4. Add tests around path safety, CORS origin calculation, open-folder enabled/disabled behavior, cache-key invalidation, and sort order.
+1. Write focused tests before each move: path safety, natural sort, metadata parser fixtures, thumbnail guardrails, and cache behavior where touched.
+2. Extract `config.py` with `pydantic-settings`, preserving current env variable names and defaults.
+3. Extract backend modules by responsibility with zero behavior change.
+4. Keep old import paths working during the transition where practical.
+5. Keep FastAPI, Pillow, `cachetools`, custom path containment, and the custom metadata parser.
 
-Expected outcome: cleaner configuration and optionally stronger sorting with minimal behavior change.
+Expected outcome: the current backend behavior is preserved, but the code is split into testable modules and configuration is centralized.
 
-### Phase 2 prototype
+### Phase 2 frontend search
 
-1. Prototype a SQLite image index for one folder tree.
-2. Store path, folder path, name, mtime, size, dimensions, direct-folder image count, cover candidates, and parse status.
-3. Evaluate `watchfiles` or `watchdog` only as index invalidation/enqueue mechanisms.
-4. Prototype SQLite FTS5 over filenames and parsed metadata.
-5. Prototype `sd-parsers` as an optional parser branch and compare normalized output against current custom parsers.
-6. Prototype `diskcache` for generated thumbnail bytes only, with cache key versioning.
+1. Improve search with Fuse.js in the frontend.
+2. Keep backend search out of scope.
+3. Validate frontend search behavior against loaded filenames and available metadata fields.
 
-Expected outcome: measured evidence on whether indexing, persistent thumbnails, and third-party metadata parsing reduce latency or maintenance cost.
+Expected outcome: better search UX without backend indexing, database schema, or runtime behavior changes in the backend.
 
-### Phase 3 optional
+### Phase 3 measured backend prototypes
 
-1. Prototype `pyvips` thumbnail generation if Pillow is measured as a bottleneck.
-2. Add parity tests for orientation, transparency, WebP output, invalid images, large-file guardrails, and cache behavior.
-3. Consider ExifRead only if a documented metadata requirement cannot be met by Pillow.
-4. Consider a production static-serving change only if the SPA asset pipeline needs precompressed assets or stronger immutable cache handling.
+1. Consider SQLite indexing only if folder scale or pagination behavior becomes a measured problem.
+2. Consider SQLite FTS5 only if search must cover data not loaded by the frontend.
+3. Consider `diskcache` only if persistent thumbnail caching or cross-process cache reuse becomes necessary.
+4. Do not prototype `sd-parsers` as a replacement path unless future requirements exceed the custom parser's supported formats.
 
-Expected outcome: targeted performance and metadata improvements only where real bottlenecks exist.
+Expected outcome: optional backend prototypes are driven by measurements and requirements, not library replacement for its own sake.
+
+### Phase 4 targeted performance or production hardening
+
+1. Prototype `pyvips` only if Pillow thumbnail generation is a measured bottleneck.
+2. Consider ExifRead only if a documented metadata requirement cannot be met by Pillow.
+3. Revisit production middleware, CORS, static serving, and `GALLERY_ROOT` defaults as a separate hardening project.
+4. Keep `/api/open-folder` disabled by default and avoid exposing it publicly.
+
+Expected outcome: performance and production-hardening changes happen as scoped projects with their own tests and deployment review.
+
+## Refactor plan required before implementation
+
+This plan is documentation only. Do not implement it as part of this research update.
+
+The backend should be split by responsibility before library replacement work. Each move should preserve existing behavior, keep the frontend API contract unchanged, and be paired with tests before logic is moved.
+
+Proposed future module layout:
+
+```text
+backend/
+  main.py (app factory, middleware, startup)
+  config.py (pydantic-settings)
+  security.py (path safety, GALLERY_ROOT containment)
+  scanner.py (os.scandir, pagination, natural sort)
+  thumbnails.py (Pillow rendering, cache helpers)
+  metadata_parser.py (SD parsers, EXIF, sidecar)
+  cache.py (cachetools wrappers, in-flight dedup)
+  routers/
+    __init__.py
+    scan.py
+    image.py
+    thumbnail.py
+    metadata.py
+    open_folder.py
+    static.py
+  tests/
+    test_security.py
+    test_scanner.py
+    test_metadata_parser.py
+    test_thumbnails.py
+    test_sort.py
+```
+
+Proposed refactor steps:
+
+1. Extract `config.py` with `pydantic-settings`, keeping the same env names and defaults.
+2. Extract `security.py`, moving `is_path_safe` and `resolve_path`.
+3. Extract `cache.py`, moving cache objects, locks, and in-flight de-duplication.
+4. Extract `scanner.py` with `scan_directory` and helper functions.
+5. Extract `metadata_parser.py` with parser functions.
+6. Extract `thumbnails.py` with render and cache helpers.
+7. Create `routers/` and move route functions by endpoint group.
+8. Create `tests/` and write focused tests before each move.
+9. In each step, make zero behavior changes, import from the new module, and keep the old import path working where practical.
+
+Risk areas:
+
+- Metadata parser internal structure and detection order.
+- Cache lock ordering and in-flight request de-duplication.
+- Import cycles between routers, cache helpers, settings, and path safety.
+- CORS, production middleware, static serving, and production `GALLERY_ROOT` hardening.
 
 ## Things not to replace yet
 
@@ -417,7 +508,7 @@ Expected outcome: targeted performance and metadata improvements only where real
 - Path containment check: keep custom root authorization.
 - Pillow: keep until profiling justifies native-image dependency complexity.
 - `cachetools`: already integrated and appropriate for in-memory caching.
-- Custom SD parser: do not replace until `sd-parsers` proves parity for SwarmUI, EasyDiffusion, sidecars, LoRA extraction, and frontend response shape.
+- Custom SD parser: keep it as the recommended path because it supports project-specific formats and response conventions.
 - Static `FileResponse` serving: current needs are simple.
 - Open-folder route: keep custom, gated, and disabled by default.
 
@@ -429,7 +520,7 @@ Expected outcome: targeted performance and metadata improvements only where real
 - SQLite FTS5 support should be verified in the target Python/SQLite build before depending on it.
 - Persistent caches need key versioning. Metadata cache keys should include parser/schema version if persisted.
 - Thumbnail changes must preserve EXIF orientation, transparency flattening, WebP quality/method expectations, file-size and pixel guardrails, and frontend dimensions.
-- `sd-parsers` output shape does not match the current API response. A compatibility adapter and fixture tests are required.
+- `sd-parsers` output shape does not match the current API response. Treat it as outside the recommended path unless future requirements justify new parser work.
 - `cachetools` should continue to be protected by explicit locks and in-flight de-duplication for concurrent requests.
 - ExifTool wrappers require an external binary and should not become a default dependency without deployment review.
 - WhiteNoise is not a replacement for protected user-image serving.
@@ -439,10 +530,10 @@ Expected outcome: targeted performance and metadata improvements only where real
 Do not perform a broad backend library replacement. The backend should evolve in small, measured steps:
 
 1. Keep FastAPI, Pillow, `cachetools`, custom path authorization, custom static serving, and disabled-by-default OS folder opening.
-2. Use `pydantic-settings` for typed configuration.
-3. Consider `natsort` for natural sorting if tests lock the expected order.
-4. Prototype SQLite indexing plus FTS5 as the main path for scalable scan/search behavior.
-5. Prototype `sd-parsers`, `diskcache`, and `pyvips` only behind parity tests and performance measurements.
+2. Make the Phase 1 priority a behavior-preserving backend refactor plus `pydantic-settings`.
+3. Add tests before replacing logic: path safety, natural sort, metadata parser fixtures, and thumbnail guardrails.
+4. Use Fuse.js frontend search first. Consider SQLite indexing and FTS5 only later if scale requires backend search.
+5. Keep the custom SD parser, keep `cachetools`, and keep Pillow unless measured requirements justify optional alternatives.
 
 ## Research sources
 
@@ -453,6 +544,7 @@ Do not perform a broad backend library replacement. The backend should evolve in
 - pathvalidate: https://pathvalidate.readthedocs.io/en/latest/ and https://pypi.org/project/pathvalidate/
 - watchdog: https://watchdog.readthedocs.io/en/stable/ and https://pypi.org/project/watchdog/
 - watchfiles: https://watchfiles.helpmanual.io/ and https://pypi.org/project/watchfiles/
+- Fuse.js: https://www.fusejs.io/
 - SQLite FTS5: https://sqlite.org/fts5.html
 - pyvips: https://libvips.github.io/pyvips/ and https://pypi.org/project/pyvips/
 - Wand: https://docs.wand-py.org/en/latest/ and https://pypi.org/project/Wand/
