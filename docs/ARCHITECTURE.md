@@ -10,6 +10,8 @@ AI Art Gallery is a local-first image browser with a FastAPI backend and a Vue 3
 - Frontend: manages gallery state with Pinia, renders responsive layouts, virtualizes large grids, and opens images in a PhotoSwipe 5 lightbox.
 - Startup: `start.py` creates the Python virtualenv, installs Python and Node dependencies, and starts both servers.
 
+Major external library integrations are documented in [Third-Party Libraries](THIRD_PARTY_LIBRARIES.md).
+
 ## Backend
 
 All API routes live in `backend/main.py`.
@@ -136,6 +138,7 @@ Metadata panels:
 Mobile sheet integration:
 
 - `LightboxMobileSheet.vue` uses `@douxcode/vue-spring-bottom-sheet` for mobile metadata only. Desktop and tablet lightbox panels are separate components and should not share this sheet code.
+- Library-specific rationale, customization details, and pitfalls live in [Third-Party Libraries](THIRD_PARTY_LIBRARIES.md).
 - VSBS handles drag, snap, swipe-close, and scroll behavior. The previous custom pointer drag implementation was removed and should not be restored.
 - `blocking=false` is required because the VSBS focus trap conflicts with PhotoSwipe focus management.
 - VSBS DOM is teleported to `<body>`, so the component keeps its VSBS overrides in a non-scoped global style block.

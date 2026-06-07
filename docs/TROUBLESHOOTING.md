@@ -71,6 +71,7 @@ If the image, counter, or arrow drifts, check all of these together:
 
 Expected behavior:
 
+- See [Third-Party Libraries](THIRD_PARTY_LIBRARIES.md) for VSBS and PhotoSwipe integration rationale, customizations, and pitfalls.
 - `@douxcode/vue-spring-bottom-sheet` handles drag, snap, swipe-close, and scroll.
 - Drag down closes according to VSBS `can-swipe-close` and `swipe-close-threshold` behavior.
 - Content inside the VSBS scroll area and `.sheet-content` scrolls normally.
