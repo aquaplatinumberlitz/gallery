@@ -69,6 +69,20 @@ function toggleSheetExpanded() {
   hapticLight();
 }
 
+function onPromptExpandedChange(val: boolean) {
+  promptExpanded.value = val;
+  if (val) {
+    sheetExpanded.value = true;
+  }
+}
+
+function onNegPromptExpandedChange(val: boolean) {
+  negPromptExpanded.value = val;
+  if (val) {
+    sheetExpanded.value = true;
+  }
+}
+
 function applyClamp(delta: number): number {
   return Math.max(-MAX_DRAG, Math.min(MAX_DRAG, delta));
 }
@@ -208,7 +222,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                 </template>
               </div>
               <div v-if="props.meta?.prompt" class="sheet-text">
-                <ExpandableText :key="`prompt-${textResetKey}`" :collapsed-lines="5" :text="props.meta.prompt" @expanded-change="(val: boolean) => promptExpanded = val">
+                <ExpandableText :key="`prompt-${textResetKey}`" :collapsed-lines="5" :text="props.meta.prompt" @expanded-change="onPromptExpandedChange">
                   <span v-html="loraHighlighter(props.meta.prompt)"></span>
                 </ExpandableText>
               </div>
@@ -228,7 +242,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                 </template>
               </div>
               <div v-if="props.meta?.negative_prompt" class="sheet-text">
-                <ExpandableText :key="`neg-prompt-${textResetKey}`" :collapsed-lines="5" :text="props.meta.negative_prompt" @expanded-change="(val: boolean) => negPromptExpanded = val">
+                <ExpandableText :key="`neg-prompt-${textResetKey}`" :collapsed-lines="5" :text="props.meta.negative_prompt" @expanded-change="onNegPromptExpandedChange">
                   <span v-html="loraHighlighter(props.meta.negative_prompt)"></span>
                 </ExpandableText>
               </div>
