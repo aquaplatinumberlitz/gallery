@@ -34,7 +34,7 @@
   max-height: 80dvh;
   display: flex;
   flex-direction: column;
-  transition: height 0.3s cubic-bezier(0.2, 0, 0, 1), transform 0.2s ease-out;
+  transition: height 0.3s cubic-bezier(0.2, 0, 0, 1);
   overflow: hidden;
 
   &.sheet-expanded {
@@ -44,7 +44,7 @@
   &.is-expanded {
     height: auto;
     max-height: min(70dvh, calc(100dvh - 160px));
-    transition: height 0.22s ease, max-height 0.22s ease, transform 0.2s ease-out;
+    transition: height 0.22s ease, max-height 0.22s ease;
   }
 
   &.no-transition {

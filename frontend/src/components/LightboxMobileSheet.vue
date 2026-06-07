@@ -93,6 +93,8 @@ function onHandlePointerUp(e: PointerEvent) {
     if (sheetExpanded.value) {
       sheetExpanded.value = false;
     } else {
+      dragDelta.value = 0;
+      sheetDragState.value = 'idle';
       closeSheet();
       return;
     }
@@ -100,8 +102,10 @@ function onHandlePointerUp(e: PointerEvent) {
     sheetExpanded.value = true;
   }
 
-  sheetDragState.value = 'idle';
   dragDelta.value = 0;
+  requestAnimationFrame(() => {
+    sheetDragState.value = 'idle';
+  });
 }
 
 function onHandlePointerCancel() {
