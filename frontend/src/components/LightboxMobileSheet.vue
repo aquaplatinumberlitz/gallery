@@ -320,7 +320,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
 </template>
 
 <style lang="scss">
-/* VSBS overrides must be global because BottomSheet teleports these nodes to body. */
+/* VSBS overrides must be global because BottomSheet teleports its DOM to body. */
 [data-vsbs-sheet] {
   --vsbs-backdrop-bg: linear-gradient(
     to bottom,
@@ -334,12 +334,11 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
   --vsbs-outer-border-color: transparent;
   --vsbs-padding-x: 0px;
   --vsbs-handle-background: rgba(255, 255, 255, 0.3);
-  width: 100vw !important;
-  inline-size: 100vw !important;
-  min-width: 0 !important;
-  max-width: 100vw !important;
-  left: 0 !important;
-  right: 0 !important;
+  --vsbs-max-width: 100vw;
+  width: 100vw;
+  inline-size: 100vw;
+  min-width: 0;
+  max-width: 100vw;
   box-sizing: border-box;
   background: var(--gallery-lightbox-bg, #1a1a1a);
   color: #e5e7eb;
@@ -361,14 +360,14 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
 }
 
 [data-vsbs-scroll] {
-  width: 100% !important;
-  inline-size: 100% !important;
-  min-width: 0 !important;
-  max-width: 100% !important;
-  align-self: stretch !important;
-  flex: 1 1 auto !important;
+  width: 100%;
+  inline-size: 100%;
+  min-width: 0;
+  max-width: 100%;
+  align-self: stretch;
+  flex: 1 1 auto;
   box-sizing: border-box;
-  background: transparent !important;
+  background: transparent;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -385,26 +384,20 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
   }
 }
 
-[data-vsbs-content-wrapper] {
-  width: 100% !important;
-  min-width: 0 !important;
-  box-sizing: border-box;
-}
-
 [data-vsbs-content] {
-  width: 100% !important;
-  inline-size: 100% !important;
-  min-width: 0 !important;
-  max-width: 100% !important;
+  width: 100%;
+  inline-size: 100%;
+  min-width: 0;
+  max-width: 100%;
   box-sizing: border-box;
 }
 
-[data-vsbs-content].sheet-content {
+[data-vsbs-content].sheet-content.sheet-content {
   display: block;
-  width: 100% !important;
-  inline-size: 100% !important;
-  min-width: 0 !important;
-  max-width: 100% !important;
+  width: 100%;
+  inline-size: 100%;
+  min-width: 0;
+  max-width: 100%;
   box-sizing: border-box;
   background: transparent;
   overflow-x: hidden;
@@ -414,7 +407,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
 }
 
 @media (max-width: 480px) {
-  [data-vsbs-content].sheet-content {
+  [data-vsbs-content].sheet-content.sheet-content {
     padding: 8px 12px 20px;
   }
 }
