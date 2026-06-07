@@ -19,7 +19,7 @@ This document explains how major external libraries are used in this project.
 
 Official links:
 
-- Docs: https://vue-spring-bottom-sheet.douxcode.com/
+- Docs: https://github.com/megaarmos/vue-spring-bottom-sheet/tree/master/apps/docs/guide
 - GitHub: https://github.com/megaarmos/vue-spring-bottom-sheet
 - npm: https://www.npmjs.com/package/@douxcode/vue-spring-bottom-sheet
 
@@ -27,11 +27,11 @@ Used for: Mobile lightbox metadata sheet, drag/snap/spring animation, native-fee
 
 Core features we use: `BottomSheet` component, `v-model`, `snapToPoint`, `snapPoints`, built-in drag/swipe, scroll container, `headerClass`/`contentClass`, CSS variables.
 
-Features we intentionally do NOT use: `blocking=true` / focus trap, default backdrop close, content drag expansion.
+Features we intentionally do NOT use: `blocking=true` / focus trap, VSBS backdrop close, content drag expansion.
 
-Why not: Sheet lives inside PhotoSwipe; `blocking=true` caused focus trap recursion; backdrop/swipe-close can conflict with image gestures.
+Why not: The sheet lives inside PhotoSwipe, and PhotoSwipe is already the modal/focus context. `blocking=true` caused historical "too much recursion" focus recursion. With `blocking=false`, VSBS acts as a non-modal metadata inspector inside the lightbox.
 
-Project customizations: `blocking=false`, VSBS used as sheet/motion engine only, gallery owns metadata content/tabs/copy/Show more/chevron, global CSS overrides required because VSBS teleports DOM, width chain override, background override, chevron expands sheet + Prompt details.
+Project customizations: `blocking=false`, no VSBS backdrop, no VSBS focus trap, `teleport-defer`, `v-model`, VSBS used as sheet/motion engine only, gallery owns metadata content/tabs/copy/Show more/chevron/outside-tap close, global CSS overrides required because VSBS teleports DOM, width chain override, background override, chevron expands sheet + Prompt details.
 
 Integration files: `frontend/src/components/LightboxMobileSheet.vue`, `frontend/src/styles/_lightbox-mobile.scss`
 
@@ -39,11 +39,17 @@ Common pitfalls: Do not place overrides in scoped-only styles, do not rely on cl
 
 Decision: We use VSBS as the mobile sheet motion engine, not as the owner of metadata UI. Gallery owns content and behavior; VSBS owns drag/snap/scroll.
 
+Outside-tap close: Because `blocking=false` renders no VSBS backdrop, `canBackdropClose` does nothing. Gallery implements document pointer listeners that close the metadata sheet only. These listeners must not call `stopPropagation()` because that broke PhotoSwipe swipe. They must track `pointerId` and `isPrimary`, require pointerdown and pointerup outside the sheet, use the 10px movement threshold, and handle `pointercancel`.
+
+Teleport styling: VSBS teleports DOM to `<body>`, so scoped SFC styles may not reach sheet internals. Keep global/non-scoped width rules for `[data-vsbs-sheet]`, `[data-vsbs-scroll]`, `[data-vsbs-content]`, `.sheet-content`, and `.expandable-text`. A previous scoped-only change collapsed `[data-vsbs-scroll]` to 4px, `[data-vsbs-content]` to 24px, and `.expandable-text` to 0px.
+
+Legacy code warning: The old custom sheet drag implementation was removed. Do not reintroduce `.sheet-panel` drag transforms, `.sheet-backdrop`, `.sheet-handle-wrapper` pointer drag, `--sheet-drag-y`, `dragDelta`, `sheetDragState`, custom pointer drag, or an rAF drag loop. VSBS provides the smoother drag/snap/scroll behavior.
+
 ### PhotoSwipe 5
 
 Official links:
 
-- Docs: https://photoswipe.com/
+- Docs: https://github.com/dimsemenov/PhotoSwipe/tree/master/docs
 - Getting started: https://photoswipe.com/getting-started/
 - Options: https://photoswipe.com/options/
 - UI elements: https://photoswipe.com/adding-ui-elements/
@@ -63,6 +69,8 @@ Integration files: `frontend/src/components/Lightbox.vue`, `MobilePhotoSwipe.vue
 Common pitfalls: PhotoSwipe focus/keyboard can conflict with another modal/focus trap, do not enable another focus trap inside PhotoSwipe without testing, mobile vertical drag can conflict with bottom sheet, default PhotoSwipe UI styles can leak, desktop sidebar can overlap image if viewport is not adjusted.
 
 Decision: We use PhotoSwipe as the image viewer engine. Gallery owns metadata panels, custom controls, and responsive layout around it.
+
+Mobile contract: PhotoSwipe owns image rendering, swipe left/right, pan/zoom, lightbox lifecycle, photo-area pointer/touch handling, and lightbox close. VSBS and outside-tap glue must never block image swipe before or after the metadata sheet opens and closes.
 
 ### Other libraries
 
@@ -93,4 +101,5 @@ Decision: We use PhotoSwipe as the image viewer engine. Gallery owns metadata pa
 - Do not move VSBS overrides back into scoped-only styles.
 - Do not remove VSBS width/background overrides.
 - Do not reintroduce old custom mobile sheet drag code.
+- Do not add `stopPropagation()` to mobile outside-tap close.
 - Do not replace Vue overlay buttons with PhotoSwipe UI registration unless necessary.

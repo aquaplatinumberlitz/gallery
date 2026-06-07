@@ -16,6 +16,9 @@ Last reviewed: 2026-06-07
 | Metadata panel empty | PNG chunks, EXIF `UserComment`, sidecar `.txt`, and parser source detection |
 | Mobile bars do not hide | `useScrollVisibility.ts` scroll element detection and class names |
 | Mobile sheet fights content scroll | Confirm VSBS is handling drag/snap/scroll and old `.sheet-panel` drag code has not been restored |
+| Mobile PhotoSwipe swipe stops after sheet close | Check outside-tap listeners for `stopPropagation()`, missing pointer tracking, or swallowed image gestures |
+| Mobile sheet content collapses horizontally | Confirm global VSBS width overrides still reach teleported `[data-vsbs-*]` DOM |
+| Mobile lightbox throws "too much recursion" | Confirm VSBS remains `blocking=false` with no VSBS focus trap/backdrop |
 | Tablet drawer does not close | `TabletLayout.vue` Escape/backdrop handling and `closeSidebar()` injection |
 | Theme flashes | Inline theme script in `frontend/index.html` and `data-theme` application |
 
@@ -72,14 +75,44 @@ If the image, counter, or arrow drifts, check all of these together:
 Expected behavior:
 
 - See [Third-Party Libraries](THIRD_PARTY_LIBRARIES.md) for VSBS and PhotoSwipe integration rationale, customizations, and pitfalls.
-- `@douxcode/vue-spring-bottom-sheet` handles drag, snap, swipe-close, and scroll.
+- PhotoSwipe owns the photo area: image rendering, left/right swipe, pan/zoom, lifecycle, and lightbox close.
+- `@douxcode/vue-spring-bottom-sheet` owns the metadata sheet container: drag, snap, swipe-close, animation, and scroll.
 - Drag down closes according to VSBS `can-swipe-close` and `swipe-close-threshold` behavior.
 - Content inside the VSBS scroll area and `.sheet-content` scrolls normally.
 - Chevron expand/collapse does not depend on drag.
 - Chevron collapse resets expanded prompt text.
-- `blocking=false` prevents VSBS focus trapping from conflicting with PhotoSwipe.
+- `blocking=false` prevents VSBS focus trapping from conflicting with PhotoSwipe. The historical symptom was "too much recursion" from competing focus management.
 
-Do not restore the old `.sheet-panel`, `.sheet-handle-wrapper`, pointer capture, or threshold-based drag implementation.
+Outside tap:
+
+- Since `blocking=false` renders no VSBS backdrop, `canBackdropClose` does not close the sheet.
+- Custom document pointer listeners close only the metadata sheet, not PhotoSwipe.
+- Do not call `stopPropagation()` in those listeners; that broke PhotoSwipe swipe after opening/closing the sheet.
+- Track `pointerId` and `isPrimary`, require both pointerdown and pointerup outside the sheet, keep the 10px movement threshold, and handle `pointercancel`.
+
+Do not restore the old `.sheet-panel`, `.sheet-backdrop`, `.sheet-handle-wrapper`, `--sheet-drag-y`, `dragDelta`, `sheetDragState`, pointer capture, threshold-based drag, or rAF drag-loop implementation.
+
+## Mobile Lightbox Sheet Checklist
+
+Before touching the mobile lightbox sheet, verify:
+
+- No focus recursion.
+- No width collapse in `[data-vsbs-scroll]`, `[data-vsbs-content]`, `.sheet-content`, or `.expandable-text`.
+- No gray background strip behind or inside the sheet.
+- PhotoSwipe swipe works before and after opening/closing the sheet.
+- Outside tap closes the metadata sheet only.
+- Swipe/drag on the image is not swallowed by the outside-tap listener.
+- Prompt scroll works.
+- Show more/less works.
+- Params chips wrap correctly.
+- Model/checkpoint long text wraps correctly.
+- Copy buttons work.
+
+## Mobile Sheet Width Collapse
+
+VSBS teleports sheet DOM to `<body>`, so scoped SFC styles may not reach `[data-vsbs-*]` elements. A previous scoped-only style change collapsed `[data-vsbs-scroll]` to 4px, `[data-vsbs-content]` to 24px, and `.expandable-text` to 0px.
+
+Keep required width rules in global/non-scoped CSS for `[data-vsbs-sheet]`, `[data-vsbs-scroll]`, `[data-vsbs-content]`, `.sheet-content`, and `.expandable-text`. Do not move them into scoped styles unless the teleported DOM is verified in browser devtools.
 
 ## Scroll Visibility
 

@@ -86,6 +86,7 @@ Mobile:
 - Let VSBS handle drag, snap, and scroll behavior. Do not restore the old `.sheet-panel` pointer-drag implementation.
 - Keep VSBS `blocking=false` so its focus trap does not conflict with PhotoSwipe focus management.
 - Keep VSBS width and background overrides in a non-scoped global style block because the library teleports its DOM to `<body>`.
+- PhotoSwipe owns image rendering, photo swipe left/right, pan/zoom, and lightbox close. The metadata sheet must not intercept these gestures outside the sheet body.
 
 ## Metadata Panels
 
@@ -103,12 +104,16 @@ See [Third-Party Libraries](THIRD_PARTY_LIBRARIES.md) for VSBS and PhotoSwipe in
 
 - Approved behavior: the info button opens the sheet and is hidden while the sheet is open; PhotoSwipe left/right image swipes continue to work behind the sheet.
 - VSBS owns sheet drag, snap, swipe-close, and scroll physics. Keep the old custom pointer drag code removed, including `.sheet-panel`, `.sheet-backdrop`, `.sheet-handle-wrapper`, `.sheet-handle`, pointer capture, drag thresholds, and `--sheet-drag-y`.
-- The chevron expands the sheet and shows more Prompt/Negative Prompt text. The down chevron compacts the sheet and shows less text.
+- The chevron-up action expands the sheet and auto-shows more Prompt/Negative Prompt text. The chevron-down action compacts the sheet and auto-shows less Prompt/Negative Prompt text.
+- Show more expands text and expands the sheet if needed. Show less collapses text without closing the sheet.
 - Prompt, Params, and Model tabs remain available in the sheet. Copy buttons stay active for prompt, negative prompt, seed, and other copyable metadata.
+- Body content scrolls normally inside the VSBS scroll area.
+- Outside tap closes the metadata sheet only. It must not close PhotoSwipe or block image swipe left/right.
 - `blocking=false` is required to avoid focus-trap recursion with PhotoSwipe.
 - VSBS styles must be global, not scoped, because the library teleports sheet DOM outside the component scope.
 - Keep the width chain explicit for `[data-vsbs-sheet]`, `[data-vsbs-scroll]`, `[data-vsbs-content]`, `.sheet-content`, and `.expandable-text` so the sheet cannot collapse horizontally.
 - Keep the sheet background black/dark through VSBS variables and scroll/content overrides so no gray strip appears.
+- See the regression checklist in [Troubleshooting](TROUBLESHOOTING.md#mobile-lightbox-sheet-checklist) before changing this flow.
 
 ## Empty States
 

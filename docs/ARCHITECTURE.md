@@ -139,10 +139,14 @@ Mobile sheet integration:
 
 - `LightboxMobileSheet.vue` uses `@douxcode/vue-spring-bottom-sheet` for mobile metadata only. Desktop and tablet lightbox panels are separate components and should not share this sheet code.
 - Library-specific rationale, customization details, and pitfalls live in [Third-Party Libraries](THIRD_PARTY_LIBRARIES.md).
-- VSBS handles drag, snap, swipe-close, and scroll behavior. The previous custom pointer drag implementation was removed and should not be restored.
-- `blocking=false` is required because the VSBS focus trap conflicts with PhotoSwipe focus management.
+- PhotoSwipe owns image rendering, left/right swipe, pan/zoom, lightbox lifecycle, photo-area pointer/touch handling, and lightbox close.
+- VSBS owns only the mobile metadata sheet container: drag, snap, scroll, sheet animation, sheet open/close, and its scroll container.
+- Gallery glue owns the info button, hiding the info button while the sheet is open, chevron expand/compact behavior, Prompt and Negative Prompt Show more/less state, outside-tap sheet close, and the protections that keep VSBS from swallowing PhotoSwipe gestures.
+- VSBS is deliberately non-modal: `blocking=false`, no VSBS backdrop, no VSBS focus trap, `teleport-defer`, and `v-model`. PhotoSwipe is already the modal/focus context.
+- Enabling VSBS blocking/backdrop/focus trapping caused historical "too much recursion" focus-management failures. Keep VSBS as a non-modal metadata inspector inside PhotoSwipe.
 - VSBS DOM is teleported to `<body>`, so the component keeps its VSBS overrides in a non-scoped global style block.
 - Width and background overrides keep `[data-vsbs-sheet]`, `[data-vsbs-scroll]`, `[data-vsbs-content]`, `.sheet-content`, and `.expandable-text` full-width and dark themed.
+- Because `blocking=false` means VSBS renders no backdrop, `canBackdropClose` does nothing. Outside-tap close is custom document pointer handling that closes the metadata sheet only, never PhotoSwipe.
 - Approved UX: info opens the sheet, the info button is hidden while open, the chevron expands/collapses Prompt and Negative Prompt text, Prompt/Params/Model tabs work, copy buttons work, and PhotoSwipe image swipes continue to work.
 
 Dependency audit, 2026-06-07:
@@ -173,6 +177,7 @@ Each layout owns its sidebar/header/content shell and receives data/actions from
 
 - Keep `useDevice.ts`, `_breakpoints.scss`, and `useColumnResize.ts` synchronized when changing breakpoints.
 - Keep desktop lightbox `DESKTOP_METADATA_WIDTH`, `--lightbox-sidebar-width`, PhotoSwipe `paddingFn`, counter positioning, and next-arrow offset synchronized.
-- Keep mobile sheet drag/snap/scroll behavior delegated to VSBS; do not restore `.sheet-panel` pointer-drag code.
+- Keep mobile sheet drag/snap/scroll behavior delegated to VSBS; do not restore `.sheet-panel`, `.sheet-backdrop`, `.sheet-handle-wrapper` pointer drag, `--sheet-drag-y`, `dragDelta`, `sheetDragState`, custom pointer drag, or rAF drag-loop code.
+- Keep mobile outside-tap close non-blocking: no `stopPropagation()`, track `pointerId` and `isPrimary`, require pointerdown and pointerup outside the sheet, use the 10px movement threshold, handle `pointercancel`, and do not block PhotoSwipe swipe.
 - Keep `pswp.currIndex !== index` in the PhotoSwipe index watcher to prevent feedback loops.
 - Keep `hasEverLoaded` behavior in the gallery store so the UI does not show a false empty state before the first scan finishes.

@@ -1,6 +1,6 @@
 # Development
 
-Last reviewed: 2026-06-06
+Last reviewed: 2026-06-07
 
 ## Local Setup
 
@@ -89,7 +89,8 @@ Before changing layout or lightbox behavior:
 - Verify desktop lightbox image, counter, and next arrow remain outside the metadata sidebar.
 - Verify tablet drawer opens/closes with hamburger, backdrop, Escape, and successful path submit.
 - Verify mobile header/bottom bar hide/show behavior during scroll.
-- Verify mobile metadata sheet drag works only from the handle and content still scrolls normally.
+- Verify mobile metadata sheet drag/snap/scroll is owned by VSBS and content still scrolls normally.
+- For mobile lightbox sheet changes, run the full checklist in [Troubleshooting](TROUBLESHOOTING.md#mobile-lightbox-sheet-checklist).
 
 Before changing metadata or thumbnail code:
 
@@ -109,6 +110,7 @@ Before changing metadata or thumbnail code:
 | Virtual grid | `frontend/src/components/GalleryGrid.vue` |
 | Lightbox orchestration | `frontend/src/components/Lightbox.vue` |
 | PhotoSwipe lifecycle | `frontend/src/composables/usePhotoSwipe.ts` |
+| Mobile lightbox sheet | `frontend/src/components/LightboxMobileSheet.vue`, `frontend/src/styles/_lightbox-mobile.scss` |
 | Metadata parsing | `backend/main.py` |
 
 ## Documentation Maintenance
