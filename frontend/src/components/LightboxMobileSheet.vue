@@ -40,6 +40,7 @@ const promptExpanded = ref(false);
 const negPromptExpanded = ref(false);
 const textResetKey = ref(0);
 const anyTextExpanded = computed(() => promptExpanded.value || negPromptExpanded.value);
+const isSheetVisuallyExpanded = computed(() => sheetExpanded.value || anyTextExpanded.value);
 
 const sheetDragState = ref<'idle' | 'dragging'>('idle');
 const dragStartY = ref(0);
@@ -57,13 +58,14 @@ function closeSheet() {
 }
 
 function toggleSheetExpanded() {
-  if (sheetExpanded.value) {
+  if (isSheetVisuallyExpanded.value) {
+    sheetExpanded.value = false;
     promptExpanded.value = false;
     negPromptExpanded.value = false;
     textResetKey.value += 1;
+  } else {
+    sheetExpanded.value = true;
   }
-
-  sheetExpanded.value = !sheetExpanded.value;
   hapticLight();
 }
 
@@ -87,17 +89,22 @@ function onHandlePointerMove(e: PointerEvent) {
 function onHandlePointerUp(e: PointerEvent) {
   if (sheetDragState.value !== 'dragging') return;
   const delta = dragDelta.value;
+  const wasVisuallyExpanded = isSheetVisuallyExpanded.value;
   handleRef.value?.releasePointerCapture(e.pointerId);
 
   if (delta > DRAG_THRESHOLD) {
-    if (sheetExpanded.value) {
+    dragDelta.value = 0;
+    sheetDragState.value = 'idle';
+
+    if (wasVisuallyExpanded) {
       sheetExpanded.value = false;
+      promptExpanded.value = false;
+      negPromptExpanded.value = false;
+      textResetKey.value += 1;
     } else {
-      dragDelta.value = 0;
-      sheetDragState.value = 'idle';
       closeSheet();
-      return;
     }
+    return;
   } else if (delta < -DRAG_THRESHOLD && !sheetExpanded.value) {
     sheetExpanded.value = true;
   }
@@ -162,11 +169,11 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
         <button
           type="button"
           class="sheet-expand-toggle"
-          :aria-label="sheetExpanded ? 'Collapse metadata sheet' : 'Expand metadata sheet'"
+          :aria-label="isSheetVisuallyExpanded ? 'Collapse metadata sheet' : 'Expand metadata sheet'"
           :aria-expanded="sheetExpanded"
           @click="toggleSheetExpanded"
         >
-          <ChevronDown v-if="sheetExpanded" :size="22" :stroke-width="2.25" />
+          <ChevronDown v-if="isSheetVisuallyExpanded" :size="22" :stroke-width="2.25" />
           <ChevronUp v-else :size="22" :stroke-width="2.25" />
         </button>
       </div>
