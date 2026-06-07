@@ -1,33 +1,54 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, nextTick } from "vue";
+import { computed, ref, watch, onMounted, onUnmounted, nextTick } from "vue";
 
 const props = withDefaults(defineProps<{
   collapsedLines: number;
   text?: string;
+  expanded?: boolean;
 }>(), {
   text: undefined,
+  expanded: undefined,
 });
 
 const emit = defineEmits<{
   'expanded-change': [expanded: boolean];
 }>();
 
-const isExpanded = ref(false);
+const internalExpanded = ref(props.expanded ?? false);
 const showToggle = ref(false);
 const textRef = ref<HTMLElement | null>(null);
 
-watch(isExpanded, (val) => {
-  emit('expanded-change', val);
+const isControlled = computed(() => props.expanded !== undefined);
+const isExpanded = computed({
+  get: () => props.expanded ?? internalExpanded.value,
+  set: (val: boolean) => {
+    if (!isControlled.value) {
+      internalExpanded.value = val;
+    }
+    emit('expanded-change', val);
+  },
 });
 
 let resizeObserver: ResizeObserver | null = null;
+
+function getCollapsedHeight(el: HTMLElement) {
+  const style = window.getComputedStyle(el);
+  const lineHeight = Number.parseFloat(style.lineHeight);
+
+  if (Number.isFinite(lineHeight)) {
+    return lineHeight * props.collapsedLines;
+  }
+
+  return el.clientHeight;
+}
 
 function checkOverflow() {
   nextTick(() => {
     requestAnimationFrame(() => {
       if (!textRef.value) return;
       const el = textRef.value;
-      showToggle.value = el.scrollHeight > el.clientHeight;
+      const collapsedHeight = isExpanded.value ? getCollapsedHeight(el) : el.clientHeight;
+      showToggle.value = el.scrollHeight > collapsedHeight + 1;
     });
   });
 }
@@ -53,7 +74,10 @@ onUnmounted(() => {
 });
 
 watch(() => props.text, () => {
-  isExpanded.value = false;
+  internalExpanded.value = false;
+  if (isControlled.value) {
+    emit('expanded-change', false);
+  }
   nextTick(() => {
     checkOverflow();
   });

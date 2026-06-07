@@ -57,14 +57,25 @@ function closeSheet() {
   emit('close');
 }
 
+function collapsePromptDetails() {
+  sheetExpanded.value = false;
+  promptExpanded.value = false;
+  negPromptExpanded.value = false;
+  textResetKey.value += 1;
+}
+
+function expandPromptDetails() {
+  sheetExpanded.value = true;
+  promptExpanded.value = true;
+  negPromptExpanded.value = true;
+  textResetKey.value += 1;
+}
+
 function toggleSheetExpanded() {
   if (isSheetVisuallyExpanded.value) {
-    sheetExpanded.value = false;
-    promptExpanded.value = false;
-    negPromptExpanded.value = false;
-    textResetKey.value += 1;
+    collapsePromptDetails();
   } else {
-    sheetExpanded.value = true;
+    expandPromptDetails();
   }
   hapticLight();
 }
@@ -111,16 +122,13 @@ function onHandlePointerUp(e: PointerEvent) {
     sheetDragState.value = 'idle';
 
     if (wasVisuallyExpanded) {
-      sheetExpanded.value = false;
-      promptExpanded.value = false;
-      negPromptExpanded.value = false;
-      textResetKey.value += 1;
+      collapsePromptDetails();
     } else {
       closeSheet();
     }
     return;
   } else if (delta < -DRAG_THRESHOLD && !sheetExpanded.value) {
-    sheetExpanded.value = true;
+    expandPromptDetails();
   }
 
   dragDelta.value = 0;
@@ -222,7 +230,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                 </template>
               </div>
               <div v-if="props.meta?.prompt" class="sheet-text">
-                <ExpandableText :key="`prompt-${textResetKey}`" :collapsed-lines="5" :text="props.meta.prompt" @expanded-change="onPromptExpandedChange">
+                <ExpandableText :key="`prompt-${textResetKey}`" :collapsed-lines="5" :text="props.meta.prompt" :expanded="promptExpanded" @expanded-change="onPromptExpandedChange">
                   <span v-html="loraHighlighter(props.meta.prompt)"></span>
                 </ExpandableText>
               </div>
@@ -242,7 +250,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                 </template>
               </div>
               <div v-if="props.meta?.negative_prompt" class="sheet-text">
-                <ExpandableText :key="`neg-prompt-${textResetKey}`" :collapsed-lines="5" :text="props.meta.negative_prompt" @expanded-change="onNegPromptExpandedChange">
+                <ExpandableText :key="`neg-prompt-${textResetKey}`" :collapsed-lines="5" :text="props.meta.negative_prompt" :expanded="negPromptExpanded" @expanded-change="onNegPromptExpandedChange">
                   <span v-html="loraHighlighter(props.meta.negative_prompt)"></span>
                 </ExpandableText>
               </div>
