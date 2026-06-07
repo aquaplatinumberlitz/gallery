@@ -1,0 +1,25 @@
+We confirmed the issue: BottomSheet opens but renders BEHIND the PhotoSwipe lightbox because of z-index stacking.
+
+PhotoSwipe root: z-index 100000 (--pswp-root-z-index)
+Lightbox overlay: z-index 9999
+BottomSheet (teleported to body): z-index 6000
+
+Fix: raise sheet and backdrop z-index above PhotoSwipe.
+
+In frontend/src/styles/_lightbox-mobile.scss:
+- Change :global([data-vsbs-sheet]) z-index from 6000 to 100010
+- Change :global([data-vsbs-backdrop]) z-index from 5999 to 100009
+
+Also apply a second improvement: use v-model + teleport-defer for cleaner mounted/open timing.
+
+In frontend/src/components/LightboxMobileSheet.vue:
+- Add: const sheetOpen = ref(true)
+- In onSheetClosed: set sheetOpen.value = false before emitting close
+- Replace onMounted bottomSheetRef.value?.open() with v-model binding
+- Template: add v-model="sheetOpen" and teleport-defer (no value needed, it's a boolean prop)
+- Remove onMounted from the import list if it's no longer used
+
+Phase 1: Just do the z-index fix and the v-model change.
+Phase 2: Build to verify.
+
+Do NOT commit.

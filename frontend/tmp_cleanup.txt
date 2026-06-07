@@ -1,0 +1,115 @@
+Task: Clean up Vue Spring Bottom Sheet mobile lightbox integration and prepare it for merge.
+
+Branch: test/vue-spring-bottom-sheet-mobile-lightbox
+Repo: /home/ubuntu/gallery-repo
+Frontend: /home/ubuntu/gallery-repo/frontend/
+
+Context:
+We tested the experimental branch using @douxcode/vue-spring-bottom-sheet. On real mobile testing, scroll/drag/swipe behavior is much smoother than our old custom mobile sheet implementation. We are happy with the library result and want to clean up the branch properly.
+
+Current branch: test/vue-spring-bottom-sheet-mobile-lightbox
+
+Goal: Turn the working prototype into a clean, maintainable integration.
+
+Important:
+- Work in small commits.
+- Do NOT merge into main.
+- Do NOT change desktop/tablet lightbox.
+- Do NOT reintroduce the old custom drag implementation.
+- Preserve the behavior already tested as good.
+
+Approved behavior:
+- Info button opens mobile metadata sheet.
+- Info button hidden while sheet is open.
+- Vue Spring Bottom Sheet handles drag/snap/scroll.
+- ChevronUp: expand sheet + Show more Prompt.
+- ChevronDown: compact sheet + Show less Prompt/Negative.
+- Prompt/Params/Model tabs work.
+- Show more/Show less works.
+- Copy buttons work.
+- PhotoSwipe image swipe left/right still works.
+- No focus recursion.
+- No width collapse.
+- No gray strip.
+
+Cleanup plan: Make 4 small commits.
+
+=== Commit 1 — Save working prototype baseline ===
+
+Commit message: feat(experimental): integrate spring bottom sheet for mobile lightbox
+
+Requirements:
+1. Ensure current working tree contains the tested VSBS integration.
+2. Run: npm run build (in frontend/)
+3. Commit current state as baseline.
+
+=== Commit 2 — Remove legacy custom sheet drag code ===
+
+Commit message: refactor(mobile): remove legacy custom sheet drag code
+
+Inspect and remove if unused:
+- sheetDragState, dragDelta
+- handleRef if only used for old drag
+- sheetPanelRef if only used for old drag
+- requestAnimationFrame drag scheduling
+- custom pointerdown/pointermove/pointerup handlers
+- setPointerCapture/releasePointerCapture
+- old drag thresholds
+- old --sheet-drag-y CSS variable
+- old is-dragging, no-transition classes
+- old .sheet-panel, .sheet-backdrop, .sheet-handle-wrapper, .sheet-handle CSS
+- old custom enter/leave sheet animation
+- old transform/height drag transition CSS
+
+But DO NOT remove things that were already removed by previous Codex edits. Check the current files first.
+
+Keep:
+- metadata open/close logic
+- BottomSheet ref
+- VSBS open/close/snap logic
+- Prompt/Params/Model tabs
+- Show more/Show less
+- copy buttons
+- chevron behavior
+- metadata content rendering
+
+Do NOT touch desktop/tablet/PhotoSwipe/backend/grid/parsing.
+
+Run: npm run build after.
+
+=== Commit 3 — Clean VSBS CSS overrides ===
+
+Commit message: style(mobile): clean spring bottom sheet overrides
+
+Requirements:
+1. Keep the non-scoped <style lang="scss"> block in LightboxMobileSheet.vue for VSBS global overrides.
+2. Add a comment explaining why styles must be global.
+3. Remove unnecessary !important where possible.
+   Keep !important only where library overrides are impossible to beat safely.
+4. Remove [data-vsbs-content-wrapper] if library does not render it (checked already - it doesn't exist in this version).
+5. Ensure width chain still works: [data-vsbs-sheet] full width, [data-vsbs-scroll] full, [data-vsbs-content] full, .sheet-content full, .expandable-text > 0.
+6. Ensure background is black, no gray strip.
+7. Do not reintroduce old custom drag CSS.
+8. Run: npm run build.
+
+=== Commit 4 — Dependency audit and documentation ===
+
+Commit message: docs(mobile): document spring bottom sheet integration
+
+1. Run: npm audit and npm audit --omit=dev
+2. Document the vulnerabilities but do NOT blindly run npm audit fix --force.
+3. Add documentation to the appropriate doc file:
+   The VSBS integration notes should go into docs/UI_UX_GUIDELINES.md or docs/ARCHITECTURE.md.
+   Add a section about:
+   - Mobile lightbox metadata uses @douxcode/vue-spring-bottom-sheet
+   - VSBS handles drag/snap/scroll
+   - Old custom pointer drag code was removed
+   - blocking=false to avoid focus trap conflict with PhotoSwipe
+   - Styling must be global because VSBS teleports DOM
+   - Width/background overrides
+   - Do not restore old .sheet-panel drag code
+   - Approved UX behavior
+   - Last reviewed: 2026-06-07
+4. Run: npm run build after.
+
+IMPORTANT: Do NOT merge into main. Stop after cleanup and report.

@@ -1,0 +1,96 @@
+Task: Fix VSBS body width still collapsed after previous width-chain patch.
+
+Branch: test/vue-spring-bottom-sheet-mobile-lightbox
+Repo: /home/ubuntu/gallery-repo
+Frontend: /home/ubuntu/gallery-repo/frontend/
+
+Context:
+After the previous fix, background is fixed but metadata content is still invisible because width is still collapsed.
+
+Current debug:
+[data-vsbs-sheet]   width: 430
+[data-vsbs-scroll]  width: 4
+[data-vsbs-content] width: 24
+.sheet-content      width: 24
+.expandable-text    width: 0
+.sheet-tabs         width: 374
+
+Conclusion:
+Header/tabs are fine, but body scroll/content chain is still collapsed.
+The Prompt text exists in DOM, but content wrapper width is near zero.
+
+Goal:
+Find the actual wrapper that collapses the VSBS body width and force the whole content chain to stretch full sheet width.
+
+Important:
+Do not just add more blind CSS. First inspect the actual generated DOM hierarchy around:
+[data-vsbs-sheet], [data-vsbs-scroll], [data-vsbs-content], .sheet-content
+
+Investigation steps:
+1. Read the library source to understand the DOM structure:
+   Read: frontend/node_modules/@douxcode/vue-spring-bottom-sheet/dist/index.mjs
+   Look at the render function around lines where data-vsbs-scroll, data-vsbs-content are created.
+   Understand what flex/position/width rules the library applies to these elements.
+
+2. In _lightbox-mobile.scss, if the file is a global SCSS file imported via @import, do NOT use :global(...) wrappers. :global() only works inside Vue SFC <style scoped> blocks. Since _lightbox-mobile.scss is imported via @import in a <style scoped> block, the :global() calls may NOT actually apply to teleported DOM elements outside the component's scoped tree.
+
+This is likely the ROOT CAUSE: The :global() CSS selectors work within the component tree, but when BottomSheet teleports to body, the [data-vsbs-*] elements are OUTSIDE the Vue component's scope. Scoped styles with :global() may not reach teleported nodes.
+
+Fix: Move the VSBS styles to a file that applies globally. Options:
+a) Add the VSBS overrides to an existing global stylesheet (not scoped), like _lightbox-shared.scss
+b) In LightboxMobileSheet.vue's <style> block (which is scoped), use :deep() instead of :global() for the teleported elements. BUT :deep() also has limitations with teleport.
+c) The SAFEST fix: add a non-scoped <style> block to LightboxMobileSheet.vue for VSBS overrides.
+
+Try option (c): add a second <style> block WITHOUT scoped for VSBS overrides:
+
+<style lang="scss">
+/* VSBS overrides - not scoped because BottomSheet teleports to body */
+[data-vsbs-sheet] {
+  width: 100vw !important;
+  max-width: 100vw !important;
+  left: 0 !important;
+  right: 0 !important;
+  box-sizing: border-box;
+  background: var(--gallery-lightbox-bg, #1a1a1a);
+}
+
+[data-vsbs-scroll] {
+  width: 100% !important;
+  inline-size: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  align-self: stretch !important;
+  flex: 1 1 auto !important;
+  box-sizing: border-box;
+  background: transparent !important;
+}
+
+[data-vsbs-content-wrapper] {
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box;
+}
+
+[data-vsbs-content] {
+  width: 100% !important;
+  inline-size: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box;
+}
+
+[data-vsbs-content].sheet-content {
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box;
+  padding: 12px 16px 24px;
+}
+</style>
+
+3. In _lightbox-mobile.scss, keep only the non-VSBS content styles (labels, params, buttons, etc). Remove ALL :global([data-vsbs-*]) selectors since they don't apply to teleported elements from scoped style.
+
+4. Verification
+cd /home/ubuntu/gallery-repo/frontend
+npm run build
+
+Report what was fixed and the root cause finding.

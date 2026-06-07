@@ -1,0 +1,153 @@
+Task: Refine mobile metadata sheet outside-tap listener so it does not interfere with PhotoSwipe gestures.
+
+Branch: main
+Repo: /home/ubuntu/gallery-repo
+Frontend: /home/ubuntu/gallery-repo/frontend/
+
+Context:
+VSBS + PhotoSwipe integration audit is complete. Current contract is correct. Custom outside-tap listener needs refinement.
+
+Current issue/risk:
+The custom document pointerdown/pointerup listener (added in previous Option C commit) can break PhotoSwipe gestures because:
+- It calls e.stopPropagation() which prevents PhotoSwipe from receiving pointerup
+- It doesn't track pointerId properly
+- It doesn't handle pointercancel
+- It doesn't check isPrimary
+
+Goal:
+Refine outside-tap close so it only closes metadata sheet on a true single-pointer tap outside the sheet, and never on swipe/drag/multi-touch/inside-sheet interactions.
+
+Scope:
+- frontend/src/components/LightboxMobileSheet.vue
+
+Do NOT touch:
+- VSBS config
+- PhotoSwipe config
+- desktop/tablet lightbox
+- metadata parsing
+- Show more visual style
+- CSS layout
+- backend
+- gallery grid
+
+Keep the current integration contract:
+- blocking=false
+- v-model
+- canSwipeClose=true
+- expandOnContentDrag=true
+- allowPanToNext=true
+- closeOnVerticalDrag=true
+- no VSBS backdrop
+- no VSBS focus trap
+
+Requirements:
+
+1. Track pointer identity properly:
+- On pointerdown, store: pointerId, clientX, clientY, whether target is outside [data-vsbs-sheet], isPrimary
+- Only evaluate pointerup for the same pointerId
+- Ignore non-primary pointers (event.isPrimary === false)
+
+2. Handle pointercancel:
+- Reset pending outside-tap state on pointercancel
+- This prevents stale state after gestures
+
+3. Require BOTH pointerdown AND pointerup outside the sheet:
+- Close only if pointerdown target was outside [data-vsbs-sheet]
+- AND pointerup target is also outside [data-vsbs-sheet]
+- AND same pointerId
+- AND movement distance under threshold
+
+4. Tap-only threshold:
+- Movement threshold: 10px
+- If movement exceeds threshold, treat as drag/swipe and do NOT close
+- This preserves PhotoSwipe left/right swipe and vertical drag
+
+5. Do NOT consume PhotoSwipe gestures:
+- Do NOT call preventDefault()
+- Do NOT call stopPropagation() - this was the root cause of broken swipes
+- Listener should observe and close metadata sheet only on safe tap
+- PhotoSwipe must continue to receive all pointer events normally
+
+6. Cleanup correctly:
+- Add document listeners on mount
+- Remove all listeners on unmount
+- Reset pending pointer state on: pointerup, pointercancel, sheet close, unmount
+
+7. Avoid stale close:
+- If sheet is not open (sheetOpen.value === false), listener should do nothing
+- No stale pointerdown should close the sheet later
+
+8. Implementation plan in LightboxMobileSheet.vue:
+
+Remove the old tapStartPos and isTap refs.
+Replace them with a simpler reactive approach using a single pending state object:
+
+const pendingOutsideTap = ref<{
+  pointerId: number;
+  startX: number;
+  startY: number;
+  downOutside: boolean;
+} | null>(null);
+
+function onDocumentPointerDown(e: PointerEvent) {
+  if (!sheetOpen.value) return;
+  if (!e.isPrimary) return;
+
+  const sheet = document.querySelector('[data-vsbs-sheet]');
+  const downOutside = sheet ? !sheet.contains(e.target as Node) : true;
+
+  pendingOutsideTap.value = {
+    pointerId: e.pointerId,
+    startX: e.clientX,
+    startY: e.clientY,
+    downOutside,
+  };
+}
+
+function onDocumentPointerUp(e: PointerEvent) {
+  if (!sheetOpen.value) return;
+  if (!pendingOutsideTap.value) return;
+  if (pendingOutsideTap.value.pointerId !== e.pointerId) return;
+  if (!pendingOutsideTap.value.downOutside) {
+    pendingOutsideTap.value = null;
+    return;
+  }
+
+  const dx = e.clientX - pendingOutsideTap.value.startX;
+  const dy = e.clientY - pendingOutsideTap.value.startY;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const wasOutside = pendingOutsideTap.value.downOutside;
+  pendingOutsideTap.value = null;
+
+  if (dist > 10) return; // was a drag, not a tap
+
+  const sheet = document.querySelector('[data-vsbs-sheet]');
+  const upOutside = sheet ? !sheet.contains(e.target as Node) : true;
+
+  if (wasOutside && upOutside) {
+    // This is a clean outside tap - close metadata sheet only
+    emit('close');
+  }
+}
+
+function onDocumentPointerCancel() {
+  pendingOutsideTap.value = null;
+}
+
+onMounted(() => {
+  document.addEventListener('pointerdown', onDocumentPointerDown, { capture: true, passive: true });
+  document.addEventListener('pointerup', onDocumentPointerUp, { capture: true, passive: true });
+  document.addEventListener('pointercancel', onDocumentPointerCancel, { capture: true, passive: true });
+});
+
+onUnmounted(() => {
+  document.removeEventListener('pointerdown', onDocumentPointerDown, { capture: true, passive: true });
+  document.removeEventListener('pointerup', onDocumentPointerUp, { capture: true, passive: true });
+  document.removeEventListener('pointercancel', onDocumentPointerCancel, { capture: true, passive: true });
+  pendingOutsideTap.value = null;
+});
+
+9. Verification:
+npm run build
+
+10. Do NOT commit.

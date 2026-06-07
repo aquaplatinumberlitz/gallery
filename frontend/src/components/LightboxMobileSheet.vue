@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import BottomSheet from "@douxcode/vue-spring-bottom-sheet";
 import "@douxcode/vue-spring-bottom-sheet/dist/style.css";
 import { loraHighlighter } from "../utils/loraHighlighter";
@@ -40,9 +40,17 @@ const showAdvanced = ref(false);
 const promptExpanded = ref(false);
 const negPromptExpanded = ref(false);
 const textResetKey = ref(0);
+const pendingOutsideTap = ref<{
+  pointerId: number;
+  startX: number;
+  startY: number;
+  downOutside: boolean;
+} | null>(null);
 const anyTextExpanded = computed(() => promptExpanded.value || negPromptExpanded.value);
 const isSheetVisuallyExpanded = computed(() => sheetExpanded.value || anyTextExpanded.value);
 const snapPoints = ['44%', '80%'] as Array<`${number}%`>;
+const TAP_THRESHOLD_PX = 10;
+const documentPointerOptions = { capture: true, passive: true } as AddEventListenerOptions;
 
 function setTab(tab: string) {
   activeTab.value = tab;
@@ -52,6 +60,7 @@ function setTab(tab: string) {
 function onSheetClosed() {
   sheetOpen.value = false;
   sheetExpanded.value = false;
+  pendingOutsideTap.value = null;
   emit('close');
 }
 
@@ -101,6 +110,73 @@ function onNegPromptExpandedChange(val: boolean) {
     snapToExpanded();
   }
 }
+
+function onDocumentPointerDown(e: PointerEvent) {
+  if (!sheetOpen.value) return;
+  if (!e.isPrimary) {
+    pendingOutsideTap.value = null;
+    return;
+  }
+
+  const sheet = document.querySelector('[data-vsbs-sheet]');
+  const downOutside = sheet ? !sheet.contains(e.target as Node) : true;
+
+  pendingOutsideTap.value = {
+    pointerId: e.pointerId,
+    startX: e.clientX,
+    startY: e.clientY,
+    downOutside,
+  };
+}
+
+function onDocumentPointerUp(e: PointerEvent) {
+  if (!sheetOpen.value) {
+    pendingOutsideTap.value = null;
+    return;
+  }
+  if (!e.isPrimary) {
+    pendingOutsideTap.value = null;
+    return;
+  }
+  if (!pendingOutsideTap.value) return;
+  if (pendingOutsideTap.value.pointerId !== e.pointerId) return;
+  if (!pendingOutsideTap.value.downOutside) {
+    pendingOutsideTap.value = null;
+    return;
+  }
+
+  const dx = e.clientX - pendingOutsideTap.value.startX;
+  const dy = e.clientY - pendingOutsideTap.value.startY;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const wasOutside = pendingOutsideTap.value.downOutside;
+  pendingOutsideTap.value = null;
+
+  if (dist > TAP_THRESHOLD_PX) return;
+
+  const sheet = document.querySelector('[data-vsbs-sheet]');
+  const upOutside = sheet ? !sheet.contains(e.target as Node) : true;
+
+  if (wasOutside && upOutside) {
+    emit('close');
+  }
+}
+
+function onDocumentPointerCancel() {
+  pendingOutsideTap.value = null;
+}
+
+onMounted(() => {
+  document.addEventListener('pointerdown', onDocumentPointerDown, documentPointerOptions);
+  document.addEventListener('pointerup', onDocumentPointerUp, documentPointerOptions);
+  document.addEventListener('pointercancel', onDocumentPointerCancel, documentPointerOptions);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('pointerdown', onDocumentPointerDown, documentPointerOptions);
+  document.removeEventListener('pointerup', onDocumentPointerUp, documentPointerOptions);
+  document.removeEventListener('pointercancel', onDocumentPointerCancel, documentPointerOptions);
+  pendingOutsideTap.value = null;
+});
 
 // Derived
 const hasGenData = computed(() => hasCoreParams(props.meta?.params));

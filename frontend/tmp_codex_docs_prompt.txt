@@ -1,0 +1,56 @@
+We are on branch test/vue-spring-bottom-sheet-mobile-lightbox
+Repo: /home/ubuntu/gallery-repo
+
+## Context
+
+We integrated @douxcode/vue-spring-bottom-sheet v3.2.0 for mobile lightbox metadata sheet. Two issues:
+
+1. Class warning: fixed by removing class="mobile-sheet" from BottomSheet root, using CSS via :global([data-vsbs-sheet]) variables.
+2. Focus recursion: tried :blocking="false" to disable BottomSheet focus-trap (conflict with PhotoSwipe focus), but the sheet STILL does not open.
+
+## Current template
+
+<BottomSheet
+    ref="bottomSheetRef"
+    header-class="mobile-sheet-header-slot"
+    content-class="sheet-content"
+    :snap-points="snapPoints"
+    :initial-snap-point="0"
+    :blocking="false"
+    :can-backdrop-close="false"
+    :can-swipe-close="true"
+    :expand-on-content-drag="true"
+    swipe-close-threshold="35%"
+    @closed="onSheetClosed"
+    @snapped="(index) => { sheetExpanded = index === 1; }"
+  >
+
+## Library API (from docs)
+
+Props: duration, snapPoints, initialSnapPoint, blocking (default true, enables focus trap), canSwipeClose, swipeCloseThreshold, canBackdropClose, expandOnContentDrag, modelValue (v-model), teleportTo (default 'body'), teleportDefer (Vue 3.5+, defer teleport until opened), headerClass, contentClass, footerClass, forceMount
+
+Methods: open(), close(), snapToPoint(index)
+
+Events: opened, opening-started, closed, closing-started, dragging-up, dragging-down, snapped(index), instinctHeight(height), update:modelValue
+
+Key:
+- blocking=false means: no backdrop, no focus trap, no ESC close, page remains scrollable
+- teleportTo defaults to 'body'. Setting to false disables teleport (render in place).
+- teleportDefer: defers teleport until sheet is opened (Vue 3.5+ — we have 3.5.24)
+
+## PhotoSwipe setup
+
+Sheet is rendered when info button tapped in MobilePhotoSwipe.vue. PhotoSwipe v5.4.4.
+
+## Question
+
+The sheet still does not open even with blocking=false. What could be the causes?
+
+Analyze these hypotheses and recommend the best next step:
+1. Maybe focus-trap recursion happens during teleport mount (before blocking=false matters) — try teleport-to="false" to render in place
+2. Maybe the sheet component throws during initialization — try forceMount + onMounted open()
+3. Maybe v-model approach works better than imperative ref.open() — try v-model with teleportDefer
+4. Maybe the library is fundamentally incompatible with PhotoSwipe
+5. Something else?
+
+Be specific about what to try, in what order, and how to verify.

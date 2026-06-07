@@ -1,0 +1,94 @@
+Task: Final pre-merge audit for Vue Spring Bottom Sheet mobile lightbox branch.
+
+Branch: test/vue-spring-bottom-sheet-mobile-lightbox
+Repo: /home/ubuntu/gallery-repo
+Frontend: /home/ubuntu/gallery-repo/frontend/
+
+Context:
+VSBS integration cleanup is complete in 4 commits. Before merging to main, run final audit and regression checks.
+
+Do NOT merge yet.
+
+Requirements:
+
+1. Dependency audit delta.
+
+Compare audit results between main and this branch.
+
+Run on current branch:
+cd /home/ubuntu/gallery-repo/frontend
+npm audit
+npm audit --omit=dev
+npm ls axios follow-redirects 2>/dev/null || true
+npm explain axios 2>/dev/null || true
+npm explain follow-redirects 2>/dev/null || true
+
+Then compare with main:
+cd /home/ubuntu/gallery-repo
+git stash
+git checkout main
+cd frontend
+npm install
+npm audit
+npm audit --omit=dev
+npm ls axios follow-redirects 2>/dev/null || true
+npm explain axios 2>/dev/null || true
+npm explain follow-redirects 2>/dev/null || true
+
+Then return to branch:
+cd /home/ubuntu/gallery-repo
+git checkout test/vue-spring-bottom-sheet-mobile-lightbox
+cd frontend
+npm install
+cd ..
+
+Determine:
+- Were axios/follow-redirects vulnerabilities already present on main?
+- Did @douxcode/vue-spring-bottom-sheet introduce them?
+- Are they production dependencies or dev-only?
+- Is a safe non-breaking fix available?
+- Do NOT run npm audit fix --force.
+
+2. Final build/typecheck.
+
+Run on branch:
+cd /home/ubuntu/gallery-repo/frontend
+npm run build
+
+vue-tsc --noEmit is part of the build script already (build: "vue-tsc --noEmit && vite build"), so running npm run build covers both.
+
+3. Final regression checklist.
+
+Verify these areas were not broken:
+- info button opens sheet
+- info button hidden while sheet open
+- no focus recursion
+- VSBS drag/snap smooth
+- Prompt content full width
+- Params tabs chips wrap normally
+- Model tab visible
+- Show more/Show less works
+- copy buttons work
+- background black/dark, no gray strip
+- no width collapse
+- PhotoSwipe swipe left/right still works
+- close lightbox still works
+- Desktop lightbox unchanged
+- Tablet lightbox unchanged
+- Gallery grid unchanged
+
+(Some of these require manual mobile testing - report which were verified automatically and which need manual check.)
+
+4. Diff sanity check.
+
+cd /home/ubuntu/gallery-repo
+git diff main...test/vue-spring-bottom-sheet-mobile-lightbox --stat
+
+Confirm changed files are expected: package.json, package-lock.json, LightboxMobileSheet.vue, mobile lightbox SCSS, docs. No unrelated files modified.
+
+5. Final recommendation.
+
+Report one of:
+A. Safe to merge
+B. Fix before merge (list blockers)
+C. Do not merge (explain why)

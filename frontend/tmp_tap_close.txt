@@ -1,0 +1,120 @@
+Task: Implement custom lightweight tap-outside close for mobile metadata sheet (Option C).
+
+Branch: main
+Repo: /home/ubuntu/gallery-repo
+Frontend: /home/ubuntu/gallery-repo/frontend/
+
+Context:
+We investigated VSBS backdrop but it requires blocking=true which causes focus trap recursion with PhotoSwipe. Solution: keep VSBS blocking=false, add our own tap-outside close mechanism.
+
+Goal:
+When mobile metadata sheet is open, tapping on the photo/image area outside the sheet closes the metadata sheet (not the lightbox). Must not break PhotoSwipe swipe/gestures.
+
+Requirements:
+
+1. Keep VSBS exactly as-is: blocking=false, canBackdropClose=false, canSwipeClose=true, teleport-defer, v-model.
+
+2. Add a custom invisible overlay div inside LightboxMobileSheet.vue that:
+   - Is absolutely positioned to cover the entire screen behind the sheet
+   - Has z-index below the VSBS sheet but above PhotoSwipe
+   - Is transparent/no background (so user sees the image through it)
+   - Has pointer-events: auto
+   - On click/tap, closes only the metadata sheet (emits 'close')
+   - Does NOT close the lightbox/PhotoSwipe
+   - Has no focus trap
+   - Has no scroll lock
+   - Is only rendered when the sheet is open (v-if="sheetOpen")
+
+3. The overlay must NOT intercept PhotoSwipe swipe gestures. To achieve this:
+   - The overlay should only intercept simple taps/clicks, not drag/swipe
+   - Use @click or @pointerup with movement threshold to distinguish tap from swipe
+   - Or simply position the overlay so it doesn't cover the photo area - position it BETWEEN the photo area and the sheet
+
+   Actually, the simplest safe approach: do NOT add a full-screen overlay. Instead, add a @click.self handler on the BottomSheet itself or the wrapper. But since VSBS teleports to body, this won't work.
+
+   Better approach: Add a simple transparent overlay div that sits between PhotoSwipe and the VSBS sheet. It should:
+   - position: fixed
+   - inset: 0
+   - z-index: 100009 (between PS 100000 and VSBS 100010)
+   - pointer-events: auto
+   - background: transparent
+   - On any click/tap on this overlay → emit('close') to close the metadata sheet
+   - The image is still visible through it
+
+   BUT this will intercept ALL taps on the photo area including swipe gestures. That's bad.
+
+   Even better approach: Do NOT use a visual overlay. Instead, use a JavaScript event listener approach:
+   - In onMounted (or when sheet opens), add a document click/tap listener
+   - On click/tap, check if the target is outside the VSBS sheet element ([data-vsbs-sheet])
+   - If outside, close the sheet
+   - Must use a threshold to distinguish tap from drag (e.g., check mousedown vs mouseup distance)
+   - Clean up listener on unmount or when sheet closes
+
+   This is the safest - no visual overlay, no z-index issues, no gesture blocking.
+
+4. Implementation plan for LightboxMobileSheet.vue:
+
+   a) Add a ref for tracking pointer position:
+   const tapStartPos = ref({ x: 0, y: 0 })
+   const isTap = ref(false)
+
+   b) Add event handlers:
+   function onDocumentPointerDown(e: PointerEvent) {
+     tapStartPos.value = { x: e.clientX, y: e.clientY }
+     isTap.value = true
+   }
+
+   function onDocumentPointerUp(e: PointerEvent) {
+     if (!isTap.value) return
+     isTap.value = false
+     const dx = e.clientX - tapStartPos.value.x
+     const dy = e.clientY - tapStartPos.value.y
+     const dist = Math.sqrt(dx*dx + dy*dy)
+     if (dist > 10) return // was a drag, not a tap
+
+     // Check if tap target is outside VSBS sheet
+     const sheet = document.querySelector('[data-vsbs-sheet]')
+     if (sheet && !sheet.contains(e.target as Node)) {
+       // Tapped outside the sheet - close metadata sheet only
+       emit('close')
+     }
+   }
+
+   c) Add event listeners on mounted, remove on unmounted:
+   onMounted(() => {
+     document.addEventListener('pointerdown', onDocumentPointerDown)
+     document.addEventListener('pointerup', onDocumentPointerUp)
+   })
+   onUnmounted(() => {
+     document.removeEventListener('pointerdown', onDocumentPointerDown)
+     document.removeEventListener('pointerup', onDocumentPointerUp)
+   })
+
+   d) Add import for onUnmounted and onMounted from vue.
+
+5. Special considerations:
+   - Do NOT block pointer events on the sheet itself - taps on the sheet header/content should NOT close it
+   - The sheet contains [data-vsbs-sheet] which is teleported to body - the contains() check handles this
+   - Must work on iOS Safari (pointer events are supported)
+   - Must not prevent default on PS swipe/pan
+   - Must not close the lightbox, only the metadata sheet
+
+6. Verification:
+   npm run build
+
+   Manual mobile test:
+   - Tap info button → sheet opens
+   - Tap photo area → sheet closes (but lightbox stays open)
+   - Tap sheet content → sheet stays open
+   - Swipe left/right on photo → sheet stays open, image changes
+   - Tap info button again → sheet opens
+   - Swipe sheet down → closes via VSBS swipe-close
+   - Tap text/copy/Show more inside sheet → sheet stays open (no accidental close)
+
+7. Do NOT:
+   - Change desktop/tablet lightbox
+   - Change PhotoSwipe lifecycle
+   - Add a visual overlay/backdrop
+   - Re-enable VSBS blocking
+   - Use !important or aggressive CSS
+   - Prevent PhotoSwipe gestures
