@@ -28,13 +28,17 @@
 
 .sheet-panel {
   position: relative;
+  --sheet-drag-y: 0px;
   background: var(--gallery-lightbox-bg, #1a1a1a);
   border-radius: 16px 16px 0 0;
   height: 44dvh;
   max-height: 80dvh;
   display: flex;
   flex-direction: column;
-  transition: height 0.3s cubic-bezier(0.2, 0, 0, 1);
+  transform: translateY(var(--sheet-drag-y));
+  transition:
+    height 0.3s cubic-bezier(0.2, 0, 0, 1),
+    max-height 0.3s cubic-bezier(0.2, 0, 0, 1);
   overflow: hidden;
 
   &.sheet-expanded {
@@ -53,6 +57,7 @@
 
   &.is-dragging {
     user-select: none;
+    will-change: transform;
   }
 }
 
@@ -374,7 +379,7 @@
 /* Reduced motion: no scale animation */
 @media (prefers-reduced-motion: reduce) {
   .sheet-panel {
-    transition: height 0.15s ease;
+    transition: height 0.15s ease, max-height 0.15s ease;
   }
   
   .sheet-content-enter {

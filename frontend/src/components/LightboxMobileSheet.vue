@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, onBeforeUnmount } from "vue";
 import { loraHighlighter } from "../utils/loraHighlighter";
 import ExpandableText from "./ExpandableText.vue";
 import type { MetadataResponse } from "../types";
@@ -46,6 +46,12 @@ const sheetDragState = ref<'idle' | 'dragging'>('idle');
 const dragStartY = ref(0);
 const dragDelta = ref(0);
 const handleRef = ref<HTMLElement | null>(null);
+const sheetPanelRef = ref<HTMLElement | null>(null);
+
+let currentDragDelta = 0;
+let pendingDragDelta = 0;
+let dragAnimationFrame: number | null = null;
+let dragReleaseFrame: number | null = null;
 
 function setTab(tab: string) {
   activeTab.value = tab;
@@ -98,50 +104,95 @@ function applyClamp(delta: number): number {
   return Math.max(-MAX_DRAG, Math.min(MAX_DRAG, delta));
 }
 
+function setSheetDragY(delta: number) {
+  sheetPanelRef.value?.style.setProperty('--sheet-drag-y', `${delta}px`);
+}
+
+function cancelPendingDragFrame() {
+  if (dragAnimationFrame === null) return;
+  cancelAnimationFrame(dragAnimationFrame);
+  dragAnimationFrame = null;
+}
+
+function cancelPendingReleaseFrame() {
+  if (dragReleaseFrame === null) return;
+  cancelAnimationFrame(dragReleaseFrame);
+  dragReleaseFrame = null;
+}
+
+function scheduleSheetDragY(delta: number) {
+  pendingDragDelta = delta;
+  if (dragAnimationFrame !== null) return;
+
+  dragAnimationFrame = requestAnimationFrame(() => {
+    dragAnimationFrame = null;
+    setSheetDragY(pendingDragDelta);
+  });
+}
+
+function resetDragTracking() {
+  currentDragDelta = 0;
+  pendingDragDelta = 0;
+  dragDelta.value = 0;
+  cancelPendingDragFrame();
+  setSheetDragY(0);
+}
+
 function onHandlePointerDown(e: PointerEvent) {
+  cancelPendingReleaseFrame();
   sheetDragState.value = 'dragging';
   dragStartY.value = e.clientY;
-  dragDelta.value = 0;
+  resetDragTracking();
   handleRef.value?.setPointerCapture(e.pointerId);
   e.preventDefault();
 }
 
 function onHandlePointerMove(e: PointerEvent) {
   if (sheetDragState.value !== 'dragging') return;
-  dragDelta.value = applyClamp(e.clientY - dragStartY.value);
+  currentDragDelta = applyClamp(e.clientY - dragStartY.value);
+  scheduleSheetDragY(currentDragDelta);
 }
 
 function onHandlePointerUp(e: PointerEvent) {
   if (sheetDragState.value !== 'dragging') return;
-  const delta = dragDelta.value;
+  const delta = currentDragDelta;
   const wasVisuallyExpanded = isSheetVisuallyExpanded.value;
   handleRef.value?.releasePointerCapture(e.pointerId);
+  dragDelta.value = delta;
+  currentDragDelta = 0;
+  pendingDragDelta = 0;
+  cancelPendingDragFrame();
+  cancelPendingReleaseFrame();
+  setSheetDragY(0);
 
-  if (delta > DRAG_THRESHOLD) {
+  dragReleaseFrame = requestAnimationFrame(() => {
+    dragReleaseFrame = null;
     dragDelta.value = 0;
     sheetDragState.value = 'idle';
 
-    if (wasVisuallyExpanded) {
-      collapsePromptDetails();
-    } else {
-      closeSheet();
+    if (delta > DRAG_THRESHOLD) {
+      if (wasVisuallyExpanded) {
+        collapsePromptDetails();
+      } else {
+        closeSheet();
+      }
+    } else if (delta < -DRAG_THRESHOLD && !sheetExpanded.value) {
+      expandPromptDetails();
     }
-    return;
-  } else if (delta < -DRAG_THRESHOLD && !sheetExpanded.value) {
-    expandPromptDetails();
-  }
-
-  dragDelta.value = 0;
-  requestAnimationFrame(() => {
-    sheetDragState.value = 'idle';
   });
 }
 
 function onHandlePointerCancel() {
   if (sheetDragState.value !== 'dragging') return;
+  cancelPendingReleaseFrame();
   sheetDragState.value = 'idle';
-  dragDelta.value = 0;
+  resetDragTracking();
 }
+
+onBeforeUnmount(() => {
+  cancelPendingDragFrame();
+  cancelPendingReleaseFrame();
+});
 
 // Derived
 const hasGenData = computed(() => hasCoreParams(props.meta?.params));
@@ -156,6 +207,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
   <div class="mobile-sheet" @click.self="closeSheet">
     <div class="sheet-backdrop" @click.self="closeSheet" />
     <div
+      ref="sheetPanelRef"
       class="sheet-panel"
       :class="{
         'sheet-expanded': sheetExpanded,
@@ -163,7 +215,6 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
         'no-transition': sheetDragState === 'dragging',
         'is-dragging': sheetDragState === 'dragging',
       }"
-      :style="{ transform: `translateY(${dragDelta}px)` }"
     >
       <div
         ref="handleRef"
