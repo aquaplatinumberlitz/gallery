@@ -1,6 +1,6 @@
 # UI/UX Guidelines
 
-Last reviewed: 2026-06-06
+Last reviewed: 2026-06-07
 
 ## Breakpoints
 
@@ -81,9 +81,11 @@ Mobile:
 
 - Use `MobilePhotoSwipe.vue` with a floating info button.
 - Hide the info button while `LightboxMobileSheet.vue` is open.
+- Use `@douxcode/vue-spring-bottom-sheet` for the mobile metadata sheet.
 - Keep the sheet at 44dvh collapsed and 80dvh expanded unless changing the full interaction model.
-- Keep drag handlers on `.sheet-handle-wrapper` only.
-- Keep `.sheet-content` scrollable with `overscroll-behavior: contain`, `touch-action: pan-y`, and `-webkit-overflow-scrolling: touch`.
+- Let VSBS handle drag, snap, and scroll behavior. Do not restore the old `.sheet-panel` pointer-drag implementation.
+- Keep VSBS `blocking=false` so its focus trap does not conflict with PhotoSwipe focus management.
+- Keep VSBS width and background overrides in a non-scoped global style block because the library teleports its DOM to `<body>`.
 
 ## Metadata Panels
 
@@ -91,6 +93,21 @@ Mobile:
 - Preserve the collapsed prompt fade overlay and "Show more" behavior.
 - Preserve `expanded-change` events so mobile sheet height and reset behavior remain accurate.
 - When the mobile chevron collapses an expanded sheet, reset prompt expansion state through the keyed `ExpandableText` remount behavior.
+
+## Mobile Lightbox Sheet
+
+Last reviewed: 2026-06-07
+
+Mobile lightbox metadata uses `@douxcode/vue-spring-bottom-sheet` through `LightboxMobileSheet.vue`.
+
+- Approved behavior: the info button opens the sheet and is hidden while the sheet is open; PhotoSwipe left/right image swipes continue to work behind the sheet.
+- VSBS owns sheet drag, snap, swipe-close, and scroll physics. Keep the old custom pointer drag code removed, including `.sheet-panel`, `.sheet-backdrop`, `.sheet-handle-wrapper`, `.sheet-handle`, pointer capture, drag thresholds, and `--sheet-drag-y`.
+- The chevron expands the sheet and shows more Prompt/Negative Prompt text. The down chevron compacts the sheet and shows less text.
+- Prompt, Params, and Model tabs remain available in the sheet. Copy buttons stay active for prompt, negative prompt, seed, and other copyable metadata.
+- `blocking=false` is required to avoid focus-trap recursion with PhotoSwipe.
+- VSBS styles must be global, not scoped, because the library teleports sheet DOM outside the component scope.
+- Keep the width chain explicit for `[data-vsbs-sheet]`, `[data-vsbs-scroll]`, `[data-vsbs-content]`, `.sheet-content`, and `.expandable-text` so the sheet cannot collapse horizontally.
+- Keep the sheet background black/dark through VSBS variables and scroll/content overrides so no gray strip appears.
 
 ## Empty States
 

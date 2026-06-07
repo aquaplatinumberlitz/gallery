@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Last reviewed: 2026-06-06
+Last reviewed: 2026-06-07
 
 ## Quick Checks
 
@@ -15,7 +15,7 @@ Last reviewed: 2026-06-06
 | Desktop image overlaps sidebar | `DESKTOP_METADATA_WIDTH`, `paddingFn`, CSS sidebar width, counter and arrow offsets |
 | Metadata panel empty | PNG chunks, EXIF `UserComment`, sidecar `.txt`, and parser source detection |
 | Mobile bars do not hide | `useScrollVisibility.ts` scroll element detection and class names |
-| Mobile sheet fights content scroll | Sheet drag handlers must stay on the handle, not the whole panel |
+| Mobile sheet fights content scroll | Confirm VSBS is handling drag/snap/scroll and old `.sheet-panel` drag code has not been restored |
 | Tablet drawer does not close | `TabletLayout.vue` Escape/backdrop handling and `closeSidebar()` injection |
 | Theme flashes | Inline theme script in `frontend/index.html` and `data-theme` application |
 
@@ -71,14 +71,14 @@ If the image, counter, or arrow drifts, check all of these together:
 
 Expected behavior:
 
-- Drag begins only from `.sheet-handle-wrapper`.
-- Drag down collapses an expanded sheet, or closes a collapsed sheet past threshold.
-- Drag up expands a collapsed sheet.
-- Content inside `.sheet-content` scrolls normally.
+- `@douxcode/vue-spring-bottom-sheet` handles drag, snap, swipe-close, and scroll.
+- Drag down closes according to VSBS `can-swipe-close` and `swipe-close-threshold` behavior.
+- Content inside the VSBS scroll area and `.sheet-content` scrolls normally.
 - Chevron expand/collapse does not depend on drag.
 - Chevron collapse resets expanded prompt text.
+- `blocking=false` prevents VSBS focus trapping from conflicting with PhotoSwipe.
 
-Do not move pointer handlers to the whole sheet unless the content-scroll model is redesigned.
+Do not restore the old `.sheet-panel`, `.sheet-handle-wrapper`, pointer capture, or threshold-based drag implementation.
 
 ## Scroll Visibility
 

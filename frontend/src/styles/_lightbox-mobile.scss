@@ -3,96 +3,11 @@
 // Bottom sheet for mobile metadata display
 // ============================================
 
-/* MOBILE BOTTOM SHEET STYLES */
-.mobile-sheet {
-  position: fixed;
-  inset: 0;
-  z-index: 3000;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  pointer-events: auto;
-}
-
-.sheet-backdrop {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    to bottom,
-    rgba(0,0,0,0.04) 0%,
-    rgba(0,0,0,0.12) 50%,
-    rgba(0,0,0,0.28) 100%
-  );
-  pointer-events: none;
-}
-
-.sheet-panel {
-  position: relative;
-  --sheet-drag-y: 0px;
-  background: var(--gallery-lightbox-bg, #1a1a1a);
-  border-radius: 16px 16px 0 0;
-  height: 44dvh;
-  max-height: 80dvh;
-  display: flex;
-  flex-direction: column;
-  transform: translateY(var(--sheet-drag-y));
-  transition:
-    height 0.3s cubic-bezier(0.2, 0, 0, 1),
-    max-height 0.3s cubic-bezier(0.2, 0, 0, 1);
-  overflow: hidden;
-
-  &.sheet-expanded {
-    height: 80dvh;
-  }
-
-  &.is-expanded {
-    height: auto;
-    max-height: min(70dvh, calc(100dvh - 160px));
-    transition: height 0.22s ease, max-height 0.22s ease;
-  }
-
-  &.no-transition {
-    transition: none !important;
-  }
-
-  &.is-dragging {
-    user-select: none;
-    will-change: transform;
-  }
-}
-
-.sheet-handle-wrapper {
-  display: flex;
-  justify-content: center;
-  padding: 8px 0 4px;
-  touch-action: none;
-  flex-shrink: 0;
-  position: relative;
-
-  /* Extend invisible hit area to ~48px without visible padding */
-  &::before {
-    content: '';
-    position: absolute;
-    top: -12px;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    pointer-events: auto;
-    z-index: 1;
-  }
-}
-
-.sheet-handle {
-  width: 36px;
-  height: 4px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.3);
-}
-
 .sheet-header {
   display: flex;
   align-items: center;
   gap: 0;
+  background: var(--gallery-lightbox-bg, #1a1a1a);
   border-bottom: 1px solid var(--gallery-lightbox-border, rgba(255,255,255,0.1));
   flex-shrink: 0;
 }
@@ -163,33 +78,42 @@
   }
 }
 
-.sheet-content {
-  flex: 1;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  touch-action: pan-y;
-  padding: 12px 16px 24px;
-  -webkit-overflow-scrolling: touch;
-
-  &::-webkit-scrollbar {
-    width: 4px;
-  }
-  &::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 2px;
-  }
+.sheet-content-inner {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .sheet-tab-content {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  width: 100%;
+  min-width: 0;
 }
 
 .meta-section {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
+}
+
+:global(.expandable-text) {
+  min-width: 0;
+  width: 100%;
+}
+
+.params-grid {
+  width: 100%;
+  min-width: 0;
+}
+
+.param-pill {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .sheet-label {
@@ -308,15 +232,6 @@
 
 /* Compact (<480px): smaller text, tighter spacing */
 @media (max-width: 480px) {
-  .sheet-panel {
-    height: 40dvh;
-    max-height: 75dvh;
-
-    &.sheet-expanded {
-      height: 75dvh;
-    }
-  }
-
   .sheet-tab {
     font-size: 13px;
     padding: 8px 0;
@@ -327,10 +242,6 @@
     height: 40px;
     flex-basis: 40px;
     margin-right: 6px;
-  }
-
-  .sheet-content {
-    padding: 8px 12px 20px;
   }
 
   .sheet-tab-content {
@@ -357,34 +268,5 @@
   .param-pill {
     padding: 3px 6px;
     font-size: 10px;
-  }
-}
-
-/* ── Spring scale enter animation for sheet content ── */
-.sheet-content-enter {
-  animation: sheetContentEnter 300ms cubic-bezier(0.2, 0, 0, 1);
-}
-
-@keyframes sheetContentEnter {
-  0% {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-/* Reduced motion: no scale animation */
-@media (prefers-reduced-motion: reduce) {
-  .sheet-panel {
-    transition: height 0.15s ease, max-height 0.15s ease;
-  }
-  
-  .sheet-content-enter {
-    animation: none;
-    opacity: 1;
-    transform: none;
   }
 }

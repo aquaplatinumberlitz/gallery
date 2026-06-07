@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onBeforeUnmount } from "vue";
+import { ref, computed } from "vue";
+import BottomSheet from "@douxcode/vue-spring-bottom-sheet";
+import "@douxcode/vue-spring-bottom-sheet/dist/style.css";
 import { loraHighlighter } from "../utils/loraHighlighter";
 import ExpandableText from "./ExpandableText.vue";
 import type { MetadataResponse } from "../types";
@@ -30,9 +32,8 @@ const emit = defineEmits<{
   close: [];
 }>();
 
-const DRAG_THRESHOLD = 60;
-const MAX_DRAG = 120;
-
+const bottomSheetRef = ref<InstanceType<typeof BottomSheet>>();
+const sheetOpen = ref(true);
 const sheetExpanded = ref(false);
 const activeTab = ref('prompt');
 const showAdvanced = ref(false);
@@ -41,40 +42,41 @@ const negPromptExpanded = ref(false);
 const textResetKey = ref(0);
 const anyTextExpanded = computed(() => promptExpanded.value || negPromptExpanded.value);
 const isSheetVisuallyExpanded = computed(() => sheetExpanded.value || anyTextExpanded.value);
-
-const sheetDragState = ref<'idle' | 'dragging'>('idle');
-const dragStartY = ref(0);
-const dragDelta = ref(0);
-const handleRef = ref<HTMLElement | null>(null);
-const sheetPanelRef = ref<HTMLElement | null>(null);
-
-let currentDragDelta = 0;
-let pendingDragDelta = 0;
-let dragAnimationFrame: number | null = null;
-let dragReleaseFrame: number | null = null;
+const snapPoints = ['44%', '80%'] as Array<`${number}%`>;
 
 function setTab(tab: string) {
   activeTab.value = tab;
   hapticLight();
 }
 
-function closeSheet() {
+function onSheetClosed() {
+  sheetOpen.value = false;
   sheetExpanded.value = false;
   emit('close');
 }
 
-function collapsePromptDetails() {
+function snapToCompact() {
   sheetExpanded.value = false;
+  bottomSheetRef.value?.snapToPoint(0);
+}
+
+function snapToExpanded() {
+  sheetExpanded.value = true;
+  bottomSheetRef.value?.snapToPoint(1);
+}
+
+function collapsePromptDetails() {
   promptExpanded.value = false;
   negPromptExpanded.value = false;
   textResetKey.value += 1;
+  snapToCompact();
 }
 
 function expandPromptDetails() {
-  sheetExpanded.value = true;
   promptExpanded.value = true;
   negPromptExpanded.value = true;
   textResetKey.value += 1;
+  snapToExpanded();
 }
 
 function toggleSheetExpanded() {
@@ -89,110 +91,16 @@ function toggleSheetExpanded() {
 function onPromptExpandedChange(val: boolean) {
   promptExpanded.value = val;
   if (val) {
-    sheetExpanded.value = true;
+    snapToExpanded();
   }
 }
 
 function onNegPromptExpandedChange(val: boolean) {
   negPromptExpanded.value = val;
   if (val) {
-    sheetExpanded.value = true;
+    snapToExpanded();
   }
 }
-
-function applyClamp(delta: number): number {
-  return Math.max(-MAX_DRAG, Math.min(MAX_DRAG, delta));
-}
-
-function setSheetDragY(delta: number) {
-  sheetPanelRef.value?.style.setProperty('--sheet-drag-y', `${delta}px`);
-}
-
-function cancelPendingDragFrame() {
-  if (dragAnimationFrame === null) return;
-  cancelAnimationFrame(dragAnimationFrame);
-  dragAnimationFrame = null;
-}
-
-function cancelPendingReleaseFrame() {
-  if (dragReleaseFrame === null) return;
-  cancelAnimationFrame(dragReleaseFrame);
-  dragReleaseFrame = null;
-}
-
-function scheduleSheetDragY(delta: number) {
-  pendingDragDelta = delta;
-  if (dragAnimationFrame !== null) return;
-
-  dragAnimationFrame = requestAnimationFrame(() => {
-    dragAnimationFrame = null;
-    setSheetDragY(pendingDragDelta);
-  });
-}
-
-function resetDragTracking() {
-  currentDragDelta = 0;
-  pendingDragDelta = 0;
-  dragDelta.value = 0;
-  cancelPendingDragFrame();
-  setSheetDragY(0);
-}
-
-function onHandlePointerDown(e: PointerEvent) {
-  cancelPendingReleaseFrame();
-  sheetDragState.value = 'dragging';
-  dragStartY.value = e.clientY;
-  resetDragTracking();
-  handleRef.value?.setPointerCapture(e.pointerId);
-  e.preventDefault();
-}
-
-function onHandlePointerMove(e: PointerEvent) {
-  if (sheetDragState.value !== 'dragging') return;
-  currentDragDelta = applyClamp(e.clientY - dragStartY.value);
-  scheduleSheetDragY(currentDragDelta);
-}
-
-function onHandlePointerUp(e: PointerEvent) {
-  if (sheetDragState.value !== 'dragging') return;
-  const delta = currentDragDelta;
-  const wasVisuallyExpanded = isSheetVisuallyExpanded.value;
-  handleRef.value?.releasePointerCapture(e.pointerId);
-  dragDelta.value = delta;
-  currentDragDelta = 0;
-  pendingDragDelta = 0;
-  cancelPendingDragFrame();
-  cancelPendingReleaseFrame();
-  setSheetDragY(0);
-
-  dragReleaseFrame = requestAnimationFrame(() => {
-    dragReleaseFrame = null;
-    dragDelta.value = 0;
-    sheetDragState.value = 'idle';
-
-    if (delta > DRAG_THRESHOLD) {
-      if (wasVisuallyExpanded) {
-        collapsePromptDetails();
-      } else {
-        closeSheet();
-      }
-    } else if (delta < -DRAG_THRESHOLD && !sheetExpanded.value) {
-      expandPromptDetails();
-    }
-  });
-}
-
-function onHandlePointerCancel() {
-  if (sheetDragState.value !== 'dragging') return;
-  cancelPendingReleaseFrame();
-  sheetDragState.value = 'idle';
-  resetDragTracking();
-}
-
-onBeforeUnmount(() => {
-  cancelPendingDragFrame();
-  cancelPendingReleaseFrame();
-});
 
 // Derived
 const hasGenData = computed(() => hasCoreParams(props.meta?.params));
@@ -204,30 +112,24 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
 </script>
 
 <template>
-  <div class="mobile-sheet" @click.self="closeSheet">
-    <div class="sheet-backdrop" @click.self="closeSheet" />
-    <div
-      ref="sheetPanelRef"
-      class="sheet-panel"
-      :class="{
-        'sheet-expanded': sheetExpanded,
-        'is-expanded': anyTextExpanded,
-        'no-transition': sheetDragState === 'dragging',
-        'is-dragging': sheetDragState === 'dragging',
-      }"
-    >
-      <div
-        ref="handleRef"
-        class="sheet-handle-wrapper"
-        @pointerdown="onHandlePointerDown"
-        @pointermove="onHandlePointerMove"
-        @pointerup="onHandlePointerUp"
-        @pointercancel="onHandlePointerCancel"
-      >
-        <div class="sheet-handle" />
-      </div>
-
-      <div class="sheet-header" v-if="props.meta">
+  <BottomSheet
+    ref="bottomSheetRef"
+    v-model="sheetOpen"
+    teleport-defer
+    header-class="mobile-sheet-header-slot"
+    content-class="sheet-content"
+    :snap-points="snapPoints"
+    :initial-snap-point="0"
+    :blocking="false"
+    :can-backdrop-close="false"
+    :can-swipe-close="true"
+    :expand-on-content-drag="true"
+    swipe-close-threshold="35%"
+    @closed="onSheetClosed"
+    @snapped="(index) => { sheetExpanded = index === 1; }"
+  >
+    <template #header>
+      <div class="sheet-header" v-if="props.meta" data-vsbs-no-drag>
         <div class="sheet-tabs">
           <button class="sheet-tab" :class="{ active: activeTab === 'prompt' }" @click="setTab('prompt')">
             Prompt
@@ -250,8 +152,9 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
           <ChevronUp v-else :size="22" :stroke-width="2.25" />
         </button>
       </div>
+    </template>
 
-      <div class="sheet-content" :class="{ 'sheet-content-enter': true }">
+      <div class="sheet-content-inner">
         <!-- Loading state -->
         <div v-if="props.isLoading && !props.meta" class="meta-loading">
           <Loader :stroke-width="1.5" class="lucide-spin gallery-icon-nav" />
@@ -413,9 +316,102 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
           </div>
         </template>
       </div>
-    </div>
-  </div>
+  </BottomSheet>
 </template>
+
+<style lang="scss">
+/* VSBS overrides must be global because BottomSheet teleports its DOM to body. */
+[data-vsbs-sheet] {
+  --vsbs-backdrop-bg: linear-gradient(
+    to bottom,
+    rgba(0,0,0,0.04) 0%,
+    rgba(0,0,0,0.12) 50%,
+    rgba(0,0,0,0.28) 100%
+  );
+  --vsbs-background: var(--gallery-lightbox-bg, #1a1a1a);
+  --vsbs-border-radius: 16px;
+  --vsbs-border-color: var(--gallery-lightbox-border, rgba(255,255,255,0.1));
+  --vsbs-outer-border-color: transparent;
+  --vsbs-padding-x: 0px;
+  --vsbs-handle-background: rgba(255, 255, 255, 0.3);
+  --vsbs-max-width: 100vw;
+  width: 100vw;
+  inline-size: 100vw;
+  min-width: 0;
+  max-width: 100vw;
+  box-sizing: border-box;
+  background: var(--gallery-lightbox-bg, #1a1a1a);
+  color: #e5e7eb;
+  z-index: 100010;
+}
+
+[data-vsbs-backdrop] {
+  background: linear-gradient(
+    to bottom,
+    rgba(0,0,0,0.04) 0%,
+    rgba(0,0,0,0.12) 50%,
+    rgba(0,0,0,0.28) 100%
+  );
+  z-index: 100009;
+}
+
+[data-vsbs-header].mobile-sheet-header-slot {
+  padding: 16px 0 0;
+}
+
+[data-vsbs-scroll] {
+  width: 100%;
+  inline-size: 100%;
+  min-width: 0;
+  max-width: 100%;
+  align-self: stretch;
+  flex: 1 1 auto;
+  box-sizing: border-box;
+  background: transparent;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+  }
+}
+
+[data-vsbs-content] {
+  width: 100%;
+  inline-size: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+[data-vsbs-content].sheet-content.sheet-content {
+  display: block;
+  width: 100%;
+  inline-size: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  background: transparent;
+  overflow-x: hidden;
+  padding: 12px 16px 24px;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+@media (max-width: 480px) {
+  [data-vsbs-content].sheet-content.sheet-content {
+    padding: 8px 12px 20px;
+  }
+}
+</style>
 
 <style scoped lang="scss">
 @import '../styles/lightbox-shared';
