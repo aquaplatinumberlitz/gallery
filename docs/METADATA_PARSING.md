@@ -37,7 +37,7 @@ After a backend dimension fix, re-scan affected folders so the frontend receives
 
 ## Thumbnail Pipeline
 
-`GET /api/thumbnail?path=...&max_size=600`
+`GET /api/thumbnail?path=...&max_size=800`
 
 1. Validate file size and pixel count.
 2. Build cache key from path, mtime, file size, max size, and quality.

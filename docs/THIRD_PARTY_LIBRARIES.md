@@ -18,6 +18,8 @@ This document explains how major external libraries are used in this project.
 | Fuse.js | Lightweight client-side filtering helper for normal gallery folder/image lists | `frontend/src/utils/fuzzySearch.ts`, `frontend/src/components/GalleryGrid.vue`, `frontend/package.json` | Active non-empty gallery search is handled by backend `/api/search` |
 | SQLite FTS5 | Backend full-text search for indexed albums, photo filenames, and prompt/metadata | `backend/services/metadata_index.py`, `backend/main.py` | Uses Python stdlib `sqlite3`; no external search service |
 | Pillow | Image metadata extraction and image processing | `backend/main.py`, `backend/services/metadata_index.py`, `backend/requirements.txt` | Reads PNG/JPEG/WebP metadata exposed by Pillow; also used for thumbnails |
+| diskcache | Persistent thumbnail byte cache | `backend/main.py`, `backend/requirements.txt` | Stores rendered WebP thumbnails under `backend/.cache/thumbnails/` across backend restarts |
+| cachetools | In-memory metadata response cache | `backend/main.py`, `backend/requirements.txt` | Thumbnail caching moved to diskcache; cachetools remains for metadata only |
 
 ### @douxcode/vue-spring-bottom-sheet
 
@@ -160,6 +162,23 @@ Backward compatibility: `/api/search-metadata` still exists for older callers, b
 Metadata search reads Pillow-exposed PNG text chunks and basic EXIF/UserComment text. Current indexed formats include A1111/Forge `parameters`, ComfyUI `prompt`/`workflow` JSON as searchable raw/basic summary text, and generic keys such as `Description`, `Comment`, `UserComment`, and `Software`.
 
 ExifTool is intentionally not used in this implementation. It remains deferred because it requires an external binary and process integration.
+
+#### diskcache
+
+- Official: https://grantjenks.com/docs/diskcache/
+- Used for: persistent WebP thumbnail caching.
+- Integration files: `backend/main.py`, `backend/requirements.txt`
+- Cache location: `backend/.cache/thumbnails/`
+
+Thumbnail cache keys include the resolved source path, source `mtime_ns`, source byte size, requested max size, and WebP quality. Changing the source image or requested thumbnail size creates a new cache key automatically. The endpoint serves persisted thumbnail files with `Cache-Control: public, max-age=86400, immutable`, `ETag`, `Content-Length`, and `Last-Modified` headers.
+
+#### cachetools
+
+- Official: https://cachetools.readthedocs.io/
+- Used for: in-memory metadata response caching only.
+- Integration files: `backend/main.py`, `backend/requirements.txt`
+
+`cachetools.LRUCache` is no longer used for thumbnail bytes. Metadata caching still uses explicit locks and in-flight request de-duplication around the in-memory LRU cache.
 
 #### Vue 3
 

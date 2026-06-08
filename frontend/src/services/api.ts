@@ -221,9 +221,9 @@ export const unifiedSearch = async (
 export const getImageUrl = (path: string) =>
   `${API_BASE}/api/image?path=${encodeURIComponent(path)}`;
 
-export const getThumbnailUrl = (path: string, maxSize?: number) => {
+export const getThumbnailUrl = (path: string, maxSize: number = 800) => {
   const params = new URLSearchParams({ path });
-  if (maxSize) params.set("max_size", String(maxSize));
+  params.set("max_size", String(maxSize));
   return `${API_BASE}/api/thumbnail?${params.toString()}`;
 };
 

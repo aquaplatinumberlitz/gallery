@@ -1,6 +1,8 @@
 import type { FileNode } from "../types";
 import { getImageUrl, getThumbnailUrl } from "../services/api";
 
+const LIGHTBOX_THUMBNAIL_SIZE = 2400;
+
 /**
  * Shared helper to build a PhotoSwipe item from a FileNode.
  *
@@ -24,7 +26,7 @@ export function buildPhotoSwipeItem(
   // Use thumbnail URL if a size is specified, otherwise full-res
   const src =
     thumbnailSize != null
-      ? getThumbnailUrl(item.path, thumbnailSize)
+      ? getThumbnailUrl(item.path, LIGHTBOX_THUMBNAIL_SIZE)
       : getImageUrl(item.path);
 
   // Use real dimensions when valid positive numbers are available

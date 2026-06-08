@@ -33,7 +33,7 @@ Important backend behavior:
 
 - `GALLERY_ROOT` bounds path safety. The default root is `/`, which is permissive for local use but still routes through path checks.
 - `GALLERY_OPEN_FOLDER=false` disables OS folder opening by default.
-- Thumbnail cache keys include path, mtime, size, max size, and quality.
+- Thumbnail cache keys include path, mtime, size, max size, and quality. Rendered WebP thumbnails are persisted under `backend/.cache/thumbnails/`, survive backend restarts, and are served with 24-hour browser caching headers.
 - Metadata cache keys include path, mtime, and size.
 - Search cache lives at `backend/.cache/gallery_metadata.db`. It contains `file_index` rows for indexed folders/photos, `file_index_fts` for recursive album/photo filename search, and normalized image metadata with SQLite FTS5 tables for prompt/metadata search.
 - `/api/scan` returns the current folder exactly as before, then indexes the scanned folder and its subfolders in the background. File entries are indexed for albums/photos; image metadata is indexed for prompt search. Unchanged metadata entries are not reparsed.
@@ -141,6 +141,17 @@ PhotoCard click
 → preload neighboring images
 → GET /api/metadata
 → Lightbox.vue dispatches to the active device wrapper and metadata panel
+```
+
+### Thumbnail Request
+
+```text
+source image
+→ cache key from resolved path + mtime_ns + size + max_size + quality
+→ diskcache at backend/.cache/thumbnails/
+→ persisted WebP thumbnail file
+→ FileResponse
+→ browser cache with Cache-Control: public, max-age=86400, immutable
 ```
 
 ### Lightbox Navigation
