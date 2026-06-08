@@ -15,6 +15,8 @@ This document explains how major external libraries are used in this project.
 | Vite | Frontend build tool and dev server | `frontend/` | No custom plugins beyond defaults |
 | Lucide | Icons across the gallery | Vue components and shared UI styles | Prefer semantic icon tokens and component-level sizing rules |
 | `@tanstack/vue-virtual` | Row-based virtual scrolling in the image grid | `frontend/src/components/GalleryGrid.vue` | Used for large desktop/tablet grids |
+| `@tanstack/vue-form` | Future: metadata forms, batch editor, settings | `frontend/src/lib/tanstack/README.md` | Foundation only; not yet in use |
+| `@tanstack/vue-table` | Future: metadata management table, admin views | `frontend/src/lib/tanstack/README.md` | Foundation only; not yet in use |
 | Fuse.js | Lightweight client-side filtering helper for normal gallery folder/image lists | `frontend/src/utils/fuzzySearch.ts`, `frontend/src/components/GalleryGrid.vue`, `frontend/package.json` | Active non-empty gallery search is handled by backend `/api/search` |
 | SQLite FTS5 | Backend full-text search for indexed albums, photo filenames, and prompt/metadata | `backend/services/metadata_index.py`, `backend/main.py` | Uses Python stdlib `sqlite3`; no external search service |
 | Pillow | Image metadata extraction and image processing | `backend/main.py`, `backend/services/metadata_index.py`, `backend/requirements.txt` | Reads PNG/JPEG/WebP metadata exposed by Pillow; also used for thumbnails |
@@ -202,6 +204,29 @@ Thumbnail cache keys include the resolved source path, source `mtime_ns`, source
 - Library: TanStack Virtual (row-based virtualization)
 - Official Vue docs: https://tanstack.com/virtual/latest/docs/framework/vue/vue-virtual
 - Used for: `GalleryGrid.vue` desktop/tablet photo grid, with row-based virtualization via `useVirtualizer`
+
+#### @tanstack/vue-form
+
+- Library: TanStack Form (type-safe Vue form validation)
+- Official Vue docs: https://tanstack.com/form/latest/docs/framework/vue
+- Status: Foundation installed, not yet used in any component
+- Planned use: photo metadata editing, batch editor, import settings
+- See `frontend/src/lib/tanstack/README.md` for details
+
+#### @tanstack/vue-table
+
+- Library: TanStack Table (headless datagrid/table)
+- Official Vue docs: https://tanstack.com/table/latest/docs/framework/vue
+- Status: Foundation installed, not yet used in any component
+- Planned use: metadata management table, duplicate/broken image audit, import history
+- See `frontend/src/lib/tanstack/README.md` for details
+
+#### @tanstack/vue-query-devtools
+
+- Library: TanStack Query Devtools
+- npm: @tanstack/vue-query-devtools
+- Status: Installed as devDependency, active in dev mode only
+- Usage: Floating devtools panel visible in browser during development; tree-shaken in production
 
 ## Do Not Change Casually
 

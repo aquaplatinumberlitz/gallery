@@ -9,10 +9,10 @@ Designed for local/personal use. It is not intended as a hardened public deploym
 ## Features
 
 - Responsive desktop, tablet, and mobile layouts
-- Virtual-scrolled image grid for large folders
+- TanStack Virtual-scrolled image grid for large folders
 - PhotoSwipe 5 lightbox with device-specific metadata panels
 - AI metadata parsing for A1111, SwarmUI, ComfyUI, NovelAI, and EasyDiffusion
-- WebP thumbnail generation with LRU caching
+- WebP thumbnail generation with diskcache persistent caching
 - Light and dark themes using gallery design tokens
 - Mobile/tablet debugging helpers for Safari and icon sizing
 
@@ -20,10 +20,11 @@ Designed for local/personal use. It is not intended as a hardened public deploym
 
 | Layer | Technology |
 |-------|------------|
-| Backend | FastAPI, Uvicorn, Pillow, cachetools |
+| Backend | FastAPI, Uvicorn, Pillow, diskcache, cachetools |
 | Frontend | Vue 3, TypeScript, Vite, Pinia |
 | Lightbox | PhotoSwipe 5 |
 | Grid | @tanstack/vue-virtual |
+| Server Cache | @tanstack/vue-query |
 | Styling | SCSS, CSS custom properties |
 | Icons | Lucide Vue Next |
 
@@ -97,6 +98,8 @@ gallery-repo/
 | `GET` | `/api/image?path=...` | Serve an original image |
 | `GET` | `/api/thumbnail?path=...` | Serve a cached WebP thumbnail |
 | `GET` | `/api/metadata?path=...` | Parse AI generation metadata |
+| `GET` | `/api/search` | Unified photo/album/prompt search |
+| `GET` | `/api/search-metadata` | Legacy metadata search (deprecated) |
 | `POST` | `/api/open-folder` | Open a folder in the OS file explorer when enabled |
 | `GET` | `/api/health` | Health check |
 | `GET` | `/api/landing-pages` | List intro page templates |
@@ -108,6 +111,8 @@ gallery-repo/
 - [UI/UX Guidelines](docs/UI_UX_GUIDELINES.md) - breakpoints, layout rules, mobile behavior, theme rules
 - [Troubleshooting](docs/TROUBLESHOOTING.md) - known issues, Safari/iOS gotchas, regression checks
 - [Metadata Parsing](docs/METADATA_PARSING.md) - backend scan, thumbnail, metadata, and dimension pipelines
+- [Library Usage](docs/THIRD_PARTY_LIBRARIES.md) - third-party library integration notes
+- [TanStack Guide](frontend/src/lib/tanstack/README.md) - TanStack Query, Virtual, Form, Table usage
 
 ## License
 
