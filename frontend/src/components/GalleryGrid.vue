@@ -323,6 +323,7 @@ watch(() => galleryStore.searchScope, () => {
 
 const handleOpenFolder = (path: string) => {
   galleryStore.selectFolder(path);
+  galleryStore.clearSearch();
 };
 
 const handleOpenImage = (path: string, name: string) => {
