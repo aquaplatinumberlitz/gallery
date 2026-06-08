@@ -50,6 +50,7 @@ Key paths:
 | `frontend/src/layouts/` | Desktop, tablet, and mobile layout shells |
 | `frontend/src/components/` | Gallery, cards, headers, sidebars, lightbox wrappers, metadata panels |
 | `frontend/src/composables/` | Device detection, grid density, PhotoSwipe lifecycle, scroll visibility, haptics |
+| `frontend/src/query/` | TanStack Query client setup and default server-state cache options |
 | `frontend/src/stores/` | Pinia stores for gallery, lightbox, and toasts |
 | `frontend/src/styles/` | Global SCSS, tokens, breakpoint mixins, lightbox styles |
 | `frontend/src/services/api.ts` | Axios client and API error handling |
@@ -62,6 +63,23 @@ Key paths:
 | `lightbox.ts` | Open image, current index, gallery item list, metadata, navigation, neighbor preloading |
 | `toast.ts` | Toast queue, type helpers, auto-dismiss |
 
+## Server-State Caching
+
+TanStack Query caches `/api/scan` responses, while Pinia keeps UI state.
+
+| Layer | Responsibilities |
+|-------|------------------|
+| TanStack Query | Cached scan responses, stale time, garbage collection, background refresh query keys |
+| Pinia gallery store | Current/root path, visible folders/images, loading and refetching flags, history, search, sort, pagination |
+
+Scan query keys use this deterministic pattern:
+
+```text
+["scan", normalizedPath, imageLimit]
+```
+
+`normalizedPath` is trimmed, converts backslashes to forward slashes, collapses duplicate slashes, and removes a trailing slash. For the first image page, `imageLimit` is `IMAGE_PAGE_SIZE`.
+
 ## Data Flow
 
 ### Folder Load
@@ -70,11 +88,20 @@ Key paths:
 Sidebar or album click
 → galleryStore.selectFolder(path)
 → galleryStore.scanFolder(path)
+→ read TanStack Query cache for ["scan", normalizedPath, IMAGE_PAGE_SIZE]
+→ if cached, immediately populate Pinia folders/images and set isRefetching
 → api.scanDirectory(path, { imageLimit: 200, imageCursor: 0 })
 → GET /api/scan
+→ update TanStack Query cache with fresh scan response
 → store updates folders, images, next cursor, total images
 → GalleryGrid renders albums and image rows
 ```
+
+Gallery loading behavior:
+
+- First uncached folder load can show the full skeleton.
+- Revisiting a cached folder renders cached albums/photos immediately and shows only a subtle refreshing indicator while the background fetch completes.
+- Search loading has its own skeleton path and does not replace cached normal-gallery content during scan refresh.
 
 ### Infinite Scroll
 

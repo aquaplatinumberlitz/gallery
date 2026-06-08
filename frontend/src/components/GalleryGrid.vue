@@ -294,6 +294,7 @@ const images = computed(() =>
 );
 
 const isLoading = computed(() => galleryStore.galleryLoading);
+const isRefetching = computed(() => galleryStore.isRefetching);
 const isSearchLoading = computed(() => galleryStore.searchLoading);
 const currentPath = computed(() => galleryStore.currentPath);
 const canBack = computed(() => galleryStore.historyIndex > 0);
@@ -304,6 +305,17 @@ const hasMoreImages = computed(() => !hasSearchQuery.value && galleryStore.nextI
 const hasAnyItems = computed(() => galleryStore.galleryFolders.length + galleryStore.galleryImages.length > 0);
 const hasNoPath = computed(() => !galleryStore.currentPath && !galleryStore.rootPath);
 const hasNotLoaded = computed(() => !galleryStore.hasEverLoaded && (!!galleryStore.currentPath || !!galleryStore.rootPath));
+const showGallerySkeleton = computed(() =>
+  !hasSearchQuery.value &&
+  (hasNotLoaded.value || (isLoading.value && !galleryStore.hasEverLoaded))
+);
+const showSearchSkeleton = computed(() =>
+  hasSearchQuery.value &&
+  isSearchLoading.value &&
+  !searchAlbums.value.length &&
+  !searchPhotos.value.length &&
+  !searchPrompt.value.length
+);
 const noSearchResults = computed(
   () =>
     hasSearchQuery.value &&
@@ -628,9 +640,9 @@ onBeforeUnmount(() => {
         </Transition>
       </div>
 
-      <div v-if="isLoading" class="loading-badge">
+      <div v-if="isLoading || isRefetching" class="loading-badge" :class="{ subtle: isRefetching && !isLoading }">
         <Loader class="gallery-icon-md lucide-spin" /> 
-        <span>Loading</span>
+        <span>{{ isRefetching && !isLoading ? 'Refreshing' : 'Loading' }}</span>
       </div>
     </div>
 
@@ -672,7 +684,7 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
-    <div v-if="isLoading || (hasSearchQuery && isSearchLoading && !searchAlbums.length && !searchPhotos.length && !searchPrompt.length)" class="skeleton-container">
+    <div v-if="showGallerySkeleton || showSearchSkeleton" class="skeleton-container">
       <div class="skeleton-grid" :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }">
         <SkeletonLoader
           v-for="i in skeletonItems"
@@ -1512,6 +1524,10 @@ onBeforeUnmount(() => {
   border-radius: 12px;
   background: rgba(0, 0, 0, 0.05);
   font-size: 13px;
+}
+
+.loading-badge.subtle {
+  opacity: 0.72;
 }
 
 /* ── Album scroll styles are in AlbumScroller.vue ── */

@@ -96,6 +96,7 @@ export const useGalleryStore = defineStore("gallery", {
       totalImages: 0,
       loadingMoreImages: false,
       galleryLoading: false,
+      isRefetching: false,
       loadingMap: {} as LoadingMap,
       history: [] as string[],
       historyIndex: -1,
@@ -286,33 +287,47 @@ export const useGalleryStore = defineStore("gallery", {
         this.galleryImages = [];
         this.nextImageCursor = null;
         this.totalImages = 0;
+        this.isRefetching = false;
         return;
       }
-      this.galleryLoading = true;
 
-      const data = await _withError(
-        this,
-        () => scanDirectory(target, { imageLimit: IMAGE_PAGE_SIZE, imageCursor: 0 }),
-        "Unable to scan the folder. Check the backend connection.",
-        () => this.scanFolder(target)
-      );
+      const { getCachedScan, setCachedScan } = await import("../composables/useScanQuery");
+      const cached = getCachedScan(target);
+      if (cached) {
+        this.galleryFolders = cached.folders;
+        this.galleryImages = cached.images;
+        this.nextImageCursor = cached.next_cursor;
+        this.totalImages = cached.total_images;
+        this.currentPath = target;
+        this.hasEverLoaded = true;
+        this.isRefetching = true;
+      } else {
+        this.galleryLoading = true;
+        this.isRefetching = false;
+      }
 
-      if (!data) {
-        this.galleryFolders = [];
-        this.galleryImages = [];
-        this.nextImageCursor = null;
-        this.totalImages = 0;
+      try {
+        const data = await scanDirectory(target, { imageLimit: IMAGE_PAGE_SIZE, imageCursor: 0 });
+        setCachedScan(target, data);
+        this.galleryFolders = data.folders;
+        this.galleryImages = data.images;
+        this.nextImageCursor = data.next_cursor;
+        this.totalImages = data.total_images;
+        this.currentPath = target;
         this.galleryLoading = false;
-        return;
+        this.isRefetching = false;
+        this.hasEverLoaded = true;
+      } catch (error) {
+        if (!cached) {
+          this.galleryFolders = [];
+          this.galleryImages = [];
+          this.nextImageCursor = null;
+          this.totalImages = 0;
+        }
+        this.galleryLoading = false;
+        this.isRefetching = false;
+        throw error;
       }
-
-      this.galleryFolders = data.folders;
-      this.galleryImages = data.images;
-      this.nextImageCursor = data.next_cursor;
-      this.totalImages = data.total_images;
-      this.currentPath = target;
-      this.galleryLoading = false;
-      this.hasEverLoaded = true;
     },
 
     async loadMoreImages() {
@@ -353,6 +368,7 @@ export const useGalleryStore = defineStore("gallery", {
       this.galleryFolders = [];
       this.galleryImages = [];
       this.hasEverLoaded = false;
+      this.isRefetching = false;
       if (typeof window !== "undefined") {
         localStorage.removeItem(STORAGE_KEY);
       }

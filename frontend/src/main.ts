@@ -6,6 +6,7 @@ import "vue-virtual-scroller/dist/vue-virtual-scroller.css";
 import { createApp } from "vue";
 import { createPinia } from "pinia";
 import App from "./App.vue";
+import { installVueQuery } from "./query";
 
 // Dev logging: page lifecycle debugging
 if (import.meta.env.DEV) {
@@ -44,4 +45,5 @@ if (import.meta.env.DEV) {
 const app = createApp(App);
 
 app.use(createPinia());
+installVueQuery(app);
 app.mount("#app");

@@ -9,6 +9,7 @@ This document explains how major external libraries are used in this project.
 | Library | Used for | Main integration file(s) | Notes |
 |---|---|---|---|
 | `@douxcode/vue-spring-bottom-sheet` | Mobile lightbox metadata sheet, drag/snap/spring animation, native-feeling scroll | `frontend/src/components/LightboxMobileSheet.vue`, `frontend/src/styles/_lightbox-mobile.scss` | Used as the sheet and motion engine only; Gallery owns metadata UI and behavior |
+| `@tanstack/vue-query` | Server-state caching for gallery scans | `frontend/src/query/index.ts`, `frontend/src/composables/useScanQuery.ts`, `frontend/src/stores/gallery.ts` | Caches `/api/scan` responses by normalized path and image page size |
 | PhotoSwipe 5 | Responsive lightbox image viewer, image navigation, swipe/pan/zoom | `frontend/src/components/Lightbox.vue`, `MobilePhotoSwipe.vue`, `TabletPhotoSwipe.vue`, `PhotoSwipeViewer.vue`, `frontend/src/composables/usePhotoSwipe.ts`, `frontend/src/styles/_lightbox-*.scss` | Used as the image viewer engine; Gallery owns metadata panels, custom controls, and responsive layout |
 | Vue 3 | Frontend framework | `frontend/src/main.ts`, `frontend/src/App.vue`, `frontend/src/components/`, `frontend/src/layouts/` | Composition API, SFC, and `<script setup>` |
 | Vite | Frontend build tool and dev server | `frontend/` | No custom plugins beyond defaults |
@@ -47,6 +48,23 @@ Outside-tap close: Because `blocking=false` renders no VSBS backdrop, `canBackdr
 Teleport styling: VSBS teleports DOM to `<body>`, so scoped SFC styles may not reach sheet internals. Keep global/non-scoped width rules for `[data-vsbs-sheet]`, `[data-vsbs-scroll]`, `[data-vsbs-content]`, `.sheet-content`, and `.expandable-text`. A previous scoped-only change collapsed `[data-vsbs-scroll]` to 4px, `[data-vsbs-content]` to 24px, and `.expandable-text` to 0px.
 
 Legacy code warning: The old custom sheet drag implementation was removed. Do not reintroduce `.sheet-panel` drag transforms, `.sheet-backdrop`, `.sheet-handle-wrapper` pointer drag, `--sheet-drag-y`, `dragDelta`, `sheetDragState`, custom pointer drag, or an rAF drag loop. VSBS provides the smoother drag/snap/scroll behavior.
+
+### @tanstack/vue-query
+
+Official links:
+
+- Docs: https://tanstack.com/query/v5/docs/framework/vue
+- npm: https://www.npmjs.com/package/@tanstack/vue-query
+
+Used for: Server-state caching for gallery folder scans.
+
+Integration files: `frontend/src/query/index.ts`, `frontend/src/composables/useScanQuery.ts`, `frontend/src/stores/gallery.ts`
+
+Query key: `["scan", normalizedPath, imageLimit]`, where `normalizedPath` is trimmed, slash-normalized, and has trailing slashes removed.
+
+Default behavior: Scan data is fresh for 1 minute, retained for 10 minutes after last use, retries once, and does not refetch on window focus.
+
+Decision: TanStack Query owns cached `/api/scan` server state. Pinia still owns UI state such as current path, history, search, sort, loading flags, and pagination cursors. The gallery store reads cached scan data before fetching so album revisits render immediately, then performs a background refresh and updates the cache with fresh data.
 
 ### PhotoSwipe 5
 
