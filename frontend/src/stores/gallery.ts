@@ -291,8 +291,11 @@ export const useGalleryStore = defineStore("gallery", {
         return;
       }
 
-      const { getCachedScan, setCachedScan } = await import("../composables/useScanQuery");
+      const { fetchScan, getCachedScan, isScanFresh } = await import("../composables/useScanQuery");
+
+      // Check cache first so navigation can render immediately when data exists.
       const cached = getCachedScan(target);
+      const fresh = isScanFresh(target);
       if (cached) {
         this.galleryFolders = cached.folders;
         this.galleryImages = cached.images;
@@ -300,23 +303,33 @@ export const useGalleryStore = defineStore("gallery", {
         this.totalImages = cached.total_images;
         this.currentPath = target;
         this.hasEverLoaded = true;
-        this.isRefetching = true;
+        this.isRefetching = !fresh;
       } else {
         this.galleryLoading = true;
         this.isRefetching = false;
       }
 
+      // fetchQuery respects staleTime: fresh data returns from cache without a network call.
       try {
-        const data = await scanDirectory(target, { imageLimit: IMAGE_PAGE_SIZE, imageCursor: 0 });
-        setCachedScan(target, data);
-        this.galleryFolders = data.folders;
-        this.galleryImages = data.images;
-        this.nextImageCursor = data.next_cursor;
-        this.totalImages = data.total_images;
-        this.currentPath = target;
-        this.galleryLoading = false;
-        this.isRefetching = false;
-        this.hasEverLoaded = true;
+        const data = await fetchScan(target);
+        if (data) {
+          this.galleryFolders = data.folders;
+          this.galleryImages = data.images;
+          this.nextImageCursor = data.next_cursor;
+          this.totalImages = data.total_images;
+          this.currentPath = target;
+          this.galleryLoading = false;
+          this.isRefetching = false;
+          this.hasEverLoaded = true;
+        }
+        if (!data && !cached) {
+          this.galleryFolders = [];
+          this.galleryImages = [];
+          this.nextImageCursor = null;
+          this.totalImages = 0;
+          this.galleryLoading = false;
+          this.isRefetching = false;
+        }
       } catch (error) {
         if (!cached) {
           this.galleryFolders = [];
@@ -326,7 +339,6 @@ export const useGalleryStore = defineStore("gallery", {
         }
         this.galleryLoading = false;
         this.isRefetching = false;
-        throw error;
       }
     },
 

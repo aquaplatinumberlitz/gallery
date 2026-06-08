@@ -61,6 +61,38 @@ export function getCachedScan(path: string): ScanResponse | undefined {
 }
 
 /**
+ * Fetch scan data respecting staleTime.
+ * - If cached data is fresh (within staleTime=60s): returns cached, no network.
+ * - If cached data is stale: fetches fresh data.
+ * - If no cached data: fetches.
+ */
+export async function fetchScan(path: string): Promise<ScanResponse | undefined> {
+  const normalized = normalizeQueryPath(path);
+  if (!normalized) return undefined;
+  try {
+    return await queryClient.fetchQuery({
+      queryKey: getScanQueryKey(normalized),
+      queryFn: () => scanDirectory(normalized, { imageLimit: IMAGE_PAGE_SIZE, imageCursor: 0 }),
+      staleTime: 60_000,
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Check if cached scan data for a path is still fresh (within staleTime).
+ */
+export function isScanFresh(path: string): boolean {
+  const normalized = normalizeQueryPath(path);
+  if (!normalized) return false;
+  const state = queryClient.getQueryState(getScanQueryKey(normalized));
+  if (!state || !state.data) return false;
+  const staleAt = (state.dataUpdatedAt || 0) + 60_000;
+  return Date.now() < staleAt;
+}
+
+/**
  * Store scan data after manual fetches.
  * Used by Pinia actions that keep existing UI-state behavior.
  */
