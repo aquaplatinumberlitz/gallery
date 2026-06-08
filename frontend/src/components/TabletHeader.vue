@@ -318,7 +318,7 @@ function onScopeChange(e: Event) {
 .th-search-input-wrap {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex: 1;
   background: var(--gallery-surface-elevated, var(--surface-color));
   border: 1px solid color-mix(in srgb, var(--border-color, rgba(0, 0, 0, 0.12)) 80%, transparent);
@@ -403,14 +403,29 @@ function onScopeChange(e: Event) {
 
 .th-search-scope {
   height: 28px;
-  border: 1px solid color-mix(in srgb, var(--gallery-accent-default, var(--primary-color)) 32%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-color, rgba(0, 0, 0, 0.12)) 58%, transparent);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--gallery-accent-default, var(--primary-color)) 8%, var(--gallery-surface-elevated, var(--surface-color)));
-  color: var(--text-color);
+  background: color-mix(in srgb, var(--muted-text) 4%, var(--gallery-surface-elevated, var(--surface-color)));
+  color: var(--muted-text);
   font-size: 12px;
   font-weight: 600;
   padding: 0 10px;
   flex-shrink: 0;
+  outline: none;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.th-search-scope:hover,
+.th-search-scope:focus,
+.th-search-scope:active,
+.th-search-scope:open {
+  border-color: color-mix(in srgb, var(--gallery-accent-default, var(--primary-color)) 48%, transparent);
+  background: color-mix(in srgb, var(--gallery-accent-default, var(--primary-color)) 7%, var(--gallery-surface-elevated, var(--surface-color)));
+  color: var(--gallery-accent-default, var(--primary-color));
+}
+
+.th-search-scope:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--gallery-accent-default, var(--primary-color)) 18%, transparent);
 }
 
 /* ============================================================

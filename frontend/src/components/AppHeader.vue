@@ -304,6 +304,7 @@ h1 {
   position: relative;
   display: flex;
   align-items: center;
+  gap: 6px;
   background: var(--surface-color);
   border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 10px;
@@ -356,9 +357,9 @@ h1 {
 }
 
 .scope-select {
-  border: 1px solid color-mix(in srgb, var(--primary-color) 28%, transparent);
-  background: color-mix(in srgb, var(--primary-color) 8%, var(--surface-color));
-  color: var(--text-color);
+  border: 1px solid color-mix(in srgb, var(--border-color, rgba(0, 0, 0, 0.1)) 55%, transparent);
+  background: color-mix(in srgb, var(--muted-text) 4%, var(--surface-color));
+  color: var(--muted-text);
   border-radius: 999px;
   height: 28px;
   padding: 0 10px;
@@ -366,10 +367,20 @@ h1 {
   font-weight: 600;
   cursor: pointer;
   outline: none;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.scope-select:focus {
-  border-color: var(--primary-color);
+.scope-select:hover,
+.scope-select:focus,
+.scope-select:active,
+.scope-select:open {
+  border-color: color-mix(in srgb, var(--primary-color) 48%, transparent);
+  background: color-mix(in srgb, var(--primary-color) 7%, var(--surface-color));
+  color: var(--primary-color);
+}
+
+.scope-select:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 18%, transparent);
 }
 
 /* Icon sizes using design tokens */
