@@ -3,7 +3,7 @@ import { computed, inject, onBeforeUnmount, onMounted, ref, watch, type Componen
 import { RecycleScroller } from "vue-virtual-scroller";
 import { useGalleryStore } from "../stores/gallery";
 import { useLightboxStore } from "../stores/lightbox";
-import type { SortField } from "../types";
+import type { FileNode, MetadataSearchResult, SortField } from "../types";
 import AlbumScroller from "./AlbumScroller.vue";
 import GallerySectionHeader from "./GallerySectionHeader.vue";
 import GlowContainer from "./GlowContainer.vue";
@@ -74,8 +74,8 @@ const setScrollContainerRef = (target: Element | ComponentPublicInstance | null)
 };
 
 const searchQuery = computed(() => galleryStore.searchQuery);
-const searchMode = computed(() => galleryStore.searchMode);
-const isMetadataSearch = computed(() => searchMode.value === "metadata" && !!searchQuery.value.trim());
+const trimmedSearchQuery = computed(() => searchQuery.value.trim());
+const hasSearchQuery = computed(() => trimmedSearchQuery.value.length > 0);
 const sortField = computed(() => galleryStore.sortField);
 const sortOrder = computed(() => galleryStore.sortOrder);
 
@@ -163,31 +163,43 @@ const sortItems = <T extends { name: string; mtime?: number }>(items: T[]): T[] 
 };
 
 const folders = computed(() =>
-  isMetadataSearch.value
-    ? []
-    :
   sortItems(
     fuzzySearchFileNodes(galleryStore.galleryFolders, searchQuery.value)
   )
 );
 
 // Fuse search is client-side and only covers images currently loaded into galleryImages.
-const images = computed(() =>
-  isMetadataSearch.value
-    ? galleryStore.metadataSearchResults.map((result) => ({
-        name: result.name,
-        path: result.path,
-        type: "image" as const,
-        has_children: false,
-        cover_images: [],
-        mtime: result.mtime,
-        width: result.width ?? undefined,
-        height: result.height ?? undefined,
-      }))
-    :
+const filenameImages = computed(() =>
   sortItems(
     fuzzySearchFileNodes(galleryStore.galleryImages, searchQuery.value)
   )
+);
+
+const metadataResultToFileNode = (result: MetadataSearchResult): FileNode => ({
+  name: result.name,
+  path: result.path,
+  type: "image",
+  has_children: false,
+  cover_images: [],
+  mtime: result.mtime,
+  width: result.width ?? undefined,
+  height: result.height ?? undefined,
+});
+
+const metadataImages = computed(() => {
+  const seenPaths = new Set(filenameImages.value.map((image) => image.path));
+  return galleryStore.metadataSearchResults.reduce<FileNode[]>((matches, result) => {
+    if (seenPaths.has(result.path)) return matches;
+    seenPaths.add(result.path);
+    matches.push(metadataResultToFileNode(result));
+    return matches;
+  }, []);
+});
+
+const images = computed(() =>
+  hasSearchQuery.value
+    ? [...filenameImages.value, ...metadataImages.value]
+    : filenameImages.value
 );
 
 const isLoading = computed(() => galleryStore.galleryLoading);
@@ -197,41 +209,31 @@ const canBack = computed(() => galleryStore.historyIndex > 0);
 const canForward = computed(
   () => galleryStore.historyIndex < galleryStore.history.length - 1
 );
-const hasMoreImages = computed(() => !isMetadataSearch.value && galleryStore.nextImageCursor !== null);
+const hasMoreImages = computed(() => !hasSearchQuery.value && galleryStore.nextImageCursor !== null);
 const hasAnyItems = computed(() => galleryStore.galleryFolders.length + galleryStore.galleryImages.length > 0);
 const hasNoPath = computed(() => !galleryStore.currentPath && !galleryStore.rootPath);
 const hasNotLoaded = computed(() => !galleryStore.hasEverLoaded && (!!galleryStore.currentPath || !!galleryStore.rootPath));
 const noSearchResults = computed(
   () =>
-    !!searchQuery.value &&
-    !isMetadataSearch.value &&
+    hasSearchQuery.value &&
+    !isMetadataLoading.value &&
     folders.value.length === 0 &&
-    images.value.length === 0 &&
+    filenameImages.value.length === 0 &&
+    metadataImages.value.length === 0 &&
     hasAnyItems.value
 );
 const errorMessage = computed(() => galleryStore.errorMessage);
-const metadataSearchError = computed(() => galleryStore.metadataSearchError);
-const imageSectionTitle = computed(() => isMetadataSearch.value ? "Metadata results" : "Photos");
-const imageSectionCount = computed(() => isMetadataSearch.value ? galleryStore.metadataSearchTotal : images.value.length);
-const noMetadataResults = computed(
-  () =>
-    isMetadataSearch.value &&
-    !isMetadataLoading.value &&
-    !metadataSearchError.value &&
-    images.value.length === 0
-);
 
 let metadataSearchTimer: number | undefined;
 
-watch([searchQuery, searchMode], ([query, mode]) => {
+watch(trimmedSearchQuery, (query) => {
   if (metadataSearchTimer) {
     window.clearTimeout(metadataSearchTimer);
     metadataSearchTimer = undefined;
   }
-  if (mode !== "metadata" || !query.trim()) {
+  if (query.length < 2) {
     galleryStore.metadataSearchResults = [];
     galleryStore.metadataSearchTotal = 0;
-    galleryStore.metadataSearchError = null;
     galleryStore.metadataSearchLoading = false;
     return;
   }
@@ -319,6 +321,28 @@ const imageRows = computed(() => {
     rows.push({
       id: `row-${columnCount.value}-${i}`,
       items: images.value.slice(i, i + columnCount.value)
+    });
+  }
+  return rows;
+});
+
+const filenameImageRows = computed(() => {
+  const rows: { id: string; items: typeof filenameImages.value }[] = [];
+  for (let i = 0; i < filenameImages.value.length; i += columnCount.value) {
+    rows.push({
+      id: `filename-row-${columnCount.value}-${i}`,
+      items: filenameImages.value.slice(i, i + columnCount.value)
+    });
+  }
+  return rows;
+});
+
+const metadataImageRows = computed(() => {
+  const rows: { id: string; items: typeof metadataImages.value }[] = [];
+  for (let i = 0; i < metadataImages.value.length; i += columnCount.value) {
+    rows.push({
+      id: `metadata-row-${columnCount.value}-${i}`,
+      items: metadataImages.value.slice(i, i + columnCount.value)
     });
   }
   return rows;
@@ -549,30 +573,87 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
-    <div v-if="isMetadataSearch" class="metadata-search-note">
-      <span>Metadata search covers indexed images only</span>
-    </div>
-
-    <div v-if="metadataSearchError" class="error-banner">
-      <div class="error-text">
-        <TriangleAlert class="gallery-icon-md" />
-        <span>{{ metadataSearchError }}</span>
-      </div>
-      <button
-        class="error-close"
-        type="button"
-        @click="galleryStore.metadataSearchError = null"
-      >
-        <X class="gallery-icon-sm" />
-      </button>
-    </div>
-
-    <div v-if="isLoading || isMetadataLoading" class="skeleton-container">
+    <div v-if="isLoading || (hasSearchQuery && isMetadataLoading && !folders.length && !filenameImages.length && !metadataImages.length)" class="skeleton-container">
       <div class="skeleton-grid" :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }">
         <SkeletonLoader
           v-for="i in skeletonItems"
           :key="i"
           type="photo"
+        />
+      </div>
+    </div>
+
+    <!-- Search results: albums, current-view filename matches, and backend metadata matches -->
+    <div
+      v-else-if="hasSearchQuery"
+      :ref="setScrollContainerRef"
+      class="search-results-container"
+    >
+      <GlowContainer v-if="folders.length" :disabled="props.isMobile">
+        <AlbumScroller
+          :folders="folders"
+          @open-folder="handleOpenFolder"
+        />
+      </GlowContainer>
+
+      <section v-if="filenameImages.length" class="search-photo-section">
+        <GallerySectionHeader
+          title="Photos"
+          :count="filenameImages.length"
+          :badge-icon="Images"
+        />
+
+        <div
+          v-for="row in filenameImageRows"
+          :key="row.id"
+          class="virtual-row"
+          :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }"
+        >
+          <PhotoCard
+            v-for="img in row.items"
+            :key="img.path"
+            :src="img.path"
+            :name="img.name"
+            @click="handleOpenImage(img.path, img.name)"
+            @keydown.enter="handleOpenImage(img.path, img.name)"
+            @keydown.space.prevent="handleOpenImage(img.path, img.name)"
+          />
+        </div>
+      </section>
+
+      <section v-if="metadataImages.length" class="search-photo-section">
+        <GallerySectionHeader
+          title="Metadata matches"
+          :count="metadataImages.length"
+          :badge-icon="Images"
+        />
+
+        <div
+          v-for="row in metadataImageRows"
+          :key="row.id"
+          class="virtual-row"
+          :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }"
+        >
+          <PhotoCard
+            v-for="img in row.items"
+            :key="img.path"
+            :src="img.path"
+            :name="img.name"
+            @click="handleOpenImage(img.path, img.name)"
+            @keydown.enter="handleOpenImage(img.path, img.name)"
+            @keydown.space.prevent="handleOpenImage(img.path, img.name)"
+          />
+        </div>
+      </section>
+
+      <div v-if="noSearchResults" class="search-empty-wrap">
+        <EmptyState
+          type="no-results"
+          title="No results"
+          description="Try a filename, album name, or prompt."
+          action-label="Clear search"
+          action-icon="xmark"
+          @action="galleryStore.clearSearch()"
         />
       </div>
     </div>
@@ -601,8 +682,8 @@ onBeforeUnmount(() => {
 
         <GallerySectionHeader
           v-if="images.length"
-            :title="imageSectionTitle"
-            :count="imageSectionCount"
+            title="Photos"
+            :count="images.length"
             :badge-icon="Images"
           />
         </template>
@@ -636,8 +717,8 @@ onBeforeUnmount(() => {
             <EmptyState
               v-if="noSearchResults"
               type="no-results"
-              :title="`No results for '${searchQuery}'`"
-              description="Try a different search term or clear the search"
+              title="No results"
+              description="Try a filename, album name, or prompt."
               action-label="Clear search"
               action-icon="xmark"
               compact
@@ -662,8 +743,8 @@ onBeforeUnmount(() => {
 
         <GallerySectionHeader
           v-if="images.length"
-          :title="imageSectionTitle"
-          :count="imageSectionCount"
+          title="Photos"
+          :count="images.length"
           :badge-icon="Images"
         />
 
@@ -694,8 +775,8 @@ onBeforeUnmount(() => {
           <EmptyState
             v-if="noSearchResults"
             type="no-results"
-            :title="`No results for '${searchQuery}'`"
-            description="Try a different search term or clear the search"
+            title="No results"
+            description="Try a filename, album name, or prompt."
             action-label="Clear search"
             action-icon="xmark"
             compact
@@ -738,27 +819,6 @@ onBeforeUnmount(() => {
         @action="galleryStore.clearError()"
       />
 
-      <!-- No Search Results -->
-      <EmptyState
-        v-else-if="noMetadataResults"
-        type="no-results"
-        :title="`No metadata results for '${searchQuery}'`"
-        description="Metadata search only covers images that have been indexed from scanned folders."
-        action-label="Clear search"
-        action-icon="xmark"
-        @action="galleryStore.clearSearch()"
-      />
-
-      <EmptyState
-        v-else-if="noSearchResults"
-        type="no-results"
-        :title="`No results for '${searchQuery}'`"
-        description="Try a different search term or clear the search"
-        action-label="Clear search"
-        action-icon="xmark"
-        @action="galleryStore.clearSearch()"
-      />
-      
       <!-- No Path Selected -->
       <EmptyState
         v-else-if="hasNoPath"
@@ -843,21 +903,35 @@ onBeforeUnmount(() => {
   }
 }
 
-.metadata-search-note {
-  display: inline-flex;
-  align-items: center;
-  align-self: flex-start;
-  min-height: 28px;
-  padding: 0 10px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
-  color: var(--muted-text);
-  font-size: 12px;
-}
-
 .scroller-container {
   flex: 1;
   min-height: 0; /* Important for flex child scrolling */
+}
+
+.search-results-container {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 14px;
+  padding-left: 10px;
+  scrollbar-width: thin;
+}
+
+.search-photo-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.search-empty-wrap {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 .scroller {

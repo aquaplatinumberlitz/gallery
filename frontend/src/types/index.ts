@@ -63,8 +63,6 @@ export interface ScanResponse {
   total_images: number;
 }
 
-export type SearchMode = "filename" | "metadata";
-
 export interface MetadataSearchResult {
   name: string;
   path: string;

@@ -4,7 +4,6 @@ import FolderTreeItem from "../components/FolderTreeItem.vue";
 import AppHeader from "../components/AppHeader.vue";
 import GalleryGrid from "../components/GalleryGrid.vue";
 import { ChevronLeft, ChevronRight, Loader } from "lucide-vue-next";
-import type { SearchMode } from "../types";
 
 defineProps<{
   theme: "light" | "dark";
@@ -13,7 +12,6 @@ defineProps<{
   isLoading: boolean;
   currentPath: string;
   searchQuery: string;
-  searchMode: SearchMode;
 }>();
 
 const emit = defineEmits<{
@@ -21,7 +19,6 @@ const emit = defineEmits<{
   (e: "toggleSidebar"): void;
   (e: "toggleTheme"): void;
   (e: "openSettings"): void;
-  (e: "toggleSearchMode"): void;
 }>();
 </script>
 
@@ -73,12 +70,10 @@ const emit = defineEmits<{
         :is-sidebar-open="isSidebarOpen"
         :is-dark="theme === 'dark'"
         :search-query="searchQuery"
-        :search-mode="searchMode"
         @update:search-query="emit('update:searchQuery', $event)"
         @toggle-sidebar="emit('toggleSidebar')"
         @toggle-theme="emit('toggleTheme')"
         @open-settings="emit('openSettings')"
-        @toggle-search-mode="emit('toggleSearchMode')"
       />
 
       <div class="content-body">
