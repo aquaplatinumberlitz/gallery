@@ -1,6 +1,6 @@
 import { ref, onMounted, onBeforeUnmount, watch, type Ref, type WatchStopHandle } from 'vue'
 
-const SCROLL_SELECTOR = '.vue-recycle-scroller, .scroller, .folders-only-container'
+const SCROLL_SELECTOR = '.scroller, .folders-only-container'
 
 export function useScrollVisibility(containerRef?: Ref<HTMLElement | null>) {
   const barsVisible = ref(true)
@@ -75,7 +75,7 @@ export function useScrollVisibility(containerRef?: Ref<HTMLElement | null>) {
       return
     }
 
-    // Poll for .vue-recycle-scroller (may not render immediately)
+    // Poll for the active scroll container when no injected ref is provided.
     intervalId = setInterval(() => {
       const el = document.querySelector<HTMLElement>(SCROLL_SELECTOR)
       if (el && el.scrollHeight > el.clientHeight) {

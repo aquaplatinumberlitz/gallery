@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from "vue";
-import { RecycleScroller } from "vue-virtual-scroller";
+import { useVirtualizer } from "@tanstack/vue-virtual";
 import { useGalleryStore } from "../stores/gallery";
 import { useLightboxStore } from "../stores/lightbox";
 import type { FileNode, SortField, UnifiedSearchResult } from "../types";
@@ -56,6 +56,16 @@ const props = withDefaults(defineProps<Props>(), {
   showToolbarBreadcrumb: true,
 })
 const injectedScrollContainerRef = inject(galleryScrollContainerRefKey, null)
+const scrollParentRef = ref<HTMLElement | null>(null)
+
+const resolveTemplateRefElement = (target: Element | ComponentPublicInstance | null) => {
+  if (!target) return null;
+  return target instanceof HTMLElement
+    ? target
+    : "$el" in target && target.$el instanceof HTMLElement
+      ? target.$el
+      : null;
+};
 
 const setScrollContainerRef = (target: Element | ComponentPublicInstance | null) => {
   if (!injectedScrollContainerRef) return;
@@ -65,13 +75,13 @@ const setScrollContainerRef = (target: Element | ComponentPublicInstance | null)
     return;
   }
 
-  const el = target instanceof HTMLElement
-    ? target
-    : "$el" in target && target.$el instanceof HTMLElement
-      ? target.$el
-      : null;
+  injectedScrollContainerRef.value = resolveTemplateRefElement(target);
+};
 
-  injectedScrollContainerRef.value = el;
+const setVirtualScrollContainerRef = (target: Element | ComponentPublicInstance | null) => {
+  const el = resolveTemplateRefElement(target);
+  scrollParentRef.value = el;
+  setScrollContainerRef(target);
 };
 
 const searchQuery = computed(() => galleryStore.searchQuery);
@@ -437,6 +447,24 @@ const imageRows = computed(() => {
   return rows;
 });
 
+const rowVirtualizer = useVirtualizer<HTMLElement, HTMLElement>(
+  computed(() => ({
+    count: imageRows.value.length,
+    getScrollElement: () => scrollParentRef.value,
+    estimateSize: () => rowHeight.value || 1,
+    overscan: 5,
+    getItemKey: (index: number) => imageRows.value[index]?.id ?? index,
+  }))
+);
+
+watch(
+  [rowHeight, columnCount, () => imageRows.value.length],
+  () => {
+    rowVirtualizer.value.measure();
+  },
+  { flush: "post" }
+);
+
 const searchPhotoRows = computed(() => {
   const rows: { id: string; items: typeof searchPhotos.value }[] = [];
   for (let i = 0; i < searchPhotos.value.length; i += columnCount.value) {
@@ -801,39 +829,45 @@ onBeforeUnmount(() => {
     <template v-else-if="images.length > 0 || folders.length > 0">
       <div class="scroller-container" :ref="setGridRef">
 
-      <RecycleScroller
-        v-if="!props.isMobile && imageRows.length > 0 && rowHeight > 0"
-        :ref="setScrollContainerRef"
-        :key="`${columnCount}-${imageRows.length}`"
-        :class="['scroller', { 'fade-slide': !isMobile }]"
-        :items="imageRows"
-        :item-size="rowHeight"
-        key-field="id"
-        :buffer="600"
+      <div
+        v-if="!props.isMobile && imageRows.length > 0"
+        :ref="setVirtualScrollContainerRef"
+        class="scroller tanstack-scroller"
+        :class="{ 'fade-slide': !isMobile }"
       >
-        <template #before>
-          <GlowContainer v-if="folders.length" :disabled="props.isMobile">
-            <AlbumScroller
-              :folders="folders"
-              @open-folder="handleOpenFolder"
-            />
-          </GlowContainer>
+        <GlowContainer v-if="folders.length" :disabled="false">
+          <AlbumScroller
+            :folders="folders"
+            @open-folder="handleOpenFolder"
+          />
+        </GlowContainer>
 
         <GallerySectionHeader
           v-if="images.length"
-            title="Photos"
-            :count="images.length"
-            :badge-icon="Images"
-          />
-        </template>
+          title="Photos"
+          :count="images.length"
+          :badge-icon="Images"
+        />
 
-        <template #default="{ item: row }">
-          <div 
-            class="virtual-row" 
-            :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }"
+        <div
+          class="tanstack-virtual-spacer"
+          :style="{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }"
+        >
+          <div
+            v-for="virtualRow in rowVirtualizer.getVirtualItems()"
+            :key="String(virtualRow.key)"
+            class="virtual-row tanstack-virtual-row"
+            :style="{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              transform: `translateY(${virtualRow.start}px)`,
+              gridTemplateColumns: `repeat(${columnCount}, 1fr)`
+            }"
           >
             <PhotoCard
-              v-for="img in row.items"
+              v-for="img in imageRows[virtualRow.index]?.items ?? []"
               :key="img.path"
               :src="img.path"
               :name="img.name"
@@ -842,30 +876,27 @@ onBeforeUnmount(() => {
               @keydown.space.prevent="handleOpenImage(img.path, img.name)"
             />
           </div>
-        </template>
+        </div>
 
-        <template #after>
-          <div class="scroller-footer" :class="{ 'bars-hidden': !barsVisible }">
-            <div ref="loadMoreSentinel" class="load-more-sentinel"></div>
-            <div v-if="isLoadingMore" class="loading-more">
-              <Loader class="gallery-icon-md lucide-spin" />
-              <span>Loading more photos...</span>
-            </div>
-
-            <!-- No Search Results (only state possible inside RecycleScroller) -->
-            <EmptyState
-              v-if="noSearchResults"
-              type="no-results"
-              title="No results"
-              description="Try a filename, album name, or prompt."
-              action-label="Clear search"
-              action-icon="xmark"
-              compact
-              @action="galleryStore.clearSearch()"
-            />
+        <div class="scroller-footer" :class="{ 'bars-hidden': !barsVisible }">
+          <div ref="loadMoreSentinel" class="load-more-sentinel"></div>
+          <div v-if="isLoadingMore" class="loading-more">
+            <Loader class="gallery-icon-md lucide-spin" />
+            <span>Loading more photos...</span>
           </div>
-        </template>
-      </RecycleScroller>
+
+          <EmptyState
+            v-if="noSearchResults"
+            type="no-results"
+            title="No results"
+            description="Try a filename, album name, or prompt."
+            action-label="Clear search"
+            action-icon="xmark"
+            compact
+            @action="galleryStore.clearSearch()"
+          />
+        </div>
+      </div>
 
       <!-- Mobile: native scroll (no virtual scroller) -->
       <div
@@ -924,7 +955,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <!-- Fallback: Only folders, no images (when RecycleScroller is not rendered) -->
+      <!-- Fallback: Only folders, no images -->
       <div v-else-if="folders.length > 0" :ref="setScrollContainerRef" class="folders-only-container">
         <GlowContainer :disabled="props.isMobile">
           <AlbumScroller
@@ -1177,16 +1208,6 @@ onBeforeUnmount(() => {
 .scroller:focus-visible {
   outline: none;
   box-shadow: none;
-}
-
-/* Allow card hover to extend beyond each row height in virtual scroller */
-:deep(.vue-recycle-scroller__item-wrapper) {
-  overflow: visible;
-}
-
-/* Ensure before/after slot content is not clipped by glow/box-shadow */
-:deep(.vue-recycle-scroller__slot) {
-  overflow: visible;
 }
 
 .fade-slide {
@@ -1587,8 +1608,7 @@ onBeforeUnmount(() => {
   padding: 0 8px; /* Space for shadow on first and last column images */
   contain: layout style; /* Safer than content-visibility:auto — no Safari flicker bug */
 }
-/* content-visibility:auto removed - conflicts with RecycleScroller's own DOM recycling
-   and causes flicker on mobile Safari */
+/* content-visibility:auto removed because it causes flicker on mobile Safari */
 
 @media (max-width: 1199px) {
   .grid-header {
