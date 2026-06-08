@@ -94,6 +94,7 @@ Mobile:
 - Preserve the collapsed prompt fade overlay and "Show more" behavior.
 - Preserve `expanded-change` events so mobile sheet height and reset behavior remain accurate.
 - When the mobile chevron collapses an expanded sheet, reset prompt expansion state through the keyed `ExpandableText` remount behavior.
+- Planned, not yet implemented: show an EXIF tab only when backend metadata includes `exif.hasData`. The EXIF panel should be a compact grouped summary with human-readable labels, hidden empty rows, single-column mobile layout, and one- or two-column tablet/desktop layout. Do not show an empty EXIF tab, a raw EXIF dump, a GPS map, or a Copy EXIF action in v1.
 
 ## Mobile Lightbox Sheet
 

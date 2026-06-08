@@ -134,6 +134,7 @@ Metadata panels:
 - Desktop: fixed right sidebar, accordions, fullscreen and close controls.
 - Tablet: two-column bottom sheet, expandable.
 - Mobile: tabbed VSBS bottom sheet with Prompt, Params, and Model tabs; library-managed drag/snap/scroll; safe-area-aware controls.
+- Planned, not yet implemented: a compact EXIF tab may be added across metadata panels only when `/api/metadata` returns `exif.hasData`. Without EXIF data, the tab set remains Prompt, Params, and Model. See [Metadata Parsing](METADATA_PARSING.md#planned-basic-exif-tab).
 
 Mobile sheet integration:
 

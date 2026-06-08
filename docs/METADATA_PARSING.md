@@ -70,6 +70,77 @@ Detection priority:
 
 The metadata response includes parsed parameters, source, dimensions, and related generation fields when available.
 
+## Planned Basic EXIF Tab
+
+Status: planning only, not yet implemented.
+
+The lightbox metadata UI should gain a separate camera/photo EXIF tab only when the backend returns meaningful EXIF data. Images without meaningful EXIF keep the existing tab set:
+
+- Without EXIF: Prompt, Params, Model
+- With EXIF: Prompt, Params, Model, EXIF
+
+The first version should be a compact readable summary, not a raw EXIF dump. Hide empty fields and use human-readable labels instead of raw EXIF key names.
+
+Planned groups and fields:
+
+| Group | Fields |
+| --- | --- |
+| Camera | Make, Model, Lens model |
+| Exposure | ISO, Aperture, Shutter speed, Focal length, Flash |
+| Image | Resolution, File size, Orientation, Color space |
+| Date | Date taken, File modified |
+| Location | GPS latitude/longitude |
+
+Keep the first version to roughly 12-15 fields. Do not include a raw EXIF accordion, GPS map, or Copy EXIF action in v1.
+
+Backend responsibility:
+
+- Extract and normalize basic EXIF with Pillow/PIL.
+- Do not add ExifTool for the first version.
+- Reuse the existing metadata cache key strategy based on path, mtime, and file size.
+- Set `hasData` to `true` only when there is meaningful EXIF beyond basic filename/size.
+- Include only sections and fields with values.
+- Keep the `/api/metadata` response backward-compatible.
+
+Planned response shape:
+
+```typescript
+exif?: {
+  hasData: boolean
+  camera?: { make?: string; model?: string; lensModel?: string }
+  exposure?: { iso?: number; aperture?: string; shutterSpeed?: string; focalLength?: string; flash?: string }
+  image?: { width?: number; height?: number; orientation?: string; colorSpace?: string; fileSizeBytes?: number }
+  date?: { taken?: string; digitized?: string; fileModified?: string }
+  location?: { latitude?: number; longitude?: number }
+}
+```
+
+Frontend responsibility:
+
+- Render normalized EXIF from the backend; do not parse EXIF from image files in the browser.
+- Add the EXIF tab only when `exif.hasData` is true.
+- Match the existing lightbox metadata design language used by Prompt, Params, and Model.
+- Hide empty, null, and undefined rows.
+- Use single-column grouped rows on mobile.
+- Use compact grouped rows with one or two columns on tablet and desktop.
+
+Do not do:
+
+- No frontend EXIF parser.
+- No full-size image fetch for browser EXIF parsing.
+- No raw EXIF dump in v1.
+- No ExifTool before the Pillow prototype.
+- No EXIF tab when there is no meaningful EXIF data.
+
+Implementation phases:
+
+1. Backend EXIF extraction with Pillow: add a helper/service for basic EXIF fields, normalize names, add `exif` to `/api/metadata`, reuse the existing cache key, and keep backward compatibility.
+2. Tests: cover JPEG camera EXIF, GPS EXIF, PNG/AI images without EXIF, EXIF orientation, partial EXIF, and existing AI metadata parsing.
+3. Frontend EXIF tab: conditionally add the tab, render grouped fields, hide empty rows, leave Prompt/Params/Model unchanged, and verify mobile/tablet/desktop layouts.
+4. Optional future work: ExifTool prototype, GPS map, XMP/IPTC, Copy EXIF, and raw EXIF accordion.
+
+ExifTool remains an optional future enhancement, not a current dependency. Future use cases include XMP/IPTC, MakerNotes, better lens/camera coverage, GPS edge cases, HEIC/RAW/video metadata, and XMP sidecars. The model to follow is an Immich-style normalized metadata panel: backend normalizes metadata, frontend renders a readable panel, and map/GPS enhancements stay future work.
+
 ## Frontend Consumption
 
 `frontend/src/utils/lightbox.ts` builds PhotoSwipe items from scanned image data:
