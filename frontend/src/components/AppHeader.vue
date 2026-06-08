@@ -367,20 +367,6 @@ h1 {
   font-weight: 600;
   cursor: pointer;
   outline: none;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.scope-select:hover,
-.scope-select:focus,
-.scope-select:active,
-.scope-select:open {
-  border-color: color-mix(in srgb, var(--primary-color) 48%, transparent);
-  background: color-mix(in srgb, var(--primary-color) 7%, var(--surface-color));
-  color: var(--primary-color);
-}
-
-.scope-select:focus-visible {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 18%, transparent);
 }
 
 /* Icon sizes using design tokens */

@@ -529,20 +529,6 @@ onMounted(() => {
   padding: 0 8px;
   flex-shrink: 0;
   outline: none;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.search-scope-chip:hover,
-.search-scope-chip:focus,
-.search-scope-chip:active,
-.search-scope-chip:open {
-  border-color: color-mix(in srgb, var(--gallery-accent-default, var(--primary-color)) 48%, transparent);
-  background: color-mix(in srgb, var(--gallery-accent-default, var(--primary-color)) 7%, var(--gallery-surface-elevated, var(--surface-color)));
-  color: var(--gallery-accent-default, var(--primary-color));
-}
-
-.search-scope-chip:focus-visible {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--gallery-accent-default, var(--primary-color)) 18%, transparent);
 }
 
 /* ============================================================
