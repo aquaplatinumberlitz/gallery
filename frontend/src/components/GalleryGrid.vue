@@ -201,12 +201,27 @@ const formatDisplayFilename = (name: string, maxLen = 28): string => {
   const availableBaseLength = maxLen - extension.length - ellipsis.length;
 
   if (availableBaseLength < minSegmentLength * 2) {
-    return `${name.slice(0, Math.max(1, maxLen - ellipsis.length))}${ellipsis}`;
+    const fallbackBaseLength = Math.max(1, maxLen - extension.length - ellipsis.length);
+    return `${baseName.slice(0, fallbackBaseLength)}${ellipsis}${extension}`;
   }
 
   const prefixLength = Math.ceil(availableBaseLength / 2);
   const suffixLength = Math.floor(availableBaseLength / 2);
   return `${baseName.slice(0, prefixLength)}${ellipsis}${baseName.slice(-suffixLength)}${extension}`;
+};
+
+const splitDisplayName = (name: string): { base: string; ext: string } => {
+  const dotIndex = name.lastIndexOf(".");
+  const hasExtension = dotIndex > 0 && dotIndex < name.length - 1;
+  return {
+    base: hasExtension ? name.slice(0, dotIndex) : name,
+    ext: hasExtension ? name.slice(dotIndex) : "",
+  };
+};
+
+const displayFilenameParts = (name: string): { base: string; ext: string } => {
+  const maxLen = columnCount.value >= 7 ? 20 : 28;
+  return splitDisplayName(formatDisplayFilename(name, maxLen));
 };
 
 const normalizeDisplayFolderPath = (path: string): string =>
@@ -697,7 +712,10 @@ onBeforeUnmount(() => {
               @keydown.enter="handleOpenImage(img.path, img.name)"
               @keydown.space.prevent="handleOpenImage(img.path, img.name)"
             />
-            <span class="search-result-name" :title="img.name">{{ formatDisplayFilename(img.name) }}</span>
+            <span class="search-result-name file-name-display" :title="img.name">
+              <span class="file-name-base">{{ displayFilenameParts(img.name).base }}</span>
+              <span class="file-name-ext">{{ displayFilenameParts(img.name).ext }}</span>
+            </span>
             <span v-if="searchResultFolderPath(img)" class="search-result-path" :title="searchResultFolderPath(img)">
               <Folder class="search-result-path-icon" />
               <span :title="searchResultFolderPath(img)">{{ searchResultFolderPath(img) }}</span>
@@ -727,7 +745,10 @@ onBeforeUnmount(() => {
               @keydown.enter="handleOpenImage(img.path, img.name)"
               @keydown.space.prevent="handleOpenImage(img.path, img.name)"
             />
-            <span class="search-result-name" :title="img.name">{{ formatDisplayFilename(img.name) }}</span>
+            <span class="search-result-name file-name-display" :title="img.name">
+              <span class="file-name-base">{{ displayFilenameParts(img.name).base }}</span>
+              <span class="file-name-ext">{{ displayFilenameParts(img.name).ext }}</span>
+            </span>
             <span v-if="searchResultFolderPath(img)" class="search-result-path" :title="searchResultFolderPath(img)">
               <Folder class="search-result-path-icon" />
               <span :title="searchResultFolderPath(img)">{{ searchResultFolderPath(img) }}</span>
@@ -1096,6 +1117,27 @@ onBeforeUnmount(() => {
   line-height: 1.25;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-name-display {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.file-name-base {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-name-ext {
+  flex: 0 0 auto;
   white-space: nowrap;
 }
 
