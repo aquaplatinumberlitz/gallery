@@ -224,8 +224,8 @@ Each layout owns its sidebar/header/content shell and receives data/actions from
 | Device | Layout | Sidebar | Grid |
 |--------|--------|---------|------|
 | Mobile `<768px` | `MobileLayout.vue` | 240px overlay, destroyed on close | Native scroll |
-| Tablet `768-1199px` | `TabletLayout.vue` | 280px drawer, always in DOM, `inert` when closed | RecycleScroller |
-| Desktop/Wide `>=1200px` | `DesktopLayout.vue` | 280px persistent, collapsible | RecycleScroller |
+| Tablet `768-1199px` | `TabletLayout.vue` | 280px drawer, always in DOM, `inert` when closed | TanStack Virtual row-based grid |
+| Desktop/Wide `>=1200px` | `DesktopLayout.vue` | 280px persistent, collapsible | TanStack Virtual row-based grid |
 
 ## Fragile Contracts
 

@@ -14,7 +14,7 @@ This document explains how major external libraries are used in this project.
 | Vue 3 | Frontend framework | `frontend/src/main.ts`, `frontend/src/App.vue`, `frontend/src/components/`, `frontend/src/layouts/` | Composition API, SFC, and `<script setup>` |
 | Vite | Frontend build tool and dev server | `frontend/` | No custom plugins beyond defaults |
 | Lucide | Icons across the gallery | Vue components and shared UI styles | Prefer semantic icon tokens and component-level sizing rules |
-| `vue-virtual-scroller` | Virtual scrolling in the image grid | `frontend/src/components/GalleryGrid.vue` | Used for large desktop/tablet grids |
+| `@tanstack/vue-virtual` | Row-based virtual scrolling in the image grid | `frontend/src/components/GalleryGrid.vue` | Used for large desktop/tablet grids |
 | Fuse.js | Lightweight client-side filtering helper for normal gallery folder/image lists | `frontend/src/utils/fuzzySearch.ts`, `frontend/src/components/GalleryGrid.vue`, `frontend/package.json` | Active non-empty gallery search is handled by backend `/api/search` |
 | SQLite FTS5 | Backend full-text search for indexed albums, photo filenames, and prompt/metadata | `backend/services/metadata_index.py`, `backend/main.py` | Uses Python stdlib `sqlite3`; no external search service |
 | Pillow | Image metadata extraction and image processing | `backend/main.py`, `backend/services/metadata_index.py`, `backend/requirements.txt` | Reads PNG/JPEG/WebP metadata exposed by Pillow; also used for thumbnails |
@@ -197,9 +197,11 @@ Thumbnail cache keys include the resolved source path, source `mtime_ns`, source
 - Official: https://lucide.dev/
 - Used for: icons across the gallery
 
-#### vue-virtual-scroller
+#### @tanstack/vue-virtual
 
-- Used for: virtual scrolling in the image grid
+- Library: TanStack Virtual (row-based virtualization)
+- Official Vue docs: https://tanstack.com/virtual/latest/docs/framework/vue/vue-virtual
+- Used for: `GalleryGrid.vue` desktop/tablet photo grid, with row-based virtualization via `useVirtualizer`
 
 ## Do Not Change Casually
 

@@ -28,7 +28,7 @@ Desktop:
 
 - Use `DesktopLayout.vue`.
 - Keep the 280px sidebar persistent and collapsible by edge toggle.
-- Use `AppHeader` and `GalleryGrid` with RecycleScroller.
+- Use `AppHeader` and `GalleryGrid` with TanStack Virtual.
 
 Tablet:
 
@@ -41,7 +41,7 @@ Mobile:
 
 - Use `MobileLayout.vue`.
 - Use the 240px overlay sidebar with backdrop close.
-- Use native scroll instead of RecycleScroller.
+- Mobile uses native scroll instead of virtual scrolling.
 - Keep fixed header and bottom bar safe-area-aware.
 
 ## Grid Density

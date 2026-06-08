@@ -2,7 +2,7 @@
 
 Last reviewed: 2026-06-06
 
-A local-first web gallery for browsing AI-generated artwork collections. It pairs a FastAPI backend for scanning, thumbnails, and metadata parsing with a Vue 3 frontend that provides a responsive virtual-scrolled gallery and PhotoSwipe-based lightbox.
+A local-first web gallery for browsing AI-generated artwork collections. It pairs a FastAPI backend for scanning, thumbnails, and metadata parsing with a Vue 3 frontend that provides a responsive TanStack Virtual gallery and PhotoSwipe-based lightbox.
 
 Designed for local/personal use. It is not intended as a hardened public deployment.
 
@@ -23,7 +23,7 @@ Designed for local/personal use. It is not intended as a hardened public deploym
 | Backend | FastAPI, Uvicorn, Pillow, cachetools |
 | Frontend | Vue 3, TypeScript, Vite, Pinia |
 | Lightbox | PhotoSwipe 5 |
-| Grid | vue-virtual-scroller |
+| Grid | @tanstack/vue-virtual |
 | Styling | SCSS, CSS custom properties |
 | Icons | Lucide Vue Next |
 

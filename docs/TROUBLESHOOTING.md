@@ -35,9 +35,9 @@ Last reviewed: 2026-06-07
 | Input focus zoom/accessory bar | Keep viewport/input behavior tested on real iOS devices |
 | Sticky hover states | Reset hover styles under touch media queries |
 
-## RecycleScroller Height
+## TanStack Virtual Scroll Container
 
-RecycleScroller needs a fixed-height scroll container. The critical rule is that each flex parent in the chain allows shrinking:
+TanStack Virtual needs the scroll container to have a defined height (e.g., `height: 100%`) and `overflow-y: auto`. The scroll container ref must be properly wired to `useVirtualizer` via `getScrollElement`. The critical rule is that each flex parent in the chain allows shrinking:
 
 ```scss
 .scroller-container {
