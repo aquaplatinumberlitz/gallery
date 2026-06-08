@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
-import type { FileNode, SortField, SortOrder } from "../types";
-import { openFolder, scanDirectory, GalleryAPIError } from "../services/api";
+import type { FileNode, MetadataSearchResult, SearchMode, SortField, SortOrder } from "../types";
+import { openFolder, scanDirectory, searchMetadata as searchMetadataApi, GalleryAPIError } from "../services/api";
 import { useToastStore } from "./toast";
 import { IMAGE_PAGE_SIZE } from "../constants";
 
@@ -102,6 +102,11 @@ export const useGalleryStore = defineStore("gallery", {
       hasEverLoaded: false,
       errorMessage: "" as string | null,
       searchQuery: "",
+      searchMode: "filename" as SearchMode,
+      metadataSearchResults: [] as MetadataSearchResult[],
+      metadataSearchTotal: 0,
+      metadataSearchLoading: false,
+      metadataSearchError: "" as string | null,
       sortField: storedSort.field as SortField,
       sortOrder: storedSort.order as SortOrder,
     };
@@ -118,6 +123,53 @@ export const useGalleryStore = defineStore("gallery", {
 
     clearSearch() {
       this.searchQuery = "";
+      this.metadataSearchResults = [];
+      this.metadataSearchTotal = 0;
+      this.metadataSearchError = null;
+    },
+
+    setSearchMode(mode: SearchMode) {
+      this.searchMode = mode;
+      this.metadataSearchError = null;
+      if (mode === "filename" || !this.searchQuery.trim()) {
+        this.metadataSearchResults = [];
+        this.metadataSearchTotal = 0;
+      }
+    },
+
+    toggleSearchMode() {
+      this.setSearchMode(this.searchMode === "filename" ? "metadata" : "filename");
+    },
+
+    async searchMetadata(query?: string) {
+      const trimmed = (query ?? this.searchQuery).trim();
+      if (!trimmed) {
+        this.metadataSearchResults = [];
+        this.metadataSearchTotal = 0;
+        this.metadataSearchError = null;
+        this.metadataSearchLoading = false;
+        return;
+      }
+
+      this.metadataSearchLoading = true;
+      this.metadataSearchError = null;
+      try {
+        const data = await searchMetadataApi(trimmed, { limit: 100, offset: 0 });
+        if (this.searchQuery.trim() !== trimmed || this.searchMode !== "metadata") return;
+        this.metadataSearchResults = data.results;
+        this.metadataSearchTotal = data.total;
+      } catch (error: unknown) {
+        console.error("Unable to search metadata", error);
+        if (error instanceof GalleryAPIError) {
+          this.metadataSearchError = error.suggestion;
+        } else {
+          this.metadataSearchError = "Unable to search metadata. Please try again.";
+        }
+      } finally {
+        if (this.searchQuery.trim() === trimmed) {
+          this.metadataSearchLoading = false;
+        }
+      }
     },
 
     setSortField(field: SortField) {

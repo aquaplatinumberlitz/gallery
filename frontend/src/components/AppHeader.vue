@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { Landmark, Search, X, Settings, Menu } from 'lucide-vue-next'
+import type { SearchMode } from '../types'
 
 interface Props {
   isMobile: boolean
   isSidebarOpen: boolean
   isDark: boolean
   searchQuery: string
+  searchMode: SearchMode
 }
 defineProps<Props>()
 
@@ -14,6 +16,7 @@ const emit = defineEmits<{
   'toggle-sidebar': []
   'toggle-theme': []
   'open-settings': []
+  'toggle-search-mode': []
 }>()
 
 function onSearchInput(e: Event) {
@@ -75,13 +78,22 @@ function clearSearch() {
         </span>
       </button>
       <div class="search-box">
+        <button
+          class="search-mode-btn"
+          type="button"
+          :class="{ active: searchMode === 'metadata' }"
+          @click="emit('toggle-search-mode')"
+          :title="searchMode === 'metadata' ? 'Switch to current view search' : 'Switch to metadata search'"
+        >
+          {{ searchMode === 'metadata' ? 'Metadata' : 'Current view' }}
+        </button>
         <Search class="gallery-icon-toolbar search-icon" />
         <input
           id="gallery-search"
           :value="searchQuery"
           @input="onSearchInput"
           type="search"
-          placeholder="Search images..."
+          :placeholder="searchMode === 'metadata' ? 'Search prompts & metadata...' : 'Search images...'"
           autocomplete="off"
         />
         <button 
@@ -295,6 +307,26 @@ h1 {
   min-width: 220px;
   height: 40px;
   transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.search-mode-btn {
+  height: 28px;
+  max-width: 104px;
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--primary-color) 28%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted-text);
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.search-mode-btn.active {
+  color: var(--title-color);
+  background: color-mix(in srgb, var(--primary-color) 14%, transparent);
 }
 
 .search-box:hover {

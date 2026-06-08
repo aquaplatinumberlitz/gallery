@@ -6,7 +6,7 @@ Last reviewed: 2026-06-08
 
 AI Art Gallery is a local-first image browser with a FastAPI backend and a Vue 3 frontend.
 
-- Backend: scans directories, serves originals, renders cached WebP thumbnails, and parses generation metadata.
+- Backend: scans directories, serves originals, renders cached WebP thumbnails, parses generation metadata, and indexes prompt/metadata text in SQLite FTS5.
 - Frontend: manages gallery state with Pinia, renders responsive layouts, virtualizes large grids, and opens images in a PhotoSwipe 5 lightbox.
 - Startup: `start.py` creates the Python virtualenv, installs Python and Node dependencies, and starts both servers.
 
@@ -22,6 +22,7 @@ All API routes live in `backend/main.py`.
 | `GET /api/image` | Serve an original image file |
 | `GET /api/thumbnail` | Serve a cached WebP thumbnail |
 | `GET /api/metadata` | Parse AI generation metadata |
+| `GET /api/search-metadata` | Search indexed AI prompt/metadata fields with SQLite FTS5 |
 | `POST /api/open-folder` | Open a folder in the OS file explorer when enabled |
 | `GET /api/health` | Return service health |
 | `GET /api/landing-pages` | List intro page HTML files |
@@ -33,6 +34,8 @@ Important backend behavior:
 - `GALLERY_OPEN_FOLDER=false` disables OS folder opening by default.
 - Thumbnail cache keys include path, mtime, size, max size, and quality.
 - Metadata cache keys include path, mtime, and size.
+- Metadata search cache lives at `backend/.cache/gallery_metadata.db`. It stores normalized image metadata keyed by path, mtime, and size, with two FTS5 indexes: `unicode61` for normal prompt/model/filename terms and `trigram` for Japanese/CJK substring matching.
+- `/api/scan` opportunistically indexes image metadata for the scanned folder in the background. Search covers indexed images only; unchanged files are not reparsed.
 - Production mode is enabled with `PRODUCTION=1`, serving `frontend/dist/`.
 
 ## Frontend
@@ -92,7 +95,10 @@ Header or toolbar emits search/sort change
 → RecycleScroller or native mobile grid rerenders
 ```
 
-Search is client-side only. Because `/api/scan` returns paginated images, image search covers the images already loaded into `galleryImages`; it does not search unloaded images until backend search is added.
+Search has two explicit modes:
+
+- Current view: client-side Fuse.js search over currently loaded folders/images in `galleryFolders` and `galleryImages`. This remains filename/folder search only and preserves current pagination, sort, folder navigation, and virtual/native scroll behavior.
+- Metadata: backend-driven prompt/metadata search through `GET /api/search-metadata?q=...`. The backend extracts metadata with Pillow, normalizes fields, stores them in SQLite, and searches with SQLite FTS5. Japanese/CJK queries use trigram FTS when possible, with parameterized `LIKE` fallback for short queries or no-result fallback.
 
 ### Open Image
 

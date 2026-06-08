@@ -62,3 +62,24 @@ export interface ScanResponse {
   next_cursor: number | null;
   total_images: number;
 }
+
+export type SearchMode = "filename" | "metadata";
+
+export interface MetadataSearchResult {
+  name: string;
+  path: string;
+  type: "file";
+  mtime: number;
+  width: number | null;
+  height: number | null;
+  model: string;
+  sampler: string;
+  seed: string;
+  prompt_snippet: string;
+}
+
+export interface MetadataSearchResponse {
+  query: string;
+  total: number;
+  results: MetadataSearchResult[];
+}

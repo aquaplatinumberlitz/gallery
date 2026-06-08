@@ -5,6 +5,7 @@ import MobileHeader from "../components/MobileHeader.vue";
 import GalleryGrid from "../components/GalleryGrid.vue";
 import MobileFloatingBottomBar from "../components/MobileFloatingBottomBar.vue";
 import { Loader } from "lucide-vue-next";
+import type { SearchMode } from "../types";
 
 defineProps<{
   theme: "light" | "dark";
@@ -13,6 +14,7 @@ defineProps<{
   isLoading: boolean;
   currentPath: string;
   searchQuery: string;
+  searchMode: SearchMode;
   barsVisible: boolean;
   canBack: boolean;
   canForward: boolean;
@@ -22,6 +24,7 @@ const emit = defineEmits<{
   (e: "update:searchQuery", value: string): void;
   (e: "toggleSidebar"): void;
   (e: "toggleTheme"): void;
+  (e: "toggleSearchMode"): void;
   (e: "back"): void;
   (e: "forward"): void;
   (e: "openFolder"): void;
@@ -68,10 +71,12 @@ const emit = defineEmits<{
       <MobileHeader
         :is-dark="theme === 'dark'"
         :search-query="searchQuery"
+        :search-mode="searchMode"
         :bars-visible="barsVisible"
         @update:search-query="emit('update:searchQuery', $event)"
         @toggle-sidebar="emit('toggleSidebar')"
         @toggle-theme="emit('toggleTheme')"
+        @toggle-search-mode="emit('toggleSearchMode')"
       />
 
       <div class="content-body">

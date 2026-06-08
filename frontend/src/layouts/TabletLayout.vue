@@ -4,6 +4,7 @@ import FolderTreeItem from "../components/FolderTreeItem.vue";
 import TabletHeader from "../components/TabletHeader.vue";
 import GalleryGrid from "../components/GalleryGrid.vue";
 import { Loader } from "lucide-vue-next";
+import type { SearchMode } from "../types";
 
 defineProps<{
   theme: "light" | "dark";
@@ -12,12 +13,14 @@ defineProps<{
   isLoading: boolean;
   currentPath: string;
   searchQuery: string;
+  searchMode: SearchMode;
 }>();
 
 const emit = defineEmits<{
   (e: "update:searchQuery", value: string): void;
   (e: "toggleSidebar"): void;
   (e: "toggleTheme"): void;
+  (e: "toggleSearchMode"): void;
 }>();
 </script>
 
@@ -64,10 +67,12 @@ const emit = defineEmits<{
       <TabletHeader
         :is-dark="theme === 'dark'"
         :search-query="searchQuery"
+        :search-mode="searchMode"
         :current-path="currentPath"
         @update:search-query="emit('update:searchQuery', $event)"
         @toggle-sidebar="emit('toggleSidebar')"
         @toggle-theme="emit('toggleTheme')"
+        @toggle-search-mode="emit('toggleSearchMode')"
       />
 
       <div class="content-body">

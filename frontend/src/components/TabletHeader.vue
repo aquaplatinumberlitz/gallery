@@ -3,10 +3,12 @@ import { ref, nextTick, onBeforeUnmount, watch, computed } from 'vue'
 import { Menu, Search, X, ArrowLeft } from 'lucide-vue-next'
 import Breadcrumb from './Breadcrumb.vue'
 import { useGalleryStore } from '../stores/gallery'
+import type { SearchMode } from '../types'
 
 interface Props {
   isDark: boolean
   searchQuery: string
+  searchMode: SearchMode
   currentPath: string
 }
 const props = defineProps<Props>()
@@ -15,6 +17,7 @@ const emit = defineEmits<{
   'toggle-sidebar': []
   'toggle-theme': []
   'update:searchQuery': [value: string]
+  'toggle-search-mode': []
 }>()
 
 const galleryStore = useGalleryStore()
@@ -127,6 +130,15 @@ function onSearchInput(e: Event) {
     <!-- Center: expandable search input (search mode) -->
     <div v-show="isSearchActive" class="th-search-expanded">
       <div class="th-search-input-wrap">
+        <button
+          class="th-search-mode-btn"
+          type="button"
+          :class="{ active: searchMode === 'metadata' }"
+          @click="emit('toggle-search-mode')"
+          :title="searchMode === 'metadata' ? 'Switch to current view search' : 'Switch to metadata search'"
+        >
+          {{ searchMode === 'metadata' ? 'Metadata' : 'Current view' }}
+        </button>
         <Search class="th-search-icon" />
         <input
           ref="searchInputRef"
@@ -134,7 +146,7 @@ function onSearchInput(e: Event) {
           @input="onSearchInput"
           @keydown="onInputKeydown"
           type="text"
-          placeholder="Search albums &amp; photos"
+          :placeholder="searchMode === 'metadata' ? 'Search prompts & metadata' : 'Search albums & photos'"
           autocomplete="off"
           spellcheck="false"
           aria-label="Search albums and photos"
@@ -320,6 +332,26 @@ function onSearchInput(e: Event) {
   box-shadow:
     0 0 0 1px var(--gallery-accent-default, var(--primary-color)),
     var(--gallery-shadow-sm, 0 1px 3px rgba(0,0,0,0.08));
+}
+
+.th-search-mode-btn {
+  height: 26px;
+  max-width: 96px;
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--primary-color) 28%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted-text);
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.th-search-mode-btn.active {
+  color: var(--title-color);
+  background: color-mix(in srgb, var(--primary-color) 14%, transparent);
 }
 
 .th-search-icon {

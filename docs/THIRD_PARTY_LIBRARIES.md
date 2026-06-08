@@ -14,7 +14,9 @@ This document explains how major external libraries are used in this project.
 | Vite | Frontend build tool and dev server | `frontend/` | No custom plugins beyond defaults |
 | Lucide | Icons across the gallery | Vue components and shared UI styles | Prefer semantic icon tokens and component-level sizing rules |
 | `vue-virtual-scroller` | Virtual scrolling in the image grid | `frontend/src/components/GalleryGrid.vue` | Used for large desktop/tablet grids |
-| Fuse.js | Client-side fuzzy search for gallery folders/images | `frontend/src/utils/fuzzySearch.ts`, `frontend/src/components/GalleryGrid.vue`, `frontend/package.json` | Searches currently loaded frontend data only |
+| Fuse.js | Client-side fuzzy search for current-view gallery folders/images | `frontend/src/utils/fuzzySearch.ts`, `frontend/src/components/GalleryGrid.vue`, `frontend/package.json` | Searches currently loaded frontend filename/folder data only; not used for prompt/metadata search |
+| SQLite FTS5 | Backend full-text search for indexed image prompt/metadata | `backend/services/metadata_index.py`, `backend/main.py` | Uses Python stdlib `sqlite3`; no external search service |
+| Pillow | Image metadata extraction and image processing | `backend/main.py`, `backend/services/metadata_index.py`, `backend/requirements.txt` | Reads PNG/JPEG/WebP metadata exposed by Pillow; also used for thumbnails |
 
 ### @douxcode/vue-spring-bottom-sheet
 
@@ -95,7 +97,33 @@ Integration files: `frontend/src/utils/fuzzySearch.ts`, `frontend/src/components
 
 Common pitfalls: Do not rebuild Fuse per card, do not search unloaded paginated images unless backend search is added later, do not let `path` weight dominate `name`, do not break existing sort behavior, do not add match highlighting unless UI is designed for it.
 
-Decision: Gallery search remains frontend-local. Fuse filters folders and the currently loaded image page set before the existing name/date sort is applied.
+Decision: Current-view gallery search remains frontend-local. Fuse filters folders and the currently loaded image page set before the existing name/date sort is applied. Prompt and metadata search is backend-only through SQLite FTS5 and `/api/search-metadata`.
+
+#### SQLite FTS5
+
+- Official: https://www.sqlite.org/fts5.html
+- Used for: backend AI prompt/metadata full-text search.
+- Integration files: `backend/services/metadata_index.py`, `backend/main.py`
+- Database location: `backend/.cache/gallery_metadata.db`
+- Runtime dependency: Python stdlib `sqlite3` with SQLite FTS5 enabled.
+
+The metadata index stores normalized fields in `image_metadata` and keeps two FTS5 virtual tables in sync with triggers:
+
+- `image_metadata_fts` uses `tokenize='unicode61'` for English prompts, filenames, model names, and sampler names.
+- `image_metadata_fts_trigram` uses `tokenize='trigram'` for Japanese/CJK substring search.
+
+CJK support deliberately avoids MeCab, Sudachi, Kuromoji, and custom native tokenizers. Short CJK queries and no-result trigram searches fall back to safe parameterized `LIKE` over indexed text fields.
+
+Not used: Meilisearch, Typesense, Tantivy, Whoosh, sqlite-vec, or any external search service.
+
+#### Pillow
+
+- Official: https://pillow.readthedocs.io/
+- Used for: thumbnail generation, image dimensions, EXIF orientation, and metadata extraction for the SQLite index.
+
+Metadata search reads Pillow-exposed PNG text chunks and basic EXIF/UserComment text. Current indexed formats include A1111/Forge `parameters`, ComfyUI `prompt`/`workflow` JSON as searchable raw/basic summary text, and generic keys such as `Description`, `Comment`, `UserComment`, and `Software`.
+
+ExifTool is intentionally not used in this implementation. It remains deferred because it requires an external binary and process integration.
 
 #### Vue 3
 

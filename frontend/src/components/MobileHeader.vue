@@ -2,11 +2,12 @@
 import { ref, nextTick, onBeforeUnmount, onMounted, computed, watch } from 'vue'
 import { Menu, Search, X, ArrowLeft, ArrowUpDown, Type, Clock, ArrowUp, ArrowDown } from 'lucide-vue-next'
 import { useGalleryStore } from '../stores/gallery'
-import type { SortField } from '../types'
+import type { SearchMode, SortField } from '../types'
 
 interface Props {
   isDark: boolean
   searchQuery: string
+  searchMode: SearchMode
   barsVisible: boolean
 }
 
@@ -16,6 +17,7 @@ const emit = defineEmits<{
   'update:searchQuery': [value: string]
   'toggle-sidebar': []
   'toggle-theme': []
+  'toggle-search-mode': []
 }>()
 
 const isSearchActive = ref(false)
@@ -181,6 +183,15 @@ onMounted(() => {
         class="search-focus-bar"
       >
         <div class="search-focus-input-wrap">
+          <button
+            class="mobile-search-mode-btn"
+            type="button"
+            :class="{ active: searchMode === 'metadata' }"
+            @click="emit('toggle-search-mode')"
+            :title="searchMode === 'metadata' ? 'Switch to current view search' : 'Switch to metadata search'"
+          >
+            {{ searchMode === 'metadata' ? 'Metadata' : 'Current' }}
+          </button>
           <Search class="search-focus-input-icon" />
           <input
             ref="searchInputRef"
@@ -188,7 +199,7 @@ onMounted(() => {
             @input="onSearchInput"
             @keydown="onInputKeydown"
             type="text"
-            placeholder="Search albums &amp; photos"
+            :placeholder="searchMode === 'metadata' ? 'Search metadata' : 'Search albums & photos'"
             autocomplete="off"
             spellcheck="false"
             aria-label="Search albums and photos"
@@ -425,6 +436,26 @@ onMounted(() => {
   box-shadow:
     0 0 0 1px var(--gallery-accent-default, var(--primary-color)),
     var(--gallery-shadow-sm, 0 1px 3px rgba(0,0,0,0.08));
+}
+
+.mobile-search-mode-btn {
+  height: 28px;
+  max-width: 76px;
+  padding: 0 7px;
+  border: 1px solid color-mix(in srgb, var(--primary-color) 28%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted-text);
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.mobile-search-mode-btn.active {
+  color: var(--title-color);
+  background: color-mix(in srgb, var(--primary-color) 14%, transparent);
 }
 
 .search-focus-input-icon {

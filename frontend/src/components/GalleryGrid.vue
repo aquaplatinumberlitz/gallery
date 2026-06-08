@@ -74,6 +74,8 @@ const setScrollContainerRef = (target: Element | ComponentPublicInstance | null)
 };
 
 const searchQuery = computed(() => galleryStore.searchQuery);
+const searchMode = computed(() => galleryStore.searchMode);
+const isMetadataSearch = computed(() => searchMode.value === "metadata" && !!searchQuery.value.trim());
 const sortField = computed(() => galleryStore.sortField);
 const sortOrder = computed(() => galleryStore.sortOrder);
 
@@ -161,6 +163,9 @@ const sortItems = <T extends { name: string; mtime?: number }>(items: T[]): T[] 
 };
 
 const folders = computed(() =>
+  isMetadataSearch.value
+    ? []
+    :
   sortItems(
     fuzzySearchFileNodes(galleryStore.galleryFolders, searchQuery.value)
   )
@@ -168,29 +173,72 @@ const folders = computed(() =>
 
 // Fuse search is client-side and only covers images currently loaded into galleryImages.
 const images = computed(() =>
+  isMetadataSearch.value
+    ? galleryStore.metadataSearchResults.map((result) => ({
+        name: result.name,
+        path: result.path,
+        type: "image" as const,
+        has_children: false,
+        cover_images: [],
+        mtime: result.mtime,
+        width: result.width ?? undefined,
+        height: result.height ?? undefined,
+      }))
+    :
   sortItems(
     fuzzySearchFileNodes(galleryStore.galleryImages, searchQuery.value)
   )
 );
 
 const isLoading = computed(() => galleryStore.galleryLoading);
+const isMetadataLoading = computed(() => galleryStore.metadataSearchLoading);
 const currentPath = computed(() => galleryStore.currentPath);
 const canBack = computed(() => galleryStore.historyIndex > 0);
 const canForward = computed(
   () => galleryStore.historyIndex < galleryStore.history.length - 1
 );
-const hasMoreImages = computed(() => galleryStore.nextImageCursor !== null);
+const hasMoreImages = computed(() => !isMetadataSearch.value && galleryStore.nextImageCursor !== null);
 const hasAnyItems = computed(() => galleryStore.galleryFolders.length + galleryStore.galleryImages.length > 0);
 const hasNoPath = computed(() => !galleryStore.currentPath && !galleryStore.rootPath);
 const hasNotLoaded = computed(() => !galleryStore.hasEverLoaded && (!!galleryStore.currentPath || !!galleryStore.rootPath));
 const noSearchResults = computed(
   () =>
     !!searchQuery.value &&
+    !isMetadataSearch.value &&
     folders.value.length === 0 &&
     images.value.length === 0 &&
     hasAnyItems.value
 );
 const errorMessage = computed(() => galleryStore.errorMessage);
+const metadataSearchError = computed(() => galleryStore.metadataSearchError);
+const imageSectionTitle = computed(() => isMetadataSearch.value ? "Metadata results" : "Photos");
+const imageSectionCount = computed(() => isMetadataSearch.value ? galleryStore.metadataSearchTotal : images.value.length);
+const noMetadataResults = computed(
+  () =>
+    isMetadataSearch.value &&
+    !isMetadataLoading.value &&
+    !metadataSearchError.value &&
+    images.value.length === 0
+);
+
+let metadataSearchTimer: number | undefined;
+
+watch([searchQuery, searchMode], ([query, mode]) => {
+  if (metadataSearchTimer) {
+    window.clearTimeout(metadataSearchTimer);
+    metadataSearchTimer = undefined;
+  }
+  if (mode !== "metadata" || !query.trim()) {
+    galleryStore.metadataSearchResults = [];
+    galleryStore.metadataSearchTotal = 0;
+    galleryStore.metadataSearchError = null;
+    galleryStore.metadataSearchLoading = false;
+    return;
+  }
+  metadataSearchTimer = window.setTimeout(() => {
+    galleryStore.searchMetadata(query);
+  }, 300);
+}, { immediate: true });
 
 const handleOpenFolder = (path: string) => {
   galleryStore.selectFolder(path);
@@ -311,6 +359,9 @@ onMounted(() => {
 watch(loadMoreSentinel, () => setupLoadObserver());
 
 onBeforeUnmount(() => {
+  if (metadataSearchTimer) {
+    window.clearTimeout(metadataSearchTimer);
+  }
   if (loadObserver) {
     loadObserver.disconnect();
     loadObserver = null;
@@ -498,7 +549,25 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
-    <div v-if="isLoading" class="skeleton-container">
+    <div v-if="isMetadataSearch" class="metadata-search-note">
+      <span>Metadata search covers indexed images only</span>
+    </div>
+
+    <div v-if="metadataSearchError" class="error-banner">
+      <div class="error-text">
+        <TriangleAlert class="gallery-icon-md" />
+        <span>{{ metadataSearchError }}</span>
+      </div>
+      <button
+        class="error-close"
+        type="button"
+        @click="galleryStore.metadataSearchError = null"
+      >
+        <X class="gallery-icon-sm" />
+      </button>
+    </div>
+
+    <div v-if="isLoading || isMetadataLoading" class="skeleton-container">
       <div class="skeleton-grid" :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }">
         <SkeletonLoader
           v-for="i in skeletonItems"
@@ -530,10 +599,10 @@ onBeforeUnmount(() => {
             />
           </GlowContainer>
 
-          <GallerySectionHeader
-            v-if="images.length"
-            title="Photos"
-            :count="images.length"
+        <GallerySectionHeader
+          v-if="images.length"
+            :title="imageSectionTitle"
+            :count="imageSectionCount"
             :badge-icon="Images"
           />
         </template>
@@ -593,8 +662,8 @@ onBeforeUnmount(() => {
 
         <GallerySectionHeader
           v-if="images.length"
-          title="Photos"
-          :count="images.length"
+          :title="imageSectionTitle"
+          :count="imageSectionCount"
           :badge-icon="Images"
         />
 
@@ -670,6 +739,16 @@ onBeforeUnmount(() => {
       />
 
       <!-- No Search Results -->
+      <EmptyState
+        v-else-if="noMetadataResults"
+        type="no-results"
+        :title="`No metadata results for '${searchQuery}'`"
+        description="Metadata search only covers images that have been indexed from scanned folders."
+        action-label="Clear search"
+        action-icon="xmark"
+        @action="galleryStore.clearSearch()"
+      />
+
       <EmptyState
         v-else-if="noSearchResults"
         type="no-results"
@@ -762,6 +841,18 @@ onBeforeUnmount(() => {
   &:hover {
     background: rgba(0, 0, 0, 0.05);
   }
+}
+
+.metadata-search-note {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+  color: var(--muted-text);
+  font-size: 12px;
 }
 
 .scroller-container {

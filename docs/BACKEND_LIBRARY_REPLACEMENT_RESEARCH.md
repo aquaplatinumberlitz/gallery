@@ -12,7 +12,7 @@ Recommended direction:
 - Make a backend refactor plus `pydantic-settings` the Phase 1 priority. Plan the module split first, then move code with zero behavior change.
 - Add tests before replacing logic: path safety, natural sort, metadata parser fixtures, and thumbnail guardrails.
 - Keep the current path safety implementation. `pathvalidate` solves different problems: validating/sanitizing path strings, not authorizing resolved filesystem access under `GALLERY_ROOT`.
-- Use Fuse.js in the frontend first for search. SQLite FTS5 is optional later if large-scale search needs a backend index.
+- Keep Fuse.js for current-view filename/folder search only. SQLite FTS5 is now used for backend prompt/metadata search.
 - Keep the custom Stable Diffusion metadata parser. It is project-specific and currently supports more relevant formats, including SwarmUI, EasyDiffusion, sidecar files, and LoRA extraction.
 - Keep Pillow. Do not prioritize `pyvips` unless thumbnail throughput or memory usage becomes a measured bottleneck.
 - Keep `cachetools` memory cache. Prototype `diskcache` only if persistent thumbnails or cross-process cache reuse becomes necessary.
@@ -43,7 +43,7 @@ Current backend responsibilities:
 | Cache | `cachetools.LRUCache` for thumbnail bytes and metadata dicts; explicit locks and in-flight `Future` de-duplication |
 | Metadata extraction/EXIF | Pillow `Image.info`, `Image.getexif()`, PNG text chunks, EXIF `UserComment`, sidecar `.txt` fallback |
 | SD metadata parsing | Custom parsers for A1111/WebUI, ComfyUI, SwarmUI, NovelAI, EasyDiffusion, LoRA extraction |
-| Search/full-text | No backend search endpoint. Frontend store filters currently loaded images client-side |
+| Search/full-text | Frontend Fuse.js filters currently loaded filename/folder rows. Backend `/api/search-metadata` searches indexed prompt/metadata text in SQLite FTS5 |
 | Sort | Backend natural filename sort via regex; frontend also owns user-facing search/sort state |
 | Static serving | FastAPI `FileResponse` for originals, thumbnails, production SPA root, and production catch-all |
 | Open folder OS integration | Custom `os.startfile` / `open` / `xdg-open`, gated by `GALLERY_OPEN_FOLDER=false` by default |
@@ -59,7 +59,7 @@ Current backend responsibilities:
 | Path safety | pathvalidate | https://pathvalidate.readthedocs.io/en/latest/ | Filename/path string validation | Production/stable; PyPI 3.3.1 | Medium if confused with authorization | Do not replace path safety; optional input validation only |
 | Folder indexing | watchdog | https://watchdog.readthedocs.io/en/stable/ | Poll/rescan model with filesystem events | Production/stable; PyPI 6.0.0; GitHub ~7.3k stars | Medium-high; platform-specific watcher behavior | Prototype only if indexing is added |
 | Folder indexing | watchfiles | https://watchfiles.helpmanual.io/ | Modern file watching | Production/stable; PyPI 1.2.0; GitHub ~2.5k stars | Medium; Rust-backed dependency, event semantics | Prototype only if indexing is added |
-| Folder indexing/search | SQLite index | https://www.sqlite.org/ | Persist folder/image metadata, paging, search | Extremely mature, stdlib `sqlite3` available | Medium-high; requires schema, invalidation, rebuild strategy | Optional later for large scale |
+| Folder indexing/search | SQLite index | https://www.sqlite.org/ | Persist image metadata and search fields | Extremely mature, stdlib `sqlite3` available | Medium; metadata index implemented without replacing folder pagination | Use for metadata search only |
 | Thumbnails | Pillow | https://pillow.readthedocs.io/ | Current image decode/resize/WebP/EXIF transpose | Mature and already integrated; PyPI 12.0.0 in requirements | Low | Keep |
 | Thumbnails | pyvips | https://libvips.github.io/pyvips/ | Faster/lower-memory thumbnail pipeline | Production/stable; PyPI 3.1.1; GitHub ~800 stars; backed by libvips | Medium-high; native libvips dependency and behavior parity testing | Prototype only for measured bottlenecks |
 | Thumbnails | Wand/ImageMagick | https://docs.wand-py.org/en/latest/ | Alternative image pipeline | Production/stable; PyPI 0.7.1; GitHub ~1.5k stars | High; native ImageMagick dependency and policy/config concerns | Do not prefer |
@@ -70,8 +70,8 @@ Current backend responsibilities:
 | EXIF | ExifRead | https://exif-py.readthedocs.io/en/latest/ | Read-only EXIF extraction | Production/stable; PyPI 3.5.1; GitHub ~950 stars | Low-medium | Consider only if Pillow misses needed EXIF tags |
 | EXIF | PyExifTool | https://sylikc.github.io/pyexiftool/ | Wrapper around external ExifTool | Beta on PyPI; active fork; requires ExifTool binary | High operational dependency | Optional advanced metadata tool, not default |
 | SD metadata | sd-parsers | https://github.com/d3x-at/sd-parsers | Stable Diffusion metadata parser library | Small project; PyPI 0.6; GitHub ~45 stars | Medium-high; output schema differs; no SwarmUI listed | Do not prioritize; keep custom parser |
-| Search | Fuse.js | https://www.fusejs.io/ | Frontend fuzzy search over loaded gallery data | Mature and frontend-local | Low; no backend schema or index | Recommended first |
-| Search | SQLite FTS5 | https://sqlite.org/fts5.html | Backend full-text search over filename/path/metadata | Built into SQLite builds when enabled | Medium; needs index and query API | Optional later for large scale |
+| Search | Fuse.js | https://www.fusejs.io/ | Frontend fuzzy search over loaded filename/folder gallery data | Mature and frontend-local | Low; already integrated | Keep for current-view search only |
+| Search | SQLite FTS5 | https://sqlite.org/fts5.html | Backend full-text search over filename/prompt/metadata | Built into SQLite builds when enabled | Medium; schema and query API implemented | Use for backend prompt/metadata search |
 | Search | Whoosh | https://whoosh.readthedocs.io/en/latest/ | Pure-Python full-text indexing | Stable but old; PyPI 2.7.4 | Medium; extra index format, older maintenance profile | Avoid unless SQLite FTS5 is unavailable |
 | Sort | natsort | https://natsort.readthedocs.io/en/stable/ | Custom regex natural sort | Production/stable; PyPI 8.4.0; GitHub ~1k stars | Low | Adopt if filename sort bugs appear |
 | Static serving | WhiteNoise | https://whitenoise.readthedocs.io/en/latest/ | Production static asset serving | Production/stable; PyPI 6.12.0; GitHub ~2.7k stars | Medium; WSGI-focused docs, ASGI integration less direct | Do not add for this app |
@@ -179,7 +179,7 @@ Cons:
 
 Integration risk: Medium-high.
 
-Recommendation: Do not prioritize backend indexing yet. Use the Phase 1 refactor and test coverage to make scanning safer to change later. Consider a SQLite index only after scale issues are measured.
+Metadata-search decision update: add a narrow SQLite metadata index without replacing folder scanning or pagination. The index lives at `backend/.cache/gallery_metadata.db`, is keyed by path, mtime, and size, and is populated opportunistically from `/api/scan`. This keeps `/api/scan`, pagination, folder navigation, and current frontend sort behavior intact.
 
 ### 5. Thumbnail generation - Pillow, pyvips, Wand/ImageMagick
 
@@ -270,7 +270,7 @@ Cons:
 
 Integration risk: Low-medium for ExifRead, high for PyExifTool.
 
-Recommendation: Keep Pillow for current metadata extraction. Consider ExifRead only for a specific missing EXIF tag requirement. Keep ExifTool wrappers out of default local setup.
+Recommendation: Keep Pillow for current metadata extraction and for metadata-search indexing. Consider ExifRead only for a specific missing EXIF tag requirement. Keep ExifTool wrappers out of default local setup.
 
 ### 8. SD metadata parsing - custom parser, sd-parsers
 
@@ -299,13 +299,13 @@ Recommendation: Keep the custom parser as the recommended path. Do not prioritiz
 
 Final project decision: Remove `sd-parsers` from the recommended path. The current parser supports more relevant formats for this app, including SwarmUI, EasyDiffusion, sidecar files, and existing frontend response conventions.
 
-### 9. Search/full-text - Fuse.js first, SQLite FTS5 optional later
+### 9. Search/full-text - Fuse.js current view, SQLite FTS5 metadata search
 
-The backend currently has no search endpoint. The frontend filters currently loaded image data client-side, so search scope is limited by what has been loaded.
+The frontend filters currently loaded filename/folder data client-side, so current-view search scope is limited by what has been loaded.
 
-Fuse.js is the preferred first step because search is currently a frontend concern over loaded gallery data. It can improve fuzzy filename and metadata matching without adding backend schema design, index invalidation, query escaping, or rebuild UX.
+Fuse.js remains the right fit for lightweight current-view filename/folder fuzzy search. It is intentionally not used for prompt/metadata search and does not receive full metadata text from scans.
 
-SQLite FTS5 is the best backend candidate if search must later scale beyond loaded client-side data. It can index paths, names, prompts, negative prompts, model names, LoRAs, sampler values, and other parsed metadata in one local database. SQLite also fits a local-first app and is available through Python's stdlib `sqlite3`, though FTS5 availability should be verified in the target Python build.
+SQLite FTS5 is now used for backend prompt/metadata search. It indexes names, prompts, negative prompts, model names, sampler values, and raw metadata text in one local database. SQLite fits the local-first app and is available through Python's stdlib `sqlite3`.
 
 Whoosh is a pure-Python full-text search library. It is stable but old, and it would add a separate indexing format when SQLite can likely cover both indexing and FTS.
 
@@ -319,7 +319,7 @@ Pros of Fuse.js:
 Cons of Fuse.js:
 
 - Search remains limited to data loaded in the frontend.
-- Very large result sets may eventually need backend indexing.
+- It is not suitable for full prompt/metadata search without sending too much metadata text to the browser.
 
 Pros of SQLite FTS5:
 
@@ -332,12 +332,13 @@ Cons:
 - Requires index build and invalidation.
 - Query syntax needs escaping and frontend UX decisions.
 - Metadata parsing must happen before metadata search is useful.
+- Search covers indexed images only.
 
 Integration risk: Medium.
 
-Recommendation: Use Fuse.js in the frontend first. Use SQLite FTS5 only if backend search becomes necessary for large galleries or metadata-wide search. Avoid Whoosh unless FTS5 is unavailable.
+Recommendation: Keep Fuse.js for current-view filename/folder fuzzy search and SQLite FTS5 for backend prompt/metadata search. Avoid Whoosh unless FTS5 is unavailable.
 
-Final project decision: Do not prioritize backend search yet.
+Final project decision: Implement backend metadata search with SQLite FTS5. Use `unicode61` FTS for normal tokenized search, `trigram` FTS for Japanese/CJK substring search, and parameterized `LIKE` fallback for short CJK queries or no-result fallback. Do not add ExifTool, Meilisearch, Typesense, Tantivy, Whoosh, sqlite-vec, MeCab, Sudachi, Kuromoji, or external services for this implementation.
 
 ### 10. Sort - natsort
 
@@ -424,18 +425,18 @@ Recommendation: Keep custom and disabled by default. Do not enable in public dep
 
 Expected outcome: the current backend behavior is preserved, but the code is split into testable modules and configuration is centralized.
 
-### Phase 2 frontend search
+### Phase 2 search
 
-1. Improve search with Fuse.js in the frontend.
-2. Keep backend search out of scope.
-3. Validate frontend search behavior against loaded filenames and available metadata fields.
+1. Keep Fuse.js for current-view filename/folder search over loaded frontend rows.
+2. Use backend SQLite FTS5 for prompt/metadata search.
+3. Validate that clearing metadata search returns to the normal gallery view and that current-view Fuse search preserves existing sort behavior.
 
-Expected outcome: better search UX without backend indexing, database schema, or runtime behavior changes in the backend.
+Expected outcome: lightweight current-view search stays frontend-local while prompt/metadata search stays backend-driven.
 
 ### Phase 3 measured backend prototypes
 
-1. Consider SQLite indexing only if folder scale or pagination behavior becomes a measured problem.
-2. Consider SQLite FTS5 only if search must cover data not loaded by the frontend.
+1. Consider a broader SQLite folder index only if folder scale or pagination behavior becomes a measured problem.
+2. Extend SQLite FTS5 metadata coverage only as parser requirements grow.
 3. Consider `diskcache` only if persistent thumbnail caching or cross-process cache reuse becomes necessary.
 4. Do not prototype `sd-parsers` as a replacement path unless future requirements exceed the custom parser's supported formats.
 
@@ -517,7 +518,7 @@ Risk areas:
 - `GALLERY_ROOT` currently defaults to `/`, which is broad for local use. Any config refactor must preserve the default unless a separate security change is explicitly planned.
 - Path safety must keep symlink escape protection by checking resolved paths.
 - Watcher-based indexing can miss events or behave differently across filesystems. Always keep a manual/full rescan path.
-- SQLite FTS5 support should be verified in the target Python/SQLite build before depending on it.
+- SQLite FTS5 support is required for backend metadata search and should be verified in target Python/SQLite builds.
 - Persistent caches need key versioning. Metadata cache keys should include parser/schema version if persisted.
 - Thumbnail changes must preserve EXIF orientation, transparency flattening, WebP quality/method expectations, file-size and pixel guardrails, and frontend dimensions.
 - `sd-parsers` output shape does not match the current API response. Treat it as outside the recommended path unless future requirements justify new parser work.
@@ -532,7 +533,7 @@ Do not perform a broad backend library replacement. The backend should evolve in
 1. Keep FastAPI, Pillow, `cachetools`, custom path authorization, custom static serving, and disabled-by-default OS folder opening.
 2. Make the Phase 1 priority a behavior-preserving backend refactor plus `pydantic-settings`.
 3. Add tests before replacing logic: path safety, natural sort, metadata parser fixtures, and thumbnail guardrails.
-4. Use Fuse.js frontend search first. Consider SQLite indexing and FTS5 only later if scale requires backend search.
+4. Keep Fuse.js for current-view filename/folder search and SQLite FTS5 for backend prompt/metadata search.
 5. Keep the custom SD parser, keep `cachetools`, and keep Pillow unless measured requirements justify optional alternatives.
 
 ## Research sources

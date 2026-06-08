@@ -8,7 +8,7 @@ from concurrent.futures import Future
 
 import sys
 import subprocess
-from fastapi import FastAPI, HTTPException, Query, Response, Request
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.concurrency import run_in_threadpool
@@ -17,6 +17,10 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from io import BytesIO
 from cachetools import LRUCache
 import threading
+try:
+    from services.metadata_index import index_images, search_metadata
+except ModuleNotFoundError:
+    from backend.services.metadata_index import index_images, search_metadata
 
 # =============================================================================
 # CUSTOM ERROR TYPES - For better frontend error handling
@@ -278,6 +282,7 @@ def scan_directory(target_path: Path) -> tuple[list[FileNode], list[FileNode]]:
 
 @app.get("/api/scan")
 async def api_scan(
+    background_tasks: BackgroundTasks,
     path: str | None = Query(None, description="Absolute path to scan"),
     image_limit: int | None = Query(None, ge=1, le=5000, description="Max images to return"),
     image_cursor: int = Query(0, ge=0, description="Cursor/offset for images"),
@@ -292,6 +297,7 @@ async def api_scan(
     end = image_cursor + image_limit if image_limit else total_images
     paged_images = images[start:end]
     next_cursor = end if end < total_images else None
+    background_tasks.add_task(index_images, [image.path for image in images])
 
     return {
         "folders": folders,
@@ -1153,6 +1159,32 @@ async def api_metadata(path: str = Query(..., description="Absolute path to imag
     
     # Run blocking image processing in threadpool
     return await run_in_threadpool(parse_metadata, file_path)
+
+
+@app.get("/api/search-metadata")
+async def api_search_metadata(
+    q: str = Query("", description="Prompt, model, sampler, filename, or metadata text to search"),
+    limit: int = Query(100, ge=1, le=200, description="Maximum search results"),
+    offset: int = Query(0, ge=0, description="Result offset"),
+):
+    if not q.strip():
+        return {"query": q, "total": 0, "results": []}
+
+    try:
+        data = await run_in_threadpool(search_metadata, q, limit, offset)
+    except Exception as exc:  # noqa: BLE001
+        raise APIError(500, ErrorType.SERVER_ERROR, f"Metadata search failed: {exc}") from exc
+
+    safe_results = [
+        result
+        for result in data["results"]
+        if is_path_safe(resolve_path(result["path"]))
+    ]
+    return {
+        "query": data["query"],
+        "total": len(safe_results),
+        "results": safe_results,
+    }
 
 
 @app.get("/api/landing-pages")
