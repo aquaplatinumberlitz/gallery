@@ -217,6 +217,7 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
     @close="isSettingsOpen = false"
     @preview="handlePreviewIntro"
   />
+  <VueQueryDevTools />
 </template>
 
 <style scoped>
