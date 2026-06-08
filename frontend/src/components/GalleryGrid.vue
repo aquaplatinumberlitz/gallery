@@ -704,10 +704,6 @@ onBeforeUnmount(() => {
               :node="searchAlbumNodesRef[index]"
               @click="handleOpenFolder(album.path)"
             />
-            <span v-if="album.relative_path" class="search-result-path search-album-path">
-              <Folder class="search-result-path-icon" />
-              <span>{{ album.relative_path }}</span>
-            </span>
           </div>
         </div>
       </section>
@@ -1069,9 +1065,6 @@ onBeforeUnmount(() => {
 
 .search-album-item {
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
 }
 
 .search-result-card {
