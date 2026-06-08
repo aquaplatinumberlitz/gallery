@@ -7,6 +7,8 @@ import { createPinia } from "pinia";
 import App from "./App.vue";
 import { installVueQuery } from "./query";
 
+const app = createApp(App);
+
 // Dev logging: page lifecycle debugging
 if (import.meta.env.DEV) {
   // Eruda mobile debug console (iPad Safari)
@@ -39,9 +41,11 @@ if (import.meta.env.DEV) {
     .catch((error) => {
       console.warn('[IconDebug] failed to load', error);
     });
+  // Vue Query Devtools
+  import('@tanstack/vue-query-devtools').then(({ VueQueryDevtools }) => {
+    app.component('VueQueryDevTools', VueQueryDevtools)
+  })
 }
-
-const app = createApp(App);
 
 app.use(createPinia());
 installVueQuery(app);

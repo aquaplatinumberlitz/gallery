@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "devDependencies": {
+    "@tanstack/vue-query-devtools": "^6.1.34",
     "@types/node": "^24.10.1",
     "@vitejs/plugin-vue": "^6.0.2",
     "eruda": "^3.4.3",
