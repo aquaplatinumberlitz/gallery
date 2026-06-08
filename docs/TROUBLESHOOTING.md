@@ -116,9 +116,9 @@ Keep required width rules in global/non-scoped CSS for `[data-vsbs-sheet]`, `[da
 
 ## Scroll Visibility
 
-`useScrollVisibility.ts` may attach to an injected scroll container or fall back to polling DOM selectors such as `.vue-recycle-scroller`, `.scroller`, and `.folders-only-container`.
+`useScrollVisibility.ts` should prefer an injected scroll container ref when available. Fallback DOM selectors should match current containers such as `.tanstack-scroller`, `.mobile-scroller`, `.scroller`, and `.folders-only-container`.
 
-If class names change, mobile bars may stop responding or polling may continue indefinitely. Update the selector list whenever the scroll container class names change.
+Selector fallback is a backup only; avoid relying on generic `.scroller` when a specific ref or class is available. If class names change, mobile bars may stop responding or polling may continue indefinitely. Update the selector list whenever the scroll container class names change.
 
 The near-bottom guard reduces iOS rubber-band flicker. Tune it carefully because too high a threshold keeps bars visible too often, while too low a threshold can reintroduce rapid show/hide loops.
 

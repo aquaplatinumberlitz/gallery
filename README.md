@@ -1,6 +1,6 @@
 # AI Art Gallery
 
-Last reviewed: 2026-06-06
+Last reviewed: 2026-06-08
 
 A local-first web gallery for browsing AI-generated artwork collections. It pairs a FastAPI backend for scanning, thumbnails, and metadata parsing with a Vue 3 frontend that provides a responsive TanStack Virtual gallery and PhotoSwipe-based lightbox.
 

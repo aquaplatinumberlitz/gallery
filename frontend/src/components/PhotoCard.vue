@@ -4,7 +4,7 @@ import { getThumbnailUrl, getImageUrl } from "../services/api";
 import { Image } from "lucide-vue-next";
 
 // ── Global image load cache ──
-// Persists across RecycleScroller mount/unmount cycles so shimmer doesn't re-appear
+// Persists across virtualized mount/unmount cycles so shimmer doesn't re-appear
 const loadedImages = new Set<string>()
 
 const props = defineProps<{
