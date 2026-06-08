@@ -695,16 +695,12 @@ onBeforeUnmount(() => {
           :badge-icon="FolderOpen"
         />
         <div class="search-album-grid">
-          <div
+          <AlbumCard
             v-for="(album, index) in searchAlbums"
             :key="album.path"
-            class="search-album-item"
-          >
-            <AlbumCard
-              :node="searchAlbumNodesRef[index]"
-              @click="handleOpenFolder(album.path)"
-            />
-          </div>
+            :node="searchAlbumNodesRef[index]"
+            @click="handleOpenFolder(album.path)"
+          />
         </div>
       </section>
 
@@ -1058,13 +1054,16 @@ onBeforeUnmount(() => {
 }
 
 .search-album-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-  gap: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  padding: 12px 12px;
 }
 
-.search-album-item {
-  min-width: 0;
+.search-album-grid > * {
+  flex-shrink: 0;
+  min-width: 180px;
+  max-width: 240px;
 }
 
 .search-result-card {
