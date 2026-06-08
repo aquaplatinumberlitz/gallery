@@ -19,8 +19,10 @@ from cachetools import LRUCache
 import threading
 try:
     from services.metadata_index import cleanup_stale_index, index_directory_tree, index_file, index_files_from_scan, index_images, search_index, search_metadata
+    from services.album_utils import is_image, first_images_in_dir, has_any_children, count_images_in_dir, build_album_metadata
 except ModuleNotFoundError:
     from backend.services.metadata_index import cleanup_stale_index, index_directory_tree, index_file, index_files_from_scan, index_images, search_index, search_metadata
+    from backend.services.album_utils import is_image, first_images_in_dir, has_any_children, count_images_in_dir, build_album_metadata
 
 # =============================================================================
 # CUSTOM ERROR TYPES - For better frontend error handling
@@ -115,7 +117,6 @@ app.add_middleware(
 # Get root path from environment variable, default to '/'
 GALLERY_ROOT = Path(os.getenv("GALLERY_ROOT", "/")).resolve()
 DEFAULT_ROOT = GALLERY_ROOT
-IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff"}
 
 # Hard limits to avoid decompression bombs or extremely large files.
 # Aligned with common thresholds: Google Photos and many cloud services use ~75MB and 100MP.
@@ -158,51 +159,6 @@ def extract_loras(text: str) -> list[str]:
     return list(dict.fromkeys(loras))  # dedupe, preserve order
 
 
-def is_image(path: Path) -> bool:
-    return path.suffix.lower() in IMAGE_EXTENSIONS
-
-
-def first_images_in_dir(dir_path: Path, limit: int = 3) -> list[str]:
-    """
-    Get the most recently modified images in a directory.
-    Returns up to `limit` images sorted by modified time (newest first).
-    """
-    images: list[tuple[float, str]] = []  # (mtime, path)
-    try:
-        for entry in dir_path.iterdir():
-            if entry.is_file() and is_image(entry):
-                try:
-                    mtime = entry.stat().st_mtime
-                    images.append((mtime, str(entry.resolve())))
-                except OSError:
-                    continue
-    except PermissionError:
-        pass
-    
-    # Sort by modified time descending (newest first) and return paths only
-    images.sort(key=lambda x: x[0], reverse=True)
-    return [path for _, path in images[:limit]]
-
-
-def has_any_children(dir_path: Path) -> bool:
-    try:
-        next(dir_path.iterdir())
-        return True
-    except (StopIteration, PermissionError):
-        return False
-
-
-def count_images_in_dir(dir_path: Path) -> int:
-    """Count the number of image files directly inside a directory (non-recursive)."""
-    try:
-        return sum(
-            1 for entry in dir_path.iterdir()
-            if not entry.name.startswith(".") and entry.is_file() and is_image(entry)
-        )
-    except (PermissionError, OSError):
-        return 0
-
-
 def natural_sort_key(s: str) -> list:
     """
     Split string into text and numeric chunks for natural sorting.
@@ -228,19 +184,16 @@ def scan_directory(target_path: Path) -> tuple[list[FileNode], list[FileNode]]:
             entry_path = Path(entry.path)
 
             if entry.is_dir():
-                try:
-                    mtime = entry.stat().st_mtime
-                except OSError:
-                    mtime = 0
+                meta = build_album_metadata(entry_path)
                 folders.append(
                     FileNode(
                         name=entry.name,
                         path=str(entry_path.resolve()),
                         type="folder",
-                        has_children=has_any_children(entry_path),
-                        cover_images=first_images_in_dir(entry_path, limit=3),
-                        mtime=mtime,
-                        image_count=count_images_in_dir(entry_path),
+                        has_children=meta["has_children"],
+                        cover_images=meta["cover_images"],
+                        mtime=meta["mtime"],
+                        image_count=meta["image_count"],
                     )
                 )
             elif entry.is_file() and is_image(entry_path):
