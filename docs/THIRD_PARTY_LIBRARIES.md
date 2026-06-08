@@ -14,8 +14,8 @@ This document explains how major external libraries are used in this project.
 | Vite | Frontend build tool and dev server | `frontend/` | No custom plugins beyond defaults |
 | Lucide | Icons across the gallery | Vue components and shared UI styles | Prefer semantic icon tokens and component-level sizing rules |
 | `vue-virtual-scroller` | Virtual scrolling in the image grid | `frontend/src/components/GalleryGrid.vue` | Used for large desktop/tablet grids |
-| Fuse.js | Client-side fuzzy search for current-view gallery folders/images | `frontend/src/utils/fuzzySearch.ts`, `frontend/src/components/GalleryGrid.vue`, `frontend/package.json` | Searches currently loaded frontend filename/folder data only; not used for prompt/metadata search |
-| SQLite FTS5 | Backend full-text search for indexed image prompt/metadata | `backend/services/metadata_index.py`, `backend/main.py` | Uses Python stdlib `sqlite3`; no external search service |
+| Fuse.js | Lightweight client-side filtering helper for normal gallery folder/image lists | `frontend/src/utils/fuzzySearch.ts`, `frontend/src/components/GalleryGrid.vue`, `frontend/package.json` | Active non-empty gallery search is handled by backend `/api/search` |
+| SQLite FTS5 | Backend full-text search for indexed albums, photo filenames, and prompt/metadata | `backend/services/metadata_index.py`, `backend/main.py` | Uses Python stdlib `sqlite3`; no external search service |
 | Pillow | Image metadata extraction and image processing | `backend/main.py`, `backend/services/metadata_index.py`, `backend/requirements.txt` | Reads PNG/JPEG/WebP metadata exposed by Pillow; also used for thumbnails |
 
 ### @douxcode/vue-spring-bottom-sheet
@@ -85,27 +85,43 @@ Official links:
 - GitHub: https://github.com/krisk/Fuse
 - npm: https://www.npmjs.com/package/fuse.js
 
-Used for: Client-side fuzzy search for gallery folders/images.
+Used for: Lightweight client-side fuzzy filtering of already loaded gallery folders/images when the normal gallery view needs local filtering behavior.
 
 Core features we use: weighted keys, fuzzy matching, typo tolerance, `ignoreLocation`, client-side index.
 
-Features we intentionally do NOT use: match highlighting, server-side search, metadata/prompt full-text search, binary/image content search.
+Features we intentionally do NOT use: match highlighting, metadata/prompt full-text search, binary/image content search.
 
-Why: Replaces fragile manual `includes()` search with typo-tolerant filename/folder search while keeping search local and simple.
+Why: Keeps a small local fuzzy-search helper available for loaded gallery rows without making the frontend responsible for recursive indexed search.
 
 Integration files: `frontend/src/utils/fuzzySearch.ts`, `frontend/src/components/GalleryGrid.vue`, `frontend/package.json`, `frontend/package-lock.json`
 
-Common pitfalls: Do not rebuild Fuse per card, do not search unloaded paginated images unless backend search is added later, do not let `path` weight dominate `name`, do not break existing sort behavior, do not add match highlighting unless UI is designed for it.
+Common pitfalls: Do not rebuild Fuse per card, do not use Fuse for active unified search results, do not let `path` weight dominate `name`, do not break existing sort behavior, do not add match highlighting unless UI is designed for it.
 
-Decision: Current-view gallery search remains frontend-local. Fuse filters folders and the currently loaded image page set before the existing name/date sort is applied. Prompt and metadata search is backend-only through SQLite FTS5 and `/api/search-metadata`.
+Decision: One visible search box calls backend `/api/search` for active search. Fuse remains as a local helper for normal loaded gallery rows only. Backend SQLite FTS5 owns recursive album/photo filename search and prompt/metadata search.
 
 #### SQLite FTS5
 
 - Official: https://www.sqlite.org/fts5.html
-- Used for: backend AI prompt/metadata full-text search.
+- Used for: backend unified search over indexed folders/photos and AI prompt/metadata text.
 - Integration files: `backend/services/metadata_index.py`, `backend/main.py`
 - Database location: `backend/.cache/gallery_metadata.db`
 - Runtime dependency: Python stdlib `sqlite3` with SQLite FTS5 enabled.
+
+The shared search database stores:
+
+- `file_index`: one row per indexed folder/photo, including path, name, parent path, type, mtime, size, and dimensions when available.
+- `file_index_fts`: standalone FTS5 table for folder/photo filename search. It powers the Albums and Photos result sections.
+- `image_metadata`: normalized metadata keyed by image path.
+- `image_metadata_fts` and `image_metadata_fts_trigram`: prompt/metadata FTS5 tables for the Prompt result section.
+
+Unified search behavior:
+
+- One search box in the frontend calls `GET /api/search`.
+- Default scope is `This folder`, meaning the current folder and all indexed subfolders recursively.
+- `All indexed` searches the whole indexed database under `GALLERY_ROOT`.
+- Results are grouped into Albums, Photos, and Prompt.
+- Recursive subfolder matches include `relative_path`, computed from the selected current folder or from `GALLERY_ROOT`.
+- Prompt search joins metadata rows through `file_index`, so prompt matches follow the same scope filtering as album/photo filename matches.
 
 The metadata index stores normalized fields in `image_metadata` and keeps two FTS5 virtual tables in sync with triggers:
 
@@ -115,6 +131,8 @@ The metadata index stores normalized fields in `image_metadata` and keeps two FT
 CJK support deliberately avoids MeCab, Sudachi, Kuromoji, and custom native tokenizers. Short CJK queries and no-result trigram searches fall back to safe parameterized `LIKE` over indexed text fields.
 
 Not used: Meilisearch, Typesense, Tantivy, Whoosh, sqlite-vec, or any external search service.
+
+Backward compatibility: `/api/search-metadata` still exists for older callers, but the main gallery UI uses `/api/search`.
 
 #### Pillow
 

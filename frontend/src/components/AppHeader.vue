@@ -6,11 +6,13 @@ interface Props {
   isSidebarOpen: boolean
   isDark: boolean
   searchQuery: string
+  searchScope: 'current' | 'all'
 }
 defineProps<Props>()
 
 const emit = defineEmits<{
   'update:searchQuery': [value: string]
+  'scope-change': [value: 'current' | 'all']
   'toggle-sidebar': []
   'toggle-theme': []
   'open-settings': []
@@ -23,6 +25,11 @@ function onSearchInput(e: Event) {
 
 function clearSearch() {
   emit('update:searchQuery', '')
+}
+
+function onScopeChange(e: Event) {
+  const target = e.target as HTMLSelectElement
+  emit('scope-change', target.value as 'current' | 'all')
 }
 </script>
 
@@ -81,7 +88,7 @@ function clearSearch() {
           :value="searchQuery"
           @input="onSearchInput"
           type="search"
-          placeholder="Search photos, albums, prompts..."
+          placeholder="Photos, albums, prompts"
           autocomplete="off"
         />
         <button 
@@ -92,6 +99,15 @@ function clearSearch() {
         >
           <X class="gallery-icon-xs" />
         </button>
+        <select
+          class="scope-select"
+          :value="searchScope"
+          aria-label="Search scope"
+          @change="onScopeChange"
+        >
+          <option value="current">This folder</option>
+          <option value="all">All indexed</option>
+        </select>
       </div>
     </div>
   </header>
@@ -337,6 +353,23 @@ h1 {
 .search-box .clear-btn:hover {
   background: rgba(0, 0, 0, 0.05);
   color: var(--text-color);
+}
+
+.scope-select {
+  border: 1px solid color-mix(in srgb, var(--primary-color) 28%, transparent);
+  background: color-mix(in srgb, var(--primary-color) 8%, var(--surface-color));
+  color: var(--text-color);
+  border-radius: 999px;
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+}
+
+.scope-select:focus {
+  border-color: var(--primary-color);
 }
 
 /* Icon sizes using design tokens */

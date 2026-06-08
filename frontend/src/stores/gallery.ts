@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
-import type { FileNode, MetadataSearchResult, SortField, SortOrder } from "../types";
-import { openFolder, scanDirectory, searchMetadata as searchMetadataApi, GalleryAPIError } from "../services/api";
+import type { FileNode, SearchScope, SortField, SortOrder, UnifiedSearchResults } from "../types";
+import { openFolder, scanDirectory, unifiedSearch as unifiedSearchApi, GalleryAPIError } from "../services/api";
 import { useToastStore } from "./toast";
 import { IMAGE_PAGE_SIZE } from "../constants";
 
@@ -102,9 +102,11 @@ export const useGalleryStore = defineStore("gallery", {
       hasEverLoaded: false,
       errorMessage: "" as string | null,
       searchQuery: "",
-      metadataSearchResults: [] as MetadataSearchResult[],
-      metadataSearchTotal: 0,
-      metadataSearchLoading: false,
+      unifiedSearchResults: { albums: [], photos: [], prompt: [] } as UnifiedSearchResults,
+      searchScope: "current" as SearchScope,
+      searchRoot: "",
+      searchLoading: false,
+      searchError: "" as string | null,
       sortField: storedSort.field as SortField,
       sortOrder: storedSort.order as SortOrder,
     };
@@ -121,31 +123,46 @@ export const useGalleryStore = defineStore("gallery", {
 
     clearSearch() {
       this.searchQuery = "";
-      this.metadataSearchResults = [];
-      this.metadataSearchTotal = 0;
+      this.unifiedSearchResults = { albums: [], photos: [], prompt: [] };
+      this.searchLoading = false;
+      this.searchError = null;
     },
 
-    async searchMetadata(query?: string) {
+    setSearchScope(scope: SearchScope) {
+      this.searchScope = scope;
+    },
+
+    async unifiedSearch(query?: string) {
       const trimmed = (query ?? this.searchQuery).trim();
-      if (trimmed.length < 2) {
-        this.metadataSearchResults = [];
-        this.metadataSearchTotal = 0;
-        this.metadataSearchLoading = false;
+      if (!trimmed) {
+        this.unifiedSearchResults = { albums: [], photos: [], prompt: [] };
+        this.searchLoading = false;
+        this.searchError = null;
         return;
       }
 
-      this.metadataSearchLoading = true;
+      const scope = this.searchScope;
+      const root = scope === "current" ? (this.currentPath || this.rootPath) : "";
+      this.searchRoot = root;
+      this.searchLoading = true;
+      this.searchError = null;
       try {
-        const data = await searchMetadataApi(trimmed, { limit: 100, offset: 0 });
-        if (this.searchQuery.trim() !== trimmed) return;
-        this.metadataSearchResults = data.results;
-        this.metadataSearchTotal = data.total;
+        const data = await unifiedSearchApi(trimmed, { scope, path: root, limit: 100 });
+        if (this.searchQuery.trim() !== trimmed || this.searchScope !== scope) return;
+        this.unifiedSearchResults = {
+          albums: data.albums,
+          photos: data.photos,
+          prompt: data.prompt,
+        };
+        this.searchRoot = data.root;
       } catch (error: unknown) {
-        if (this.searchQuery.trim() !== trimmed) return;
-        console.error("Unable to search metadata", error);
+        if (this.searchQuery.trim() !== trimmed || this.searchScope !== scope) return;
+        this.unifiedSearchResults = { albums: [], photos: [], prompt: [] };
+        this.searchError = "Unable to search the indexed gallery.";
+        console.error("Unable to search gallery", error);
       } finally {
-        if (this.searchQuery.trim() === trimmed) {
-          this.metadataSearchLoading = false;
+        if (this.searchQuery.trim() === trimmed && this.searchScope === scope) {
+          this.searchLoading = false;
         }
       }
     },

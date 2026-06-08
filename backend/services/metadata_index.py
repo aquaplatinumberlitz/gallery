@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sqlite3
 import threading
@@ -14,7 +15,9 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff"}
 DB_PATH = Path(__file__).resolve().parents[1] / ".cache" / "gallery_metadata.db"
+GALLERY_ROOT = Path(os.getenv("GALLERY_ROOT", "/")).resolve()
 SEARCH_FIELDS = ("name", "prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
+PROMPT_SEARCH_FIELDS = ("prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
 GENERIC_TEXT_KEYS = ("Description", "Comment", "UserComment", "Software", "parameters", "prompt", "workflow")
 CJK_RE = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
 _DB_LOCK = threading.RLock()
@@ -118,6 +121,30 @@ def initialize_database() -> None:
               INSERT INTO image_metadata_fts_trigram(rowid, name, prompt, negative_prompt, model, sampler, raw_metadata_text)
               VALUES (new.id, new.name, new.prompt, new.negative_prompt, new.model, new.sampler, new.raw_metadata_text);
             END;
+
+            CREATE TABLE IF NOT EXISTS file_index (
+              path TEXT PRIMARY KEY,
+              name TEXT NOT NULL,
+              parent_path TEXT NOT NULL,
+              type TEXT NOT NULL,
+              mtime REAL,
+              size INTEGER,
+              width INTEGER,
+              height INTEGER,
+              indexed_at REAL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_file_index_parent_path ON file_index(parent_path);
+            CREATE INDEX IF NOT EXISTS idx_file_index_type ON file_index(type);
+            CREATE INDEX IF NOT EXISTS idx_file_index_name ON file_index(name);
+
+            CREATE VIRTUAL TABLE IF NOT EXISTS file_index_fts USING fts5(
+              name,
+              path UNINDEXED,
+              type UNINDEXED,
+              parent_path UNINDEXED,
+              tokenize='unicode61'
+            );
             """
         )
 
@@ -387,6 +414,134 @@ def index_images(paths: Iterable[str | Path]) -> int:
     return indexed
 
 
+def _path_value(item: Any, key: str, default: Any = None) -> Any:
+    if isinstance(item, dict):
+        return item.get(key, default)
+    return getattr(item, key, default)
+
+
+def _normalize_file_type(type_value: str) -> str:
+    return "photo" if type_value in {"image", "photo", "file"} else "folder"
+
+
+def index_file(
+    path: str | Path,
+    name: str,
+    parent_path: str | Path,
+    type: str,
+    mtime: float | None,
+    size: int | None,
+    width: int | None,
+    height: int | None,
+) -> bool:
+    resolved_path = str(Path(path).resolve())
+    resolved_parent = str(Path(parent_path).resolve())
+    normalized_type = _normalize_file_type(type)
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO file_index (
+              path, name, parent_path, type, mtime, size, width, height, indexed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(path) DO UPDATE SET
+              name=excluded.name,
+              parent_path=excluded.parent_path,
+              type=excluded.type,
+              mtime=excluded.mtime,
+              size=excluded.size,
+              width=excluded.width,
+              height=excluded.height,
+              indexed_at=excluded.indexed_at
+            """,
+            (
+                resolved_path,
+                name,
+                resolved_parent,
+                normalized_type,
+                mtime,
+                size,
+                width,
+                height,
+                time.time(),
+            ),
+        )
+        conn.execute("DELETE FROM file_index_fts WHERE path = ?", (resolved_path,))
+        conn.execute(
+            "INSERT INTO file_index_fts(name, path, type, parent_path) VALUES (?, ?, ?, ?)",
+            (name, resolved_path, normalized_type, resolved_parent),
+        )
+    return True
+
+
+def index_files_from_scan(folders: list[Any], images: list[Any]) -> int:
+    indexed = 0
+    for item in [*folders, *images]:
+        raw_path = _path_value(item, "path")
+        if not raw_path:
+            continue
+        path = Path(raw_path)
+        try:
+            stat = path.stat()
+        except OSError:
+            stat = None
+        try:
+            if index_file(
+                path=path,
+                name=_path_value(item, "name", path.name),
+                parent_path=path.parent,
+                type=_path_value(item, "type", "photo"),
+                mtime=_path_value(item, "mtime", stat.st_mtime if stat else None),
+                size=stat.st_size if stat and path.is_file() else None,
+                width=_path_value(item, "width", None),
+                height=_path_value(item, "height", None),
+            ):
+                indexed += 1
+        except Exception:
+            continue
+    return indexed
+
+
+def index_directory_tree(root: str | Path) -> int:
+    root_path = Path(root)
+    indexed = 0
+    image_paths: list[Path] = []
+
+    def visit(folder: Path) -> None:
+        nonlocal indexed
+        try:
+            stat = folder.stat()
+            if index_file(folder, folder.name or str(folder), folder.parent, "folder", stat.st_mtime, None, None, None):
+                indexed += 1
+        except OSError:
+            return
+        except Exception:
+            pass
+
+        try:
+            entries = list(folder.iterdir())
+        except (OSError, PermissionError):
+            return
+
+        for entry in entries:
+            if entry.name.startswith("."):
+                continue
+            try:
+                if entry.is_dir():
+                    visit(entry)
+                elif entry.is_file() and is_image_path(entry):
+                    stat = entry.stat()
+                    if index_file(entry, entry.name, entry.parent, "photo", stat.st_mtime, stat.st_size, None, None):
+                        indexed += 1
+                    image_paths.append(entry)
+            except (OSError, PermissionError):
+                continue
+
+    visit(root_path)
+    indexed += index_images(image_paths)
+    return indexed
+
+
 def _escape_fts_token(token: str) -> str:
     return '"' + token.replace('"', '""') + '"'
 
@@ -405,6 +560,183 @@ def _trigram_match_query(query: str) -> str:
 def _like_pattern(query: str) -> str:
     escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     return f"%{escaped}%"
+
+
+def _relative_path(path: str, root: Path) -> str:
+    try:
+        return str(Path(path).resolve().relative_to(root))
+    except (OSError, ValueError):
+        return str(Path(path).name)
+
+
+def _scope_clause(scope: str, root_path: str | Path | None, alias: str = "fi") -> tuple[str, list[Any], Path]:
+    root = Path(root_path).resolve() if scope == "current" and root_path else GALLERY_ROOT
+    root_str = str(root)
+    return f" AND ({alias}.path = ? OR {alias}.path LIKE ?)", [root_str, f"{root_str.rstrip('/')}/%"], root
+
+
+def _format_file_index_rows(rows: list[sqlite3.Row], root: Path, match_type: str) -> list[dict[str, Any]]:
+    seen: set[str] = set()
+    results: list[dict[str, Any]] = []
+    for row in rows:
+        if row["path"] in seen:
+            continue
+        seen.add(row["path"])
+        results.append(
+            {
+                "name": row["name"],
+                "path": row["path"],
+                "type": row["type"],
+                "parent_path": row["parent_path"],
+                "relative_path": _relative_path(row["path"], root),
+                "mtime": row["mtime"],
+                "width": row["width"],
+                "height": row["height"],
+                "match_type": match_type,
+                "prompt_snippet": "",
+                "model": "",
+                "sampler": "",
+                "seed": "",
+            }
+        )
+    return results
+
+
+def _search_file_index_fts(
+    conn: sqlite3.Connection,
+    query: str,
+    file_type: str,
+    scope: str,
+    root_path: str | Path | None,
+    limit: int,
+) -> tuple[list[sqlite3.Row], Path]:
+    scope_sql, scope_params, root = _scope_clause(scope, root_path, "fi")
+    try:
+        match_query = _unicode_match_query(query)
+        rows = list(
+            conn.execute(
+                f"""
+                SELECT fi.*
+                FROM file_index_fts fts
+                JOIN file_index fi ON fi.path = fts.path
+                WHERE fts MATCH ? AND fi.type = ? {scope_sql}
+                ORDER BY bm25(file_index_fts) ASC, fi.mtime DESC, fi.name ASC
+                LIMIT ?
+                """,
+                [match_query, file_type, *scope_params, limit],
+            )
+        )
+    except sqlite3.OperationalError:
+        rows = []
+
+    if rows:
+        return rows, root
+
+    pattern = _like_pattern(query)
+    rows = list(
+        conn.execute(
+            f"""
+            SELECT fi.*
+            FROM file_index fi
+            WHERE fi.name LIKE ? ESCAPE '\\' AND fi.type = ? {scope_sql}
+            ORDER BY fi.mtime DESC, fi.name ASC
+            LIMIT ?
+            """,
+            [pattern, file_type, *scope_params, limit],
+        )
+    )
+    return rows, root
+
+
+def _search_prompt_rows(
+    conn: sqlite3.Connection,
+    query: str,
+    scope: str,
+    root_path: str | Path | None,
+    limit: int,
+) -> tuple[list[sqlite3.Row], Path]:
+    scope_sql, scope_params, root = _scope_clause(scope, root_path, "fi")
+    rows: list[sqlite3.Row] = []
+    try:
+        if contains_cjk(query) and len(query) >= 3:
+            rows = list(
+                conn.execute(
+                    f"""
+                    SELECT m.*, fi.parent_path, fi.type AS file_type, bm25(image_metadata_fts_trigram) AS rank
+                    FROM image_metadata_fts_trigram fts
+                    JOIN image_metadata m ON m.id = fts.rowid
+                    JOIN file_index fi ON fi.path = m.path
+                    WHERE image_metadata_fts_trigram MATCH ? {scope_sql}
+                    ORDER BY rank ASC, m.mtime DESC, m.name ASC
+                    LIMIT ?
+                    """,
+                    [_trigram_match_query(query), *scope_params, limit],
+                )
+            )
+        elif not contains_cjk(query):
+            rows = list(
+                conn.execute(
+                    f"""
+                    SELECT m.*, fi.parent_path, fi.type AS file_type, bm25(image_metadata_fts) AS rank
+                    FROM image_metadata_fts fts
+                    JOIN image_metadata m ON m.id = fts.rowid
+                    JOIN file_index fi ON fi.path = m.path
+                    WHERE image_metadata_fts MATCH ? {scope_sql}
+                    ORDER BY rank ASC, m.mtime DESC, m.name ASC
+                    LIMIT ?
+                    """,
+                    [_unicode_match_query(query), *scope_params, limit],
+                )
+            )
+    except sqlite3.OperationalError:
+        rows = []
+
+    if rows:
+        return rows, root
+
+    pattern = _like_pattern(query)
+    where = " OR ".join(f"m.{field} LIKE ? ESCAPE '\\'" for field in PROMPT_SEARCH_FIELDS)
+    rows = list(
+        conn.execute(
+            f"""
+            SELECT m.*, fi.parent_path, fi.type AS file_type
+            FROM image_metadata m
+            JOIN file_index fi ON fi.path = m.path
+            WHERE ({where}) {scope_sql}
+            ORDER BY m.mtime DESC, m.name ASC
+            LIMIT ?
+            """,
+            [*([pattern] * len(PROMPT_SEARCH_FIELDS)), *scope_params, limit],
+        )
+    )
+    return rows, root
+
+
+def _format_prompt_rows(rows: list[sqlite3.Row], root: Path) -> list[dict[str, Any]]:
+    seen: set[str] = set()
+    results: list[dict[str, Any]] = []
+    for row in rows:
+        if row["path"] in seen:
+            continue
+        seen.add(row["path"])
+        results.append(
+            {
+                "name": row["name"],
+                "path": row["path"],
+                "type": "photo",
+                "parent_path": row["parent_path"],
+                "relative_path": _relative_path(row["path"], root),
+                "mtime": row["mtime"],
+                "width": row["width"],
+                "height": row["height"],
+                "match_type": "prompt",
+                "prompt_snippet": _snippet(row),
+                "model": row["model"] or "",
+                "sampler": row["sampler"] or "",
+                "seed": row["seed"] or "",
+            }
+        )
+    return results
 
 
 def _snippet(row: sqlite3.Row) -> str:
@@ -508,3 +840,35 @@ def search_metadata(query: str, limit: int = 100, offset: int = 0) -> dict[str, 
             "total": total,
             "results": _format_rows(rows),
         }
+
+
+def search_index(query: str, scope: str, root_path: str | Path | None = None, limit: int = 50) -> dict[str, Any]:
+    initialize_database()
+    trimmed = query.strip()
+    normalized_scope = "all" if scope == "all" else "current"
+    limit = max(1, min(limit, 200))
+    root = Path(root_path).resolve() if normalized_scope == "current" and root_path else GALLERY_ROOT
+
+    if not trimmed:
+        return {
+            "query": query,
+            "scope": normalized_scope,
+            "root": str(root),
+            "albums": [],
+            "photos": [],
+            "prompt": [],
+        }
+
+    with _DB_LOCK, _connect() as conn:
+        album_rows, root = _search_file_index_fts(conn, trimmed, "folder", normalized_scope, root_path, limit)
+        photo_rows, root = _search_file_index_fts(conn, trimmed, "photo", normalized_scope, root_path, limit)
+        prompt_rows, root = _search_prompt_rows(conn, trimmed, normalized_scope, root_path, limit)
+
+    return {
+        "query": query,
+        "scope": normalized_scope,
+        "root": str(root),
+        "albums": _format_file_index_rows(album_rows, root, "filename"),
+        "photos": _format_file_index_rows(photo_rows, root, "filename"),
+        "prompt": _format_prompt_rows(prompt_rows, root),
+    }

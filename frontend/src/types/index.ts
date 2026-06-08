@@ -63,6 +63,36 @@ export interface ScanResponse {
   total_images: number;
 }
 
+export type SearchScope = "current" | "all";
+
+export interface UnifiedSearchResult {
+  name: string;
+  path: string;
+  type: "folder" | "photo" | "file";
+  parent_path: string;
+  relative_path: string;
+  mtime: number;
+  width: number | null;
+  height: number | null;
+  match_type: string;
+  model: string;
+  sampler: string;
+  seed: string;
+  prompt_snippet: string;
+}
+
+export interface UnifiedSearchResults {
+  albums: UnifiedSearchResult[];
+  photos: UnifiedSearchResult[];
+  prompt: UnifiedSearchResult[];
+}
+
+export interface UnifiedSearchResponse extends UnifiedSearchResults {
+  query: string;
+  scope: SearchScope;
+  root: string;
+}
+
 export interface MetadataSearchResult {
   name: string;
   path: string;

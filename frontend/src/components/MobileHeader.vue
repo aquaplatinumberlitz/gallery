@@ -7,6 +7,7 @@ import type { SortField } from '../types'
 interface Props {
   isDark: boolean
   searchQuery: string
+  searchScope: 'current' | 'all'
   barsVisible: boolean
 }
 
@@ -14,6 +15,7 @@ const props = defineProps<Props>()
 
 const emit = defineEmits<{
   'update:searchQuery': [value: string]
+  'scope-change': [value: 'current' | 'all']
   'toggle-sidebar': []
   'toggle-theme': []
 }>()
@@ -93,6 +95,11 @@ watch(isSearchActive, (active) => {
 function onSearchInput(e: Event) {
   const target = e.target as HTMLInputElement
   emit('update:searchQuery', target.value)
+}
+
+function onScopeChange(e: Event) {
+  const target = e.target as HTMLSelectElement
+  emit('scope-change', target.value as 'current' | 'all')
 }
 
 // ── Sort popover ──
@@ -202,6 +209,15 @@ onMounted(() => {
           >
             <X />
           </button>
+          <select
+            class="search-scope-chip"
+            :value="searchScope"
+            aria-label="Search scope"
+            @change="onScopeChange"
+          >
+            <option value="current">This folder</option>
+            <option value="all">All indexed</option>
+          </select>
         </div>
       </div>
     </div>
@@ -499,6 +515,19 @@ onMounted(() => {
 .search-focus-clear svg {
   width: var(--gallery-icon-md);
   height: var(--gallery-icon-md);
+}
+
+.search-scope-chip {
+  max-width: 104px;
+  height: 28px;
+  border: 1px solid color-mix(in srgb, var(--gallery-accent-default, var(--primary-color)) 32%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--gallery-accent-default, var(--primary-color)) 8%, var(--gallery-surface-elevated, var(--surface-color)));
+  color: var(--text-color);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 8px;
+  flex-shrink: 0;
 }
 
 /* ============================================================

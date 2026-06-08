@@ -7,6 +7,7 @@ import { useGalleryStore } from '../stores/gallery'
 interface Props {
   isDark: boolean
   searchQuery: string
+  searchScope: 'current' | 'all'
   currentPath: string
 }
 const props = defineProps<Props>()
@@ -15,6 +16,7 @@ const emit = defineEmits<{
   'toggle-sidebar': []
   'toggle-theme': []
   'update:searchQuery': [value: string]
+  'scope-change': [value: 'current' | 'all']
 }>()
 
 const galleryStore = useGalleryStore()
@@ -92,6 +94,11 @@ function onSearchInput(e: Event) {
   const target = e.target as HTMLInputElement
   emit('update:searchQuery', target.value)
 }
+
+function onScopeChange(e: Event) {
+  const target = e.target as HTMLSelectElement
+  emit('scope-change', target.value as 'current' | 'all')
+}
 </script>
 
 <template>
@@ -148,6 +155,15 @@ function onSearchInput(e: Event) {
         >
           <X />
         </button>
+        <select
+          class="th-search-scope"
+          :value="searchScope"
+          aria-label="Search scope"
+          @change="onScopeChange"
+        >
+          <option value="current">This folder</option>
+          <option value="all">All indexed</option>
+        </select>
       </div>
     </div>
 
@@ -383,6 +399,18 @@ function onSearchInput(e: Event) {
 .th-search-clear svg {
   width: var(--gallery-icon-md);
   height: var(--gallery-icon-md);
+}
+
+.th-search-scope {
+  height: 28px;
+  border: 1px solid color-mix(in srgb, var(--gallery-accent-default, var(--primary-color)) 32%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--gallery-accent-default, var(--primary-color)) 8%, var(--gallery-surface-elevated, var(--surface-color)));
+  color: var(--text-color);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 10px;
+  flex-shrink: 0;
 }
 
 /* ============================================================

@@ -12,10 +12,12 @@ defineProps<{
   isLoading: boolean;
   currentPath: string;
   searchQuery: string;
+  searchScope: "current" | "all";
 }>();
 
 const emit = defineEmits<{
   (e: "update:searchQuery", value: string): void;
+  (e: "scope-change", value: "current" | "all"): void;
   (e: "toggleSidebar"): void;
   (e: "toggleTheme"): void;
   (e: "openSettings"): void;
@@ -70,7 +72,9 @@ const emit = defineEmits<{
         :is-sidebar-open="isSidebarOpen"
         :is-dark="theme === 'dark'"
         :search-query="searchQuery"
+        :search-scope="searchScope"
         @update:search-query="emit('update:searchQuery', $event)"
+        @scope-change="emit('scope-change', $event)"
         @toggle-sidebar="emit('toggleSidebar')"
         @toggle-theme="emit('toggleTheme')"
         @open-settings="emit('openSettings')"

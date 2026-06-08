@@ -18,9 +18,9 @@ from io import BytesIO
 from cachetools import LRUCache
 import threading
 try:
-    from services.metadata_index import index_images, search_metadata
+    from services.metadata_index import index_directory_tree, index_file, index_files_from_scan, index_images, search_index, search_metadata
 except ModuleNotFoundError:
-    from backend.services.metadata_index import index_images, search_metadata
+    from backend.services.metadata_index import index_directory_tree, index_file, index_files_from_scan, index_images, search_index, search_metadata
 
 # =============================================================================
 # CUSTOM ERROR TYPES - For better frontend error handling
@@ -298,6 +298,9 @@ async def api_scan(
     paged_images = images[start:end]
     next_cursor = end if end < total_images else None
     background_tasks.add_task(index_images, [image.path for image in images])
+    background_tasks.add_task(index_file, target, target.name or str(target), target.parent, "folder", target.stat().st_mtime, None, None, None)
+    background_tasks.add_task(index_files_from_scan, folders, images)
+    background_tasks.add_task(index_directory_tree, target)
 
     return {
         "folders": folders,
@@ -513,9 +516,29 @@ async def api_thumbnail(
     )
 
 
+import subprocess as _subprocess
+
+def _get_git_commit() -> str:
+    try:
+        return _subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=5,
+            cwd=Path(__file__).parent
+        ).stdout.strip()
+    except Exception:
+        return "unknown"
+
+GIT_COMMIT = _get_git_commit()
+
 @app.get("/api/health")
 async def api_health():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "commit": GIT_COMMIT,
+        "features": {
+            "metadata_search": True,
+        },
+    }
 
 
 @app.get("/favicon.ico", include_in_schema=False)
@@ -1184,6 +1207,47 @@ async def api_search_metadata(
         "query": data["query"],
         "total": len(safe_results),
         "results": safe_results,
+    }
+
+
+@app.get("/api/search")
+async def api_search(
+    q: str = Query("", description="Filename, album name, prompt, or metadata text to search"),
+    scope: Literal["current", "all"] = Query("current", description="Search current folder recursively or all indexed files"),
+    path: str | None = Query(None, description="Current folder path when scope=current"),
+    limit: int = Query(50, ge=1, le=200, description="Maximum results per section"),
+):
+    if not q.strip():
+        root = resolve_path(path) if scope == "current" and path else GALLERY_ROOT
+        return {"query": q, "scope": scope, "root": str(root), "albums": [], "photos": [], "prompt": []}
+
+    root_path: Path | None = None
+    if scope == "current":
+        root_path = resolve_path(path) if path else DEFAULT_ROOT
+        if not is_path_safe(root_path):
+            raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied: path outside allowed root")
+        if not root_path.exists() or not root_path.is_dir():
+            raise APIError(404, ErrorType.NOT_FOUND, "Folder not found")
+
+    try:
+        data = await run_in_threadpool(search_index, q, scope, root_path, limit)
+    except Exception as exc:  # noqa: BLE001
+        raise APIError(500, ErrorType.SERVER_ERROR, f"Search failed: {exc}") from exc
+
+    def safe_section(section: list[dict]) -> list[dict]:
+        return [
+            result
+            for result in section
+            if is_path_safe(resolve_path(result["path"]))
+        ]
+
+    return {
+        "query": data["query"],
+        "scope": data["scope"],
+        "root": data["root"],
+        "albums": safe_section(data["albums"]),
+        "photos": safe_section(data["photos"]),
+        "prompt": safe_section(data["prompt"]),
     }
 
 

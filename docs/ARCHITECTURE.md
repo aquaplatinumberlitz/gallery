@@ -22,6 +22,7 @@ All API routes live in `backend/main.py`.
 | `GET /api/image` | Serve an original image file |
 | `GET /api/thumbnail` | Serve a cached WebP thumbnail |
 | `GET /api/metadata` | Parse AI generation metadata |
+| `GET /api/search` | Unified indexed search for albums, photo filenames, and prompt/metadata |
 | `GET /api/search-metadata` | Search indexed AI prompt/metadata fields with SQLite FTS5 |
 | `POST /api/open-folder` | Open a folder in the OS file explorer when enabled |
 | `GET /api/health` | Return service health |
@@ -34,8 +35,8 @@ Important backend behavior:
 - `GALLERY_OPEN_FOLDER=false` disables OS folder opening by default.
 - Thumbnail cache keys include path, mtime, size, max size, and quality.
 - Metadata cache keys include path, mtime, and size.
-- Metadata search cache lives at `backend/.cache/gallery_metadata.db`. It stores normalized image metadata keyed by path, mtime, and size, with two FTS5 indexes: `unicode61` for normal prompt/model/filename terms and `trigram` for Japanese/CJK substring matching.
-- `/api/scan` opportunistically indexes image metadata for the scanned folder in the background. Search covers indexed images only; unchanged files are not reparsed.
+- Search cache lives at `backend/.cache/gallery_metadata.db`. It contains `file_index` rows for indexed folders/photos, `file_index_fts` for recursive album/photo filename search, and normalized image metadata with SQLite FTS5 tables for prompt/metadata search.
+- `/api/scan` returns the current folder exactly as before, then indexes the scanned folder and its subfolders in the background. File entries are indexed for albums/photos; image metadata is indexed for prompt search. Unchanged metadata entries are not reparsed.
 - Production mode is enabled with `PRODUCTION=1`, serving `frontend/dist/`.
 
 ## Frontend
@@ -89,16 +90,21 @@ IntersectionObserver sees loadMoreSentinel
 
 ```text
 Header or toolbar emits search/sort change
-→ gallery store updates query or sort state
-→ GalleryGrid computed folder/image lists apply Fuse.js search over loaded frontend items
-→ existing GalleryGrid sort applies by name/date
-→ RecycleScroller or native mobile grid rerenders
+→ gallery store updates query, scope, or sort state
+→ non-search gallery view keeps existing loaded folders/images and sort behavior
+→ non-empty search query calls GET /api/search
+→ GalleryGrid renders Albums, Photos, and Prompt sections
 ```
 
-Search has two explicit modes:
+Unified gallery search uses one search box:
 
-- Current view: client-side Fuse.js search over currently loaded folders/images in `galleryFolders` and `galleryImages`. This remains filename/folder search only and preserves current pagination, sort, folder navigation, and virtual/native scroll behavior.
-- Metadata: backend-driven prompt/metadata search through `GET /api/search-metadata?q=...`. The backend extracts metadata with Pillow, normalizes fields, stores them in SQLite, and searches with SQLite FTS5. Japanese/CJK queries use trigram FTS when possible, with parameterized `LIKE` fallback for short queries or no-result fallback.
+- Default scope is `This folder`, which means the current folder plus all indexed subfolders recursively.
+- Optional scope is `All indexed`, which searches the whole indexed database under `GALLERY_ROOT`.
+- Albums and Photos use `file_index_fts` over folder/photo names, scope-filtered by path.
+- Prompt uses the existing metadata FTS5 tables, joined through `file_index` so prompt matches share the same recursive scope rules.
+- Results are grouped as Albums, Photos, and Prompt. Subfolder matches include `relative_path`, computed from the current root for `This folder` and from `GALLERY_ROOT` for `All indexed`.
+- Empty queries restore the normal gallery view. Fuse.js remains in the codebase for lightweight filtering behavior in the non-search gallery view, but backend `/api/search` owns active search results.
+- `GET /api/search-metadata` remains available for backward compatibility, but the frontend no longer uses it for the main gallery search.
 
 ### Open Image
 

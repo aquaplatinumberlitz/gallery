@@ -13,6 +13,7 @@ defineProps<{
   isLoading: boolean;
   currentPath: string;
   searchQuery: string;
+  searchScope: "current" | "all";
   barsVisible: boolean;
   canBack: boolean;
   canForward: boolean;
@@ -20,6 +21,7 @@ defineProps<{
 
 const emit = defineEmits<{
   (e: "update:searchQuery", value: string): void;
+  (e: "scope-change", value: "current" | "all"): void;
   (e: "toggleSidebar"): void;
   (e: "toggleTheme"): void;
   (e: "back"): void;
@@ -68,8 +70,10 @@ const emit = defineEmits<{
       <MobileHeader
         :is-dark="theme === 'dark'"
         :search-query="searchQuery"
+        :search-scope="searchScope"
         :bars-visible="barsVisible"
         @update:search-query="emit('update:searchQuery', $event)"
+        @scope-change="emit('scope-change', $event)"
         @toggle-sidebar="emit('toggleSidebar')"
         @toggle-theme="emit('toggleTheme')"
       />

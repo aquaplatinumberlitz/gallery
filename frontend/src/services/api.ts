@@ -1,5 +1,5 @@
 import axios, { AxiosError } from "axios";
-import type { MetadataResponse, MetadataSearchResponse, ScanResponse } from "../types";
+import type { MetadataResponse, MetadataSearchResponse, ScanResponse, SearchScope, UnifiedSearchResponse } from "../types";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -185,6 +185,28 @@ export const searchMetadata = async (
         q: query,
         limit: opts?.limit ?? 100,
         offset: opts?.offset ?? 0,
+      },
+    });
+    return data;
+  } catch (error) {
+    if (error instanceof AxiosError) {
+      throw GalleryAPIError.fromAxiosError(error);
+    }
+    throw error;
+  }
+};
+
+export const unifiedSearch = async (
+  query: string,
+  opts?: { scope?: SearchScope; path?: string; limit?: number }
+): Promise<UnifiedSearchResponse> => {
+  try {
+    const { data } = await api.get<UnifiedSearchResponse>("/api/search", {
+      params: {
+        q: query,
+        scope: opts?.scope ?? "current",
+        path: opts?.path,
+        limit: opts?.limit ?? 50,
       },
     });
     return data;

@@ -3,7 +3,7 @@ import { computed, inject, onBeforeUnmount, onMounted, ref, watch, type Componen
 import { RecycleScroller } from "vue-virtual-scroller";
 import { useGalleryStore } from "../stores/gallery";
 import { useLightboxStore } from "../stores/lightbox";
-import type { FileNode, MetadataSearchResult, SortField } from "../types";
+import type { FileNode, SortField, UnifiedSearchResult } from "../types";
 import AlbumScroller from "./AlbumScroller.vue";
 import GallerySectionHeader from "./GallerySectionHeader.vue";
 import GlowContainer from "./GlowContainer.vue";
@@ -22,7 +22,7 @@ import {
   ArrowLeft, ArrowRight, ArrowUpRight, ArrowUpDown, ChevronDown, 
   ArrowUp, ArrowDown, LayoutGrid, Loader, TriangleAlert, X, 
   ArrowDownToLine, Check,
-  Type, Clock, Images 
+  Type, Clock, Images, FolderOpen
 } from "lucide-vue-next";
 
 const _icons: Record<string, any> = { Type, Clock }
@@ -164,21 +164,21 @@ const sortItems = <T extends { name: string; mtime?: number }>(items: T[]): T[] 
 
 const folders = computed(() =>
   sortItems(
-    fuzzySearchFileNodes(galleryStore.galleryFolders, searchQuery.value)
+    hasSearchQuery.value ? galleryStore.galleryFolders : fuzzySearchFileNodes(galleryStore.galleryFolders, searchQuery.value)
   )
 );
 
 // Fuse search is client-side and only covers images currently loaded into galleryImages.
 const filenameImages = computed(() =>
   sortItems(
-    fuzzySearchFileNodes(galleryStore.galleryImages, searchQuery.value)
+    hasSearchQuery.value ? galleryStore.galleryImages : fuzzySearchFileNodes(galleryStore.galleryImages, searchQuery.value)
   )
 );
 
-const metadataResultToFileNode = (result: MetadataSearchResult): FileNode => ({
+const searchResultToFileNode = (result: UnifiedSearchResult): FileNode => ({
   name: result.name,
   path: result.path,
-  type: "image",
+  type: result.type === "folder" ? "folder" : "image",
   has_children: false,
   cover_images: [],
   mtime: result.mtime,
@@ -186,24 +186,26 @@ const metadataResultToFileNode = (result: MetadataSearchResult): FileNode => ({
   height: result.height ?? undefined,
 });
 
-const metadataImages = computed(() => {
-  const seenPaths = new Set(filenameImages.value.map((image) => image.path));
-  return galleryStore.metadataSearchResults.reduce<FileNode[]>((matches, result) => {
-    if (seenPaths.has(result.path)) return matches;
-    seenPaths.add(result.path);
-    matches.push(metadataResultToFileNode(result));
-    return matches;
-  }, []);
+const searchAlbums = computed(() => galleryStore.unifiedSearchResults.albums);
+const searchPhotos = computed(() => galleryStore.unifiedSearchResults.photos);
+const searchPrompt = computed(() => galleryStore.unifiedSearchResults.prompt);
+const searchPhotoNodes = computed(() => searchPhotos.value.map(searchResultToFileNode));
+const searchPromptNodes = computed(() => searchPrompt.value.map(searchResultToFileNode));
+const allSearchImageNodes = computed(() => {
+  const seen = new Set<string>();
+  return [...searchPhotoNodes.value, ...searchPromptNodes.value].filter((image) => {
+    if (seen.has(image.path)) return false;
+    seen.add(image.path);
+    return true;
+  });
 });
 
 const images = computed(() =>
-  hasSearchQuery.value
-    ? [...filenameImages.value, ...metadataImages.value]
-    : filenameImages.value
+  hasSearchQuery.value ? allSearchImageNodes.value : filenameImages.value
 );
 
 const isLoading = computed(() => galleryStore.galleryLoading);
-const isMetadataLoading = computed(() => galleryStore.metadataSearchLoading);
+const isSearchLoading = computed(() => galleryStore.searchLoading);
 const currentPath = computed(() => galleryStore.currentPath);
 const canBack = computed(() => galleryStore.historyIndex > 0);
 const canForward = computed(
@@ -216,31 +218,38 @@ const hasNotLoaded = computed(() => !galleryStore.hasEverLoaded && (!!gallerySto
 const noSearchResults = computed(
   () =>
     hasSearchQuery.value &&
-    !isMetadataLoading.value &&
-    folders.value.length === 0 &&
-    filenameImages.value.length === 0 &&
-    metadataImages.value.length === 0 &&
+    !isSearchLoading.value &&
+    searchAlbums.value.length === 0 &&
+    searchPhotos.value.length === 0 &&
+    searchPrompt.value.length === 0 &&
     hasAnyItems.value
 );
 const errorMessage = computed(() => galleryStore.errorMessage);
+const showAllIndexedHint = computed(() => noSearchResults.value && galleryStore.searchScope === "current");
 
-let metadataSearchTimer: number | undefined;
+let searchTimer: number | undefined;
 
 watch(trimmedSearchQuery, (query) => {
-  if (metadataSearchTimer) {
-    window.clearTimeout(metadataSearchTimer);
-    metadataSearchTimer = undefined;
+  if (searchTimer) {
+    window.clearTimeout(searchTimer);
+    searchTimer = undefined;
   }
-  if (query.length < 2) {
-    galleryStore.metadataSearchResults = [];
-    galleryStore.metadataSearchTotal = 0;
-    galleryStore.metadataSearchLoading = false;
+  if (!query) {
+    galleryStore.unifiedSearchResults = { albums: [], photos: [], prompt: [] };
+    galleryStore.searchLoading = false;
+    galleryStore.searchError = null;
     return;
   }
-  metadataSearchTimer = window.setTimeout(() => {
-    galleryStore.searchMetadata(query);
+  searchTimer = window.setTimeout(() => {
+    galleryStore.unifiedSearch(query);
   }, 300);
 }, { immediate: true });
+
+watch(() => galleryStore.searchScope, () => {
+  if (trimmedSearchQuery.value) {
+    galleryStore.unifiedSearch(trimmedSearchQuery.value);
+  }
+});
 
 const handleOpenFolder = (path: string) => {
   galleryStore.selectFolder(path);
@@ -326,23 +335,23 @@ const imageRows = computed(() => {
   return rows;
 });
 
-const filenameImageRows = computed(() => {
-  const rows: { id: string; items: typeof filenameImages.value }[] = [];
-  for (let i = 0; i < filenameImages.value.length; i += columnCount.value) {
+const searchPhotoRows = computed(() => {
+  const rows: { id: string; items: typeof searchPhotos.value }[] = [];
+  for (let i = 0; i < searchPhotos.value.length; i += columnCount.value) {
     rows.push({
-      id: `filename-row-${columnCount.value}-${i}`,
-      items: filenameImages.value.slice(i, i + columnCount.value)
+      id: `photo-row-${columnCount.value}-${i}`,
+      items: searchPhotos.value.slice(i, i + columnCount.value)
     });
   }
   return rows;
 });
 
-const metadataImageRows = computed(() => {
-  const rows: { id: string; items: typeof metadataImages.value }[] = [];
-  for (let i = 0; i < metadataImages.value.length; i += columnCount.value) {
+const searchPromptRows = computed(() => {
+  const rows: { id: string; items: typeof searchPrompt.value }[] = [];
+  for (let i = 0; i < searchPrompt.value.length; i += columnCount.value) {
     rows.push({
-      id: `metadata-row-${columnCount.value}-${i}`,
-      items: metadataImages.value.slice(i, i + columnCount.value)
+      id: `prompt-row-${columnCount.value}-${i}`,
+      items: searchPrompt.value.slice(i, i + columnCount.value)
     });
   }
   return rows;
@@ -383,8 +392,8 @@ onMounted(() => {
 watch(loadMoreSentinel, () => setupLoadObserver());
 
 onBeforeUnmount(() => {
-  if (metadataSearchTimer) {
-    window.clearTimeout(metadataSearchTimer);
+  if (searchTimer) {
+    window.clearTimeout(searchTimer);
   }
   if (loadObserver) {
     loadObserver.disconnect();
@@ -573,7 +582,7 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
-    <div v-if="isLoading || (hasSearchQuery && isMetadataLoading && !folders.length && !filenameImages.length && !metadataImages.length)" class="skeleton-container">
+    <div v-if="isLoading || (hasSearchQuery && isSearchLoading && !searchAlbums.length && !searchPhotos.length && !searchPrompt.length)" class="skeleton-container">
       <div class="skeleton-grid" :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }">
         <SkeletonLoader
           v-for="i in skeletonItems"
@@ -583,66 +592,84 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <!-- Search results: albums, current-view filename matches, and backend metadata matches -->
+    <!-- Search results: backend indexed albums, photos, and prompt matches -->
     <div
       v-else-if="hasSearchQuery"
       :ref="setScrollContainerRef"
       class="search-results-container"
     >
-      <GlowContainer v-if="folders.length" :disabled="props.isMobile">
-        <AlbumScroller
-          :folders="folders"
-          @open-folder="handleOpenFolder"
-        />
-      </GlowContainer>
-
-      <section v-if="filenameImages.length" class="search-photo-section">
+      <section v-if="searchAlbums.length" class="search-photo-section">
         <GallerySectionHeader
-          title="Photos"
-          :count="filenameImages.length"
-          :badge-icon="Images"
+          title="Albums"
+          :count="searchAlbums.length"
+          :badge-icon="FolderOpen"
         />
-
-        <div
-          v-for="row in filenameImageRows"
-          :key="row.id"
-          class="virtual-row"
-          :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }"
-        >
-          <PhotoCard
-            v-for="img in row.items"
-            :key="img.path"
-            :src="img.path"
-            :name="img.name"
-            @click="handleOpenImage(img.path, img.name)"
-            @keydown.enter="handleOpenImage(img.path, img.name)"
-            @keydown.space.prevent="handleOpenImage(img.path, img.name)"
-          />
+        <div class="search-album-grid">
+          <button
+            v-for="album in searchAlbums"
+            :key="album.path"
+            class="search-album-card"
+            type="button"
+            @click="handleOpenFolder(album.path)"
+          >
+            <span class="search-result-name">{{ album.name }}</span>
+            <span v-if="album.relative_path" class="search-result-path">{{ album.relative_path }}</span>
+          </button>
         </div>
       </section>
 
-      <section v-if="metadataImages.length" class="search-photo-section">
+      <section v-if="searchPhotos.length" class="search-photo-section">
         <GallerySectionHeader
-          title="Metadata matches"
-          :count="metadataImages.length"
+          title="Photos"
+          :count="searchPhotos.length"
           :badge-icon="Images"
         />
 
         <div
-          v-for="row in metadataImageRows"
+          v-for="row in searchPhotoRows"
           :key="row.id"
           class="virtual-row"
           :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }"
         >
-          <PhotoCard
-            v-for="img in row.items"
-            :key="img.path"
-            :src="img.path"
-            :name="img.name"
-            @click="handleOpenImage(img.path, img.name)"
-            @keydown.enter="handleOpenImage(img.path, img.name)"
-            @keydown.space.prevent="handleOpenImage(img.path, img.name)"
-          />
+          <div v-for="img in row.items" :key="img.path" class="search-result-card">
+            <PhotoCard
+              :src="img.path"
+              :name="img.name"
+              @click="handleOpenImage(img.path, img.name)"
+              @keydown.enter="handleOpenImage(img.path, img.name)"
+              @keydown.space.prevent="handleOpenImage(img.path, img.name)"
+            />
+            <span class="search-result-name">{{ img.name }}</span>
+            <span v-if="img.relative_path" class="search-result-path">{{ img.relative_path }}</span>
+          </div>
+        </div>
+      </section>
+
+      <section v-if="searchPrompt.length" class="search-photo-section">
+        <GallerySectionHeader
+          title="Prompt"
+          :count="searchPrompt.length"
+          :badge-icon="Images"
+        />
+
+        <div
+          v-for="row in searchPromptRows"
+          :key="row.id"
+          class="virtual-row"
+          :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }"
+        >
+          <div v-for="img in row.items" :key="img.path" class="search-result-card">
+            <PhotoCard
+              :src="img.path"
+              :name="img.name"
+              @click="handleOpenImage(img.path, img.name)"
+              @keydown.enter="handleOpenImage(img.path, img.name)"
+              @keydown.space.prevent="handleOpenImage(img.path, img.name)"
+            />
+            <span class="search-result-name">{{ img.name }}</span>
+            <span v-if="img.relative_path" class="search-result-path">{{ img.relative_path }}</span>
+            <span v-if="img.prompt_snippet" class="search-result-snippet">{{ img.prompt_snippet }}</span>
+          </div>
         </div>
       </section>
 
@@ -655,6 +682,9 @@ onBeforeUnmount(() => {
           action-icon="xmark"
           @action="galleryStore.clearSearch()"
         />
+        <p v-if="showAllIndexedHint" class="search-scope-hint">
+          Try All indexed to search outside this folder.
+        </p>
       </div>
     </div>
 
@@ -924,6 +954,70 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 12px;
   margin-top: 12px;
+}
+
+.search-album-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.search-album-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 72px;
+  padding: 12px;
+  border: 1px solid var(--gallery-border-default, rgba(0, 0, 0, 0.1));
+  border-radius: 8px;
+  background: var(--gallery-surface-elevated, var(--surface-color));
+  color: var(--text-color);
+  cursor: pointer;
+  text-align: left;
+}
+
+.search-album-card:hover {
+  border-color: var(--primary-color);
+}
+
+.search-result-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.search-result-name {
+  color: var(--title-color);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-result-path,
+.search-result-snippet {
+  color: var(--muted-text);
+  font-size: 12px;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-result-snippet {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+}
+
+.search-scope-hint {
+  margin: 10px 0 0;
+  color: var(--muted-text);
+  font-size: 13px;
 }
 
 .search-empty-wrap {

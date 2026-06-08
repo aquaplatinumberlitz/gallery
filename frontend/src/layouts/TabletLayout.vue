@@ -12,10 +12,12 @@ defineProps<{
   isLoading: boolean;
   currentPath: string;
   searchQuery: string;
+  searchScope: "current" | "all";
 }>();
 
 const emit = defineEmits<{
   (e: "update:searchQuery", value: string): void;
+  (e: "scope-change", value: "current" | "all"): void;
   (e: "toggleSidebar"): void;
   (e: "toggleTheme"): void;
 }>();
@@ -64,8 +66,10 @@ const emit = defineEmits<{
       <TabletHeader
         :is-dark="theme === 'dark'"
         :search-query="searchQuery"
+        :search-scope="searchScope"
         :current-path="currentPath"
         @update:search-query="emit('update:searchQuery', $event)"
+        @scope-change="emit('scope-change', $event)"
         @toggle-sidebar="emit('toggleSidebar')"
         @toggle-theme="emit('toggleTheme')"
       />
