@@ -72,6 +72,8 @@ TanStack Query caches `/api/scan` responses, while Pinia keeps UI state.
 | TanStack Query | Cached scan responses, stale time, garbage collection, background refresh query keys |
 | Pinia gallery store | Current/root path, visible folders/images, loading and refetching flags, history, search, sort, pagination |
 
+Migration rule: TanStack Query should own server/API state and cache. Pinia should own UI/navigation state. Do not add new Query -> Pinia duplicated server-state flows unless needed for compatibility. The existing `/api/scan` flow is currently hybrid for compatibility and should be migrated carefully in a separate PR. New server data flows should prefer TanStack Query as the source of truth.
+
 Scan query keys use this deterministic pattern:
 
 ```text
@@ -203,11 +205,12 @@ Mobile sheet integration:
 - Because `blocking=false` means VSBS renders no backdrop, `canBackdropClose` does nothing. Outside-tap close is custom document pointer handling that closes the metadata sheet only, never PhotoSwipe.
 - Approved UX: info opens the sheet, the info button is hidden while open, the chevron expands/collapses Prompt and Negative Prompt text, Prompt/Params/Model tabs work, copy buttons work, and PhotoSwipe image swipes continue to work.
 
-Dependency audit, 2026-06-07:
+Historical dependency audit note, 2026-06-07:
 
 - `npm audit` reported 6 vulnerabilities: axios high, follow-redirects moderate, immutable high, picomatch high, rollup high, and vite high.
 - `npm audit --omit=dev` reported 2 production vulnerabilities: axios high and follow-redirects moderate.
 - Audit output suggested `npm audit fix`; no automatic fix was applied during the VSBS cleanup.
+- Re-run `npm audit` for current results before acting on these numbers.
 
 ## Layout Dispatch
 
