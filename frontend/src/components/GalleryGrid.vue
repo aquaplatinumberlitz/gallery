@@ -22,7 +22,7 @@ import {
   ArrowLeft, ArrowRight, ArrowUpRight, ArrowUpDown, ChevronDown, 
   ArrowUp, ArrowDown, LayoutGrid, Loader, TriangleAlert, X, 
   ArrowDownToLine, Check,
-  Type, Clock, Images, FolderOpen
+  Type, Clock, Images, Folder, FolderOpen
 } from "lucide-vue-next";
 
 const _icons: Record<string, any> = { Type, Clock }
@@ -186,9 +186,64 @@ const searchResultToFileNode = (result: UnifiedSearchResult): FileNode => ({
   height: result.height ?? undefined,
 });
 
+const normalizeSearchPath = (path: string): string =>
+  path.trim().replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "").toLowerCase();
+
+const formatDisplayFilename = (name: string, maxLen = 28): string => {
+  if (name.length <= maxLen) return name;
+
+  const minSegmentLength = 3;
+  const ellipsis = "…";
+  const dotIndex = name.lastIndexOf(".");
+  const hasExtension = dotIndex > 0 && dotIndex < name.length - 1;
+  const baseName = hasExtension ? name.slice(0, dotIndex) : name;
+  const extension = hasExtension ? name.slice(dotIndex) : "";
+  const availableBaseLength = maxLen - extension.length - ellipsis.length;
+
+  if (availableBaseLength < minSegmentLength * 2) {
+    return `${name.slice(0, Math.max(1, maxLen - ellipsis.length))}${ellipsis}`;
+  }
+
+  const prefixLength = Math.ceil(availableBaseLength / 2);
+  const suffixLength = Math.floor(availableBaseLength / 2);
+  return `${baseName.slice(0, prefixLength)}${ellipsis}${baseName.slice(-suffixLength)}${extension}`;
+};
+
+const normalizeDisplayFolderPath = (path: string): string =>
+  path.trim().replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "");
+
+const folderPathFromRelativePath = (relativePath: string, filename: string): string => {
+  const normalizedRelative = normalizeDisplayFolderPath(relativePath);
+  if (!normalizedRelative || normalizedRelative === "." || normalizedRelative === filename) return "";
+  const parts = normalizedRelative.split("/").filter(Boolean);
+  if (!parts.length) return "";
+  if (parts[parts.length - 1] === filename) {
+    parts.pop();
+  }
+  return parts.join("/");
+};
+
+const searchResultFolderPath = (result: UnifiedSearchResult): string => {
+  const normalizedRelativePath = normalizeDisplayFolderPath(result.relative_path);
+  const relativeFolderPath = folderPathFromRelativePath(result.relative_path, result.name);
+  if (relativeFolderPath || !normalizedRelativePath || normalizedRelativePath === "." || normalizedRelativePath === result.name) {
+    return relativeFolderPath;
+  }
+  return folderPathFromRelativePath(result.parent_path, result.name);
+};
+
 const searchAlbums = computed(() => galleryStore.unifiedSearchResults.albums);
 const searchPhotos = computed(() => galleryStore.unifiedSearchResults.photos);
-const searchPrompt = computed(() => galleryStore.unifiedSearchResults.prompt);
+const searchPhotoPathSet = computed(() => new Set(searchPhotos.value.map((result) => normalizeSearchPath(result.path))));
+const searchPrompt = computed(() => {
+  const seen = new Set<string>();
+  return galleryStore.unifiedSearchResults.prompt.filter((result) => {
+    const normalizedPath = normalizeSearchPath(result.path);
+    if (searchPhotoPathSet.value.has(normalizedPath) || seen.has(normalizedPath)) return false;
+    seen.add(normalizedPath);
+    return true;
+  });
+});
 const searchPhotoNodes = computed(() => searchPhotos.value.map(searchResultToFileNode));
 const searchPromptNodes = computed(() => searchPrompt.value.map(searchResultToFileNode));
 const allSearchImageNodes = computed(() => {
@@ -612,8 +667,11 @@ onBeforeUnmount(() => {
             type="button"
             @click="handleOpenFolder(album.path)"
           >
-            <span class="search-result-name">{{ album.name }}</span>
-            <span v-if="album.relative_path" class="search-result-path">{{ album.relative_path }}</span>
+            <FolderOpen class="search-album-icon" />
+            <span class="search-album-text">
+              <span class="search-result-name search-album-name">{{ album.name }}</span>
+              <span v-if="album.relative_path" class="search-result-path search-album-path">{{ album.relative_path }}</span>
+            </span>
           </button>
         </div>
       </section>
@@ -639,8 +697,11 @@ onBeforeUnmount(() => {
               @keydown.enter="handleOpenImage(img.path, img.name)"
               @keydown.space.prevent="handleOpenImage(img.path, img.name)"
             />
-            <span class="search-result-name">{{ img.name }}</span>
-            <span v-if="img.relative_path" class="search-result-path">{{ img.relative_path }}</span>
+            <span class="search-result-name" :title="img.name">{{ formatDisplayFilename(img.name) }}</span>
+            <span v-if="searchResultFolderPath(img)" class="search-result-path" :title="searchResultFolderPath(img)">
+              <Folder class="search-result-path-icon" />
+              <span :title="searchResultFolderPath(img)">{{ searchResultFolderPath(img) }}</span>
+            </span>
           </div>
         </div>
       </section>
@@ -666,9 +727,11 @@ onBeforeUnmount(() => {
               @keydown.enter="handleOpenImage(img.path, img.name)"
               @keydown.space.prevent="handleOpenImage(img.path, img.name)"
             />
-            <span class="search-result-name">{{ img.name }}</span>
-            <span v-if="img.relative_path" class="search-result-path">{{ img.relative_path }}</span>
-            <span v-if="img.prompt_snippet" class="search-result-snippet">{{ img.prompt_snippet }}</span>
+            <span class="search-result-name" :title="img.name">{{ formatDisplayFilename(img.name) }}</span>
+            <span v-if="searchResultFolderPath(img)" class="search-result-path" :title="searchResultFolderPath(img)">
+              <Folder class="search-result-path-icon" />
+              <span :title="searchResultFolderPath(img)">{{ searchResultFolderPath(img) }}</span>
+            </span>
           </div>
         </div>
       </section>
@@ -958,26 +1021,62 @@ onBeforeUnmount(() => {
 
 .search-album-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
 }
 
 .search-album-card {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-height: 72px;
-  padding: 12px;
-  border: 1px solid var(--gallery-border-default, rgba(0, 0, 0, 0.1));
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 58px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--border-color, rgba(0, 0, 0, 0.1)) 56%, transparent);
   border-radius: 8px;
-  background: var(--gallery-surface-elevated, var(--surface-color));
+  background: color-mix(in srgb, var(--primary-color) 5%, var(--gallery-surface-elevated, var(--surface-color)));
   color: var(--text-color);
   cursor: pointer;
   text-align: left;
+  box-shadow: 0 1px 2px rgba(95, 64, 32, 0.05);
+  transition: background 150ms ease, border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
 }
 
 .search-album-card:hover {
+  background: color-mix(in srgb, var(--primary-color) 10%, var(--gallery-surface-elevated, var(--surface-color)));
+  border-color: color-mix(in srgb, var(--primary-color) 34%, transparent);
+  box-shadow: 0 6px 18px rgba(95, 64, 32, 0.09);
+  transform: translateY(-1px);
+}
+
+.search-album-card:focus-visible {
+  outline: none;
   border-color: var(--primary-color);
+  box-shadow: var(--focus-ring-shadow);
+}
+
+.search-album-icon {
+  width: 19px;
+  height: 19px;
+  color: color-mix(in srgb, var(--primary-color) 82%, var(--title-color));
+  flex-shrink: 0;
+}
+
+.search-album-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.search-album-name,
+.search-album-path {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .search-result-card {
@@ -988,6 +1087,9 @@ onBeforeUnmount(() => {
 }
 
 .search-result-name {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
   color: var(--title-color);
   font-size: 13px;
   font-weight: 600;
@@ -997,21 +1099,32 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-.search-result-path,
-.search-result-snippet {
+.search-result-path {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
   color: var(--muted-text);
   font-size: 12px;
   line-height: 1.3;
+}
+
+.search-result-path span {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.search-result-snippet {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  white-space: normal;
+.search-result-path-icon {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  color: color-mix(in srgb, var(--muted-text) 82%, var(--primary-color));
+}
+
+.search-album-path {
+  display: block;
 }
 
 .search-scope-hint {
@@ -1458,6 +1571,28 @@ onBeforeUnmount(() => {
     gap: 8px;
   }
 
+  .search-results-container {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .search-photo-section {
+    gap: 10px;
+  }
+
+  .search-album-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 8px;
+  }
+
+  .search-result-name {
+    font-size: 12.5px;
+  }
+
+  .search-result-path {
+    font-size: 11.5px;
+  }
+
   .breadcrumb-wrap {
     min-width: 0;
     max-width: min(300px, 50vw);
@@ -1476,6 +1611,11 @@ onBeforeUnmount(() => {
 
   .skeleton-grid {
     gap: 12px;
+  }
+
+  .search-album-card {
+    min-height: 54px;
+    padding: 9px 10px;
   }
 
   .scroller {
@@ -1564,6 +1704,43 @@ onBeforeUnmount(() => {
   .scroller {
     padding-left: 4px;
     padding-right: 4px;
+  }
+
+  .search-results-container {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+
+  .search-photo-section {
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .search-album-grid {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  .search-album-card {
+    min-height: 50px;
+    padding: 8px 10px;
+  }
+
+  .search-album-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .search-result-card {
+    gap: 3px;
+  }
+
+  .search-result-name {
+    font-size: 12px;
+  }
+
+  .search-result-path {
+    font-size: 11px;
   }
 
   .folders-only-container {
