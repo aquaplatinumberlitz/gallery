@@ -10,14 +10,18 @@ const emit = defineEmits<{
   (e: "click"): void;
 }>();
 
-defineProps<{
+withDefaults(defineProps<{
   node: FileNode;
-}>();
+  compact?: boolean;
+}>(), {
+  compact: false,
+});
 </script>
 
 <template>
   <div 
-    class="album-card" 
+    class="album-card"
+    :class="{ 'album-card--compact': compact }"
     @click="emit('click')"
     @keydown.enter="emit('click')"
     @keydown.space.prevent="emit('click')"
@@ -73,6 +77,58 @@ defineProps<{
     height: 175px; // Standard height
     transform-style: preserve-3d;
     transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); // Elastic bounce
+  }
+
+  &.album-card--compact {
+    padding-top: 10px;
+    padding-left: 10px;
+    padding-bottom: 0;
+
+    .album-cover-diagonal {
+      height: 110px;
+    }
+
+    .album-info {
+      margin-top: 4px;
+      padding: 0 8px 8px;
+    }
+
+    .album-name {
+      font-size: 14px;
+    }
+
+    .album-meta {
+      font-size: 10px;
+    }
+
+    @media (hover: hover) {
+      &:hover {
+        .album-cover-diagonal {
+          transform: translateY(-6px);
+        }
+        .album-layer-back {
+          transform: translate(-14px, 3px) rotate(-15deg);
+        }
+        .album-layer-front {
+          transform: translate(6px, -3px) rotate(12deg) scale(1.05);
+        }
+      }
+    }
+
+    @media (max-width: 767px) {
+      .album-cover-diagonal {
+        height: 75px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .album-cover-diagonal {
+        height: 60px;
+      }
+      .album-name {
+        font-size: 13px;
+      }
+    }
   }
 
   @media (max-width: 767px) {

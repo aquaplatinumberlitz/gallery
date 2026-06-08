@@ -642,6 +642,35 @@ def _scope_clause(scope: str, root_path: str | Path | None, alias: str = "fi") -
     return f" AND ({alias}.path = ? OR {alias}.path LIKE ? ESCAPE '\\')", [root_str, root_prefix], root
 
 
+def _folder_cover_images(dir_path: Path, limit: int = 3) -> list[str]:
+    """Get the most recently modified images in a directory (non-recursive)."""
+    images: list[tuple[float, str]] = []
+    try:
+        for entry in dir_path.iterdir():
+            if entry.is_file() and entry.suffix.lower() in IMAGE_EXTENSIONS:
+                try:
+                    mtime = entry.stat().st_mtime
+                    images.append((mtime, str(entry.resolve())))
+                except OSError:
+                    continue
+    except PermissionError:
+        pass
+    images.sort(key=lambda x: x[0], reverse=True)
+    return [path for _, path in images[:limit]]
+
+
+def _folder_image_count(dir_path: Path) -> int:
+    """Count image files directly inside a directory (non-recursive)."""
+    try:
+        return sum(
+            1
+            for entry in dir_path.iterdir()
+            if not entry.name.startswith(".") and entry.is_file() and entry.suffix.lower() in IMAGE_EXTENSIONS
+        )
+    except (PermissionError, OSError):
+        return 0
+
+
 def _format_file_index_rows(rows: list[sqlite3.Row], root: Path, match_type: str) -> list[dict[str, Any]]:
     seen: set[str] = set()
     results: list[dict[str, Any]] = []
@@ -649,16 +678,26 @@ def _format_file_index_rows(rows: list[sqlite3.Row], root: Path, match_type: str
         if row["path"] in seen:
             continue
         seen.add(row["path"])
-        results.append(
+        result = {
+            "name": row["name"],
+            "path": row["path"],
+            "type": row["type"],
+            "parent_path": row["parent_path"],
+            "relative_path": _folder_relative_path(row["parent_path"], root),
+            "mtime": row["mtime"],
+            "width": row["width"],
+            "height": row["height"],
+        }
+        if row["type"] == "folder":
+            resolved_path = Path(row["path"]).resolve()
+            if resolved_path.exists() and resolved_path.is_dir():
+                result["cover_images"] = _folder_cover_images(resolved_path)
+                result["image_count"] = _folder_image_count(resolved_path)
+            else:
+                result["cover_images"] = []
+                result["image_count"] = 0
+        result.update(
             {
-                "name": row["name"],
-                "path": row["path"],
-                "type": row["type"],
-                "parent_path": row["parent_path"],
-                "relative_path": _folder_relative_path(row["parent_path"], root),
-                "mtime": row["mtime"],
-                "width": row["width"],
-                "height": row["height"],
                 "match_type": match_type,
                 "prompt_snippet": "",
                 "model": "",
@@ -666,6 +705,7 @@ def _format_file_index_rows(rows: list[sqlite3.Row], root: Path, match_type: str
                 "seed": "",
             }
         )
+        results.append(result)
     return results
 
 

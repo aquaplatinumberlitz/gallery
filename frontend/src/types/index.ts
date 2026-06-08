@@ -74,6 +74,8 @@ export interface UnifiedSearchResult {
   mtime: number;
   width: number | null;
   height: number | null;
+  cover_images?: string[];
+  image_count?: number;
   match_type: string;
   model: string;
   sampler: string;

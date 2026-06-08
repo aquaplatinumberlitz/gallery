@@ -4,6 +4,7 @@ import { RecycleScroller } from "vue-virtual-scroller";
 import { useGalleryStore } from "../stores/gallery";
 import { useLightboxStore } from "../stores/lightbox";
 import type { FileNode, SortField, UnifiedSearchResult } from "../types";
+import AlbumCard from "./AlbumCard.vue";
 import AlbumScroller from "./AlbumScroller.vue";
 import GallerySectionHeader from "./GallerySectionHeader.vue";
 import GlowContainer from "./GlowContainer.vue";
@@ -180,7 +181,8 @@ const searchResultToFileNode = (result: UnifiedSearchResult): FileNode => ({
   path: result.path,
   type: result.type === "folder" ? "folder" : "image",
   has_children: false,
-  cover_images: [],
+  cover_images: result.cover_images || [],
+  image_count: result.image_count || 0,
   mtime: result.mtime,
   width: result.width ?? undefined,
   height: result.height ?? undefined,
@@ -259,6 +261,23 @@ const searchPrompt = computed(() => {
     return true;
   });
 });
+const searchAlbumNodesRef = computed(() =>
+  searchAlbums.value.map((album) => {
+    const node = searchResultToFileNode(album);
+    if (!node.cover_images || node.cover_images.length === 0) {
+      const match = galleryStore.galleryFolders.find(
+        (folder) => normalizeSearchPath(folder.path) === normalizeSearchPath(album.path)
+      );
+      if (match && match.cover_images && match.cover_images.length > 0) {
+        node.cover_images = match.cover_images;
+        if (!node.image_count && match.image_count) {
+          node.image_count = match.image_count;
+        }
+      }
+    }
+    return node;
+  })
+);
 const searchPhotoNodes = computed(() => searchPhotos.value.map(searchResultToFileNode));
 const searchPromptNodes = computed(() => searchPrompt.value.map(searchResultToFileNode));
 const allSearchImageNodes = computed(() => {
@@ -676,19 +695,20 @@ onBeforeUnmount(() => {
           :badge-icon="FolderOpen"
         />
         <div class="search-album-grid">
-          <button
-            v-for="album in searchAlbums"
+          <div
+            v-for="(album, index) in searchAlbums"
             :key="album.path"
-            class="search-album-card"
-            type="button"
-            @click="handleOpenFolder(album.path)"
+            class="search-album-item"
           >
-            <FolderOpen class="search-album-icon" />
-            <span class="search-album-text">
-              <span class="search-result-name search-album-name">{{ album.name }}</span>
-              <span v-if="album.relative_path" class="search-result-path search-album-path">{{ album.relative_path }}</span>
+            <AlbumCard
+              :node="searchAlbumNodesRef[index]"
+              @click="handleOpenFolder(album.path)"
+            />
+            <span v-if="album.relative_path" class="search-result-path search-album-path">
+              <Folder class="search-result-path-icon" />
+              <span>{{ album.relative_path }}</span>
             </span>
-          </button>
+          </div>
         </div>
       </section>
 
@@ -1047,58 +1067,11 @@ onBeforeUnmount(() => {
   gap: 10px;
 }
 
-.search-album-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.search-album-item {
   min-width: 0;
-  min-height: 58px;
-  padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--border-color, rgba(0, 0, 0, 0.1)) 56%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--primary-color) 5%, var(--gallery-surface-elevated, var(--surface-color)));
-  color: var(--text-color);
-  cursor: pointer;
-  text-align: left;
-  box-shadow: 0 1px 2px rgba(95, 64, 32, 0.05);
-  transition: background 150ms ease, border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
-}
-
-.search-album-card:hover {
-  background: color-mix(in srgb, var(--primary-color) 10%, var(--gallery-surface-elevated, var(--surface-color)));
-  border-color: color-mix(in srgb, var(--primary-color) 34%, transparent);
-  box-shadow: 0 6px 18px rgba(95, 64, 32, 0.09);
-  transform: translateY(-1px);
-}
-
-.search-album-card:focus-visible {
-  outline: none;
-  border-color: var(--primary-color);
-  box-shadow: var(--focus-ring-shadow);
-}
-
-.search-album-icon {
-  width: 19px;
-  height: 19px;
-  color: color-mix(in srgb, var(--primary-color) 82%, var(--title-color));
-  flex-shrink: 0;
-}
-
-.search-album-text {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  flex: 1;
-}
-
-.search-album-name,
-.search-album-path {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  gap: 4px;
 }
 
 .search-result-card {
@@ -1167,7 +1140,7 @@ onBeforeUnmount(() => {
 }
 
 .search-album-path {
-  display: block;
+  display: flex;
 }
 
 .search-scope-hint {
@@ -1656,11 +1629,6 @@ onBeforeUnmount(() => {
     gap: 12px;
   }
 
-  .search-album-card {
-    min-height: 54px;
-    padding: 9px 10px;
-  }
-
   .scroller {
     padding-left: 6px;
     padding-right: 10px;
@@ -1762,16 +1730,6 @@ onBeforeUnmount(() => {
   .search-album-grid {
     grid-template-columns: 1fr;
     gap: 7px;
-  }
-
-  .search-album-card {
-    min-height: 50px;
-    padding: 8px 10px;
-  }
-
-  .search-album-icon {
-    width: 18px;
-    height: 18px;
   }
 
   .search-result-card {
