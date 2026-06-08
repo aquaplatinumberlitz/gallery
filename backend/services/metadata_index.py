@@ -474,6 +474,44 @@ def index_file(
     return True
 
 
+def _cleanup_stale_index_conn(conn: sqlite3.Connection, root_path: str | Path | None = None) -> int:
+    root = Path(root_path).resolve() if root_path is not None else None
+    candidate_paths: set[str] = set()
+    for table in ("file_index", "file_index_fts", "image_metadata"):
+        candidate_paths.update(row["path"] for row in conn.execute(f"SELECT path FROM {table}"))
+
+    stale_paths: list[str] = []
+
+    for path_value in candidate_paths:
+        path = Path(path_value)
+        if root is not None and not _is_inside_root(path, root):
+            stale_paths.append(path_value)
+            continue
+        if not path.exists():
+            stale_paths.append(path_value)
+
+    if not stale_paths:
+        return 0
+
+    conn.executemany("DELETE FROM file_index_fts WHERE path = ?", ((path,) for path in stale_paths))
+    conn.executemany("DELETE FROM file_index WHERE path = ?", ((path,) for path in stale_paths))
+    conn.executemany("DELETE FROM image_metadata WHERE path = ?", ((path,) for path in stale_paths))
+    return len(stale_paths)
+
+
+def cleanup_stale_index(state: Any, root_path: str | Path | None = None) -> int:
+    """Remove stale database rows for missing or out-of-root paths.
+
+    This only deletes index records. It never deletes filesystem entries.
+    """
+    initialize_database()
+    if isinstance(state, sqlite3.Connection):
+        return _cleanup_stale_index_conn(state, root_path)
+
+    with _DB_LOCK, _connect() as conn:
+        return _cleanup_stale_index_conn(conn, root_path)
+
+
 def index_files_from_scan(folders: list[Any], images: list[Any]) -> int:
     indexed = 0
     for item in [*folders, *images]:
@@ -562,6 +600,10 @@ def _like_pattern(query: str) -> str:
     return f"%{escaped}%"
 
 
+def _like_escape(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def _relative_path(path: str, root: Path) -> str:
     try:
         return str(Path(path).resolve().relative_to(root))
@@ -569,10 +611,35 @@ def _relative_path(path: str, root: Path) -> str:
         return str(Path(path).name)
 
 
+def _folder_relative_path(parent_path: str, root: Path) -> str:
+    try:
+        relative = Path(parent_path).resolve().relative_to(root)
+    except (OSError, ValueError):
+        return ""
+    if str(relative) == ".":
+        return ""
+    return str(relative)
+
+
+def _is_inside_root(path: Path, root: Path) -> bool:
+    try:
+        resolved = path.resolve()
+        resolved_root = root.resolve()
+        return resolved == resolved_root or resolved_root in resolved.parents
+    except (OSError, RuntimeError):
+        return False
+
+
+def _path_prefix(root: Path) -> tuple[str, str]:
+    root_str = str(root.resolve())
+    root_prefix = f"{root_str.rstrip(os.sep)}{os.sep}"
+    return root_str, f"{_like_escape(root_prefix)}%"
+
+
 def _scope_clause(scope: str, root_path: str | Path | None, alias: str = "fi") -> tuple[str, list[Any], Path]:
     root = Path(root_path).resolve() if scope == "current" and root_path else GALLERY_ROOT
-    root_str = str(root)
-    return f" AND ({alias}.path = ? OR {alias}.path LIKE ?)", [root_str, f"{root_str.rstrip('/')}/%"], root
+    root_str, root_prefix = _path_prefix(root)
+    return f" AND ({alias}.path = ? OR {alias}.path LIKE ? ESCAPE '\\')", [root_str, root_prefix], root
 
 
 def _format_file_index_rows(rows: list[sqlite3.Row], root: Path, match_type: str) -> list[dict[str, Any]]:
@@ -588,7 +655,7 @@ def _format_file_index_rows(rows: list[sqlite3.Row], root: Path, match_type: str
                 "path": row["path"],
                 "type": row["type"],
                 "parent_path": row["parent_path"],
-                "relative_path": _relative_path(row["path"], root),
+                "relative_path": _folder_relative_path(row["parent_path"], root),
                 "mtime": row["mtime"],
                 "width": row["width"],
                 "height": row["height"],
@@ -725,7 +792,7 @@ def _format_prompt_rows(rows: list[sqlite3.Row], root: Path) -> list[dict[str, A
                 "path": row["path"],
                 "type": "photo",
                 "parent_path": row["parent_path"],
-                "relative_path": _relative_path(row["path"], root),
+                "relative_path": _folder_relative_path(row["parent_path"], root),
                 "mtime": row["mtime"],
                 "width": row["width"],
                 "height": row["height"],

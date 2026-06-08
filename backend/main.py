@@ -18,9 +18,9 @@ from io import BytesIO
 from cachetools import LRUCache
 import threading
 try:
-    from services.metadata_index import index_directory_tree, index_file, index_files_from_scan, index_images, search_index, search_metadata
+    from services.metadata_index import cleanup_stale_index, index_directory_tree, index_file, index_files_from_scan, index_images, search_index, search_metadata
 except ModuleNotFoundError:
-    from backend.services.metadata_index import index_directory_tree, index_file, index_files_from_scan, index_images, search_index, search_metadata
+    from backend.services.metadata_index import cleanup_stale_index, index_directory_tree, index_file, index_files_from_scan, index_images, search_index, search_metadata
 
 # =============================================================================
 # CUSTOM ERROR TYPES - For better frontend error handling
@@ -1234,20 +1234,37 @@ async def api_search(
     except Exception as exc:  # noqa: BLE001
         raise APIError(500, ErrorType.SERVER_ERROR, f"Search failed: {exc}") from exc
 
+    stale_detected = False
+
     def safe_section(section: list[dict]) -> list[dict]:
-        return [
-            result
-            for result in section
-            if is_path_safe(resolve_path(result["path"]))
-        ]
+        nonlocal stale_detected
+        safe_results: list[dict] = []
+        for result in section:
+            try:
+                resolved = resolve_path(result["path"])
+            except (OSError, RuntimeError):
+                stale_detected = True
+                continue
+            if os.path.exists(resolved) and is_path_safe(resolved):
+                safe_results.append(result)
+            else:
+                stale_detected = True
+        return safe_results
+
+    albums = safe_section(data["albums"])
+    photos = safe_section(data["photos"])
+    prompt = safe_section(data["prompt"])
+
+    if stale_detected:
+        await run_in_threadpool(cleanup_stale_index, None, GALLERY_ROOT)
 
     return {
         "query": data["query"],
         "scope": data["scope"],
         "root": data["root"],
-        "albums": safe_section(data["albums"]),
-        "photos": safe_section(data["photos"]),
-        "prompt": safe_section(data["prompt"]),
+        "albums": albums,
+        "photos": photos,
+        "prompt": prompt,
     }
 
 
