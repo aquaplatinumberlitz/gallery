@@ -1,6 +1,6 @@
 # Third-Party Libraries
 
-Last reviewed: 2026-06-07
+Last reviewed: 2026-06-08
 
 This document explains how major external libraries are used in this project.
 
@@ -14,6 +14,7 @@ This document explains how major external libraries are used in this project.
 | Vite | Frontend build tool and dev server | `frontend/` | No custom plugins beyond defaults |
 | Lucide | Icons across the gallery | Vue components and shared UI styles | Prefer semantic icon tokens and component-level sizing rules |
 | `vue-virtual-scroller` | Virtual scrolling in the image grid | `frontend/src/components/GalleryGrid.vue` | Used for large desktop/tablet grids |
+| Fuse.js | Client-side fuzzy search for gallery folders/images | `frontend/src/utils/fuzzySearch.ts`, `frontend/src/components/GalleryGrid.vue`, `frontend/package.json` | Searches currently loaded frontend data only |
 
 ### @douxcode/vue-spring-bottom-sheet
 
@@ -73,6 +74,28 @@ Decision: We use PhotoSwipe as the image viewer engine. Gallery owns metadata pa
 Mobile contract: PhotoSwipe owns image rendering, swipe left/right, pan/zoom, lightbox lifecycle, photo-area pointer/touch handling, and lightbox close. VSBS and outside-tap glue must never block image swipe before or after the metadata sheet opens and closes.
 
 ### Other libraries
+
+#### Fuse.js
+
+Official links:
+
+- Docs: https://www.fusejs.io/
+- GitHub: https://github.com/krisk/Fuse
+- npm: https://www.npmjs.com/package/fuse.js
+
+Used for: Client-side fuzzy search for gallery folders/images.
+
+Core features we use: weighted keys, fuzzy matching, typo tolerance, `ignoreLocation`, client-side index.
+
+Features we intentionally do NOT use: match highlighting, server-side search, metadata/prompt full-text search, binary/image content search.
+
+Why: Replaces fragile manual `includes()` search with typo-tolerant filename/folder search while keeping search local and simple.
+
+Integration files: `frontend/src/utils/fuzzySearch.ts`, `frontend/src/components/GalleryGrid.vue`, `frontend/package.json`, `frontend/package-lock.json`
+
+Common pitfalls: Do not rebuild Fuse per card, do not search unloaded paginated images unless backend search is added later, do not let `path` weight dominate `name`, do not break existing sort behavior, do not add match highlighting unless UI is designed for it.
+
+Decision: Gallery search remains frontend-local. Fuse filters folders and the currently loaded image page set before the existing name/date sort is applied.
 
 #### Vue 3
 

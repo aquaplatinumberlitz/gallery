@@ -17,6 +17,7 @@ import { useColumnResize, PHOTO_GRID_LEVELS, GRID_COLUMN_MAP } from "../composab
 import { useDevice } from "../composables/useDevice";
 import { usePullToRefresh } from "../composables/usePullToRefresh";
 import { galleryScrollContainerRefKey } from "../injectionKeys";
+import { fuzzySearchFileNodes } from "../utils/fuzzySearch";
 import { 
   ArrowLeft, ArrowRight, ArrowUpRight, ArrowUpDown, ChevronDown, 
   ArrowUp, ArrowDown, LayoutGrid, Loader, TriangleAlert, X, 
@@ -161,19 +162,14 @@ const sortItems = <T extends { name: string; mtime?: number }>(items: T[]): T[] 
 
 const folders = computed(() =>
   sortItems(
-    galleryStore.galleryFolders.filter((item) =>
-      !searchQuery.value ||
-      item.name.toLowerCase().includes(searchQuery.value.toLowerCase())
-    )
+    fuzzySearchFileNodes(galleryStore.galleryFolders, searchQuery.value)
   )
 );
 
+// Fuse search is client-side and only covers images currently loaded into galleryImages.
 const images = computed(() =>
   sortItems(
-    galleryStore.galleryImages.filter((item) =>
-      !searchQuery.value ||
-      item.name.toLowerCase().includes(searchQuery.value.toLowerCase())
-    )
+    fuzzySearchFileNodes(galleryStore.galleryImages, searchQuery.value)
   )
 );
 

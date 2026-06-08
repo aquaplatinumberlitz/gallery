@@ -1,6 +1,6 @@
 # Architecture
 
-Last reviewed: 2026-06-07
+Last reviewed: 2026-06-08
 
 ## Overview
 
@@ -87,9 +87,12 @@ IntersectionObserver sees loadMoreSentinel
 ```text
 Header or toolbar emits search/sort change
 → gallery store updates query or sort state
-→ GalleryGrid computed image list filters and sorts
+→ GalleryGrid computed folder/image lists apply Fuse.js search over loaded frontend items
+→ existing GalleryGrid sort applies by name/date
 → RecycleScroller or native mobile grid rerenders
 ```
+
+Search is client-side only. Because `/api/scan` returns paginated images, image search covers the images already loaded into `galleryImages`; it does not search unloaded images until backend search is added.
 
 ### Open Image
 
