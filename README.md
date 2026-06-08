@@ -25,6 +25,7 @@ Designed for local/personal use. It is not intended as a hardened public deploym
 | Lightbox | PhotoSwipe 5 |
 | Grid | @tanstack/vue-virtual |
 | Server Cache | @tanstack/vue-query |
+| Local Reactive DB | @tanstack/vue-db, @tanstack/query-db-collection |
 | Styling | SCSS, CSS custom properties |
 | Icons | Lucide Vue Next |
 

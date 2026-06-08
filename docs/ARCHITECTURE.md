@@ -70,9 +70,12 @@ TanStack Query caches `/api/scan` responses, while Pinia keeps UI state.
 | Layer | Responsibilities |
 |-------|------------------|
 | TanStack Query | Cached scan responses, stale time, garbage collection, background refresh query keys |
+| TanStack DB | Minimal beta foundation for local reactive collections and live queries over already loaded/API-backed data |
 | Pinia gallery store | Current/root path, visible folders/images, loading and refetching flags, history, search, sort, pagination |
 
 Migration rule: TanStack Query should own server/API state and cache. Pinia should own UI/navigation state. Do not add new Query -> Pinia duplicated server-state flows unless needed for compatibility. The existing `/api/scan` flow is currently hybrid for compatibility and should be migrated carefully in a separate PR. New server data flows should prefer TanStack Query as the source of truth.
+
+TanStack DB is available as a beta, incremental layer that complements TanStack Query. Query Collection should reuse the shared Query client for REST/API-backed collections; live queries can then query across those loaded collections locally. Do not migrate scan, infinite loading, folder tree, unified search, or lightbox metadata into DB without a dedicated follow-up design.
 
 Scan query keys use this deterministic pattern:
 

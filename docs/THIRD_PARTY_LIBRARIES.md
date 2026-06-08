@@ -10,6 +10,8 @@ This document explains how major external libraries are used in this project.
 |---|---|---|---|
 | `@douxcode/vue-spring-bottom-sheet` | Mobile lightbox metadata sheet, drag/snap/spring animation, native-feeling scroll | `frontend/src/components/LightboxMobileSheet.vue`, `frontend/src/styles/_lightbox-mobile.scss` | Used as the sheet and motion engine only; Gallery owns metadata UI and behavior |
 | `@tanstack/vue-query` | Server-state caching for gallery scans | `frontend/src/query/index.ts`, `frontend/src/composables/useScanQuery.ts`, `frontend/src/stores/gallery.ts` | Caches `/api/scan` responses by normalized path and image page size |
+| `@tanstack/vue-db` | Beta local reactive DB foundation and live queries | `frontend/src/db/` | Complements TanStack Query; foundation only, with landing pages as an additive pilot collection |
+| `@tanstack/query-db-collection` | TanStack DB Query Collection adapter for REST/API-backed collections | `frontend/src/db/collections/landingPagesCollection.ts` | Reuses the shared Query client and existing API functions |
 | PhotoSwipe 5 | Responsive lightbox image viewer, image navigation, swipe/pan/zoom | `frontend/src/components/Lightbox.vue`, `MobilePhotoSwipe.vue`, `TabletPhotoSwipe.vue`, `PhotoSwipeViewer.vue`, `frontend/src/composables/usePhotoSwipe.ts`, `frontend/src/styles/_lightbox-*.scss` | Used as the image viewer engine; Gallery owns metadata panels, custom controls, and responsive layout |
 | Vue 3 | Frontend framework | `frontend/src/main.ts`, `frontend/src/App.vue`, `frontend/src/components/`, `frontend/src/layouts/` | Composition API, SFC, and `<script setup>` |
 | Vite | Frontend build tool and dev server | `frontend/` | No custom plugins beyond defaults |
@@ -69,6 +71,25 @@ Query key: `["scan", normalizedPath, imageLimit]`, where `normalizedPath` is tri
 Default behavior: Scan data is fresh for 1 minute, retained for 10 minutes after last use, retries once, and does not refetch on window focus.
 
 Decision: TanStack Query owns cached `/api/scan` server state. Pinia still owns UI state such as current path, history, search, sort, loading flags, and pagination cursors. The gallery store reads cached scan data before fetching so album revisits render immediately, then performs a background refresh and updates the cache with fresh data.
+
+### @tanstack/vue-db and @tanstack/query-db-collection
+
+Official links:
+
+- Docs: https://tanstack.com/db/latest/docs/overview
+- Vue adapter: https://tanstack.com/db/latest/docs/framework/vue/overview
+- Query Collection: https://tanstack.com/db/latest/docs/collections/query-collection
+- queryCollectionOptions: https://tanstack.com/db/latest/docs/reference/query-db-collection/functions/queryCollectionOptions
+
+Used for: Beta foundation for TanStack DB collections and Vue live queries over API-backed data.
+
+Core features we are preparing to use: `createCollection`, Query Collection via `queryCollectionOptions`, shared TanStack Query client integration, and Vue `useLiveQuery`.
+
+Current pilot: `frontend/src/db/collections/landingPagesCollection.ts` wraps `/api/landing-pages` through the existing `fetchLandingPages()` API function. The backend response is `string[]`, so each row is normalized to `{ url }` and keyed by `url`, which is the stable value already used by the intro/settings UI.
+
+Decision: TanStack DB complements TanStack Query. Query remains responsible for fetching, cache timing, retries, and refetch behavior. DB collections and live queries are for local reactive querying across loaded collection data. Pinia remains responsible for UI/navigation state.
+
+Adoption rule: Keep usage incremental and reversible while TanStack DB is beta. Do not migrate `/api/scan`, infinite loading, folder tree, unified search, Fuse.js behavior, lightbox metadata, PhotoSwipe, virtual scrolling, backend routes, or Pinia gallery store shape as part of this foundation.
 
 ### PhotoSwipe 5
 
