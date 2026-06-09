@@ -163,16 +163,6 @@ export const useGalleryStore = defineStore("gallery", {
       this.pushHistory(path);
       this.hasEverLoaded = true;
 
-      // Show summary toast on first load (when entering root path)
-      const imageCount = data.total_images || data.images.length;
-      const albumCount = data.folders.length;
-      const toast = useToastStore();
-      toast.success(
-        'Gallery loaded',
-        `<span class="toast-stat toast-stat--album">${albumCount} albums</span> • <span class="toast-stat toast-stat--image">${imageCount} images</span>`,
-        { html: true }
-      );
-
       this.isLoading = false;
       return true;
     },

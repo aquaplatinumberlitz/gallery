@@ -365,10 +365,11 @@ const noSearchResults = computed(
   () =>
     hasSearchQuery.value &&
     !isSearchLoading.value &&
+    unifiedSearchQuery.isSuccess.value &&
+    !unifiedSearchQuery.isFetching.value &&
     searchAlbums.value.length === 0 &&
     searchPhotos.value.length === 0 &&
-    searchPrompt.value.length === 0 &&
-    unifiedSearchQuery.isSuccess.value
+    searchPrompt.value.length === 0
 );
 const scanQueryErrorMessage = computed(() => {
   const error = infiniteScanQuery.error.value;
