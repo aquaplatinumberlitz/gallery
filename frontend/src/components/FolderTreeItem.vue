@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, inject, watch } from "vue";
+import { computed, ref, inject } from "vue";
 import { useGalleryStore } from "../stores/gallery";
 import type { FileNode } from "../types";
 import { ChevronDown, ChevronRight, Folder, FolderOpen, Loader } from "lucide-vue-next";
@@ -28,8 +28,17 @@ const folderChildrenQuery = useFolderChildrenQuery(
   computed(() => props.node.path),
   childrenQueryEnabled
 );
+const visibleChildren = computed(() => {
+  if (!props.node.isOpen || !props.node.has_children) return [];
+  if (folderChildrenQuery.isFetched.value && !folderChildrenQuery.isError.value) {
+    return folderChildrenQuery.folders.value;
+  }
+  return props.node.children ?? [];
+});
 const isLoading = computed(() =>
-  props.node.children === undefined &&
+  props.node.isOpen &&
+  !!props.node.has_children &&
+  !visibleChildren.value.length &&
   (folderChildrenQuery.isLoading.value || folderChildrenQuery.isFetching.value)
 );
 const hasLoadError = computed(() => folderChildrenQuery.isError.value);
@@ -86,15 +95,6 @@ const handleKeydown = (e: KeyboardEvent) => {
   }
 };
 
-watch(
-  () => folderChildrenQuery.folders.value,
-  (folders) => {
-    if (!props.node.isOpen || !props.node.has_children || !folderChildrenQuery.isSuccess.value) return;
-    // Temporary compatibility bridge: recursive rendering still reads nested FileNode.children.
-    props.node.children = folders;
-  },
-  { immediate: true }
-);
 </script>
 
 <template>
@@ -122,11 +122,11 @@ watch(
     </div>
 
     <div 
-      v-if="node.isOpen && node.children?.length" 
+      v-if="node.isOpen && visibleChildren.length" 
       class="children"
     >
       <FolderTreeItem
-        v-for="child in node.children"
+        v-for="child in visibleChildren"
         :key="child.path"
         :node="child"
         :active-path="activePath"
@@ -142,7 +142,7 @@ watch(
     </div>
 
     <div
-      v-else-if="node.isOpen && !isLoading && (!node.children || !node.children.length)"
+      v-else-if="node.isOpen && !isLoading && !visibleChildren.length"
       class="empty-children"
     >
       (Empty)
