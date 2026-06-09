@@ -158,7 +158,7 @@ Pinia remains responsible for folder tree UI/navigation state: root path, curren
 
 `FolderTreeItem.vue` no longer copies Query results into `node.children`. Each item computes visible recursive children from the folder-child query result once fetched, with a compatibility fallback for any static/prebuilt `FileNode.children` present before Query data arrives. `node.children` is not used as a long-term server cache for lazy-loaded children, and `FileNode` from `/api/folders` should not be mutated to store `isOpen` or other expansion UI state.
 
-Folder tree expansion uses `GET /api/folders?path=...`, which returns only folder `FileNode` rows. For `/api/folders`, `has_children` is subfolder-only so sidebar chevrons represent expandable folder children rather than image/file contents. Main gallery scan and infinite image loading continue to use `/api/scan`; folder tree queries no longer fetch first-page image metadata.
+Folder tree expansion uses `GET /api/folders?path=...`, which is a lightweight folder-tree endpoint that returns only direct folder `FileNode` rows. It does not compute album cover images or image counts; those album-card metadata fields remain part of `/api/scan`. For `/api/folders`, `has_children` means "has non-hidden child directories" so sidebar chevrons represent expandable folder children rather than image/file contents. Main gallery scan and infinite image loading continue to use `/api/scan`; folder tree queries no longer fetch first-page image metadata.
 
 TanStack DB is not used for folder tree. Folder child data remains per-path server state owned by Query; it is not modeled as a Query Collection.
 
