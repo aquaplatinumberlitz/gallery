@@ -16,15 +16,12 @@ from .files import IMAGE_EXTENSIONS, is_image_path
 from .metadata_extract import (
     CJK_RE,
     GENERIC_TEXT_KEYS,
-    _first_match,
-    _json_text_summary,
-    _parse_comfy_text,
-    _parse_float,
-    _parse_int,
-    _safe_text,
     contains_cjk,
     extract_metadata,
     parse_a1111_parameters,
+    parse_float,
+    parse_int,
+    safe_text,
 )
 
 
@@ -371,13 +368,13 @@ def upsert_metadata_result(path: str | Path, metadata: dict[str, Any]) -> bool:
 
     width = metadata.get("width")
     height = metadata.get("height")
-    prompt = _safe_text(metadata.get("prompt"))
-    negative_prompt = _safe_text(metadata.get("negative_prompt"))
-    model = _safe_text(_metadata_param(metadata, "Model", "model"))
-    sampler = _safe_text(_metadata_param(metadata, "Sampler", "sampler"))
-    seed = _safe_text(_metadata_param(metadata, "Seed", "seed"))
-    steps = _parse_int(_safe_text(_metadata_param(metadata, "Steps", "steps")))
-    cfg_scale = _parse_float(_safe_text(_metadata_param(metadata, "CFG", "CFG scale", "cfg_scale", "cfg")))
+    prompt = safe_text(metadata.get("prompt"))
+    negative_prompt = safe_text(metadata.get("negative_prompt"))
+    model = safe_text(_metadata_param(metadata, "Model", "model"))
+    sampler = safe_text(_metadata_param(metadata, "Sampler", "sampler"))
+    seed = safe_text(_metadata_param(metadata, "Seed", "seed"))
+    steps = parse_int(safe_text(_metadata_param(metadata, "Steps", "steps")))
+    cfg_scale = parse_float(safe_text(_metadata_param(metadata, "CFG", "CFG scale", "cfg_scale", "cfg")))
     metadata_json = json.dumps(metadata, ensure_ascii=False, sort_keys=True)
     raw_metadata_text = "\n".join(
         text for text in (prompt, negative_prompt, model, sampler, seed, metadata_json) if text

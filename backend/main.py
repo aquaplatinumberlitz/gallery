@@ -18,4 +18,4 @@ if __name__ == "__main__":
 
     host = "0.0.0.0" if PRODUCTION else "127.0.0.1"
     reload_flag = not PRODUCTION
-    uvicorn.run("main:app", host=host, port=port_val, reload=reload_flag)
+    uvicorn.run("backend.main:app", host=host, port=port_val, reload=reload_flag)

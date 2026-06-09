@@ -55,7 +55,7 @@ def contains_cjk(query: str) -> bool:
     return bool(CJK_RE.search(query))
 
 
-def _safe_text(value: Any) -> str:
+def safe_text(value: Any) -> str:
     if value is None:
         return ""
     if isinstance(value, bytes):
@@ -72,14 +72,14 @@ def _first_match(text: str, pattern: str) -> str:
     return match.group(1).strip() if match else ""
 
 
-def _parse_int(value: str) -> int | None:
+def parse_int(value: str) -> int | None:
     try:
         return int(value)
     except (TypeError, ValueError):
         return None
 
 
-def _parse_float(value: str) -> float | None:
+def parse_float(value: str) -> float | None:
     try:
         return float(value)
     except (TypeError, ValueError):
@@ -112,9 +112,9 @@ def parse_a1111_parameters(params_text: str) -> dict[str, Any]:
     else:
         metadata["prompt"] = params_text.strip()
 
-    metadata["steps"] = _parse_int(_first_match(params_text, r"Steps:\s*(\d+)"))
+    metadata["steps"] = parse_int(_first_match(params_text, r"Steps:\s*(\d+)"))
     metadata["sampler"] = _first_match(params_text, r"Sampler:\s*([^,\n]+)")
-    metadata["cfg_scale"] = _parse_float(_first_match(params_text, r"CFG [Ss]cale:\s*([\d.]+)"))
+    metadata["cfg_scale"] = parse_float(_first_match(params_text, r"CFG [Ss]cale:\s*([\d.]+)"))
     metadata["seed"] = _first_match(params_text, r"Seed:\s*([^,\n]+)")
     metadata["model"] = _first_match(params_text, r"Model:\s*([^,\n]+)")
     return metadata
@@ -171,13 +171,13 @@ def _read_image_info(path: Path) -> tuple[int | None, int | None, str, str, int,
         has_alpha = 1 if (img.mode in {"RGBA", "LA"} or (img.mode == "P" and "transparency" in img.info)) else 0
         img = ImageOps.exif_transpose(img)
         width, height = img.size
-        info = {str(key): _safe_text(value) for key, value in img.info.items() if _safe_text(value)}
+        info = {str(key): safe_text(value) for key, value in img.info.items() if safe_text(value)}
         try:
             exif = img.getexif()
         except Exception:
             exif = None
         if exif:
-            user_comment = _safe_text(exif.get(37510))
+            user_comment = safe_text(exif.get(37510))
             if user_comment:
                 info.setdefault("UserComment", user_comment)
     return width, height, image_format, mode, has_alpha, info
@@ -233,11 +233,11 @@ def extract_metadata(path: Path) -> ExtractedMetadata:
         format=image_format,
         mode=mode,
         has_alpha=has_alpha,
-        prompt=_safe_text(normalized.get("prompt")),
-        negative_prompt=_safe_text(normalized.get("negative_prompt")),
-        model=_safe_text(normalized.get("model")),
-        sampler=_safe_text(normalized.get("sampler")),
-        seed=_safe_text(normalized.get("seed")),
+        prompt=safe_text(normalized.get("prompt")),
+        negative_prompt=safe_text(normalized.get("negative_prompt")),
+        model=safe_text(normalized.get("model")),
+        sampler=safe_text(normalized.get("sampler")),
+        seed=safe_text(normalized.get("seed")),
         steps=normalized.get("steps") if isinstance(normalized.get("steps"), int) else None,
         cfg_scale=normalized.get("cfg_scale") if isinstance(normalized.get("cfg_scale"), (int, float)) else None,
         raw_metadata_text=raw_metadata_text,

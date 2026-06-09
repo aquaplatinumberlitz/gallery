@@ -212,8 +212,8 @@ def start_servers(python_exec, pkg_manager):
     backend_env = os.environ.copy()
     backend_env["PORT"] = str(backend_port)
     backend_env["FRONTEND_PORT"] = str(frontend_port)
-    backend_cmd = [str(python_exec), "-m", "uvicorn", "main:app", "--reload", "--host", "127.0.0.1", "--port", str(backend_port)]
-    backend_process = subprocess.Popen(backend_cmd, cwd=BACKEND_DIR, env=backend_env)
+    backend_cmd = [str(python_exec), "-m", "uvicorn", "backend.main:app", "--reload", "--host", "127.0.0.1", "--port", str(backend_port)]
+    backend_process = subprocess.Popen(backend_cmd, cwd=ROOT_DIR, env=backend_env)
 
     time.sleep(3)
 
