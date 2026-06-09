@@ -169,9 +169,9 @@ npm run perf:lightbox
 ### Budgets
 | Env Var | Default | Description |
 |---------|---------|-------------|
-| `GALLERY_PERF_LIGHTBOX_OPEN_BUDGET_MS` | `800` | Max ms for lightbox to become visible after click |
-| `GALLERY_PERF_LIGHTBOX_IMAGE_BUDGET_MS` | `1500` | Max ms for main image to load after click |
-| `GALLERY_PERF_LIGHTBOX_TRANSITION_BUDGET_MS` | `700` | Max ms for next image to load after ArrowRight |
+| `GALLERY_PERF_LIGHTBOX_OPEN_BUDGET_MS` | `1500` | Max ms for lightbox to become visible after click |
+| `GALLERY_PERF_LIGHTBOX_IMAGE_BUDGET_MS` | `4000` | Max ms for main image to load after click |
+| `GALLERY_PERF_LIGHTBOX_TRANSITION_BUDGET_MS` | `3000` | Max ms for next image to load after ArrowRight |
 
 ## Known Limitations
 
@@ -198,6 +198,6 @@ npm run perf:lightbox
 | `GALLERY_PERF_THUMB_P95_BUDGET_MS` | `1200` | Max acceptable thumbnail p95 latency |
 | `GALLERY_PERF_SCAN_ITERATIONS` | `10` | Iterations for backend perf script |
 | `GALLERY_PERF_SCAN_P95_BUDGET_MS` | `500` | p95 budget for backend perf script |
-| `GALLERY_PERF_LIGHTBOX_OPEN_BUDGET_MS` | `800` | Max acceptable lightbox open visible time |
-| `GALLERY_PERF_LIGHTBOX_IMAGE_BUDGET_MS` | `1500` | Max acceptable lightbox image load time |
-| `GALLERY_PERF_LIGHTBOX_TRANSITION_BUDGET_MS` | `700` | Max acceptable lightbox next-image transition time |
+| `GALLERY_PERF_LIGHTBOX_OPEN_BUDGET_MS` | `1500` | Max acceptable lightbox open visible time |
+| `GALLERY_PERF_LIGHTBOX_IMAGE_BUDGET_MS` | `4000` | Max acceptable lightbox image load time |
+| `GALLERY_PERF_LIGHTBOX_TRANSITION_BUDGET_MS` | `3000` | Max acceptable lightbox next-image transition time |

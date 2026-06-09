@@ -4,11 +4,14 @@ import { installApiNetworkTracker, getQueryParam } from "./perf-utils";
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
 const albumName = process.env.GALLERY_PERF_ALBUM_NAME ?? "test mika";
 const albumPath = process.env.GALLERY_PERF_ALBUM_PATH ?? "";
+const rootPath = process.env.GALLERY_ROOT_PATH ?? (
+  albumPath ? albumPath.substring(0, albumPath.lastIndexOf('/')) : "/home/ubuntu/gallery-repo"
+);
 
 async function navigateToAlbum(page: Page) {
-  await page.addInitScript(() => {
-    localStorage.setItem("gallery-root-path", "/home/ubuntu/gallery-repo");
-  });
+  await page.addInitScript((rootForInit) => {
+    localStorage.setItem("gallery-root-path", rootForInit);
+  }, rootPath);
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
 
@@ -66,7 +69,7 @@ test("lightbox opens first photo within budget", async ({ page }) => {
   });
   const firstThumbSample = highResThumbnailSamples.find(s => s.durationMs && s.durationMs > 0);
   const firstImageSample = imageSamples.find(s => s.durationMs && s.durationMs > 0);
-  const usedImageEndpoint = (firstImageSample?.pathname === "/api/image" || firstThumbSample?.pathname === "/api/thumbnail");
+  const usedFullImageEndpoint = firstImageSample?.pathname === "/api/image";
 
   const dims = await lightboxImg.evaluate((img: HTMLImageElement) => ({
     naturalW: img.naturalWidth,
@@ -74,6 +77,11 @@ test("lightbox opens first photo within budget", async ({ page }) => {
     displayW: img.getBoundingClientRect().width,
     displayH: img.getBoundingClientRect().height,
   }));
+
+  const viewport = page.viewportSize();
+
+  const actualSrc = await lightboxImg.getAttribute("src");
+  const srcIsFullImage = actualSrc?.startsWith("/api/image") ?? false;
 
   const report = {
     albumName,
@@ -84,11 +92,14 @@ test("lightbox opens first photo within budget", async ({ page }) => {
       mainImageRequestStartAfterClickMs: Math.round((firstImageSample ?? firstThumbSample)?.startMs ?? 0),
       mainImageRequestDurationMs: Math.round((firstImageSample ?? firstThumbSample)?.durationMs ?? 0),
       metadataDurationMs: metadataSamples.length ? Math.round(Math.min(...metadataSamples.map(s => s.durationMs ?? 0))) : 0,
-      usedImageEndpoint,
+      usedFullImageEndpoint,
+      srcIsFullImage,
       naturalWidth: dims.naturalW,
       naturalHeight: dims.naturalH,
       displayWidth: Math.round(dims.displayW),
       displayHeight: Math.round(dims.displayH),
+      viewportWidth: viewport?.width ?? 0,
+      viewportHeight: viewport?.height ?? 0,
     },
     budgets: {
       openVisibleMs: Number(process.env.GALLERY_PERF_LIGHTBOX_OPEN_BUDGET_MS ?? "1500"),
@@ -99,13 +110,18 @@ test("lightbox opens first photo within budget", async ({ page }) => {
 
   console.log(JSON.stringify(report, null, 2));
 
+  if (dims.displayW < (viewport?.width ?? 1920) * 0.5 && dims.displayH < (viewport?.height ?? 1080) * 0.5) {
+    console.warn(`WARNING: Lightbox image (${Math.round(dims.displayW)}×${Math.round(dims.displayH)}px) is smaller than 50% of viewport (${viewport?.width}×${viewport?.height}px). Image may be displaying a thumbnail instead of full-res.`);
+  }
+
   expect(lightboxVisibleAfterClickMs).toBeLessThanOrEqual(report.budgets.openVisibleMs);
   expect(mainImageLoadedAfterClickMs).toBeLessThanOrEqual(report.budgets.openImageLoadedMs);
   expect(dims.naturalW).toBeGreaterThan(0);
   expect(dims.naturalH).toBeGreaterThan(0);
   expect(dims.displayW).toBeGreaterThan(300);
   expect(dims.displayH).toBeGreaterThan(300);
-  expect(usedImageEndpoint).toBe(true);
+  expect(usedFullImageEndpoint).toBe(true);
+  expect(srcIsFullImage).toBe(true);
 });
 
 test("lightbox transitions to next image within budget", async ({ page }) => {
@@ -153,6 +169,8 @@ test("lightbox transitions to next image within budget", async ({ page }) => {
     displayH: img.getBoundingClientRect().height,
   }));
 
+  const viewport = page.viewportSize();
+
   const naturalRatio = dims.naturalW / dims.naturalH;
   const displayRatio = dims.displayW / dims.displayH;
   const ratioDiff = Math.abs(1 - naturalRatio / displayRatio);
@@ -167,6 +185,8 @@ test("lightbox transitions to next image within budget", async ({ page }) => {
       naturalHeight: dims.naturalH,
       displayWidth: Math.round(dims.displayW),
       displayHeight: Math.round(dims.displayH),
+      viewportWidth: viewport?.width ?? 0,
+      viewportHeight: viewport?.height ?? 0,
       ratioDiff: Math.round(ratioDiff * 1000) / 1000,
     },
     budgets: {
@@ -176,6 +196,10 @@ test("lightbox transitions to next image within budget", async ({ page }) => {
   };
 
   console.log(JSON.stringify(report, null, 2));
+
+  if (dims.displayW < (viewport?.width ?? 1920) * 0.5 && dims.displayH < (viewport?.height ?? 1080) * 0.5) {
+    console.warn(`WARNING: Lightbox image (${Math.round(dims.displayW)}×${Math.round(dims.displayH)}px) is smaller than 50% of viewport (${viewport?.width}×${viewport?.height}px). Image may be displaying a thumbnail instead of full-res.`);
+  }
 
   expect(nextImageLoadedAfterActionMs)
     .toBeLessThanOrEqual(report.budgets.transitionMs);
