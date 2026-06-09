@@ -32,7 +32,7 @@ const _icons: Record<string, any> = { Type, Clock }
 
 const galleryStore = useGalleryStore();
 const lightboxStore = useLightboxStore();
-const activeScanPath = computed(() => galleryStore.currentPath || galleryStore.rootPath);
+const activeScanPath = computed(() => galleryStore.currentPath);
 const infiniteScanQuery = useInfiniteScanQuery(activeScanPath);
 
 const {
@@ -315,7 +315,7 @@ const images = computed(() =>
   hasSearchQuery.value ? allSearchImageNodes.value : filenameImages.value
 );
 
-const isLoading = computed(() => galleryStore.galleryLoading || (infiniteScanQuery.isLoading.value && !galleryStore.hasEverLoaded));
+const isLoading = computed(() => infiniteScanQuery.isLoading.value);
 const isRefetching = computed(
   () => infiniteScanQuery.isFetching.value && !infiniteScanQuery.isLoading.value && !infiniteScanQuery.isFetchingNextPage.value
 );

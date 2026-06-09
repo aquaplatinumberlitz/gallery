@@ -47,6 +47,7 @@ export function useInfiniteScanQuery(path: Ref<string>) {
       if (!normalizedPath.value) return undefined;
       return getCachedFirstPageUpdatedAt(normalizedPath.value);
     },
+    staleTime: 60_000,
     queryFn: async ({ queryKey, pageParam }) => {
       const requestPath = queryKey[1] as string;
       const result = await scanDirectory(requestPath, {

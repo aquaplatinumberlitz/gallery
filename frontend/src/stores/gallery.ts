@@ -280,11 +280,13 @@ export const useGalleryStore = defineStore("gallery", {
       this.loadingMap = rest;
     },
 
-    async selectFolder(nodeOrPath: FileNode | string) {
+    selectFolder(nodeOrPath: FileNode | string) {
       const path = typeof nodeOrPath === "string" ? nodeOrPath : nodeOrPath.path;
       this.currentPath = path;
       this.pushHistory(path);
-      await this.scanFolder(path);
+      this.galleryLoading = false;
+      this.isRefetching = false;
+      this.hasEverLoaded = true;
     },
 
     async scanFolder(path?: string) {
@@ -404,7 +406,9 @@ export const useGalleryStore = defineStore("gallery", {
         this.historyIndex -= 1;
         const path = this.history[this.historyIndex];
         this.currentPath = path;
-        this.scanFolder(path);
+        this.galleryLoading = false;
+        this.isRefetching = false;
+        this.hasEverLoaded = true;
       }
     },
 
@@ -413,7 +417,9 @@ export const useGalleryStore = defineStore("gallery", {
         this.historyIndex += 1;
         const path = this.history[this.historyIndex];
         this.currentPath = path;
-        this.scanFolder(path);
+        this.galleryLoading = false;
+        this.isRefetching = false;
+        this.hasEverLoaded = true;
       }
     },
   },
