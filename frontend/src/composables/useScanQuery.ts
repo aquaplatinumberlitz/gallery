@@ -74,6 +74,23 @@ export async function fetchScan(path: string): Promise<ScanResponse | undefined>
 }
 
 /**
+ * Fetch scan data and propagate API errors to the caller.
+ * Used where existing UI error/toast handling must remain intact.
+ */
+export async function fetchScanOrThrow(path: string): Promise<ScanResponse> {
+  const normalized = normalizeQueryPath(path);
+  if (!normalized) {
+    throw new Error("Scan path is required");
+  }
+
+  return queryClient.fetchQuery({
+    queryKey: queryKeys.scan(normalized, IMAGE_PAGE_SIZE),
+    queryFn: () => scanDirectory(normalized, { imageLimit: IMAGE_PAGE_SIZE, imageCursor: 0 }),
+    staleTime: 60_000,
+  });
+}
+
+/**
  * Check if cached scan data for a path is still fresh (within staleTime).
  */
 export function isScanFresh(path: string): boolean {

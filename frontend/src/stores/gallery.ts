@@ -3,6 +3,7 @@ import type { FileNode, SearchScope, SortField, SortOrder, UnifiedSearchResults 
 import { openFolder, scanDirectory, unifiedSearch as unifiedSearchApi, GalleryAPIError } from "../services/api";
 import { useToastStore } from "./toast";
 import { IMAGE_PAGE_SIZE } from "../constants";
+import { fetchScan, fetchScanOrThrow, getCachedScan, isScanFresh } from "../composables/useScanQuery";
 
 type LoadingMap = Record<string, boolean>;
 const STORAGE_KEY = "gallery-root-path";
@@ -198,7 +199,7 @@ export const useGalleryStore = defineStore("gallery", {
 
       const data = await _withError(
         this,
-        () => scanDirectory(path, { imageLimit: IMAGE_PAGE_SIZE, imageCursor: 0 }),
+        () => fetchScanOrThrow(path),
         "Unable to load the root folder. Check the path or backend connection.",
         () => this.setRootPath(path)
       );
@@ -293,9 +294,6 @@ export const useGalleryStore = defineStore("gallery", {
         this.isRefetching = false;
         return;
       }
-
-      const { fetchScan, getCachedScan, isScanFresh } = await import("../composables/useScanQuery");
-
       // Check cache first so navigation can render immediately when data exists.
       const cached = getCachedScan(target);
       const fresh = isScanFresh(target);

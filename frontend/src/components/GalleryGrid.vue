@@ -17,6 +17,7 @@ import { compareNatural } from "../composables/useNaturalSort";
 import { useColumnResize, PHOTO_GRID_LEVELS, GRID_COLUMN_MAP } from "../composables/useColumnResize";
 import { useDevice } from "../composables/useDevice";
 import { usePullToRefresh } from "../composables/usePullToRefresh";
+import { useCurrentScanQuery } from "../composables/useCurrentScanQuery";
 import { useUnifiedSearchQuery } from "../composables/useUnifiedSearchQuery";
 import { galleryScrollContainerRefKey } from "../injectionKeys";
 import { fuzzySearchFileNodes } from "../utils/fuzzySearch";
@@ -31,6 +32,7 @@ const _icons: Record<string, any> = { Type, Clock }
 
 const galleryStore = useGalleryStore();
 const lightboxStore = useLightboxStore();
+const currentScanQuery = useCurrentScanQuery();
 
 const {
   pullDistance,
@@ -177,16 +179,24 @@ const sortItems = <T extends { name: string; mtime?: number }>(items: T[]): T[] 
   return sorted;
 };
 
+const scanFolders = computed(() => currentScanQuery.folders.value);
+const firstPageImages = computed(() => currentScanQuery.firstPageImages.value);
+const loadedMoreImages = computed(() => {
+  const firstPagePaths = new Set(firstPageImages.value.map((image) => image.path));
+  return galleryStore.galleryImages.filter((image) => !firstPagePaths.has(image.path));
+});
+const scanImages = computed(() => [...firstPageImages.value, ...loadedMoreImages.value]);
+
 const folders = computed(() =>
   sortItems(
-    hasSearchQuery.value ? galleryStore.galleryFolders : fuzzySearchFileNodes(galleryStore.galleryFolders, searchQuery.value)
+    hasSearchQuery.value ? scanFolders.value : fuzzySearchFileNodes(scanFolders.value, searchQuery.value)
   )
 );
 
-// Fuse search is client-side and only covers images currently loaded into galleryImages.
+// Fuse search is client-side and only covers images currently loaded in the active scan view.
 const filenameImages = computed(() =>
   sortItems(
-    hasSearchQuery.value ? galleryStore.galleryImages : fuzzySearchFileNodes(galleryStore.galleryImages, searchQuery.value)
+    hasSearchQuery.value ? scanImages.value : fuzzySearchFileNodes(scanImages.value, searchQuery.value)
   )
 );
 
@@ -279,7 +289,7 @@ const searchAlbumNodesRef = computed(() =>
   searchAlbums.value.map((album) => {
     const node = searchResultToFileNode(album);
     if (!node.cover_images || node.cover_images.length === 0) {
-      const match = galleryStore.galleryFolders.find(
+      const match = scanFolders.value.find(
         (folder) => normalizeSearchPath(folder.path) === normalizeSearchPath(album.path)
       );
       if (match && match.cover_images && match.cover_images.length > 0) {
@@ -307,8 +317,8 @@ const images = computed(() =>
   hasSearchQuery.value ? allSearchImageNodes.value : filenameImages.value
 );
 
-const isLoading = computed(() => galleryStore.galleryLoading);
-const isRefetching = computed(() => galleryStore.isRefetching);
+const isLoading = computed(() => galleryStore.galleryLoading || (currentScanQuery.isLoading.value && !galleryStore.hasEverLoaded));
+const isRefetching = computed(() => currentScanQuery.isFetching.value && !currentScanQuery.isLoading.value);
 const isSearchLoading = computed(() => hasSearchQuery.value && unifiedSearchQuery.isLoading.value);
 const currentPath = computed(() => galleryStore.currentPath);
 const canBack = computed(() => galleryStore.historyIndex > 0);
@@ -316,7 +326,7 @@ const canForward = computed(
   () => galleryStore.historyIndex < galleryStore.history.length - 1
 );
 const hasMoreImages = computed(() => !hasSearchQuery.value && galleryStore.nextImageCursor !== null);
-const hasAnyItems = computed(() => galleryStore.galleryFolders.length + galleryStore.galleryImages.length > 0);
+const hasAnyItems = computed(() => scanFolders.value.length + scanImages.value.length > 0);
 const hasNoPath = computed(() => !galleryStore.currentPath && !galleryStore.rootPath);
 const hasNotLoaded = computed(() => !galleryStore.hasEverLoaded && (!!galleryStore.currentPath || !!galleryStore.rootPath));
 const showGallerySkeleton = computed(() =>
@@ -339,7 +349,14 @@ const noSearchResults = computed(
     searchPrompt.value.length === 0 &&
     hasAnyItems.value
 );
-const errorMessage = computed(() => galleryStore.errorMessage);
+const scanQueryErrorMessage = computed(() => {
+  const error = currentScanQuery.error.value;
+  if (!error) return "";
+  const suggestion = (error as { suggestion?: string }).suggestion;
+  if (suggestion) return suggestion;
+  return error instanceof Error ? error.message : "Unable to load folder.";
+});
+const errorMessage = computed(() => galleryStore.errorMessage || scanQueryErrorMessage.value);
 const showAllIndexedHint = computed(() => noSearchResults.value && galleryStore.searchScope === "current");
 
 const handleOpenFolder = (path: string) => {

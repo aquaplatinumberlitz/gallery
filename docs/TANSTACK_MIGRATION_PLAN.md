@@ -59,7 +59,7 @@ TanStack DB owns only:
 
 ## Current Boundary
 
-The current gallery scan flow is hybrid for compatibility. TanStack Query caches the first scan page by deterministic key. The Pinia gallery store still copies that data into its existing folder/image state so the rest of the UI can continue to render without a broad rewrite.
+The current gallery scan flow is hybrid for compatibility. TanStack Query caches the first scan page by deterministic key, and the active gallery grid reads first-page folders/photos from Query. The Pinia gallery store still copies scan data for navigation, initial root-load compatibility, and infinite-load append behavior.
 
 Infinite image loading and folder tree loading still call the API from Pinia/store code directly. Search results and lightbox metadata now use plain TanStack Query as their active source of truth, while deprecated Pinia search result fields remain temporarily for compatibility.
 
@@ -136,6 +136,10 @@ Status: complete. Active unified search UI uses `useUnifiedSearchQuery()` with p
 ## Phase 3 Scope
 
 Status: complete. Lightbox metadata uses `usePhotoMetadataQuery()` with plain TanStack Query and `queryKeys.metadata(path)`. The query is enabled only while the lightbox is open and a current image path exists, with a 10-minute stale time and 30-minute garbage-collection time. Pinia lightbox state keeps open/current-index/gallery-item navigation and current item path/name only; TanStack Query owns `/api/metadata` response, loading, errors, and cache.
+
+## Phase 4 Scope
+
+Status: partial. `useCurrentScanQuery()` exposes the current path's first `/api/scan` page through plain TanStack Query and `queryKeys.scan(path, IMAGE_PAGE_SIZE)`. `GalleryGrid.vue` reads active first-page folders and photos from Query, while Pinia remains as compatibility state for root-load loading, copied scan metadata/cursors, and images appended by the existing `loadMoreImages()` path. Phase 5 infinite loading has not started, so Pinia still participates in the rendered image list after page one.
 
 ## Hard Rules
 
