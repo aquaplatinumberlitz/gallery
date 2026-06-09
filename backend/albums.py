@@ -4,11 +4,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff"}
-
-
-def is_image(path: Path) -> bool:
-    return path.suffix.lower() in IMAGE_EXTENSIONS
+from .files import IMAGE_EXTENSIONS, is_image
 
 
 def has_any_children(dir_path: Path) -> bool:
