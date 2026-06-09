@@ -12,3 +12,14 @@ Do not migrate the core gallery scan flow, infinite image loading, folder tree, 
 
 TanStack DB is beta. Adopt it incrementally behind small, low-risk collection pilots and keep each usage easy to remove.
 
+Current runtime collection:
+
+- Landing pages: safe pilot. `/api/landing-pages` returns the complete scoped list and each row is keyed by stable `url`.
+
+Reviewed but not adopted:
+
+- Folder tree, scan, and infinite loading stay in plain TanStack Query. `/api/scan` is path-scoped and image pages can be cursor-partial, so Query Collection full-state semantics are not safe.
+- Search stays in plain TanStack Query. Search responses are filtered subsets rather than complete collection state.
+- Lightbox metadata stays in plain TanStack Query. It is a per-image document fetch, not a collection/live-query use case.
+
+Possible future collection candidates require stable row keys and a complete state definition for their endpoint scope before implementation: structured settings/preferences, metadata admin tables, duplicate finder results, broken image audits, and import history.

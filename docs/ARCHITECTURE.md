@@ -69,13 +69,13 @@ TanStack Query caches `/api/scan` responses, while Pinia keeps UI state and temp
 
 | Layer | Responsibilities |
 |-------|------------------|
-| TanStack Query | Cached scan first-page, active scan infinite image pages, unified search, and lightbox metadata responses, stale time, garbage collection, background refresh query keys |
+| TanStack Query | Cached scan first-page, folder tree child loads, active scan infinite image pages, unified search, and lightbox metadata responses, stale time, garbage collection, background refresh query keys |
 | TanStack DB | Minimal beta foundation for local reactive collections and live queries over already loaded/API-backed data |
-| Pinia gallery store | Current/root path, root-load compatibility flags, history, search input/scope, sort, deprecated scan pagination compatibility fields |
+| Pinia gallery store | Current/root path, folder tree expanded/collapsed state, root-load compatibility flags, history, search input/scope, sort, deprecated scan pagination compatibility fields |
 
 Migration rule: TanStack Query should own server/API state and cache. Pinia should own UI/navigation state. Do not add new Query -> Pinia duplicated server-state flows unless needed for compatibility. The active `/api/scan` gallery rendering flow is Query-owned; remaining Pinia scan image/cursor fields are temporary compatibility state.
 
-TanStack DB is available as a beta, incremental layer that complements TanStack Query. Query Collection should reuse the shared Query client for REST/API-backed collections; live queries can then query across those loaded collections locally. Do not migrate scan, infinite loading, folder tree, unified search, or lightbox metadata into DB without a dedicated follow-up design.
+TanStack DB is available as a beta, incremental layer that complements TanStack Query. Query Collection should reuse the shared Query client for REST/API-backed collections; live queries can then query across those loaded collections locally. Do not migrate scan, infinite loading, folder tree, unified search, or lightbox metadata into DB without a dedicated follow-up design that proves stable keys and complete collection state for the endpoint scope.
 
 Scan query keys use this deterministic pattern:
 
@@ -108,6 +108,25 @@ Gallery loading behavior:
 - First uncached folder load can show the full skeleton.
 - Revisiting a cached folder renders cached albums/photos immediately and shows only a subtle refreshing indicator while the background fetch completes.
 - Search loading has its own skeleton path and does not replace cached normal-gallery content during scan refresh.
+
+### Folder Tree Expansion
+
+```text
+FolderTreeItem toggle
+→ galleryStore.toggleFolder(node) updates node.isOpen only
+→ useFolderChildrenQuery(node.path, node.isOpen && node.has_children)
+→ read/fetch TanStack Query cache for ["scan", normalizedPath, IMAGE_PAGE_SIZE]
+→ GET /api/scan with image_limit=200 and image_cursor=0 when cache policy requires it
+→ FolderTreeItem renders query loading/error state
+→ successful folder results are normalized and temporarily assigned to node.children for recursive rendering
+```
+
+Folder tree ownership:
+
+- Pinia owns root path, current path, selected path, history/back-forward, and expanded/collapsed state.
+- TanStack Query owns folder child server data, per-path loading/fetching/error state, stale time, garbage collection, and cache reuse.
+- The `node.children` assignment in `FolderTreeItem.vue` is a compatibility bridge for the existing recursive tree shape, not a new long-term server-state cache.
+- TanStack DB is not used for folder tree because `/api/scan` is path-scoped and may include cursor-partial image data.
 
 ### Infinite Scroll
 

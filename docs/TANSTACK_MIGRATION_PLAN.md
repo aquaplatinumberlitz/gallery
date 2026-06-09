@@ -19,7 +19,7 @@ Installed TanStack libraries:
 
 Runtime use today:
 
-- TanStack Query is installed through `frontend/src/query/index.ts` and caches first-page `/api/scan` responses.
+- TanStack Query is installed through `frontend/src/query/index.ts` and caches first-page `/api/scan` responses, including folder tree child loads.
 - TanStack Virtual is used by `GalleryGrid.vue` for desktop/tablet row virtualization.
 - TanStack DB, Query Collection, and Vue DB are present as a beta foundation with a landing-pages pilot collection wired into Settings theme selection.
 - Query Devtools are rendered from the app root in development mode.
@@ -61,7 +61,9 @@ TanStack DB owns only:
 
 The current gallery scan flow uses plain TanStack Query for active gallery rendering. TanStack Query caches the first scan page by deterministic key, and `useInfiniteScanQuery()` owns the active gallery's cursor pages through `useInfiniteQuery` and `queryKeys.scanInfinite(path, IMAGE_PAGE_SIZE)`. The Pinia gallery store still copies first-page scan data for navigation and root-load compatibility, but it no longer owns appended image pages for active gallery rendering.
 
-Folder tree loading still calls the API from Pinia/store code directly. Search results and lightbox metadata now use plain TanStack Query as their active source of truth, while deprecated Pinia search result fields remain temporarily for compatibility.
+Folder tree child loading also uses plain TanStack Query through `useFolderChildrenQuery()` and shares `queryKeys.scan(path, IMAGE_PAGE_SIZE)` with first-page scan responses. Pinia owns the expanded/collapsed state and selected path. `FolderTreeItem.vue` keeps a temporary compatibility bridge that writes successful Query folder results to `node.children` because recursive tree rendering still expects nested nodes.
+
+Search results and lightbox metadata now use plain TanStack Query as their active source of truth, while deprecated Pinia search result fields remain temporarily for compatibility.
 
 TanStack DB currently wraps only `/api/landing-pages` into a Query Collection. The API response is normalized from `string[]` to landing-page rows keyed by `url`, with an index retained to preserve API order in live queries.
 
@@ -98,7 +100,7 @@ Therefore search, scan, and infinite load stay with plain TanStack Query first. 
 
 5. Infinite load: useInfiniteQuery, not DB
 
-6. Folder tree: query-ify later
+6. Folder tree: plain TanStack Query, not DB
 
 7. DB only for collection/live-query cases with stable keys and clear full-state semantics
 
@@ -146,6 +148,37 @@ Status: complete as the first-page foundation. `useCurrentScanQuery()` exposes t
 Status: complete. `useInfiniteScanQuery()` uses plain TanStack Query `useInfiniteQuery` with `queryKeys.scanInfinite(path, IMAGE_PAGE_SIZE)`, `initialPageParam: 0`, and `getNextPageParam(lastPage) => lastPage.next_cursor ?? undefined`. `GalleryGrid.vue` renders folders from the first infinite page and images from flattened infinite pages, and its load-more sentinel calls `fetchNextPage()` only when `hasNextPage` is true and no next-page/background fetch is already active.
 
 TanStack DB is not used for scan or infinite cursor pagination. Pinia `galleryImages`, `nextImageCursor`, `loadingMoreImages`, and `loadMoreImages()` remain temporarily as deprecated compatibility fields/actions for legacy store flows, but they are no longer the active source of truth for appended image pages in the gallery UI.
+
+## Phase 6 Scope
+
+Status: complete with a narrow compatibility bridge. `useFolderChildrenQuery()` loads expanded folder children with plain TanStack Query, `queryKeys.scan(path, IMAGE_PAGE_SIZE)`, and `scanDirectory(path, { imageLimit: IMAGE_PAGE_SIZE, imageCursor: 0 })`. Folder tree expansion no longer calls `/api/scan` directly from Pinia.
+
+Pinia remains responsible for folder tree UI/navigation state: root path, current path, history/back-forward, selected path, and expanded/collapsed node state. TanStack Query owns per-folder child server data, loading, fetching, errors, stale time, garbage collection, and cache reuse.
+
+`FolderTreeItem.vue` still writes successful Query folder results to `node.children` as a temporary rendering bridge because the recursive tree is built around nested `FileNode.children`. That bridge is not a new long-term Pinia server-data cache.
+
+The folder tree intentionally reuses `queryKeys.scan(path, IMAGE_PAGE_SIZE)` instead of a separate folder-only key so expanding a folder can share cache with the first-page gallery scan for the same path and avoid duplicate endpoint identities. Folder tree queries only request the first image page and render folders from the response.
+
+TanStack DB is not used for folder tree. `/api/scan` is path-scoped and image data may be cursor-partial, so collection scope and full-state semantics are not safe enough for Query Collection.
+
+## Phase 7 Scope
+
+Status: reviewed/documented. No new runtime TanStack DB collection was added.
+
+Current approved DB runtime use remains the landing-pages pilot only. It is safe because `/api/landing-pages` returns the complete scoped list and rows are keyed by stable `url` values.
+
+Potential future DB candidates:
+
+- settings/preferences with a LocalStorage Collection if settings become structured enough to query locally
+- metadata table/admin features when the frontend needs a complete, stable-key table view
+- duplicate finder, broken image audit, or import history when backend endpoints provide complete scoped row sets with stable IDs
+
+Not safe for DB now:
+
+- scan and folder tree because `/api/scan` is path-scoped and may include cursor-partial image state
+- infinite scan because cursor pages are intentionally partial
+- search because results are filtered subsets, not complete collection state
+- lightbox metadata because it is a per-image document fetch, not a collection/live-query need
 
 ## Hard Rules
 
