@@ -7,7 +7,7 @@ The current `backend/main.py` (~1500+ lines) mixes app setup, config, errors, mo
 This refactor splits the monolith into a flat, domain-based set of modules, introduces a third metadata extraction layer (`metadata_extract.py`) to break the cycle, and moves `services/` contents into top-level modules — then deletes the `services/` directory entirely.
 
 Goals:
-- Flat, maintainable backend structure with zero nesting beyond `tests/`.
+- Flat, maintainable backend structure with zero nesting beyond `test/`.
 - No circular imports.
 - Pure refactor: no API behaviour, response shape, status code, or cache behaviour changes.
 - `backend/main.py` stays as a compatibility shim so existing `start.py` / `uvicorn` commands keep working.
@@ -20,9 +20,7 @@ Goals:
 ```
 backend/
 ├── app.py                 FastAPI app + middleware + router composition
-├── main.py                Compatibility entrypoint: try/except import
-│                          (from .app import app | from app import app)
-│                          + __main__ uvicorn block using config.py
+├── main.py                Package-safe compatibility shim + uvicorn
 ├── config.py              Environment variables, constants, cache dirs, PRODUCTION
 ├── errors.py              APIError, ErrorType
 ├── models.py              FileNode + Pydantic models
@@ -30,24 +28,39 @@ backend/
 ├── files.py               is_image, natural_sort_key, IMAGE_EXTENSIONS,
 │                          check_image_limits
 ├── albums.py              build_album_metadata, has_subfolders
-├── scan.py                /api/scan route + scan_directory + SCAN_PERF_LOGS
-│                          + perf helpers
+├── scan.py                /api/scan route + scan_directory + runtime perf helpers
 ├── folders.py             /api/folders + /api/open-folder
 ├── images.py              /api/image  (original image serving)
 ├── thumbnails.py          /api/thumbnail + cache + render + _thumbnail_disk_cache
-├── metadata_extract.py    Raw metadata extraction from image files
+├── metadata_extract.py    Raw extraction + shared pure parser primitives
 │                          (lowest layer — no SQLite, no API response formatting)
-├── metadata_parse.py      /api/metadata route, LRU cache, response shaping,
-│                          rich presentation fields
+├── metadata_parse.py      /api/metadata route + response shaping + in-memory LRU cache
 ├── metadata_store.py      SQLite metadata cache + FTS5 index/search
 ├── search.py              /api/search + /api/search-metadata
 ├── health.py              /api/health + favicon + GIT_COMMIT
 ├── static_files.py        Root / + /api/landing-pages + production SPA fallback
-├── tests/                 Smoke / regression tests (pytest discovery)
+├── test/                  Smoke / regression tests
 └── requirements.txt       Unchanged
 ```
 
 The `services/` directory is **deleted** once all logic has been moved to the flat modules above.
+
+### 2.1 `main.py` compatibility shim requirement
+
+`backend/main.py` must be package-safe. It must support both package import and direct execution from the backend folder:
+
+```python
+try:
+    from .app import app
+except ImportError:
+    from app import app
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=8000)
+```
+
+If the current project uses a different host/port/import-string convention, preserve the existing behaviour while keeping the package-safe import pattern.
 
 ---
 
@@ -55,24 +68,24 @@ The `services/` directory is **deleted** once all logic has been moved to the fl
 
 | File | Contents | Key Exports |
 |---|---|---|
-| `app.py` | `FastAPI()` creation, CORS middleware, Prometheus Instrumentator, pyinstrument profiler middleware, `include_router` calls for all route modules; **static_files_router must be included LAST** (after all `/api/` routers) to prevent SPA fallback from intercepting API routes | `app` |
-| `main.py` | Compatibility entrypoint supporting both `from .app import app` (package import) and direct `python main.py` execution; `__main__` block runs uvicorn using `config.py` host/port settings | `app` (re-export) |
+| `app.py` | `FastAPI()` creation, CORS middleware, Prometheus Instrumentator, pyinstrument profiler middleware, `include_router` calls for all route modules | `app` |
+| `main.py` | Package-safe compatibility shim. Must support both `from backend.main import app` and `python backend/main.py` | `app` (re-export), `__main__` block for uvicorn |
 | `config.py` | All env vars (`GALLERY_ROOT`, `PRODUCTION`, `THUMBNAIL_CACHE_DIR`, `METADATA_DB_DIR`, etc.), constants, cache directory creation | `GALLERY_ROOT`, `PRODUCTION`, `THUMBNAIL_CACHE_DIR`, `METADATA_DB_DIR`, `SCAN_PERF_LOGS_ENABLED`, … |
 | `errors.py` | `APIError`, `ErrorType` enum, error response helpers | `APIError`, `ErrorType` |
 | `models.py` | Pydantic `FileNode` and any shared request/response schemas | `FileNode` |
 | `paths.py` | `resolve_path`, `is_path_safe`, path traversal prevention, GALLERY_ROOT boundary checks | `resolve_path`, `is_path_safe` |
 | `files.py` | `is_image`, `natural_sort_key`, `IMAGE_EXTENSIONS`, `check_image_limits` | `is_image`, `natural_sort_key`, `IMAGE_EXTENSIONS`, `check_image_limits` |
 | `albums.py` | `build_album_metadata`, `has_subfolders`, album cover/child detection (moved from `services/album_utils.py`) | `build_album_metadata`, `has_subfolders` |
-| `scan.py` | `GET /api/scan`, `scan_directory`, `SCAN_PERF_LOGS`, `_new_scan_perf`, `_elapsed_ms` | `router` (APIRouter) |
+| `scan.py` | `GET /api/scan`, `scan_directory`, runtime `SCAN_PERF_LOGS`, `_new_scan_perf`, `_elapsed_ms`; reads `SCAN_PERF_LOGS_ENABLED` from `config.py` | `router` (APIRouter) |
 | `folders.py` | `GET /api/folders`, `POST /api/open-folder`, `GALLERY_OPEN_FOLDER` guard | `router` |
 | `images.py` | `GET /api/image`, original file serving with cache/header/range support | `router` |
 | `thumbnails.py` | `GET /api/thumbnail`, generation, persistent disk cache (`_thumbnail_disk_cache`), ETag/304, WebP, large-image safety | `router` |
-| `metadata_extract.py` | Low-level read/extract/normalize primitives for PNG/JPEG/WebP metadata, shared pure parser primitives (A1111/ComfyUI/NovelAI/EasyDiffusion/SwarmUI parameter parsing), `extract_loras`, `_read_image_info` — **no** SQLite imports, **no** FastAPI route decorators, **no** API response formatting. Must NOT import `metadata_parse.py` or `metadata_store.py`. | `extract_loras`, `_read_image_info`, parameter parsing helpers |
-| `metadata_parse.py` | `GET /api/metadata` route, route-level in-memory LRU cache (`_metadata_cache` + `_metadata_cache_lock`), front-end response shaping and rich presentation fields, imports `metadata_extract.py` for raw parsing and `metadata_store.py` for cache upsert | `router`, `_metadata_cache` |
+| `metadata_extract.py` | Raw metadata extraction from PNG/JPEG/WebP image files, shared pure parser primitives for A1111/ComfyUI/NovelAI/EasyDiffusion/SwarmUI, `extract_loras`, `_read_image_info` — NO SQLite imports, NO FastAPI imports, NO route cache, NO API response formatting | `extract_loras`, `_read_image_info`, parser primitives |
+| `metadata_parse.py` | `GET /api/metadata` route, route-level response shaping/enrichment, in-memory LRU cache (`_metadata_cache`), imports from `metadata_extract.py` for extraction/parsing and `metadata_store.py` only for cache/index upsert | `router`, `_metadata_cache` |
 | `metadata_store.py` | SQLite metadata cache, FTS5 index/search, `metadata_index` tables, DB init/migration, WAL/busy_timeout (moved from `services/metadata_index.py`), imports from `metadata_extract.py` for background indexing | `MetadataIndex`, `get_index`, DB helpers |
 | `search.py` | `GET /api/search`, `GET /api/search-metadata`, search orchestration calling `metadata_store.py` and scan/file helpers | `router` |
 | `health.py` | `GET /api/health`, favicon, `GIT_COMMIT` constant | `router`, `GIT_COMMIT` |
-| `static_files.py` | `GET /` (root), `GET /api/landing-pages`, production Vue SPA static file serving + fallback; must explicitly 404 or skip paths starting with `/api/` in the SPA fallback handler | `router` |
+| `static_files.py` | `GET /` (root), `GET /api/landing-pages`, production Vue SPA static file serving + fallback | `router` |
 
 ---
 
@@ -85,7 +98,7 @@ Before the split, `metadata_parse.py` needs to upsert into the SQLite cache (own
 ### 4.2 Solution: three-file split
 
 ```
-metadata_extract.py   ← LOWEST layer (no SQLite, no API formatting)
+metadata_extract.py   ← LOWEST layer (no SQLite, no FastAPI, no API formatting)
         ↑                        ↑
         |                        |
 metadata_parse.py          metadata_store.py
@@ -110,10 +123,11 @@ No module imports a module that imports it. The cycle is broken by extracting sh
 
 **metadata_extract.py** (lowest layer)
 - `_read_image_info()` — read raw PNG/JPEG/WebP metadata chunks
-- A1111 / ComfyUI / NovelAI / EasyDiffusion / SwarmUI parameter parsing
+- Shared pure parser primitives for A1111 / ComfyUI / NovelAI / EasyDiffusion / SwarmUI
 - `extract_loras(text: str) -> list[str]`
 - PNG tEXt chunk, EXIF UserComment, WebP/JPEG metadata extraction
-- **No** SQLite imports, **no** `FileResponse`/`JSONResponse`, **no** FastAPI route decorators
+- Base normalization primitives shared by API parsing and background indexing
+- **No** SQLite imports, **no** `FileResponse`/`JSONResponse`, **no** FastAPI route decorators, **no** route-level cache
 
 **metadata_store.py** (middle layer)
 - Moved from `services/metadata_index.py`
@@ -125,11 +139,12 @@ No module imports a module that imports it. The cycle is broken by extracting sh
 
 **metadata_parse.py** (top / API layer)
 - `GET /api/metadata` route
-- Rich AI metadata response construction and presentation
+- Frontend response construction, shaping, and enrichment
 - In-memory LRU cache (`_metadata_cache` + `_metadata_cache_lock`)
 - `_metadata_cache_key()` helper
-- Imports `metadata_extract` for raw parsing
-- Imports `metadata_store` for `get_index().upsert()` after successful parse
+- Imports `metadata_extract` for raw extraction and shared parser primitives
+- Imports `metadata_store` only for `get_index().upsert()` after successful parse
+- Does **not** duplicate parser primitives already owned by `metadata_extract.py`
 
 ---
 
@@ -145,11 +160,13 @@ Currently `is_image` and `has_subfolders` are in `services/album_utils.py`, and 
 
 ### 5.3 `check_image_limits` in `files.py`
 
-Moves from `main.py` to `files.py` alongside the other file-level helpers. Named `check_image_limits()` (public) since it is imported by other modules.
+Moves from `main.py` to `files.py` alongside the other file-level helpers. Because this helper is imported by multiple modules, it is public and named `check_image_limits()` instead of `_check_image_limits()`.
 
-### 5.4 Perf logging: config flag in `config.py`, helpers in `scan.py`
+Alpha/transparency helpers are not shared by default. If alpha handling is only needed by thumbnail rendering, keep that helper private inside `thumbnails.py`; do not create `_has_alpha()` in `files.py` unless the current code already has a genuinely shared helper.
 
-The `SCAN_PERF_LOGS_ENABLED` environment/config flag lives in `config.py` alongside other configuration constants. The runtime perf helpers `_new_scan_perf()` and `_elapsed_ms()` live in `scan.py` where they are used.
+### 5.4 Scan performance logging split
+
+The `SCAN_PERF_LOGS_ENABLED` environment/config flag lives in `config.py`. Runtime scan performance data and helpers (`SCAN_PERF_LOGS`, `_new_scan_perf()`, `_elapsed_ms()`) live in `scan.py`. This keeps configuration centralized while keeping scan timing behaviour close to the scan route.
 
 ### 5.5 `GIT_COMMIT` in `health.py`
 
@@ -163,25 +180,13 @@ The `diskcache.Cache` instance for thumbnail persistence is created in `thumbnai
 
 This route lives in `static_files.py` alongside the root `/` route and production SPA fallback.
 
+`static_files.py` must be included **last** in `app.py`. The SPA catch-all fallback must never intercept `/api/*` routes. If a catch-all receives a path starting with `api/`, it should return 404 instead of serving `index.html`.
+
 ### 5.8 `services/` directory deletion
 
 After all logic is moved to the flat modules, the entire `backend/services/` directory is deleted. There is no "temporary compatibility wrapper" kept past the final commit.
 
-### 5.9 `main.py` supports both package import and direct execution
-
-```python
-try:
-    from .app import app
-except ImportError:
-    from app import app
-
-if __name__ == "__main__":
-    import uvicorn
-    from config import HOST, PORT
-    uvicorn.run(app, host=HOST, port=PORT)
-```
-
-### 5.10 `start.py` needs NO changes
+### 5.9 `start.py` needs NO changes
 
 The existing `start.py` continues to work because `backend/main.py` remains a valid entrypoint shim.
 
@@ -206,12 +211,18 @@ app.py
 ├── health.py ───────────► (standalone + GIT_COMMIT)
 └── static_files.py ─────► config.py
 
-metadata_extract.py   ← no internal imports (stdlib-only + Pillow)
+metadata_extract.py   ← no app-layer imports (stdlib-only + Pillow; no FastAPI/SQLite)
 metadata_store.py     ← metadata_extract.py, config.py
 metadata_parse.py     ← metadata_extract.py, metadata_store.py, files.py, config.py
 ```
 
 No circular imports exist in this graph.
+
+
+Router registration order rule:
+- `static_files_router` must be included last in `app.py`.
+- SPA fallback must not intercept `/api/*` routes.
+- API routers must be registered before frontend static/fallback routes.
 
 ---
 
@@ -240,11 +251,11 @@ No circular imports exist in this graph.
 - Extract remaining route handlers from `main.py`
 - Wire routers in `app.py`
 - Move Prometheus/pyinstrument setup to `app.py`
-- Move `SCAN_PERF_LOGS` to `scan.py`, `GIT_COMMIT` to `health.py`
+- Move runtime `SCAN_PERF_LOGS` helpers to `scan.py`, `SCAN_PERF_LOGS_ENABLED` to `config.py`, `GIT_COMMIT` to `health.py` or read it from `config.py`
 - Verify all routes are registered
 
 **Commit 5** — Tests, docs, cleanup
-- Add backend smoke tests under `backend/tests/` if not present
+- Add backend smoke tests under `backend/test/` if not present
 - Update `docs/ARCHITECTURE.md` and `docs/DEVELOPMENT.md` with new module map
 - Verify `backend/main.py` is reduced to a compatibility shim
 - Final validation pass
@@ -261,6 +272,8 @@ No circular imports exist in this graph.
 - [ ] Missing/invalid thumbnail path does not crash the backend
 - [ ] `services/` directory no longer exists
 - [ ] No circular imports detected
+- [ ] `static_files_router` is included last and SPA fallback does not intercept `/api/*`
+- [ ] `pytest backend/test` succeeds if tests are added under `backend/test/`
 - [ ] `start.py` starts the app without modification
 - [ ] Lint/typecheck pass (if configured)
 - [ ] Existing smoke/perf tests pass
@@ -275,10 +288,11 @@ No circular imports exist in this graph.
 4. No thumbnail generation/caching behaviour changes.
 5. No metadata parsing behaviour changes.
 6. No scan output or search output behaviour changes.
-7. `backend/main.py` is reduced to a small compatibility shim (`from app import app`).
+7. `backend/main.py` is reduced to a small package-safe compatibility shim.
 8. `backend/app.py` is small and only composes the backend (no business logic).
 9. No vague names (`helper`, `common`, `manager`, `processor`, `service`, `utils`) introduced.
 10. The flat module structure matches the target layout above.
 11. Docs (`ARCHITECTURE.md`, `DEVELOPMENT.md`) reflect the new structure.
 12. `services/` directory is fully deleted.
 13. No circular imports anywhere in the graph.
+14. `static_files.py` SPA fallback is registered last and never intercepts `/api/*` routes.
