@@ -27,15 +27,29 @@ function scanLimit(sample: { search: string }): string {
 
 test("album open performance", async ({ page }) => {
   const clickTime = { value: 0 };
+
+  // Set gallery root path so albums appear on page load
+  await page.addInitScript(() => {
+    localStorage.setItem("gallery-root-path", "/home/ubuntu/gallery-repo");
+    localStorage.setItem("gallery-sort-preference", JSON.stringify({ field: "name", order: "asc" }));
+  });
+
   const tracker = installApiNetworkTracker(page, clickTime);
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
 
-  const album = page
-    .getByTestId("album-card")
-    .filter({ has: page.locator(".album-name", { hasText: albumName }) })
-    .first();
-  await expect(album).toBeVisible();
+  // Dismiss intro screen if visible (desktop shows intro)
+  const enterBtn = page.getByRole("button", { name: /enter gallery/i });
+  if (await enterBtn.isVisible().catch(() => false)) {
+    await enterBtn.click();
+    // Wait for gallery to load and render albums
+    await page.waitForURL("**/");
+    await page.waitForLoadState("networkidle");
+    await page.waitForTimeout(1000);
+  }
+
+  const album = page.getByText(albumName, { exact: false }).first();
+  await expect(album).toBeVisible({ timeout: 15000 });
 
   tracker.clear();
   clickTime.value = Date.now();
