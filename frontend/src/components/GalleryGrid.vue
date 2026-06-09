@@ -328,7 +328,9 @@ const images = computed(() =>
 
 const isLoading = computed(() => galleryStore.galleryLoading || (currentScanQuery.isLoading.value && !galleryStore.hasEverLoaded));
 const isRefetching = computed(() => currentScanQuery.isFetching.value && !currentScanQuery.isLoading.value);
-const isSearchLoading = computed(() => hasSearchQuery.value && unifiedSearchQuery.isLoading.value);
+const isSearchLoading = computed(
+  () => hasSearchQuery.value && (unifiedSearchQuery.isLoading.value || unifiedSearchQuery.isFetching.value),
+);
 const currentPath = computed(() => galleryStore.currentPath);
 const canBack = computed(() => galleryStore.historyIndex > 0);
 const canForward = computed(
