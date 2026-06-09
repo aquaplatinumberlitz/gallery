@@ -5,7 +5,6 @@ import { useToastStore } from "./toast";
 import { IMAGE_PAGE_SIZE } from "../constants";
 import { fetchScan, fetchScanOrThrow, getCachedScan, isScanFresh } from "../composables/useScanQuery";
 
-type LoadingMap = Record<string, boolean>;
 const STORAGE_KEY = "gallery-root-path";
 const SORT_STORAGE_KEY = "gallery-sort-preference";
 
@@ -101,7 +100,6 @@ export const useGalleryStore = defineStore("gallery", {
       loadingMoreImages: false,
       galleryLoading: false,
       isRefetching: false,
-      loadingMap: {} as LoadingMap,
       history: [] as string[],
       historyIndex: -1,
       hasEverLoaded: false,
@@ -246,38 +244,8 @@ export const useGalleryStore = defineStore("gallery", {
       return true;
     },
 
-    async toggleFolder(node: FileNode) {
+    toggleFolder(node: FileNode) {
       node.isOpen = !node.isOpen;
-
-      const shouldLoadChildren =
-        node.isOpen && node.children === undefined && node.has_children;
-
-      if (!shouldLoadChildren) {
-        return;
-      }
-
-      this.loadingMap = { ...this.loadingMap, [node.path]: true };
-
-      const children = await _withError(
-        this,
-        () => scanDirectory(node.path),
-        "Unable to load folder contents. Please try again.",
-        () => {
-          node.isOpen = false;
-          node.children = undefined;
-          this.toggleFolder(node);
-        },
-        { noFallbackRetry: true }
-      );
-
-      if (!children) {
-        node.children = [];
-      } else {
-        node.children = normalizeNodes(children.folders);
-      }
-
-      const { [node.path]: _, ...rest } = this.loadingMap;
-      this.loadingMap = rest;
     },
 
     selectFolder(nodeOrPath: FileNode | string) {

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, inject } from "vue";
+import { computed, ref, inject, watch } from "vue";
 import { useGalleryStore } from "../stores/gallery";
 import type { FileNode } from "../types";
 import { ChevronDown, ChevronRight, Folder, FolderOpen, Loader } from "lucide-vue-next";
 import { useDevice } from "../composables/useDevice";
+import { useFolderChildrenQuery } from "../composables/useFolderChildrenQuery";
 import { closeSidebarKey } from "../injectionKeys";
 
 defineOptions({ name: "FolderTreeItem" });
@@ -22,7 +23,21 @@ const closeSidebar = inject(closeSidebarKey, () => {});
 const itemRef = ref<HTMLElement | null>(null);
 
 const isActive = computed(() => props.activePath === props.node.path);
-const isLoading = computed(() => !!galleryStore.loadingMap[props.node.path]);
+const childrenQueryEnabled = computed(() => !!props.node.isOpen && !!props.node.has_children);
+const folderChildrenQuery = useFolderChildrenQuery(
+  computed(() => props.node.path),
+  childrenQueryEnabled
+);
+const isLoading = computed(() =>
+  props.node.children === undefined &&
+  (folderChildrenQuery.isLoading.value || folderChildrenQuery.isFetching.value)
+);
+const hasLoadError = computed(() => folderChildrenQuery.isError.value);
+const loadErrorMessage = computed(() => {
+  const error = folderChildrenQuery.error.value;
+  const userMessage = (error as { userMessage?: string } | null)?.userMessage;
+  return userMessage || "Unable to load folder.";
+});
 
 const folderIcon = computed(() =>
   props.node.isOpen
@@ -70,6 +85,16 @@ const handleKeydown = (e: KeyboardEvent) => {
       break;
   }
 };
+
+watch(
+  () => folderChildrenQuery.folders.value,
+  (folders) => {
+    if (!props.node.isOpen || !props.node.has_children || !folderChildrenQuery.isSuccess.value) return;
+    // Temporary compatibility bridge: recursive rendering still reads nested FileNode.children.
+    props.node.children = folders;
+  },
+  { immediate: true }
+);
 </script>
 
 <template>
@@ -107,6 +132,13 @@ const handleKeydown = (e: KeyboardEvent) => {
         :active-path="activePath"
         :level="level + 1"
       />
+    </div>
+
+    <div
+      v-else-if="node.isOpen && hasLoadError"
+      class="empty-children"
+    >
+      {{ loadErrorMessage }}
     </div>
 
     <div
