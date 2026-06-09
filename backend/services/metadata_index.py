@@ -36,6 +36,9 @@ class ExtractedMetadata:
     size: int
     width: int | None
     height: int | None
+    format: str
+    mode: str
+    has_alpha: int
     prompt: str
     negative_prompt: str
     model: str
@@ -48,8 +51,23 @@ class ExtractedMetadata:
     indexed_at: float
 
 
+@dataclass(frozen=True)
+class CachedDimensions:
+    width: int
+    height: int
+
+
 def contains_cjk(query: str) -> bool:
     return bool(CJK_RE.search(query))
+
+
+def _table_columns(conn: sqlite3.Connection, table_name: str) -> set[str]:
+    return {row["name"] for row in conn.execute(f"PRAGMA table_info({table_name})")}
+
+
+def _ensure_column(conn: sqlite3.Connection, table_name: str, column_name: str, column_sql: str) -> None:
+    if column_name not in _table_columns(conn, table_name):
+        conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_sql}")
 
 
 def _connect() -> sqlite3.Connection:
@@ -57,6 +75,7 @@ def _connect() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
@@ -73,6 +92,9 @@ def initialize_database() -> None:
               size INTEGER,
               width INTEGER,
               height INTEGER,
+              format TEXT,
+              mode TEXT,
+              has_alpha INTEGER,
               prompt TEXT,
               negative_prompt TEXT,
               model TEXT,
@@ -82,6 +104,7 @@ def initialize_database() -> None:
               cfg_scale REAL,
               raw_metadata_text TEXT,
               metadata_json TEXT,
+              updated_at REAL,
               indexed_at REAL
             );
 
@@ -150,6 +173,16 @@ def initialize_database() -> None:
               parent_path UNINDEXED,
               tokenize='unicode61'
             );
+            """
+        )
+        _ensure_column(conn, "image_metadata", "format", "TEXT")
+        _ensure_column(conn, "image_metadata", "mode", "TEXT")
+        _ensure_column(conn, "image_metadata", "has_alpha", "INTEGER")
+        _ensure_column(conn, "image_metadata", "updated_at", "REAL")
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_image_metadata_mtime_size
+              ON image_metadata(path, mtime, size)
             """
         )
 
@@ -267,8 +300,11 @@ def _parse_comfy_text(prompt_json: str, workflow_json: str) -> dict[str, Any]:
     }
 
 
-def _read_image_info(path: Path) -> tuple[int | None, int | None, dict[str, str]]:
+def _read_image_info(path: Path) -> tuple[int | None, int | None, str, str, int, dict[str, str]]:
     with Image.open(path) as img:
+        image_format = img.format or ""
+        mode = img.mode or ""
+        has_alpha = 1 if (img.mode in {"RGBA", "LA"} or (img.mode == "P" and "transparency" in img.info)) else 0
         img = ImageOps.exif_transpose(img)
         width, height = img.size
         info = {str(key): _safe_text(value) for key, value in img.info.items() if _safe_text(value)}
@@ -280,16 +316,19 @@ def _read_image_info(path: Path) -> tuple[int | None, int | None, dict[str, str]
             user_comment = _safe_text(exif.get(37510))
             if user_comment:
                 info.setdefault("UserComment", user_comment)
-    return width, height, info
+    return width, height, image_format, mode, has_alpha, info
 
 
 def extract_metadata(path: Path) -> ExtractedMetadata:
     stat = path.stat()
     width: int | None = None
     height: int | None = None
+    image_format = ""
+    mode = ""
+    has_alpha = 0
     info: dict[str, str] = {}
     try:
-        width, height, info = _read_image_info(path)
+        width, height, image_format, mode, has_alpha, info = _read_image_info(path)
     except (UnidentifiedImageError, OSError, Image.DecompressionBombError):
         info = {}
 
@@ -327,6 +366,9 @@ def extract_metadata(path: Path) -> ExtractedMetadata:
         size=stat.st_size,
         width=width,
         height=height,
+        format=image_format,
+        mode=mode,
+        has_alpha=has_alpha,
         prompt=_safe_text(normalized.get("prompt")),
         negative_prompt=_safe_text(normalized.get("negative_prompt")),
         model=_safe_text(normalized.get("model")),
@@ -367,14 +409,18 @@ def index_image(path: Path) -> bool:
             """
             INSERT INTO image_metadata (
               path, name, mtime, size, width, height, prompt, negative_prompt,
-              model, sampler, seed, steps, cfg_scale, raw_metadata_text, metadata_json, indexed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              format, mode, has_alpha, model, sampler, seed, steps, cfg_scale,
+              raw_metadata_text, metadata_json, updated_at, indexed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(path) DO UPDATE SET
               name=excluded.name,
               mtime=excluded.mtime,
               size=excluded.size,
               width=excluded.width,
               height=excluded.height,
+              format=excluded.format,
+              mode=excluded.mode,
+              has_alpha=excluded.has_alpha,
               prompt=excluded.prompt,
               negative_prompt=excluded.negative_prompt,
               model=excluded.model,
@@ -384,6 +430,7 @@ def index_image(path: Path) -> bool:
               cfg_scale=excluded.cfg_scale,
               raw_metadata_text=excluded.raw_metadata_text,
               metadata_json=excluded.metadata_json,
+              updated_at=excluded.updated_at,
               indexed_at=excluded.indexed_at
             """,
             (
@@ -395,6 +442,9 @@ def index_image(path: Path) -> bool:
                 metadata.height,
                 metadata.prompt,
                 metadata.negative_prompt,
+                metadata.format,
+                metadata.mode,
+                metadata.has_alpha,
                 metadata.model,
                 metadata.sampler,
                 metadata.seed,
@@ -402,6 +452,7 @@ def index_image(path: Path) -> bool:
                 metadata.cfg_scale,
                 metadata.raw_metadata_text,
                 metadata.metadata_json,
+                metadata.indexed_at,
                 metadata.indexed_at,
             ),
         )
@@ -417,6 +468,188 @@ def index_images(paths: Iterable[str | Path]) -> int:
         except Exception:
             continue
     return indexed
+
+
+def get_cached_dimensions_for_files(files: Iterable[tuple[str | Path, float, int]]) -> dict[str, CachedDimensions]:
+    """Return cached dimensions for files whose mtime and size still match."""
+    file_rows = [(str(Path(path).resolve()), mtime, size) for path, mtime, size in files]
+    if not file_rows:
+        return {}
+
+    initialize_database()
+    cached: dict[str, CachedDimensions] = {}
+    expected = {path: (mtime, size) for path, mtime, size in file_rows}
+    paths = list(expected)
+
+    with _DB_LOCK, _connect() as conn:
+        for start in range(0, len(paths), 900):
+            chunk = paths[start : start + 900]
+            placeholders = ",".join("?" for _ in chunk)
+            rows = conn.execute(
+                f"""
+                SELECT path, mtime, size, width, height
+                FROM image_metadata
+                WHERE path IN ({placeholders})
+                  AND width IS NOT NULL
+                  AND height IS NOT NULL
+                """,
+                chunk,
+            )
+            for row in rows:
+                expected_mtime, expected_size = expected[row["path"]]
+                if row["mtime"] == expected_mtime and row["size"] == expected_size:
+                    cached[row["path"]] = CachedDimensions(width=row["width"], height=row["height"])
+
+    return cached
+
+
+def upsert_image_dimensions(
+    path: str | Path,
+    width: int | None,
+    height: int | None,
+    *,
+    image_format: str = "",
+    mode: str = "",
+    has_alpha: int | bool | None = None,
+) -> bool:
+    """Insert or update dimensions for an image opened by thumbnail/metadata paths."""
+    if width is None or height is None:
+        return False
+
+    image_path = Path(path)
+    if not is_image_path(image_path):
+        return False
+
+    try:
+        stat = image_path.stat()
+    except OSError:
+        return False
+
+    resolved_path = str(image_path.resolve())
+    alpha_value = None if has_alpha is None else int(bool(has_alpha))
+    now = time.time()
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO image_metadata (
+              path, name, mtime, size, width, height, format, mode, has_alpha,
+              prompt, negative_prompt, model, sampler, seed, raw_metadata_text,
+              metadata_json, updated_at, indexed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', '', '', '', '', '', ?, ?)
+            ON CONFLICT(path) DO UPDATE SET
+              name=excluded.name,
+              mtime=excluded.mtime,
+              size=excluded.size,
+              width=excluded.width,
+              height=excluded.height,
+              format=excluded.format,
+              mode=excluded.mode,
+              has_alpha=excluded.has_alpha,
+              updated_at=excluded.updated_at
+            """,
+            (
+                resolved_path,
+                image_path.name,
+                stat.st_mtime,
+                stat.st_size,
+                width,
+                height,
+                image_format,
+                mode,
+                alpha_value,
+                now,
+                now,
+            ),
+        )
+    return True
+
+
+def _metadata_param(metadata: dict[str, Any], *names: str) -> Any:
+    params = metadata.get("params")
+    if not isinstance(params, dict):
+        return None
+    for name in names:
+        if name in params:
+            return params[name]
+    return None
+
+
+def upsert_metadata_result(path: str | Path, metadata: dict[str, Any]) -> bool:
+    """Insert or update full metadata for an image opened by parse_metadata()."""
+    image_path = Path(path)
+    if not is_image_path(image_path):
+        return False
+
+    try:
+        stat = image_path.stat()
+    except OSError:
+        return False
+
+    width = metadata.get("width")
+    height = metadata.get("height")
+    prompt = _safe_text(metadata.get("prompt"))
+    negative_prompt = _safe_text(metadata.get("negative_prompt"))
+    model = _safe_text(_metadata_param(metadata, "Model", "model"))
+    sampler = _safe_text(_metadata_param(metadata, "Sampler", "sampler"))
+    seed = _safe_text(_metadata_param(metadata, "Seed", "seed"))
+    steps = _parse_int(_safe_text(_metadata_param(metadata, "Steps", "steps")))
+    cfg_scale = _parse_float(_safe_text(_metadata_param(metadata, "CFG", "CFG scale", "cfg_scale", "cfg")))
+    metadata_json = json.dumps(metadata, ensure_ascii=False, sort_keys=True)
+    raw_metadata_text = "\n".join(
+        text for text in (prompt, negative_prompt, model, sampler, seed, metadata_json) if text
+    )
+    now = time.time()
+    resolved_path = str(image_path.resolve())
+
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO image_metadata (
+              path, name, mtime, size, width, height, prompt, negative_prompt,
+              model, sampler, seed, steps, cfg_scale, raw_metadata_text,
+              metadata_json, updated_at, indexed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(path) DO UPDATE SET
+              name=excluded.name,
+              mtime=excluded.mtime,
+              size=excluded.size,
+              width=COALESCE(excluded.width, image_metadata.width),
+              height=COALESCE(excluded.height, image_metadata.height),
+              prompt=excluded.prompt,
+              negative_prompt=excluded.negative_prompt,
+              model=excluded.model,
+              sampler=excluded.sampler,
+              seed=excluded.seed,
+              steps=excluded.steps,
+              cfg_scale=excluded.cfg_scale,
+              raw_metadata_text=excluded.raw_metadata_text,
+              metadata_json=excluded.metadata_json,
+              updated_at=excluded.updated_at,
+              indexed_at=excluded.indexed_at
+            """,
+            (
+                resolved_path,
+                image_path.name,
+                stat.st_mtime,
+                stat.st_size,
+                width if isinstance(width, int) else None,
+                height if isinstance(height, int) else None,
+                prompt,
+                negative_prompt,
+                model,
+                sampler,
+                seed,
+                steps,
+                cfg_scale,
+                raw_metadata_text,
+                metadata_json,
+                now,
+                now,
+            ),
+        )
+    return True
 
 
 def _path_value(item: Any, key: str, default: Any = None) -> Any:
@@ -545,7 +778,7 @@ def index_files_from_scan(folders: list[Any], images: list[Any]) -> int:
     return indexed
 
 
-def index_directory_tree(root: str | Path) -> int:
+def index_directory_tree(root: str | Path, include_metadata: bool = False) -> int:
     root_path = Path(root)
     indexed = 0
     image_paths: list[Path] = []
@@ -581,7 +814,8 @@ def index_directory_tree(root: str | Path) -> int:
                 continue
 
     visit(root_path)
-    indexed += index_images(image_paths)
+    if include_metadata:
+        indexed += index_images(image_paths)
     return indexed
 
 

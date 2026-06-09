@@ -24,10 +24,30 @@ from prometheus_fastapi_instrumentator import Instrumentator
 import pyinstrument
 import threading
 try:
-    from services.metadata_index import cleanup_stale_index, index_directory_tree, index_file, index_files_from_scan, index_images, search_index, search_metadata
+    from services.metadata_index import (
+        cleanup_stale_index,
+        get_cached_dimensions_for_files,
+        index_directory_tree,
+        index_file,
+        index_files_from_scan,
+        search_index,
+        search_metadata,
+        upsert_image_dimensions,
+        upsert_metadata_result,
+    )
     from services.album_utils import is_image, build_album_metadata, has_subfolders
 except ModuleNotFoundError:
-    from backend.services.metadata_index import cleanup_stale_index, index_directory_tree, index_file, index_files_from_scan, index_images, search_index, search_metadata
+    from backend.services.metadata_index import (
+        cleanup_stale_index,
+        get_cached_dimensions_for_files,
+        index_directory_tree,
+        index_file,
+        index_files_from_scan,
+        search_index,
+        search_metadata,
+        upsert_image_dimensions,
+        upsert_metadata_result,
+    )
     from backend.services.album_utils import is_image, build_album_metadata, has_subfolders
 
 
@@ -227,6 +247,7 @@ def scan_directory(target_path: Path) -> tuple[list[FileNode], list[FileNode], d
 
     folders: list[FileNode] = []
     images: list[FileNode] = []
+    image_entries: list[tuple[str, str, float, int]] = []
     try:
         list_started = time.perf_counter()
         entries = list(os.scandir(target_path))
@@ -274,25 +295,43 @@ def scan_directory(target_path: Path) -> tuple[list[FileNode], list[FileNode], d
             if is_image_file:
                 try:
                     stat_started = time.perf_counter()
-                    mtime = entry.stat().st_mtime
+                    stat = entry.stat()
+                    mtime = stat.st_mtime
+                    size = stat.st_size
                 except OSError:
                     mtime = 0
+                    size = 0
                 finally:
                     perf["stat_ms"] += _elapsed_ms(stat_started)
-                images.append(
-                    FileNode(
-                        name=entry.name,
-                        path=str(entry_path.resolve()),
-                        type="image",
-                        has_children=False,
-                        cover_images=[],
-                        mtime=mtime,
-                        width=None,
-                        height=None,
-                    )
-                )
+
+                try:
+                    resolved_path = str(entry_path.resolve())
+                except OSError:
+                    resolved_path = str(entry_path.absolute())
+                image_entries.append((entry.name, resolved_path, mtime, size))
             else:
                 continue  # ignore non-image files
+
+        metadata_started = time.perf_counter()
+        cached_dimensions = get_cached_dimensions_for_files(
+            (path, mtime, size) for _, path, mtime, size in image_entries
+        )
+        perf["metadata_ms"] += _elapsed_ms(metadata_started)
+
+        for name, path, mtime, _size in image_entries:
+            dimensions = cached_dimensions.get(path)
+            images.append(
+                FileNode(
+                    name=name,
+                    path=path,
+                    type="image",
+                    has_children=False,
+                    cover_images=[],
+                    mtime=mtime,
+                    width=dimensions.width if dimensions else None,
+                    height=dimensions.height if dimensions else None,
+                )
+            )
     except PermissionError:
         raise APIError(403, ErrorType.PERMISSION_DENIED, "Permission denied")
 
@@ -379,13 +418,12 @@ async def api_scan(
     next_cursor = end if end < total_images else None
     pagination_ms = _elapsed_ms(pagination_started)
 
-    background_tasks.add_task(index_images, [image.path for image in images])
     target_stat_started = time.perf_counter()
     target_mtime = target.stat().st_mtime
     scan_perf["stat_ms"] += _elapsed_ms(target_stat_started)
     background_tasks.add_task(index_file, target, target.name or str(target), target.parent, "folder", target_mtime, None, None, None)
     background_tasks.add_task(index_files_from_scan, folders, images)
-    background_tasks.add_task(index_directory_tree, target)
+    background_tasks.add_task(index_directory_tree, target, False)
 
     response_payload = {
         "folders": folders,
@@ -552,6 +590,19 @@ def _check_image_limits(path: Path) -> None:
 def _render_thumbnail_impl(path: Path, max_size: int, quality: int) -> bytes:
     """Render WebP thumbnail bytes (no caching here)."""
     with Image.open(path) as img:
+        source_width, source_height = img.size
+        source_format = img.format or ""
+        source_mode = img.mode or ""
+        source_has_alpha = source_mode in {"RGBA", "LA"} or (source_mode == "P" and "transparency" in img.info)
+        upsert_image_dimensions(
+            path,
+            source_width,
+            source_height,
+            image_format=source_format,
+            mode=source_mode,
+            has_alpha=source_has_alpha,
+        )
+
         # Auto-rotate image based on EXIF orientation
         img = ImageOps.exif_transpose(img)
         
@@ -1285,6 +1336,7 @@ def parse_metadata(path: Path) -> dict:
 
     try:
         metadata = _parse_metadata_uncached(path)
+        upsert_metadata_result(path, metadata)
         with _metadata_cache_lock:
             _metadata_cache[key] = metadata
         future.set_result(metadata)
