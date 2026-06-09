@@ -17,6 +17,7 @@ import { compareNatural } from "../composables/useNaturalSort";
 import { useColumnResize, PHOTO_GRID_LEVELS, GRID_COLUMN_MAP } from "../composables/useColumnResize";
 import { useDevice } from "../composables/useDevice";
 import { usePullToRefresh } from "../composables/usePullToRefresh";
+import { useDelayedBoolean } from "../composables/useDelayedBoolean";
 import { useInfiniteScanQuery } from "../composables/useInfiniteScanQuery";
 import { useUnifiedSearchQuery } from "../composables/useUnifiedSearchQuery";
 import { galleryScrollContainerRefKey } from "../injectionKeys";
@@ -329,6 +330,24 @@ const canForward = computed(
 );
 const hasMoreImages = computed(() => !hasSearchQuery.value && infiniteScanQuery.hasNextPage.value);
 const hasAnyItems = computed(() => scanFolders.value.length + scanImages.value.length > 0);
+
+const pathReady = computed(() => Boolean(infiniteScanQuery.activeFolderPath.value || galleryStore.rootPath));
+
+const hasAlbums = computed(() => folders.value.length > 0);
+const hasPhotos = computed(() => images.value.length > 0);
+const hasContent = computed(() => hasAlbums.value || hasPhotos.value);
+
+const showEmptyFolder = computed(() =>
+  pathReady.value &&
+  infiniteScanQuery.isSuccess.value &&
+  !infiniteScanQuery.isPending.value &&
+  !infiniteScanQuery.isFetching.value &&
+  !hasContent.value &&
+  !hasSearchQuery.value
+);
+
+const showEmptyFolderDelayed = useDelayedBoolean(showEmptyFolder, 250);
+
 const hasNoPath = computed(() => !galleryStore.currentPath && !galleryStore.rootPath);
 const hasNotLoaded = computed(() => !galleryStore.hasEverLoaded && (!!galleryStore.currentPath || !!galleryStore.rootPath));
 const showGallerySkeleton = computed(() =>
@@ -349,7 +368,7 @@ const noSearchResults = computed(
     searchAlbums.value.length === 0 &&
     searchPhotos.value.length === 0 &&
     searchPrompt.value.length === 0 &&
-    hasAnyItems.value
+    unifiedSearchQuery.isSuccess.value
 );
 const scanQueryErrorMessage = computed(() => {
   const error = infiniteScanQuery.error.value;
@@ -1015,7 +1034,7 @@ onBeforeUnmount(() => {
       
       <!-- Empty Folder -->
       <EmptyState
-        v-else-if="!folders.length && !images.length"
+        v-else-if="showEmptyFolderDelayed"
         type="empty-folder"
         title="This folder is empty"
         description="No images or subfolders found in this location"
