@@ -1,11 +1,12 @@
 import { createCollection, queryCollectionOptions, queryClient } from "../index";
 import { fetchLandingPages } from "../../services/api";
+import { queryKeys } from "../../query/keys";
 
 export interface LandingPage {
   url: string;
 }
 
-export const landingPagesQueryKey = ["landing-pages"] as const;
+export const landingPagesQueryKey = queryKeys.landingPages();
 
 export const landingPagesCollection = createCollection(
   queryCollectionOptions({

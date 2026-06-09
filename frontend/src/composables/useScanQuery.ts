@@ -4,13 +4,10 @@ import { IMAGE_PAGE_SIZE } from "../constants";
 import { scanDirectory } from "../services/api";
 import type { ScanResponse } from "../types";
 import { queryClient } from "../query";
+import { queryKeys } from "../query/keys";
 
 function normalizeQueryPath(path: string): string {
   return path.trim().replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "");
-}
-
-export function getScanQueryKey(path: string) {
-  return ["scan", normalizeQueryPath(path), IMAGE_PAGE_SIZE] as const;
 }
 
 export function useScanQuery(path: Ref<string>) {
@@ -18,7 +15,7 @@ export function useScanQuery(path: Ref<string>) {
 
   const queryKey = computed(() =>
     normalizedPath.value
-      ? getScanQueryKey(normalizedPath.value)
+      ? queryKeys.scan(normalizedPath.value, IMAGE_PAGE_SIZE)
       : []
   );
 
@@ -44,7 +41,7 @@ export function prefetchScan(path: string) {
   const normalized = normalizeQueryPath(path);
   if (!normalized) return;
   queryClient.prefetchQuery({
-    queryKey: getScanQueryKey(normalized),
+    queryKey: queryKeys.scan(normalized, IMAGE_PAGE_SIZE),
     queryFn: () => scanDirectory(normalized, { imageLimit: IMAGE_PAGE_SIZE, imageCursor: 0 }),
     staleTime: 60_000,
   });
@@ -57,7 +54,7 @@ export function prefetchScan(path: string) {
 export function getCachedScan(path: string): ScanResponse | undefined {
   const normalized = normalizeQueryPath(path);
   if (!normalized) return undefined;
-  return queryClient.getQueryData<ScanResponse>(getScanQueryKey(normalized));
+  return queryClient.getQueryData<ScanResponse>(queryKeys.scan(normalized, IMAGE_PAGE_SIZE));
 }
 
 /**
@@ -71,7 +68,7 @@ export async function fetchScan(path: string): Promise<ScanResponse | undefined>
   if (!normalized) return undefined;
   try {
     return await queryClient.fetchQuery({
-      queryKey: getScanQueryKey(normalized),
+      queryKey: queryKeys.scan(normalized, IMAGE_PAGE_SIZE),
       queryFn: () => scanDirectory(normalized, { imageLimit: IMAGE_PAGE_SIZE, imageCursor: 0 }),
       staleTime: 60_000,
     });
@@ -86,7 +83,7 @@ export async function fetchScan(path: string): Promise<ScanResponse | undefined>
 export function isScanFresh(path: string): boolean {
   const normalized = normalizeQueryPath(path);
   if (!normalized) return false;
-  const state = queryClient.getQueryState(getScanQueryKey(normalized));
+  const state = queryClient.getQueryState(queryKeys.scan(normalized, IMAGE_PAGE_SIZE));
   if (!state || !state.data) return false;
   const staleAt = (state.dataUpdatedAt || 0) + 60_000;
   return Date.now() < staleAt;
@@ -99,7 +96,7 @@ export function isScanFresh(path: string): boolean {
 export function setCachedScan(path: string, data: ScanResponse) {
   const normalized = normalizeQueryPath(path);
   if (!normalized) return;
-  queryClient.setQueryData(getScanQueryKey(normalized), data);
+  queryClient.setQueryData(queryKeys.scan(normalized, IMAGE_PAGE_SIZE), data);
 }
 
 /**
@@ -109,5 +106,5 @@ export function setCachedScan(path: string, data: ScanResponse) {
 export function invalidateScan(path: string) {
   const normalized = normalizeQueryPath(path);
   if (!normalized) return;
-  queryClient.invalidateQueries({ queryKey: ["scan", normalized] });
+  queryClient.invalidateQueries({ queryKey: queryKeys.scan(normalized, IMAGE_PAGE_SIZE) });
 }

@@ -1,0 +1,135 @@
+# TanStack Migration Plan
+
+Last reviewed: 2026-06-09
+
+This plan keeps the TanStack migration incremental. It documents the ownership boundary first, then limits each phase to one behavioral surface.
+
+## Current Installation and Runtime Use
+
+Installed TanStack libraries:
+
+- `@tanstack/vue-query`
+- `@tanstack/vue-virtual`
+- `@tanstack/db`
+- `@tanstack/query-db-collection`
+- `@tanstack/vue-db`
+- `@tanstack/vue-form`
+- `@tanstack/vue-table`
+- `@tanstack/vue-query-devtools`
+
+Runtime use today:
+
+- TanStack Query is installed through `frontend/src/query/index.ts` and caches first-page `/api/scan` responses.
+- TanStack Virtual is used by `GalleryGrid.vue` for desktop/tablet row virtualization.
+- TanStack DB, Query Collection, and Vue DB are present as a beta foundation with a landing-pages pilot collection.
+- Query Devtools are dynamically registered in development mode.
+- TanStack Form and Table are installed foundations only and are not used in runtime UI.
+
+## State Ownership
+
+Pinia owns:
+
+- UI/navigation state
+- `rootPath` and `currentPath`
+- history/back-forward
+- selected folder/open state
+- sort/view preferences
+- search input/scope
+- lightbox open/index/UI state
+- mobile sheet/UI state
+
+TanStack Query owns:
+
+- API/server state
+- loading/error/fetching state
+- cache, `staleTime`, and `gcTime`
+- refetch/invalidate
+- `/api/scan`
+- `/api/search`
+- `/api/metadata` if migrated
+- `/api/landing-pages` if using Query directly
+- future mutations
+
+TanStack DB owns only:
+
+- collection/live-query layer when data has stable keys
+- local reactive querying across loaded collection data
+- Query Collection only when endpoint semantics are compatible
+- landing pages pilot if kept
+
+## Current Boundary
+
+The current gallery scan flow is hybrid for compatibility. TanStack Query caches the first scan page by deterministic key. The Pinia gallery store still copies that data into its existing folder/image state so the rest of the UI can continue to render without a broad rewrite.
+
+Search, metadata, infinite image loading, and folder tree loading still call the API from Pinia/store code or lightbox code directly. They are not yet TanStack Query source-of-truth flows.
+
+TanStack DB currently wraps only `/api/landing-pages` into a Query Collection. The API response is normalized from `string[]` to `{ url }[]`, and `url` is the collection key.
+
+## Why Query Is the Default
+
+Plain TanStack Query matches this app's REST/API data model directly:
+
+- request identity is explicit in the query key
+- loading, fetching, error, stale, cache, and garbage-collection state stay with the server response
+- refetching and invalidation are endpoint-oriented
+- future writes can use Query mutations without requiring a local collection model first
+
+Use Query by default for API/server state. Add DB only when a collection/live-query layer has stable keys and a clear definition of the complete collection state for its scope.
+
+## Query Collection Warning
+
+Query Collection treats the query result as the synced collection state for that scope. That is a good fit when the endpoint returns the complete set of rows for a stable collection scope.
+
+Endpoint subsets, search results, and cursor pages can be wrong if modeled as full collection sync. A search response is a filtered subset, a scan response is scoped to a path and may contain only the first image page, and infinite loading returns cursor pages that are intentionally partial. Modeling those as complete collection state can create replacement or deletion semantics that do not match the backend.
+
+Therefore search, scan, and infinite load stay with plain TanStack Query first. Do not use TanStack DB for those flows until collection scope, stable keys, and full-state semantics are designed.
+
+## Approved Phase Order
+
+0. Standardize queryKeys/queryOptions
+
+1. Landing pages: finish DB pilot or use Query directly
+
+2. Search: plain TanStack Query, not DB
+
+3. Metadata: plain TanStack Query if needed
+
+4. First scan page: TanStack Query source of truth, not DB
+
+5. Infinite load: useInfiniteQuery, not DB
+
+6. Folder tree: query-ify later
+
+7. DB only for collection/live-query cases with stable keys and clear full-state semantics
+
+## Phase 0 Scope
+
+Phase 0 creates a centralized query key module and refactors existing Query/DB pilot code to use it.
+
+Allowed:
+
+- centralize keys in `frontend/src/query/keys.ts`
+- update existing `/api/scan` Query helpers to use `queryKeys.scan(...)`
+- update the landing-pages Query Collection to use `queryKeys.landingPages()`
+
+Not allowed:
+
+- migrate search to Query
+- migrate metadata to Query
+- migrate `/api/scan` source of truth
+- migrate infinite load
+- migrate folder tree
+- wire landing pages UI differently
+- change backend behavior
+- change UI/UX
+
+## Hard Rules
+
+- Do not add new Query -> Pinia duplicated server-state flows unless needed for compatibility.
+- Do not use TanStack DB for search results.
+- Do not use TanStack DB for infinite/cursor pagination yet.
+- Do not use TanStack DB for `/api/scan` until collection scope and full-state semantics are designed.
+- Plain TanStack Query is the default for REST/API data.
+- Query Collection is only for stable collection endpoints where the response represents the complete state for that collection scope.
+- Pinia should not become a second cache for server data.
+- Thumbnails should remain browser/server cached; no Query needed.
