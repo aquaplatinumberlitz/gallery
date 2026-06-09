@@ -103,9 +103,11 @@ export const useGalleryStore = defineStore("gallery", {
       hasEverLoaded: false,
       errorMessage: "" as string | null,
       searchQuery: "",
+      // Deprecated Phase 2 compatibility state. Active search UI reads server data from TanStack Query.
       unifiedSearchResults: { albums: [], photos: [], prompt: [] } as UnifiedSearchResults,
       searchScope: "current" as SearchScope,
       searchRoot: "",
+      // Deprecated Phase 2 compatibility state. Query owns active search loading/error.
       searchLoading: false,
       searchError: "" as string | null,
       sortField: storedSort.field as SortField,
@@ -133,6 +135,7 @@ export const useGalleryStore = defineStore("gallery", {
       this.searchScope = scope;
     },
 
+    // Deprecated Phase 2 compatibility action. Active search UI uses useUnifiedSearchQuery().
     async unifiedSearch(query?: string) {
       const trimmed = (query ?? this.searchQuery).trim();
       if (!trimmed) {

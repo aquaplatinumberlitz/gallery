@@ -17,6 +17,7 @@ import { compareNatural } from "../composables/useNaturalSort";
 import { useColumnResize, PHOTO_GRID_LEVELS, GRID_COLUMN_MAP } from "../composables/useColumnResize";
 import { useDevice } from "../composables/useDevice";
 import { usePullToRefresh } from "../composables/usePullToRefresh";
+import { useUnifiedSearchQuery } from "../composables/useUnifiedSearchQuery";
 import { galleryScrollContainerRefKey } from "../injectionKeys";
 import { fuzzySearchFileNodes } from "../utils/fuzzySearch";
 import { 
@@ -87,6 +88,9 @@ const setVirtualScrollContainerRef = (target: Element | ComponentPublicInstance 
 const searchQuery = computed(() => galleryStore.searchQuery);
 const trimmedSearchQuery = computed(() => searchQuery.value.trim());
 const hasSearchQuery = computed(() => trimmedSearchQuery.value.length > 0);
+const searchScope = computed(() => galleryStore.searchScope);
+const searchContextPath = computed(() => galleryStore.currentPath || galleryStore.rootPath);
+const unifiedSearchQuery = useUnifiedSearchQuery(searchQuery, searchScope, searchContextPath);
 const sortField = computed(() => galleryStore.sortField);
 const sortOrder = computed(() => galleryStore.sortOrder);
 
@@ -259,12 +263,12 @@ const searchResultFolderPath = (result: UnifiedSearchResult): string => {
   return folderPathFromRelativePath(result.parent_path, result.name);
 };
 
-const searchAlbums = computed(() => galleryStore.unifiedSearchResults.albums);
-const searchPhotos = computed(() => galleryStore.unifiedSearchResults.photos);
+const searchAlbums = computed(() => unifiedSearchQuery.albums.value);
+const searchPhotos = computed(() => unifiedSearchQuery.photos.value);
 const searchPhotoPathSet = computed(() => new Set(searchPhotos.value.map((result) => normalizeSearchPath(result.path))));
 const searchPrompt = computed(() => {
   const seen = new Set<string>();
-  return galleryStore.unifiedSearchResults.prompt.filter((result) => {
+  return unifiedSearchQuery.prompt.value.filter((result) => {
     const normalizedPath = normalizeSearchPath(result.path);
     if (searchPhotoPathSet.value.has(normalizedPath) || seen.has(normalizedPath)) return false;
     seen.add(normalizedPath);
@@ -305,7 +309,7 @@ const images = computed(() =>
 
 const isLoading = computed(() => galleryStore.galleryLoading);
 const isRefetching = computed(() => galleryStore.isRefetching);
-const isSearchLoading = computed(() => galleryStore.searchLoading);
+const isSearchLoading = computed(() => hasSearchQuery.value && unifiedSearchQuery.isLoading.value);
 const currentPath = computed(() => galleryStore.currentPath);
 const canBack = computed(() => galleryStore.historyIndex > 0);
 const canForward = computed(
@@ -337,30 +341,6 @@ const noSearchResults = computed(
 );
 const errorMessage = computed(() => galleryStore.errorMessage);
 const showAllIndexedHint = computed(() => noSearchResults.value && galleryStore.searchScope === "current");
-
-let searchTimer: number | undefined;
-
-watch(trimmedSearchQuery, (query) => {
-  if (searchTimer) {
-    window.clearTimeout(searchTimer);
-    searchTimer = undefined;
-  }
-  if (!query) {
-    galleryStore.unifiedSearchResults = { albums: [], photos: [], prompt: [] };
-    galleryStore.searchLoading = false;
-    galleryStore.searchError = null;
-    return;
-  }
-  searchTimer = window.setTimeout(() => {
-    galleryStore.unifiedSearch(query);
-  }, 300);
-}, { immediate: true });
-
-watch(() => galleryStore.searchScope, () => {
-  if (trimmedSearchQuery.value) {
-    galleryStore.unifiedSearch(trimmedSearchQuery.value);
-  }
-});
 
 const handleOpenFolder = (path: string) => {
   galleryStore.selectFolder(path);
@@ -522,9 +502,6 @@ onMounted(() => {
 watch(loadMoreSentinel, () => setupLoadObserver());
 
 onBeforeUnmount(() => {
-  if (searchTimer) {
-    window.clearTimeout(searchTimer);
-  }
   if (loadObserver) {
     loadObserver.disconnect();
     loadObserver = null;

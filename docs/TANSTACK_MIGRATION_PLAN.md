@@ -61,7 +61,7 @@ TanStack DB owns only:
 
 The current gallery scan flow is hybrid for compatibility. TanStack Query caches the first scan page by deterministic key. The Pinia gallery store still copies that data into its existing folder/image state so the rest of the UI can continue to render without a broad rewrite.
 
-Search, metadata, infinite image loading, and folder tree loading still call the API from Pinia/store code or lightbox code directly. They are not yet TanStack Query source-of-truth flows.
+Metadata, infinite image loading, and folder tree loading still call the API from Pinia/store code or lightbox code directly. Search results now use plain TanStack Query as the active source of truth, while deprecated Pinia search result fields remain temporarily for compatibility.
 
 TanStack DB currently wraps only `/api/landing-pages` into a Query Collection. The API response is normalized from `string[]` to landing-page rows keyed by `url`, with an index retained to preserve API order in live queries.
 
@@ -128,6 +128,10 @@ Not allowed:
 ## Phase 1 Scope
 
 Phase 1 landing pages are complete for Settings theme selection. The existing landing-pages Query Collection still uses `url` as the collection key, defensively ignores duplicate URLs, preserves API order with an index, and `SettingsModal.vue` reads it through `useLandingPagesLiveQuery()` with a pending-data guard. `IntroScreen.vue` keeps its direct conditional `fetchLandingPages()` call so disabled, manual, and forced-preview flows do not start an eager landing-pages query.
+
+## Phase 2 Scope
+
+Status: complete. Active unified search UI uses `useUnifiedSearchQuery()` with plain TanStack Query and `queryKeys.search(trimmedQuery, scope, path)`. Pinia keeps search input text, search scope, and navigation state. TanStack Query owns `/api/search` results, loading/fetching, errors, and cache. The legacy Pinia `unifiedSearchResults`, `searchLoading`, `searchError`, and `unifiedSearch()` action remain only as deprecated compatibility state and are not the active UI source of truth.
 
 ## Hard Rules
 

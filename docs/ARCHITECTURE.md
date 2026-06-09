@@ -69,9 +69,9 @@ TanStack Query caches `/api/scan` responses, while Pinia keeps UI state.
 
 | Layer | Responsibilities |
 |-------|------------------|
-| TanStack Query | Cached scan responses, stale time, garbage collection, background refresh query keys |
+| TanStack Query | Cached scan and unified search responses, stale time, garbage collection, background refresh query keys |
 | TanStack DB | Minimal beta foundation for local reactive collections and live queries over already loaded/API-backed data |
-| Pinia gallery store | Current/root path, visible folders/images, loading and refetching flags, history, search, sort, pagination |
+| Pinia gallery store | Current/root path, visible folders/images, loading and refetching flags, history, search input/scope, sort, pagination |
 
 Migration rule: TanStack Query should own server/API state and cache. Pinia should own UI/navigation state. Do not add new Query -> Pinia duplicated server-state flows unless needed for compatibility. The existing `/api/scan` flow is currently hybrid for compatibility and should be migrated carefully in a separate PR. New server data flows should prefer TanStack Query as the source of truth.
 
@@ -124,7 +124,7 @@ IntersectionObserver sees loadMoreSentinel
 Header or toolbar emits search/sort change
 → gallery store updates query, scope, or sort state
 → non-search gallery view keeps existing loaded folders/images and sort behavior
-→ non-empty search query calls GET /api/search
+→ non-empty search query enables TanStack Query for GET /api/search
 → GalleryGrid renders Albums, Photos, and Prompt sections
 ```
 
@@ -136,6 +136,7 @@ Unified gallery search uses one search box:
 - Prompt uses the existing metadata FTS5 tables, joined through `file_index` so prompt matches share the same recursive scope rules.
 - Results are grouped as Albums, Photos, and Prompt. Subfolder matches include `relative_path`, computed from the current root for `This folder` and from `GALLERY_ROOT` for `All indexed`.
 - Empty queries restore the normal gallery view. Fuse.js remains in the codebase for lightweight filtering behavior in the non-search gallery view, but backend `/api/search` owns active search results.
+- TanStack Query owns active search result data, loading/fetching, errors, and cache. Pinia owns only the search input text, scope, and navigation context.
 - `GET /api/search-metadata` remains available for backward compatibility, but the frontend no longer uses it for the main gallery search.
 
 ### Open Image
