@@ -11,6 +11,7 @@ from .albums import build_album_metadata
 from .config import DEFAULT_ROOT, SCAN_PERF_LOGS_ENABLED
 from .errors import APIError, ErrorType
 from .files import is_image, natural_sort_key
+from .indexer import enqueue_metadata_jobs_from_scan
 from .metadata_store import (
     get_cached_dimensions_for_files,
     index_directory_tree,
@@ -178,6 +179,7 @@ async def api_scan(
     background_tasks.add_task(index_file, target, target.name or str(target), target.parent, "folder", target_mtime, None, None, None)
     background_tasks.add_task(index_files_from_scan, folders, images)
     background_tasks.add_task(index_directory_tree, target, False)
+    background_tasks.add_task(enqueue_metadata_jobs_from_scan, images, target)
 
     response_payload = {
         "folders": folders,

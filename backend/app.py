@@ -12,6 +12,7 @@ from .scan import router as scan_router
 from .folders import router as folders_router
 from .search import router as search_router
 from .health import router as health_router
+from .indexer import router as indexer_router
 from .static_files import router as static_files_router
 
 
@@ -63,6 +64,7 @@ app.include_router(scan_router)
 app.include_router(folders_router)
 app.include_router(search_router)
 app.include_router(health_router)
+app.include_router(indexer_router)
 app.include_router(static_files_router)
 
 if ENABLE_PROFILER:
