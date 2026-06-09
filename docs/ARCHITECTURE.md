@@ -69,7 +69,7 @@ TanStack Query caches `/api/scan` responses, while Pinia keeps UI state.
 
 | Layer | Responsibilities |
 |-------|------------------|
-| TanStack Query | Cached scan and unified search responses, stale time, garbage collection, background refresh query keys |
+| TanStack Query | Cached scan, unified search, and lightbox metadata responses, stale time, garbage collection, background refresh query keys |
 | TanStack DB | Minimal beta foundation for local reactive collections and live queries over already loaded/API-backed data |
 | Pinia gallery store | Current/root path, visible folders/images, loading and refetching flags, history, search input/scope, sort, pagination |
 
@@ -166,7 +166,7 @@ source image
 PhotoSwipe change, arrow key, or toolbar action
 → wrapper emits indexChange or store navigation action
 → lightbox store updates current item
-→ metadata reloads for the new path
+→ TanStack Query loads metadata for the new path
 → PhotoSwipe index watcher syncs only when indices differ
 ```
 

@@ -5,6 +5,7 @@ import { useFocusTrap } from "../composables/useFocusTrap";
 import { useClipboard } from "../composables/useClipboard";
 import { useDevice } from "../composables/useDevice";
 import { DESKTOP_METADATA_WIDTH } from "../constants";
+import { usePhotoMetadataQuery } from "../composables/usePhotoMetadataQuery";
 import {
   Minimize, X,
 } from "lucide-vue-next";
@@ -29,17 +30,21 @@ const focusTrap = useFocusTrap(lightboxRef, {
 });
 
 const show = computed(() => lightbox.isOpen);
-const isLoading = computed(() => lightbox.isLoading);
-const meta = computed(() => lightbox.metadata);
+const metadataPath = computed(() => lightbox.itemPath);
+const metadataQuery = usePhotoMetadataQuery(show, metadataPath);
+const isLoading = computed(() => metadataQuery.isLoading.value);
+const meta = computed(() => metadataQuery.data.value ?? null);
 const isFullscreen = ref(false);
 
 // Bottom sheet toggle state (shared for tablet + mobile)
 const showSheet = ref(false);
 
 const sizeText = computed(() => {
-  if (lightbox.width && lightbox.height) return `${lightbox.width} x ${lightbox.height}`;
+  if (meta.value?.width && meta.value?.height) return `${meta.value.width} x ${meta.value.height}`;
   return "";
 });
+
+const imageName = computed(() => meta.value?.name || lightbox.itemName);
 
 const dateText = computed(() => {
   if (meta.value?.date) return meta.value.date;
@@ -84,7 +89,6 @@ function handlePhotoSwipeIndexChange(newIndex: number) {
     lightbox.currentIndex = newIndex;
     lightbox.itemPath = item.path;
     lightbox.itemName = item.name || '';
-    lightbox.loadMetadata(item.path);
   }
 }
 
@@ -95,7 +99,6 @@ function handleIndexChange(newIndex: number) {
     lightbox.currentIndex = newIndex;
     lightbox.itemPath = item.path;
     lightbox.itemName = item.name || '';
-    lightbox.loadMetadata(item.path);
   }
 }
 
@@ -228,7 +231,7 @@ function handleToggleFullscreen() {
             v-if="!isFullscreen"
             :meta="meta"
             :is-loading="isLoading"
-            :image-name="lightbox.itemName"
+            :image-name="imageName"
             :size-text="sizeText"
             :date-text="dateText"
             :gen-time-text="genTimeText"
@@ -265,7 +268,7 @@ function handleToggleFullscreen() {
             v-if="showSheet && !isFullscreen"
             :meta="meta"
             :is-loading="isLoading"
-            :image-name="lightbox.itemName"
+            :image-name="imageName"
             :size-text="sizeText"
             :date-text="dateText"
             :gen-time-text="genTimeText"

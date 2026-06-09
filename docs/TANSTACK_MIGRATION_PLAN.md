@@ -61,7 +61,7 @@ TanStack DB owns only:
 
 The current gallery scan flow is hybrid for compatibility. TanStack Query caches the first scan page by deterministic key. The Pinia gallery store still copies that data into its existing folder/image state so the rest of the UI can continue to render without a broad rewrite.
 
-Metadata, infinite image loading, and folder tree loading still call the API from Pinia/store code or lightbox code directly. Search results now use plain TanStack Query as the active source of truth, while deprecated Pinia search result fields remain temporarily for compatibility.
+Infinite image loading and folder tree loading still call the API from Pinia/store code directly. Search results and lightbox metadata now use plain TanStack Query as their active source of truth, while deprecated Pinia search result fields remain temporarily for compatibility.
 
 TanStack DB currently wraps only `/api/landing-pages` into a Query Collection. The API response is normalized from `string[]` to landing-page rows keyed by `url`, with an index retained to preserve API order in live queries.
 
@@ -132,6 +132,10 @@ Phase 1 landing pages are complete for Settings theme selection. The existing la
 ## Phase 2 Scope
 
 Status: complete. Active unified search UI uses `useUnifiedSearchQuery()` with plain TanStack Query and `queryKeys.search(trimmedQuery, scope, path)`. Pinia keeps search input text, search scope, and navigation state. TanStack Query owns `/api/search` results, loading/fetching, errors, and cache. The legacy Pinia `unifiedSearchResults`, `searchLoading`, `searchError`, and `unifiedSearch()` action remain only as deprecated compatibility state and are not the active UI source of truth.
+
+## Phase 3 Scope
+
+Status: complete. Lightbox metadata uses `usePhotoMetadataQuery()` with plain TanStack Query and `queryKeys.metadata(path)`. The query is enabled only while the lightbox is open and a current image path exists, with a 10-minute stale time and 30-minute garbage-collection time. Pinia lightbox state keeps open/current-index/gallery-item navigation and current item path/name only; TanStack Query owns `/api/metadata` response, loading, errors, and cache.
 
 ## Hard Rules
 
