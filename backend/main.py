@@ -234,6 +234,38 @@ def scan_directory(target_path: Path) -> tuple[list[FileNode], list[FileNode]]:
     return folders, images
 
 
+def list_folder_children(target_path: Path) -> list[FileNode]:
+    if not target_path.exists():
+        raise APIError(404, ErrorType.NOT_FOUND, "Folder not found")
+    if not target_path.is_dir():
+        raise APIError(400, ErrorType.NOT_DIRECTORY, "Path is not a folder")
+
+    folders: list[FileNode] = []
+    try:
+        for entry in os.scandir(target_path):
+            if entry.name.startswith(".") or not entry.is_dir():
+                continue
+
+            entry_path = Path(entry.path)
+            meta = build_album_metadata(entry_path)
+            folders.append(
+                FileNode(
+                    name=entry.name,
+                    path=str(entry_path.resolve()),
+                    type="folder",
+                    has_children=meta["has_children"],
+                    cover_images=meta["cover_images"],
+                    mtime=meta["mtime"],
+                    image_count=meta["image_count"],
+                )
+            )
+    except PermissionError:
+        raise APIError(403, ErrorType.PERMISSION_DENIED, "Permission denied")
+
+    folders.sort(key=lambda x: natural_sort_key(x.name))
+    return folders
+
+
 @app.get("/api/scan")
 async def api_scan(
     background_tasks: BackgroundTasks,
@@ -262,6 +294,16 @@ async def api_scan(
         "next_cursor": next_cursor,
         "total_images": total_images,
     }
+
+
+@app.get("/api/folders")
+async def api_folders(
+    path: str | None = Query(None, description="Absolute path whose folder children should be listed"),
+):
+    target = resolve_path(path) if path else DEFAULT_ROOT
+    if not is_path_safe(target):
+        raise APIError(403, "permission", "Access denied: path outside allowed root")
+    return await run_in_threadpool(list_folder_children, target)
 
 
 # Open folder via xdg-open — disabled by default (security for public deployments)

@@ -19,6 +19,7 @@ All API routes live in `backend/main.py`.
 | Endpoint | Purpose |
 |----------|---------|
 | `GET /api/scan` | Return folders and paginated image files for a directory |
+| `GET /api/folders` | Return folder children only for folder tree expansion |
 | `GET /api/image` | Serve an original image file |
 | `GET /api/thumbnail` | Serve a cached WebP thumbnail |
 | `GET /api/metadata` | Parse AI generation metadata |
@@ -37,6 +38,7 @@ Important backend behavior:
 - Metadata cache keys include path, mtime, and size.
 - Search cache lives at `backend/.cache/gallery_metadata.db`. It contains `file_index` rows for indexed folders/photos, `file_index_fts` for recursive album/photo filename search, and normalized image metadata with SQLite FTS5 tables for prompt/metadata search.
 - `/api/scan` returns the current folder exactly as before, then indexes the scanned folder and its subfolders in the background. File entries are indexed for albums/photos; image metadata is indexed for prompt search. Unchanged metadata entries are not reparsed.
+- `/api/folders` returns only direct folder children for the folder tree. It preserves folder node fields such as `name`, `path`, `type`, `has_children`, `cover_images`, `mtime`, and `image_count`, and it does not return image rows.
 - Production mode is enabled with `PRODUCTION=1`, serving `frontend/dist/`.
 
 ## Frontend
@@ -65,11 +67,11 @@ Key paths:
 
 ## Server-State Caching
 
-TanStack Query caches `/api/scan` responses, while Pinia keeps UI state and temporary pagination compatibility.
+TanStack Query caches `/api/scan` and `/api/folders` responses, while Pinia keeps UI state and temporary pagination compatibility.
 
 | Layer | Responsibilities |
 |-------|------------------|
-| TanStack Query | Cached scan first-page, folder tree child loads, active scan infinite image pages, unified search, and lightbox metadata responses, stale time, garbage collection, background refresh query keys |
+| TanStack Query | Cached scan first-page, folder-only tree child loads, active scan infinite image pages, unified search, and lightbox metadata responses, stale time, garbage collection, background refresh query keys |
 | TanStack DB | Minimal beta foundation for local reactive collections and live queries over already loaded/API-backed data |
 | Pinia gallery store | Current/root path, folder tree expanded/collapsed state, root-load compatibility flags, history, search input/scope, sort, deprecated scan pagination compatibility fields |
 
@@ -115,18 +117,18 @@ Gallery loading behavior:
 FolderTreeItem toggle
 → galleryStore.toggleFolder(node) updates node.isOpen only
 → useFolderChildrenQuery(node.path, node.isOpen && node.has_children)
-→ read/fetch TanStack Query cache for ["scan", normalizedPath, IMAGE_PAGE_SIZE]
-→ GET /api/scan with image_limit=200 and image_cursor=0 when cache policy requires it
+→ read/fetch TanStack Query cache for ["folder-children", normalizedPath]
+→ GET /api/folders?path=... when cache policy requires it
 → FolderTreeItem renders query loading/error state
-→ successful folder results are normalized and temporarily assigned to node.children for recursive rendering
+→ FolderTreeItem renders recursive children from Query data
 ```
 
 Folder tree ownership:
 
 - Pinia owns root path, current path, selected path, history/back-forward, and expanded/collapsed state.
 - TanStack Query owns folder child server data, per-path loading/fetching/error state, stale time, garbage collection, and cache reuse.
-- The `node.children` assignment in `FolderTreeItem.vue` is a compatibility bridge for the existing recursive tree shape, not a new long-term server-state cache.
-- TanStack DB is not used for folder tree because `/api/scan` is path-scoped and may include cursor-partial image data.
+- `FolderTreeItem.vue` no longer writes Query results into `node.children`; static/prebuilt children are only a compatibility fallback before Query data is available.
+- TanStack DB is not used for folder tree. Folder expansion is per-path server state, and Query owns it directly.
 
 ### Infinite Scroll
 

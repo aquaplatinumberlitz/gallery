@@ -1,5 +1,5 @@
 import axios, { AxiosError } from "axios";
-import type { MetadataResponse, MetadataSearchResponse, ScanResponse, SearchScope, UnifiedSearchResponse } from "../types";
+import type { FolderChildrenResponse, MetadataResponse, MetadataSearchResponse, ScanResponse, SearchScope, UnifiedSearchResponse } from "../types";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -141,6 +141,21 @@ export const scanDirectory = async (
     if (typeof opts?.imageCursor === "number") params.image_cursor = opts.imageCursor;
 
     const { data } = await api.get<ScanResponse>("/api/scan", { params });
+    return data;
+  } catch (error) {
+    if (error instanceof AxiosError) {
+      throw GalleryAPIError.fromAxiosError(error);
+    }
+    throw error;
+  }
+};
+
+export const listFolderChildren = async (path?: string): Promise<FolderChildrenResponse> => {
+  try {
+    const params: Record<string, string> = {};
+    if (path) params.path = path;
+
+    const { data } = await api.get<FolderChildrenResponse>("/api/folders", { params });
     return data;
   } catch (error) {
     if (error instanceof AxiosError) {

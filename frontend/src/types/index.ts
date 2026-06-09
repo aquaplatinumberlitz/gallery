@@ -64,6 +64,8 @@ export interface ScanResponse {
   request_path?: string;
 }
 
+export type FolderChildrenResponse = FileNode[];
+
 export type SearchScope = "current" | "all";
 
 export interface UnifiedSearchResult {

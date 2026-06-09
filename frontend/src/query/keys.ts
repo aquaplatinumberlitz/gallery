@@ -13,6 +13,9 @@ export const queryKeys = {
   scan: (path: string, imageLimit: number) =>
     ["scan", normalizeQueryPath(path), imageLimit] as const,
 
+  folderChildren: (path: string) =>
+    ["folder-children", normalizeQueryPath(path)] as const,
+
   scanInfinite: (path: string, imageLimit: number) =>
     ["scan-infinite", normalizeQueryPath(path), imageLimit] as const,
 

@@ -19,7 +19,7 @@ Installed TanStack libraries:
 
 Runtime use today:
 
-- TanStack Query is installed through `frontend/src/query/index.ts` and caches first-page `/api/scan` responses, including folder tree child loads.
+- TanStack Query is installed through `frontend/src/query/index.ts` and caches first-page `/api/scan` responses plus folder tree child loads from `/api/folders`.
 - TanStack Virtual is used by `GalleryGrid.vue` for desktop/tablet row virtualization.
 - TanStack DB, Query Collection, and Vue DB are present as a beta foundation with a landing-pages pilot collection wired into Settings theme selection.
 - Query Devtools are rendered from the app root in development mode.
@@ -45,6 +45,7 @@ TanStack Query owns:
 - cache, `staleTime`, and `gcTime`
 - refetch/invalidate
 - `/api/scan`
+- `/api/folders`
 - `/api/search`
 - `/api/metadata` if migrated
 - `/api/landing-pages` if using Query directly
@@ -61,7 +62,7 @@ TanStack DB owns only:
 
 The current gallery scan flow uses plain TanStack Query for active gallery rendering. TanStack Query caches the first scan page by deterministic key, and `useInfiniteScanQuery()` owns the active gallery's cursor pages through `useInfiniteQuery` and `queryKeys.scanInfinite(path, IMAGE_PAGE_SIZE)`. The Pinia gallery store still copies first-page scan data for navigation and root-load compatibility, but it no longer owns appended image pages for active gallery rendering.
 
-Folder tree child loading also uses plain TanStack Query through `useFolderChildrenQuery()` and shares `queryKeys.scan(path, IMAGE_PAGE_SIZE)` with first-page scan responses. Pinia owns the expanded/collapsed state and selected path. `FolderTreeItem.vue` keeps a temporary compatibility bridge that writes successful Query folder results to `node.children` because recursive tree rendering still expects nested nodes.
+Folder tree child loading also uses plain TanStack Query through `useFolderChildrenQuery()` and `queryKeys.folderChildren(path)`. Pinia owns the expanded/collapsed state and selected path. `FolderTreeItem.vue` renders recursive children directly from Query-owned folder data and no longer writes successful Query results to `node.children`.
 
 Search results and lightbox metadata now use plain TanStack Query as their active source of truth, while deprecated Pinia search result fields remain temporarily for compatibility.
 
@@ -151,15 +152,15 @@ TanStack DB is not used for scan or infinite cursor pagination. Pinia `galleryIm
 
 ## Phase 6 Scope
 
-Status: complete with a narrow compatibility bridge. `useFolderChildrenQuery()` loads expanded folder children with plain TanStack Query, `queryKeys.scan(path, IMAGE_PAGE_SIZE)`, and `scanDirectory(path, { imageLimit: IMAGE_PAGE_SIZE, imageCursor: 0 })`. Folder tree expansion no longer calls `/api/scan` directly from Pinia.
+Status: complete. `useFolderChildrenQuery()` loads expanded folder children with plain TanStack Query, `queryKeys.folderChildren(path)`, and `listFolderChildren(path)`.
 
 Pinia remains responsible for folder tree UI/navigation state: root path, current path, history/back-forward, selected path, and expanded/collapsed node state. TanStack Query owns per-folder child server data, loading, fetching, errors, stale time, garbage collection, and cache reuse.
 
-`FolderTreeItem.vue` still writes successful Query folder results to `node.children` as a temporary rendering bridge because the recursive tree is built around nested `FileNode.children`. That bridge is not a new long-term Pinia server-data cache.
+`FolderTreeItem.vue` no longer copies Query results into `node.children`. Each item computes visible recursive children from the folder-child query result once fetched, with a compatibility fallback for any static/prebuilt `FileNode.children` present before Query data arrives. `node.children` is not used as a long-term server cache for lazy-loaded children.
 
-The folder tree intentionally reuses `queryKeys.scan(path, IMAGE_PAGE_SIZE)` instead of a separate folder-only key so expanding a folder can share cache with the first-page gallery scan for the same path and avoid duplicate endpoint identities. Folder tree queries only request the first image page and render folders from the response.
+Folder tree expansion uses `GET /api/folders?path=...`, which returns only folder `FileNode` rows. Main gallery scan and infinite image loading continue to use `/api/scan`; folder tree queries no longer fetch first-page image metadata.
 
-TanStack DB is not used for folder tree. `/api/scan` is path-scoped and image data may be cursor-partial, so collection scope and full-state semantics are not safe enough for Query Collection.
+TanStack DB is not used for folder tree. Folder expansion remains per-path server state owned by Query; it is not modeled as a Query Collection.
 
 ## Phase 7 Scope
 
@@ -175,7 +176,7 @@ Potential future DB candidates:
 
 Not safe for DB now:
 
-- scan and folder tree because `/api/scan` is path-scoped and may include cursor-partial image state
+- scan and folder tree because path-scoped folder/scan responses are request-specific server state, not complete app-level collection state
 - infinite scan because cursor pages are intentionally partial
 - search because results are filtered subsets, not complete collection state
 - lightbox metadata because it is a per-image document fetch, not a collection/live-query need
