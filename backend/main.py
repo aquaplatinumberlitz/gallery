@@ -20,6 +20,8 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from io import BytesIO
 from cachetools import LRUCache
 from diskcache import Cache
+from prometheus_fastapi_instrumentator import Instrumentator
+import pyinstrument
 import threading
 try:
     from services.metadata_index import cleanup_stale_index, index_directory_tree, index_file, index_files_from_scan, index_images, search_index, search_metadata
@@ -27,6 +29,23 @@ try:
 except ModuleNotFoundError:
     from backend.services.metadata_index import cleanup_stale_index, index_directory_tree, index_file, index_files_from_scan, index_images, search_index, search_metadata
     from backend.services.album_utils import is_image, build_album_metadata, has_subfolders
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.lower() not in {"0", "false", "no", "off"}
+
+
+ENABLE_METRICS = _env_flag("ENABLE_METRICS", default=os.getenv("PRODUCTION") != "1")
+ENABLE_PROFILER = _env_flag("ENABLE_PROFILER", default=False)
+PROFILE_ENDPOINTS = {
+    endpoint.strip()
+    for endpoint in os.getenv("PROFILE_ENDPOINTS", "/api/scan,/api/metadata,/api/thumbnail").split(",")
+    if endpoint.strip()
+}
+PROFILE_DIR = Path(__file__).resolve().parent / "profiles"
 
 # =============================================================================
 # CUSTOM ERROR TYPES - For better frontend error handling
@@ -87,6 +106,14 @@ class FileNode(BaseModel):
 
 
 app = FastAPI(title="Museum Art Gallery API")
+
+if ENABLE_METRICS:
+    instrumentator = Instrumentator(
+        should_group_status_codes=True,
+        should_ignore_untemplated=True,
+        excluded_handlers=["/metrics", "/favicon.ico"],
+    )
+    instrumentator.instrument(app).expose(app, include_in_schema=False, should_gzip=True)
 
 def _get_cors_origins() -> list[str]:
     origin = os.getenv("FRONTEND_ORIGIN")
@@ -1399,6 +1426,24 @@ def get_landing_pages():
                     pages.append(url_path)
     
     return pages
+
+
+if ENABLE_PROFILER:
+    @app.middleware("http")
+    async def profile_middleware(request: Request, call_next):
+        if request.url.path not in PROFILE_ENDPOINTS:
+            return await call_next(request)
+        profiler = pyinstrument.Profiler()
+        profiler.start()
+        response = await call_next(request)
+        profiler.stop()
+        PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        safe_path = request.url.path.replace("/", "_")
+        html_path = PROFILE_DIR / f"{safe_path}_{timestamp}.html"
+        with open(html_path, "w") as f:
+            f.write(profiler.output_html())
+        return response
 
 
 # =============================================================================
