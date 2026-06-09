@@ -161,3 +161,7 @@ The 1200x1200 fallback is intentionally neutral for missing or unreadable dimens
 - Keep cache keys tied to mtime and size so edited files invalidate naturally.
 - Treat unknown or malformed metadata as a recoverable parse failure, not a gallery-breaking error.
 - Test with representative PNGs from every supported generator when changing parser logic.
+
+See [DiffusionToolkit Metadata Parse Analysis](DIFFUSIONTOOLKIT_METADATA_PARSE_ANALYSIS.md)
+for parser-specific lessons from DiffusionToolkit and the proposed backlog for
+unifying gallery-repo's lightbox parser and SQLite indexing parser.

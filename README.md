@@ -113,6 +113,7 @@ gallery-repo/
 - [Troubleshooting](docs/TROUBLESHOOTING.md) - known issues, Safari/iOS gotchas, regression checks
 - [Metadata Parsing](docs/METADATA_PARSING.md) - backend scan, thumbnail, metadata, and dimension pipelines
 - [DiffusionToolkit Pipeline Audit](docs/DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md) - comparison with DiffusionToolkit metadata, indexing, thumbnail, and lightbox pipeline
+- [DiffusionToolkit Metadata Parse Analysis](docs/DIFFUSIONTOOLKIT_METADATA_PARSE_ANALYSIS.md) - parser-specific lessons and proposed gallery metadata parser improvements
 - [Library Usage](docs/THIRD_PARTY_LIBRARIES.md) - third-party library integration notes
 - [TanStack Guide](frontend/src/lib/tanstack/README.md) - TanStack Query, Virtual, Form, Table usage
 
