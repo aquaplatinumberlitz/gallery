@@ -34,10 +34,27 @@ Important backend behavior:
 
 - `GALLERY_ROOT` bounds path safety. The default root is `/`, which is permissive for local use but still routes through path checks.
 - `GALLERY_OPEN_FOLDER=false` disables OS folder opening by default.
+- `ENABLE_METRICS=1` (default in dev) exposes Prometheus metrics at `/metrics` via `prometheus-fastapi-instrumentator`. Route-level labels only (no per-path cardinality explosion). Disable in production with `ENABLE_METRICS=0`.
+- `ENABLE_PROFILER=0` by default. When enabled, selected endpoints (configurable via `PROFILE_ENDPOINTS`, default `/api/scan,/api/metadata,/api/thumbnail`) are profiled with pyinstrument. HTML profiles are saved to `backend/profiles/` (gitignored).
 - Thumbnail cache keys include path, mtime, size, max size, and quality. Rendered WebP thumbnails are persisted under `backend/.cache/thumbnails/`, survive backend restarts, and are served with 24-hour browser caching headers.
-- Metadata cache keys include path, mtime, and size.
+- Metadata cache: two layers.
+  - **In-memory LRU cache** (cachetools, 100MB max): caches parsed metadata dicts from `/api/metadata`. Keys include path + mtime + size.
+  - **SQLite dimension cache** (same DB as search cache): `image_metadata` table with `width`, `height`, `mtime`, `size` per path. Populated by `/api/metadata` (full metadata parse) and `/api/thumbnail` (image already opened for thumbnailing). Queried by `/api/scan` as a single batch lookup to return cached dimensions without opening images.
 - Search cache lives at `backend/.cache/gallery_metadata.db`. It contains `file_index` rows for indexed folders/photos, `file_index_fts` for recursive album/photo filename search, and normalized image metadata with SQLite FTS5 tables for prompt/metadata search.
-- `/api/scan` returns the current folder exactly as before, then indexes the scanned folder and its subfolders in the background. File entries are indexed for albums/photos; image metadata is indexed for prompt search. Unchanged metadata entries are not reparsed.
+- `/api/scan` must stay hot-path fast:
+  - Returns `width=None, height=None` when no cached dimensions exist.
+  - Performs a single batched SQL query (`get_cached_dimensions_for_files()`) to look up cached dimensions by path+mtime+size.
+  - Does NOT open images with PIL, does NOT batch-read metadata for all images.
+  - Indexes the scanned folder and its subfolders in the background (without re-indexing image metadata — `include_metadata=False`).
+  - File entries are indexed for albums/photos; image metadata indexing is deferred to `/api/metadata` or `/api/thumbnail` endpoints that already open the image.
+- `/api/scan` dimension flow:
+  1. `os.scandir()` lists folder entries.
+  2. Image files are filtered and their stat (mtime, size) collected.
+  3. `get_cached_dimensions_for_files()` does a single `SELECT path, mtime, size, width, height FROM image_metadata WHERE path IN (...) AND width IS NOT NULL`.
+  4. Results validated against current mtime/size; stale entries discarded.
+  5. `FileNode` objects built with cached dimensions (or null if uncached).
+- `/api/metadata` populates cache after parsing (via `upsert_metadata_result()`).
+- `/api/thumbnail` populates cache after rendering thumbnail (via `upsert_image_dimensions()`).
 - `/api/folders` is a lightweight folder-tree endpoint. It lists only direct, non-hidden folder children, does not return image rows, and does not compute image counts or cover images. `/api/folders` ignores symlinked directories and only lists real non-hidden child directories. For this endpoint, `has_children` means the folder has at least one non-hidden child directory, so sidebar chevrons are not shown for folders that contain only images. Album cover/count metadata remains part of `/api/scan`, not `/api/folders`.
 - Production mode is enabled with `PRODUCTION=1`, serving `frontend/dist/`.
 
