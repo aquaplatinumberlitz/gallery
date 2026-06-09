@@ -1,18 +1,21 @@
-const normalizePath = (path: string | null | undefined) =>
+export const normalizeQueryPath = (path: string | null | undefined) =>
   (path ?? "").trim().replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "");
 
 export const queryKeys = {
   landingPages: () => ["landing-pages"] as const,
 
+  scanPath: (path: string) =>
+    ["scan", normalizeQueryPath(path)] as const,
+
   scan: (path: string, imageLimit: number) =>
-    ["scan", normalizePath(path), imageLimit] as const,
+    ["scan", normalizeQueryPath(path), imageLimit] as const,
 
   scanInfinite: (path: string, imageLimit: number) =>
-    ["scan-infinite", normalizePath(path), imageLimit] as const,
+    ["scan-infinite", normalizeQueryPath(path), imageLimit] as const,
 
   search: (query: string, scope: string, path: string) =>
-    ["search", query.trim(), scope, normalizePath(path)] as const,
+    ["search", query.trim(), scope, normalizeQueryPath(path)] as const,
 
   metadata: (path: string) =>
-    ["metadata", normalizePath(path)] as const,
+    ["metadata", normalizeQueryPath(path)] as const,
 };

@@ -4,11 +4,7 @@ import { IMAGE_PAGE_SIZE } from "../constants";
 import { scanDirectory } from "../services/api";
 import type { ScanResponse } from "../types";
 import { queryClient } from "../query";
-import { queryKeys } from "../query/keys";
-
-function normalizeQueryPath(path: string): string {
-  return path.trim().replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "");
-}
+import { normalizeQueryPath, queryKeys } from "../query/keys";
 
 export function useScanQuery(path: Ref<string>) {
   const normalizedPath = computed(() => normalizeQueryPath(path.value || ""));
@@ -106,5 +102,5 @@ export function setCachedScan(path: string, data: ScanResponse) {
 export function invalidateScan(path: string) {
   const normalized = normalizeQueryPath(path);
   if (!normalized) return;
-  queryClient.invalidateQueries({ queryKey: queryKeys.scan(normalized, IMAGE_PAGE_SIZE) });
+  queryClient.invalidateQueries({ queryKey: queryKeys.scanPath(normalized) });
 }
