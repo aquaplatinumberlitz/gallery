@@ -35,6 +35,12 @@ usePhotoSwipe({
   thumbnailSize: props.thumbnailSize,
   onIndexChange: (index) => emit("indexChange", index),
   onClose: () => emit("close"),
+  onRegisterUi: (pswp) => {
+    const prevBtn = pswp.container?.querySelector(".pswp__button--arrow--prev");
+    const nextBtn = pswp.container?.querySelector(".pswp__button--arrow--next");
+    if (prevBtn) prevBtn.setAttribute("data-testid", "lightbox-prev");
+    if (nextBtn) nextBtn.setAttribute("data-testid", "lightbox-next");
+  },
 });
 </script>
 

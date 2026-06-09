@@ -200,6 +200,7 @@ function handleToggleFullscreen() {
       <div
         v-if="show"
         ref="lightboxRef"
+        data-testid="lightbox"
         class="lightbox-overlay"
         :style="{ '--lightbox-sidebar-width': sidebarWidthStyle }"
       >

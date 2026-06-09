@@ -8,7 +8,9 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "perf:album": "playwright test tests/perf/album-open.perf.spec.ts --project=chromium",
-    "perf:album:headed": "playwright test tests/perf/album-open.perf.spec.ts --project=chromium --headed"
+    "perf:album:headed": "playwright test tests/perf/album-open.perf.spec.ts --project=chromium --headed",
+    "perf:lightbox": "playwright test tests/perf/lightbox.perf.spec.ts --project=chromium",
+    "perf:lightbox:headed": "playwright test tests/perf/lightbox.perf.spec.ts --project=chromium --headed"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",

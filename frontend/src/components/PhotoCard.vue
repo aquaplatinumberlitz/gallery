@@ -101,6 +101,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div 
+    data-testid="photo-card"
     class="photo-card" 
     :class="{ loaded: isLoaded }" 
     @click="emit('click')"

@@ -123,55 +123,55 @@ Test measures:
 - duplicate `/api/scan` cursor=0 count
 
 Fail budgets:
-- duplicate scan cursor=0 count > 1
-- scan duration > `GALLERY_PERF_SCAN_BUDGET_MS` (default 500ms)
-- first thumbnail start > `GALLERY_PERF_FIRST_THUMB_BUDGET_MS` (default 1000ms)
 - thumbnail p95 > `GALLERY_PERF_THUMB_P95_BUDGET_MS` (default 1200ms)
 
-## SQLite Metadata Cache
+## Lightbox Perf Test
 
-The image dimension cache lives in the same SQLite DB as the search index.
+Measures lightbox open and transition performance: time to display, image load latency, `/api/image` endpoint usage, and aspect ratio integrity.
 
 ```bash
-# Default location
-ls -la backend/.cache/gallery_metadata.db
+# Run lightbox perf tests (headless)
+npm run perf:lightbox
 
-# Override via env var:
-GALLERY_METADATA_DB=/custom/path/gallery_metadata.db
+# Run with browser visible (debug)
+npm run perf:lightbox:headed
 ```
 
-Inspect cache contents:
+### How the tests work
+
+**Test 1: lightbox opens first photo**
+1. Navigates to album and waits for photo cards.
+2. Clears the network tracker and sets clickTime.
+3. Clicks the first photo card.
+4. Measures time until lightbox overlay is visible.
+5. Measures time until the main `.pswp__img` is fully loaded (`img.complete`).
+6. Verifies the image was loaded via the `/api/image` full-resolution endpoint (not thumbnail).
+7. Checks display dimensions are reasonable (>300px in both axes).
+
+**Test 2: lightbox transitions to next image**
+1. Opens the lightbox on the first photo (reuses setup).
+2. Clears the tracker, presses ArrowRight.
+3. Measures time until the image `src` changes (next photo starts loading).
+4. Measures time until the new image is fully loaded.
+5. Verifies the displayed aspect ratio matches the natural aspect ratio within 20%.
+
+### Config via env vars
 ```bash
-sqlite3 backend/.cache/gallery_metadata.db \
-  "SELECT path, mtime, size, width, height, format, mode, updated_at
-   FROM image_metadata
-   WHERE width IS NOT NULL
-   ORDER BY updated_at DESC
-   LIMIT 10;"
+GALLERY_BASE_URL=http://localhost:5173 \
+GALLERY_PERF_ALBUM_NAME="test mika" \
+GALLERY_PERF_ALBUM_PATH="/home/ubuntu/gallery-repo/test mika" \
+GALLERY_PERF_LIGHTBOX_OPEN_BUDGET_MS=800 \
+GALLERY_PERF_LIGHTBOX_IMAGE_BUDGET_MS=1500 \
+GALLERY_PERF_LIGHTBOX_TRANSITION_BUDGET_MS=700 \
+npm run perf:lightbox
 ```
 
-### Cache schema (image_metadata table)
-
-| Column | Type | Description |
-|--------|------|-------------|
-| path | TEXT PRIMARY KEY | Resolved absolute path |
-| mtime | REAL | File modification time (for staleness check) |
-| size | INTEGER | File size in bytes (for staleness check) |
-| width | INTEGER | Image width in pixels |
-| height | INTEGER | Image height in pixels |
-| format | TEXT | Image format (PNG, JPEG, WebP, etc.) |
-| mode | TEXT | PIL image mode (RGB, RGBA, etc.) |
-| has_alpha | INTEGER | 1 if image has alpha channel |
-| prompt / negative_prompt / model / sampler / seed | TEXT | AI generation metadata |
-| indexed_at / updated_at | REAL | Timestamps |
-
-### Cache population
-
-- **Thumbnail endpoint** (`/api/thumbnail`) — when it opens an image with PIL to render a WebP thumbnail, it calls `upsert_image_dimensions()` to cache width/height.
-- **Metadata endpoint** (`/api/metadata`) — when it parses full AI generation metadata, it calls `upsert_metadata_result()` to cache everything.
-- **Scan endpoint** (`/api/scan`) — does a batch lookup via `get_cached_dimensions_for_files()`, returns cached dimensions if mtime+size match. Does NOT open images.
-
-Stale entries (mtime/size changed) are automatically ignored — the cache query validates both fields.
+### Budgets
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `GALLERY_PERF_LIGHTBOX_OPEN_BUDGET_MS` | `800` | Max ms for lightbox to become visible after click |
+| `GALLERY_PERF_LIGHTBOX_IMAGE_BUDGET_MS` | `1500` | Max ms for main image to load after click |
+| `GALLERY_PERF_LIGHTBOX_TRANSITION_BUDGET_MS` | `700` | Max ms for next image to load after ArrowRight |
 
 ## Known Limitations
 
@@ -198,3 +198,6 @@ Stale entries (mtime/size changed) are automatically ignored — the cache query
 | `GALLERY_PERF_THUMB_P95_BUDGET_MS` | `1200` | Max acceptable thumbnail p95 latency |
 | `GALLERY_PERF_SCAN_ITERATIONS` | `10` | Iterations for backend perf script |
 | `GALLERY_PERF_SCAN_P95_BUDGET_MS` | `500` | p95 budget for backend perf script |
+| `GALLERY_PERF_LIGHTBOX_OPEN_BUDGET_MS` | `800` | Max acceptable lightbox open visible time |
+| `GALLERY_PERF_LIGHTBOX_IMAGE_BUDGET_MS` | `1500` | Max acceptable lightbox image load time |
+| `GALLERY_PERF_LIGHTBOX_TRANSITION_BUDGET_MS` | `700` | Max acceptable lightbox next-image transition time |
