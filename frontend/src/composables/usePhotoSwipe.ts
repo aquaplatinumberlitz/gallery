@@ -32,7 +32,6 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
     currentIndex,
     isOpen,
     photoSwipeOptions = {},
-    thumbnailSize = null,
     onIndexChange,
     onClose,
     onRegisterUi,
@@ -150,7 +149,7 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
     if (!containerRef.value || !isOpen.value || pswp.value) return;
 
     const dataSource = items.value.map((item) =>
-      buildPhotoSwipeItem(item, thumbnailSize ?? null, bestKnownDimensions(item))
+      buildPhotoSwipeItem(item, bestKnownDimensions(item))
     );
 
     const instance = new PhotoSwipe({

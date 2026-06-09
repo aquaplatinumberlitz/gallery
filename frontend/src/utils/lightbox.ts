@@ -11,6 +11,7 @@ export type LightboxDimensions = {
 
 export type PhotoSwipeImageItem = {
   src: string;
+  msrc?: string;
   width: number;
   height: number;
   alt: string;
@@ -36,18 +37,14 @@ export function hasValidDimensions(
  * (no portrait/landscape bias) only when metadata is missing.
  *
  * @param item - The FileNode to build a PhotoSwipe item for
- * @param thumbnailSize - If provided, use thumbnail URL at this size; otherwise use full-res image
+ * @param resolvedDimensions - Pre-resolved dimensions to use (width/height)
  */
 export function buildPhotoSwipeItem(
   item: FileNode,
-  thumbnailSize?: number | null,
   resolvedDimensions?: LightboxDimensions | null
 ): PhotoSwipeImageItem {
-  // Use thumbnail URL if a size is specified, otherwise full-res
-  const src =
-    thumbnailSize != null
-      ? getThumbnailUrl(item.path, LIGHTBOX_THUMBNAIL_SIZE)
-      : getImageUrl(item.path);
+  const src = getImageUrl(item.path);
+  const msrc = getThumbnailUrl(item.path, LIGHTBOX_THUMBNAIL_SIZE);
 
   // PhotoSwipe requires dimensions up front. Use the best known ratio, then
   // let the resolver refresh the item when async metadata arrives.
@@ -56,6 +53,7 @@ export function buildPhotoSwipeItem(
 
   return {
     src,
+    msrc,
     width,
     height,
     alt: item.name || "",

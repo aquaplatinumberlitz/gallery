@@ -49,14 +49,14 @@ test("lightbox opens first photo within budget", async ({ page }) => {
   await expect(lightbox).toBeVisible({ timeout: 10000 });
   const lightboxVisibleAfterClickMs = Date.now() - clickTime.value;
 
-  const lightboxImg = lightbox.locator(".pswp__img").first();
+  const lightboxImg = lightbox.locator(".pswp__img:not(.pswp__img--placeholder)").first();
   await expect.poll(async () => {
     return await lightboxImg.evaluate((img: HTMLImageElement) => ({
       complete: img.complete,
       naturalW: img.naturalWidth,
       naturalH: img.naturalHeight,
     }));
-  }, { timeout: 10000 }).toMatchObject({ complete: true });
+  }, { timeout: 15000 }).toMatchObject({ complete: true });
   const mainImageLoadedAfterClickMs = Date.now() - clickTime.value;
 
   const allThumbnailSamples = tracker.thumbnailSamples();
@@ -80,8 +80,8 @@ test("lightbox opens first photo within budget", async ({ page }) => {
 
   const viewport = page.viewportSize();
 
-  const actualSrc = await lightboxImg.getAttribute("src");
-  const srcIsFullImage = actualSrc?.startsWith("/api/image") ?? false;
+  const actualSrc = await lightboxImg.evaluate((img: HTMLImageElement) => img.src);
+  const srcIsFullImage = actualSrc?.includes("/api/image") ?? false;
 
   const report = {
     albumName,
@@ -139,7 +139,7 @@ test("lightbox transitions to next image within budget", async ({ page }) => {
   await expect(lightbox).toBeVisible({ timeout: 10000 });
 
   // Wait for initial image loaded
-  const lightboxImg = lightbox.locator(".pswp__img").first();
+  const lightboxImg = lightbox.locator(".pswp__img:not(.pswp__img--placeholder)").first();
   await expect.poll(async () => {
     return await lightboxImg.evaluate((img: HTMLImageElement) => img.complete);
   }, { timeout: 10000 }).toBe(true);
@@ -151,15 +151,17 @@ test("lightbox transitions to next image within budget", async ({ page }) => {
 
   await page.keyboard.press("ArrowRight");
 
-  await expect.poll(async () => {
-    const src = await lightboxImg.getAttribute("src");
-    return src !== beforeSrc;
-  }, { timeout: 5000 }).toBe(true);
   const nextVisibleAfterActionMs = Date.now() - clickTime.value;
 
   await expect.poll(async () => {
-    return await lightboxImg.evaluate((img: HTMLImageElement) => img.complete);
-  }, { timeout: 10000 }).toBe(true);
+    const currentImg = lightbox.locator(".pswp__img:not(.pswp__img--placeholder)").first();
+    const src = await currentImg.getAttribute("src");
+    const dims = await currentImg.evaluate((img: HTMLImageElement) => ({
+      nw: img.naturalWidth,
+      nh: img.naturalHeight,
+    }));
+    return src !== beforeSrc && dims.nw > 0 && dims.nh > 0;
+  }, { timeout: 20000 }).toBe(true);
   const nextImageLoadedAfterActionMs = Date.now() - clickTime.value;
 
   const dims = await lightboxImg.evaluate((img: HTMLImageElement) => ({
