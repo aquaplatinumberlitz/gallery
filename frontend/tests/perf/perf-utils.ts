@@ -36,6 +36,7 @@ export function installApiNetworkTracker(page: Page, clickTimeRef: { value: numb
 
   page.on("request", (request) => {
     if (!shouldTrack(request)) return;
+    if (clickTimeRef.value <= 0) return  // ignore pre-click network
     const url = new URL(request.url());
     const sample: NetworkSample = {
       url: request.url(),
@@ -65,6 +66,10 @@ export function installApiNetworkTracker(page: Page, clickTimeRef: { value: numb
     samples,
     scanSamples: () => samples.filter((sample) => sample.pathname === "/api/scan"),
     thumbnailSamples: () => samples.filter((sample) => sample.pathname === "/api/thumbnail"),
+    clear() {
+      samples.length = 0
+      byRequest.clear()
+    },
   };
 }
 

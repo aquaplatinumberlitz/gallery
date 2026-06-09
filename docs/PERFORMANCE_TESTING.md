@@ -90,10 +90,23 @@ npm run perf:album
 npm run perf:album:headed
 ```
 
+### How the test works
+
+1. Opens the app at `GALLERY_BASE_URL`.
+2. Waits for the target album card to be visible.
+3. **Clears the network tracker** and sets `clickTime` — this ensures *only* network activity caused by the album click is measured.
+4. Clicks the album card.
+5. Collects all `/api/scan` and `/api/thumbnail` requests.
+6. Filters samples by album path when `GALLERY_PERF_ALBUM_PATH` is set (prevents root `/api/scan` or unrelated thumbnails from polluting results).
+7. Asserts budgets and prints a structured JSON report.
+
+**Pre-click network is intentionally ignored** — the tracker refuses to record samples before `clickTime` is set. This prevents false duplicates and wrong `scanSamples[0]`.
+
 Config via env vars:
 ```bash
 GALLERY_BASE_URL=https://150.230.56.153 \
 GALLERY_PERF_ALBUM_NAME="test mika" \
+GALLERY_PERF_ALBUM_PATH="/home/ubuntu/gallery-repo/test mika" \
 GALLERY_PERF_SCAN_BUDGET_MS=500 \
 GALLERY_PERF_FIRST_THUMB_BUDGET_MS=1000 \
 GALLERY_PERF_THUMB_P95_BUDGET_MS=1200 \
@@ -179,7 +192,7 @@ Stale entries (mtime/size changed) are automatically ignored — the cache query
 | `GALLERY_BASE_URL` | `http://localhost:5173` | Frontend URL for Playwright tests |
 | `GALLERY_API_BASE_URL` | `http://localhost:8000` | Backend API URL for perf scripts |
 | `GALLERY_PERF_ALBUM_NAME` | `test mika` | Album name for Playwright test |
-| `GALLERY_PERF_ALBUM_PATH` | `/home/ubuntu/gallery-repo/test mika` | Album path for backend perf script |
+| `GALLERY_PERF_ALBUM_PATH` | `""` | Album path to filter scan/thumbnail samples; prevents root-scan pollution |
 | `GALLERY_PERF_SCAN_BUDGET_MS` | `500` | Max acceptable scan duration |
 | `GALLERY_PERF_FIRST_THUMB_BUDGET_MS` | `1000` | Max acceptable first thumbnail start |
 | `GALLERY_PERF_THUMB_P95_BUDGET_MS` | `1200` | Max acceptable thumbnail p95 latency |
