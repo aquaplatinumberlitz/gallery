@@ -8,6 +8,11 @@ from .config import ENABLE_METRICS, ENABLE_PROFILER, PROFILE_DIR, PROFILE_ENDPOI
 from .images import router as images_router
 from .thumbnails import router as thumbnails_router
 from .metadata_parse import router as metadata_parse_router
+from .scan import router as scan_router
+from .folders import router as folders_router
+from .search import router as search_router
+from .health import router as health_router
+from .static_files import router as static_files_router
 
 
 def _get_cors_origins() -> list[str]:
@@ -54,6 +59,11 @@ app.add_middleware(
 app.include_router(images_router)
 app.include_router(thumbnails_router)
 app.include_router(metadata_parse_router)
+app.include_router(scan_router)
+app.include_router(folders_router)
+app.include_router(search_router)
+app.include_router(health_router)
+app.include_router(static_files_router)
 
 if ENABLE_PROFILER:
     import pyinstrument

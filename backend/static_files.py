@@ -1,0 +1,49 @@
+import mimetypes
+import os
+from pathlib import Path
+
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
+
+from .config import FRONTEND_DIST, PRODUCTION
+
+router = APIRouter()
+
+
+@router.get("/")
+async def read_root():
+    if PRODUCTION:
+        return FileResponse(str(FRONTEND_DIST / "index.html"), media_type="text/html")
+    return {"message": "Museum Art Gallery API"}
+
+
+@router.get("/api/landing-pages")
+def get_landing_pages():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    landpage_dir = os.path.join(base_dir, "..", "frontend", "public", "landpage")
+
+    pages = []
+    if os.path.exists(landpage_dir):
+        for root, dirs, files in os.walk(landpage_dir):
+            for file in files:
+                if file.lower().endswith(".html"):
+                    public_dir = os.path.join(base_dir, "..", "frontend", "public")
+                    rel_path = os.path.relpath(os.path.join(root, file), public_dir)
+
+                    url_path = "/" + rel_path.replace(os.sep, "/")
+                    pages.append(url_path)
+
+    return pages
+
+
+@router.api_route("/{path:path}", methods=["GET"], include_in_schema=False)
+async def catch_all(path: str):
+    if not PRODUCTION:
+        raise HTTPException(status_code=404, detail="Only available in production mode")
+    if path.startswith("api/") or path.startswith("openapi") or path.startswith("docs"):
+        raise HTTPException(status_code=404, detail="Not Found")
+    file_path = FRONTEND_DIST / path
+    if path and (FRONTEND_DIST / path).is_file():
+        media_type, _ = mimetypes.guess_type(str(file_path))
+        return FileResponse(str(file_path), media_type=media_type)
+    return FileResponse(str(FRONTEND_DIST / "index.html"), media_type="text/html")

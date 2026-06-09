@@ -1,0 +1,97 @@
+import os
+from pathlib import Path
+from typing import Literal
+
+from fastapi import APIRouter, Query
+from fastapi.concurrency import run_in_threadpool
+
+from .config import DEFAULT_ROOT, GALLERY_ROOT
+from .errors import APIError, ErrorType
+from .metadata_store import cleanup_stale_index, search_index, search_metadata
+from .paths import is_path_safe, resolve_path
+
+router = APIRouter()
+
+
+@router.get("/api/search-metadata")
+async def api_search_metadata(
+    q: str = Query("", description="Prompt, model, sampler, filename, or metadata text to search"),
+    limit: int = Query(100, ge=1, le=200, description="Maximum search results"),
+    offset: int = Query(0, ge=0, description="Result offset"),
+):
+    if not q.strip():
+        return {"query": q, "total": 0, "results": []}
+
+    try:
+        data = await run_in_threadpool(search_metadata, q, limit, offset)
+    except Exception as exc:  # noqa: BLE001
+        raise APIError(500, ErrorType.SERVER_ERROR, f"Metadata search failed: {exc}") from exc
+
+    safe_results = [
+        result
+        for result in data["results"]
+        if is_path_safe(resolve_path(result["path"]))
+    ]
+    return {
+        "query": data["query"],
+        "total": len(safe_results),
+        "results": safe_results,
+    }
+
+
+@router.get("/api/search")
+async def api_search(
+    q: str = Query("", description="Filename, album name, prompt, or metadata text to search"),
+    scope: Literal["current", "all"] = Query("current", description="Search current folder recursively or all indexed files"),
+    path: str | None = Query(None, description="Current folder path when scope=current"),
+    limit: int = Query(50, ge=1, le=200, description="Maximum results per section"),
+):
+    if not q.strip():
+        root = resolve_path(path) if scope == "current" and path else GALLERY_ROOT
+        return {"query": q, "scope": scope, "root": str(root), "albums": [], "photos": [], "prompt": []}
+
+    root_path: Path | None = None
+    if scope == "current":
+        root_path = resolve_path(path) if path else DEFAULT_ROOT
+        if not is_path_safe(root_path):
+            raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied: path outside allowed root")
+        if not root_path.exists() or not root_path.is_dir():
+            raise APIError(404, ErrorType.NOT_FOUND, "Folder not found")
+
+    try:
+        data = await run_in_threadpool(search_index, q, scope, root_path, limit)
+    except Exception as exc:  # noqa: BLE001
+        raise APIError(500, ErrorType.SERVER_ERROR, f"Search failed: {exc}") from exc
+
+    stale_detected = False
+
+    def safe_section(section: list[dict]) -> list[dict]:
+        nonlocal stale_detected
+        safe_results: list[dict] = []
+        for result in section:
+            try:
+                resolved = resolve_path(result["path"])
+            except (OSError, RuntimeError):
+                stale_detected = True
+                continue
+            if os.path.exists(resolved) and is_path_safe(resolved):
+                safe_results.append(result)
+            else:
+                stale_detected = True
+        return safe_results
+
+    albums = safe_section(data["albums"])
+    photos = safe_section(data["photos"])
+    prompt = safe_section(data["prompt"])
+
+    if stale_detected:
+        await run_in_threadpool(cleanup_stale_index, None, GALLERY_ROOT)
+
+    return {
+        "query": data["query"],
+        "scope": data["scope"],
+        "root": data["root"],
+        "albums": albums,
+        "photos": photos,
+        "prompt": prompt,
+    }
