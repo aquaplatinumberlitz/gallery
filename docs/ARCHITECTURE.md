@@ -38,7 +38,7 @@ Important backend behavior:
 - Metadata cache keys include path, mtime, and size.
 - Search cache lives at `backend/.cache/gallery_metadata.db`. It contains `file_index` rows for indexed folders/photos, `file_index_fts` for recursive album/photo filename search, and normalized image metadata with SQLite FTS5 tables for prompt/metadata search.
 - `/api/scan` returns the current folder exactly as before, then indexes the scanned folder and its subfolders in the background. File entries are indexed for albums/photos; image metadata is indexed for prompt search. Unchanged metadata entries are not reparsed.
-- `/api/folders` is a lightweight folder-tree endpoint. It lists only direct, non-hidden folder children, does not return image rows, and does not compute image counts or cover images. For this endpoint, `has_children` means the folder has at least one non-hidden child directory, so sidebar chevrons are not shown for folders that contain only images. Album cover/count metadata remains part of `/api/scan`, not `/api/folders`.
+- `/api/folders` is a lightweight folder-tree endpoint. It lists only direct, non-hidden folder children, does not return image rows, and does not compute image counts or cover images. `/api/folders` ignores symlinked directories and only lists real non-hidden child directories. For this endpoint, `has_children` means the folder has at least one non-hidden child directory, so sidebar chevrons are not shown for folders that contain only images. Album cover/count metadata remains part of `/api/scan`, not `/api/folders`.
 - Production mode is enabled with `PRODUCTION=1`, serving `frontend/dist/`.
 
 ## Frontend

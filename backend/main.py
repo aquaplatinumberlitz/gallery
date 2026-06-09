@@ -249,7 +249,7 @@ def list_folder_children(target_path: Path) -> list[FileNode]:
             entry_path = Path(entry.path)
 
             try:
-                if not entry.is_dir():
+                if not entry.is_dir(follow_symlinks=False):
                     continue
             except OSError:
                 continue
@@ -260,7 +260,7 @@ def list_folder_children(target_path: Path) -> list[FileNode]:
                 path = str(entry_path.absolute())
 
             try:
-                mtime = entry.stat().st_mtime
+                mtime = entry.stat(follow_symlinks=False).st_mtime
             except OSError:
                 mtime = 0
 

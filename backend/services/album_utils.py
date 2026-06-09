@@ -22,11 +22,12 @@ def has_any_children(dir_path: Path) -> bool:
 def has_subfolders(dir_path: Path) -> bool:
     """Return True when a directory contains at least one non-hidden child directory."""
     try:
-        return any(
-            entry.is_dir()
-            for entry in dir_path.iterdir()
-            if not entry.name.startswith(".")
-        )
+        for entry in os.scandir(dir_path):
+            if entry.name.startswith("."):
+                continue
+            if entry.is_dir(follow_symlinks=False):
+                return True
+        return False
     except (PermissionError, OSError):
         return False
 
