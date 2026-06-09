@@ -103,7 +103,7 @@ Before changing metadata or thumbnail code:
 
 | Concern | Files |
 |---------|-------|
-| API calls | `frontend/src/services/api.ts`, `backend/main.py` |
+| API calls | `frontend/src/services/api.ts`, `backend/app.py`, `backend/main.py` |
 | Device detection | `frontend/src/composables/useDevice.ts` |
 | Breakpoint mixins | `frontend/src/styles/_breakpoints.scss` |
 | Grid density | `frontend/src/composables/useColumnResize.ts` |
@@ -111,7 +111,7 @@ Before changing metadata or thumbnail code:
 | Lightbox orchestration | `frontend/src/components/Lightbox.vue` |
 | PhotoSwipe lifecycle | `frontend/src/composables/usePhotoSwipe.ts` |
 | Mobile lightbox sheet | `frontend/src/components/LightboxMobileSheet.vue`, `frontend/src/styles/_lightbox-mobile.scss` |
-| Metadata parsing | `backend/main.py` |
+| Metadata parsing | `backend/metadata_parse.py`, `backend/metadata_extract.py` |
 
 ## Documentation Maintenance
 

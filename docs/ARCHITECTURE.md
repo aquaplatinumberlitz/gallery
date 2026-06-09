@@ -14,21 +14,44 @@ Major external library integrations are documented in [Third-Party Libraries](TH
 
 ## Backend
 
-All API routes live in `backend/main.py`.
+Backend modules live flat in `backend/` (no nested packages beyond `tests/`).
 
-| Endpoint | Purpose |
-|----------|---------|
-| `GET /api/scan` | Return folders and paginated image files for a directory |
-| `GET /api/folders` | Return folder children only for folder tree expansion |
-| `GET /api/image` | Serve an original image file |
-| `GET /api/thumbnail` | Serve a cached WebP thumbnail |
-| `GET /api/metadata` | Parse AI generation metadata |
-| `GET /api/search` | Unified indexed search for albums, photo filenames, and prompt/metadata |
-| `GET /api/search-metadata` | Search indexed AI prompt/metadata fields with SQLite FTS5 |
-| `POST /api/open-folder` | Open a folder in the OS file explorer when enabled |
-| `GET /api/health` | Return service health |
-| `GET /api/landing-pages` | List intro page HTML files |
-| `GET /` and `GET /{path:path}` | Serve the built SPA in production mode |
+| File | Purpose |
+|------|---------|
+| `app.py` | FastAPI app creation, CORS, Prometheus, pyinstrument, router composition |
+| `main.py` | Compatibility shim (`from .app import app`) + `__main__` uvicorn block |
+| `config.py` | Environment variables, constants, cache dirs |
+| `errors.py` | `APIError`, `ErrorType` |
+| `models.py` | Pydantic `FileNode` and shared request/response schemas |
+| `paths.py` | `resolve_path`, `is_path_safe`, GALLERY_ROOT boundary checks |
+| `files.py` | `is_image`, `natural_sort_key`, `IMAGE_EXTENSIONS`, `check_image_limits` |
+| `albums.py` | `build_album_metadata`, `has_subfolders`, cover/child detection |
+| `scan.py` | `GET /api/scan`, `scan_directory`, perf helpers |
+| `folders.py` | `GET /api/folders`, `POST /api/open-folder` |
+| `images.py` | `GET /api/image` (original image serving) |
+| `thumbnails.py` | `GET /api/thumbnail`, generation, persistent disk cache |
+| `metadata_extract.py` | Raw metadata extraction from image files (lowest layer, no SQLite/API) |
+| `metadata_parse.py` | `GET /api/metadata`, LRU cache, rich response shaping |
+| `metadata_store.py` | SQLite metadata cache, FTS5 index/search |
+| `search.py` | `GET /api/search`, `GET /api/search-metadata` |
+| `health.py` | `GET /api/health`, favicon, GIT_COMMIT |
+| `static_files.py` | `GET /`, `GET /api/landing-pages`, production SPA fallback |
+
+### Route Reference
+
+| Endpoint | Purpose | Module |
+|----------|---------|--------|
+| `GET /api/scan` | Return folders and paginated image files for a directory | `scan.py` |
+| `GET /api/folders` | Return folder children only for folder tree expansion | `folders.py` |
+| `GET /api/image` | Serve an original image file | `images.py` |
+| `GET /api/thumbnail` | Serve a cached WebP thumbnail | `thumbnails.py` |
+| `GET /api/metadata` | Parse AI generation metadata | `metadata_parse.py` |
+| `GET /api/search` | Unified indexed search for albums, photo filenames, and prompt/metadata | `search.py` |
+| `GET /api/search-metadata` | Search indexed AI prompt/metadata fields with SQLite FTS5 | `search.py` |
+| `POST /api/open-folder` | Open a folder in the OS file explorer when enabled | `folders.py` |
+| `GET /api/health` | Return service health | `health.py` |
+| `GET /api/landing-pages` | List intro page HTML files | `static_files.py` |
+| `GET /` and `GET /{path:path}` | Serve the built SPA in production mode | `static_files.py` |
 
 Important backend behavior:
 
