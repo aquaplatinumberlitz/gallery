@@ -20,7 +20,7 @@ export function useUnifiedSearchQuery(
 
   const trimmedQuery = computed(() => query.value.trim());
   const normalizedPath = computed(() => normalizeQueryPath(path.value || ""));
-  const queryPath = computed(() => (scope.value === "current" ? normalizedPath.value : ""));
+  const requestPath = computed(() => (scope.value === "current" ? normalizedPath.value : ""));
 
   watch(
     trimmedQuery,
@@ -49,17 +49,22 @@ export function useUnifiedSearchQuery(
   });
 
   const searchQuery = useQuery({
-    queryKey: computed(() =>
-      debouncedQuery.value
-        ? queryKeys.search(debouncedQuery.value, scope.value, queryPath.value)
-        : []
-    ),
-    queryFn: () =>
-      unifiedSearch(debouncedQuery.value, {
-        scope: scope.value,
-        path: queryPath.value,
+    queryKey: computed(() => {
+      const requestQuery = debouncedQuery.value;
+      const requestScope = scope.value;
+      const pathForRequest = requestPath.value;
+      return requestQuery
+        ? queryKeys.search(requestQuery, requestScope, pathForRequest)
+        : [];
+    }),
+    queryFn: ({ queryKey }) => {
+      const [, requestQuery, requestScope, pathForRequest] = queryKey as ReturnType<typeof queryKeys.search>;
+      return unifiedSearch(requestQuery, {
+        scope: requestScope as SearchScope,
+        path: pathForRequest,
         limit: 100,
-      }),
+      });
+    },
     enabled: computed(() => debouncedQuery.value.length > 0),
     placeholderData: (previousData) => previousData,
   });

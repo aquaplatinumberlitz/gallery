@@ -61,6 +61,7 @@ export interface ScanResponse {
   images: FileNode[];
   next_cursor: number | null;
   total_images: number;
+  request_path?: string;
 }
 
 export type SearchScope = "current" | "all";

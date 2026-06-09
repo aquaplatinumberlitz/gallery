@@ -6,6 +6,11 @@ import type { ScanResponse } from "../types";
 import { queryClient } from "../query";
 import { normalizeQueryPath, queryKeys } from "../query/keys";
 
+const withScanRequestPath = (data: ScanResponse, requestPath: string): ScanResponse => ({
+  ...data,
+  request_path: requestPath,
+});
+
 export function useScanQuery(path: Ref<string>) {
   const normalizedPath = computed(() => normalizeQueryPath(path.value || ""));
 
@@ -17,12 +22,13 @@ export function useScanQuery(path: Ref<string>) {
 
   return useQuery({
     queryKey,
-    queryFn: async () => {
-      const result = await scanDirectory(normalizedPath.value, {
+    queryFn: async ({ queryKey }) => {
+      const requestPath = queryKey[1] as string;
+      const result = await scanDirectory(requestPath, {
         imageLimit: IMAGE_PAGE_SIZE,
         imageCursor: 0,
       });
-      return result;
+      return withScanRequestPath(result, requestPath);
     },
     enabled: computed(() => normalizedPath.value.length > 0),
     placeholderData: (previousData) => previousData,
@@ -38,7 +44,10 @@ export function prefetchScan(path: string) {
   if (!normalized) return;
   queryClient.prefetchQuery({
     queryKey: queryKeys.scan(normalized, IMAGE_PAGE_SIZE),
-    queryFn: () => scanDirectory(normalized, { imageLimit: IMAGE_PAGE_SIZE, imageCursor: 0 }),
+    queryFn: async () => withScanRequestPath(
+      await scanDirectory(normalized, { imageLimit: IMAGE_PAGE_SIZE, imageCursor: 0 }),
+      normalized
+    ),
     staleTime: 60_000,
   });
 }
@@ -65,7 +74,10 @@ export async function fetchScan(path: string): Promise<ScanResponse | undefined>
   try {
     return await queryClient.fetchQuery({
       queryKey: queryKeys.scan(normalized, IMAGE_PAGE_SIZE),
-      queryFn: () => scanDirectory(normalized, { imageLimit: IMAGE_PAGE_SIZE, imageCursor: 0 }),
+      queryFn: async () => withScanRequestPath(
+        await scanDirectory(normalized, { imageLimit: IMAGE_PAGE_SIZE, imageCursor: 0 }),
+        normalized
+      ),
       staleTime: 60_000,
     });
   } catch {
@@ -85,7 +97,10 @@ export async function fetchScanOrThrow(path: string): Promise<ScanResponse> {
 
   return queryClient.fetchQuery({
     queryKey: queryKeys.scan(normalized, IMAGE_PAGE_SIZE),
-    queryFn: () => scanDirectory(normalized, { imageLimit: IMAGE_PAGE_SIZE, imageCursor: 0 }),
+    queryFn: async () => withScanRequestPath(
+      await scanDirectory(normalized, { imageLimit: IMAGE_PAGE_SIZE, imageCursor: 0 }),
+      normalized
+    ),
     staleTime: 60_000,
   });
 }
@@ -109,7 +124,7 @@ export function isScanFresh(path: string): boolean {
 export function setCachedScan(path: string, data: ScanResponse) {
   const normalized = normalizeQueryPath(path);
   if (!normalized) return;
-  queryClient.setQueryData(queryKeys.scan(normalized, IMAGE_PAGE_SIZE), data);
+  queryClient.setQueryData(queryKeys.scan(normalized, IMAGE_PAGE_SIZE), withScanRequestPath(data, normalized));
 }
 
 /**

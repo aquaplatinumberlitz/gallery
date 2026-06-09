@@ -6,6 +6,7 @@ export function useCurrentScanQuery() {
   const galleryStore = useGalleryStore();
   const scanPath = computed(() => galleryStore.currentPath || galleryStore.rootPath);
   const scanQuery = useScanQuery(scanPath);
+  const activeFolderPath = computed(() => scanQuery.data.value?.request_path || scanPath.value);
 
   const folders = computed(() => scanQuery.data.value?.folders ?? []);
   const firstPageImages = computed(() => scanQuery.data.value?.images ?? []);
@@ -15,6 +16,7 @@ export function useCurrentScanQuery() {
   return {
     ...scanQuery,
     scanPath,
+    activeFolderPath,
     folders,
     firstPageImages,
     nextCursor,
