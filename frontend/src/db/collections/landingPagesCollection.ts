@@ -4,6 +4,7 @@ import { queryKeys } from "../../query/keys";
 
 export interface LandingPage {
   url: string;
+  index: number;
 }
 
 export const landingPagesQueryKey = queryKeys.landingPages();
@@ -14,7 +15,12 @@ export const landingPagesCollection = createCollection(
     queryKey: landingPagesQueryKey,
     queryFn: async (): Promise<LandingPage[]> => {
       const pages = await fetchLandingPages();
-      return pages.map((url) => ({ url }));
+      const seenUrls = new Set<string>();
+      return pages.flatMap((url, index) => {
+        if (seenUrls.has(url)) return [];
+        seenUrls.add(url);
+        return [{ url, index }];
+      });
     },
     queryClient,
     getKey: (page) => page.url,

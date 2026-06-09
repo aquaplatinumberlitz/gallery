@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue';
-import { fetchLandingPages } from '../services/api';
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { useFocusTrap } from '../composables/useFocusTrap';
+import { useLandingPagesLiveQuery } from '../db/composables/useLandingPagesLiveQuery';
 
 const props = defineProps<{
   isOpen: boolean;
@@ -14,10 +14,11 @@ const emit = defineEmits<{
 
 const introMode = ref<'auto' | 'disabled' | 'manual'>('auto');
 const selectedTheme = ref('');
-const availableThemes = ref<string[]>([]);
-const isLoadingThemes = ref(false);
 const modalRef = ref<HTMLElement | null>(null);
 const closeButtonRef = ref<HTMLElement | null>(null);
+const landingPagesQuery = useLandingPagesLiveQuery();
+const availableThemes = computed(() => landingPagesQuery.data.value.map((page) => page.url));
+const isLoadingThemes = computed(() => landingPagesQuery.isLoading.value);
 
 const { activate, deactivate } = useFocusTrap(modalRef, {
   initialFocus: closeButtonRef,
@@ -54,25 +55,24 @@ const saveSettings = () => {
   }
 };
 
-onMounted(async () => {
+onMounted(() => {
   loadSettings();
-  try {
-    isLoadingThemes.value = true;
-    const pages = await fetchLandingPages();
-    availableThemes.value = pages;
-    
-    if (!selectedTheme.value && pages.length > 0) {
-      selectedTheme.value = pages[0];
-    }
-  } catch (e) {
-    console.error("Failed to load themes", e);
-  } finally {
-    isLoadingThemes.value = false;
-  }
 });
 
 watch([introMode, selectedTheme], () => {
   saveSettings();
+});
+
+watch(availableThemes, (pages) => {
+  if (!selectedTheme.value && pages.length > 0) {
+    selectedTheme.value = pages[0];
+  }
+}, { immediate: true });
+
+watch(landingPagesQuery.isError, (isError) => {
+  if (isError) {
+    console.error("Failed to load themes");
+  }
 });
 
 const handlePreview = () => {

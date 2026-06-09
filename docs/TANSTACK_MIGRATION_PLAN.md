@@ -21,8 +21,8 @@ Runtime use today:
 
 - TanStack Query is installed through `frontend/src/query/index.ts` and caches first-page `/api/scan` responses.
 - TanStack Virtual is used by `GalleryGrid.vue` for desktop/tablet row virtualization.
-- TanStack DB, Query Collection, and Vue DB are present as a beta foundation with a landing-pages pilot collection.
-- Query Devtools are dynamically registered in development mode.
+- TanStack DB, Query Collection, and Vue DB are present as a beta foundation with a landing-pages pilot collection wired into Settings theme selection.
+- Query Devtools are rendered from the app root in development mode.
 - TanStack Form and Table are installed foundations only and are not used in runtime UI.
 
 ## State Ownership
@@ -63,7 +63,7 @@ The current gallery scan flow is hybrid for compatibility. TanStack Query caches
 
 Search, metadata, infinite image loading, and folder tree loading still call the API from Pinia/store code or lightbox code directly. They are not yet TanStack Query source-of-truth flows.
 
-TanStack DB currently wraps only `/api/landing-pages` into a Query Collection. The API response is normalized from `string[]` to `{ url }[]`, and `url` is the collection key.
+TanStack DB currently wraps only `/api/landing-pages` into a Query Collection. The API response is normalized from `string[]` to landing-page rows keyed by `url`, with an index retained to preserve API order in live queries.
 
 ## Why Query Is the Default
 
@@ -106,6 +106,8 @@ Therefore search, scan, and infinite load stay with plain TanStack Query first. 
 
 Phase 0 creates a centralized query key module and refactors existing Query/DB pilot code to use it.
 
+Status: complete. Query path normalization is shared through `normalizeQueryPath`, scan/search/metadata query keys use that normalizer, and `queryKeys.scanPath(path)` is available for broad scan-path invalidation while exact scan fetch/cache keys remain `queryKeys.scan(path, IMAGE_PAGE_SIZE)`.
+
 Allowed:
 
 - centralize keys in `frontend/src/query/keys.ts`
@@ -122,6 +124,10 @@ Not allowed:
 - wire landing pages UI differently
 - change backend behavior
 - change UI/UX
+
+## Phase 1 Scope
+
+Phase 1 landing pages are complete for Settings theme selection. The existing landing-pages Query Collection still uses `url` as the collection key, defensively ignores duplicate URLs, preserves API order with an index, and `SettingsModal.vue` reads it through `useLandingPagesLiveQuery()`. `IntroScreen.vue` keeps its direct conditional `fetchLandingPages()` call so disabled, manual, and forced-preview flows do not start an eager landing-pages query.
 
 ## Hard Rules
 
