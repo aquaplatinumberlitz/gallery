@@ -13,6 +13,12 @@ import { galleryScrollContainerRefKey } from "./injectionKeys";
 import { closeSidebarKey } from "./injectionKeys";
 
 const Lightbox = defineAsyncComponent(() => import("./components/Lightbox.vue"));
+const isDev = import.meta.env.DEV;
+const VueQueryDevtools = isDev
+  ? defineAsyncComponent(() =>
+      import("@tanstack/vue-query-devtools").then((m) => m.VueQueryDevtools)
+    )
+  : null;
 
 const { isMobile, isTablet } = useDevice();
 
@@ -217,7 +223,12 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
     @close="isSettingsOpen = false"
     @preview="handlePreviewIntro"
   />
-  <VueQueryDevTools />
+  <component
+    :is="VueQueryDevtools"
+    v-if="isDev && VueQueryDevtools"
+    button-position="bottom-right"
+    position="bottom"
+  />
 </template>
 
 <style scoped>

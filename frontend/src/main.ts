@@ -41,10 +41,6 @@ if (import.meta.env.DEV) {
     .catch((error) => {
       console.warn('[IconDebug] failed to load', error);
     });
-  // Vue Query Devtools
-  import('@tanstack/vue-query-devtools').then(({ VueQueryDevtools }) => {
-    app.component('VueQueryDevTools', VueQueryDevtools)
-  })
 }
 
 app.use(createPinia());
