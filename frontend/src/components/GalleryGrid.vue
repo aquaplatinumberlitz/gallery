@@ -371,6 +371,14 @@ const handleOpenImage = (path: string, name: string) => {
   lightboxStore.open({ path, name }, images.value);
 };
 
+const handlePhotoDimensions = (dimensions: { path: string; width: number; height: number }) => {
+  lightboxStore.rememberDimensions(dimensions.path, {
+    width: dimensions.width,
+    height: dimensions.height,
+    source: "thumbnail",
+  });
+};
+
 const goBack = () => galleryStore.goBack();
 const goForward = () => galleryStore.goForward();
 const openFolder = () => galleryStore.openInExplorer();
@@ -757,6 +765,7 @@ onBeforeUnmount(() => {
             <PhotoCard
               :src="img.path"
               :name="img.name"
+              @dimensions="handlePhotoDimensions"
               @click="handleOpenImage(img.path, img.name)"
               @keydown.enter="handleOpenImage(img.path, img.name)"
               @keydown.space.prevent="handleOpenImage(img.path, img.name)"
@@ -790,6 +799,7 @@ onBeforeUnmount(() => {
             <PhotoCard
               :src="img.path"
               :name="img.name"
+              @dimensions="handlePhotoDimensions"
               @click="handleOpenImage(img.path, img.name)"
               @keydown.enter="handleOpenImage(img.path, img.name)"
               @keydown.space.prevent="handleOpenImage(img.path, img.name)"
@@ -867,6 +877,7 @@ onBeforeUnmount(() => {
               :key="img.path"
               :src="img.path"
               :name="img.name"
+              @dimensions="handlePhotoDimensions"
               @click="handleOpenImage(img.path, img.name)"
               @keydown.enter="handleOpenImage(img.path, img.name)"
               @keydown.space.prevent="handleOpenImage(img.path, img.name)"
@@ -925,6 +936,7 @@ onBeforeUnmount(() => {
             :key="img.path"
             :src="img.path"
             :name="img.name"
+            @dimensions="handlePhotoDimensions"
             @click="handleOpenImage(img.path, img.name)"
             @keydown.enter="handleOpenImage(img.path, img.name)"
             @keydown.space.prevent="handleOpenImage(img.path, img.name)"

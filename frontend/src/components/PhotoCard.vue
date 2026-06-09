@@ -14,6 +14,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: "click"): void;
+  (e: "dimensions", dimensions: { path: string; width: number; height: number }): void;
 }>();
 
 const isLoaded = ref(props.src ? loadedImages.has(props.src) : false);
@@ -56,10 +57,19 @@ const onMouseLeave = () => {
   previewSrc.value = "";
 };
 
-const onImageLoad = () => {
+const onImageLoad = (event: Event) => {
   isLoaded.value = true;
   // Register in global cache so shimmer doesn't re-appear on recycle
   if (props.src) loadedImages.add(props.src);
+
+  const img = event.target instanceof HTMLImageElement ? event.target : null;
+  if (props.src && img?.naturalWidth && img.naturalHeight) {
+    emit("dimensions", {
+      path: props.src,
+      width: img.naturalWidth,
+      height: img.naturalHeight,
+    });
+  }
 };
 
 const onImageError = () => {

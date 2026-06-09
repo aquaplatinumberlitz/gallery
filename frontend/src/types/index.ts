@@ -8,8 +8,8 @@ export interface FileNode {
   cover_images?: string[];
   mtime?: number; // Modified time from backend
   image_count?: number; // Number of images in folder (from backend)
-  width?: number; // Image width in pixels (from backend scan)
-  height?: number; // Image height in pixels (from backend scan)
+  width?: number | null; // Image width in pixels when available
+  height?: number | null; // Image height in pixels when available
 }
 
 export type SortField = "name" | "date";

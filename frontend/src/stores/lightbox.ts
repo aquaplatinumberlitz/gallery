@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import type { FileNode } from "../types";
 import { getThumbnailUrl } from "../services/api";
+import type { LightboxDimensions } from "../utils/lightbox";
 
 const preloadImage = (path: string) => {
   if (typeof Image === "undefined") return;
@@ -16,6 +17,7 @@ export const useLightboxStore = defineStore("lightbox", {
     // Navigation state
     galleryItems: [] as FileNode[],
     currentIndex: -1,
+    dimensionsByPath: {} as Record<string, LightboxDimensions>,
   }),
   actions: {
     open(node: FileNode | { path: string; name?: string }, items: FileNode[] = []) {
@@ -31,6 +33,22 @@ export const useLightboxStore = defineStore("lightbox", {
       this.currentIndex = this.galleryItems.findIndex(i => i.path === path);
 
       this.preloadNeighbors();
+    },
+
+    rememberDimensions(path: string, dimensions: LightboxDimensions) {
+      if (!path || dimensions.width <= 0 || dimensions.height <= 0) return;
+
+      this.dimensionsByPath[path] = dimensions;
+
+      const item = this.galleryItems.find((galleryItem) => galleryItem.path === path);
+      if (item) {
+        item.width = dimensions.width;
+        item.height = dimensions.height;
+      }
+    },
+
+    getRememberedDimensions(path: string): LightboxDimensions | undefined {
+      return this.dimensionsByPath[path];
     },
 
     next() {

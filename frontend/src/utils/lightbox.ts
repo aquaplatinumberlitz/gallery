@@ -3,6 +3,31 @@ import { getImageUrl, getThumbnailUrl } from "../services/api";
 
 const LIGHTBOX_THUMBNAIL_SIZE = 2400;
 
+export type LightboxDimensions = {
+  width: number;
+  height: number;
+  source: "scan" | "thumbnail" | "metadata" | "fallback";
+};
+
+export type PhotoSwipeImageItem = {
+  src: string;
+  width: number;
+  height: number;
+  alt: string;
+  path: string;
+};
+
+export function hasValidDimensions(
+  dimensions: { width?: number | null; height?: number | null } | null | undefined
+): dimensions is { width: number; height: number } {
+  return (
+    typeof dimensions?.width === "number" &&
+    dimensions.width > 0 &&
+    typeof dimensions.height === "number" &&
+    dimensions.height > 0
+  );
+}
+
 /**
  * Shared helper to build a PhotoSwipe item from a FileNode.
  *
@@ -15,30 +40,19 @@ const LIGHTBOX_THUMBNAIL_SIZE = 2400;
  */
 export function buildPhotoSwipeItem(
   item: FileNode,
-  thumbnailSize?: number | null
-): {
-  src: string;
-  width: number;
-  height: number;
-  alt: string;
-  path: string;
-} {
+  thumbnailSize?: number | null,
+  resolvedDimensions?: LightboxDimensions | null
+): PhotoSwipeImageItem {
   // Use thumbnail URL if a size is specified, otherwise full-res
   const src =
     thumbnailSize != null
       ? getThumbnailUrl(item.path, LIGHTBOX_THUMBNAIL_SIZE)
       : getImageUrl(item.path);
 
-  // Use real dimensions when valid positive numbers are available
-  const width =
-    typeof item.width === "number" && item.width > 0
-      ? item.width
-      : 1200; // defensive fallback — missing metadata
-
-  const height =
-    typeof item.height === "number" && item.height > 0
-      ? item.height
-      : 1200; // defensive fallback — missing metadata
+  // PhotoSwipe requires dimensions up front. Use the best known ratio, then
+  // let the resolver refresh the item when async metadata arrives.
+  const width = resolvedDimensions?.width ?? 1200;
+  const height = resolvedDimensions?.height ?? 1200;
 
   return {
     src,
