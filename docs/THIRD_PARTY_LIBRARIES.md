@@ -9,7 +9,7 @@ This document explains how major external libraries are used in this project.
 | Library | Used for | Main integration file(s) | Notes |
 |---|---|---|---|
 | `@douxcode/vue-spring-bottom-sheet` | Mobile lightbox metadata sheet, drag/snap/spring animation, native-feeling scroll | `frontend/src/components/LightboxMobileSheet.vue`, `frontend/src/styles/_lightbox-mobile.scss` | Used as the sheet and motion engine only; Gallery owns metadata UI and behavior |
-| `@tanstack/vue-query` | Server-state caching for gallery scans, folder children, search, and metadata | `frontend/src/query/index.ts`, `frontend/src/composables/useScanQuery.ts`, `frontend/src/composables/useInfiniteScanQuery.ts`, `frontend/src/composables/useFolderChildrenQuery.ts`, `frontend/src/composables/useUnifiedSearchQuery.ts`, `frontend/src/composables/usePhotoMetadataQuery.ts` | Owns API/server-state cache; Pinia owns UI/navigation state |
+| `@tanstack/vue-query` | Server-state caching for gallery scans, folder children, search, and metadata | `frontend/src/query/index.ts`, `frontend/src/query/scan.ts`, `frontend/src/composables/useInfiniteScanQuery.ts`, `frontend/src/composables/useFolderChildrenQuery.ts`, `frontend/src/composables/useUnifiedSearchQuery.ts`, `frontend/src/composables/usePhotoMetadataQuery.ts` | Owns API/server-state cache; Pinia owns UI/navigation state |
 | `@tanstack/vue-db` | Beta local reactive DB foundation and live queries | `frontend/src/db/` | Complements TanStack Query; foundation only, with landing pages as an additive pilot collection |
 | `@tanstack/query-db-collection` | TanStack DB Query Collection adapter for REST/API-backed collections | `frontend/src/db/collections/landingPagesCollection.ts` | Reuses the shared Query client and existing API functions |
 | PhotoSwipe 5 | Responsive lightbox image viewer, image navigation, swipe/pan/zoom | `frontend/src/components/Lightbox.vue`, `MobilePhotoSwipe.vue`, `TabletPhotoSwipe.vue`, `PhotoSwipeViewer.vue`, `frontend/src/composables/usePhotoSwipe.ts`, `frontend/src/styles/_lightbox-*.scss` | Used as the image viewer engine; Gallery owns metadata panels, custom controls, and responsive layout |
@@ -64,7 +64,7 @@ Official links:
 
 Used for: Server-state caching for gallery folder scans, infinite image pages, folder children, search, and metadata.
 
-Integration files: `frontend/src/query/index.ts`, `frontend/src/composables/useScanQuery.ts`, `frontend/src/composables/useInfiniteScanQuery.ts`, `frontend/src/composables/useFolderChildrenQuery.ts`, `frontend/src/composables/useUnifiedSearchQuery.ts`, `frontend/src/composables/usePhotoMetadataQuery.ts`
+Integration files: `frontend/src/query/index.ts`, `frontend/src/query/scan.ts`, `frontend/src/composables/useInfiniteScanQuery.ts`, `frontend/src/composables/useFolderChildrenQuery.ts`, `frontend/src/composables/useUnifiedSearchQuery.ts`, `frontend/src/composables/usePhotoMetadataQuery.ts`
 
 Query key: `["scan", normalizedPath, imageLimit]`, where `normalizedPath` is trimmed, slash-normalized, and has trailing slashes removed.
 

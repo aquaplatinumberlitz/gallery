@@ -1,8 +1,8 @@
 import { IMAGE_PAGE_SIZE } from "../constants";
 import { scanDirectory } from "../services/api";
 import type { ScanResponse } from "../types";
-import { queryClient } from "../query";
-import { normalizeQueryPath, queryKeys } from "../query/keys";
+import { queryClient } from "./index";
+import { normalizeQueryPath, queryKeys } from "./keys";
 
 const withScanRequestPath = (data: ScanResponse, requestPath: string): ScanResponse => ({
   ...data,

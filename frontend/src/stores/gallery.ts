@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import type { FileNode, SearchScope, SortField, SortOrder } from "../types";
 import { openFolder, GalleryAPIError } from "../services/api";
 import { useToastStore } from "./toast";
-import { fetchScanOrThrow } from "../composables/useScanQuery";
+import { fetchScanOrThrow } from "../query/scan";
 import { normalizeQueryPath } from "../query/keys";
 
 const STORAGE_KEY = "gallery-root-path";
