@@ -22,6 +22,8 @@ withDefaults(defineProps<{
   <div 
     class="album-card"
     :class="{ 'album-card--compact': compact }"
+    data-testid="album-card"
+    :data-album-name="node.name"
     @click="emit('click')"
     @keydown.enter="emit('click')"
     @keydown.space.prevent="emit('click')"

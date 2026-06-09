@@ -18,6 +18,8 @@ defineProps<{
 <template>
   <div 
     class="album-card-mobile"
+    data-testid="album-card"
+    :data-album-name="node.name"
     @click="emit('click')"
     @keydown.enter="emit('click')"
     @keydown.space.prevent="emit('click')"

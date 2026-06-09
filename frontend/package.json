@@ -6,9 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "perf:album": "playwright test tests/perf/album-open.perf.spec.ts --project=chromium",
+    "perf:album:headed": "playwright test tests/perf/album-open.perf.spec.ts --project=chromium --headed"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@tanstack/vue-query-devtools": "^6.1.34",
     "@types/node": "^24.10.1",
     "@vitejs/plugin-vue": "^6.0.2",
