@@ -199,6 +199,10 @@ Unified gallery search uses one search box:
 - TanStack Query owns active search result data, loading/fetching, errors, and cache. Pinia owns only the search input text, scope, and navigation context.
 - `GET /api/search-metadata` remains available for backward compatibility, but the frontend no longer uses it for the main gallery search.
 
+Future fielded metadata search should preserve this FTS-backed flow and add a
+structured query parser on top of it. See
+[DiffusionToolkit Metadata Search Analysis](DIFFUSIONTOOLKIT_METADATA_SEARCH_ANALYSIS.md).
+
 ### Open Image
 
 ```text
