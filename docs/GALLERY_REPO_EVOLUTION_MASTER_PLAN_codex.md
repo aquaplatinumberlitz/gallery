@@ -1,0 +1,1467 @@
+# Gallery Repo Evolution Master Plan
+
+Last reviewed: 2026-06-09
+
+## Executive Summary
+
+Core strategy:
+gallery-repo should NOT become Immich.
+gallery-repo should NOT become DiffusionToolkit.
+gallery-repo should preserve its fast local web hot path, then selectively add a small local background indexing layer inspired by DT/Immich.
+
+| Question | Answer |
+| --- | --- |
+| Best current architecture to preserve | The direct `/api/scan` folder-open path, lazy `/api/thumbnail` image-open path, on-demand/coalesced `/api/metadata` path, original-image PhotoSwipe `/api/image` main source, SQLite cache/index, and TanStack Query ownership of server state. |
+| Best DT idea to borrow | A bounded local metadata indexing queue with coalesced jobs and batched SQLite writes. DT's best lesson is not its viewer path; it is its background scanner/writer discipline. |
+| Best Immich idea to borrow | DB-first warm viewer metadata and derivative readiness/status rows, implemented with SQLite and local workers rather than PostgreSQL, Redis, and BullMQ. |
+| Biggest current gallery-repo weakness | Metadata/search warmness depends mostly on user-triggered thumbnail and metadata opens. A folder can scan quickly but still be cold for prompt search and lightbox metadata. |
+| Biggest danger if we copy DT blindly | DT-style full-file reads, hashing, pixel fallback scans, or synchronous viewer metadata reparsing would destroy the folder-open and lightbox responsiveness that gallery-repo already has. |
+| Biggest danger if we copy Immich blindly | Immich's server stack, multi-user storage model, derivative-first viewer policy, and DB-first-only timeline assumptions would add operational weight and change the product. |
+| Recommended direction for the next 3 implementation phases | Phase 0: lock current guarantees. Phase 1: add a unified parser core, local background metadata indexer, batched writer, and index status. Phase 2: add simple fielded metadata search, DB-first warm metadata reads, derivative readiness, and bounded neighbor prefetch. |
+
+The correct direction is not "DT plus a web UI" and not "Immich lite." It is:
+
+```text
+gallery-repo with:
+- fast scan
+- original-image lightbox
+- local background metadata indexer
+- batched SQLite writes
+- DB-first warm metadata
+- simple optional fielded search
+- observable perf gates
+```
+
+## Sources Read
+
+This is a planning document only. It proposes no code changes, dependency
+changes, or behavior changes by itself.
+
+Primary inputs read:
+
+- [DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md](DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md)
+- [DIFFUSIONTOOLKIT_METADATA_PARSE_ANALYSIS.md](DIFFUSIONTOOLKIT_METADATA_PARSE_ANALYSIS.md)
+- [DIFFUSIONTOOLKIT_METADATA_SEARCH_ANALYSIS.md](DIFFUSIONTOOLKIT_METADATA_SEARCH_ANALYSIS.md)
+- [IMMICH_PIPELINE_AUDIT.md](IMMICH_PIPELINE_AUDIT.md)
+- [MEDIA_PIPELINE_COMPARISON.md](MEDIA_PIPELINE_COMPARISON.md)
+- [ARCHITECTURE.md](ARCHITECTURE.md)
+- [PERFORMANCE_TESTING.md](PERFORMANCE_TESTING.md)
+- [METADATA_PARSING.md](METADATA_PARSING.md)
+
+Implementation files inspected:
+
+- Backend: [scan.py](../backend/scan.py), [thumbnails.py](../backend/thumbnails.py), [images.py](../backend/images.py), [metadata_store.py](../backend/metadata_store.py), [metadata_parse.py](../backend/metadata_parse.py), [metadata_extract.py](../backend/metadata_extract.py), [search.py](../backend/search.py), [main.py](../backend/main.py), [app.py](../backend/app.py)
+- Frontend: [GalleryGrid.vue](../frontend/src/components/GalleryGrid.vue), [PhotoCard.vue](../frontend/src/components/PhotoCard.vue), [Lightbox.vue](../frontend/src/components/Lightbox.vue), [PhotoSwipeViewer.vue](../frontend/src/components/PhotoSwipeViewer.vue), [usePhotoSwipe.ts](../frontend/src/composables/usePhotoSwipe.ts), [lightbox.ts](../frontend/src/stores/lightbox.ts), [lightbox.ts](../frontend/src/utils/lightbox.ts), [api.ts](../frontend/src/services/api.ts)
+- Perf tests: [album-open.perf.spec.ts](../frontend/tests/perf/album-open.perf.spec.ts), [lightbox.perf.spec.ts](../frontend/tests/perf/lightbox.perf.spec.ts)
+
+## Current System Facts
+
+These facts are the constraints the roadmap must respect.
+
+### Current Hot Paths
+
+| Hot path | Current behavior | Why it matters |
+| --- | --- | --- |
+| Folder open | `GET /api/scan` resolves path, runs `scan_directory()` in a threadpool, lists entries with `os.scandir`, stats image files, batch-reads cached dimensions, sorts folders/images, slices the requested page, and returns JSON. | This is the core local web browsing experience. It must stay cheap and predictable. |
+| First thumbnails | Browser `img` tags in `PhotoCard.vue` request `/api/thumbnail`; the backend opens the original only on cache miss, renders WebP, persists cache bytes/files, and upserts dimensions. | This is the designated image-open path for grid thumbnails. |
+| Lightbox open | `lightboxStore.open()` sets UI state immediately; `Lightbox.vue` renders a PhotoSwipe wrapper; `buildPhotoSwipeItem()` uses `/api/image` as the main `src` and `/api/thumbnail` as `msrc`. | Lightbox display must not wait for metadata extraction. |
+| Lightbox dimensions | `usePhotoSwipe.ts` uses scan dimensions, remembered thumbnail natural dimensions, cached metadata dimensions, fetched metadata dimensions, then thumbnail natural dimensions as fallback. | PhotoSwipe needs dimensions up front, but the app repairs them asynchronously without blocking open. |
+| Metadata panel | `usePhotoMetadataQuery()` fetches `/api/metadata` only while lightbox is open and path is present; backend parsing is LRU-cached and in-flight coalesced. | Metadata is valuable, but it is not allowed to gate the image. |
+| Search | `GET /api/search` reads `file_index`, `file_index_fts`, `image_metadata`, `image_metadata_fts`, and `image_metadata_fts_trigram`; frontend search is debounced and Query-owned. | Current search is simple text search over indexed data, not a live filesystem parser. |
+
+### Current Cache Boundaries
+
+| Cache | Owner | Key/invalidation | Filled by | Read by |
+| --- | --- | --- | --- | --- |
+| Browser image cache | Browser | URL + server headers | `/api/image`, `/api/thumbnail` responses | Grid, PhotoSwipe, preloads |
+| Thumbnail disk cache | `backend/thumbnails.py` | resolved path + `mtime_ns` + size + max size + quality | `/api/thumbnail` cache misses | `/api/thumbnail` |
+| Metadata LRU cache | `backend/metadata_parse.py` | path + mtime + size | `/api/metadata` parse | `/api/metadata` and dimension resolver through TanStack Query |
+| SQLite image metadata | `backend/metadata_store.py` | path unique row, validated by mtime + size for dimensions | `/api/metadata`, `/api/thumbnail`, `index_image()` | `/api/scan`, search, future index status |
+| SQLite file index | `backend/metadata_store.py` | path primary key | `/api/scan` background tasks, `index_directory_tree()` | `/api/search` filename/album sections |
+| TanStack Query scan cache | frontend query layer | `["scan", path, imageLimit]`, `["scan-infinite", path, imageLimit]` | `scanDirectory()` | `GalleryGrid.vue` |
+| TanStack Query metadata cache | frontend query layer | `["metadata", path]` | `fetchMetadata()` | `Lightbox.vue`, `usePhotoSwipe.ts` |
+| Pinia lightbox dimensions | `frontend/src/stores/lightbox.ts` | path | `PhotoCard` natural dimensions and PhotoSwipe resolver | `usePhotoSwipe.ts` and lightbox navigation |
+
+### Current Metadata/Search Limitations
+
+- Metadata parser coverage is useful but split across two stacks:
+  - `metadata_parse.py` powers `/api/metadata` and has richer SwarmUI, ComfyUI, A1111, NovelAI, EasyDiffusion, LoRA, and exact `.txt` sidecar behavior.
+  - `metadata_extract.py` powers `metadata_store.index_image()` and is simpler, so indexed search can diverge from lightbox metadata.
+- Prompt search has SQLite FTS5 and CJK trigram support, but no fielded query syntax such as `seed:`, `model:`, `sampler:`, `steps:`, `cfg:`, `negative:`, or `size:`.
+- Full prompt/search cache warms only when metadata is parsed or explicitly indexed. Current `/api/scan` schedules file indexing and directory tree indexing with `include_metadata=False`.
+- `file_index` helps album/photo filename search, but warm folder opening still uses filesystem enumeration and sorting rather than DB-first page reads.
+- There is no formal derivative readiness table, so thumbnail/preview availability is implicit in disk cache files.
+- There is no user-visible background index status.
+
+### Current Lightbox Guarantees
+
+- The PhotoSwipe main image `src` is `/api/image`.
+- `/api/thumbnail` is only `msrc`, placeholder, grid thumbnail, hover preview trigger for animated files, or dimension fallback.
+- Lightbox opens before metadata resolves.
+- Metadata follows `lightbox.itemPath` through TanStack Query.
+- The current perf test asserts `usedFullImageEndpoint === true` and `srcIsFullImage === true`.
+- Neighbor preloading currently preloads thumbnails only through `lightboxStore.preloadNeighbors()`.
+- The PhotoSwipe index watcher avoids feedback loops by checking `pswp.currIndex !== index`.
+
+### Current Perf Tests And Budgets
+
+| Test | What it protects | Current default budgets |
+| --- | --- | --- |
+| `npm run perf:album` | Album click to `/api/scan`, first thumbnail start, thumbnail p95, duplicate first-page scan count. | scan <= 500 ms, first thumbnail start <= 1000 ms, thumbnail p95 <= 1200 ms. |
+| `npm run perf:lightbox` first image | Lightbox visible time, main image loaded time, use of `/api/image`, display size sanity. | visible <= 1500 ms, image loaded <= 4000 ms. |
+| `npm run perf:lightbox` transition | Next-image load after ArrowRight and aspect-ratio correctness. | transition <= 3000 ms, ratio diff < 0.2. |
+
+Future budgets in this plan add:
+
+- 50-image album scan p95 <= current budget or no more than 10% regression.
+- 5000-image warm first page target: 300-500 ms after indexed listing exists.
+- `/api/index/status` p95 <= 50 ms warm.
+- Background indexer must yield to request hot paths.
+
+### Current SQLite Schema And Data Ownership
+
+SQLite remains the local cache/index authority. Current tables are:
+
+- `image_metadata`: dimensions, format, mode, alpha, prompt, negative prompt, model, sampler, seed, steps, cfg scale, raw metadata text, JSON metadata, timestamps.
+- `image_metadata_fts`: unicode FTS over name/prompt/negative/model/sampler/raw text.
+- `image_metadata_fts_trigram`: trigram FTS for substring/CJK-style matching.
+- `file_index`: path, name, parent path, type, mtime, size, dimensions, indexed timestamp.
+- `file_index_fts`: FTS over file/folder names with path/type/parent metadata.
+
+Important ownership rules:
+
+- `image_metadata` is both a dimension cache and a prompt metadata/search cache.
+- `file_index` is the recursive album/photo name index.
+- `/api/scan` may read `image_metadata` dimensions but must not make cache misses expensive.
+- `/api/metadata` owns rich parse results.
+- `/api/thumbnail` owns thumbnail rendering and dimension upserts when the image is already open.
+
+### Current TanStack Query vs Pinia Ownership
+
+TanStack Query owns server/API state:
+
+- scan first page and infinite pages
+- folder children
+- unified search results
+- lightbox metadata
+- cache staleness and background refetching
+
+Pinia owns UI/navigation state:
+
+- root/current path
+- folder tree expansion
+- navigation history
+- search input/scope/sort
+- lightbox open state/current index/gallery item list
+- remembered image dimensions
+- toasts
+
+Future work must preserve this split. Do not copy server responses into Pinia just to make new features easier.
+
+## Non-negotiable Rules
+
+### Rule 1: `/api/scan` must never parse metadata or open images with PIL.
+
+Why:
+
+- `/api/scan` is the folder-open hot path.
+- Current `scan_directory()` uses `os.scandir`, `entry.stat()`, cached dimension lookup, sorting, and pagination.
+- Adding `Image.open()` or metadata parsing makes folder open scale with image decode cost instead of directory listing cost.
+
+Advantage:
+
+- Cold folders with dozens of files can show content quickly.
+- The scan path remains easy to profile with `SCAN_PERF_LOGS`, Prometheus, and pyinstrument.
+
+Disadvantage:
+
+- Cold scans return null dimensions when cache is empty.
+- Metadata/search can remain cold until thumbnail/metadata/indexer work catches up.
+
+Regression risk:
+
+- A well-intentioned "fix missing dimensions during scan" patch could accidentally decode every image.
+
+What breaks if violated:
+
+- Album-open latency becomes proportional to image count and image size.
+- Large AI PNG/WebP folders become unusable on first open.
+- The background indexer no longer has a clear purpose because expensive work moved into the request.
+
+Which previous bug/regression it prevents:
+
+- Regressions where folder open waits for image probing, metadata extraction, or PIL decode before returning rows.
+
+Which perf test should guard it:
+
+- `frontend/tests/perf/album-open.perf.spec.ts`.
+- Add a backend guard test that monkeypatches `PIL.Image.open` and asserts `/api/scan` does not call it.
+
+### Rule 2: `/api/scan` may only read cached dimensions/metadata if already available and validated by path + mtime + size.
+
+Why:
+
+- `get_cached_dimensions_for_files()` already validates cached rows against current file mtime and size.
+- Cached dimensions are useful only if freshness is explicit.
+
+Advantage:
+
+- Warm scans improve PhotoSwipe aspect ratios without image opening.
+- Edited/replaced files naturally invalidate stale dimensions.
+
+Disadvantage:
+
+- Files can show neutral 1200x1200 fallback until a thumbnail, metadata request, or indexer fills dimensions.
+
+Regression risk:
+
+- Reading unvalidated dimensions causes wrong aspect ratios after edits.
+- Falling back to image opens causes Rule 1 failure.
+
+What breaks if violated:
+
+- PhotoSwipe can render stretched/squashed slides.
+- Search/grid rows can advertise stale readiness.
+- The app can silently trust wrong DB data.
+
+Which previous bug/regression it prevents:
+
+- Wrong dimensions after EXIF orientation fixes, file edits, or same-path replacements.
+
+Which perf test should guard it:
+
+- Album-open perf test for latency.
+- Lightbox transition perf test for aspect-ratio sanity.
+- Backend stale-cache invalidation tests for mtime/size mismatch.
+
+### Rule 3: `/api/thumbnail` can open images because it is already the image-open path.
+
+Why:
+
+- Thumbnail generation cannot happen without reading the original.
+- `backend/thumbnails.py` already validates limits, opens with Pillow, records dimensions, transposes EXIF orientation, renders WebP, persists the cache, and returns a cacheable response.
+
+Advantage:
+
+- The grid gets real visuals lazily and only for requested images.
+- Dimensions can be captured while the image is already open.
+
+Disadvantage:
+
+- Cold thumbnail bursts can consume CPU/disk.
+- Browser-visible lazy loads can create concurrent thumbnail requests.
+
+Regression risk:
+
+- If thumbnail generation becomes too eager or unbounded, it can compete with lightbox `/api/image` and `/api/metadata`.
+
+What breaks if violated:
+
+- If thumbnail is not allowed to open images, thumbnails cannot be generated.
+- If thumbnail opens are moved into scan, scan becomes slow.
+
+Which previous bug/regression it prevents:
+
+- Confusion between "never open images in scan" and "never open images anywhere."
+
+Which perf test should guard it:
+
+- Album-open first-thumbnail-start and thumbnail p95 budgets.
+- Future queue metrics for thumbnail render latency and concurrency.
+
+### Rule 4: `/api/metadata` can parse original files on demand, but should be cache-backed and coalesced.
+
+Why:
+
+- Metadata parsing is a legitimate original-file read, but it must not duplicate work or block the image display.
+- Current `metadata_parse.py` has an LRU cache keyed by path/mtime/size and `_metadata_inflight` coalescing with `Future`.
+
+Advantage:
+
+- Users can always request metadata even before background indexing is complete.
+- Warm parse results are reused in-process and persisted to SQLite.
+
+Disadvantage:
+
+- Cold metadata open can still parse the original file.
+- In-memory cache is process-local and lost on restart.
+
+Regression risk:
+
+- Removing coalescing can duplicate parse work under rapid lightbox navigation or multiple panels.
+- Making `/api/metadata` synchronous on the UI path can stall interactions.
+
+What breaks if violated:
+
+- Metadata panel becomes slow and inconsistent.
+- Multiple requests for the same file can parse repeatedly.
+
+Which previous bug/regression it prevents:
+
+- Duplicate in-flight metadata work and UI waits for metadata before opening the lightbox.
+
+Which perf test should guard it:
+
+- Backend metadata queue coalescing tests.
+- Lightbox visible-time budget, because metadata must not gate overlay visibility.
+
+### Rule 5: Background indexing must never block folder open.
+
+Why:
+
+- Current `/api/scan` schedules `index_file`, `index_files_from_scan`, and `index_directory_tree(..., False)` with FastAPI `BackgroundTasks`.
+- A new metadata indexer should be a continuation of this non-blocking model.
+
+Advantage:
+
+- Users see the folder immediately while the cache warms.
+- Large folder indexing becomes observable and resumable without becoming the scan response.
+
+Disadvantage:
+
+- Search/metadata status may lag behind visible files.
+- The UI needs a calm status model for in-progress work.
+
+Regression risk:
+
+- A queue implementation can accidentally `await` job completion before returning scan.
+
+What breaks if violated:
+
+- Folder open becomes an import pipeline.
+- Cold folders behave like a heavyweight desktop/library ingest.
+
+Which previous bug/regression it prevents:
+
+- Reintroducing eager metadata indexing on album click.
+
+Which perf test should guard it:
+
+- Album-open perf test.
+- A backend test that `/api/scan` returns before index jobs complete.
+
+### Rule 6: PhotoSwipe main `src` must remain `/api/image` unless product requirements change.
+
+Why:
+
+- `frontend/src/utils/lightbox.ts` deliberately builds `src = getImageUrl(item.path)`.
+- `frontend/tests/perf/lightbox.perf.spec.ts` asserts the actual loaded image contains `/api/image`.
+
+Advantage:
+
+- Lightbox shows the original image, not a derivative.
+- The product guarantee is measurable.
+
+Disadvantage:
+
+- Very large originals can take longer to fully load than previews.
+- Progressive preview designs must be additive rather than replacing the main source.
+
+Regression risk:
+
+- Preview/derivative work can silently swap PhotoSwipe `src` to `/api/thumbnail`.
+
+What breaks if violated:
+
+- Users may inspect a derivative while believing it is original.
+- Existing lightbox perf tests fail.
+
+Which previous bug/regression it prevents:
+
+- PhotoSwipe showing a thumbnail/preview as the main image.
+
+Which perf test should guard it:
+
+- `lightbox.perf.spec.ts` `usedFullImageEndpoint` and `srcIsFullImage` assertions.
+
+### Rule 7: Thumbnail/preview must be placeholder/prefetch/derivative only, not a silent replacement for original image.
+
+Why:
+
+- Immich's preview-first viewer is correct for Immich, but gallery-repo currently prioritizes original-image fidelity in the lightbox.
+- Any preview layer must be clearly a placeholder or progressive layer.
+
+Advantage:
+
+- The app can still gain perceived responsiveness from previews.
+- Original fidelity remains intact.
+
+Disadvantage:
+
+- Implementing progressive preview without replacing `src` is more subtle.
+- Some bandwidth savings from preview-first viewers are intentionally not taken.
+
+Regression risk:
+
+- A "performance optimization" can become a quality regression.
+
+What breaks if violated:
+
+- Lightbox source policy becomes ambiguous.
+- Users can see lower-resolution images in the inspection path.
+
+Which previous bug/regression it prevents:
+
+- Thumbnail-sized lightbox image masquerading as the full image.
+
+Which perf test should guard it:
+
+- Lightbox source assertions.
+- Future "does not preload full original for neighbors" test, to distinguish previews from originals.
+
+### Rule 8: Album-open and lightbox perf tests are hard gates.
+
+Why:
+
+- These tests cover the core experience: open folder, see thumbnails, open original image, move next.
+- They encode the current architecture's most important contracts.
+
+Advantage:
+
+- Performance regressions are caught before they become architectural drift.
+- The team can borrow ideas without guessing about hot-path impact.
+
+Disadvantage:
+
+- Some useful features may require test updates and benchmark calibration.
+- The tests need stable sample folders and predictable environment configuration.
+
+Regression risk:
+
+- Treating perf tests as optional lets background indexing, prefetching, or parser changes erode responsiveness.
+
+What breaks if violated:
+
+- The project loses the ability to tell whether it is still gallery-repo or becoming a slower ingest tool.
+
+Which previous bug/regression it prevents:
+
+- Duplicate scan requests, thumbnail-first lightbox source, and false confidence in unmeasured optimizations.
+
+Which perf test should guard it:
+
+- `album-open.perf.spec.ts`.
+- `lightbox.perf.spec.ts`.
+
+### Rule 9: SQLite remains the default database; PostgreSQL/Redis/BullMQ must not become default requirements.
+
+Why:
+
+- gallery-repo is local-first and currently uses SQLite, FTS5, WAL, and path/mtime/size validation effectively.
+- Immich's PostgreSQL/Redis/BullMQ stack solves a different class of problem.
+
+Advantage:
+
+- Startup/deployment remain simple.
+- Local users do not need external services.
+- SQLite FTS/trigram support is enough for the near-term AI metadata search extensions.
+
+Disadvantage:
+
+- SQLite write concurrency and very large-library timelines need careful design.
+- Some PostgreSQL capabilities such as trigram indexes, unaccent, vectors, and advanced filters are not directly available.
+
+Regression risk:
+
+- A queue/status feature can import server-platform complexity before proving need.
+
+What breaks if violated:
+
+- The app becomes harder to install and operate.
+- Documentation, tests, and support load increase sharply.
+
+Which previous bug/regression it prevents:
+
+- Scope expansion from a local folder browser into a full photo-server deployment.
+
+Which perf test should guard it:
+
+- Not a single perf test; enforce through dependency review, startup tests, and docs.
+
+### Rule 10: Search must remain simple for normal text, with fielded search added as an extension, not a replacement.
+
+Why:
+
+- Current unified search is predictable: plain text searches albums, photo names, and prompt metadata.
+- DT-style fielded search is useful, but it should parse recognized tokens and leave the remaining text on the existing FTS path.
+
+Advantage:
+
+- Existing users keep normal search behavior.
+- Advanced users gain precise filters such as `seed:123` or `model:"realistic*"`.
+
+Disadvantage:
+
+- Query parsing has edge cases around quotes, colons, malformed fields, CJK, and commas.
+- The UI may need help text or error handling later.
+
+Regression risk:
+
+- Plain search could become less relevant or break because the parser consumes text incorrectly.
+
+What breaks if violated:
+
+- Normal filename/prompt searches become surprising.
+- Search no-results and loading states can flicker while parser behavior changes.
+
+Which previous bug/regression it prevents:
+
+- Replacing simple search with a query language that only power users understand.
+
+Which perf test should guard it:
+
+- Backend fielded search parser tests.
+- Frontend search no-results only after fetch settled test.
+- Existing search behavior regression tests for plain text and CJK.
+
+## Decision Matrix: Borrow / Adapt / Reject
+
+Decision values:
+
+- Adopt now: implement in the next implementation phase after Phase 0 locks.
+- Adapt later: good idea, but only after prerequisite work or product validation.
+- Research first: promising but uncertain; requires fixtures, benchmarks, or UX proof.
+- Reject: do not copy for gallery-repo's current goals.
+
+### DiffusionToolkit Ideas
+
+| Idea | Source | Decision | Why | Advantages | Disadvantages | Risk | Complexity | Priority |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Bounded background metadata indexing queue | DT | Adopt now | It directly fixes cold metadata/search caches without changing `/api/scan`. | Warms SQLite metadata/search; keeps folder open fast; enables progress UI. | Adds queue state, worker lifecycle, cancellation/staleness concerns. | Medium | Medium | P1 |
+| Batched SQLite writer | DT | Adopt now | DT's batch writer maps well to SQLite and reduces lock churn under indexing. | Fewer commits; lower write overhead; cleaner metrics. | Batch sizing can create long transactions if too large. | Medium | Medium | P1 |
+| Broad AI metadata parser coverage | DT | Adopt now | gallery-repo is AI-art oriented and parser coverage is a real capability gap. | Better metadata panels and search; supports more generators. | Parser changes are easy to regress without fixtures. | Medium | Medium | P1/P2 |
+| Sidecar metadata support | DT | Adapt later | Exact `.txt` sidecars exist now; safer unique-prefix and richer sidecars can be added after fixtures. | Recovers metadata exported separately from images. | Prefix matching can attach wrong sidecars. | Medium | Medium | P2 |
+| Fielded AI metadata search | DT | Adopt now | Existing columns support useful first fields: seed, steps, cfg, sampler, model, negative, size. | Precise search without abandoning simple FTS. | Parser and SQL builder edge cases. | Medium | Medium | P2 |
+| ComfyUI node/property search | DT | Research first | Useful for workflow-heavy users, but raw node/property rows can bloat SQLite. | Powerful workflow discovery. | Schema bloat; noisy results; performance risk. | High | High | P3/research |
+| Prompt grouping/usage stats | DT | Adapt later | Valuable once background indexing makes metadata coverage broad. | Shows repeated prompts, negative prompts, and model usage. | Less important than core search; group-by can be costly. | Low/Medium | Medium | P3 |
+| Optional local folder watcher | DT | Adapt later | Useful for stable local roots but unsafe as a default for web/VPS/mobile use. | Keeps warm folders fresh; reduces manual rescans. | Platform-specific missed events and bursts. | High | Medium | P3 |
+| Index status/progress | DT | Adopt now | Users need to know when background metadata/search is warming. | Better trust; easier debugging; supports observability. | Status can become noisy or misleading. | Medium | Medium | P1 |
+| Thumbnail visible-area queue discipline | DT | Research first | Browser lazy loading already works; backend throttling may help thumbnail storms if measured. | Reduces CPU spikes from offscreen thumbnails. | Adds scheduling complexity over HTTP request order. | Medium | Medium | P2/P3 |
+| Synchronous viewer metadata reparse | DT | Reject | gallery-repo's lightbox must open before metadata; DT's audited viewer path is the wrong model here. | None for current goals. | Blocks click/next transitions; duplicates parse work. | High | Low to copy, high to repair | Never |
+| Full-file hash/read for every image on scan | DT | Reject | gallery-repo already has path+mtime+size freshness; full reads would destroy scan. | Content identity could help duplicates, but not worth hot-path cost. | Massive IO/memory cost. | Very high | Medium | Never |
+| Stealth PNG pixel scan | DT | Reject | Pixel LSB scanning is too expensive for normal scan/viewer paths. | Could recover hidden metadata from rare files. | CPU-heavy; surprising; hard to bound. | High | High | Never by default |
+| Per-folder thumbnail SQLite cache | DT | Reject | gallery-repo's thumbnail cache key is stronger and already mtime/size-aware. | Per-folder locality. | Duplicate cache system; weaker invalidation if copied directly. | Medium | Medium | Never |
+
+### Immich Ideas
+
+| Idea | Source | Decision | Why | Advantages | Disadvantages | Risk | Complexity | Priority |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| DB-first viewer metadata | Immich | Adopt now | Warm metadata panels should read SQLite instead of parsing originals. | Instant warm lightbox metadata; fewer original reads. | Must handle stale rows and missing cache cleanly. | Medium | Medium | P1/P2 |
+| Compact list/grid DTO separate from full detail DTO | Immich | Adopt now | `/api/scan` should stay minimal even as metadata grows. | Protects payload size and grid performance. | Requires discipline when adding readiness fields. | Low | Low | P0/P1 |
+| Background job chain for metadata/thumbnail/search | Immich | Adapt later | Use the idea, not BullMQ: local metadata -> derivative -> search readiness chain. | Clear sequencing and retries. | Too much job machinery if overbuilt. | Medium | Medium/High | P1/P2 |
+| Derivative status rows | Immich | Adapt later | SQLite readiness rows can make thumbnail/preview cache queryable. | Lets scan/status know cache readiness without opening files. | Duplicate truth with disk cache unless ownership is clear. | Medium | Medium | P2 |
+| Thumbnail/preview/original source policy | Immich | Research first | Immich's preview-first policy conflicts with current original-lightbox guarantee, but preview placeholders are useful. | Better perceived load for huge originals. | Easy to replace original accidentally. | High | Medium | P2/research |
+| Next/previous viewer preloading | Immich | Adopt now | Current neighbor preloading only requests 800px thumbnails; metadata/dimensions can be prefetched too. | Faster transitions and metadata panels. | Bandwidth/disk waste if unbounded. | Medium | Low/Medium | P2 |
+| Time-bucket/timeline API | Immich | Research first | Great for 100k photo libraries, but gallery-repo is folder-first. Research only if warm-folder listing is not enough. | Large library navigation. | New product model and API surface. | High | High | P4/research |
+| PostgreSQL metadata filters | Immich | Reject | SQLite remains default. Borrow filter concepts, not PostgreSQL. | Strong filtering at scale. | Requires default DB migration and ops burden. | Very high | Very high | Never |
+| Trigram/unaccent search | Immich | Adapt later | SQLite already has trigram FTS for CJK/substrings; unaccent may be considered if needed. | Better fuzzy text matching. | SQLite implementation differs; can hurt relevance. | Medium | Medium | P3 |
+| OCR/CLIP smart search | Immich | Reject | Valuable but too heavy for current default local AI gallery. | Powerful semantic discovery. | ML dependencies, hardware, indexing cost. | Very high | Very high | Never by default |
+| Asset checksum/change detection | Immich | Research first | Content checksums may help duplicates/moves but must not run on scan. | Better duplicate/move detection if explicit. | Full-file reads are expensive. | High | Medium | P4/research |
+| External library scan model | Immich | Reject | gallery-repo should remain ad hoc folder-first, not an owned library import system. | Strong managed library behavior. | Product scope shift. | High | High | Never |
+| Optional watcher/scheduled scan | Immich | Adapt later | Disabled-by-default watcher/scheduled refresh can warm stable roots. | Better freshness for local folders. | Missed events, event storms, platform differences. | High | Medium | P3 |
+| Queue status/admin endpoint | Immich | Adopt now | A small `/api/index/status` maps well to local indexing. | Debuggable progress and failures. | Must avoid noisy UI. | Medium | Medium | P1 |
+| Multi-user/album/sharing/storage-template model | Immich | Reject | It solves backup/photo-server needs, not local gallery browsing. | Full photo app features. | Massive schema/UI scope. | Very high | Very high | Never |
+| Redis/BullMQ/PostgreSQL full stack | Immich | Reject | The operational cost is wrong for gallery-repo. | Robust distributed processing. | External services become required. | Very high | Very high | Never |
+
+## Root-Cause Driven Improvement Plan
+
+### Problem 1: Metadata is still mostly on-demand; warm cache depends on user opening thumbnails/metadata.
+
+Current gallery-repo problem:
+
+- `image_metadata` is populated by `/api/metadata`, `/api/thumbnail` dimensions, or explicit `index_image()`.
+- `/api/scan` schedules `index_directory_tree(..., include_metadata=False)`, so prompt metadata is not warmed just by opening folders.
+
+Root cause:
+
+- The system correctly protected scan latency by removing metadata parsing from the hot path, but it has no replacement background metadata queue.
+
+Evidence from current docs/code:
+
+- [ARCHITECTURE.md](ARCHITECTURE.md) states `/api/scan` indexes folder/file rows in the background without re-indexing image metadata.
+- [backend/scan.py](../backend/scan.py) calls `background_tasks.add_task(index_directory_tree, target, False)`.
+- [metadata_store.py](../backend/metadata_store.py) can index images but does so synchronously per image when called.
+
+Idea borrowed from DT/Immich:
+
+- DT: bounded metadata scanner workers and batch writer.
+- Immich: background metadata extraction after asset discovery.
+
+Why this is the correct adaptation:
+
+- Add a local SQLite-backed or SQLite-observed in-process queue that accepts files seen by scan and parses them after the scan response returns.
+- Coalesce jobs by path+mtime+size.
+- Keep worker count low, likely one metadata worker by default.
+
+Why not copy the original design exactly:
+
+- Do not read/hash every file during scan like DT.
+- Do not import Immich's BullMQ/Redis worker stack.
+- Do not require a persistent asset import model before browsing.
+
+Expected benefit:
+
+- Warm lightbox metadata and prompt search without manual opens.
+- Large folders become progressively more useful after first open.
+
+Trade-off:
+
+- Background CPU/disk work can interfere with thumbnails or lightbox unless throttled.
+
+Failure mode:
+
+- Queue steals resources or indexes stale files after edits.
+
+How to test:
+
+- Metadata queue coalescing test.
+- Stale file invalidation test.
+- Album-open perf must not regress.
+- Metrics for queue depth, active jobs, job duration, and errors.
+
+### Problem 2: `/api/scan` is fast for dozens but still enumerates/sorts large folders before returning a page.
+
+Current gallery-repo problem:
+
+- `scan_directory()` builds the complete `images` list, sorts all images, then `/api/scan` slices by `image_cursor`.
+- Pagination happens after enumeration/sort.
+
+Root cause:
+
+- The current design optimizes cold direct browsing and simple correctness, not DB-first warm listing.
+
+Evidence from current docs/code:
+
+- [backend/scan.py](../backend/scan.py) returns `total_images = len(images)` after all image rows are collected and sorted.
+- [MEDIA_PIPELINE_COMPARISON.md](MEDIA_PIPELINE_COMPARISON.md) identifies 5000+ warm folders as a case where Immich/DT-style indexed browsing wins.
+
+Idea borrowed from DT/Immich:
+
+- DT: indexed DB-backed paging after scan.
+- Immich: compact timeline/list DTOs served from DB once rows exist.
+
+Why this is the correct adaptation:
+
+- Keep cold `/api/scan` direct.
+- Add an optional warm fast path that reads from `file_index` only when the folder index is complete and fresh enough.
+- Validate folder mtime and sampled file mtime/size before trusting DB rows.
+
+Why not copy the original design exactly:
+
+- Do not replace folder browsing with Immich month buckets.
+- Do not force users to import a library before browsing.
+
+Expected benefit:
+
+- 5000-image warm first page can target 300-500 ms after indexed listing exists.
+
+Trade-off:
+
+- Requires index completeness tracking and stale fallback logic.
+
+Failure mode:
+
+- Stale DB listing misses new/deleted files.
+
+How to test:
+
+- Warm indexed listing tests with file add/delete/rename.
+- Backend perf script for 5000-file fixture.
+- Album-open perf must stay within current or <= 10% regression.
+
+### Problem 3: Search has FTS/trigram but lacks fielded metadata query syntax like `seed:`, `model:`, `sampler:`, `cfg:`.
+
+Current gallery-repo problem:
+
+- Unified search treats the query as plain text for album/photo/prompt sections.
+- Structured columns exist but are not queryable through field filters.
+
+Root cause:
+
+- Current search focuses on simple text and safe FTS fallback. No parser separates residual prompt text from structured predicates.
+
+Evidence from current docs/code:
+
+- [backend/metadata_store.py](../backend/metadata_store.py) has columns `seed`, `steps`, `cfg_scale`, `model`, `sampler`, `width`, `height`.
+- `_search_prompt_rows()` searches FTS/LIKE over text fields, not structured predicates.
+- [DIFFUSIONTOOLKIT_METADATA_SEARCH_ANALYSIS.md](DIFFUSIONTOOLKIT_METADATA_SEARCH_ANALYSIS.md) proposes field parsing over current columns.
+
+Idea borrowed from DT/Immich:
+
+- DT: query parser removes recognized field tokens and combines structured filters with prompt text.
+- Immich: metadata filters are DB predicates, not file parsing.
+
+Why this is the correct adaptation:
+
+- Add fielded search as a parser layer above existing FTS.
+- Recognized fields become SQL predicates; residual text goes through current unicode/trigram/LIKE flow.
+
+Why not copy the original design exactly:
+
+- Do not copy every DT filter family before those concepts exist.
+- Do not use PostgreSQL-only filtering from Immich.
+
+Expected benefit:
+
+- Users can find exact seeds, models, samplers, steps, CFG values, and orientations.
+
+Trade-off:
+
+- Parser complexity and malformed-query behavior need tests.
+
+Failure mode:
+
+- Parser eats normal text or breaks CJK/plain searches.
+
+How to test:
+
+- Fielded parser unit tests.
+- SQL builder tests with SQLite fixtures.
+- Plain text, CJK, malformed token, current/all scope tests.
+
+### Problem 4: Metadata parser coverage can be improved for AI generator formats and sidecars.
+
+Current gallery-repo problem:
+
+- Parser coverage is split and incomplete relative to DT.
+- `metadata_parse.py` and `metadata_extract.py` can return different normalized fields.
+
+Root cause:
+
+- There are two parser stacks: one rich for lightbox, one simpler for indexing/search.
+
+Evidence from current docs/code:
+
+- [DIFFUSIONTOOLKIT_METADATA_PARSE_ANALYSIS.md](DIFFUSIONTOOLKIT_METADATA_PARSE_ANALYSIS.md) identifies parser divergence and missing Fooocus, InvokeAI, some WebP EXIF conventions, richer sidecars, and Stealth PNG.
+- [backend/metadata_parse.py](../backend/metadata_parse.py) has richer SwarmUI/ComfyUI/NovelAI/EasyDiffusion handling.
+- [backend/metadata_extract.py](../backend/metadata_extract.py) has a smaller normalized extraction path.
+
+Idea borrowed from DT/Immich:
+
+- DT: broad AI metadata candidate/parsing coverage.
+- Immich: backend normalizes metadata; frontend renders normalized DTOs.
+
+Why this is the correct adaptation:
+
+- First unify parser core and fixtures.
+- Then widen coverage incrementally with fixtures for each generator/source.
+- Record internal source/provenance where useful.
+
+Why not copy the original design exactly:
+
+- Do not read/hash whole files before parsing.
+- Do not add ExifTool as a default dependency for AI metadata.
+- Do not put Stealth PNG pixel scans in normal paths.
+
+Expected benefit:
+
+- Lightbox metadata and search index agree.
+- More generator outputs become searchable.
+
+Trade-off:
+
+- Parser maintenance grows; fixtures become mandatory.
+
+Failure mode:
+
+- Bad parser heuristics misclassify metadata or attach wrong sidecars.
+
+How to test:
+
+- Parser fixture tests for A1111, ComfyUI, SwarmUI, NovelAI, EasyDiffusion, exact sidecar, EXIF UserComment, malformed JSON.
+- Regression tests that `/api/metadata` and `index_image()` agree on normalized fields.
+
+### Problem 5: Lightbox is good now, but next/prev metadata and dimensions can be prefetched better.
+
+Current gallery-repo problem:
+
+- Neighbor preloading only fetches 800px thumbnails.
+- Next/prev metadata often starts only after navigation changes `lightbox.itemPath`.
+
+Root cause:
+
+- Current lightbox prefetch is intentionally conservative to avoid full-original bandwidth spikes.
+
+Evidence from current docs/code:
+
+- [frontend/src/stores/lightbox.ts](../frontend/src/stores/lightbox.ts) `preloadNeighbors()` creates `Image()` objects for thumbnail URLs.
+- [frontend/src/composables/usePhotoSwipe.ts](../frontend/src/composables/usePhotoSwipe.ts) fetches metadata dimensions on demand through TanStack Query.
+- Lightbox perf tests assert original source and transition budget.
+
+Idea borrowed from DT/Immich:
+
+- Immich: next/previous viewer asset DTO and preview preloading.
+
+Why this is the correct adaptation:
+
+- Prefetch neighbor metadata via TanStack Query with low concurrency.
+- Prefetch medium thumbnails/previews only.
+- Never preload full originals for neighbors by default.
+
+Why not copy the original design exactly:
+
+- Do not switch PhotoSwipe main source to preview.
+- Do not load original for next/prev unless user navigates, zooms, or product requirements change.
+
+Expected benefit:
+
+- Faster next/prev metadata panels and more stable dimensions on transition.
+
+Trade-off:
+
+- Extra background requests for users who do not navigate.
+
+Failure mode:
+
+- Bandwidth spikes or disk contention during rapid navigation.
+
+How to test:
+
+- Lightbox transition perf test.
+- Network assertion that neighbor prefetch does not request `/api/image`.
+- Metadata query count/coalescing tests.
+
+### Problem 6: There is no visible index status/progress, so users cannot tell if metadata/search cache is warming.
+
+Current gallery-repo problem:
+
+- Background file indexing and future metadata indexing are invisible.
+- Users cannot distinguish "no metadata exists" from "metadata is still indexing."
+
+Root cause:
+
+- Current background work is opportunistic and not represented as first-class status.
+
+Evidence from current docs/code:
+
+- [backend/scan.py](../backend/scan.py) schedules background tasks but exposes no status endpoint.
+- [metadata_store.py](../backend/metadata_store.py) has no job/status table.
+- Previous UI guidance warns against noisy status/toast regressions.
+
+Idea borrowed from DT/Immich:
+
+- DT: scanning progress.
+- Immich: queue status/admin endpoints.
+
+Why this is the correct adaptation:
+
+- Add `/api/index/status` with counters by folder/root: queued, running, done, failed, stale, last error, updated timestamp.
+- Frontend should show a subtle status affordance, not a toast per event.
+
+Why not copy the original design exactly:
+
+- Do not build a full Immich admin queue console.
+- Do not spam toasts.
+
+Expected benefit:
+
+- Users understand why search improves over time.
+- Debugging large folders becomes easier.
+
+Trade-off:
+
+- Progress estimates can be approximate.
+
+Failure mode:
+
+- Status UI becomes noisy or misleading.
+
+How to test:
+
+- Index status endpoint tests.
+- Frontend no landing toast regression.
+- `/api/index/status` p95 <= 50 ms warm.
+
+### Problem 7: SQLite writes may become inefficient under large background indexing.
+
+Current gallery-repo problem:
+
+- `index_image()` and `index_file()` write rows individually under `_DB_LOCK`.
+- That is fine for small opportunistic updates but inefficient for thousands of metadata jobs.
+
+Root cause:
+
+- Current code was built around request-adjacent cache upserts, not a sustained indexer.
+
+Evidence from current docs/code:
+
+- [metadata_store.py](../backend/metadata_store.py) opens transactions per function call.
+- Existing docs identify DT's batched writer as the best local pattern.
+
+Idea borrowed from DT/Immich:
+
+- DT: batch around small groups of records.
+- Immich: background jobs separate request reads from processing writes.
+
+Why this is the correct adaptation:
+
+- Add a batched writer with bounded batch size/time flush.
+- Keep WAL and busy timeout.
+- Track write latency metrics.
+
+Why not copy the original design exactly:
+
+- Do not create distributed queues.
+- Do not hold huge transactions.
+
+Expected benefit:
+
+- Lower SQLite lock churn and better large-folder indexing throughput.
+
+Trade-off:
+
+- Small delay before parsed metadata becomes visible.
+
+Failure mode:
+
+- Long write transactions block search/status reads.
+
+How to test:
+
+- Batch writer unit test.
+- SQLite write latency metric.
+- Concurrent scan/search while background writes run.
+
+### Problem 8: There is no formal derivative readiness/status table for thumbnails/previews.
+
+Current gallery-repo problem:
+
+- Thumbnail readiness is implicit in diskcache/files.
+- `/api/scan` cannot cheaply report derivative readiness without checking disk paths per image.
+
+Root cause:
+
+- Lazy thumbnail generation started as a simple request cache, not an indexed derivative model.
+
+Evidence from current docs/code:
+
+- [backend/thumbnails.py](../backend/thumbnails.py) persists WebP files based on cache key.
+- No `asset_file`-like table exists in [metadata_store.py](../backend/metadata_store.py).
+
+Idea borrowed from Immich:
+
+- `asset_file` derivative rows, adapted to SQLite and path+mtime+size.
+
+Why this is the correct adaptation:
+
+- Add a `derivative_status` table keyed by path, mtime, size, derivative type, max size, quality, cache file path, ready/error timestamps.
+- Use it for status/readiness, not as a second thumbnail cache owner.
+
+Why not copy the original design exactly:
+
+- Do not require eager derivative generation for every file.
+- Do not switch to asset-id storage ownership.
+
+Expected benefit:
+
+- Grid/status can know if thumbnails/previews are ready.
+- Future preview warmer can be controlled.
+
+Trade-off:
+
+- More schema and cleanup logic.
+
+Failure mode:
+
+- DB status says ready while disk file is missing, or vice versa.
+
+How to test:
+
+- Derivative readiness tests.
+- Stale file invalidation tests.
+- Cache-file missing recovery test.
+
+### Problem 9: Optional watcher/scheduled refresh is not available for stable local folders.
+
+Current gallery-repo problem:
+
+- Users must revisit/scan folders to update indexes.
+- Stable local roots cannot warm automatically in the background.
+
+Root cause:
+
+- gallery-repo is ad hoc folder-first and avoids platform-specific watchers by default.
+
+Evidence from current docs/code:
+
+- No watcher module exists.
+- Existing docs identify watcher support as useful but risky.
+
+Idea borrowed from DT/Immich:
+
+- DT/Immich optional watchers and scheduled library scans.
+
+Why this is the correct adaptation:
+
+- Add opt-in watcher/scheduled refresh only after index status and queue coalescing exist.
+- Scope it to configured roots, not arbitrary browsing.
+
+Why not copy the original design exactly:
+
+- Do not make watchers default.
+- Do not adopt Immich's external library/offline asset model.
+
+Expected benefit:
+
+- Stable local folders stay warm without manual refresh.
+
+Trade-off:
+
+- Watcher behavior varies by platform and filesystem.
+
+Failure mode:
+
+- Missed events or event storms create stale data or queue floods.
+
+How to test:
+
+- Watcher integration tests behind opt-in flag.
+- Queue coalescing under burst events.
+- Scheduled refresh metrics and stale cleanup tests.
+
+### Problem 10: Large warm libraries still cannot behave like Immich's DB-first timeline/search.
+
+Current gallery-repo problem:
+
+- Even warm metadata/search caches do not make folder open fully DB-first.
+- There is no time-bucket/timeline API and no persistent asset model.
+
+Root cause:
+
+- The app is folder-first and direct-scan-first by design.
+
+Evidence from current docs/code:
+
+- `/api/scan` always calls `scan_directory()` today.
+- [IMMICH_PIPELINE_AUDIT.md](IMMICH_PIPELINE_AUDIT.md) shows Immich timeline APIs read compact DB buckets.
+
+Idea borrowed from Immich:
+
+- DB-first compact list APIs and bucketed thinking, adapted to folder pages before any timeline product shift.
+
+Why this is the correct adaptation:
+
+- First solve warm folder listing from `file_index`.
+- Only research time buckets if product requirements move toward timeline browsing.
+
+Why not copy the original design exactly:
+
+- Do not make gallery-repo a full photo timeline server.
+- Do not introduce multi-user assets/albums/storage templates.
+
+Expected benefit:
+
+- Warm 5000-image folders can feel prepared without losing ad hoc browsing.
+
+Trade-off:
+
+- Requires index completeness and stale detection.
+
+Failure mode:
+
+- Users see stale folder pages from DB-first reads.
+
+How to test:
+
+- Warm listing fixture with adds/deletes/renames.
+- 5000-image warm first-page target.
+- Fallback-to-direct-scan test when index is incomplete/stale.
+
+## Phased Roadmap
+
+### Phase 0 - Preserve and Lock Current Guarantees
+
+| Field | Plan |
+| --- | --- |
+| Goal | Make existing scan, thumbnail, metadata, lightbox, search, and state ownership contracts explicit and test-protected before adding new background work. |
+| Why now | The borrowed DT/Immich ideas are useful only if they do not erode the current hot paths. |
+| Why this order | Locking guarantees first reduces risk in every later phase. |
+| Borrowed from | gallery-repo itself: current fast scan, lazy thumbnails, original-image lightbox, Query/Pinia split, perf tests. |
+| Current problem solved | Prevents accidental regressions while implementing larger changes. |
+| Files likely affected | Primarily docs and tests: `docs/`, `frontend/tests/perf/`, backend tests. No behavior changes unless guard tests expose existing gaps. |
+| Backend changes | Add or strengthen tests proving `/api/scan` does not call PIL/metadata parsing and only reads validated cached dimensions. |
+| Frontend changes | Add tests for no false empty state, no search no-results before settled fetch, no landing toast regression, and lightbox source policy. |
+| DB/schema changes | None. |
+| API changes | None. |
+| Docs changes | Keep `ARCHITECTURE.md`, `PERFORMANCE_TESTING.md`, and this plan synchronized. |
+| Tests to add/update | Scan no-PIL guard; cached dimension validation; lightbox `/api/image` assertion already exists; no full-original neighbor preload assertion; empty/search state regressions. |
+| Perf budgets | Existing album/lightbox budgets; 50-image scan p95 <= current budget or <= 10% regression. |
+| Acceptance criteria | Existing perf tests pass; guard tests fail if scan opens images or lightbox main source changes. |
+| Rollback plan | Remove only added guard tests if they are incorrectly specified; do not relax perf budgets without benchmark evidence. |
+| Risk level | Low. |
+| What not to do | Do not use Phase 0 to refactor backend/frontend or introduce dependencies. |
+
+### Phase 1 - Unified Parser, Background Metadata Indexer, Batched Writer, Index Status
+
+| Field | Plan |
+| --- | --- |
+| Goal | Warm metadata/search in the background while keeping scan fast. Unify parser behavior so `/api/metadata` and SQLite indexing agree. |
+| Why now | This fixes the largest current weakness: metadata/search caches depend on user actions. |
+| Why this order | Parser fixture/unification should precede broad background indexing so the indexer stores the same truth as the lightbox. |
+| Borrowed from | DT metadata parser coverage, DT bounded scanner/writer, Immich background metadata extraction/status concept. |
+| Current problem solved | Metadata cache and search index warm after folder open without blocking folder open. |
+| Files likely affected | `backend/metadata_parse.py`, `backend/metadata_extract.py`, `backend/metadata_store.py`, `backend/scan.py`, new backend indexer module if implemented, `backend/app.py` if adding route, `frontend/src/services/api.ts` if adding status API, optional small status component. |
+| Backend changes | Add parser fixtures; extract shared normalized parser core; add queue/job records or in-process queue with SQLite-observed status; coalesce by path+mtime+size; add one-worker default; add batch writer; add `/api/index/status`. |
+| Frontend changes | Add optional subtle indexing status indicator; do not add toasts for every job; keep gallery display unchanged. |
+| DB/schema changes | Add index job/status table(s): path, mtime, size, state, attempts, error, queued/running/done timestamps, folder/root scope. Consider parser provenance fields if needed. |
+| API changes | Add `GET /api/index/status?path=...` returning cheap counts and last error. Existing `/api/scan`, `/api/metadata`, `/api/search` remain backward-compatible. |
+| Docs changes | Update architecture cache boundaries and performance docs. |
+| Tests to add/update | Parser fixtures; queue coalescing; stale invalidation; batch writer; index status endpoint; scan perf. |
+| Perf budgets | `/api/scan` p95 no more than 10% regression; `/api/index/status` p95 <= 50 ms warm; background indexer yields to request hot path. |
+| Acceptance criteria | Opening a folder enqueues metadata jobs and returns before jobs finish; warm metadata can be read from SQLite; duplicate jobs coalesce; stale file changes invalidate queued/done rows; status endpoint is fast. |
+| Rollback plan | Feature-flag/disable background metadata worker and continue serving on-demand `/api/metadata`; preserve parser fixtures. |
+| Risk level | Medium. |
+| What not to do | Do not parse metadata inside `/api/scan`; do not add Redis/BullMQ; do not introduce ExifTool as a default dependency; do not run Stealth PNG scans. |
+
+### Phase 2 - Fielded Search, DB-first Warm Metadata, Derivative Readiness, Neighbor Prefetch
+
+| Field | Plan |
+| --- | --- |
+| Goal | Make warmed metadata useful: precise fielded search, faster warm lightbox metadata, queryable derivative readiness, and smoother next/prev navigation. |
+| Why now | Phase 1 creates broad indexed data. Phase 2 exposes it safely to search and lightbox workflows. |
+| Why this order | Fielded search and DB-first metadata depend on reliable indexed metadata; derivative readiness depends on having status conventions. |
+| Borrowed from | DT fielded metadata search; Immich DB-first viewer metadata, derivative rows, and next/previous preloading. |
+| Current problem solved | Search lacks structured filters; warm lightbox still may parse originals; derivative readiness is implicit; next/prev metadata starts late. |
+| Files likely affected | `backend/search.py`, `backend/metadata_store.py`, `backend/metadata_parse.py`, `backend/thumbnails.py`, `frontend/src/services/api.ts`, `frontend/src/composables/usePhotoSwipe.ts`, `frontend/src/stores/lightbox.ts`, `frontend/src/components/Lightbox.vue`, search UI tests. |
+| Backend changes | Add fielded query parser and SQL predicate builder; add cached metadata read path if safe; add derivative readiness writes from `/api/thumbnail`; expose readiness in status and maybe compact scan rows only if cheap. |
+| Frontend changes | Prefetch next/previous metadata with TanStack Query; keep neighbor original preloading disabled; optionally show derivative/index readiness subtly; keep normal search behavior unchanged. |
+| DB/schema changes | Add derivative readiness table; possibly add columns such as `tool`, `model_hash`, `scheduler`, `lora_text` after parser fixtures. |
+| API changes | Extend `/api/search` to parse supported field tokens; optionally add cache status fields; keep plain query response shape compatible. |
+| Docs changes | Document fielded syntax and source policy. |
+| Tests to add/update | Fielded search parser; SQL builder; plain text compatibility; derivative readiness; lightbox transition/no original neighbor preload; search no-results settled state. |
+| Perf budgets | Plain search p95 must not regress materially; lightbox visible <= current budget; transition <= current budget; no extra full-original neighbor requests. |
+| Acceptance criteria | `cat seed:123 model:"foo*"` searches prompt text for `cat` and filters metadata; plain `cat` still behaves like today; warm lightbox metadata does not parse the original; derivative status is accurate after thumbnail generation. |
+| Rollback plan | Disable fielded parser and treat all queries as plain text; disable neighbor metadata prefetch; derivative table can remain unused. |
+| Risk level | Medium. |
+| What not to do | Do not replace normal search with a strict query language; do not preload `/api/image` for neighbors; do not make preview the PhotoSwipe main source. |
+
+### Phase 3 - Warm Indexed Folder Listing, Optional Watcher/Scheduled Refresh, Richer Facets
+
+| Field | Plan |
+| --- | --- |
+| Goal | Make large warm folders feel more DB-first while keeping cold ad hoc folders direct and fast. |
+| Why now | Warm metadata/search and status must exist before trusting DB-first folder pages. |
+| Why this order | Indexed listing requires completeness/staleness signals from Phase 1 and derivative/search readiness from Phase 2. |
+| Borrowed from | DT indexed search/listing and watcher ideas; Immich compact list DTOs and scheduled/watcher refresh ideas. |
+| Current problem solved | `/api/scan` still enumerates/sorts large folders before returning a page; stable roots do not refresh automatically. |
+| Files likely affected | `backend/scan.py`, `backend/metadata_store.py`, possible watcher module, `backend/app.py`, `frontend/src/composables/useInfiniteScanQuery.ts`, `frontend/src/services/api.ts`, docs/tests. |
+| Backend changes | Add opt-in warm listing fast path from `file_index`; track folder index completeness; fallback to direct scan when stale/incomplete; add optional watcher/scheduled refresh behind config. |
+| Frontend changes | No major UX change required; optional status for "indexed listing ready"; keep Query keys stable. |
+| DB/schema changes | Add folder index state/completeness table; maybe derivative/search aggregate counters. |
+| API changes | `/api/scan` may return from DB only when freshness rules pass, or add an experimental endpoint first. Response shape stays compatible. |
+| Docs changes | Document cold vs warm scan paths and watcher configuration. |
+| Tests to add/update | Warm listing add/delete/rename; stale fallback; watcher burst coalescing; 5000-image warm first page benchmark. |
+| Perf budgets | 5000-image warm first page target 300-500 ms after indexed listing exists; cold scan no worse than current. |
+| Acceptance criteria | Warm indexed folder can serve first page without enumerating/sorting all files; stale index falls back to direct scan; watcher is disabled by default. |
+| Rollback plan | Disable warm listing fast path and watcher; direct `/api/scan` remains source of truth. |
+| Risk level | Medium/High. |
+| What not to do | Do not require import-before-browse; do not build Immich timeline buckets unless a new product requirement exists; do not enable watcher by default. |
+
+### Phase 4 - Research-Only Advanced Library Features
+
+| Field | Plan |
+| --- | --- |
+| Goal | Explore features that may help very large or workflow-heavy libraries after core local indexing is proven. |
+| Why now | Not now for implementation; this phase names deferred research so it does not leak into early phases. |
+| Why this order | Advanced features need warm metadata coverage, status, and benchmarks first. |
+| Borrowed from | DT prompt usage stats and ComfyUI node/property search; Immich timeline/smart-search concepts. |
+| Current problem solved | Optional deeper discovery for large indexed libraries. |
+| Files likely affected | TBD; likely search/index schema, optional frontend views, optional feature modules. |
+| Backend changes | Research prompt grouping, node summaries, raw workflow opt-in search, content checksum jobs, and possibly semantic/OCR plugin concepts. |
+| Frontend changes | Research separate views or filters; avoid cluttering the main gallery. |
+| DB/schema changes | Only after size/perf benchmarks. Candidate tables: prompt_usage, comfy_node_summary, optional checksum rows. |
+| API changes | Dedicated endpoints only; do not overload `/api/scan`. |
+| Docs changes | Research notes and benchmarks before implementation. |
+| Tests to add/update | Benchmark fixtures, DB bloat analysis, opt-in feature tests. |
+| Perf budgets | No default startup, scan, or lightbox cost. |
+| Acceptance criteria | A feature graduates from research only if it is optional, measured, and does not alter current guarantees. |
+| Rollback plan | Keep research behind config or out of default builds. |
+| Risk level | High if implemented prematurely. |
+| What not to do | Do not add ML/OCR/CLIP, PostgreSQL, Redis, or storage-template concepts as defaults. |
+
+## Architecture Diagrams
+
+### Current gallery-repo pipeline
+
+```text
+click folder
+-> useInfiniteScanQuery(path)
+-> GET /api/scan
+-> resolve path and path-safety check
+-> os.scandir direct folder listing
+-> stat image files
+-> batch SQLite dimension lookup
+   [only rows matching path + mtime + size]
+-> sort folders/images
+-> paginate after sort
+-> return folders + image page
+-> BackgroundTasks:
+   -> index_file(folder)
+   -> index_files_from_scan(folders, images)
+   -> index_directory_tree(root, include_metadata=False)
+-> GalleryGrid renders Query-owned rows
+-> PhotoCard lazy-loads /api/thumbnail
+-> /api/thumbnail opens image on cache miss and stores dimensions
+-> click image
+-> lightbox opens immediately
+-> PhotoSwipe main src = /api/image
+-> metadata query fetches /api/metadata asynchronously
+-> /api/metadata parses and upserts SQLite metadata
+```
+
+### Target near-term pipeline
+
+```text
+Cold folder open:
+click folder
+-> /api/scan direct folder scan
+-> return rows fast
+-> enqueue metadata jobs by path + mtime + size
+-> grid thumbnails lazy
+-> background metadata indexer parses originals with bounded workers
+-> batched SQLite writer stores dimensions/metadata/search text
+-> /api/index/status reports progress
+```
+
+Key rule: the enqueue operation may be cheap request-adjacent bookkeeping, but parsing and writing must not block the scan response.
+
+### Target warm-cache pipeline
+
+```text
+Warm folder open:
+click folder
+-> /api/scan checks folder index state
+-> if indexed and fresh:
+     read first page from file_index/image_metadata
+     include cached dimensions and readiness flags
+     return page without full enumerate/sort
+   else:
+     direct scan fallback
+     enqueue/refresh index jobs
+-> grid thumbnails use browser/disk cache
+-> metadata panels read cached DB metadata first
+-> background indexer only fills stale/missing rows
+```
+
+Warm listing is an optimization, not the only path. Direct scan remains the fallback source of truth.
+
+### Lightbox target pipeline
+
+```text
+click image
+-> lightboxStore.open(path, visibleImages)
+-> PhotoSwipe dataSource built:
+     src  = /api/image
+     msrc = /api/thumbnail?max_size=2400
+     dimensions = scan -> remembered thumbnail -> cached metadata -> fallback
+-> overlay visible
+-> full original /api/image loads for current slide
+-> metadata panel:
+     check TanStack metadata cache
+     if warm DB metadata exists, return quickly
+     else /api/metadata parses on demand and queues/store result
+-> neighbor prefetch:
+     metadata query for prev/next
+     thumbnail/preview for prev/next
+     no /api/image for neighbors by default
+```
+
+The preview/thumbnail layer is only a placeholder/prefetch/derivative layer. It is not the authoritative lightbox image.
+
+### Search target pipeline
+
+```text
+plain query:
+search box "rain portrait"
+-> debounce
+-> GET /api/search?q=rain%20portrait&scope=current&path=...
+-> albums/photos: file_index_fts
+-> prompt: image_metadata_fts or trigram FTS
+-> fallback LIKE as today
+-> grouped Albums / Photos / Prompt response
+
+fielded query:
+search box 'rain seed:123 model:"realistic*" negative:"watermark"'
+-> parser extracts:
+     residual text = "rain"
+     filters = seed exact 123, model wildcard realistic*, negative text watermark
+-> residual text uses current FTS flow
+-> filters become SQL predicates over image_metadata
+-> current/all scope still joins through file_index
+-> grouped response shape remains compatible
+```
+
+Plain text remains the default. Fielded search is an extension.
+
+## Testing And Perf Gates
+
+### Backend Test Matrix
+
+| Test | Purpose | Acceptance |
+| --- | --- | --- |
+| metadata queue coalescing test | Multiple enqueue calls for same path+mtime+size produce one active job. | One job runs; duplicate callers observe same status/result. |
+| stale file invalidation test | mtime/size changes invalidate dimensions, metadata, queued jobs, and derivative readiness. | Old rows are ignored or marked stale; fresh row/job is created. |
+| batch writer test | Parsed metadata writes flush in bounded batches. | Correct rows/FTS updates; transaction size bounded; write errors reported. |
+| parser fixture tests | Lock supported generator formats and sidecars. | Same normalized fields for API and index paths. |
+| fielded search parser tests | Preserve plain search and support supported fields. | Tokens parse correctly; malformed fields are predictable; residual text preserved. |
+| derivative readiness tests | Thumbnail generation updates readiness and invalidates stale derivatives. | Ready row matches disk cache; missing file recovers. |
+| index status tests | `/api/index/status` reports queued/running/done/error quickly. | Counts accurate enough; last error present; p95 <= 50 ms warm. |
+| scan no-PIL test | Protect Rule 1. | `/api/scan` does not call `Image.open` or metadata parser. |
+| scan cached dimensions test | Protect Rule 2. | Only path+mtime+size-matching rows are returned. |
+| direct scan fallback test | Warm listing never hides stale filesystem changes. | Stale/incomplete index falls back to direct scan. |
+
+### Frontend Test Matrix
+
+| Test | Purpose | Acceptance |
+| --- | --- | --- |
+| album-open perf test | Protect folder-open and thumbnails. | Scan p95/current budget passes; first thumbnail and p95 pass; duplicate cursor-0 count <= 1. |
+| lightbox-open perf test | Protect overlay and original image source. | Visible/image budgets pass; `srcIsFullImage` true; `/api/image` used. |
+| lightbox transition perf test | Protect next-image load and ratio. | Transition budget passes; aspect ratio diff < 0.2. |
+| no landing toast regression | Prevent noisy status/error UI on startup. | No success/progress toast appears just because indexing starts. |
+| empty state no flicker | Preserve `hasEverLoaded`/delayed empty behavior. | Empty state appears only after settled scan and no content. |
+| search no-results only after fetch settled | Preserve current no-results guard. | No-results state appears only after successful non-fetching search with empty sections. |
+| lightbox does not preload full original for neighbors | Prevent bandwidth spike. | Neighbor prefetch may request metadata/thumbnail/preview, not `/api/image`. |
+| fielded search plain compatibility | Ensure parser does not break normal search UI. | Plain query behavior/result grouping remains compatible. |
+
+### Perf Budgets
+
+| Budget | Target |
+| --- | --- |
+| 50-image album scan p95 | <= current budget or no more than 10% regression. Current default scan budget is 500 ms. |
+| First thumbnail start | <= current budget. Current default is 1000 ms. |
+| Thumbnail p95 | <= current budget. Current default is 1200 ms. |
+| Lightbox visible | <= current budget. Current default is 1500 ms. |
+| Lightbox image loaded | <= current budget. Current default is 4000 ms. |
+| Lightbox transition | <= current budget. Current default is 3000 ms. |
+| 5000-image warm first page | 300-500 ms after indexed listing exists. |
+| `/api/index/status` warm p95 | <= 50 ms. |
+| Background indexer | Must yield to request hot path; default one metadata worker unless benchmarks justify more. |
+
+### Observability
+
+Prometheus metrics to reuse:
+
+- `http_request_duration_seconds`
+- `http_request_count_total`
+- route-level labels only, no per-path labels
+
+Prometheus metrics to add:
+
+- `gallery_index_queue_depth{state="queued|running|failed"}`
+- `gallery_index_jobs_total{result="done|error|stale|skipped"}`
+- `gallery_index_job_duration_seconds`
+- `gallery_metadata_parse_duration_seconds`
+- `gallery_sqlite_write_duration_seconds`
+- `gallery_sqlite_write_batch_size`
+- `gallery_derivative_ready_total{type="thumbnail|preview"}`
+- `gallery_derivative_errors_total`
+- `gallery_warm_listing_hits_total`
+- `gallery_warm_listing_fallbacks_total{reason="stale|incomplete|error"}`
+
+pyinstrument profile points:
+
+- `/api/scan`
+- `/api/metadata`
+- `/api/thumbnail`
+- `/api/search`
+- `/api/index/status`
+- background metadata worker parse loop, profiled through an explicit debug endpoint or command if needed
+
+Queue metrics:
+
+- queued/running/done/error counts
+- age of oldest queued job
+- active worker count
+- coalesced duplicate count
+- jobs skipped due to stale mtime/size
+
+Job error metrics:
+
+- parse error count by broad reason, not by path
+- thumbnail render error count
+- SQLite write error count
+- retry/attempt count
+
+SQLite write latency metrics:
+
+- batch flush duration
+- rows per batch
+- busy timeout incidents
+- write lock wait duration if measurable
+
+## Risk Register
+
+| Risk | Cause | Impact | Probability | Mitigation | Test/metric |
+| --- | --- | --- | --- | --- | --- |
+| Background indexer steals CPU/disk from UI | Worker parses too many large images while user opens folders/thumbnails. | Slow scan, thumbnail, metadata, or image serving. | Medium | One worker default; backoff/yield; pause under high request activity; metrics. | Album/lightbox perf; queue duration; request latency. |
+| SQLite write locks | Large transactions or too many writer calls. | Search/status/scan cache reads stall. | Medium | WAL, busy timeout, bounded batch size, single writer. | SQLite write latency; concurrent read/write tests. |
+| Duplicate jobs | Scan, watcher, metadata, and refresh enqueue same file. | Wasted CPU and confusing status. | High without coalescing | Coalesce by path+mtime+size; unique pending key. | Queue coalescing test; coalesced duplicate metric. |
+| Stale metadata | File changed after job queued or DB row written. | Wrong prompts/dimensions/search results. | Medium | Validate mtime+size before parse and before write; stale cleanup. | Stale invalidation test; stale skip metric. |
+| Invalid dimensions after EXIF orientation | Different paths store raw vs transposed dimensions. | Lightbox aspect ratio wrong. | Medium | Standardize dimension semantics in parser/thumbnail; fixture tests. | Lightbox ratio test; EXIF orientation fixture. |
+| Fielded search breaks normal search | Parser consumes text incorrectly or changes FTS behavior. | Search feels worse for all users. | Medium | Residual-text parser tests; plain search compatibility tests; malformed fields as text until UI supports errors. | Search parser tests; frontend no-results test. |
+| Too much DB bloat from raw workflows/node props | Indexing every ComfyUI node/property or raw JSON by default. | Slow DB, slow search, large cache files. | Medium | Store compact summaries first; raw/node search opt-in; benchmark DB size. | DB size metric; node search benchmark. |
+| Prefetch causes bandwidth spikes | Neighbor prefetch loads large originals or too many previews. | Slow navigation and network/disk waste. | Medium | Do not preload `/api/image` for neighbors; cap concurrency; use metadata/thumbnail only. | Network assertion; lightbox perf. |
+| Watcher misses events | Platform/filesystem watcher limitations. | Stale index after changes. | Medium | Watcher disabled by default; scheduled refresh fallback; manual rescan. | Watcher integration tests; stale cleanup metric. |
+| New status UI becomes noisy like previous toast bug | Index events surface as toasts or distracting banners. | Poor UX and annoyance. | Medium | Subtle passive indicator; no per-job toasts; errors only when actionable. | No landing toast regression; manual UX review. |
+| Optional previews drift toward replacing original lightbox image | Preview feature changes PhotoSwipe `src`. | Violates original-image guarantee. | Medium | Source policy tests; code review checklist; separate preview placeholder path. | `srcIsFullImage` test; no neighbor original preload test. |
+| Warm listing serves stale DB rows | Index completeness/freshness is wrong. | Missing or extra files in folder page. | Medium | Direct scan fallback; folder index state; stale validation. | Warm listing stale tests; fallback metric. |
+| Parser fixture gap hides regressions | New parser coverage lacks representative samples. | Search/lightbox disagree or wrong fields. | High | Fixture-first parser changes; keep malformed fixtures. | Parser fixture suite. |
+| Status endpoint becomes expensive | Counts query too many rows or scan paths. | Status polling hurts UI. | Low/Medium | Pre-aggregated counters or indexed status table; no path-cardinality metrics. | `/api/index/status` p95 <= 50 ms. |
+
+## Final Recommendation
+
+Do first:
+
+1. Lock the current guarantees with tests and docs.
+2. Unify metadata parsing so `/api/metadata` and SQLite indexing produce the same normalized fields.
+3. Add a bounded local metadata indexer that is fed by scan but never blocks scan.
+4. Add a batched SQLite writer and `/api/index/status`.
+5. Keep the lightbox main source test exactly strict: `/api/image` remains the PhotoSwipe `src`.
+
+Do next:
+
+1. Add fielded search for existing columns: `seed:`, `steps:`, `cfg:`, `sampler:`, `model:`, `negative:`, and `size:`.
+2. Add DB-first warm metadata reads for the lightbox panel.
+3. Add neighbor metadata/thumbnail prefetch, explicitly excluding full originals.
+4. Add derivative readiness rows for thumbnails/previews.
+5. Add warm indexed folder listing behind freshness checks and fallback.
+
+Defer:
+
+1. Optional local watcher/scheduled refresh until queue coalescing and status are proven.
+2. Prompt grouping/usage stats until background indexing coverage is high.
+3. ComfyUI node/property search until DB bloat and query performance are benchmarked.
+4. Time-bucket/timeline APIs until gallery-repo has a real product requirement for timeline browsing.
+5. Content checksums until there is an explicit duplicate/move-detection feature that can run off the hot path.
+
+Reject:
+
+1. Do not make PostgreSQL, Redis, or BullMQ default requirements.
+2. Do not parse metadata or open images with PIL inside `/api/scan`.
+3. Do not copy DT's synchronous viewer metadata reparse.
+4. Do not replace PhotoSwipe `/api/image` with a thumbnail or preview as the main source.
+5. Do not add OCR/CLIP/ML smart search as a default feature.
+6. Do not import Immich's multi-user, sharing, backup, or storage-template model.
+7. Do not add Stealth PNG pixel scanning to normal scan, metadata, or lightbox paths.
+
+The opinionated answer:
+
+```text
+Do not become Immich.
+Do not become DiffusionToolkit.
+
+Become gallery-repo with:
+- fast scan
+- original-image lightbox
+- local background metadata indexer
+- batched SQLite writes
+- DB-first warm metadata
+- simple optional fielded search
+- observable perf gates
+```
+
+The first implementation milestone should be Phase 1. It creates the foundation
+that makes every later improvement safer: a single parser truth, bounded
+background metadata work, batched writes, and visible status. Without that,
+fielded search, DB-first metadata, derivative readiness, and warm folder listing
+will all be built on incomplete or inconsistent cache data.
