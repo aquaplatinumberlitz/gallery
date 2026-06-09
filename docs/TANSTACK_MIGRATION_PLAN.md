@@ -59,9 +59,9 @@ TanStack DB owns only:
 
 ## Current Boundary
 
-The current gallery scan flow is hybrid for compatibility. TanStack Query caches the first scan page by deterministic key, and the active gallery grid reads first-page folders/photos from Query. The Pinia gallery store still copies scan data for navigation, initial root-load compatibility, and infinite-load append behavior.
+The current gallery scan flow uses plain TanStack Query for active gallery rendering. TanStack Query caches the first scan page by deterministic key, and `useInfiniteScanQuery()` owns the active gallery's cursor pages through `useInfiniteQuery` and `queryKeys.scanInfinite(path, IMAGE_PAGE_SIZE)`. The Pinia gallery store still copies first-page scan data for navigation and root-load compatibility, but it no longer owns appended image pages for active gallery rendering.
 
-Infinite image loading and folder tree loading still call the API from Pinia/store code directly. Search results and lightbox metadata now use plain TanStack Query as their active source of truth, while deprecated Pinia search result fields remain temporarily for compatibility.
+Folder tree loading still calls the API from Pinia/store code directly. Search results and lightbox metadata now use plain TanStack Query as their active source of truth, while deprecated Pinia search result fields remain temporarily for compatibility.
 
 TanStack DB currently wraps only `/api/landing-pages` into a Query Collection. The API response is normalized from `string[]` to landing-page rows keyed by `url`, with an index retained to preserve API order in live queries.
 
@@ -139,7 +139,13 @@ Status: complete. Lightbox metadata uses `usePhotoMetadataQuery()` with plain Ta
 
 ## Phase 4 Scope
 
-Status: partial. `useCurrentScanQuery()` exposes the current path's first `/api/scan` page through plain TanStack Query and `queryKeys.scan(path, IMAGE_PAGE_SIZE)`. `GalleryGrid.vue` reads active first-page folders and photos from Query, while Pinia remains as compatibility state for root-load loading, copied scan metadata/cursors, and images appended by the existing `loadMoreImages()` path. Phase 5 infinite loading has not started, so Pinia still participates in the rendered image list after page one.
+Status: complete as the first-page foundation. `useCurrentScanQuery()` exposes the current path's first `/api/scan` page through plain TanStack Query and `queryKeys.scan(path, IMAGE_PAGE_SIZE)`. Pinia remains as compatibility state for root-load loading and copied scan metadata/cursors, but active gallery rendering now uses the Phase 5 infinite query.
+
+## Phase 5 Scope
+
+Status: complete. `useInfiniteScanQuery()` uses plain TanStack Query `useInfiniteQuery` with `queryKeys.scanInfinite(path, IMAGE_PAGE_SIZE)`, `initialPageParam: 0`, and `getNextPageParam(lastPage) => lastPage.next_cursor ?? undefined`. `GalleryGrid.vue` renders folders from the first infinite page and images from flattened infinite pages, and its load-more sentinel calls `fetchNextPage()` only when `hasNextPage` is true and no next-page/background fetch is already active.
+
+TanStack DB is not used for scan or infinite cursor pagination. Pinia `galleryImages`, `nextImageCursor`, `loadingMoreImages`, and `loadMoreImages()` remain temporarily as deprecated compatibility fields/actions for legacy store flows, but they are no longer the active source of truth for appended image pages in the gallery UI.
 
 ## Hard Rules
 

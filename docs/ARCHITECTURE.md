@@ -69,11 +69,11 @@ TanStack Query caches `/api/scan` responses, while Pinia keeps UI state and temp
 
 | Layer | Responsibilities |
 |-------|------------------|
-| TanStack Query | Cached scan first-page, unified search, and lightbox metadata responses, stale time, garbage collection, background refresh query keys |
+| TanStack Query | Cached scan first-page, active scan infinite image pages, unified search, and lightbox metadata responses, stale time, garbage collection, background refresh query keys |
 | TanStack DB | Minimal beta foundation for local reactive collections and live queries over already loaded/API-backed data |
-| Pinia gallery store | Current/root path, infinite-load appended images, root-load compatibility flags, history, search input/scope, sort, pagination |
+| Pinia gallery store | Current/root path, root-load compatibility flags, history, search input/scope, sort, deprecated scan pagination compatibility fields |
 
-Migration rule: TanStack Query should own server/API state and cache. Pinia should own UI/navigation state. Do not add new Query -> Pinia duplicated server-state flows unless needed for compatibility. The existing `/api/scan` flow is currently hybrid because infinite loading still appends through Pinia. New server data flows should prefer TanStack Query as the source of truth.
+Migration rule: TanStack Query should own server/API state and cache. Pinia should own UI/navigation state. Do not add new Query -> Pinia duplicated server-state flows unless needed for compatibility. The active `/api/scan` gallery rendering flow is Query-owned; remaining Pinia scan image/cursor fields are temporary compatibility state.
 
 TanStack DB is available as a beta, incremental layer that complements TanStack Query. Query Collection should reuse the shared Query client for REST/API-backed collections; live queries can then query across those loaded collections locally. Do not migrate scan, infinite loading, folder tree, unified search, or lightbox metadata into DB without a dedicated follow-up design.
 
@@ -81,6 +81,7 @@ Scan query keys use this deterministic pattern:
 
 ```text
 ["scan", normalizedPath, imageLimit]
+["scan-infinite", normalizedPath, imageLimit]
 ```
 
 `normalizedPath` is trimmed, converts backslashes to forward slashes, collapses duplicate slashes, and removes a trailing slash. For the first image page, `imageLimit` is `IMAGE_PAGE_SIZE`.
@@ -99,7 +100,7 @@ Sidebar or album click
 → GET /api/scan
 → update TanStack Query cache with fresh scan response
 → store updates folders, images, next cursor, total images
-→ GalleryGrid renders albums and image rows
+→ GalleryGrid renders albums and image rows from useInfiniteScanQuery()
 ```
 
 Gallery loading behavior:
@@ -112,9 +113,10 @@ Gallery loading behavior:
 
 ```text
 IntersectionObserver sees loadMoreSentinel
-→ galleryStore.loadMoreImages()
-→ GET /api/scan with image_cursor
-→ append returned images
+→ guard hasNextPage and isFetchingNextPage/isFetching
+→ useInfiniteScanQuery().fetchNextPage()
+→ GET /api/scan with image_cursor from pageParam
+→ TanStack Query appends returned page
 → grid rows recompute
 ```
 

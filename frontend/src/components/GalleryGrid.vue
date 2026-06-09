@@ -17,7 +17,7 @@ import { compareNatural } from "../composables/useNaturalSort";
 import { useColumnResize, PHOTO_GRID_LEVELS, GRID_COLUMN_MAP } from "../composables/useColumnResize";
 import { useDevice } from "../composables/useDevice";
 import { usePullToRefresh } from "../composables/usePullToRefresh";
-import { useCurrentScanQuery } from "../composables/useCurrentScanQuery";
+import { useInfiniteScanQuery } from "../composables/useInfiniteScanQuery";
 import { useUnifiedSearchQuery } from "../composables/useUnifiedSearchQuery";
 import { galleryScrollContainerRefKey } from "../injectionKeys";
 import { fuzzySearchFileNodes } from "../utils/fuzzySearch";
@@ -32,7 +32,8 @@ const _icons: Record<string, any> = { Type, Clock }
 
 const galleryStore = useGalleryStore();
 const lightboxStore = useLightboxStore();
-const currentScanQuery = useCurrentScanQuery();
+const activeScanPath = computed(() => galleryStore.currentPath || galleryStore.rootPath);
+const infiniteScanQuery = useInfiniteScanQuery(activeScanPath);
 
 const {
   pullDistance,
@@ -45,7 +46,9 @@ const {
   onTouchMove,
   onTouchEnd,
 } = usePullToRefresh({
-  onRefresh: () => galleryStore.scanFolder(),
+  onRefresh: async () => {
+    await infiniteScanQuery.refetch();
+  },
 });
 
 interface Props {
@@ -91,7 +94,7 @@ const searchQuery = computed(() => galleryStore.searchQuery);
 const trimmedSearchQuery = computed(() => searchQuery.value.trim());
 const hasSearchQuery = computed(() => trimmedSearchQuery.value.length > 0);
 const searchScope = computed(() => galleryStore.searchScope);
-const searchContextPath = computed(() => currentScanQuery.activeFolderPath.value);
+const searchContextPath = computed(() => infiniteScanQuery.activeFolderPath.value);
 const unifiedSearchQuery = useUnifiedSearchQuery(searchQuery, searchScope, searchContextPath);
 const sortField = computed(() => galleryStore.sortField);
 const sortOrder = computed(() => galleryStore.sortOrder);
@@ -179,13 +182,8 @@ const sortItems = <T extends { name: string; mtime?: number }>(items: T[]): T[] 
   return sorted;
 };
 
-const scanFolders = computed(() => currentScanQuery.folders.value);
-const firstPageImages = computed(() => currentScanQuery.firstPageImages.value);
-const loadedMoreImages = computed(() => {
-  const firstPagePaths = new Set(firstPageImages.value.map((image) => image.path));
-  return galleryStore.galleryImages.filter((image) => !firstPagePaths.has(image.path));
-});
-const scanImages = computed(() => [...firstPageImages.value, ...loadedMoreImages.value]);
+const scanFolders = computed(() => infiniteScanQuery.folders.value);
+const scanImages = computed(() => infiniteScanQuery.images.value);
 
 const folders = computed(() =>
   sortItems(
@@ -317,8 +315,10 @@ const images = computed(() =>
   hasSearchQuery.value ? allSearchImageNodes.value : filenameImages.value
 );
 
-const isLoading = computed(() => galleryStore.galleryLoading || (currentScanQuery.isLoading.value && !galleryStore.hasEverLoaded));
-const isRefetching = computed(() => currentScanQuery.isFetching.value && !currentScanQuery.isLoading.value);
+const isLoading = computed(() => galleryStore.galleryLoading || (infiniteScanQuery.isLoading.value && !galleryStore.hasEverLoaded));
+const isRefetching = computed(
+  () => infiniteScanQuery.isFetching.value && !infiniteScanQuery.isLoading.value && !infiniteScanQuery.isFetchingNextPage.value
+);
 const isSearchLoading = computed(
   () => hasSearchQuery.value && (unifiedSearchQuery.isLoading.value || unifiedSearchQuery.isFetching.value),
 );
@@ -327,7 +327,7 @@ const canBack = computed(() => galleryStore.historyIndex > 0);
 const canForward = computed(
   () => galleryStore.historyIndex < galleryStore.history.length - 1
 );
-const hasMoreImages = computed(() => !hasSearchQuery.value && galleryStore.nextImageCursor !== null);
+const hasMoreImages = computed(() => !hasSearchQuery.value && infiniteScanQuery.hasNextPage.value);
 const hasAnyItems = computed(() => scanFolders.value.length + scanImages.value.length > 0);
 const hasNoPath = computed(() => !galleryStore.currentPath && !galleryStore.rootPath);
 const hasNotLoaded = computed(() => !galleryStore.hasEverLoaded && (!!galleryStore.currentPath || !!galleryStore.rootPath));
@@ -352,7 +352,7 @@ const noSearchResults = computed(
     hasAnyItems.value
 );
 const scanQueryErrorMessage = computed(() => {
-  const error = currentScanQuery.error.value;
+  const error = infiniteScanQuery.error.value;
   if (!error) return "";
   const suggestion = (error as { suggestion?: string }).suggestion;
   if (suggestion) return suggestion;
@@ -374,7 +374,7 @@ const handleOpenImage = (path: string, name: string) => {
 const goBack = () => galleryStore.goBack();
 const goForward = () => galleryStore.goForward();
 const openFolder = () => galleryStore.openInExplorer();
-const isLoadingMore = computed(() => galleryStore.loadingMoreImages);
+const isLoadingMore = computed(() => infiniteScanQuery.isFetchingNextPage.value);
 
 // --- Virtual scroller state ---
 const { isTablet } = useDevice()
@@ -500,9 +500,9 @@ const setupLoadObserver = () => {
   if (!loadMoreSentinel.value) return;
   loadObserver = new IntersectionObserver(
     (entries) => {
-      if (!hasMoreImages.value || isLoadingMore.value) return;
+      if (!hasMoreImages.value || isLoadingMore.value || infiniteScanQuery.isFetching.value) return;
       if (entries.some((e) => e.isIntersecting)) {
-        galleryStore.loadMoreImages();
+        infiniteScanQuery.fetchNextPage();
       }
     },
     {

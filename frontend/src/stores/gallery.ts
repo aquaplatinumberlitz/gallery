@@ -92,9 +92,12 @@ export const useGalleryStore = defineStore("gallery", {
       currentPath: "",
       isLoading: false,
       galleryFolders: [] as FileNode[],
+      // Deprecated Phase 5 compatibility state. Active gallery rendering reads scan pages from TanStack Query.
       galleryImages: [] as FileNode[],
+      // Deprecated Phase 5 compatibility state. useInfiniteScanQuery owns active image pagination.
       nextImageCursor: null as number | null,
       totalImages: 0,
+      // Deprecated Phase 5 compatibility state. useInfiniteScanQuery owns active load-more status.
       loadingMoreImages: false,
       galleryLoading: false,
       isRefetching: false,
@@ -343,6 +346,7 @@ export const useGalleryStore = defineStore("gallery", {
       }
     },
 
+    // Deprecated Phase 5 compatibility action. Active gallery UI uses useInfiniteScanQuery().fetchNextPage().
     async loadMoreImages() {
       if (this.loadingMoreImages || this.nextImageCursor === null) return;
       const target = this.currentPath || this.rootPath;
