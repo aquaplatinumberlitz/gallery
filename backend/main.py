@@ -243,24 +243,42 @@ def list_folder_children(target_path: Path) -> list[FileNode]:
     folders: list[FileNode] = []
     try:
         for entry in os.scandir(target_path):
-            if entry.name.startswith(".") or not entry.is_dir():
+            if entry.name.startswith("."):
                 continue
 
             entry_path = Path(entry.path)
-            meta = build_album_metadata(entry_path)
+
+            try:
+                if not entry.is_dir():
+                    continue
+            except OSError:
+                continue
+
+            try:
+                path = str(entry_path.resolve())
+            except OSError:
+                path = str(entry_path.absolute())
+
+            try:
+                mtime = entry.stat().st_mtime
+            except OSError:
+                mtime = 0
+
             folders.append(
                 FileNode(
                     name=entry.name,
-                    path=str(entry_path.resolve()),
+                    path=path,
                     type="folder",
                     has_children=has_subfolders(entry_path),
-                    cover_images=meta["cover_images"],
-                    mtime=meta["mtime"],
-                    image_count=meta["image_count"],
+                    cover_images=[],
+                    mtime=mtime,
+                    image_count=0,
                 )
             )
     except PermissionError:
         raise APIError(403, ErrorType.PERMISSION_DENIED, "Permission denied")
+    except OSError as exc:
+        raise APIError(500, ErrorType.SERVER_ERROR, f"Unable to list folder: {exc}") from exc
 
     folders.sort(key=lambda x: natural_sort_key(x.name))
     return folders
