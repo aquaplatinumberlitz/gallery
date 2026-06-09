@@ -127,7 +127,7 @@ Not allowed:
 
 ## Phase 1 Scope
 
-Phase 1 landing pages are complete for Settings theme selection. The existing landing-pages Query Collection still uses `url` as the collection key, defensively ignores duplicate URLs, preserves API order with an index, and `SettingsModal.vue` reads it through `useLandingPagesLiveQuery()`. `IntroScreen.vue` keeps its direct conditional `fetchLandingPages()` call so disabled, manual, and forced-preview flows do not start an eager landing-pages query.
+Phase 1 landing pages are complete for Settings theme selection. The existing landing-pages Query Collection still uses `url` as the collection key, defensively ignores duplicate URLs, preserves API order with an index, and `SettingsModal.vue` reads it through `useLandingPagesLiveQuery()` with a pending-data guard. `IntroScreen.vue` keeps its direct conditional `fetchLandingPages()` call so disabled, manual, and forced-preview flows do not start an eager landing-pages query.
 
 ## Hard Rules
 

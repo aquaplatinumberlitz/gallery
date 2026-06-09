@@ -17,7 +17,9 @@ const selectedTheme = ref('');
 const modalRef = ref<HTMLElement | null>(null);
 const closeButtonRef = ref<HTMLElement | null>(null);
 const landingPagesQuery = useLandingPagesLiveQuery();
-const availableThemes = computed(() => landingPagesQuery.data.value.map((page) => page.url));
+const availableThemes = computed(() =>
+  (landingPagesQuery.data.value ?? []).map((page) => page.url)
+);
 const isLoadingThemes = computed(() => landingPagesQuery.isLoading.value);
 
 const { activate, deactivate } = useFocusTrap(modalRef, {

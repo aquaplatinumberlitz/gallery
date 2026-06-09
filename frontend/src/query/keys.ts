@@ -1,5 +1,8 @@
-export const normalizeQueryPath = (path: string | null | undefined) =>
-  (path ?? "").trim().replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "");
+export const normalizeQueryPath = (path: string | null | undefined) => {
+  const normalized = (path ?? "").trim().replace(/\\/g, "/").replace(/\/+/g, "/");
+  // Preserve the filesystem root path; trim trailing slashes only for non-root paths.
+  return normalized === "/" ? normalized : normalized.replace(/\/$/, "");
+};
 
 export const queryKeys = {
   landingPages: () => ["landing-pages"] as const,
