@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/vue-query";
 import { computed, onBeforeUnmount, ref, watch, type Ref } from "vue";
-import { queryKeys } from "../query/keys";
+import { normalizeQueryPath, queryKeys } from "../query/keys";
 import { unifiedSearch } from "../services/api";
 import type { SearchScope, UnifiedSearchResults } from "../types";
 
@@ -19,7 +19,8 @@ export function useUnifiedSearchQuery(
   let searchTimer: number | undefined;
 
   const trimmedQuery = computed(() => query.value.trim());
-  const queryPath = computed(() => (scope.value === "current" ? path.value : ""));
+  const normalizedPath = computed(() => normalizeQueryPath(path.value || ""));
+  const queryPath = computed(() => (scope.value === "current" ? normalizedPath.value : ""));
 
   watch(
     trimmedQuery,

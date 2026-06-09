@@ -93,6 +93,15 @@ const hasSearchQuery = computed(() => trimmedSearchQuery.value.length > 0);
 const searchScope = computed(() => galleryStore.searchScope);
 const searchContextPath = computed(() => galleryStore.currentPath || galleryStore.rootPath);
 const unifiedSearchQuery = useUnifiedSearchQuery(searchQuery, searchScope, searchContextPath);
+if (import.meta.env.DEV) {
+  console.debug('[search path]', {
+    scope: searchScope.value,
+    rootPath: galleryStore.rootPath,
+    currentPath: galleryStore.currentPath,
+    searchContextPath: searchContextPath.value,
+    normalizedPath: searchContextPath.value.replace(/\/$/, ''),
+  });
+}
 const sortField = computed(() => galleryStore.sortField);
 const sortOrder = computed(() => galleryStore.sortOrder);
 
