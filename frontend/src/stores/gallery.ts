@@ -1,9 +1,8 @@
 import { defineStore } from "pinia";
-import type { FileNode, SearchScope, SortField, SortOrder, UnifiedSearchResults } from "../types";
-import { openFolder, scanDirectory, unifiedSearch as unifiedSearchApi, GalleryAPIError } from "../services/api";
+import type { FileNode, SearchScope, SortField, SortOrder } from "../types";
+import { openFolder, GalleryAPIError } from "../services/api";
 import { useToastStore } from "./toast";
-import { IMAGE_PAGE_SIZE } from "../constants";
-import { fetchScan, fetchScanOrThrow, getCachedScan, isScanFresh } from "../composables/useScanQuery";
+import { fetchScanOrThrow } from "../composables/useScanQuery";
 import { normalizeQueryPath } from "../query/keys";
 
 const STORAGE_KEY = "gallery-root-path";
@@ -91,28 +90,12 @@ export const useGalleryStore = defineStore("gallery", {
       expandedFolderPaths: {} as Record<string, boolean>,
       currentPath: "",
       isLoading: false,
-      galleryFolders: [] as FileNode[],
-      // Deprecated Phase 5 compatibility state. Active gallery rendering reads scan pages from TanStack Query.
-      galleryImages: [] as FileNode[],
-      // Deprecated Phase 5 compatibility state. useInfiniteScanQuery owns active image pagination.
-      nextImageCursor: null as number | null,
-      totalImages: 0,
-      // Deprecated Phase 5 compatibility state. useInfiniteScanQuery owns active load-more status.
-      loadingMoreImages: false,
-      galleryLoading: false,
-      isRefetching: false,
       history: [] as string[],
       historyIndex: -1,
       hasEverLoaded: false,
       errorMessage: "" as string | null,
       searchQuery: "",
-      // Deprecated Phase 2 compatibility state. Active search UI reads server data from TanStack Query.
-      unifiedSearchResults: { albums: [], photos: [], prompt: [] } as UnifiedSearchResults,
       searchScope: "current" as SearchScope,
-      searchRoot: "",
-      // Deprecated Phase 2 compatibility state. Query owns active search loading/error.
-      searchLoading: false,
-      searchError: "" as string | null,
       sortField: storedSort.field as SortField,
       sortOrder: storedSort.order as SortOrder,
     };
@@ -129,49 +112,10 @@ export const useGalleryStore = defineStore("gallery", {
 
     clearSearch() {
       this.searchQuery = "";
-      this.unifiedSearchResults = { albums: [], photos: [], prompt: [] };
-      this.searchLoading = false;
-      this.searchError = null;
     },
 
     setSearchScope(scope: SearchScope) {
       this.searchScope = scope;
-    },
-
-    // Deprecated Phase 2 compatibility action. Active search UI uses useUnifiedSearchQuery().
-    async unifiedSearch(query?: string) {
-      const trimmed = (query ?? this.searchQuery).trim();
-      if (!trimmed) {
-        this.unifiedSearchResults = { albums: [], photos: [], prompt: [] };
-        this.searchLoading = false;
-        this.searchError = null;
-        return;
-      }
-
-      const scope = this.searchScope;
-      const root = scope === "current" ? (this.currentPath || this.rootPath) : "";
-      this.searchRoot = root;
-      this.searchLoading = true;
-      this.searchError = null;
-      try {
-        const data = await unifiedSearchApi(trimmed, { scope, path: root, limit: 100 });
-        if (this.searchQuery.trim() !== trimmed || this.searchScope !== scope) return;
-        this.unifiedSearchResults = {
-          albums: data.albums,
-          photos: data.photos,
-          prompt: data.prompt,
-        };
-        this.searchRoot = data.root;
-      } catch (error: unknown) {
-        if (this.searchQuery.trim() !== trimmed || this.searchScope !== scope) return;
-        this.unifiedSearchResults = { albums: [], photos: [], prompt: [] };
-        this.searchError = "Unable to search the indexed gallery.";
-        console.error("Unable to search gallery", error);
-      } finally {
-        if (this.searchQuery.trim() === trimmed && this.searchScope === scope) {
-          this.searchLoading = false;
-        }
-      }
     },
 
     setSortField(field: SortField) {
@@ -195,8 +139,6 @@ export const useGalleryStore = defineStore("gallery", {
         return false;
       }
       this.isLoading = true;
-      this.galleryLoading = true;
-      this.loadingMoreImages = false;
       this.rootPath = path;
 
       const data = await _withError(
@@ -208,21 +150,12 @@ export const useGalleryStore = defineStore("gallery", {
 
       if (!data) {
         this.sidebarTree = [];
-        this.galleryFolders = [];
-        this.galleryImages = [];
-        this.nextImageCursor = null;
-        this.totalImages = 0;
         this.currentPath = "";
         this.isLoading = false;
-        this.galleryLoading = false;
         return false;
       }
 
       this.sidebarTree = normalizeNodes(data.folders);
-      this.galleryFolders = data.folders;
-      this.galleryImages = data.images;
-      this.nextImageCursor = data.next_cursor;
-      this.totalImages = data.total_images;
       this.currentPath = path;
       if (typeof window !== "undefined") {
         localStorage.setItem(STORAGE_KEY, path);
@@ -231,8 +164,8 @@ export const useGalleryStore = defineStore("gallery", {
       this.hasEverLoaded = true;
 
       // Show summary toast on first load (when entering root path)
-      const imageCount = this.totalImages || this.galleryImages.length;
-      const albumCount = this.galleryFolders.length;
+      const imageCount = data.total_images || data.images.length;
+      const albumCount = data.folders.length;
       const toast = useToastStore();
       toast.success(
         'Gallery loaded',
@@ -241,7 +174,6 @@ export const useGalleryStore = defineStore("gallery", {
       );
 
       this.isLoading = false;
-      this.galleryLoading = false;
       return true;
     },
 
@@ -270,90 +202,7 @@ export const useGalleryStore = defineStore("gallery", {
       const path = typeof nodeOrPath === "string" ? nodeOrPath : nodeOrPath.path;
       this.currentPath = path;
       this.pushHistory(path);
-      this.galleryLoading = false;
-      this.isRefetching = false;
       this.hasEverLoaded = true;
-    },
-
-    async scanFolder(path?: string) {
-      const target = path || this.currentPath || this.rootPath;
-      if (!target) {
-        this.galleryFolders = [];
-        this.galleryImages = [];
-        this.nextImageCursor = null;
-        this.totalImages = 0;
-        this.isRefetching = false;
-        return;
-      }
-      // Check cache first so navigation can render immediately when data exists.
-      const cached = getCachedScan(target);
-      const fresh = isScanFresh(target);
-      if (cached) {
-        this.galleryFolders = cached.folders;
-        this.galleryImages = cached.images;
-        this.nextImageCursor = cached.next_cursor;
-        this.totalImages = cached.total_images;
-        this.currentPath = target;
-        this.hasEverLoaded = true;
-        this.isRefetching = !fresh;
-      } else {
-        this.galleryLoading = true;
-        this.isRefetching = false;
-      }
-
-      // fetchQuery respects staleTime: fresh data returns from cache without a network call.
-      try {
-        const data = await fetchScan(target);
-        if (data) {
-          this.galleryFolders = data.folders;
-          this.galleryImages = data.images;
-          this.nextImageCursor = data.next_cursor;
-          this.totalImages = data.total_images;
-          this.currentPath = target;
-          this.galleryLoading = false;
-          this.isRefetching = false;
-          this.hasEverLoaded = true;
-        }
-        if (!data && !cached) {
-          this.galleryFolders = [];
-          this.galleryImages = [];
-          this.nextImageCursor = null;
-          this.totalImages = 0;
-          this.galleryLoading = false;
-          this.isRefetching = false;
-        }
-      } catch (error) {
-        if (!cached) {
-          this.galleryFolders = [];
-          this.galleryImages = [];
-          this.nextImageCursor = null;
-          this.totalImages = 0;
-        }
-        this.galleryLoading = false;
-        this.isRefetching = false;
-      }
-    },
-
-    // Deprecated Phase 5 compatibility action. Active gallery UI uses useInfiniteScanQuery().fetchNextPage().
-    async loadMoreImages() {
-      if (this.loadingMoreImages || this.nextImageCursor === null) return;
-      const target = this.currentPath || this.rootPath;
-      if (!target) return;
-      this.loadingMoreImages = true;
-
-      const data = await _withError(
-        this,
-        () => scanDirectory(target, { imageLimit: IMAGE_PAGE_SIZE, imageCursor: this.nextImageCursor! }),
-        "Unable to fetch more images"
-      );
-
-      if (data) {
-        this.galleryImages = [...this.galleryImages, ...data.images];
-        this.nextImageCursor = data.next_cursor;
-        this.totalImages = data.total_images;
-      }
-
-      this.loadingMoreImages = false;
     },
 
     async openInExplorer() {
@@ -371,10 +220,7 @@ export const useGalleryStore = defineStore("gallery", {
       this.currentPath = "";
       this.sidebarTree = [];
       this.expandedFolderPaths = {};
-      this.galleryFolders = [];
-      this.galleryImages = [];
       this.hasEverLoaded = false;
-      this.isRefetching = false;
       if (typeof window !== "undefined") {
         localStorage.removeItem(STORAGE_KEY);
       }
@@ -393,8 +239,6 @@ export const useGalleryStore = defineStore("gallery", {
         this.historyIndex -= 1;
         const path = this.history[this.historyIndex];
         this.currentPath = path;
-        this.galleryLoading = false;
-        this.isRefetching = false;
         this.hasEverLoaded = true;
       }
     },
@@ -404,8 +248,6 @@ export const useGalleryStore = defineStore("gallery", {
         this.historyIndex += 1;
         const path = this.history[this.historyIndex];
         this.currentPath = path;
-        this.galleryLoading = false;
-        this.isRefetching = false;
         this.hasEverLoaded = true;
       }
     },

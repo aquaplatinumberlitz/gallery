@@ -1,6 +1,6 @@
 # Third-Party Libraries
 
-Last reviewed: 2026-06-08
+Last reviewed: 2026-06-09
 
 This document explains how major external libraries are used in this project.
 
@@ -9,7 +9,7 @@ This document explains how major external libraries are used in this project.
 | Library | Used for | Main integration file(s) | Notes |
 |---|---|---|---|
 | `@douxcode/vue-spring-bottom-sheet` | Mobile lightbox metadata sheet, drag/snap/spring animation, native-feeling scroll | `frontend/src/components/LightboxMobileSheet.vue`, `frontend/src/styles/_lightbox-mobile.scss` | Used as the sheet and motion engine only; Gallery owns metadata UI and behavior |
-| `@tanstack/vue-query` | Server-state caching for gallery scans | `frontend/src/query/index.ts`, `frontend/src/composables/useScanQuery.ts`, `frontend/src/stores/gallery.ts` | Caches `/api/scan` responses by normalized path and image page size |
+| `@tanstack/vue-query` | Server-state caching for gallery scans, folder children, search, and metadata | `frontend/src/query/index.ts`, `frontend/src/composables/useScanQuery.ts`, `frontend/src/composables/useInfiniteScanQuery.ts`, `frontend/src/composables/useFolderChildrenQuery.ts`, `frontend/src/composables/useUnifiedSearchQuery.ts`, `frontend/src/composables/usePhotoMetadataQuery.ts` | Owns API/server-state cache; Pinia owns UI/navigation state |
 | `@tanstack/vue-db` | Beta local reactive DB foundation and live queries | `frontend/src/db/` | Complements TanStack Query; foundation only, with landing pages as an additive pilot collection |
 | `@tanstack/query-db-collection` | TanStack DB Query Collection adapter for REST/API-backed collections | `frontend/src/db/collections/landingPagesCollection.ts` | Reuses the shared Query client and existing API functions |
 | PhotoSwipe 5 | Responsive lightbox image viewer, image navigation, swipe/pan/zoom | `frontend/src/components/Lightbox.vue`, `MobilePhotoSwipe.vue`, `TabletPhotoSwipe.vue`, `PhotoSwipeViewer.vue`, `frontend/src/composables/usePhotoSwipe.ts`, `frontend/src/styles/_lightbox-*.scss` | Used as the image viewer engine; Gallery owns metadata panels, custom controls, and responsive layout |
@@ -62,15 +62,15 @@ Official links:
 - Docs: https://tanstack.com/query/v5/docs/framework/vue
 - npm: https://www.npmjs.com/package/@tanstack/vue-query
 
-Used for: Server-state caching for gallery folder scans.
+Used for: Server-state caching for gallery folder scans, infinite image pages, folder children, search, and metadata.
 
-Integration files: `frontend/src/query/index.ts`, `frontend/src/composables/useScanQuery.ts`, `frontend/src/stores/gallery.ts`
+Integration files: `frontend/src/query/index.ts`, `frontend/src/composables/useScanQuery.ts`, `frontend/src/composables/useInfiniteScanQuery.ts`, `frontend/src/composables/useFolderChildrenQuery.ts`, `frontend/src/composables/useUnifiedSearchQuery.ts`, `frontend/src/composables/usePhotoMetadataQuery.ts`
 
 Query key: `["scan", normalizedPath, imageLimit]`, where `normalizedPath` is trimmed, slash-normalized, and has trailing slashes removed.
 
 Default behavior: Scan data is fresh for 1 minute, retained for 10 minutes after last use, retries once, and does not refetch on window focus.
 
-Decision: TanStack Query owns cached `/api/scan` server state. Pinia still owns UI state such as current path, history, search, sort, loading flags, and pagination cursors. The gallery store reads cached scan data before fetching so album revisits render immediately, then performs a background refresh and updates the cache with fresh data.
+Decision: TanStack Query owns cached `/api/scan`, `/api/folders`, `/api/search`, and `/api/metadata` server state. Pinia owns UI/navigation state such as current path, history, search input/scope, sort, and expanded folder paths. The post-migration cleanup removed old Pinia scan image/cursor/load-more state and old Pinia search result/loading/error state after grep showed no active UI callers.
 
 ### @tanstack/vue-db and @tanstack/query-db-collection
 

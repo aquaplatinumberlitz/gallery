@@ -6,7 +6,7 @@ This frontend uses TanStack libraries for state management, data display, and fo
 
 | Package | Version | Status | Purpose |
 |---------|---------|--------|---------|
-| `@tanstack/vue-query` | ^5.x | ✅ Active | Server-state caching for gallery scans, thumbnail cache invalidation, background refetch. Setup in `src/query/index.ts`. |
+| `@tanstack/vue-query` | ^5.x | ✅ Active | Server-state caching for scan/infinite pages, folder children, search, metadata, and background refetch. Setup in `src/query/index.ts`. |
 | `@tanstack/vue-virtual` | ^3.x | ✅ Active | Row-based virtual scrolling for desktop/tablet photo grid. Uses `useVirtualizer` in `GalleryGrid.vue`. |
 | `@tanstack/vue-form` | latest | 🟡 Foundation | Future: metadata forms (title, description, tags), batch editor, settings. See notes below. |
 | `@tanstack/vue-table` | latest | 🟡 Foundation | Future: metadata management table, duplicate/broken image audit, import history. See notes below. |

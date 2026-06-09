@@ -7,9 +7,6 @@ export const normalizeQueryPath = (path: string | null | undefined) => {
 export const queryKeys = {
   landingPages: () => ["landing-pages"] as const,
 
-  scanPath: (path: string) =>
-    ["scan", normalizeQueryPath(path)] as const,
-
   scan: (path: string, imageLimit: number) =>
     ["scan", normalizeQueryPath(path), imageLimit] as const,
 

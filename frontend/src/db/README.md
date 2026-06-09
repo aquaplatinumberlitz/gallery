@@ -6,7 +6,7 @@ Responsibilities:
 
 - TanStack Query remains responsible for API fetching, cache timing, retries, and refetch behavior.
 - TanStack DB collections and live queries are for local reactive querying across data that has been loaded into collections.
-- Pinia remains responsible for UI and navigation state such as current folders, history, modal/lightbox state, loading flags, and user interaction state.
+- Pinia remains responsible for UI and navigation state such as current path, expanded folders, history, modal/lightbox state, and user interaction state.
 
 Do not migrate the core gallery scan flow, infinite image loading, folder tree, unified search, lightbox metadata, PhotoSwipe integration, virtual grid behavior, or Pinia gallery store shape as part of this foundation.
 
