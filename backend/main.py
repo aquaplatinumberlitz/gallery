@@ -21,10 +21,10 @@ from diskcache import Cache
 import threading
 try:
     from services.metadata_index import cleanup_stale_index, index_directory_tree, index_file, index_files_from_scan, index_images, search_index, search_metadata
-    from services.album_utils import is_image, first_images_in_dir, has_any_children, count_images_in_dir, build_album_metadata
+    from services.album_utils import is_image, build_album_metadata, has_subfolders
 except ModuleNotFoundError:
     from backend.services.metadata_index import cleanup_stale_index, index_directory_tree, index_file, index_files_from_scan, index_images, search_index, search_metadata
-    from backend.services.album_utils import is_image, first_images_in_dir, has_any_children, count_images_in_dir, build_album_metadata
+    from backend.services.album_utils import is_image, build_album_metadata, has_subfolders
 
 # =============================================================================
 # CUSTOM ERROR TYPES - For better frontend error handling
@@ -253,7 +253,7 @@ def list_folder_children(target_path: Path) -> list[FileNode]:
                     name=entry.name,
                     path=str(entry_path.resolve()),
                     type="folder",
-                    has_children=meta["has_children"],
+                    has_children=has_subfolders(entry_path),
                     cover_images=meta["cover_images"],
                     mtime=meta["mtime"],
                     image_count=meta["image_count"],

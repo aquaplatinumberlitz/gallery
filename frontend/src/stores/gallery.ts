@@ -4,6 +4,7 @@ import { openFolder, scanDirectory, unifiedSearch as unifiedSearchApi, GalleryAP
 import { useToastStore } from "./toast";
 import { IMAGE_PAGE_SIZE } from "../constants";
 import { fetchScan, fetchScanOrThrow, getCachedScan, isScanFresh } from "../composables/useScanQuery";
+import { normalizeQueryPath } from "../query/keys";
 
 const STORAGE_KEY = "gallery-root-path";
 const SORT_STORAGE_KEY = "gallery-sort-preference";
@@ -37,7 +38,6 @@ const normalizeNodes = (nodes: FileNode[]): FileNode[] =>
     .filter((n) => n.type === "folder")
     .map((n) => ({
       ...n,
-      isOpen: false,
       children: undefined,
     }));
 
@@ -88,6 +88,7 @@ export const useGalleryStore = defineStore("gallery", {
     return {
       rootPath: getStoredRoot(),
       sidebarTree: [] as FileNode[],
+      expandedFolderPaths: {} as Record<string, boolean>,
       currentPath: "",
       isLoading: false,
       galleryFolders: [] as FileNode[],
@@ -244,8 +245,25 @@ export const useGalleryStore = defineStore("gallery", {
       return true;
     },
 
+    isFolderExpanded(path: string): boolean {
+      const normalizedPath = normalizeQueryPath(path);
+      return !!this.expandedFolderPaths[normalizedPath];
+    },
+
+    toggleFolderExpanded(path: string) {
+      const normalizedPath = normalizeQueryPath(path);
+      if (!normalizedPath) return;
+      this.expandedFolderPaths[normalizedPath] = !this.expandedFolderPaths[normalizedPath];
+    },
+
+    setFolderExpanded(path: string, expanded: boolean) {
+      const normalizedPath = normalizeQueryPath(path);
+      if (!normalizedPath) return;
+      this.expandedFolderPaths[normalizedPath] = expanded;
+    },
+
     toggleFolder(node: FileNode) {
-      node.isOpen = !node.isOpen;
+      this.toggleFolderExpanded(node.path);
     },
 
     selectFolder(nodeOrPath: FileNode | string) {
@@ -352,6 +370,7 @@ export const useGalleryStore = defineStore("gallery", {
       this.rootPath = "";
       this.currentPath = "";
       this.sidebarTree = [];
+      this.expandedFolderPaths = {};
       this.galleryFolders = [];
       this.galleryImages = [];
       this.hasEverLoaded = false;

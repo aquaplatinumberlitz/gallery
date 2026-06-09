@@ -19,6 +19,18 @@ def has_any_children(dir_path: Path) -> bool:
         return False
 
 
+def has_subfolders(dir_path: Path) -> bool:
+    """Return True when a directory contains at least one non-hidden child directory."""
+    try:
+        return any(
+            entry.is_dir()
+            for entry in dir_path.iterdir()
+            if not entry.name.startswith(".")
+        )
+    except (PermissionError, OSError):
+        return False
+
+
 def first_images_in_dir(dir_path: Path, limit: int = 3) -> list[str]:
     """
     Get the most recently modified images in a directory.

@@ -23,20 +23,21 @@ const closeSidebar = inject(closeSidebarKey, () => {});
 const itemRef = ref<HTMLElement | null>(null);
 
 const isActive = computed(() => props.activePath === props.node.path);
-const childrenQueryEnabled = computed(() => !!props.node.isOpen && !!props.node.has_children);
+const isOpen = computed(() => galleryStore.isFolderExpanded(props.node.path));
+const childrenQueryEnabled = computed(() => isOpen.value && !!props.node.has_children);
 const folderChildrenQuery = useFolderChildrenQuery(
   computed(() => props.node.path),
   childrenQueryEnabled
 );
 const visibleChildren = computed(() => {
-  if (!props.node.isOpen || !props.node.has_children) return [];
+  if (!isOpen.value || !props.node.has_children) return [];
   if (folderChildrenQuery.isFetched.value && !folderChildrenQuery.isError.value) {
     return folderChildrenQuery.folders.value;
   }
   return props.node.children ?? [];
 });
 const isLoading = computed(() =>
-  props.node.isOpen &&
+  isOpen.value &&
   !!props.node.has_children &&
   !visibleChildren.value.length &&
   (folderChildrenQuery.isLoading.value || folderChildrenQuery.isFetching.value)
@@ -49,18 +50,18 @@ const loadErrorMessage = computed(() => {
 });
 
 const folderIcon = computed(() =>
-  props.node.isOpen
+  isOpen.value
     ? FolderOpen
     : Folder
 );
 
 const arrowIcon = computed(() =>
-  props.node.isOpen ? ChevronDown : ChevronRight
+  isOpen.value ? ChevronDown : ChevronRight
 );
 
 const onToggle = () => {
   if (!props.node.has_children) return;
-  galleryStore.toggleFolder(props.node);
+  galleryStore.toggleFolderExpanded(props.node.path);
 };
 
 const onSelect = () => {
@@ -81,14 +82,14 @@ const handleKeydown = (e: KeyboardEvent) => {
     case 'ArrowRight':
       e.preventDefault();
       if (props.node.has_children) {
-        if (!props.node.isOpen) {
+        if (!isOpen.value) {
           onToggle();
         }
       }
       break;
     case 'ArrowLeft':
       e.preventDefault();
-      if (props.node.isOpen) {
+      if (isOpen.value) {
         onToggle();
       }
       break;
@@ -122,7 +123,7 @@ const handleKeydown = (e: KeyboardEvent) => {
     </div>
 
     <div 
-      v-if="node.isOpen && visibleChildren.length" 
+      v-if="isOpen && visibleChildren.length" 
       class="children"
     >
       <FolderTreeItem
@@ -135,14 +136,14 @@ const handleKeydown = (e: KeyboardEvent) => {
     </div>
 
     <div
-      v-else-if="node.isOpen && hasLoadError"
+      v-else-if="isOpen && hasLoadError"
       class="empty-children"
     >
       {{ loadErrorMessage }}
     </div>
 
     <div
-      v-else-if="node.isOpen && !isLoading && !visibleChildren.length"
+      v-else-if="isOpen && !isLoading && !visibleChildren.length"
       class="empty-children"
     >
       (Empty)

@@ -38,7 +38,7 @@ Important backend behavior:
 - Metadata cache keys include path, mtime, and size.
 - Search cache lives at `backend/.cache/gallery_metadata.db`. It contains `file_index` rows for indexed folders/photos, `file_index_fts` for recursive album/photo filename search, and normalized image metadata with SQLite FTS5 tables for prompt/metadata search.
 - `/api/scan` returns the current folder exactly as before, then indexes the scanned folder and its subfolders in the background. File entries are indexed for albums/photos; image metadata is indexed for prompt search. Unchanged metadata entries are not reparsed.
-- `/api/folders` returns only direct folder children for the folder tree. It preserves folder node fields such as `name`, `path`, `type`, `has_children`, `cover_images`, `mtime`, and `image_count`, and it does not return image rows.
+- `/api/folders` returns only direct folder children for the folder tree. It preserves folder node fields such as `name`, `path`, `type`, `has_children`, `cover_images`, `mtime`, and `image_count`, and it does not return image rows. For this endpoint, `has_children` means the folder has at least one non-hidden subfolder, so sidebar chevrons are not shown for folders that contain only images.
 - Production mode is enabled with `PRODUCTION=1`, serving `frontend/dist/`.
 
 ## Frontend
@@ -115,8 +115,8 @@ Gallery loading behavior:
 
 ```text
 FolderTreeItem toggle
-→ galleryStore.toggleFolder(node) updates node.isOpen only
-→ useFolderChildrenQuery(node.path, node.isOpen && node.has_children)
+→ galleryStore.toggleFolderExpanded(node.path) updates path-keyed UI state
+→ useFolderChildrenQuery(node.path, galleryStore.isFolderExpanded(node.path) && node.has_children)
 → read/fetch TanStack Query cache for ["folder-children", normalizedPath]
 → GET /api/folders?path=... when cache policy requires it
 → FolderTreeItem renders query loading/error state
@@ -127,8 +127,9 @@ Folder tree ownership:
 
 - Pinia owns root path, current path, selected path, history/back-forward, and expanded/collapsed state.
 - TanStack Query owns folder child server data, per-path loading/fetching/error state, stale time, garbage collection, and cache reuse.
+- Folder expansion is stored in Pinia as path-keyed UI state. `FileNode` objects returned from `/api/folders` are Query-owned server data and should not be mutated to store expansion state such as `isOpen`.
 - `FolderTreeItem.vue` no longer writes Query results into `node.children`; static/prebuilt children are only a compatibility fallback before Query data is available.
-- TanStack DB is not used for folder tree. Folder expansion is per-path server state, and Query owns it directly.
+- TanStack DB is not used for folder tree. Folder child loading is per-path server state, and Query owns it directly.
 
 ### Infinite Scroll
 

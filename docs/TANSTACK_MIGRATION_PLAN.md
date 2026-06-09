@@ -62,7 +62,7 @@ TanStack DB owns only:
 
 The current gallery scan flow uses plain TanStack Query for active gallery rendering. TanStack Query caches the first scan page by deterministic key, and `useInfiniteScanQuery()` owns the active gallery's cursor pages through `useInfiniteQuery` and `queryKeys.scanInfinite(path, IMAGE_PAGE_SIZE)`. The Pinia gallery store still copies first-page scan data for navigation and root-load compatibility, but it no longer owns appended image pages for active gallery rendering.
 
-Folder tree child loading also uses plain TanStack Query through `useFolderChildrenQuery()` and `queryKeys.folderChildren(path)`. Pinia owns the expanded/collapsed state and selected path. `FolderTreeItem.vue` renders recursive children directly from Query-owned folder data and no longer writes successful Query results to `node.children`.
+Folder tree child loading also uses plain TanStack Query through `useFolderChildrenQuery()` and `queryKeys.folderChildren(path)`. Pinia owns the expanded/collapsed state in a serializable path-keyed record and owns the selected path. `FolderTreeItem.vue` renders recursive children directly from Query-owned folder data and no longer writes successful Query results to `node.children` or stores expansion state on Query-returned `FileNode` objects.
 
 Search results and lightbox metadata now use plain TanStack Query as their active source of truth, while deprecated Pinia search result fields remain temporarily for compatibility.
 
@@ -154,13 +154,13 @@ TanStack DB is not used for scan or infinite cursor pagination. Pinia `galleryIm
 
 Status: complete. `useFolderChildrenQuery()` loads expanded folder children with plain TanStack Query, `queryKeys.folderChildren(path)`, and `listFolderChildren(path)`.
 
-Pinia remains responsible for folder tree UI/navigation state: root path, current path, history/back-forward, selected path, and expanded/collapsed node state. TanStack Query owns per-folder child server data, loading, fetching, errors, stale time, garbage collection, and cache reuse.
+Pinia remains responsible for folder tree UI/navigation state: root path, current path, history/back-forward, selected path, and expanded/collapsed state keyed by canonical folder path. TanStack Query owns per-folder child server data, loading, fetching, errors, stale time, garbage collection, and cache reuse.
 
-`FolderTreeItem.vue` no longer copies Query results into `node.children`. Each item computes visible recursive children from the folder-child query result once fetched, with a compatibility fallback for any static/prebuilt `FileNode.children` present before Query data arrives. `node.children` is not used as a long-term server cache for lazy-loaded children.
+`FolderTreeItem.vue` no longer copies Query results into `node.children`. Each item computes visible recursive children from the folder-child query result once fetched, with a compatibility fallback for any static/prebuilt `FileNode.children` present before Query data arrives. `node.children` is not used as a long-term server cache for lazy-loaded children, and `FileNode` from `/api/folders` should not be mutated to store `isOpen` or other expansion UI state.
 
-Folder tree expansion uses `GET /api/folders?path=...`, which returns only folder `FileNode` rows. Main gallery scan and infinite image loading continue to use `/api/scan`; folder tree queries no longer fetch first-page image metadata.
+Folder tree expansion uses `GET /api/folders?path=...`, which returns only folder `FileNode` rows. For `/api/folders`, `has_children` is subfolder-only so sidebar chevrons represent expandable folder children rather than image/file contents. Main gallery scan and infinite image loading continue to use `/api/scan`; folder tree queries no longer fetch first-page image metadata.
 
-TanStack DB is not used for folder tree. Folder expansion remains per-path server state owned by Query; it is not modeled as a Query Collection.
+TanStack DB is not used for folder tree. Folder child data remains per-path server state owned by Query; it is not modeled as a Query Collection.
 
 ## Phase 7 Scope
 
