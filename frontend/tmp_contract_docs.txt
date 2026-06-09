@@ -1,0 +1,97 @@
+Task: Update docs for VSBS + PhotoSwipe 5 mobile lightbox integration contract.
+
+Branch: main
+Repo: /home/ubuntu/gallery-repo
+
+Context:
+The fix for PhotoSwipe swipe after sheet close is already committed and pushed (commit 39fc95c + 8244abd). Now update the documentation.
+
+Goal:
+Update existing docs so future developers understand how VSBS and PhotoSwipe are integrated in the mobile lightbox.
+
+Scope:
+- docs/ARCHITECTURE.md
+- docs/UI_UX_GUIDELINES.md
+- docs/DEVELOPMENT.md
+- docs/TROUBLESHOOTING.md
+- docs/THIRD_PARTY_LIBRARIES.md
+
+Do NOT touch: backend, gallery grid, desktop/tablet lightbox, metadata parsing, unrelated UI styles.
+
+Official docs links:
+- VSBS: https://github.com/megaarmos/vue-spring-bottom-sheet/tree/master/apps/docs/guide
+- PhotoSwipe 5: https://github.com/dimsemenov/PhotoSwipe/tree/master/docs
+
+Documentation requirements:
+
+1. Explain current architecture:
+PhotoSwipe 5 owns: image rendering, swipe left/right, pan/zoom, lightbox lifecycle, photo area pointer/touch, lightbox close.
+VSBS owns: mobile metadata sheet container, sheet drag/snap/scroll, sheet animation, sheet open/close, sheet scroll container.
+Custom glue owns: info button opens sheet, info button hidden while sheet open, chevron expands/compacts sheet + Prompt, Show more/less state, outside-tap close, preventing VSBS from breaking PhotoSwipe gestures.
+
+2. Explain why VSBS is non-blocking:
+- blocking=false, no VSBS backdrop, no VSBS focus trap, teleport-defer, v-model.
+- PhotoSwipe/lightbox is already the modal/focus context.
+- Enabling VSBS blocking/backdrop/focus trap caused focus recursion.
+- VSBS acts as a non-modal metadata inspector inside the lightbox.
+- Mention historical issue: initial VSBS integration caused "too much recursion" from focus management. Fix was to keep VSBS non-blocking.
+
+3. Explain outside-tap close behavior:
+- Since blocking=false, VSBS does not render a backdrop. canBackdropClose does nothing.
+- We implement custom outside-tap close with document pointer listeners.
+- Important rules: no stopPropagation() (broke PhotoSwipe swipe), track pointerId and isPrimary, require both pointerdown+pointerup outside sheet, use 10px movement threshold, handle pointercancel.
+- Closes metadata sheet only, not PhotoSwipe.
+- Must not block image swipe left/right.
+
+4. Explain styling/teleport CSS issue:
+- VSBS teleports to body, so scoped SFC styles may not reach teleported DOM.
+- Previous scoped styles caused width collapse: [data-vsbs-scroll] became 4px, [data-vsbs-content] 24px, expandable-text 0px.
+- Fix requires global/non-scoped overrides for VSBS data attributes.
+- Required: [data-vsbs-sheet], [data-vsbs-scroll], [data-vsbs-content], .sheet-content, .expandable-text width rules.
+- Do not move these rules into scoped styles unless verified.
+
+5. Explain removed legacy custom sheet code:
+- Old custom sheet drag implementation was removed/replaced.
+- Do not reintroduce: .sheet-panel drag transform, .sheet-backdrop, .sheet-handle-wrapper pointer drag, --sheet-drag-y, dragDelta, sheetDragState, custom pointer drag / rAF drag loop.
+- VSBS provides smoother drag/snap/scroll.
+
+6. Document approved mobile UX:
+- Info button opens sheet, hidden while sheet open.
+- VSBS handles sheet drag/snap/scroll.
+- ChevronUp: expands sheet + auto Show more Prompt.
+- ChevronDown: compacts sheet + auto Show less Prompt/Negative.
+- Show more: expands text + expands sheet if needed.
+- Show less: collapses text.
+- Prompt/Params/Model tabs tappable.
+- Body content scrolls normally.
+- Outside tap closes metadata sheet only.
+- Swipe left/right on photo remains PhotoSwipe behavior.
+
+7. Add "do not break" checklist:
+Before touching mobile lightbox sheet, verify:
+- No focus recursion
+- No width collapse
+- No gray background strip
+- PhotoSwipe swipe works before AND after opening/closing sheet
+- Outside tap closes metadata sheet only
+- Swipe/drag on image not swallowed by outside-tap listener
+- Prompt scroll works
+- Show more/less works
+- Params chips wrap correctly
+- Model/checkpoint long text wraps correctly
+- Copy buttons work
+
+8. Add "Last reviewed: 2026-06-07" to updated docs.
+
+Implementation:
+1. Update docs/ARCHITECTURE.md - add VSBS+PhotoSwipe integration section with ownership boundaries and contract.
+2. Update docs/UI_UX_GUIDELINES.md - add mobile lightbox sheet UX details.
+3. Update docs/THIRD_PARTY_LIBRARIES.md - add detail about outside-tap, non-blocking rationale, and legacy code warning.
+4. Update docs/TROUBLESHOOTING.md - add checklist and known issues.
+5. Update Last reviewed dates.
+
+Keep content concise. Cross-link between docs where appropriate.
+
+Verification:
+- No source build needed - docs only
+- git diff --stat to confirm only .md files changed

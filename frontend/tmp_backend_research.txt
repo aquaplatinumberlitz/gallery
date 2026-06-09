@@ -1,0 +1,48 @@
+Task: Research backend replacement libraries and create a feasibility report doc.
+
+Repo: /home/ubuntu/gallery-repo
+
+Context:
+The backend currently has many responsibilities implemented mostly in custom code. We want to investigate whether there are mature libraries/tools that can replace or improve parts of the backend.
+
+Important:
+This is investigation + documentation only.
+Do NOT refactor backend code yet.
+Do NOT install new dependencies.
+Do NOT change runtime behavior.
+
+Scope to read:
+- backend/main.py
+- backend/requirements.txt
+- any backend docs if present
+
+Research approach:
+For each backend functional group, read the current code, then search online for mature libraries/tools that could replace or improve it. Use curl to fetch official docs, PyPI pages, GitHub repos. For every recommended library include: official link, what it replaces, maturity, pros, cons, integration risk, recommendation.
+
+Backend groups to investigate:
+
+1. API framework - FastAPI. Should stay? Alternatives?
+2. Config/env settings - currently manual env vars. Research pydantic-settings.
+3. Path safety/filesystem - custom safe path check. Research pathvalidate or keep custom.
+4. Folder scanning/indexing - os.scandir, cover images, pagination. Research watchdog, watchfiles, SQLite index.
+5. Thumbnail generation - Pillow WebP. Research pyvips, Wand/ImageMagick.
+6. Cache - custom LRU. Research cachetools, diskcache.
+7. Metadata extraction/EXIF - Pillow EXIF. Research piexif, exifread, ExifTool wrappers.
+8. SD metadata parsing - custom parser for A1111, ComfyUI, SwarmUI, NovelAI, etc. Research sd-parsers.
+9. Search/full-text - if any. Research SQLite FTS5, Whoosh.
+10. Sort - inspect current. Research natsort.
+11. Static serving - FileResponse. Research WhiteNoise if relevant.
+12. Open folder OS integration - custom. Should stay disabled by default.
+
+Read the current backend first, then research online. Use curl -sL to fetch PyPI pages and GitHub READMEs.
+
+Deliverable:
+Create docs/BACKEND_LIBRARY_REPLACEMENT_RESEARCH.md with sections:
+- Executive summary
+- Current backend functional groups
+- Library/tool evaluation matrix
+- Detailed findings per group
+- Recommended migration plan (Phase 1 low risk, Phase 2 prototype, Phase 3 optional)
+- Things not to replace yet
+- Risks and compatibility notes
+- Final recommendation

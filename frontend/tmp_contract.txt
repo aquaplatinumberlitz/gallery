@@ -1,0 +1,123 @@
+Task: Audit and define the integration contract between Vue Spring Bottom Sheet and PhotoSwipe 5 mobile lightbox.
+
+Branch: main
+Repo: /home/ubuntu/gallery-repo
+Frontend: /home/ubuntu/gallery-repo/frontend/
+
+Context:
+@douxcode/vue-spring-bottom-sheet is merged into main. It works smoother than the old custom sheet, but we need to define a clean integration contract with PhotoSwipe 5 to avoid future conflicts.
+
+Recent issues:
+- Focus recursion when VSBS used blocking/modal mode.
+- Teleport/scoped CSS caused width collapse.
+- Outside tap close was custom implemented.
+- PhotoSwipe swipe can break after sheet closes if listeners/layers conflict.
+- VSBS and PhotoSwipe both handle pointer/touch/focus/keyboard.
+
+Goal:
+Read official docs/source of both VSBS and PhotoSwipe 5, then document the correct integration boundary.
+
+Do NOT change behavior first. Investigation/audit only.
+
+Official docs to read:
+- VSBS: https://github.com/megaarmos/vue-spring-bottom-sheet/tree/master/apps/docs/guide
+- PhotoSwipe 5: https://github.com/dimsemenov/PhotoSwipe/tree/master/docs
+
+Sources to inspect:
+1. frontend/src/components/LightboxMobileSheet.vue
+2. frontend/src/components/MobilePhotoSwipe.vue
+3. frontend/src/components/Lightbox.vue
+4. frontend/src/composables/usePhotoSwipe.ts
+5. frontend/src/styles/_lightbox-mobile.scss
+6. frontend/node_modules/@douxcode/vue-spring-bottom-sheet/dist/index.mjs
+7. frontend/node_modules/photoswipe/dist/photoswipe.esm.js (for options like trapFocus, allowPanToNext, closeOnVerticalDrag, escKey, returnFocus, clickToCloseNonZoomable)
+
+Questions to answer for each topic:
+
+1. Ownership boundary: what does VSBS own vs PhotoSwipe own vs custom glue own?
+
+2. Blocking/backdrop/focus contract:
+   - Why blocking=true caused focus recursion.
+   - Whether blocking=false is required.
+   - Whether backdrop can be enabled without focus trap.
+   - Whether canBackdropClose does anything when blocking=false.
+   - Confirm: keep blocking=false, teleport-defer, v-model.
+
+3. Gesture contract:
+   - VSBS swipe-down close should close metadata only.
+   - PhotoSwipe swipe left/right should change images.
+   - PhotoSwipe vertical drag close should not fight VSBS.
+   - Body content scroll should be VSBS/native.
+   - Outside tap listener should not eat swipe gestures.
+   - Check current props: canSwipeClose, expandOnContentDrag, allowPanToNext, closeOnVerticalDrag.
+   - Are these correct? Should they be adjusted?
+
+4. Outside tap close contract:
+   - Is the document pointer listener active only while sheet is mounted?
+   - Is it removed on unmount?
+   - Does it ignore drags/swipes correctly?
+   - Does it close metadata only, not PhotoSwipe?
+   - Recommend: keep, remove, or refine.
+   - If refine: suggest exact rules (threshold, ignore controls, ignore multi-touch).
+
+5. Styling/teleport contract:
+   - Why VSBS CSS needs non-scoped/global overrides.
+   - Which data attributes are safe to target.
+   - Why scoped SCSS failed.
+   - Which !important rules are necessary.
+   - Whether headerClass/contentClass reduce internal selector usage.
+   - Whether 100vw can be replaced by width:100%.
+
+6. State contract:
+   - metadata open state
+   - VSBS v-model state
+   - promptExpanded, negPromptExpanded
+   - text reset/expand tokens
+   - chevron state
+   - activeTab
+   - Source of truth for each.
+   - What happens on image change / close / Show more / chevron / swipe close.
+
+Expected behavior:
+- Info opens sheet.
+- Swipe down closes or compacts sheet.
+- ChevronUp expands sheet + Prompt details.
+- ChevronDown compacts + collapses Prompt/Negative.
+- Show more expands sheet if needed.
+- Closing sheet resets or preserves state.
+- PhotoSwipe image swipe remains unaffected.
+
+Report format:
+
+## Summary
+
+## Official docs/source findings
+
+### VSBS
+### PhotoSwipe 5
+
+## Current code findings
+
+## Integration contract
+### VSBS owns:
+### PhotoSwipe owns:
+### Custom glue owns:
+### Must not do:
+### Allowed custom behavior:
+
+## Conflict analysis
+- focus recursion:
+- teleport:
+- backdrop:
+- outside tap:
+- swipe conflict:
+- CSS scope:
+
+## Recommended changes
+1. Must fix before ship:
+2. Should clean up:
+3. Nice to have:
+4. Do not change:
+
+## Test matrix
+List mobile iPhone Safari test cases.

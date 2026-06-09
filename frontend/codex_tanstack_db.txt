@@ -1,0 +1,136 @@
+Task: Implement TanStack DB foundation on main.
+
+Repo: /home/ubuntu/gallery-repo
+
+IMPORTANT: Read official TanStack DB docs carefully first. Do not plan from memory.
+
+## Context
+
+- TanStack Query is already installed/configured in this project.
+- TanStack Virtual is already used for gallery virtualization.
+- TanStack Form and Table are installed as foundations.
+- Pinia is still used for app/UI/navigation state.
+- TanStack DB should complement TanStack Query, not replace Pinia blindly.
+- TanStack DB is currently beta, so keep this PR minimal and reversible.
+
+## PHASE 0 — Checkout main and read official docs first
+
+1. git checkout main && git pull origin main
+
+2. Read current repo files:
+   - frontend/package.json
+   - frontend/package-lock.json
+   - frontend/src/main.ts
+   - frontend/src/query/index.ts
+   - frontend/src/services/api.ts
+   - frontend/src/stores/gallery.ts
+   - frontend/src/stores/lightbox.ts
+   - frontend/src/components/SettingsModal.vue
+   - frontend/src/components/IntroScreen.vue
+   - README.md
+   - docs/ARCHITECTURE.md
+   - docs/THIRD_PARTY_LIBRARIES.md
+   - docs/TROUBLESHOOTING.md
+
+3. Search the repo:
+   grep -R "@tanstack/vue-query\|QueryClient\|VueQueryPlugin\|useQuery\|useMutation" -n frontend/src frontend/package.json
+   grep -R "fetchLandingPages\|/api/landing-pages\|landing-pages" -n frontend/src
+   grep -R "/api/scan\|useScanQuery\|scanFolder\|loadMoreImages\|unifiedSearch" -n frontend/src
+
+4. Read official TanStack DB docs. Visit at least:
+   - https://tanstack.com/db/latest/docs/overview
+   - https://tanstack.com/db/latest/docs/framework/vue/vue-db
+   - https://tanstack.com/db/latest/docs/framework/vue/api-reference
+   - Query Collection docs
+   - queryCollectionOptions API reference
+   - Live Queries guide
+   - Mutations guide
+   - Schemas guide
+
+5. In report, prove you read docs:
+   - @tanstack/vue-db provides Vue composables such as useLiveQuery.
+   - TanStack DB uses collections and live queries.
+   - Query Collection integrates TanStack Query with TanStack DB.
+   - For REST/API-backed collections, official docs use queryCollectionOptions.
+   - TanStack DB is beta, so implementation must be minimal.
+
+## PHASE 1 — Install dependencies
+
+cd /home/ubuntu/gallery-repo/frontend
+npm install @tanstack/vue-db
+
+Check if queryCollectionOptions requires @tanstack/query-db-collection or @tanstack/db separately. Install those too if needed.
+
+Do NOT add pnpm/yarn lockfiles.
+
+## PHASE 2 — Create DB foundation
+
+frontend/src/db/index.ts — export safe foundation primitives. Keep it simple, no complex abstractions.
+
+frontend/src/db/README.md — explain:
+- TanStack DB complements TanStack Query.
+- Query remains responsible for fetching/cache/retry/refetch.
+- DB collections/live queries are for local reactive querying across loaded data.
+- Pinia remains responsible for UI/navigation state.
+- Do not migrate core scan/infinite/search in this task.
+- TanStack DB is beta, so use incremental adoption only.
+
+## PHASE 3 — Optional pilot: landing pages collection
+
+Use /api/landing-pages as the first pilot only if it is simple and safe.
+
+Reason: low-risk, rarely changes, does not affect gallery features.
+
+Before implementing:
+- Inspect fetchLandingPages() response shape in frontend/src/services/api.ts
+- Identify stable key field
+- Explain key choice
+
+If safe, create:
+- frontend/src/db/collections/landingPagesCollection.ts
+  - Use existing shared QueryClient
+  - Use createCollection with queryCollectionOptions
+  - Reuse existing fetchLandingPages() API function
+  - Query key ['landing-pages']
+  - getKey based on stable field
+
+- frontend/src/db/composables/useLandingPagesLiveQuery.ts
+  - Export useLiveQuery wrapper
+
+Do NOT wire into UI yet unless 100% confident UI behavior is identical.
+
+## PHASE 4 — Docs update
+
+1. docs/THIRD_PARTY_LIBRARIES.md — add TanStack DB entry
+2. docs/ARCHITECTURE.md — add short note under Server-State Caching
+3. README.md — add DB to frontend stack table
+
+## PHASE 5 — Build and verification
+
+cd /home/ubuntu/gallery-repo/frontend
+npm run build
+
+Search:
+grep -R "@tanstack/vue-db" -n frontend
+grep -R "vue-virtual-scroller" -n frontend || true
+
+Verify:
+- No pnpm/yarn lockfiles
+- No backend changes
+- No virtual scroll changes
+- No scan/infinite/search/lightbox changes
+- App builds
+
+## HARD CONSTRAINTS
+
+- Do NOT migrate /api/scan, scanFolder, loadMoreImages, infinite load, folder tree, unified search, Fuse.js, lightbox metadata, PhotoSwipe, Pinia gallery store shape, backend routes, or virtual grid code.
+- Do NOT refactor existing components.
+- Do NOT change backend.
+- TanStack DB is beta — keep minimal and reversible.
+
+## Final commit
+
+If build passes:
+git add frontend/README.md docs/
+git commit -m "chore(frontend): add TanStack DB foundation"
+git push origin main

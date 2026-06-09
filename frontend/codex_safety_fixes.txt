@@ -1,0 +1,43 @@
+Task: Fix two minor safety issues only.
+Repo:https://github.com/aquaplatinumberlitz/gallery
+Base branch:main
+Context:Recent TanStack migration commits passed audit, but two minor issues need a small safety cleanup:
+normalizeQueryPath currently removes a trailing slash via replace(/\/$/, ""), so root path / can become an empty string.SettingsModal.vue computes availableThemes from landingPagesQuery.data.value.map(...); if data.value is temporarily undefined, Settings modal can crash before the live query resolves.Scope:
+Fix only these two minor issues.Do NOT migrate search.Do NOT migrate metadata.Do NOT migrate /api/scan source of truth.Do NOT migrate infinite load.Do NOT migrate folder tree.Do NOT change backend.Do NOT change TanStack Virtual/gallery grid.Do NOT add dependencies.Do NOT implement official Migration Plan Phase 2+ in this task.Read first:
+frontend/src/query/keys.tsfrontend/src/composables/useScanQuery.tsfrontend/src/components/SettingsModal.vuefrontend/src/db/composables/useLandingPagesLiveQuery.tsdocs/TANSTACK_MIGRATION_PLAN.mdFix 1 — normalizeQueryPath root slash behavior:
+Update normalizeQueryPath so / remains /.Keep current behavior for normal paths:null/undefined -> empty stringtrimbackslashes to slashescollapse repeated slashesremove trailing slash for non-root paths onlyAdd a small inline comment or tests only if the repo already has a suitable test pattern. Do not introduce a test framework.Expected behavior:
+normalizeQueryPath(undefined) === ""
+normalizeQueryPath("") === ""
+normalizeQueryPath("/") === "/"
+normalizeQueryPath("C:\\foo\\bar\\") === "C:/foo/bar"
+normalizeQueryPath("/foo/bar/") === "/foo/bar"
+
+
+Fix 2 — SettingsModal landing pages guard:
+Update computed availableThemes to safely handle undefined data:undefined
+const availableThemes = computed(() =>
+  (landingPagesQuery.data.value ?? []).map((page) => page.url)
+)
+
+If the current code has stronger typing, preserve or improve it.Do not change visible behavior.Do not change loading/empty/fallback UI unless required to avoid crash.Docs:
+Update docs/TANSTACK_MIGRATION_PLAN.md only if it currently says Phase 1 is fully complete but this cleanup changes the safety note.Keep docs minimal.Verification:Run:
+undefined
+cd frontend
+npm run build
+
+Also run:
+undefined
+grep -R "normalizeQueryPath" -n frontend/src
+grep -R "landingPagesQuery.data.value.map" -n frontend/src || true
+grep -R "vue-virtual-scroller" -n frontend || true
+
+Manual smoke test:
+Run app.Open Settings modal.Confirm no console error.Confirm landing pages/theme choices still load.Confirm gallery scan/search/lightbox still behave as before.Final report must include:
+Files changed.Root path normalization before/after.SettingsModal undefined-data guard.Confirmation that search/metadata/scan/infinite/folder tree/backend/TanStack Virtual were untouched.Build result.Manual smoke test result if performed.Commit:
+undefined
+git add frontend/src/query/keys.ts frontend/src/components/SettingsModal.vue docs/TANSTACK_MIGRATION_PLAN.md
+git commit -m "fix(frontend): harden query path normalization and landing pages state"
+git push origin main
+
+
+Do not push if build fails.Do not implement any other migration phase in this task.

@@ -1,0 +1,21 @@
+You are a Vue 3 frontend architect. We have a gallery app at /home/ubuntu/gallery-repo.
+
+Currently using these TanStack libraries:
+- @tanstack/vue-query (active: server-state caching for scan API)
+- @tanstack/vue-virtual (active: row-based virtual scroll in GalleryGrid)
+- @tanstack/vue-form (just installed, foundation)
+- @tanstack/vue-table (just installed, foundation)
+
+Question: Are there any OTHER TanStack libraries (not yet installed) that would be useful for this gallery app? Consider:
+
+1. @tanstack/vue-router — is it stable enough? What would it enable? (URL-based deep linking to photos/albums, browser back/forward, nested routes for settings/admin screens?)
+2. @tanstack/store — is it worth it alongside Pinia?
+3. Any other TanStack Vue packages we're missing?
+
+For each library, briefly:
+- What it does
+- Vue support status (stable/alpha/beta)
+- Whether it's worth adding NOW or only as a future option
+- What specific gallery feature it would enable
+
+Keep the answer practical — this is a local-first gallery app with Vue 3 + Vite + TypeScript + Pinia + SCSS. No Nuxt. No SSR.

@@ -1,0 +1,47 @@
+Update all documentation in the gallery repo to reflect the migration from vue-virtual-scroller (RecycleScroller) to @tanstack/vue-virtual.
+
+The migration is already done in code. Now update the docs to match.
+
+## Files to update (all under /home/ubuntu/gallery-repo/):
+
+### 1. README.md
+- Line 5: Change "virtual-scrolled gallery" description
+- Line 26: Update the table row from "vue-virtual-scroller" to "@tanstack/vue-virtual"
+
+### 2. docs/ARCHITECTURE.md
+- Lines 227-228: Change "RecycleScroller" references to "TanStack Virtual" (row-based)
+- Line 53: Already mentions TanStack Query — fine. Line 68, 72, 91, 95 — about TanStack Query, fine.
+
+### 3. docs/THIRD_PARTY_LIBRARIES.md
+- Line 17: Change "`vue-virtual-scroller` | Virtual scrolling in the image grid" to "@tanstack/vue-virtual"
+- Lines 200-202: Update the vue-virtual-scroller section to describe @tanstack/vue-virtual instead:
+  - Package name: @tanstack/vue-virtual
+  - Library: TanStack Virtual (row-based virtualization)
+  - Usage: GalleryGrid.vue desktop/tablet photo grid — row-based virtualization via useVirtualizer
+  - Add link to: https://tanstack.com/virtual/latest/docs/framework/vue/vue-virtual
+  - Remove the old vue-virtual-scroller subsections
+
+### 4. docs/UI_UX_GUIDELINES.md
+- Line 31: Change "Use AppHeader and GalleryGrid with RecycleScroller" to "Use AppHeader and GalleryGrid with TanStack Virtual"
+- Line 44: Change "Use native scroll instead of RecycleScroller." to "Mobile uses native scroll instead of virtual scrolling."
+
+### 5. docs/TROUBLESHOOTING.md
+- Lines 38-40: Update the "RecycleScroller Height" section to describe TanStack Virtual scroll container requirements:
+  - Instead of "RecycleScroller needs a fixed-height scroll container", write:
+    "TanStack Virtual needs the scroll container to have a defined height (e.g., height: 100%) and overflow-y: auto. The scroll container ref must be properly wired to useVirtualizer via getScrollElement."
+  - Keep the part about flex parent chain allowing shrinking (min-height: 0) — that's still valid.
+
+## Context
+- Package: @tanstack/vue-virtual (^3.13.28)
+- Usage: `useVirtualizer` from `@tanstack/vue-virtual`
+- Strategy: Row-based virtualization — each virtual item = one row of photos
+- GalleryGrid.vue desktop/tablet uses it; mobile uses native scroll (unchanged)
+- Scroll container: `<div ref="scrollParentRef" class="scroller tanstack-scroller">`
+- API: `rowVirtualizer.getVirtualItems()`, `rowVirtualizer.getTotalSize()`
+
+## HARD RULES
+- ONLY modify markdown files. Do NOT touch any .vue/.ts/.scss source code.
+- Do NOT add new files. Only edit existing docs.
+- Make minimal surgical changes — don't rewrite entire sections.
+- If a doc references both TanStack Query AND vue-virtual-scroller, only change the vue-virtual-scroller parts.
+- No git operations — just edit the files.

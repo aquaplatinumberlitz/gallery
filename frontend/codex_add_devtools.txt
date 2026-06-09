@@ -1,0 +1,50 @@
+Install @tanstack/vue-query-devtools in the gallery frontend.
+
+Repo: /home/ubuntu/gallery-repo (branch main, commit af7bb66)
+Frontend dir: /home/ubuntu/gallery-repo/frontend
+Package manager: npm
+
+## Steps
+
+1. npm install --save-dev @tanstack/vue-query-devtools
+
+2. Update frontend/src/main.ts — inside the existing `if (import.meta.env.DEV)` block, add:
+
+```typescript
+// Vue Query Devtools
+import('@tanstack/vue-query-devtools').then(({ VueQueryDevTools }) => {
+  app.component('VueQueryDevTools', VueQueryDevTools)
+})
+```
+
+The existing DEV block starts at line 11 and closes at line 43. Add this BEFORE the closing brace of the DEV block (before line 43's closing `}`).
+
+3. Update frontend/src/App.vue — add `<VueQueryDevTools />` in the template, right before the closing `</template>` tag (before line 220).
+
+The template currently looks like:
+```html
+  <Lightbox />
+  <ToastContainer v-if="!isMobile" />
+  <SettingsModal ... />
+</template>
+```
+
+Add `<VueQueryDevTools />` after `</SettingsModal>` and before `</template>`.
+
+4. Build: cd frontend && npm run build
+
+5. Git: create branch feat/vue-query-devtools
+
+git checkout -b feat/vue-query-devtools
+git add frontend/package.json frontend/package-lock.json frontend/src/main.ts frontend/src/App.vue
+git commit -m "chore(frontend): add Vue Query Devtools"
+git push origin feat/vue-query-devtools
+
+Do NOT merge into main.
+
+## Constraints
+- Only modify: package.json, package-lock.json, main.ts, App.vue
+- Do NOT touch any other files
+- Do NOT change backend
+- Do NOT refactor existing code
+- VueQueryDevTools only shows in dev mode (tree-shaken in production)

@@ -1,0 +1,74 @@
+Task: Investigate why PhotoSwipe image swipe stops working after closing mobile metadata sheet.
+
+Branch: main (after Option C merge - custom outside-tap close listener)
+Repo: /home/ubuntu/gallery-repo
+Frontend: /home/ubuntu/gallery-repo/frontend/
+
+Bug:
+1. Open mobile lightbox.
+2. Tap info button -> metadata sheet opens.
+3. Close metadata sheet (any method: tap outside, swipe down, info button).
+4. Try swiping images left/right in PhotoSwipe.
+5. Image swipe no longer works.
+
+Do NOT fix yet. Investigation only.
+
+Files to inspect:
+- frontend/src/components/LightboxMobileSheet.vue (has custom outside-tap pointer listeners)
+- frontend/src/components/MobilePhotoSwipe.vue
+- frontend/src/composables/usePhotoSwipe.ts
+- frontend/src/components/Lightbox.vue (parent state management)
+
+Suspects to investigate:
+
+1. The custom document pointerdown/pointerup listeners.
+   - Are they properly cleaned up on unmount?
+   - Do they use stopPropagation? (Codex added e.stopPropagation())
+   - If stopPropagation is called on a pointerup after the sheet closes, it could block PhotoSwipe from receiving the event.
+   - If the listener stays active after sheet closes, the first tap/swipe will hit the listener instead of PhotoSwipe.
+   - Is there a guard for sheetOpen.value? If sheetOpen is already false when pointerdown fires but the listener was registered on document with capture:true, it fires before PhotoSwipe gets the event.
+
+2. The @closed event and v-model:
+   - When VSBS closes, does v-model set sheetOpen=false immediately or after animation?
+   - Does onSheetClosed immediately emit 'close' to parent?
+   - Does parent set showSheet=false immediately when LightboxMobileSheet emits 'close'?
+   - Is there a race where the sheet closing animation is still running but the pointer listener is still active?
+
+3. PhotoSwipe state after metadata sheet:
+   - Does PhotoSwipe's allowPanToNext or other options get changed?
+   - Does anything call destroyPhotoSwipe() accidentally?
+
+4. DOM remnants:
+   - After sheet closes, are any VSBS DOM elements left behind in the body?
+   - Do any elements with high z-index and position:fixed persist and intercept pointer events?
+
+Investigate by reading the current source code of all relevant files. Do NOT add console.log or make code changes. Report findings only.
+
+Report format:
+
+## Summary
+
+## Suspect 1: Document outside-tap listeners
+- Listener cleanup:
+- stopPropagation usage:
+- sheetOpen guard:
+- Impact on swipes after close:
+
+## Suspect 2: State timing
+- onSheetClosed:
+- v-model sheetOpen:
+- parent showSheet:
+- race condition:
+
+## Suspect 3: PhotoSwipe state
+- options changed:
+- destroy called:
+
+## Suspect 4: DOM remnants
+- VSBS elements after close:
+- pointer-events:
+- z-index:
+
+## Most likely cause
+
+## Fix plan (do NOT implement)

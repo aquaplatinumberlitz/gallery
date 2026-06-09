@@ -1,0 +1,75 @@
+Task: Investigate whether tapping outside the mobile metadata sheet should close the sheet with Vue Spring Bottom Sheet.
+
+Branch: main (VSBS integration already merged)
+Repo: /home/ubuntu/gallery-repo
+Frontend: /home/ubuntu/gallery-repo/frontend/
+
+Context:
+Mobile lightbox metadata sheet uses @douxcode/vue-spring-bottom-sheet.
+
+Current observed behavior:
+- Open mobile lightbox, tap info button, metadata sheet opens.
+- Touch/tap outside the sheet on the photo/image area - sheet does NOT close.
+
+Question: Is this expected behavior from our current VSBS configuration, or is it a bug?
+
+Investigation steps:
+
+1. Read current LightboxMobileSheet.vue to get the exact BottomSheet props.
+File: frontend/src/components/LightboxMobileSheet.vue
+
+2. Read VSBS library source to understand blocking, canBackdropClose, and backdrop behavior.
+File: frontend/node_modules/@douxcode/vue-spring-bottom-sheet/dist/index.mjs
+Search for: backdrop, canBackdropClose, blocking, onClick
+
+3. Read VSBS README for backdrop/blocking docs.
+
+4. Read MobilePhotoSwipe.vue and Lightbox.vue to understand the DOM hierarchy between PhotoSwipe and the sheet.
+Files: frontend/src/components/MobilePhotoSwipe.vue, frontend/src/components/Lightbox.vue
+
+Key questions to answer:
+1. Does blocking=false disable the backdrop element entirely?
+2. Does canBackdropClose=false prevent outside tap from closing?
+3. Is any VSBS backdrop rendered at all with blocking=false + canBackdropClose=false?
+4. When user taps the photo area (which is inside PhotoSwipe which is position:fixed z-index:100000), does the event reach VSBS's backdrop?
+5. Is the current behavior expected or accidental?
+6. If we want tap-outside-to-close, what is the safest implementation?
+
+Important: Do NOT change code. This is investigation only.
+
+Consider UX constraints:
+- Metadata sheet is inside PhotoSwipe mobile lightbox.
+- Photo area is used by PhotoSwipe for swipe/pan/zoom.
+- We had focus trap recursion with blocking=true before.
+- Do NOT re-enable blocking=true unless proven safe.
+
+Evaluate these options but do NOT implement:
+A. Keep current behavior (outside tap does nothing)
+B. Add custom outside tap close via event listener on the overlay
+C. Use VSBS backdrop close if safe
+
+Report format:
+
+## Current config
+- BottomSheet props:
+
+## VSBS behavior
+- blocking:
+- backdrop:
+- canBackdropClose:
+- outside click:
+
+## Event behavior
+- tapping photo goes to:
+- sheet close triggered:
+
+## Conclusion
+- expected behavior or bug:
+
+## Recommendation
+- keep current / custom outside close / VSBS backdrop:
+
+## Risks
+- PhotoSwipe conflict:
+- focus trap:
+- image swipe:

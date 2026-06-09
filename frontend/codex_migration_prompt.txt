@@ -1,0 +1,264 @@
+# Task: Migrate GalleryGrid.vue from vue-virtual-scroller (RecycleScroller) to @tanstack/vue-virtual
+
+## IMPORTANT: Read Phase 0 first, write plan before any code
+
+---
+
+## PHASE 0 — READ BEFORE CODING
+
+### Repo structure (already read by the agent that guides you):
+- `/home/ubuntu/gallery-repo/frontend/` — Vue 3 + Vite + TypeScript + SCSS + Pinia
+- Package manager: pnpm (package.json has `pnpm.onlyBuiltDependencies`). Install with `pnpm install`.
+- No lockfile exists currently. Install dependency then let pnpm generate it.
+
+### Current virtual scroller implementation:
+
+In `frontend/src/components/GalleryGrid.vue`:
+
+1. Line 3: `import { RecycleScroller } from "vue-virtual-scroller"`
+2. Lines 800-868: Template uses `<RecycleScroller>` for desktop/tablet:
+   - `v-if="!props.isMobile && imageRows.length > 0 && rowHeight > 0"`
+   - `:items="imageRows"` — row-based virtualization (imageRows chunks images into rows)
+   - `:item-size="rowHeight"` — from useColumnResize
+   - `key-field="id"` — row.id (e.g., "row-4-0")
+   - `:buffer="600"` — overscan buffer
+   - `#before` slot: GlowContainer (AlbumScroller) + GallerySectionHeader
+   - `#default` slot: renders `.virtual-row` with gridTemplateColumns
+   - `#after` slot: loadMoreSentinel + loading states + EmptyState
+   - `:class="['scroller', { 'fade-slide': !isMobile }]"`
+   - `:key="`${columnCount}-${imageRows.length}`"` — force remount on resize
+
+3. Lines 870-925: Mobile uses native scroll with `v-for="row in imageRows"` — NO virtual scroller
+4. Lines 698-798: Search results also use native `v-for` — NO virtual scroller
+
+### Key composables/refs:
+
+- `useColumnResize` (frontend/src/composables/useColumnResize.ts):
+  - Returns `{ columnCount, sliderLevel, rowHeight, setGridRef, GAP }`
+  - `rowHeight = itemWidth + GAP` where GAP=20
+  - `setGridRef` attaches ResizeObserver to `.scroller-container` div
+  - `columnCount` is reactive computed from sliderLevel × deviceCategory map
+
+- `imageRows` computed (line 429-438): chunks `images.value` into `{ id, items }[]`, id = `row-${columnCount}-${i}`
+- `loadMoreSentinel` ref (line 465): HTMLElement for IntersectionObserver
+- `setScrollContainerRef` (line 60-75): injects scroll ref via `galleryScrollContainerRefKey`
+- `colors`: from `useColumnResize` - `setGridRef` is called on `.scroller-container` (outer wrapper), NOT on the RecycleScroller itself
+
+### Scroll container ref chain:
+- `.scroller-container` has `:ref="setGridRef"` (for width measurement via ResizeObserver)
+- `<RecycleScroller>` has `:ref="setScrollContainerRef"` (injects scroll element into injection key)
+- The RecycleScroller's own internal scrollable element is what gets passed to `setScrollContainerRef`
+
+### Inject scroll container:
+- `injectionKeys.ts` exports `galleryScrollContainerRefKey: InjectionKey<Ref<HTMLElement | null>>`
+- Used by other components (sidebar, etc.) to track the main scroll container
+
+### CSS to keep:
+- `.scroller-container` — `flex: 1; min-height: 0;`
+- `.scroller` — `height: 100%; overflow-y: auto; ...`
+- `.virtual-row` — `display: grid; gap: 20px; padding: 0 8px; contain: layout style;`
+- `.scroller-footer` — `padding-top: 20px; padding-bottom: 40px;`
+- `.load-more-sentinel` — `width: 100%; height: 1px;`
+- `.loading-more` — flex row with spinner
+- Mobile-specific styles at `@media (max-width: 767px)`
+- Tablet-specific styles at `@media (min-width: 768px) and (max-width: 1199px)`
+
+### CSS TO REMOVE:
+- Lines 1182-1190: `:deep(.vue-recycle-scroller__item-wrapper)` and `:deep(.vue-recycle-scroller__slot)` — these are vue-virtual-scroller internals
+
+### Files to modify:
+1. `frontend/src/components/GalleryGrid.vue` — main migration
+2. `frontend/src/main.ts` — remove CSS import
+3. `frontend/package.json` — add @tanstack/vue-virtual, remove vue-virtual-scroller
+4. `frontend/src/types/vue-virtual-scroller.d.ts` — can delete (no longer needed)
+5. Possibly `frontend/src/injectionKeys.ts` — no changes needed (just pass scroll ref as before)
+
+### TanStack Virtual docs to follow:
+- `@tanstack/vue-virtual` — https://tanstack.com/virtual/latest/docs/framework/vue/vue-virtual
+- Vue adapter: `useVirtualizer` from `@tanstack/vue-virtual`
+- `const rowVirtualizer = useVirtualizer({ count, getScrollElement, estimateSize, overscan, getItemKey })`
+- `rowVirtualizer.getVirtualItems()` returns `VirtualItem[]` with `{ index, key, start, size, end, lane }`
+- `rowVirtualizer.getTotalSize()` returns total scroll content size
+- HTML structure:
+  - Outer scroll container: `<div ref="scrollParentRef" style="overflow:auto; height:100%">`
+  - Inside: header content (normal flow), then virtual spacer container:
+    - `<div style={{ height: getTotalSize(), position: 'relative' }}>`
+    - Inside that: each virtual row as `<div style={{ position: 'absolute', top: 0, transform: `translateY(${start}px)` }}>`
+  - Then footer content (normal flow)
+
+### Target structure for template:
+
+```
+<div class="scroller-container" :ref="setGridRef">
+  <!-- Desktop/Tablet: TanStack Virtual -->
+  <div v-if="!props.isMobile && imageRows.length > 0"
+       ref="scrollParentRef"
+       class="scroller tanstack-scroller"
+       :class="{ 'fade-slide': !isMobile }"
+  >
+    <!-- BEFORE content (normal flow, outside virtual spacer) -->
+    <GlowContainer v-if="folders.length" :disabled="false">
+      <AlbumScroller :folders="folders" @open-folder="handleOpenFolder" />
+    </GlowContainer>
+    <GallerySectionHeader v-if="images.length" ... />
+
+    <!-- Virtual spacer + rows -->
+    <div class="tanstack-virtual-spacer" :style="{ height: rowVirtualizer.getTotalSize() + 'px', position: 'relative' }">
+      <div
+        v-for="virtualRow in rowVirtualizer.getVirtualItems()"
+        :key="virtualRow.key"
+        class="virtual-row tanstack-virtual-row"
+        :style="{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          transform: `translateY(${virtualRow.start}px)`,
+          gridTemplateColumns: `repeat(${columnCount}, 1fr)`
+        }"
+      >
+        <PhotoCard
+          v-for="img in imageRows[virtualRow.index].items"
+          :key="img.path"
+          :src="img.path"
+          :name="img.name"
+          @click="handleOpenImage(img.path, img.name)"
+          @keydown.enter="handleOpenImage(img.path, img.name)"
+          @keydown.space.prevent="handleOpenImage(img.path, img.name)"
+        />
+      </div>
+    </div>
+
+    <!-- AFTER content (normal flow, outside virtual spacer) -->
+    <div class="scroller-footer" :class="{ 'bars-hidden': !barsVisible }">
+      <div ref="loadMoreSentinel" class="load-more-sentinel"></div>
+      <div v-if="isLoadingMore" class="loading-more">
+        <Loader class="gallery-icon-md lucide-spin" />
+        <span>Loading more photos...</span>
+      </div>
+      <!-- EmptyState similar to current -->
+    </div>
+  </div>
+
+  <!-- Mobile: native scroll (unchanged) -->
+  <div v-else-if="props.isMobile && imageRows.length > 0"
+       :ref="setScrollContainerRef"
+       class="scroller mobile-scroller"
+  >
+    ...same as current...
+  </div>
+
+  <!-- Fallback: folders only -->
+  <div v-else-if="folders.length > 0" ...>
+    ...same as current...
+  </div>
+</div>
+```
+
+---
+
+## PHASE 1 — WRITE YOUR PLAN
+
+Before writing any code, write a brief plan covering:
+1. Files to change
+2. Dependency changes
+3. Strategy (row-based, mobile unchanged, etc.)
+4. Key risks (scroll jump, sentinel, lightbox index, glow clipping)
+
+---
+
+## PHASE 2 — DEPENDENCY MIGRATION
+
+1. `pnpm add @tanstack/vue-virtual`
+2. `pnpm remove vue-virtual-scroller`
+3. Remove `import "vue-virtual-scroller/dist/vue-virtual-scroller.css"` from `frontend/src/main.ts`
+4. Delete or update `frontend/src/types/vue-virtual-scroller.d.ts` (remove RecycleScroller exports, or delete file)
+
+## PHASE 3 — SCRIPT SETUP
+
+In GalleryGrid.vue script:
+1. Replace `import { RecycleScroller } from "vue-virtual-scroller"` with `import { useVirtualizer } from "@tanstack/vue-virtual"`
+2. Add `const scrollParentRef = ref<HTMLElement | null>(null)`
+3. Set up useVirtualizer:
+
+```typescript
+const rowVirtualizer = useVirtualizer({
+  count: imageRows.value.length,
+  getScrollElement: () => scrollParentRef.value,
+  estimateSize: () => rowHeight.value,
+  overscan: 5,
+  getItemKey: (index: number) => imageRows.value[index]?.id ?? index,
+})
+```
+
+Note: In Vue adapter, options need to be reactive. If imageRows/rowHeight change, the virtualizer needs to re-measure. Use `watch` + `rowVirtualizer.measure()` when `rowHeight` or `columnCount` or `imageRows.length` changes.
+
+4. Keep setScrollContainerRef but update it: now instead of passing RecycleScroller instance, pass scrollParentRef directly so the injection key still works.
+
+## PHASE 4 — TEMPLATE MIGRATION
+
+Replace the `<RecycleScroller>` block (lines 804-868) with the TanStack Virtual equivalent as described in the target structure above.
+
+Key points:
+- `rowVirtualizer.getVirtualItems()` returns reactive array when using Vue adapter
+- `rowVirtualizer.getTotalSize()` is reactive
+- Header/before content goes BEFORE the virtual spacer in normal flow
+- Footer/after content goes AFTER the virtual spacer in normal flow
+- Scroll container is `scrollParentRef`
+- DO NOT use `paddingStart`/`paddingEnd` (header is in normal flow)
+- Keep `setScrollContainerRef` pointing to scrollParentRef
+
+## PHASE 5 — INFINITE LOAD
+
+- `loadMoreSentinel` already uses IntersectionObserver with `root: null` (viewport-based, not scroll-container-based)
+- Keep this exactly as is. The sentinel is at the bottom after all virtual rows, so it triggers when user scrolls to end.
+- If issues arise, change `root` to `scrollParentRef.value`
+
+## PHASE 6 — LIGHTBOX / SEARCH / MOBILE
+
+- Lightbox: `handleOpenImage` uses `images.value` (full list) — no change needed. It doesn't use virtualized items.
+- Search: search results section is a separate `v-else-if` branch using native `v-for` rows. Keep as-is.
+- Mobile: mobile branch is a `v-else-if` using native scroll. Keep as-is.
+
+## PHASE 7 — CSS
+
+- Remove `:deep(.vue-recycle-scroller__item-wrapper)` and `:deep(.vue-recycle-scroller__slot)` hacks
+- Add `.tanstack-scroller` as an additional class on the scroll container (already has `.scroller`)
+- Add `.tanstack-virtual-spacer` class (mostly for debugging, no special styles needed)
+- Ensure hover glow from PhotoCard is NOT clipped by the absolute-positioned rows. Since each row has `position: absolute; overflow: visible` by default, this should work.
+- Keep `.scroller`, `.scroller-container`, `.virtual-row`, `.scroller-footer`, `.load-more-sentinel`, `.loading-more` styles exactly as they are.
+
+## PHASE 8 — TYPESCRIPT
+
+- No `any` types
+- `rowVirtualizer.getVirtualItems()` returns `VirtualItem[]` — use its `index`, `key`, `start` properties
+- The Vue adapter types come from `@tanstack/vue-virtual` package directly
+
+## PHASE 9 — VERIFICATION
+
+After implementation:
+1. `cd /home/ubuntu/gallery-repo/frontend`
+2. `pnpm install`
+3. `npm run build` (runs `vue-tsc --noEmit && vite build`)
+4. Search for remaining references: `vue-virtual-scroller`, `RecycleScroller`, `DynamicScroller`, `vue-recycle-scroller`
+5. If there are legitimate remaining references (comments, test files), note them
+
+## PHASE 10 — FINAL REPORT
+
+Write a brief report with:
+1. Files changed and summary of each change
+2. Dependencies before/after
+3. Verification results (build pass/fail)
+4. Any remaining risks for iPad/iPhone testing
+
+---
+
+## IMPORTANT CONSTRAINTS
+- DO NOT modify search result rendering (it's native v-for, not virtualized)
+- DO NOT modify mobile native scroll branch
+- DO NOT modify lightbox logic
+- DO NOT modify backend
+- DO NOT modify PhotoCard, AlbumScroller, GlowContainer, GallerySectionHeader components
+- DO keep `setScrollContainerRef` working (other components depend on it)
+- DO keep `setGridRef` working (width measurement for rowHeight/columnCount)
+- Git is available. After all changes pass build, do NOT commit/push — the user will handle that.

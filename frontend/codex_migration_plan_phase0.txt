@@ -1,0 +1,273 @@
+Task: Create TanStack migration plan docs and implement Phase 0 queryKeys/queryOptions cleanup only.
+
+Repo:
+https://github.com/aquaplatinumberlitz/gallery
+
+Current goal:
+We already installed several TanStack libraries:
+
+* TanStack Query
+* TanStack Virtual
+* TanStack DB
+* TanStack Form
+* TanStack Table
+* Query Devtools
+
+Now we need to make the migration strategy explicit and start with Phase 0 only.
+
+IMPORTANT:
+Do NOT implement all migration phases in this task.
+Do NOT migrate search, metadata, scan, infinite load, or folder tree yet.
+Do NOT use TanStack DB for search/scan/infinite.
+Do NOT change backend.
+Do NOT change UI/UX.
+
+The approved migration strategy is:
+
+0. Standardize queryKeys/queryOptions
+1. Landing pages: finish DB pilot or use Query directly
+2. Search: plain TanStack Query, not DB
+3. Metadata: plain TanStack Query if needed
+4. First scan page: TanStack Query source of truth, not DB
+5. Infinite load: useInfiniteQuery, not DB
+6. Folder tree: query-ify later
+7. TanStack DB only for collection/live-query cases with stable keys and clear full-state semantics
+
+PHASE A — Read context first
+
+Before coding, read repo docs and official TanStack docs. Do not plan from memory.
+
+Read these repo files:
+
+* README.md
+* docs/ARCHITECTURE.md
+* docs/THIRD_PARTY_LIBRARIES.md
+* docs/TROUBLESHOOTING.md
+* frontend/src/query/index.ts
+* frontend/src/composables/useScanQuery.ts
+* frontend/src/stores/gallery.ts
+* frontend/src/stores/lightbox.ts
+* frontend/src/services/api.ts
+* frontend/src/db/README.md
+* frontend/src/db/index.ts
+* frontend/src/db/collections/landingPagesCollection.ts
+* frontend/src/db/composables/useLandingPagesLiveQuery.ts
+* frontend/src/lib/tanstack/README.md
+* frontend/package.json
+
+Read these official docs:
+
+* TanStack Query Vue reference:
+  https://github.com/TanStack/query/tree/main/docs/framework/vue/reference
+
+* TanStack DB overview:
+  https://tanstack.com/db/latest/docs/overview#more-info
+
+* TanStack DB quick start:
+  https://tanstack.com/db/latest/docs/quick-start
+
+* TanStack DB Query Collection:
+  https://tanstack.com/db/latest/docs/collections/query-collection
+
+After reading, write a short report before editing:
+
+* What TanStack libraries are installed.
+* Which ones are actually used at runtime.
+* Current Query/Pinia/DB boundary.
+* Why DB must not be used for search/scan/infinite yet.
+* Why Query is the default for API/server state.
+
+PHASE B — Create migration plan doc
+
+Create or update:
+
+docs/TANSTACK_MIGRATION_PLAN.md
+
+This doc must clearly explain:
+
+1. State ownership
+
+Pinia owns:
+
+* UI/navigation state
+* rootPath/currentPath
+* history/back-forward
+* selected folder/open state
+* sort/view preferences
+* search input/scope
+* lightbox open/index/UI state
+* mobile sheet/UI state
+
+TanStack Query owns:
+
+* API/server state
+* loading/error/fetching state
+* cache/staleTime/gcTime
+* refetch/invalidate
+* /api/scan
+* /api/search
+* /api/metadata if migrated
+* /api/landing-pages if using Query
+* future mutations
+
+TanStack DB owns only:
+
+* collection/live-query layer when data has stable keys
+* local reactive querying across loaded collection data
+* Query Collection only when endpoint semantics are compatible
+* landing pages pilot if kept
+
+2. Approved phase order
+
+Document exactly:
+
+0. Standardize queryKeys/queryOptions
+
+1. Landing pages: finish DB pilot or use Query directly
+
+2. Search: plain TanStack Query, not DB
+
+3. Metadata: plain TanStack Query if needed
+
+4. First scan page: TanStack Query source of truth, not DB
+
+5. Infinite load: useInfiniteQuery, not DB
+
+6. Folder tree: query-ify later
+
+7. DB only for collection/live-query cases with stable keys and clear full-state semantics
+
+8. Hard rules
+
+Add these rules:
+
+* Do not add new Query → Pinia duplicated server-state flows unless needed for compatibility.
+* Do not use TanStack DB for search results.
+* Do not use TanStack DB for infinite/cursor pagination yet.
+* Do not use TanStack DB for /api/scan until collection scope and full-state semantics are designed.
+* Plain TanStack Query is the default for REST/API data.
+* Query Collection is only for stable collection endpoints where the response represents the complete state for that collection scope.
+* Pinia should not become a second cache for server data.
+* Thumbnails should remain browser/server cached; no Query needed.
+
+4. Query Collection warning
+
+Explain in docs:
+
+* Query Collection treats query result as the synced collection state for that scope.
+* Endpoint subsets/search results/cursor pages can cause wrong replacement/deletion semantics if modeled incorrectly.
+* Therefore search, scan, and infinite load stay with plain Query first.
+
+PHASE C — Implement Phase 0 only: queryKeys/queryOptions cleanup
+
+Implement only the low-risk foundation.
+
+Create:
+
+frontend/src/query/keys.ts
+
+Export centralized query keys.
+
+Suggested structure:
+
+```ts
+const normalizePath = (path: string | null | undefined) => (path ?? '').trim()
+
+export const queryKeys = {
+  landingPages: () => ['landing-pages'] as const,
+
+  scan: (path: string, imageLimit: number) =>
+    ['scan', normalizePath(path), imageLimit] as const,
+
+  scanInfinite: (path: string, imageLimit: number) =>
+    ['scan-infinite', normalizePath(path), imageLimit] as const,
+
+  search: (query: string, scope: string, path: string) =>
+    ['search', query.trim(), scope, normalizePath(path)] as const,
+
+  metadata: (path: string) =>
+    ['metadata', normalizePath(path)] as const,
+}
+```
+
+Adjust types/names to match current repo conventions.
+
+Then update existing code minimally:
+
+* Refactor `frontend/src/composables/useScanQuery.ts` to use `queryKeys.scan(...)`.
+* Refactor `frontend/src/db/collections/landingPagesCollection.ts` to use `queryKeys.landingPages()`.
+* Do not change runtime behavior.
+* Do not migrate any new API flow.
+
+Optional:
+Create `frontend/src/query/options.ts` only if it helps reuse existing defaults without overengineering. Do not duplicate QueryClient defaults unnecessarily.
+
+PHASE D — Keep scope tight
+
+Do NOT do any of these in this task:
+
+* Do not wire landing pages UI to DB yet.
+* Do not migrate search to Query yet.
+* Do not migrate metadata to Query yet.
+* Do not migrate /api/scan source of truth.
+* Do not migrate infinite load.
+* Do not refactor Pinia store broadly.
+* Do not touch TanStack Virtual.
+* Do not touch backend.
+* Do not add new dependencies.
+* Do not change UI.
+
+PHASE E — Verification
+
+Run:
+
+```bash
+cd frontend
+npm run build
+```
+
+If a separate typecheck script exists, run it too.
+
+Run grep checks:
+
+```bash
+grep -R "getScanQueryKey" -n frontend/src || true
+grep -R "queryKeys" -n frontend/src/query frontend/src/composables frontend/src/db || true
+grep -R "@tanstack/vue-db" -n frontend/src || true
+grep -R "vue-virtual-scroller" -n frontend || true
+```
+
+Expected:
+
+* queryKeys file exists.
+* useScanQuery uses centralized scan key.
+* landingPagesCollection uses centralized landing-pages key.
+* No vue-virtual-scroller reference.
+* Build passes.
+
+PHASE F — Final report
+
+Final report must include:
+
+1. Official docs read.
+2. Repo files read.
+3. Files changed.
+4. Migration plan doc created/updated.
+5. Query keys created.
+6. Existing code refactored to use queryKeys.
+7. Confirmation that no runtime migration was done beyond Phase 0.
+8. Confirmation that search/metadata/scan/infinite/folder tree were not migrated.
+9. Build/typecheck result.
+10. Remaining next phase recommendation.
+
+Commit if clean:
+
+```bash
+git add docs frontend/src/query frontend/src/composables/useScanQuery.ts frontend/src/db/collections/landingPagesCollection.ts
+git commit -m "docs(frontend): define TanStack migration plan and query keys"
+git push origin main
+```
+
+Do not merge any branch.
+Do not change backend.
+Do not implement Phase 1+ in this task.

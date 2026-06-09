@@ -1,0 +1,109 @@
+Task: Add TanStack Form + TanStack Table foundations to the Vue frontend.
+
+Repo: /home/ubuntu/gallery-repo (on branch main, commit af7bb66)
+
+Current context:
+- @tanstack/vue-query (^5.101.0) is installed — used for server-state caching
+- @tanstack/vue-virtual (^3.13.28) is installed — used for gallery virtual scroll (recently migrated from vue-virtual-scroller)
+- Pinia is used for UI state
+- Package manager: npm (package-lock.json exists, no pnpm/yarn)
+- No src/lib/ directory exists yet
+
+Goal:
+- Add @tanstack/vue-form and @tanstack/vue-table as dependencies
+- Create documentation: frontend/src/lib/tanstack/README.md
+- Do NOT refactor existing forms or create table UI
+- Do NOT change current UI/UX
+- Do NOT change backend
+- Do NOT modify existing TanStack Query or Virtual setup
+
+## STEP 1: Install dependencies
+
+cd /home/ubuntu/gallery-repo/frontend
+npm install @tanstack/vue-form @tanstack/vue-table
+
+Verify: package.json should now have both new deps alongside existing Query and Virtual.
+No pnpm/yarn artifacts.
+No double Query install.
+
+## STEP 2: Create README
+
+Create file: frontend/src/lib/tanstack/README.md
+
+Content should explain all 4 TanStack packages currently in the project:
+
+```markdown
+# TanStack Usage Guide
+
+This frontend uses TanStack libraries for state management, data display, and form handling.
+
+## Installed Packages
+
+| Package | Version | Status | Purpose |
+|---------|---------|--------|---------|
+| `@tanstack/vue-query` | ^5.x | ✅ Active | Server-state caching for gallery scans, thumbnail cache invalidation, background refetch. Setup in `src/query/index.ts`. |
+| `@tanstack/vue-virtual` | ^3.x | ✅ Active | Row-based virtual scrolling for desktop/tablet photo grid. Uses `useVirtualizer` in `GalleryGrid.vue`. |
+| `@tanstack/vue-form` | latest | 🟡 Foundation | Future: metadata forms (title, description, tags), batch editor, settings. See notes below. |
+| `@tanstack/vue-table` | latest | 🟡 Foundation | Future: metadata management table, duplicate/broken image audit, import history. See notes below. |
+
+## @tanstack/vue-form — Future Use
+
+### Planned components
+- **Add/Edit photo metadata form** — title, description, tags, source URL, album selection, AI metadata fields
+- **Batch metadata editor** — apply tags/title/description to multiple images at once
+- **Import settings form** — root path config, search API keys, cron schedule
+- **Validation** — use TanStack Form's built-in validation for required fields, URL format, tag constraints
+
+### Migration rule
+Do NOT replace current v-model forms until a dedicated metadata editing feature is being built. Current forms are minimal (search, path entry) and work fine with v-model.
+
+## @tanstack/vue-table — Future Use
+
+### Planned components
+- **Metadata management table** — sort/filter by filename, album, size, type, date, status
+- **Duplicate image finder** — list suspected duplicates with match score
+- **Broken image audit** — show files that failed thumbnail generation or have missing originals
+- **Import history** — table of crawl/import jobs with status, count, timestamps
+- **All photos management** — full scrollable table with batch selection, move, delete
+
+### Migration rule
+Do NOT replace the current card/grid gallery view with a table. Table is for admin/management screens, not browsing.
+
+## Resources
+
+- @tanstack/vue-query: https://tanstack.com/query/latest/docs/framework/vue
+- @tanstack/vue-virtual: https://tanstack.com/virtual/latest/docs/framework/vue
+- @tanstack/vue-form: https://tanstack.com/form/latest/docs/framework/vue
+- @tanstack/vue-table: https://tanstack.com/table/latest/docs/framework/vue
+```
+
+## STEP 3: Build verification
+
+cd /home/ubuntu/gallery-repo/frontend
+npm run build
+
+## STEP 4: Audit
+
+grep -R "@tanstack/vue-form" -n frontend/src --include='*.vue' --include='*.ts' || echo "No existing form usage (expected)"
+grep -R "@tanstack/vue-table" -n frontend/src --include='*.vue' --include='*.ts' || echo "No existing table usage (expected)"
+grep -R "vue-virtual-scroller" -n frontend/src --include='*.vue' --include='*.ts' --include='*.css' --include='*.scss' || echo "No remaining vue-virtual-scroller"
+grep -R "pnpm-lock" -n frontend/ || echo "No pnpm lockfile"
+
+Verify:
+- package.json has @tanstack/vue-form and @tanstack/vue-table
+- No pnpm/yarn lockfiles
+- Existing Query and Virtual imports still work (build pass confirms)
+- No UI/UX behavior changed (no new components or template changes)
+
+## STEP 5: Commit
+
+After build passes, create a branch and commit:
+
+git checkout -b feat/tanstack-form-table
+git add frontend/package.json frontend/package-lock.json frontend/src/lib/tanstack/README.md
+git commit -m "feat(frontend): add TanStack Form and Table foundations"
+git push origin feat/tanstack-form-table
+
+Do NOT merge into main.
+Do NOT refactor unrelated code.
+Do NOT change backend.
