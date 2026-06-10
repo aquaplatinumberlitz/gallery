@@ -80,3 +80,38 @@ OPEN_FOLDER_ENABLED = os.getenv("GALLERY_OPEN_FOLDER", "false").lower() == "true
 
 METADATA_DB_DIR = Path(__file__).resolve().parent / ".cache"
 GALLERY_METADATA_DB = METADATA_DB_DIR / "gallery_metadata.db"
+
+# ---------------------------------------------------------------------------
+# Phase 3 — Warm indexed folder listing
+# ---------------------------------------------------------------------------
+ENABLE_WARM_INDEXED_LISTING = _env_flag("ENABLE_WARM_INDEXED_LISTING", default=False)
+
+# ---------------------------------------------------------------------------
+# Phase 3 — Scheduled refresh
+# ---------------------------------------------------------------------------
+ENABLE_SCHEDULED_REFRESH = _env_flag("ENABLE_SCHEDULED_REFRESH", default=False)
+SCHEDULED_REFRESH_INTERVAL_SECONDS = max(
+    60,
+    int(os.getenv("SCHEDULED_REFRESH_INTERVAL_SECONDS", "300")),
+)
+SCHEDULED_REFRESH_ROOTS = [
+    p.strip()
+    for p in os.getenv("SCHEDULED_REFRESH_ROOTS", "").split(",")
+    if p.strip()
+]
+SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK = max(
+    1,
+    int(os.getenv("SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK", "20")),
+)
+
+# ---------------------------------------------------------------------------
+# Phase 3 — Optional file watcher (disabled by default)
+# ---------------------------------------------------------------------------
+ENABLE_FILE_WATCHER = _env_flag("ENABLE_FILE_WATCHER", default=False)
+WATCHER_ROOTS = [
+    p.strip()
+    for p in os.getenv("WATCHER_ROOTS", "").split(",")
+    if p.strip()
+]
+WATCHER_DEBOUNCE_SECONDS = max(0.0, float(os.getenv("WATCHER_DEBOUNCE_SECONDS", "2.0")))
+WATCHER_MAX_EVENTS_PER_TICK = max(1, int(os.getenv("WATCHER_MAX_EVENTS_PER_TICK", "500")))

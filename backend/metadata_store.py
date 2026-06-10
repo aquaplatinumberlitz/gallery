@@ -11,8 +11,13 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .albums import build_album_metadata
-from .config import GALLERY_METADATA_DB, GALLERY_ROOT
+from .config import (
+    ENABLE_WARM_INDEXED_LISTING,
+    GALLERY_METADATA_DB,
+    GALLERY_ROOT,
+)
 from .files import IMAGE_EXTENSIONS, is_image_path
+from .models import FileNode
 from .metadata_extract import (
     CJK_RE,
     ExtractedMetadata,
@@ -218,6 +223,18 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
               ON metadata_index_jobs(root_path);
             CREATE INDEX IF NOT EXISTS idx_metadata_index_jobs_updated_at
               ON metadata_index_jobs(updated_at);
+
+            CREATE TABLE IF NOT EXISTS folder_index_state (
+              path TEXT PRIMARY KEY,
+              dir_mtime_ns INTEGER NOT NULL,
+              indexed_at REAL NOT NULL,
+              complete INTEGER NOT NULL DEFAULT 0,
+              child_count INTEGER NOT NULL DEFAULT 0,
+              folder_count INTEGER NOT NULL DEFAULT 0,
+              image_count INTEGER NOT NULL DEFAULT 0,
+              last_error TEXT,
+              updated_at REAL NOT NULL
+            );
             """
         )
         _ensure_column(conn, "image_metadata", "format", "TEXT")
@@ -582,7 +599,7 @@ def _upsert_extracted_metadata_conn(conn: sqlite3.Connection, metadata: Extracte
           clip_skip, hires_upscale, hires_steps, denoising_strength,
           vae, ensd, aesthetic_score, date, aspect_ratio
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(path) DO UPDATE SET
           name=excluded.name,
           mtime=excluded.mtime,
@@ -784,6 +801,202 @@ def get_cached_dimensions_for_files(files: Iterable[tuple[str | Path, float, int
                     cached[row["path"]] = CachedDimensions(width=row["width"], height=row["height"])
 
     return cached
+
+
+def update_folder_index_state(
+    folder_path: str | Path,
+    *,
+    dir_mtime_ns: int | None = None,
+    complete: bool = False,
+    child_count: int = 0,
+    folder_count: int = 0,
+    image_count: int = 0,
+    last_error: str | None = None,
+) -> bool:
+    initialize_database()
+    now = time.time()
+    try:
+        resolved = str(Path(folder_path).resolve())
+        if dir_mtime_ns is None:
+            try:
+                dir_mtime_ns = Path(folder_path).stat().st_mtime_ns
+            except OSError:
+                return False
+        with _DB_LOCK, _connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO folder_index_state (
+                  path, dir_mtime_ns, indexed_at, complete,
+                  child_count, folder_count, image_count,
+                  last_error, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(path) DO UPDATE SET
+                  dir_mtime_ns=excluded.dir_mtime_ns,
+                  indexed_at=excluded.indexed_at,
+                  complete=excluded.complete,
+                  child_count=excluded.child_count,
+                  folder_count=excluded.folder_count,
+                  image_count=excluded.image_count,
+                  last_error=excluded.last_error,
+                  updated_at=excluded.updated_at
+                """,
+                (
+                    resolved,
+                    dir_mtime_ns,
+                    now,
+                    1 if complete else 0,
+                    child_count,
+                    folder_count,
+                    image_count,
+                    last_error,
+                    now,
+                ),
+            )
+        return True
+    except Exception:
+        return False
+
+
+def get_folder_index_state(folder_path: str | Path) -> dict | None:
+    initialize_database()
+    try:
+        resolved = str(Path(folder_path).resolve())
+        with _DB_LOCK, _connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM folder_index_state WHERE path = ?",
+                (resolved,),
+            ).fetchone()
+            if row is None:
+                return None
+            return dict(row)
+    except Exception:
+        return None
+
+
+def get_warm_folder_listing(
+    folder_path: str | Path,
+    *,
+    offset: int = 0,
+    limit: int | None = None,
+    sort: str = "name",
+    image_limit: int | None = None,
+) -> dict | None:
+    if not ENABLE_WARM_INDEXED_LISTING:
+        return None
+
+    try:
+        resolved = str(Path(folder_path).resolve())
+        resolved_path = Path(folder_path)
+    except OSError:
+        return None
+
+    state = get_folder_index_state(resolved)
+    if state is None:
+        return None
+    if not state["complete"]:
+        return None
+
+    try:
+        current_stat = resolved_path.stat()
+        current_mtime_ns = current_stat.st_mtime_ns
+    except OSError:
+        return None
+
+    if state["dir_mtime_ns"] != current_mtime_ns:
+        return None
+
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        parent_prefix = f"{resolved.rstrip(os.sep)}{os.sep}"
+
+        folders = list(
+            conn.execute(
+                """
+                SELECT path, name, mtime, width, height, size
+                FROM file_index
+                WHERE parent_path = ? AND type = 'folder'
+                ORDER BY name ASC
+                """,
+                (resolved,),
+            )
+        )
+
+        image_count_sql = "SELECT count(*) AS total FROM file_index WHERE parent_path = ? AND type = 'photo'"
+        image_count = conn.execute(image_count_sql, (resolved,)).fetchone()["total"]
+
+        total_images = int(image_count)
+
+        image_start = offset
+        if image_limit is not None:
+            image_end = offset + image_limit
+        else:
+            image_end = total_images
+
+        images = list(
+            conn.execute(
+                f"""
+                SELECT fi.path, fi.name, fi.mtime, fi.size, fi.width, fi.height
+                FROM file_index fi
+                WHERE fi.parent_path = ? AND fi.type = 'photo'
+                ORDER BY fi.name ASC
+                LIMIT ? OFFSET ?
+                """,
+                (resolved, image_end - image_start, image_start),
+            )
+        )
+
+        warm_images: list[FileNode] = []
+        for img in images:
+            warm_images.append(
+                FileNode(
+                    name=img["name"],
+                    path=img["path"],
+                    type="image",
+                    has_children=False,
+                    cover_images=[],
+                    mtime=img["mtime"] or 0,
+                    width=img["width"],
+                    height=img["height"],
+                )
+            )
+
+        warm_folders: list[FileNode] = []
+        for fld in folders:
+            meta = build_album_metadata(Path(fld["path"]))
+            warm_folders.append(
+                FileNode(
+                    name=fld["name"],
+                    path=fld["path"],
+                    type="folder",
+                    has_children=meta["has_children"],
+                    cover_images=meta["cover_images"],
+                    mtime=fld["mtime"] or 0,
+                    image_count=meta["image_count"],
+                )
+            )
+
+    next_cursor = image_end if image_end < total_images else None
+
+    return {
+        "folders": warm_folders,
+        "images": warm_images,
+        "next_cursor": next_cursor,
+        "total_images": total_images,
+        "index_source": "warm_db",
+    }
+
+
+def get_folder_indexed_paths() -> list[dict]:
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        rows = conn.execute(
+            "SELECT path, dir_mtime_ns, complete, image_count, updated_at FROM folder_index_state ORDER BY updated_at DESC"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def mark_folder_index_incomplete(folder_path: str | Path, last_error: str | None = None) -> bool:
+    return update_folder_index_state(folder_path, complete=False, last_error=last_error)
 
 
 def upsert_image_dimensions(
@@ -1034,7 +1247,28 @@ def cleanup_stale_index(state: Any, root_path: str | Path | None = None) -> int:
         return _cleanup_stale_index_conn(conn, root_path)
 
 
-def index_files_from_scan(folders: list[Any], images: list[Any]) -> int:
+def _scan_folder_counts(folder_path: Path) -> dict:
+    folders = 0
+    images = 0
+    total = 0
+    try:
+        for entry in os.scandir(folder_path):
+            if entry.name.startswith("."):
+                continue
+            total += 1
+            try:
+                if entry.is_dir():
+                    folders += 1
+                elif entry.is_file() and is_image_path(Path(entry.path)):
+                    images += 1
+            except OSError:
+                pass
+    except OSError:
+        pass
+    return {"child_count": total, "folder_count": folders, "image_count": images}
+
+
+def index_files_from_scan(folders: list[Any], images: list[Any], *, scan_folder_path: str | Path | None = None) -> int:
     indexed = 0
     for item in [*folders, *images]:
         raw_path = _path_value(item, "path")
@@ -1059,6 +1293,18 @@ def index_files_from_scan(folders: list[Any], images: list[Any]) -> int:
                 indexed += 1
         except Exception:
             continue
+
+    if scan_folder_path is not None:
+        try:
+            update_folder_index_state(
+                scan_folder_path,
+                complete=True,
+                child_count=len(folders) + len(images),
+                folder_count=len(folders),
+                image_count=len(images),
+            )
+        except Exception:
+            pass
     return indexed
 
 

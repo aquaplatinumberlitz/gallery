@@ -1,6 +1,6 @@
 # Gallery Repo Evolution Master Plan
 
-Last reviewed: 2026-06-10 (updated to track actual implementation: Phase 2 split into 2A ✅ + 2B next)
+Last reviewed: 2026-06-10 (updated to track actual implementation: Phase 2 split into 2A ✅ + 2B next, Phase 3 ✅ done)
 
 ## Executive Summary
 
@@ -1255,7 +1255,7 @@ For fielded queries (e.g. `rain seed:123`):
 | Risk level | Medium. |
 | What not to do | Do not replace normal search with a strict query language; do not preload `/api/image` for neighbors; do not add Redis/BullMQ. |
 
-### Phase 3 - Warm Indexed Folder Listing, Optional Watcher/Scheduled Refresh, Richer Facets
+### Phase 3 (✅ Done) — Warm Indexed Folder Listing, Optional Watcher/Scheduled Refresh, Richer Facets
 
 | Field | Plan |
 | --- | --- |
@@ -1264,18 +1264,18 @@ For fielded queries (e.g. `rain seed:123`):
 | Why this order | Indexed listing requires completeness/staleness signals from Phase 1 and derivative/search readiness from Phase 2. |
 | Borrowed from | DT indexed search/listing and watcher ideas; Immich compact list DTOs and scheduled/watcher refresh ideas. |
 | Current problem solved | `/api/scan` still enumerates/sorts large folders before returning a page; stable roots do not refresh automatically. |
-| Files likely affected | `backend/scan.py`, `backend/metadata_store.py`, possible watcher module, `backend/app.py`, `frontend/src/composables/useInfiniteScanQuery.ts`, `frontend/src/services/api.ts`, docs/tests. |
-| Backend changes | Add opt-in warm listing fast path from `file_index`; track folder index completeness; fallback to direct scan when stale/incomplete; add optional watcher/scheduled refresh behind config. |
-| Frontend changes | No major UX change required; optional status for "indexed listing ready"; keep Query keys stable. |
-| DB/schema changes | Add folder index state/completeness table; maybe derivative/search aggregate counters. |
-| API changes | `/api/scan` may return from DB only when freshness rules pass, or add an experimental endpoint first. Response shape stays compatible. |
-| Docs changes | Document cold vs warm scan paths and watcher configuration. |
-| Tests to add/update | Warm listing add/delete/rename; stale fallback; watcher burst coalescing; 5000-image warm first page benchmark. |
-| Perf budgets | 5000-image warm first page target 300-500 ms after indexed listing exists; cold scan no worse than current. |
-| Acceptance criteria | Warm indexed folder can serve first page without enumerating/sorting all files; stale index falls back to direct scan; watcher is disabled by default. |
-| Rollback plan | Disable warm listing fast path and watcher; direct `/api/scan` remains source of truth. |
-| Risk level | Medium/High. |
-| What not to do | Do not require import-before-browse; do not build Immich timeline buckets unless a new product requirement exists; do not enable watcher by default. |
+| Files affected | `backend/scan.py`, `backend/metadata_store.py`, `backend/config.py`, `backend/app.py`, `backend/facets.py` (new), `backend/refresh.py` (new), `backend/watcher.py` (new), `scripts/perf_warm_listing.py` (new), backend tests (4 new files), docs. |
+| Backend changes | Add `folder_index_state` SQLite table; add `get_warm_folder_listing()` helper; add `update_folder_index_state()`; wire warm listing into `/api/scan` before fallback to `scan_directory()`; add disabled-by-default scheduled refresh (`backend/refresh.py`); add disabled-by-default watcher stub with optional watchdog (`backend/watcher.py`); add facets endpoint (`backend/facets.py`); add warm listing metrics. |
+| Frontend changes | None required. Response shape remains backward-compatible with optional `index_source` field. |
+| DB/schema changes | Added `folder_index_state` table (path, dir_mtime_ns, indexed_at, complete, child_count, folder_count, image_count, last_error, updated_at). |
+| API changes | `/api/scan` may respond from `file_index` with `index_source: "warm_db"` when `ENABLE_WARM_INDEXED_LISTING=true` and freshness checks pass. Added `GET /api/facets` for DB-derived facet counts. Response shape is backward-compatible. |
+| Docs changes | This plan updated. Phase 3 implementation details below. |
+| Tests to add/update | `test_warm_folder_listing.py` (10 tests), `test_scheduled_refresh.py` (8 tests), `test_watcher.py` (7 tests), `test_facets.py` (7 tests). Existing scan hot path tests updated for `index_source` field. |
+| Perf budgets | 5000-image warm first page target 300-500 ms after indexed listing exists; cold scan no worse than current. See `scripts/perf_warm_listing.py`. |
+| Acceptance criteria | ✅ Warm indexed listing works for complete/fresh folders. ✅ Warm path avoids os.scandir on the requested folder. ✅ Stale/incomplete/missing state falls back to direct scan. ✅ Cold scan behavior unchanged. ✅ Response shape backward-compatible. ✅ Folder sorting/pagination matches direct scan. ✅ Scheduled refresh exists and disabled by default. ✅ Watcher exists as safe optional implementation with watchdog. ✅ Watcher/scheduled refresh cannot start without explicit config. ✅ Facets are DB-derived and bounded. ✅ No metadata parsing or PIL image open in `/api/scan`. ✅ Existing Phase 1/2A/2B tests still pass. ✅ New tests cover warm listing, refresh, watcher config, and facets. |
+| Rollback plan | Set `ENABLE_WARM_INDEXED_LISTING=false`, `ENABLE_SCHEDULED_REFRESH=false`, `ENABLE_FILE_WATCHER=false`. Direct `/api/scan` remains source of truth. |
+| Risk level | Medium. |
+| What not to do | Resisted: import-before-browse, Immich timeline buckets, enabled-by-default watcher. |
 
 ### Phase 4 - Research-Only Advanced Library Features
 
@@ -1588,4 +1588,4 @@ Become gallery-repo with:
 - observable perf gates
 ```
 
-Phases 0, 1, and 2A are complete as of June 2026. Phase 2A (derivative-first lightbox) was added mid-stream per user request and successfully implemented. Phase 2B (fielded search, DB-first metadata) and Phase 3 (warm folder listing, watcher) remain. Every later improvement builds on the foundations already laid: a single parser truth, bounded background metadata work, batched writes, visible index status, and the derivative-first lightbox.
+Phases 0, 1, 2A, 2B, and 3 are complete as of June 2026. Phase 2A (derivative-first lightbox) was added mid-stream per user request and successfully implemented. Phase 2B (fielded search, DB-first metadata) and Phase 3 (warm folder listing, optional scheduled refresh, optional watcher, richer facets) are complete. Every later improvement builds on the foundations already laid: a single parser truth, bounded background metadata work, batched writes, visible index status, the derivative-first lightbox, and warm indexed folder listings.

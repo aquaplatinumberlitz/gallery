@@ -50,7 +50,7 @@ def test_api_scan_hot_path_uses_cached_dimensions_without_parsing_or_opening_ima
     monkeypatch.setattr(scan, "is_path_safe", lambda _path: True)
     monkeypatch.setattr(scan, "get_cached_dimensions_for_files", fake_get_cached_dimensions_for_files)
     monkeypatch.setattr(scan, "index_file", lambda *args, **kwargs: background_calls.append(("file", None)))
-    monkeypatch.setattr(scan, "index_files_from_scan", lambda _folders, images: background_calls.append(("scan", len(images))))
+    monkeypatch.setattr(scan, "index_files_from_scan", lambda _folders, images, *args, **kwargs: background_calls.append(("scan", len(images))))
     monkeypatch.setattr(scan, "index_directory_tree", lambda *args, **kwargs: background_calls.append(("tree", None)))
     monkeypatch.setattr(scan, "enqueue_metadata_jobs_from_scan", fake_enqueue_metadata_jobs_from_scan)
     monkeypatch.setattr(metadata_extract, "extract_metadata", fail_extract_metadata)
@@ -64,7 +64,7 @@ def test_api_scan_hot_path_uses_cached_dimensions_without_parsing_or_opening_ima
 
     assert response.status_code == 200
     data = response.json()
-    assert set(data) == {"folders", "images", "next_cursor", "total_images"}
+    assert set(data) == {"folders", "images", "next_cursor", "total_images", "index_source"}
     assert data["total_images"] == 2
     assert data["next_cursor"] == 1
     assert len(data["folders"]) == 1
