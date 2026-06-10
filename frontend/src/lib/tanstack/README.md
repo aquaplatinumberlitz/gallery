@@ -4,14 +4,14 @@ This frontend uses TanStack libraries for state management, data display, and fo
 
 ## Installed Packages
 
-| Package | Version | Status | Purpose |
-|---------|---------|--------|---------|
+| Package | Version | Status: Active \| Foundation \| Planned | Purpose |
+|---------|---------|--------------------------------------|---------|
 | `@tanstack/vue-query` | ^5.x | ✅ Active | Server-state caching for scan/infinite pages, folder children, search, metadata, and background refetch. Setup in `src/query/index.ts`. |
 | `@tanstack/vue-virtual` | ^3.x | ✅ Active | Row-based virtual scrolling for desktop/tablet photo grid. Uses `useVirtualizer` in `GalleryGrid.vue`. |
-| `@tanstack/vue-form` | latest | 🟡 Foundation | Future: metadata forms (title, description, tags), batch editor, settings. See notes below. |
-| `@tanstack/vue-table` | latest | 🟡 Foundation | Future: metadata management table, duplicate/broken image audit, import history. See notes below. |
+| `@tanstack/vue-form` | latest | 🟡 Foundation | Installed but NOT used in any production component yet. Available for future metadata forms, batch editor, settings. See notes below. |
+| `@tanstack/vue-table` | latest | 🟡 Foundation | Installed but NOT used in any production component yet. Available for future metadata management table, duplicate/broken image audit, import history. See notes below. |
 
-## @tanstack/vue-form — Future Use
+## @tanstack/vue-form — Installed (Not Yet Used in Production)
 
 ### Planned components
 - **Add/Edit photo metadata form** — title, description, tags, source URL, album selection, AI metadata fields
@@ -22,7 +22,7 @@ This frontend uses TanStack libraries for state management, data display, and fo
 ### Migration rule
 Do NOT replace current v-model forms until a dedicated metadata editing feature is being built. Current forms are minimal (search, path entry) and work fine with v-model.
 
-## @tanstack/vue-table — Future Use
+## @tanstack/vue-table — Installed (Not Yet Used in Production)
 
 ### Planned components
 - **Metadata management table** — sort/filter by filename, album, size, type, date, status

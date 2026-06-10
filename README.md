@@ -171,7 +171,7 @@ gallery-repo/
 - [Backend Library Research](docs/BACKEND_LIBRARY_REPLACEMENT_RESEARCH.md) - library replacement analysis
 - [TanStack Migration Plan](docs/TANSTACK_MIGRATION_PLAN.md) - incremental TanStack Query migration
 - [Library Usage](docs/THIRD_PARTY_LIBRARIES.md) - third-party library integration notes
-- [TanStack Guide](frontend/src/lib/tanstack/README.md) - TanStack Query, Virtual, Form, Table usage patterns
+- [TanStack Guide](frontend/src/lib/tanstack/README.md) - TanStack Query + Virtual usage (Form + Table: foundation only)
 
 ## License
 
