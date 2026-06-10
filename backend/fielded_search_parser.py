@@ -42,8 +42,8 @@ def _normalize_field_name(field: str) -> str:
         "location": "path",
         "resource": "lora",
         "resource_hash": "model_hash",
-        "model_or_hash": "model",
     }
+    # model_or_hash is NOT aliased — it is a distinct field with its own SQL predicate.
     return aliases.get(field, field)
 
 
@@ -53,6 +53,7 @@ class FieldToken:
     value: str
     operator: str = "="
     quote_char: str = ""
+    key: str | None = None
 
 
 @dataclass
@@ -104,19 +105,39 @@ def parse_fielded_query(raw: str) -> ParsedQuery:
         normalized_field = _normalize_field_name(field_name_raw.lower())
         operator = "="
         actual_value = value
+        actual_key: str | None = None
 
-        if normalized_field not in {"param", "advanced", "raw"}:
+        if normalized_field in {"param", "advanced"}:
+            if value.endswith(":"):
+                actual_key = value[:-1]
+                next_value, qc = _read_field_value(state)
+                actual_value = next_value
+                quote_char = qc
+            elif ":" in value:
+                actual_key, actual_value = value.split(":", 1)
+            else:
+                actual_key = value
+                actual_value = ""
+        elif normalized_field not in {"raw"}:
             op_match = COMP_OP_PATTERN.match(value)
             if op_match:
                 operator = op_match.group(1)
-                actual_value = value[op_match.end() :].strip()
+                actual_value = value[op_match.end():].strip()
 
-        fields.append(FieldToken(
-            field=normalized_field,
-            value=actual_value,
-            operator=operator,
-            quote_char=quote_char,
-        ))
+        if actual_key is not None:
+            ft = FieldToken(
+                field=normalized_field,
+                key=actual_key,
+                value=actual_value,
+            )
+        else:
+            ft = FieldToken(
+                field=normalized_field,
+                value=actual_value,
+                operator=operator,
+                quote_char=quote_char,
+            )
+        fields.append(ft)
 
     residual_text = "".join(residual_parts).strip()
     return ParsedQuery(residual_text=residual_text, fields=fields)
@@ -246,11 +267,26 @@ def build_fielded_search_sql(parsed: ParsedQuery, limit: int = 50, offset: int =
             continue
 
         if ft.field == "param" or ft.field == "advanced":
-            like_val = f'%"{ft.value}%'
-            esc = "\\\\"
-            conditions.append(
-                f"m.metadata_json LIKE {next_param(like_val)} ESCAPE '{esc}'"
-            )
+            if ft.key:
+                json_path = json.dumps(ft.key)
+                if ft.value:
+                    conditions.append(
+                        "json_extract(m.metadata_json, "
+                        + next_param(f'$.{json_path}')
+                        + ") = "
+                        + next_param(ft.value)
+                    )
+                else:
+                    conditions.append(
+                        "json_extract(m.metadata_json, "
+                        + next_param(f'$.{json_path}')
+                        + ") IS NOT NULL"
+                    )
+            else:
+                like_val = f'%"{ft.value}%'
+                conditions.append(
+                    f"m.metadata_json LIKE {next_param(like_val)} ESCAPE '\\\\'"
+                )
             continue
 
         if ft.field == "model_or_hash":
