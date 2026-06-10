@@ -31,6 +31,35 @@ DERIVATIVE_PIL_FORMATS = {
     "jpg": "JPEG",
 }
 
+try:
+    from prometheus_client import Counter
+except Exception:
+    Counter = None
+
+def _metric_counter(name, doc, *labels_args, **labels_kwargs):
+    if Counter is None:
+        return None
+    try:
+        return Counter(name, doc, *labels_args, **labels_kwargs)
+    except ValueError:
+        return None
+
+def _inc(metric, *labels, amount=1.0):
+    if metric is None:
+        return
+    target = metric.labels(*labels) if labels else metric
+    target.inc(amount)
+
+_derivative_ready_total = _metric_counter(
+    "gallery_derivative_ready_total",
+    "Derivative images successfully generated",
+    ["type"],
+)
+_derivative_errors_total = _metric_counter(
+    "gallery_derivative_errors_total",
+    "Derivative generation errors",
+)
+
 router = APIRouter()
 
 
@@ -172,8 +201,10 @@ def generate_derivative(
         )
         _thumbnail_disk_cache.set(cache_key, derivative_bytes)
         _persist_derivative_file(cache_key, derivative_bytes, normalized_format)
+        _inc(_derivative_ready_total, kind)
         return derivative_bytes
     except (Image.DecompressionBombError, UnidentifiedImageError) as exc:
+        _inc(_derivative_errors_total)
         api_exc = APIError(400, ErrorType.INVALID_FILE, f"Unable to process image: {exc}")
         raise api_exc from exc
 
@@ -242,10 +273,13 @@ async def _serve_derivative(
     except APIError:
         raise
     except FileNotFoundError:
+        _inc(_derivative_errors_total)
         raise APIError(404, ErrorType.NOT_FOUND, "Image file not found")
     except OSError as exc:
+        _inc(_derivative_errors_total)
         raise APIError(400, ErrorType.INVALID_FILE, failure_message) from exc
     except Exception as exc:
+        _inc(_derivative_errors_total)
         raise APIError(500, ErrorType.SERVER_ERROR, failure_message) from exc
 
     cache_key = _derivative_cache_key_str(
