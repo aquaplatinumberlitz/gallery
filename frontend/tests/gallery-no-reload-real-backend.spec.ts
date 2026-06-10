@@ -43,7 +43,7 @@ test("navigates albums without page reload against real backend", async ({ page 
 
   // Open lightbox
   await page.getByTestId("photo-card").first().click();
-  await expect(page.locator('[data-testid="lightbox"], .pswp--open')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 15_000 });
   expect(navigations).toBeLessThanOrEqual(1);
 
   // Wait for preview to load (derivative-first policy)

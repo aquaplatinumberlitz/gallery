@@ -1,10 +1,14 @@
+import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
-import fs from "node:fs";
-import path from "node:path";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { resolve, join, dirname as pathDirname } from "node:path";
 import { compactStats, installApiNetworkTracker, waitForNetworkQuiet } from "./perf-utils";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = pathDirname(__filename);
+
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
-const albumName = process.env.GALLERY_PERF_ALBUM_NAME ?? "test mika";
+const albumName = process.env.GALLERY_PERF_ALBUM_NAME ?? "a1111";
 const albumPath = process.env.GALLERY_PERF_ALBUM_PATH ?? "";
 const scanBudgetMs = Number(process.env.GALLERY_PERF_SCAN_BUDGET_MS ?? "500");
 const firstThumbBudgetMs = Number(process.env.GALLERY_PERF_FIRST_THUMB_BUDGET_MS ?? "1000");
@@ -125,9 +129,9 @@ test("album open performance", async ({ page }) => {
         ? "pass"
         : "fail",
   };
-  const resultsDir = path.resolve(__dirname, "../../test-results/perf");
-  fs.mkdirSync(resultsDir, { recursive: true });
-  fs.writeFileSync(path.join(resultsDir, "album-open-report.json"), JSON.stringify(report, null, 2));
+  const resultsDir = resolve(__dirname, "../../test-results/perf");
+  mkdirSync(resultsDir, { recursive: true });
+  writeFileSync(join(resultsDir, "album-open-report.json"), JSON.stringify(report, null, 2));
 
   expect(duplicateCursor0Count).toBeLessThanOrEqual(1);
   expect(firstScanDuration).toBeLessThanOrEqual(scanBudgetMs);

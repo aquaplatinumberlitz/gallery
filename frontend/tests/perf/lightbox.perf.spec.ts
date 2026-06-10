@@ -1,10 +1,14 @@
+import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
-import fs from "node:fs";
-import path from "node:path";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { resolve, join, dirname as pathDirname } from "node:path";
 import { installApiNetworkTracker, getQueryParam } from "./perf-utils";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = pathDirname(__filename);
+
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
-const albumName = process.env.GALLERY_PERF_ALBUM_NAME ?? "test mika";
+const albumName = process.env.GALLERY_PERF_ALBUM_NAME ?? "a1111";
 const albumPath = process.env.GALLERY_PERF_ALBUM_PATH ?? "";
 const rootPath = process.env.GALLERY_ROOT_PATH ?? (
   albumPath ? albumPath.substring(0, albumPath.lastIndexOf('/')) : "/home/ubuntu/gallery-repo/test-images"
@@ -125,9 +129,9 @@ test("lightbox opens first photo within budget", async ({ page }) => {
     verdict: "pass",
   };
 
-  const resultsDir = path.resolve(__dirname, "../../test-results/perf");
-  fs.mkdirSync(resultsDir, { recursive: true });
-  fs.writeFileSync(path.join(resultsDir, "lightbox-open-report.json"), JSON.stringify(report, null, 2));
+  const resultsDir = resolve(__dirname, "../../test-results/perf");
+  mkdirSync(resultsDir, { recursive: true });
+  writeFileSync(join(resultsDir, "lightbox-open-report.json"), JSON.stringify(report, null, 2));
 
   if (dims.displayW < (viewport?.width ?? 1920) * 0.5 && dims.displayH < (viewport?.height ?? 1080) * 0.5) {
     console.warn(`WARNING: Lightbox image (${Math.round(dims.displayW)}×${Math.round(dims.displayH)}px) is smaller than 50% of viewport (${viewport?.width}×${viewport?.height}px). Image may be displaying a thumbnail instead of full-res.`);
@@ -225,9 +229,9 @@ test("lightbox transitions to next image within budget", async ({ page }) => {
     verdict: "pass",
   };
 
-  const resultsDir = path.resolve(__dirname, "../../test-results/perf");
-  fs.mkdirSync(resultsDir, { recursive: true });
-  fs.writeFileSync(path.join(resultsDir, "lightbox-transition-report.json"), JSON.stringify(report, null, 2));
+  const resultsDir = resolve(__dirname, "../../test-results/perf");
+  mkdirSync(resultsDir, { recursive: true });
+  writeFileSync(join(resultsDir, "lightbox-transition-report.json"), JSON.stringify(report, null, 2));
 
   if (dims.displayW < (viewport?.width ?? 1920) * 0.5 && dims.displayH < (viewport?.height ?? 1080) * 0.5) {
     console.warn(`WARNING: Lightbox image (${Math.round(dims.displayW)}×${Math.round(dims.displayH)}px) is smaller than 50% of viewport (${viewport?.width}×${viewport?.height}px). Image may be displaying a thumbnail instead of full-res.`);
