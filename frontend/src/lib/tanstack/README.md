@@ -10,6 +10,7 @@ This frontend uses TanStack libraries for state management, data display, and fo
 | `@tanstack/vue-virtual` | ^3.x | ✅ Active | Row-based virtual scrolling for desktop/tablet photo grid. Uses `useVirtualizer` in `GalleryGrid.vue`. |
 | `@tanstack/vue-form` | latest | 🟡 Foundation | Installed but NOT used in any production component yet. Available for future metadata forms, batch editor, settings. See notes below. |
 | `@tanstack/vue-table` | latest | 🟡 Foundation | Installed but NOT used in any production component yet. Available for future metadata management table, duplicate/broken image audit, import history. See notes below. |
+| `@tanstack/vue-query-devtools` | ^6.x | ✅ Active | Lazy-loaded in dev mode only (`isDev` guard in `App.vue`). Not bundled in production build. Provides Query dev panel for inspecting cache, mutations, and refetch triggers. |
 
 ## @tanstack/vue-form — Installed (Not Yet Used in Production)
 
