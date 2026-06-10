@@ -17,7 +17,7 @@ gallery-repo should preserve its fast local web hot path, then selectively add a
 | Biggest current gallery-repo weakness | Metadata/search warmness depends mostly on user-triggered thumbnail and metadata opens. A folder can scan quickly but still be cold for prompt search and lightbox metadata. |
 | Biggest danger if we copy DT blindly | DT-style full-file reads, hashing, pixel fallback scans, or synchronous viewer metadata reparsing would destroy the folder-open and lightbox responsiveness that gallery-repo already has. |
 | Biggest danger if we copy Immich blindly | Immich's full server stack, multi-user storage model, preview-first behavior without original-on-demand guarantees, and DB-first-only timeline assumptions would add operational weight and fundamentally change the product. (gallery-repo adapted Immich's derivative-first concept in Phase 2A but kept original-on-zoom guarantee.) |
-| Recommended direction for the implementation phases | Phase 0: lock current guarantees. Phase 1: add a unified parser core, local background metadata indexer, batched writer, and index status. **Phase 2A (✅ done): derivative-first lightbox** — `/api/preview` (1440px) as PhotoSwipe main src, original `/api/image` only on zoom/fullscreen/download/animated, shared derivative core (`generate_derivative`), cache key per derivative type, neighbor preload (thumbnail + preview only, never original). **Phase 2B (next): fielded metadata search and DB-first warm metadata reads.** Phase 3: warm indexed folder listing + optional watcher. |
+| Recommended direction for the implementation phases | Phase 0: lock current guarantees. Phase 1: add a unified parser core, local background metadata indexer, batched writer, and index status. **Phase 2A (✅ done): derivative-first lightbox** — `/api/preview` (1440px) as PhotoSwipe main src, original `/api/image` only on zoom/fullscreen/download/animated, shared derivative core (`generate_derivative`), cache key per derivative type, neighbor preload (thumbnail + preview only, never original). **Phase 2B (next): fielded metadata search + DB-first warm metadata reads** — first-class search fields for all lightbox-visible metadata, generic `param:`/`advanced:`/`raw:` fallback, backward-compatible unified plain text, and SQLite-first metadata reads for the lightbox panel. Phase 3: warm indexed folder listing + optional watcher. |
 
 The correct direction is not "DT plus a web UI" and not "Immich lite." It is:
 
@@ -1133,25 +1133,115 @@ How to test:
 | Risk level | Medium (successfully mitigated — tests pass, budgets met). |
 | What was learned | iPad Safari doesn't support `color-mix()`. `backdrop-filter + v-if + transition` causes jank on iPad. test-only hook must be gated; do not expose __pswp in production |
 
-### Phase 2B (Next) — Fielded Search, DB-first Warm Metadata
+### Phase 2B (Next) — Fielded Metadata Search + DB-first Warm Metadata Reads
+
+**Rule:** Any metadata field visible in the lightbox should be searchable either as a first-class field or via a generic `param:` / `advanced:` / `raw:` fallback.
+
+#### A. First-class search fields
+
+**Core**
+- `name:` — filename search
+- `prompt:` / `positive:` — positive prompt only
+- `negative:` — negative prompt only
+- `date:` — file date / EXIF date
+- `generation_time:` / `gen_time:` — generation timestamp
+- `source:` / `tool:` — generator application (A1111, ComfyUI, SwarmUI, etc.)
+
+**Generation**
+- `seed:` — exact seed match
+- `steps:` — step count (numeric, supports `>` `<` `>=` `<=`)
+- `cfg:` / `cfg_scale:` — CFG scale
+- `sampler:` — sampler name
+- `scheduler:` — scheduler name
+- `size:` — exact size `WxH` or dimension range
+- `width:` — width in pixels
+- `height:` — height in pixels
+- `aspect_ratio:` / `ratio:` — aspect ratio (e.g. `16:9`, `1:1`)
+
+**Resources**
+- `model:` — model name / identifier
+- `checkpoint:` — checkpoint name
+- `model_hash:` — exact model hash
+- `model_or_hash:` — model name or hash match
+- `lora:` — LoRA name
+- `resource:` — any resource name (LoRA, embedding, etc.)
+- `resource_hash:` — resource hash
+
+**Extra settings**
+- `clip_skip:` — CLIP skip value
+- `hires_upscale:` — hires fix upscale factor
+- `hires_steps:` — hires fix steps
+- `denoising_strength:` — denoising strength
+- `vae:` — VAE name
+- `ensd:` — ENSD value
+- `aesthetic_score:` — aesthetic score
+
+**Location / path**
+- `path:` — exact or partial file path
+- `folder:` — parent folder name
+- `location:` — alias for path/folder (not GPS unless GPS EXIF support added later)
+
+#### B. Generic fallback fields
+
+- `param:<key>:` — search any metadata key by name
+- `advanced:<key>:` — search advanced/workflow-specific keys
+- `raw:` — search raw metadata text
+
+The generic fallback exists so advanced/lightbox-visible metadata can be searched without adding a first-class token for every possible backend-specific metadata key.
+
+#### C. DB-first warm metadata read path
+
+- Lightbox metadata panel reads fresh SQLite metadata first.
+- Fallback to parsing the original file only on cache miss, stale data, or error.
+- Must not block lightbox image open.
+- Must not regress `/api/scan` performance.
+
+#### Important semantics
+
+**1. Plain text remains backward-compatible**
+
+Text outside field tokens remains the current backward-compatible unified search. It preserves existing filename / folder / album / photo / prompt behavior.
+
+Example: `rain seed:123` means unified text search for "rain" AND seed = 123.
+
+**2. Explicit prompt-only search**
+
+`prompt:` / `positive:` search positive prompt only.
+
+Example: `prompt:"girl, rain" seed:123` means: positive prompt contains "girl" AND positive prompt contains "rain" AND seed = 123.
+
+**3. Explicit negative-only search**
+
+`negative:` searches negative prompt only.
+
+Example: `negative:"watermark, blurry"` means: negative prompt contains "watermark" AND negative prompt contains "blurry".
+
+**4. DT-inspired, but gallery-modified**
+
+Inspired by DiffusionToolkit fielded search, but modified for gallery-repo:
+
+- DiffusionToolkit treats residual text as prompt query.
+- Gallery keeps residual text as backward-compatible unified search, and adds explicit `prompt:` / `positive:` for positive-prompt-only search.
+
+#### Implementation scope
 
 | Field | Plan |
 | --- | --- |
-| Goal | Make warmed metadata useful: precise fielded search (`seed:`, `model:`, `sampler:`, etc.) and DB-first warm metadata reads for the lightbox panel (no re-parse when SQLite has fresh data). |
+| Goal | Make warmed metadata useful: precise fielded search and DB-first warm metadata reads for the lightbox panel (no re-parse when SQLite has fresh data). |
 | Why now | Phase 1 created broad indexed data. Phase 2B exposes it safely to search and lightbox workflows. |
 | Why this order | Fielded search and DB-first metadata depend on reliable indexed metadata from Phase 1. |
-| Borrowed from | DT fielded metadata search; Immich DB-first viewer metadata. |
+| Borrowed from | DT fielded metadata search (modified — gallery keeps unified text residual); Immich DB-first viewer metadata. |
 | Current problem solved | Search lacks structured filters; warm lightbox still parses originals instead of reading cached SQLite metadata. |
 | Files likely affected | `backend/search.py`, `backend/metadata_store.py`, `backend/metadata_parse.py`, `frontend/src/services/api.ts`, `frontend/src/composables/usePhotoSwipe.ts`, `frontend/src/stores/lightbox.ts`, `frontend/src/components/Lightbox.vue`, search UI tests. |
-| Backend changes | Add fielded query parser and SQL predicate builder for `seed:`, `steps:`, `cfg:`, `sampler:`, `model:`, `negative:`, `size:`; add cached metadata read path so lightbox reads from SQLite when fresh. |
+| Backend changes | Add fielded query parser and SQL predicate builder for all first-class fields; add generic `param:` / `advanced:` / `raw:` fallback; add cached metadata read path so lightbox reads from SQLite when fresh. |
 | Frontend changes | Prefetch next/previous metadata with TanStack Query; optionally show index readiness subtly; keep normal search behavior unchanged. |
-| DB/schema changes | Possibly add columns such as `tool`, `model_hash`, `scheduler`, `lora_text` after parser fixtures. |
-| API changes | Extend `/api/search` to parse supported field tokens; optionally add cache status fields; keep plain query response shape compatible. |
-| Docs changes | Document fielded syntax and source policy. |
-| Tests to add/update | Fielded search parser; SQL builder; plain text compatibility; warm metadata read path; search no-results settled state. |
+| DB/schema changes | Add columns for new search fields as needed (`tool`, `model_hash`, `scheduler`, `lora_text`, `generation_time`, `aesthetic_score`, etc.) after parser fixtures. |
+| API changes | Extend `/api/search` to parse supported field tokens; add generic fallback parsing; add cache status fields; keep plain query response shape compatible. |
+| Docs changes | Document all fielded syntax, generic fallback, and DB-first metadata read path. |
+| Tests to add/update | Fielded search parser per field; generic fallback parser; SQL builder; plain text compatibility; warm metadata read path; search no-results settled state. |
 | Perf budgets | Plain search p95 must not regress materially; lightbox metadata p95 <= current budget. |
-| Acceptance criteria | `cat seed:123 model:"foo*"` searches prompt text for `cat` and filters metadata; plain `cat` still behaves like today; warm lightbox metadata does not parse the original. |
-| Rollback plan | Disable fielded parser and treat all queries as plain text; disable neighbor metadata prefetch. |
+| Acceptance criteria | `cat seed:123 model:"foo*"` searches unified text for `cat` and filters metadata; `prompt:"girl, rain" seed:123` searches prompt only; plain `cat` still behaves like today; warm lightbox metadata does not parse the original. |
+| Rollback plan | Disable fielded parser and treat all queries as plain text; disable generic fallback; disable neighbor metadata prefetch. |
 | Risk level | Medium. |
 | What not to do | Do not replace normal search with a strict query language; do not preload `/api/image` for neighbors; do not add Redis/BullMQ. |
 
@@ -1288,7 +1378,7 @@ click image
 
 Preview (1440px) is the authoritative lightbox main image. Thumbnail (512px) serves as msrc/placeholder. Original `/api/image` loads only on zoom, fullscreen, download, or for animated files.
 
-### Search target pipeline
+### Search target pipeline (Phase 2B)
 
 ```text
 plain query:
@@ -1296,22 +1386,30 @@ search box "rain portrait"
 -> debounce
 -> GET /api/search?q=rain%20portrait&scope=current&path=...
 -> albums/photos: file_index_fts
--> prompt: image_metadata_fts or trigram FTS
+-> prompt: image_metadata_fts or trigram FTS (backward-compatible unified)
 -> fallback LIKE as today
 -> grouped Albums / Photos / Prompt response
 
-fielded query:
-search box 'rain seed:123 model:"realistic*" negative:"watermark"'
+fielded query (first-class fields):
+search box 'rain prompt:"girl, rain" seed:123 model:"realistic*" negative:"watermark"'
 -> parser extracts:
-     residual text = "rain"
-     filters = seed exact 123, model wildcard realistic*, negative text watermark
--> residual text uses current FTS flow
+     residual text = "rain" (unified search)
+     filters = prompt text "girl, rain", seed exact 123,
+               model wildcard realistic*, negative text watermark
+-> residual text uses current unified FTS flow
 -> filters become SQL predicates over image_metadata
 -> current/all scope still joins through file_index
 -> grouped response shape remains compatible
-```
+
+fielded query (generic fallback):
+search box 'param:some_key:"value" advanced:workflow_field:"data" raw:"raw text"'
+-> generic param:<key>: maps to metadata key-value columns
+-> advanced:<key>: maps to advanced/workflow metadata columns
+-> raw: searches raw metadata text blob
+-> all other rules same as fielded query above
 
 Plain text remains the default. Fielded search is an extension.
+DiffusionToolkit treats residual text as prompt-only; gallery-repo keeps it as unified backward-compatible search.
 
 ## Testing And Perf Gates
 
@@ -1441,7 +1539,7 @@ Do first:
 
 Do next:
 
-1. [Phase 2B] Add fielded search for existing columns: `seed:`, `steps:`, `cfg:`, `sampler:`, `model:`, `negative:`, and `size:`.
+1. [Phase 2B] Add fielded search: first-class fields for all lightbox-visible metadata (prompt:, negative:, seed:, steps:, cfg:, sampler:, scheduler:, model:, model_hash:, lora:, path:, folder:, size:, width:, height:, aspect_ratio:, source:/tool:, date:, generation_time:, clip_skip:, hires_*, denoising_strength:, vae:, ensd:, aesthetic_score:), generic `param:<key>:`, `advanced:<key>:`, and `raw:` fallback for non-first-class keys.
 2. [Phase 2B] Add DB-first warm metadata reads for the lightbox panel (read from SQLite, no re-parse when fresh).
 3. [Phase 3] Add warm indexed folder listing behind freshness checks and fallback.
 4. [Phase 3] Add optional watcher/scheduled refresh.
