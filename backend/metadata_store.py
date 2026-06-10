@@ -224,6 +224,20 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
         _ensure_column(conn, "image_metadata", "mode", "TEXT")
         _ensure_column(conn, "image_metadata", "has_alpha", "INTEGER")
         _ensure_column(conn, "image_metadata", "updated_at", "REAL")
+        _ensure_column(conn, "image_metadata", "tool", "TEXT")
+        _ensure_column(conn, "image_metadata", "scheduler", "TEXT")
+        _ensure_column(conn, "image_metadata", "model_hash", "TEXT")
+        _ensure_column(conn, "image_metadata", "lora_text", "TEXT")
+        _ensure_column(conn, "image_metadata", "generation_time", "REAL")
+        _ensure_column(conn, "image_metadata", "clip_skip", "INTEGER")
+        _ensure_column(conn, "image_metadata", "hires_upscale", "REAL")
+        _ensure_column(conn, "image_metadata", "hires_steps", "INTEGER")
+        _ensure_column(conn, "image_metadata", "denoising_strength", "REAL")
+        _ensure_column(conn, "image_metadata", "vae", "TEXT")
+        _ensure_column(conn, "image_metadata", "ensd", "INTEGER")
+        _ensure_column(conn, "image_metadata", "aesthetic_score", "REAL")
+        _ensure_column(conn, "image_metadata", "date", "TEXT")
+        _ensure_column(conn, "image_metadata", "aspect_ratio", "TEXT")
         conn.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_image_metadata_mtime_size
@@ -563,8 +577,12 @@ def _upsert_extracted_metadata_conn(conn: sqlite3.Connection, metadata: Extracte
         INSERT INTO image_metadata (
           path, name, mtime, size, width, height, prompt, negative_prompt,
           format, mode, has_alpha, model, sampler, seed, steps, cfg_scale,
-          raw_metadata_text, metadata_json, updated_at, indexed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          raw_metadata_text, metadata_json, updated_at, indexed_at,
+          tool, scheduler, model_hash, lora_text, generation_time,
+          clip_skip, hires_upscale, hires_steps, denoising_strength,
+          vae, ensd, aesthetic_score, date, aspect_ratio
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(path) DO UPDATE SET
           name=excluded.name,
           mtime=excluded.mtime,
@@ -584,7 +602,21 @@ def _upsert_extracted_metadata_conn(conn: sqlite3.Connection, metadata: Extracte
           raw_metadata_text=excluded.raw_metadata_text,
           metadata_json=excluded.metadata_json,
           updated_at=excluded.updated_at,
-          indexed_at=excluded.indexed_at
+          indexed_at=excluded.indexed_at,
+          tool=excluded.tool,
+          scheduler=excluded.scheduler,
+          model_hash=excluded.model_hash,
+          lora_text=excluded.lora_text,
+          generation_time=excluded.generation_time,
+          clip_skip=excluded.clip_skip,
+          hires_upscale=excluded.hires_upscale,
+          hires_steps=excluded.hires_steps,
+          denoising_strength=excluded.denoising_strength,
+          vae=excluded.vae,
+          ensd=excluded.ensd,
+          aesthetic_score=excluded.aesthetic_score,
+          date=excluded.date,
+          aspect_ratio=excluded.aspect_ratio
         """,
         (
             metadata.path,
@@ -607,6 +639,20 @@ def _upsert_extracted_metadata_conn(conn: sqlite3.Connection, metadata: Extracte
             metadata.metadata_json,
             metadata.indexed_at,
             metadata.indexed_at,
+            metadata.tool,
+            metadata.scheduler,
+            metadata.model_hash,
+            metadata.lora_text,
+            metadata.generation_time,
+            metadata.clip_skip,
+            metadata.hires_upscale,
+            metadata.hires_steps,
+            metadata.denoising_strength,
+            metadata.vae,
+            metadata.ensd,
+            metadata.aesthetic_score,
+            metadata.date,
+            metadata.aspect_ratio,
         ),
     )
 
@@ -663,6 +709,48 @@ def index_images(paths: Iterable[str | Path]) -> int:
         except Exception:
             continue
     return indexed
+
+
+def get_lightbox_metadata(path: str | Path) -> dict | None:
+    """Read metadata from SQLite. Returns None if not cached or stale."""
+    resolved = str(Path(path).resolve())
+    try:
+        stat = Path(path).stat()
+    except OSError:
+        return None
+
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        row = conn.execute(
+            """
+            SELECT * FROM image_metadata
+            WHERE path = ? AND mtime = ? AND size = ? AND metadata_json IS NOT NULL
+            """,
+            (resolved, stat.st_mtime, stat.st_size),
+        ).fetchone()
+        if row is None:
+            return None
+
+        metadata_json = row["metadata_json"]
+        if not metadata_json:
+            return None
+
+        try:
+            parsed = json.loads(metadata_json)
+        except (json.JSONDecodeError, TypeError):
+            return None
+
+        if not isinstance(parsed, dict):
+            return None
+
+        parsed.setdefault("tool", "Unknown")
+        parsed.setdefault("prompt", row["prompt"] or "")
+        parsed.setdefault("negative_prompt", row["negative_prompt"] or "")
+        parsed.setdefault("params", {})
+        parsed["width"] = row["width"]
+        parsed["height"] = row["height"]
+        parsed["name"] = row["name"]
+        return parsed
 
 
 def get_cached_dimensions_for_files(files: Iterable[tuple[str | Path, float, int]]) -> dict[str, CachedDimensions]:
@@ -1377,6 +1465,75 @@ def search_index(query: str, scope: str, root_path: str | Path | None = None, li
         album_rows, root = _search_file_index_fts(conn, trimmed, "folder", normalized_scope, root_path, limit)
         photo_rows, root = _search_file_index_fts(conn, trimmed, "photo", normalized_scope, root_path, limit)
         prompt_rows, root = _search_prompt_rows(conn, trimmed, normalized_scope, root_path, limit)
+
+    return {
+        "query": query,
+        "scope": normalized_scope,
+        "root": str(root),
+        "albums": _format_file_index_rows(album_rows, root, "filename"),
+        "photos": _format_file_index_rows(photo_rows, root, "filename"),
+        "prompt": _format_prompt_rows(prompt_rows, root),
+    }
+
+
+def search_index_fielded(query: str, scope: str, root_path: str | Path | None = None, limit: int = 50) -> dict[str, Any]:
+    from .fielded_search_parser import ParsedQuery, build_fielded_search_sql, parse_fielded_query
+
+    initialize_database()
+    trimmed = query.strip()
+    normalized_scope = "all" if scope == "all" else "current"
+    limit = max(1, min(limit, 200))
+    root = Path(root_path).resolve() if normalized_scope == "current" and root_path else GALLERY_ROOT
+
+    if not trimmed:
+        return {
+            "query": query,
+            "scope": normalized_scope,
+            "root": str(root),
+            "albums": [],
+            "photos": [],
+            "prompt": [],
+        }
+
+    parsed = parse_fielded_query(trimmed)
+
+    if parsed.residual_text:
+        album_query = parsed.residual_text
+        photo_query = parsed.residual_text
+    else:
+        album_query = ""
+        photo_query = ""
+
+    with _DB_LOCK, _connect() as conn:
+        if album_query:
+            album_rows, root = _search_file_index_fts(conn, album_query, "folder", normalized_scope, root_path, limit)
+        else:
+            album_rows = []
+
+        if photo_query and not parsed.fields:
+            photo_rows, root = _search_file_index_fts(conn, photo_query, "photo", normalized_scope, root_path, limit)
+        else:
+            photo_rows = []
+
+        if parsed.fields or parsed.residual_text:
+            sql, sql_params = build_fielded_search_sql(parsed, limit)
+            if normalized_scope == "current":
+                root_str, root_prefix = _path_prefix(root)
+                if "WHERE" in sql:
+                    sql = sql.replace("WHERE ", f"WHERE (fi.path = :scope_root OR fi.path LIKE :scope_prefix ESCAPE '\\') AND ")
+                else:
+                    sql = sql.replace(
+                        "ORDER BY",
+                        "WHERE (fi.path = :scope_root OR fi.path LIKE :scope_prefix ESCAPE '\\') ORDER BY",
+                    )
+                sql_params["scope_root"] = root_str
+                sql_params["scope_prefix"] = root_prefix
+            try:
+                prompt_rows = list(conn.execute(sql, sql_params))
+            except Exception:
+                prompt_rows = []
+        else:
+            prompt_rows = []
 
     return {
         "query": query,

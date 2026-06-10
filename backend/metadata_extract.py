@@ -37,6 +37,20 @@ class ExtractedMetadata:
     raw_metadata_text: str
     metadata_json: str
     indexed_at: float
+    tool: str = ""
+    scheduler: str = ""
+    model_hash: str = ""
+    lora_text: str = ""
+    generation_time: float | None = None
+    clip_skip: int | None = None
+    hires_upscale: float | None = None
+    hires_steps: int | None = None
+    denoising_strength: float | None = None
+    vae: str = ""
+    ensd: int | None = None
+    aesthetic_score: float | None = None
+    date: str = ""
+    aspect_ratio: str = ""
 
 
 def extract_loras(text: str) -> list[str]:
@@ -706,6 +720,27 @@ def extract_metadata(path: Path) -> ExtractedMetadata:
         raw_parts.append(raw_source_text)
     raw_metadata_text = "\n".join(text for text in raw_parts if text)
 
+    tool = safe_text(result.get("tool"))
+    scheduler = safe_text(_metadata_param(result, "Scheduler", "scheduler"))
+    model_hash = safe_text(_metadata_param(result, "model_hash", "Model hash"))
+    lora_list = _metadata_param(result, "Lora", "lora")
+    if isinstance(lora_list, list):
+        lora_text = ", ".join(str(l) for l in lora_list)
+    else:
+        lora_text = safe_text(lora_list)
+    generation_time = result.get("generation_time")
+    if generation_time is not None:
+        generation_time = parse_float(safe_text(generation_time))
+    clip_skip = parse_int(safe_text(_metadata_param(result, "clip_skip", "Clip skip")))
+    hires_upscale = parse_float(safe_text(_metadata_param(result, "hires_upscale", "Hires upscale")))
+    hires_steps = parse_int(safe_text(_metadata_param(result, "hires_steps", "Hires steps")))
+    denoising_strength = parse_float(safe_text(_metadata_param(result, "denoising_strength", "Denoising strength")))
+    vae = safe_text(_metadata_param(result, "VAE", "vae"))
+    ensd = parse_int(safe_text(_metadata_param(result, "ENSD", "ensd")))
+    aesthetic_score = parse_float(safe_text(_metadata_param(result, "aesthetic_score", "Aesthetic score")))
+    date = safe_text(result.get("date"))
+    aspect_ratio = safe_text(_metadata_param(result, "AspectRatio", "aspect_ratio"))
+
     return ExtractedMetadata(
         path=str(path.resolve()),
         name=path.name,
@@ -726,4 +761,18 @@ def extract_metadata(path: Path) -> ExtractedMetadata:
         raw_metadata_text=raw_metadata_text,
         metadata_json=metadata_json,
         indexed_at=time.time(),
+        tool=tool,
+        scheduler=scheduler,
+        model_hash=model_hash,
+        lora_text=lora_text,
+        generation_time=generation_time,
+        clip_skip=clip_skip,
+        hires_upscale=hires_upscale,
+        hires_steps=hires_steps,
+        denoising_strength=denoising_strength,
+        vae=vae,
+        ensd=ensd,
+        aesthetic_score=aesthetic_score,
+        date=date,
+        aspect_ratio=aspect_ratio,
     )

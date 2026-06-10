@@ -15,7 +15,7 @@ from .config import METADATA_CACHE_MAX_BYTES
 from .errors import APIError, ErrorType
 from .files import check_image_limits, is_image
 from .metadata_extract import extract_loras, extract_metadata, extracted_metadata_to_api
-from .metadata_store import upsert_extracted_metadata
+from .metadata_store import get_lightbox_metadata, upsert_extracted_metadata
 from .paths import is_path_safe, resolve_path
 
 
@@ -360,7 +360,7 @@ def _metadata_cache_key(path: Path) -> tuple:
 def parse_metadata(path: Path) -> dict:
     """
     Parse and cache image metadata.
-    Uses size-based LRU cache (100MB max) for optimal memory usage.
+    Uses DB-first warm reads with LRU fallback for optimal performance.
     """
     if not path.exists() or not path.is_file():
         raise APIError(404, ErrorType.NOT_FOUND, "Image file not found")
@@ -374,6 +374,11 @@ def parse_metadata(path: Path) -> dict:
         cached = _metadata_cache.get(key)
         if cached is not None:
             return copy.deepcopy(cached)
+
+        db_meta = get_lightbox_metadata(path)
+        if db_meta is not None:
+            _metadata_cache[key] = db_meta
+            return copy.deepcopy(db_meta)
 
         future = _metadata_inflight.get(key)
         if future is None:
