@@ -199,6 +199,36 @@ def test_process_batch_yields_to_active_scan_before_sqlite_write(tmp_path, monke
     assert events[1][1] > events[0][1]
 
 
+def test_process_batch_returns_on_jobs_running_fail_and_failed_mark_also_fails(monkeypatch: pytest.MonkeyPatch):
+    job = _job("/images/a.jpg")
+    calls = {"running": 0, "failed": 0}
+
+    def fake_mark_running(jobs):  # noqa: ANN001
+        calls["running"] += 1
+        raise indexer._SQLiteBusyRetriesExhausted("running mark failed")
+
+    def fake_mark_failed(failed_jobs):  # noqa: ANN001
+        calls["failed"] += 1
+        raise indexer._SQLiteBusyRetriesExhausted("failed mark failed")
+
+    def should_not_be_called(*args, **kwargs):  # noqa: ANN002, ANN003
+        raise AssertionError("should not be called")
+
+    monkeypatch.setattr(indexer, "mark_metadata_jobs_running", fake_mark_running)
+    monkeypatch.setattr(indexer, "mark_metadata_jobs_failed", fake_mark_failed)
+    monkeypatch.setattr(indexer, "extract_metadata", should_not_be_called)
+    monkeypatch.setattr(indexer, "upsert_metadata_batch", should_not_be_called)
+    monkeypatch.setattr(indexer, "mark_metadata_jobs_done", should_not_be_called)
+
+    with indexer._worker_lock:
+        indexer._queued_keys.add(job.key)
+
+    indexer._process_batch([job])
+
+    assert calls == {"running": 1, "failed": 1}
+    assert indexer._queued_keys == set()
+
+
 def test_flush_staged_paths_retries_sqlite_busy_then_queues(monkeypatch: pytest.MonkeyPatch):
     job = _job("/images/a.jpg")
     calls = {"count": 0}
