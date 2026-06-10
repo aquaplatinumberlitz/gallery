@@ -11,7 +11,11 @@ from .albums import build_album_metadata
 from .config import DEFAULT_ROOT, SCAN_PERF_LOGS_ENABLED
 from .errors import APIError, ErrorType
 from .files import is_image, natural_sort_key
-from .indexer import enqueue_metadata_jobs_from_scan
+from .indexer import (
+    enqueue_metadata_jobs_from_scan,
+    note_scan_request_finished,
+    note_scan_request_started,
+)
 from .metadata_store import (
     get_cached_dimensions_for_files,
     index_directory_tree,
@@ -157,64 +161,69 @@ async def api_scan(
     image_limit: int | None = Query(None, ge=1, le=5000, description="Max images to return"),
     image_cursor: int = Query(0, ge=0, description="Cursor/offset for images"),
 ):
+    note_scan_request_started()
     request_started = time.perf_counter()
     resolve_started = time.perf_counter()
     target = resolve_path(path) if path else DEFAULT_ROOT
     resolve_ms = _elapsed_ms(resolve_started)
     if not is_path_safe(target):
+        note_scan_request_finished()
         raise APIError(403, "permission", "Access denied: path outside allowed root")
-    folders, images, scan_perf = await run_in_threadpool(scan_directory, target)
+    try:
+        folders, images, scan_perf = await run_in_threadpool(scan_directory, target)
 
-    pagination_started = time.perf_counter()
-    total_images = len(images)
-    start = image_cursor
-    end = image_cursor + image_limit if image_limit else total_images
-    paged_images = images[start:end]
-    next_cursor = end if end < total_images else None
-    pagination_ms = _elapsed_ms(pagination_started)
+        pagination_started = time.perf_counter()
+        total_images = len(images)
+        start = image_cursor
+        end = image_cursor + image_limit if image_limit else total_images
+        paged_images = images[start:end]
+        next_cursor = end if end < total_images else None
+        pagination_ms = _elapsed_ms(pagination_started)
 
-    target_stat_started = time.perf_counter()
-    target_mtime = target.stat().st_mtime
-    scan_perf["stat_ms"] += _elapsed_ms(target_stat_started)
-    background_tasks.add_task(index_file, target, target.name or str(target), target.parent, "folder", target_mtime, None, None, None)
-    background_tasks.add_task(index_files_from_scan, folders, images)
-    background_tasks.add_task(index_directory_tree, target, False)
-    background_tasks.add_task(enqueue_metadata_jobs_from_scan, images, target)
+        target_stat_started = time.perf_counter()
+        target_mtime = target.stat().st_mtime
+        scan_perf["stat_ms"] += _elapsed_ms(target_stat_started)
+        background_tasks.add_task(index_file, target, target.name or str(target), target.parent, "folder", target_mtime, None, None, None)
+        background_tasks.add_task(index_files_from_scan, folders, images)
+        background_tasks.add_task(index_directory_tree, target, False)
+        background_tasks.add_task(enqueue_metadata_jobs_from_scan, images, target)
 
-    response_payload = {
-        "folders": folders,
-        "images": paged_images,
-        "next_cursor": next_cursor,
-        "total_images": total_images,
-    }
-    serialize_started = time.perf_counter()
-    encoded_payload = jsonable_encoder(response_payload)
-    serialize_ms = _elapsed_ms(serialize_started)
-    total_ms = _elapsed_ms(request_started)
+        response_payload = {
+            "folders": folders,
+            "images": paged_images,
+            "next_cursor": next_cursor,
+            "total_images": total_images,
+        }
+        serialize_started = time.perf_counter()
+        encoded_payload = jsonable_encoder(response_payload)
+        serialize_ms = _elapsed_ms(serialize_started)
+        total_ms = _elapsed_ms(request_started)
 
-    if SCAN_PERF_LOGS_ENABLED:
-        print(
-            "[SCAN PERF] "
-            f"path={target} "
-            f"limit={image_limit if image_limit is not None else 'none'} "
-            f"cursor={image_cursor} "
-            f"total={total_ms:.0f}ms "
-            f"resolve={resolve_ms:.0f}ms "
-            f"list={scan_perf['list_ms']:.0f}ms "
-            f"recursive_walk={scan_perf['recursive_walk_ms']:.0f}ms "
-            f"stat={scan_perf['stat_ms']:.0f}ms "
-            f"image_filter={scan_perf['image_filter_ms']:.0f}ms "
-            f"folder_filter={scan_perf['folder_filter_ms']:.0f}ms "
-            f"metadata={scan_perf['metadata_ms']:.0f}ms "
-            f"sort={scan_perf['sort_ms']:.0f}ms "
-            f"pagination={pagination_ms:.0f}ms "
-            f"serialize={serialize_ms:.0f}ms "
-            f"entries={scan_perf['entries_scanned']} "
-            f"folders={scan_perf['folders_found']} "
-            f"images_total={total_images} "
-            f"images_returned={len(paged_images)} "
-            f"next_cursor={next_cursor}",
-            flush=True,
-        )
+        if SCAN_PERF_LOGS_ENABLED:
+            print(
+                "[SCAN PERF] "
+                f"path={target} "
+                f"limit={image_limit if image_limit is not None else 'none'} "
+                f"cursor={image_cursor} "
+                f"total={total_ms:.0f}ms "
+                f"resolve={resolve_ms:.0f}ms "
+                f"list={scan_perf['list_ms']:.0f}ms "
+                f"recursive_walk={scan_perf['recursive_walk_ms']:.0f}ms "
+                f"stat={scan_perf['stat_ms']:.0f}ms "
+                f"image_filter={scan_perf['image_filter_ms']:.0f}ms "
+                f"folder_filter={scan_perf['folder_filter_ms']:.0f}ms "
+                f"metadata={scan_perf['metadata_ms']:.0f}ms "
+                f"sort={scan_perf['sort_ms']:.0f}ms "
+                f"pagination={pagination_ms:.0f}ms "
+                f"serialize={serialize_ms:.0f}ms "
+                f"entries={scan_perf['entries_scanned']} "
+                f"folders={scan_perf['folders_found']} "
+                f"images_total={total_images} "
+                f"images_returned={len(paged_images)} "
+                f"next_cursor={next_cursor}",
+                flush=True,
+            )
 
-    return JSONResponse(content=encoded_payload)
+        return JSONResponse(content=encoded_payload)
+    finally:
+        note_scan_request_finished()

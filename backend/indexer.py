@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import queue
 import threading
 import time
@@ -12,6 +13,8 @@ from fastapi.concurrency import run_in_threadpool
 from .config import (
     METADATA_INDEXER_BATCH_SIZE,
     METADATA_INDEXER_ENABLED,
+    METADATA_INDEXER_STAGE_BATCH_SIZE,
+    METADATA_INDEXER_STAGE_SLEEP_SECONDS,
     METADATA_INDEXER_WORKER_SLEEP_SECONDS,
 )
 from .errors import APIError, ErrorType
@@ -35,6 +38,7 @@ except Exception:  # pragma: no cover - metrics are optional at import time.
 
 
 router = APIRouter()
+LOGGER = logging.getLogger(__name__)
 
 _job_queue: queue.Queue[MetadataIndexJob] = queue.Queue()
 _worker_lock = threading.RLock()
@@ -42,6 +46,15 @@ _worker_thread: threading.Thread | None = None
 _queued_keys: set[tuple[str, float, int]] = set()
 _active_jobs = 0
 _coalesced_duplicates = 0
+
+_pending_path_queue: queue.Queue[tuple[str, str | None]] = queue.Queue()
+_pending_path_keys: set[tuple[str, str | None]] = set()
+_path_stager_thread: threading.Thread | None = None
+_path_stager_lock = threading.RLock()
+_staged_path_coalesced = 0
+_staged_path_failed = 0
+_last_path_stage_at = 0.0
+_active_scan_requests = 0
 
 
 def _metric(factory: Any, name: str, documentation: str, *args: Any, **kwargs: Any) -> Any:
@@ -105,8 +118,11 @@ def _update_runtime_queue_metrics() -> None:
     with _worker_lock:
         queued = _job_queue.qsize()
         running = _active_jobs
+    with _path_stager_lock:
+        staged = _pending_path_queue.qsize()
     _queue_depth_metric.labels("queued").set(queued)
     _queue_depth_metric.labels("running").set(running)
+    _queue_depth_metric.labels("staged_paths").set(staged)
 
 
 def _is_job_current(job: MetadataIndexJob) -> bool:
@@ -132,6 +148,21 @@ def _start_worker_if_needed() -> None:
         _worker_thread.start()
 
 
+def _start_path_stager_if_needed() -> None:
+    global _path_stager_thread
+    if not METADATA_INDEXER_ENABLED:
+        return
+    with _path_stager_lock:
+        if _path_stager_thread and _path_stager_thread.is_alive():
+            return
+        _path_stager_thread = threading.Thread(
+            target=_path_stager_loop,
+            name="gallery-metadata-path-stager",
+            daemon=True,
+        )
+        _path_stager_thread.start()
+
+
 def _drain_batch(first_job: MetadataIndexJob) -> list[MetadataIndexJob]:
     batch = [first_job]
     while len(batch) < METADATA_INDEXER_BATCH_SIZE:
@@ -140,6 +171,20 @@ def _drain_batch(first_job: MetadataIndexJob) -> list[MetadataIndexJob]:
         except queue.Empty:
             break
     return batch
+
+
+def _drain_path_batch(first_path: tuple[str, str | None]) -> list[tuple[str, str | None]]:
+    batch = [first_path]
+    _drain_additional_paths(batch)
+    return batch
+
+
+def _drain_additional_paths(batch: list[tuple[str, str | None]]) -> None:
+    while len(batch) < METADATA_INDEXER_STAGE_BATCH_SIZE:
+        try:
+            batch.append(_pending_path_queue.get_nowait())
+        except queue.Empty:
+            break
 
 
 def _worker_loop() -> None:
@@ -210,15 +255,8 @@ def _process_batch(jobs: list[MetadataIndexJob]) -> None:
                 _queued_keys.discard(job.key)
 
 
-def enqueue_metadata_jobs(
-    paths: Iterable[str | Path],
-    root_path: str | Path | None = None,
-    *,
-    start_worker: bool = True,
-) -> dict[str, int]:
-    """Queue metadata parse jobs. This performs only stat/SQLite bookkeeping."""
+def _enqueue_metadata_jobs_from_result(result: Any, *, start_worker: bool = True) -> dict[str, int]:
     global _coalesced_duplicates
-    result = queue_metadata_index_paths(paths, root_path)
     queued = 0
     in_memory_coalesced = 0
 
@@ -246,25 +284,194 @@ def enqueue_metadata_jobs(
     }
 
 
-def enqueue_metadata_jobs_from_scan(images: Iterable[Any], root_path: str | Path | None = None) -> dict[str, int]:
+def enqueue_metadata_jobs(
+    paths: Iterable[str | Path],
+    root_path: str | Path | None = None,
+    *,
+    start_worker: bool = True,
+) -> dict[str, int]:
+    """Queue metadata parse jobs. This performs stat/SQLite bookkeeping."""
+    result = queue_metadata_index_paths(paths, root_path)
+    return _enqueue_metadata_jobs_from_result(result, start_worker=start_worker)
+
+
+def stage_metadata_paths_from_scan(
+    paths: Iterable[str | Path],
+    root_path: str | Path | None = None,
+    *,
+    start_worker: bool = True,
+) -> dict[str, int]:
+    """Stage scan-discovered image paths in RAM without touching SQLite or files."""
+    global _last_path_stage_at, _staged_path_coalesced
+    staged = 0
+    coalesced = 0
+    skipped = 0
+    root_text = str(root_path) if root_path is not None else None
+    saw_stage_activity = False
+
+    with _path_stager_lock:
+        for raw_path in paths:
+            path_text = str(raw_path) if raw_path else ""
+            if not path_text or not METADATA_INDEXER_ENABLED:
+                skipped += 1
+                continue
+
+            saw_stage_activity = True
+            key = (path_text, root_text)
+            if key in _pending_path_keys:
+                coalesced += 1
+                continue
+
+            _pending_path_keys.add(key)
+            _pending_path_queue.put(key)
+            staged += 1
+
+        if saw_stage_activity:
+            _last_path_stage_at = time.monotonic()
+        _staged_path_coalesced += coalesced
+
+    if staged and start_worker:
+        _start_path_stager_if_needed()
+    _update_runtime_queue_metrics()
+    return {"staged": staged, "coalesced": coalesced, "skipped": skipped}
+
+
+def note_scan_request_started() -> None:
+    """Record scan hot-path activity so staged DB writes can yield."""
+    global _active_scan_requests, _last_path_stage_at
+    if not METADATA_INDEXER_ENABLED:
+        return
+    with _path_stager_lock:
+        _active_scan_requests += 1
+        _last_path_stage_at = time.monotonic()
+
+
+def note_scan_request_finished() -> None:
+    """Record scan hot-path completion so staged DB writes can resume later."""
+    global _active_scan_requests, _last_path_stage_at
+    if not METADATA_INDEXER_ENABLED:
+        return
+    with _path_stager_lock:
+        _active_scan_requests = max(0, _active_scan_requests - 1)
+        _last_path_stage_at = time.monotonic()
+
+
+def _path_stager_loop() -> None:
+    while True:
+        first_path = _pending_path_queue.get()
+        batch = _drain_path_batch(first_path)
+        try:
+            _wait_for_staged_paths_to_go_idle()
+            _drain_additional_paths(batch)
+            _flush_staged_paths_to_job_queue(batch)
+        except Exception as exc:  # noqa: BLE001
+            _record_staged_path_failure(len(batch))
+            LOGGER.exception("Unhandled metadata path staging failure: %s", exc)
+        finally:
+            with _path_stager_lock:
+                for key in batch:
+                    _pending_path_keys.discard(key)
+            for _ in batch:
+                _pending_path_queue.task_done()
+            _update_runtime_queue_metrics()
+
+
+def _wait_for_staged_paths_to_go_idle() -> None:
+    sleep_seconds = METADATA_INDEXER_STAGE_SLEEP_SECONDS
+    if not sleep_seconds:
+        return
+
+    while True:
+        time.sleep(sleep_seconds)
+        with _path_stager_lock:
+            active_scan_requests = _active_scan_requests
+            idle_for = time.monotonic() - _last_path_stage_at
+        if active_scan_requests == 0 and idle_for >= sleep_seconds:
+            # Extra hold-off: sleep another cycle so the next scan request can
+            # start and register note_scan_request_started() before we grab
+            # the SQLite write lock.
+            time.sleep(sleep_seconds)
+            return
+
+
+def _record_staged_path_failure(count: int) -> None:
+    global _staged_path_failed
+    if count <= 0:
+        return
+    with _path_stager_lock:
+        _staged_path_failed += count
+    _inc(_jobs_total_metric, "error", amount=count)
+
+
+def _flush_staged_paths_to_job_queue(
+    batch: Iterable[tuple[str, str | None]],
+    *,
+    start_worker: bool = True,
+) -> dict[str, int]:
+    """Move staged scan paths into the durable metadata job queue."""
+    grouped_paths: dict[str | None, list[str]] = {}
+    for path, root_path in batch:
+        grouped_paths.setdefault(root_path, []).append(path)
+
+    totals = {"queued": 0, "coalesced": 0, "skipped": 0, "failed": 0}
+    for root_path, paths in grouped_paths.items():
+        try:
+            result = queue_metadata_index_paths(paths, root_path)
+        except Exception as exc:  # noqa: BLE001
+            failed = len(paths)
+            totals["failed"] += failed
+            _record_staged_path_failure(failed)
+            LOGGER.warning("Failed to flush %s staged metadata paths: %s", failed, exc)
+            time.sleep(max(0.1, METADATA_INDEXER_STAGE_SLEEP_SECONDS))
+            continue
+
+        queued = _enqueue_metadata_jobs_from_result(result, start_worker=start_worker)
+        for key in totals:
+            totals[key] += queued[key]
+
+    return totals
+
+
+def enqueue_metadata_jobs_from_scan(
+    images: Iterable[Any],
+    root_path: str | Path | None = None,
+    *,
+    start_worker: bool = True,
+) -> dict[str, int]:
     paths: list[str] = []
     for item in images:
         raw_path = item.get("path") if isinstance(item, dict) else getattr(item, "path", None)
         if raw_path:
             paths.append(str(raw_path))
-    return enqueue_metadata_jobs(paths, root_path)
+    return stage_metadata_paths_from_scan(paths, root_path, start_worker=start_worker)
 
 
 def get_indexer_runtime_status() -> dict[str, Any]:
     with _worker_lock:
-        return {
-            "enabled": METADATA_INDEXER_ENABLED,
-            "worker_count": 1 if _worker_thread and _worker_thread.is_alive() else 0,
-            "active_jobs": _active_jobs,
-            "runtime_queue_depth": _job_queue.qsize(),
-            "coalesced_duplicates": _coalesced_duplicates,
-            "batch_size": METADATA_INDEXER_BATCH_SIZE,
-        }
+        worker_count = 1 if _worker_thread and _worker_thread.is_alive() else 0
+        active_jobs = _active_jobs
+        runtime_queue_depth = _job_queue.qsize()
+        coalesced_duplicates = _coalesced_duplicates
+    with _path_stager_lock:
+        staged_path_queue_depth = _pending_path_queue.qsize()
+        staged_path_coalesced = _staged_path_coalesced
+        staged_path_failed = _staged_path_failed
+        staged_path_worker_count = 1 if _path_stager_thread and _path_stager_thread.is_alive() else 0
+        active_scan_requests = _active_scan_requests
+    return {
+        "enabled": METADATA_INDEXER_ENABLED,
+        "worker_count": worker_count,
+        "active_jobs": active_jobs,
+        "runtime_queue_depth": runtime_queue_depth,
+        "coalesced_duplicates": coalesced_duplicates,
+        "batch_size": METADATA_INDEXER_BATCH_SIZE,
+        "staged_path_queue_depth": staged_path_queue_depth,
+        "staged_path_coalesced": staged_path_coalesced,
+        "staged_path_failed": staged_path_failed,
+        "staged_path_worker_count": staged_path_worker_count,
+        "staged_path_batch_size": METADATA_INDEXER_STAGE_BATCH_SIZE,
+        "active_scan_requests": active_scan_requests,
+    }
 
 
 @router.get("/api/index/status")
