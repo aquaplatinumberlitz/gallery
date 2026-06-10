@@ -41,6 +41,13 @@ if (import.meta.env.DEV) {
     .catch((error) => {
       console.warn('[IconDebug] failed to load', error);
     });
+  // Reload debug monitor — enable via ?debugReload=1 or localStorage GALLERY_DEBUG_RELOAD
+  if (
+    new URLSearchParams(window.location.search).has("debugReload") ||
+    (() => { try { return localStorage.getItem("GALLERY_DEBUG_RELOAD") === "1"; } catch { return false; } })()
+  ) {
+    import("./debug/reloadMonitor").then((m) => m.startReloadMonitor());
+  }
 }
 
 app.use(createPinia());
