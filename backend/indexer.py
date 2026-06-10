@@ -5,7 +5,7 @@ import queue
 import threading
 import time
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 from fastapi import APIRouter, Query
 from fastapi.concurrency import run_in_threadpool
@@ -13,7 +13,12 @@ from fastapi.concurrency import run_in_threadpool
 from .config import (
     METADATA_INDEXER_BATCH_SIZE,
     METADATA_INDEXER_ENABLED,
+    METADATA_INDEXER_SCAN_YIELD_MAX_SECONDS,
+    METADATA_INDEXER_SCAN_YIELD_SECONDS,
+    METADATA_INDEXER_SQLITE_BUSY_BACKOFF_SECONDS,
+    METADATA_INDEXER_SQLITE_BUSY_RETRIES,
     METADATA_INDEXER_STAGE_BATCH_SIZE,
+    METADATA_INDEXER_STAGE_MAX_WAIT_SECONDS,
     METADATA_INDEXER_STAGE_SLEEP_SECONDS,
     METADATA_INDEXER_WORKER_SLEEP_SECONDS,
 )
@@ -53,6 +58,7 @@ _path_stager_thread: threading.Thread | None = None
 _path_stager_lock = threading.RLock()
 _staged_path_coalesced = 0
 _staged_path_failed = 0
+_staged_path_flushes_forced = 0
 _last_path_stage_at = 0.0
 _active_scan_requests = 0
 
@@ -98,6 +104,11 @@ _sqlite_batch_size_metric = _metric(
     "gallery_sqlite_write_batch_size",
     "SQLite metadata write batch size",
 )
+_staged_path_forced_flush_metric = _metric(
+    Counter,
+    "gallery_index_staged_path_flushes_forced_total",
+    "Forced staged metadata path flushes after max scan wait",
+)
 
 
 def _inc(metric: Any, *labels: str, amount: float = 1.0) -> None:
@@ -110,6 +121,62 @@ def _inc(metric: Any, *labels: str, amount: float = 1.0) -> None:
 def _observe(metric: Any, value: float) -> None:
     if metric is not None:
         metric.observe(value)
+
+
+class _SQLiteBusyRetriesExhausted(RuntimeError):
+    """Raised after a transient SQLite busy/locked error exhausts retries."""
+
+
+def _is_sqlite_busy_error(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return "database is locked" in text or "database is busy" in text or "locked" in text
+
+
+def _retry_sqlite_busy(operation: Callable[[], Any], description: str) -> Any:
+    retries = METADATA_INDEXER_SQLITE_BUSY_RETRIES
+    for attempt in range(retries + 1):
+        try:
+            return operation()
+        except Exception as exc:  # noqa: BLE001
+            if not _is_sqlite_busy_error(exc):
+                raise
+            if attempt >= retries:
+                raise _SQLiteBusyRetriesExhausted(f"{description} SQLite busy after retries: {exc}") from exc
+            backoff_seconds = METADATA_INDEXER_SQLITE_BUSY_BACKOFF_SECONDS * (attempt + 1)
+            if backoff_seconds:
+                time.sleep(backoff_seconds)
+    raise AssertionError("unreachable SQLite retry loop")
+
+
+def _yield_to_active_scans(max_wait_seconds: float | None = None) -> None:
+    sleep_seconds = METADATA_INDEXER_SCAN_YIELD_SECONDS
+    if sleep_seconds <= 0:
+        return
+
+    with _path_stager_lock:
+        active_scan_requests = _active_scan_requests
+    if active_scan_requests <= 0:
+        return
+
+    max_wait = METADATA_INDEXER_SCAN_YIELD_MAX_SECONDS if max_wait_seconds is None else max(0.0, max_wait_seconds)
+    started_waiting = time.monotonic()
+    while True:
+        waited_for = time.monotonic() - started_waiting
+        if waited_for >= max_wait:
+            return
+        time.sleep(min(sleep_seconds, max_wait - waited_for))
+        with _path_stager_lock:
+            active_scan_requests = _active_scan_requests
+        if active_scan_requests <= 0:
+            return
+
+
+def _run_sqlite_write(operation: Callable[[], Any], description: str) -> Any:
+    def attempt() -> Any:
+        _yield_to_active_scans()
+        return operation()
+
+    return _retry_sqlite_busy(attempt, description)
 
 
 def _update_runtime_queue_metrics() -> None:
@@ -173,14 +240,9 @@ def _drain_batch(first_job: MetadataIndexJob) -> list[MetadataIndexJob]:
     return batch
 
 
-def _drain_path_batch(first_path: tuple[str, str | None]) -> list[tuple[str, str | None]]:
-    batch = [first_path]
-    _drain_additional_paths(batch)
-    return batch
-
-
-def _drain_additional_paths(batch: list[tuple[str, str | None]]) -> None:
-    while len(batch) < METADATA_INDEXER_STAGE_BATCH_SIZE:
+def _drain_additional_paths(batch: list[tuple[str, str | None]], *, limit: int | None = None) -> None:
+    batch_limit = METADATA_INDEXER_STAGE_BATCH_SIZE if limit is None else max(1, min(limit, METADATA_INDEXER_STAGE_BATCH_SIZE))
+    while len(batch) < batch_limit:
         try:
             batch.append(_pending_path_queue.get_nowait())
         except queue.Empty:
@@ -191,10 +253,28 @@ def _worker_loop() -> None:
     while True:
         first_job = _job_queue.get()
         batch = _drain_batch(first_job)
-        _process_batch(batch)
-        for _ in batch:
-            _job_queue.task_done()
-        _update_runtime_queue_metrics()
+        try:
+            _process_batch(batch)
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.exception("Unhandled metadata index batch failure: %s", exc)
+        finally:
+            for _ in batch:
+                _job_queue.task_done()
+            _update_runtime_queue_metrics()
+
+
+def _mark_failed_jobs_safely(failed_jobs: list[tuple[MetadataIndexJob, str]]) -> bool:
+    if not failed_jobs:
+        return True
+    try:
+        _run_sqlite_write(lambda: mark_metadata_jobs_failed(failed_jobs), "mark metadata jobs failed")
+    except _SQLiteBusyRetriesExhausted as exc:
+        LOGGER.warning("Unable to mark %s metadata jobs failed after SQLite busy retries: %s", len(failed_jobs), exc)
+        return False
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.exception("Unable to mark %s metadata jobs failed: %s", len(failed_jobs), exc)
+        return False
+    return True
 
 
 def _process_batch(jobs: list[MetadataIndexJob]) -> None:
@@ -212,7 +292,19 @@ def _process_batch(jobs: list[MetadataIndexJob]) -> None:
     _update_runtime_queue_metrics()
 
     try:
-        mark_metadata_jobs_running(jobs)
+        try:
+            _run_sqlite_write(lambda: mark_metadata_jobs_running(jobs), "mark metadata jobs running")
+        except _SQLiteBusyRetriesExhausted as exc:
+            failed_jobs.extend((job, str(exc)) for job in jobs)
+            if _mark_failed_jobs_safely(failed_jobs):
+                _inc(_jobs_total_metric, "error", amount=len(failed_jobs))
+            return
+        except Exception as exc:  # noqa: BLE001
+            failed_jobs.extend((job, f"SQLite running mark failed: {exc}") for job in jobs)
+            if _mark_failed_jobs_safely(failed_jobs):
+                _inc(_jobs_total_metric, "error", amount=len(failed_jobs))
+            return
+
         for job in jobs:
             parse_started = time.perf_counter()
             if not _is_job_current(job):
@@ -231,21 +323,31 @@ def _process_batch(jobs: list[MetadataIndexJob]) -> None:
         if successes:
             write_started = time.perf_counter()
             try:
-                upsert_metadata_batch(metadata for _, metadata in successes)
+                _run_sqlite_write(
+                    lambda: upsert_metadata_batch(metadata for _, metadata in successes),
+                    "upsert metadata batch",
+                )
                 _observe(_sqlite_write_duration_metric, time.perf_counter() - write_started)
                 _observe(_sqlite_batch_size_metric, len(successes))
-                mark_metadata_jobs_done(job for job, _ in successes)
-                _inc(_jobs_total_metric, "done", amount=len(successes))
+                try:
+                    done_jobs = [job for job, _ in successes]
+                    _run_sqlite_write(lambda: mark_metadata_jobs_done(done_jobs), "mark metadata jobs done")
+                    _inc(_jobs_total_metric, "done", amount=len(successes))
+                except Exception as exc:  # noqa: BLE001
+                    failed_jobs.extend((job, f"SQLite done mark failed: {exc}") for job, _ in successes)
             except Exception as exc:  # noqa: BLE001
                 failed_jobs.extend((job, f"SQLite write failed: {exc}") for job, _ in successes)
 
         if stale_jobs:
-            mark_metadata_jobs_stale(stale_jobs)
-            _inc(_jobs_total_metric, "stale", amount=len(stale_jobs))
+            try:
+                _run_sqlite_write(lambda: mark_metadata_jobs_stale(stale_jobs), "mark metadata jobs stale")
+                _inc(_jobs_total_metric, "stale", amount=len(stale_jobs))
+            except Exception as exc:  # noqa: BLE001
+                failed_jobs.extend((job, f"SQLite stale mark failed: {exc}") for job in stale_jobs)
 
         if failed_jobs:
-            mark_metadata_jobs_failed(failed_jobs)
-            _inc(_jobs_total_metric, "error", amount=len(failed_jobs))
+            if _mark_failed_jobs_safely(failed_jobs):
+                _inc(_jobs_total_metric, "error", amount=len(failed_jobs))
 
         _observe(_job_duration_metric, time.perf_counter() - started)
     finally:
@@ -291,7 +393,15 @@ def enqueue_metadata_jobs(
     start_worker: bool = True,
 ) -> dict[str, int]:
     """Queue metadata parse jobs. This performs stat/SQLite bookkeeping."""
-    result = queue_metadata_index_paths(paths, root_path)
+    path_list = list(paths)
+    try:
+        result = _run_sqlite_write(lambda: queue_metadata_index_paths(path_list, root_path), "queue metadata paths")
+    except _SQLiteBusyRetriesExhausted as exc:
+        failed = len(path_list)
+        if failed:
+            _inc(_jobs_total_metric, "error", amount=failed)
+        LOGGER.warning("Failed to queue %s metadata paths after SQLite busy retries: %s", failed, exc)
+        return {"queued": 0, "coalesced": 0, "skipped": 0, "failed": failed}
     return _enqueue_metadata_jobs_from_result(result, start_worker=start_worker)
 
 
@@ -359,39 +469,59 @@ def note_scan_request_finished() -> None:
 def _path_stager_loop() -> None:
     while True:
         first_path = _pending_path_queue.get()
-        batch = _drain_path_batch(first_path)
-        try:
-            _wait_for_staged_paths_to_go_idle()
+        _process_staged_path_batch(first_path)
+
+
+def _process_staged_path_batch(first_path: tuple[str, str | None]) -> None:
+    batch = [first_path]
+    try:
+        forced_flush = _wait_for_staged_paths_to_go_idle()
+        if forced_flush:
+            _record_forced_staged_path_flush()
+            _drain_additional_paths(batch, limit=METADATA_INDEXER_BATCH_SIZE)
+        else:
             _drain_additional_paths(batch)
-            _flush_staged_paths_to_job_queue(batch)
-        except Exception as exc:  # noqa: BLE001
-            _record_staged_path_failure(len(batch))
-            LOGGER.exception("Unhandled metadata path staging failure: %s", exc)
-        finally:
-            with _path_stager_lock:
-                for key in batch:
-                    _pending_path_keys.discard(key)
-            for _ in batch:
-                _pending_path_queue.task_done()
-            _update_runtime_queue_metrics()
+        _flush_staged_paths_to_job_queue(batch)
+    except Exception as exc:  # noqa: BLE001
+        _record_staged_path_failure(len(batch))
+        LOGGER.exception("Unhandled metadata path staging failure: %s", exc)
+    finally:
+        with _path_stager_lock:
+            for key in batch:
+                _pending_path_keys.discard(key)
+        for _ in batch:
+            _pending_path_queue.task_done()
+        _update_runtime_queue_metrics()
 
 
-def _wait_for_staged_paths_to_go_idle() -> None:
+def _wait_for_staged_paths_to_go_idle() -> bool:
     sleep_seconds = METADATA_INDEXER_STAGE_SLEEP_SECONDS
     if not sleep_seconds:
-        return
+        return False
 
+    started_waiting = time.monotonic()
     while True:
         time.sleep(sleep_seconds)
+        now = time.monotonic()
         with _path_stager_lock:
             active_scan_requests = _active_scan_requests
-            idle_for = time.monotonic() - _last_path_stage_at
+            idle_for = now - _last_path_stage_at
+        waited_for = now - started_waiting
         if active_scan_requests == 0 and idle_for >= sleep_seconds:
             # Extra hold-off: sleep another cycle so the next scan request can
             # start and register note_scan_request_started() before we grab
             # the SQLite write lock.
             time.sleep(sleep_seconds)
-            return
+            return False
+        if waited_for >= METADATA_INDEXER_STAGE_MAX_WAIT_SECONDS:
+            return True
+
+
+def _record_forced_staged_path_flush() -> None:
+    global _staged_path_flushes_forced
+    with _path_stager_lock:
+        _staged_path_flushes_forced += 1
+    _inc(_staged_path_forced_flush_metric)
 
 
 def _record_staged_path_failure(count: int) -> None:
@@ -416,13 +546,21 @@ def _flush_staged_paths_to_job_queue(
     totals = {"queued": 0, "coalesced": 0, "skipped": 0, "failed": 0}
     for root_path, paths in grouped_paths.items():
         try:
-            result = queue_metadata_index_paths(paths, root_path)
+            result = _run_sqlite_write(
+                lambda: queue_metadata_index_paths(paths, root_path),
+                "queue staged metadata paths",
+            )
+        except _SQLiteBusyRetriesExhausted as exc:
+            failed = len(paths)
+            totals["failed"] += failed
+            _record_staged_path_failure(failed)
+            LOGGER.warning("Failed to flush %s staged metadata paths after SQLite busy retries: %s", failed, exc)
+            continue
         except Exception as exc:  # noqa: BLE001
             failed = len(paths)
             totals["failed"] += failed
             _record_staged_path_failure(failed)
             LOGGER.warning("Failed to flush %s staged metadata paths: %s", failed, exc)
-            time.sleep(max(0.1, METADATA_INDEXER_STAGE_SLEEP_SECONDS))
             continue
 
         queued = _enqueue_metadata_jobs_from_result(result, start_worker=start_worker)
@@ -456,6 +594,7 @@ def get_indexer_runtime_status() -> dict[str, Any]:
         staged_path_queue_depth = _pending_path_queue.qsize()
         staged_path_coalesced = _staged_path_coalesced
         staged_path_failed = _staged_path_failed
+        staged_path_flushes_forced = _staged_path_flushes_forced
         staged_path_worker_count = 1 if _path_stager_thread and _path_stager_thread.is_alive() else 0
         active_scan_requests = _active_scan_requests
     return {
@@ -468,8 +607,10 @@ def get_indexer_runtime_status() -> dict[str, Any]:
         "staged_path_queue_depth": staged_path_queue_depth,
         "staged_path_coalesced": staged_path_coalesced,
         "staged_path_failed": staged_path_failed,
+        "staged_path_flushes_forced": staged_path_flushes_forced,
         "staged_path_worker_count": staged_path_worker_count,
         "staged_path_batch_size": METADATA_INDEXER_STAGE_BATCH_SIZE,
+        "stage_max_wait_seconds": METADATA_INDEXER_STAGE_MAX_WAIT_SECONDS,
         "active_scan_requests": active_scan_requests,
     }
 

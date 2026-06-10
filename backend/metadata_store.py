@@ -29,6 +29,8 @@ from .metadata_extract import (
 SEARCH_FIELDS = ("name", "prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
 PROMPT_SEARCH_FIELDS = ("prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
 _DB_LOCK = threading.RLock()
+_DB_INITIALIZED = False
+_DB_INITIALIZED_PATH: Path | None = None
 METADATA_JOB_STATES = ("queued", "running", "done", "failed", "stale", "skipped")
 MAX_METADATA_JOB_ATTEMPTS = 3
 
@@ -71,18 +73,34 @@ def _ensure_column(conn: sqlite3.Connection, table_name: str, column_name: str, 
         conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_sql}")
 
 
-def _connect() -> sqlite3.Connection:
+def _connect(*, set_journal_mode: bool = False) -> sqlite3.Connection:
     GALLERY_METADATA_DB.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(GALLERY_METADATA_DB, timeout=30)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
+    if set_journal_mode:
+        conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=5000")
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
 
 def initialize_database() -> None:
-    with _DB_LOCK, _connect() as conn:
+    global _DB_INITIALIZED, _DB_INITIALIZED_PATH
+    if _DB_INITIALIZED and _DB_INITIALIZED_PATH == GALLERY_METADATA_DB:
+        return
+
+    with _DB_LOCK:
+        if _DB_INITIALIZED and _DB_INITIALIZED_PATH == GALLERY_METADATA_DB:
+            return
+
+        with _connect(set_journal_mode=True) as conn:
+            _initialize_database_conn(conn)
+
+        _DB_INITIALIZED = True
+        _DB_INITIALIZED_PATH = GALLERY_METADATA_DB
+
+
+def _initialize_database_conn(conn: sqlite3.Connection) -> None:
         conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS image_metadata (

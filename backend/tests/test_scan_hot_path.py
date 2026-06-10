@@ -7,7 +7,7 @@ from PIL import Image
 
 from backend.app import app
 from backend.metadata_store import CachedDimensions
-from backend import metadata_extract, metadata_store, scan
+from backend import indexer, metadata_extract, metadata_store, scan
 
 
 client = TestClient(app)
@@ -73,3 +73,21 @@ def test_api_scan_hot_path_uses_cached_dimensions_without_parsing_or_opening_ima
     assert data["images"][0]["width"] == 320
     assert data["images"][0]["height"] == 240
     assert ("metadata", 2) in background_calls
+
+
+def test_api_scan_finishes_active_scan_counter_when_resolve_path_raises(monkeypatch):
+    error_client = TestClient(app, raise_server_exceptions=False)
+
+    with indexer._path_stager_lock:
+        indexer._active_scan_requests = 0
+    monkeypatch.setattr(indexer, "METADATA_INDEXER_ENABLED", True)
+
+    def raise_resolve_error(_path):  # noqa: ANN001
+        raise RuntimeError("resolve failed")
+
+    monkeypatch.setattr(scan, "resolve_path", raise_resolve_error)
+
+    response = error_client.get("/api/scan", params={"path": "/boom"})
+
+    assert response.status_code == 500
+    assert indexer.get_indexer_runtime_status()["active_scan_requests"] == 0

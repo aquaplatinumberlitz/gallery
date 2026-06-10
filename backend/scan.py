@@ -162,14 +162,14 @@ async def api_scan(
     image_cursor: int = Query(0, ge=0, description="Cursor/offset for images"),
 ):
     note_scan_request_started()
-    request_started = time.perf_counter()
-    resolve_started = time.perf_counter()
-    target = resolve_path(path) if path else DEFAULT_ROOT
-    resolve_ms = _elapsed_ms(resolve_started)
-    if not is_path_safe(target):
-        note_scan_request_finished()
-        raise APIError(403, "permission", "Access denied: path outside allowed root")
     try:
+        request_started = time.perf_counter()
+        resolve_started = time.perf_counter()
+        target = resolve_path(path) if path else DEFAULT_ROOT
+        resolve_ms = _elapsed_ms(resolve_started)
+        if not is_path_safe(target):
+            raise APIError(403, "permission", "Access denied: path outside allowed root")
+
         folders, images, scan_perf = await run_in_threadpool(scan_directory, target)
 
         pagination_started = time.perf_counter()
