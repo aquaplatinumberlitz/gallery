@@ -57,7 +57,6 @@ async function installStubbedGallery(page: Page) {
       const q = url.searchParams.get("q") ?? "";
       const scope = url.searchParams.get("scope") ?? "all";
 
-      // Simulate search results for specific queries
       let photos: any[] = [];
       let promptResults: any[] = [];
 
@@ -124,7 +123,7 @@ async function installStubbedGallery(page: Page) {
 
 test.use({ viewport: { width: 1280, height: 820 } });
 
-test("plain search finds results", async ({ page }) => {
+test("plain search finds results and shows them in UI", async ({ page }) => {
   const requests = await installStubbedGallery(page);
   await page.addInitScript((root) => {
     localStorage.setItem("intro_mode", "disabled");
@@ -134,7 +133,11 @@ test("plain search finds results", async ({ page }) => {
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
 
-  // Type search query in desktop search input
+  // Verify initial photos are rendered
+  const initialCount = await page.getByTestId("photo-card").count();
+  expect(initialCount).toBeGreaterThanOrEqual(1);
+
+  // Search for "rain" — should show result images
   const searchInput = page.locator("#gallery-search");
   await searchInput.fill("rain");
   await searchInput.press("Enter");
@@ -144,9 +147,14 @@ test("plain search finds results", async ({ page }) => {
   const searchRequests = requestsFor(requests, "/api/search");
   expect(searchRequests.length).toBeGreaterThanOrEqual(1);
   expect(searchRequests.some((r) => r.q.includes("rain"))).toBe(true);
+
+  // Result images should be visible (photo-card or search result cards)
+  const resultCards = page.getByTestId("photo-card");
+  const resultCount = await resultCards.count();
+  expect(resultCount).toBeGreaterThanOrEqual(1);
 });
 
-test("fielded search prompt:mika sends correct query", async ({ page }) => {
+test("fielded search prompt:mika sends correct query and shows results", async ({ page }) => {
   const requests = await installStubbedGallery(page);
   await page.addInitScript((root) => {
     localStorage.setItem("intro_mode", "disabled");
@@ -156,18 +164,21 @@ test("fielded search prompt:mika sends correct query", async ({ page }) => {
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
 
-  // Type fielded search query
   const searchInput = page.locator("#gallery-search");
   await searchInput.fill("prompt:mika");
   await searchInput.press("Enter");
   await page.waitForTimeout(500);
 
-  // Search request should have been made with the fielded query
   const searchRequests = requestsFor(requests, "/api/search");
   expect(searchRequests.some((r) => r.q === "prompt:mika")).toBe(true);
+
+  // Result cards should be visible
+  const resultCards = page.getByTestId("photo-card");
+  const resultCount = await resultCards.count();
+  expect(resultCount).toBeGreaterThanOrEqual(1);
 });
 
-test("seed query sends correct query string", async ({ page }) => {
+test("seed query sends correct query string and shows results", async ({ page }) => {
   const requests = await installStubbedGallery(page);
   await page.addInitScript((root) => {
     localStorage.setItem("intro_mode", "disabled");
@@ -209,6 +220,10 @@ test("clear search restores gallery view", async ({ page }) => {
 
   // Photo cards should still be visible (gallery restored)
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 10_000 });
+
+  // Original gallery photos should be back
+  const cardCount = await page.getByTestId("photo-card").count();
+  expect(cardCount).toBeGreaterThanOrEqual(1);
 });
 
 test("no-results state does not break layout", async ({ page }) => {
@@ -227,12 +242,11 @@ test("no-results state does not break layout", async ({ page }) => {
   await searchInput.press("Enter");
   await page.waitForTimeout(500);
 
-  // The app should not crash - check that the page is still functional
-  // Either photo cards or some no-results indication should be present
+  // The app should not crash - page should still be functional
   const pageContent = await page.content();
   expect(pageContent.length).toBeGreaterThan(0);
 
-  // Clear search and verify gallery returns
+  // Clear search and verify gallery returns with photos
   await searchInput.fill("");
   await searchInput.press("Enter");
   await page.waitForTimeout(500);
@@ -258,9 +272,15 @@ test("search query with special characters does not crash", async ({ page }) => 
     await searchInput.press("Enter");
     await page.waitForTimeout(300);
 
-    // App should not crash
-    await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 5000 }).catch(() => {
-      // May be hidden during search, but page should still be alive
-    });
+    // Verify search request was made
+    const searchRequests = requestsFor(requests, "/api/search");
+    expect(searchRequests.some((r) => r.q === q)).toBe(true);
   }
+
+  // Clear and restore
+  const searchInput = page.locator("#gallery-search");
+  await searchInput.fill("");
+  await searchInput.press("Enter");
+  await page.waitForTimeout(500);
+  await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 10_000 });
 });

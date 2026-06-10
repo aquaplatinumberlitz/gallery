@@ -14,17 +14,25 @@ const png1x1 = Buffer.from(
   "base64"
 );
 
-type ApiRequest = { pathname: string; path: string };
+type ApiRequest = { pathname: string; path: string; imageCursor: string };
 
 function requestsFor(requests: ApiRequest[], pathname: string) {
   return requests.filter((r) => r.pathname === pathname);
+}
+
+function cursorZeroScans(requests: ApiRequest[]) {
+  return requests.filter((r) => r.pathname === "/api/scan" && r.imageCursor === "0");
 }
 
 async function installStubbedGallery(page: Page) {
   const requests: ApiRequest[] = [];
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
-    const req: ApiRequest = { pathname: url.pathname, path: url.searchParams.get("path") ?? "" };
+    const req: ApiRequest = {
+      pathname: url.pathname,
+      path: url.searchParams.get("path") ?? "",
+      imageCursor: url.searchParams.get("image_cursor") ?? "0",
+    };
     requests.push(req);
 
     if (url.pathname === "/api/scan") {
@@ -156,13 +164,10 @@ test("/api/scan with image_cursor=0 is not duplicated unnecessarily", async ({ p
   await page.waitForTimeout(500);
 
   const scanRequests = requestsFor(requests, "/api/scan");
-  const cursorZeroRequests = scanRequests.filter(
-    () => requests.filter((r) => r.pathname === "/api/scan").length > 0
-  );
+  const cursorZeroRequests = cursorZeroScans(requests);
 
-  // Should not have duplicate initial scan requests
-  // The exact count depends on app behavior, but we assert no more than 2
-  expect(scanRequests.length).toBeLessThanOrEqual(2);
+  // Should not have duplicate initial (cursor=0) scan requests
+  expect(cursorZeroRequests.length).toBeLessThanOrEqual(2);
 
   // Verify at least one scan happened
   expect(scanRequests.length).toBeGreaterThanOrEqual(1);

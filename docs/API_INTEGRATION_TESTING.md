@@ -51,10 +51,17 @@ class TestSearch:
 ### Creating test images
 
 ```python
-from .conftest import create_test_png, create_test_png_with_metadata
+from .conftest import create_test_png, create_test_jpeg, create_test_png_with_metadata
 
-# Plain PNG
+# Plain PNG (writes actual PNG bytes, asserts format)
 create_test_png(path, size=(800, 600))
+
+# Plain JPEG (writes actual JPEG bytes via PIL, asserts format)
+create_test_jpeg(path, size=(1200, 900), quality=85)
+
+# Auto-detect format from extension (fallback to PNG for .webp)
+from .conftest import create_test_image
+create_test_image(path)
 
 # PNG with embedded AI metadata (A1111-style parameters chunk)
 create_test_png_with_metadata(
@@ -69,6 +76,10 @@ create_test_png_with_metadata(
     size=(1024, 1536),
 )
 ```
+
+**Format support:** Pillow 12.0.0 has JPEG and PNG encoders but no WebP encoder.
+For `.webp` paths, `create_test_image` falls back to writing PNG bytes.
+`create_test_png` and `create_test_jpeg` assert the written format matches via `Image.open(path).format`.
 
 ## Test Isolation Details
 

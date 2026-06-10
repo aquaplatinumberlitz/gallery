@@ -33,7 +33,7 @@ cd backend && pytest -q
 
 ---
 
-### Tier 2: Backend API Integration Tests (NEW)
+### Tier 2: Backend API Integration Tests
 
 **Location:** `backend/tests/test_api_integration_*.py`
 
@@ -53,8 +53,14 @@ cd backend && pytest -q
 - `isolated_thumbnail_cache` — temp diskcache directory (GALLERY_THUMBNAIL_CACHE_DIR env var)
 - `disable_background_services` — disables indexer/watcher/refresh/warm listing
 - `isolated_app` — FastAPI TestClient with all paths isolated
-- `temp_gallery` — album_a/ album_b/ with test images
+- `temp_gallery` — album_a/ album_b/ with real JPEG and PNG test images
 - `temp_gallery_with_metadata` — test PNGs with embedded AI metadata
+
+**Test image helpers (in `backend/tests/conftest.py`):**
+- `create_test_png(path)` — writes actual PNG bytes via PIL, asserts format
+- `create_test_jpeg(path)` — writes actual JPEG bytes via PIL, asserts format
+- `create_test_image(path)` — auto-detects format from extension; falls back to PNG for .webp (no WebP encoder in Pillow 12.0.0)
+- `create_test_png_with_metadata(path, ...)` — writes PNG with A1111-style tEXt parameters chunk
 
 **Testability patches made to backend/config.py:**
 - `GALLERY_THUMBNAIL_CACHE_DIR` env var → `THUMBNAIL_CACHE_DIR`
@@ -81,10 +87,11 @@ cd backend && pytest tests/test_api_integration_*.py -v
 - `lightbox-loading-policy.spec.ts` — grid thumbnails, normal lightbox, zoom/fullscreen, preview fallback (7 tests)
 
 **New:**
-- `gallery-no-reload.spec.ts` — boot ID persistence, no full page reload, no duplicate scan (5 tests)
-- `gallery-cache-revisit.spec.ts` — loading state, revisit behavior, no duplicate scan (4 tests)
-- `mobile-lightbox-sheet.spec.ts` — PhotoSwipe swipe, metadata sheet open/close, copy buttons, show more/less (6 tests)
-- `search-fielded-ui.spec.ts` — plain search, fielded search, seed search, clear search, no-results state (6 tests)
+- `gallery-no-reload.spec.ts` — boot ID persistence, no full page reload, cursor-zero scan tracking (4 tests)
+- `gallery-no-reload-real-backend.spec.ts` — no-reload E2E against real backend (requires running app) (2 tests)
+- `gallery-cache-revisit.spec.ts` — soft navigation revisit, no duplicate cursor-zero scans (3 tests)
+- `mobile-lightbox-sheet.spec.ts` — mobile lightbox, image navigation, metadata sheet open/close/repeat, copy buttons (6 tests)
+- `search-fielded-ui.spec.ts` — plain search, fielded search, seed search, clear/restore, no-results, special chars (6 tests)
 - `responsive-breakpoints.spec.ts` — mobile (375), tablet (768/834), desktop (1200/1920), resize transitions (10 tests)
 
 **All Playwright tests use mocked API routes** (`page.route("**/api/**")`) for deterministic
@@ -148,8 +155,9 @@ cd frontend && npm run perf:album && npm run perf:lightbox
    WebKit. Playwright iPhone emulation approximates but does not perfectly replicate
    iOS gesture handling.
 
-2. **No-reload E2E with real backend** — Current no-reload tests use mocked APIs. There
-   are no tests that verify the app does not reload with a real running backend.
+2. **No-reload E2E with real backend** — `gallery-no-reload-real-backend.spec.ts` exists
+   but requires a running backend with `GALLERY_ROOT=/home/ubuntu/gallery-repo/test-images`.
+   Not included in `test_all.sh` since it needs a real backend.
 
 3. **Mobile sheet gesture conflict regression** — No automated test verifies that
    PhotoSwipe swipe and VSBS scroll do not conflict on mobile. Manual testing required.

@@ -126,13 +126,15 @@ gallery-repo/
 │   ├── tests/
 │   │   ├── gallery-cache-revisit.spec.ts
 │   │   ├── gallery-no-reload.spec.ts
+│   │   ├── gallery-no-reload-real-backend.spec.ts
 │   │   ├── lightbox-loading-policy.spec.ts
 │   │   ├── mobile-lightbox-sheet.spec.ts
 │   │   ├── responsive-breakpoints.spec.ts
 │   │   ├── search-fielded-ui.spec.ts
 │   │   └── perf/
 │   │       ├── album-open.perf.spec.ts
-│   │       └── lightbox.perf.spec.ts
+│   │       ├── lightbox.perf.spec.ts
+│   │       └── perf-utils.ts
 │   └── src/
 │       ├── App.vue
 │       ├── components/

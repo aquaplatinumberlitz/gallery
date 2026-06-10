@@ -29,6 +29,48 @@ def create_test_png(
     path.parent.mkdir(parents=True, exist_ok=True)
     img = Image.new("RGB", size, color)
     img.save(path, format="PNG", pnginfo=pnginfo)
+    assert Image.open(path).format == "PNG", f"Expected PNG, got {Image.open(path).format}"
+
+
+def create_test_jpeg(
+    path: Path,
+    size: tuple[int, int] = (64, 64),
+    color: tuple[int, int, int] = (40, 120, 200),
+    quality: int = 85,
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    img = Image.new("RGB", size, color)
+    img.save(path, format="JPEG", quality=quality)
+    opened = Image.open(path)
+    assert opened.format == "JPEG", f"Expected JPEG, got {opened.format}"
+
+
+def create_test_image(
+    path: Path,
+    size: tuple[int, int] = (64, 64),
+    color: tuple[int, int, int] = (40, 120, 200),
+) -> None:
+    """Create an image file with the correct format based on file extension.
+
+    Uses PIL JPEG encoder for .jpg/.jpeg files.
+    Uses PIL PNG encoder for .png files.
+    Falls back to PNG bytes for .webp files (Pillow has no WebP encoder).
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    ext = path.suffix.lower()
+    img = Image.new("RGB", size, color)
+    if ext in (".jpg", ".jpeg"):
+        img.save(path, format="JPEG", quality=85)
+        assert Image.open(path).format == "JPEG", f"Expected JPEG, got {Image.open(path).format}"
+    elif ext == ".png":
+        img.save(path, format="PNG")
+        assert Image.open(path).format == "PNG", f"Expected PNG, got {Image.open(path).format}"
+    elif ext == ".webp":
+        # Pillow 12.0.0 on this system has no WebP encoder.
+        # Write PNG bytes as a fallback and document the limitation.
+        img.save(path, format="PNG")
+    else:
+        img.save(path, format="PNG")
 
 
 def create_test_png_with_metadata(
@@ -200,11 +242,12 @@ def temp_gallery(
     album_b.mkdir()
 
     create_test_png(album_a / "001.png", size=(800, 600))
-    create_test_png(album_a / "002.jpg", size=(1200, 900))
+    create_test_jpeg(album_a / "002.jpg", size=(1200, 900))
     create_test_png(album_a / "010.png", size=(640, 480))
     (album_a / "note.txt").write_text("not an image")
     (album_a / ".hidden.png").write_bytes(b"hidden")
 
+    # WebP encoder not available in Pillow 12.0.0; PNG bytes as fallback
     create_test_png(album_b / "cover.webp", size=(1920, 1080))
 
     return root

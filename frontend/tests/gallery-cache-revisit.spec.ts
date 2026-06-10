@@ -12,23 +12,30 @@ const png1x1 = Buffer.from(
   "base64"
 );
 
-type ApiRequest = { pathname: string; path: string };
+type ApiRequest = { pathname: string; path: string; imageCursor: string };
 
 function requestsFor(requests: ApiRequest[], pathname: string) {
   return requests.filter((r) => r.pathname === pathname);
 }
 
-async function installStubbedGallery(page: Page, options: { simulateSlow?: boolean } = {}) {
+function cursorZeroScans(requests: ApiRequest[]) {
+  return requests.filter(
+    (r) => r.pathname === "/api/scan" && r.imageCursor === "0"
+  );
+}
+
+async function installStubbedGallery(page: Page) {
   const requests: ApiRequest[] = [];
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
-    const req: ApiRequest = { pathname: url.pathname, path: url.searchParams.get("path") ?? "" };
+    const req: ApiRequest = {
+      pathname: url.pathname,
+      path: url.searchParams.get("path") ?? "",
+      imageCursor: url.searchParams.get("image_cursor") ?? "0",
+    };
     requests.push(req);
 
     if (url.pathname === "/api/scan") {
-      if (options.simulateSlow) {
-        await new Promise((r) => setTimeout(r, 200));
-      }
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
@@ -47,6 +54,21 @@ async function installStubbedGallery(page: Page, options: { simulateSlow?: boole
           next_cursor: null,
           total_images: imagePaths.length,
           index_source: "direct_scan",
+        }),
+      });
+      return;
+    }
+
+    if (url.pathname === "/api/search") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          query: url.searchParams.get("q") ?? "",
+          scope: "all",
+          root: rootPath,
+          albums: [],
+          photos: [],
+          prompt: [],
         }),
       });
       return;
@@ -86,8 +108,8 @@ async function installStubbedGallery(page: Page, options: { simulateSlow?: boole
 
 test.use({ viewport: { width: 1280, height: 820 } });
 
-test("first album open may show loading state", async ({ page }) => {
-  const requests = await installStubbedGallery(page, { simulateSlow: true });
+test("first album open shows photo cards", async ({ page }) => {
+  const requests = await installStubbedGallery(page);
 
   await page.addInitScript((root) => {
     localStorage.setItem("intro_mode", "disabled");
@@ -96,36 +118,11 @@ test("first album open may show loading state", async ({ page }) => {
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
 
-  // Wait for first photo card to be visible - may take a moment due to slow API
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
-
-  // Verify scan was called
   expect(requestsFor(requests, "/api/scan").length).toBeGreaterThanOrEqual(1);
 });
 
-test("revisit within cache window renders cards immediately", async ({ page }) => {
-  const requests = await installStubbedGallery(page);
-
-  await page.addInitScript((root) => {
-    localStorage.setItem("intro_mode", "disabled");
-    localStorage.setItem("gallery-root-path", root);
-  }, rootPath);
-
-  // First visit - cold load
-  await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
-  await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
-
-  // Reload the page (simulate revisit)
-  const scanCountBefore = requestsFor(requests, "/api/scan").length;
-  await page.reload({ waitUntil: "domcontentloaded" });
-  await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
-
-  // Second visit should still make a scan request but may use cached data
-  const scanCountAfter = requestsFor(requests, "/api/scan").length;
-  expect(scanCountAfter).toBeGreaterThanOrEqual(scanCountBefore);
-});
-
-test("no empty skeleton flicker on cached revisit", async ({ page }) => {
+test("soft revisit via search UI does not trigger duplicate cursor=0 scans", async ({ page }) => {
   const requests = await installStubbedGallery(page);
 
   await page.addInitScript((root) => {
@@ -136,12 +133,33 @@ test("no empty skeleton flicker on cached revisit", async ({ page }) => {
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
 
-  // Check that photo cards are present (not skeleton/empty state)
+  // Wait for initial scan to settle, then clear request tracking
+  await page.waitForTimeout(500);
+  requests.length = 0;
+
+  // Soft navigation: enter search (switches to search view)
+  await page.locator("#gallery-search").fill("navigate-away");
+  await page.locator("#gallery-search").press("Enter");
+  await page.waitForTimeout(500);
+
+  // Soft navigation back: clear search (restores gallery view)
+  await page.locator("#gallery-search").fill("");
+  await page.locator("#gallery-search").press("Enter");
+  await page.waitForTimeout(500);
+
+  // Photo cards should reappear quickly (no skeleton/flicker)
+  await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 10_000 });
+
+  // No duplicate cursor=0 scan on revisit
+  const cursorZero = cursorZeroScans(requests);
+  expect(cursorZero.length).toBeLessThanOrEqual(1);
+
+  // Verify photo cards are rendered
   const cardCount = await page.getByTestId("photo-card").count();
   expect(cardCount).toBeGreaterThanOrEqual(1);
 });
 
-test("no duplicate scan on revisit", async ({ page }) => {
+test("revisit after browser back preserves gallery without duplicate scans", async ({ page }) => {
   const requests = await installStubbedGallery(page);
 
   await page.addInitScript((root) => {
@@ -152,15 +170,27 @@ test("no duplicate scan on revisit", async ({ page }) => {
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
 
-  // Clear request tracking after initial load settles
+  // Navigate away
+  await page.goto("data:text/html,<h1>Away</h1>", { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(300);
+
+  // Track requests after re-entry
   requests.length = 0;
 
-  // Trigger a soft revisit by reloading
-  await page.reload({ waitUntil: "domcontentloaded" });
-  await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
+  // Navigate back
+  await page.goBack({ waitUntil: "domcontentloaded" });
   await page.waitForTimeout(500);
 
-  // Should not see an explosion of duplicate scans
+  // Photo cards should be visible without excessive new scans
+  await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
+
   const scanRequests = requestsFor(requests, "/api/scan");
-  expect(scanRequests.length).toBeLessThanOrEqual(2);
+  const cursorZero = cursorZeroScans(requests);
+
+  // On revisit, cursor=0 scans should be minimal (cached data)
+  expect(cursorZero.length).toBeLessThanOrEqual(2);
+
+  // Cards should be rendered
+  const cardCount = await page.getByTestId("photo-card").count();
+  expect(cardCount).toBeGreaterThanOrEqual(1);
 });

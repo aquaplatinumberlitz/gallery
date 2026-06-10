@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import fs from "node:fs";
+import path from "node:path";
 import { compactStats, installApiNetworkTracker, waitForNetworkQuiet } from "./perf-utils";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
@@ -30,7 +32,7 @@ test("album open performance", async ({ page }) => {
 
   // Set gallery root path so albums appear on page load
   await page.addInitScript(() => {
-    localStorage.setItem("gallery-root-path", "/home/ubuntu/gallery-repo");
+    localStorage.setItem("gallery-root-path", "/home/ubuntu/gallery-repo/test-images");
     localStorage.setItem("gallery-sort-preference", JSON.stringify({ field: "name", order: "asc" }));
   });
 
@@ -123,7 +125,9 @@ test("album open performance", async ({ page }) => {
         ? "pass"
         : "fail",
   };
-  console.log(JSON.stringify(report, null, 2));
+  const resultsDir = path.resolve(__dirname, "../../test-results/perf");
+  fs.mkdirSync(resultsDir, { recursive: true });
+  fs.writeFileSync(path.join(resultsDir, "album-open-report.json"), JSON.stringify(report, null, 2));
 
   expect(duplicateCursor0Count).toBeLessThanOrEqual(1);
   expect(firstScanDuration).toBeLessThanOrEqual(scanBudgetMs);

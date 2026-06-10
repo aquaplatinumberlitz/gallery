@@ -8,15 +8,29 @@ echo "=========================================="
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 
-# ---- Backend API integration tests ----
+# ---- Backend pytest ----
 echo ""
-echo "--- Backend API Integration Tests ---"
-bash "$SCRIPT_DIR/test_backend_api_integration.sh" "$@"
+echo "--- Backend pytest ---"
+cd "$REPO_ROOT/backend"
+python -m pytest -q "$@"
 
-# ---- Frontend build and Playwright contract tests ----
+# ---- Frontend build ----
 echo ""
-echo "--- Frontend Contract Tests ---"
-bash "$SCRIPT_DIR/test_frontend_contract.sh" "$@"
+echo "--- Frontend build ---"
+cd "$REPO_ROOT/frontend"
+npm run build
+
+# ---- Frontend Playwright contract tests ----
+echo ""
+echo "--- Frontend Playwright contract tests ---"
+npx playwright test \
+    tests/lightbox-loading-policy.spec.ts \
+    tests/gallery-no-reload.spec.ts \
+    tests/gallery-cache-revisit.spec.ts \
+    tests/mobile-lightbox-sheet.spec.ts \
+    tests/search-fielded-ui.spec.ts \
+    tests/responsive-breakpoints.spec.ts \
+    "$@"
 
 echo ""
 echo "=========================================="
