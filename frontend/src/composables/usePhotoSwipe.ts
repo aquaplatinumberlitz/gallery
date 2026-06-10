@@ -300,6 +300,11 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
       ...photoSwipeOptions,
     });
     pswp.value = instance;
+    (window as any).__pswp = instance;
+    (window as any).__loadOriginalForCurrent = (reason: string) => {
+    console.log("[ZOOM DEBUG] __loadOriginalForCurrent called with reason:", reason);
+    maybeLoadOriginalForCurrent(reason as any);
+  };
 
     instance.on("change", () => {
       onIndexChange?.(instance.currIndex);
