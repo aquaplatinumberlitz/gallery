@@ -1,5 +1,5 @@
 import type { FileNode } from "../types";
-import { getImageUrl, getPreviewUrl, getThumbnailUrl } from "../services/api";
+import { getPreviewUrl, getThumbnailUrl } from "../services/api";
 
 export const LIGHTBOX_THUMBNAIL_EDGE = 512;
 export const LIGHTBOX_PREVIEW_EDGE = 1440;
@@ -15,7 +15,6 @@ export type LightboxDimensions = {
 export type PhotoSwipeImageItem = {
   src: string;
   previewSrc: string;
-  originalSrc: string;
   msrc?: string;
   width: number;
   height: number;
@@ -67,11 +66,8 @@ export function buildPhotoSwipeItem(
   resolvedDimensions?: LightboxDimensions | null
 ): PhotoSwipeImageItem {
   const previewSrc = getPreviewUrl(item.path, LIGHTBOX_PREVIEW_EDGE);
-  const originalSrc = getImageUrl(item.path);
   const msrc = getThumbnailUrl(item.path, LIGHTBOX_THUMBNAIL_EDGE);
 
-  // PhotoSwipe requires dimensions up front. Use the best known ratio, then
-  // let the resolver refresh the item when async metadata arrives.
   const width = resolvedDimensions?.width ?? 1200;
   const height = resolvedDimensions?.height ?? 1200;
   const isAnimatedAsset = isLikelyAnimatedAsset(item.path || item.name || "");
@@ -79,7 +75,6 @@ export function buildPhotoSwipeItem(
   return {
     src: previewSrc,
     previewSrc,
-    originalSrc,
     msrc,
     width,
     height,

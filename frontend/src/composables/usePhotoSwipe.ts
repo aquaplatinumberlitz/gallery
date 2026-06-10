@@ -1,7 +1,7 @@
 import { ref, onMounted, onUnmounted, watch, type Ref, type ComputedRef } from "vue";
 import PhotoSwipe from "photoswipe";
 import type { FileNode, MetadataResponse } from "../types";
-import { fetchMetadata, getPreviewUrl } from "../services/api";
+import { fetchMetadata, getImageUrl, getPreviewUrl } from "../services/api";
 import { queryClient } from "../query";
 import { queryKeys } from "../query/keys";
 import { useLightboxStore } from "../stores/lightbox";
@@ -159,18 +159,19 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
       return;
     }
 
+    const originalSrc = getImageUrl(itemData.path);
     const content = instance.currSlide?.content;
     const imageElement = content?.element instanceof HTMLImageElement ? content.element : null;
-    itemData.src = itemData.originalSrc;
+    itemData.src = originalSrc;
     if (content) {
-      content.data.src = itemData.originalSrc;
+      content.data.src = originalSrc;
     }
     if (instance.currSlide) {
-      instance.currSlide.data.src = itemData.originalSrc;
+      instance.currSlide.data.src = originalSrc;
     }
-    if (imageElement && imageElement.src !== itemData.originalSrc) {
+    if (imageElement && imageElement.src !== originalSrc) {
       imageElement.removeAttribute("srcset");
-      imageElement.src = itemData.originalSrc;
+      imageElement.src = originalSrc;
     }
   }
 
@@ -180,16 +181,18 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
     options: { refresh?: boolean } = {}
   ): Promise<void> {
     const itemData = getPhotoSwipeItem(index);
-    if (!itemData?.originalSrc) return Promise.resolve();
+    if (!itemData?.path) return Promise.resolve();
 
-    if (itemData.isOriginalLoaded || itemData.src === itemData.originalSrc) {
+    const originalSrc = getImageUrl(itemData.path);
+
+    if (itemData.isOriginalLoaded || itemData.src === originalSrc) {
       itemData.isOriginalLoaded = true;
       itemData.originalLoadReason = reason;
       swapCurrentSlideToOriginal(index, itemData, Boolean(options.refresh));
       return Promise.resolve();
     }
 
-    const existing = originalLoadPromises.get(itemData.originalSrc);
+    const existing = originalLoadPromises.get(originalSrc);
     if (existing) return existing;
 
     if (pswp.value?.currIndex === index) {
@@ -204,7 +207,7 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
 
       const image = new Image();
       image.onload = () => {
-        itemData.src = itemData.originalSrc;
+        itemData.src = originalSrc;
         itemData.isOriginalLoaded = true;
         itemData.originalLoadReason = reason;
         swapCurrentSlideToOriginal(index, itemData, Boolean(options.refresh));
@@ -213,15 +216,15 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
       image.onerror = () => {
         reject(new Error("Original image failed to load"));
       };
-      image.src = itemData.originalSrc;
+      image.src = originalSrc;
     }).finally(() => {
-      originalLoadPromises.delete(itemData.originalSrc);
+      originalLoadPromises.delete(originalSrc);
       if (originalLoadingPath.value === itemData.path) {
         originalLoadingPath.value = null;
       }
     });
 
-    originalLoadPromises.set(itemData.originalSrc, promise);
+    originalLoadPromises.set(originalSrc, promise);
     return promise;
   }
 
@@ -289,7 +292,8 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
     );
     const initialItem = dataSource[currentIndex.value];
     if (initialItem?.isAnimatedAsset) {
-      initialItem.src = initialItem.originalSrc;
+      const originalSrc = getImageUrl(initialItem.path);
+      initialItem.src = originalSrc;
       initialItem.isOriginalLoaded = true;
       initialItem.originalLoadReason = "animated";
     }

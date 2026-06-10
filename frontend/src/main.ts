@@ -9,6 +9,22 @@ import { installVueQuery } from "./query";
 
 const app = createApp(App);
 
+app.config.errorHandler = (err, _instance, info) => {
+  console.error("[APP] Unhandled Vue error:", err, { info });
+};
+
+if (typeof window !== "undefined") {
+  window.addEventListener("unhandledrejection", (event) => {
+    console.error("[APP] Unhandled promise rejection:", event.reason);
+  });
+
+  window.addEventListener("error", (event) => {
+    if (event.error) {
+      console.error("[APP] Unhandled error:", event.error);
+    }
+  });
+}
+
 // Dev logging: page lifecycle debugging
 if (import.meta.env.DEV) {
   // Eruda mobile debug console (iPad Safari)

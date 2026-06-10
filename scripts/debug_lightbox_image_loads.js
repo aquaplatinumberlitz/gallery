@@ -550,7 +550,6 @@
           event.activeItem = {
             src: ds[idx].src,
             previewSrc: ds[idx].previewSrc,
-            originalSrc: ds[idx].originalSrc,
             msrc: ds[idx].msrc,
             path: ds[idx].path,
           };
