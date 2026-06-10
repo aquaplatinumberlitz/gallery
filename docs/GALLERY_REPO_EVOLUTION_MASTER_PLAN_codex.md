@@ -1223,6 +1223,16 @@ Inspired by DiffusionToolkit fielded search, but modified for gallery-repo:
 - DiffusionToolkit treats residual text as prompt query.
 - Gallery keeps residual text as backward-compatible unified search, and adds explicit `prompt:` / `positive:` for positive-prompt-only search.
 
+**5. Albums section is folder/album suggestions, not field-filtered image results**
+
+For fielded queries (e.g. `rain seed:123`):
+
+- **Photos / Prompt image result sections**: narrowed by metadata field filters (seed:, model:, etc.). Results are guaranteed to satisfy all field predicates.
+- **Albums section**: based solely on residual text (e.g. `rain`). Albums are folder/album *navigation suggestions*, similar to search suggestions / folder suggestions. They are intentionally not narrowed by metadata field filters.
+- This is a deliberate product decision: albums are entry points for browsing, not strict filtered image results.
+
+**Future enhancement**: Consider adding a separate "Albums containing matching photos" section that aggregates folders/albums from the field-filtered image result set when a user wants folder-level organization of filtered results.
+
 #### Implementation scope
 
 | Field | Plan |

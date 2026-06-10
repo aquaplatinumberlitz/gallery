@@ -817,3 +817,56 @@ def test_scope_current_fielded_residual_does_not_leak_other_folder():
     all_names = photo_names + prompt_names
     assert "rain_current.png" in all_names
     assert "rain_other.png" not in all_names, f"rain_other.png leaked despite scope=current: {all_names}"
+
+
+def _album_names(data: dict) -> list[str]:
+    return [r["name"] for r in data.get("albums", [])]
+
+
+def test_fielded_albums_are_folder_suggestions_not_field_filtered():
+    """Albums are folder suggestions and intentionally not field-filtered.
+
+    For a query like "rain seed:123":
+    - Photos / Prompt sections exclude photos whose seed != 123.
+    - Albums section may still return a folder whose name matches "rain"
+      even though not all images inside satisfy seed:123.
+    """
+    album_dir = Path(tempfile.mkdtemp(prefix="test_fielded_album_"))
+    album_dir_path = str(album_dir.resolve())
+    album_name = "rain_folder"
+
+    initialize_database()
+    index_file(
+        path=album_dir_path, name=album_name,
+        parent_path=str(album_dir.parent.resolve()),
+        type="folder",
+        mtime=time.time(), size=0, width=0, height=0,
+    )
+    _TEST_INSERTED_PATHS.append(album_dir_path)
+
+    resp = _search("rain seed:123")
+    assert resp.status_code == 200
+    data = resp.json()
+
+    photo_names = _photo_names(data)
+    prompt_names = _prompt_names(data)
+    album_names = _album_names(data)
+
+    # Photos/Prompt are field-filtered: wrong-seed images excluded
+    assert "rain_girl_001.png" in photo_names or "rain_girl_001.png" in prompt_names, (
+        "rain_girl_001.png (seed=123) should appear in photos or prompt"
+    )
+    assert "rain_wrong_seed.png" not in photo_names, (
+        f"rain_wrong_seed.png leaked into photos despite seed=123 filter: {photo_names}"
+    )
+    assert "rain_wrong_seed.png" not in prompt_names, (
+        f"rain_wrong_seed.png leaked into prompt despite seed=123 filter: {prompt_names}"
+    )
+
+    # Albums are folder suggestions based on residual text only — not
+    # field-filtered.  The rain_folder matches "rain" in name and should
+    # appear even though its contents are not guaranteed to satisfy seed:123.
+    assert album_name in album_names, (
+        f"Album '{album_name}' should appear as a folder suggestion "
+        f"even though not field-filtered; got albums={album_names}"
+    )

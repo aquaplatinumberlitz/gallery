@@ -1496,6 +1496,11 @@ def _search_fielded_photos(
 ) -> tuple[list[sqlite3.Row], Path]:
     """Intersect filename matches with field-filtered paths using a CTE.
 
+    NOTE: This function is used ONLY for the Photos (and indirectly Prompt) result
+    sections.  It applies field filters (seed:, model:, etc.) to narrow results.
+    The Albums section does NOT call this function — albums are folder suggestions
+    based solely on residual text and are intentionally not field-filtered.
+
     WITH field_paths AS (
       SELECT m.path FROM image_metadata m JOIN file_index fi ON fi.path = m.path
       WHERE <field conditions>
@@ -1604,6 +1609,13 @@ def search_index_fielded(query: str, scope: str, root_path: str | Path | None = 
 
     parsed = parse_fielded_query(trimmed)
 
+    # ── Albums section ──────────────────────────────────────────────────
+    # Albums use ONLY residual_text (plain text outside field tokens like
+    # seed: / model:).  They are intentionally NOT narrowed by metadata
+    # field filters.  Albums are folder/album *suggestions* — navigation
+    # aids based on folder name / path — not strict filtered image results.
+    # This is a deliberate product decision; do not "fix" it without one.
+    # ─────────────────────────────────────────────────────────────────────
     album_query = parsed.residual_text if parsed.residual_text else ""
 
     with _DB_LOCK, _connect() as conn:
@@ -1613,7 +1625,12 @@ def search_index_fielded(query: str, scope: str, root_path: str | Path | None = 
             album_rows = []
 
         if parsed.fields:
-            # Fielded search: intersect residual matches with field-filtered paths
+            # ── Photos & Prompt sections (field-filtered) ──────────────
+            # Photos intersect residual-text filename matches with
+            # metadata field filters (seed:, model:, etc.) via a CTE.
+            # Prompt/image-result rows are also narrowed by field filters.
+            # These sections ARE guaranteed to satisfy metadata filters.
+            # ───────────────────────────────────────────────────────────
             photo_rows, root = _search_fielded_photos(conn, parsed, normalized_scope, root_path, root, limit)
 
             if parsed.fields or parsed.residual_text:
