@@ -6,7 +6,7 @@ Last reviewed: 2026-06-09
 
 AI Art Gallery is a local-first image browser with a FastAPI backend and a Vue 3 frontend.
 
-- Backend: scans directories, serves originals, renders cached WebP thumbnails, parses generation metadata, and indexes prompt/metadata text in SQLite FTS5.
+- Backend: scans directories, serves originals, renders cached WebP thumbnails/previews, parses generation metadata, and indexes prompt/metadata text in SQLite FTS5.
 - Frontend: manages gallery state with Pinia, renders responsive layouts, virtualizes large grids, and opens images in a PhotoSwipe 5 lightbox.
 - Startup: `start.py` creates the Python virtualenv, installs Python and Node dependencies, and starts both servers.
 
@@ -29,7 +29,7 @@ Backend modules live flat in `backend/` (no nested packages beyond `tests/`).
 | `scan.py` | `GET /api/scan`, `scan_directory`, perf helpers |
 | `folders.py` | `GET /api/folders`, `POST /api/open-folder` |
 | `images.py` | `GET /api/image` (original image serving) |
-| `thumbnails.py` | `GET /api/thumbnail`, generation, persistent disk cache |
+| `thumbnails.py` | `GET /api/thumbnail`, `GET /api/preview`, derivative generation, persistent disk cache |
 | `metadata_extract.py` | Raw metadata extraction from image files (lowest layer, no SQLite/API) |
 | `metadata_parse.py` | `GET /api/metadata`, LRU cache, rich response shaping |
 | `metadata_store.py` | SQLite metadata cache, FTS5 index/search |
@@ -45,6 +45,7 @@ Backend modules live flat in `backend/` (no nested packages beyond `tests/`).
 | `GET /api/folders` | Return folder children only for folder tree expansion | `folders.py` |
 | `GET /api/image` | Serve an original image file | `images.py` |
 | `GET /api/thumbnail` | Serve a cached WebP thumbnail | `thumbnails.py` |
+| `GET /api/preview` | Serve a cached WebP viewer preview | `thumbnails.py` |
 | `GET /api/metadata` | Parse AI generation metadata | `metadata_parse.py` |
 | `GET /api/search` | Unified indexed search for albums, photo filenames, and prompt/metadata | `search.py` |
 | `GET /api/search-metadata` | Search indexed AI prompt/metadata fields with SQLite FTS5 | `search.py` |
@@ -58,18 +59,18 @@ Important backend behavior:
 - `GALLERY_ROOT` bounds path safety. The default root is `/`, which is permissive for local use but still routes through path checks.
 - `GALLERY_OPEN_FOLDER=false` disables OS folder opening by default.
 - `ENABLE_METRICS=1` (default in dev) exposes Prometheus metrics at `/metrics` via `prometheus-fastapi-instrumentator`. Route-level labels only (no per-path cardinality explosion). Disable in production with `ENABLE_METRICS=0`.
-- `ENABLE_PROFILER=0` by default. When enabled, selected endpoints (configurable via `PROFILE_ENDPOINTS`, default `/api/scan,/api/metadata,/api/thumbnail`) are profiled with pyinstrument. HTML profiles are saved to `backend/profiles/` (gitignored).
-- Thumbnail cache keys include path, mtime, size, max size, and quality. Rendered WebP thumbnails are persisted under `backend/.cache/thumbnails/`, survive backend restarts, and are served with 24-hour browser caching headers.
+- `ENABLE_PROFILER=0` by default. When enabled, selected endpoints (configurable via `PROFILE_ENDPOINTS`, default `/api/scan,/api/metadata,/api/thumbnail,/api/preview`) are profiled with pyinstrument. HTML profiles are saved to `backend/profiles/` (gitignored).
+- Derivative cache keys include kind, cache version, path, mtime, size, max long edge, format, and quality. Rendered WebP thumbnails/previews are persisted under `backend/.cache/thumbnails/`, survive backend restarts, and are served with 24-hour browser caching headers.
 - Metadata cache: two layers.
   - **In-memory LRU cache** (cachetools, 100MB max): caches parsed metadata dicts from `/api/metadata`. Keys include path + mtime + size.
-  - **SQLite dimension cache** (same DB as search cache): `image_metadata` table with `width`, `height`, `mtime`, `size` per path. Populated by `/api/metadata` (full metadata parse) and `/api/thumbnail` (image already opened for thumbnailing). Queried by `/api/scan` as a single batch lookup to return cached dimensions without opening images.
+  - **SQLite dimension cache** (same DB as search cache): `image_metadata` table with `width`, `height`, `mtime`, `size` per path. Populated by `/api/metadata` (full metadata parse) and image derivative endpoints that already open the image. Queried by `/api/scan` as a single batch lookup to return cached dimensions without opening images.
 - Search cache lives at `backend/.cache/gallery_metadata.db`. It contains `file_index` rows for indexed folders/photos, `file_index_fts` for recursive album/photo filename search, and normalized image metadata with SQLite FTS5 tables for prompt/metadata search.
 - `/api/scan` must stay hot-path fast:
   - Returns `width=None, height=None` when no cached dimensions exist.
   - Performs a single batched SQL query (`get_cached_dimensions_for_files()`) to look up cached dimensions by path+mtime+size.
   - Does NOT open images with PIL, does NOT batch-read metadata for all images.
   - Indexes the scanned folder and its subfolders in the background (without re-indexing image metadata — `include_metadata=False`).
-  - File entries are indexed for albums/photos; image metadata indexing is deferred to `/api/metadata` or `/api/thumbnail` endpoints that already open the image.
+  - File entries are indexed for albums/photos; image metadata indexing is deferred to `/api/metadata` or derivative endpoints that already open the image.
 - `/api/scan` dimension flow:
   1. `os.scandir()` lists folder entries.
   2. Image files are filtered and their stat (mtime, size) collected.
@@ -77,7 +78,7 @@ Important backend behavior:
   4. Results validated against current mtime/size; stale entries discarded.
   5. `FileNode` objects built with cached dimensions (or null if uncached).
 - `/api/metadata` populates cache after parsing (via `upsert_metadata_result()`).
-- `/api/thumbnail` populates cache after rendering thumbnail (via `upsert_image_dimensions()`).
+- `/api/thumbnail` and `/api/preview` populate cache after rendering derivatives (via `upsert_image_dimensions()`).
 - `/api/folders` is a lightweight folder-tree endpoint. It lists only direct, non-hidden folder children, does not return image rows, and does not compute image counts or cover images. `/api/folders` ignores symlinked directories and only lists real non-hidden child directories. For this endpoint, `has_children` means the folder has at least one non-hidden child directory, so sidebar chevrons are not shown for folders that contain only images. Album cover/count metadata remains part of `/api/scan`, not `/api/folders`.
 - Production mode is enabled with `PRODUCTION=1`, serving `frontend/dist/`.
 
@@ -208,18 +209,19 @@ structured query parser on top of it. See
 ```text
 PhotoCard click
 → lightboxStore.open({ path, name }, visibleImages)
-→ preload neighboring images
+→ preload neighboring thumbnail 512 + preview 1440 only
 → GET /api/metadata
 → Lightbox.vue dispatches to the active device wrapper and metadata panel
+→ PhotoSwipe normal src is /api/preview; originalSrc is /api/image for on-demand triggers
 ```
 
-### Thumbnail Request
+### Derivative Request
 
 ```text
 source image
-→ cache key from resolved path + mtime_ns + size + max_size + quality
+→ cache key from kind + version + resolved path + mtime_ns + size + max_long_edge + format + quality
 → diskcache at backend/.cache/thumbnails/
-→ persisted WebP thumbnail file
+→ persisted WebP thumbnail/preview file
 → FileResponse
 → browser cache with Cache-Control: public, max-age=86400, immutable
 ```

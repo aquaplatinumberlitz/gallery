@@ -2,6 +2,7 @@
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { useFocusTrap } from '../composables/useFocusTrap';
 import { useLandingPagesLiveQuery } from '../db/composables/useLandingPagesLiveQuery';
+import { LIGHTBOX_ALWAYS_LOAD_ORIGINAL_KEY } from '../utils/lightbox';
 
 const props = defineProps<{
   isOpen: boolean;
@@ -14,6 +15,7 @@ const emit = defineEmits<{
 
 const introMode = ref<'auto' | 'disabled' | 'manual'>('auto');
 const selectedTheme = ref('');
+const alwaysLoadOriginal = ref(false);
 const modalRef = ref<HTMLElement | null>(null);
 const closeButtonRef = ref<HTMLElement | null>(null);
 const landingPagesQuery = useLandingPagesLiveQuery();
@@ -48,6 +50,8 @@ const loadSettings = () => {
   if (savedTheme) {
     selectedTheme.value = savedTheme;
   }
+
+  alwaysLoadOriginal.value = localStorage.getItem(LIGHTBOX_ALWAYS_LOAD_ORIGINAL_KEY) === 'true';
 };
 
 const saveSettings = () => {
@@ -55,13 +59,14 @@ const saveSettings = () => {
   if (selectedTheme.value) {
     localStorage.setItem('intro_theme', selectedTheme.value);
   }
+  localStorage.setItem(LIGHTBOX_ALWAYS_LOAD_ORIGINAL_KEY, String(alwaysLoadOriginal.value));
 };
 
 onMounted(() => {
   loadSettings();
 });
 
-watch([introMode, selectedTheme], () => {
+watch([introMode, selectedTheme, alwaysLoadOriginal], () => {
   saveSettings();
 });
 
@@ -162,6 +167,18 @@ onUnmounted(() => {
               </div>
             </div>
           </section>
+
+          <section class="setting-section">
+            <h3 class="section-title">Viewer Images</h3>
+
+            <label class="option-item" :class="{ active: alwaysLoadOriginal }">
+              <input type="checkbox" v-model="alwaysLoadOriginal" class="sr-only">
+              <div class="option-content">
+                <span class="option-label">Always load original</span>
+                <span class="option-desc">Use source files immediately in the viewer</span>
+              </div>
+            </label>
+          </section>
         </div>
       </div>
     </div>
@@ -241,6 +258,10 @@ onUnmounted(() => {
 
 .modal-body {
   padding: 24px;
+}
+
+.setting-section + .setting-section {
+  margin-top: 24px;
 }
 
 .section-title {

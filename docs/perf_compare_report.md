@@ -7,6 +7,8 @@
 > Backend: `uvicorn backend.main:app` (`127.0.0.1:4181`)
 > Test data: `test mika` album (50 images, 2 subfolders)
 
+Note: this report predates the derivative-first lightbox refactor. Its "image loaded" lightbox values measured the original `/api/image` path. New reports split this into `lightboxPreviewLoaded`, `lightboxOriginalLoadedOnZoom`, and `transitionPreviewLoaded`.
+
 ## 1. Backend Scan Perf (`scripts/perf_scan.py`, 10 iterations)
 
 | Metric | main (ms) | evolve before Option 2 (ms) | evolve after Option 2 + hardening (ms) | Verdict |

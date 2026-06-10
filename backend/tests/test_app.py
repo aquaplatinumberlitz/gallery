@@ -22,6 +22,7 @@ def test_routes_registered():
     assert "/api/scan" in routes
     assert "/api/metadata" in routes
     assert "/api/thumbnail" in routes
+    assert "/api/preview" in routes
     assert "/api/health" in routes
     assert "/api/search" in routes
     assert "/api/folders" in routes
