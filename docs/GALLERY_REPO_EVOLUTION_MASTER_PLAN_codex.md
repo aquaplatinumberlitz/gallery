@@ -11,7 +11,7 @@ gallery-repo should preserve its fast local web hot path, then selectively add a
 
 | Question | Answer |
 | --- | --- |
-| Best current architecture to preserve | The direct `/api/scan` folder-open path, lazy `/api/thumbnail` image-open path, on-demand/coalesced `/api/metadata` path, derivative-first lightbox (`/api/preview` main source, `/api/image` on zoom/fullscreen), SQLite cache/index, and TanStack Query ownership of server state. |
+| Best current architecture to preserve | The direct `/api/scan` folder-open path, lazy `/api/thumbnail` image-open path, on-demand/coalesced `/api/metadata` path, derivative-first PhotoSwipe `/api/preview` main source + on-demand `/api/image` original, SQLite cache/index, and TanStack Query ownership of server state. |
 | Best DT idea to borrow | A bounded local metadata indexing queue with coalesced jobs and batched SQLite writes. DT's best lesson is not its viewer path; it is its background scanner/writer discipline. |
 | Best Immich idea to borrow | DB-first warm viewer metadata and derivative readiness/status rows, implemented with SQLite and local workers rather than PostgreSQL, Redis, and BullMQ. |
 | Biggest current gallery-repo weakness | Metadata/search warmness depends mostly on user-triggered thumbnail and metadata opens. A folder can scan quickly but still be cold for prompt search and lightbox metadata. |
@@ -779,16 +779,7 @@ How to test:
 - Parser fixture tests for A1111, ComfyUI, SwarmUI, NovelAI, EasyDiffusion, exact sidecar, EXIF UserComment, malformed JSON.
 - Regression tests that `/api/metadata` and `index_image()` agree on normalized fields.
 
-### Problem 5: Lightbox is good now, but next/prev metadata and dimensions can be prefetched better.
-
-Current gallery-repo problem:
-
-- Neighbor preloading only fetches 800px thumbnails.
-- Next/prev metadata often starts only after navigation changes `lightbox.itemPath`.
-
-Root cause:
-
-- Current lightbox prefetch is intentionally conservative to avoid full-original bandwidth spikes.
+### Problem 5: Lightbox is good now, but next/prev metadata and dimensions can be prefetched better. *(Historical — resolved by Phase 2A: neighbor preload now fetches thumbnail+preview 1440, and metadata prefetch follows navigation.)*
 
 Evidence from current docs/code:
 
@@ -1092,7 +1083,7 @@ How to test:
 | DB/schema changes | None. |
 | API changes | None. |
 | Docs changes | Keep `ARCHITECTURE.md`, `PERFORMANCE_TESTING.md`, and this plan synchronized. |
-| Tests to add/update | Scan no-PIL guard; cached dimension validation; lightbox `/api/image` assertion already exists; no full-original neighbor preload assertion; empty/search state regressions. |
+| Tests to add/update | Scan no-PIL guard; cached dimension validation; lightbox `/api/preview` normal + `/api/image` on-demand assertion (Phase 2A); no full-original neighbor preload assertion; empty/search state regressions. |
 | Perf budgets | Existing album/lightbox budgets; 50-image scan p95 <= current budget or <= 10% regression. |
 | Acceptance criteria | Existing perf tests pass; guard tests fail if scan opens images or lightbox main source changes. |
 | Rollback plan | Remove only added guard tests if they are incorrectly specified; do not relax perf budgets without benchmark evidence. |
@@ -1361,7 +1352,7 @@ Plain text remains the default. Fielded search is an extension.
 | First thumbnail start | <= current budget. Current default is 1000 ms. |
 | Thumbnail p95 | <= current budget. Current default is 1200 ms. |
 | Lightbox visible | <= current budget. Current default is 1500 ms. |
-| Lightbox image loaded | <= current budget. Current default is 4000 ms. |
+| Lightbox preview loaded | <= current budget. Current default is 4000 ms. |
 | Lightbox transition | <= current budget. Current default is 3000 ms. |
 | 5000-image warm first page | 300-500 ms after indexed listing exists. |
 | `/api/index/status` warm p95 | <= 50 ms. |
