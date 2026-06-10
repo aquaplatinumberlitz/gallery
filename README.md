@@ -105,6 +105,11 @@ gallery-repo/
 │   ├── watcher.py
 │   └── tests/
 │       ├── conftest.py
+│       ├── test_api_integration_derivatives.py
+│       ├── test_api_integration_health_and_safety.py
+│       ├── test_api_integration_index_status.py
+│       ├── test_api_integration_metadata_search_facets.py
+│       ├── test_api_integration_scan.py
 │       ├── test_app.py
 │       ├── test_derivatives.py
 │       ├── test_facets.py
@@ -119,7 +124,12 @@ gallery-repo/
 │   ├── package.json
 │   ├── public/landpage/
 │   ├── tests/
+│   │   ├── gallery-cache-revisit.spec.ts
+│   │   ├── gallery-no-reload.spec.ts
 │   │   ├── lightbox-loading-policy.spec.ts
+│   │   ├── mobile-lightbox-sheet.spec.ts
+│   │   ├── responsive-breakpoints.spec.ts
+│   │   ├── search-fielded-ui.spec.ts
 │   │   └── perf/
 │   │       ├── album-open.perf.spec.ts
 │   │       └── lightbox.perf.spec.ts
@@ -132,6 +142,11 @@ gallery-repo/
 │       ├── stores/
 │       ├── styles/
 │       └── types/
+├── scripts/
+│   ├── test_all.sh
+│   ├── test_backend_api_integration.sh
+│   ├── test_frontend_contract.sh
+│   └── test_perf_smoke.sh
 └── docs/
 ```
 
@@ -154,6 +169,8 @@ gallery-repo/
 
 ## Documentation
 
+- [Test Strategy](docs/TEST_STRATEGY.md) - 325 tests across backend API integration, Playwright contract, and perf tiers
+- [API Integration Testing](docs/API_INTEGRATION_TESTING.md) - isolated backend integration test fixtures and patterns
 - [Architecture](docs/ARCHITECTURE.md) - frontend/backend architecture, data flow, lightbox design
 - [Development](docs/DEVELOPMENT.md) - setup, commands, debugging tools, maintenance practices
 - [UI/UX Guidelines](docs/UI_UX_GUIDELINES.md) - breakpoints, layout rules, mobile behavior, theme rules

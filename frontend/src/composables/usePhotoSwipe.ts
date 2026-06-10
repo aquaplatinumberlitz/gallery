@@ -1,7 +1,7 @@
 import { ref, onMounted, onUnmounted, watch, type Ref, type ComputedRef } from "vue";
 import PhotoSwipe from "photoswipe";
 import type { FileNode, MetadataResponse } from "../types";
-import { fetchMetadata, getPreviewUrl, getThumbnailUrl } from "../services/api";
+import { fetchMetadata, getPreviewUrl } from "../services/api";
 import { queryClient } from "../query";
 import { queryKeys } from "../query/keys";
 import { useLightboxStore } from "../stores/lightbox";

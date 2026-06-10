@@ -22,7 +22,8 @@ PROFILE_DIR = Path(__file__).resolve().parent / "profiles"
 
 METADATA_CACHE_MAX_BYTES = 100 * 1024 * 1024         # 100 MB
 
-THUMBNAIL_CACHE_DIR = Path(__file__).resolve().parent / ".cache" / "thumbnails"
+_thumbnail_cache_env = os.getenv("GALLERY_THUMBNAIL_CACHE_DIR")
+THUMBNAIL_CACHE_DIR = Path(_thumbnail_cache_env) if _thumbnail_cache_env else Path(__file__).resolve().parent / ".cache" / "thumbnails"
 
 SCAN_PERF_LOGS_ENABLED = os.getenv("SCAN_PERF_LOGS", "1" if os.getenv("PRODUCTION") != "1" else "0").lower() not in {"0", "false", "no"}
 
@@ -78,8 +79,12 @@ FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
 
 OPEN_FOLDER_ENABLED = os.getenv("GALLERY_OPEN_FOLDER", "false").lower() == "true"
 
-METADATA_DB_DIR = Path(__file__).resolve().parent / ".cache"
-GALLERY_METADATA_DB = METADATA_DB_DIR / "gallery_metadata.db"
+_metadata_db_env = os.getenv("GALLERY_METADATA_DB")
+if _metadata_db_env:
+    GALLERY_METADATA_DB = Path(_metadata_db_env)
+else:
+    METADATA_DB_DIR = Path(__file__).resolve().parent / ".cache"
+    GALLERY_METADATA_DB = METADATA_DB_DIR / "gallery_metadata.db"
 
 # ---------------------------------------------------------------------------
 # Phase 3 — Warm indexed folder listing
