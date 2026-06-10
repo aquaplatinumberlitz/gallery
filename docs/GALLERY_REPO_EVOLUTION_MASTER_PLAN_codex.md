@@ -16,7 +16,7 @@ gallery-repo should preserve its fast local web hot path, then selectively add a
 | Best Immich idea to borrow | DB-first warm viewer metadata and derivative readiness/status rows, implemented with SQLite and local workers rather than PostgreSQL, Redis, and BullMQ. |
 | Biggest current gallery-repo weakness | Metadata/search warmness depends mostly on user-triggered thumbnail and metadata opens. A folder can scan quickly but still be cold for prompt search and lightbox metadata. |
 | Biggest danger if we copy DT blindly | DT-style full-file reads, hashing, pixel fallback scans, or synchronous viewer metadata reparsing would destroy the folder-open and lightbox responsiveness that gallery-repo already has. |
-| Biggest danger if we copy Immich blindly | Immich's full server stack, multi-user storage model, DB-first-only timeline assumptions, and loss of original-image fidelity would add operational weight and fundamentally change the product. (gallery-repo adapted Immich's derivative-first concept in Phase 2A but kept original-on-zoom guarantee.) |
+| Biggest danger if we copy Immich blindly | Immich's full server stack, multi-user storage model, preview-first behavior without original-on-demand guarantees, and DB-first-only timeline assumptions would add operational weight and fundamentally change the product. (gallery-repo adapted Immich's derivative-first concept in Phase 2A but kept original-on-zoom guarantee.) |
 | Recommended direction for the implementation phases | Phase 0: lock current guarantees. Phase 1: add a unified parser core, local background metadata indexer, batched writer, and index status. **Phase 2A (✅ done): derivative-first lightbox** — `/api/preview` (1440px) as PhotoSwipe main src, original `/api/image` only on zoom/fullscreen/download/animated, shared derivative core (`generate_derivative`), cache key per derivative type, neighbor preload (thumbnail + preview only, never original). **Phase 2B (next): fielded metadata search and DB-first warm metadata reads.** Phase 3: warm indexed folder listing + optional watcher. |
 
 The correct direction is not "DT plus a web UI" and not "Immich lite." It is:
@@ -1140,7 +1140,7 @@ How to test:
 | Acceptance criteria (met) | Normal open: no `/api/image` request ✅ Zoom triggers `/api/image` ✅ Neighbor preload: only thumbnail+preview ✅ |
 | Rollback plan | Revert to `src = /api/image` (pre-Phase-2A commit `a471eed`). |
 | Risk level | Medium (successfully mitigated — tests pass, budgets met). |
-| What was learned | iPad Safari doesn't support `color-mix()`. `backdrop-filter + v-if + transition` causes jank on iPad. `window.__pswp` is a test-only hook gated behind `import.meta.env.MODE === 'test'` or `VITE_EXPOSE_LIGHTBOX_TEST_HOOKS=1`. Never exposed in production. |
+| What was learned | iPad Safari doesn't support `color-mix()`. `backdrop-filter + v-if + transition` causes jank on iPad. test-only hook must be gated; do not expose __pswp in production |
 
 ### Phase 2B (Next) — Fielded Search, DB-first Warm Metadata
 
