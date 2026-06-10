@@ -31,7 +31,13 @@ export function installApiNetworkTracker(page: Page, clickTimeRef: { value: numb
 
   const shouldTrack = (request: Request) => {
     const url = new URL(request.url());
-    return url.pathname === "/api/scan" || url.pathname === "/api/thumbnail" || url.pathname === "/api/image" || url.pathname === "/api/metadata";
+    return (
+      url.pathname === "/api/scan" ||
+      url.pathname === "/api/thumbnail" ||
+      url.pathname === "/api/preview" ||
+      url.pathname === "/api/image" ||
+      url.pathname === "/api/metadata"
+    );
   };
 
   page.on("request", (request) => {
@@ -66,6 +72,7 @@ export function installApiNetworkTracker(page: Page, clickTimeRef: { value: numb
     samples,
     scanSamples: () => samples.filter((sample) => sample.pathname === "/api/scan"),
     thumbnailSamples: () => samples.filter((sample) => sample.pathname === "/api/thumbnail"),
+    previewSamples: () => samples.filter((sample) => sample.pathname === "/api/preview"),
     imageSamples: () => samples.filter((sample) => sample.pathname === "/api/image"),
     metadataSamples: () => samples.filter((sample) => sample.pathname === "/api/metadata"),
     clear() {

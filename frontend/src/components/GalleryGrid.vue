@@ -754,7 +754,7 @@ onBeforeUnmount(() => {
     >
       <section v-if="searchAlbums.length" class="search-photo-section">
         <GallerySectionHeader
-          title="Albums"
+          title="Album suggestions"
           :count="searchAlbums.length"
           :badge-icon="FolderOpen"
         />

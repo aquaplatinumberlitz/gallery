@@ -23,6 +23,7 @@ const { copyStatus, copyText } = useClipboard();
 
 // Refs for focus management
 const lightboxRef = ref<HTMLElement | null>(null);
+const desktopPhotoSwipeRef = ref<{ loadOriginalForCurrent: (reason?: "fullscreen") => Promise<void> } | null>(null);
 
 // Focus trap (auto-detects first focusable element)
 const focusTrap = useFocusTrap(lightboxRef, {
@@ -169,6 +170,7 @@ const handleFullscreenChange = () => {
 
 const enterFullscreen = async () => {
   if (!canFullscreen.value || !lightboxRef.value || isFullscreen.value) return;
+  void desktopPhotoSwipeRef.value?.loadOriginalForCurrent("fullscreen").catch(() => undefined);
   try {
     await lightboxRef.value.requestFullscreen();
   } catch (e) {
@@ -207,6 +209,7 @@ function handleToggleFullscreen() {
         <!-- Desktop/Wide: PhotoSwipe + Sidebar -->
         <template v-if="isDesktop || isWide">
           <PhotoSwipeViewer
+            ref="desktopPhotoSwipeRef"
             :items="lightbox.galleryItems"
             :current-index="lightbox.currentIndex"
             :is-open="show"

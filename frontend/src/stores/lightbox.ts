@@ -1,12 +1,18 @@
 import { defineStore } from "pinia";
 import type { FileNode } from "../types";
-import { getThumbnailUrl } from "../services/api";
-import type { LightboxDimensions } from "../utils/lightbox";
+import { getPreviewUrl, getThumbnailUrl } from "../services/api";
+import {
+  LIGHTBOX_PREVIEW_EDGE,
+  LIGHTBOX_THUMBNAIL_EDGE,
+  type LightboxDimensions,
+} from "../utils/lightbox";
 
 const preloadImage = (path: string) => {
   if (typeof Image === "undefined") return;
-  const img = new Image();
-  img.src = getThumbnailUrl(path, 800);
+  [getThumbnailUrl(path, LIGHTBOX_THUMBNAIL_EDGE), getPreviewUrl(path, LIGHTBOX_PREVIEW_EDGE)].forEach((src) => {
+    const img = new Image();
+    img.src = src;
+  });
 };
 
 export const useLightboxStore = defineStore("lightbox", {

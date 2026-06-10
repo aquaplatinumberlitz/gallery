@@ -236,10 +236,16 @@ export const unifiedSearch = async (
 export const getImageUrl = (path: string) =>
   `${API_BASE}/api/image?path=${encodeURIComponent(path)}`;
 
-export const getThumbnailUrl = (path: string, maxSize: number = 800) => {
+export const getThumbnailUrl = (path: string, maxLongEdge: number = 512) => {
   const params = new URLSearchParams({ path });
-  params.set("max_size", String(maxSize));
+  params.set("max_long_edge", String(maxLongEdge));
   return `${API_BASE}/api/thumbnail?${params.toString()}`;
+};
+
+export const getPreviewUrl = (path: string, maxLongEdge: number = 1440) => {
+  const params = new URLSearchParams({ path });
+  params.set("max_long_edge", String(maxLongEdge));
+  return `${API_BASE}/api/preview?${params.toString()}`;
 };
 
 export const fetchLandingPages = async (): Promise<string[]> => {

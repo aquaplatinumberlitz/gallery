@@ -11,6 +11,7 @@ const rootPath = process.env.GALLERY_ROOT_PATH ?? (
 async function navigateToAlbum(page: Page) {
   await page.addInitScript((rootForInit) => {
     localStorage.setItem("gallery-root-path", rootForInit);
+    localStorage.removeItem("gallery-lightbox-always-load-original");
   }, rootPath);
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
@@ -57,19 +58,17 @@ test("lightbox opens first photo within budget", async ({ page }) => {
       naturalH: img.naturalHeight,
     }));
   }, { timeout: 15000 }).toMatchObject({ complete: true });
-  const mainImageLoadedAfterClickMs = Date.now() - clickTime.value;
+  const lightboxPreviewLoadedAfterClickMs = Date.now() - clickTime.value;
 
   const allThumbnailSamples = tracker.thumbnailSamples();
+  const previewSamples = tracker.previewSamples();
   const imageSamples = tracker.imageSamples();
   const metadataSamples = tracker.metadataSamples();
 
-  const highResThumbnailSamples = allThumbnailSamples.filter(s => {
-    const maxSize = getQueryParam(s.search, "max_size");
-    return maxSize && Number(maxSize) >= 800;
-  });
-  const firstThumbSample = highResThumbnailSamples.find(s => s.durationMs && s.durationMs > 0);
-  const firstImageSample = imageSamples.find(s => s.durationMs && s.durationMs > 0);
-  const usedFullImageEndpoint = firstImageSample?.pathname === "/api/image";
+  const thumbnailSamples = allThumbnailSamples.filter(s => getQueryParam(s.search, "max_long_edge") === "512");
+  const firstPreviewSample = previewSamples.find(s => s.durationMs && s.durationMs > 0);
+  const usedPreviewEndpoint = firstPreviewSample?.pathname === "/api/preview";
+  const usedFullImageEndpointOnOpen = imageSamples.some(s => s.pathname === "/api/image");
 
   const dims = await lightboxImg.evaluate((img: HTMLImageElement) => ({
     naturalW: img.naturalWidth,
@@ -82,18 +81,34 @@ test("lightbox opens first photo within budget", async ({ page }) => {
 
   const actualSrc = await lightboxImg.evaluate((img: HTMLImageElement) => img.src);
   const srcIsFullImage = actualSrc?.includes("/api/image") ?? false;
+  const srcIsPreview = actualSrc?.includes("/api/preview") ?? false;
+
+  tracker.clear();
+  clickTime.value = Date.now();
+  // Trigger original load (simulates zoom/explicit full-res action).
+  try {
+    await page.evaluate(() => {
+      (window as any).__loadOriginalForCurrent?.("zoom");
+    });
+  } catch (_) {
+    // zoom trigger is optional in perf test; full coverage in lightbox-loading-policy.spec.ts
+  }
+  await page.waitForTimeout(500);
 
   const report = {
     albumName,
     albumPath,
     open: {
       lightboxVisibleAfterClickMs,
-      mainImageLoadedAfterClickMs,
-      mainImageRequestStartAfterClickMs: Math.round((firstImageSample ?? firstThumbSample)?.startMs ?? 0),
-      mainImageRequestDurationMs: Math.round((firstImageSample ?? firstThumbSample)?.durationMs ?? 0),
+      lightboxPreviewLoadedAfterClickMs,
+      previewRequestStartAfterClickMs: Math.round(firstPreviewSample?.startMs ?? 0),
+      previewRequestDurationMs: Math.round(firstPreviewSample?.durationMs ?? 0),
       metadataDurationMs: metadataSamples.length ? Math.round(Math.min(...metadataSamples.map(s => s.durationMs ?? 0))) : 0,
-      usedFullImageEndpoint,
+      thumbnail512Count: thumbnailSamples.length,
+      usedPreviewEndpoint,
+      usedFullImageEndpointOnOpen,
       srcIsFullImage,
+      srcIsPreview,
       naturalWidth: dims.naturalW,
       naturalHeight: dims.naturalH,
       displayWidth: Math.round(dims.displayW),
@@ -103,7 +118,7 @@ test("lightbox opens first photo within budget", async ({ page }) => {
     },
     budgets: {
       openVisibleMs: Number(process.env.GALLERY_PERF_LIGHTBOX_OPEN_BUDGET_MS ?? "1500"),
-      openImageLoadedMs: Number(process.env.GALLERY_PERF_LIGHTBOX_IMAGE_BUDGET_MS ?? "4000"),
+      openPreviewLoadedMs: Number(process.env.GALLERY_PERF_LIGHTBOX_PREVIEW_BUDGET_MS ?? "4000"),
     },
     verdict: "pass",
   };
@@ -115,13 +130,15 @@ test("lightbox opens first photo within budget", async ({ page }) => {
   }
 
   expect(lightboxVisibleAfterClickMs).toBeLessThanOrEqual(report.budgets.openVisibleMs);
-  expect(mainImageLoadedAfterClickMs).toBeLessThanOrEqual(report.budgets.openImageLoadedMs);
+  expect(lightboxPreviewLoadedAfterClickMs).toBeLessThanOrEqual(report.budgets.openPreviewLoadedMs);
   expect(dims.naturalW).toBeGreaterThan(0);
   expect(dims.naturalH).toBeGreaterThan(0);
   expect(dims.displayW).toBeGreaterThan(300);
   expect(dims.displayH).toBeGreaterThan(300);
-  expect(usedFullImageEndpoint).toBe(true);
-  expect(srcIsFullImage).toBe(true);
+  expect(usedPreviewEndpoint).toBe(true);
+  expect(usedFullImageEndpointOnOpen).toBe(false);
+  expect(srcIsPreview).toBe(true);
+  expect(srcIsFullImage).toBe(false);
 });
 
 test("lightbox transitions to next image within budget", async ({ page }) => {
@@ -146,6 +163,11 @@ test("lightbox transitions to next image within budget", async ({ page }) => {
 
   const beforeSrc = await lightboxImg.getAttribute("src");
 
+  // Ensure no "always load original" preference interferes with transition
+  await page.evaluate(() => {
+    localStorage.removeItem("gallery-lightbox-always-load-original");
+  });
+
   tracker.clear();
   clickTime.value = Date.now();
 
@@ -162,7 +184,7 @@ test("lightbox transitions to next image within budget", async ({ page }) => {
     }));
     return src !== beforeSrc && dims.nw > 0 && dims.nh > 0;
   }, { timeout: 20000 }).toBe(true);
-  const nextImageLoadedAfterActionMs = Date.now() - clickTime.value;
+  const transitionPreviewLoadedAfterActionMs = Date.now() - clickTime.value;
 
   const dims = await lightboxImg.evaluate((img: HTMLImageElement) => ({
     naturalW: img.naturalWidth,
@@ -182,7 +204,9 @@ test("lightbox transitions to next image within budget", async ({ page }) => {
     albumPath,
     transition: {
       nextVisibleAfterActionMs,
-      nextImageLoadedAfterActionMs,
+      transitionPreviewLoadedAfterActionMs,
+      previewRequestCount: tracker.previewSamples().length,
+      originalRequestCount: tracker.imageSamples().length,
       naturalWidth: dims.naturalW,
       naturalHeight: dims.naturalH,
       displayWidth: Math.round(dims.displayW),
@@ -203,9 +227,18 @@ test("lightbox transitions to next image within budget", async ({ page }) => {
     console.warn(`WARNING: Lightbox image (${Math.round(dims.displayW)}×${Math.round(dims.displayH)}px) is smaller than 50% of viewport (${viewport?.width}×${viewport?.height}px). Image may be displaying a thumbnail instead of full-res.`);
   }
 
-  expect(nextImageLoadedAfterActionMs)
+  expect(transitionPreviewLoadedAfterActionMs)
     .toBeLessThanOrEqual(report.budgets.transitionMs);
   expect(dims.naturalW).toBeGreaterThan(0);
   expect(dims.naturalH).toBeGreaterThan(0);
   expect(ratioDiff).toBeLessThan(0.2);
+  // Normal transition: current slide should display preview, not original.
+  // Check via network tracker that the transition itself didn't load /api/image
+  // for the actual transition target image (index 0->1 means image at index 1).
+  const imageForTransition = tracker.imageSamples().filter(s => {
+    const params = new URLSearchParams(s.search);
+    const path = params.get("path") || "";
+    return path.includes("0 (2)");  // index 1 in the sorted album
+  });
+  expect(imageForTransition.length).toBe(0);
 });

@@ -7,7 +7,6 @@ from concurrent.futures import Future
 from pathlib import Path
 from typing import Optional
 
-from PIL import Image
 from cachetools import LRUCache
 from fastapi import APIRouter, Query
 from fastapi.concurrency import run_in_threadpool
@@ -15,8 +14,8 @@ from fastapi.concurrency import run_in_threadpool
 from .config import METADATA_CACHE_MAX_BYTES
 from .errors import APIError, ErrorType
 from .files import check_image_limits, is_image
-from .metadata_extract import extract_loras
-from .metadata_store import upsert_image_dimensions, upsert_metadata_result
+from .metadata_extract import extract_loras, extract_metadata, extracted_metadata_to_api
+from .metadata_store import get_lightbox_metadata, upsert_extracted_metadata
 from .paths import is_path_safe, resolve_path
 
 
@@ -343,194 +342,9 @@ def _parse_metadata_uncached(path: Path) -> dict:
         raise APIError(404, ErrorType.NOT_FOUND, "Image file not found")
     try:
         check_image_limits(path)
-
-        with Image.open(path) as img:
-            width, height = img.size
-            parameters = img.info.get("parameters")
-            prompt_json = img.info.get("prompt")
-            workflow_json = img.info.get("workflow")
-            exif_data = img.getexif()
-
-        result: dict = {}
-        swarm_data = None
-
-        # 1. Try SwarmUI (JSON in parameters - PNG)
-        if parameters and parameters.strip().startswith('{'):
-            try:
-                data = json.loads(parameters)
-                if 'sui_image_params' in data:
-                    swarm_data = data
-            except json.JSONDecodeError:
-                pass
-
-        # 2. Try SwarmUI (JSON in Exif UserComment - JPEG)
-        if not swarm_data and exif_data:
-            user_comment = exif_data.get(37510)
-            if user_comment:
-                if isinstance(user_comment, bytes):
-                    if user_comment.startswith(b'ASCII\x00\x00\x00'):
-                        user_comment = user_comment[8:]
-                    try:
-                        user_comment = user_comment.decode('utf-8', errors='ignore').strip()
-                    except Exception:
-                        user_comment = None
-
-                if isinstance(user_comment, str) and user_comment.strip().startswith('{'):
-                    try:
-                        data = json.loads(user_comment)
-                        if 'sui_image_params' in data:
-                            swarm_data = data
-                    except json.JSONDecodeError:
-                        pass
-
-        if swarm_data:
-            sui_params = swarm_data.get('sui_image_params', {})
-            sui_extra = swarm_data.get('sui_extra_data', {})
-            sui_models = swarm_data.get('sui_models', [])
-
-            params = {
-                'Seed': str(sui_params.get('seed', '')),
-                'Steps': str(sui_params.get('steps', '')),
-                'CFG': str(sui_params.get('cfgscale', '')),
-                'Sampler': sui_params.get('sampler', ''),
-                'Scheduler': sui_params.get('scheduler', ''),
-                'Model': sui_params.get('model', ''),
-                'SwarmVersion': sui_params.get('swarm_version', ''),
-                'AspectRatio': sui_params.get('aspectratio', ''),
-                'Width': str(sui_params.get('width', '')),
-                'Height': str(sui_params.get('height', ''))
-            }
-
-            final_loras = []
-            seen_loras = set()
-
-            if 'loras' in sui_params and isinstance(sui_params['loras'], list):
-                lora_list = sui_params['loras']
-                lora_weights = sui_params.get('loraweights', [])
-
-                for i, lora in enumerate(lora_list):
-                    model = ""
-                    weight = 1.0
-
-                    if isinstance(lora, dict):
-                        model = lora.get('model', '')
-                        weight = lora.get('weight', 1.0)
-                    elif isinstance(lora, str):
-                        model = lora
-                        if isinstance(lora_weights, list) and i < len(lora_weights):
-                            try:
-                                weight = float(lora_weights[i])
-                            except (ValueError, TypeError):
-                                weight = 1.0
-
-                    if model:
-                        if model.endswith('.safetensors'):
-                            model = model[:-12]
-                        if model not in seen_loras:
-                            final_loras.append(f"{model}:{weight}")
-                            seen_loras.add(model)
-
-            if isinstance(sui_models, list):
-                for m in sui_models:
-                    if m.get('param') == 'used_loras':
-                        name = m.get('name', '')
-                        if name.endswith('.safetensors'):
-                            name = name[:-12]
-                        if name and name not in seen_loras:
-                            final_loras.append(name)
-                            seen_loras.add(name)
-
-            if final_loras:
-                params['Lora'] = final_loras
-
-            models_out = []
-            if isinstance(sui_models, list):
-                for m in sui_models:
-                    models_out.append({
-                        'name': m.get('name'),
-                        'param': m.get('param'),
-                        'hash': m.get('hash')
-                    })
-
-            result = {
-                "tool": "SwarmUI",
-                "prompt": sui_params.get('prompt', ''),
-                "negative_prompt": sui_params.get('negativeprompt', ''),
-                "params": {k: v for k, v in params.items() if v},
-                "models": models_out
-            }
-
-            date = sui_extra.get('date')
-            if date:
-                result['date'] = date
-
-            gen_time = sui_extra.get('generation_time') or sui_extra.get('prep_time')
-            if gen_time:
-                result['generation_time'] = gen_time
-
-        # 3. Try ComfyUI
-        if not result and (prompt_json or workflow_json):
-            result = parse_comfy(prompt_json or "", workflow_json)
-
-        # 4. Try A1111 or NovelAI/EasyDiffusion
-        if not result and parameters:
-            if parameters.strip().startswith('{'):
-                novelai_result = _parse_novelai_metadata(parameters)
-                if novelai_result:
-                    result = novelai_result
-                else:
-                    easy_result = _parse_easydiffusion_metadata(parameters)
-                    if easy_result:
-                        result = easy_result
-                    else:
-                        parsed = parse_ai_text_parameters(parameters)
-                        if parsed and parsed.get('params'):
-                            result = {
-                                "tool": "A1111",
-                                "prompt": parsed.get('prompt', ''),
-                                "negative_prompt": parsed.get('negative_prompt', ''),
-                                "params": parsed.get('params', {})
-                            }
-            else:
-                parsed = parse_ai_text_parameters(parameters)
-                if parsed and parsed.get('params'):
-                    prompt_text = parsed.get('prompt', '')
-                    if prompt_text.startswith('masterpiece, best quality,'):
-                        result = {
-                            "tool": "NovelAI",
-                            "prompt": prompt_text,
-                            "negative_prompt": parsed.get('negative_prompt', ''),
-                            "params": parsed.get('params', {})
-                        }
-                    else:
-                        result = {
-                            "tool": "A1111",
-                            "prompt": prompt_text,
-                            "negative_prompt": parsed.get('negative_prompt', ''),
-                            "params": parsed.get('params', {})
-                        }
-
-        # 5. Try .txt sidecar file
-        if not result:
-            txt_path = path.with_suffix('.txt')
-            if txt_path.exists():
-                text = txt_path.read_text(encoding='utf-8', errors='ignore')
-                parsed = parse_ai_text_parameters(text)
-                if parsed and parsed.get('params'):
-                    result = {
-                        "tool": "A1111",
-                        "prompt": parsed.get('prompt', ''),
-                        "negative_prompt": parsed.get('negative_prompt', ''),
-                        "params": parsed.get('params', {})
-                    }
-
-        if not result:
-            result = {"tool": "Unknown", "prompt": "", "negative_prompt": "", "params": {}}
-
-        result["width"] = width
-        result["height"] = height
-        result["name"] = path.name
-        return result
+        extracted = extract_metadata(path)
+        upsert_extracted_metadata(extracted, mark_job_done=True)
+        return extracted_metadata_to_api(extracted)
 
     except APIError:
         raise
@@ -546,7 +360,7 @@ def _metadata_cache_key(path: Path) -> tuple:
 def parse_metadata(path: Path) -> dict:
     """
     Parse and cache image metadata.
-    Uses size-based LRU cache (100MB max) for optimal memory usage.
+    Uses DB-first warm reads with LRU fallback for optimal performance.
     """
     if not path.exists() or not path.is_file():
         raise APIError(404, ErrorType.NOT_FOUND, "Image file not found")
@@ -561,6 +375,11 @@ def parse_metadata(path: Path) -> dict:
         if cached is not None:
             return copy.deepcopy(cached)
 
+        db_meta = get_lightbox_metadata(path)
+        if db_meta is not None:
+            _metadata_cache[key] = db_meta
+            return copy.deepcopy(db_meta)
+
         future = _metadata_inflight.get(key)
         if future is None:
             future = Future()
@@ -574,7 +393,6 @@ def parse_metadata(path: Path) -> dict:
 
     try:
         metadata = _parse_metadata_uncached(path)
-        upsert_metadata_result(path, metadata)
         with _metadata_cache_lock:
             _metadata_cache[key] = metadata
         future.set_result(metadata)

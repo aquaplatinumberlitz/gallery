@@ -11,7 +11,7 @@ const props = defineProps<{
   // Device-specific config
   closeOnVerticalDrag: boolean;
   allowPanToNext: boolean;
-  thumbnailSize: number | null; // null = full-res
+  thumbnailSize: number | null; // legacy prop; source policy is handled by buildPhotoSwipeItem
   paddingFn?: (viewportSize: { x: number; y: number }, itemData: unknown, index: number) => { top: number; bottom: number; left: number; right: number };
 }>();
 
@@ -22,7 +22,7 @@ const emit = defineEmits<{
 
 const containerRef = ref<HTMLElement | null>(null);
 
-usePhotoSwipe({
+const { loadOriginalForCurrent } = usePhotoSwipe({
   containerRef,
   items: computed(() => props.items),
   currentIndex: toRef(props, "currentIndex"),
@@ -41,6 +41,10 @@ usePhotoSwipe({
     if (prevBtn) prevBtn.setAttribute("data-testid", "lightbox-prev");
     if (nextBtn) nextBtn.setAttribute("data-testid", "lightbox-next");
   },
+});
+
+defineExpose({
+  loadOriginalForCurrent,
 });
 </script>
 

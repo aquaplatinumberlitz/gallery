@@ -7,7 +7,8 @@ from fastapi.concurrency import run_in_threadpool
 
 from .config import DEFAULT_ROOT, GALLERY_ROOT
 from .errors import APIError, ErrorType
-from .metadata_store import cleanup_stale_index, search_index, search_metadata
+from .fielded_search_parser import parse_fielded_query
+from .metadata_store import cleanup_stale_index, search_index, search_index_fielded, search_metadata
 from .paths import is_path_safe, resolve_path
 
 router = APIRouter()
@@ -59,7 +60,11 @@ async def api_search(
             raise APIError(404, ErrorType.NOT_FOUND, "Folder not found")
 
     try:
-        data = await run_in_threadpool(search_index, q, scope, root_path, limit)
+        parsed = parse_fielded_query(q)
+        if parsed.fields:
+            data = await run_in_threadpool(search_index_fielded, q, scope, root_path, limit)
+        else:
+            data = await run_in_threadpool(search_index, q, scope, root_path, limit)
     except Exception as exc:  # noqa: BLE001
         raise APIError(500, ErrorType.SERVER_ERROR, f"Search failed: {exc}") from exc
 

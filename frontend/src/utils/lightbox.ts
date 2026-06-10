@@ -1,7 +1,10 @@
 import type { FileNode } from "../types";
-import { getImageUrl, getThumbnailUrl } from "../services/api";
+import { getImageUrl, getPreviewUrl, getThumbnailUrl } from "../services/api";
 
-const LIGHTBOX_THUMBNAIL_SIZE = 2400;
+export const LIGHTBOX_THUMBNAIL_EDGE = 512;
+export const LIGHTBOX_PREVIEW_EDGE = 1440;
+export const LIGHTBOX_ORIGINAL_ZOOM_THRESHOLD = 1.2;
+export const LIGHTBOX_ALWAYS_LOAD_ORIGINAL_KEY = "gallery-lightbox-always-load-original";
 
 export type LightboxDimensions = {
   width: number;
@@ -11,11 +14,16 @@ export type LightboxDimensions = {
 
 export type PhotoSwipeImageItem = {
   src: string;
+  previewSrc: string;
+  originalSrc: string;
   msrc?: string;
   width: number;
   height: number;
   alt: string;
   path: string;
+  isAnimatedAsset: boolean;
+  isOriginalLoaded?: boolean;
+  originalLoadReason?: "zoom" | "preference" | "fullscreen" | "animated" | "fallback";
 };
 
 export function hasValidDimensions(
@@ -27,6 +35,21 @@ export function hasValidDimensions(
     typeof dimensions.height === "number" &&
     dimensions.height > 0
   );
+}
+
+export function shouldAlwaysLoadOriginal(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(LIGHTBOX_ALWAYS_LOAD_ORIGINAL_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+export function isLikelyAnimatedAsset(pathOrName: string): boolean {
+  const ext = pathOrName.split("?")[0]?.split("#")[0]?.split(".").pop()?.toLowerCase();
+  // TODO: Detect animated WebP by container metadata instead of treating every .webp as animated.
+  return ext === "gif" || ext === "apng";
 }
 
 /**
@@ -43,20 +66,25 @@ export function buildPhotoSwipeItem(
   item: FileNode,
   resolvedDimensions?: LightboxDimensions | null
 ): PhotoSwipeImageItem {
-  const src = getImageUrl(item.path);
-  const msrc = getThumbnailUrl(item.path, LIGHTBOX_THUMBNAIL_SIZE);
+  const previewSrc = getPreviewUrl(item.path, LIGHTBOX_PREVIEW_EDGE);
+  const originalSrc = getImageUrl(item.path);
+  const msrc = getThumbnailUrl(item.path, LIGHTBOX_THUMBNAIL_EDGE);
 
   // PhotoSwipe requires dimensions up front. Use the best known ratio, then
   // let the resolver refresh the item when async metadata arrives.
   const width = resolvedDimensions?.width ?? 1200;
   const height = resolvedDimensions?.height ?? 1200;
+  const isAnimatedAsset = isLikelyAnimatedAsset(item.path || item.name || "");
 
   return {
-    src,
+    src: previewSrc,
+    previewSrc,
+    originalSrc,
     msrc,
     width,
     height,
     alt: item.name || "",
     path: item.path,
+    isAnimatedAsset,
   };
 }

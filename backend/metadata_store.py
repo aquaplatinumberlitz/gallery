@@ -11,10 +11,16 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .albums import build_album_metadata
-from .config import GALLERY_METADATA_DB, GALLERY_ROOT
+from .config import (
+    ENABLE_WARM_INDEXED_LISTING,
+    GALLERY_METADATA_DB,
+    GALLERY_ROOT,
+)
 from .files import IMAGE_EXTENSIONS, is_image_path
+from .models import FileNode
 from .metadata_extract import (
     CJK_RE,
+    ExtractedMetadata,
     GENERIC_TEXT_KEYS,
     contains_cjk,
     extract_metadata,
@@ -28,12 +34,39 @@ from .metadata_extract import (
 SEARCH_FIELDS = ("name", "prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
 PROMPT_SEARCH_FIELDS = ("prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
 _DB_LOCK = threading.RLock()
+_DB_INITIALIZED = False
+_DB_INITIALIZED_PATH: Path | None = None
+METADATA_JOB_STATES = ("queued", "running", "done", "failed", "stale", "skipped")
+MAX_METADATA_JOB_ATTEMPTS = 3
 
 
 @dataclass(frozen=True)
 class CachedDimensions:
     width: int
     height: int
+
+
+@dataclass(frozen=True)
+class MetadataIndexJob:
+    path: str
+    name: str
+    parent_path: str
+    mtime: float
+    size: int
+    folder_path: str
+    root_path: str
+
+    @property
+    def key(self) -> tuple[str, float, int]:
+        return (self.path, self.mtime, self.size)
+
+
+@dataclass(frozen=True)
+class MetadataQueueResult:
+    enqueued: list[MetadataIndexJob]
+    coalesced: int = 0
+    skipped: int = 0
+    failed: int = 0
 
 
 def _table_columns(conn: sqlite3.Connection, table_name: str) -> set[str]:
@@ -45,18 +78,34 @@ def _ensure_column(conn: sqlite3.Connection, table_name: str, column_name: str, 
         conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_sql}")
 
 
-def _connect() -> sqlite3.Connection:
+def _connect(*, set_journal_mode: bool = False) -> sqlite3.Connection:
     GALLERY_METADATA_DB.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(GALLERY_METADATA_DB, timeout=30)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
+    if set_journal_mode:
+        conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=5000")
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
 
 def initialize_database() -> None:
-    with _DB_LOCK, _connect() as conn:
+    global _DB_INITIALIZED, _DB_INITIALIZED_PATH
+    if _DB_INITIALIZED and _DB_INITIALIZED_PATH == GALLERY_METADATA_DB:
+        return
+
+    with _DB_LOCK:
+        if _DB_INITIALIZED and _DB_INITIALIZED_PATH == GALLERY_METADATA_DB:
+            return
+
+        with _connect(set_journal_mode=True) as conn:
+            _initialize_database_conn(conn)
+
+        _DB_INITIALIZED = True
+        _DB_INITIALIZED_PATH = GALLERY_METADATA_DB
+
+
+def _initialize_database_conn(conn: sqlite3.Connection) -> None:
         conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS image_metadata (
@@ -148,25 +197,504 @@ def initialize_database() -> None:
               parent_path UNINDEXED,
               tokenize='unicode61'
             );
+
+            CREATE TABLE IF NOT EXISTS metadata_index_jobs (
+              path TEXT PRIMARY KEY,
+              name TEXT NOT NULL,
+              parent_path TEXT NOT NULL,
+              folder_path TEXT NOT NULL,
+              root_path TEXT NOT NULL,
+              mtime REAL NOT NULL,
+              size INTEGER NOT NULL,
+              state TEXT NOT NULL,
+              attempts INTEGER NOT NULL DEFAULT 0,
+              error TEXT,
+              queued_at REAL,
+              started_at REAL,
+              finished_at REAL,
+              updated_at REAL NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_metadata_index_jobs_state
+              ON metadata_index_jobs(state);
+            CREATE INDEX IF NOT EXISTS idx_metadata_index_jobs_folder_path
+              ON metadata_index_jobs(folder_path);
+            CREATE INDEX IF NOT EXISTS idx_metadata_index_jobs_root_path
+              ON metadata_index_jobs(root_path);
+            CREATE INDEX IF NOT EXISTS idx_metadata_index_jobs_updated_at
+              ON metadata_index_jobs(updated_at);
+
+            CREATE TABLE IF NOT EXISTS folder_index_state (
+              path TEXT PRIMARY KEY,
+              dir_mtime_ns INTEGER NOT NULL,
+              indexed_at REAL NOT NULL,
+              complete INTEGER NOT NULL DEFAULT 0,
+              child_count INTEGER NOT NULL DEFAULT 0,
+              folder_count INTEGER NOT NULL DEFAULT 0,
+              image_count INTEGER NOT NULL DEFAULT 0,
+              last_error TEXT,
+              updated_at REAL NOT NULL
+            );
             """
         )
         _ensure_column(conn, "image_metadata", "format", "TEXT")
         _ensure_column(conn, "image_metadata", "mode", "TEXT")
         _ensure_column(conn, "image_metadata", "has_alpha", "INTEGER")
         _ensure_column(conn, "image_metadata", "updated_at", "REAL")
+        _ensure_column(conn, "image_metadata", "tool", "TEXT")
+        _ensure_column(conn, "image_metadata", "scheduler", "TEXT")
+        _ensure_column(conn, "image_metadata", "model_hash", "TEXT")
+        _ensure_column(conn, "image_metadata", "lora_text", "TEXT")
+        _ensure_column(conn, "image_metadata", "generation_time", "REAL")
+        _ensure_column(conn, "image_metadata", "clip_skip", "INTEGER")
+        _ensure_column(conn, "image_metadata", "hires_upscale", "REAL")
+        _ensure_column(conn, "image_metadata", "hires_steps", "INTEGER")
+        _ensure_column(conn, "image_metadata", "denoising_strength", "REAL")
+        _ensure_column(conn, "image_metadata", "vae", "TEXT")
+        _ensure_column(conn, "image_metadata", "ensd", "INTEGER")
+        _ensure_column(conn, "image_metadata", "aesthetic_score", "REAL")
+        _ensure_column(conn, "image_metadata", "date", "TEXT")
+        _ensure_column(conn, "image_metadata", "aspect_ratio", "TEXT")
         conn.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_image_metadata_mtime_size
               ON image_metadata(path, mtime, size)
             """
         )
+        _ensure_column(conn, "metadata_index_jobs", "folder_path", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "metadata_index_jobs", "root_path", "TEXT NOT NULL DEFAULT ''")
+
+
+def _current_metadata_is_complete(conn: sqlite3.Connection, path: str, mtime: float, size: int) -> bool:
+    row = conn.execute(
+        """
+        SELECT mtime, size, metadata_json
+        FROM image_metadata
+        WHERE path = ?
+        """,
+        (path,),
+    ).fetchone()
+    if row is None:
+        return False
+    return row["mtime"] == mtime and row["size"] == size and bool(row["metadata_json"])
+
+
+def _metadata_job_from_path(path_value: str | Path, root_path: str | Path | None = None) -> MetadataIndexJob | None:
+    path = Path(path_value)
+    if not is_image_path(path):
+        return None
+    try:
+        stat = path.stat()
+        resolved_path = path.resolve()
+        parent = resolved_path.parent
+    except OSError:
+        return None
+    resolved_root = str(Path(root_path).resolve()) if root_path is not None else str(parent)
+    return MetadataIndexJob(
+        path=str(resolved_path),
+        name=resolved_path.name,
+        parent_path=str(parent),
+        folder_path=str(parent),
+        root_path=resolved_root,
+        mtime=stat.st_mtime,
+        size=stat.st_size,
+    )
+
+
+def _mark_current_metadata_done(conn: sqlite3.Connection, job: MetadataIndexJob, now: float) -> None:
+    conn.execute(
+        """
+        INSERT INTO metadata_index_jobs (
+          path, name, parent_path, folder_path, root_path, mtime, size, state,
+          attempts, error, queued_at, started_at, finished_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'done', 0, NULL, ?, NULL, ?, ?)
+        ON CONFLICT(path) DO UPDATE SET
+          name=excluded.name,
+          parent_path=excluded.parent_path,
+          folder_path=excluded.folder_path,
+          root_path=excluded.root_path,
+          mtime=excluded.mtime,
+          size=excluded.size,
+          state='done',
+          error=NULL,
+          finished_at=excluded.finished_at,
+          updated_at=excluded.updated_at
+        """,
+        (
+            job.path,
+            job.name,
+            job.parent_path,
+            job.folder_path,
+            job.root_path,
+            job.mtime,
+            job.size,
+            now,
+            now,
+            now,
+        ),
+    )
+
+
+def queue_metadata_index_paths(paths: Iterable[str | Path], root_path: str | Path | None = None) -> MetadataQueueResult:
+    """Create/coalesce metadata index jobs for image paths without parsing files."""
+    jobs = [job for path in paths if (job := _metadata_job_from_path(path, root_path))]
+    if not jobs:
+        return MetadataQueueResult(enqueued=[])
+
+    initialize_database()
+    enqueued: list[MetadataIndexJob] = []
+    coalesced = 0
+    skipped = 0
+    failed = 0
+    now = time.time()
+
+    with _DB_LOCK, _connect() as conn:
+        for job in jobs:
+            if _current_metadata_is_complete(conn, job.path, job.mtime, job.size):
+                _mark_current_metadata_done(conn, job, now)
+                skipped += 1
+                continue
+
+            existing = conn.execute(
+                """
+                SELECT mtime, size, state, attempts
+                FROM metadata_index_jobs
+                WHERE path = ?
+                """,
+                (job.path,),
+            ).fetchone()
+
+            if existing and existing["mtime"] == job.mtime and existing["size"] == job.size:
+                state = existing["state"]
+                attempts = int(existing["attempts"] or 0)
+                if state in {"queued", "running"}:
+                    coalesced += 1
+                    continue
+                if state == "failed" and attempts >= MAX_METADATA_JOB_ATTEMPTS:
+                    failed += 1
+                    continue
+                if state == "done" and _current_metadata_is_complete(conn, job.path, job.mtime, job.size):
+                    skipped += 1
+                    continue
+
+            conn.execute(
+                """
+                INSERT INTO metadata_index_jobs (
+                  path, name, parent_path, folder_path, root_path, mtime, size,
+                  state, attempts, error, queued_at, started_at, finished_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', 0, NULL, ?, NULL, NULL, ?)
+                ON CONFLICT(path) DO UPDATE SET
+                  name=excluded.name,
+                  parent_path=excluded.parent_path,
+                  folder_path=excluded.folder_path,
+                  root_path=excluded.root_path,
+                  mtime=excluded.mtime,
+                  size=excluded.size,
+                  state='queued',
+                  attempts=CASE
+                    WHEN metadata_index_jobs.mtime = excluded.mtime
+                     AND metadata_index_jobs.size = excluded.size
+                    THEN metadata_index_jobs.attempts
+                    ELSE 0
+                  END,
+                  error=NULL,
+                  queued_at=excluded.queued_at,
+                  started_at=NULL,
+                  finished_at=NULL,
+                  updated_at=excluded.updated_at
+                """,
+                (
+                    job.path,
+                    job.name,
+                    job.parent_path,
+                    job.folder_path,
+                    job.root_path,
+                    job.mtime,
+                    job.size,
+                    now,
+                    now,
+                ),
+            )
+            enqueued.append(job)
+
+    return MetadataQueueResult(enqueued=enqueued, coalesced=coalesced, skipped=skipped, failed=failed)
+
+
+def mark_metadata_jobs_running(jobs: Iterable[MetadataIndexJob]) -> None:
+    rows = list(jobs)
+    if not rows:
+        return
+    initialize_database()
+    now = time.time()
+    with _DB_LOCK, _connect() as conn:
+        conn.executemany(
+            """
+            UPDATE metadata_index_jobs
+            SET state='running',
+                attempts=attempts + 1,
+                error=NULL,
+                started_at=?,
+                finished_at=NULL,
+                updated_at=?
+            WHERE path=? AND mtime=? AND size=?
+            """,
+            ((now, now, job.path, job.mtime, job.size) for job in rows),
+        )
+
+
+def mark_metadata_jobs_done(jobs: Iterable[MetadataIndexJob]) -> None:
+    rows = list(jobs)
+    if not rows:
+        return
+    initialize_database()
+    now = time.time()
+    with _DB_LOCK, _connect() as conn:
+        conn.executemany(
+            """
+            UPDATE metadata_index_jobs
+            SET state='done',
+                error=NULL,
+                finished_at=?,
+                updated_at=?
+            WHERE path=? AND mtime=? AND size=?
+            """,
+            ((now, now, job.path, job.mtime, job.size) for job in rows),
+        )
+
+
+def mark_metadata_jobs_stale(jobs: Iterable[MetadataIndexJob]) -> None:
+    rows = list(jobs)
+    if not rows:
+        return
+    initialize_database()
+    now = time.time()
+    with _DB_LOCK, _connect() as conn:
+        conn.executemany(
+            """
+            UPDATE metadata_index_jobs
+            SET state='stale',
+                error=NULL,
+                finished_at=?,
+                updated_at=?
+            WHERE path=? AND mtime=? AND size=?
+            """,
+            ((now, now, job.path, job.mtime, job.size) for job in rows),
+        )
+
+
+def mark_metadata_jobs_failed(errors: Iterable[tuple[MetadataIndexJob, str]]) -> None:
+    rows = [(job, error[:1000]) for job, error in errors]
+    if not rows:
+        return
+    initialize_database()
+    now = time.time()
+    with _DB_LOCK, _connect() as conn:
+        conn.executemany(
+            """
+            UPDATE metadata_index_jobs
+            SET state='failed',
+                error=?,
+                finished_at=?,
+                updated_at=?
+            WHERE path=? AND mtime=? AND size=?
+            """,
+            ((error, now, now, job.path, job.mtime, job.size) for job, error in rows),
+        )
+
+
+def get_metadata_index_status(path: str | Path | None = None) -> dict[str, Any]:
+    initialize_database()
+    counts = {state: 0 for state in METADATA_JOB_STATES}
+    where = ""
+    params: list[Any] = []
+    root = ""
+    if path:
+        resolved = str(Path(path).resolve())
+        root = resolved
+        prefix = f"{resolved.rstrip(os.sep)}{os.sep}"
+        where = "WHERE (path = ? OR path LIKE ? ESCAPE '\\')"
+        params = [resolved, f"{_like_escape(prefix)}%"]
+
+    with _DB_LOCK, _connect() as conn:
+        for row in conn.execute(
+            f"""
+            SELECT state, count(*) AS total
+            FROM metadata_index_jobs
+            {where}
+            GROUP BY state
+            """,
+            params,
+        ):
+            if row["state"] in counts:
+                counts[row["state"]] = int(row["total"])
+
+        last_error_row = conn.execute(
+            f"""
+            SELECT path, error, updated_at
+            FROM metadata_index_jobs
+            {where + (' AND' if where else 'WHERE')} state = 'failed' AND error IS NOT NULL
+            ORDER BY updated_at DESC
+            LIMIT 1
+            """,
+            params,
+        ).fetchone()
+
+        oldest_queued_row = conn.execute(
+            f"""
+            SELECT min(queued_at) AS oldest_queued_at
+            FROM metadata_index_jobs
+            {where + (' AND' if where else 'WHERE')} state = 'queued'
+            """,
+            params,
+        ).fetchone()
+
+        updated_row = conn.execute(
+            f"""
+            SELECT max(updated_at) AS updated_at
+            FROM metadata_index_jobs
+            {where}
+            """,
+            params,
+        ).fetchone()
+
+    now = time.time()
+    oldest_queued_at = oldest_queued_row["oldest_queued_at"] if oldest_queued_row else None
+    return {
+        "path": root,
+        "total": sum(counts.values()),
+        "counts": counts,
+        "queued": counts["queued"],
+        "running": counts["running"],
+        "done": counts["done"],
+        "failed": counts["failed"],
+        "stale": counts["stale"],
+        "skipped": counts["skipped"],
+        "oldest_queued_age_seconds": round(now - oldest_queued_at, 3) if oldest_queued_at else None,
+        "last_error": {
+            "path": last_error_row["path"],
+            "message": last_error_row["error"],
+            "updated_at": last_error_row["updated_at"],
+        }
+        if last_error_row
+        else None,
+        "updated_at": updated_row["updated_at"] if updated_row else None,
+    }
 
 
 def _needs_reindex(conn: sqlite3.Connection, path: Path, mtime: float, size: int) -> bool:
-    row = conn.execute("SELECT mtime, size FROM image_metadata WHERE path = ?", (str(path.resolve()),)).fetchone()
+    row = conn.execute("SELECT mtime, size, metadata_json FROM image_metadata WHERE path = ?", (str(path.resolve()),)).fetchone()
     if row is None:
         return True
-    return row["mtime"] != mtime or row["size"] != size
+    return row["mtime"] != mtime or row["size"] != size or not row["metadata_json"]
+
+
+def _upsert_extracted_metadata_conn(conn: sqlite3.Connection, metadata: ExtractedMetadata) -> None:
+    conn.execute(
+        """
+        INSERT INTO image_metadata (
+          path, name, mtime, size, width, height, prompt, negative_prompt,
+          format, mode, has_alpha, model, sampler, seed, steps, cfg_scale,
+          raw_metadata_text, metadata_json, updated_at, indexed_at,
+          tool, scheduler, model_hash, lora_text, generation_time,
+          clip_skip, hires_upscale, hires_steps, denoising_strength,
+          vae, ensd, aesthetic_score, date, aspect_ratio
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(path) DO UPDATE SET
+          name=excluded.name,
+          mtime=excluded.mtime,
+          size=excluded.size,
+          width=excluded.width,
+          height=excluded.height,
+          format=excluded.format,
+          mode=excluded.mode,
+          has_alpha=excluded.has_alpha,
+          prompt=excluded.prompt,
+          negative_prompt=excluded.negative_prompt,
+          model=excluded.model,
+          sampler=excluded.sampler,
+          seed=excluded.seed,
+          steps=excluded.steps,
+          cfg_scale=excluded.cfg_scale,
+          raw_metadata_text=excluded.raw_metadata_text,
+          metadata_json=excluded.metadata_json,
+          updated_at=excluded.updated_at,
+          indexed_at=excluded.indexed_at,
+          tool=excluded.tool,
+          scheduler=excluded.scheduler,
+          model_hash=excluded.model_hash,
+          lora_text=excluded.lora_text,
+          generation_time=excluded.generation_time,
+          clip_skip=excluded.clip_skip,
+          hires_upscale=excluded.hires_upscale,
+          hires_steps=excluded.hires_steps,
+          denoising_strength=excluded.denoising_strength,
+          vae=excluded.vae,
+          ensd=excluded.ensd,
+          aesthetic_score=excluded.aesthetic_score,
+          date=excluded.date,
+          aspect_ratio=excluded.aspect_ratio
+        """,
+        (
+            metadata.path,
+            metadata.name,
+            metadata.mtime,
+            metadata.size,
+            metadata.width,
+            metadata.height,
+            metadata.prompt,
+            metadata.negative_prompt,
+            metadata.format,
+            metadata.mode,
+            metadata.has_alpha,
+            metadata.model,
+            metadata.sampler,
+            metadata.seed,
+            metadata.steps,
+            metadata.cfg_scale,
+            metadata.raw_metadata_text,
+            metadata.metadata_json,
+            metadata.indexed_at,
+            metadata.indexed_at,
+            metadata.tool,
+            metadata.scheduler,
+            metadata.model_hash,
+            metadata.lora_text,
+            metadata.generation_time,
+            metadata.clip_skip,
+            metadata.hires_upscale,
+            metadata.hires_steps,
+            metadata.denoising_strength,
+            metadata.vae,
+            metadata.ensd,
+            metadata.aesthetic_score,
+            metadata.date,
+            metadata.aspect_ratio,
+        ),
+    )
+
+
+def upsert_extracted_metadata(metadata: ExtractedMetadata, *, mark_job_done: bool = False) -> bool:
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        _upsert_extracted_metadata_conn(conn, metadata)
+        if mark_job_done:
+            job = _metadata_job_from_path(metadata.path)
+            if job is not None and job.mtime == metadata.mtime and job.size == metadata.size:
+                _mark_current_metadata_done(conn, job, metadata.indexed_at)
+    return True
+
+
+def upsert_metadata_batch(metadata_items: Iterable[ExtractedMetadata]) -> int:
+    """Write extracted metadata rows in one bounded SQLite transaction."""
+    rows = list(metadata_items)
+    if not rows:
+        return 0
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        for metadata in rows:
+            _upsert_extracted_metadata_conn(conn, metadata)
+    return len(rows)
 
 
 def index_image(path: Path) -> bool:
@@ -185,57 +713,7 @@ def index_image(path: Path) -> bool:
             metadata = extract_metadata(path)
         except Exception:
             return False
-        conn.execute(
-            """
-            INSERT INTO image_metadata (
-              path, name, mtime, size, width, height, prompt, negative_prompt,
-              format, mode, has_alpha, model, sampler, seed, steps, cfg_scale,
-              raw_metadata_text, metadata_json, updated_at, indexed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(path) DO UPDATE SET
-              name=excluded.name,
-              mtime=excluded.mtime,
-              size=excluded.size,
-              width=excluded.width,
-              height=excluded.height,
-              format=excluded.format,
-              mode=excluded.mode,
-              has_alpha=excluded.has_alpha,
-              prompt=excluded.prompt,
-              negative_prompt=excluded.negative_prompt,
-              model=excluded.model,
-              sampler=excluded.sampler,
-              seed=excluded.seed,
-              steps=excluded.steps,
-              cfg_scale=excluded.cfg_scale,
-              raw_metadata_text=excluded.raw_metadata_text,
-              metadata_json=excluded.metadata_json,
-              updated_at=excluded.updated_at,
-              indexed_at=excluded.indexed_at
-            """,
-            (
-                metadata.path,
-                metadata.name,
-                metadata.mtime,
-                metadata.size,
-                metadata.width,
-                metadata.height,
-                metadata.prompt,
-                metadata.negative_prompt,
-                metadata.format,
-                metadata.mode,
-                metadata.has_alpha,
-                metadata.model,
-                metadata.sampler,
-                metadata.seed,
-                metadata.steps,
-                metadata.cfg_scale,
-                metadata.raw_metadata_text,
-                metadata.metadata_json,
-                metadata.indexed_at,
-                metadata.indexed_at,
-            ),
-        )
+        _upsert_extracted_metadata_conn(conn, metadata)
         return True
 
 
@@ -248,6 +726,48 @@ def index_images(paths: Iterable[str | Path]) -> int:
         except Exception:
             continue
     return indexed
+
+
+def get_lightbox_metadata(path: str | Path) -> dict | None:
+    """Read metadata from SQLite. Returns None if not cached or stale."""
+    resolved = str(Path(path).resolve())
+    try:
+        stat = Path(path).stat()
+    except OSError:
+        return None
+
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        row = conn.execute(
+            """
+            SELECT * FROM image_metadata
+            WHERE path = ? AND mtime = ? AND size = ? AND metadata_json IS NOT NULL
+            """,
+            (resolved, stat.st_mtime, stat.st_size),
+        ).fetchone()
+        if row is None:
+            return None
+
+        metadata_json = row["metadata_json"]
+        if not metadata_json:
+            return None
+
+        try:
+            parsed = json.loads(metadata_json)
+        except (json.JSONDecodeError, TypeError):
+            return None
+
+        if not isinstance(parsed, dict):
+            return None
+
+        parsed.setdefault("tool", "Unknown")
+        parsed.setdefault("prompt", row["prompt"] or "")
+        parsed.setdefault("negative_prompt", row["negative_prompt"] or "")
+        parsed.setdefault("params", {})
+        parsed["width"] = row["width"]
+        parsed["height"] = row["height"]
+        parsed["name"] = row["name"]
+        return parsed
 
 
 def get_cached_dimensions_for_files(files: Iterable[tuple[str | Path, float, int]]) -> dict[str, CachedDimensions]:
@@ -281,6 +801,251 @@ def get_cached_dimensions_for_files(files: Iterable[tuple[str | Path, float, int
                     cached[row["path"]] = CachedDimensions(width=row["width"], height=row["height"])
 
     return cached
+
+
+def update_folder_index_state(
+    folder_path: str | Path,
+    *,
+    dir_mtime_ns: int | None = None,
+    complete: bool = False,
+    child_count: int = 0,
+    folder_count: int = 0,
+    image_count: int = 0,
+    last_error: str | None = None,
+) -> bool:
+    initialize_database()
+    now = time.time()
+    try:
+        resolved = str(Path(folder_path).resolve())
+        if dir_mtime_ns is None:
+            try:
+                dir_mtime_ns = Path(folder_path).stat().st_mtime_ns
+            except OSError:
+                return False
+        with _DB_LOCK, _connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO folder_index_state (
+                  path, dir_mtime_ns, indexed_at, complete,
+                  child_count, folder_count, image_count,
+                  last_error, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(path) DO UPDATE SET
+                  dir_mtime_ns=excluded.dir_mtime_ns,
+                  indexed_at=excluded.indexed_at,
+                  complete=excluded.complete,
+                  child_count=excluded.child_count,
+                  folder_count=excluded.folder_count,
+                  image_count=excluded.image_count,
+                  last_error=excluded.last_error,
+                  updated_at=excluded.updated_at
+                """,
+                (
+                    resolved,
+                    dir_mtime_ns,
+                    now,
+                    1 if complete else 0,
+                    child_count,
+                    folder_count,
+                    image_count,
+                    last_error,
+                    now,
+                ),
+            )
+        return True
+    except Exception:
+        return False
+
+
+def get_folder_index_state(folder_path: str | Path) -> dict | None:
+    initialize_database()
+    try:
+        resolved = str(Path(folder_path).resolve())
+        with _DB_LOCK, _connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM folder_index_state WHERE path = ?",
+                (resolved,),
+            ).fetchone()
+            if row is None:
+                return None
+            return dict(row)
+    except Exception:
+        return None
+
+
+# TODO: Future optimization — add a persisted natural sort key column to file_index
+# so very large warm folders can use DB-level ORDER BY + LIMIT without loading all
+# direct child rows into Python.
+def get_warm_folder_listing(
+    folder_path: str | Path,
+    *,
+    offset: int = 0,
+    limit: int | None = None,
+    sort: str = "name",
+    image_limit: int | None = None,
+) -> dict | None:
+    if not ENABLE_WARM_INDEXED_LISTING:
+        return None
+
+    try:
+        resolved = str(Path(folder_path).resolve())
+        resolved_path = Path(folder_path)
+    except OSError:
+        return None
+
+    state = get_folder_index_state(resolved)
+    if state is None:
+        return None
+    if not state["complete"]:
+        return None
+
+    try:
+        current_stat = resolved_path.stat()
+        current_mtime_ns = current_stat.st_mtime_ns
+    except OSError:
+        return None
+
+    if state["dir_mtime_ns"] != current_mtime_ns:
+        return None
+
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        parent_prefix = f"{resolved.rstrip(os.sep)}{os.sep}"
+
+        raw_folders = list(
+            conn.execute(
+                """
+                SELECT path, name, mtime
+                FROM file_index
+                WHERE parent_path = ? AND type = 'folder'
+                """,
+                (resolved,),
+            )
+        )
+
+        total_images_row = conn.execute(
+            "SELECT count(*) AS total FROM file_index WHERE parent_path = ? AND type = 'photo'",
+            (resolved,),
+        ).fetchone()
+        total_images = int(total_images_row["total"])
+
+        raw_images = list(
+            conn.execute(
+                """
+                SELECT path, name, mtime, size, width, height
+                FROM file_index
+                WHERE parent_path = ? AND type = 'photo'
+                """,
+                (resolved,),
+            )
+        )
+
+        # Sort in Python with natural_sort_key to match direct scan order
+        from .files import natural_sort_key
+        raw_folders.sort(key=lambda x: natural_sort_key(x["name"]))
+        raw_images.sort(key=lambda x: natural_sort_key(x["name"]))
+
+        image_start = offset
+        if image_limit is not None:
+            image_end = offset + image_limit
+        else:
+            image_end = total_images
+        paged_images = raw_images[image_start:image_end]
+
+        warm_images: list[FileNode] = []
+        for img in paged_images:
+            warm_images.append(
+                FileNode(
+                    name=img["name"],
+                    path=img["path"],
+                    type="image",
+                    has_children=False,
+                    cover_images=[],
+                    mtime=img["mtime"] or 0,
+                    width=img["width"],
+                    height=img["height"],
+                )
+            )
+
+        # Build DB-derived folder metadata — no filesystem access
+        child_paths = [f["path"] for f in raw_folders]
+        child_cover_images: dict[str, list[str]] = {}
+        child_counts: dict[str, dict] = {}
+        if child_paths:
+            placeholders = ",".join("?" for _ in child_paths)
+            cover_rows = conn.execute(
+                f"""
+                SELECT parent_path, path
+                FROM file_index
+                WHERE parent_path IN ({placeholders}) AND type = 'photo'
+                ORDER BY mtime DESC
+                """,
+                child_paths,
+            ).fetchall()
+            for r in cover_rows:
+                pp = r["parent_path"]
+                if pp not in child_cover_images:
+                    child_cover_images[pp] = []
+                if len(child_cover_images[pp]) < 3:
+                    child_cover_images[pp].append(r["path"])
+
+            count_rows = conn.execute(
+                f"""
+                SELECT parent_path,
+                       count(*) AS total,
+                       sum(CASE WHEN type = 'folder' THEN 1 ELSE 0 END) AS subfolder_count,
+                       sum(CASE WHEN type = 'photo' THEN 1 ELSE 0 END) AS photo_count
+                FROM file_index
+                WHERE parent_path IN ({placeholders})
+                GROUP BY parent_path
+                """,
+                child_paths,
+            ).fetchall()
+            for r in count_rows:
+                child_counts[r["parent_path"]] = {
+                    "child_count": int(r["total"]),
+                    "folder_count": int(r["subfolder_count"]),
+                    "image_count": int(r["photo_count"]),
+                }
+
+        warm_folders: list[FileNode] = []
+        for fld in raw_folders:
+            fp = fld["path"]
+            cc = child_counts.get(fp, {})
+            warm_folders.append(
+                FileNode(
+                    name=fld["name"],
+                    path=fp,
+                    type="folder",
+                    has_children=cc.get("child_count", 0) > 0,
+                    cover_images=child_cover_images.get(fp, []),
+                    mtime=fld["mtime"] or 0,
+                    image_count=cc.get("image_count", 0),
+                )
+            )
+
+    next_cursor = image_end if image_end < total_images else None
+
+    return {
+        "folders": warm_folders,
+        "images": warm_images,
+        "next_cursor": next_cursor,
+        "total_images": total_images,
+        "index_source": "warm_db",
+    }
+
+
+def get_folder_indexed_paths() -> list[dict]:
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        rows = conn.execute(
+            "SELECT path, dir_mtime_ns, complete, image_count, updated_at FROM folder_index_state ORDER BY updated_at DESC"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def mark_folder_index_incomplete(folder_path: str | Path, last_error: str | None = None) -> bool:
+    return update_folder_index_state(folder_path, complete=False, last_error=last_error)
 
 
 def upsert_image_dimensions(
@@ -495,7 +1260,7 @@ def index_file(
 def _cleanup_stale_index_conn(conn: sqlite3.Connection, root_path: str | Path | None = None) -> int:
     root = Path(root_path).resolve() if root_path is not None else None
     candidate_paths: set[str] = set()
-    for table in ("file_index", "file_index_fts", "image_metadata"):
+    for table in ("file_index", "file_index_fts", "image_metadata", "metadata_index_jobs"):
         candidate_paths.update(row["path"] for row in conn.execute(f"SELECT path FROM {table}"))
 
     stale_paths: list[str] = []
@@ -514,6 +1279,7 @@ def _cleanup_stale_index_conn(conn: sqlite3.Connection, root_path: str | Path | 
     conn.executemany("DELETE FROM file_index_fts WHERE path = ?", ((path,) for path in stale_paths))
     conn.executemany("DELETE FROM file_index WHERE path = ?", ((path,) for path in stale_paths))
     conn.executemany("DELETE FROM image_metadata WHERE path = ?", ((path,) for path in stale_paths))
+    conn.executemany("DELETE FROM metadata_index_jobs WHERE path = ?", ((path,) for path in stale_paths))
     return len(stale_paths)
 
 
@@ -530,7 +1296,28 @@ def cleanup_stale_index(state: Any, root_path: str | Path | None = None) -> int:
         return _cleanup_stale_index_conn(conn, root_path)
 
 
-def index_files_from_scan(folders: list[Any], images: list[Any]) -> int:
+def _scan_folder_counts(folder_path: Path) -> dict:
+    folders = 0
+    images = 0
+    total = 0
+    try:
+        for entry in os.scandir(folder_path):
+            if entry.name.startswith("."):
+                continue
+            total += 1
+            try:
+                if entry.is_dir():
+                    folders += 1
+                elif entry.is_file() and is_image_path(Path(entry.path)):
+                    images += 1
+            except OSError:
+                pass
+    except OSError:
+        pass
+    return {"child_count": total, "folder_count": folders, "image_count": images}
+
+
+def index_files_from_scan(folders: list[Any], images: list[Any], *, scan_folder_path: str | Path | None = None) -> int:
     indexed = 0
     for item in [*folders, *images]:
         raw_path = _path_value(item, "path")
@@ -555,6 +1342,18 @@ def index_files_from_scan(folders: list[Any], images: list[Any]) -> int:
                 indexed += 1
         except Exception:
             continue
+
+    if scan_folder_path is not None:
+        try:
+            update_folder_index_state(
+                scan_folder_path,
+                complete=True,
+                child_count=len(folders) + len(images),
+                folder_count=len(folders),
+                image_count=len(images),
+            )
+        except Exception:
+            pass
     return indexed
 
 
@@ -961,6 +1760,200 @@ def search_index(query: str, scope: str, root_path: str | Path | None = None, li
         album_rows, root = _search_file_index_fts(conn, trimmed, "folder", normalized_scope, root_path, limit)
         photo_rows, root = _search_file_index_fts(conn, trimmed, "photo", normalized_scope, root_path, limit)
         prompt_rows, root = _search_prompt_rows(conn, trimmed, normalized_scope, root_path, limit)
+
+    return {
+        "query": query,
+        "scope": normalized_scope,
+        "root": str(root),
+        "albums": _format_file_index_rows(album_rows, root, "filename"),
+        "photos": _format_file_index_rows(photo_rows, root, "filename"),
+        "prompt": _format_prompt_rows(prompt_rows, root),
+    }
+
+
+def _build_scope_named(scope: str, root_path: str | Path | None, alias: str = "fi") -> tuple[str, dict[str, str]]:
+    """Build scope WHERE fragment and named params dict."""
+    if scope != "current" or not root_path:
+        return "", {}
+    root = Path(root_path).resolve()
+    root_str, root_prefix = _path_prefix(root)
+    cond = f" AND ({alias}.path = :scope_root OR {alias}.path LIKE :scope_prefix ESCAPE '\\')"
+    return cond, {"scope_root": root_str, "scope_prefix": root_prefix}
+
+
+def _search_fielded_photos(
+    conn: sqlite3.Connection,
+    parsed: Any,
+    scope: str,
+    root_path: str | Path | None,
+    root: Path,
+    limit: int,
+) -> tuple[list[sqlite3.Row], Path]:
+    """Intersect filename matches with field-filtered paths using a CTE.
+
+    NOTE: This function is used ONLY for the Photos (and indirectly Prompt) result
+    sections.  It applies field filters (seed:, model:, etc.) to narrow results.
+    The Albums section does NOT call this function — albums are folder suggestions
+    based solely on residual text and are intentionally not field-filtered.
+
+    WITH field_paths AS (
+      SELECT m.path FROM image_metadata m JOIN file_index fi ON fi.path = m.path
+      WHERE <field conditions>
+    )
+    SELECT fi.*
+    FROM file_index_fts fts
+    JOIN file_index fi ON fi.path = fts.path
+    JOIN field_paths fp ON fp.path = fi.path
+    WHERE fts MATCH <residual> AND fi.type = 'photo' <scope>
+    ORDER BY ...
+
+    Falls back to LIKE on fi.name when FTS returns zero rows.
+    """
+    from .fielded_search_parser import (
+        ParsedQuery,
+        build_fielded_conditions,
+    )
+
+    photo_query = (parsed.residual_text or "").strip()
+    if not photo_query:
+        return [], root
+
+    scope_cond, scope_params = _build_scope_named(scope, root_path, "fi")
+
+    field_parsed = ParsedQuery(residual_text="", fields=parsed.fields)
+    field_conditions, field_params = build_fielded_conditions(field_parsed)
+    field_where = " AND ".join(field_conditions) if field_conditions else "1=1"
+
+    def _build_params(**extra: Any) -> dict[str, Any]:
+        p = dict(scope_params)
+        p.update(field_params)
+        p.update(extra)
+        return p
+
+    try:
+        fts_query = _unicode_match_query(photo_query)
+        params = _build_params(fts_query=fts_query, limit=limit)
+        sql = f"""
+            WITH field_paths AS (
+                SELECT m.path
+                FROM image_metadata m
+                JOIN file_index fi ON fi.path = m.path
+                WHERE {field_where}
+            )
+            SELECT fi.*
+            FROM file_index_fts fts
+            JOIN file_index fi ON fi.path = fts.path
+            JOIN field_paths fp ON fp.path = fi.path
+            WHERE fts MATCH :fts_query
+              AND fi.type = 'photo'
+              {scope_cond}
+            ORDER BY bm25(file_index_fts), fi.mtime DESC, fi.name ASC
+            LIMIT :limit
+        """
+        rows = list(conn.execute(sql, params))
+    except sqlite3.OperationalError:
+        rows = []
+
+    if rows:
+        return rows, root
+
+    pattern = _like_pattern(photo_query)
+    params = _build_params(like_pattern=pattern, limit=limit)
+    sql = f"""
+        WITH field_paths AS (
+            SELECT m.path
+            FROM image_metadata m
+            JOIN file_index fi ON fi.path = m.path
+            WHERE {field_where}
+        )
+        SELECT fi.*
+        FROM file_index fi
+        JOIN field_paths fp ON fp.path = fi.path
+        WHERE fi.name LIKE :like_pattern ESCAPE '\\'
+          AND fi.type = 'photo'
+          {scope_cond}
+        ORDER BY fi.mtime DESC, fi.name ASC
+        LIMIT :limit
+    """
+    rows = list(conn.execute(sql, params))
+    return rows, root
+
+
+def search_index_fielded(query: str, scope: str, root_path: str | Path | None = None, limit: int = 50) -> dict[str, Any]:
+    from .fielded_search_parser import (
+        ParsedQuery,
+        build_fielded_search_sql,
+        parse_fielded_query,
+    )
+
+    initialize_database()
+    trimmed = query.strip()
+    normalized_scope = "all" if scope == "all" else "current"
+    limit = max(1, min(limit, 200))
+    root = Path(root_path).resolve() if normalized_scope == "current" and root_path else GALLERY_ROOT
+
+    if not trimmed:
+        return {
+            "query": query,
+            "scope": normalized_scope,
+            "root": str(root),
+            "albums": [],
+            "photos": [],
+            "prompt": [],
+        }
+
+    parsed = parse_fielded_query(trimmed)
+
+    # ── Albums section ──────────────────────────────────────────────────
+    # Albums use ONLY residual_text (plain text outside field tokens like
+    # seed: / model:).  They are intentionally NOT narrowed by metadata
+    # field filters.  Albums are folder/album *suggestions* — navigation
+    # aids based on folder name / path — not strict filtered image results.
+    # This is a deliberate product decision; do not "fix" it without one.
+    # ─────────────────────────────────────────────────────────────────────
+    album_query = parsed.residual_text if parsed.residual_text else ""
+
+    with _DB_LOCK, _connect() as conn:
+        if album_query:
+            album_rows, root = _search_file_index_fts(conn, album_query, "folder", normalized_scope, root_path, limit)
+        else:
+            album_rows = []
+
+        if parsed.fields:
+            # ── Photos & Prompt sections (field-filtered) ──────────────
+            # Photos intersect residual-text filename matches with
+            # metadata field filters (seed:, model:, etc.) via a CTE.
+            # Prompt/image-result rows are also narrowed by field filters.
+            # These sections ARE guaranteed to satisfy metadata filters.
+            # ───────────────────────────────────────────────────────────
+            photo_rows, root = _search_fielded_photos(conn, parsed, normalized_scope, root_path, root, limit)
+
+            if parsed.fields or parsed.residual_text:
+                sql, sql_params = build_fielded_search_sql(parsed, limit)
+                if normalized_scope == "current":
+                    root_str, root_prefix = _path_prefix(root)
+                    if "WHERE" in sql:
+                        sql = sql.replace("WHERE ", f"WHERE (fi.path = :scope_root OR fi.path LIKE :scope_prefix ESCAPE '\\') AND ")
+                    else:
+                        sql = sql.replace(
+                            "ORDER BY",
+                            "WHERE (fi.path = :scope_root OR fi.path LIKE :scope_prefix ESCAPE '\\') ORDER BY",
+                        )
+                    sql_params["scope_root"] = root_str
+                    sql_params["scope_prefix"] = root_prefix
+                try:
+                    prompt_rows = list(conn.execute(sql, sql_params))
+                except Exception:
+                    prompt_rows = []
+            else:
+                prompt_rows = []
+        elif parsed.residual_text:
+            # No fields, residual only — plain filename + metadata search
+            photo_rows, root = _search_file_index_fts(conn, parsed.residual_text, "photo", normalized_scope, root_path, limit)
+            prompt_rows, root = _search_prompt_rows(conn, parsed.residual_text, normalized_scope, root_path, limit)
+        else:
+            photo_rows = []
+            prompt_rows = []
 
     return {
         "query": query,

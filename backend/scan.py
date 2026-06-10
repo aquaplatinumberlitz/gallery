@@ -8,11 +8,18 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
 from .albums import build_album_metadata
-from .config import DEFAULT_ROOT, SCAN_PERF_LOGS_ENABLED
+from .config import DEFAULT_ROOT, ENABLE_METRICS, ENABLE_WARM_INDEXED_LISTING, SCAN_PERF_LOGS_ENABLED
 from .errors import APIError, ErrorType
 from .files import is_image, natural_sort_key
+from .indexer import (
+    enqueue_metadata_jobs_from_scan,
+    note_scan_request_finished,
+    note_scan_request_started,
+)
 from .metadata_store import (
     get_cached_dimensions_for_files,
+    get_folder_index_state,
+    get_warm_folder_listing,
     index_directory_tree,
     index_file,
     index_files_from_scan,
@@ -21,6 +28,35 @@ from .models import FileNode
 from .paths import is_path_safe, resolve_path
 
 router = APIRouter()
+
+try:
+    from prometheus_client import Counter
+
+    _warm_listing_hits = Counter("gallery_warm_listing_hits_total", "Warm indexed listing hits")
+    _warm_listing_fallbacks = Counter(
+        "gallery_warm_listing_fallbacks_total",
+        "Warm listing fallback reasons",
+        ["reason"],
+    )
+except Exception:
+    _warm_listing_hits = None
+    _warm_listing_fallbacks = None
+
+
+def _inc_warm_hit() -> None:
+    if _warm_listing_hits is not None:
+        try:
+            _warm_listing_hits.inc()
+        except Exception:
+            pass
+
+
+def _inc_warm_fallback(reason: str) -> None:
+    if _warm_listing_fallbacks is not None:
+        try:
+            _warm_listing_fallbacks.labels(reason=reason).inc()
+        except Exception:
+            pass
 
 
 def _new_scan_perf() -> dict[str, int | float | None]:
@@ -156,63 +192,120 @@ async def api_scan(
     image_limit: int | None = Query(None, ge=1, le=5000, description="Max images to return"),
     image_cursor: int = Query(0, ge=0, description="Cursor/offset for images"),
 ):
-    request_started = time.perf_counter()
-    resolve_started = time.perf_counter()
-    target = resolve_path(path) if path else DEFAULT_ROOT
-    resolve_ms = _elapsed_ms(resolve_started)
-    if not is_path_safe(target):
-        raise APIError(403, "permission", "Access denied: path outside allowed root")
-    folders, images, scan_perf = await run_in_threadpool(scan_directory, target)
+    note_scan_request_started()
+    try:
+        request_started = time.perf_counter()
+        resolve_started = time.perf_counter()
+        target = resolve_path(path) if path else DEFAULT_ROOT
+        resolve_ms = _elapsed_ms(resolve_started)
+        if not is_path_safe(target):
+            raise APIError(403, "permission", "Access denied: path outside allowed root")
 
-    pagination_started = time.perf_counter()
-    total_images = len(images)
-    start = image_cursor
-    end = image_cursor + image_limit if image_limit else total_images
-    paged_images = images[start:end]
-    next_cursor = end if end < total_images else None
-    pagination_ms = _elapsed_ms(pagination_started)
+        warm_result = None
+        warm_fallback_reason = None
+        if ENABLE_WARM_INDEXED_LISTING:
+            warm_get_started = time.perf_counter()
+            warm_result = await run_in_threadpool(
+                get_warm_folder_listing,
+                target,
+                offset=image_cursor,
+                limit=image_limit,
+                sort="name",
+                image_limit=image_limit,
+            )
+            warm_get_ms = _elapsed_ms(warm_get_started)
+            if warm_result is not None and SCAN_PERF_LOGS_ENABLED:
+                print(f"[SCAN PERF] warm_db hit path={target} warm_get={warm_get_ms:.0f}ms", flush=True)
+            if warm_result is None:
+                state = await run_in_threadpool(get_folder_index_state, target)
+                if state is None:
+                    warm_fallback_reason = "missing"
+                elif not state.get("complete"):
+                    warm_fallback_reason = "incomplete"
+                else:
+                    warm_fallback_reason = "stale"
 
-    target_stat_started = time.perf_counter()
-    target_mtime = target.stat().st_mtime
-    scan_perf["stat_ms"] += _elapsed_ms(target_stat_started)
-    background_tasks.add_task(index_file, target, target.name or str(target), target.parent, "folder", target_mtime, None, None, None)
-    background_tasks.add_task(index_files_from_scan, folders, images)
-    background_tasks.add_task(index_directory_tree, target, False)
+        if warm_result is not None:
+            _inc_warm_hit()
+            response_payload = warm_result
+        else:
+            reason = warm_fallback_reason if warm_fallback_reason else ("disabled" if not ENABLE_WARM_INDEXED_LISTING else "error")
+            _inc_warm_fallback(reason)
+            folders, images, scan_perf = await run_in_threadpool(scan_directory, target)
 
-    response_payload = {
-        "folders": folders,
-        "images": paged_images,
-        "next_cursor": next_cursor,
-        "total_images": total_images,
-    }
-    serialize_started = time.perf_counter()
-    encoded_payload = jsonable_encoder(response_payload)
-    serialize_ms = _elapsed_ms(serialize_started)
-    total_ms = _elapsed_ms(request_started)
+            pagination_started = time.perf_counter()
+            total_images = len(images)
+            start = image_cursor
+            end = image_cursor + image_limit if image_limit else total_images
+            paged_images = images[start:end]
+            next_cursor = end if end < total_images else None
+            pagination_ms = _elapsed_ms(pagination_started)
 
-    if SCAN_PERF_LOGS_ENABLED:
-        print(
-            "[SCAN PERF] "
-            f"path={target} "
-            f"limit={image_limit if image_limit is not None else 'none'} "
-            f"cursor={image_cursor} "
-            f"total={total_ms:.0f}ms "
-            f"resolve={resolve_ms:.0f}ms "
-            f"list={scan_perf['list_ms']:.0f}ms "
-            f"recursive_walk={scan_perf['recursive_walk_ms']:.0f}ms "
-            f"stat={scan_perf['stat_ms']:.0f}ms "
-            f"image_filter={scan_perf['image_filter_ms']:.0f}ms "
-            f"folder_filter={scan_perf['folder_filter_ms']:.0f}ms "
-            f"metadata={scan_perf['metadata_ms']:.0f}ms "
-            f"sort={scan_perf['sort_ms']:.0f}ms "
-            f"pagination={pagination_ms:.0f}ms "
-            f"serialize={serialize_ms:.0f}ms "
-            f"entries={scan_perf['entries_scanned']} "
-            f"folders={scan_perf['folders_found']} "
-            f"images_total={total_images} "
-            f"images_returned={len(paged_images)} "
-            f"next_cursor={next_cursor}",
-            flush=True,
-        )
+            target_stat_started = time.perf_counter()
+            target_mtime = target.stat().st_mtime
+            scan_perf["stat_ms"] += _elapsed_ms(target_stat_started)
+            background_tasks.add_task(index_file, target, target.name or str(target), target.parent, "folder", target_mtime, None, None, None)
+            background_tasks.add_task(index_files_from_scan, folders, images, scan_folder_path=target)
+            background_tasks.add_task(index_directory_tree, target, False)
+            background_tasks.add_task(enqueue_metadata_jobs_from_scan, images, target)
 
-    return JSONResponse(content=encoded_payload)
+            response_payload = {
+                "folders": folders,
+                "images": paged_images,
+                "next_cursor": next_cursor,
+                "total_images": total_images,
+                "index_source": "direct_scan",
+            }
+
+        serialize_started = time.perf_counter()
+        encoded_payload = jsonable_encoder(response_payload)
+        serialize_ms = _elapsed_ms(serialize_started)
+        total_ms = _elapsed_ms(request_started)
+
+        if SCAN_PERF_LOGS_ENABLED:
+            if warm_result is not None:
+                wr_total = warm_result.get("total_images", 0)
+                wr_images = warm_result.get("images", [])
+                wr_next = warm_result.get("next_cursor")
+                print(
+                    "[SCAN PERF] "
+                    f"path={target} "
+                    f"limit={image_limit if image_limit is not None else 'none'} "
+                    f"cursor={image_cursor} "
+                    f"total={total_ms:.0f}ms "
+                    f"resolve={resolve_ms:.0f}ms "
+                    f"source=warm_db "
+                    f"serialize={serialize_ms:.0f}ms "
+                    f"images_total={wr_total} "
+                    f"images_returned={len(wr_images)} "
+                    f"next_cursor={wr_next}",
+                    flush=True,
+                )
+            else:
+                print(
+                    "[SCAN PERF] "
+                    f"path={target} "
+                    f"limit={image_limit if image_limit is not None else 'none'} "
+                    f"cursor={image_cursor} "
+                    f"total={total_ms:.0f}ms "
+                    f"resolve={resolve_ms:.0f}ms "
+                    f"list={scan_perf['list_ms']:.0f}ms "
+                    f"recursive_walk={scan_perf['recursive_walk_ms']:.0f}ms "
+                    f"stat={scan_perf['stat_ms']:.0f}ms "
+                    f"image_filter={scan_perf['image_filter_ms']:.0f}ms "
+                    f"folder_filter={scan_perf['folder_filter_ms']:.0f}ms "
+                    f"metadata={scan_perf['metadata_ms']:.0f}ms "
+                    f"sort={scan_perf['sort_ms']:.0f}ms "
+                    f"pagination={pagination_ms:.0f}ms "
+                    f"serialize={serialize_ms:.0f}ms "
+                    f"entries={scan_perf['entries_scanned']} "
+                    f"folders={scan_perf['folders_found']} "
+                    f"images_total={total_images} "
+                    f"images_returned={len(paged_images)} "
+                    f"next_cursor={next_cursor}",
+                    flush=True,
+                )
+
+        return JSONResponse(content=encoded_payload)
+    finally:
+        note_scan_request_finished()

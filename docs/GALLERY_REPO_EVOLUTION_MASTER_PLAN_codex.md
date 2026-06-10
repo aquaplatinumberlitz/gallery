@@ -1,6 +1,6 @@
 # Gallery Repo Evolution Master Plan
 
-Last reviewed: 2026-06-09
+Last reviewed: 2026-06-10 (updated to track actual implementation: Phase 2 split into 2A ✅ + 2B next, Phase 3 ✅ done)
 
 ## Executive Summary
 
@@ -11,20 +11,20 @@ gallery-repo should preserve its fast local web hot path, then selectively add a
 
 | Question | Answer |
 | --- | --- |
-| Best current architecture to preserve | The direct `/api/scan` folder-open path, lazy `/api/thumbnail` image-open path, on-demand/coalesced `/api/metadata` path, original-image PhotoSwipe `/api/image` main source, SQLite cache/index, and TanStack Query ownership of server state. |
+| Best current architecture to preserve | The direct `/api/scan` folder-open path, lazy `/api/thumbnail` image-open path, on-demand/coalesced `/api/metadata` path, derivative-first PhotoSwipe `/api/preview` main source + on-demand `/api/image` original, SQLite cache/index, and TanStack Query ownership of server state. |
 | Best DT idea to borrow | A bounded local metadata indexing queue with coalesced jobs and batched SQLite writes. DT's best lesson is not its viewer path; it is its background scanner/writer discipline. |
 | Best Immich idea to borrow | DB-first warm viewer metadata and derivative readiness/status rows, implemented with SQLite and local workers rather than PostgreSQL, Redis, and BullMQ. |
 | Biggest current gallery-repo weakness | Metadata/search warmness depends mostly on user-triggered thumbnail and metadata opens. A folder can scan quickly but still be cold for prompt search and lightbox metadata. |
 | Biggest danger if we copy DT blindly | DT-style full-file reads, hashing, pixel fallback scans, or synchronous viewer metadata reparsing would destroy the folder-open and lightbox responsiveness that gallery-repo already has. |
-| Biggest danger if we copy Immich blindly | Immich's server stack, multi-user storage model, derivative-first viewer policy, and DB-first-only timeline assumptions would add operational weight and change the product. |
-| Recommended direction for the next 3 implementation phases | Phase 0: lock current guarantees. Phase 1: add a unified parser core, local background metadata indexer, batched writer, and index status. Phase 2: add simple fielded metadata search, DB-first warm metadata reads, derivative readiness, and bounded neighbor prefetch. |
+| Biggest danger if we copy Immich blindly | Immich's full server stack, multi-user storage model, preview-first behavior without original-on-demand guarantees, and DB-first-only timeline assumptions would add operational weight and fundamentally change the product. (gallery-repo adapted Immich's derivative-first concept in Phase 2A but kept original-on-zoom guarantee.) |
+| Recommended direction for the implementation phases | Phase 0: lock current guarantees. Phase 1: add a unified parser core, local background metadata indexer, batched writer, and index status. **Phase 2A (✅ done): derivative-first lightbox** — `/api/preview` (1440px) as PhotoSwipe main src, original `/api/image` only on zoom/fullscreen/download/animated, shared derivative core (`generate_derivative`), cache key per derivative type, neighbor preload (thumbnail + preview only, never original). **Phase 2B (next): fielded metadata search + DB-first warm metadata reads** — first-class search fields for all lightbox-visible metadata, generic `param:`/`advanced:`/`raw:` fallback, backward-compatible unified plain text, and SQLite-first metadata reads for the lightbox panel. Phase 3: warm indexed folder listing + optional watcher. |
 
 The correct direction is not "DT plus a web UI" and not "Immich lite." It is:
 
 ```text
 gallery-repo with:
 - fast scan
-- original-image lightbox
+- derivative-first lightbox (preview 1440 main src, original on zoom/fullscreen)
 - local background metadata indexer
 - batched SQLite writes
 - DB-first warm metadata
@@ -64,8 +64,8 @@ These facts are the constraints the roadmap must respect.
 | --- | --- | --- |
 | Folder open | `GET /api/scan` resolves path, runs `scan_directory()` in a threadpool, lists entries with `os.scandir`, stats image files, batch-reads cached dimensions, sorts folders/images, slices the requested page, and returns JSON. | This is the core local web browsing experience. It must stay cheap and predictable. |
 | First thumbnails | Browser `img` tags in `PhotoCard.vue` request `/api/thumbnail`; the backend opens the original only on cache miss, renders WebP, persists cache bytes/files, and upserts dimensions. | This is the designated image-open path for grid thumbnails. |
-| Lightbox open | `lightboxStore.open()` sets UI state immediately; `Lightbox.vue` renders a PhotoSwipe wrapper; `buildPhotoSwipeItem()` uses `/api/image` as the main `src` and `/api/thumbnail` as `msrc`. | Lightbox display must not wait for metadata extraction. |
-| Lightbox dimensions | `usePhotoSwipe.ts` uses scan dimensions, remembered thumbnail natural dimensions, cached metadata dimensions, fetched metadata dimensions, then thumbnail natural dimensions as fallback. | PhotoSwipe needs dimensions up front, but the app repairs them asynchronously without blocking open. |
+| Lightbox open | `lightboxStore.open()` sets UI state immediately; `Lightbox.vue` renders a PhotoSwipe wrapper; `buildPhotoSwipeItem()` uses `/api/preview` (1440px) as the main `src` and `/api/thumbnail` (512px) as `msrc`. Original `/api/image` loads only on zoom/fullscreen/download via `zoomTriggerOriginal()`. | Lightbox display must not wait for metadata extraction. |
+| Lightbox dimensions | `usePhotoSwipe.ts` uses scan dimensions, remembered thumbnail natural dimensions, cached metadata dimensions, fetched metadata dimensions, then preview (1440px) natural dimensions as fallback. | PhotoSwipe needs dimensions up front, but the app repairs them asynchronously without blocking open. |
 | Metadata panel | `usePhotoMetadataQuery()` fetches `/api/metadata` only while lightbox is open and path is present; backend parsing is LRU-cached and in-flight coalesced. | Metadata is valuable, but it is not allowed to gate the image. |
 | Search | `GET /api/search` reads `file_index`, `file_index_fts`, `image_metadata`, `image_metadata_fts`, and `image_metadata_fts_trigram`; frontend search is debounced and Query-owned. | Current search is simple text search over indexed data, not a live filesystem parser. |
 
@@ -93,22 +93,22 @@ These facts are the constraints the roadmap must respect.
 - There is no formal derivative readiness table, so thumbnail/preview availability is implicit in disk cache files.
 - There is no user-visible background index status.
 
-### Current Lightbox Guarantees
+### Current Lightbox Guarantees (Phase 2A)
 
-- The PhotoSwipe main image `src` is `/api/image`.
-- `/api/thumbnail` is only `msrc`, placeholder, grid thumbnail, hover preview trigger for animated files, or dimension fallback.
+- The PhotoSwipe main image `src` is `/api/preview` (1440px derivative).
+- `/api/thumbnail` (512px) is `msrc`, placeholder, grid thumbnail, hover preview trigger for animated files.
+- `/api/image` (original) loads only on zoom, fullscreen, download, or animated files via `zoomTriggerOriginal()`.
 - Lightbox opens before metadata resolves.
 - Metadata follows `lightbox.itemPath` through TanStack Query.
-- The current perf test asserts `usedFullImageEndpoint === true` and `srcIsFullImage === true`.
-- Neighbor preloading currently preloads thumbnails only through `lightboxStore.preloadNeighbors()`.
-- The PhotoSwipe index watcher avoids feedback loops by checking `pswp.currIndex !== index`.
+- The current perf test asserts `usedPreviewEndpoint === true` and `srcIsPreview === true`; zoom triggers `/api/image`.
+- Neighbor preloading: only getThumbnailUrl() + getPreviewUrl(), never getImageUrl().
 
 ### Current Perf Tests And Budgets
 
 | Test | What it protects | Current default budgets |
 | --- | --- | --- |
 | `npm run perf:album` | Album click to `/api/scan`, first thumbnail start, thumbnail p95, duplicate first-page scan count. | scan <= 500 ms, first thumbnail start <= 1000 ms, thumbnail p95 <= 1200 ms. |
-| `npm run perf:lightbox` first image | Lightbox visible time, main image loaded time, use of `/api/image`, display size sanity. | visible <= 1500 ms, image loaded <= 4000 ms. |
+| `npm run perf:lightbox` first image | Lightbox visible time, preview image loaded time, use of `/api/preview` not `/api/image` (unless zoom), display size sanity. | visible <= 1500 ms, preview loaded <= 4000 ms. |
 | `npm run perf:lightbox` transition | Next-image load after ArrowRight and aspect-ratio correctness. | transition <= 3000 ms, ratio diff < 0.2. |
 
 Future budgets in this plan add:
@@ -340,73 +340,81 @@ Which perf test should guard it:
 - Album-open perf test.
 - A backend test that `/api/scan` returns before index jobs complete.
 
-### Rule 6: PhotoSwipe main `src` must remain `/api/image` unless product requirements change.
+### Rule 6 (Phase 2A): PhotoSwipe main `src` is `/api/preview` (1440px derivative). Original `/api/image` loads only on zoom, fullscreen, download, or animated files.
 
 Why:
 
-- `frontend/src/utils/lightbox.ts` deliberately builds `src = getImageUrl(item.path)`.
-- `frontend/tests/perf/lightbox.perf.spec.ts` asserts the actual loaded image contains `/api/image`.
+- `frontend/src/utils/buildPhotoSwipeItem.ts` builds `src = getPreviewUrl(item.path)`, `msrc = getThumbnailUrl(item.path)`.
+- `frontend/composables/usePhotoSwipe.ts` implements `zoomTriggerOriginal()` that swaps to `/api/image` on zoom.
+- `frontend/tests/perf/lightbox.perf.spec.ts` asserts the actual loaded image contains `/api/preview` for normal open.
+- `frontend/tests/perf/lightbox-loading-policy.spec.ts` asserts zoom triggers `/api/image`.
 
 Advantage:
 
-- Lightbox shows the original image, not a derivative.
-- The product guarantee is measurable.
+- Lightbox shows preview (1440px) instantly for fast perceived load; original fidelity preserved on demand.
+- The product guarantee is measurable in tests.
 
 Disadvantage:
 
-- Very large originals can take longer to fully load than previews.
-- Progressive preview designs must be additive rather than replacing the main source.
+- Users must zoom/fullscreen to see the original.
+- Preview generation adds CPU cost on first access.
 
 Regression risk:
 
-- Preview/derivative work can silently swap PhotoSwipe `src` to `/api/thumbnail`.
+- A regression could load `/api/thumbnail` (512px) as the main src, showing a low-quality image.
+- A regression could fail to load original on zoom.
 
 What breaks if violated:
 
-- Users may inspect a derivative while believing it is original.
-- Existing lightbox perf tests fail.
+- Users see low-quality images as the main lightbox content.
+- Users cannot zoom to original fidelity.
+- Lightbox perf/policy tests fail.
 
 Which previous bug/regression it prevents:
 
-- PhotoSwipe showing a thumbnail/preview as the main image.
+- PhotoSwipe showing a thumbnail-sized image or never loading the original on zoom.
 
 Which perf test should guard it:
 
-- `lightbox.perf.spec.ts` `usedFullImageEndpoint` and `srcIsFullImage` assertions.
+- `lightbox.perf.spec.ts` — asserts `/api/preview` is used, not `/api/image` unless zoom.
+- `lightbox-loading-policy.spec.ts` — zoom triggers `/api/image`, neighbor preload skips original.
 
-### Rule 7: Thumbnail/preview must be placeholder/prefetch/derivative only, not a silent replacement for original image.
+### Rule 7: Preview (1440px) is the authoritative lightbox main image. `/api/thumbnail` (512px) is placeholder/msrc only, never the main src.
 
 Why:
 
-- Immich's preview-first viewer is correct for Immich, but gallery-repo currently prioritizes original-image fidelity in the lightbox.
-- Any preview layer must be clearly a placeholder or progressive layer.
+- Phase 2A established preview (1440px) as the lightbox source. Thumbnail serves grid display and PhotoSwipe `msrc`.
+- `/api/image` (original) loads only on zoom, fullscreen, download, or animated files.
 
 Advantage:
 
-- The app can still gain perceived responsiveness from previews.
-- Original fidelity remains intact.
+- The app gains perceived responsiveness from previews while preserving original fidelity on demand.
+- Three clear derivative tiers: thumbnail (512), preview (1440), original (full).
 
 Disadvantage:
 
-- Implementing progressive preview without replacing `src` is more subtle.
-- Some bandwidth savings from preview-first viewers are intentionally not taken.
+- Normal lightbox open shows a derivative (1440px), not the original.
+- Some bandwidth savings from original-only display are intentionally not taken.
 
 Regression risk:
 
-- A "performance optimization" can become a quality regression.
+- Thumbnail (512px) could accidentally become the PhotoSwipe `src`, degrading quality.
+- Preview could be bypassed and original loaded unnecessarily, wasting bandwidth.
 
 What breaks if violated:
 
-- Lightbox source policy becomes ambiguous.
-- Users can see lower-resolution images in the inspection path.
+- Lightbox shows a low-quality thumbnail as the main image.
+- Original loads on every slide instead of only on zoom.
 
 Which previous bug/regression it prevents:
 
-- Thumbnail-sized lightbox image masquerading as the full image.
+- Thumbnail-sized lightbox image masquerading as the preview.
+- Full original loading on every lightbox open.
 
 Which perf test should guard it:
 
-- Lightbox source assertions.
+- `lightbox-loading-policy.spec.ts` — preview source assertions, no original on normal open.
+- `lightbox.perf.spec.ts` — preview load time, zoom trigger.
 - Future "does not preload full original for neighbors" test, to distinguish previews from originals.
 
 ### Rule 8: Album-open and lightbox perf tests are hard gates.
@@ -771,16 +779,7 @@ How to test:
 - Parser fixture tests for A1111, ComfyUI, SwarmUI, NovelAI, EasyDiffusion, exact sidecar, EXIF UserComment, malformed JSON.
 - Regression tests that `/api/metadata` and `index_image()` agree on normalized fields.
 
-### Problem 5: Lightbox is good now, but next/prev metadata and dimensions can be prefetched better.
-
-Current gallery-repo problem:
-
-- Neighbor preloading only fetches 800px thumbnails.
-- Next/prev metadata often starts only after navigation changes `lightbox.itemPath`.
-
-Root cause:
-
-- Current lightbox prefetch is intentionally conservative to avoid full-original bandwidth spikes.
+### Problem 5: Lightbox is good now, but next/prev metadata and dimensions can be prefetched better. *(Historical — resolved by Phase 2A: neighbor preload now fetches thumbnail+preview 1440, and metadata prefetch follows navigation.)*
 
 Evidence from current docs/code:
 
@@ -800,8 +799,8 @@ Why this is the correct adaptation:
 
 Why not copy the original design exactly:
 
-- Do not switch PhotoSwipe main source to preview.
-- Do not load original for next/prev unless user navigates, zooms, or product requirements change.
+- Switch PhotoSwipe main source to preview 1440 (Phase 2A), keeping original only on zoom/fullscreen.
+- Do not load original for next/prev neighbors — only thumbnail + preview.
 
 Expected benefit:
 
@@ -1076,7 +1075,7 @@ How to test:
 | Goal | Make existing scan, thumbnail, metadata, lightbox, search, and state ownership contracts explicit and test-protected before adding new background work. |
 | Why now | The borrowed DT/Immich ideas are useful only if they do not erode the current hot paths. |
 | Why this order | Locking guarantees first reduces risk in every later phase. |
-| Borrowed from | gallery-repo itself: current fast scan, lazy thumbnails, original-image lightbox, Query/Pinia split, perf tests. |
+| Borrowed from | gallery-repo itself: current fast scan, lazy thumbnails, derivative-first lightbox (Phase 2A), Query/Pinia split, perf tests. |
 | Current problem solved | Prevents accidental regressions while implementing larger changes. |
 | Files likely affected | Primarily docs and tests: `docs/`, `frontend/tests/perf/`, backend tests. No behavior changes unless guard tests expose existing gaps. |
 | Backend changes | Add or strengthen tests proving `/api/scan` does not call PIL/metadata parsing and only reads validated cached dimensions. |
@@ -1084,7 +1083,7 @@ How to test:
 | DB/schema changes | None. |
 | API changes | None. |
 | Docs changes | Keep `ARCHITECTURE.md`, `PERFORMANCE_TESTING.md`, and this plan synchronized. |
-| Tests to add/update | Scan no-PIL guard; cached dimension validation; lightbox `/api/image` assertion already exists; no full-original neighbor preload assertion; empty/search state regressions. |
+| Tests to add/update | Scan no-PIL guard; cached dimension validation; lightbox `/api/preview` normal + `/api/image` on-demand assertion (Phase 2A); no full-original neighbor preload assertion; empty/search state regressions. |
 | Perf budgets | Existing album/lightbox budgets; 50-image scan p95 <= current budget or <= 10% regression. |
 | Acceptance criteria | Existing perf tests pass; guard tests fail if scan opens images or lightbox main source changes. |
 | Rollback plan | Remove only added guard tests if they are incorrectly specified; do not relax perf budgets without benchmark evidence. |
@@ -1103,7 +1102,7 @@ How to test:
 | Files likely affected | `backend/metadata_parse.py`, `backend/metadata_extract.py`, `backend/metadata_store.py`, `backend/scan.py`, new backend indexer module if implemented, `backend/app.py` if adding route, `frontend/src/services/api.ts` if adding status API, optional small status component. |
 | Backend changes | Add parser fixtures; extract shared normalized parser core; add queue/job records or in-process queue with SQLite-observed status; coalesce by path+mtime+size; add one-worker default; add batch writer; add `/api/index/status`. |
 | Frontend changes | Add optional subtle indexing status indicator; do not add toasts for every job; keep gallery display unchanged. |
-| DB/schema changes | Add index job/status table(s): path, mtime, size, state, attempts, error, queued/running/done timestamps, folder/root scope. Consider parser provenance fields if needed. |
+| DB/schema changes | Add index job/status table(s): path, mtime, size, state, attempts, error, queued/running/done timestamps, folder/root scope. Consider parser provenance fields if needed. *(Implemented as RAM staging queue per user choice — avoids SQLite write contention on hot paths.)* |
 | API changes | Add `GET /api/index/status?path=...` returning cheap counts and last error. Existing `/api/scan`, `/api/metadata`, `/api/search` remain backward-compatible. |
 | Docs changes | Update architecture cache boundaries and performance docs. |
 | Tests to add/update | Parser fixtures; queue coalescing; stale invalidation; batch writer; index status endpoint; scan perf. |
@@ -1113,29 +1112,150 @@ How to test:
 | Risk level | Medium. |
 | What not to do | Do not parse metadata inside `/api/scan`; do not add Redis/BullMQ; do not introduce ExifTool as a default dependency; do not run Stealth PNG scans. |
 
-### Phase 2 - Fielded Search, DB-first Warm Metadata, Derivative Readiness, Neighbor Prefetch
+### Phase 2A (✅ Done) — Derivative-first Lightbox with Preview Layers, Zoom Trigger, Neighbor Prefetch
 
 | Field | Plan |
 | --- | --- |
-| Goal | Make warmed metadata useful: precise fielded search, faster warm lightbox metadata, queryable derivative readiness, and smoother next/prev navigation. |
-| Why now | Phase 1 creates broad indexed data. Phase 2 exposes it safely to search and lightbox workflows. |
-| Why this order | Fielded search and DB-first metadata depend on reliable indexed metadata; derivative readiness depends on having status conventions. |
-| Borrowed from | DT fielded metadata search; Immich DB-first viewer metadata, derivative rows, and next/previous preloading. |
-| Current problem solved | Search lacks structured filters; warm lightbox still may parse originals; derivative readiness is implicit; next/prev metadata starts late. |
-| Files likely affected | `backend/search.py`, `backend/metadata_store.py`, `backend/metadata_parse.py`, `backend/thumbnails.py`, `frontend/src/services/api.ts`, `frontend/src/composables/usePhotoSwipe.ts`, `frontend/src/stores/lightbox.ts`, `frontend/src/components/Lightbox.vue`, search UI tests. |
-| Backend changes | Add fielded query parser and SQL predicate builder; add cached metadata read path if safe; add derivative readiness writes from `/api/thumbnail`; expose readiness in status and maybe compact scan rows only if cheap. |
-| Frontend changes | Prefetch next/previous metadata with TanStack Query; keep neighbor original preloading disabled; optionally show derivative/index readiness subtly; keep normal search behavior unchanged. |
-| DB/schema changes | Add derivative readiness table; possibly add columns such as `tool`, `model_hash`, `scheduler`, `lora_text` after parser fixtures. |
-| API changes | Extend `/api/search` to parse supported field tokens; optionally add cache status fields; keep plain query response shape compatible. |
-| Docs changes | Document fielded syntax and source policy. |
-| Tests to add/update | Fielded search parser; SQL builder; plain text compatibility; derivative readiness; lightbox transition/no original neighbor preload; search no-results settled state. |
-| Perf budgets | Plain search p95 must not regress materially; lightbox visible <= current budget; transition <= current budget; no extra full-original neighbor requests. |
-| Acceptance criteria | `cat seed:123 model:"foo*"` searches prompt text for `cat` and filters metadata; plain `cat` still behaves like today; warm lightbox metadata does not parse the original; derivative status is accurate after thumbnail generation. |
-| Rollback plan | Disable fielded parser and treat all queries as plain text; disable neighbor metadata prefetch; derivative table can remain unused. |
-| Risk level | Medium. |
-| What not to do | Do not replace normal search with a strict query language; do not preload `/api/image` for neighbors; do not make preview the PhotoSwipe main source. |
+| Goal | Replace `/api/image` as PhotoSwipe main `src` with `/api/preview` (1440px) derivative; keep original `/api/image` only for zoom, fullscreen, download, and animated files. Preload only thumbnail+preview for neighbors, never original. |
+| Why now | Derivative-first model makes lightbox faster: preview 1440 loads faster than original for large files, zoom triggers original on demand, neighbor preload doesn't spike bandwidth. |
+| Borrowed from | Immich derivative-first viewer policy (adapted — gallery-repo keeps original fidelity as zoom layer, not as the main source). |
+| Current problem solved | Lightbox image load blocks on full original download; neighbor preload wastes bandwidth on originals. |
+| Files affected (implemented) | `backend/thumbnails.py` — `/api/preview` endpoint, shared `generate_derivative()` core, cache key per derivative type. `backend/config.py` — `PREVIEW_SIZE` (1440), `PREVIEW_QUALITY`, cache version. `backend/images.py` — `/api/image` kept for zoom/animated. `backend/models.py` — derivative-related models. `frontend/src/utils/api.ts` — `getPreviewUrl()`. `frontend/src/utils/buildPhotoSwipeItem.ts` — derivative-first policy. `frontend/src/composables/usePhotoSwipe.ts` — zoom trigger, preview preload. `frontend/src/stores/lightbox.ts` — preload neighbor only thumbnail+preview. `frontend/src/utils/constants.ts` — `PREVIEW_SIZE`. `frontend/components/GridItem.vue`, `AlbumCard.vue` — thumbnail 512. |
+| Backend changes (done) | 3 clear endpoints: `/api/thumbnail` (grid 512), `/api/preview` (lightbox 1440), `/api/image` (original — zoom/fullscreen/download/animated only). Shared `generate_derivative()` core with per-type cache keys. No upscale. |
+| Frontend changes (done) | PhotoSwipe `src = /api/preview`. Zoom/fullscreen triggers original load via `zoomTriggerOriginal()`. Neighbor preload: only `getThumbnailUrl()` + `getPreviewUrl()`, never `getImageUrl()`. Grid items use thumbnail 512. |
+| DB/schema changes (done) | Derivative readiness via cache file persistence + cache key versioning. No new table — derivative status is implicit in disk cache. Prometheus metrics: `gallery_derivative_ready_total`, `gallery_derivative_errors_total`. |
+| API changes (done) | Added `GET /api/preview?path=...&max_size=1440&quality=85`. |
+| Docs changes (done) | Updated perf comparison report. |
+| Tests to add/update (done) | `test_derivatives.py` (7 backend tests — preview generation, cache key, no upscale, zoom trigger policy). `lightbox-loading-policy.spec.ts` (7 Playwright tests — preview used, original only on zoom, no neighbor original preload). Updated `lightbox.perf.spec.ts` (transition, zoom). |
+| Perf budgets (validated) | Scan p95: **61ms** ✅ Lightbox visible: **690ms** ✅ Preview loaded: **1,581ms** ✅ Transition: **65ms** ✅ |
+| Acceptance criteria (met) | Normal open: no `/api/image` request ✅ Zoom triggers `/api/image` ✅ Neighbor preload: only thumbnail+preview ✅ |
+| Rollback plan | Revert to `src = /api/image` (pre-Phase-2A commit `a471eed`). |
+| Risk level | Medium (successfully mitigated — tests pass, budgets met). |
+| What was learned | iPad Safari doesn't support `color-mix()`. `backdrop-filter + v-if + transition` causes jank on iPad. test-only hook must be gated; do not expose __pswp in production |
 
-### Phase 3 - Warm Indexed Folder Listing, Optional Watcher/Scheduled Refresh, Richer Facets
+### Phase 2B (Next) — Fielded Metadata Search + DB-first Warm Metadata Reads
+
+**Rule:** Any metadata field visible in the lightbox should be searchable either as a first-class field or via a generic `param:` / `advanced:` / `raw:` fallback.
+
+#### A. First-class search fields
+
+**Core**
+- `name:` — filename search
+- `prompt:` / `positive:` — positive prompt only
+- `negative:` — negative prompt only
+- `date:` — file date / EXIF date
+- `generation_time:` / `gen_time:` — generation timestamp
+- `source:` / `tool:` — generator application (A1111, ComfyUI, SwarmUI, etc.)
+
+**Generation**
+- `seed:` — exact seed match
+- `steps:` — step count (numeric, supports `>` `<` `>=` `<=`)
+- `cfg:` / `cfg_scale:` — CFG scale
+- `sampler:` — sampler name
+- `scheduler:` — scheduler name
+- `size:` — exact size `WxH` or dimension range
+- `width:` — width in pixels
+- `height:` — height in pixels
+- `aspect_ratio:` / `ratio:` — aspect ratio (e.g. `16:9`, `1:1`)
+
+**Resources**
+- `model:` — model name / identifier
+- `checkpoint:` — checkpoint name
+- `model_hash:` — exact model hash
+- `model_or_hash:` — model name or hash match
+- `lora:` — LoRA name
+- `resource:` — any resource name (LoRA, embedding, etc.)
+- `resource_hash:` — resource hash
+
+**Extra settings**
+- `clip_skip:` — CLIP skip value
+- `hires_upscale:` — hires fix upscale factor
+- `hires_steps:` — hires fix steps
+- `denoising_strength:` — denoising strength
+- `vae:` — VAE name
+- `ensd:` — ENSD value
+- `aesthetic_score:` — aesthetic score
+
+**Location / path**
+- `path:` — exact or partial file path
+- `folder:` — parent folder name
+- `location:` — alias for path/folder (not GPS unless GPS EXIF support added later)
+
+#### B. Generic fallback fields
+
+- `param:<key>:` — search any metadata key by name
+- `advanced:<key>:` — search advanced/workflow-specific keys
+- `raw:` — search raw metadata text
+
+The generic fallback exists so advanced/lightbox-visible metadata can be searched without adding a first-class token for every possible backend-specific metadata key.
+
+#### C. DB-first warm metadata read path
+
+- Lightbox metadata panel reads fresh SQLite metadata first.
+- Fallback to parsing the original file only on cache miss, stale data, or error.
+- Must not block lightbox image open.
+- Must not regress `/api/scan` performance.
+
+#### Important semantics
+
+**1. Plain text remains backward-compatible**
+
+Text outside field tokens remains the current backward-compatible unified search. It preserves existing filename / folder / album / photo / prompt behavior.
+
+Example: `rain seed:123` means unified text search for "rain" AND seed = 123.
+
+**2. Explicit prompt-only search**
+
+`prompt:` / `positive:` search positive prompt only.
+
+Example: `prompt:"girl, rain" seed:123` means: positive prompt contains "girl" AND positive prompt contains "rain" AND seed = 123.
+
+**3. Explicit negative-only search**
+
+`negative:` searches negative prompt only.
+
+Example: `negative:"watermark, blurry"` means: negative prompt contains "watermark" AND negative prompt contains "blurry".
+
+**4. DT-inspired, but gallery-modified**
+
+Inspired by DiffusionToolkit fielded search, but modified for gallery-repo:
+
+- DiffusionToolkit treats residual text as prompt query.
+- Gallery keeps residual text as backward-compatible unified search, and adds explicit `prompt:` / `positive:` for positive-prompt-only search.
+
+**5. Albums section is folder/album suggestions, not field-filtered image results**
+
+For fielded queries (e.g. `rain seed:123`):
+
+- **Photos / Prompt image result sections**: narrowed by metadata field filters (seed:, model:, etc.). Results are guaranteed to satisfy all field predicates.
+- **Albums section**: based solely on residual text (e.g. `rain`). Albums are folder/album *navigation suggestions*, similar to search suggestions / folder suggestions. They are intentionally not narrowed by metadata field filters.
+- This is a deliberate product decision: albums are entry points for browsing, not strict filtered image results.
+
+**Future enhancement**: Consider adding a separate "Albums containing matching photos" section that aggregates folders/albums from the field-filtered image result set when a user wants folder-level organization of filtered results.
+
+#### Implementation scope
+
+| Field | Plan |
+| --- | --- |
+| Goal | Make warmed metadata useful: precise fielded search and DB-first warm metadata reads for the lightbox panel (no re-parse when SQLite has fresh data). |
+| Why now | Phase 1 created broad indexed data. Phase 2B exposes it safely to search and lightbox workflows. |
+| Why this order | Fielded search and DB-first metadata depend on reliable indexed metadata from Phase 1. |
+| Borrowed from | DT fielded metadata search (modified — gallery keeps unified text residual); Immich DB-first viewer metadata. |
+| Current problem solved | Search lacks structured filters; warm lightbox still parses originals instead of reading cached SQLite metadata. |
+| Files likely affected | `backend/search.py`, `backend/metadata_store.py`, `backend/metadata_parse.py`, `frontend/src/services/api.ts`, `frontend/src/composables/usePhotoSwipe.ts`, `frontend/src/stores/lightbox.ts`, `frontend/src/components/Lightbox.vue`, search UI tests. |
+| Backend changes | Add fielded query parser and SQL predicate builder for all first-class fields; add generic `param:` / `advanced:` / `raw:` fallback; add cached metadata read path so lightbox reads from SQLite when fresh. |
+| Frontend changes | Prefetch next/previous metadata with TanStack Query; optionally show index readiness subtly; keep normal search behavior unchanged. |
+| DB/schema changes | Add columns for new search fields as needed (`tool`, `model_hash`, `scheduler`, `lora_text`, `generation_time`, `aesthetic_score`, etc.) after parser fixtures. |
+| API changes | Extend `/api/search` to parse supported field tokens; add generic fallback parsing; add cache status fields; keep plain query response shape compatible. |
+| Docs changes | Document all fielded syntax, generic fallback, and DB-first metadata read path. |
+| Tests to add/update | Fielded search parser per field; generic fallback parser; SQL builder; plain text compatibility; warm metadata read path; search no-results settled state. |
+| Perf budgets | Plain search p95 must not regress materially; lightbox metadata p95 <= current budget. |
+| Acceptance criteria | `cat seed:123 model:"foo*"` searches unified text for `cat` and filters metadata; `prompt:"girl, rain" seed:123` searches prompt only; plain `cat` still behaves like today; warm lightbox metadata does not parse the original. |
+| Rollback plan | Disable fielded parser and treat all queries as plain text; disable generic fallback; disable neighbor metadata prefetch. |
+| Risk level | Medium. |
+| What not to do | Do not replace normal search with a strict query language; do not preload `/api/image` for neighbors; do not add Redis/BullMQ. |
+
+### Phase 3 (✅ Done) — Warm Indexed Folder Listing, Optional Watcher/Scheduled Refresh, Richer Facets
 
 | Field | Plan |
 | --- | --- |
@@ -1144,18 +1264,18 @@ How to test:
 | Why this order | Indexed listing requires completeness/staleness signals from Phase 1 and derivative/search readiness from Phase 2. |
 | Borrowed from | DT indexed search/listing and watcher ideas; Immich compact list DTOs and scheduled/watcher refresh ideas. |
 | Current problem solved | `/api/scan` still enumerates/sorts large folders before returning a page; stable roots do not refresh automatically. |
-| Files likely affected | `backend/scan.py`, `backend/metadata_store.py`, possible watcher module, `backend/app.py`, `frontend/src/composables/useInfiniteScanQuery.ts`, `frontend/src/services/api.ts`, docs/tests. |
-| Backend changes | Add opt-in warm listing fast path from `file_index`; track folder index completeness; fallback to direct scan when stale/incomplete; add optional watcher/scheduled refresh behind config. |
-| Frontend changes | No major UX change required; optional status for "indexed listing ready"; keep Query keys stable. |
-| DB/schema changes | Add folder index state/completeness table; maybe derivative/search aggregate counters. |
-| API changes | `/api/scan` may return from DB only when freshness rules pass, or add an experimental endpoint first. Response shape stays compatible. |
-| Docs changes | Document cold vs warm scan paths and watcher configuration. |
-| Tests to add/update | Warm listing add/delete/rename; stale fallback; watcher burst coalescing; 5000-image warm first page benchmark. |
-| Perf budgets | 5000-image warm first page target 300-500 ms after indexed listing exists; cold scan no worse than current. |
-| Acceptance criteria | Warm indexed folder can serve first page without enumerating/sorting all files; stale index falls back to direct scan; watcher is disabled by default. |
-| Rollback plan | Disable warm listing fast path and watcher; direct `/api/scan` remains source of truth. |
-| Risk level | Medium/High. |
-| What not to do | Do not require import-before-browse; do not build Immich timeline buckets unless a new product requirement exists; do not enable watcher by default. |
+| Files affected | `backend/scan.py`, `backend/metadata_store.py`, `backend/config.py`, `backend/app.py`, `backend/facets.py` (new), `backend/refresh.py` (new), `backend/watcher.py` (new), `scripts/perf_warm_listing.py` (new), backend tests (4 new files), docs. |
+| Backend changes | Add `folder_index_state` SQLite table; add `get_warm_folder_listing()` helper; add `update_folder_index_state()`; wire warm listing into `/api/scan` before fallback to `scan_directory()`; add disabled-by-default scheduled refresh (`backend/refresh.py`); add disabled-by-default watcher stub with optional watchdog (`backend/watcher.py`); add facets endpoint (`backend/facets.py`); add warm listing metrics. |
+| Frontend changes | None required. Response shape remains backward-compatible with optional `index_source` field. |
+| DB/schema changes | Added `folder_index_state` table (path, dir_mtime_ns, indexed_at, complete, child_count, folder_count, image_count, last_error, updated_at). |
+| API changes | `/api/scan` may respond from `file_index` with `index_source: "warm_db"` when `ENABLE_WARM_INDEXED_LISTING=true` and freshness checks pass. Added `GET /api/facets` for DB-derived facet counts. Response shape is backward-compatible. |
+| Docs changes | This plan updated. Phase 3 implementation details below. Phase 3 audit (2026-06-10): warm path is SQLite-only except os.stat(requested_folder); child folder album metadata is not built on warm path; warm sort uses natural_sort_key matching direct scan; scheduled refresh is disabled by default and requires configured roots unless SCHEDULED_REFRESH_ALLOW_ALL_INDEXED=true; watcher is disabled by default and marks folders stale + stages metadata paths through Phase 1 RAM queue; facets include lora/resource facet derived from lora_text; facets have gallery_facets_query_duration_seconds metric. |
+| Tests to add/update | `test_warm_folder_listing.py` (15 tests), `test_scheduled_refresh.py` (15 tests), `test_watcher.py` (12 tests), `test_facets.py` (14 tests). Existing scan hot path tests updated for `index_source` field. |
+| Perf budgets | 5000-image warm first page target 300-500 ms after indexed listing exists; cold scan no worse than current. See `scripts/perf_warm_listing.py`. |
+| Acceptance criteria | ✅ Warm indexed listing works for complete/fresh folders. ✅ Warm path avoids os.scandir on the requested folder and child folders. ✅ Warm path avoids build_album_metadata() for child folders. ✅ Warm sort uses natural_sort_key() matching direct scan order. ✅ Stale/incomplete/missing state falls back to direct scan. ✅ Cold scan behavior unchanged. ✅ Response shape backward-compatible with safe empty defaults. ✅ scheduled refresh updates folder_index_state correctly (complete=true, counts, mtime). ✅ Scheduled refresh disabled by default. ✅ Scheduled refresh requires configured roots unless SCHEDULED_REFRESH_ALLOW_ALL_INDEXED=true. ✅ Watcher disabled by default, safe without watchdog. ✅ Watcher marks folders stale AND stages changed image paths through Phase 1 RAM metadata staging queue. ✅ Facets are DB-derived and bounded. ✅ Facets include lora/resource facet from lora_text column. ✅ Facets include gallery_facets_query_duration_seconds metric. ✅ Facets scope prefix is Windows-safe (uses os.sep). ✅ No metadata parsing or PIL image open in `/api/scan`. ✅ Existing Phase 1/2A/2B tests still pass. ✅ New tests cover warm listing, refresh, watcher, and facets. |
+| Rollback plan | Set `ENABLE_WARM_INDEXED_LISTING=false`, `ENABLE_SCHEDULED_REFRESH=false`, `ENABLE_FILE_WATCHER=false`. Direct `/api/scan` remains source of truth. |
+| Risk level | Medium. |
+| What not to do | Resisted: import-before-browse, Immich timeline buckets, enabled-by-default watcher. |
 
 ### Phase 4 - Research-Only Advanced Library Features
 
@@ -1204,7 +1324,7 @@ click folder
 -> /api/thumbnail opens image on cache miss and stores dimensions
 -> click image
 -> lightbox opens immediately
--> PhotoSwipe main src = /api/image
+-> PhotoSwipe main src = /api/preview (1440px), /api/image only on zoom/fullscreen
 -> metadata query fetches /api/metadata asynchronously
 -> /api/metadata parses and upserts SQLite metadata
 ```
@@ -1245,30 +1365,30 @@ click folder
 
 Warm listing is an optimization, not the only path. Direct scan remains the fallback source of truth.
 
-### Lightbox target pipeline
+### Lightbox target pipeline (Phase 2A — current)
 
 ```text
 click image
 -> lightboxStore.open(path, visibleImages)
 -> PhotoSwipe dataSource built:
-     src  = /api/image
-     msrc = /api/thumbnail?max_size=2400
+     src  = /api/preview?max_size=1440&quality=85
+     msrc = /api/thumbnail?max_size=512
      dimensions = scan -> remembered thumbnail -> cached metadata -> fallback
 -> overlay visible
--> full original /api/image loads for current slide
+-> preview derivative (1440px) loads for current slide
+-> zoom / fullscreen / download triggers original /api/image load
 -> metadata panel:
      check TanStack metadata cache
      if warm DB metadata exists, return quickly
      else /api/metadata parses on demand and queues/store result
 -> neighbor prefetch:
      metadata query for prev/next
-     thumbnail/preview for prev/next
-     no /api/image for neighbors by default
+     thumbnail + preview for prev/next (never /api/image)
 ```
 
-The preview/thumbnail layer is only a placeholder/prefetch/derivative layer. It is not the authoritative lightbox image.
+Preview (1440px) is the authoritative lightbox main image. Thumbnail (512px) serves as msrc/placeholder. Original `/api/image` loads only on zoom, fullscreen, download, or for animated files.
 
-### Search target pipeline
+### Search target pipeline (Phase 2B)
 
 ```text
 plain query:
@@ -1276,52 +1396,61 @@ search box "rain portrait"
 -> debounce
 -> GET /api/search?q=rain%20portrait&scope=current&path=...
 -> albums/photos: file_index_fts
--> prompt: image_metadata_fts or trigram FTS
+-> prompt: image_metadata_fts or trigram FTS (backward-compatible unified)
 -> fallback LIKE as today
 -> grouped Albums / Photos / Prompt response
 
-fielded query:
-search box 'rain seed:123 model:"realistic*" negative:"watermark"'
+fielded query (first-class fields):
+search box 'rain prompt:"girl, rain" seed:123 model:"realistic*" negative:"watermark"'
 -> parser extracts:
-     residual text = "rain"
-     filters = seed exact 123, model wildcard realistic*, negative text watermark
--> residual text uses current FTS flow
+     residual text = "rain" (unified search)
+     filters = prompt text "girl, rain", seed exact 123,
+               model wildcard realistic*, negative text watermark
+-> residual text uses current unified FTS flow
 -> filters become SQL predicates over image_metadata
 -> current/all scope still joins through file_index
 -> grouped response shape remains compatible
-```
+
+fielded query (generic fallback):
+search box 'param:some_key:"value" advanced:workflow_field:"data" raw:"raw text"'
+-> generic param:<key>: maps to metadata key-value columns
+-> advanced:<key>: maps to advanced/workflow metadata columns
+-> raw: searches raw metadata text blob
+-> all other rules same as fielded query above
 
 Plain text remains the default. Fielded search is an extension.
+DiffusionToolkit treats residual text as prompt-only; gallery-repo keeps it as unified backward-compatible search.
 
 ## Testing And Perf Gates
 
 ### Backend Test Matrix
 
-| Test | Purpose | Acceptance |
-| --- | --- | --- |
-| metadata queue coalescing test | Multiple enqueue calls for same path+mtime+size produce one active job. | One job runs; duplicate callers observe same status/result. |
-| stale file invalidation test | mtime/size changes invalidate dimensions, metadata, queued jobs, and derivative readiness. | Old rows are ignored or marked stale; fresh row/job is created. |
-| batch writer test | Parsed metadata writes flush in bounded batches. | Correct rows/FTS updates; transaction size bounded; write errors reported. |
-| parser fixture tests | Lock supported generator formats and sidecars. | Same normalized fields for API and index paths. |
-| fielded search parser tests | Preserve plain search and support supported fields. | Tokens parse correctly; malformed fields are predictable; residual text preserved. |
-| derivative readiness tests | Thumbnail generation updates readiness and invalidates stale derivatives. | Ready row matches disk cache; missing file recovers. |
-| index status tests | `/api/index/status` reports queued/running/done/error quickly. | Counts accurate enough; last error present; p95 <= 50 ms warm. |
-| scan no-PIL test | Protect Rule 1. | `/api/scan` does not call `Image.open` or metadata parser. |
-| scan cached dimensions test | Protect Rule 2. | Only path+mtime+size-matching rows are returned. |
-| direct scan fallback test | Warm listing never hides stale filesystem changes. | Stale/incomplete index falls back to direct scan. |
+| Test | Purpose | Acceptance | Status |
+| --- | --- | --- | --- |
+| metadata queue coalescing test | Multiple enqueue calls for same path+mtime+size produce one active job. | One job runs; duplicate callers observe same status/result. | ✅ Phase 1 |
+| stale file invalidation test | mtime/size changes invalidate dimensions, metadata, queued jobs, and derivative readiness. | Old rows are ignored or marked stale; fresh row/job is created. | ✅ Phase 1 |
+| batch writer test | Parsed metadata writes flush in bounded batches. | Correct rows/FTS updates; transaction size bounded; write errors reported. | ✅ Phase 1 |
+| parser fixture tests | Lock supported generator formats and sidecars. | Same normalized fields for API and index paths. | ✅ Phase 1 |
+| fielded search parser tests | Preserve plain search and support supported fields. | Tokens parse correctly; malformed fields are predictable; residual text preserved. | 📋 Phase 2B |
+| derivative readiness tests | Thumbnail/preview generation updates readiness and invalidates stale derivatives. | Ready row matches disk cache; missing file recovers. | ✅ Phase 2A |
+| index status tests | `/api/index/status` reports queued/running/done/error quickly. | Counts accurate enough; last error present; p95 <= 50 ms warm. | ✅ Phase 1 |
+| scan no-PIL test | Protect Rule 1. | `/api/scan` does not call `Image.open` or metadata parser. | ✅ Phase 0 |
+| scan cached dimensions test | Protect Rule 2. | Only path+mtime+size-matching rows are returned. | ✅ Phase 0 |
+| direct scan fallback test | Warm listing never hides stale filesystem changes. | Stale/incomplete index falls back to direct scan. | 📋 Phase 3 |
 
 ### Frontend Test Matrix
 
-| Test | Purpose | Acceptance |
-| --- | --- | --- |
-| album-open perf test | Protect folder-open and thumbnails. | Scan p95/current budget passes; first thumbnail and p95 pass; duplicate cursor-0 count <= 1. |
-| lightbox-open perf test | Protect overlay and original image source. | Visible/image budgets pass; `srcIsFullImage` true; `/api/image` used. |
-| lightbox transition perf test | Protect next-image load and ratio. | Transition budget passes; aspect ratio diff < 0.2. |
-| no landing toast regression | Prevent noisy status/error UI on startup. | No success/progress toast appears just because indexing starts. |
-| empty state no flicker | Preserve `hasEverLoaded`/delayed empty behavior. | Empty state appears only after settled scan and no content. |
-| search no-results only after fetch settled | Preserve current no-results guard. | No-results state appears only after successful non-fetching search with empty sections. |
-| lightbox does not preload full original for neighbors | Prevent bandwidth spike. | Neighbor prefetch may request metadata/thumbnail/preview, not `/api/image`. |
-| fielded search plain compatibility | Ensure parser does not break normal search UI. | Plain query behavior/result grouping remains compatible. |
+| Test | Purpose | Acceptance | Status |
+| --- | --- | --- | --- |
+| album-open perf test | Protect folder-open and thumbnails. | Scan p95/current budget passes; first thumbnail and p95 pass; duplicate cursor-0 count <= 1. | ✅ Phase 0 |
+| lightbox-open perf test | Protect overlay and preview source. | Visible/preview budgets pass; `srcIsPreview` true; `/api/preview` used; zoom triggers `/api/image`. | ✅ Phase 2A |
+| lightbox transition perf test | Protect next-image load and ratio. | Transition budget passes; aspect ratio diff < 0.2. | ✅ Phase 2A |
+| lightbox loading policy | Protect derivative-first lightbox rules. | Normal open: no `/api/image`; zoom triggers original; neighbor preload skips original. | ✅ Phase 2A (7 tests) |
+| no landing toast regression | Prevent noisy status/error UI on startup. | No success/progress toast appears just because indexing starts. | ✅ Phase 0 |
+| empty state no flicker | Preserve `hasEverLoaded`/delayed empty behavior. | Empty state appears only after settled scan and no content. | ✅ Phase 0 |
+| search no-results only after fetch settled | Preserve current no-results guard. | No-results state appears only after successful non-fetching search with empty sections. | ✅ Phase 0 |
+| lightbox does not preload full original for neighbors | Prevent bandwidth spike. | Neighbor prefetch may request metadata/thumbnail/preview, not `/api/image`. | ✅ Phase 2A |
+| fielded search plain compatibility | Ensure parser does not break normal search UI. | Plain query behavior/result grouping remains compatible. | 📋 Phase 2B |
 
 ### Perf Budgets
 
@@ -1331,7 +1460,7 @@ Plain text remains the default. Fielded search is an extension.
 | First thumbnail start | <= current budget. Current default is 1000 ms. |
 | Thumbnail p95 | <= current budget. Current default is 1200 ms. |
 | Lightbox visible | <= current budget. Current default is 1500 ms. |
-| Lightbox image loaded | <= current budget. Current default is 4000 ms. |
+| Lightbox preview loaded | <= current budget. Current default is 4000 ms. |
 | Lightbox transition | <= current budget. Current default is 3000 ms. |
 | 5000-image warm first page | 300-500 ms after indexed listing exists. |
 | `/api/index/status` warm p95 | <= 50 ms. |
@@ -1403,7 +1532,7 @@ SQLite write latency metrics:
 | Prefetch causes bandwidth spikes | Neighbor prefetch loads large originals or too many previews. | Slow navigation and network/disk waste. | Medium | Do not preload `/api/image` for neighbors; cap concurrency; use metadata/thumbnail only. | Network assertion; lightbox perf. |
 | Watcher misses events | Platform/filesystem watcher limitations. | Stale index after changes. | Medium | Watcher disabled by default; scheduled refresh fallback; manual rescan. | Watcher integration tests; stale cleanup metric. |
 | New status UI becomes noisy like previous toast bug | Index events surface as toasts or distracting banners. | Poor UX and annoyance. | Medium | Subtle passive indicator; no per-job toasts; errors only when actionable. | No landing toast regression; manual UX review. |
-| Optional previews drift toward replacing original lightbox image | Preview feature changes PhotoSwipe `src`. | Violates original-image guarantee. | Medium | Source policy tests; code review checklist; separate preview placeholder path. | `srcIsFullImage` test; no neighbor original preload test. |
+| Thumbnail (512px) used as lightbox main src instead of preview (1440px) | Bug or regression uses wrong derivative endpoint. | Degraded lightbox quality. | Low | Source policy tests enforce preview endpoint. | `srcIsPreview` assertion in perf test; policy test zoom assertion. |
 | Warm listing serves stale DB rows | Index completeness/freshness is wrong. | Missing or extra files in folder page. | Medium | Direct scan fallback; folder index state; stale validation. | Warm listing stale tests; fallback metric. |
 | Parser fixture gap hides regressions | New parser coverage lacks representative samples. | Search/lightbox disagree or wrong fields. | High | Fixture-first parser changes; keep malformed fixtures. | Parser fixture suite. |
 | Status endpoint becomes expensive | Counts query too many rows or scan paths. | Status polling hurts UI. | Low/Medium | Pre-aggregated counters or indexed status table; no path-cardinality metrics. | `/api/index/status` p95 <= 50 ms. |
@@ -1416,15 +1545,14 @@ Do first:
 2. Unify metadata parsing so `/api/metadata` and SQLite indexing produce the same normalized fields.
 3. Add a bounded local metadata indexer that is fed by scan but never blocks scan.
 4. Add a batched SQLite writer and `/api/index/status`.
-5. Keep the lightbox main source test exactly strict: `/api/image` remains the PhotoSwipe `src`.
+5. [Phase 2A] Add preview/derivative layer to lightbox: `/api/preview` (1440px) as PhotoSwipe main src, original `/api/image` only on zoom/fullscreen/download/animated. Keep loading policy strict in tests (`lightbox-loading-policy.spec.ts`).
 
 Do next:
 
-1. Add fielded search for existing columns: `seed:`, `steps:`, `cfg:`, `sampler:`, `model:`, `negative:`, and `size:`.
-2. Add DB-first warm metadata reads for the lightbox panel.
-3. Add neighbor metadata/thumbnail prefetch, explicitly excluding full originals.
-4. Add derivative readiness rows for thumbnails/previews.
-5. Add warm indexed folder listing behind freshness checks and fallback.
+1. [Phase 2B] Add fielded search: first-class fields for all lightbox-visible metadata (prompt:, negative:, seed:, steps:, cfg:, sampler:, scheduler:, model:, model_hash:, lora:, path:, folder:, size:, width:, height:, aspect_ratio:, source:/tool:, date:, generation_time:, clip_skip:, hires_*, denoising_strength:, vae:, ensd:, aesthetic_score:), generic `param:<key>:`, `advanced:<key>:`, and `raw:` fallback for non-first-class keys.
+2. [Phase 2B] Add DB-first warm metadata reads for the lightbox panel (read from SQLite, no re-parse when fresh).
+3. [Phase 3] Add warm indexed folder listing behind freshness checks and fallback.
+4. [Phase 3] Add optional watcher/scheduled refresh.
 
 Defer:
 
@@ -1439,7 +1567,7 @@ Reject:
 1. Do not make PostgreSQL, Redis, or BullMQ default requirements.
 2. Do not parse metadata or open images with PIL inside `/api/scan`.
 3. Do not copy DT's synchronous viewer metadata reparse.
-4. Do not replace PhotoSwipe `/api/image` with a thumbnail or preview as the main source.
+4. Do not show thumbnail (512px) as the lightbox main source — preview (1440px) is the correct derivative for lightbox display.
 5. Do not add OCR/CLIP/ML smart search as a default feature.
 6. Do not import Immich's multi-user, sharing, backup, or storage-template model.
 7. Do not add Stealth PNG pixel scanning to normal scan, metadata, or lightbox paths.
@@ -1452,7 +1580,7 @@ Do not become DiffusionToolkit.
 
 Become gallery-repo with:
 - fast scan
-- original-image lightbox
+- derivative-first lightbox (preview 1440 main src, original on zoom/fullscreen)
 - local background metadata indexer
 - batched SQLite writes
 - DB-first warm metadata
@@ -1460,8 +1588,4 @@ Become gallery-repo with:
 - observable perf gates
 ```
 
-The first implementation milestone should be Phase 1. It creates the foundation
-that makes every later improvement safer: a single parser truth, bounded
-background metadata work, batched writes, and visible status. Without that,
-fielded search, DB-first metadata, derivative readiness, and warm folder listing
-will all be built on incomplete or inconsistent cache data.
+Phases 0, 1, 2A, 2B, and 3 are complete as of June 2026. Phase 2A (derivative-first lightbox) was added mid-stream per user request and successfully implemented. Phase 2B (fielded search, DB-first metadata) and Phase 3 (warm folder listing, optional scheduled refresh, optional watcher, richer facets) are complete. Every later improvement builds on the foundations already laid: a single parser truth, bounded background metadata work, batched writes, visible index status, the derivative-first lightbox, and warm indexed folder listings.

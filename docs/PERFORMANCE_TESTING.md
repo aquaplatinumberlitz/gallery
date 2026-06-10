@@ -36,7 +36,7 @@ Profile individual API endpoints to find bottlenecks.
 ENABLE_PROFILER=1
 
 # Which endpoints to profile (comma-separated, default shown)
-PROFILE_ENDPOINTS=/api/scan,/api/metadata,/api/thumbnail
+PROFILE_ENDPOINTS=/api/scan,/api/metadata,/api/thumbnail,/api/preview
 
 # Then make a request — HTML profile will be saved to:
 ls backend/profiles/
@@ -127,7 +127,7 @@ Fail budgets:
 
 ## Lightbox Perf Test
 
-Measures lightbox open and transition performance: time to display, image load latency, `/api/image` endpoint usage, and aspect ratio integrity.
+Measures lightbox open and transition performance with the derivative-first policy: time to visible, preview load latency, on-demand original load after zoom, transition preview load latency, endpoint usage, and aspect ratio integrity.
 
 ```bash
 # Run lightbox perf tests (headless)
@@ -143,17 +143,19 @@ npm run perf:lightbox:headed
 1. Navigates to album and waits for photo cards.
 2. Clears the network tracker and sets clickTime.
 3. Clicks the first photo card.
-4. Measures time until lightbox overlay is visible.
-5. Measures time until the main `.pswp__img` is fully loaded (`img.complete`).
-6. Verifies the image was loaded via the `/api/image` full-resolution endpoint (not thumbnail).
-7. Checks display dimensions are reasonable (>300px in both axes).
+4. Measures `lightboxVisible`: time until lightbox overlay is visible.
+5. Measures `lightboxPreviewLoaded`: time until the main `.pswp__img` is fully loaded (`img.complete`).
+6. Verifies normal open used `/api/preview` and did not request `/api/image`.
+7. Presses the PhotoSwipe zoom shortcut and measures `lightboxOriginalLoadedOnZoom`.
+8. Checks display dimensions are reasonable (>300px in both axes).
 
 **Test 2: lightbox transitions to next image**
 1. Opens the lightbox on the first photo (reuses setup).
 2. Clears the tracker, presses ArrowRight.
 3. Measures time until the image `src` changes (next photo starts loading).
-4. Measures time until the new image is fully loaded.
+4. Measures `transitionPreviewLoaded`: time until the new image is fully loaded.
 5. Verifies the displayed aspect ratio matches the natural aspect ratio within 20%.
+6. Verifies transition navigation does not request `/api/image`.
 
 ### Config via env vars
 ```bash
@@ -161,7 +163,8 @@ GALLERY_BASE_URL=http://localhost:5173 \
 GALLERY_PERF_ALBUM_NAME="test mika" \
 GALLERY_PERF_ALBUM_PATH="/home/ubuntu/gallery-repo/test mika" \
 GALLERY_PERF_LIGHTBOX_OPEN_BUDGET_MS=800 \
-GALLERY_PERF_LIGHTBOX_IMAGE_BUDGET_MS=1500 \
+GALLERY_PERF_LIGHTBOX_PREVIEW_BUDGET_MS=1500 \
+GALLERY_PERF_LIGHTBOX_ORIGINAL_ZOOM_BUDGET_MS=2500 \
 GALLERY_PERF_LIGHTBOX_TRANSITION_BUDGET_MS=700 \
 npm run perf:lightbox
 ```
@@ -170,8 +173,9 @@ npm run perf:lightbox
 | Env Var | Default | Description |
 |---------|---------|-------------|
 | `GALLERY_PERF_LIGHTBOX_OPEN_BUDGET_MS` | `1500` | Max ms for lightbox to become visible after click |
-| `GALLERY_PERF_LIGHTBOX_IMAGE_BUDGET_MS` | `4000` | Max ms for main image to load after click |
-| `GALLERY_PERF_LIGHTBOX_TRANSITION_BUDGET_MS` | `3000` | Max ms for next image to load after ArrowRight |
+| `GALLERY_PERF_LIGHTBOX_PREVIEW_BUDGET_MS` | `4000` | Max ms for preview image to load after click |
+| `GALLERY_PERF_LIGHTBOX_ORIGINAL_ZOOM_BUDGET_MS` | `5000` | Max ms for original image to load after zoom trigger |
+| `GALLERY_PERF_LIGHTBOX_TRANSITION_BUDGET_MS` | `3000` | Max ms for next preview image to load after ArrowRight |
 
 ## Known Limitations
 
@@ -186,7 +190,7 @@ npm run perf:lightbox
 |---------|---------|-------------|
 | `ENABLE_METRICS` | `1` (dev), `0` (prod) | Enable Prometheus metrics at `/metrics` |
 | `ENABLE_PROFILER` | `0` | Enable pyinstrument profiling |
-| `PROFILE_ENDPOINTS` | `/api/scan,/api/metadata,/api/thumbnail` | Comma-separated endpoints to profile |
+| `PROFILE_ENDPOINTS` | `/api/scan,/api/metadata,/api/thumbnail,/api/preview` | Comma-separated endpoints to profile |
 | `GALLERY_METADATA_DB` | `backend/.cache/gallery_metadata.db` | Path to SQLite metadata cache DB |
 | `SCAN_PERF_LOGS` | `1` (dev), `0` (prod) | Enable verbose scan performance log output |
 | `GALLERY_BASE_URL` | `http://localhost:5173` | Frontend URL for Playwright tests |
@@ -199,5 +203,6 @@ npm run perf:lightbox
 | `GALLERY_PERF_SCAN_ITERATIONS` | `10` | Iterations for backend perf script |
 | `GALLERY_PERF_SCAN_P95_BUDGET_MS` | `500` | p95 budget for backend perf script |
 | `GALLERY_PERF_LIGHTBOX_OPEN_BUDGET_MS` | `1500` | Max acceptable lightbox open visible time |
-| `GALLERY_PERF_LIGHTBOX_IMAGE_BUDGET_MS` | `4000` | Max acceptable lightbox image load time |
-| `GALLERY_PERF_LIGHTBOX_TRANSITION_BUDGET_MS` | `3000` | Max acceptable lightbox next-image transition time |
+| `GALLERY_PERF_LIGHTBOX_PREVIEW_BUDGET_MS` | `4000` | Max acceptable lightbox preview load time |
+| `GALLERY_PERF_LIGHTBOX_ORIGINAL_ZOOM_BUDGET_MS` | `5000` | Max acceptable original load time after zoom |
+| `GALLERY_PERF_LIGHTBOX_TRANSITION_BUDGET_MS` | `3000` | Max acceptable lightbox next-preview transition time |
