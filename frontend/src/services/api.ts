@@ -1,5 +1,5 @@
 import axios, { AxiosError } from "axios";
-import type { FolderChildrenResponse, MetadataResponse, MetadataSearchResponse, ScanResponse, SearchScope, UnifiedSearchResponse } from "../types";
+import type { FolderChildrenResponse, MetadataResponse, ScanResponse, SearchScope, UnifiedSearchResponse } from "../types";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -180,27 +180,6 @@ export const fetchMetadata = async (path: string): Promise<MetadataResponse> => 
   try {
     const { data } = await api.get<MetadataResponse>("/api/metadata", {
       params: { path },
-    });
-    return data;
-  } catch (error) {
-    if (error instanceof AxiosError) {
-      throw GalleryAPIError.fromAxiosError(error);
-    }
-    throw error;
-  }
-};
-
-export const searchMetadata = async (
-  query: string,
-  opts?: { limit?: number; offset?: number }
-): Promise<MetadataSearchResponse> => {
-  try {
-    const { data } = await api.get<MetadataSearchResponse>("/api/search-metadata", {
-      params: {
-        q: query,
-        limit: opts?.limit ?? 100,
-        offset: opts?.offset ?? 0,
-      },
     });
     return data;
   } catch (error) {

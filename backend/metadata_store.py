@@ -16,15 +16,12 @@ from .config import (
     GALLERY_METADATA_DB,
     GALLERY_ROOT,
 )
-from .files import IMAGE_EXTENSIONS, is_image_path
+from .files import is_image_path
 from .models import FileNode
 from .metadata_extract import (
-    CJK_RE,
     ExtractedMetadata,
-    GENERIC_TEXT_KEYS,
     contains_cjk,
     extract_metadata,
-    parse_a1111_parameters,
     parse_float,
     parse_int,
     safe_text,
@@ -1420,13 +1417,6 @@ def _like_pattern(query: str) -> str:
 
 def _like_escape(value: str) -> str:
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-
-
-def _relative_path(path: str, root: Path) -> str:
-    try:
-        return str(Path(path).resolve().relative_to(root))
-    except (OSError, ValueError):
-        return str(Path(path).name)
 
 
 def _folder_relative_path(parent_path: str, root: Path) -> str:

@@ -8,7 +8,7 @@ export const BREAKPOINTS = {
   wide: 1440,
 } as const
 
-export type Breakpoint = 'compact' | 'mobile' | 'tablet' | 'desktop' | 'wide'
+type Breakpoint = 'compact' | 'mobile' | 'tablet' | 'desktop' | 'wide'
 
 // Singleton state
 let refCount = 0

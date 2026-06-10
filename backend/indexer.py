@@ -386,25 +386,6 @@ def _enqueue_metadata_jobs_from_result(result: Any, *, start_worker: bool = True
     }
 
 
-def enqueue_metadata_jobs(
-    paths: Iterable[str | Path],
-    root_path: str | Path | None = None,
-    *,
-    start_worker: bool = True,
-) -> dict[str, int]:
-    """Queue metadata parse jobs. This performs stat/SQLite bookkeeping."""
-    path_list = list(paths)
-    try:
-        result = _run_sqlite_write(lambda: queue_metadata_index_paths(path_list, root_path), "queue metadata paths")
-    except _SQLiteBusyRetriesExhausted as exc:
-        failed = len(path_list)
-        if failed:
-            _inc(_jobs_total_metric, "error", amount=failed)
-        LOGGER.warning("Failed to queue %s metadata paths after SQLite busy retries: %s", failed, exc)
-        return {"queued": 0, "coalesced": 0, "skipped": 0, "failed": failed}
-    return _enqueue_metadata_jobs_from_result(result, start_worker=start_worker)
-
-
 def stage_metadata_paths_from_scan(
     paths: Iterable[str | Path],
     root_path: str | Path | None = None,

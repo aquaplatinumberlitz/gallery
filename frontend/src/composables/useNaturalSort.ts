@@ -1,6 +1,3 @@
-import { computed, type Ref } from 'vue'
-import type { FileNode } from '../types'
-
 export function naturalSortKey(s: string): (string | number)[] {
   return s.split(/(\d+)/).map(part => {
     const num = parseInt(part, 10);
@@ -24,9 +21,3 @@ export function compareNatural(a: string, b: string): number {
   return 0;
 }
 
-export function useNaturalSort(items: Ref<FileNode[]>) {
-  const sorted = computed(() => {
-    return [...items.value].sort((a, b) => compareNatural(a.name, b.name))
-  })
-  return { sorted }
-}

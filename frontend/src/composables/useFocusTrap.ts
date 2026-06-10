@@ -5,7 +5,7 @@
  * Ensures keyboard focus stays within modal when open
  */
 
-import { onMounted, onUnmounted, type Ref } from 'vue';
+import { type Ref } from 'vue';
 
 const FOCUSABLE_SELECTORS = [
   'button:not([disabled]):not([tabindex="-1"])',
@@ -117,22 +117,3 @@ export function useFocusTrap(containerRef: Ref<HTMLElement | null>, options?: {
   };
 }
 
-/**
- * Auto-activating focus trap (for use with v-if modals)
- */
-export function useAutoFocusTrap(containerRef: Ref<HTMLElement | null>, options?: {
-  initialFocus?: Ref<HTMLElement | null>;
-  returnFocus?: boolean;
-}) {
-  const trap = useFocusTrap(containerRef, options);
-
-  onMounted(() => {
-    trap.activate();
-  });
-
-  onUnmounted(() => {
-    trap.deactivate();
-  });
-
-  return trap;
-}

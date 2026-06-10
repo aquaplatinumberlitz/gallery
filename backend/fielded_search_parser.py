@@ -144,7 +144,6 @@ def parse_fielded_query(raw: str) -> ParsedQuery:
 
 
 def _read_field_value(state: ParserState) -> tuple[str, str]:
-    state.buf
     while state.peek() == " ":
         state.advance()
 
@@ -183,10 +182,6 @@ def _like_value(raw_value: str) -> str:
     if "*" not in raw_value:
         return escaped
     return escaped.replace("*", "%")
-
-
-def _json_extract_column(col: str, key: str) -> str:
-    return f"json_extract({col}, '$.{key}')"
 
 
 TEXT_LIKE_FIELDS: set[str] = {

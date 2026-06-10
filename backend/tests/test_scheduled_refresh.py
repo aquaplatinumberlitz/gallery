@@ -44,7 +44,6 @@ def test_refreshes_known_folder_state(tmp_path: Path, monkeypatch: pytest.Monkey
     monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_ALLOW_ALL_INDEXED", True)
     monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_INTERVAL_SECONDS", 0.1)
     monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK", 10)
-    monkeypatch.setattr(refresh.time, "sleep", lambda _: None)
 
     album = tmp_path / "album"
     album.mkdir()
@@ -97,7 +96,6 @@ def test_does_not_block_scan(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_ALLOW_ALL_INDEXED", True)
     monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_INTERVAL_SECONDS", 0.05)
     monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK", 5)
-    monkeypatch.setattr(refresh.time, "sleep", lambda _: None)
 
     album = tmp_path / "album"
     album.mkdir()

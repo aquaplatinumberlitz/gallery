@@ -97,22 +97,3 @@ export interface UnifiedSearchResponse extends UnifiedSearchResults {
   scope: SearchScope;
   root: string;
 }
-
-export interface MetadataSearchResult {
-  name: string;
-  path: string;
-  type: "file";
-  mtime: number;
-  width: number | null;
-  height: number | null;
-  model: string;
-  sampler: string;
-  seed: string;
-  prompt_snippet: string;
-}
-
-export interface MetadataSearchResponse {
-  query: string;
-  total: number;
-  results: MetadataSearchResult[];
-}

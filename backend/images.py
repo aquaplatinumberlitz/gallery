@@ -2,7 +2,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import FileResponse
 
 from .errors import APIError, ErrorType
-from .files import check_image_limits, is_image
+from .files import is_image
 from .paths import is_path_safe, resolve_path
 
 router = APIRouter()

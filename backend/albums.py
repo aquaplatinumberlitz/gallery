@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from .files import IMAGE_EXTENSIONS, is_image
+from .files import is_image
 
 
 def has_any_children(dir_path: Path) -> bool:

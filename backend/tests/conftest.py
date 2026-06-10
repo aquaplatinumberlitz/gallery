@@ -129,7 +129,6 @@ def isolated_gallery_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pa
     import backend.paths as paths_module
     import backend.metadata_store as ms_module
     import backend.search as search_module
-    import backend.facets as facets_module
 
     resolved_root = root.resolve()
     monkeypatch.setattr(config_module, "GALLERY_ROOT", resolved_root)
@@ -137,7 +136,6 @@ def isolated_gallery_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pa
     monkeypatch.setattr(paths_module, "GALLERY_ROOT", resolved_root)
     monkeypatch.setattr(ms_module, "GALLERY_ROOT", resolved_root)
     monkeypatch.setattr(search_module, "GALLERY_ROOT", resolved_root)
-    monkeypatch.setattr(facets_module, "GALLERY_ROOT", resolved_root)
 
     return root
 

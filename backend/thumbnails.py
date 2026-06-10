@@ -209,17 +209,6 @@ def generate_derivative(
         raise api_exc from exc
 
 
-def generate_thumbnail(file_path: Path, max_size: int = 512, quality: int = 78) -> bytes:
-    """Backward-compatible thumbnail helper."""
-    return generate_derivative(
-        file_path,
-        kind="thumbnail",
-        max_long_edge=max_size,
-        quality=quality,
-        format="webp",
-    )
-
-
 def _resolve_image_request_path(path: str) -> Path:
     file_path = resolve_path(path)
     if not is_path_safe(file_path):

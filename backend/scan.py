@@ -8,7 +8,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
 from .albums import build_album_metadata
-from .config import DEFAULT_ROOT, ENABLE_METRICS, ENABLE_WARM_INDEXED_LISTING, SCAN_PERF_LOGS_ENABLED
+from .config import DEFAULT_ROOT, ENABLE_WARM_INDEXED_LISTING, SCAN_PERF_LOGS_ENABLED
 from .errors import APIError, ErrorType
 from .files import is_image, natural_sort_key
 from .indexer import (

@@ -15,5 +15,4 @@ class ErrorType:
     NOT_DIRECTORY = "not_directory"   # Path is not a folder
     PERMISSION_DENIED = "permission"  # No access permission
     INVALID_FILE = "invalid_file"     # Not an image or can't process
-    TIMEOUT = "timeout"               # Operation took too long
     SERVER_ERROR = "server_error"     # Internal server error

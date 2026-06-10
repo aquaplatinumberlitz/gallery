@@ -87,12 +87,12 @@ else:
     GALLERY_METADATA_DB = METADATA_DB_DIR / "gallery_metadata.db"
 
 # ---------------------------------------------------------------------------
-# Phase 3 — Warm indexed folder listing
+# Warm indexed folder listing (optional, disabled by default)
 # ---------------------------------------------------------------------------
 ENABLE_WARM_INDEXED_LISTING = _env_flag("ENABLE_WARM_INDEXED_LISTING", default=False)
 
 # ---------------------------------------------------------------------------
-# Phase 3 — Scheduled refresh
+# Scheduled refresh (optional, disabled by default)
 # ---------------------------------------------------------------------------
 ENABLE_SCHEDULED_REFRESH = _env_flag("ENABLE_SCHEDULED_REFRESH", default=False)
 SCHEDULED_REFRESH_INTERVAL_SECONDS = max(
@@ -111,7 +111,7 @@ SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK = max(
 SCHEDULED_REFRESH_ALLOW_ALL_INDEXED = _env_flag("SCHEDULED_REFRESH_ALLOW_ALL_INDEXED", default=False)
 
 # ---------------------------------------------------------------------------
-# Phase 3 — Optional file watcher (disabled by default)
+# File watcher (optional, disabled by default)
 # ---------------------------------------------------------------------------
 ENABLE_FILE_WATCHER = _env_flag("ENABLE_FILE_WATCHER", default=False)
 WATCHER_ROOTS = [

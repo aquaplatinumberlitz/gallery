@@ -74,7 +74,7 @@ from .watcher import start_watcher as _start_watcher
 
 
 @app.on_event("startup")
-async def _startup_phase3():
+async def _startup_background_services():
     _start_refresh()
     _start_watcher()
 

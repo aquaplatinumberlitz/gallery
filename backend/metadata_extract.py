@@ -9,7 +9,7 @@ from typing import Any
 
 from PIL import Image, UnidentifiedImageError
 
-from .files import IMAGE_EXTENSIONS, is_image_path
+
 
 LORA_PATTERN = re.compile(r"<lora:([^:>]+)(?::([^>]+))?>", re.IGNORECASE)
 CJK_RE = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
@@ -519,29 +519,6 @@ def _json_text_summary(value: Any) -> str:
 
     visit(value)
     return " ".join(dict.fromkeys(pieces))
-
-
-def _parse_comfy_text(prompt_json: str, workflow_json: str) -> dict[str, Any]:
-    raw_json = prompt_json or workflow_json
-    summary = ""
-    parsed: Any = None
-    if raw_json:
-        try:
-            parsed = json.loads(raw_json)
-            summary = _json_text_summary(parsed)
-        except (json.JSONDecodeError, TypeError):
-            summary = raw_json
-
-    return {
-        "prompt": summary,
-        "negative_prompt": "",
-        "steps": None,
-        "sampler": "",
-        "cfg_scale": None,
-        "seed": "",
-        "model": "",
-        "metadata_json": raw_json if raw_json and raw_json.strip().startswith(("{", "[")) else "",
-    }
 
 
 def _read_image_info(path: Path) -> tuple[int | None, int | None, str, str, int, dict[str, str]]:
