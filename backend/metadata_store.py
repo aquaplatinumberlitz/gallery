@@ -873,6 +873,9 @@ def get_folder_index_state(folder_path: str | Path) -> dict | None:
         return None
 
 
+# TODO: Future optimization — add a persisted natural sort key column to file_index
+# so very large warm folders can use DB-level ORDER BY + LIMIT without loading all
+# direct child rows into Python.
 def get_warm_folder_listing(
     folder_path: str | Path,
     *,
