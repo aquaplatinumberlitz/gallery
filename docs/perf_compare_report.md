@@ -7,7 +7,7 @@
 > Backend: `uvicorn backend.main:app` (`127.0.0.1:4181`)
 > Test data: `test mika` album (50 images, 2 subfolders)
 
-Note: this report predates the derivative-first lightbox refactor. Its "image loaded" lightbox values measured the original `/api/image` path. New reports split this into `lightboxPreviewLoaded`, `lightboxOriginalLoadedOnZoom`, and `transitionPreviewLoaded`.
+Note: After the Phase 2a derivative-first lightbox refactor, the current lightbox perf test measures: lightbox visible time, preview loaded time, and transition preview loaded time. The lightbox opens with `/api/preview` (1440), uses `/api/thumbnail` (512) only for the `msrc` placeholder, and does not request `/api/image` until zoom or explicit fullscreen. Original-loaded-on-zoom timing is covered by the policy spec (`lightbox-loading-policy.spec.ts`) and is not currently measured as a perf metric.
 
 ## 1. Backend Scan Perf (`scripts/perf_scan.py`, 10 iterations)
 
@@ -37,25 +37,29 @@ After Option 2 plus hardening, scan p95 is back under budget and below the main 
 | Thumb max | 1,048 | 298 | -750 | faster |
 | Verdict | PASS | PASS | - | improvement |
 
-## 3. Frontend Playwright - Lightbox Open
+## 3. Frontend Playwright - Lightbox Open (derivative-first: preview 1440)
 
 | Metric | main (ms) | evolve after hardening (ms) | Delta vs main | Verdict |
 |--------|-----------|------------------------------|---------------|---------|
 | Lightbox visible | 687 | 165 | -522 | faster |
-| Main image loaded | 1,666 | 1,011 | -655 | faster |
-| Image request start | 549 | 131 | -418 | faster |
-| Image request duration | 411 | 21 | -390 | faster |
+| Preview loaded | 1,666 | 1,011 | -655 | faster |
+| Preview request start | 549 | 131 | -418 | faster |
+| Preview request duration | 411 | 21 | -390 | faster |
 | Metadata duration | 350 | 276 | -74 | faster |
-| Used full image? | yes | yes | same | pass |
+| Used preview endpoint? | yes | yes | same | pass |
 | Verdict | PASS | PASS | - | improvement |
 
-## 4. Frontend Playwright - Lightbox Transition
+Note: "main" branch values reflect the pre-derivative-first path where the lightbox loaded the original `/api/image` directly. The "evolve" branch values measure the `/api/preview` (1440) derivative-first path. Both branches pass, but the evolve branch is significantly faster because it loads a resized preview instead of the full original image on lightbox open.
+
+## 4. Frontend Playwright - Lightbox Transition (next/prev: preview 1440 only)
 
 | Metric | main (ms) | evolve after hardening (ms) | Delta vs main | Verdict |
 |--------|-----------|------------------------------|---------------|---------|
 | Next visible | 28 | 23 | -5 | faster |
-| Next image loaded | 92 | 58 | -34 | faster |
+| Next preview loaded | 92 | 58 | -34 | faster |
 | Verdict | PASS | PASS | - | improvement |
+
+Note: Transition preloads thumbnail + preview only. `/api/image` is not requested during normal next/prev navigation.
 
 ## 5. Overall Scorecard
 
@@ -64,8 +68,8 @@ After Option 2 plus hardening, scan p95 is back under budget and below the main 
 | Backend scan p95 | PASS | 71.50ms, below the 500ms budget and main baseline |
 | Backend scan p50 | PASS | 51.19ms, faster than main |
 | Frontend album open | PASS | Thumbnail p95 improved from 1,042ms to 296ms |
-| Lightbox open | PASS | Visible at 165ms, image loaded at 1,011ms |
-| Lightbox transition | PASS | Next image loaded at 58ms |
+| Lightbox open | PASS | Visible at 165ms, preview loaded at 1,011ms |
+| Lightbox transition | PASS | Next preview loaded at 58ms |
 | Playwright tests | PASS | 3/3 passed |
 
 ## 6. Conclusion
@@ -89,8 +93,8 @@ Branch `evolve/metadata-indexer` can merge if no new blocker appears in review.
 ```text
 Backend scan perf (x10): min=30.08ms, p50=51.19ms, p95=71.50ms, max=71.50ms
 Playwright album-open: scan=287ms(1) thumb={count:48, firstStart:364, lastEnd:673, p50:199, p95:296, max:298}
-Playwright lightbox: visible=165ms, loaded=1011ms, imgRequest=131ms(+21ms), metadata=276ms
-Playwright transition: nextVisible=23ms, nextLoaded=58ms, ratioDiff=0
+Playwright lightbox: visible=165ms, previewLoaded=1011ms, previewRequest=131ms(+21ms), metadata=276ms
+Playwright transition: nextVisible=23ms, nextPreviewLoaded=58ms, ratioDiff=0
 Playwright: 3/3 passed
 ```
 

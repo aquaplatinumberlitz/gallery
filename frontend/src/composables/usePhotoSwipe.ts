@@ -1,7 +1,7 @@
 import { ref, onMounted, onUnmounted, watch, type Ref, type ComputedRef } from "vue";
 import PhotoSwipe from "photoswipe";
 import type { FileNode, MetadataResponse } from "../types";
-import { fetchMetadata, getThumbnailUrl } from "../services/api";
+import { fetchMetadata, getPreviewUrl, getThumbnailUrl } from "../services/api";
 import { queryClient } from "../query";
 import { queryKeys } from "../query/keys";
 import { useLightboxStore } from "../stores/lightbox";
@@ -9,10 +9,15 @@ import {
   buildPhotoSwipeItem,
   hasValidDimensions,
   LIGHTBOX_ORIGINAL_ZOOM_THRESHOLD,
+  LIGHTBOX_PREVIEW_EDGE,
   shouldAlwaysLoadOriginal,
   type LightboxDimensions,
   type PhotoSwipeImageItem,
 } from "../utils/lightbox";
+
+const shouldExposeLightboxTestHooks =
+  import.meta.env.MODE === "test" ||
+  import.meta.env.VITE_EXPOSE_LIGHTBOX_TEST_HOOKS === "1";
 
 export interface UsePhotoSwipeOptions {
   containerRef: Ref<HTMLElement | null>;
@@ -77,7 +82,7 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
       : null;
   };
 
-  const loadThumbnailDimensions = (path: string): Promise<LightboxDimensions | null> =>
+  const loadPreviewDimensions = (path: string): Promise<LightboxDimensions | null> =>
     new Promise((resolve) => {
       if (typeof Image === "undefined") {
         resolve(null);
@@ -97,7 +102,7 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
         );
       };
       image.onerror = () => resolve(null);
-      image.src = getThumbnailUrl(path);
+      image.src = getPreviewUrl(path, LIGHTBOX_PREVIEW_EDGE);
     });
 
   const resolveDimensions = (item: FileNode): Promise<LightboxDimensions | null> => {
@@ -112,7 +117,7 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
 
     const promise = fetchMetadataDimensions(item.path)
       .catch(() => null)
-      .then((metadataDimensions) => metadataDimensions ?? loadThumbnailDimensions(item.path))
+      .then((metadataDimensions) => metadataDimensions ?? loadPreviewDimensions(item.path))
       .finally(() => {
         pendingDimensions.delete(item.path);
       });
@@ -300,11 +305,12 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
       ...photoSwipeOptions,
     });
     pswp.value = instance;
-    (window as any).__pswp = instance;
-    (window as any).__loadOriginalForCurrent = (reason: string) => {
-    console.log("[ZOOM DEBUG] __loadOriginalForCurrent called with reason:", reason);
-    maybeLoadOriginalForCurrent(reason as any);
-  };
+    if (shouldExposeLightboxTestHooks) {
+      (window as any).__pswp = instance;
+      (window as any).__loadOriginalForCurrent = (reason: string) => {
+        maybeLoadOriginalForCurrent(reason as any);
+      };
+    }
 
     instance.on("change", () => {
       onIndexChange?.(instance.currIndex);
@@ -355,6 +361,12 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
         pswp.value.destroy();
       } catch (_) {
         // Already destroyed
+      }
+      if (shouldExposeLightboxTestHooks) {
+        if ((window as any).__pswp === pswp.value) {
+          delete (window as any).__pswp;
+        }
+        delete (window as any).__loadOriginalForCurrent;
       }
       pswp.value = null;
     }
