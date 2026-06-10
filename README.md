@@ -159,11 +159,19 @@ gallery-repo/
 - [UI/UX Guidelines](docs/UI_UX_GUIDELINES.md) - breakpoints, layout rules, mobile behavior, theme rules
 - [Troubleshooting](docs/TROUBLESHOOTING.md) - known issues, Safari/iOS gotchas, regression checks
 - [Metadata Parsing](docs/METADATA_PARSING.md) - backend scan, thumbnail, metadata, and dimension pipelines
+- [Evolution Master Plan](docs/GALLERY_REPO_EVOLUTION_MASTER_PLAN_codex.md) - phased roadmap (Phases 0-3 done)
+- [Lightbox Loading Policy](docs/LIGHTBOX_IMAGE_LOADING_POLICY.md) - derivative-first lightbox rules and guarantees
+- [Performance Testing](docs/PERFORMANCE_TESTING.md) - perf budgets, test methodology, results
+- [Performance Comparison Report](docs/perf_compare_report.md) - Phase 2A lightbox perf comparison
 - [DiffusionToolkit Pipeline Audit](docs/DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md) - comparison with DiffusionToolkit metadata, indexing, thumbnail, and lightbox pipeline
 - [DiffusionToolkit Metadata Parse Analysis](docs/DIFFUSIONTOOLKIT_METADATA_PARSE_ANALYSIS.md) - parser-specific lessons and proposed gallery metadata parser improvements
 - [DiffusionToolkit Metadata Search Analysis](docs/DIFFUSIONTOOLKIT_METADATA_SEARCH_ANALYSIS.md) - search-query lessons and proposed fielded metadata search backlog
+- [Immich Pipeline Audit](docs/IMMICH_PIPELINE_AUDIT.md) - comparison with Immich pipeline
+- [Media Pipeline Comparison](docs/MEDIA_PIPELINE_COMPARISON.md) - gallery-repo vs DT vs Immich pipeline comparison
+- [Backend Library Research](docs/BACKEND_LIBRARY_REPLACEMENT_RESEARCH.md) - library replacement analysis
+- [TanStack Migration Plan](docs/TANSTACK_MIGRATION_PLAN.md) - incremental TanStack Query migration
 - [Library Usage](docs/THIRD_PARTY_LIBRARIES.md) - third-party library integration notes
-- [TanStack Guide](frontend/src/lib/tanstack/README.md) - TanStack Query, Virtual, Form, Table usage
+- [TanStack Guide](frontend/src/lib/tanstack/README.md) - TanStack Query, Virtual, Form, Table usage patterns
 
 ## License
 
