@@ -1,6 +1,6 @@
 # AI Art Gallery
 
-Last reviewed: 2026-06-08
+Last reviewed: 2026-06-10
 
 A local-first web gallery for browsing AI-generated artwork collections. It pairs a FastAPI backend for scanning, thumbnails, and metadata parsing with a Vue 3 frontend that provides a responsive TanStack Virtual gallery and PhotoSwipe-based lightbox.
 
@@ -11,16 +11,22 @@ Designed for local/personal use. It is not intended as a hardened public deploym
 - Responsive desktop, tablet, and mobile layouts
 - TanStack Virtual-scrolled image grid for large folders
 - PhotoSwipe 5 lightbox with device-specific metadata panels
+- Derivative-first lightbox — 1440px WebP preview as the main PhotoSwipe source; original `/api/image` only on zoom, fullscreen, download, or animated images
 - AI metadata parsing for A1111, SwarmUI, ComfyUI, NovelAI, and EasyDiffusion
 - WebP thumbnail generation with diskcache persistent caching
 - Light and dark themes using gallery design tokens
 - Mobile/tablet debugging helpers for Safari and icon sizing
+- Background metadata indexer with coalesced job queue and batched SQLite writer, exposing an index status endpoint
+- Fielded metadata search (`prompt:`, `seed:`, `model:`, `steps:`, etc.) with a dedicated parser; warm metadata reads from SQLite without re-parsing PNG chunks
+- Warm indexed folder listing (SQLite-first, `os.stat` + SQLite only) with optional scheduled refresh and file-watcher support
+- DB-derived faceted aggregation endpoint (`/api/facets`) for tool, model, sampler, and other metadata dimensions
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|------------|
-| Backend | FastAPI, Uvicorn, Pillow, diskcache, cachetools |
+| Backend | FastAPI, Uvicorn, Pillow, diskcache, cachetools, SQLite |
+| Backend Modules | metadata_store, fielded_search_parser, indexer, facets, refresh, watcher |
 | Frontend | Vue 3, TypeScript, Vite, Pinia |
 | Lightbox | PhotoSwipe 5 |
 | Grid | @tanstack/vue-virtual |
@@ -75,10 +81,48 @@ gallery-repo/
 ├── start.py
 ├── backend/
 │   ├── main.py
-│   └── requirements.txt
+│   ├── app.py
+│   ├── config.py
+│   ├── errors.py
+│   ├── facets.py
+│   ├── fielded_search_parser.py
+│   ├── files.py
+│   ├── folders.py
+│   ├── health.py
+│   ├── images.py
+│   ├── indexer.py
+│   ├── metadata_extract.py
+│   ├── metadata_parse.py
+│   ├── metadata_store.py
+│   ├── models.py
+│   ├── paths.py
+│   ├── refresh.py
+│   ├── requirements.txt
+│   ├── scan.py
+│   ├── search.py
+│   ├── static_files.py
+│   ├── thumbnails.py
+│   ├── watcher.py
+│   └── tests/
+│       ├── conftest.py
+│       ├── test_app.py
+│       ├── test_derivatives.py
+│       ├── test_facets.py
+│       ├── test_fielded_search_parser.py
+│       ├── test_indexer_staging.py
+│       ├── test_scan_folder_counts.py
+│       ├── test_scan_hot_path.py
+│       ├── test_scheduled_refresh.py
+│       ├── test_warm_folder_listing.py
+│       └── test_watcher.py
 ├── frontend/
 │   ├── package.json
 │   ├── public/landpage/
+│   ├── tests/
+│   │   ├── lightbox-loading-policy.spec.ts
+│   │   └── perf/
+│   │       ├── album-open.perf.spec.ts
+│   │       └── lightbox.perf.spec.ts
 │   └── src/
 │       ├── App.vue
 │       ├── components/
@@ -95,12 +139,15 @@ gallery-repo/
 
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
-| `GET` | `/api/scan?path=...` | Scan folders and paginated images |
+| `GET` | `/api/scan?path=...&scope=...` | Scan folders and paginated images; scope controls scan depth |
 | `GET` | `/api/image?path=...` | Serve an original image |
-| `GET` | `/api/thumbnail?path=...` | Serve a cached WebP thumbnail |
+| `GET` | `/api/thumbnail?path=...` | Serve a cached WebP thumbnail (max 512px) |
+| `GET` | `/api/preview?path=...` | Serve a cached WebP preview (max 1440px) |
 | `GET` | `/api/metadata?path=...` | Parse AI generation metadata |
 | `GET` | `/api/search` | Unified photo/album/prompt search |
-| `GET` | `/api/search-metadata` | Legacy metadata search (deprecated) |
+| `GET` | `/api/search-metadata` | Legacy metadata text search (prompt/model/filename) |
+| `GET` | `/api/facets` | Faceted aggregation counts (tool, model, sampler, etc.) |
+| `GET` | `/api/index/status` | Metadata indexer queue/runtime status |
 | `POST` | `/api/open-folder` | Open a folder in the OS file explorer when enabled |
 | `GET` | `/api/health` | Health check |
 | `GET` | `/api/landing-pages` | List intro page templates |
