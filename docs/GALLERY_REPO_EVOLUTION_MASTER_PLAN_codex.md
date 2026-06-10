@@ -11,12 +11,12 @@ gallery-repo should preserve its fast local web hot path, then selectively add a
 
 | Question | Answer |
 | --- | --- |
-| Best current architecture to preserve | The direct `/api/scan` folder-open path, lazy `/api/thumbnail` image-open path, on-demand/coalesced `/api/metadata` path, original-image PhotoSwipe `/api/image` main source, SQLite cache/index, and TanStack Query ownership of server state. |
+| Best current architecture to preserve | The direct `/api/scan` folder-open path, lazy `/api/thumbnail` image-open path, on-demand/coalesced `/api/metadata` path, derivative-first lightbox (`/api/preview` main source, `/api/image` on zoom/fullscreen), SQLite cache/index, and TanStack Query ownership of server state. |
 | Best DT idea to borrow | A bounded local metadata indexing queue with coalesced jobs and batched SQLite writes. DT's best lesson is not its viewer path; it is its background scanner/writer discipline. |
 | Best Immich idea to borrow | DB-first warm viewer metadata and derivative readiness/status rows, implemented with SQLite and local workers rather than PostgreSQL, Redis, and BullMQ. |
 | Biggest current gallery-repo weakness | Metadata/search warmness depends mostly on user-triggered thumbnail and metadata opens. A folder can scan quickly but still be cold for prompt search and lightbox metadata. |
 | Biggest danger if we copy DT blindly | DT-style full-file reads, hashing, pixel fallback scans, or synchronous viewer metadata reparsing would destroy the folder-open and lightbox responsiveness that gallery-repo already has. |
-| Biggest danger if we copy Immich blindly | Immich's server stack, multi-user storage model, derivative-first viewer policy, and DB-first-only timeline assumptions would add operational weight and change the product. |
+| Biggest danger if we copy Immich blindly | Immich's full server stack, multi-user storage model, DB-first-only timeline assumptions, and loss of original-image fidelity would add operational weight and fundamentally change the product. (gallery-repo adapted Immich's derivative-first concept in Phase 2A but kept original-on-zoom guarantee.) |
 | Recommended direction for the implementation phases | Phase 0: lock current guarantees. Phase 1: add a unified parser core, local background metadata indexer, batched writer, and index status. **Phase 2A (✅ done): derivative-first lightbox** — `/api/preview` (1440px) as PhotoSwipe main src, original `/api/image` only on zoom/fullscreen/download/animated, shared derivative core (`generate_derivative`), cache key per derivative type, neighbor preload (thumbnail + preview only, never original). **Phase 2B (next): fielded metadata search and DB-first warm metadata reads.** Phase 3: warm indexed folder listing + optional watcher. |
 
 The correct direction is not "DT plus a web UI" and not "Immich lite." It is:
@@ -65,7 +65,7 @@ These facts are the constraints the roadmap must respect.
 | Folder open | `GET /api/scan` resolves path, runs `scan_directory()` in a threadpool, lists entries with `os.scandir`, stats image files, batch-reads cached dimensions, sorts folders/images, slices the requested page, and returns JSON. | This is the core local web browsing experience. It must stay cheap and predictable. |
 | First thumbnails | Browser `img` tags in `PhotoCard.vue` request `/api/thumbnail`; the backend opens the original only on cache miss, renders WebP, persists cache bytes/files, and upserts dimensions. | This is the designated image-open path for grid thumbnails. |
 | Lightbox open | `lightboxStore.open()` sets UI state immediately; `Lightbox.vue` renders a PhotoSwipe wrapper; `buildPhotoSwipeItem()` uses `/api/preview` (1440px) as the main `src` and `/api/thumbnail` (512px) as `msrc`. Original `/api/image` loads only on zoom/fullscreen/download via `zoomTriggerOriginal()`. | Lightbox display must not wait for metadata extraction. |
-| Lightbox dimensions | `usePhotoSwipe.ts` uses scan dimensions, remembered thumbnail natural dimensions, cached metadata dimensions, fetched metadata dimensions, then thumbnail natural dimensions as fallback. | PhotoSwipe needs dimensions up front, but the app repairs them asynchronously without blocking open. |
+| Lightbox dimensions | `usePhotoSwipe.ts` uses scan dimensions, remembered thumbnail natural dimensions, cached metadata dimensions, fetched metadata dimensions, then preview (1440px) natural dimensions as fallback. | PhotoSwipe needs dimensions up front, but the app repairs them asynchronously without blocking open. |
 | Metadata panel | `usePhotoMetadataQuery()` fetches `/api/metadata` only while lightbox is open and path is present; backend parsing is LRU-cached and in-flight coalesced. | Metadata is valuable, but it is not allowed to gate the image. |
 | Search | `GET /api/search` reads `file_index`, `file_index_fts`, `image_metadata`, `image_metadata_fts`, and `image_metadata_fts_trigram`; frontend search is debounced and Query-owned. | Current search is simple text search over indexed data, not a live filesystem parser. |
 
@@ -808,8 +808,8 @@ Why this is the correct adaptation:
 
 Why not copy the original design exactly:
 
-- Do not switch PhotoSwipe main source to preview.
-- Do not load original for next/prev unless user navigates, zooms, or product requirements change.
+- Switch PhotoSwipe main source to preview 1440 (Phase 2A), keeping original only on zoom/fullscreen.
+- Do not load original for next/prev neighbors — only thumbnail + preview.
 
 Expected benefit:
 
@@ -1084,7 +1084,7 @@ How to test:
 | Goal | Make existing scan, thumbnail, metadata, lightbox, search, and state ownership contracts explicit and test-protected before adding new background work. |
 | Why now | The borrowed DT/Immich ideas are useful only if they do not erode the current hot paths. |
 | Why this order | Locking guarantees first reduces risk in every later phase. |
-| Borrowed from | gallery-repo itself: current fast scan, lazy thumbnails, original-image lightbox, Query/Pinia split, perf tests. |
+| Borrowed from | gallery-repo itself: current fast scan, lazy thumbnails, derivative-first lightbox (Phase 2A), Query/Pinia split, perf tests. |
 | Current problem solved | Prevents accidental regressions while implementing larger changes. |
 | Files likely affected | Primarily docs and tests: `docs/`, `frontend/tests/perf/`, backend tests. No behavior changes unless guard tests expose existing gaps. |
 | Backend changes | Add or strengthen tests proving `/api/scan` does not call PIL/metadata parsing and only reads validated cached dimensions. |
@@ -1140,7 +1140,7 @@ How to test:
 | Acceptance criteria (met) | Normal open: no `/api/image` request ✅ Zoom triggers `/api/image` ✅ Neighbor preload: only thumbnail+preview ✅ |
 | Rollback plan | Revert to `src = /api/image` (pre-Phase-2A commit `a471eed`). |
 | Risk level | Medium (successfully mitigated — tests pass, budgets met). |
-| What was learned | iPad Safari doesn't support `color-mix()`. `backdrop-filter + v-if + transition` causes jank on iPad. PhotoSwipe instance must be exposed (`__pswp`) for test zoom triggers. |
+| What was learned | iPad Safari doesn't support `color-mix()`. `backdrop-filter + v-if + transition` causes jank on iPad. `window.__pswp` is a test-only hook gated behind `import.meta.env.MODE === 'test'` or `VITE_EXPOSE_LIGHTBOX_TEST_HOOKS=1`. Never exposed in production. |
 
 ### Phase 2B (Next) — Fielded Search, DB-first Warm Metadata
 
@@ -1233,7 +1233,7 @@ click folder
 -> /api/thumbnail opens image on cache miss and stores dimensions
 -> click image
 -> lightbox opens immediately
--> PhotoSwipe main src = /api/image
+-> PhotoSwipe main src = /api/preview (1440px), /api/image only on zoom/fullscreen
 -> metadata query fetches /api/metadata asynchronously
 -> /api/metadata parses and upserts SQLite metadata
 ```
