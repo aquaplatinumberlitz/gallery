@@ -103,6 +103,7 @@ SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK = max(
     1,
     int(os.getenv("SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK", "20")),
 )
+SCHEDULED_REFRESH_ALLOW_ALL_INDEXED = _env_flag("SCHEDULED_REFRESH_ALLOW_ALL_INDEXED", default=False)
 
 # ---------------------------------------------------------------------------
 # Phase 3 — Optional file watcher (disabled by default)

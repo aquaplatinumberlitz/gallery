@@ -8,14 +8,17 @@ from typing import Any
 
 from .config import (
     ENABLE_SCHEDULED_REFRESH,
+    SCHEDULED_REFRESH_ALLOW_ALL_INDEXED,
     SCHEDULED_REFRESH_INTERVAL_SECONDS,
     SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK,
     SCHEDULED_REFRESH_ROOTS,
 )
 from .metadata_store import (
+    _scan_folder_counts,
     get_folder_indexed_paths,
     index_directory_tree,
     mark_folder_index_incomplete,
+    update_folder_index_state,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -41,6 +44,15 @@ def _refresh_folder(folder_path_str: str) -> bool:
         return False
     try:
         index_directory_tree(path, include_metadata=False)
+        counts = _scan_folder_counts(path)
+        update_folder_index_state(
+            path,
+            complete=True,
+            child_count=counts["child_count"],
+            folder_count=counts["folder_count"],
+            image_count=counts["image_count"],
+            last_error=None,
+        )
         return True
     except Exception as exc:
         mark_folder_index_incomplete(folder_path_str, last_error=str(exc))
@@ -61,8 +73,15 @@ def _refresh_loop() -> None:
 
 
 def _run_refresh_tick() -> None:
-    folders = get_folder_indexed_paths()
     roots = set(SCHEDULED_REFRESH_ROOTS)
+    if not roots and not SCHEDULED_REFRESH_ALLOW_ALL_INDEXED:
+        LOGGER.warning(
+            "Scheduled refresh tick skipped: no roots configured and "
+            "SCHEDULED_REFRESH_ALLOW_ALL_INDEXED is false"
+        )
+        return
+
+    folders = get_folder_indexed_paths()
     candidate_folders: list[dict] = []
 
     for f in folders:

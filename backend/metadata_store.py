@@ -909,44 +909,48 @@ def get_warm_folder_listing(
     with _DB_LOCK, _connect() as conn:
         parent_prefix = f"{resolved.rstrip(os.sep)}{os.sep}"
 
-        folders = list(
+        raw_folders = list(
             conn.execute(
                 """
-                SELECT path, name, mtime, width, height, size
+                SELECT path, name, mtime
                 FROM file_index
                 WHERE parent_path = ? AND type = 'folder'
-                ORDER BY name ASC
                 """,
                 (resolved,),
             )
         )
 
-        image_count_sql = "SELECT count(*) AS total FROM file_index WHERE parent_path = ? AND type = 'photo'"
-        image_count = conn.execute(image_count_sql, (resolved,)).fetchone()["total"]
+        total_images_row = conn.execute(
+            "SELECT count(*) AS total FROM file_index WHERE parent_path = ? AND type = 'photo'",
+            (resolved,),
+        ).fetchone()
+        total_images = int(total_images_row["total"])
 
-        total_images = int(image_count)
+        raw_images = list(
+            conn.execute(
+                """
+                SELECT path, name, mtime, size, width, height
+                FROM file_index
+                WHERE parent_path = ? AND type = 'photo'
+                """,
+                (resolved,),
+            )
+        )
+
+        # Sort in Python with natural_sort_key to match direct scan order
+        from .files import natural_sort_key
+        raw_folders.sort(key=lambda x: natural_sort_key(x["name"]))
+        raw_images.sort(key=lambda x: natural_sort_key(x["name"]))
 
         image_start = offset
         if image_limit is not None:
             image_end = offset + image_limit
         else:
             image_end = total_images
-
-        images = list(
-            conn.execute(
-                f"""
-                SELECT fi.path, fi.name, fi.mtime, fi.size, fi.width, fi.height
-                FROM file_index fi
-                WHERE fi.parent_path = ? AND fi.type = 'photo'
-                ORDER BY fi.name ASC
-                LIMIT ? OFFSET ?
-                """,
-                (resolved, image_end - image_start, image_start),
-            )
-        )
+        paged_images = raw_images[image_start:image_end]
 
         warm_images: list[FileNode] = []
-        for img in images:
+        for img in paged_images:
             warm_images.append(
                 FileNode(
                     name=img["name"],
@@ -960,18 +964,60 @@ def get_warm_folder_listing(
                 )
             )
 
+        # Build DB-derived folder metadata — no filesystem access
+        child_paths = [f["path"] for f in raw_folders]
+        child_cover_images: dict[str, list[str]] = {}
+        child_counts: dict[str, dict] = {}
+        if child_paths:
+            placeholders = ",".join("?" for _ in child_paths)
+            cover_rows = conn.execute(
+                f"""
+                SELECT parent_path, path
+                FROM file_index
+                WHERE parent_path IN ({placeholders}) AND type = 'photo'
+                ORDER BY mtime DESC
+                """,
+                child_paths,
+            ).fetchall()
+            for r in cover_rows:
+                pp = r["parent_path"]
+                if pp not in child_cover_images:
+                    child_cover_images[pp] = []
+                if len(child_cover_images[pp]) < 3:
+                    child_cover_images[pp].append(r["path"])
+
+            count_rows = conn.execute(
+                f"""
+                SELECT parent_path,
+                       count(*) AS total,
+                       sum(CASE WHEN type = 'folder' THEN 1 ELSE 0 END) AS subfolder_count,
+                       sum(CASE WHEN type = 'photo' THEN 1 ELSE 0 END) AS photo_count
+                FROM file_index
+                WHERE parent_path IN ({placeholders})
+                GROUP BY parent_path
+                """,
+                child_paths,
+            ).fetchall()
+            for r in count_rows:
+                child_counts[r["parent_path"]] = {
+                    "child_count": int(r["total"]),
+                    "folder_count": int(r["subfolder_count"]),
+                    "image_count": int(r["photo_count"]),
+                }
+
         warm_folders: list[FileNode] = []
-        for fld in folders:
-            meta = build_album_metadata(Path(fld["path"]))
+        for fld in raw_folders:
+            fp = fld["path"]
+            cc = child_counts.get(fp, {})
             warm_folders.append(
                 FileNode(
                     name=fld["name"],
-                    path=fld["path"],
+                    path=fp,
                     type="folder",
-                    has_children=meta["has_children"],
-                    cover_images=meta["cover_images"],
+                    has_children=cc.get("child_count", 0) > 0,
+                    cover_images=child_cover_images.get(fp, []),
                     mtime=fld["mtime"] or 0,
-                    image_count=meta["image_count"],
+                    image_count=cc.get("image_count", 0),
                 )
             )
 

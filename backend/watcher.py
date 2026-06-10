@@ -12,6 +12,7 @@ from .config import (
     WATCHER_MAX_EVENTS_PER_TICK,
     WATCHER_ROOTS,
 )
+from .files import is_image_path
 from .metadata_store import mark_folder_index_incomplete
 
 try:
@@ -51,6 +52,7 @@ def _record_event(kind: str) -> None:
 class _DebouncedHandler:
     def __init__(self, roots: list[str]) -> None:
         self.affected_folders: dict[str, float] = {}
+        self.affected_image_paths: dict[str, float] = {}
         self.lock = threading.Lock()
         self.roots = roots
         self._last_cleanup = 0.0
@@ -80,6 +82,8 @@ class _DebouncedHandler:
             folder = str(Path(path_str).parent)
             with self.lock:
                 self.affected_folders[folder] = time.time()
+                if is_image_path(Path(path_str)):
+                    self.affected_image_paths[path_str] = time.time()
 
     def get_and_clear_debounced(self) -> list[str]:
         now = time.time()
@@ -93,6 +97,15 @@ class _DebouncedHandler:
                     if self.affected_folders[f] < now - 300:
                         del self.affected_folders[f]
                 self._last_cleanup = now
+        return ready
+
+    def get_and_clear_debounced_image_paths(self) -> list[str]:
+        now = time.time()
+        cutoff = now - WATCHER_DEBOUNCE_SECONDS
+        with self.lock:
+            ready = [p for p, t in self.affected_image_paths.items() if t <= cutoff]
+            for p in ready:
+                del self.affected_image_paths[p]
         return ready
 
 
@@ -135,6 +148,17 @@ def _watcher_loop() -> None:
                     tick_count += 1
                 except Exception as exc:
                     LOGGER.warning("Watcher mark incomplete failed for %s: %s", folder, exc)
+
+            ready_paths = handler.get_and_clear_debounced_image_paths()
+            if ready_paths:
+                try:
+                    from .indexer import stage_metadata_paths_from_scan
+                    stage_metadata_paths_from_scan(
+                        ready_paths[:WATCHER_MAX_EVENTS_PER_TICK],
+                        start_worker=True,
+                    )
+                except Exception as exc:
+                    LOGGER.warning("Watcher metadata staging failed: %s", exc)
     finally:
         observer.stop()
         observer.join()

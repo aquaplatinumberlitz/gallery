@@ -16,6 +16,7 @@ from backend.metadata_store import (
     index_file,
     initialize_database,
 )
+from backend.files import natural_sort_key
 
 client = TestClient(app)
 
@@ -231,6 +232,112 @@ def test_api_scan_uses_warm_listing(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     data = response.json()
     assert data["total_images"] == 1
     assert data.get("index_source") == "warm_db"
+
+
+def test_warm_path_does_not_call_build_album_metadata(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr("backend.metadata_store.build_album_metadata", lambda _: (_ for _ in ()).throw(RuntimeError("called build_album_metadata")))
+
+    album = tmp_path / "album"
+    album.mkdir()
+    (album / "test.jpg").write_text("fake")
+    sub = album / "subfolder"
+    sub.mkdir()
+    (sub / "img.jpg").write_text("fake")
+
+    index_directory_tree(album, include_metadata=False)
+    update_folder_index_state(album, complete=True, child_count=2, folder_count=1, image_count=1)
+    counts_sub = _scan_folder_counts(sub)
+    update_folder_index_state(sub, complete=True, **counts_sub)
+
+    result = get_warm_folder_listing(album, offset=0, limit=10, image_limit=10)
+    assert result is not None
+    assert len(result["folders"]) == 1
+    assert len(result["images"]) == 1
+    assert result["index_source"] == "warm_db"
+
+
+def test_warm_path_does_not_scandir_child_folders(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    album = tmp_path / "album"
+    album.mkdir()
+    sub = album / "subfolder"
+    sub.mkdir()
+    (sub / "img.jpg").write_text("fake")
+    (album / "root.jpg").write_text("fake")
+
+    index_directory_tree(album, include_metadata=False)
+    update_folder_index_state(album, complete=True, child_count=2, folder_count=1, image_count=1)
+    # Use _scan_folder_counts before patching os.scandir
+    counts_sub = _scan_folder_counts(sub)
+    update_folder_index_state(sub, complete=True, **counts_sub)
+
+    scandir_calls = []
+
+    def fail_scandir(*args, **kwargs):
+        scandir_calls.append(1)
+        raise AssertionError("warm path must not call os.scandir")
+
+    monkeypatch.setattr(os, "scandir", fail_scandir)
+
+    result = get_warm_folder_listing(album, offset=0, limit=10, image_limit=10)
+    assert result is not None
+    assert len(scandir_calls) == 0
+
+
+def test_warm_sort_order_matches_natural_sort_direct_scan(tmp_path: Path):
+    album = tmp_path / "album"
+    album.mkdir()
+    for name in ["image10.png", "image2.png", "image1.png", "image20.png"]:
+        (album / name).write_text("fake")
+
+    index_directory_tree(album, include_metadata=False)
+    update_folder_index_state(album, complete=True, child_count=4, folder_count=0, image_count=4)
+
+    result = get_warm_folder_listing(album, offset=0, limit=10, image_limit=10)
+    assert result is not None
+    names = [img.name for img in result["images"]]
+    expected = sorted(names, key=natural_sort_key)
+    assert names == expected
+    assert names == ["image1.png", "image2.png", "image10.png", "image20.png"]
+
+
+def test_warm_folder_sort_order_matches_natural_sort(tmp_path: Path):
+    album = tmp_path / "album"
+    album.mkdir()
+    for name in ["z folder", "a folder", "m folder", "folder10", "folder2"]:
+        sub = album / name
+        sub.mkdir()
+        (sub / "img.jpg").write_text("fake")
+
+    index_directory_tree(album, include_metadata=False)
+    update_folder_index_state(album, complete=True, child_count=5, folder_count=5, image_count=0)
+    for sub in album.iterdir():
+        if sub.is_dir():
+            update_folder_index_state(sub, complete=True, child_count=1, folder_count=0, image_count=1)
+
+    result = get_warm_folder_listing(album, offset=0, limit=10, image_limit=10)
+    assert result is not None
+    names = [f.name for f in result["folders"]]
+    expected = sorted(names, key=natural_sort_key)
+    assert names == expected
+
+
+def test_warm_album_metadata_fields_have_safe_defaults(tmp_path: Path):
+    album = tmp_path / "album"
+    album.mkdir()
+    sub = album / "sub_without_state"
+    sub.mkdir()
+    (sub / "img.jpg").write_text("fake")
+    (album / "root.jpg").write_text("fake")
+
+    index_directory_tree(album, include_metadata=False)
+    update_folder_index_state(album, complete=True, child_count=2, folder_count=1, image_count=1)
+
+    result = get_warm_folder_listing(album, offset=0, limit=10, image_limit=10)
+    assert result is not None
+    for f in result["folders"]:
+        assert f.has_children is not None
+        assert isinstance(f.cover_images, list)
+        assert isinstance(f.image_count, int)
 
 
 # ---- helpers ----

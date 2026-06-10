@@ -8,6 +8,7 @@ import pytest
 from backend import watcher
 from backend.config import ENABLE_FILE_WATCHER, WATCHER_ROOTS, WATCHER_DEBOUNCE_SECONDS
 from backend.metadata_store import get_folder_index_state, update_folder_index_state
+from backend.files import is_image_path
 
 
 @pytest.fixture(autouse=True)
@@ -108,3 +109,49 @@ def test_future_enable_path_documented():
     assert "roots" in status
     assert "debounce_seconds" in status
     assert "max_events_per_tick" in status
+
+
+def test_handler_tracks_image_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 0.01)
+
+    handler = watcher._DebouncedHandler(roots=[str(tmp_path)])
+
+    class FakeCreateEvent:
+        src_path = str(tmp_path / "new.jpg")
+        event_type = "created"
+
+    class FakeTxtEvent:
+        src_path = str(tmp_path / "readme.txt")
+        event_type = "created"
+
+    handler.handle_event(FakeCreateEvent())
+    handler.handle_event(FakeTxtEvent())
+    time.sleep(0.02)
+
+    ready_paths = handler.get_and_clear_debounced_image_paths()
+    assert str(tmp_path / "new.jpg") in ready_paths
+    assert str(tmp_path / "readme.txt") not in ready_paths
+
+
+def test_watcher_image_event_can_be_staged(monkeypatch: pytest.MonkeyPatch):
+    staged_paths = []
+
+    def fake_stage(paths, **kwargs):
+        staged_paths.extend(paths)
+        return {"staged": len(paths), "coalesced": 0, "skipped": 0}
+
+    monkeypatch.setattr("backend.indexer.stage_metadata_paths_from_scan", fake_stage)
+    monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 0.01)
+
+    from backend.watcher import _DebouncedHandler
+    handler = _DebouncedHandler(roots=["/test"])
+
+    class FakeEvent:
+        src_path = "/test/album/new_image.png"
+        event_type = "created"
+
+    handler.handle_event(FakeEvent())
+    time.sleep(0.02)
+
+    ready_paths = handler.get_and_clear_debounced_image_paths()
+    assert "/test/album/new_image.png" in ready_paths

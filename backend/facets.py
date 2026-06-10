@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +13,11 @@ from .errors import APIError, ErrorType
 from .metadata_store import _connect, initialize_database, _DB_LOCK
 from .paths import is_path_safe, resolve_path
 
+try:
+    from prometheus_client import Histogram
+except Exception:
+    Histogram = None
+
 router = APIRouter()
 
 FACET_FIELDS = {
@@ -19,6 +26,17 @@ FACET_FIELDS = {
     "sampler": ("COALESCE(m.sampler, '')", 50),
     "scheduler": ("COALESCE(m.scheduler, '')", 50),
 }
+
+if Histogram is not None:
+    try:
+        _facets_query_duration = Histogram(
+            "gallery_facets_query_duration_seconds",
+            "Time spent building facet aggregations",
+        )
+    except Exception:
+        _facets_query_duration = None
+else:
+    _facets_query_duration = None
 
 FACET_DEFAULT_LIMIT = 50
 
@@ -40,7 +58,7 @@ def _build_scope(folder_path: str | None) -> tuple[str, dict]:
         return "", {}
     try:
         resolved = str(Path(folder_path).resolve())
-        prefix = f"{resolved.rstrip('/')}/"
+        prefix = f"{resolved.rstrip(os.sep)}{os.sep}"
         return "AND (fi.path = :scope_root OR fi.path LIKE :scope_prefix ESCAPE '\\')", {
             "scope_root": resolved,
             "scope_prefix": f"{prefix}%",
@@ -152,7 +170,46 @@ def _get_metadata_availability(scope_where: str, scope_params: dict) -> list[dic
         ]
 
 
+def _get_lora_facet(scope_where: str, scope_params: dict, max_values: int) -> list[dict]:
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT m.lora_text
+            FROM image_metadata m
+            JOIN file_index fi ON fi.path = m.path
+            WHERE m.lora_text IS NOT NULL AND m.lora_text != '' {scope_where}
+            LIMIT 5000
+            """,
+            scope_params,
+        ).fetchall()
+
+    counter: Counter[str] = Counter()
+    for row in rows:
+        text = row["lora_text"]
+        if not text:
+            continue
+        parts = text.split(",")
+        for part in parts:
+            part = part.strip()
+            if not part:
+                continue
+            if ":" in part:
+                name = part.split(":")[0].strip()
+            else:
+                name = part
+            if name:
+                counter[name] += 1
+
+    return [
+        {"value": name, "count": count}
+        for name, count in counter.most_common(max_values)
+    ]
+
+
 def build_facets(folder_path: str | None = None, max_values: int = FACET_DEFAULT_LIMIT) -> dict[str, Any]:
+    import time
+    start = time.perf_counter()
     scope_where, scope_params = _build_scope(folder_path)
     scope_params["limit"] = max_values
     result: dict[str, Any] = {}
@@ -176,6 +233,15 @@ def build_facets(folder_path: str | None = None, max_values: int = FACET_DEFAULT
 
     result["seed_availability"] = _get_seed_availability(scope_where, scope_params)
     result["metadata_availability"] = _get_metadata_availability(scope_where, scope_params)
+
+    result["lora"] = _get_lora_facet(scope_where, scope_params, max_values)
+
+    duration = time.perf_counter() - start
+    if _facets_query_duration is not None:
+        try:
+            _facets_query_duration.observe(duration)
+        except Exception:
+            pass
 
     return result
 
