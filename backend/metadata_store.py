@@ -1510,7 +1510,7 @@ def search_index_fielded(query: str, scope: str, root_path: str | Path | None = 
         else:
             album_rows = []
 
-        if photo_query and not parsed.fields:
+        if photo_query:
             photo_rows, root = _search_file_index_fts(conn, photo_query, "photo", normalized_scope, root_path, limit)
         else:
             photo_rows = []

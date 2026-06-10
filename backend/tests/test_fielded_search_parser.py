@@ -410,3 +410,140 @@ class TestBuildFieldedSearchSql:
         assert "m.height" in sql
         assert "1024" in str(params) or 1024 in params.values()
         assert "768" in str(params) or 768 in params.values()
+
+    # --- text contains semantics tests ---
+
+    def test_prompt_field_sql_like(self):
+        """prompt:girl should use LIKE %%girl%% not =."""
+        parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="prompt", value="girl")])
+        sql, params = build_fielded_search_sql(parsed, limit=10)
+        assert "LIKE" in sql
+        assert "=" not in sql or "m.prompt =" not in sql
+        assert "%girl%" in str(params)
+
+    def test_prompt_field_sql_comma_and(self):
+        """prompt:"girl, rain" should AND multiple LIKE conditions."""
+        parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="prompt", value="girl, rain", quote_char='"')])
+        sql, params = build_fielded_search_sql(parsed, limit=10)
+        assert sql.count("LIKE") == 2
+        assert "AND" in sql
+        assert "%girl%" in str(params)
+        assert "%rain%" in str(params)
+
+    def test_negative_field_sql_comma_and(self):
+        """negative:"watermark, blurry" should AND multiple LIKE conditions."""
+        parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="negative", value="watermark, blurry", quote_char='"')])
+        sql, params = build_fielded_search_sql(parsed, limit=10)
+        assert sql.count("LIKE") == 2
+        assert "AND" in sql
+        assert "%watermark%" in str(params)
+        assert "%blurry%" in str(params)
+
+    def test_single_term_quoted_prompt_uses_like(self):
+        """prompt:"girl" (quoted, no comma) should use LIKE with %%."""
+        parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="prompt", value="girl", quote_char='"')])
+        sql, params = build_fielded_search_sql(parsed, limit=10)
+        assert "LIKE" in sql
+        assert "%girl%" in str(params)
+
+    def test_model_field_sql_like(self):
+        """model:pony should use LIKE %%pony%%."""
+        parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="model", value="pony")])
+        sql, params = build_fielded_search_sql(parsed, limit=10)
+        assert "LIKE" in sql
+        assert "%pony%" in str(params)
+
+    def test_name_field_sql_like(self):
+        """name:cat should use LIKE %%cat%%."""
+        parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="name", value="cat")])
+        sql, params = build_fielded_search_sql(parsed, limit=10)
+        assert "LIKE" in sql
+        assert "%cat%" in str(params)
+
+    def test_tool_field_sql_like(self):
+        """tool:ComfyUI should use LIKE %%ComfyUI%%."""
+        parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="tool", value="ComfyUI")])
+        sql, params = build_fielded_search_sql(parsed, limit=10)
+        assert "LIKE" in sql
+        assert "%ComfyUI%" in str(params)
+
+    def test_sampler_field_sql_like(self):
+        """sampler:Euler should use LIKE %%Euler%%."""
+        parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="sampler", value="Euler")])
+        sql, params = build_fielded_search_sql(parsed, limit=10)
+        assert "LIKE" in sql
+        assert "%Euler%" in str(params)
+
+    def test_scheduler_field_sql_like(self):
+        """scheduler:karras should use LIKE %%karras%%."""
+        parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="scheduler", value="karras")])
+        sql, params = build_fielded_search_sql(parsed, limit=10)
+        assert "LIKE" in sql
+        assert "%karras%" in str(params)
+
+    def test_lora_field_sql_like(self):
+        """lora:add_detail should use LIKE %%add_detail%%."""
+        parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="lora", value="add_detail:0.8")])
+        sql, params = build_fielded_search_sql(parsed, limit=10)
+        assert "LIKE" in sql
+        # underscore is escaped in LIKE pattern
+        assert "add" in str(params) and "detail" in str(params) and "0.8" in str(params)
+
+    def test_vae_field_sql_like(self):
+        """vae:vae-ft-mse should use LIKE %%vae-ft-mse%%."""
+        parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="vae", value="vae-ft-mse")])
+        sql, params = build_fielded_search_sql(parsed, limit=10)
+        assert "LIKE" in sql
+        assert "%vae-ft-mse%" in str(params)
+
+    def test_date_field_sql_like(self):
+        """date:2026-06-10 should use LIKE %%2026-06-10%%."""
+        parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="date", value="2026-06-10")])
+        sql, params = build_fielded_search_sql(parsed, limit=10)
+        assert "LIKE" in sql
+        assert "%2026-06-10%" in str(params)
+
+    def test_generation_time_field_sql_like(self):
+        """generation_time:12345 should use LIKE %%12345%%."""
+        parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="generation_time", value="12345")])
+        sql, params = build_fielded_search_sql(parsed, limit=10)
+        assert "LIKE" in sql
+        assert "%12345%" in str(params)
+
+    def test_seed_field_sql_exact(self):
+        """seed:123 should use = for exact matching."""
+        parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="seed", value="123")])
+        sql, params = build_fielded_search_sql(parsed, limit=10)
+        assert "m.seed =" in sql or "m.seed= " in sql
+        assert "123" in str(params)
+
+    def test_model_hash_field_sql_exact(self):
+        """model_hash:abc123 should use = for exact matching."""
+        parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="model_hash", value="abc123")])
+        sql, params = build_fielded_search_sql(parsed, limit=10)
+        assert "m.model_hash =" in sql
+        assert "abc123" in str(params)
+
+    def test_steps_field_sql_exact(self):
+        """steps:30 should use = for exact matching."""
+        parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="steps", value="30")])
+        sql, params = build_fielded_search_sql(parsed, limit=10)
+        assert "m.steps =" in sql
+        assert "30" in str(params)
+
+    def test_cfg_scale_field_sql_exact(self):
+        """cfg:7 should use = for exact matching."""
+        parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="cfg_scale", value="7")])
+        sql, params = build_fielded_search_sql(parsed, limit=10)
+        assert "m.cfg_scale =" in sql
+        assert "7" in str(params)
+
+    def test_width_height_field_sql_exact(self):
+        """width:1024 height:1536 should use =."""
+        parsed = ParsedQuery(
+            residual_text="",
+            fields=[FieldToken(field="width", value="1024"), FieldToken(field="height", value="1536")],
+        )
+        sql, params = build_fielded_search_sql(parsed, limit=10)
+        assert "m.width =" in sql
+        assert "m.height =" in sql

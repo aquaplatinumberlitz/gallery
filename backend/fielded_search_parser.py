@@ -189,6 +189,11 @@ def _json_extract_column(col: str, key: str) -> str:
     return f"json_extract({col}, '$.{key}')"
 
 
+TEXT_LIKE_FIELDS: set[str] = {
+    "prompt", "negative", "name", "tool", "sampler", "scheduler",
+    "model", "lora", "vae", "date", "generation_time",
+}
+
 COLUMN_MAP: dict[str, str] = {
     "prompt": "prompt",
     "negative": "negative_prompt",
@@ -271,14 +276,14 @@ def build_fielded_search_sql(parsed: ParsedQuery, limit: int = 50, offset: int =
                 json_path = json.dumps(ft.key)
                 if ft.value:
                     conditions.append(
-                        "json_extract(m.metadata_json, "
+                        "json_valid(m.metadata_json) AND json_extract(m.metadata_json, "
                         + next_param(f'$.{json_path}')
                         + ") = "
                         + next_param(ft.value)
                     )
                 else:
                     conditions.append(
-                        "json_extract(m.metadata_json, "
+                        "json_valid(m.metadata_json) AND json_extract(m.metadata_json, "
                         + next_param(f'$.{json_path}')
                         + ") IS NOT NULL"
                     )
@@ -291,10 +296,20 @@ def build_fielded_search_sql(parsed: ParsedQuery, limit: int = 50, offset: int =
 
         if ft.field == "model_or_hash":
             like_val = _like_value(ft.value)
-            conditions.append(
-                f"(m.model LIKE {next_param(like_val)} ESCAPE '\\' "
-                f"OR m.model_hash LIKE {next_param(like_val)} ESCAPE '\\')"
-            )
+            # Contains search on both model and model_hash, unless exact-match chars present
+            if "=" in ft.value:
+                # Exact match
+                conditions.append(
+                    f"(m.model = {next_param(ft.value)} "
+                    f"OR m.model_hash = {next_param(ft.value)})"
+                )
+            else:
+                # Contains search
+                escaped = ft.value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+                conditions.append(
+                    f"(m.model LIKE {next_param(f'%{escaped}%')} ESCAPE '\\' "
+                    f"OR m.model_hash LIKE {next_param(f'%{escaped}%')} ESCAPE '\\')"
+                )
             continue
 
         if ft.field == "size":
@@ -327,6 +342,18 @@ def build_fielded_search_sql(parsed: ParsedQuery, limit: int = 50, offset: int =
                     pass
             if numeric_value is not None:
                 conditions.append(f"m.{col} IS NOT NULL AND m.{col} {ft.operator} {next_param(numeric_value)}")
+        elif ft.field in TEXT_LIKE_FIELDS:
+            # Contains semantics: always wrap with % for substring match
+            if ft.quote_char and "," in ft.value:
+                terms = [t.strip() for t in ft.value.split(",") if t.strip()]
+                likes = []
+                for term in terms:
+                    escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+                    likes.append(f"m.{col} LIKE {next_param(f'%{escaped}%')} ESCAPE '\\'")
+                conditions.append("(" + " AND ".join(likes) + ")")
+            else:
+                escaped = ft.value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+                conditions.append(f"m.{col} LIKE {next_param(f'%{escaped}%')} ESCAPE '\\'")
         elif _like_value(ft.value) != ft.value or "*" in ft.value:
             like_val = _like_value(ft.value)
             conditions.append(f"m.{col} LIKE {next_param(like_val)} ESCAPE '\\'")
