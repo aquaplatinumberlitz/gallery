@@ -87,6 +87,28 @@ def _setup_test_data() -> None:
             "metadata_json": metadata_json_b,
             "raw_metadata_text": "",
         },
+        {
+            "path": semantic_root / "rain_wrong_seed.png",
+            "name": "rain_wrong_seed.png",
+            "parent_path": semantic_root,
+            "type": "photo",
+            "prompt": "sky, clouds landscape",
+            "negative_prompt": "",
+            "seed": "999",
+            "steps": 20,
+            "cfg_scale": 7.0,
+            "sampler": "Euler a",
+            "scheduler": "normal",
+            "model": "realisticVision",
+            "model_hash": "def999",
+            "lora_text": "",
+            "tool": "A1111",
+            "width": 512,
+            "height": 512,
+            "vae": "",
+            "metadata_json": metadata_json_b,
+            "raw_metadata_text": "",
+        },
     ]
 
     for fd in files_data:
@@ -714,3 +736,84 @@ def test_scope_all_returns_both():
     all_names = prompt_names + photo_names
     assert "rain_current.png" in all_names
     assert "rain_other.png" in all_names
+
+
+# ---------------------------------------------------------------------------
+# Phase 2B: Semantic regression — residual + field intersection
+# ---------------------------------------------------------------------------
+
+
+def test_fielded_residual_seed_123_does_not_leak_wrong_seed_photos():
+    """rain seed:123 must NOT return rain_wrong_seed.png (seed=999) in photos."""
+    resp = _search("rain seed:123")
+    assert resp.status_code == 200
+    data = resp.json()
+    photo_names = _photo_names(data)
+    prompt_names = _prompt_names(data)
+    # rain_good_seed.png (rain_girl_001.png) has seed=123 → should appear
+    assert "rain_girl_001.png" in photo_names or "rain_girl_001.png" in prompt_names
+    # rain_wrong_seed.png has seed=999 → must NOT appear in any image section
+    assert "rain_wrong_seed.png" not in photo_names, (
+        f"rain_wrong_seed.png leaked into photos despite seed=123 filter: {photo_names}"
+    )
+    assert "rain_wrong_seed.png" not in prompt_names, (
+        f"rain_wrong_seed.png leaked into prompt despite seed=123 filter: {prompt_names}"
+    )
+
+
+def test_fielded_residual_seed_999_returns_wrong_seed():
+    """rain seed:999 must return rain_wrong_seed.png (seed=999) but NOT rain_girl_001 (seed=123)."""
+    resp = _search("rain seed:999")
+    assert resp.status_code == 200
+    data = resp.json()
+    photo_names = _photo_names(data)
+    prompt_names = _prompt_names(data)
+    # rain_wrong_seed.png matches filename 'rain' AND seed=999
+    assert "rain_wrong_seed.png" in photo_names or "rain_wrong_seed.png" in prompt_names
+    # rain_girl_001.png has seed=123 → must NOT appear
+    assert "rain_girl_001.png" not in photo_names
+    assert "rain_girl_001.png" not in prompt_names
+
+
+def test_fielded_residual_model_pony_filters_photos():
+    """rain model:pony must NOT return rain_wrong_seed.png (model=realisticVision) in photos."""
+    resp = _search("rain model:pony")
+    assert resp.status_code == 200
+    data = resp.json()
+    photo_names = _photo_names(data)
+    prompt_names = _prompt_names(data)
+    # rain_girl_001.png matches filename 'rain' AND model contains 'pony'
+    assert "rain_girl_001.png" in photo_names or "rain_girl_001.png" in prompt_names
+    # rain_wrong_seed.png has model=realisticVision → must NOT appear
+    assert "rain_wrong_seed.png" not in photo_names, (
+        f"rain_wrong_seed.png leaked into photos despite model:pony filter: {photo_names}"
+    )
+    assert "rain_wrong_seed.png" not in prompt_names
+
+
+def test_fielded_only_seed_still_works():
+    """seed:123 (no residual) must return rain_girl_001.png in prompt section."""
+    resp = _search("seed:123")
+    assert resp.status_code == 200
+    data = resp.json()
+    prompt_names = _prompt_names(data)
+    assert "rain_girl_001.png" in prompt_names
+    # Fields-only query should have no photos (no filename text to match)
+    assert len(data["photos"]) == 0
+
+
+def test_scope_current_fielded_residual_does_not_leak_other_folder():
+    """scope=current + fielded query with residual must not leak other/ files."""
+    scope_dir = _TEST_SCOPE_DIR.resolve()
+    current_root = str(scope_dir / "current")
+
+    resp = client.get(SEARCH_BASE, params={
+        "q": "rain name:rain", "scope": "current", "path": current_root,
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    photo_names = _photo_names(data)
+    prompt_names = _prompt_names(data)
+    all_names = photo_names + prompt_names
+    assert "rain_current.png" in all_names
+    assert "rain_other.png" not in all_names, f"rain_other.png leaked despite scope=current: {all_names}"

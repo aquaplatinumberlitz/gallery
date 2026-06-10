@@ -234,7 +234,11 @@ def _unicode_match_query(query: str) -> str:
     return " AND ".join(_escape_fts_token(token) for token in tokens)
 
 
-def build_fielded_search_sql(parsed: ParsedQuery, limit: int = 50, offset: int = 0) -> tuple[str, dict[str, Any]]:
+def build_fielded_conditions(parsed: ParsedQuery) -> tuple[list[str], dict[str, Any]]:
+    """Build WHERE conditions and params from ParsedQuery.
+
+    Returns (conditions_list, params_dict) suitable for AND'ing into a WHERE clause.
+    """
     conditions: list[str] = []
     params: dict[str, Any] = {}
     param_idx = 0
@@ -359,6 +363,12 @@ def build_fielded_search_sql(parsed: ParsedQuery, limit: int = 50, offset: int =
             conditions.append(f"m.{col} LIKE {next_param(like_val)} ESCAPE '\\'")
         else:
             conditions.append(f"m.{col} = {next_param(ft.value)}")
+
+    return conditions, params
+
+
+def build_fielded_search_sql(parsed: ParsedQuery, limit: int = 50, offset: int = 0) -> tuple[str, dict[str, Any]]:
+    conditions, params = build_fielded_conditions(parsed)
 
     where_clause = ""
     if conditions:

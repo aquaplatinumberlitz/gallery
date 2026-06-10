@@ -1476,8 +1476,115 @@ def search_index(query: str, scope: str, root_path: str | Path | None = None, li
     }
 
 
+def _build_scope_named(scope: str, root_path: str | Path | None, alias: str = "fi") -> tuple[str, dict[str, str]]:
+    """Build scope WHERE fragment and named params dict."""
+    if scope != "current" or not root_path:
+        return "", {}
+    root = Path(root_path).resolve()
+    root_str, root_prefix = _path_prefix(root)
+    cond = f" AND ({alias}.path = :scope_root OR {alias}.path LIKE :scope_prefix ESCAPE '\\')"
+    return cond, {"scope_root": root_str, "scope_prefix": root_prefix}
+
+
+def _search_fielded_photos(
+    conn: sqlite3.Connection,
+    parsed: Any,
+    scope: str,
+    root_path: str | Path | None,
+    root: Path,
+    limit: int,
+) -> tuple[list[sqlite3.Row], Path]:
+    """Intersect filename matches with field-filtered paths using a CTE.
+
+    WITH field_paths AS (
+      SELECT m.path FROM image_metadata m JOIN file_index fi ON fi.path = m.path
+      WHERE <field conditions>
+    )
+    SELECT fi.*
+    FROM file_index_fts fts
+    JOIN file_index fi ON fi.path = fts.path
+    JOIN field_paths fp ON fp.path = fi.path
+    WHERE fts MATCH <residual> AND fi.type = 'photo' <scope>
+    ORDER BY ...
+
+    Falls back to LIKE on fi.name when FTS returns zero rows.
+    """
+    from .fielded_search_parser import (
+        ParsedQuery,
+        build_fielded_conditions,
+    )
+
+    photo_query = (parsed.residual_text or "").strip()
+    if not photo_query:
+        return [], root
+
+    scope_cond, scope_params = _build_scope_named(scope, root_path, "fi")
+
+    field_parsed = ParsedQuery(residual_text="", fields=parsed.fields)
+    field_conditions, field_params = build_fielded_conditions(field_parsed)
+    field_where = " AND ".join(field_conditions) if field_conditions else "1=1"
+
+    def _build_params(**extra: Any) -> dict[str, Any]:
+        p = dict(scope_params)
+        p.update(field_params)
+        p.update(extra)
+        return p
+
+    try:
+        fts_query = _unicode_match_query(photo_query)
+        params = _build_params(fts_query=fts_query, limit=limit)
+        sql = f"""
+            WITH field_paths AS (
+                SELECT m.path
+                FROM image_metadata m
+                JOIN file_index fi ON fi.path = m.path
+                WHERE {field_where}
+            )
+            SELECT fi.*
+            FROM file_index_fts fts
+            JOIN file_index fi ON fi.path = fts.path
+            JOIN field_paths fp ON fp.path = fi.path
+            WHERE fts MATCH :fts_query
+              AND fi.type = 'photo'
+              {scope_cond}
+            ORDER BY bm25(file_index_fts), fi.mtime DESC, fi.name ASC
+            LIMIT :limit
+        """
+        rows = list(conn.execute(sql, params))
+    except sqlite3.OperationalError:
+        rows = []
+
+    if rows:
+        return rows, root
+
+    pattern = _like_pattern(photo_query)
+    params = _build_params(like_pattern=pattern, limit=limit)
+    sql = f"""
+        WITH field_paths AS (
+            SELECT m.path
+            FROM image_metadata m
+            JOIN file_index fi ON fi.path = m.path
+            WHERE {field_where}
+        )
+        SELECT fi.*
+        FROM file_index fi
+        JOIN field_paths fp ON fp.path = fi.path
+        WHERE fi.name LIKE :like_pattern ESCAPE '\\'
+          AND fi.type = 'photo'
+          {scope_cond}
+        ORDER BY fi.mtime DESC, fi.name ASC
+        LIMIT :limit
+    """
+    rows = list(conn.execute(sql, params))
+    return rows, root
+
+
 def search_index_fielded(query: str, scope: str, root_path: str | Path | None = None, limit: int = 50) -> dict[str, Any]:
-    from .fielded_search_parser import ParsedQuery, build_fielded_search_sql, parse_fielded_query
+    from .fielded_search_parser import (
+        ParsedQuery,
+        build_fielded_search_sql,
+        parse_fielded_query,
+    )
 
     initialize_database()
     trimmed = query.strip()
@@ -1497,12 +1604,7 @@ def search_index_fielded(query: str, scope: str, root_path: str | Path | None = 
 
     parsed = parse_fielded_query(trimmed)
 
-    if parsed.residual_text:
-        album_query = parsed.residual_text
-        photo_query = parsed.residual_text
-    else:
-        album_query = ""
-        photo_query = ""
+    album_query = parsed.residual_text if parsed.residual_text else ""
 
     with _DB_LOCK, _connect() as conn:
         if album_query:
@@ -1510,29 +1612,35 @@ def search_index_fielded(query: str, scope: str, root_path: str | Path | None = 
         else:
             album_rows = []
 
-        if photo_query:
-            photo_rows, root = _search_file_index_fts(conn, photo_query, "photo", normalized_scope, root_path, limit)
+        if parsed.fields:
+            # Fielded search: intersect residual matches with field-filtered paths
+            photo_rows, root = _search_fielded_photos(conn, parsed, normalized_scope, root_path, root, limit)
+
+            if parsed.fields or parsed.residual_text:
+                sql, sql_params = build_fielded_search_sql(parsed, limit)
+                if normalized_scope == "current":
+                    root_str, root_prefix = _path_prefix(root)
+                    if "WHERE" in sql:
+                        sql = sql.replace("WHERE ", f"WHERE (fi.path = :scope_root OR fi.path LIKE :scope_prefix ESCAPE '\\') AND ")
+                    else:
+                        sql = sql.replace(
+                            "ORDER BY",
+                            "WHERE (fi.path = :scope_root OR fi.path LIKE :scope_prefix ESCAPE '\\') ORDER BY",
+                        )
+                    sql_params["scope_root"] = root_str
+                    sql_params["scope_prefix"] = root_prefix
+                try:
+                    prompt_rows = list(conn.execute(sql, sql_params))
+                except Exception:
+                    prompt_rows = []
+            else:
+                prompt_rows = []
+        elif parsed.residual_text:
+            # No fields, residual only — plain filename + metadata search
+            photo_rows, root = _search_file_index_fts(conn, parsed.residual_text, "photo", normalized_scope, root_path, limit)
+            prompt_rows, root = _search_prompt_rows(conn, parsed.residual_text, normalized_scope, root_path, limit)
         else:
             photo_rows = []
-
-        if parsed.fields or parsed.residual_text:
-            sql, sql_params = build_fielded_search_sql(parsed, limit)
-            if normalized_scope == "current":
-                root_str, root_prefix = _path_prefix(root)
-                if "WHERE" in sql:
-                    sql = sql.replace("WHERE ", f"WHERE (fi.path = :scope_root OR fi.path LIKE :scope_prefix ESCAPE '\\') AND ")
-                else:
-                    sql = sql.replace(
-                        "ORDER BY",
-                        "WHERE (fi.path = :scope_root OR fi.path LIKE :scope_prefix ESCAPE '\\') ORDER BY",
-                    )
-                sql_params["scope_root"] = root_str
-                sql_params["scope_prefix"] = root_prefix
-            try:
-                prompt_rows = list(conn.execute(sql, sql_params))
-            except Exception:
-                prompt_rows = []
-        else:
             prompt_rows = []
 
     return {
