@@ -45,6 +45,28 @@ def create_test_jpeg(
     assert opened.format == "JPEG", f"Expected JPEG, got {opened.format}"
 
 
+def create_exif_rotated_jpeg(
+    path: Path,
+    size: tuple[int, int] = (1440, 1080),
+    orientation: int = 6,
+    quality: int = 85,
+    color: tuple[int, int, int] = (40, 120, 200),
+) -> None:
+    """Create a JPEG with an EXIF orientation tag.
+
+    Raw pixel buffer is landscape (e.g. 1440x1080), but EXIF Orientation=6
+    (rotate 90 CW) tells compliant viewers to display it as portrait
+    (1080x1440). This mimics iPhone photos.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    img = Image.new("RGB", size, color)
+    exif = img.getexif()
+    exif[0x0112] = orientation
+    img.save(path, format="JPEG", quality=quality, exif=exif.tobytes())
+    opened = Image.open(path)
+    assert opened.format == "JPEG", f"Expected JPEG, got {opened.format}"
+
+
 def create_test_image(
     path: Path,
     size: tuple[int, int] = (64, 64),

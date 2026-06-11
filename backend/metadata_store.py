@@ -103,6 +103,8 @@ def initialize_database() -> None:
 
 
 def _initialize_database_conn(conn: sqlite3.Connection) -> None:
+        current_version = conn.execute("PRAGMA user_version").fetchone()[0]
+
         conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS image_metadata (
@@ -260,6 +262,11 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
         )
         _ensure_column(conn, "metadata_index_jobs", "folder_path", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "metadata_index_jobs", "root_path", "TEXT NOT NULL DEFAULT ''")
+
+        if current_version < 1:
+            conn.execute("UPDATE image_metadata SET width = NULL, height = NULL")
+            conn.execute("UPDATE file_index SET width = NULL, height = NULL")
+            conn.execute("PRAGMA user_version = 1")
 
 
 def _current_metadata_is_complete(conn: sqlite3.Connection, path: str, mtime: float, size: int) -> bool:

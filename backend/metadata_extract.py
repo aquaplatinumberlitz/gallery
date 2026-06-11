@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 
 
@@ -521,9 +521,20 @@ def _json_text_summary(value: Any) -> str:
     return " ".join(dict.fromkeys(pieces))
 
 
+def get_oriented_dimensions(path: Path) -> tuple[int, int]:
+    """Open image, apply EXIF orientation, return display width/height.
+
+    This is a lightweight helper that only reads pixel dimensions.
+    It does not parse full metadata, so it is safe for paths that
+    need oriented dimensions without the overhead of full extraction.
+    """
+    with Image.open(path) as img:
+        img = ImageOps.exif_transpose(img)
+        return img.size
+
+
 def _read_image_info(path: Path) -> tuple[int | None, int | None, str, str, int, dict[str, str]]:
     with Image.open(path) as img:
-        width, height = img.size
         image_format = img.format or ""
         mode = img.mode or ""
         has_alpha = 1 if (img.mode in {"RGBA", "LA"} or (img.mode == "P" and "transparency" in img.info)) else 0
@@ -536,6 +547,9 @@ def _read_image_info(path: Path) -> tuple[int | None, int | None, str, str, int,
             user_comment = safe_text(exif.get(37510))
             if user_comment:
                 info.setdefault("UserComment", user_comment)
+
+        img = ImageOps.exif_transpose(img)
+        width, height = img.size
     return width, height, image_format, mode, has_alpha, info
 
 

@@ -3,10 +3,19 @@ from __future__ import annotations
 from io import BytesIO
 
 from fastapi.testclient import TestClient
-from PIL import Image
+from PIL import Image, ImageOps
 
 from backend.app import app
 from backend import thumbnails
+from backend.metadata_extract import get_oriented_dimensions
+from backend.metadata_store import (
+    CachedDimensions,
+    get_cached_dimensions_for_files,
+    initialize_database,
+    upsert_image_dimensions,
+)
+
+from .conftest import create_exif_rotated_jpeg
 
 
 client = TestClient(app)
@@ -89,8 +98,102 @@ def test_derivative_cache_keys_are_separated_by_kind(tmp_path):
     )
 
     assert thumbnail_key != preview_key
-    assert thumbnail_key.startswith("thumbnail:v1:")
-    assert preview_key.startswith("preview:v1:")
+    assert thumbnail_key.startswith("thumbnail:v2:")
+    assert preview_key.startswith("preview:v2:")
+
+
+def test_derivative_cache_version_is_v2():
+    assert thumbnails.DERIVATIVE_CACHE_VERSION == "v2"
+
+
+def test_oriented_dimensions_for_exif_rotated_jpeg(tmp_path):
+    image_path = tmp_path / "iphone_photo.jpg"
+    create_exif_rotated_jpeg(image_path, size=(1440, 1080), orientation=6)
+
+    width, height = get_oriented_dimensions(image_path)
+
+    assert width == 1080, f"expected oriented width=1080, got {width}"
+    assert height == 1440, f"expected oriented height=1440, got {height}"
+
+
+def test_oriented_dimensions_for_normal_image_is_unchanged(tmp_path):
+    image_path = tmp_path / "normal.png"
+    _write_image(image_path, (800, 600))
+
+    width, height = get_oriented_dimensions(image_path)
+
+    assert width == 800
+    assert height == 600
+
+
+def test_thumbnail_stores_oriented_dimensions_for_exif_jpeg(tmp_path, monkeypatch):
+    import backend.metadata_store as ms
+
+    monkeypatch.setattr(ms, "GALLERY_METADATA_DB", tmp_path / "test_thumb_dim.db")
+    monkeypatch.setattr(ms, "_DB_INITIALIZED", False)
+    monkeypatch.setattr(ms, "_DB_INITIALIZED_PATH", None)
+
+    image_path = tmp_path / "iphone.jpg"
+    create_exif_rotated_jpeg(image_path, size=(1440, 1080), orientation=6)
+
+    response = client.get("/api/thumbnail", params={"path": str(image_path)})
+    assert response.status_code == 200
+
+    stat = image_path.stat()
+    cached = get_cached_dimensions_for_files(
+        [(str(image_path.resolve()), stat.st_mtime, stat.st_size)]
+    )
+    key = str(image_path.resolve())
+
+    assert key in cached, f"no cached dimensions found for {key}"
+    assert cached[key].width == 1080, f"expected width=1080, got {cached[key].width}"
+    assert cached[key].height == 1440, f"expected height=1440, got {cached[key].height}"
+
+
+def test_scan_returns_oriented_dimensions_for_exif_jpeg(
+    tmp_path, monkeypatch
+):
+    import backend.metadata_store as ms
+    import backend.config as cfg
+
+    monkeypatch.setattr(cfg, "GALLERY_ROOT", tmp_path)
+    monkeypatch.setattr(ms, "GALLERY_METADATA_DB", tmp_path / "test_scan_dim.db")
+    monkeypatch.setattr(ms, "_DB_INITIALIZED", False)
+    monkeypatch.setattr(ms, "_DB_INITIALIZED_PATH", None)
+    monkeypatch.setattr(cfg, "ENABLE_WARM_INDEXED_LISTING", False)
+
+    image_path = tmp_path / "iphone_scan.jpg"
+    create_exif_rotated_jpeg(image_path, size=(1440, 1080), orientation=6)
+
+    thumbnail_resp = client.get("/api/thumbnail", params={"path": str(image_path)})
+    assert thumbnail_resp.status_code == 200
+
+    scan_resp = client.get("/api/scan", params={"path": str(tmp_path)})
+    assert scan_resp.status_code == 200
+    data = scan_resp.json()
+    assert data["total_images"] == 1
+    image = data["images"][0]
+    assert image["width"] == 1080, f"scan width: expected 1080, got {image['width']}"
+    assert image["height"] == 1440, f"scan height: expected 1440, got {image['height']}"
+
+
+def test_metadata_returns_oriented_dimensions_for_exif_jpeg(
+    tmp_path, monkeypatch
+):
+    import backend.metadata_store as ms
+
+    monkeypatch.setattr(ms, "GALLERY_METADATA_DB", tmp_path / "test_meta_dim.db")
+    monkeypatch.setattr(ms, "_DB_INITIALIZED", False)
+    monkeypatch.setattr(ms, "_DB_INITIALIZED_PATH", None)
+
+    image_path = tmp_path / "iphone_meta.jpg"
+    create_exif_rotated_jpeg(image_path, size=(1440, 1080), orientation=6)
+
+    response = client.get("/api/metadata", params={"path": str(image_path)})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["width"] == 1080, f"metadata width: expected 1080, got {data['width']}"
+    assert data["height"] == 1440, f"metadata height: expected 1440, got {data['height']}"
 
 
 def test_api_image_still_serves_original_file(tmp_path):

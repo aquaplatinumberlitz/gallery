@@ -19,7 +19,7 @@ from .paths import is_path_safe, resolve_path
 
 _thumbnail_disk_cache = Cache(str(THUMBNAIL_CACHE_DIR), size_limit=2 * 1024 * 1024 * 1024)
 _thumbnail_file_dir = THUMBNAIL_CACHE_DIR / "files"
-DERIVATIVE_CACHE_VERSION = "v1"
+DERIVATIVE_CACHE_VERSION = "v2"
 DERIVATIVE_MEDIA_TYPES = {
     "webp": "image/webp",
     "jpeg": "image/jpeg",
@@ -124,20 +124,20 @@ def _render_derivative_impl(
     pil_format = DERIVATIVE_PIL_FORMATS[normalized_format]
 
     with Image.open(path) as img:
-        source_width, source_height = img.size
         source_format = img.format or ""
         source_mode = img.mode or ""
         source_has_alpha = source_mode in {"RGBA", "LA"} or (source_mode == "P" and "transparency" in img.info)
+
+        img = ImageOps.exif_transpose(img)
+        oriented_width, oriented_height = img.size
         upsert_image_dimensions(
             path,
-            source_width,
-            source_height,
+            oriented_width,
+            oriented_height,
             image_format=source_format,
             mode=source_mode,
             has_alpha=source_has_alpha,
         )
-
-        img = ImageOps.exif_transpose(img)
 
         if img.mode not in ("RGB", "L"):
             img = img.convert("RGBA")
