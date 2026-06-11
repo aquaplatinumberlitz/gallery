@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:mobile": "VITE_MOBILE_NO_HMR=1 vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "perf:album": "playwright test tests/perf/album-open.perf.spec.ts --project=chromium",

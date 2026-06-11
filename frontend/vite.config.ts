@@ -11,7 +11,7 @@ export default defineConfig({
     port: DEV_PORT,
     strictPort: true,
     allowedHosts: ["150.230.56.153"],
-    hmr: false,
+    hmr: process.env.VITE_MOBILE_NO_HMR === "1" ? false : undefined,
     proxy: {
       "/api": {
         target: API_TARGET,

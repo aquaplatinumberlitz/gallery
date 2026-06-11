@@ -19,6 +19,16 @@ declare global {
       disable: () => void;
       isActive: () => boolean;
     };
+    __galleryReloadBlackBox?: {
+      install: () => void;
+      log: (tag: string, msg: string) => void;
+      report: () => void;
+      copyReport: () => Promise<void>;
+      clear: () => void;
+      status: () => void;
+      enable: () => void;
+      disable: () => void;
+    };
   }
 }
 
