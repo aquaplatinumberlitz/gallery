@@ -536,6 +536,68 @@ export function installReloadBlackBoxIfEnabled(): void {
     `[ReloadBB] BlackBox active (boot #${_bootCount}, ${_events.length} stored events). ` +
     `Run __galleryReloadBlackBox.report() or copyReport().`
   );
+
+  // ── Phase 8: Floating debug button ─────────────────────────────
+
+  addFloatingUI();
+}
+
+/* ── Floating debug UI ──────────────────────────────────────────────── */
+
+function addFloatingUI(): void {
+  const container = document.createElement("div");
+  container.id = "__gallery_reload_bb_ui";
+  container.style.cssText = [
+    "position: fixed",
+    "bottom: 12px",
+    "right: 12px",
+    "z-index: 999999",
+    "display: flex",
+    "flex-direction: column",
+    "gap: 4px",
+    "pointer-events: none",
+  ].join(";");
+
+  const btnStyle = [
+    "pointer-events: auto",
+    "background: rgba(30,30,30,0.7)",
+    "backdrop-filter: blur(4px)",
+    "color: #fff",
+    "border: 1px solid rgba(255,255,255,0.25)",
+    "border-radius: 6px",
+    "padding: 4px 10px",
+    "font: 11px/1.4 -apple-system, system-ui, sans-serif",
+    "cursor: pointer",
+    "white-space: nowrap",
+    "transition: opacity 0.15s",
+    "text-shadow: 0 1px 2px rgba(0,0,0,0.5)",
+  ].join(";");
+
+  const btnCopy = document.createElement("button");
+  btnCopy.textContent = "📋 Copy Reload Report";
+  btnCopy.style.cssText = btnStyle;
+  btnCopy.addEventListener("click", (e) => {
+    e.stopPropagation();
+    copyReport();
+  });
+
+  const btnClear = document.createElement("button");
+  btnClear.textContent = "🗑 Clear Reload Log";
+  btnClear.style.cssText = btnStyle;
+  btnClear.style.marginBottom = "0";
+  btnClear.addEventListener("click", (e) => {
+    e.stopPropagation();
+    clear();
+  });
+
+  container.appendChild(btnCopy);
+  container.appendChild(btnClear);
+  document.body.appendChild(container);
+
+  _disableHandlers.push(() => {
+    const el = document.getElementById("__gallery_reload_bb_ui");
+    if (el) el.remove();
+  });
 }
 
 /* ── WebSocket patching (standalone, for early invocation) ─────────── */
