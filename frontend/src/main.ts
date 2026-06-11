@@ -30,8 +30,8 @@ if (typeof window !== "undefined") {
   });
 }
 
-// Eruda mobile debug console — tạm tắt để test reload, bật lại bằng cách bỏ comment dòng dưới
-// import("./utils/erudaDebug").then(({ initErudaDebug }) => initErudaDebug());
+// Eruda mobile debug console — bật lại
+import("./utils/erudaDebug").then(({ initErudaDebug }) => initErudaDebug());
 
 // Dev logging: page lifecycle debugging
 // NOTE: Do NOT add beforeunload or unload listeners here — they block bfcache
