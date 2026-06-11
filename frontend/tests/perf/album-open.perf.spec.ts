@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../helpers/monitorErrors";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve, join, dirname as pathDirname } from "node:path";
 import { compactStats, installApiNetworkTracker, waitForNetworkQuiet } from "./perf-utils";

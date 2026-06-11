@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "../helpers/monitorErrors";
+import type { Page } from "@playwright/test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve, join, dirname as pathDirname } from "node:path";
 import { installApiNetworkTracker, getQueryParam } from "./perf-utils";
