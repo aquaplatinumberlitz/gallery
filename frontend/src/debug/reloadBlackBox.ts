@@ -894,13 +894,14 @@ function addFloatingUI(): void {
     "z-index: 999999",
     "display: flex",
     "flex-direction: column",
+    "align-items: flex-end",
     "gap: 4px",
     "pointer-events: none",
   ].join(";");
 
-  const btnStyle = [
+  const btnBase = [
     "pointer-events: auto",
-    "background: rgba(30,30,30,0.7)",
+    "background: rgba(30,30,30,0.75)",
     "backdrop-filter: blur(4px)",
     "color: #fff",
     "border: 1px solid rgba(255,255,255,0.25)",
@@ -909,30 +910,72 @@ function addFloatingUI(): void {
     "font: 11px/1.4 -apple-system, system-ui, sans-serif",
     "cursor: pointer",
     "white-space: nowrap",
-    "transition: opacity 0.15s",
     "text-shadow: 0 1px 2px rgba(0,0,0,0.5)",
   ].join(";");
 
-  const btnCopy = document.createElement("button");
-  btnCopy.textContent = "📋 Copy Reload Report";
-  btnCopy.style.cssText = btnStyle;
-  btnCopy.addEventListener("click", (e) => {
+  // Dropdown items container (hidden by default)
+  const dropdown = document.createElement("div");
+  dropdown.id = "__gallery_bb_dropdown";
+  dropdown.style.cssText = [
+    "display: none",
+    "flex-direction: column",
+    "gap: 3px",
+    "pointer-events: none",
+  ].join(";");
+
+  const makeItem = (text: string, onClick: () => void) => {
+    const btn = document.createElement("button");
+    btn.textContent = text;
+    btn.style.cssText = btnBase + ";font-size:10px;padding:3px 8px;text-align:left";
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      onClick();
+      collapse(); // auto-collapse after action
+    });
+    return btn;
+  };
+
+  dropdown.appendChild(makeItem("📋 Copy Reload Report", copyReport));
+  dropdown.appendChild(makeItem("🗑 Clear Reload Log", clear));
+
+  // Toggle button
+  const toggle = document.createElement("button");
+  toggle.textContent = "🐛 Debug";
+  toggle.style.cssText = btnBase;
+
+  let expanded = false;
+
+  function expand() {
+    expanded = true;
+    dropdown.style.display = "flex";
+    toggle.textContent = "🐛 Debug ▼";
+  }
+
+  function collapse() {
+    expanded = false;
+    dropdown.style.display = "none";
+    toggle.textContent = "🐛 Debug ▶";
+  }
+
+  toggle.addEventListener("click", (e) => {
     e.stopPropagation();
-    copyReport();
+    if (expanded) collapse();
+    else expand();
   });
 
-  const btnClear = document.createElement("button");
-  btnClear.textContent = "🗑 Clear Reload Log";
-  btnClear.style.cssText = btnStyle;
-  btnClear.style.marginBottom = "0";
-  btnClear.addEventListener("click", (e) => {
-    e.stopPropagation();
-    clear();
+  // Collapse on click outside
+  document.addEventListener("click", (e) => {
+    if (expanded && !container.contains(e.target as Node)) {
+      collapse();
+    }
   });
 
-  container.appendChild(btnCopy);
-  container.appendChild(btnClear);
+  container.appendChild(dropdown);
+  container.appendChild(toggle);
   document.body.appendChild(container);
+
+  // Start collapsed
+  collapse();
 
   _disableHandlers.push(() => {
     const el = document.getElementById("__gallery_reload_bb_ui");
