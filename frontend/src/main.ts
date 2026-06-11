@@ -25,10 +25,11 @@ if (typeof window !== "undefined") {
   });
 }
 
+// Eruda mobile debug console (iPad Safari) — available in all builds via ?eruda=1
+import("./utils/erudaDebug").then(({ initErudaDebug }) => initErudaDebug());
+
 // Dev logging: page lifecycle debugging
 if (import.meta.env.DEV) {
-  // Eruda mobile debug console (iPad Safari)
-  import("./utils/erudaDebug").then(({ initErudaDebug }) => initErudaDebug());
   window.addEventListener('pageshow', (e) => {
     console.log('[LIFECYCLE] pageshow', {
       persisted: e.persisted,

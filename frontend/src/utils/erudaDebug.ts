@@ -9,11 +9,6 @@
 const STORAGE_KEY = 'gallery-debug-eruda';
 
 function shouldEnableEruda(): boolean {
-  // Never enable in production
-  if (!import.meta.env.DEV) {
-    return false;
-  }
-
   const params = new URLSearchParams(window.location.search);
   const erudaParam = params.get('eruda');
 
