@@ -11,10 +11,7 @@ export default defineConfig({
     port: DEV_PORT,
     strictPort: true,
     allowedHosts: ["150.230.56.153"],
-    hmr: {
-      host: "150.230.56.153",
-      protocol: "wss",
-    },
+    hmr: false,
     proxy: {
       "/api": {
         target: API_TARGET,
