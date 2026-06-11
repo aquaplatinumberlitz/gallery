@@ -751,7 +751,9 @@ export function installReloadBlackBoxIfEnabled(): void {
     _disableHandlers.push(() => el.removeEventListener(type, cb));
   }
 
-  on("beforeunload", window, () => addEvent("beforeunload", { url: window.location.href }));
+  // NOTE: beforeunload intentionally omitted — it blocks Safari bfcache.
+  // pagehide + pageshow + visibilitychange cover all lifecycle states
+  // needed for reload diagnosis without causing the discards we're debugging.
   on("pagehide", window, (e: Event) => {
     const pe = e as PageTransitionEvent;
     // Capture synchronous state before page goes away
