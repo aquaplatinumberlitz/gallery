@@ -890,11 +890,11 @@ function addFloatingUI(): void {
   container.style.cssText = [
     "position: fixed",
     "bottom: 12px",
-    "right: 12px",
+    "left: 12px",
     "z-index: 999999",
     "display: flex",
     "flex-direction: column",
-    "align-items: flex-end",
+    "align-items: flex-start",
     "gap: 4px",
     "pointer-events: none",
   ].join(";");
