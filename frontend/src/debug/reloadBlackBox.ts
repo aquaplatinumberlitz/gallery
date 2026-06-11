@@ -48,6 +48,51 @@ interface BootRecord {
   sessionId: string;
 }
 
+/* ── Gesture/scroll types ──────────────────────────────────────────── */
+
+interface GestureEvent {
+  t: number;
+  type: string;
+  target: string;
+  x: number;
+  y: number;
+  deltaY: number;
+  deltaX: number;
+  direction: string;       // "up" | "down" | "left" | "right" | "none"
+  scrollY: number;
+  nearTop: boolean;         // scrollTop <= 20
+  pullingDownAtTop: boolean; // at or near top AND moving downward
+  docScrollTop: number;
+  docScrollHeight: number;
+  docClientHeight: number;
+}
+
+const GESTURE_BUF_MAX = 80;
+
+interface ScrollSnapshot {
+  scrollY: number;
+  scrollX: number;
+  scrollHeight: number;
+  clientHeight: number;
+  nearTop: boolean;
+  nearBottom: boolean;
+  target: string;          // element id/class
+}
+
+interface PullToRefreshEvidence {
+  likely: boolean;
+  confidence: string;      // "high" | "medium" | "low"
+  reason: string;
+  lastTouchMoveDeltaY: number;
+  lastTouchMoveDirection: string;
+  scrollYBeforePagehide: number;
+  wasAtTopBeforePagehide: boolean;
+  wasPullingDownBeforePagehide: boolean;
+  timeFromLastTouchMoveToPagehideMs: number;
+  timeFromLastScrollToPagehideMs: number;
+  visualViewportChangedBeforePagehide: boolean;
+}
+
 interface Report {
   meta: { generatedAt: string; sessionId: string; bootCount: number; currentUrl: string };
   summary: {
@@ -63,10 +108,17 @@ interface Report {
     hmrWebSocket: boolean;
     pagehideBeforeReload: boolean;
     errors: number;
+    totalTouchMoves: number;
+    totalScrolls: number;
   };
   suspects: string[];
+  pullToRefresh: PullToRefreshEvidence;
   timeline: { rel: number; type: string; detail: string }[];
   lastEvents: { rel: number; type: string; detail: string }[];
+  gestureLastEvents: { rel: number; type: string; detail: string }[];
+  scrollLastEvents: { rel: number; type: string; detail: string }[];
+  lastGestureBeforeUnload: { rel: number; type: string; detail: string } | null;
+  lastScrollBeforeUnload: { rel: number; type: string; detail: string } | null;
   raw: BBEvent[];
 }
 
@@ -90,6 +142,19 @@ let _events: BBEvent[] = [];
 let _bootTime = 0;
 let _installed = false;
 let _disableHandlers: (() => void)[] = [];
+
+/* ── Gesture/scroll state ──────────────────────────────────────────── */
+
+let _gestureEvents: GestureEvent[] = [];
+let _totalTouchMoves = 0;
+let _totalScrolls = 0;
+let _lastTouchMove: { t: number; x: number; y: number; deltaY: number; direction: string; nearTop: boolean; pullingDownAtTop: boolean } | null = null;
+let _lastScrollSnapshot: ScrollSnapshot | null = null;
+let _lastGestureBeforePagehide: GestureEvent | null = null;
+let _lastScrollBeforePagehide: ScrollSnapshot | null = null;
+let _visualViewportChangedBeforePagehide = false;
+let _vvInitialHeight = 0;
+let _vvInitialWidth = 0;
 
 /* ── Event logging ─────────────────────────────────────────────────── */
 
@@ -118,6 +183,148 @@ function getNavType(): string {
     const e = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
     return e.length ? e[0].type : "unknown";
   } catch { return "unknown"; }
+}
+
+/* ── Scroll/gesture helpers ─────────────────────────────────────────── */
+
+function getTargetSummary(el: EventTarget | null): string {
+  if (!el || !(el instanceof Element)) return "(global)";
+  const tag = el.tagName.toLowerCase();
+  const id = el.id ? `#${el.id}` : "";
+  const cls = typeof el.className === "string"
+    ? el.className.split(/\s+/).slice(0, 2).join(".").slice(0, 40)
+    : "";
+  return `${tag}${id}${cls ? "." + cls : ""}`;
+}
+
+function getScrollSnapshot(target?: EventTarget | null): ScrollSnapshot {
+  const scrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+  const docEl = document.documentElement;
+  const scrollHeight = docEl.scrollHeight;
+  const clientHeight = docEl.clientHeight;
+  return {
+    scrollY: Math.round(scrollY),
+    scrollX: Math.round(window.scrollX || 0),
+    scrollHeight: Math.round(scrollHeight),
+    clientHeight: Math.round(clientHeight),
+    nearTop: scrollY <= 20,
+    nearBottom: scrollY + clientHeight >= scrollHeight - 20,
+    target: target ? getTargetSummary(target) : "document"
+  };
+}
+
+function isAtTop(): boolean {
+  return (window.scrollY || document.documentElement.scrollTop || 0) <= 20;
+}
+
+function recordGesture(gesture: GestureEvent): void {
+  _gestureEvents.push(gesture);
+  if (_gestureEvents.length > GESTURE_BUF_MAX) {
+    _gestureEvents.splice(0, _gestureEvents.length - GESTURE_BUF_MAX);
+  }
+  _lastTouchMove = {
+    t: gesture.t,
+    x: gesture.x,
+    y: gesture.y,
+    deltaY: gesture.deltaY,
+    direction: gesture.direction,
+    nearTop: gesture.nearTop,
+    pullingDownAtTop: gesture.pullingDownAtTop
+  };
+}
+
+/* ── Pull-to-refresh detection ─────────────────────────────────────── */
+
+function detectPullToRefresh(boot: BootRecord, hasJsReload: boolean, hasHmrWS: boolean): PullToRefreshEvidence {
+  const ev = _events;
+  const types = ev.map(e => e.type);
+  const errs = types.filter(t => t === "error" || t === "unhandledrejection").length;
+
+  const lastPH = _events.filter(e => e.type === "pagehide").pop();
+  const phPersistedFalse = lastPH ? lastPH.detail.includes('"persisted":false') : false;
+
+  const lastTM = _lastTouchMove;
+  const now = Date.now();
+  const timeFromTouch = lastTM ? now - lastTM.t : -1;
+  const timeFromScroll = _lastScrollSnapshot ? now - (_lastScrollSnapshot.scrollY ? now : now) : -1; // approximate
+
+  const wasAtTop = isAtTop();
+  const wasPulling = lastTM ? lastTM.pullingDownAtTop : false;
+  const atTopAndPulling = wasAtTop && wasPulling;
+
+  // Build confidence
+  let score = 0;
+  const signals: string[] = [];
+
+  // Signal: navType is reload and no JS/HMR cause
+  if (boot.navType === "reload" && !hasJsReload && !hasHmrWS && errs === 0) {
+    score += 2;
+    signals.push("browser-level reload, no JS/HMR/error");
+  }
+
+  // Signal: pagehide persisted=false before reload
+  if (phPersistedFalse) {
+    score += 1;
+    signals.push("pagehide(persisted=false)");
+  }
+
+  // Signal: recent touch activity (within 1500ms)
+  if (lastTM && timeFromTouch < 1500) {
+    score += 2;
+    signals.push(`last touchmove ${timeFromTouch}ms ago`);
+  } else if (lastTM && timeFromTouch < 5000) {
+    score += 1;
+    signals.push(`last touchmove ${timeFromTouch}ms ago (moderate)`);
+  }
+
+  // Signal: user was pulling down at top
+  if (atTopAndPulling) {
+    score += 3;
+    signals.push("pulling down at top of page");
+  } else if (wasPulling) {
+    score += 2;
+    signals.push("was pulling down (not at top anymore)");
+  }
+
+  // Signal: downward movement
+  if (lastTM && lastTM.direction === "down" && lastTM.deltaY > 10) {
+    score += 1;
+    signals.push(`downward swipe (deltaY=${Math.round(lastTM.deltaY)})`);
+  }
+
+  // Signal: total touch moves > 0 (user was actively touching)
+  if (_totalTouchMoves > 0) {
+    score += 1;
+    signals.push(`${_totalTouchMoves} touch moves recorded`);
+  }
+
+  // Signal: no scrolling before reload (user was pulling, not scrolling)
+  if (_totalScrolls === 0 && _totalTouchMoves > 0 && atTopAndPulling) {
+    score += 1;
+    signals.push("touching but no scroll events registered");
+  }
+
+  let confidence: string;
+  if (score >= 6) confidence = "high";
+  else if (score >= 4) confidence = "medium";
+  else if (score >= 2) confidence = "low";
+  else confidence = "none";
+
+  const likely = score >= 4;
+
+  return {
+    likely,
+    confidence,
+    reason: signals.length > 0 ? signals.join("; ") : "insufficient evidence",
+    lastTouchMoveDeltaY: lastTM ? Math.round(lastTM.deltaY) : 0,
+    lastTouchMoveDirection: lastTM ? lastTM.direction : "none",
+    scrollYBeforePagehide: _lastScrollBeforePagehide?.scrollY ?? Math.round(window.scrollY || 0),
+    wasAtTopBeforePagehide: _lastScrollBeforePagehide?.nearTop ?? isAtTop(),
+    wasPullingDownBeforePagehide: _lastGestureBeforePagehide?.pullingDownAtTop ?? false,
+    timeFromLastTouchMoveToPagehideMs: timeFromTouch,
+    timeFromLastScrollToPagehideMs: timeFromScroll,
+    visualViewportChangedBeforePagehide: _visualViewportChangedBeforePagehide
+  };
 }
 
 /* ── Suspect classification ────────────────────────────────────────── */
@@ -198,6 +405,51 @@ function generateReport(): Report {
   );
   const hasPagehideBeforeReload = _events.some(e => e.type === "pagehide" && e.detail.includes('"persisted":false'));
 
+  // ── Gesture analysis ──────────────────────────────────────────────
+
+  const ptrEvidence = detectPullToRefresh(boot, hasJsReload, hasHmrWS);
+
+  // Last 15 gesture events for report
+  const gestureTimeline = _gestureEvents.slice(-15).map(g => ({
+    rel: g.t - _bootTime,
+    type: g.type,
+    detail: JSON.stringify({
+      x: g.x, y: g.y, dY: g.deltaY, dir: g.direction,
+      sY: g.scrollY, nearTop: g.nearTop, pulling: g.pullingDownAtTop,
+      target: g.target
+    })
+  }));
+
+  // Last 15 scroll/viewport events from main event log
+  const scrollEvents = _events.filter(e =>
+    e.type === "scroll" || e.type === "visualViewport" ||
+    e.type === "orientationchange" || e.type === "resize"
+  );
+  const scrollTimeline = scrollEvents.slice(-15).map(e => ({
+    rel: e.t - _bootTime,
+    type: e.type,
+    detail: e.detail
+  }));
+
+  // Last gesture/scroll before pagehide
+  const lastGestureBeforeUnload = _lastGestureBeforePagehide ? {
+    rel: _lastGestureBeforePagehide.t - _bootTime,
+    type: _lastGestureBeforePagehide.type,
+    detail: JSON.stringify({
+      x: _lastGestureBeforePagehide.x, y: _lastGestureBeforePagehide.y,
+      dY: _lastGestureBeforePagehide.deltaY, dir: _lastGestureBeforePagehide.direction,
+      sY: _lastGestureBeforePagehide.scrollY,
+      nearTop: _lastGestureBeforePagehide.nearTop,
+      pulling: _lastGestureBeforePagehide.pullingDownAtTop
+    })
+  } : null;
+
+  const lastScrollBeforeUnload = _lastScrollBeforePagehide ? {
+    rel: _lastScrollBeforePagehide.scrollY, // not time-based, but state
+    type: "scroll-snapshot",
+    detail: JSON.stringify(_lastScrollBeforePagehide)
+  } : null;
+
   const timeline = _events.map(e => ({
     rel: e.t - _bootTime,
     type: e.type,
@@ -231,15 +483,22 @@ function generateReport(): Report {
       jsReload: hasJsReload,
       hmrWebSocket: hasHmrWS,
       pagehideBeforeReload: hasPagehideBeforeReload,
-      errors: stats.errorCount + stats.rejectionCount
+      errors: stats.errorCount + stats.rejectionCount,
+      totalTouchMoves: _totalTouchMoves,
+      totalScrolls: _totalScrolls
     },
     suspects,
+    pullToRefresh: ptrEvidence,
     timeline,
     lastEvents: lastEvents.map(e => ({
       rel: e.t - _bootTime,
       type: e.type,
       detail: e.detail
     })),
+    gestureLastEvents: gestureTimeline,
+    scrollLastEvents: scrollTimeline,
+    lastGestureBeforeUnload,
+    lastScrollBeforeUnload,
     raw: _events.slice(-80)
   };
 }
@@ -271,6 +530,8 @@ function formatReport(r: Report): string {
   lines.push(`  jsReload:             ${s.jsReload}`);
   lines.push(`  hmrWebSocket:         ${s.hmrWebSocket}`);
   lines.push(`  pagehideBeforeReload: ${s.pagehideBeforeReload}`);
+  lines.push(`  Touch moves:          ${s.totalTouchMoves}`);
+  lines.push(`  Scroll events:        ${s.totalScrolls}`);
 
   lines.push("");
   lines.push(`── Suspects ──────────────────────────────────────────`);
@@ -278,6 +539,61 @@ function formatReport(r: Report): string {
     lines.push("  (none — normal navigation)");
   } else {
     for (const x of r.suspects) lines.push(`  ${x}`);
+  }
+
+  lines.push("");
+  lines.push(`── Pull-to-Refresh Analysis ──────────────────────────`);
+  const ptr = r.pullToRefresh;
+  if (ptr.likely) {
+    lines.push(`  🔴 LIKELY PULL-TO-REFRESH (confidence: ${ptr.confidence})`);
+  } else if (ptr.confidence !== "none") {
+    lines.push(`  🟡 Possible (confidence: ${ptr.confidence})`);
+  } else {
+    lines.push(`  🟢 No pull-to-refresh indicators`);
+  }
+  lines.push(`  Reason:                  ${ptr.reason}`);
+  lines.push(`  lastTouchMoveDeltaY:     ${ptr.lastTouchMoveDeltaY}`);
+  lines.push(`  lastTouchMoveDirection:  ${ptr.lastTouchMoveDirection}`);
+  lines.push(`  scrollYBeforePagehide:   ${ptr.scrollYBeforePagehide}`);
+  lines.push(`  wasAtTopBeforePagehide:  ${ptr.wasAtTopBeforePagehide}`);
+  lines.push(`  wasPullingDown:          ${ptr.wasPullingDownBeforePagehide}`);
+  lines.push(`  timeFromTouch->pagehide: ${ptr.timeFromLastTouchMoveToPagehideMs}ms`);
+  lines.push(`  timeFromScroll->pagehide:${ptr.timeFromLastScrollToPagehideMs}ms`);
+  lines.push(`  vvChangedBeforePagehide: ${ptr.visualViewportChangedBeforePagehide}`);
+
+  if (r.lastGestureBeforeUnload) {
+    lines.push("");
+    lines.push(`── Last Gesture Before Unload ────────────────────────`);
+    lines.push(`  ${r.lastGestureBeforeUnload.detail}`);
+  }
+
+  if (r.lastScrollBeforeUnload) {
+    lines.push("");
+    lines.push(`── Last Scroll Before Unload ─────────────────────────`);
+    lines.push(`  ${r.lastScrollBeforeUnload.detail}`);
+  }
+
+  lines.push("");
+  lines.push(`── Last 20 Gesture Events ────────────────────────────`);
+  const gl = r.gestureLastEvents;
+  if (gl.length === 0) {
+    lines.push("  (no gesture events recorded)");
+  } else {
+    for (const g of gl) {
+      const rel = g.rel >= 0 ? `+${g.rel}ms` : `${g.rel}ms`;
+      const d = g.detail;
+      lines.push(`  [${rel}] ${g.type}`);
+      if (d && d.length > 4) lines.push(`          ${d.length > 140 ? d.slice(0, 137) + "..." : d}`);
+    }
+  }
+
+  if (r.scrollLastEvents.length > 0) {
+    lines.push("");
+    lines.push(`── Last 15 Scroll/Viewport Events ───────────────────`);
+    for (const e of r.scrollLastEvents) {
+      const rel = e.rel >= 0 ? `+${e.rel}ms` : `${e.rel}ms`;
+      lines.push(`  [${rel}] ${e.type}: ${e.detail.length > 120 ? e.detail.slice(0, 117) + "..." : e.detail}`);
+    }
   }
 
   lines.push("");
@@ -438,7 +754,22 @@ export function installReloadBlackBoxIfEnabled(): void {
   on("beforeunload", window, () => addEvent("beforeunload", { url: window.location.href }));
   on("pagehide", window, (e: Event) => {
     const pe = e as PageTransitionEvent;
-    addEvent("pagehide", { persisted: pe.persisted, url: window.location.href });
+    // Capture synchronous state before page goes away
+    _lastScrollBeforePagehide = getScrollSnapshot();
+    _lastGestureBeforePagehide = _gestureEvents.length > 0
+      ? _gestureEvents[_gestureEvents.length - 1]
+      : null;
+    addEvent("pagehide", {
+      persisted: pe.persisted,
+      url: window.location.href,
+      scrollY: _lastScrollBeforePagehide.scrollY,
+      nearTop: _lastScrollBeforePagehide.nearTop,
+      "lastTouchMove.deltaY": _lastTouchMove?.deltaY ?? 0,
+      "lastTouchMove.direction": _lastTouchMove?.direction ?? "none",
+      "lastTouchMove.pullingAtTop": _lastTouchMove?.pullingDownAtTop ?? false,
+      "lastTouchMove.msAgo": _lastTouchMove ? Date.now() - _lastTouchMove.t : -1,
+      totalTouchMoves: _totalTouchMoves
+    });
   });
   on("pageshow", window, (e: Event) => {
     const pe = e as PageTransitionEvent;
@@ -540,6 +871,10 @@ export function installReloadBlackBoxIfEnabled(): void {
   // ── Phase 8: Floating debug button ─────────────────────────────
 
   addFloatingUI();
+
+  // ── Phase 9: Gesture/scroll tracking ──────────────────────────
+
+  setupGestureTracking();
 }
 
 /* ── Floating debug UI ──────────────────────────────────────────────── */
@@ -597,6 +932,199 @@ function addFloatingUI(): void {
   _disableHandlers.push(() => {
     const el = document.getElementById("__gallery_reload_bb_ui");
     if (el) el.remove();
+  });
+}
+
+/* ── Gesture/scroll tracking ─────────────────────────────────────── */
+
+function setupGestureTracking(): void {
+  // Capture initial viewport state
+  try {
+    const vv = (window as any).visualViewport;
+    if (vv) {
+      _vvInitialHeight = vv.height;
+      _vvInitialWidth = vv.width;
+    }
+  } catch { /* ignore */ }
+
+  let lastScrollTime = 0;
+  let lastTouchPos: { x: number; y: number } | null = null;
+  let touchStartPos: { x: number; y: number } | null = null;
+
+  function on(type: string, el: EventTarget, cb: EventListenerOrEventListenerObject, opts?: AddEventListenerOptions) {
+    el.addEventListener(type, cb, opts || { passive: true });
+    _disableHandlers.push(() => el.removeEventListener(type, cb));
+  }
+
+  // ── Touch events ───────────────────────────────────────────────
+
+  on("touchstart", document, (e: Event) => {
+    const te = e as TouchEvent;
+    const touch = te.changedTouches[0];
+    if (!touch) return;
+    const x = Math.round(touch.clientX);
+    const y = Math.round(touch.clientY);
+    lastTouchPos = { x, y };
+    touchStartPos = { x, y };
+    const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
+    recordGesture({
+      t: Date.now(), type: "touchstart",
+      target: getTargetSummary(te.target),
+      x, y, deltaY: 0, deltaX: 0, direction: "none",
+      scrollY: Math.round(scrollY),
+      nearTop: scrollY <= 20,
+      pullingDownAtTop: false,
+      docScrollTop: Math.round(scrollY),
+      docScrollHeight: Math.round(document.documentElement.scrollHeight),
+      docClientHeight: Math.round(document.documentElement.clientHeight)
+    });
+  });
+
+  on("touchmove", document, (e: Event) => {
+    const te = e as TouchEvent;
+    const touch = te.changedTouches[0];
+    if (!touch || !lastTouchPos) return;
+    _totalTouchMoves++;
+    const x = Math.round(touch.clientX);
+    const y = Math.round(touch.clientY);
+    const deltaY = y - lastTouchPos.y;
+    const deltaX = x - lastTouchPos.x;
+    const absDY = Math.abs(deltaY);
+    const absDX = Math.abs(deltaX);
+    let direction = "none";
+    if (absDY > absDX && absDY > 2) direction = deltaY > 0 ? "down" : "up";
+    else if (absDX > absDY && absDX > 2) direction = deltaX > 0 ? "right" : "left";
+    const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
+    const nearTop = scrollY <= 20;
+    const pullingDownAtTop = nearTop && deltaY > 5;
+    lastTouchPos = { x, y };
+
+    if (_totalTouchMoves % 3 === 0 || pullingDownAtTop) {
+      // Only record every 3rd move to reduce noise, but always record pull-down-at-top
+      recordGesture({
+        t: Date.now(), type: "touchmove",
+        target: getTargetSummary(te.target),
+        x, y, deltaY: Math.round(deltaY), deltaX: Math.round(deltaX),
+        direction, scrollY: Math.round(scrollY),
+        nearTop, pullingDownAtTop,
+        docScrollTop: Math.round(scrollY),
+        docScrollHeight: Math.round(document.documentElement.scrollHeight),
+        docClientHeight: Math.round(document.documentElement.clientHeight)
+      });
+    }
+  });
+
+  on("touchend", document, (e: Event) => {
+    const te = e as TouchEvent;
+    const touch = te.changedTouches[0];
+    if (!touch) return;
+    const x = Math.round(touch.clientX);
+    const y = Math.round(touch.clientY);
+    const totalDY = touchStartPos ? y - touchStartPos.y : 0;
+    const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
+    const nearTop = scrollY <= 20;
+    const flickDown = totalDY > 30 && nearTop;
+    recordGesture({
+      t: Date.now(), type: "touchend",
+      target: getTargetSummary(te.target),
+      x, y, deltaY: Math.round(totalDY), deltaX: 0,
+      direction: totalDY > 0 ? "down" : totalDY < 0 ? "up" : "none",
+      scrollY: Math.round(scrollY),
+      nearTop, pullingDownAtTop: flickDown,
+      docScrollTop: Math.round(scrollY),
+      docScrollHeight: Math.round(document.documentElement.scrollHeight),
+      docClientHeight: Math.round(document.documentElement.clientHeight)
+    });
+    lastTouchPos = null;
+    touchStartPos = null;
+  });
+
+  // ── Scroll event (throttled) ───────────────────────────────────
+
+  on("scroll", document, () => {
+    const now = Date.now();
+    if (now - lastScrollTime < 100) return; // throttle to ~10fps
+    lastScrollTime = now;
+    _totalScrolls++;
+    const ss = getScrollSnapshot();
+    _lastScrollSnapshot = ss;
+    addEvent("scroll", {
+      scrollY: ss.scrollY,
+      nearTop: ss.nearTop,
+      nearBottom: ss.nearBottom,
+      scrollHeight: ss.scrollHeight,
+      clientHeight: ss.clientHeight
+    });
+  }, { passive: true, capture: true });
+
+  // ── Wheel events (desktop trackpad overscroll) ─────────────────
+
+  on("wheel", document, (e: Event) => {
+    const we = e as WheelEvent;
+    addEvent("wheel", {
+      deltaY: Math.round(we.deltaY),
+      deltaX: Math.round(we.deltaX),
+      deltaMode: we.deltaMode,
+      target: getTargetSummary(we.target),
+      scrollY: Math.round(window.scrollY || 0)
+    });
+  });
+
+  // ── VisualViewport ─────────────────────────────────────────────
+
+  try {
+    const vv = (window as any).visualViewport as EventTarget | null;
+    if (vv) {
+      on("resize", vv, () => {
+        const vvObj = (window as any).visualViewport;
+        if (!vvObj) return;
+        const hChanged = Math.abs(vvObj.height - _vvInitialHeight) > 20;
+        const wChanged = Math.abs(vvObj.width - _vvInitialWidth) > 20;
+        if (hChanged || wChanged) {
+          _visualViewportChangedBeforePagehide = true;
+        }
+        addEvent("visualViewport", {
+          height: Math.round(vvObj.height),
+          width: Math.round(vvObj.width),
+          offsetTop: Math.round(vvObj.offsetTop),
+          offsetLeft: Math.round(vvObj.offsetLeft),
+          scale: vvObj.scale
+        });
+      });
+      on("scroll", vv, () => {
+        const vvObj = (window as any).visualViewport;
+        if (!vvObj) return;
+        _visualViewportChangedBeforePagehide = true;
+        addEvent("visualViewportScroll", {
+          offsetTop: Math.round(vvObj.offsetTop),
+          offsetLeft: Math.round(vvObj.offsetLeft)
+        });
+      });
+    }
+  } catch { /* visualViewport not supported */ }
+
+  // ── Orientation change ─────────────────────────────────────────
+
+  on("orientationchange", window, () => {
+    addEvent("orientationchange", {
+      orientation: window.screen?.orientation?.type || screen.orientation?.type || "unknown",
+      angle: window.screen?.orientation?.angle ?? -1
+    });
+  });
+
+  // ── Window resize ──────────────────────────────────────────────
+
+  let lastResizeTime = 0;
+  on("resize", window, () => {
+    const now = Date.now();
+    if (now - lastResizeTime < 300) return;
+    lastResizeTime = now;
+    addEvent("resize", {
+      width: window.innerWidth,
+      height: window.innerHeight,
+      outerWidth: window.outerWidth,
+      outerHeight: window.outerHeight
+    });
   });
 }
 

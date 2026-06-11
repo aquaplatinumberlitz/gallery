@@ -101,6 +101,74 @@ window.__galleryReloadBlackBox.log("my-event", "user tapped search");
 | `pagehideBeforeReload` | `true` | Safari likely discarded/backgrounded the page |
 | Stack includes `@vite/client` | — | Vite HMR client triggered the reload |
 
+### How to Diagnose Pull-to-Refresh / Overscroll Reload
+
+When reports show `"Browser-level reload"` with no HMR, no errors, and `pagehide(persisted=false)`, the cause may be **iOS Safari pull-to-refresh** (rubber-band overscroll at top of page).
+
+**Steps to diagnose:**
+
+1. Start mobile dev with HMR off:
+   ```bash
+   npm run dev:mobile
+   ```
+
+2. Open on iPhone:
+   ```
+   http://150.230.56.153/?debugReload=1
+   ```
+
+3. Clear previous logs:
+   ```js
+   window.__galleryReloadBlackBox.clear()
+   ```
+
+4. Reproduce the issue — scroll the gallery normally, switch tabs, etc.
+
+5. After the reload, open the page again and copy the report:
+   ```js
+   window.__galleryReloadBlackBox.copyReport()
+   ```
+   (Use the floating "Copy Reload Report" button at bottom-right.)
+
+6. Check the **Pull-to-Refresh Analysis** section:
+   - `likelyPullToRefresh` — true if heuristics fire
+   - `wasAtTopBeforePagehide` — was scrollY ≤ 20px?
+   - `wasPullingDownBeforePagehide` — was touch moving downward at top?
+   - `lastTouchMoveDeltaY` — how far was the last swipe (positive = down)
+   - `scrollYBeforePagehide` — scroll position when page was hidden
+   - `timeFromTouch->pagehide` — how recently was the user touching?
+
+**How to read the results:**
+
+| Pattern | Likely cause |
+|---------|-------------|
+| `wasAtTop=true`, `wasPullingDown=true`, recent touch | Pull-to-refresh (Safari rubber-band) |
+| No touch events, `wasAtTop=false` | Tab discard / browser-level |
+| `pagehide(persisted=true)` then reload | bfcache eviction, not pull-to-refresh |
+| `location.*` call in timeline | JS-triggered reload |
+
+**⚠️ Warnings:**
+- Do not paste `copyReport()` into Safari address bar — use Eruda Console or the floating button.
+- Eruda itself adds `beforeunload`/`unload`/`pagehide` listeners that can affect bfcache. For clean pull-to-refresh testing, prefer the built-in blackbox floating UI.
+
+## Pull-to-Refresh Evidence Fields
+
+When you generate a report, the `pullToRefresh` section provides these fields:
+
+| Field | Description |
+|-------|-------------|
+| `likely` | Boolean — heuristic score ≥ 4 |
+| `confidence` | String: `"high"`, `"medium"`, `"low"`, `"none"` |
+| `reason` | Human-readable signal summary |
+| `lastTouchMoveDeltaY` | Last recorded touch movement delta Y (px) |
+| `lastTouchMoveDirection` | `"down"`, `"up"`, `"left"`, `"right"`, `"none"` |
+| `scrollYBeforePagehide` | Document scroll Y when pagehide fired |
+| `wasAtTopBeforePagehide` | `scrollY ≤ 20` when pagehide fired |
+| `wasPullingDownBeforePagehide` | Last gesture had downward movement at top |
+| `timeFromLastTouchMoveToPagehideMs` | ms since last touchmove when pagehide fired |
+| `timeFromLastScrollToPagehideMs` | ms since last scroll when pagehide fired |
+| `visualViewportChangedBeforePagehide` | Whether iOS visual viewport resized/scrolled |
+
 ### Test Cases
 
 | Setup | Expected |
@@ -137,6 +205,12 @@ Eruda adds `beforeunload`/`unload`/`pagehide` listeners that can affect bfcache 
 ## File Locations
 
 - **BlackBox monitor:** `frontend/src/debug/reloadBlackBox.ts`
+  - Phases 1-2: WebSocket patching + boot recording
+  - Phases 3-4: Lifecycle + error tracking
+  - Phases 5-6: Location/History API monkeypatching
+  - Phase 7: Global API (`window.__galleryReloadBlackBox`)
+  - Phase 8: Floating debug buttons
+  - Phase 9: Gesture/scroll tracking (touch, wheel, visualViewport, orientation)
 - **Old monitor (legacy):** `frontend/src/debug/reloadMonitor.ts`
 - **Type declarations:** `frontend/src/env.d.ts`
 - **Initialization:** `frontend/src/main.ts` (called before `createApp()`)
