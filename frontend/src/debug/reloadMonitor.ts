@@ -377,13 +377,10 @@ export function startReloadMonitor(): void {
     addEvent("resume", { url: window.location.href });
   });
 
-  window.addEventListener("unload", () => {
-    const infly = inFlightRequests.map((r) => `${r.method} ${r.url}`);
-    addEvent("unload", {
-      url: window.location.href,
-      inFlight: infly,
-    });
-  });
+  // NOTE: unload listener intentionally omitted — it blocks bfcache on iOS Safari
+  // and contributes to the very page discards we're trying to diagnose.
+  // pagehide is sufficient: it fires in both bfcache (persisted=true) and
+  // non-bfcache (persisted=false) scenarios.
 
   window.addEventListener("popstate", (e: PopStateEvent) => {
     addEvent("popstate", {

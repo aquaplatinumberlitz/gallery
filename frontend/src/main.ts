@@ -34,6 +34,9 @@ if (typeof window !== "undefined") {
 // import("./utils/erudaDebug").then(({ initErudaDebug }) => initErudaDebug());
 
 // Dev logging: page lifecycle debugging
+// NOTE: Do NOT add beforeunload or unload listeners here — they block bfcache
+// on iOS Safari and cause page discards when the user switches apps/tabs.
+// pagehide + visibilitychange + freeze/resume cover all lifecycle states safely.
 if (import.meta.env.DEV) {
   window.addEventListener('pageshow', (e) => {
     console.log('[LIFECYCLE] pageshow', {
@@ -48,14 +51,17 @@ if (import.meta.env.DEV) {
       timestamp: Date.now()
     });
   });
-  window.addEventListener('beforeunload', (_e) => {
-    console.log('[LIFECYCLE] beforeunload', { timestamp: Date.now() });
-  });
   document.addEventListener('visibilitychange', () => {
     console.log('[LIFECYCLE] visibilitychange', {
       state: document.visibilityState,
       timestamp: Date.now()
     });
+  });
+  window.addEventListener('freeze', () => {
+    console.log('[LIFECYCLE] freeze', { timestamp: Date.now() });
+  });
+  window.addEventListener('resume', () => {
+    console.log('[LIFECYCLE] resume', { timestamp: Date.now() });
   });
   // Icon debug overlay for tablet icon sizing investigation
   import('./utils/iconDebugOverlay')

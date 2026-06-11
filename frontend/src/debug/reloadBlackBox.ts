@@ -780,7 +780,10 @@ export function installReloadBlackBoxIfEnabled(): void {
   }));
   on("freeze", window, () => addEvent("freeze", {}));
   on("resume", window, () => addEvent("resume", {}));
-  on("unload", window, () => addEvent("unload", { url: window.location.href }));
+  // NOTE: unload listener intentionally omitted — it blocks bfcache on iOS Safari
+  // and contributes to the very page discards we're trying to diagnose.
+  // pagehide is sufficient: it fires in both bfcache (persisted=true) and
+  // non-bfcache (persisted=false) scenarios.
   on("popstate", window, () => addEvent("popstate", { url: window.location.href }));
 
   // ── Phase 4: Error tracking ─────────────────────────────────────
