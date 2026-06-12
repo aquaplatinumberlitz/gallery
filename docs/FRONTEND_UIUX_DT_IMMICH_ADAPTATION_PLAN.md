@@ -59,7 +59,7 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 |---|---|---|---|---|---|
 | Background metadata indexing | Complete (`indexer.py`, 607 lines) | **Missing** — no `fetchIndexStatus()` | **Missing** — no status chip/panel | Backend capability exists, frontend UX missing | P1 (Phase 1) |
 | Index status (`/api/index/status`) | Complete (`indexer.py:599`) | **Missing** | **Missing** — referenced only in debug `reloadMonitor.ts:163` | Full gap | P1 (Phase 1) |
-| Facets (`/api/facets`) | Complete (`facets.py:248`, 8 facet types) | **Missing** — no `fetchFacets()` | **Missing** — no facet chips, filter UI, or suggestion dropdowns | Full gap | P1 (Phase 2) |
+| Facets (`/api/facets`) | Complete (`facets.py:248`, 8 facet types) | **Missing** — no `fetchFacets()` | **Missing** — no facet chips, filter UI, or suggestion dropdowns | Full gap | Phase 1: add/verify API wrappers, frontend types, query keys, and composables. Phase 2: expose visible facets UI, filter chips, and AdvancedSearchDrawer integration. |
 | Fielded search parser | Complete (`fielded_search_parser.py`, 30+ field types) | Partial — `unifiedSearch()` supports `scope` but no fielded search API wrapper | **Missing** — no AdvancedSearchDrawer, no filter chips, no field autocomplete | Backend is ready, frontend has basic text search only | P1 (Phase 2) |
 | Warm indexed folder listing | Complete (`scan.py` returns `index_source`) | Partial — `scanDirectory()` does not distinguish source | **Missing** — no visual indicator of warm vs direct scan source | Low priority (transparent optimization) | P3 |
 | Watcher (`/api/watcher/*`) | Complete (watcher.py, disabled by default) | **Missing** — no HTTP route for watcher status | **Missing** — backend function `get_watcher_status()` has no API route | Both sides need work; watcher is P3 | P3 |
@@ -196,7 +196,7 @@ This is a preflight checklist, not a fourth implementation phase.
 - [ ] Add or verify `ScanResponse.index_source` if backend returns it.
 - [ ] Confirm Advanced Search will serialize to `q` and call existing `unifiedSearch()`.
 - [ ] Confirm no `beforeunload`/`unload` lifecycle regression is introduced.
-- [ ] Confirm Phase 1 remains additive and does not modify GalleryGrid behavior.
+- [ ] Confirm Phase 1 does not change GalleryGrid behavior, layout, virtualization, image loading, or browsing semantics. Only small accessibility annotations or non-behavioral wiring are allowed if needed.
 
 #### Tasks
 
@@ -282,7 +282,7 @@ This is a preflight checklist, not a fourth implementation phase.
 
 #### Risk Assessment
 
-- **Low risk.** This phase is purely additive for new components; no existing hot paths (GalleryGrid, lightbox, search) are modified beyond accessibility attributes.
+- **Low risk.** This phase is purely additive for new components; Phase 1 should not change GalleryGrid behavior, layout, virtualization, image loading, or browsing semantics. Only small accessibility annotations or non-behavioral wiring are allowed if needed. Lightbox and search hot paths are not modified beyond accessibility attributes.
 - IndexStatusChip is unobtrusive, uses muted idle state (never auto-hides), and never blocks interaction.
 - SettingsModal/RootPathSheet refactors are structural only; behavior is preserved.
 
@@ -374,7 +374,7 @@ This is a preflight checklist, not a fourth implementation phase.
 | `frontend/src/components/search/SearchCommandPalette.vue` | New component (optional, light) |
 | `frontend/src/components/AppHeader.vue` | Add Advanced Search trigger button, SearchFilterChips |
 | `frontend/src/components/MobileHeader.vue` | Add Advanced Search entry point, SearchFilterChips |
-| `frontend/src/components/GalleryGrid.vue` | Integrate SearchFilterChips into toolbar area |
+| `frontend/src/components/GalleryGrid.vue` | Integrate SearchFilterChips near the search/results context. Must not alter GalleryGrid virtualization or photo browsing behavior. |
 | `frontend/src/types/index.ts` | Add `FieldedSearchParams`, `FieldFilter` types |
 
 #### Risk Assessment
@@ -546,7 +546,7 @@ Recommended policy:
 - **active/queued/failed**: refetch every 2-3 seconds
 - **idle/up-to-date**: refetch every 30-60 seconds or disable polling
 - **browser tab hidden**: pause polling or slow it down significantly
-- **window focus**: refetch once
+- **window focus**: refetch once via local, debounced mechanism scoped to index status only. Do not change global TanStack Query focus behavior (keep `refetchOnWindowFocus: false`). Must not introduce `beforeunload`/`unload` listeners.
 - **manual refresh/open panel**: refetch immediately
 - **avoid toast spam**: status should live in chip/panel
 
@@ -647,8 +647,8 @@ Purpose: Separate frontend work that can be done now from future admin/audit wor
 | `/api/index/errors` | Per-job error table | TanStack Table | Current endpoint returns counts only |
 | `/api/watcher/status` | Watcher status component | Simple display (chip/panel) | No HTTP route wired (`watcher.py:191`) |
 | `/api/refresh/status` | Refresh status component | Simple display (chip/panel) | No HTTP route wired (`refresh.py:150`) |
-| `/api/photos/user-metadata` | Metadata admin table | TanStack Table | Requires row-level metadata endpoint |
-| `/api/photos/batch-metadata` | Batch metadata editor | TanStack Form | Requires backend batch-update endpoint |
+| `/api/photos/user-metadata` | Metadata admin table | TanStack Table | A read-only MetadataAdminTable can start from existing `unifiedSearch()`/metadata index fields. Editable user metadata requires this endpoint. |
+| `/api/photos/batch-metadata` | Batch metadata editor | TanStack Form | Batch metadata editing requires this backend batch-update endpoint. |
 
 ---
 
@@ -665,7 +665,7 @@ Purpose: Separate frontend work that can be done now from future admin/audit wor
 | Over-engineering settings with TanStack Form too early | Phase 1/3 | Keep current v-model approach for SettingsModal in Phase 1. Only introduce TanStack Form when indexing/watcher config is added in Phase 3. |
 | Breaking plain text search when adding Advanced Search | Phase 2 | Keep plain search input completely separate. AdvancedSearchDrawer is opt-in. Plain search regression tests guard this. |
 | Accessibility regression from new components | All Phases | Add ARIA roles in Phase 1 accessibility fixes. New components follow the established patterns. Test with `role` assertions. |
-| bfcache/lifecycle regressions on iOS Safari | All Phases | No `beforeunload`/`unload` listeners. Keep TanStack Query `refetchOnWindowFocus: false`. Test mobile sheet behavior. |
+| bfcache/lifecycle regressions on iOS Safari | All Phases | Keep global TanStack Query `refetchOnWindowFocus: false`. Index status may use a local, debounced refetch-on-focus/pageshow/visibilitychange if needed, but must not re-enable noisy global refetches. No `beforeunload`/`unload` listeners. Test mobile sheet behavior. |
 
 ### Non-Goals (Explicitly Excluded)
 
@@ -802,7 +802,7 @@ Purpose: Separate frontend work that can be done now from future admin/audit wor
 
 ### Implementation Order
 
-1. **Phase 1 first** — Expose the backend indexing/facets capabilities that already exist. Standardize UI structure before adding complexity. This phase has the lowest risk (purely additive, no GalleryGrid changes) and immediately makes the app feel more "aware" of its background processing. Users gain visibility into what the backend is doing.
+1. **Phase 1 first** — Expose the backend indexing/facets capabilities that already exist. Standardize UI structure before adding complexity. This phase has the lowest risk (purely additive components; Phase 1 should not change GalleryGrid behavior, layout, virtualization, image loading, or browsing semantics. Only small accessibility annotations or non-behavioral wiring are allowed if needed) and immediately makes the app feel more "aware" of its background processing. Users gain visibility into what the backend is doing.
 
 2. **Phase 2 second** — Unlock the powerful fielded search that the backend already supports. TanStack Form is the correct tool for this and justifies the existing installation. The AdvancedSearchDrawer + SearchFilterChips provide a discoverable interface for 30+ search fields that currently require manual query construction.
 
