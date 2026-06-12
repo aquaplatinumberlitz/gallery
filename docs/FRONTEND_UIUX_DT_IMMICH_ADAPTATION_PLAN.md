@@ -106,7 +106,7 @@ Frontend should not invent a new payload shape when an existing backend contract
 | **EmptyState** (`EmptyState.vue`) | Generic empty/error/loading state with 7 types | SVGs lack `role="img"`/`aria-label`. Loading type lacks `aria-busy`. | N/A (custom component) | **Keep as-is**. Light accessibility improvements only. |
 | **Future: IndexStatusChip** | Does not exist | — | Badge + Popover pattern | **Add new component**. See Phase 1. |
 | **Future: IndexStatusPanel** | Does not exist | — | Popover/Sheet pattern for details | **Add new component**. See Phase 1. |
-| **Future: AdvancedSearchDrawer** | Does not exist | — | Sheet (mobile) / Dialog (desktop), Form (TanStack), Command palette | **Add new component**. See Phase 2. |
+| **Future: AdvancedSearchDrawer** | Does not exist | — | Sheet (mobile) / Side Sheet (desktop), Form (TanStack), Command palette | **Add new component**. See Phase 2. |
 | **Future: SearchFilterChips** | Does not exist | — | Badge (removable chips) | **Add new component**. See Phase 2. |
 | **Future: MetadataTable/MetadataAdminView** | Does not exist | — | Data Table (TanStack Table) | **Add new component**. See Phase 3. |
 
@@ -159,8 +159,8 @@ Frontend should not invent a new payload shape when an existing backend contract
 | shadcn-vue Pattern | Gallery Use Case | Adaptation Approach |
 |---|---|---|
 | **Command** | Search suggestions, quick command palette (e.g., "Go to folder...", "Search by model...") | Adapt the keyboard-navigable list + filter pattern. Use gallery's existing warm-latte theme tokens instead of shadcn defaults. Bind to existing search store and folder navigation. |
-| **Dialog** | Desktop SettingsModal, Advanced Search (desktop), Index Status detail view | Refactor SettingsModal to use Header/Body/Footer structure with proper ARIA roles (`role="dialog"`, `aria-modal`, `aria-labelledby`). Apply to AdvancedSearchDrawer for desktop variant. |
-| **Drawer / Sheet** | Mobile Settings (sheet), Advanced Search (mobile), Index Status (mobile), RootPathSheet | Existing `RootPathSheet` already has sheet-like behavior. Standardize the Header/Description/Footer pattern. Use existing VSBS for metadata sheet; do not replace it. New sheets (advanced search, index panel) should follow the same structure. |
+| **Dialog** | Desktop SettingsModal, Index Status detail view | Refactor SettingsModal to use Header/Body/Footer structure with proper ARIA roles (`role="dialog"`, `aria-modal`, `aria-labelledby`). A search filter panel with form fields (Advanced Search on desktop) should use a Side Sheet, not a Dialog per MD3. |
+| **Drawer / Sheet** | Mobile Settings (sheet), Advanced Search (mobile: bottom sheet; desktop: side sheet), Index Status (mobile), RootPathSheet | Existing `RootPathSheet` already has sheet-like behavior. Standardize the Header/Description/Footer pattern. Use existing VSBS for metadata sheet; do not replace it. New sheets (advanced search, index panel) should follow the same structure. |
 | **Popover** | Index status details (click chip to see queue counts), search scope selector (future: Phase 2, if scope options expand beyond simple "This folder"/"All indexed"), field help tooltips | Keep native `<select>` for scope in Phase 1. Replace with Popover/DropdownMenu only in Phase 2 if scope options grow. Keep popovers compact and non-modal. |
 | **DropdownMenu** | Search scope, sort options, density grid options, toolbar actions menu | Current custom dropdowns (sort, density) already function well. Adapt them to DropdownMenu pattern for consistency: keyboard navigation, `aria-haspopup`/`aria-expanded`, focus management. |
 | **Data Table** | MetadataAdminTable, IndexJobTable, AuditTable, DuplicateFinderTable | Use TanStack Table with gallery-themed styling. Columns: thumbnail, name, folder, model, sampler, seed, dimensions, modified, actions. Sorting, filtering, column visibility, row selection. Match the gallery warm-latte color palette, not shadcn defaults. |
@@ -201,7 +201,7 @@ This is a preflight checklist, not a fourth implementation phase.
 #### Tasks
 
 - [ ] **Add `fetchIndexStatus()` to `api.ts`** — wraps `GET /api/index/status?path=...`. Response includes: `enabled`, `worker_count`, `active_jobs`, `runtime_queue_depth`, counts by state, `last_error`, `updated_at`.
-- [ ] **Add `useIndexStatusQuery()` composable** — TanStack Query wrapper with `queryKeys.indexStatus(path)`. Auto-polling (30s staleTime, 60s refetchInterval). Enabled only when a folder is loaded.
+- [ ] **Add `useIndexStatusQuery()` composable** — TanStack Query wrapper with `queryKeys.indexStatus(path)`. Adaptive polling per Section 10 policy: active/queued/failed every 2-3s, idle every 60s. Browser tab hidden: pause or slow down. Window focus: local debounced refetch. No beforeunload/unload listeners. Enabled only when a folder is loaded.
 - [ ] **Add query key `indexStatus(path)` in `query/keys.ts`**.
 - [ ] **Add `IndexStatusChip.vue`** — small badge in AppHeader (desktop) or MobileHeader (mobile) near search area. Shows one of four states:
   - `failed` — `failed > 0 || staged_path_failed > 0 || last_error` (red badge with error icon)
@@ -218,10 +218,11 @@ This is a preflight checklist, not a fourth implementation phase.
     ```
   - **UI behavior**: Click chip opens IndexStatusPanel (popover on desktop, sheet on mobile). **Do NOT auto-hide when idle.** Idle/up-to-date state collapses into a muted status (compact chip or muted icon) — not disappear completely. Indexing status should be quiet but discoverable. Active/error states should be obvious. Disabled/no-folder state is hidden. Never blocks interaction. Never creates toast spam.
 - [ ] **Add `IndexStatusPanel.vue`** — detailed index status shown on chip click. Shows:
-  - Summary line: "Indexing X of Y files (Z queued)"
+  - Summary line: "Indexing — X queued, Y active, Z done" (using queued/running/done/failed counts that the backend actually returns; there is no total file count from `/api/index/status`)
   - Per-state counts: queued, running, done, failed, stale, skipped
   - Last error text (if any)
   - Worker count and queue depth
+  - **Progress indicator**: `LinearProgressIndicator` (determinate when running/done counts allow percentage computation, indeterminate otherwise) or compact `CircularProgressIndicator` to satisfy MD3 requirement for visible progress on background operations. Show in IndexStatusPanel; may also appear as a subtle indicator on IndexStatusChip when in active state.
   - **Desktop**: Popover anchored to chip
   - **Mobile**: Bottom sheet following RootPathSheet-style structure
   - **No blocking overlay, no toast per job**
@@ -583,6 +584,20 @@ Purpose: Make mobile/tablet behavior explicit without forcing one rigid layout.
 - Index status panel should not obscure primary controls.
 
 Responsive behavior should follow the app's existing gallery-first layout and avoid mobile Safari regressions.
+
+### MD3 Surface Elevation & Motion Tokens
+
+Reference levels for new surfaces (use existing gallery `--gallery-*` drop-shadow tokens, not raw MD3 values):
+- **Side Sheet / Bottom Sheet**: Level 1 (subtle shadow, aligned with existing sheet behavior)
+- **Dialog** (SettingsModal, confirmations): Level 3 (more prominent)
+- **Popover** (index status details, field help): Level 4 (close to trigger element)
+- **DropdownMenu**: Level 2 (intermediate between sheet and dialog)
+
+Motion tokens for consistent animation language:
+- **Sheet entry/exit**: `250ms ease-out` (slide from right for desktop side sheet, slide up for mobile bottom sheet)
+- **Chip/Popover transitions**: `150ms ease` (badge state changes, popover show/hide)
+- **Pulse animation** (active index state): Keep existing CSS pulse keyframes
+- **Keep existing gallery transition tokens** as defaults where they already cover the behavior
 
 ---
 
