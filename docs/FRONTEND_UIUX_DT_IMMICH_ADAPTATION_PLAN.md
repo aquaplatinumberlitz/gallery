@@ -80,9 +80,9 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 
 | Component | Current Role | Problems/Gaps | shadcn-vue Pattern to Learn | Recommendation |
 |---|---|---|---|---|
-| **AppHeader + Search** (`AppHeader.vue`) | Desktop header with brand, theme toggle, search box + scope selector | Search is single text input; no fielded search, no facet chips, no advanced search trigger. Scope selector is a native `<select>`. | Command palette (search suggestions), Popover (scope/field selector), Badge (fielded search chips) | **Refactor lightly**: Add Advanced Search button trigger; keep plain search input as-is. Replace native select with styled DropdownMenu. |
+| **AppHeader + Search** (`AppHeader.vue`) | Desktop header with brand, theme toggle, search box + scope selector | Search is single text input; no fielded search, no facet chips, no advanced search trigger. Scope selector is a native `<select>`. | Command palette (search suggestions), Popover (scope/field selector), Badge (fielded search chips) | **Refactor lightly**: Add Advanced Search button trigger; keep plain search input as-is. **Keep native `<select>` for scope in Phase 1.** Do not replace the native search scope selector just for visual consistency. Replace it only when the interaction model grows beyond simple scope selection (e.g., Advanced Search, search presets, fielded search shortcuts, facets, metadata/admin entry). |
 | **MobileHeader** (`MobileHeader.vue`) | Mobile top bar with expandable search, sort popover, theme toggle | Same search limitations as desktop. Search overlay has no fielded mode. | Command (mobile search palette), Sheet (advanced search drawer on mobile) | **Refactor lightly**: Add advanced search entry point; keep expandable search behavior. |
-| **SettingsModal** (`SettingsModal.vue`) | Application settings: intro screen mode, theme selection, original-image toggle | No Footer (auto-saves silently). No tabs (flat vertical scroll). No ARIA dialog roles (`role="dialog"`, `aria-modal` missing). Error state is console-only. | Dialog (Header/Body/Footer structure), Tabs (settings sections), Form layout (Label/Description pattern) | **Standardize structure**: Add Header/Body/Footer sections. Add ARIA roles. If settings grow (indexing/watcher config), add Tabs. Current content is too small for TanStack Form yet; use v-model + save on explicit Apply. |
+| **SettingsModal** (`SettingsModal.vue`) | Application settings: intro screen mode, theme selection, original-image toggle | No Footer (auto-saves silently). No tabs (flat vertical scroll). No ARIA dialog roles (`role="dialog"`, `aria-modal` missing). Error state is console-only. | Dialog (Header/Body/Footer structure), Tabs (settings sections), Form layout (Label/Description pattern) | **Standardize structure only**: Add Header/Body/Footer with Done/Close button. Add ARIA roles. Keep current auto-save behavior (watcher/localStorage). Do NOT introduce Apply/Cancel/Reset because these require staged draft state and are incompatible with the auto-save watcher model. If settings later grow to complex multi-section configuration (Phase 3: indexing/watcher config), then switch to staged draft state with Apply/Cancel/Reset and consider TanStack Form at that point. |
 | **RootPathSheet** (`RootPathSheet.vue`) | Bottom sheet for editing root folder path on mobile | No loading state during path load. Missing ARIA dialog roles. Paste button hides when textarea focused (discoverability). | Sheet (Header/Description/Footer pattern) | **Refactor structure**: Add loading spinner. Add ARIA roles. Keep functional layout. Do NOT use TanStack Form (single field, no validation beyond path syntax). |
 | **Lightbox + Metadata Panel** (`Lightbox.vue`, `LightboxDesktopPanel.vue`, `LightboxMobileSheet.vue`, `LightboxTabletPanel.vue`) | Device-adaptive image viewer with metadata display | Desktop panel lacks `role="complementary"`. Mobile sheet tabs lack `role="tablist"`/`role="tab"`/`aria-selected`. Metadata display itself is well-built with sections, copy buttons, LoRA highlighting. | Tabs (mobile metadata tabs ARIA roles), Sheet (mobile panel structure) | **Keep as-is with light accessibility fixes**. Metadata panels are mature and should not be rewritten. Add ARIA roles for tabs and complementary landmark. |
 | **Toast** (`ToastContainer.vue`, `ToastItem.vue`) | Fixed-position toast notifications with TransitionGroup | No `role="alert"` or `aria-live` for screen reader announcements. No toast queue overflow beyond capping at 3. | Toast/Sonner pattern (position, stacking, dismiss) | **Keep as-is**. Toast system is mature and styled per gallery theme. Add `role="alert"` to ToastItem. |
@@ -102,19 +102,19 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 | Candidate | Use Form? | Why | Why Not | Phase |
 |---|---|---|---|---|
 | **AdvancedSearchDrawer** | **YES** | Complex form with multiple field types (text, number, select, boolean), field validation (numeric ranges, valid dimensions), dirty state tracking, Apply/Cancel/Reset behavior. Backend already supports 30+ fielded search predicates. | — | Phase 2 |
-| **SettingsModal** (if expanded) | **YES (conditional)** | If indexing/watcher/refresh configuration (thresholds, intervals, enabled/disabled toggles) is added, TanStack Form provides validation, dirty state, and explicit Apply/Cancel. Current flat v-model approach is fragile for multi-section settings. | Current content (3 options) is too small. Auto-save without Apply/Cancel is acceptable for simple toggles. | Phase 1 (structure only) / Phase 3 (Form if config grows) |
+| **SettingsModal** (future: indexing/watcher config) | **YES (conditional)** | If indexing/watcher/refresh configuration (thresholds, intervals, enabled/disabled toggles) is added, switch to staged draft state with Apply/Cancel/Reset. TanStack Form can then provide validation, dirty state tracking, and explicit save behavior. **Apply/Cancel/Reset require staged draft state. They should not be mixed with the current auto-save watcher model.** | Current content (3 options) uses auto-save via watcher/localStorage. This is correct for simple toggles and should be preserved in Phase 1 with a Done/Close footer. | Phase 3 (only if config grows) |
 | **Index/Watcher Settings** | **YES** | Numeric thresholds (worker count, batch size, debounce seconds), boolean toggles (enable/disable), path lists (watch roots). This is a configuration form with validation needs. | Backend watcher/refresh status routes don't exist yet. | Phase 3 |
 | **Batch Metadata Editor** | **YES** | Strongest use case: editing metadata fields across multiple selected images. Validation, dirty per-field tracking, Apply/Cancel across batch. | Requires table row selection + backend batch-update endpoint (neither exists). | Phase 3+ |
 | **Metadata Edit Form** (single image) | **YES** | If editable metadata fields are added, TanStack Form provides validation and dirty/save patterns. | Single-image metadata editing is a future feature. Current metadata is read-only. | Phase 3+ |
 | **RootPathSheet** | **NO** | Single text field with path validation. Simple v-model with inline validation message is sufficient. | TanStack Form would add overhead without clear value. No dirty/save complexity. | Never |
 | **Simple Search Input** | **NO** | Single text field with debounce. No validation needed beyond non-empty check. Dirty/Action/Cancel would harm the instant-search UX. | TanStack Form's state management would interfere with debounced instant search and clear UX. | Never |
-| **SettingsModal** (current scope) | **NO** | Only 3 options (intro mode, theme, alwaysLoadOriginal). All auto-save to localStorage. No complex validation. | Form overhead is not justified for current content. Revisit if settings expand with indexing/watcher config. | Not now |
+| **SettingsModal** (current scope) | **NO** | Only 3 options (intro mode, theme, alwaysLoadOriginal). All auto-save via watcher to localStorage. No complex validation. Apply/Cancel/Reset would be incompatible UX with the auto-save watcher model. | Form overhead is not justified for current content. Footer should use Done/Close, not Apply/Cancel. Revisit if settings expand with indexing/watcher config in Phase 3. | Not now |
 
 ### Mandatory Conclusions
 
 - **Simple search input should NOT use TanStack Form.** It is a single, debounced text field. Instant-search UX is incompatible with Form's dirty/Apply/Cancel model.
 - **Advanced Search SHOULD use TanStack Form.** It is a complex form with validation, multiple field types, dirty state, and explicit Apply/Cancel/Reset. This is the canonical TanStack Form use case.
-- **Current SettingsModal is too small for TanStack Form.** If Library Freshness/Indexing settings are added (Phase 1 structure refactor lays groundwork), TanStack Form becomes justified. Keep the current v-model approach for the existing 3 options.
+- **Current SettingsModal is too small for TanStack Form.** Keep the auto-save watcher model and use a Done/Close footer. If settings later grow into complex multi-section configuration (indexing/watcher/cache/debug), switch to staged draft state with Apply/Cancel/Reset and introduce TanStack Form at that point. Apply/Cancel/Reset require staged draft state — they should not be mixed with the current auto-save watcher model.
 - **Batch Metadata Editor is a strong TanStack Form use case**, but it requires table row selection (TanStack Table) + backend batch-update endpoint. This is a Phase 3+ combined workflow.
 
 ---
@@ -146,11 +146,11 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 | **Command** | Search suggestions, quick command palette (e.g., "Go to folder...", "Search by model...") | Adapt the keyboard-navigable list + filter pattern. Use gallery's existing warm-latte theme tokens instead of shadcn defaults. Bind to existing search store and folder navigation. |
 | **Dialog** | Desktop SettingsModal, Advanced Search (desktop), Index Status detail view | Refactor SettingsModal to use Header/Body/Footer structure with proper ARIA roles (`role="dialog"`, `aria-modal`, `aria-labelledby`). Apply to AdvancedSearchDrawer for desktop variant. |
 | **Drawer / Sheet** | Mobile Settings (sheet), Advanced Search (mobile), Index Status (mobile), RootPathSheet | Existing `RootPathSheet` already has sheet-like behavior. Standardize the Header/Description/Footer pattern. Use existing VSBS for metadata sheet; do not replace it. New sheets (advanced search, index panel) should follow the same structure. |
-| **Popover** | Index status details (click chip to see queue counts), search scope selector, field help tooltips | Replace native `<select>` for scope with Popover + list selection. Show index status details on click. Keep popovers compact and non-modal. |
+| **Popover** | Index status details (click chip to see queue counts), search scope selector (future: Phase 2, if scope options expand beyond simple "This folder"/"All indexed"), field help tooltips | Keep native `<select>` for scope in Phase 1. Replace with Popover/DropdownMenu only in Phase 2 if scope options grow. Keep popovers compact and non-modal. |
 | **DropdownMenu** | Search scope, sort options, density grid options, toolbar actions menu | Current custom dropdowns (sort, density) already function well. Adapt them to DropdownMenu pattern for consistency: keyboard navigation, `aria-haspopup`/`aria-expanded`, focus management. |
 | **Data Table** | MetadataAdminTable, IndexJobTable, AuditTable, DuplicateFinderTable | Use TanStack Table with gallery-themed styling. Columns: thumbnail, name, folder, model, sampler, seed, dimensions, modified, actions. Sorting, filtering, column visibility, row selection. Match the gallery warm-latte color palette, not shadcn defaults. |
 | **Form** | AdvancedSearchDrawer, future batch editor, expanded SettingsModal | TanStack Form with gallery form layout: field label, description, error message, Apply/Cancel/Reset buttons. Use gallery form tokens for spacing, borders, and focus states. |
-| **Badge** | Index status (idle/indexing/queued/failed), facet chips, fielded search filter chips, error counts | Adapt Badge variants with gallery semantic colors. Removeable badge pattern for filter chips (x button to clear). |
+| **Badge** | Index status (idle/active/queued/failed/disabled), facet chips, fielded search filter chips, error counts | Adapt Badge variants with gallery semantic colors. Removeable badge pattern for filter chips (x button to clear). |
 | **Alert** | Indexing errors, scan errors, metadata parse warnings | Existing error banner in GalleryGrid and toast system already cover this. Enhance with Alert pattern: icon + title + description + dismiss. Keep gallery toast styling. |
 | **Tabs** | Settings sections (General / Indexing / Watcher), admin panel sections, mobile metadata tabs (ARIA already needed) | Existing mobile metadata tabs need `role="tablist"`/`role="tab"`/`aria-selected`. SettingsModal should add Tabs if indexing/watcher config is added. Use gallery token styling. |
 | **Toast / Sonner** | Existing toast system | Keep current toast implementation. It already handles positioning, stacking, dismiss, and types. Add `role="alert"` to ToastItem for accessibility. |
@@ -177,11 +177,19 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 - [ ] **Add `useIndexStatusQuery()` composable** — TanStack Query wrapper with `queryKeys.indexStatus(path)`. Auto-polling (30s staleTime, 60s refetchInterval). Enabled only when a folder is loaded.
 - [ ] **Add query key `indexStatus(path)` in `query/keys.ts`**.
 - [ ] **Add `IndexStatusChip.vue`** — small badge in AppHeader (desktop) or MobileHeader (mobile) near search area. Shows one of four states:
-  - `idle` — no active indexing (gray/dimmed badge)
-  - `indexing` — workers are active (amber/yellow badge with pulse animation)
+  - `active` — workers are running (amber/yellow badge with pulse animation)
   - `queued` — jobs are pending (blue badge)
-  - `failed` — last job had error (red badge with error icon)
-  - **UI behavior**: Click chip opens IndexStatusPanel (popover on desktop, sheet on mobile). Auto-hides when idle and no errors (after 5s delay). Never blocks interaction. Never creates toast spam.
+  - `failed` — `failed > 0 \|\| staged_path_failed > 0 \|\| last_error` (red badge with error icon)
+  - `idle` — no errors, no active jobs, no queued jobs; up-to-date (compact muted chip or muted icon/text)
+  - `disabled` — no folder loaded or status unavailable (hidden)
+  - **State mapping**:
+    ```
+    failed = failed > 0 || staged_path_failed > 0 || last_error
+    active = running > 0 || active_jobs > 0 || active_scan_requests > 0
+    queued = queued > 0 || runtime_queue_depth > 0 || staged_path_queue_depth > 0
+    idle = !failed && !active && !queued
+    ```
+  - **UI behavior**: Click chip opens IndexStatusPanel (popover on desktop, sheet on mobile). **Do NOT auto-hide when idle.** Idle/up-to-date state collapses into a muted status (compact chip or muted icon) — not disappear completely. Indexing status should be quiet but discoverable. Active/error states should be obvious. Disabled/no-folder state is hidden. Never blocks interaction. Never creates toast spam.
 - [ ] **Add `IndexStatusPanel.vue`** — detailed index status shown on chip click. Shows:
   - Summary line: "Indexing X of Y files (Z queued)"
   - Per-state counts: queued, running, done, failed, stale, skipped
@@ -196,9 +204,10 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 - [ ] **Refactor SettingsModal structure** — add formal Header/Body/Footer sections:
   - **Header**: Title "Settings" + Close button
   - **Body**: Scrollable content area (current settings)
-  - **Footer**: Add explicit "Done" button (replaces auto-save on close). Changes still auto-save via watch, but footer provides explicit close action.
+  - **Footer**: "Done" or "Close" button. **Do NOT use Apply/Cancel.** Settings auto-save immediately via existing watcher/localStorage behavior; there is no staged draft state to apply or cancel.
   - Add `role="dialog"`, `aria-modal="true"`, `aria-labelledby` referencing title element.
   - Do NOT add tabs yet; keep flat layout until more settings are added.
+  - Do NOT migrate to TanStack Form in Phase 1; the current auto-save watcher model is correct and TanStack Form's dirty/Apply/Cancel/Reset lifecycle would conflict.
 - [ ] **Refactor RootPathSheet structure** — add Header/Description/Footer pattern:
   - **Header**: "Edit Root Path" title + FolderOpen icon
   - **Description**: Brief explanation text
@@ -206,7 +215,7 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
   - **Footer**: Action buttons (Clear, Cancel, Load)
   - Add loading spinner during `setRootPath` resolution
   - Add `role="dialog"`, `aria-modal` for iOS VoiceOver
-- [ ] **Upgrade search scope selector** — replace native `<select>` in AppHeader and MobileHeader with a Popover/DropdownMenu pattern. Scope options: "This folder", "All indexed". Current native select is functional but inconsistent with gallery design language.
+- [ ] **Keep native search scope `<select>` as-is in Phase 1** — the current native select with simple options ("This folder", "All indexed") is simple, accessible, low-risk, and sufficient for Phase 1. **Do not replace the native search scope selector just for visual consistency. Replace it only when the interaction model grows beyond simple scope selection** (e.g., Advanced Search with search presets, fielded search shortcuts, facets, metadata/admin entry — Phase 2+). If scope options expand in Phase 2, consider DropdownMenu or Popover at that point.
 - [ ] **Add accessibility fixes** (light, non-breaking):
   - ToastItem: add `role="alert"` for screen reader announcements
   - GalleryGrid error banner: add `role="alert"`
@@ -215,7 +224,7 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
   - SettingsModal: add ARIA dialog roles (covered above)
   - AppHeader: add `role="banner"` landmark
 - [ ] **Add tests**:
-  - IndexStatusChip renders idle/indexing/queued/failed states
+  - IndexStatusChip renders idle/active/queued/failed/disabled states
   - IndexStatusPanel shows correct counts from mock API response
   - IndexStatusPanel opens/closes on chip click
   - facades loading/display with mock data
@@ -236,8 +245,8 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 | `frontend/src/components/indexing/IndexStatusPanel.vue` | New component |
 | `frontend/src/components/SettingsModal.vue` | Structure refactor + ARIA |
 | `frontend/src/components/RootPathSheet.vue` | Structure refactor + ARIA + loading state |
-| `frontend/src/components/AppHeader.vue` | Add IndexStatusChip, upgrade scope selector |
-| `frontend/src/components/MobileHeader.vue` | Add IndexStatusChip, upgrade scope selector |
+| `frontend/src/components/AppHeader.vue` | Add IndexStatusChip |
+| `frontend/src/components/MobileHeader.vue` | Add IndexStatusChip |
 | `frontend/src/components/ToastItem.vue` | Add `role="alert"` |
 | `frontend/src/components/GalleryGrid.vue` | Add `role="alert"` to error banner |
 | `frontend/src/components/FolderTreeItem.vue` | Add TreeView ARIA roles |
@@ -247,18 +256,18 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 #### Risk Assessment
 
 - **Low risk.** This phase is purely additive for new components; no existing hot paths (GalleryGrid, lightbox, search) are modified beyond accessibility attributes.
-- IndexStatusChip is unobtrusive, auto-hides, and never blocks interaction.
+- IndexStatusChip is unobtrusive, uses muted idle state (never auto-hides), and never blocks interaction.
 - SettingsModal/RootPathSheet refactors are structural only; behavior is preserved.
 
 #### Acceptance Criteria
 
 1. IndexStatusChip appears when a folder is loaded and shows correct state
 2. Clicking chip opens IndexStatusPanel with accurate counts
-3. Chip auto-hides when idle and no errors
+3. Chip shows muted idle/up-to-date state when no errors and no active jobs (does not fully auto-hide when a folder context exists; hidden only when no folder/status available)
 4. No toast spam from index status updates
 5. SettingsModal has Header/Body/Footer structure and ARIA dialog roles
 6. RootPathSheet has ARIA dialog roles and loading state
-7. Search scope selector uses styled Popover/DropdownMenu
+7. Native search scope `<select>` is preserved and functional (replacement deferred to Phase 2+)
 8. Accessibility fixes applied (roles added, no regressions)
 9. All existing tests pass
 10. New tests pass (index status chip/panel, facets loading, ARIA roles, toast non-regression)
@@ -273,7 +282,7 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 
 #### Tasks
 
-- [ ] **Add `fetchFieldedSearch()` to `api.ts`** — wraps fielded search queries. Sends parsed `residual_text` and `fields` array to backend. Response is same `UnifiedSearchResponse` shape for backward compatibility.
+- [ ] **Add `serializeAdvancedSearchToQuery()` utility** — serializes `AdvancedSearchDrawer` TanStack Form state into a backend-compatible `q` string using fielded search token syntax (e.g. `model:"PonyXL" sampler:"Euler a" seed:123 prompt:"blue archive"`). The resulting `q` string is passed to the existing `unifiedSearch(q, opts)` path. No new API wrapper is needed; no `fields[]` or `residual_text` structured payload is introduced. **Do not introduce a structured `fields[]` frontend-to-backend API unless the backend first adds and documents that contract.**
 - [ ] **Add `AdvancedSearchDrawer.vue` using `@tanstack/vue-form`** — structured search form with:
   - **Text fields**: `prompt:`/`positive:`, `negative:`, `model:`, `sampler:`, `scheduler:`, `lora:`, `path:`/`folder:`, `name:`
   - **Numeric fields with operators**: `seed:` (=), `steps:` (=/>/>=/</<=), `cfg:` (same operators), `width:`, `height:`, `clip_skip:`, `hires_upscale:`, `hires_steps:`, `denoising_strength:`, `vae:`
@@ -290,10 +299,11 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
   - **Apply/Cancel/Reset**: Cancel restores previous search state; Reset clears all fields
   - **Initial values**: populate from current search state (if user previously searched with fielded query)
 
-- [ ] **Build queries compatible with existing backend parser**:
-  - Form serialization produces field tokens matching `fielded_search_parser.py` expected format
-  - `residual_text` from plain-text field goes to unified search
-  - `fields` array from structured inputs mapped to backend-recognized field names
+- [ ] **Build query strings compatible with existing backend parser**:
+  - `serializeAdvancedSearchToQuery()` converts form state into a properly formatted `q` string using the same token syntax the backend fielded-search parser already understands (e.g. `txt model:"PonyXL" sampler:"Euler a" seed:123 prompt:"blue archive"`)
+  - The serializer must produce query strings that match the format tested in `fielded_search_parser.py`
+  - The output `q` string is passed directly to the existing `unifiedSearch(q, opts)` — no new API payload or endpoint is required
+  - Keep the plain-text search path completely unchanged; plain-text queries continue to use `unifiedSearch(q, opts)` without any serialization step
 
 - [ ] **Add `SearchFilterChips.vue`** — shows active fielded search filters as removable badges below the search bar:
   - Each chip shows "field: value" (e.g., "model: realistic", "seed: 12345")
@@ -331,9 +341,7 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 
 | File | Change |
 |---|---|
-| `frontend/src/services/api.ts` | Add `fetchFieldedSearch()` or extend `unifiedSearch()` |
-| `frontend/src/query/keys.ts` | Add `fieldedSearch` key |
-| `frontend/src/composables/useFieldedSearchQuery.ts` | New composable (or extend `useUnifiedSearchQuery`) |
+| `frontend/src/utils/serializeAdvancedSearchToQuery.ts` | New utility (serialize form → q string) |
 | `frontend/src/components/search/AdvancedSearchDrawer.vue` | New component (TanStack Form) |
 | `frontend/src/components/search/SearchFilterChips.vue` | New component |
 | `frontend/src/components/search/SearchCommandPalette.vue` | New component (optional, light) |
@@ -478,7 +486,7 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 
 | Risk | Phase | Mitigation |
 |---|---|---|
-| IndexStatusChip becomes noisy or distracting | Phase 1 | Auto-hide when idle, pulse-only when active, never block interaction, no toasts. Test `no-toast-spam` assertion. |
+| IndexStatusChip becomes noisy or distracting | Phase 1 | Use muted idle state (compact muted chip/icon), not auto-hide. Pulse-only when active. Never block interaction, no toasts. Test `no-toast-spam` assertion. |
 | TanStack Form serialization doesn't match backend parser | Phase 2 | Build serializer tests first. Validate against known-good query examples from `fielded_search_parser.py` tests. |
 | TanStack Table performance with large datasets | Phase 3 | Server-side pagination via TanStack Query. Start with 25/50/100 page sizes. Lazy-load thumbnails only when visible. |
 | Column visibility/responsive complexity on mobile | Phase 3 | Collapse non-essential columns on small screens. Keep name, model, actions visible. Provide horizontal scroll as fallback. |
@@ -505,8 +513,8 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 
 | Test | Phase | Assertion |
 |---|---|---|
-| IndexStatusChip renders each state (idle/indexing/queued/failed) | Phase 1 | Correct badge text, color, and icon per state |
-| IndexStatusChip auto-hides when idle and no errors | Phase 1 | `v-if` evaluates to false after 5s timeout |
+| IndexStatusChip renders each state (idle/active/queued/failed/disabled) | Phase 1 | Correct badge text, color, and icon per state |
+| IndexStatusChip shows muted idle state when up-to-date (does not fully auto-hide) | Phase 1 | Chip visible with muted styling when idle and a folder context exists; hidden only when no folder/status available |
 | IndexStatusChip click opens IndexStatusPanel | Phase 1 | Panel visibility toggled |
 | IndexStatusPanel shows correct counts from API response | Phase 1 | Counts match mock `fetchIndexStatus()` response |
 | No toast spam from index status updates | Phase 1 | Toast store queue length unchanged during index status polling |
@@ -566,8 +574,9 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 |---|---|---|
 | `frontend/src/composables/useIndexStatusQuery.ts` | Phase 1 | TanStack Query wrapper for `/api/index/status` |
 | `frontend/src/composables/useFacetsQuery.ts` | Phase 1 | TanStack Query wrapper for `/api/facets` |
-| `frontend/src/components/indexing/IndexStatusChip.vue` | Phase 1 | Compact status badge (idle/indexing/queued/failed) |
+| `frontend/src/components/indexing/IndexStatusChip.vue` | Phase 1 | Compact status badge (idle/active/queued/failed/disabled) |
 | `frontend/src/components/indexing/IndexStatusPanel.vue` | Phase 1 | Detailed popover/sheet with job counts |
+| `frontend/src/utils/serializeAdvancedSearchToQuery.ts` | Phase 2 | Serializer: TanStack Form state → q string |
 | `frontend/src/components/search/AdvancedSearchDrawer.vue` | Phase 2 | TanStack Form search builder |
 | `frontend/src/components/search/SearchFilterChips.vue` | Phase 2 | Removable active filter chips |
 | `frontend/src/components/search/SearchCommandPalette.vue` | Phase 2 | Quick command/search palette (optional) |
@@ -580,18 +589,16 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 | File | Phase | Description |
 |---|---|---|
 | `frontend/src/services/api.ts` | Phase 1 | Add `fetchIndexStatus()`, `fetchFacets()` |
-| `frontend/src/services/api.ts` | Phase 2 | Add `fetchFieldedSearch()` or extend `unifiedSearch()` |
 | `frontend/src/services/api.ts` | Phase 3 | Add `fetchMetadataTableData()` |
 | `frontend/src/query/keys.ts` | Phase 1 | Add `indexStatus`, `facets` keys |
-| `frontend/src/query/keys.ts` | Phase 2 | Add `fieldedSearch` key |
 | `frontend/src/query/keys.ts` | Phase 3 | Add `metadataTable` key |
 | `frontend/src/types/index.ts` | Phase 1 | Add index status, facets types |
 | `frontend/src/types/index.ts` | Phase 2 | Add fielded search types |
 | `frontend/src/types/index.ts` | Phase 3 | Add table row, column, sort, filter types |
-| `frontend/src/components/AppHeader.vue` | Phase 1 | IndexStatusChip, upgraded scope selector |
+| `frontend/src/components/AppHeader.vue` | Phase 1 | IndexStatusChip |
 | `frontend/src/components/AppHeader.vue` | Phase 2 | AdvancedSearch trigger, SearchFilterChips |
 | `frontend/src/components/AppHeader.vue` | Phase 3 | Metadata admin nav entry |
-| `frontend/src/components/MobileHeader.vue` | Phase 1 | IndexStatusChip, upgraded scope selector |
+| `frontend/src/components/MobileHeader.vue` | Phase 1 | IndexStatusChip |
 | `frontend/src/components/MobileHeader.vue` | Phase 2 | AdvancedSearch entry point, SearchFilterChips |
 | `frontend/src/components/GalleryGrid.vue` | Phase 1 | `role="alert"` on error banner |
 | `frontend/src/components/GalleryGrid.vue` | Phase 2 | SearchFilterChips integration |
