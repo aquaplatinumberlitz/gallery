@@ -76,7 +76,22 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 
 ---
 
-## 3. Current Frontend Component Audit
+## 3. API & Type Contract Checklist
+
+Purpose: Make it clear what backend endpoints and frontend types/composables must exist before UI implementation. Frontend should not invent a new payload shape when an existing backend contract already exists.
+
+| Endpoint | Frontend Type | API Wrapper | Query/Composable | Notes |
+|---|---|---|---|---|
+| `/api/index/status` | `IndexStatusResponse` | `fetchIndexStatus()` | `useIndexStatusQuery()` | Backend complete at `indexer.py:599` |
+| `/api/facets` | `FacetsResponse` | `fetchFacets()` | `useFacetsQuery()` | Backend complete at `facets.py:248` |
+| `/api/search` | Existing `unifiedSearch()` contract | `unifiedSearch()` | Existing query composable | Current contract: `q`, `scope`, `path`, `limit`. Fielded search is parsed server-side from the `q` string. Advanced Search should serialize form state into backend-compatible `q`. |
+| `/api/scan` | `ScanResponse` (add/check `index_source?: "warm_db" \| "direct_scan" \| "mixed"` if backend returns it) | `scanDirectory()` | Existing scan composable | Backend returns `index_source`; frontend type should reflect it if available. |
+
+Frontend should not invent a new payload shape when an existing backend contract already exists.
+
+---
+
+## 4. Current Frontend Component Audit
 
 | Component | Current Role | Problems/Gaps | shadcn-vue Pattern to Learn | Recommendation |
 |---|---|---|---|---|
@@ -97,7 +112,7 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 
 ---
 
-## 4. TanStack Vue Form Decision Matrix
+## 5. TanStack Vue Form Decision Matrix
 
 | Candidate | Use Form? | Why | Why Not | Phase |
 |---|---|---|---|---|
@@ -119,7 +134,7 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 
 ---
 
-## 5. TanStack Vue Table Decision Matrix
+## 6. TanStack Vue Table Decision Matrix
 
 | Candidate | Use Table? | Why | Why Not | Phase |
 |---|---|---|---|---|
@@ -139,7 +154,7 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 
 ---
 
-## 6. shadcn-vue Pattern Mapping
+## 7. shadcn-vue Pattern Mapping
 
 | shadcn-vue Pattern | Gallery Use Case | Adaptation Approach |
 |---|---|---|
@@ -161,7 +176,7 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 
 ---
 
-## 7. Three-Phase Implementation Plan
+## 8. Three-Phase Implementation Plan
 
 ---
 
@@ -170,6 +185,18 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 **Goal:** Expose background indexing/search readiness to users and standardize existing UI structure without large rewrites.
 
 **Why:** DT/Immich-style background jobs require user-visible status/progress. The backend `/api/index/status` endpoint has been complete since Phase 1 but has zero frontend exposure. This phase is low-risk because it does not touch the main GalleryGrid, lightbox, or search hot paths.
+
+#### Preflight Checklist before Phase 1
+
+This is a preflight checklist, not a fourth implementation phase.
+
+- [ ] Verify `/api/index/status` response shape against frontend type.
+- [ ] Verify `/api/facets` response shape against frontend type.
+- [ ] Add missing frontend types for index status and facets.
+- [ ] Add or verify `ScanResponse.index_source` if backend returns it.
+- [ ] Confirm Advanced Search will serialize to `q` and call existing `unifiedSearch()`.
+- [ ] Confirm no `beforeunload`/`unload` lifecycle regression is introduced.
+- [ ] Confirm Phase 1 remains additive and does not modify GalleryGrid behavior.
 
 #### Tasks
 
@@ -480,7 +507,152 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 
 ---
 
-## 8. Risks & Non-Goals
+## 9. Index Status State Machine
+
+Purpose: Define deterministic UI state mapping for `IndexStatusChip` and `IndexStatusPanel`.
+
+Use this priority order:
+
+```ts
+failed = failed > 0 || staged_path_failed > 0 || Boolean(last_error)
+active = running > 0 || active_jobs > 0 || active_scan_requests > 0
+queued = queued > 0 || runtime_queue_depth > 0 || staged_path_queue_depth > 0
+idle = !failed && !active && !queued
+```
+
+State priority:
+1. **failed** — error affordance, visible chip, opens panel
+2. **active** — "Indexing…" state, visible chip
+3. **queued** — visible chip, queue count if available
+4. **idle/up-to-date** — muted compact chip/icon, not fully hidden when folder/library context exists
+5. **disabled/unavailable** — hidden or disabled state
+
+UI behavior:
+- **failed**: visible chip, error affordance, opens panel
+- **active**: visible chip, "Indexing…" state
+- **queued**: visible chip, queue count if available
+- **idle/up-to-date**: muted compact chip/icon, not fully hidden when folder/library context exists
+- **disabled/no folder/no status**: hidden or disabled state
+
+Indexing status should be quiet but discoverable. Active/error states should be obvious; idle/up-to-date should collapse into a muted status, not disappear completely.
+
+---
+
+## 10. Index Status Polling Policy
+
+Purpose: Avoid both noisy UI and wasteful polling.
+
+Recommended policy:
+- **active/queued/failed**: refetch every 2-3 seconds
+- **idle/up-to-date**: refetch every 30-60 seconds or disable polling
+- **browser tab hidden**: pause polling or slow it down significantly
+- **window focus**: refetch once
+- **manual refresh/open panel**: refetch immediately
+- **avoid toast spam**: status should live in chip/panel
+
+Polling policy should be implemented with TanStack Query options, not ad-hoc timers inside UI components, unless there is a strong reason.
+
+---
+
+## 11. Responsive Acceptance Criteria
+
+Purpose: Make mobile/tablet behavior explicit without forcing one rigid layout.
+
+### Mobile
+- Advanced Search should open as bottom sheet or fullscreen sheet.
+- No body scroll bleed.
+- No Safari viewport jump.
+- Sticky footer actions when the form is long.
+- Touch targets should be large enough for comfortable touch use.
+- Backdrop, Escape-equivalent, close, and cancel behaviors must be predictable.
+
+### Tablet
+- Advanced Search may be side drawer, large sheet, or centered dialog depending on fit.
+- Panels must not awkwardly cover the primary grid.
+- Tablet should not be accidentally forced into cramped phone layout.
+
+### Desktop
+- Dialog/popover/drawer can be used depending on content size.
+- Keyboard navigation and focus return should work.
+- Index status panel should not obscure primary controls.
+
+Responsive behavior should follow the app's existing gallery-first layout and avoid mobile Safari regressions.
+
+---
+
+## 12. Navigation and Entry Points
+
+Purpose: Every planned component should have a clear way for users to open it.
+
+| Component | Opens From |
+|---|---|
+| `IndexStatusPanel` | `IndexStatusChip` (click) |
+| `AdvancedSearchDrawer` | Search filter button or command/search affordance |
+| `SearchFilterChips` | Appears near the search bar/results context after filters are applied |
+| `MetadataAdminView` | Settings/Admin entry or future command palette |
+| `FacetsPanel` | Inside Advanced Search or Metadata/Admin view |
+| Future audit dashboards | Metadata/Admin/Diagnostics, not from the main gallery grid |
+
+Do not add navigation clutter just to expose every future tool. Prefer progressive disclosure.
+
+---
+
+## 13. Definition of Done
+
+### Phase 1 Done when:
+
+- [ ] `fetchIndexStatus()` is typed and tested.
+- [ ] `useIndexStatusQuery()` exists and uses sane polling.
+- [ ] `IndexStatusChip` shows failed/active/queued/idle correctly.
+- [ ] `IndexStatusPanel` shows useful status details.
+- [ ] `fetchFacets()` and/or `useFacetsQuery()` are typed or explicitly deferred.
+- [ ] `SettingsModal`/`RootPathSheet` standardization does not change behavior unexpectedly.
+- [ ] No indexing toast spam.
+- [ ] Mobile/desktop smoke tests pass.
+- [ ] Typecheck passes.
+- [ ] GalleryGrid behavior is unchanged.
+
+### Phase 2 Done when:
+
+- [ ] Advanced Search uses TanStack Form only for the complex form.
+- [ ] Form state serializes to backend-compatible `q`.
+- [ ] Existing `unifiedSearch()` path is used.
+- [ ] Plain text search still works.
+- [ ] Filter chips can remove individual filters.
+- [ ] Reset/Cancel/Apply behavior is clear.
+- [ ] Mobile sheet behavior is stable.
+- [ ] Query serializer tests pass.
+
+### Phase 3 Done when:
+
+- [ ] Metadata table uses TanStack Vue Table.
+- [ ] GalleryGrid is not replaced by a table.
+- [ ] Sorting/filtering/column visibility/row selection work.
+- [ ] Row actions are useful and safe.
+- [ ] Bulk action foundation is present but does not perform destructive actions without confirmation.
+- [ ] Backend prerequisites are clearly documented for audit/duplicate/broken-image tables.
+- [ ] Table tests pass.
+
+---
+
+## 14. Backend Prerequisites Backlog
+
+Purpose: Separate frontend work that can be done now from future admin/audit work that requires backend data first. Do not ask frontend to build a real audit table before backend exposes row-level audit data.
+
+| Possible Future Endpoint | Frontend Feature | Table/Form Usage | Not Phase 1 Unless Already Supported |
+|---|---|---|---|
+| `/api/diagnostics` | Audit dashboard | TanStack Table | No backend endpoint exists |
+| `/api/audit/duplicates` | Duplicate finder table | TanStack Table | No backend duplicate detection |
+| `/api/audit/broken-images` | Broken image table | TanStack Table | No backend broken-image scan |
+| `/api/index/errors` | Per-job error table | TanStack Table | Current endpoint returns counts only |
+| `/api/watcher/status` | Watcher status component | Simple display (chip/panel) | No HTTP route wired (`watcher.py:191`) |
+| `/api/refresh/status` | Refresh status component | Simple display (chip/panel) | No HTTP route wired (`refresh.py:150`) |
+| `/api/photos/user-metadata` | Metadata admin table | TanStack Table | Requires row-level metadata endpoint |
+| `/api/photos/batch-metadata` | Batch metadata editor | TanStack Form | Requires backend batch-update endpoint |
+
+---
+
+## 15. Risks & Non-Goals
 
 ### Risks
 
@@ -507,7 +679,7 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 
 ---
 
-## 9. Testing Plan
+## 16. Testing Plan
 
 ### Unit/Component Tests
 
@@ -566,7 +738,7 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 
 ---
 
-## 10. Recommended File/Component Map
+## 17. Recommended File/Component Map
 
 ### New Files
 
@@ -626,7 +798,7 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 
 ---
 
-## 11. Final Recommendation
+## 18. Final Recommendation
 
 ### Implementation Order
 
