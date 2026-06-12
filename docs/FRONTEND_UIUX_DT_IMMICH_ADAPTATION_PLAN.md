@@ -62,8 +62,8 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 | Facets (`/api/facets`) | Complete (`facets.py:248`, 8 facet types) | **Missing** — no `fetchFacets()` | **Missing** — no facet chips, filter UI, or suggestion dropdowns | Full gap | Phase 1: add/verify API wrappers, frontend types, query keys, and composables. Phase 2: expose visible facets UI, filter chips, and AdvancedSearchDrawer integration. |
 | Fielded search parser | Complete (`fielded_search_parser.py`, 30+ field types) | Partial — `unifiedSearch()` supports `scope` but no fielded search API wrapper | **Missing** — no AdvancedSearchDrawer, no filter chips, no field autocomplete | Backend is ready, frontend has basic text search only | P1 (Phase 2) |
 | Warm indexed folder listing | Complete (`scan.py` returns `index_source`) | Partial — `scanDirectory()` does not distinguish source | **Missing** — no visual indicator of warm vs direct scan source | Low priority (transparent optimization) | P3 |
-| Watcher (`/api/watcher/*`) | Complete (watcher.py, disabled by default) | **Missing** — no HTTP route for watcher status | **Missing** — backend function `get_watcher_status()` has no API route | Both sides need work; watcher is P3 | P3 |
-| Scheduled refresh | Complete (refresh.py, disabled by default) | **Missing** — no HTTP route for refresh status | **Missing** — backend function `get_refresh_status()` has no API route | Both sides need work; refresh is P3 | P3 |
+| Watcher | Watcher module implemented (`watcher.py:191`); HTTP route missing | **Missing** — no HTTP route for watcher status | **Missing** — frontend UI blocked until route exists | Both sides need work; watcher is P3 | P3 |
+| Scheduled refresh | Refresh module implemented (`refresh.py:150`); HTTP route missing | **Missing** — no HTTP route for refresh status | **Missing** — frontend UI blocked until route exists | Both sides need work; refresh is P3 | P3 |
 | Metadata extraction | Complete (`metadata_extract.py`, 5+ tools) | Complete — `fetchMetadata()` exists (`api.ts:179`) | **Complete** — lightbox panels display metadata well | No gap | N/A |
 | `/api/health` | Complete (`health.py:23`) | **Missing** — no `fetchHealth()` | **Missing** — not displayed in UI | Low priority; backend status is adequate | P3 |
 | `/api/search-metadata` (legacy) | Complete (`search.py:17`) | Not used — unified search replaced it | Not needed | No gap | N/A |
@@ -192,8 +192,8 @@ This is a preflight checklist, not a fourth implementation phase.
 
 - [ ] Verify `/api/index/status` response shape against frontend type.
 - [ ] Verify `/api/facets` response shape against frontend type.
-- [ ] Add missing frontend types for index status and facets.
-- [ ] Add or verify `ScanResponse.index_source` if backend returns it.
+- [ ] Verify frontend types for index status and facets are defined or document gaps.
+- [ ] Verify `ScanResponse.index_source` if backend returns it.
 - [ ] Confirm Advanced Search will serialize to `q` and call existing `unifiedSearch()`.
 - [ ] Confirm no `beforeunload`/`unload` lifecycle regression is introduced.
 - [ ] Confirm Phase 1 does not change GalleryGrid behavior, layout, virtualization, image loading, or browsing semantics. Only small accessibility annotations or non-behavioral wiring are allowed if needed.
@@ -204,9 +204,9 @@ This is a preflight checklist, not a fourth implementation phase.
 - [ ] **Add `useIndexStatusQuery()` composable** — TanStack Query wrapper with `queryKeys.indexStatus(path)`. Auto-polling (30s staleTime, 60s refetchInterval). Enabled only when a folder is loaded.
 - [ ] **Add query key `indexStatus(path)` in `query/keys.ts`**.
 - [ ] **Add `IndexStatusChip.vue`** — small badge in AppHeader (desktop) or MobileHeader (mobile) near search area. Shows one of four states:
+  - `failed` — `failed > 0 || staged_path_failed > 0 || last_error` (red badge with error icon)
   - `active` — workers are running (amber/yellow badge with pulse animation)
   - `queued` — jobs are pending (blue badge)
-  - `failed` — `failed > 0 \|\| staged_path_failed > 0 \|\| last_error` (red badge with error icon)
   - `idle` — no errors, no active jobs, no queued jobs; up-to-date (compact muted chip or muted icon/text)
   - `disabled` — no folder loaded or status unavailable (hidden)
   - **State mapping**:
@@ -225,9 +225,8 @@ This is a preflight checklist, not a fourth implementation phase.
   - **Desktop**: Popover anchored to chip
   - **Mobile**: Bottom sheet following RootPathSheet-style structure
   - **No blocking overlay, no toast per job**
-- [ ] **Add `fetchFacets()` to `api.ts`** — wraps `GET /api/facets?path=...`. Response includes `tool`, `model`, `sampler`, `scheduler`, `orientation`, `seed_availability`, `metadata_availability`, `lora`, `folders`.
-- [ ] **Add `useFacetsQuery()` composable** — TanStack Query wrapper with `queryKeys.facets(path)`. Long staleTime (5min) since facets change slowly.
-- [ ] **Verify `fetchFacets()` exists or add if missing** — confirmed backend `/api/facets` endpoint exists at `facets.py:248`.
+- [ ] **Add `fetchFacets()` to `api.ts`** — wraps `GET /api/facets?path=...`. Response includes `tool`, `model`, `sampler`, `scheduler`, `orientation`, `seed_availability`, `metadata_availability`, `lora`, `folders`. Backend endpoint confirmed at `facets.py:248`.
+- [ ] **Add `useFacetsQuery()` composable** — TanStack Query wrapper with `queryKeys.facets(path)`. Long staleTime (5min) since facets change slowly. Phase 1 prepares the facets data layer only. Visible facets UI belongs to Phase 2.
 - [ ] **Refactor SettingsModal structure** — add formal Header/Body/Footer sections:
   - **Header**: Title "Settings" + Close button
   - **Body**: Scrollable content area (current settings)
@@ -251,10 +250,10 @@ This is a preflight checklist, not a fourth implementation phase.
   - SettingsModal: add ARIA dialog roles (covered above)
   - AppHeader: add `role="banner"` landmark
 - [ ] **Add tests**:
-  - IndexStatusChip renders idle/active/queued/failed/disabled states
+  - IndexStatusChip renders failed/active/queued/idle/disabled states
   - IndexStatusPanel shows correct counts from mock API response
   - IndexStatusPanel opens/closes on chip click
-  - facades loading/display with mock data
+  - facets data-layer loading/error states (fetch, query key, composable); visible facets UI belongs to Phase 2
   - SettingsModal ARIA roles present
   - RootPathSheet ARIA roles present
   - No toast spam from index status (assert toast queue does not grow from index updates)
@@ -311,8 +310,8 @@ This is a preflight checklist, not a fourth implementation phase.
 
 - [ ] **Add `serializeAdvancedSearchToQuery()` utility** — serializes `AdvancedSearchDrawer` TanStack Form state into a backend-compatible `q` string using fielded search token syntax (e.g. `model:"PonyXL" sampler:"Euler a" seed:123 prompt:"blue archive"`). The resulting `q` string is passed to the existing `unifiedSearch(q, opts)` path. No new API wrapper is needed; no `fields[]` or `residual_text` structured payload is introduced. **Do not introduce a structured `fields[]` frontend-to-backend API unless the backend first adds and documents that contract.**
 - [ ] **Add `AdvancedSearchDrawer.vue` using `@tanstack/vue-form`** — structured search form with:
-  - **Text fields**: `prompt:`/`positive:`, `negative:`, `model:`, `sampler:`, `scheduler:`, `lora:`, `path:`/`folder:`, `name:`
-  - **Numeric fields with operators**: `seed:` (=), `steps:` (=/>/>=/</<=), `cfg:` (same operators), `width:`, `height:`, `clip_skip:`, `hires_upscale:`, `hires_steps:`, `denoising_strength:`, `vae:`
+  - **Text fields**: `prompt:`/`positive:`, `negative:`, `model:`, `sampler:`, `scheduler:`, `lora:`, `vae:`, `path:`/`folder:`, `name:`
+  - **Numeric fields with operators**: `seed:` (=), `steps:` (=/>/>=/</<=), `cfg:` (same operators), `width:`, `height:`, `clip_skip:`, `hires_upscale:`, `hires_steps:`, `denoising_strength:`
   - **Select/autocomplete fields**: `source:`/`tool:`, `model:` (suggestions from facets), `sampler:` (suggestions from facets), `orientation:` (landscape/portrait/square), `seed_availability:` (has_seed/no_seed), `metadata_availability:` (has_metadata/no_metadata)
   - **Size field**: `size:` with width×height input
   - **Aspect ratio field**: `ratio:` with common preset buttons (1:1, 4:3, 16:9, 3:2, 2:3, 9:16)
@@ -349,7 +348,7 @@ This is a preflight checklist, not a fourth implementation phase.
   - Palette shows: recent searches, common field shortcuts, "Advanced search..." entry point
   - Adapts shadcn-vue Command pattern using gallery tokens
 
-- [ ] **Extend `query/keys.ts`** — add `fieldedSearch(query, scope, path)` key for fielded search queries.
+- [ ] **Reuse existing `queryKeys.search(q, scope, path)`** — Advanced Search produces a normal backend-compatible `q` string and must reuse the existing `unifiedSearch()` path and `queryKeys.search(q, scope, path)`. Do not create a separate fielded-search cache path unless the backend/API contract changes.
 
 - [ ] **Add tests**:
   - AdvancedSearchDrawer renders all field groups
@@ -428,7 +427,14 @@ This is a preflight checklist, not a fourth implementation phase.
     - Row selection (checkbox column for batch operations)
     - Pagination (page size selector: 25/50/100)
     - Responsive: collapse less-important columns on mobile/tablet
-  - **Data source**: New backend endpoint or extend `/api/search` to return tabular metadata. Uses TanStack Query.
+   - **Data source (Phase 3A — read-only, no new endpoint required)**:
+     - Read-only `MetadataAdminTable` can start from existing `unifiedSearch()` / indexed metadata fields.
+     - No editable metadata endpoint is required for the initial read-only table.
+     - Read-only admin browsing is not blocked by future editable metadata endpoints.
+   - **Data source (Phase 3B / Future — needs new or extended backend endpoints)**:
+     - A dedicated metadata table endpoint may be added later for all-indexed pagination at scale, server-side sorting/filtering, editable user metadata, and batch metadata workflows.
+     - `/api/photos/user-metadata` is required for editing user metadata.
+     - `/api/photos/batch-metadata` is required for batch metadata editing.
 
 - [ ] **Row actions (per-row)**:
   - Open in lightbox (click thumbnail or "View" action)
@@ -544,7 +550,7 @@ Purpose: Avoid both noisy UI and wasteful polling.
 
 Recommended policy:
 - **active/queued/failed**: refetch every 2-3 seconds
-- **idle/up-to-date**: refetch every 30-60 seconds or disable polling
+- **idle/up-to-date**: refetch every 60 seconds or disable polling
 - **browser tab hidden**: pause polling or slow it down significantly
 - **window focus**: refetch once via local, debounced mechanism scoped to index status only. Do not change global TanStack Query focus behavior (keep `refetchOnWindowFocus: false`). Must not introduce `beforeunload`/`unload` listeners.
 - **manual refresh/open panel**: refetch immediately
@@ -685,12 +691,12 @@ Purpose: Separate frontend work that can be done now from future admin/audit wor
 
 | Test | Phase | Assertion |
 |---|---|---|
-| IndexStatusChip renders each state (idle/active/queued/failed/disabled) | Phase 1 | Correct badge text, color, and icon per state |
+| IndexStatusChip renders each state (failed/active/queued/idle/disabled) | Phase 1 | Correct badge text, color, and icon per state |
 | IndexStatusChip shows muted idle state when up-to-date (does not fully auto-hide) | Phase 1 | Chip visible with muted styling when idle and a folder context exists; hidden only when no folder/status available |
 | IndexStatusChip click opens IndexStatusPanel | Phase 1 | Panel visibility toggled |
 | IndexStatusPanel shows correct counts from API response | Phase 1 | Counts match mock `fetchIndexStatus()` response |
 | No toast spam from index status updates | Phase 1 | Toast store queue length unchanged during index status polling |
-| Facets display from mock API data | Phase 1 | Facet values rendered with counts |
+| Facets data-layer loading and error states | Phase 1 | `fetchFacets()` resolves with correct shape; query key and composable handle loading/error |
 | SettingsModal has ARIA dialog roles | Phase 1 | `role="dialog"`, `aria-modal="true"`, `aria-labelledby` present |
 | AdvancedSearchDrawer form renders all field groups | Phase 2 | Text, numeric, select, and size/ratio field groups visible |
 | TanStack Form validation: invalid number shows error | Phase 2 | Error message displayed for non-numeric seed input |
@@ -713,7 +719,7 @@ Purpose: Separate frontend work that can be done now from future admin/audit wor
 |---|---|---|
 | Mobile AdvancedSearchDrawer opens/closes | Phase 2 | Bottom sheet behavior on mobile breakpoint |
 | Desktop AdvancedSearchDrawer opens/closes | Phase 2 | Slide-over panel behavior on desktop breakpoint |
-| SearchScopeDropdown keyboard navigation | Phase 1 | Arrow keys, Enter, Escape on scope selector |
+| Search scope native select accessibility regression | Phase 1 | Native `<select>` renders correctly; no regressions from Phase 1 changes |
 | Full search flow: plain → advanced → filter chip removal → plain | Phase 2 | End-to-end search state transitions |
 | MetadataTable → lightbox round-trip | Phase 3 | Click thumbnail opens lightbox; close returns to table |
 
@@ -746,7 +752,7 @@ Purpose: Separate frontend work that can be done now from future admin/audit wor
 |---|---|---|
 | `frontend/src/composables/useIndexStatusQuery.ts` | Phase 1 | TanStack Query wrapper for `/api/index/status` |
 | `frontend/src/composables/useFacetsQuery.ts` | Phase 1 | TanStack Query wrapper for `/api/facets` |
-| `frontend/src/components/indexing/IndexStatusChip.vue` | Phase 1 | Compact status badge (idle/active/queued/failed/disabled) |
+| `frontend/src/components/indexing/IndexStatusChip.vue` | Phase 1 | Compact status badge (failed/active/queued/idle/disabled) |
 | `frontend/src/components/indexing/IndexStatusPanel.vue` | Phase 1 | Detailed popover/sheet with job counts |
 | `frontend/src/utils/serializeAdvancedSearchToQuery.ts` | Phase 2 | Serializer: TanStack Form state → q string |
 | `frontend/src/components/search/AdvancedSearchDrawer.vue` | Phase 2 | TanStack Form search builder |
