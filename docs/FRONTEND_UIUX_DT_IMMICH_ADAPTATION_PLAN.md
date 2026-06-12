@@ -1,6 +1,6 @@
 # Frontend UI/UX Audit & Adaptation Plan after DT/Immich Phase 1-2-3
 
-Last reviewed: 2026-06-11
+Last reviewed: 2026-06-12
 
 ## 1. Executive Summary
 
@@ -51,6 +51,47 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 - **Badge** for indexing/error/facet states.
 - **Tabs** for settings sections and admin panel sections.
 
+### Current strategy: PC-first Phase 1
+
+Phase 1 is desktop/PC-only. The previous attempt proved that wiring new status UI into mobile/tablet headers is too risky without a dedicated mobile/tablet design. Therefore, Phase 1 must only improve desktop visibility and desktop UI structure.
+
+Mobile and tablet layouts are frozen during Phase 1.
+
+---
+
+### Mobile/Tablet Freeze for Phase 1
+
+During Phase 1, these files and behaviors are out of scope:
+- MobileHeader.vue
+- TabletHeader.vue
+- MobileLayout.vue
+- TabletLayout.vue
+- mobile bottom navigation
+- mobile search
+- mobile sort
+- mobile theme toggle
+- mobile/sidebar hamburger behavior
+- tablet header actions
+- tablet breadcrumb/header layout
+- mobile/tablet lightbox behavior
+- mobile/tablet sheet behavior
+
+Phase 1 must not:
+- add IndexStatusChip to mobile header
+- add IndexStatusChip to tablet header
+- reorder mobile/tablet buttons
+- change mobile/tablet header CSS
+- change mobile/tablet layout breakpoints
+- change mobile/tablet event emit chains
+- change mobile/tablet theme toggle behavior
+
+Any mobile/tablet change requires:
+1. a separate design spec
+2. explicit approval
+3. real iPhone Safari test
+4. real iPad/tablet test
+5. rollback plan
+
 ---
 
 ## 2. Current Backend Capabilities vs Frontend UX Coverage
@@ -93,22 +134,23 @@ Frontend should not invent a new payload shape when an existing backend contract
 
 ## 4. Current Frontend Component Audit
 
-| Component | Current Role | Problems/Gaps | shadcn-vue Pattern to Learn | Recommendation |
-|---|---|---|---|---|
-| **AppHeader + Search** (`AppHeader.vue`) | Desktop header with brand, theme toggle, search box + scope selector | Search is single text input; no fielded search, no facet chips, no advanced search trigger. Scope selector is a native `<select>`. | Command palette (search suggestions), Popover (scope/field selector), Badge (fielded search chips) | **Refactor lightly**: Add Advanced Search button trigger; keep plain search input as-is. **Keep native `<select>` for scope in Phase 1.** Do not replace the native search scope selector just for visual consistency. Replace it only when the interaction model grows beyond simple scope selection (e.g., Advanced Search, search presets, fielded search shortcuts, facets, metadata/admin entry). |
-| **MobileHeader** (`MobileHeader.vue`) | Mobile top bar with expandable search, sort popover, theme toggle | Same search limitations as desktop. Search overlay has no fielded mode. | Command (mobile search palette), Sheet (advanced search drawer on mobile) | **Refactor lightly**: Add advanced search entry point; keep expandable search behavior. |
-| **SettingsModal** (`SettingsModal.vue`) | Application settings: intro screen mode, theme selection, original-image toggle | No Footer (auto-saves silently). No tabs (flat vertical scroll). No ARIA dialog roles (`role="dialog"`, `aria-modal` missing). Error state is console-only. | Dialog (Header/Body/Footer structure), Tabs (settings sections), Form layout (Label/Description pattern) | **Standardize structure only**: Add Header/Body/Footer with Done/Close button. Add ARIA roles. Keep current auto-save behavior (watcher/localStorage). Do NOT introduce Apply/Cancel/Reset because these require staged draft state and are incompatible with the auto-save watcher model. If settings later grow to complex multi-section configuration (Phase 3: indexing/watcher config), then switch to staged draft state with Apply/Cancel/Reset and consider TanStack Form at that point. |
-| **RootPathSheet** (`RootPathSheet.vue`) | Bottom sheet for editing root folder path on mobile | No loading state during path load. Missing ARIA dialog roles. Paste button hides when textarea focused (discoverability). | Sheet (Header/Description/Footer pattern) | **Refactor structure**: Add loading spinner. Add ARIA roles. Keep functional layout. Do NOT use TanStack Form (single field, no validation beyond path syntax). |
-| **Lightbox + Metadata Panel** (`Lightbox.vue`, `LightboxDesktopPanel.vue`, `LightboxMobileSheet.vue`, `LightboxTabletPanel.vue`) | Device-adaptive image viewer with metadata display | Desktop panel lacks `role="complementary"`. Mobile sheet tabs lack `role="tablist"`/`role="tab"`/`aria-selected`. Metadata display itself is well-built with sections, copy buttons, LoRA highlighting. | Tabs (mobile metadata tabs ARIA roles), Sheet (mobile panel structure) | **Keep as-is with light accessibility fixes**. Metadata panels are mature and should not be rewritten. Add ARIA roles for tabs and complementary landmark. |
-| **Toast** (`ToastContainer.vue`, `ToastItem.vue`) | Fixed-position toast notifications with TransitionGroup | No `role="alert"` or `aria-live` for screen reader announcements. No toast queue overflow beyond capping at 3. | Toast/Sonner pattern (position, stacking, dismiss) | **Keep as-is**. Toast system is mature and styled per gallery theme. Add `role="alert"` to ToastItem. |
-| **GalleryGrid** (`GalleryGrid.vue`) | Primary content display: virtualized photo grid, infinite scroll, search results, toolbar | Search results rendering is adequate. No filter chips for active fielded search. Sort/density triggers lack `aria-haspopup`/`aria-expanded` (except density). Error banner lacks `role="alert"`. No `aria-live` for search results. | Data Table toolbar pattern (for sort/density/filter controls), Badge/Alert (error states) | **Keep core as-is**. GalleryGrid is the most complex and well-tested component. Do NOT use TanStack Table. Add `aria-live` region for search results. Add `role="alert"` to error banner. |
-| **FolderTreeItem** (`FolderTreeItem.vue`) | Recursive folder tree with keyboard navigation | Missing proper TreeView ARIA roles (`role="tree"`, `role="treeitem"`, `aria-expanded`, `aria-selected`). | TreeView widget pattern from WAI-ARIA | **Refactor ARIA**: Add TreeView roles. Keep existing keyboard navigation. |
-| **EmptyState** (`EmptyState.vue`) | Generic empty/error/loading state with 7 types | SVGs lack `role="img"`/`aria-label`. Loading type lacks `aria-busy`. | N/A (custom component) | **Keep as-is**. Light accessibility improvements only. |
-| **Future: IndexStatusChip** | Does not exist | — | Badge + Popover pattern | **Add new component**. See Phase 1. |
-| **Future: IndexStatusPanel** | Does not exist | — | Popover/Sheet pattern for details | **Add new component**. See Phase 1. |
-| **Future: AdvancedSearchDrawer** | Does not exist | — | Sheet (mobile) / Side Sheet (desktop), Form (TanStack), Command palette | **Add new component**. See Phase 2. |
-| **Future: SearchFilterChips** | Does not exist | — | Badge (removable chips) | **Add new component**. See Phase 2. |
-| **Future: MetadataTable/MetadataAdminView** | Does not exist | — | Data Table (TanStack Table) | **Add new component**. See Phase 3. |
+| Component | Current Role | Problems/Gaps | shadcn-vue Pattern to Learn | Recommendation | Phase 1 Constraint |
+|---|---|---|---|---|---|
+| **AppHeader + Search** (`AppHeader.vue`) | Desktop header with brand, theme toggle, search box + scope selector | Search is single text input; no fielded search, no facet chips, no advanced search trigger. Scope selector is a native `<select>`. | Command palette (search suggestions), Popover (scope/field selector), Badge (fielded search chips) | **Phase 1: allowed** — Add IndexStatusChip and desktop panel/popover. Must not affect mobile/tablet. Keep native `<select>` for scope in Phase 1. | Add IndexStatusChip only. No mobile/tablet impact. |
+| **MobileHeader** (`MobileHeader.vue`) | Mobile top bar with expandable search, sort popover, theme toggle | Same search limitations as desktop. Search overlay has no fielded mode. | Command (mobile search palette), Sheet (advanced search drawer on mobile) | **Phase 1: frozen** — No changes. No IndexStatusChip. No status panel. No button reorder. | Frozen. No changes. |
+| **TabletHeader** (`TabletHeader.vue`) | Tablet top bar | Scope selector, theme toggle, search. | — | **Phase 1: frozen** — No changes. No IndexStatusChip. No status panel. No layout changes. | Frozen. No changes. |
+| **SettingsModal** (`SettingsModal.vue`) | Application settings: intro screen mode, theme selection, original-image toggle | No Footer (auto-saves silently). No tabs (flat vertical scroll). No ARIA dialog roles (`role="dialog"`, `aria-modal` missing). Error state is console-only. | Dialog (Header/Body/Footer structure), Tabs (settings sections), Form layout (Label/Description pattern) | **Phase 1: desktop-safe ARIA/structure only** — No mobile behavior changes. Add Header/Body/Footer with Done/Close button. Add ARIA roles. Keep current auto-save behavior (watcher/localStorage). | Desktop-safe ARIA/structure only. No mobile behavior changes. |
+| **RootPathSheet** (`RootPathSheet.vue`) | Bottom sheet for editing root folder path on mobile | No loading state during path load. Missing ARIA dialog roles. Paste button hides when textarea focused (discoverability). | Sheet (Header/Description/Footer pattern) | **Phase 1: avoid unless change is proven desktop-safe** — Add loading spinner. Add ARIA roles. Keep functional layout. | Avoid unless proven desktop-safe. |
+| **Lightbox + Metadata Panel** (`Lightbox.vue`, `LightboxDesktopPanel.vue`, `LightboxMobileSheet.vue`, `LightboxTabletPanel.vue`) | Device-adaptive image viewer with metadata display | Desktop panel lacks `role="complementary"`. Mobile sheet tabs lack `role="tablist"`/`role="tab"`/`aria-selected`. Metadata display itself is well-built with sections, copy buttons, LoRA highlighting. | Tabs (mobile metadata tabs ARIA roles), Sheet (mobile panel structure) | **Keep as-is with light accessibility fixes**. Metadata panels are mature and should not be rewritten. Add ARIA roles for tabs and complementary landmark. | Lightbox behavior frozen for mobile/tablet. |
+| **Toast** (`ToastContainer.vue`, `ToastItem.vue`) | Fixed-position toast notifications with TransitionGroup | No `role="alert"` or `aria-live` for screen reader announcements. No toast queue overflow beyond capping at 3. | Toast/Sonner pattern (position, stacking, dismiss) | **Keep as-is**. Toast system is mature and styled per gallery theme. Add `role="alert"` to ToastItem. | Desktop-safe ARIA only. |
+| **GalleryGrid** (`GalleryGrid.vue`) | Primary content display: virtualized photo grid, infinite scroll, search results, toolbar | Search results rendering is adequate. No filter chips for active fielded search. Sort/density triggers lack `aria-haspopup`/`aria-expanded` (except density). Error banner lacks `role="alert"`. No `aria-live` for search results. | Data Table toolbar pattern (for sort/density/filter controls), Badge/Alert (error states) | **Phase 1: frozen for behavior/layout/virtualization/image loading** — Do NOT use TanStack Table. `role="alert"` on error banner is desktop-safe only if it does not change mobile behavior. | Frozen for behavior/layout/virtualization/image loading. |
+| **FolderTreeItem** (`FolderTreeItem.vue`) | Recursive folder tree with keyboard navigation | Missing proper TreeView ARIA roles (`role="tree"`, `role="treeitem"`, `aria-expanded`, `aria-selected`). | TreeView widget pattern from WAI-ARIA | **Refactor ARIA**: Add TreeView roles. Keep existing keyboard navigation. | Desktop-safe ARIA only. |
+| **EmptyState** (`EmptyState.vue`) | Generic empty/error/loading state with 7 types | SVGs lack `role="img"`/`aria-label`. Loading type lacks `aria-busy`. | N/A (custom component) | **Keep as-is**. Light accessibility improvements only. | Desktop-safe ARIA only. |
+| **Future: IndexStatusChip** | Does not exist | — | Badge + Popover pattern | **Phase 1: desktop-only** — Must not be imported by MobileHeader or TabletHeader. | Desktop-only. No mobile/tablet import. |
+| **Future: IndexStatusPanel** | Does not exist | — | Popover/Sheet pattern for details | **Phase 1: desktop-only** — Must not open as mobile sheet in Phase 1. | Desktop-only. No mobile sheet. |
+| **Future: AdvancedSearchDrawer** | Does not exist | — | Sheet (mobile) / Side Sheet (desktop), Form (TanStack), Command palette | **Add new component**. See Phase 2. | Phase 2. |
+| **Future: SearchFilterChips** | Does not exist | — | Badge (removable chips) | **Add new component**. See Phase 2. | Phase 2. |
+| **Future: MetadataTable/MetadataAdminView** | Does not exist | — | Data Table (TanStack Table) | **Add new component**. See Phase 3. | Phase 3. |
 
 ---
 
@@ -176,15 +218,46 @@ Frontend should not invent a new payload shape when an existing backend contract
 
 ---
 
-## 8. Three-Phase Implementation Plan
+## 8. Implementation Phases
 
 ---
 
-### Phase 1: Visibility & UI Standardization Foundation
+### Phase 1 — Desktop visibility & UI standardization foundation
 
-**Goal:** Expose background indexing/search readiness to users and standardize existing UI structure without large rewrites.
+**Goal:** Expose background indexing/search readiness to desktop users and standardize existing desktop UI structure without large rewrites.
 
-**Why:** DT/Immich-style background jobs require user-visible status/progress. The backend `/api/index/status` endpoint has been complete since Phase 1 but has zero frontend exposure. This phase is low-risk because it does not touch the main GalleryGrid, lightbox, or search hot paths.
+**Why:** The previous attempt proved that wiring new status UI into mobile/tablet headers is too risky without a dedicated mobile/tablet design. Phase 1 is desktop-only. Mobile and tablet layouts are frozen.
+
+**Allowed in Phase 1:**
+- Desktop AppHeader index status visibility
+- Desktop-only IndexStatusChip
+- Desktop-only IndexStatusPanel / Popover
+- Desktop AppHeader placement only
+- Desktop SettingsModal ARIA cleanup if it does not affect mobile runtime
+- Desktop RootPathSheet/dialog structure cleanup only if it does not affect mobile runtime
+- API wrappers/types/query keys/composables required by desktop UI
+- Data-layer only facets wrapper, with no visible mobile/tablet UI
+
+**Not allowed in Phase 1:**
+- No MobileHeader changes
+- No TabletHeader changes
+- No mobile/tablet status chip
+- No mobile/tablet panel/sheet wiring
+- No mobile/tablet ARIA refactor unless proven desktop-only
+- No GalleryGrid behavior/layout/virtualization/image loading changes
+- No search/sort/theme/sidebar mobile changes
+
+**shadcn-vue adaptation in Phase 1 means:**
+- Badge-like desktop status chip
+- Popover/Dialog-like desktop detail panel
+- Header/Body/Footer structure
+- ARIA/focus behavior where safe
+
+**It does not mean:**
+- shadcn rewrite
+- Tailwind adoption
+- mobile/tablet sheet adoption
+- replacing existing mobile/tablet components
 
 #### Preflight Checklist before Phase 1
 
@@ -198,12 +271,37 @@ This is a preflight checklist, not a fourth implementation phase.
 - [ ] Confirm no `beforeunload`/`unload` lifecycle regression is introduced.
 - [ ] Confirm Phase 1 does not change GalleryGrid behavior, layout, virtualization, image loading, or browsing semantics. Only small accessibility annotations or non-behavioral wiring are allowed if needed.
 
-#### Tasks
+---
+
+#### Phase 1A — Desktop data layer
+
+- [ ] IndexStatusResponse, FacetsResponse, IndexStatusState types
+- [ ] `queryKeys.indexStatus(path)`, `queryKeys.facets(path)`
+- [ ] `fetchIndexStatus(path)`, `fetchFacets(path)` in `api.ts`
+- [ ] `useIndexStatusQuery(path, enabled)` composable
+- [ ] `useFacetsQuery(path, enabled)` composable
+
+Rules:
+- no mobile/tablet consumption
+- no visible mobile/tablet UI
+- no global behavior changes
+
+---
+
+#### Phase 1B — Desktop index status UI
+
+- [ ] Desktop AppHeader-only IndexStatusChip
+- [ ] Desktop-only IndexStatusPanel
+- [ ] Use Badge + Popover/Dialog pattern inspired by shadcn-vue
+- [ ] Adaptive polling: fast only when active/queued work exists; failed-only/no moving work slow-polls; unavailable/error visible but not noisy
+- [ ] No MobileHeader/TabletHeader imports
+
+**Tasks:**
 
 - [ ] **Add `fetchIndexStatus()` to `api.ts`** — wraps `GET /api/index/status?path=...`. Response includes: `enabled`, `worker_count`, `active_jobs`, `runtime_queue_depth`, counts by state, `last_error`, `updated_at`.
 - [ ] **Add `useIndexStatusQuery()` composable** — TanStack Query wrapper with `queryKeys.indexStatus(path)`. Adaptive polling per Section 10 policy: active/queued/failed every 2-3s, idle every 60s. Browser tab hidden: pause or slow down. Window focus: local debounced refetch. No beforeunload/unload listeners. Enabled only when a folder is loaded.
 - [ ] **Add query key `indexStatus(path)` in `query/keys.ts`**.
-- [ ] **Add `IndexStatusChip.vue`** — small badge in AppHeader (desktop) or MobileHeader (mobile) near search area. Shows one of four states:
+- [ ] **Add `IndexStatusChip.vue`** — small badge in AppHeader (desktop only) near search area. Shows one of four states:
   - `failed` — `failed > 0 || staged_path_failed > 0 || last_error` (red badge with error icon)
   - `active` — workers are running (amber/yellow badge with pulse animation)
   - `queued` — jobs are pending (blue badge)
@@ -216,7 +314,8 @@ This is a preflight checklist, not a fourth implementation phase.
     queued = queued > 0 || runtime_queue_depth > 0 || staged_path_queue_depth > 0
     idle = !failed && !active && !queued
     ```
-  - **UI behavior**: Click chip opens IndexStatusPanel (popover on desktop, sheet on mobile). **Do NOT auto-hide when idle.** Idle/up-to-date state collapses into a muted status (compact chip or muted icon) — not disappear completely. Indexing status should be quiet but discoverable. Active/error states should be obvious. Disabled/no-folder state is hidden. Never blocks interaction. Never creates toast spam.
+  - **UI behavior**: Click chip opens IndexStatusPanel (popover on desktop). **Do NOT auto-hide when idle.** Idle/up-to-date state collapses into a muted status (compact chip or muted icon) — not disappear completely. Indexing status should be quiet but discoverable. Active/error states should be obvious. Disabled/no-folder state is hidden. Never blocks interaction. Never creates toast spam.
+  - **Phase 1 constraint**: Must not be imported by MobileHeader or TabletHeader.
 - [ ] **Add `IndexStatusPanel.vue`** — detailed index status shown on chip click. Shows:
   - Summary line: "Indexing — X queued, Y active, Z done" (using queued/running/done/failed counts that the backend actually returns; there is no total file count from `/api/index/status`)
   - Per-state counts: queued, running, done, failed, stale, skipped
@@ -224,10 +323,21 @@ This is a preflight checklist, not a fourth implementation phase.
   - Worker count and queue depth
   - **Progress indicator**: `LinearProgressIndicator` (determinate when running/done counts allow percentage computation, indeterminate otherwise) or compact `CircularProgressIndicator` to satisfy MD3 requirement for visible progress on background operations. Show in IndexStatusPanel; may also appear as a subtle indicator on IndexStatusChip when in active state.
   - **Desktop**: Popover anchored to chip
-  - **Mobile**: Bottom sheet following RootPathSheet-style structure
+  - **Not allowed in Phase 1**: Mobile bottom sheet following RootPathSheet-style structure
   - **No blocking overlay, no toast per job**
 - [ ] **Add `fetchFacets()` to `api.ts`** — wraps `GET /api/facets?path=...`. Response includes `tool`, `model`, `sampler`, `scheduler`, `orientation`, `seed_availability`, `metadata_availability`, `lora`, `folders`. Backend endpoint confirmed at `facets.py:248`.
 - [ ] **Add `useFacetsQuery()` composable** — TanStack Query wrapper with `queryKeys.facets(path)`. Long staleTime (5min) since facets change slowly. Phase 1 prepares the facets data layer only. Visible facets UI belongs to Phase 2.
+
+---
+
+#### Phase 1C — Desktop-safe UI standardization
+
+- [ ] Desktop-safe dialog/header/body/footer cleanup
+- [ ] Desktop-safe ARIA only
+- [ ] No mobile/tablet runtime changes
+
+**Tasks:**
+
 - [ ] **Refactor SettingsModal structure** — add formal Header/Body/Footer sections:
   - **Header**: Title "Settings" + Close button
   - **Body**: Scrollable content area (current settings)
@@ -235,6 +345,7 @@ This is a preflight checklist, not a fourth implementation phase.
   - Add `role="dialog"`, `aria-modal="true"`, `aria-labelledby` referencing title element.
   - Do NOT add tabs yet; keep flat layout until more settings are added.
   - Do NOT migrate to TanStack Form in Phase 1; the current auto-save watcher model is correct and TanStack Form's dirty/Apply/Cancel/Reset lifecycle would conflict.
+  - Phase 1 constraint: Desktop-safe ARIA/structure only. No mobile behavior changes.
 - [ ] **Refactor RootPathSheet structure** — add Header/Description/Footer pattern:
   - **Header**: "Edit Root Path" title + FolderOpen icon
   - **Description**: Brief explanation text
@@ -242,12 +353,13 @@ This is a preflight checklist, not a fourth implementation phase.
   - **Footer**: Action buttons (Clear, Cancel, Load)
   - Add loading spinner during `setRootPath` resolution
   - Add `role="dialog"`, `aria-modal` for iOS VoiceOver
+  - Phase 1 constraint: Avoid unless change is proven desktop-safe.
 - [ ] **Keep native search scope `<select>` as-is in Phase 1** — the current native select with simple options ("This folder", "All indexed") is simple, accessible, low-risk, and sufficient for Phase 1. **Do not replace the native search scope selector just for visual consistency. Replace it only when the interaction model grows beyond simple scope selection** (e.g., Advanced Search with search presets, fielded search shortcuts, facets, metadata/admin entry — Phase 2+). If scope options expand in Phase 2, consider DropdownMenu or Popover at that point.
-- [ ] **Add accessibility fixes** (light, non-breaking):
+- [ ] **Add accessibility fixes** (desktop-safe only, non-breaking):
   - ToastItem: add `role="alert"` for screen reader announcements
-  - GalleryGrid error banner: add `role="alert"`
+  - GalleryGrid error banner: add `role="alert"` (desktop-safe only)
   - FolderTreeItem: add `role="tree"`, `role="treeitem"`, `aria-expanded`
-  - LightboxMobileSheet tabs: add `role="tablist"`, `role="tab"`, `aria-selected`
+  - LightboxMobileSheet tabs: add `role="tablist"`, `role="tab"`, `aria-selected` (only if proven desktop-safe)
   - SettingsModal: add ARIA dialog roles (covered above)
   - AppHeader: add `role="banner"` landmark
 - [ ] **Add tests**:
@@ -260,52 +372,77 @@ This is a preflight checklist, not a fourth implementation phase.
   - No toast spam from index status (assert toast queue does not grow from index updates)
   - Existing search and GalleryGrid tests unchanged
 
-#### Files Affected
+#### Files Affected (Phase 1)
 
-| File | Change |
-|---|---|
-| `frontend/src/services/api.ts` | Add `fetchIndexStatus()`, `fetchFacets()` |
-| `frontend/src/query/keys.ts` | Add `indexStatus(path)`, `facets(path)` keys |
-| `frontend/src/composables/useIndexStatusQuery.ts` | New composable |
-| `frontend/src/composables/useFacetsQuery.ts` | New composable |
-| `frontend/src/components/indexing/IndexStatusChip.vue` | New component |
-| `frontend/src/components/indexing/IndexStatusPanel.vue` | New component |
-| `frontend/src/components/SettingsModal.vue` | Structure refactor + ARIA |
-| `frontend/src/components/RootPathSheet.vue` | Structure refactor + ARIA + loading state |
-| `frontend/src/components/AppHeader.vue` | Add IndexStatusChip |
-| `frontend/src/components/MobileHeader.vue` | Add IndexStatusChip |
-| `frontend/src/components/ToastItem.vue` | Add `role="alert"` |
-| `frontend/src/components/GalleryGrid.vue` | Add `role="alert"` to error banner |
-| `frontend/src/components/FolderTreeItem.vue` | Add TreeView ARIA roles |
-| `frontend/src/components/LightboxMobileSheet.vue` | Add tab ARIA roles |
-| `frontend/src/types/index.ts` | Add `IndexStatus`, `FacetsResponse`, `FacetEntry` types |
+| File | Change | Phase 1 Constraint |
+|---|---|---|
+| `frontend/src/services/api.ts` | Add `fetchIndexStatus()`, `fetchFacets()` | Data-layer only |
+| `frontend/src/query/keys.ts` | Add `indexStatus(path)`, `facets(path)` keys | Data-layer only |
+| `frontend/src/composables/useIndexStatusQuery.ts` | New composable | Data-layer only |
+| `frontend/src/composables/useFacetsQuery.ts` | New composable | Data-layer only, no visible UI in Phase 1 |
+| `frontend/src/components/indexing/IndexStatusChip.vue` | New component | Desktop-only |
+| `frontend/src/components/indexing/IndexStatusPanel.vue` | New component | Desktop-only |
+| `frontend/src/components/SettingsModal.vue` | Structure refactor + ARIA | Desktop-safe only |
+| `frontend/src/components/RootPathSheet.vue` | Structure refactor + ARIA + loading state | Avoid unless proven desktop-safe |
+| `frontend/src/components/AppHeader.vue` | Add IndexStatusChip | Desktop-only. Must not affect mobile/tablet. |
+| `frontend/src/components/ToastItem.vue` | Add `role="alert"` | Desktop-safe only |
+| `frontend/src/components/GalleryGrid.vue` | Add `role="alert"` to error banner | Frozen for behavior/layout/virtualization |
+| `frontend/src/components/FolderTreeItem.vue` | Add TreeView ARIA roles | Desktop-safe only |
+| `frontend/src/components/LightboxMobileSheet.vue` | Add tab ARIA roles | Avoid unless proven desktop-safe |
+| `frontend/src/types/index.ts` | Add `IndexStatus`, `FacetsResponse`, `FacetEntry` types | Data-layer only |
 
-#### Risk Assessment
+**Not touched in Phase 1:**
+- `MobileHeader.vue` — frozen
+- `TabletHeader.vue` — frozen
+- `MobileLayout.vue` — frozen
+- `TabletLayout.vue` — frozen
 
-- **Low risk.** This phase is purely additive for new components; Phase 1 should not change GalleryGrid behavior, layout, virtualization, image loading, or browsing semantics. Only small accessibility annotations or non-behavioral wiring are allowed if needed. Lightbox and search hot paths are not modified beyond accessibility attributes.
+#### Phase 1 Risk Assessment
+
+- **Low risk for desktop.** This phase is purely additive for new desktop components; Phase 1 should not change GalleryGrid behavior, layout, virtualization, image loading, or browsing semantics.
+- **Mobile/tablet risk is eliminated** because those surfaces are frozen.
 - IndexStatusChip is unobtrusive, uses muted idle state (never auto-hides), and never blocks interaction.
 - SettingsModal/RootPathSheet refactors are structural only; behavior is preserved.
 
-#### Acceptance Criteria
+#### Phase 1 Acceptance Criteria
 
-1. IndexStatusChip appears when a folder is loaded and shows correct state
-2. Clicking chip opens IndexStatusPanel with accurate counts
-3. Chip shows muted idle/up-to-date state when no errors and no active jobs (does not fully auto-hide when a folder context exists; hidden only when no folder/status available)
-4. No toast spam from index status updates
-5. SettingsModal has Header/Body/Footer structure and ARIA dialog roles
-6. RootPathSheet has ARIA dialog roles and loading state
-7. Native search scope `<select>` is preserved and functional (replacement deferred to Phase 2+)
-8. Accessibility fixes applied (roles added, no regressions)
-9. All existing tests pass
-10. New tests pass (index status chip/panel, facets loading, ARIA roles, toast non-regression)
+**Desktop:**
+- AppHeader layout remains stable
+- IndexStatusChip appears only on desktop
+- IndexStatusPanel opens/closes correctly
+- failed/active/queued/idle/unavailable states are visible
+- No noisy polling
+- SettingsModal behavior unchanged except safe ARIA/structure
+
+**Mobile (freeze verification):**
+- MobileHeader unchanged from pre-Phase-1 baseline
+- Hamburger visible and working
+- Search visible and working
+- Sort visible and working
+- Theme toggle visible and working
+- No IndexStatusChip in MobileHeader
+- No new mobile header CSS
+
+**Tablet (freeze verification):**
+- TabletHeader unchanged from pre-Phase-1 baseline
+- No IndexStatusChip in TabletHeader
+- No tablet header layout changes
+
+**Gallery:**
+- GalleryGrid behavior unchanged
+- Virtualization unchanged
+- Image loading unchanged
+- Lightbox behavior unchanged
 
 ---
 
-### Phase 2: Advanced Search & Faceted Discovery
+### Phase 2 — Desktop advanced search first
 
-**Goal:** Expose fielded search and facets as usable frontend UX.
+**Goal:** Expose fielded search and facets as usable frontend UX, desktop-first.
 
-**Why:** The backend fielded search parser supports 30+ field types and `/api/facets` provides 8 facet categories, but the frontend has zero discoverability for these capabilities. The current search is a single text input with a scope toggle. TanStack Form is justified because advanced search is a complex form with validation, dirty state, and Apply/Cancel/Reset behavior.
+**Why:** The backend fielded search parser supports 30+ field types and `/api/facets` provides 8 facet categories, but the frontend has zero discoverability for these capabilities. TanStack Form is justified because advanced search is a complex form with validation, dirty state, and Apply/Cancel/Reset behavior.
+
+**Mobile/tablet constraint:** Mobile/tablet advanced search is deferred to a separate spec.
 
 #### Tasks
 
@@ -338,11 +475,10 @@ This is a preflight checklist, not a fourth implementation phase.
   - "Clear All" button when multiple filters are active
   - Styled as gallery Badge variant with warm-latte tokens
   - Displays when fielded search is active (in both plain search and advanced search modes)
+  - Phase 2 constraint: Desktop-first. Mobile/tablet filter chips deferred.
 
-- [ ] **Mobile/Dekstop responsive behavior**:
+- [ ] **Desktop responsive behavior**:
   - **Desktop**: AdvancedSearchDrawer opens as a right-side drawer/slide-over panel (similar to sidebar pattern). Animation: slide in from right.
-  - **Mobile**: AdvancedSearchDrawer opens as a full bottom sheet (following RootPathSheet and VSBS patterns).
-  - Both variants use the same TanStack Form logic; only the layout container differs.
 
 - [ ] **Add command/palette pattern** (light, optional):
   - Cmd+K (desktop) or tap search icon (mobile) opens a quick search palette
@@ -361,10 +497,9 @@ This is a preflight checklist, not a fourth implementation phase.
   - Chip removal updates search and clears filter
   - "Clear All" removes all fielded filters
   - Plain text search regression (no fielded search) still works
-  - Mobile drawer opens/closes correctly
   - Desktop drawer opens/closes correctly
 
-#### Files Affected
+#### Files Affected (Phase 2)
 
 | File | Change |
 |---|---|
@@ -372,18 +507,21 @@ This is a preflight checklist, not a fourth implementation phase.
 | `frontend/src/components/search/AdvancedSearchDrawer.vue` | New component (TanStack Form) |
 | `frontend/src/components/search/SearchFilterChips.vue` | New component |
 | `frontend/src/components/search/SearchCommandPalette.vue` | New component (optional, light) |
-| `frontend/src/components/AppHeader.vue` | Add Advanced Search trigger button, SearchFilterChips |
-| `frontend/src/components/MobileHeader.vue` | Add Advanced Search entry point, SearchFilterChips |
+| `frontend/src/components/AppHeader.vue` | Add Advanced Search trigger button, SearchFilterChips (desktop) |
 | `frontend/src/components/GalleryGrid.vue` | Integrate SearchFilterChips near the search/results context. Must not alter GalleryGrid virtualization or photo browsing behavior. |
 | `frontend/src/types/index.ts` | Add `FieldedSearchParams`, `FieldFilter` types |
 
-#### Risk Assessment
+**Not touched in Phase 2:**
+- `MobileHeader.vue` — advanced search entry point deferred to separate spec
+- `TabletHeader.vue` — advanced search entry point deferred to separate spec
+
+#### Risk Assessment (Phase 2)
 
 - **Medium risk.** TanStack Form integration is new territory. The form serialization must match the backend parser format exactly.
 - Mitigation: build query serialization tests first, validate against known-good backend query examples. Keep plain search path fully isolated.
 - Plain text search must not regress. The AdvancedSearchDrawer is an opt-in extension; default search behavior is unchanged.
 
-#### Acceptance Criteria
+#### Acceptance Criteria (Phase 2)
 
 1. AdvancedSearchDrawer opens with structured form fields
 2. TanStack Form validation catches invalid numeric/format entries
@@ -391,17 +529,19 @@ This is a preflight checklist, not a fourth implementation phase.
 4. SearchFilterChips appear when fielded search is active
 5. Removing a chip updates the active search and removes the filter
 6. Plain text search (no fielded search) behavior is unchanged
-7. Mobile drawer opens as bottom sheet; desktop drawer slides from right
+7. Desktop drawer slides from right
 8. All existing search and gallery tests pass
 9. New tests pass (form validation, Apply/Cancel/Reset, chip removal, serialization)
 
 ---
 
-### Phase 3: Metadata/Admin Cockpit & Audit Tables
+### Phase 3 — Desktop metadata/admin cockpit
 
 **Goal:** Use TanStack Table in the right places: admin, metadata, audit, and diagnostics — not photo browsing.
 
 **Why:** DT/Immich both emphasize visibility into jobs/status/metadata/indexing at scale. TanStack Table is appropriate for management/audit workflows with sortable/filterable columns. Table row selection + TanStack Form batch editing is the strongest combined use case for both libraries.
+
+**Mobile/tablet constraint:** Mobile/tablet admin view deferred to separate spec.
 
 #### Tasks
 
@@ -480,7 +620,7 @@ This is a preflight checklist, not a fourth implementation phase.
   - Responsive: columns collapse on mobile/tablet
   - GalleryGrid unchanged (regression)
 
-#### Files Affected
+#### Files Affected (Phase 3)
 
 | File | Change |
 |---|---|
@@ -492,15 +632,14 @@ This is a preflight checklist, not a fourth implementation phase.
 | `frontend/src/types/index.ts` | Add `MetadataTableRow`, `TableColumn`, `TableSort`, `TableFilter` types |
 | `frontend/src/App.vue` | Add MetadataAdminView switching logic |
 | `frontend/src/components/AppHeader.vue` | Add "Metadata" nav entry |
-| `tests/` | New test files for table and admin view |
 
-#### Risk Assessment
+#### Risk Assessment (Phase 3)
 
 - **Medium risk.** TanStack Table integration is the largest new dependency usage. Column configuration complexity, performance with large datasets, and responsive behavior need testing.
 - Mitigation: start with a focused MetadataAdminTable for indexed metadata. Add more tables (error, audit, duplicate) incrementally in future phases.
 - Backend prerequisites for many planned tables mean this phase is primarily the MetadataTable + admin view, with documentation of prerequisites for future tables.
 
-#### Acceptance Criteria
+#### Acceptance Criteria (Phase 3)
 
 1. MetadataTable renders columns with correct data from backend
 2. Sorting works on seed, dimensions, date columns
@@ -607,7 +746,7 @@ Purpose: Every planned component should have a clear way for users to open it.
 
 | Component | Opens From |
 |---|---|
-| `IndexStatusPanel` | `IndexStatusChip` (click) |
+| `IndexStatusPanel` | `IndexStatusChip` (click) — desktop only in Phase 1 |
 | `AdvancedSearchDrawer` | Search filter button or command/search affordance |
 | `SearchFilterChips` | Appears near the search bar/results context after filters are applied |
 | `MetadataAdminView` | Settings/Admin entry or future command palette |
@@ -624,12 +763,17 @@ Do not add navigation clutter just to expose every future tool. Prefer progressi
 
 - [ ] `fetchIndexStatus()` is typed and tested.
 - [ ] `useIndexStatusQuery()` exists and uses sane polling.
-- [ ] `IndexStatusChip` shows failed/active/queued/idle correctly.
-- [ ] `IndexStatusPanel` shows useful status details.
-- [ ] `fetchFacets()` and/or `useFacetsQuery()` are typed or explicitly deferred.
+- [ ] `IndexStatusChip` shows failed/active/queued/idle correctly (desktop only).
+- [ ] `IndexStatusPanel` shows useful status details (desktop only).
+- [ ] `fetchFacets()` and/or `useFacetsQuery()` are typed or explicitly deferred (data-layer only).
 - [ ] `SettingsModal`/`RootPathSheet` standardization does not change behavior unexpectedly.
 - [ ] No indexing toast spam.
-- [ ] Mobile/desktop smoke tests pass.
+- [ ] MobileHeader unchanged from pre-Phase-1 baseline.
+- [ ] TabletHeader unchanged from pre-Phase-1 baseline.
+- [ ] No IndexStatusChip in MobileHeader or TabletHeader.
+- [ ] Desktop smoke tests pass.
+- [ ] Mobile freeze verification passes (hamburger, search, sort, theme toggle).
+- [ ] Tablet freeze verification passes.
 - [ ] Typecheck passes.
 - [ ] GalleryGrid behavior is unchanged.
 
@@ -641,7 +785,6 @@ Do not add navigation clutter just to expose every future tool. Prefer progressi
 - [ ] Plain text search still works.
 - [ ] Filter chips can remove individual filters.
 - [ ] Reset/Cancel/Apply behavior is clear.
-- [ ] Mobile sheet behavior is stable.
 - [ ] Query serializer tests pass.
 
 ### Phase 3 Done when:
@@ -688,6 +831,10 @@ Purpose: Separate frontend work that can be done now from future admin/audit wor
 | Accessibility regression from new components | All Phases | Add ARIA roles in Phase 1 accessibility fixes. New components follow the established patterns. Test with `role` assertions. |
 | bfcache/lifecycle regressions on iOS Safari | All Phases | Keep global TanStack Query `refetchOnWindowFocus: false`. Index status may use a local, debounced refetch-on-focus/pageshow/visibilitychange if needed, but must not re-enable noisy global refetches. No `beforeunload`/`unload` listeners. Test mobile sheet behavior. |
 
+**Lesson from failed Phase 1 attempt:** Mobile/tablet headers are high-risk surfaces. Even small status chips can break real iPhone Safari layout and touch behavior. Playwright/Chromium viewport tests are not enough to prove iPhone Safari safety.
+
+Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory before any future mobile/tablet implementation.
+
 ### Non-Goals (Explicitly Excluded)
 
 - **Do not rewrite the whole UI into shadcn-vue.** Adapt patterns for structure, accessibility, and keyboard behavior. Keep gallery-native SCSS/warm-latte/premium theme.
@@ -697,10 +844,33 @@ Purpose: Separate frontend work that can be done now from future admin/audit wor
 - **Do not regress mobile sheets or introduce bounce/jank.** Keep VSBS for metadata sheet; new sheets follow established patterns.
 - **Do not break iOS Safari lifecycle/bfcache behavior.** No `beforeunload`/`unload` listeners. Query refetch behavior unchanged.
 - **Do not move backend indexing work back into the scan hot path.** This is a frontend plan. Backend hot-path contracts are preserved.
+- **Do not touch MobileHeader or TabletHeader in Phase 1.** These files are frozen.
 
 ---
 
 ## 16. Testing Plan
+
+### Required Regression Tests (Phase 1)
+
+**Desktop tests:**
+- Desktop index chip visible
+- Panel opens/closes
+- Unavailable state visible on API failure
+- Failed-only does not fast-poll
+- Active/queued fast-polls
+
+**Mobile freeze tests (pre- and post-Phase 1, must pass identically):**
+- Hamburger visible
+- Hamburger click works
+- Search button visible
+- Sort button visible
+- Theme button visible
+- Theme click changes `document.documentElement.dataset.theme`
+- No IndexStatusChip in MobileHeader
+
+**Tablet freeze tests:**
+- Tablet header renders baseline actions
+- No IndexStatusChip in TabletHeader
 
 ### Unit/Component Tests
 
@@ -732,9 +902,7 @@ Purpose: Separate frontend work that can be done now from future admin/audit wor
 
 | Test | Phase | Description |
 |---|---|---|
-| Mobile AdvancedSearchDrawer opens/closes | Phase 2 | Bottom sheet behavior on mobile breakpoint |
 | Desktop AdvancedSearchDrawer opens/closes | Phase 2 | Slide-over panel behavior on desktop breakpoint |
-| Search scope native select accessibility regression | Phase 1 | Native `<select>` renders correctly; no regressions from Phase 1 changes |
 | Full search flow: plain → advanced → filter chip removal → plain | Phase 2 | End-to-end search state transitions |
 | MetadataTable → lightbox round-trip | Phase 3 | Click thumbnail opens lightbox; close returns to table |
 
@@ -765,10 +933,10 @@ Purpose: Separate frontend work that can be done now from future admin/audit wor
 
 | File | Phase | Description |
 |---|---|---|
-| `frontend/src/composables/useIndexStatusQuery.ts` | Phase 1 | TanStack Query wrapper for `/api/index/status` |
-| `frontend/src/composables/useFacetsQuery.ts` | Phase 1 | TanStack Query wrapper for `/api/facets` |
-| `frontend/src/components/indexing/IndexStatusChip.vue` | Phase 1 | Compact status badge (failed/active/queued/idle/disabled) |
-| `frontend/src/components/indexing/IndexStatusPanel.vue` | Phase 1 | Detailed popover/sheet with job counts |
+| `frontend/src/composables/useIndexStatusQuery.ts` | Phase 1A | TanStack Query wrapper for `/api/index/status` |
+| `frontend/src/composables/useFacetsQuery.ts` | Phase 1A | TanStack Query wrapper for `/api/facets` |
+| `frontend/src/components/indexing/IndexStatusChip.vue` | Phase 1B | Compact status badge (failed/active/queued/idle/disabled) — desktop-only |
+| `frontend/src/components/indexing/IndexStatusPanel.vue` | Phase 1B | Detailed popover with job counts — desktop-only |
 | `frontend/src/utils/serializeAdvancedSearchToQuery.ts` | Phase 2 | Serializer: TanStack Form state → q string |
 | `frontend/src/components/search/AdvancedSearchDrawer.vue` | Phase 2 | TanStack Form search builder |
 | `frontend/src/components/search/SearchFilterChips.vue` | Phase 2 | Removable active filter chips |
@@ -779,29 +947,36 @@ Purpose: Separate frontend work that can be done now from future admin/audit wor
 
 ### Modified Files
 
-| File | Phase | Description |
-|---|---|---|
-| `frontend/src/services/api.ts` | Phase 1 | Add `fetchIndexStatus()`, `fetchFacets()` |
-| `frontend/src/services/api.ts` | Phase 3 | Add `fetchMetadataTableData()` |
-| `frontend/src/query/keys.ts` | Phase 1 | Add `indexStatus`, `facets` keys |
-| `frontend/src/query/keys.ts` | Phase 3 | Add `metadataTable` key |
-| `frontend/src/types/index.ts` | Phase 1 | Add index status, facets types |
-| `frontend/src/types/index.ts` | Phase 2 | Add fielded search types |
-| `frontend/src/types/index.ts` | Phase 3 | Add table row, column, sort, filter types |
-| `frontend/src/components/AppHeader.vue` | Phase 1 | IndexStatusChip |
-| `frontend/src/components/AppHeader.vue` | Phase 2 | AdvancedSearch trigger, SearchFilterChips |
-| `frontend/src/components/AppHeader.vue` | Phase 3 | Metadata admin nav entry |
-| `frontend/src/components/MobileHeader.vue` | Phase 1 | IndexStatusChip |
-| `frontend/src/components/MobileHeader.vue` | Phase 2 | AdvancedSearch entry point, SearchFilterChips |
-| `frontend/src/components/GalleryGrid.vue` | Phase 1 | `role="alert"` on error banner |
-| `frontend/src/components/GalleryGrid.vue` | Phase 2 | SearchFilterChips integration |
-| `frontend/src/components/SettingsModal.vue` | Phase 1 | Header/Body/Footer structure, ARIA roles |
-| `frontend/src/components/SettingsModal.vue` | Phase 3 | Tabs + TanStack Form (if indexing config added) |
-| `frontend/src/components/RootPathSheet.vue` | Phase 1 | Structure refactor, loading state, ARIA |
-| `frontend/src/components/ToastItem.vue` | Phase 1 | `role="alert"` |
-| `frontend/src/components/FolderTreeItem.vue` | Phase 1 | TreeView ARIA roles |
-| `frontend/src/components/LightboxMobileSheet.vue` | Phase 1 | Tab ARIA roles |
-| `frontend/src/App.vue` | Phase 3 | MetadataAdminView switching |
+| File | Phase | Description | Constraint |
+|---|---|---|---|
+| `frontend/src/services/api.ts` | Phase 1A | Add `fetchIndexStatus()`, `fetchFacets()` | Data-layer only |
+| `frontend/src/services/api.ts` | Phase 3 | Add `fetchMetadataTableData()` | Data-layer only |
+| `frontend/src/query/keys.ts` | Phase 1A | Add `indexStatus`, `facets` keys | Data-layer only |
+| `frontend/src/query/keys.ts` | Phase 3 | Add `metadataTable` key | Data-layer only |
+| `frontend/src/types/index.ts` | Phase 1A | Add index status, facets types | Data-layer only |
+| `frontend/src/types/index.ts` | Phase 2 | Add fielded search types | Data-layer only |
+| `frontend/src/types/index.ts` | Phase 3 | Add table row, column, sort, filter types | Data-layer only |
+| `frontend/src/components/AppHeader.vue` | Phase 1B | IndexStatusChip (desktop-only) | Must not affect mobile/tablet |
+| `frontend/src/components/AppHeader.vue` | Phase 2 | AdvancedSearch trigger, SearchFilterChips (desktop) | Desktop-only |
+| `frontend/src/components/AppHeader.vue` | Phase 3 | Metadata admin nav entry | Desktop-only |
+| `frontend/src/components/GalleryGrid.vue` | Phase 1C | `role="alert"` on error banner (desktop-safe only) | Frozen for behavior/layout/virtualization |
+| `frontend/src/components/GalleryGrid.vue` | Phase 2 | SearchFilterChips integration | Frozen for behavior/layout/virtualization |
+| `frontend/src/components/SettingsModal.vue` | Phase 1C | Header/Body/Footer structure, ARIA roles | Desktop-safe only. No mobile behavior changes. |
+| `frontend/src/components/SettingsModal.vue` | Phase 3 | Tabs + TanStack Form (if indexing config added) | Phase 3 only if config grows |
+| `frontend/src/components/RootPathSheet.vue` | Phase 1C | Structure refactor, loading state, ARIA | Avoid unless proven desktop-safe |
+| `frontend/src/components/ToastItem.vue` | Phase 1C | `role="alert"` | Desktop-safe only |
+| `frontend/src/components/FolderTreeItem.vue` | Phase 1C | TreeView ARIA roles | Desktop-safe only |
+| `frontend/src/components/LightboxMobileSheet.vue` | Phase 1C | Tab ARIA roles | Avoid unless proven desktop-safe |
+| `frontend/src/App.vue` | Phase 3 | MetadataAdminView switching | Desktop-only |
+
+### Files Frozen in Phase 1
+
+| File | Status |
+|---|---|
+| `frontend/src/components/MobileHeader.vue` | Frozen — no changes |
+| `frontend/src/components/TabletHeader.vue` | Frozen — no changes |
+| `frontend/src/components/MobileLayout.vue` | Frozen — no changes |
+| `frontend/src/components/TabletLayout.vue` | Frozen — no changes |
 
 ### Test Files Expected
 
@@ -811,6 +986,8 @@ Purpose: Separate frontend work that can be done now from future admin/audit wor
 | `frontend/tests/index-status-panel.spec.ts` | Phase 1 |
 | `frontend/tests/facets-loading.spec.ts` | Phase 1 |
 | `frontend/tests/settings-modal-aria.spec.ts` | Phase 1 |
+| `frontend/tests/mobile-header-freeze.spec.ts` | Phase 1 |
+| `frontend/tests/tablet-header-freeze.spec.ts` | Phase 1 |
 | `frontend/tests/advanced-search-drawer.spec.ts` | Phase 2 |
 | `frontend/tests/search-filter-chips.spec.ts` | Phase 2 |
 | `frontend/tests/search-plain-regression.spec.ts` | Phase 2 |
@@ -823,22 +1000,22 @@ Purpose: Separate frontend work that can be done now from future admin/audit wor
 
 ### Implementation Order
 
-1. **Phase 1 first** — Expose the backend indexing/facets capabilities that already exist. Standardize UI structure before adding complexity. This phase has the lowest risk (purely additive components; Phase 1 should not change GalleryGrid behavior, layout, virtualization, image loading, or browsing semantics. Only small accessibility annotations or non-behavioral wiring are allowed if needed) and immediately makes the app feel more "aware" of its background processing. Users gain visibility into what the backend is doing.
+1. **Phase 1 first (desktop-only)** — Expose the backend indexing/facets capabilities that already exist. Standardize desktop UI structure before adding complexity. This phase has the lowest risk (purely additive components; Phase 1 should not change GalleryGrid behavior, layout, virtualization, image loading, or browsing semantics) and immediately makes the app feel more "aware" of its background processing. Users gain visibility into what the backend is doing. Mobile and tablet are frozen.
 
-2. **Phase 2 second** — Unlock the powerful fielded search that the backend already supports. TanStack Form is the correct tool for this and justifies the existing installation. The AdvancedSearchDrawer + SearchFilterChips provide a discoverable interface for 30+ search fields that currently require manual query construction.
+2. **Phase 2 second (desktop-first)** — Unlock the powerful fielded search that the backend already supports. TanStack Form is the correct tool for this and justifies the existing installation. The AdvancedSearchDrawer + SearchFilterChips provide a discoverable interface for 30+ search fields that currently require manual query construction. Mobile/tablet advanced search deferred to separate spec.
 
-3. **Phase 3 last** — TanStack Table for admin/metadata management. This is the largest new dependency usage and should come last to ensure the TanStack Form patterns from Phase 2 are well-understood. Many planned tables require backend prerequisites (per-job rows, diagnostics endpoint) that should be documented but not blocked on.
+3. **Phase 3 last (desktop-first)** — TanStack Table for admin/metadata management. This is the largest new dependency usage and should come last to ensure the TanStack Form patterns from Phase 2 are well-understood. Many planned tables require backend prerequisites (per-job rows, diagnostics endpoint) that should be documented but not blocked on. Mobile/tablet admin view deferred.
 
 ### Risk/Reward Balance
 
-- **Phase 1**: Lowest risk, immediate UX value. Visibility into background indexing is the single biggest missing piece.
-- **Phase 2**: Medium risk (new TanStack Form usage), high reward. Fielded search turns an invisible backend capability into a primary user feature.
-- **Phase 3**: Medium risk (new TanStack Table usage), moderate reward. Admin/metadata views benefit power users but are not essential for the core gallery browsing experience.
+- **Phase 1**: Lowest risk (desktop-only, mobile/tablet frozen), immediate UX value. Visibility into background indexing is the single biggest missing piece.
+- **Phase 2**: Medium risk (new TanStack Form usage, desktop-first), high reward. Fielded search turns an invisible backend capability into a primary user feature.
+- **Phase 3**: Medium risk (new TanStack Table usage, desktop-first), moderate reward. Admin/metadata views benefit power users but are not essential for the core gallery browsing experience.
 
 ### What Makes This Different
 
 This is not a generic UI modernization plan. Every recommendation is grounded in specific backend capabilities, specific frontend gaps, and specific code locations discovered through audit. The three phases correspond directly to the three DT/Immich adaptation phases already completed on the backend:
 
-- Backend Phase 1 (indexer, batch writer, index status) → Frontend Phase 1 (index visibility, UI standardization)
-- Backend Phase 2B (fielded search, DB-first metadata) → Frontend Phase 2 (advanced search, faceted discovery)
-- Backend Phase 3 (warm listing, watcher, facets) → Frontend Phase 3 (admin cockpit, audit tables)
+- Backend Phase 1 (indexer, batch writer, index status) → Frontend Phase 1 (index visibility, UI standardization) — desktop-only
+- Backend Phase 2B (fielded search, DB-first metadata) → Frontend Phase 2 (advanced search, faceted discovery) — desktop-first
+- Backend Phase 3 (warm listing, watcher, facets) → Frontend Phase 3 (admin cockpit, audit tables) — desktop-first
