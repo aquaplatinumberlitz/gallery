@@ -62,10 +62,10 @@ Mobile and tablet layouts are frozen during Phase 1.
 ### Mobile/Tablet Freeze for Phase 1
 
 During Phase 1, these files and behaviors are out of scope:
-- MobileHeader.vue
-- TabletHeader.vue
-- MobileLayout.vue
-- TabletLayout.vue
+- frontend/src/components/MobileHeader.vue
+- frontend/src/components/TabletHeader.vue
+- frontend/src/layouts/MobileLayout.vue
+- frontend/src/layouts/TabletLayout.vue
 - mobile bottom navigation
 - mobile search
 - mobile sort
@@ -140,7 +140,7 @@ Frontend should not invent a new payload shape when an existing backend contract
 | **MobileHeader** (`MobileHeader.vue`) | Mobile top bar with expandable search, sort popover, theme toggle | Same search limitations as desktop. Search overlay has no fielded mode. | Command (mobile search palette), Sheet (advanced search drawer on mobile) | **Phase 1: frozen** — No changes. No IndexStatusChip. No status panel. No button reorder. | Frozen. No changes. |
 | **TabletHeader** (`TabletHeader.vue`) | Tablet top bar | Scope selector, theme toggle, search. | — | **Phase 1: frozen** — No changes. No IndexStatusChip. No status panel. No layout changes. | Frozen. No changes. |
 | **SettingsModal** (`SettingsModal.vue`) | Application settings: intro screen mode, theme selection, original-image toggle | No Footer (auto-saves silently). No tabs (flat vertical scroll). No ARIA dialog roles (`role="dialog"`, `aria-modal` missing). Error state is console-only. | Dialog (Header/Body/Footer structure), Tabs (settings sections), Form layout (Label/Description pattern) | **Phase 1: desktop-safe ARIA/structure only** — No mobile behavior changes. Add Header/Body/Footer with Done/Close button. Add ARIA roles. Keep current auto-save behavior (watcher/localStorage). | Desktop-safe ARIA/structure only. No mobile behavior changes. |
-| **RootPathSheet** (`RootPathSheet.vue`) | Bottom sheet for editing root folder path on mobile | No loading state during path load. Missing ARIA dialog roles. Paste button hides when textarea focused (discoverability). | Sheet (Header/Description/Footer pattern) | **Phase 1: avoid unless change is proven desktop-safe** — Add loading spinner. Add ARIA roles. Keep functional layout. | Avoid unless proven desktop-safe. |
+| **RootPathSheet** (`RootPathSheet.vue`) | Bottom sheet for editing root folder path on mobile | No loading state during path load. Missing ARIA dialog roles. Paste button hides when textarea focused (discoverability). | Sheet (Header/Description/Footer pattern) | **Phase 1: NOT in Phase 1. Deferred to future Mobile/Tablet Spec.** | Not in Phase 1. Deferred to future Mobile/Tablet Spec. |
 | **Lightbox + Metadata Panel** (`Lightbox.vue`, `LightboxDesktopPanel.vue`, `LightboxMobileSheet.vue`, `LightboxTabletPanel.vue`) | Device-adaptive image viewer with metadata display | Desktop panel lacks `role="complementary"`. Mobile sheet tabs lack `role="tablist"`/`role="tab"`/`aria-selected`. Metadata display itself is well-built with sections, copy buttons, LoRA highlighting. | Tabs (mobile metadata tabs ARIA roles), Sheet (mobile panel structure) | **Keep as-is with light accessibility fixes**. Metadata panels are mature and should not be rewritten. Add ARIA roles for tabs and complementary landmark. | Lightbox behavior frozen for mobile/tablet. |
 | **Toast** (`ToastContainer.vue`, `ToastItem.vue`) | Fixed-position toast notifications with TransitionGroup | No `role="alert"` or `aria-live` for screen reader announcements. No toast queue overflow beyond capping at 3. | Toast/Sonner pattern (position, stacking, dismiss) | **Keep as-is**. Toast system is mature and styled per gallery theme. Add `role="alert"` to ToastItem. | Desktop-safe ARIA only. |
 | **GalleryGrid** (`GalleryGrid.vue`) | Primary content display: virtualized photo grid, infinite scroll, search results, toolbar | Search results rendering is adequate. No filter chips for active fielded search. Sort/density triggers lack `aria-haspopup`/`aria-expanded` (except density). Error banner lacks `role="alert"`. No `aria-live` for search results. | Data Table toolbar pattern (for sort/density/filter controls), Badge/Alert (error states) | **Phase 1: frozen for behavior/layout/virtualization/image loading** — Do NOT use TanStack Table. `role="alert"` on error banner is desktop-safe only if it does not change mobile behavior. | Frozen for behavior/layout/virtualization/image loading. |
@@ -301,12 +301,13 @@ Rules:
 - [ ] **Add `fetchIndexStatus()` to `api.ts`** — wraps `GET /api/index/status?path=...`. Response includes: `enabled`, `worker_count`, `active_jobs`, `runtime_queue_depth`, counts by state, `last_error`, `updated_at`.
 - [ ] **Add `useIndexStatusQuery()` composable** — TanStack Query wrapper with `queryKeys.indexStatus(path)`. Adaptive polling per Section 10 policy: fast 2-3s only when active/queued work exists; failed-only with no work slow-polls at 60s; unavailable/error slow-polls at 60s. Browser tab hidden: pause or slow down. Window focus: local debounced refetch. No beforeunload/unload listeners. Enabled only when a folder is loaded.
 - [ ] **Add query key `indexStatus(path)` in `query/keys.ts`**.
-- [ ] **Add `IndexStatusChip.vue`** — small badge in AppHeader (desktop only) near search area. Shows one of four states:
+- [ ] **Add `IndexStatusChip.vue`** — small badge in AppHeader (desktop only) near search area. Shows one of six states:
   - `failed` — `failed > 0 || staged_path_failed > 0 || last_error` (red badge with error icon)
   - `active` — workers are running (amber/yellow badge with pulse animation)
   - `queued` — jobs are pending (blue badge)
   - `idle` — no errors, no active jobs, no queued jobs; up-to-date (compact muted chip or muted icon/text)
-  - `disabled` — no folder loaded or status unavailable (hidden)
+  - `unavailable` — API error, backend unreachable (visible orange/gray chip)
+  - `disabled` — no folder loaded or no library context (hidden)
   - **State mapping**:
     ```
     failed = failed > 0 || staged_path_failed > 0 || last_error
@@ -879,7 +880,7 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 
 | Test | Phase | Assertion |
 |---|---|---|
-| IndexStatusChip renders each state (failed/active/queued/idle/disabled) | Phase 1 | Correct badge text, color, and icon per state |
+| IndexStatusChip renders each state (failed/active/queued/idle/unavailable/disabled) | Phase 1 | Correct badge text, color, and icon per state. disabled = hidden allowed; unavailable = visible required. |
 | IndexStatusChip shows muted idle state when up-to-date (does not fully auto-hide) | Phase 1 | Chip visible with muted styling when idle and a folder context exists; hidden only when no folder/status available |
 | IndexStatusChip click opens IndexStatusPanel | Phase 1 | Panel visibility toggled |
 | IndexStatusPanel shows correct counts from API response | Phase 1 | Counts match mock `fetchIndexStatus()` response |
@@ -923,7 +924,7 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 |---|---|---|
 | SettingsModal dialog roles present | Phase 1 | `role="dialog"`, `aria-modal`, `aria-labelledby` |
 | ToastItem `role="alert"` present | Phase 1 | Screen reader announces new toasts |
-| LightboxMobileSheet tab roles | Phase 1 | `role="tablist"`, `role="tab"`, `aria-selected` |
+| LightboxMobileSheet tab roles | Future | `role="tablist"`, `role="tab"`, `aria-selected` — deferred to future Mobile/Tablet Spec |
 | FolderTreeItem TreeView roles | Phase 1 | `role="tree"`, `role="treeitem"`, `aria-expanded` |
 | Form field labels linked to inputs | Phase 2 | Each input has `aria-labelledby` or `<label>` association |
 | Table column headers sortable via keyboard | Phase 3 | Enter/Space on column header triggers sort |
@@ -966,10 +967,10 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 | `frontend/src/components/GalleryGrid.vue` | Phase 2 | SearchFilterChips integration | Frozen for behavior/layout/virtualization |
 | `frontend/src/components/SettingsModal.vue` | Phase 1C | Header/Body/Footer structure, ARIA roles | Desktop-safe only. No mobile behavior changes. |
 | `frontend/src/components/SettingsModal.vue` | Phase 3 | Tabs + TanStack Form (if indexing config added) | Phase 3 only if config grows |
-| `frontend/src/components/RootPathSheet.vue` | Phase 1C | Structure refactor, loading state, ARIA | Avoid unless proven desktop-safe |
+| `frontend/src/components/RootPathSheet.vue` | Future Mobile/Tablet Spec | Structure refactor, loading state, ARIA | Deferred to future Mobile/Tablet Spec |
 | `frontend/src/components/ToastItem.vue` | Phase 1C | `role="alert"` | Desktop-safe only |
 | `frontend/src/components/FolderTreeItem.vue` | Phase 1C | TreeView ARIA roles | Desktop-safe only |
-| `frontend/src/components/LightboxMobileSheet.vue` | Phase 1C | Tab ARIA roles | Avoid unless proven desktop-safe |
+| `frontend/src/components/LightboxMobileSheet.vue` | Future Mobile/Tablet Spec | Tab ARIA roles | Deferred to future Mobile/Tablet Spec |
 | `frontend/src/App.vue` | Phase 3 | MetadataAdminView switching | Desktop-only |
 
 ### Files Frozen in Phase 1
