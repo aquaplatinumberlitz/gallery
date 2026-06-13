@@ -1,7 +1,7 @@
 # Tailwind Migration Plan — Animation & Visual Preservation
 
-**Last reviewed:** 2026-06-13
-**Status:** Research & Planning (no implementation)
+**Last reviewed:** 2026-06-13 (Preflight testing)
+**Status:** Phase 0 complete — Preflight Phase 0C user testing in progress
 **Decision:** Hybrid Migration (see §14)
 
 ---
@@ -495,19 +495,20 @@ Similarly, vue-spring-bottom-sheet generates `[data-vsbs-*]` elements with its o
 
 **Staged approach:**
 
-**Phase 0A — Start without Preflight (default first step)**
-- Start with Tailwind v4 utilities and theme layer only.
-- Keep Preflight disabled/omitted initially.
-- Preserve existing base CSS, resets, `html`/`body`/`#app` sizing, button/input rules, image behavior, PhotoSwipe styles, vue-spring-bottom-sheet styles, and mobile Safari quirks.
+**Phase 0A — Start without Preflight (initial)**
+- Started with Tailwind v4 utilities and theme layer only.
+- Preflight was omitted during initial Phase 0 foundation (commit `90e6623`).
 
 **Phase 0B — Screenshot baselines**
-- Run desktop/mobile/tablet screenshot baselines with Preflight disabled.
-- Confirm no visual changes compared to pre-Tailwind state.
+- Desktop/mobile/tablet screenshot baselines captured with Preflight disabled.
+- 23 Playwright smoke tests added — all passed, no regressions found (commit `b2dde0b`).
+- ✅ Phase 0B complete.
 
-**Phase 0C — Test Preflight in a separate spike**
-- Test Tailwind Preflight in a separate branch/spike.
-- Only enable Preflight if all visual regression tests pass and required base patches are documented.
-- Preflight must not be allowed to silently change buttons, inputs, images, `html`/`body`/`#app` sizing, focus outlines, PhotoSwipe, vue-spring-bottom-sheet, or mobile Safari behavior.
+**Phase 0C — Enable Preflight for user testing**
+- Preflight enabled at commit `6eb447d` + `@import "tailwindcss/preflight.css" layer(base);`
+- Deployed to VPS for real-device testing on PC, iPad, iPhone.
+- If tests pass: Preflight stays enabled. Update `_tailwind-patches.scss` with any required base patches.
+- If regressions found: Preflight is removed, and `_tailwind-patches.scss` is seeded with per-component patches for a future attempt.
 
 **If Preflight remains disabled — compatibility notes:**
 - Tailwind utilities are fully functional without Preflight. Most utilities do not depend on Preflight resets.
@@ -588,12 +589,13 @@ html, body {
 - ✅ `tailwind.css` imported in `main.ts` AFTER `tokens.css` but BEFORE `main.scss`
 - ✅ Dark mode configured via `@custom-variant dark (&:where([data-theme=\"dark\"], [data-theme=\"dark\"] *))`
 - ✅ Created `frontend/src/styles/_tailwind-patches.scss` (placeholder, unimported)
-- ✅ **Preflight omitted** (Phase 0A strategy — will be tested later in Phase 0C spike)
+- ✅ Preflight was omitted during Phase 0A (commit `90e6623`); enabled in Phase 0C for testing (commit `6eb447d+`)
 - ✅ `vue-tsc --noEmit` passes
 - ✅ `npm run build` passes
-- ✅ No visual changes confirmed (import order change only, no component styling touched)
+- ✅ 23 Playwright smoke tests pass — no regressions found (commit `b2dde0b`)
+- ✅ No visual changes confirmed with Preflight disabled (Phase 0A/B); Preflight now enabled for real-device testing (Phase 0C)
 
-> **Status:** Phase 0 is complete at commit `90e6623`. Tailwind v4 is available for use in Phase 1 desktop component migration. The `@theme inline` tokens are safe to reference as `bg-background`, `text-foreground`, `border-border`, etc. No Preflight — existing SCSS resets remain the source of truth.
+> **Status:** Phase 0 foundation complete. Tailwind v4 is available. Preflight is currently **enabled for testing** on VPS at `http://150.230.56.153/`. User testing on PC, iPad, iPhone in progress. Desktop Phase 1 migration is ready to proceed — awaiting Preflight test results. If Preflight causes regressions, it will be disabled and patches seeded to `_tailwind-patches.scss`.
 
 ### Phase 1 — Desktop-Only Low-Risk Component Migration
 
@@ -961,17 +963,20 @@ If a critical visual regression is discovered in production after Tailwind migra
 
 ## 15. Confirmation
 
-This document was created as a research + planning exercise only.
+This document was created as a research + planning exercise only. Updated as Phase 0 progressed.
 
-- ✅ No Tailwind packages installed
-- ✅ No package.json edited
-- ✅ No Vite config edited
-- ✅ No PostCSS config edited
-- ✅ No Vue components modified
-- ✅ No SCSS files modified
-- ✅ No CSS files modified
-- ✅ No runtime behavior changed
-- ✅ No mobile/tablet code changed
+- ✅ Tailwind v4 installed (`tailwindcss`, `@tailwindcss/vite`)
+- ✅ Vite config updated (`tailwindcss()` plugin added)
+- ✅ `tailwind.css` created with `@theme inline` + `@custom-variant dark`
+- ✅ Preflight enabled for Phase 0C testing
+- ❌ No Tailwind packages installed — now installed (Phase 0A)
+- ❌ No package.json edited — now edited (Phase 0A)
+- ❌ No Vite config edited — now edited (Phase 0A)
+- ✅ No PostCSS config edited (not needed with Tailwind v4 Vite plugin)
+- ✅ No Vue components modified — confirmed after Phase 0 testing
+- ✅ No SCSS files modified — confirmed after Phase 0 testing
+- ✅ No runtime behavior changed — confirmed after Phase 0 testing (23 Playwright smoke tests pass)
+- ✅ No mobile/tablet code changed (frozen)
 - ✅ shadcn-vue not installed, used as pattern reference only
 
 All counts above were verified via `grep` commands against the actual repo at commit time. Results were included inline in each section.
