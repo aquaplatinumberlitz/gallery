@@ -1,6 +1,7 @@
 import "./assets/fonts.css";
-import "./styles/main.scss";
 import "./styles/tokens.css";
+import "./styles/tailwind.css";
+import "./styles/main.scss";
 
 // Reload BlackBox monitor — installs BEFORE Vue init to patch WebSocket
 // and capture lifecycle events. Enable via ?debugReload=1.
