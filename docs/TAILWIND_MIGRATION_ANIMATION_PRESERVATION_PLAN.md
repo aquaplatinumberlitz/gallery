@@ -21,7 +21,7 @@ This document presents a detailed migration plan for adopting Tailwind CSS in th
 - 133 `transform` property uses
 - PhotoSwipe 5 and vue-spring-bottom-sheet for lightbox/mobile sheets
 
-**Recommendation:** Hybrid migration covering Phases 0-2. Tailwind for desktop-first common utilities, CSS variables as the semantic theme backbone, SCSS preserved for animations, complex effects, third-party overrides, and mobile/iOS quirks. shadcn-vue used as pattern reference only, never installed. **Phase 3 (Metadata/Admin Table) is deferred — not implementing now. Revisit when TanStack Table features are needed.**
+**Recommendation:** Hybrid migration covering Phases 0-2. Tailwind for desktop-first common utilities, CSS variables as the semantic theme backbone, SCSS preserved for animations, complex effects, third-party overrides, and mobile/iOS quirks. shadcn-vue approved for selective, component-by-component adoption where it improves quality, accessibility, or maintainability — not for wholesale rewrite or mobile/tablet risky surfaces in Phase 1. **Phase 3 (Metadata/Admin Table) is deferred — not implementing now. Revisit when TanStack Table features are needed.**
 
 ---
 
@@ -424,32 +424,163 @@ darkMode: ['selector', '[data-theme="dark"]'],
 
 ---
 
-## 6. shadcn-vue Pattern Reference Policy
+## 6. shadcn-vue Selective Adoption Strategy
 
-### 6.1 What "Pattern Reference" Means
+### 6.1 User-Approved Strategy
 
-shadcn-vue is NOT installed as a dependency. It is NOT copied or imported. It serves as a design pattern reference only — we study how shadcn-vue structures its component anatomy and apply those structural insights to our own components using gallery design tokens and Tailwind-compatible markup.
+**Decision:** shadcn-vue may be adopted **selectively** for standard desktop UI primitives and behavior-heavy desktop components when it provides better accessibility, keyboard handling, focus management, or maintainability than our hand-rolled implementation.
 
-### 6.2 Pattern Reference Mapping
+**Constraints (hard):**
+- shadcn-vue is NOT a wholesale replacement framework.
+- shadcn-vue must NOT override gallery design identity.
+- shadcn-vue must NOT force a parallel token system unless tokens are explicitly bridged to existing gallery semantic tokens (see §6.4).
+- Every adoption step is component-by-component, individually tested, and individually reviewed.
+- Mobile/tablet risky surfaces remain frozen during Phase 1 (see §6.3 Group C).
 
-| shadcn-vue Pattern | Gallery Application | How We Use It |
+**What changed from the earlier approach:**
+The original plan treated shadcn-vue strictly as a "pattern reference only — never installed." That prohibition is now lifted. shadcn-vue may be installed, and individual component code may be adopted, **provided** the constraints above are met for each component.
+
+---
+
+### 6.2 Component Grouping
+
+#### Group A — Replace with shadcn-vue early where practical
+
+These are standard UI primitives that are reasonable candidates for early shadcn-vue adoption:
+
+- Button / IconButton
+- Badge / Chip
+- Input
+- Select
+- Dropdown Menu
+- Tooltip
+- Popover
+- Dialog (desktop only)
+- Breadcrumb
+- Tabs (if needed)
+- Separator
+
+**Guidance:**
+- Prefer shadcn-vue or shadcn-vue-inspired internal wrappers for these.
+- **Keep gallery tokens and visual identity.** Do not accept default shadcn styling blindly. Adapt the component styling to use `--gallery-*` tokens via Tailwind semantic utilities or CSS variable references.
+- Avoid introducing unnecessary behavior dependencies for purely static layout unless the component benefit is clear (e.g., Dropdown Menu brings keyboard nav and focus management that a plain `<div>` does not).
+- Start with the **smallest safe candidates first**: Button/IconButton, Badge/Chip, Input, Separator, Breadcrumb. These have minimal behavior surface and are easiest to verify.
+
+#### Group B — Replace carefully after audit
+
+These are possible shadcn-vue replacements, but they require careful behavior and visual parity review:
+
+| Current Component | shadcn-vue Candidate | Notes |
 |---|---|---|
-| **Badge** | Status chips, toast badges, filter chips | Study variant system (default/secondary/destructive/outline). Implement with gallery semantic colors. |
-| **Button** (variants) | Standardize icon button and action button styles across desktop components | Study `buttonVariants()` cva pattern. Adapt to gallery's premium button styling with gallery tokens. |
-| **Dialog** | SettingsModal, future desktop panels | Study Header/Body/Footer structure, `role="dialog"`, `aria-modal`. Apply to SettingsModal structure. |
-| **Popover** | Sort/density dropdowns, index status details | Study positioning, focus trap, click-outside dismiss. Apply to GalleryGrid dropdowns. |
-| **Sheet** | Future mobile bottom sheets (Phase 4+) | Study snap-point patterns, backdrop behavior. DO NOT replace existing RootPathSheet or LightboxMobileSheet. |
-| **Command** | Future quick search palette | Study keyboard-navigable list, filter behavior. Apply with gallery tokens. |
-| **Data Table** | Future MetadataAdminTable | Study TanStack Table integration pattern, column visibility, pagination. Future / Deferred (Phase 3). |
-| **Form** | Future AdvancedSearchDrawer | Study Label/Description/Error layout, form field composition. Phase 2 only. |
+| SettingsModal | Dialog | Dialog may improve focus trap and accessibility. Existing animations and UX must be preserved or explicitly reviewed. |
+| Sort/density menu | Dropdown Menu / Select | Behavior-heavy; must preserve existing sort/density logic and dropdown animation feel. |
+| Toast system | Sonner or Toast | Do NOT replace the toast manager unless there is a clear behavior benefit and tests prove parity. |
+| Sidebar/Folder tree | Sidebar / Collapsible / Button pattern | The existing folder tree is app-specific. Only use Collapsible/Button patterns if they reduce complexity. Do not force a full shadcn Sidebar. |
+| GalleryGrid toolbar | Button / Dropdown / Slider only | Only migrate toolbar controls. Never touch GalleryGrid virtualization, image loading, sentinel logic, skeleton logic, or lightbox trigger behavior. |
 
-### 6.3 Hard Rules
+**Guidance:**
+- Migration must be incremental. Do not rewrite the whole feature.
+- Before/after Playwright screenshot comparison is mandatory (see §10).
+- Keyboard navigation, focus trap, Escape key, outside click, and dark/light theme must be tested per component.
 
-1. **No `npx shadcn-vue@latest add ...`** — never install as dependency
-2. **No copy-paste of shadcn-vue source code** — adapt patterns, do not copy
-3. **New components use gallery SCSS + Tailwind utilities, not shadcn CSS**
-4. **shadcn-vue does NOT force Tailwind adoption** — Tailwind decision is independent
-5. **Existing components are NOT rewritten to match shadcn-vue** — only new components follow the pattern
+#### Group C — Do not replace in Phase 1
+
+These must stay frozen. Do not migrate to shadcn-vue in Phase 1:
+
+- MobileHeader
+- TabletHeader
+- RootPathSheet
+- LightboxMobileSheet
+- PhotoSwipe / lightbox core
+- GalleryGrid virtualization / image loading
+- Album hover premium animation
+- iOS Safari safe-area / gesture fixes
+
+**Guidance:**
+- Do not rewrite gesture, safe-area, or mobile behavior.
+- Do not replace PhotoSwipe or lightbox internals.
+- Do not migrate animation-heavy premium gallery effects.
+- These areas require separate future specs and real-device testing.
+
+---
+
+### 6.4 Dependency and Token Bridge Audit
+
+**Before installing shadcn-vue or adding any shadcn component**, run a dependency and token bridge audit. The audit must answer:
+
+1. Which exact shadcn-vue component(s) are needed?
+2. Which npm dependencies will be added? (e.g., `shadcn-vue`, `radix-vue` / `reka-ui`, `vue-sonner`, `clsx`, `class-variance-authority`, `tailwind-merge`, `tailwindcss-animate`)
+3. Does the component require Reka UI (formerly Radix-Vue)?
+4. Does it require `vue-sonner`?
+5. Does it require class utilities such as `clsx` / `cva` / `tailwind-merge`?
+6. How will shadcn CSS variables (e.g., `--background`, `--foreground`, `--primary`) map to existing gallery tokens (e.g., `--bg-color`, `--text-color`, `--primary-color`)?
+7. How will dark mode work with the existing `[data-theme="dark"]` attribute? (See §5.3 for the `@custom-variant dark` strategy.)
+8. Does this component work cleanly with Tailwind v4 and the current `@theme inline` setup?
+9. What tests will prove no visual or behavior regression?
+
+**Rule:** Do not allow a large dependency install without a specific component adoption target. Every added dependency must be justified by at least one concrete component replacement.
+
+---
+
+### 6.5 Token Bridging
+
+shadcn-vue components typically reference CSS variables from a shadcn theme (defined on `:root` in a `globals.css` — e.g., `--background`, `--foreground`, `--primary`, `--muted`, `--accent`, `--border`, `--ring`, `--radius`). Gallery uses its own semantic tokens in `tokens.css`.
+
+**Bridging approach:**
+- Do NOT duplicate the shadcn theme variables in gallery. Instead, create an alias layer that maps shadcn variable names to gallery token values.
+- Example: `--background: var(--bg-color); --foreground: var(--text-color); --primary: var(--primary-color); --border: var(--gallery-border-default); --radius: var(--gallery-radius-md);`
+- This alias layer should live in a new file (e.g., `frontend/src/styles/_shadcn-token-bridge.css`) imported after `tokens.css` and before Tailwind.
+- The bridge must work for both light and dark modes via `[data-theme="dark"]`.
+
+**Guidance:**
+- Token bridging is a **pre-requisite** to any shadcn component adoption.
+- Do not write a full shadcn theme from scratch. Only bridge the variables actually used by adopted components.
+- Document each bridged variable with its gallery source and the shadcn component(s) that consume it.
+
+---
+
+### 6.6 Testing Requirements
+
+Every shadcn-vue adoption step must run:
+
+**Type and build:**
+- `vue-tsc --noEmit`
+- `npm run build`
+
+**Existing regression tests:**
+- All existing Playwright tests (tailwind-phase0, tailwind-preflight)
+
+**New component-specific tests:**
+- Visual regression screenshot for the affected component (light + dark)
+- Pixel diff against baseline (threshold: ≤0.5%)
+
+**For mobile/tablet freeze verification:**
+- Verify MobileHeader still renders and functions
+- Verify TabletHeader still renders and functions
+- Verify RootPathSheet and LightboxMobileSheet are untouched if not in scope
+
+**For desktop behavior-heavy components (Dialog, Popover, Dropdown Menu):**
+- Test keyboard navigation (Tab, Arrow keys, Enter, Space)
+- Test focus trap (if Dialog or Popover)
+- Test Escape key dismiss
+- Test outside click dismiss
+- Test dark/light theme toggle inside the open component
+- Test no console errors during open/close lifecycle
+- Test scroll lock behavior (Dialog should lock body scroll; Popover may or may not)
+
+**For mobile/tablet safety gates:**
+- Grep the diff for any changes to files listed in Group C. If any found, block the PR until they are reverted.
+
+---
+
+### 6.7 Hard Rules
+
+1. **shadcn-vue is approved for selective, component-by-component adoption** where it improves quality, accessibility, or maintainability. It is **not** approved for wholesale rewrite or mobile/tablet risky surfaces in Phase 1.
+2. **`npx shadcn-vue@latest add ...`** is allowed for specific components, but only after a dependency/token audit (see §6.4) and only targeting Group A or Group B components.
+3. **Gallery semantic tokens and visual identity always take precedence** over shadcn defaults.
+4. **Every adoption must be individually tested** with type-checks, builds, and Playwright before/after screenshots.
+5. **Mobile/tablet Group C components must not be touched** in Phase 1. Any accidental change to these files is a blocker.
+6. **Do not install shadcn dependencies globally without a specific component target.** Each dependency must map to at least one concrete component replacement.
 
 ---
 
@@ -597,21 +728,38 @@ html, body {
 
 > **Status:** Phase 0 foundation complete. Tailwind v4 is available. Preflight is currently **enabled for testing** on VPS at `http://150.230.56.153/`. User testing on PC, iPad, iPhone in progress. Desktop Phase 1 migration is ready to proceed — awaiting Preflight test results. If Preflight causes regressions, it will be disabled and patches seeded to `_tailwind-patches.scss`.
 
-### Phase 1 — Desktop-Only Low-Risk Component Migration
+### Phase 1 — Desktop Primitive Adoption
 
-**Allowed candidates:**
+**Goal:** Introduce selected shadcn-vue-compatible primitives or internal wrappers for low-risk desktop UI. Start with the smallest, safest candidates first.
+
+**Group A candidates (earliest targets):**
+- Button / IconButton — replace hand-rolled icon button patterns with shadcn Button, adapted to gallery tokens
+- Badge / Chip — replace hand-rolled badge styles with shadcn Badge, using gallery semantic colors
+- Input — standardize input styling with shadcn Input, adapted to gallery tokens
+- Separator — trivial layout element; low risk
+- Breadcrumb — simple flex layout with separators; shadcn or internal wrapper
+
+**Group A candidates (second wave, same phase):**
+- Select — desktop scope selector, sort dropdown trigger
+- Dropdown Menu — sort/density menus
+- Tooltip — hover info on desktop controls
+- Popover — index status panel, quick-info panels
+- Dialog — SettingsModal shell (behavior audit first — see Phase 1.5)
+- Tabs — if needed for future admin UI
+
+**Guidance:**
+- Prefer shadcn-vue or shadcn-vue-inspired internal wrappers for these.
+- Keep gallery tokens and visual identity. Do not accept default shadcn styling blindly.
+- Avoid introducing unnecessary behavior dependencies for purely static layout unless the component benefit is clear.
+- Every adoption step runs `vue-tsc`, `npm run build`, and existing Playwright tests (see §6.6).
+
+**Desktop-only Tailwind utilities (non-shadcn, safe to do in parallel):**
 
 | Component | Migration | Risk |
 |---|---|---|
-| Desktop IconButton (`.nav-btn`, `.hamburger-btn`, `.settings-btn`) | Tailwind `@layer components` class | Low |
-| Desktop Badge/Chip (`.loading-badge`, error badge) | Tailwind component class | Low |
-| Desktop Input Shell (`.search-box` layout, not dark mode neon) | Tailwind utilities + SCSS for neon | Medium |
 | AppHeader `hb-brand-hero` static layout (flex, gap, padding) | Tailwind utilities | Low |
-| SettingsModal shell structure (backdrop, content, header, body) + `fadeIn`/`slideUp` animations | Tailwind `@layer` component for shell only. `fadeIn`/`slideUp` — Keep in SCSS during Phase 1. Defer animation migration to later phase after visual parity is proven. Reason: animations must stay SCSS-first per §9.1 rule 2 (animations are not migrated unless visual parity is proven). | Low |
 | Desktop toast shell (container, item layout, not colors) | Tailwind utilities | Low |
 | GalleryGrid toolbar layout (grid, gap, alignment) | Tailwind utilities | Low — desktop toolbar/control wrapper styles only. Do not touch scroller, virtual rows, sentinels, image loading states, skeleton behavior, virtualization logic, lightbox trigger behavior, or image sizing policy. |
-| Desktop sort/density trigger appearance | Tailwind component class | Low |
-| Desktop Breadcrumb component layout | Tailwind utilities | Low |
 | SidebarHeader layout | Tailwind utilities | Low |
 | FolderTreeItem layout | Tailwind utilities | Low |
 
@@ -625,14 +773,40 @@ html, body {
 - ❌ No brand title animations
 - ❌ No theme toggle or brand icon (animation-heavy)
 
+### Phase 1.5 — Behavior-Heavy Desktop Primitives
+
+**Goal:** Evaluate and adopt shadcn-vue behavior-heavy components for desktop where they improve accessibility, keyboard handling, or focus management.
+
+**Candidates:**
+- **Dialog** — SettingsModal replacement. Studied for focus trap, Escape-key dismiss, outside-click dismiss, `aria-modal`, body scroll lock.
+- **Dropdown Menu** — GalleryGrid sort/density menus. Studied for keyboard nav, typeahead, focus management.
+- **Select** — Desktop scope/theming selectors. Studied for native vs. custom select behavior parity.
+- **Tooltip** — Hover info labels on desktop controls. Studied for delay, positioning, and touch-device suppression.
+- **Popover** — Index status panel, quick-info overlays. Studied for focus trap, positioning, and click-outside dismiss.
+- **Tabs** — If introduced for admin or settings UI.
+
+**Pre-requisites:**
+- Dependency and token bridge audit completed (see §6.4).
+- Token bridging file created and verified in both light and dark modes (see §6.5).
+- Phase 1 Group A lightweight candidates (Button, Badge, Input, Separator, Breadcrumb) already adopted and proven stable.
+
+**Guidance:**
+- Each component must pass the full testing checklist in §6.6 before being considered "adopted."
+- Do not replace SettingsModal wholesale in one commit — adopt Dialog as the shell first, then migrate internal panels incrementally.
+
 ### Phase 2 — Desktop Search/Filter/Admin Primitives
 
 **Allowed candidates:**
-- Desktop AdvancedSearch layout (future component, Tailwind-first)
-- Desktop filter chips (future SearchFilterChips, Tailwind + gallery tokens)
-- Desktop popover/dialog shell (future components, Tailwind `@layer`)
-- Desktop status panel (IndexStatusPanel)
-- Desktop command/search palette shell
+- Desktop AdvancedSearch layout (future component, Tailwind-first, shadcn-vue Input/Badge/Button as building blocks)
+- Desktop filter chips (future SearchFilterChips, Tailwind + gallery tokens, shadcn Badge for chip base)
+- Desktop popover/dialog shell (future components, Tailwind `@layer`, shadcn Popover/Dialog where behavior/a11y benefits are clear)
+- Desktop status panel (IndexStatusPanel, shadcn Tooltip/Popover for detail overlays)
+- Desktop command/search palette shell (shadcn Command pattern where keyboard navigation adds value)
+
+**Guidance:**
+- shadcn-vue may be used where behavior or accessibility benefits are clear.
+- Do not override gallery visual identity — all shadcn components must use bridged gallery tokens (see §6.4, §6.5).
+- New components built in this phase should be Tailwind-first with gallery tokens, using shadcn-vue primitives where they reduce boilerplate for standard interaction patterns.
 
 ### Phase 3 (Future — deferred) — Metadata/Admin Table
 
@@ -640,8 +814,13 @@ html, body {
 
 **Allowed candidates (deferred):**
 - TanStack Table integration (new MetadataTable component, Tailwind-first)
-- TanStack Table toolbar/action menu (Tailwind utilities)
+- TanStack Table toolbar/action menu (Tailwind utilities; shadcn Button, Dropdown Menu, Dialog, Badge, Tooltip for table controls)
 - Column visibility / pagination UI
+
+**Guidance:**
+- shadcn-vue can be considered for table controls, dropdowns, dialogs, badges, and tooltips.
+- shadcn-vue must NOT be used for replacing gallery browsing UI (GalleryGrid, PhotoCard, lightbox).
+- Table-specific UI must still use gallery semantic tokens via the token bridge.
 
 ### Phase 4 — Mobile/Tablet (Future Spec Only)
 
@@ -977,6 +1156,6 @@ This document was created as a research + planning exercise only. Updated as Pha
 - ✅ No SCSS files modified — confirmed after Phase 0 testing
 - ✅ No runtime behavior changed — confirmed after Phase 0 testing (23 Playwright smoke tests pass)
 - ✅ No mobile/tablet code changed (frozen)
-- ✅ shadcn-vue not installed, used as pattern reference only
+- ✅ shadcn-vue approved for selective, component-by-component adoption (see §6); not yet installed; no components migrated yet
 
 All counts above were verified via `grep` commands against the actual repo at commit time. Results were included inline in each section.
