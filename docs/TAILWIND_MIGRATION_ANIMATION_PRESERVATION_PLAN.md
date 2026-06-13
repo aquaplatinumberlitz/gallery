@@ -579,10 +579,13 @@ html, body {
 3. No `tailwind.config.js` — use CSS-first configuration
 4. Create `frontend/src/styles/tailwind.css` with:
    ```css
-   @import "tailwindcss" theme(theme) layer(theme);
-   @import "tailwindcss" theme(utilities) layer(utilities);
-   /* Preflight/base layer intentionally omitted for Phase 0A — see §7 */
+   @layer theme, base, components, utilities;
+   @import "tailwindcss/theme.css" layer(theme);
+   @import "tailwindcss/utilities.css" layer(utilities);
+   /* Preflight/base intentionally omitted in Phase 0A. */
+   /* Do not use @import "tailwindcss" in Phase 0A — the full entrypoint includes Preflight. */
    ```
+   Phase 0A imports only the Tailwind theme and utilities layers. Do not import `tailwindcss/preflight.css` in Phase 0A. Do not use the full `@import "tailwindcss";` entrypoint in Phase 0A because it includes Preflight. Preflight is tested later only in a separate Phase 0C spike.
 5. Define semantic token mapping in a Tailwind v4 `@theme` block (future implementation)
 6. Import `tailwind.css` in `main.ts` AFTER `tokens.css` but BEFORE `main.scss`
 7. Configure dark mode via Tailwind v4 `@variant` or `@custom-variant` for `[data-theme="dark"]` selector
@@ -785,10 +788,11 @@ Required test captures (all at 2x DPR for retina accuracy):
 ### 10.3 Before/After Comparison Protocol
 
 1. **Baseline capture** — Before any Tailwind migration, capture all 24 Playwright screenshots + record manual checks
-2. **Post-Phase 0 capture** — After Tailwind install (Preflight + patches), repeat all captures
-3. **Pixel diff threshold: ≤0.5%** — Any diff above this = investigate and fix before proceeding
-4. **Animation frame capture** — For animated elements, capture at 0ms, 500ms, and 1000ms of the animation cycle
-5. **Video recording** — Record 5-second videos of key interactions (lightbox open, header search expand, album hover)
+2. **Post-Phase 0A capture** — After Tailwind v4 foundation install with Preflight omitted, repeat all baseline captures. Expected result: no visual changes.
+3. **Post-Phase 0C capture** — Only if a separate Preflight spike is attempted, repeat all captures again after enabling Preflight plus documented base patches. Expected result: no visual changes. If there is any mismatch, keep Preflight disabled/omitted.
+4. **Pixel diff threshold: ≤0.5%** — Any diff above this = investigate and fix before proceeding
+5. **Animation frame capture** — For animated elements, capture at 0ms, 500ms, and 1000ms of the animation cycle
+6. **Video recording** — Record 5-second videos of key interactions (lightbox open, header search expand, album hover)
 
 ---
 
@@ -921,7 +925,7 @@ If a critical visual regression is discovered in production after Tailwind migra
 
 1. Candidate estimate: Tailwind may cover a large portion of static layout/spacing styles, but the actual SCSS reduction must be proven by migration diffs. Do not commit to a 60-70% SCSS reduction until Phase 1 migration proves it without visual regressions.
 2. Semantic tokens via CSS variables keep the warm-latte/premium theme intact
-3. SCSS volume reduces to animation + effect + override concerns (~30% of current)
+3. If migration diffs prove safe, SCSS may eventually shrink toward animation/effect/override concerns. Do not assume a fixed percentage before Phase 1 evidence.
 4. New components are Tailwind-first, avoiding accumulation of new SCSS
 5. Mobile/tablet code is untouched and safe
 6. Every existing animation is preserved byte-for-byte
