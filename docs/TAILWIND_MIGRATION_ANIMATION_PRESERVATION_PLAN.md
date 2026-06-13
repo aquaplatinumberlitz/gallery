@@ -21,7 +21,7 @@ This document presents a detailed migration plan for adopting Tailwind CSS in th
 - 133 `transform` property uses
 - PhotoSwipe 5 and vue-spring-bottom-sheet for lightbox/mobile sheets
 
-**Recommendation:** Hybrid migration. Tailwind for desktop-first common utilities, CSS variables as the semantic theme backbone, SCSS preserved for animations, complex effects, third-party overrides, and mobile/iOS quirks. shadcn-vue used as pattern reference only, never installed.
+**Recommendation:** Hybrid migration covering Phases 0-2. Tailwind for desktop-first common utilities, CSS variables as the semantic theme backbone, SCSS preserved for animations, complex effects, third-party overrides, and mobile/iOS quirks. shadcn-vue used as pattern reference only, never installed. **Phase 3 (Metadata/Admin Table) is deferred — not implementing now. Revisit when TanStack Table features are needed.**
 
 ---
 
@@ -262,7 +262,7 @@ These cannot be safely migrated to Tailwind utilities or components:
 
 ### 4.4 Group D — Do Not Touch During Initial Tailwind Migration
 
-These files and their behaviors are **frozen** during phases 0-3. Any change to these requires a separate mobile/tablet design spec, real iPhone/iPad testing, and explicit approval.
+These files and their behaviors are **frozen** during phases 0-2. Any change to these requires a separate mobile/tablet design spec, real iPhone/iPad testing, and explicit approval.
 
 | File | Reason Frozen |
 |---|---|
@@ -440,7 +440,7 @@ shadcn-vue is NOT installed as a dependency. It is NOT copied or imported. It se
 | **Popover** | Sort/density dropdowns, index status details | Study positioning, focus trap, click-outside dismiss. Apply to GalleryGrid dropdowns. |
 | **Sheet** | Future mobile bottom sheets (Phase 4+) | Study snap-point patterns, backdrop behavior. DO NOT replace existing RootPathSheet or LightboxMobileSheet. |
 | **Command** | Future quick search palette | Study keyboard-navigable list, filter behavior. Apply with gallery tokens. |
-| **Data Table** | Future MetadataAdminTable | Study TanStack Table integration pattern, column visibility, pagination. Phase 3 only. |
+| **Data Table** | Future MetadataAdminTable | Study TanStack Table integration pattern, column visibility, pagination. Future / Deferred (Phase 3). |
 | **Form** | Future AdvancedSearchDrawer | Study Label/Description/Error layout, form field composition. Phase 2 only. |
 
 ### 6.3 Hard Rules
@@ -644,9 +644,11 @@ html, body {
 - Desktop status panel (IndexStatusPanel)
 - Desktop command/search palette shell
 
-### Phase 3 — Metadata/Admin Table
+### Phase 3 (Future — deferred) — Metadata/Admin Table
 
-**Allowed candidates:**
+**Not implementing now. Revisit when TanStack Table features are needed.**
+
+**Allowed candidates (deferred):**
 - TanStack Table integration (new MetadataTable component, Tailwind-first)
 - TanStack Table toolbar/action menu (Tailwind utilities)
 - Column visibility / pagination UI
@@ -811,7 +813,7 @@ Required test captures (all at 2x DPR for retina accuracy):
 | Phase 0 | Remove Tailwind import, remove `tailwind.css`, remove Vite plugin, `npm uninstall tailwindcss` | ~5 min |
 | Phase 1 | Git revert affected component files to pre-migration commit | ~2 min |
 | Phase 2 | Git revert search/filter component files | ~5 min |
-| Phase 3 | Git revert metadata/table component files | ~5 min |
+| Phase 3 (Future / Deferred) | Git revert metadata/table component files | ~5 min |
 
 ### 11.2 Git Strategy
 
@@ -916,7 +918,7 @@ If a critical visual regression is discovered in production after Tailwind migra
 | **Visual effects** | SCSS | Dark mode neon glows, album card 3D, brand title shimmer, backdrop-filter compositions, `color-mix()` rules. |
 | **Third-party overrides** | SCSS | PhotoSwipe, vue-spring-bottom-sheet, scrollbar styles. |
 | **Mobile/iOS fixes** | SCSS | Safe-area, touch hover disables, rubber-band, viewport hacks. |
-| **New components (future)** | Tailwind-first + gallery tokens | AdvancedSearch, MetadataTable, IndexPanel — built with Tailwind from the start. |
+| **New components (future)** | Tailwind-first + gallery tokens | AdvancedSearch, IndexPanel — built with Tailwind from the start. MetadataTable deferred to Phase 3 (Future). |
 
 ### Why Not Full Migration
 
