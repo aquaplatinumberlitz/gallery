@@ -79,8 +79,9 @@ Preferred Tailwind v4 direction:
 
 1. `tokens.css` — CSS custom properties defined on `:root` and `[data-theme="dark"]`
 2. `fonts.css` — Google Fonts CDN `@import`
-3. `main.scss` — global resets, brand keyframes, a11y, responsive base, `_mobile-overrides`
-4. Per-component scoped SCSS — each SFC imports relevant `_lightbox-*.scss` or `_breakpoints.scss` as needed
+3. `tailwind.css` — Tailwind v4 utilities/theme layer (imported in `main.ts` after `tokens.css` but before `main.scss`) **(added in Phase 0)**
+4. `main.scss` — global resets, brand keyframes, a11y, responsive base, `_mobile-overrides`
+5. Per-component scoped SCSS — each SFC imports relevant `_lightbox-*.scss` or `_breakpoints.scss` as needed
 
 ### 2.3 Technology Stack
 
@@ -102,7 +103,7 @@ Preferred Tailwind v4 direction:
 | 2 | `dark-title-shimmer` | `styles/main.scss:54` | Dark mode brand-title | `background-position` | 4s linear infinite | Desktop | **High** | Keep in SCSS |
 | 3 | `dark-title-glow` | `styles/main.scss:59` | Dark mode brand-title | `filter: drop-shadow` (3 layers) | 3s ease-in-out infinite | Desktop | **High** | Keep in SCSS |
 | 4 | `dark-underline-pulse` | `styles/main.scss:74` | Dark mode brand-title `::after` | `opacity`, `box-shadow` | 3s ease-in-out infinite | Desktop | **High** | Keep in SCSS |
-| 5 | `lucide-spin` | `styles/main.scss:419` | Global (any lucide icon) | `transform: rotate(360deg)` | 1.5s linear infinite | All | Low | Tailwind `animate-spin` equivalent possible |
+| 5 | `lucide-spin` | `styles/main.scss:419` | Global (any lucide icon) | `transform: rotate(360deg)` | 1.5s linear infinite | All | Low | **Custom Tailwind utility:** `animate-[spin_1.5s_linear_infinite]`. Default Tailwind `animate-spin` is 1s linear infinite, which differs from the existing CSS (1.5s). A custom duration utility preserves visual parity. |
 | 6 | `shimmer` | `PhotoCard.vue:306` | Photo card loading | `transform: translateX` | 1.5s infinite | All | Medium | Keep in SCSS (complex gradient + dark mode override) |
 | 7 | `shimmer` | `SkeletonLoader.vue:86` | Skeleton placeholder | `transform: translateX` | 1.5s infinite | All | Medium | Keep in SCSS (touch-device disable logic) |
 | 8 | `searchBarExpand` | `MobileHeader.vue:408` | Mobile search focus | `opacity`, `transform: scaleX` | 200ms cubic-bezier | Mobile | **High** | Keep in SCSS — do not touch mobile |
@@ -573,6 +574,11 @@ html, body {
 
 **Goal:** Install and configure Tailwind without changing any component styling.
 
+**Preflight tasks (before any Tailwind install):**
+- [ ] Verify Playwright is configured in the repo
+- [ ] Define baseline capture commands (or add them if missing)
+- [ ] Run baseline captures before any Tailwind install
+
 **Tasks (when implementation begins — NOT in this planning doc):**
 1. `npm install -D tailwindcss @tailwindcss/vite`
 2. Add Tailwind v4 Vite plugin to `vite.config.ts`
@@ -611,7 +617,7 @@ html, body {
 | Desktop Badge/Chip (`.loading-badge`, error badge) | Tailwind component class | Low |
 | Desktop Input Shell (`.search-box` layout, not dark mode neon) | Tailwind utilities + SCSS for neon | Medium |
 | AppHeader `hb-brand-hero` static layout (flex, gap, padding) | Tailwind utilities | Low |
-| SettingsModal shell structure (backdrop, content, header, body) | Tailwind `@layer` component | Low |
+| SettingsModal shell structure (backdrop, content, header, body) + `fadeIn`/`slideUp` animations | Tailwind `@layer` component for shell only. `fadeIn`/`slideUp` — Keep in SCSS during Phase 1. Defer animation migration to later phase after visual parity is proven. Reason: animations must stay SCSS-first per §9.1 rule 2 (animations are not migrated unless visual parity is proven). | Low |
 | Desktop toast shell (container, item layout, not colors) | Tailwind utilities | Low |
 | GalleryGrid toolbar layout (grid, gap, alignment) | Tailwind utilities | Low — desktop toolbar/control wrapper styles only. Do not touch scroller, virtual rows, sentinels, image loading states, skeleton behavior, virtualization logic, lightbox trigger behavior, or image sizing policy. |
 | Desktop sort/density trigger appearance | Tailwind component class | Low |
@@ -678,10 +684,10 @@ html, body {
 | `shimmer` (PhotoCard/SkeletonLoader) | **Possible future migration** | Could use Tailwind keyframe extension, but must preserve dark mode override and touch-device disable |
 | `searchBarExpand` (MobileHeader) | **Never migrate** | Mobile-header frozen; complex cubic-bezier with scaleX |
 | `thSearchBarIn` (TabletHeader) | **Never migrate** | Tablet-header frozen |
-| `fadeIn` / `slideUp` (SettingsModal) | **Possible future Tailwind @layer** | Desktop-safe only. Simple opacity/translate animations; must prove visual parity first. |
+| `fadeIn` / `slideUp` (SettingsModal) | **Keep in SCSS during Phase 1.** Defer animation migration to later phase after visual parity is proven. | Desktop-safe only, but animations must stay SCSS-first per §9.1 rule 2 (animations are not migrated unless visual parity is proven). |
 | `fadeIn` / `slideUp` (RootPathSheet) | **Keep in SCSS — do not touch** | Mobile-sensitive bottom sheet behavior, iOS textarea/focus quirks, previous mobile regressions. Deferred to future Mobile/Tablet Spec. |
 | `fadeSlideIn` (GalleryGrid scroller) | **Keep in SCSS** | Scoped to GalleryGrid; must not change |
-| `lucide-spin` | **Tailwind animate-spin** | Simple rotation; Tailwind equivalent exists |
+| `lucide-spin` | **Custom Tailwind utility:** `animate-[spin_1.5s_linear_infinite]` | Simple rotation; Tailwind equivalent exists, but default `animate-spin` duration is 1s instead of the existing 1.5s, so a custom duration utility is required for visual parity. |
 | Vue `<Transition>` animations (toast, sort dropdown, overlay) | **Preserve as-is** | Vue transition classes already handled; only surround markup can use Tailwind |
 
 ### 9.3 Per-Effect Preservation Examples
@@ -849,7 +855,7 @@ If a critical visual regression is discovered in production after Tailwind migra
 | File | Risk | Phase | Recommendation | Notes |
 |---|---|---|---|---|
 | `AppHeader.vue` | **High** | 1 | **Partial migration** — static layout (flex, gap, padding) to Tailwind. Animations (brand-icon, brand-title, theme toggle, search neon) keep in SCSS. | Dark mode neon effects on `.search-box`, `.theme-toggle` must stay SCSS. |
-| `SettingsModal.vue` | Medium | 1 | **Partial migration** — shell structure (backdrop, content, header/body/footer) to Tailwind `@layer`. Animations (`fadeIn`, `slideUp`) can move to Tailwind keyframe extension. | Keep dark mode border overrides in SCSS. |
+| `SettingsModal.vue` | Medium | 2+ | **Partial migration** — shell structure (backdrop, content, header/body/footer) to Tailwind `@layer`. Animations (`fadeIn`, `slideUp`) stay in SCSS and are deferred to Phase 2+ until visual parity is proven. | animation migration deferred — SCSS-first per §9.1 |
 | `ToastContainer.vue` | Low | 1 | **Full migration** — positioning, layout, TransitionGroup classes to Tailwind. | Keep ToastItem color variants in SCSS (color-mix dependencies). |
 | `ToastItem.vue` | Low | 1 | **Partial migration** — layout (flex, gap, padding) to Tailwind. Type variants (success/error/warning/info) keep in SCSS. | Color tokens via CSS variables are safe. |
 | `GalleryGrid.vue` | **High** | 1 | **Partial migration** — toolbar/control wrapper layout (grid, gap, buttons) to Tailwind. Only desktop toolbar/control wrapper styles may be considered. Do not touch scroller, virtual rows, sentinels, image loading states, skeleton behavior, virtualization logic, lightbox trigger behavior, or image sizing policy. | Do NOT touch `.scroller`, `.virtual-row`, `.tanstack-virtual-*`, `.skeleton-grid`. |
@@ -888,6 +894,8 @@ If a critical visual regression is discovered in production after Tailwind migra
 | `PhotoCard.vue` | **Partial freeze** — static layout can use Tailwind; hover transform, thumbnail opacity, shimmer animation, type badge keep in SCSS |
 | `TabletGalleryToolbar.vue` | Frozen — tablet-specific toolbar component |
 | `App.vue` | Frozen — theme toggle logic, layout switching |
+| `GalleryGrid.vue` | Frozen for virtualization/internals — only the desktop toolbar wrapper may be considered |
+| All mobile/tablet sheet behavior files | Frozen — includes `RootPathSheet.vue`, `LightboxMobileSheet.vue`, `LightboxTabletPanel.vue`, and any VSBS/sheet orchestration |
 
 ---
 
