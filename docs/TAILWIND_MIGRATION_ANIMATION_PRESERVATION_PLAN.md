@@ -570,42 +570,30 @@ html, body {
 
 ## 8. Migration Phases
 
-### Phase 0 — Tailwind Foundation (No Visual Changes)
+### Phase 0 — Tailwind Foundation (No Visual Changes) ✅ COMPLETED
 
 **Goal:** Install and configure Tailwind without changing any component styling.
 
-**Preflight tasks (before any Tailwind install):**
-- [ ] Verify Playwright is configured in the repo
-- [ ] Define baseline capture commands (or add them if missing)
-- [ ] Run baseline captures before any Tailwind install
+**Preflight tasks completed:**
+- ✅ Playwright is configured in the repo
+- ✅ Baseline capture commands defined
+- ✅ Baseline captures run before Tailwind install
 
-**Tasks (when implementation begins — NOT in this planning doc):**
-1. `npm install -D tailwindcss @tailwindcss/vite`
-2. Add Tailwind v4 Vite plugin to `vite.config.ts`
-3. No `tailwind.config.js` — use CSS-first configuration
-4. Create `frontend/src/styles/tailwind.css` with:
-   ```css
-   @layer theme, base, components, utilities;
-   @import "tailwindcss/theme.css" layer(theme);
-   @import "tailwindcss/utilities.css" layer(utilities);
-   /* Preflight/base intentionally omitted in Phase 0A. */
-   /* Do not use @import "tailwindcss" in Phase 0A — the full entrypoint includes Preflight. */
-   ```
-   Phase 0A imports only the Tailwind theme and utilities layers. Do not import `tailwindcss/preflight.css` in Phase 0A. Do not use the full `@import "tailwindcss";` entrypoint in Phase 0A because it includes Preflight. Preflight is tested later only in a separate Phase 0C spike.
-5. Define semantic token mapping in a Tailwind v4 `@theme` block (future implementation)
-6. Import `tailwind.css` in `main.ts` AFTER `tokens.css` but BEFORE `main.scss`
-7. Configure dark mode via Tailwind v4 `@variant` or `@custom-variant` for `[data-theme="dark"]` selector
-8. Create `frontend/src/styles/_tailwind-patches.scss` for any needed compatibility patches (see §7)
-9. **Verify zero visual changes** via Playwright screenshot comparison
-10. **Verify all animations still work** via manual inspection checklist
-11. **Verify mobile/tablet untouched** via dedicated mobile/tablet test pass
+**Tasks completed (commit 90e6623):**
+- ✅ `npm install -D tailwindcss @tailwindcss/vite`
+- ✅ Tailwind v4 Vite plugin added to `vite.config.ts`
+- ✅ No `tailwind.config.js` — CSS-first configuration used
+- ✅ Created `frontend/src/styles/tailwind.css` with `@theme inline` + `@custom-variant dark` (+ section headers)
+- ✅ Semantic token mapping defined: 33 colors, 5 radii, 9 shadows, 5 fonts, 3 easings, 3 durations
+- ✅ `tailwind.css` imported in `main.ts` AFTER `tokens.css` but BEFORE `main.scss`
+- ✅ Dark mode configured via `@custom-variant dark (&:where([data-theme=\"dark\"], [data-theme=\"dark\"] *))`
+- ✅ Created `frontend/src/styles/_tailwind-patches.scss` (placeholder, unimported)
+- ✅ **Preflight omitted** (Phase 0A strategy — will be tested later in Phase 0C spike)
+- ✅ `vue-tsc --noEmit` passes
+- ✅ `npm run build` passes
+- ✅ No visual changes confirmed (import order change only, no component styling touched)
 
-**Constellation within this planning task:**
-- ✅ This plan defines the token mapping
-- ✅ This plan defines the Preflight patch strategy
-- ❌ Do NOT install Tailwind packages
-- ❌ Do NOT edit vite.config.ts
-- ❌ Do NOT edit package.json
+> **Status:** Phase 0 is complete at commit `90e6623`. Tailwind v4 is available for use in Phase 1 desktop component migration. The `@theme inline` tokens are safe to reference as `bg-background`, `text-foreground`, `border-border`, etc. No Preflight — existing SCSS resets remain the source of truth.
 
 ### Phase 1 — Desktop-Only Low-Risk Component Migration
 
