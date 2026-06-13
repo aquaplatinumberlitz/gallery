@@ -66,8 +66,8 @@
   --shadow-focus-ring: var(--focus-ring-shadow);
 
   /* Fonts */
-  --font-body: var(--font-body);
-  --font-code: var(--font-code);
+  --font-gallery-body: var(--font-body);
+  --font-gallery-code: var(--font-code);
   --font-cinzel: Cinzel, serif;
   --font-inter: InterVariable, Segoe UI, SF Pro Display, sans-serif;
   --font-mono: JetBrains Mono, monospace;
