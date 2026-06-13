@@ -25,6 +25,38 @@ This document presents a detailed migration plan for adopting Tailwind CSS in th
 
 ---
 
+## Tailwind Version Target
+
+**Target version: Tailwind v4.**
+
+When implementation begins:
+- Vite integration through the `@tailwindcss/vite` plugin
+- CSS-first configuration via `@import "tailwindcss"` and `@theme` blocks
+- Semantic tokens defined through Tailwind v4 theme/CSS token approach
+- No `tailwind.config.js` as the primary configuration path (Tailwind v3 alternative, not recommended for this repo)
+
+### Why Tailwind v4
+
+- **Current modern Tailwind direction**: Tailwind v4 is the stable, forward-looking version. v3 is in maintenance mode.
+- **Vite plugin path is simpler**: The `@tailwindcss/vite` plugin requires no PostCSS config and integrates natively with Vite's pipeline.
+- **CSS-first token mapping fits this repo**: Gallery already defines 90+ semantic tokens in `tokens.css` via CSS custom properties. v4's `@theme` block and CSS-first approach makes mapping these tokens to Tailwind's design system more natural than a JS config file.
+- **Easier to keep semantic tokens close to existing SCSS/CSS variables**: v4 allows defining Tailwind theme values directly in CSS alongside existing variables, reducing the gap between the two systems.
+
+### Tailwind v3 alternatives (not recommended for this repo)
+
+The following patterns are Tailwind v3 conventions and should NOT be used unless specifically labeled as "Tailwind v3 alternative, not recommended for this repo":
+
+- `tailwind.config.js` as the primary configuration path
+- `@tailwind base; @tailwind components; @tailwind utilities;`
+- `corePlugins: { preflight: false }`
+
+Preferred Tailwind v4 direction:
+- Use Tailwind v4 CSS-first setup with `@import "tailwindcss"`
+- Import only the layers needed during early migration: theme layer, utilities layer
+- Preflight/base layer should be omitted initially and tested later as a separate spike
+
+---
+
 ## 2. Current Styling Architecture Audit
 
 ### 2.1 File Inventory
@@ -176,18 +208,33 @@ These are simple, non-animated layout/spacing/sizing properties that Tailwind ha
 
 ### 4.2 Group B — Better Migrated to Tailwind `@layer components`
 
-These are repeated patterns across components that benefit from a component-level abstraction:
+These are repeated patterns across **desktop** components that benefit from a component-level abstraction. Mobile and tablet variants are explicitly excluded during early migration.
 
-| Pattern | Current Locations | Tailwind Approach |
-|---|---|---|
-| **Icon button (38×38, rounded, border, hover glow)** | AppHeader, GalleryGrid, MobileHeader, TabletHeader | `@layer components { .btn-icon { ... } }` combining 8-10 utilities |
-| **Navigation button** | GalleryGrid nav buttons | Component class |
-| **Badge/Chip/Status pill** | Toast, loading badge, search scope, mobile sort | Semantic component class using gallery tokens |
-| **Input shell/pill** | Search box, mobile search, tablet search | Component class for the pill-shaped input wrapper |
-| **Dropdown menu** (sort, density) | GalleryGrid sort/density dropdowns | Component class with transition |
-| **Modal shell** (backdrop + content + header/body/footer) | SettingsModal, RootPathSheet | Component class pattern |
-| **Toast shell** | ToastItem | Component class with variants (success/error/warning/info) |
-| **Dialog/Sheet overlay** | Multiple locations | Shared overlay component class |
+**Allowed early candidates (desktop only):**
+
+| Pattern | Current Locations | Tailwind Approach | Scope Notes |
+|---|---|---|---|
+| **Icon button** | Desktop AppHeader `.nav-btn`, `.hamburger-btn`, `.settings-btn` | `@layer components { .btn-icon { ... } }` combining 8-10 utilities | desktop AppHeader button/icon-button variants only. MobileHeader and TabletHeader are excluded. |
+| **Navigation button** | GalleryGrid nav buttons (desktop) | Component class | desktop-only |
+| **Badge/Chip/Status pill** | Desktop toast badges, loading badge, desktop status indicators | Semantic component class using gallery tokens | desktop Badge/Chip primitives |
+| **Input shell/pill** | Desktop search box layout only | Component class for the pill-shaped input wrapper | desktop search/input only. mobile/tablet search excluded. |
+| **Dropdown menu** (sort, density) | GalleryGrid sort/density dropdowns (desktop) | Component class with transition | desktop toolbar pieces only |
+| **Modal shell** (backdrop + content + header/body/footer) | SettingsModal (desktop) | Component class pattern | SettingsModal desktop-safe only. RootPathSheet excluded. |
+| **Toast shell** | ToastItem (desktop) | Component class with variants (success/error/warning/info) | desktop Toast shell only if behavior is unchanged |
+| **Dialog/Sheet overlay** | Desktop Dialog/Popover only | Shared overlay component class | desktop Dialog/Popover only. mobile Sheet and RootPathSheet excluded. |
+
+**Explicitly excluded from Group B during early migration:**
+- MobileHeader
+- TabletHeader
+- MobileLayout
+- TabletLayout
+- RootPathSheet
+- LightboxMobileSheet
+- mobile/tablet sheet behavior
+- mobile/tablet search/sort/theme/sidebar behavior
+- GalleryGrid virtualization internals
+- image loading behavior
+- lightbox behavior
 
 **Risk: Low-Medium.** Must ensure Tailwind component classes produce identical computed CSS. Test with Playwright screenshot comparison.
 
@@ -248,11 +295,12 @@ These files and their behaviors are **frozen** during phases 0-3. Any change to 
 Rather than hardcoding Tailwind palette colors (e.g., `bg-stone-100`), we map the existing `--gallery-*` CSS custom properties into Tailwind's theme as semantic tokens:
 
 ```js
-// tailwind.config.js (conceptual — not implemented in this plan)
-module.exports = {
-  theme: {
-    extend: {
-      colors: {
+// Tailwind v3 tailwind.config.js alternative — NOT recommended for this repo.
+// This is provided as a reference only. Target is Tailwind v4 CSS-first @theme.
+// module.exports = {
+//   theme: {
+//     extend: {
+//       colors: {
         // Semantic surface colors (do NOT use raw Tailwind palette)
         background: 'var(--bg-color)',
         foreground: 'var(--text-color)',
@@ -341,10 +389,11 @@ module.exports = {
         normal: 'var(--gallery-timing-normal)', // 200ms
         slow: 'var(--gallery-timing-slow)',     // 400ms
       },
-    },
-  },
-};
+//     },
+//   },
+// };
 ```
+This is a Tailwind v3 alternative. The target is Tailwind v4 CSS-first configuration via `@theme`.
 
 ### 5.2 Class Naming Strategy
 
@@ -363,13 +412,14 @@ module.exports = {
 
 ### 5.3 Dark Mode Strategy
 
-Gallery uses `html[data-theme="dark"]` attribute selector (NOT Tailwind's `dark:` class strategy). The Tailwind config should use:
+Gallery uses `html[data-theme="dark"]` attribute selector (NOT Tailwind's `dark:` class strategy).
 
+Tailwind v4 CSS-first approach: Use `@custom-variant` to register the `[data-theme="dark"]` selector so that `dark:bg-background` resolves correctly against our existing `data-theme="dark"` attribute.
+
+Tailwind v3 alternative (not recommended):
 ```js
 darkMode: ['selector', '[data-theme="dark"]'],
 ```
-
-This allows `dark:bg-background` to resolve correctly against our existing `data-theme="dark"` attribute.
 
 ---
 
@@ -436,14 +486,39 @@ Tailwind's Preflight (based on modern-normalize) resets:
 
 Similarly, vue-spring-bottom-sheet generates `[data-vsbs-*]` elements with its own CSS. Preflight might reset margins or box-sizing on VSBS internal elements.
 
-### 7.4 Recommendation: Option 3 — Preflight Enabled with Patches
+### 7.4 Recommendation: Staged Preflight Approach
 
-**Disable Preflight initially?** No — this would prevent Tailwind utilities from working correctly (e.g., Tailwind's border utilities depend on Preflight's border reset).
+**Default recommendation: Do not enable Preflight by default during the first migration step.** Preflight is an optional later spike, not the default first move. Tailwind utilities can still be used without Preflight, but some utilities may need small base patches (e.g., border defaults must be documented if Preflight is disabled).
 
-**Keep Preflight but add safeguard patches:**
+**Rationale:** Tailwind Preflight is based on modern-normalize and applies broad CSS resets that can silently change buttons, inputs, images, `html`/`body`/`#app` sizing, focus outlines, PhotoSwipe internals, vue-spring-bottom-sheet elements, and mobile Safari behavior. This repo has existing base resets in `main.scss` that already cover many of the same concerns without the risk of cascading into third-party DOM.
+
+**Staged approach:**
+
+**Phase 0A — Start without Preflight (default first step)**
+- Start with Tailwind v4 utilities and theme layer only.
+- Keep Preflight disabled/omitted initially.
+- Preserve existing base CSS, resets, `html`/`body`/`#app` sizing, button/input rules, image behavior, PhotoSwipe styles, vue-spring-bottom-sheet styles, and mobile Safari quirks.
+
+**Phase 0B — Screenshot baselines**
+- Run desktop/mobile/tablet screenshot baselines with Preflight disabled.
+- Confirm no visual changes compared to pre-Tailwind state.
+
+**Phase 0C — Test Preflight in a separate spike**
+- Test Tailwind Preflight in a separate branch/spike.
+- Only enable Preflight if all visual regression tests pass and required base patches are documented.
+- Preflight must not be allowed to silently change buttons, inputs, images, `html`/`body`/`#app` sizing, focus outlines, PhotoSwipe, vue-spring-bottom-sheet, or mobile Safari behavior.
+
+**If Preflight remains disabled — compatibility notes:**
+- Tailwind utilities are fully functional without Preflight. Most utilities do not depend on Preflight resets.
+- A few utilities (notably `border`, `border-*`) assume Preflight has reset `border-style` to `solid`. If Preflight is disabled, document that explicit `border-style: solid` may be needed alongside `border` utility in rare cases.
+- No other Tailwind utility requires Preflight to function correctly.
+
+**If Preflight is eventually enabled (future spike) — required safeguard patches:**
+
+Before enabling Preflight, the following patches must be verified against Playwright screenshot baselines (see §10). All must be applied AFTER Tailwind in the CSS cascade:
 
 ```css
-/* In main.scss or a new _tailwind-patches.scss, loaded AFTER Tailwind */
+/* In _tailwind-patches.scss, loaded AFTER Tailwind */
 
 /* Protect PhotoSwipe internal elements from Preflight */
 .pswp img {
@@ -476,7 +551,7 @@ html, body {
 }
 ```
 
-**Specific Preflight patches for gallery components:**
+**Specific Preflight patches for gallery components (if Preflight is enabled):**
 
 | Affected Element | Patch | Reason |
 |---|---|---|
@@ -500,18 +575,18 @@ html, body {
 
 **Tasks (when implementation begins — NOT in this planning doc):**
 1. `npm install -D tailwindcss @tailwindcss/vite`
-2. Create `tailwind.config.js` with semantic token mapping (see §5.1)
-3. Add Tailwind plugin to `vite.config.ts`
+2. Add Tailwind v4 Vite plugin to `vite.config.ts`
+3. No `tailwind.config.js` — use CSS-first configuration
 4. Create `frontend/src/styles/tailwind.css` with:
    ```css
-   @tailwind base;
-   @tailwind components;
-   @tailwind utilities;
+   @import "tailwindcss" theme(theme) layer(theme);
+   @import "tailwindcss" theme(utilities) layer(utilities);
+   /* Preflight/base layer intentionally omitted for Phase 0A — see §7 */
    ```
-5. Import `tailwind.css` in `main.ts` AFTER `tokens.css` but BEFORE `main.scss`
-6. Create `frontend/src/styles/_tailwind-patches.scss` (see §7.4)
-7. Import patches AFTER Tailwind base
-8. Configure `darkMode: ['selector', '[data-theme="dark"]']`
+5. Define semantic token mapping in a Tailwind v4 `@theme` block (future implementation)
+6. Import `tailwind.css` in `main.ts` AFTER `tokens.css` but BEFORE `main.scss`
+7. Configure dark mode via Tailwind v4 `@variant` or `@custom-variant` for `[data-theme="dark"]` selector
+8. Create `frontend/src/styles/_tailwind-patches.scss` for any needed compatibility patches (see §7)
 9. **Verify zero visual changes** via Playwright screenshot comparison
 10. **Verify all animations still work** via manual inspection checklist
 11. **Verify mobile/tablet untouched** via dedicated mobile/tablet test pass
@@ -535,7 +610,7 @@ html, body {
 | AppHeader `hb-brand-hero` static layout (flex, gap, padding) | Tailwind utilities | Low |
 | SettingsModal shell structure (backdrop, content, header, body) | Tailwind `@layer` component | Low |
 | Desktop toast shell (container, item layout, not colors) | Tailwind utilities | Low |
-| GalleryGrid toolbar layout (grid, gap, alignment) | Tailwind utilities | Low |
+| GalleryGrid toolbar layout (grid, gap, alignment) | Tailwind utilities | Low — desktop toolbar/control wrapper styles only. Do not touch scroller, virtual rows, sentinels, image loading states, skeleton behavior, virtualization logic, lightbox trigger behavior, or image sizing policy. |
 | Desktop sort/density trigger appearance | Tailwind component class | Low |
 | Desktop Breadcrumb component layout | Tailwind utilities | Low |
 | SidebarHeader layout | Tailwind utilities | Low |
@@ -600,7 +675,8 @@ html, body {
 | `shimmer` (PhotoCard/SkeletonLoader) | **Possible future migration** | Could use Tailwind keyframe extension, but must preserve dark mode override and touch-device disable |
 | `searchBarExpand` (MobileHeader) | **Never migrate** | Mobile-header frozen; complex cubic-bezier with scaleX |
 | `thSearchBarIn` (TabletHeader) | **Never migrate** | Tablet-header frozen |
-| `fadeIn` / `slideUp` (SettingsModal, RootPathSheet) | **Possible Tailwind @layer** | Simple opacity/translate animations; test for pixel perfection |
+| `fadeIn` / `slideUp` (SettingsModal) | **Possible future Tailwind @layer** | Desktop-safe only. Simple opacity/translate animations; must prove visual parity first. |
+| `fadeIn` / `slideUp` (RootPathSheet) | **Keep in SCSS — do not touch** | Mobile-sensitive bottom sheet behavior, iOS textarea/focus quirks, previous mobile regressions. Deferred to future Mobile/Tablet Spec. |
 | `fadeSlideIn` (GalleryGrid scroller) | **Keep in SCSS** | Scoped to GalleryGrid; must not change |
 | `lucide-spin` | **Tailwind animate-spin** | Simple rotation; Tailwind equivalent exists |
 | Vue `<Transition>` animations (toast, sort dropdown, overlay) | **Preserve as-is** | Vue transition classes already handled; only surround markup can use Tailwind |
@@ -772,7 +848,7 @@ If a critical visual regression is discovered in production after Tailwind migra
 | `SettingsModal.vue` | Medium | 1 | **Partial migration** — shell structure (backdrop, content, header/body/footer) to Tailwind `@layer`. Animations (`fadeIn`, `slideUp`) can move to Tailwind keyframe extension. | Keep dark mode border overrides in SCSS. |
 | `ToastContainer.vue` | Low | 1 | **Full migration** — positioning, layout, TransitionGroup classes to Tailwind. | Keep ToastItem color variants in SCSS (color-mix dependencies). |
 | `ToastItem.vue` | Low | 1 | **Partial migration** — layout (flex, gap, padding) to Tailwind. Type variants (success/error/warning/info) keep in SCSS. | Color tokens via CSS variables are safe. |
-| `GalleryGrid.vue` | **High** | 1 | **Partial migration** — toolbar layout (grid, gap, buttons) to Tailwind. Virtualization, scrollbar, animations, pull-to-refresh KEEP IN SCSS. | Do NOT touch `.scroller`, `.virtual-row`, `.tanstack-virtual-*`, `.skeleton-grid`. |
+| `GalleryGrid.vue` | **High** | 1 | **Partial migration** — toolbar/control wrapper layout (grid, gap, buttons) to Tailwind. Only desktop toolbar/control wrapper styles may be considered. Do not touch scroller, virtual rows, sentinels, image loading states, skeleton behavior, virtualization logic, lightbox trigger behavior, or image sizing policy. | Do NOT touch `.scroller`, `.virtual-row`, `.tanstack-virtual-*`, `.skeleton-grid`. |
 | `DesktopLayout.vue` | Medium | 1 | **Partial migration** — grid layout, sidebar static styles. Sidebar open/close transition keep in SCSS. | |
 | `Breadcrumb.vue` | Low | 1 | **Full migration** possible | Simple flex layout with text and separators. |
 | `SidebarHeader.vue` | Low | 1 | **Full migration** possible | Simple layout with form elements. |
@@ -843,7 +919,7 @@ If a critical visual regression is discovered in production after Tailwind migra
 
 ### Why Hybrid Works
 
-1. Tailwind handles 60-70% of boring layout/spacing work, reducing SCSS volume significantly
+1. Candidate estimate: Tailwind may cover a large portion of static layout/spacing styles, but the actual SCSS reduction must be proven by migration diffs. Do not commit to a 60-70% SCSS reduction until Phase 1 migration proves it without visual regressions.
 2. Semantic tokens via CSS variables keep the warm-latte/premium theme intact
 3. SCSS volume reduces to animation + effect + override concerns (~30% of current)
 4. New components are Tailwind-first, avoiding accumulation of new SCSS
