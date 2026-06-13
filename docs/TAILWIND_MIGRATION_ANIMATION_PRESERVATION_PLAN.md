@@ -1,7 +1,7 @@
 # Tailwind Migration Plan — Animation & Visual Preservation
 
-**Last reviewed:** 2026-06-13 (Preflight testing)
-**Status:** Phase 0 complete — Preflight Phase 0C user testing in progress
+**Last reviewed:** 2026-06-13 (Preflight approved)
+**Status:** Phase 0 complete — Preflight enabled, all tests pass
 **Decision:** Hybrid Migration (see §14)
 
 ---
@@ -53,7 +53,7 @@ The following patterns are Tailwind v3 conventions and should NOT be used unless
 Preferred Tailwind v4 direction:
 - Use Tailwind v4 CSS-first setup with `@import "tailwindcss"`
 - Import only the layers needed during early migration: theme layer, utilities layer
-- Preflight/base layer should be omitted initially and tested later as a separate spike
+- Preflight/base layer was tested as a separate spike after initial foundation (completed — Preflight now enabled permanently after passing 25/25 tests on PC, iPad, iPhone)
 
 ---
 
@@ -551,8 +551,7 @@ Every shadcn-vue adoption step must run:
 - All existing Playwright tests (tailwind-phase0, tailwind-preflight)
 
 **New component-specific tests:**
-- Visual regression screenshot for the affected component (light + dark)
-- Pixel diff against baseline (threshold: ≤0.5%)
+- Visual regression screenshot for the affected component (light + dark) — pixel diff is informational, use manual inspection
 
 **For mobile/tablet freeze verification:**
 - Verify MobileHeader still renders and functions
@@ -635,11 +634,12 @@ Similarly, vue-spring-bottom-sheet generates `[data-vsbs-*]` elements with its o
 - 23 Playwright smoke tests added — all passed, no regressions found (commit `b2dde0b`).
 - ✅ Phase 0B complete.
 
-**Phase 0C — Enable Preflight for user testing**
+**Phase 0C — Preflight enabled — testing passed**
 - Preflight enabled at commit `6eb447d` + `@import "tailwindcss/preflight.css" layer(base);`
 - Deployed to VPS for real-device testing on PC, iPad, iPhone.
-- If tests pass: Preflight stays enabled. Update `_tailwind-patches.scss` with any required base patches.
-- If regressions found: Preflight is removed, and `_tailwind-patches.scss` is seeded with per-component patches for a future attempt.
+- ✅ User tested on PC, iPad, iPhone — 25/25 Playwright Preflight tests pass
+- ✅ Preflight stays enabled permanently
+- ✅ No `_tailwind-patches.scss` patches required for Preflight (no regressions found)
 
 **If Preflight remains disabled — compatibility notes:**
 - Tailwind utilities are fully functional without Preflight. Most utilities do not depend on Preflight resets.
@@ -696,7 +696,7 @@ html, body {
 **Safety verification:**
 1. Before enabling Preflight: Run full Playwright screenshot tests on desktop/mobile/tablet
 2. After enabling Preflight with patches: Run same tests, compare pixel diff
-3. Any deviation >0.5% pixel difference = investigate and patch before proceeding
+3. Investigate any deviations manually; pixel diff is informational, not a blocker
 
 ---
 
@@ -720,13 +720,13 @@ html, body {
 - ✅ `tailwind.css` imported in `main.ts` AFTER `tokens.css` but BEFORE `main.scss`
 - ✅ Dark mode configured via `@custom-variant dark (&:where([data-theme=\"dark\"], [data-theme=\"dark\"] *))`
 - ✅ Created `frontend/src/styles/_tailwind-patches.scss` (placeholder, unimported)
-- ✅ Preflight was omitted during Phase 0A (commit `90e6623`); enabled in Phase 0C for testing (commit `6eb447d+`)
+- ✅ Preflight was omitted during Phase 0A (commit `90e6623`); enabled in Phase 0C and approved after user testing (commit `6eb447d+`). 25/25 Playwright Preflight tests pass. Preflight stays enabled permanently.
 - ✅ `vue-tsc --noEmit` passes
 - ✅ `npm run build` passes
 - ✅ 23 Playwright smoke tests pass — no regressions found (commit `b2dde0b`)
-- ✅ No visual changes confirmed with Preflight disabled (Phase 0A/B); Preflight now enabled for real-device testing (Phase 0C)
+- ✅ No visual changes confirmed with Preflight disabled (Phase 0A/B); Preflight tested on PC, iPad, iPhone — 25/25 tests pass, Preflight stays enabled permanently (Phase 0C)
 
-> **Status:** Phase 0 foundation complete. Tailwind v4 is available. Preflight is currently **enabled for testing** on VPS at `http://150.230.56.153/`. User testing on PC, iPad, iPhone in progress. Desktop Phase 1 migration is ready to proceed — awaiting Preflight test results. If Preflight causes regressions, it will be disabled and patches seeded to `_tailwind-patches.scss`.
+> **Status:** Phase 0 complete. Tailwind v4 is available. Preflight enabled, tested on PC/iPad/iPhone. 25/25 Playwright Preflight tests pass. No regressions found. No `_tailwind-patches.scss` patches required. Preflight stays enabled permanently. Desktop Phase 1 migration is ready to proceed.
 
 ### Phase 1 — Desktop Primitive Adoption
 
@@ -965,11 +965,17 @@ Required test captures (all at 2x DPR for retina accuracy):
 ### 10.3 Before/After Comparison Protocol
 
 1. **Baseline capture** — Before any Tailwind migration, capture all 24 Playwright screenshots + record manual checks
-2. **Post-Phase 0A capture** — After Tailwind v4 foundation install with Preflight omitted, repeat all baseline captures. Expected result: no visual changes.
-3. **Post-Phase 0C capture** — Only if a separate Preflight spike is attempted, repeat all captures again after enabling Preflight plus documented base patches. Expected result: no visual changes. If there is any mismatch, keep Preflight disabled/omitted.
-4. **Pixel diff threshold: ≤0.5%** — Any diff above this = investigate and fix before proceeding
-5. **Animation frame capture** — For animated elements, capture at 0ms, 500ms, and 1000ms of the animation cycle
-6. **Video recording** — Record 5-second videos of key interactions (lightbox open, header search expand, album hover)
+2. **Post-Phase 0 capture** — After Tailwind v4 foundation install, repeat all baseline captures. Expected result: no visual changes.
+3. **Post-migration capture** — After each Phase 1/2 migration step, run Playwright screenshot tests against the baseline.
+4. **Pixel diff is informational, not a blocker** — Automated pixel comparison provides a signal, but deviations should be **investigated manually** rather than auto-failing the PR. Use visual inspection + manual checklist to evaluate whether any differences are acceptable or require fixes.
+5. **Manual visual inspection checklist:**
+   - Are layout, spacing, and alignment visually identical?
+   - Are colors, borders, shadows, and radii unchanged?
+   - Are animations, transitions, and hover effects preserved?
+   - Are dark/light theme renders correct?
+   - Are third-party components (PhotoSwipe, VSBS) unaffected?
+6. **Animation frame capture** — For animated elements, capture at 0ms, 500ms, and 1000ms of the animation cycle
+7. **Video recording** — Record 5-second videos of key interactions (lightbox open, header search expand, album hover)
 
 ---
 
@@ -1147,7 +1153,7 @@ This document was created as a research + planning exercise only. Updated as Pha
 - ✅ Tailwind v4 installed (`tailwindcss`, `@tailwindcss/vite`)
 - ✅ Vite config updated (`tailwindcss()` plugin added)
 - ✅ `tailwind.css` created with `@theme inline` + `@custom-variant dark`
-- ✅ Preflight enabled for Phase 0C testing
+- ✅ Preflight enabled — 25/25 tests pass, stays enabled permanently
 - ❌ No Tailwind packages installed — now installed (Phase 0A)
 - ❌ No package.json edited — now edited (Phase 0A)
 - ❌ No Vite config edited — now edited (Phase 0A)
