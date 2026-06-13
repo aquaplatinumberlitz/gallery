@@ -1,10 +1,17 @@
 @layer theme, base, components, utilities;
+
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
-/* Preflight/base intentionally omitted in Phase 0A. */
-/* Do not use @import "tailwindcss" in Phase 0A — the full entrypoint includes Preflight. */
 
-@theme {
+/*
+ * Tailwind v4 foundation for gallery.
+ * Phase 0A intentionally omits Preflight/base.
+ * Existing SCSS remains the source of truth for resets, animations,
+ * third-party overrides, and mobile/Safari quirks.
+ */
+
+@theme inline {
+  /* Colors */
   --color-background: var(--bg-color);
   --color-foreground: var(--text-color);
   --color-surface: var(--surface-color);
@@ -39,11 +46,15 @@
   --color-neon: var(--neon-color);
   --color-neon-border: var(--neon-border-color);
   --color-folder: var(--folder-color);
+
+  /* Radius */
   --radius-sm: var(--gallery-radius-sm);
   --radius-md: var(--gallery-radius-md);
   --radius-lg: var(--gallery-radius-lg);
   --radius-xl: var(--gallery-radius-xl);
   --radius-full: var(--gallery-radius-full);
+
+  /* Shadows */
   --shadow-sm: var(--gallery-shadow-sm);
   --shadow-md: var(--gallery-shadow-md);
   --shadow-lg: var(--gallery-shadow-lg);
@@ -53,17 +64,23 @@
   --shadow-card-level2: var(--shadow-card-level2);
   --shadow-card-level4: var(--shadow-card-level4);
   --shadow-focus-ring: var(--focus-ring-shadow);
+
+  /* Fonts */
   --font-body: var(--font-body);
   --font-code: var(--font-code);
-  --font-family-cinzel: Cinzel, serif;
-  --font-family-inter: InterVariable, Segoe UI, SF Pro Display, sans-serif;
-  --font-family-mono: JetBrains Mono, monospace;
-  --ease-gallery: cubic-bezier(0.4, 0, 0.2, 1);
-  --ease-gallery-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --ease-gallery-spring: cubic-bezier(0.68, -0.15, 0.265, 1.35);
+  --font-cinzel: Cinzel, serif;
+  --font-inter: InterVariable, Segoe UI, SF Pro Display, sans-serif;
+  --font-mono: JetBrains Mono, monospace;
+
+  /* Durations */
   --duration-fast: var(--gallery-timing-fast);
   --duration-normal: var(--gallery-timing-normal);
   --duration-slow: var(--gallery-timing-slow);
+
+  /* Easings */
+  --ease-gallery: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-gallery-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-gallery-spring: cubic-bezier(0.68, -0.15, 0.265, 1.35);
 }
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
