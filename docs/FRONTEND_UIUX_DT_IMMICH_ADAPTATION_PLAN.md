@@ -342,7 +342,7 @@ Rules:
 - [ ] **Refactor SettingsModal structure** — add formal Header/Body/Footer sections:
   - **Header**: Title "Settings" + Close button
   - **Body**: Scrollable content area (current settings)
-  - **Footer**: "Done" or "Close" button. **Do NOT use Apply/Cancel.** Settings auto-save immediately via existing watcher/localStorage behavior; there is no staged draft state to apply or cancel.
+  - **Footer**: "Close" button (desktop-safe, no API call — just closes the modal). **Do NOT use Apply/Cancel.** Settings auto-save immediately via existing watcher/localStorage behavior; there is no staged draft state to apply or cancel.
   - Add `role="dialog"`, `aria-modal="true"`, `aria-labelledby` referencing title element.
   - Do NOT add tabs yet; keep flat layout until more settings are added.
   - Do NOT migrate to TanStack Form in Phase 1; the current auto-save watcher model is correct and TanStack Form's dirty/Apply/Cancel/Reset lifecycle would conflict.
@@ -359,7 +359,7 @@ Rules:
 - [ ] **Add accessibility fixes** (desktop-safe only, non-breaking):
   - ToastItem: add `role="alert"` for screen reader announcements
   - GalleryGrid error banner: add `role="alert"` (desktop-safe only)
-  - FolderTreeItem: add `role="tree"`, `role="treeitem"`, `aria-expanded`
+  - FolderTreeItem: add `role="tree"`, `role="treeitem"`, `aria-expanded` (desktop sidebar only, verified not to affect mobile sidebar)
   - LightboxMobileSheet tabs: Deferred to future Mobile/Tablet Spec. NOT in Phase 1.
   - SettingsModal: add ARIA dialog roles (covered above)
   - AppHeader: add `role="banner"` landmark
@@ -682,7 +682,7 @@ UI behavior:
 - **idle/up-to-date**: muted compact chip/icon, not fully hidden when folder/library context exists
 - **disabled/no folder/no status**: hidden or disabled state
 
-Indexing status should be quiet but discoverable. Active/error states should be obvious; idle/up-to-date should collapse into a muted status, not disappear completely.
+Indexing status should be quiet but discoverable. Active/error states should be obvious; idle/up-to-date should reduce to a muted status, not disappear completely.
 
 ---
 
@@ -737,7 +737,7 @@ Reference levels for new surfaces (use existing gallery `--gallery-*` drop-shado
 - **DropdownMenu**: Level 2 (intermediate between sheet and dialog)
 
 Motion tokens for consistent animation language:
-- **Sheet entry/exit**: `250ms ease-out` (slide from right for desktop side sheet, slide up for mobile bottom sheet)
+- **Sheet entry/exit**: `250ms ease-out` (slide from right for desktop side sheet; mobile sheet deferred to future spec)
 - **Chip/Popover transitions**: `150ms ease` (badge state changes, popover show/hide)
 - **Pulse animation** (active index state): Keep existing CSS pulse keyframes
 - **Keep existing gallery transition tokens** as defaults where they already cover the behavior
@@ -770,7 +770,7 @@ Do not add navigation clutter just to expose every future tool. Prefer progressi
 - [ ] `IndexStatusChip` shows failed/active/queued/idle correctly (desktop only).
 - [ ] `IndexStatusPanel` shows useful status details (desktop only).
 - [ ] `fetchFacets()` and/or `useFacetsQuery()` are typed or explicitly deferred (data-layer only).
-- [ ] `SettingsModal`/`RootPathSheet` standardization does not change behavior unexpectedly.
+- [ ] `SettingsModal` desktop-safe refactor does not change behavior unexpectedly (RootPathSheet deferred to future Mobile/Tablet Spec)
 - [ ] No indexing toast spam.
 - [ ] MobileHeader unchanged from pre-Phase-1 baseline.
 - [ ] TabletHeader unchanged from pre-Phase-1 baseline.
@@ -925,6 +925,10 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 | SettingsModal dialog roles present | Phase 1 | `role="dialog"`, `aria-modal`, `aria-labelledby` |
 | ToastItem `role="alert"` present | Phase 1 | Screen reader announces new toasts |
 | LightboxMobileSheet tab roles | Future | `role="tablist"`, `role="tab"`, `aria-selected` — deferred to future Mobile/Tablet Spec |
+| AppHeader `role="banner"` landmark | Phase 1C | `role="banner"` present on desktop header |
+| GalleryGrid error banner `role="alert"` | Phase 1C | `role="alert"` present on error banner |
+| Native search scope `<select>` preserved | Phase 1C | Scope select unchanged from pre-Phase-1 baseline |
+| Polling frequency not excessive | Phase 1B | Fast-poll only when active/queued work exists; failed-only slow-polls |
 | FolderTreeItem TreeView roles | Phase 1 | `role="tree"`, `role="treeitem"`, `aria-expanded` |
 | Form field labels linked to inputs | Phase 2 | Each input has `aria-labelledby` or `<label>` association |
 | Table column headers sortable via keyboard | Phase 3 | Enter/Space on column header triggers sort |
