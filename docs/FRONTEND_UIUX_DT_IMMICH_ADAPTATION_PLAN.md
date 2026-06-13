@@ -43,7 +43,7 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 
 - **Command palette pattern** for search/quick-command UX.
 - **Dialog** for desktop settings/modal structure.
-- **Drawer/Sheet** for mobile settings, advanced search, index panel.
+- **Drawer/Sheet** for mobile settings, mobile advanced search, and mobile index panel are future-only patterns, explicitly excluded from Phase 1. Phase 1 may only adapt desktop-safe Badge + Popover/Dialog patterns.
 - **Popover** for index status details, filter mini-panels.
 - **DropdownMenu** for search scope and toolbar actions.
 - **Data Table** for metadata/audit/admin tables.
@@ -402,7 +402,7 @@ Rules:
 - **Low risk for desktop.** This phase is purely additive for new desktop components; Phase 1 should not change GalleryGrid behavior, layout, virtualization, image loading, or browsing semantics.
 - **Mobile/tablet risk is reduced** because those surfaces are frozen.
 - IndexStatusChip is unobtrusive, uses muted idle state (never auto-hides), and never blocks interaction.
-- SettingsModal/RootPathSheet refactors are structural only; behavior is preserved.
+- SettingsModal desktop-safe refactor is structural only; behavior is preserved. RootPathSheet is deferred to a future Mobile/Tablet Spec and is not part of Phase 1.
 
 #### Phase 1 Acceptance Criteria
 
