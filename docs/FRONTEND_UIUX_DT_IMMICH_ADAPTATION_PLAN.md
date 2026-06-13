@@ -202,7 +202,7 @@ Frontend should not invent a new payload shape when an existing backend contract
 |---|---|---|
 | **Command** | Search suggestions, quick command palette (e.g., "Go to folder...", "Search by model...") | Adapt the keyboard-navigable list + filter pattern. Use gallery's existing warm-latte theme tokens instead of shadcn defaults. Bind to existing search store and folder navigation. |
 | **Dialog** | Desktop SettingsModal, Index Status detail view | Refactor SettingsModal to use Header/Body/Footer structure with proper ARIA roles (`role="dialog"`, `aria-modal`, `aria-labelledby`). A search filter panel with form fields (Advanced Search on desktop) should use a Side Sheet, not a Dialog per MD3. |
-| **Drawer / Sheet** | Mobile Settings (sheet), Advanced Search (mobile: bottom sheet; desktop: side sheet), Index Status (mobile), RootPathSheet | Existing `RootPathSheet` already has sheet-like behavior. Standardize the Header/Description/Footer pattern. Use existing VSBS for metadata sheet; do not replace it. New sheets (advanced search, index panel) should follow the same structure. |
+| **Drawer / Sheet** | Mobile Settings (sheet), Advanced Search (mobile: bottom sheet; desktop: side sheet), Index Status (mobile), RootPathSheet | Existing `RootPathSheet` already has sheet-like behavior. Standardize the Header/Description/Footer pattern. Use existing VSBS for metadata sheet; do not replace it. New sheets (advanced search, index panel) should follow the same structure. **Future-only. All mobile/tablet Drawer/Sheet uses excluded from Phase 1.** |
 | **Popover** | Index status details (click chip to see queue counts), search scope selector (future: Phase 2, if scope options expand beyond simple "This folder"/"All indexed"), field help tooltips | Keep native `<select>` for scope in Phase 1. Replace with Popover/DropdownMenu only in Phase 2 if scope options grow. Keep popovers compact and non-modal. |
 | **DropdownMenu** | Search scope, sort options, density grid options, toolbar actions menu | Current custom dropdowns (sort, density) already function well. Adapt them to DropdownMenu pattern for consistency: keyboard navigation, `aria-haspopup`/`aria-expanded`, focus management. |
 | **Data Table** | MetadataAdminTable, IndexJobTable, AuditTable, DuplicateFinderTable | Use TanStack Table with gallery-themed styling. Columns: thumbnail, name, folder, model, sampler, seed, dimensions, modified, actions. Sorting, filtering, column visibility, row selection. Match the gallery warm-latte color palette, not shadcn defaults. |
@@ -299,7 +299,7 @@ Rules:
 **Tasks:**
 
 - [ ] **Add `fetchIndexStatus()` to `api.ts`** — wraps `GET /api/index/status?path=...`. Response includes: `enabled`, `worker_count`, `active_jobs`, `runtime_queue_depth`, counts by state, `last_error`, `updated_at`.
-- [ ] **Add `useIndexStatusQuery()` composable** — TanStack Query wrapper with `queryKeys.indexStatus(path)`. Adaptive polling per Section 10 policy: active/queued/failed every 2-3s, idle every 60s. Browser tab hidden: pause or slow down. Window focus: local debounced refetch. No beforeunload/unload listeners. Enabled only when a folder is loaded.
+- [ ] **Add `useIndexStatusQuery()` composable** — TanStack Query wrapper with `queryKeys.indexStatus(path)`. Adaptive polling per Section 10 policy: fast 2-3s only when active/queued work exists; failed-only with no work slow-polls at 60s; unavailable/error slow-polls at 60s. Browser tab hidden: pause or slow down. Window focus: local debounced refetch. No beforeunload/unload listeners. Enabled only when a folder is loaded.
 - [ ] **Add query key `indexStatus(path)` in `query/keys.ts`**.
 - [ ] **Add `IndexStatusChip.vue`** — small badge in AppHeader (desktop only) near search area. Shows one of four states:
   - `failed` — `failed > 0 || staged_path_failed > 0 || last_error` (red badge with error icon)
@@ -346,7 +346,7 @@ Rules:
   - Do NOT add tabs yet; keep flat layout until more settings are added.
   - Do NOT migrate to TanStack Form in Phase 1; the current auto-save watcher model is correct and TanStack Form's dirty/Apply/Cancel/Reset lifecycle would conflict.
   - Phase 1 constraint: Desktop-safe ARIA/structure only. No mobile behavior changes.
-- [ ] **Refactor RootPathSheet structure** — add Header/Description/Footer pattern:
+- [ ] **RootPathSheet refactor** — Deferred to future Mobile/Tablet Spec. NOT in Phase 1.
   - **Header**: "Edit Root Path" title + FolderOpen icon
   - **Description**: Brief explanation text
   - **Body**: Textarea + error message
@@ -359,7 +359,7 @@ Rules:
   - ToastItem: add `role="alert"` for screen reader announcements
   - GalleryGrid error banner: add `role="alert"` (desktop-safe only)
   - FolderTreeItem: add `role="tree"`, `role="treeitem"`, `aria-expanded`
-  - LightboxMobileSheet tabs: add `role="tablist"`, `role="tab"`, `aria-selected` (only if proven desktop-safe)
+  - LightboxMobileSheet tabs: Deferred to future Mobile/Tablet Spec. NOT in Phase 1.
   - SettingsModal: add ARIA dialog roles (covered above)
   - AppHeader: add `role="banner"` landmark
 - [ ] **Add tests**:
@@ -383,12 +383,12 @@ Rules:
 | `frontend/src/components/indexing/IndexStatusChip.vue` | New component | Desktop-only |
 | `frontend/src/components/indexing/IndexStatusPanel.vue` | New component | Desktop-only |
 | `frontend/src/components/SettingsModal.vue` | Structure refactor + ARIA | Desktop-safe only |
-| `frontend/src/components/RootPathSheet.vue` | Structure refactor + ARIA + loading state | Avoid unless proven desktop-safe |
+| `frontend/src/components/RootPathSheet.vue` | Deferred to future Mobile/Tablet Spec | Not in Phase 1 |
 | `frontend/src/components/AppHeader.vue` | Add IndexStatusChip | Desktop-only. Must not affect mobile/tablet. |
 | `frontend/src/components/ToastItem.vue` | Add `role="alert"` | Desktop-safe only |
 | `frontend/src/components/GalleryGrid.vue` | Add `role="alert"` to error banner | Frozen for behavior/layout/virtualization |
 | `frontend/src/components/FolderTreeItem.vue` | Add TreeView ARIA roles | Desktop-safe only |
-| `frontend/src/components/LightboxMobileSheet.vue` | Add tab ARIA roles | Avoid unless proven desktop-safe |
+| `frontend/src/components/LightboxMobileSheet.vue` | Deferred to future Mobile/Tablet Spec | Not in Phase 1 |
 | `frontend/src/types/index.ts` | Add `IndexStatus`, `FacetsResponse`, `FacetEntry` types | Data-layer only |
 
 **Not touched in Phase 1:**
@@ -400,7 +400,7 @@ Rules:
 #### Phase 1 Risk Assessment
 
 - **Low risk for desktop.** This phase is purely additive for new desktop components; Phase 1 should not change GalleryGrid behavior, layout, virtualization, image loading, or browsing semantics.
-- **Mobile/tablet risk is eliminated** because those surfaces are frozen.
+- **Mobile/tablet risk is reduced** because those surfaces are frozen.
 - IndexStatusChip is unobtrusive, uses muted idle state (never auto-hides), and never blocks interaction.
 - SettingsModal/RootPathSheet refactors are structural only; behavior is preserved.
 
@@ -671,7 +671,8 @@ State priority:
 2. **active** — "Indexing…" state, visible chip
 3. **queued** — visible chip, queue count if available
 4. **idle/up-to-date** — muted compact chip/icon, not fully hidden when folder/library context exists
-5. **disabled/unavailable** — hidden or disabled state
+5. **disabled** (no folder/no library context) — hidden
+6. **unavailable** (API error/backend unreachable) — visible muted/error chip, distinct from disabled
 
 UI behavior:
 - **failed**: visible chip, error affordance, opens panel
@@ -689,7 +690,9 @@ Indexing status should be quiet but discoverable. Active/error states should be 
 Purpose: Avoid both noisy UI and wasteful polling.
 
 Recommended policy:
-- **active/queued/failed**: refetch every 2-3 seconds
+- **active/queued** (work moving): refetch every 2-3 seconds
+- **failed-only** (no active/queued work): slow-poll every 60 seconds or manual refresh only
+- **unavailable/error** with no data: slow-poll every 60 seconds, do not fast-poll forever
 - **idle/up-to-date**: refetch every 60 seconds or disable polling
 - **browser tab hidden**: pause polling or slow it down significantly
 - **window focus**: refetch once via local, debounced mechanism scoped to index status only. Do not change global TanStack Query focus behavior (keep `refetchOnWindowFocus: false`). Must not introduce `beforeunload`/`unload` listeners.
@@ -975,8 +978,8 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 |---|---|
 | `frontend/src/components/MobileHeader.vue` | Frozen — no changes |
 | `frontend/src/components/TabletHeader.vue` | Frozen — no changes |
-| `frontend/src/components/MobileLayout.vue` | Frozen — no changes |
-| `frontend/src/components/TabletLayout.vue` | Frozen — no changes |
+| `frontend/src/layouts/MobileLayout.vue` | Frozen — no changes |
+| `frontend/src/layouts/TabletLayout.vue` | Frozen — no changes |
 
 ### Test Files Expected
 
