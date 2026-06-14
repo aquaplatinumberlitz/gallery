@@ -194,7 +194,7 @@ These are simple, non-animated layout/spacing/sizing properties that Tailwind ha
 | **margin** | `margin-top: 12px` | `mt-3` |
 | **font-size** (simple, non-responsive) | `font-size: 14px` | `text-sm` |
 | **font-weight** | `font-weight: 600` | `font-semibold` |
-| **border-radius** | `border-radius: 8px` | `rounded-lg` |
+| **border-radius** | `border-radius: 8px` | `rounded-[8px]` for exact legacy parity; `rounded-md` for shadcn primitives |
 | **border** (basic 1px solid) | `border: 1px solid ...` | `border` + `border-color-*` |
 | **overflow** | `overflow: hidden` | `overflow-hidden` |
 | **width/height** (fixed) | `width: 38px; height: 38px` | `w-[38px] h-[38px]` or token |
@@ -353,22 +353,28 @@ Rather than hardcoding Tailwind palette colors (e.g., `bg-stone-100`), we map th
         folder: 'var(--folder-color)',
       },
       borderRadius: {
-        sm: 'var(--gallery-radius-sm)',
-        md: 'var(--gallery-radius-md)',
-        lg: 'var(--gallery-radius-lg)',
-        xl: 'var(--gallery-radius-xl)',
-        full: 'var(--gallery-radius-full)',
+        // Keep standard Tailwind/shadcn radius classes neutral.
+        // shadcn primitives should use upstream classes like rounded-md.
+        // Gallery radius tokens get explicit names for approved brand surfaces.
+        'gallery-sm': 'var(--gallery-radius-sm)',
+        'gallery-md': 'var(--gallery-radius-md)',
+        'gallery-lg': 'var(--gallery-radius-lg)',
+        'gallery-xl': 'var(--gallery-radius-xl)',
+        'gallery-full': 'var(--gallery-radius-full)',
       },
       boxShadow: {
-        sm: 'var(--gallery-shadow-sm)',
-        md: 'var(--gallery-shadow-md)',
-        lg: 'var(--gallery-shadow-lg)',
-        xl: 'var(--gallery-shadow-xl)',
-        // Legacy shadow tokens
-        card: 'var(--shadow-card)',
-        'card-hover': 'var(--shadow-card-hover)',
-        'card-level2': 'var(--shadow-card-level2)',
-        'card-level4': 'var(--shadow-card-level4)',
+        // Keep standard Tailwind/shadcn shadow classes neutral.
+        // shadcn primitives should use upstream classes like shadow-xs or shadow-sm.
+        // Gallery shadow tokens get explicit names for approved brand surfaces.
+        'gallery-sm': 'var(--gallery-shadow-sm)',
+        'gallery-md': 'var(--gallery-shadow-md)',
+        'gallery-lg': 'var(--gallery-shadow-lg)',
+        'gallery-xl': 'var(--gallery-shadow-xl)',
+        // Legacy shadows for approved brand/gallery-specific surfaces only
+        'gallery-card': 'var(--shadow-card)',
+        'gallery-card-hover': 'var(--shadow-card-hover)',
+        'gallery-card-level2': 'var(--shadow-card-level2)',
+        'gallery-card-level4': 'var(--shadow-card-level4)',
         // Focus ring
         'focus-ring': 'var(--focus-ring-shadow)',
       },
@@ -404,11 +410,12 @@ This is a Tailwind v3 alternative. The target is Tailwind v4 CSS-first configura
 ✅ bg-background text-foreground border-border
 ✅ bg-surface hover:bg-surface-hover
 ✅ text-muted-foreground text-primary
-✅ shadow-md hover:shadow-lg
-✅ rounded-lg border-border
+✅ shadow-xs hover:shadow-sm  (when upstream shadcn uses shadows)
+✅ rounded-md border-border
 
 ❌ bg-stone-100 text-gray-900 border-gray-200  (hardcoded palette)
 ❌ dark:bg-zinc-900 dark:text-zinc-100          (would break when tokens change)
+❌ globally remapping rounded-md or shadow-sm to gallery warm values
 ```
 
 ### 5.3 Dark Mode Strategy
@@ -432,7 +439,7 @@ darkMode: ['selector', '[data-theme="dark"]'],
 
 **Constraints (hard):**
 - shadcn-vue is NOT a wholesale replacement framework.
-- shadcn-vue must NOT override gallery design identity.
+- shadcn-vue must NOT override gallery brand identity on approved brand surfaces. For standard UI primitives, shadcn-vue default appearance is the baseline.
 - shadcn-vue must NOT force a parallel token system unless tokens are explicitly bridged to existing gallery semantic tokens (see §6.4).
 - Every adoption step is component-by-component, individually tested, and individually reviewed.
 - Mobile/tablet risky surfaces remain frozen during Phase 1 (see §6.3 Group C).
@@ -970,7 +977,7 @@ Behavior-heavy components such as Dialog, Dropdown Menu, Select, Tooltip, Popove
 
 **Guidance:**
 - shadcn-vue may be used where behavior or accessibility benefits are clear.
-- Do not override gallery visual identity — all shadcn components must use bridged gallery tokens (see §6.4, §6.5).
+- Preserve gallery brand identity on approved brand surfaces only, not for standard UI primitives. Standard shadcn components use shadcn-vue pixel-level defaults with conservative bridged color tokens (see §6.4, §6.5).
 - New components built in this phase should be Tailwind-first with gallery tokens, using shadcn-vue primitives where they reduce boilerplate for standard interaction patterns.
 
 ### Phase 3 (Future — deferred) — Metadata/Admin Table
@@ -1134,8 +1141,11 @@ Required test captures (all at 2x DPR for retina accuracy):
 3. **Post-migration capture** — After each Phase 1/2 migration step, run Playwright screenshot tests against the baseline.
 4. **Pixel diff is informational, not a blocker** — Automated pixel comparison provides a signal, but deviations should be **investigated manually** rather than auto-failing the PR. Use visual inspection + manual checklist to evaluate whether any differences are acceptable or require fixes.
 5. **Manual visual inspection checklist:**
-   - Are layout, spacing, and alignment visually identical?
-   - Are colors, borders, shadows, and radii unchanged?
+   - Does functional behavior match the baseline?
+   - Are frozen components visually and behaviorally unchanged?
+   - Are color changes expected and intentional per the adoption policy?
+   - Are border, shadow, and radius differences limited to intentional shadcn-default adoption? Shadows and radii may intentionally change when standard primitives adopt shadcn defaults.
+   - Are layout, spacing, and alignment correct for the adopted component policy?
    - Are animations, transitions, and hover effects preserved?
    - Are dark/light theme renders correct?
    - Are third-party components (PhotoSwipe, VSBS) unaffected?
