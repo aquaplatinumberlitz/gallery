@@ -29,6 +29,7 @@ import {
   Type, Clock, Images, Folder, FolderOpen
 } from "lucide-vue-next";
 import Button from "./ui/Button.vue";
+import Badge from "./ui/Badge.vue";
 
 const _icons: Record<string, any> = { Type, Clock }
 
@@ -697,10 +698,10 @@ onBeforeUnmount(() => {
         </Transition>
       </div>
 
-      <div v-if="isLoading || isRefetching" class="loading-badge" :class="{ subtle: isRefetching && !isLoading }">
+      <Badge v-if="isLoading || isRefetching" variant="loading" :class="{ 'opacity-70': isRefetching && !isLoading }" class="loading-badge">
         <Loader class="gallery-icon-md lucide-spin" /> 
         <span>{{ isRefetching && !isLoading ? 'Refreshing' : 'Loading' }}</span>
-      </div>
+      </Badge>
     </div>
 
     <!-- ============================================================
@@ -1547,18 +1548,10 @@ onBeforeUnmount(() => {
   margin-left: auto;
 }
 
+/* loading-badge base styles handled by shadcn Badge variant="loading" */
+/* Only responsive rules remain */
 .loading-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.05);
-  font-size: 13px;
-}
-
-.loading-badge.subtle {
-  opacity: 0.72;
+  /* Class preserved for responsive overrides */
 }
 
 /* ── Album scroll styles are in AlbumScroller.vue ── */
