@@ -57,9 +57,9 @@ watch(
 </script>
 
 <template>
-  <div class="sidebar-header p-4 group-data-[collapsible=icon]:p-1 bg-surface border-b border-black/5 dark:border-white/5 group-data-[collapsible=icon]:border-b-0">
+  <div class="sidebar-header relative p-4 group-data-[collapsible=icon]:p-1 bg-surface border-b border-black/5 dark:border-white/5 group-data-[collapsible=icon]:border-b-0">
     <SidebarTrigger
-      class="absolute top-3 right-3 z-20 h-8 w-8 [&>button]:h-8 [&>button]:w-8 group-data-[collapsible=icon]:static group-data-[collapsible=icon]:mb-1"
+      class="absolute top-2 right-2 z-20 size-7 group-data-[collapsible=icon]:static group-data-[collapsible=icon]:mx-auto"
     />
     <!-- MOBILE: Compact display with tappable edit -->
     <template v-if="isMobile">
