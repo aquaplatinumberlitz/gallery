@@ -26,8 +26,8 @@
   --color-text-inverse: var(--gallery-text-inverse);
   --color-text-placeholder: var(--gallery-text-placeholder);
   --color-title: var(--title-color);
-  --color-muted: var(--gallery-surface-hover);
-  --color-muted-foreground: var(--muted-text);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--gallery-border-default);
   --color-border-subtle: var(--gallery-border-subtle);
   --color-border-hover: var(--gallery-border-hover);
@@ -48,20 +48,20 @@
   --color-neon-border: var(--neon-border-color);
   --color-folder: var(--folder-color);
 
-  /* shadcn-vue color tokens (bridged to gallery semantic colors) */
+  /* shadcn-vue color tokens (neutral shadcn pixel-level defaults) */
   --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--surface-color);
-  --color-secondary-foreground: var(--text-color);
-  --color-accent: var(--gallery-surface-hover);
-  --color-accent-foreground: var(--text-color);
-  --color-destructive: var(--gallery-error);
-  --color-destructive-foreground: #ffffff;
-  --color-input: var(--gallery-border-default);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-card: var(--surface-color);
-  --color-card-foreground: var(--text-color);
-  --color-popover: var(--gallery-surface-elevated);
-  --color-popover-foreground: var(--text-color);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
 
   /* Radius — standard shadcn defaults */
   --radius-sm: 4px;

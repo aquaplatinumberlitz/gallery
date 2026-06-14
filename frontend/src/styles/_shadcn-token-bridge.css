@@ -4,37 +4,77 @@
  * shadcn-vue components reference standard shadcn CSS variable names
  * (--background, --foreground, --primary, --muted, --accent, etc.).
  *
- * This file bridges those names to gallery semantic tokens.
+ * This file provides NEUTRAL shadcn-vue pixel-level defaults.
+ * Gallery warm/orange identity is reserved for the brand hero and
+ * explicitly approved brand surfaces, NOT mapped into shadcn tokens.
+ *
  * Colors only — radius, shadow, and transition are handled by upstream
  * shadcn utility classes.
+ *
+ * Policy: Standard UI components use shadcn-vue pixel-level defaults.
+ * Legacy gallery warm identity is reserved for the brand hero only.
  *
  * Imported AFTER tokens.css, BEFORE Tailwind and main.scss.
  */
 
 :root {
-  --background: var(--bg-color);
-  --foreground: var(--text-color);
-  --card: var(--surface-color);
-  --card-foreground: var(--text-color);
-  --popover: var(--gallery-surface-elevated);
-  --popover-foreground: var(--text-color);
-  --primary: hsl(25deg 3% 12%);
-  --primary-foreground: #ffffff;
-  --secondary: var(--surface-color);
-  --secondary-foreground: var(--text-color);
-  --muted: var(--gallery-surface-hover);
-  --muted-foreground: var(--muted-text);
-  --accent: var(--gallery-surface-hover);
-  --accent-foreground: var(--text-color);
-  --destructive: var(--gallery-error);
-  --destructive-foreground: #ffffff;
-  --border: var(--gallery-border-default);
-  --input: var(--gallery-border-default);
-  --ring: hsl(25deg 3% 12%);
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+
+  --radius: 0.625rem;
 }
 
-:root[data-theme="dark"] {
-  --primary: hsl(40deg 4% 95%);
-  --primary-foreground: #1a1918;
-  --ring: hsl(40deg 4% 95%);
+[data-theme="dark"] {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.985 0 0);
+
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
 }
