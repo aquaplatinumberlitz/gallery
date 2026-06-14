@@ -5,6 +5,11 @@ import AppHeader from "../components/AppHeader.vue";
 import GalleryGrid from "../components/GalleryGrid.vue";
 import { ChevronLeft, ChevronRight, Loader } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 defineProps<{
@@ -57,17 +62,22 @@ const emit = defineEmits<{
     </aside>
 
     <!-- Sidebar Edge Toggle Button -->
-    <Button
-      variant="ghost"
-      size="icon"
-      :class="cn('sidebar-edge-toggle border border-border bg-background shadow-xs', isSidebarOpen && 'sidebar-open')"
-      type="button"
-      @click="emit('toggleSidebar')"
-      :title="isSidebarOpen ? 'Hide Sidebar' : 'Show Sidebar'"
-    >
-      <ChevronLeft v-if="isSidebarOpen" class="gallery-icon-sm" />
-      <ChevronRight v-else class="gallery-icon-sm" />
-    </Button>
+    <Tooltip>
+      <TooltipTrigger as-child>
+        <Button
+          variant="ghost"
+          size="icon"
+          :class="cn('sidebar-edge-toggle border border-border bg-background shadow-xs', isSidebarOpen && 'sidebar-open')"
+          type="button"
+          :aria-label="isSidebarOpen ? 'Hide Sidebar' : 'Show Sidebar'"
+          @click="emit('toggleSidebar')"
+        >
+          <ChevronLeft v-if="isSidebarOpen" class="gallery-icon-sm" />
+          <ChevronRight v-else class="gallery-icon-sm" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{{ isSidebarOpen ? 'Hide Sidebar' : 'Show Sidebar' }}</TooltipContent>
+    </Tooltip>
 
     <section class="content" id="main-content" tabindex="-1">
       <AppHeader

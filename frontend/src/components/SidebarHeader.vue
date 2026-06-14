@@ -61,7 +61,7 @@ watch(
       <label class="field-label block text-[11px] font-semibold text-muted-foreground mb-2 tracking-[0.5px]">ROOT PATH</label>
       <div class="mobile-root-display" @click="editOnMobile" role="button" tabindex="0" @keydown.enter="editOnMobile">
         <FolderOpen class="field-icon gallery-icon-md" />
-        <span class="mobile-path-text" :title="pathInput || 'Not set'">
+        <span class="mobile-path-text">
           {{ pathInput || "Not set" }}
         </span>
         <Tooltip>
@@ -98,7 +98,7 @@ watch(
           type="text"
           placeholder="Enter folder path..."
           autocomplete="off"
-          :title="pathInput"
+          aria-label="Root path"
           @keyup.enter="onLoad"
         />
         
