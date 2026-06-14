@@ -235,8 +235,8 @@ const closeMenu = () => {
   min-height: 40px;
   padding: 4px 8px;
   border: none;
-  background: var(--gallery-surface-hover, rgba(0, 0, 0, 0.05));
-  color: var(--muted-text);
+  background: var(--accent, rgba(0, 0, 0, 0.05));
+  color: var(--muted-foreground);
   cursor: pointer;
   border-radius: 4px;
   font-size: 14px;
@@ -244,21 +244,22 @@ const closeMenu = () => {
 }
 
 .ellipsis-btn:hover {
-  background: var(--gallery-surface-hover, rgba(0, 0, 0, 0.1));
-  color: var(--title-color);
+  background: var(--primary);
+  color: var(--primary-foreground);
 }
 
 .ellipsis-btn:focus-visible {
   outline: none;
-  box-shadow: var(--focus-ring-shadow);
+  box-shadow: 0 0 0 2px var(--ring);
 }
 
 :root[data-theme="dark"] .ellipsis-btn {
-  background: var(--gallery-surface-hover, rgba(255, 255, 255, 0.08));
+  background: var(--accent, rgba(255, 255, 255, 0.08));
 }
 
 :root[data-theme="dark"] .ellipsis-btn:hover {
-  background: var(--gallery-surface-elevated, rgba(255, 255, 255, 0.15));
+  background: var(--primary);
+  color: var(--primary-foreground);
 }
 
 /* Collapse button */
@@ -269,8 +270,8 @@ const closeMenu = () => {
   width: 24px;
   height: 24px;
   border: none;
-  background: var(--gallery-surface-hover, rgba(0, 0, 0, 0.05));
-  color: var(--muted-text);
+  background: var(--accent, rgba(0, 0, 0, 0.05));
+  color: var(--muted-foreground);
   cursor: pointer;
   border-radius: 4px;
   font-size: 12px;
@@ -279,21 +280,22 @@ const closeMenu = () => {
 }
 
 .collapse-btn:hover {
-  background: var(--gallery-surface-hover, rgba(0, 0, 0, 0.1));
-  color: var(--title-color);
+  background: var(--primary);
+  color: var(--primary-foreground);
 }
 
 .collapse-btn:focus-visible {
   outline: none;
-  box-shadow: var(--focus-ring-shadow);
+  box-shadow: 0 0 0 2px var(--ring);
 }
 
 :root[data-theme="dark"] .collapse-btn {
-  background: var(--gallery-surface-hover, rgba(255, 255, 255, 0.08));
+  background: var(--accent, rgba(255, 255, 255, 0.08));
 }
 
 :root[data-theme="dark"] .collapse-btn:hover {
-  background: var(--gallery-surface-elevated, rgba(255, 255, 255, 0.15));
+  background: var(--primary);
+  color: var(--primary-foreground);
 }
 
 /* Dropdown Menu */
@@ -306,7 +308,7 @@ const closeMenu = () => {
   background: var(--bg-secondary, #fff);
   border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
   border-radius: 8px;
-  box-shadow: var(--gallery-shadow-lg, 0 4px 20px rgba(0, 0, 0, 0.15));
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
   z-index: 1000;
   padding: 4px;
 }
@@ -337,12 +339,12 @@ const closeMenu = () => {
 }
 
 .ellipsis-menu-item:hover {
-  background: var(--gallery-surface-hover, rgba(0, 0, 0, 0.05));
+  background: var(--accent, rgba(0, 0, 0, 0.05));
 }
 
 .ellipsis-menu-item:focus-visible {
   outline: none;
-  box-shadow: var(--focus-ring-shadow);
+  box-shadow: 0 0 0 2px var(--ring);
 }
 
 .ellipsis-menu-divider {
@@ -370,12 +372,12 @@ const closeMenu = () => {
 /* Dark mode dropdown */
 :root[data-theme="dark"] .ellipsis-menu {
   background: var(--bg-secondary, #1e1e1e);
-  border-color: var(--gallery-border-default, rgba(255, 255, 255, 0.1));
-  box-shadow: var(--gallery-shadow-lg, 0 4px 20px rgba(0, 0, 0, 0.4));
+  border-color: var(--border, rgba(255, 255, 255, 0.1));
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
 :root[data-theme="dark"] .ellipsis-menu-item:hover {
-  background: var(--gallery-surface-hover, rgba(255, 255, 255, 0.08));
+  background: var(--accent, rgba(255, 255, 255, 0.08));
 }
 
 /* Reduced motion */

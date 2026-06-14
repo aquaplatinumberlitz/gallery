@@ -1,39 +1,62 @@
 # Tailwind Migration Plan — Animation & Visual Preservation
 
-**Last reviewed:** 2026-06-15 (Phase 1 through 2B complete)
-**Status:** Phase 1 ✅, Phase 1.5 ✅, Phase 2A ✅, Phase 2B ✅ — ready for next phase
+**Last reviewed:** 2026-06-15 (Phases 0-2B complete; Stone base color finalized)
+**Status:** Phase 1 ✅, Phase 1.5 ✅, Phase 2A ✅, Phase 2B ✅ — Standard UI now uses shadcn-vue Stone pixel-level defaults
 **Decision:** Hybrid Migration (see §14)
+**Base color:** shadcn-vue Stone
 
 ---
 
 ## Shadcn Pixel-Level Default Policy — FINAL
 
-**Approved and implemented policy (2026-06-14):**
+**Approved and implemented policy (2026-06-14; updated 2026-06-15 with Stone base color):**
 
-1. **Standard UI components use shadcn-vue pixel-level defaults.** This includes Button/IconButton, Badge, Input, Separator, Breadcrumb, Dropdown, Select, Popover, Tooltip, Dialog, Tabs, and future shadcn primitives. Do not gallery-colorize them. Do not use warm/orange gallery shadows, accent hover colors, large gallery radius, or custom gallery effects on standard UI.
+1. **Standard UI components use shadcn-vue pixel-level defaults with Stone base color.** This includes Button/IconButton, Badge, Input, Separator, Breadcrumb, Dropdown, Select, Popover, Tooltip, Dialog, Tabs, Toast shell, Toolbar controls, Sidebar controls, Folder tree controls, Empty states, Generic app panels, and future shadcn primitives. Do not gallery-colorize them. Do not use warm/orange gallery shadows, accent hover colors, large gallery radius, or custom gallery effects on standard UI.
 
 2. **Legacy gallery warm identity is reserved for the brand hero and explicitly approved brand/artwork surfaces only.** Brand hero / logo / title treatment may continue to use gallery warm colors and effects. Brand hero uses its own gallery token variables (`--title-color`, `--neon-color`, `--primary-color`) and explicit brand-identity CSS in `main.scss` and `AppHeader.vue` — these are NOT mapped through shadcn tokens.
 
-3. **Do not globally map shadcn tokens to gallery warm/orange values.** The shadcn token bridge (`_shadcn-token-bridge.css`) supplies neutral oklch values matching upstream shadcn-vue Tailwind v4 defaults.
+3. **Do not globally map shadcn tokens to gallery warm/orange values.** The shadcn token bridge (`_shadcn-token-bridge.css`) supplies exact shadcn-vue Stone oklch pixel-level values.
 
 4. **Do not use warm gallery shadows/radius/hover on generic UI.** Gallery-specific shadows (`shadow-gallery-*`) and radius (`rounded-gallery-*`) are available only for approved brand surfaces, not standard shadcn primitives.
 
-5. **Any future deviation from shadcn defaults requires explicit user approval.**
+5. **Any future deviation from shadcn Stone defaults requires explicit user approval.** The standard UI base color is shadcn-vue Stone. All standard UI components should preserve shadcn-vue Stone pixel-level defaults.
 
-**Key token values (implemented in `_shadcn-token-bridge.css`):**
+6. **`--accent` is Stone neutral.** `hover:bg-accent` must produce a Stone neutral hover, not orange or warm-tinted.
+
+7. **Brand hero uses separate brand-only variables/classes.** Do not let brand hero tokens leak into standard UI via global mappings.
+
+8. **Dark mode uses `[data-theme="dark"]` attribute, NOT `.dark` class.**
+
+**Key token values (implemented in `_shadcn-token-bridge.css` — exact shadcn-vue Stone base):**
 
 | Token | Light (oklch) | Dark (oklch) | Notes |
 |---|---|---|---|
-| `--accent` | `oklch(0.97 0 0)` | `oklch(0.269 0 0)` | Neutral hover surface (was `var(--gallery-surface-hover)` warm) |
-| `--ring` | `oklch(0.708 0 0)` | `oklch(0.556 0 0)` | Neutral focus ring (was warm `hsl(25 3% 12%)`) |
-| `--primary` | `oklch(0.205 0 0)` | `oklch(0.922 0 0)` | Neutral primary (was warm `hsl(25 3% 12%)`) |
-| `--muted` | `oklch(0.97 0 0)` | `oklch(0.269 0 0)` | Neutral muted surface |
-| `--border` | `oklch(0.922 0 0)` | `oklch(1 0 0 / 10%)` | Neutral border |
-| `--input` | `oklch(0.922 0 0)` | `oklch(1 0 0 / 15%)` | Neutral input border |
+| `--background` | `oklch(1 0 0)` | `oklch(0.147 0 0)` | Stone background |
+| `--foreground` | `oklch(0.147 0 0)` | `oklch(0.985 0 0)` | Stone foreground |
+| `--card` | `oklch(1 0 0)` | `oklch(0.147 0 0)` | Stone card (dark matches background) |
+| `--card-foreground` | `oklch(0.147 0 0)` | `oklch(0.985 0 0)` | Stone card foreground |
+| `--popover` | `oklch(1 0 0)` | `oklch(0.147 0 0)` | Stone popover (dark matches background) |
+| `--popover-foreground` | `oklch(0.147 0 0)` | `oklch(0.985 0 0)` | Stone popover foreground |
+| `--primary` | `oklch(0.216 0.006 56.043)` | `oklch(0.985 0 0)` | Stone primary — subtle warm tint |
+| `--primary-foreground` | `oklch(0.985 0.001 106.423)` | `oklch(0.216 0.006 56.043)` | Stone primary foreground |
+| `--secondary` | `oklch(0.97 0.001 106.424)` | `oklch(0.268 0.007 34.298)` | Stone secondary surface |
+| `--secondary-foreground` | `oklch(0.216 0.006 56.043)` | `oklch(0.985 0 0)` | Stone secondary foreground |
+| `--muted` | `oklch(0.97 0.001 106.424)` | `oklch(0.268 0.007 34.298)` | Stone muted surface |
+| `--muted-foreground` | `oklch(0.553 0.013 58.048)` | `oklch(0.709 0.01 56.259)` | Stone muted foreground |
+| `--accent` | `oklch(0.97 0.001 106.424)` | `oklch(0.268 0.007 34.298)` | Stone neutral hover surface — NOT orange/warm |
+| `--accent-foreground` | `oklch(0.216 0.006 56.043)` | `oklch(0.985 0 0)` | Stone accent foreground |
+| `--destructive` | `oklch(0.577 0.245 27.325)` | `oklch(0.704 0.191 22.216)` | shadcn default destructive |
+| `--border` | `oklch(0.923 0.003 48.717)` | `oklch(1 0 0 / 10%)` | Stone neutral border |
+| `--input` | `oklch(0.923 0.003 48.717)` | `oklch(1 0 0 / 15%)` | Stone neutral input border |
+| `--ring` | `oklch(0.709 0.01 56.259)` | `oklch(0.553 0.013 58.048)` | Stone neutral focus ring — NOT orange glow |
+| `--radius` | `0.625rem` | `0.625rem` | Standard shadcn radius |
 
-**Dark mode:** Uses `[data-theme="dark"]` attribute selector, NOT `.dark` class.
+**Tailwind `@theme inline` token policy (2026-06-15):**
 
-**Brand hero preservation:** Brand hero continues to use `--title-color`, `--neon-color`, `--primary-color` from `tokens.css` (warm orange/gold). Brand animations (`iconFlicker`, `dark-title-shimmer`, `dark-title-glow`, `dark-underline-pulse`) remain in `main.scss` unchanged.
+All standard Tailwind color tokens in `tailwind.css` now reference shadcn bridge variables (`--background`, `--foreground`, `--primary`, `--accent`, `--border`, `--ring`, etc.) instead of legacy gallery warm tokens (`--gallery-border-default`, `--gallery-accent-hover`, `--gallery-surface-hover`, etc.). Gallery-specific values remain available only through brand-token paths (`--color-neon`, `--color-folder`, `--shadow-gallery-*`, `--radius-gallery-*`).
+
+**Brand hero preservation (unchanged):**
+Brand hero continues to use `--title-color`, `--neon-color`, `--primary-color` from `tokens.css` (warm orange/gold). Brand animations (`iconFlicker`, `dark-title-shimmer`, `dark-title-glow`, `dark-underline-pulse`) remain in `main.scss` unchanged.
 
 ---
 

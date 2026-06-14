@@ -12,30 +12,44 @@
  */
 
 @theme inline {
-  /* Colors */
-  --color-background: var(--bg-color);
-  --color-foreground: var(--text-color);
-  --color-surface: var(--surface-color);
-  --color-surface-elevated: var(--gallery-surface-elevated);
-  --color-surface-hover: var(--gallery-surface-hover);
-  --color-surface-dim: var(--gallery-surface-dim);
-  --color-text-primary: var(--gallery-text-primary);
-  --color-text-secondary: var(--gallery-text-secondary);
-  --color-text-tertiary: var(--gallery-text-tertiary);
-  --color-text-disabled: var(--gallery-text-disabled);
-  --color-text-inverse: var(--gallery-text-inverse);
-  --color-text-placeholder: var(--gallery-text-placeholder);
-  --color-title: var(--title-color);
+  /* Colors — shadcn-vue Stone neutral */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  /* Surface — shadcn-vue Stone neutral */
+  --color-surface: var(--card);
+  --color-surface-elevated: var(--popover);
+  --color-surface-hover: var(--accent);
+  --color-surface-dim: var(--muted);
+
+  /* Text — shadcn-vue Stone neutral */
+  --color-text-primary: var(--foreground);
+  --color-text-secondary: var(--muted-foreground);
+  --color-text-tertiary: var(--muted-foreground);
+  --color-text-disabled: var(--muted-foreground);
+  --color-text-inverse: var(--background);
+  --color-text-placeholder: var(--muted-foreground);
+  --color-title: var(--foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
-  --color-border: var(--gallery-border-default);
-  --color-border-subtle: var(--gallery-border-subtle);
-  --color-border-hover: var(--gallery-border-hover);
+
+  /* Border — shadcn-vue Stone neutral */
+  --color-border: var(--border);
+  --color-border-subtle: var(--border);
+  --color-border-hover: var(--ring);
+
+  /* Primary — shadcn-vue Stone neutral */
   --color-primary: var(--primary);
-  --color-primary-hover: var(--gallery-accent-hover);
-  --color-primary-muted: var(--gallery-accent-muted);
-  --color-primary-text: var(--gallery-accent-text);
-  --color-primary-border: var(--gallery-accent-border);
+  --color-primary-hover: var(--primary);
+  --color-primary-muted: var(--muted);
+  --color-primary-text: var(--primary);
+  --color-primary-border: var(--border);
+
+  /* Semantic — keep existing gallery values for non-shadcn use */
   --color-success: var(--gallery-success);
   --color-success-bg: var(--gallery-success-bg);
   --color-warning: var(--gallery-warning);
@@ -44,6 +58,8 @@
   --color-error-bg: var(--gallery-error-bg);
   --color-info: var(--gallery-info);
   --color-info-bg: var(--gallery-info-bg);
+
+  /* Brand-only tokens (reserved for brand hero, not standard UI) */
   --color-neon: var(--neon-color);
   --color-neon-border: var(--neon-border-color);
   --color-folder: var(--folder-color);
