@@ -38,6 +38,11 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const _icons: Record<string, any> = { Type, Clock }
 
@@ -530,47 +535,62 @@ watch(loadMoreSentinel, () => setupLoadObserver());
          ============================================================ -->
     <div v-if="deviceCategory === 'desktop'" class="grid-header grid grid-cols-[auto_1fr_auto_auto_auto_auto] items-center gap-3 shrink-0">
       <div class="nav-group inline-flex items-center gap-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          class="nav-btn"
-          :disabled="!canBack"
-          type="button"
-          @click="goBack"
-          title="Back"
-        >
-          <ArrowLeft class="gallery-icon-toolbar" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          class="nav-btn"
-          :disabled="!canForward"
-          type="button"
-          @click="goForward"
-          title="Forward"
-        >
-          <ArrowRight class="gallery-icon-toolbar" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="nav-btn"
+              :disabled="!canBack"
+              type="button"
+              aria-label="Go back"
+              @click="goBack"
+            >
+              <ArrowLeft class="gallery-icon-toolbar" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Back</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="nav-btn"
+              :disabled="!canForward"
+              type="button"
+              aria-label="Go forward"
+              @click="goForward"
+            >
+              <ArrowRight class="gallery-icon-toolbar" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Forward</TooltipContent>
+        </Tooltip>
       </div>
       <Breadcrumb v-if="showToolbarBreadcrumb" class="breadcrumb-wrap" :path="currentPath" @navigate="handleOpenFolder" />
 
-      <Button
-        variant="outline"
-        size="sm"
-        class="open-folder-btn"
-        type="button"
-        @click="openFolder"
-        title="Open current folder in file explorer"
-      >
-        <ArrowUpRight class="gallery-icon-sm" />
-        <span>Open</span>
-      </Button>
+      <Tooltip>
+        <TooltipTrigger as-child>
+          <Button
+            variant="outline"
+            size="sm"
+            class="open-folder-btn"
+            type="button"
+            aria-label="Open current folder in file explorer"
+            @click="openFolder"
+          >
+            <ArrowUpRight class="gallery-icon-sm" />
+            <span>Open</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Open current folder in file explorer</TooltipContent>
+      </Tooltip>
 
       <!-- Sort Dropdown -->
       <DropdownMenu>
         <DropdownMenuTrigger as-child>
-          <Button variant="outline" size="sm" type="button" title="Sort by" class="sort-trigger">
+          <Button variant="outline" size="sm" type="button" class="sort-trigger">
             <ArrowUpDown class="gallery-icon-sm" />
             <span>{{ currentSortLabel }}</span>
             <component
@@ -602,7 +622,7 @@ watch(loadMoreSentinel, () => setupLoadObserver());
       <!-- Density Dropdown -->
       <DropdownMenu>
         <DropdownMenuTrigger as-child>
-          <Button variant="outline" size="sm" type="button" title="Thumbnail size">
+          <Button variant="outline" size="sm" type="button" class="density-trigger">
             <LayoutGrid class="gallery-icon-sm" />
             <span>{{ columnCount }} cols</span>
             <ChevronDown class="gallery-icon-xs opacity-60" />

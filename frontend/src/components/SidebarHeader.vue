@@ -7,6 +7,11 @@ import RootPathSheet from "./RootPathSheet.vue";
 import { closeSidebarKey } from "../injectionKeys";
 import Input from "@/components/ui/Input.vue";
 import Button from "@/components/ui/Button.vue";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const { isMobile } = useDevice();
 const closeSidebar = inject(closeSidebarKey, () => {});
@@ -59,9 +64,14 @@ watch(
         <span class="mobile-path-text" :title="pathInput || 'Not set'">
           {{ pathInput || "Not set" }}
         </span>
-        <button class="mobile-edit-btn" type="button" @click.stop="editOnMobile" title="Edit root path">
-          <Edit3 class="gallery-icon-sm" />
-        </button>
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <button class="mobile-edit-btn" type="button" @click.stop="editOnMobile" aria-label="Edit root path">
+              <Edit3 class="gallery-icon-sm" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Edit root path</TooltipContent>
+        </Tooltip>
       </div>
       <p class="field-hint">
         <Info class="gallery-icon-xs" />
@@ -92,17 +102,22 @@ watch(
           @keyup.enter="onLoad"
         />
         
-        <Button
-          v-if="pathInput"
-          variant="ghost"
-          size="icon-sm"
-          class="action-btn"
-          type="button"
-          @click="onReset"
-          title="Reset path"
-        >
-          <RotateCcw class="gallery-icon-sm" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button
+              v-if="pathInput"
+              variant="ghost"
+              size="icon-sm"
+              class="action-btn"
+              type="button"
+              aria-label="Reset path"
+              @click="onReset"
+            >
+              <RotateCcw class="gallery-icon-sm" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Reset path</TooltipContent>
+        </Tooltip>
       </div>
       
       <p class="field-hint">

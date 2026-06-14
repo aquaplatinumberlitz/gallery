@@ -8,6 +8,11 @@ import BreadcrumbItem from "./ui/BreadcrumbItem.vue";
 import BreadcrumbLink from "./ui/BreadcrumbLink.vue";
 import BreadcrumbPage from "./ui/BreadcrumbPage.vue";
 import BreadcrumbSeparator from "./ui/BreadcrumbSeparator.vue";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const props = defineProps<{
   path?: string;
@@ -153,15 +158,20 @@ const closeMenu = () => {
             <BreadcrumbSeparator />
             <BreadcrumbItem>
               <div class="relative">
-                <button
-                  ref="ellipsisBtnRef"
-                  class="ellipsis-btn"
-                  type="button"
-                  @click="toggleEllipsisMenu"
-                  :title="`${hiddenSegments.length} more folders`"
-                >
-                  <Ellipsis class="size-4" />
-                </button>
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <button
+                      ref="ellipsisBtnRef"
+                      class="ellipsis-btn"
+                      type="button"
+                      @click="toggleEllipsisMenu"
+                      :aria-label="`${hiddenSegments.length} more folders`"
+                    >
+                      <Ellipsis class="size-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>{{ hiddenSegments.length }} more folders</TooltipContent>
+                </Tooltip>
 
                 <Transition name="dropdown">
                   <div
@@ -174,7 +184,6 @@ const closeMenu = () => {
                       :key="hidden.fullPath"
                       class="ellipsis-menu-item"
                       @click="onNavigate(hidden)"
-                      :title="hidden.fullPath"
                     >
                       <Folder class="size-3.5" />
                       <span>{{ hidden.name }}</span>
@@ -204,15 +213,19 @@ const closeMenu = () => {
       </template>
     </BreadcrumbList>
 
-    <button
-      v-if="isExpanded && allSegments.length > maxSegments"
-      class="collapse-btn"
-      type="button"
-      @click="isExpanded = false"
-      title="Collapse path"
-    >
-      <Minimize class="size-3.5" />
-    </button>
+    <Tooltip v-if="isExpanded && allSegments.length > maxSegments">
+      <TooltipTrigger as-child>
+        <button
+          class="collapse-btn"
+          type="button"
+          aria-label="Collapse path"
+          @click="isExpanded = false"
+        >
+          <Minimize class="size-3.5" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>Collapse path</TooltipContent>
+    </Tooltip>
   </BreadcrumbRoot>
 </template>
 

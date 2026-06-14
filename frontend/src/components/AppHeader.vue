@@ -9,6 +9,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { useGalleryTheme } from "@/composables/useGalleryTheme"
 
 interface Props {
@@ -43,25 +48,35 @@ function onScopeChange(e: Event) {
 <template>
   <header class="content-header grid grid-cols-[auto_1fr_auto] items-start gap-3 shrink-0">
     <div class="header-left flex items-center gap-3">
-      <Button
-        v-if="!isMobile"
-        variant="ghost"
-        size="icon"
-        class="hamburger-btn"
-        @click="emit('toggle-sidebar')"
-        title="Toggle sidebar"
-      >
-        <Menu class="gallery-icon-toolbar" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        class="settings-btn"
-        @click="emit('open-settings')"
-        title="Change Intro Page"
-      >
-        <Settings class="gallery-icon-toolbar" />
-      </Button>
+      <Tooltip>
+        <TooltipTrigger as-child>
+          <Button
+            v-if="!isMobile"
+            variant="ghost"
+            size="icon"
+            class="hamburger-btn"
+            aria-label="Toggle sidebar"
+            @click="emit('toggle-sidebar')"
+          >
+            <Menu class="gallery-icon-toolbar" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Toggle sidebar</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger as-child>
+          <Button
+            variant="ghost"
+            size="icon"
+            class="settings-btn"
+            aria-label="Change Intro Page"
+            @click="emit('open-settings')"
+          >
+            <Settings class="gallery-icon-toolbar" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Change Intro Page</TooltipContent>
+      </Tooltip>
     </div>
     <div class="brand-hero flex items-center justify-center gap-3 text-center">
       <div class="brand-icon flicker-effect">
@@ -99,16 +114,20 @@ function onScopeChange(e: Event) {
         </DropdownMenu>
       </div>
       <div class="search-box">
-        <Button
-          variant="ghost"
-          size="icon"
-          class="search-icon-btn"
-          type="button"
-          title="Search"
-          aria-label="Search"
-        >
-          <Search class="gallery-icon-toolbar" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="search-icon-btn"
+              type="button"
+              aria-label="Search"
+            >
+              <Search class="gallery-icon-toolbar" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Search</TooltipContent>
+        </Tooltip>
         <Input
           id="gallery-search"
           :modelValue="searchQuery"
@@ -118,18 +137,21 @@ function onScopeChange(e: Event) {
           autocomplete="off"
           class="search-input"
         />
-        <Button
-          v-if="searchQuery"
-          variant="ghost"
-          size="icon"
-          class="clear-btn"
-          type="button"
-          title="Clear search"
-          aria-label="Clear search"
-          @click="clearSearch"
-        >
-          <X class="gallery-icon-xs" />
-        </Button>
+        <Tooltip v-if="searchQuery">
+          <TooltipTrigger as-child>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="clear-btn"
+              type="button"
+              aria-label="Clear search"
+              @click="clearSearch"
+            >
+              <X class="gallery-icon-xs" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Clear search</TooltipContent>
+        </Tooltip>
         <select
           class="scope-select"
           :value="searchScope"

@@ -75,7 +75,6 @@ function onOpenChange(open: boolean) {
         variant="outline"
         size="sm"
         class="h-8 gap-1.5 px-2.5"
-        title="Index Status"
         aria-label="Index Status"
       >
         <Database class="size-3.5" />

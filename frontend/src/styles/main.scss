@@ -302,15 +302,8 @@ pre {
    Following WCAG 2.1 AA & Google Material Design Guidelines
    ========================================================================== */
 
-/* Focus visible - Modern focus indicator */
-:focus {
-  outline: none;
-}
-
-:focus-visible {
-  outline: 2px solid var(--primary-color, #d6a15d);
-  outline-offset: 2px;
-}
+/* Focus visible - shadcn components use focus-visible:outline-none + focus-visible:ring-* */
+/* Legacy non-shadcn controls get default browser focus indicator */
 
 /* Skip link styles (if placed in body) */
 .skip-link {

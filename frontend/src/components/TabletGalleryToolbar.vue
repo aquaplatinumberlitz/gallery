@@ -5,6 +5,11 @@ import {
   ArrowUp, ArrowDown, LayoutGrid, Check,
   Type, Clock
 } from "lucide-vue-next";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const icons: Record<string, any> = { Type, Clock };
 
@@ -100,24 +105,32 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
   <div class="tablet-gallery-toolbar">
     <!-- Nav group: back/forward -->
     <div class="tgt-nav-group">
-      <button
-        class="tgt-btn"
-        :disabled="!canGoBack"
-        @click="emit('back')"
-        title="Back"
-        aria-label="Go back"
-      >
-        <ArrowLeft class="tgt-nav-icon" />
-      </button>
-      <button
-        class="tgt-btn"
-        :disabled="!canGoForward"
-        @click="emit('forward')"
-        title="Forward"
-        aria-label="Go forward"
-      >
-        <ArrowRight class="tgt-nav-icon" />
-      </button>
+      <Tooltip>
+        <TooltipTrigger as-child>
+          <button
+            class="tgt-btn"
+            :disabled="!canGoBack"
+            @click="emit('back')"
+            aria-label="Go back"
+          >
+            <ArrowLeft class="tgt-nav-icon" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>Back</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger as-child>
+          <button
+            class="tgt-btn"
+            :disabled="!canGoForward"
+            @click="emit('forward')"
+            aria-label="Go forward"
+          >
+            <ArrowRight class="tgt-nav-icon" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>Forward</TooltipContent>
+      </Tooltip>
     </div>
 
     <div class="tgt-spacer"></div>
@@ -127,7 +140,6 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
       <button
         class="tgt-trigger"
         @click.stop="emit('toggleSortMenu')"
-        title="Sort by"
         aria-haspopup="true"
         :aria-expanded="showSortMenu"
       >
@@ -167,7 +179,6 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
         @click.stop="emit('toggleDensityMenu')"
         aria-haspopup="true"
         :aria-expanded="showDensityMenu"
-        title="Thumbnail size"
       >
         <LayoutGrid class="tgt-trigger-icon" />
         <span class="tgt-trigger-label">{{ columnCount }} cols</span>

@@ -12,6 +12,7 @@ import { useDevice } from "./composables/useDevice";
 import { useGalleryTheme } from "./composables/useGalleryTheme";
 import { galleryScrollContainerRefKey } from "./injectionKeys";
 import { closeSidebarKey } from "./injectionKeys";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const Lightbox = defineAsyncComponent(() => import("./components/Lightbox.vue"));
 const isDev = import.meta.env.DEV;
@@ -89,6 +90,7 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
 </script>
 
 <template>
+  <TooltipProvider :delay-duration="300" :skip-delay-duration="100">
   <!-- Intro Screen -->
   <IntroScreen
     v-if="showIntro"
@@ -164,6 +166,7 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
     button-position="bottom-right"
     position="bottom"
   />
+  </TooltipProvider>
 </template>
 
 <style scoped>
