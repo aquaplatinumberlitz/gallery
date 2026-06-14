@@ -32,16 +32,18 @@ const carouselOpts = {
       v-slot="{ canScrollPrev, canScrollNext }"
       :opts="carouselOpts"
     >
-      <CarouselContent class="-ml-6">
+      <CarouselContent class="-ml-3 px-6 py-6">
         <CarouselItem
           v-for="item in folders"
           :key="item.path"
-          class="box-content w-[240px] max-w-[240px] flex-[0_0_auto] px-3"
+          class="basis-auto pl-6"
         >
-          <AlbumCard
-            :node="item"
-            @click="emit('open-folder', item.path)"
-          />
+          <div class="w-[240px]">
+            <AlbumCard
+              :node="item"
+              @click="emit('open-folder', item.path)"
+            />
+          </div>
         </CarouselItem>
       </CarouselContent>
 

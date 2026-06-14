@@ -69,7 +69,7 @@ const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
         // Adjust the padding for floating and inset variants.
         variant === 'floating' || variant === 'inset'
           ? 'p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)_+_theme(spacing.4)_+_2px)]'
-          : 'group-data-[collapsible=icon]:w-[var(--sidebar-width-icon)] group-data-[side=left]:border-r group-data-[side=right]:border-l',
+          : 'group-data-[collapsible=icon]:w-[var(--sidebar-width-icon)] border-sidebar-border group-data-[side=left]:border-r group-data-[side=right]:border-l',
         props.class,
       )"
       v-bind="$attrs"

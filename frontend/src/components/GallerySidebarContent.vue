@@ -51,7 +51,7 @@ defineProps<{
   </SidebarContent>
 
   <SidebarFooter class="p-2 border-t border-border">
-    <IndexStatusPanel />
+    <IndexStatusPanel :path="currentPath" />
   </SidebarFooter>
 </template>
 
