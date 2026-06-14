@@ -36,7 +36,7 @@ const carouselOpts = {
         <CarouselItem
           v-for="item in folders"
           :key="item.path"
-          class="basis-[180px] max-w-[240px] pl-6"
+          class="box-content w-[240px] max-w-[240px] flex-[0_0_auto] px-3"
         >
           <AlbumCard
             :node="item"

@@ -23,7 +23,6 @@ const emit = defineEmits<{
 const isSearchActive = ref(false)
 const searchInputRef = ref<HTMLInputElement | null>(null)
 const searchBtnRef = ref<HTMLButtonElement | null>(null)
-const overlayRef = ref<HTMLElement | null>(null)
 
 // ── Derived ──
 const hasQuery = computed(() => props.searchQuery.length > 0)
@@ -107,7 +106,6 @@ const sortIcons: Record<string, any> = { Type, Clock }
 const galleryStore = useGalleryStore()
 
 const showSortPopover = ref(false)
-const sortPopoverRef = ref<HTMLElement | null>(null)
 
 const sortField = computed(() => galleryStore.sortField)
 const sortOrder = computed(() => galleryStore.sortOrder)

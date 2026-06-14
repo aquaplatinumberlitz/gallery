@@ -21,6 +21,7 @@ defineProps<{
 const emit = defineEmits<{
   (e: "update:searchQuery", value: string): void;
   (e: "scope-change", value: "current" | "all"): void;
+  (e: "update:sidebarOpen", value: boolean): void;
   (e: "toggleSidebar"): void;
   (e: "toggleTheme"): void;
   (e: "openSettings"): void;
@@ -31,7 +32,7 @@ const emit = defineEmits<{
   <SidebarProvider
     :open="true"
     :open-mobile="isSidebarOpen"
-    @update:open-mobile="emit('toggleSidebar')"
+    @update:open-mobile="emit('update:sidebarOpen', $event)"
   >
     <Sidebar side="left" variant="sidebar" collapsible="offcanvas">
       <div class="gallery-sidebar-surface flex h-full w-full flex-col">

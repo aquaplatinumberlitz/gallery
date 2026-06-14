@@ -7,6 +7,7 @@ import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
 } from "@/components/ui/sidebar";
 
 defineProps<{
@@ -23,12 +24,12 @@ defineProps<{
 
   <SidebarContent>
     <SidebarGroup>
-      <div class="sidebar-title" id="folder-tree-label">
+      <SidebarGroupLabel as="div" class="sidebar-title" id="folder-tree-label">
         <span>Folder Tree</span>
         <span v-if="isLoading" class="loading-pill">
           <Loader class="gallery-icon-md lucide-spin" /> Loading
         </span>
-      </div>
+      </SidebarGroupLabel>
 
       <SidebarGroupContent>
         <div class="tree-container">

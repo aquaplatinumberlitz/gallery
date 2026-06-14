@@ -2,7 +2,7 @@
 import type { HTMLAttributes, Ref } from "vue"
 import { useMediaQuery, useVModel } from "@vueuse/core"
 import { TooltipProvider } from "reka-ui"
-import { computed, ref } from "vue"
+import { computed } from "vue"
 import { cn } from "@/lib/utils"
 import { provideSidebarContext, SIDEBAR_WIDTH, SIDEBAR_WIDTH_ICON } from "./utils"
 

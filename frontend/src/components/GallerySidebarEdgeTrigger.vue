@@ -6,7 +6,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
 import { useSidebar } from "@/components/ui/sidebar";
 
 const { state } = useSidebar();
