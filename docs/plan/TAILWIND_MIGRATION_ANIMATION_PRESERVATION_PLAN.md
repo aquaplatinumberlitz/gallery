@@ -1,7 +1,7 @@
 # Tailwind Migration Plan — Animation & Visual Preservation
 
-**Last reviewed:** 2026-06-15 (Phase 1 + Phase 1.5 complete, token bridge refactored)
-**Status:** Phase 1 ✅, Phase 1.5 ✅ — ready for Phase 2
+**Last reviewed:** 2026-06-15 (Phase 1 + 1.5 + 2A complete)
+**Status:** Phase 1 ✅, Phase 1.5 ✅, Phase 2A ✅ — ready for Phase 2B
 **Decision:** Hybrid Migration (see §14)
 
 ---
@@ -1012,7 +1012,19 @@ Behavior-heavy components such as Dialog, Dropdown Menu, Select, Tooltip, Popove
 
 ### Phase 2 — Desktop Search/Filter/Admin Primitives
 
-**Next up — ready to start**
+**Completed — Phase 2A integrates shadcn components into 6 desktop UI areas**
+
+**Phase 2A — Desktop UI Integration (completed commit 7ac7ec9):** ✅
+- Open folder button → shadcn Button variant="outline"
+- Nav buttons (← →) → shadcn Button variant="ghost" size="icon"
+- Sort dropdown → shadcn DropdownMenu
+- Density dropdown → shadcn DropdownMenuRadioGroup
+- Search bar → shadcn Input + Button in AppHeader
+- Sidebar items → shadcn Button variant="ghost" in FolderTreeItem/DesktopLayout
+- 617 lines warm CSS removed, 207 lines added
+- 101/101 Playwright tests pass
+
+**Phase 2B (next):** IndexStatusPanel, SettingsModal → shadcn Dialog, Desktop filter chips
 
 **Allowed candidates:**
 - Desktop AdvancedSearch layout (future component, Tailwind-first, shadcn-vue Input/Badge/Button as building blocks)
