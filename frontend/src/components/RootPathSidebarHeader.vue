@@ -5,6 +5,7 @@ import { FolderOpen, RotateCcw, Info, Edit3 } from "lucide-vue-next";
 import { useDevice } from "../composables/useDevice";
 import RootPathSheet from "./RootPathSheet.vue";
 import { closeSidebarKey } from "../injectionKeys";
+import { useSidebar } from "@/components/ui/sidebar";
 import Input from "@/components/ui/Input.vue";
 import Button from "@/components/ui/Button.vue";
 import {
@@ -15,6 +16,7 @@ import {
 
 const { isMobile } = useDevice();
 const closeSidebar = inject(closeSidebarKey, () => {});
+const { setOpen } = useSidebar();
 const galleryStore = useGalleryStore();
 const pathInput = ref(galleryStore.rootPath || "");
 const inputRef = ref<HTMLInputElement | null>(null);
@@ -87,9 +89,20 @@ watch(
     <!-- DESKTOP: Full input with controls (unchanged) -->
     <template v-else>
       <!-- Icon-only view for collapsed icon mode -->
-      <div class="hidden group-data-[collapsible=icon]:flex items-center justify-center py-1" aria-label="Root Path">
-        <FolderOpen class="size-4 text-sidebar-foreground/70" />
-      </div>
+      <Tooltip>
+        <TooltipTrigger as-child>
+          <Button
+            variant="ghost"
+            size="icon"
+            class="hidden group-data-[collapsible=icon]:flex size-8"
+            aria-label="Edit Root Path"
+            @click="setOpen(true)"
+          >
+            <FolderOpen class="size-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="right">Edit Root Path</TooltipContent>
+      </Tooltip>
 
       <!-- Full desktop view, hidden in collapsed icon mode -->
       <div class="group-data-[collapsible=icon]:hidden">
