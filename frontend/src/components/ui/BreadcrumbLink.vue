@@ -19,8 +19,7 @@ const emit = defineEmits<{
     data-reka-collection-item
     :class="
       cn(
-        'text-sm text-muted-foreground hover:text-foreground px-2 py-1 transition-colors max-w-[150px] truncate',
-        disabled && 'opacity-50 cursor-default',
+        'transition-colors hover:text-foreground',
         $props.class,
       )
     "
