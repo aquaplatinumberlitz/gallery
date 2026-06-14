@@ -100,11 +100,11 @@ const handleKeydown = (e: KeyboardEvent) => {
 
 <template>
   <div 
-    class="tree-item"
+    class="tree-item block"
   >
     <div 
       ref="itemRef"
-      class="tree-row" 
+      class="tree-row flex items-center gap-1.5 py-[3px] px-1.5 rounded-lg cursor-pointer text-foreground text-[13px] transition-colors duration-[120ms]"
       :class="{ active: isActive }" 
       @click="onSelect"
       @keydown="handleKeydown"
@@ -118,13 +118,13 @@ const handleKeydown = (e: KeyboardEvent) => {
         <component :is="arrowIcon" class="gallery-icon-xs" />
       </button>
       <component :is="folderIcon" class="folder-icon gallery-icon-md" />
-      <span class="name">{{ node.name }}</span>
+      <span class="name flex-1 min-w-0 truncate">{{ node.name }}</span>
       <Loader v-if="isLoading" class="gallery-icon-sm lucide-spin spinner" />
     </div>
 
     <div 
       v-if="isOpen && visibleChildren.length" 
-      class="children"
+      class="children ml-[18px] border-l border-dashed border-border-subtle pl-2.5"
     >
       <FolderTreeItem
         v-for="child in visibleChildren"
@@ -137,14 +137,14 @@ const handleKeydown = (e: KeyboardEvent) => {
 
     <div
       v-else-if="isOpen && hasLoadError"
-      class="empty-children"
+      class="empty-children ml-9 text-muted-foreground text-xs py-1 pb-2"
     >
       {{ loadErrorMessage }}
     </div>
 
     <div
       v-else-if="isOpen && !isLoading && !visibleChildren.length"
-      class="empty-children"
+      class="empty-children ml-9 text-muted-foreground text-xs py-1 pb-2"
     >
       (Empty)
     </div>
@@ -152,20 +152,15 @@ const handleKeydown = (e: KeyboardEvent) => {
 </template>
 
 <style scoped>
+/* tree-item, tree-row, children, empty-children layout handled by Tailwind utilities */
+/* Keep only color-mix active state, focus styles, and icon sizing */
+
 .tree-item {
-  display: block;
+  /* Class preserved for scoped style encapsulation */
 }
 
 .tree-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 6px;
-  border-radius: 8px;
-  cursor: pointer;
-  color: var(--text-color);
-  font-size: 13px;
-  transition: background-color 120ms ease, color 120ms ease;
+  /* Layout handled by Tailwind utilities */
 }
 
 .tree-row:hover {
@@ -223,25 +218,14 @@ const handleKeydown = (e: KeyboardEvent) => {
   transition: color 120ms ease;
 }
 
-.name {
-  flex: 1;
-  min-width: 0;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  overflow: hidden;
-}
+/* .name layout handled by Tailwind utilities */
 
 .children {
-  margin-left: 18px;
-  border-left: 1px dashed var(--gallery-border-subtle, rgba(0, 0, 0, 0.06));
-  padding-left: 10px;
+  /* Layout handled by Tailwind utilities */
 }
 
 .empty-children {
-  margin-left: 36px;
-  color: var(--muted-text);
-  font-size: 12px;
-  padding: 4px 0 8px;
+  /* Layout handled by Tailwind utilities */
 }
 
 /* Focus styles for keyboard navigation */

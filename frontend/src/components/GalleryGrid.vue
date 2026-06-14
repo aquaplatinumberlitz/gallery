@@ -586,8 +586,8 @@ onBeforeUnmount(() => {
     <!-- ============================================================
          Desktop toolbar
          ============================================================ -->
-    <div v-if="deviceCategory === 'desktop'" class="grid-header">
-      <div class="nav-group">
+    <div v-if="deviceCategory === 'desktop'" class="grid-header grid grid-cols-[auto_1fr_auto_auto_auto_auto] items-center gap-3 shrink-0">
+      <div class="nav-group inline-flex items-center gap-2">
         <Button
           variant="ghost"
           size="nav"
@@ -1064,11 +1064,13 @@ onBeforeUnmount(() => {
 }
 
 .grid-header {
-  display: grid;
-  grid-template-columns: auto 1fr auto auto auto auto;
-  align-items: center;
-  gap: 12px;
-  flex-shrink: 0;
+  /* Grid layout handled by Tailwind utilities */
+  /* Keep only responsive overrides below */
+}
+
+.nav-group {
+  /* Inline-flex layout handled by Tailwind utilities */
+  /* Keep only responsive overrides */
 }
 
 .error-banner {

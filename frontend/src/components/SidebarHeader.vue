@@ -50,10 +50,10 @@ watch(
 </script>
 
 <template>
-  <div class="sidebar-header">
+  <div class="sidebar-header p-4 bg-surface border-b border-black/5 dark:border-white/5">
     <!-- MOBILE: Compact display with tappable edit -->
     <template v-if="isMobile">
-      <label class="field-label">ROOT PATH</label>
+      <label class="field-label block text-[11px] font-semibold text-muted-foreground mb-2 tracking-[0.5px]">ROOT PATH</label>
       <div class="mobile-root-display" @click="editOnMobile" role="button" tabindex="0" @keydown.enter="editOnMobile">
         <FolderOpen class="field-icon gallery-icon-md" />
         <span class="mobile-path-text" :title="pathInput || 'Not set'">
@@ -114,19 +114,15 @@ watch(
 </template>
 
 <style scoped>
+/* sidebar-header and field-label layout handled by Tailwind utilities */
+/* Keep container shells, icons, hints, and responsive rules */
+
 .sidebar-header {
-  padding: 16px;
-  background-color: var(--surface-color, #fff);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  /* Class preserved for responsive overrides */
 }
 
 .field-label {
-  display: block;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--muted-text, #65676b);
-  margin-bottom: 8px;
-  letter-spacing: 0.5px;
+  /* Layout handled by Tailwind utilities */
 }
 
 /* field-container and input styling handled by shadcn Input variant="ghost" */
