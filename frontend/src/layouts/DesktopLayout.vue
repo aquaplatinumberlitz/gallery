@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import SidebarHeader from "../components/SidebarHeader.vue";
-import FolderTreeItem from "../components/FolderTreeItem.vue";
+import GallerySidebarContent from "../components/GallerySidebarContent.vue";
 import AppHeader from "../components/AppHeader.vue";
 import GalleryGrid from "../components/GalleryGrid.vue";
-import { ChevronLeft, ChevronRight, Loader } from "lucide-vue-next";
+import { ChevronLeft, ChevronRight } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import {
   Tooltip,
@@ -38,27 +37,11 @@ const emit = defineEmits<{
       class="sidebar"
       :class="{ closed: !isSidebarOpen }"
     >
-      <SidebarHeader />
-      <div class="sidebar-body">
-        <div class="sidebar-title" id="folder-tree-label">
-          <span>Folder Tree</span>
-          <span v-if="isLoading" class="loading-pill">
-            <Loader class="gallery-icon-md lucide-spin" /> Loading
-          </span>
-        </div>
-        <div class="tree-container">
-          <p v-if="!isLoading && !tree.length" class="empty-state">
-            Enter a root path and click Load to start.
-          </p>
-          <FolderTreeItem
-            v-for="node in tree"
-            :key="node.path"
-            :node="node"
-            :active-path="currentPath"
-            :level="1"
-          />
-        </div>
-      </div>
+      <GallerySidebarContent
+        :tree="tree"
+        :is-loading="isLoading"
+        :current-path="currentPath"
+      />
     </aside>
 
     <!-- Sidebar Edge Toggle Button -->
@@ -129,62 +112,6 @@ const emit = defineEmits<{
 .sidebar.closed {
   transform: translateX(-100%);
   box-shadow: none;
-}
-
-.sidebar-body {
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  height: 100%;
-  overflow: hidden;
-}
-
-.sidebar-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-weight: 600;
-  color: var(--title-color);
-  flex-shrink: 0;
-}
-
-.loading-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.04);
-  font-size: 12px;
-}
-
-.tree-container {
-  flex: 1;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
-.sidebar ::-webkit-scrollbar,
-.tree-container ::-webkit-scrollbar {
-  width: 6px;
-}
-
-.sidebar ::-webkit-scrollbar-thumb,
-.tree-container ::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.12);
-  border-radius: 6px;
-}
-
-.sidebar ::-webkit-scrollbar-track,
-.tree-container ::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.empty-state {
-  margin: 0;
-  color: var(--muted-text);
-  font-size: 14px;
 }
 
 .content {
