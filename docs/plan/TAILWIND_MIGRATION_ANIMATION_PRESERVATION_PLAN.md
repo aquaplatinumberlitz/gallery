@@ -1,7 +1,7 @@
 # Tailwind Migration Plan — Animation & Visual Preservation
 
-**Last reviewed:** 2026-06-15 (Phase 1 + 1.5 + 2A complete)
-**Status:** Phase 1 ✅, Phase 1.5 ✅, Phase 2A ✅ — ready for Phase 2B
+**Last reviewed:** 2026-06-15 (Phase 1 through 2B complete)
+**Status:** Phase 1 ✅, Phase 1.5 ✅, Phase 2A ✅, Phase 2B ✅ — ready for next phase
 **Decision:** Hybrid Migration (see §14)
 
 ---
@@ -1024,7 +1024,13 @@ Behavior-heavy components such as Dialog, Dropdown Menu, Select, Tooltip, Popove
 - 617 lines warm CSS removed, 207 lines added
 - 101/101 Playwright tests pass
 
-**Phase 2B (next):** IndexStatusPanel, SettingsModal → shadcn Dialog, Desktop filter chips
+**Phase 2B — Desktop Status & Dialog Integration (completed commit a26fe9e):** ✅
+- IndexStatusPanel — new desktop component with shadcn Popover + Badge, polls /api/index/status every 30s
+- SettingsModal → shadcn Dialog — replaced hand-rolled modal shell, removed useFocusTrap (built-in), removed 226 lines stale CSS
+- SearchFilterChips — new component using shadcn Badge variant="secondary"
+- IndexStatusResponse type aligned with actual backend API response
+- 293 lines added, 346 removed across 8 files
+- vue-tsc + build pass, pixel-level defaults policy followed
 
 **Allowed candidates:**
 - Desktop AdvancedSearch layout (future component, Tailwind-first, shadcn-vue Input/Badge/Button as building blocks)
