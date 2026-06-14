@@ -5,7 +5,7 @@ import { FolderOpen, RotateCcw, Info, Edit3 } from "lucide-vue-next";
 import { useDevice } from "../composables/useDevice";
 import RootPathSheet from "./RootPathSheet.vue";
 import { closeSidebarKey } from "../injectionKeys";
-import { useSidebar } from "@/components/ui/sidebar";
+import { useSidebar, SidebarTrigger } from "@/components/ui/sidebar";
 import Input from "@/components/ui/Input.vue";
 import Button from "@/components/ui/Button.vue";
 import {
@@ -58,6 +58,9 @@ watch(
 
 <template>
   <div class="sidebar-header p-4 group-data-[collapsible=icon]:p-1 bg-surface border-b border-black/5 dark:border-white/5 group-data-[collapsible=icon]:border-b-0">
+    <SidebarTrigger
+      class="absolute top-3 right-3 z-20 h-8 w-8 [&>button]:h-8 [&>button]:w-8 group-data-[collapsible=icon]:static group-data-[collapsible=icon]:mb-1"
+    />
     <!-- MOBILE: Compact display with tappable edit -->
     <template v-if="isMobile">
       <label class="field-label block text-[11px] font-semibold text-muted-foreground mb-2 tracking-[0.5px]">ROOT PATH</label>
