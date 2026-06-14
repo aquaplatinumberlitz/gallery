@@ -22,7 +22,7 @@ The backend has a rich set of capabilities that are either completely invisible 
 | Index status visibility | Yes (`/api/index/status`, `indexer.py:599`) | Desktop API wrapper/query/UI complete after Tailwind Phase 2B refactor |
 | Faceted search/advanced search | Yes (`/api/facets`, `facets.py:248`; fielded parser with 30+ fields) | Facets data layer complete; visible facets/search UI remains Phase 2 |
 | Watcher/refresh status | Yes (`get_watcher_status()`, `get_refresh_status()` exist) | No HTTP endpoints wired; no frontend exposure possible |
-| TanStack Vue Table for metadata/admin | Installed (v8.21.3) | Not used in any runtime component |
+| Metadata list / library inspector | Yes (`/api/search?scope=all&limit=200`, indexed metadata via `unifiedSearch()`) | Not built; Phase 3 should use a lightweight read-only table/list, not TanStack Table |
 | TanStack Vue Form for advanced search/settings | Installed (v1.33.0) | Not used in any runtime component |
 
 ### Why a frontend control/visibility layer is needed
@@ -31,12 +31,12 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 - Users cannot tell if indexing is running, complete, or failed.
 - The powerful fielded search parser exists but has no discoverable search UI.
 - Facets data is computed on the backend but never presented to users.
-- The TanStack Table/Form foundations are installed but unused, while ideal use cases exist.
+- The TanStack Form foundation is installed but unused, while Advanced Search is a strong fit. TanStack Table is not needed for the Phase 3 Metadata List MVP.
 
 ### Where TanStack Table/Form fit
 
-- **TanStack Vue Form**: Strong fit for AdvancedSearchDrawer (fielded search with validation, Apply/Cancel/Reset), future SettingsModal expansion (indexing/watcher settings), and future Batch Metadata Editor.
-- **TanStack Vue Table**: Strong fit for metadata admin table, index error/job table, audit/diagnostics table, duplicate/broken image finder tables.
+- **TanStack Vue Form**: Strong fit for AdvancedSearchDrawer (fielded search with validation, Apply/Cancel/Reset). Future settings or editing workflows may use it only after backend and UX prerequisites exist.
+- **TanStack Vue Table**: Not needed for the Phase 3 Metadata List MVP. Revisit only if a dedicated paginated metadata or diagnostics endpoint is added and heavier table features become necessary.
 - **Neither should be used** for: main GalleryGrid (photo browsing), simple search input, toast, or lightbox metadata panel.
 
 ### Which shadcn-vue patterns should be adapted
@@ -46,10 +46,10 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 - **Drawer/Sheet** for mobile settings, mobile advanced search, and mobile index panel are future-only patterns, explicitly excluded from Phase 1. Phase 1 may only adapt desktop-safe Badge + Popover/Dialog patterns.
 - **Popover** for index status details, filter mini-panels.
 - **DropdownMenu** for search scope and toolbar actions.
-- **Data Table** for metadata/audit/admin tables.
-- **Form** layout (Label/Description/Error pattern) for advanced search and batch edit.
+- **Data Table** only for future backend-backed paginated metadata or diagnostics tables; Phase 3 MetadataList uses plain table/list styling.
+- **Form** layout (Label/Description/Error pattern) for advanced search and future backend-backed editing workflows.
 - **Badge** for indexing/error/facet states.
-- **Tabs** for settings sections and admin panel sections.
+- **Tabs** for settings sections and future diagnostics sections.
 
 ### Current strategy: PC-first Phase 1
 
@@ -165,7 +165,7 @@ Frontend should not invent a new payload shape when an existing backend contract
 | **Future: IndexStatusPanel** | Does not exist | — | Popover/Sheet pattern for details | **Phase 1: desktop-only** — Must not open as mobile sheet in Phase 1. | Desktop-only. No mobile sheet. |
 | **Future: AdvancedSearchDrawer** | Does not exist | — | Sheet (mobile) / Side Sheet (desktop), Form (TanStack), Command palette | **Add new component**. See Phase 2. | Phase 2. |
 | **Future: SearchFilterChips** | Does not exist | — | Badge (removable chips) | **Add new component**. See Phase 2. | Phase 2. |
-| **Future: MetadataTable/MetadataAdminView** | Does not exist | — | Data Table (TanStack Table) | **Add new component**. See Phase 3. | Phase 3. |
+| **Future: MetadataList** | Does not exist | — | Plain table/list styling | **Add lightweight read-only component**. See Phase 3. | Phase 3. |
 
 ---
 
@@ -174,20 +174,16 @@ Frontend should not invent a new payload shape when an existing backend contract
 | Candidate | Use Form? | Why | Why Not | Phase |
 |---|---|---|---|---|
 | **AdvancedSearchDrawer** | **YES** | Complex form with multiple field types (text, number, select, boolean), field validation (numeric ranges, valid dimensions), dirty state tracking, Apply/Cancel/Reset behavior. Backend already supports 30+ fielded search predicates. | — | Phase 2 |
-| **SettingsModal** (future: indexing/watcher config) | **YES (conditional)** | If indexing/watcher/refresh configuration (thresholds, intervals, enabled/disabled toggles) is added, switch to staged draft state with Apply/Cancel/Reset. TanStack Form can then provide validation, dirty state tracking, and explicit save behavior. **Apply/Cancel/Reset require staged draft state. They should not be mixed with the current auto-save watcher model.** | Current content (3 options) uses auto-save via watcher/localStorage. This is correct for simple toggles and should be preserved in Phase 1 with a Done/Close footer. | Phase 3 (only if config grows) |
-| **Index/Watcher Settings** | **YES** | Numeric thresholds (worker count, batch size, debounce seconds), boolean toggles (enable/disable), path lists (watch roots). This is a configuration form with validation needs. | Backend watcher/refresh status routes don't exist yet. | Phase 3 |
-| **Batch Metadata Editor** | **YES** | Strongest use case: editing metadata fields across multiple selected images. Validation, dirty per-field tracking, Apply/Cancel across batch. | Requires table row selection + backend batch-update endpoint (neither exists). | Phase 3+ |
-| **Metadata Edit Form** (single image) | **YES** | If editable metadata fields are added, TanStack Form provides validation and dirty/save patterns. | Single-image metadata editing is a future feature. Current metadata is read-only. | Phase 3+ |
+| **SettingsModal** (current scope) | **NO** | Only 3 options (intro mode, theme, alwaysLoadOriginal). All auto-save via watcher to localStorage. No complex validation. Apply/Cancel/Reset would be incompatible UX with the auto-save watcher model. | Form overhead is not justified for current content. Footer should use Done/Close, not Apply/Cancel. Revisit only if settings expand into staged, validated configuration. | Not now |
 | **RootPathSheet** | **NO** | Single text field with path validation. Simple v-model with inline validation message is sufficient. | TanStack Form would add overhead without clear value. No dirty/save complexity. | Never |
 | **Simple Search Input** | **NO** | Single text field with debounce. No validation needed beyond non-empty check. Dirty/Action/Cancel would harm the instant-search UX. | TanStack Form's state management would interfere with debounced instant search and clear UX. | Never |
-| **SettingsModal** (current scope) | **NO** | Only 3 options (intro mode, theme, alwaysLoadOriginal). All auto-save via watcher to localStorage. No complex validation. Apply/Cancel/Reset would be incompatible UX with the auto-save watcher model. | Form overhead is not justified for current content. Footer should use Done/Close, not Apply/Cancel. Revisit if settings expand with indexing/watcher config in Phase 3. | Not now |
 
 ### Mandatory Conclusions
 
 - **Simple search input should NOT use TanStack Form.** It is a single, debounced text field. Instant-search UX is incompatible with Form's dirty/Apply/Cancel model.
 - **Advanced Search SHOULD use TanStack Form.** It is a complex form with validation, multiple field types, dirty state, and explicit Apply/Cancel/Reset. This is the canonical TanStack Form use case.
 - **Current SettingsModal is too small for TanStack Form.** Keep the auto-save watcher model and use a Done/Close footer. If settings later grow into complex multi-section configuration (indexing/watcher/cache/debug), switch to staged draft state with Apply/Cancel/Reset and introduce TanStack Form at that point. Apply/Cancel/Reset require staged draft state — they should not be mixed with the current auto-save watcher model.
-- **Batch Metadata Editor is a strong TanStack Form use case**, but it requires table row selection (TanStack Table) + backend batch-update endpoint. This is a Phase 3+ combined workflow.
+- **Future editing/configuration forms may be TanStack Form use cases**, including indexing/watcher settings, single-image metadata editing, or batch metadata editing. These are not Phase 3 MVP work and require backend endpoints plus a staged edit UX.
 
 ---
 
@@ -195,19 +191,17 @@ Frontend should not invent a new payload shape when an existing backend contract
 
 | Candidate | Use Table? | Why | Why Not | Phase |
 |---|---|---|---|---|
-| **MetadataAdminTable** | **YES** | Sorted/filtered metadata view with columns: thumbnail, name, folder, model, sampler, seed, dimensions, modified, match_type, actions. TanStack Table provides sorting, column visibility, row selection, and pagination. This is exactly what TanStack Table is designed for. | — | Phase 3 |
-| **Index Job/Error Table** | **YES** | List of indexing jobs with columns: path, status, attempts, error, timestamps. Sorting by status/date, filtering by status. Data from `/api/index/status` (needs expansion for row-level data). | Backend endpoint currently returns counts only, not per-job rows. Needs backend expansion first. | Phase 3 (backend prerequisite) |
-| **Audit Dashboard Table** | **YES** | Unified diagnostics table covering index status, watcher status, refresh status, cache stats. | No unified backend diagnostics endpoint exists. Backend prerequisite. | Phase 3+ (backend prerequisite) |
-| **Duplicate Finder Table** | **YES** | Side-by-side comparison of suspected duplicates with path, dimensions, checksum, match score, actions. | No backend duplicate detection exists. Backend prerequisite. | Future (backend prerequisite) |
-| **Broken Image Table** | **YES** | List of files with missing thumbnails, parse errors, or inaccessible paths. Sortable by error type. | No backend broken-image scan endpoint exists. Backend prerequisite. | Future (backend prerequisite) |
+| **MetadataList** | **NO** | Phase 3 needs a compact read-only utility view over up to 200 search results. Client-side sorting and text filtering can be handled with simple Vue state/computed values. | TanStack Table would add column visibility, row selection, pagination, and table state overhead that the MVP explicitly excludes. Revisit if/when a dedicated backend paginated listing endpoint is added. | Phase 3 |
+| **Future paginated metadata table** | **YES (conditional)** | If the backend later exposes an all-indexed paginated listing endpoint with server-side sorting/filtering, TanStack Table may be appropriate. | No such endpoint exists today, and editable/batch metadata workflows are out of Phase 3 scope. | Future (backend prerequisite) |
+| **Future diagnostics/audit tables** | **YES (conditional)** | Row-level index errors, metadata parse errors, duplicate candidates, and broken-image scan results would be structured table data if the backend exposes them. | Current backend does not expose row-level diagnostics, per-job errors, duplicate data, or broken-image data. | Future (backend prerequisite) |
 | **Facets Table** | **NO** | Facets are better rendered as chips/tokens with counts, not as a table. A table would waste space on what is essentially a filter UI. | Use Badge/Popover pattern for facets, not TanStack Table. | Never |
 | **Main GalleryGrid** | **NO (hard rule)** | GalleryGrid is a visual photo browsing experience using TanStack Virtual and CSS Grid. It shows image thumbnails, not tabular data. | TanStack Table would replace thumbnails with text rows, destroy the visual browsing experience, and conflict with virtual scrolling architecture. | Never |
 
 ### Mandatory Conclusions
 
 - **Main GalleryGrid MUST NOT use TanStack Table.** It is a visual photo browser, not a data table. TanStack Virtual is the correct technology for this component.
-- **Metadata/Admin/Audit views are strong TanStack Table use cases.** They display structured data with sortable/filterable columns, exactly what TanStack Table provides.
-- **Table row selection + TanStack Form batch actions should be treated as a major Phase 3+ workflow.** Selecting rows in a TanStack Table and applying batch edits via a TanStack Form is the strongest combined use case for both libraries.
+- **MetadataList SHOULD NOT use TanStack Table for the MVP.** It is a lightweight read-only inspector with a bounded search result set, not a full data-management surface.
+- **TanStack Table is future-only for metadata/diagnostics.** Use it only if backend pagination or row-level diagnostics make table state management necessary.
 
 ---
 
@@ -220,7 +214,7 @@ Frontend should not invent a new payload shape when an existing backend contract
 | **Drawer / Sheet** | Mobile Settings (sheet), Advanced Search (mobile: bottom sheet; desktop: side sheet), Index Status (mobile), RootPathSheet | Existing `RootPathSheet` already has sheet-like behavior. Standardize the Header/Description/Footer pattern. Use existing VSBS for metadata sheet; do not replace it. New sheets (advanced search, index panel) should follow the same structure. **Future-only. All mobile/tablet Drawer/Sheet uses excluded from Phase 1.** |
 | **Popover** | Index status details (click chip to see queue counts), search scope selector (future: Phase 2, if scope options expand beyond simple "This folder"/"All indexed"), field help tooltips | Keep native `<select>` for scope in Phase 1. Replace with Popover/DropdownMenu only in Phase 2 if scope options grow. Keep popovers compact and non-modal. |
 | **DropdownMenu** | Search scope, sort options, density grid options, toolbar actions menu | Current custom dropdowns (sort, density) already function well. Adapt them to DropdownMenu pattern for consistency: keyboard navigation, `aria-haspopup`/`aria-expanded`, focus management. |
-| **Data Table** | MetadataAdminTable, IndexJobTable, AuditTable, DuplicateFinderTable | Use TanStack Table with shadcn-vue Stone standard UI styling. Columns: thumbnail, name, folder, model, sampler, seed, dimensions, modified, actions. Sorting, filtering, column visibility, row selection. Do not gallery-colorize table chrome. |
+| **Data Table** | Future backend-backed metadata/diagnostics tables; not Phase 3 MetadataList MVP | MetadataList should use plain table/list styling, not TanStack Table with the shadcn Data Table pattern. Revisit if/when a dedicated backend paginated listing endpoint is added. |
 | **Form** | AdvancedSearchDrawer, future batch editor, expanded SettingsModal | TanStack Form with shadcn-vue Stone form controls: field label, description, error message, Apply/Cancel/Reset buttons. Use Stone border/focus/input defaults for standard form chrome. |
 | **Badge** | Index status (idle/active/queued/failed/disabled), facet chips, fielded search filter chips, error counts | Use shadcn-vue Stone Badge defaults for standard chips. Removable badge pattern for filter chips (x button to clear). State colors should be semantic and minimal, not brand warm colors. |
 | **Alert** | Indexing errors, scan errors, metadata parse warnings | Existing error banner in GalleryGrid and toast system already cover this. Enhance with Alert pattern: icon + title + description + dismiss. Keep gallery toast styling. |
@@ -562,121 +556,110 @@ Completed via Tailwind Phase 2B Index Status refactor: `fetchIndexStatus(path)` 
 
 ---
 
-### Phase 3 — Desktop metadata/admin cockpit
+### Phase 3 — Desktop Metadata List / Library Inspector (Desktop-First)
 
-**Goal:** Use TanStack Table in the right places: admin, metadata, audit, and diagnostics — not photo browsing.
+**Goal:** Add a lightweight read-only metadata list view for inspecting indexed photos and AI metadata. This is a secondary utility for power users, not an admin cockpit and not a replacement for GalleryGrid.
 
-**Why:** DT/Immich both emphasize visibility into jobs/status/metadata/indexing at scale. TanStack Table is appropriate for management/audit workflows with sortable/filterable columns. Table row selection + TanStack Form batch editing is the strongest combined use case for both libraries.
+**Why:** The backend indexes rich metadata, but the frontend has no compact way to scan, search, and compare metadata across photos. A desktop-first Metadata List fills that gap while keeping the visual GalleryGrid as the primary browsing UI.
 
-**Mobile/tablet constraint:** Mobile/tablet admin view deferred to separate spec.
+**Mobile/tablet constraint:** Mobile/tablet metadata list experience is deferred to a separate spec.
 
 #### Tasks
 
-- [ ] **Add `MetadataAdminView.vue`** — a new view/section accessible from the header or settings. Contains a table of all indexed metadata rows with filtering and sorting.
-  - **Routing approach**: Since there is no vue-router, use a view-switching pattern (like the current IntroScreen vs Gallery condition). Add a "Metadata" navigation entry.
-  - **Or**: Render as a slide-over panel or tabbed view within the existing layout.
-
-- [ ] **Add `MetadataTable.vue` using `@tanstack/vue-table`** — TanStack Table with:
-  - **Columns** (configurable visibility):
-    - Thumbnail (small 80px inline preview)
-    - Name (filename)
-    - Folder (parent path, truncated with tooltip)
-    - Model (with text search filter)
-    - Sampler (with text search filter)
-    - Seed (numeric, sortable)
-    - Dimensions (width × height, sortable by area)
-    - Modified (date, sortable)
-    - Match Type (from search results, e.g., "prompt", "filename", "field filter")
-    - Actions (open lightbox, copy path, reveal in folder)
+- [ ] **Add `MetadataList.vue`** — a lightweight read-only table/list component. Use a native table or basic component structure, not TanStack Table.
+  - **Columns**:
+    - Thumbnail
+    - Name
+    - Folder
+    - Model
+    - Sampler
+    - Seed
+    - Dimensions
+    - Modified date
   - **Features**:
-    - Sorting (click column headers, multi-sort via shift+click)
-    - Filtering (per-column text/number filters, global search across all columns)
-    - Column visibility (show/hide toggle, persist to localStorage)
-    - Row selection (checkbox column for batch operations)
-    - Pagination (page size selector: 25/50/100)
-    - Responsive: collapse less-important columns on mobile/tablet
-   - **Data source (Phase 3A — read-only, no new endpoint required)**:
-     - Read-only `MetadataAdminTable` can start from existing `unifiedSearch()` / indexed metadata fields.
-     - No editable metadata endpoint is required for the initial read-only table.
-     - Read-only admin browsing is not blocked by future editable metadata endpoints.
-   - **Data source (Phase 3B / Future — needs new or extended backend endpoints)**:
-     - A dedicated metadata table endpoint may be added later for all-indexed pagination at scale, server-side sorting/filtering, editable user metadata, and batch metadata workflows.
-     - `/api/photos/user-metadata` is required for editing user metadata.
-     - `/api/photos/batch-metadata` is required for batch metadata editing.
+    - Client-side sorting by supported columns
+    - Text search filter across visible metadata fields
+    - Row limit display/control for the bounded search result set
+    - Open-in-lightbox from thumbnail or row action
+    - Copy path
+    - Copy metadata
+  - **Explicitly excluded from MVP**:
+    - Row selection
+    - Bulk actions
+    - Column visibility toggle
+    - Server-side pagination
+    - Editable metadata
 
-- [ ] **Row actions (per-row)**:
-  - Open in lightbox (click thumbnail or "View" action)
-  - Copy path to clipboard
-  - "Reveal in folder" — navigate to the parent folder in the gallery view
-  - Jump to folder if supported
+- [ ] **Add `useMetadataListQuery.ts`** — a small TanStack Query composable that reuses the existing search API:
+  - `unifiedSearch(q = '', scope = 'all', limit = 200)`
+  - No new backend endpoint required for the MVP.
+  - Normalize only the fields needed by `MetadataList.vue`.
 
-- [ ] **Bulk actions foundation** (UI only, backend prerequisite):
-  - Toolbar showing selected count: "X selected"
-  - Batch action buttons: "Export Metadata", "Re-index Selected", "Clear Metadata Cache"
-  - Row selection via checkbox column
-  - "Select All" / "Deselect All" in header checkbox
+- [ ] **Add a desktop entry point**:
+  - Add a small "Metadata" button in `AppHeader.vue`.
+  - Use the existing no-router view-switching pattern if a full-page utility view is needed.
+  - Keep GalleryGrid as the default and primary photo browsing UI.
 
-- [ ] **Future: `BatchMetadataEditor.vue` using TanStack Form** (Phase 3+ or future):
-  - Opens when batch action "Edit Metadata" is clicked
-  - Fields match the extracted metadata schema (model, sampler, seed, etc.)
-  - Apply writes changes to all selected rows
-  - Requires backend batch-update endpoint (prerequisite)
+- [ ] **Keep desktop-only scope explicit**:
+  - Do not add metadata navigation to `MobileHeader.vue` or `TabletHeader.vue` in this phase.
+  - Do not design mobile/tablet table collapse behavior in this phase.
 
-- [ ] **Future tables** (backend prerequisites):
-  - **IndexErrorTable**: per-job error listing. Requires backend to return per-job rows (current `/api/index/status` returns counts only).
-  - **MetadataErrorTable**: parse failures with file path and error details.
-  - **DuplicateFinderTable**: suspected duplicates side-by-side.
-  - **BrokenImageAuditTable**: files with missing thumbnails or inaccessible paths.
+- [ ] **Out of scope for Phase 3 MVP**:
+  - Admin cockpit
+  - Duplicate finder
+  - Broken image scanner
+  - Diagnostics dashboard
+  - Watcher/refresh control panel
+  - Batch delete
+  - Batch move
+  - Batch metadata editing
+  - Row selection
+  - Index error table
+  - Metadata error table
 
-- [ ] **Backend prerequisites to document** (not to implement in this phase):
-  - Per-job row listing endpoint for index errors (extends `/api/index/status`)
-  - Watcher/refresh status HTTP routes (wire `get_watcher_status()` and `get_refresh_status()` to API)
-  - Unified `/api/diagnostics` endpoint for audit dashboard
-  - Batch metadata update endpoint
-  - Duplicate detection endpoint
-  - Broken image scan endpoint
+- [ ] **Future/backend prerequisites to document**:
+  - Current backend does not expose row-level diagnostics, per-job errors, duplicate data, or broken-image data.
+  - Those features remain future backend prerequisites and should not be represented as Phase 3 MVP tasks.
 
 - [ ] **Add tests**:
-  - MetadataTable renders columns with correct data
+  - MetadataList renders columns with correct data
   - Sorting by column works (ascending/descending)
-  - Column filtering works (text and numeric)
-  - Column visibility toggle shows/hides columns
-  - Row selection toggles individual and all rows
-  - Row actions (open lightbox, copy path) function
-  - Pagination shows correct page size and navigates pages
-  - Responsive: columns collapse on mobile/tablet
+  - Text filtering narrows visible rows
+  - Row limit is respected
+  - Thumbnail opens lightbox
+  - Copy path and copy metadata actions function
+  - Row selection and bulk action controls are absent
   - GalleryGrid unchanged (regression)
 
 #### Files Affected (Phase 3)
 
 | File | Change |
 |---|---|
-| `frontend/src/components/admin/MetadataTable.vue` | New component (TanStack Table) |
-| `frontend/src/views/MetadataAdminView.vue` | New view |
-| `frontend/src/composables/useMetadataTableData.ts` | New composable (TanStack Query wrapper) |
-| `frontend/src/services/api.ts` | Add `fetchMetadataTableData()` or extend search API |
-| `frontend/src/query/keys.ts` | Add `metadataTable` key |
-| `frontend/src/types/index.ts` | Add `MetadataTableRow`, `TableColumn`, `TableSort`, `TableFilter` types |
-| `frontend/src/App.vue` | Add MetadataAdminView switching logic |
-| `frontend/src/components/AppHeader.vue` | Add "Metadata" nav entry |
+| `frontend/src/components/MetadataList.vue` | New lightweight read-only metadata list |
+| `frontend/src/composables/useMetadataListQuery.ts` | New composable that reuses `unifiedSearch()` |
+| `frontend/src/query/keys.ts` | Add `metadataList` key, or reuse existing search keys if that is cleaner |
+| `frontend/src/components/AppHeader.vue` | Add small "Metadata" nav entry |
+
+**Removed from Phase 3 MVP scope:** `MetadataTable.vue`, `MetadataAdminView.vue`, `useMetadataTableData.ts`, and `api.ts` additions for metadata table data.
 
 #### Risk Assessment (Phase 3)
 
-- **Medium risk.** TanStack Table integration is the largest new dependency usage. Column configuration complexity, performance with large datasets, and responsive behavior need testing.
-- Mitigation: start with a focused MetadataAdminTable for indexed metadata. Add more tables (error, audit, duplicate) incrementally in future phases.
-- Backend prerequisites for many planned tables mean this phase is primarily the MetadataTable + admin view, with documentation of prerequisites for future tables.
+- **Low risk.** The MVP reuses the existing search API, adds no new dependency, and remains read-only.
+- Main risk is dataset size: `MetadataList` fetches up to 200 results through search. Larger libraries may need a future backend paginated listing endpoint.
+- GalleryGrid remains unchanged and continues to be the primary browsing surface.
 
 #### Acceptance Criteria (Phase 3)
 
-1. MetadataTable renders columns with correct data from backend
-2. Sorting works on seed, dimensions, date columns
-3. Text filtering works on model, sampler, name columns
-4. Column visibility toggle hides/shows columns; persists to localStorage
-5. Row selection works (checkbox column, select all/deselect all)
-6. Row actions: open lightbox from thumbnail click, copy path
-7. Pagination: page size selector and page navigation
-8. GalleryGrid unchanged (regression test passes)
-9. New tests pass
+1. MetadataList renders thumbnail, name, folder, model, sampler, seed, dimensions, and modified date from `unifiedSearch(q = '', scope = 'all', limit = 200)`.
+2. Sorting works for supported columns.
+3. Text filtering narrows visible results.
+4. Row limit behavior is clear and bounded.
+5. Thumbnail click opens the lightbox.
+6. Copy path and copy metadata actions work.
+7. GalleryGrid remains the primary browsing UI and is not replaced by a table.
+8. No admin cockpit features are introduced.
+9. Backend prerequisites are clearly documented for deferred diagnostics, duplicate finder, broken-image scanner, watcher/refresh panel, and batch editing features.
+10. New tests pass.
 
 ---
 
@@ -779,9 +762,9 @@ Purpose: Every planned component should have a clear way for users to open it.
 | `IndexStatusPanel` | `IndexStatusChip` (click) — desktop only in Phase 1 |
 | `AdvancedSearchDrawer` | Search filter button or command/search affordance |
 | `SearchFilterChips` | Appears near the search bar/results context after filters are applied |
-| `MetadataAdminView` | Settings/Admin entry or future command palette |
-| `FacetsPanel` | Inside Advanced Search or Metadata/Admin view |
-| Future audit dashboards | Metadata/Admin/Diagnostics, not from the main gallery grid |
+| `MetadataList` | Small "Metadata" button in `AppHeader.vue` — desktop only |
+| `FacetsPanel` | Inside Advanced Search or MetadataList if useful |
+| Future diagnostics dashboards | Future diagnostics area, not from the main gallery grid |
 
 Do not add navigation clutter just to expose every future tool. Prefer progressive disclosure.
 
@@ -819,30 +802,35 @@ Do not add navigation clutter just to expose every future tool. Prefer progressi
 
 ### Phase 3 Done when:
 
-- [ ] Metadata table uses TanStack Vue Table.
+- [ ] MetadataList renders columns from the existing search API.
 - [ ] GalleryGrid is not replaced by a table.
-- [ ] Sorting/filtering/column visibility/row selection work.
-- [ ] Row actions are useful and safe.
-- [ ] Bulk action foundation is present but does not perform destructive actions without confirmation.
-- [ ] Backend prerequisites are clearly documented for audit/duplicate/broken-image tables.
-- [ ] Table tests pass.
+- [ ] Sorting works.
+- [ ] Text filtering narrows results.
+- [ ] Thumbnail click opens lightbox.
+- [ ] No admin cockpit features are introduced.
+- [ ] Backend prerequisites are clearly documented for deferred admin features.
+- [ ] MetadataList tests pass.
 
 ---
 
 ## 14. Backend Prerequisites Backlog
 
-Purpose: Separate frontend work that can be done now from future admin/audit work that requires backend data first. Do not ask frontend to build a real audit table before backend exposes row-level audit data.
+Purpose: Separate the Phase 3 MetadataList MVP from future features that require backend data first. Do not ask the frontend to build diagnostics, duplicate, broken-image, watcher/refresh, or editing workflows before the backend exposes the required row-level data and write endpoints.
 
-| Possible Future Endpoint | Frontend Feature | Table/Form Usage | Not Phase 1 Unless Already Supported |
-|---|---|---|---|
-| `/api/diagnostics` | Audit dashboard | TanStack Table | No backend endpoint exists |
-| `/api/audit/duplicates` | Duplicate finder table | TanStack Table | No backend duplicate detection |
-| `/api/audit/broken-images` | Broken image table | TanStack Table | No backend broken-image scan |
-| `/api/index/errors` | Per-job error table | TanStack Table | Current endpoint returns counts only |
-| `/api/watcher/status` | Watcher status component | Simple display (chip/panel) | No HTTP route wired (`watcher.py:191`) |
-| `/api/refresh/status` | Refresh status component | Simple display (chip/panel) | No HTTP route wired (`refresh.py:150`) |
-| `/api/photos/user-metadata` | Metadata admin table | TanStack Table | A read-only MetadataAdminTable can start from existing `unifiedSearch()`/metadata index fields. Editable user metadata requires this endpoint. |
-| `/api/photos/batch-metadata` | Batch metadata editor | TanStack Form | Batch metadata editing requires this backend batch-update endpoint. |
+Current backend does NOT expose row-level diagnostics, per-job errors, or duplicate/broken-image data. These remain future backend prerequisites.
+
+| Possible Future Endpoint | Deferred Feature | Why It Is Not Phase 3 MVP |
+|---|---|---|
+| Dedicated paginated metadata listing endpoint | Server-side metadata browsing at library scale | MVP uses `unifiedSearch(q = '', scope = 'all', limit = 200)` and client-side sorting/filtering |
+| `/api/index/errors` | Index error table | Current `/api/index/status` returns counts and summary state, not per-job rows |
+| `/api/metadata/errors` | Metadata parse error table | No endpoint exposes row-level metadata parse failures |
+| `/api/diagnostics` | Diagnostics dashboard | No unified diagnostics endpoint exists |
+| `/api/audit/duplicates` | Duplicate finder | No backend duplicate detection exists |
+| `/api/audit/broken-images` | Broken image scanner | No backend broken-image scan exists |
+| `/api/watcher/status` | Watcher status panel | No HTTP route wired for watcher status (`watcher.py:191`) |
+| `/api/refresh/status` | Refresh status panel | No HTTP route wired for refresh status (`refresh.py:150`) |
+| `/api/photos/user-metadata` | Editable metadata | Phase 3 is read-only |
+| `/api/photos/batch-metadata` | Batch metadata editing | Phase 3 has no row selection or batch operations |
 
 ---
 
@@ -854,9 +842,8 @@ Purpose: Separate frontend work that can be done now from future admin/audit wor
 |---|---|---|
 | IndexStatusChip becomes noisy or distracting | Phase 1 | Use muted idle state (compact muted chip/icon), not auto-hide. Pulse-only when active. Never block interaction, no toasts. Test `no-toast-spam` assertion. |
 | TanStack Form serialization doesn't match backend parser | Phase 2 | Build serializer tests first. Validate against known-good query examples from `fielded_search_parser.py` tests. |
-| TanStack Table performance with large datasets | Phase 3 | Server-side pagination via TanStack Query. Start with 25/50/100 page sizes. Lazy-load thumbnails only when visible. |
-| Column visibility/responsive complexity on mobile | Phase 3 | Collapse non-essential columns on small screens. Keep name, model, actions visible. Provide horizontal scroll as fallback. |
-| Over-engineering settings with TanStack Form too early | Phase 1/3 | Keep current v-model approach for SettingsModal in Phase 1. Only introduce TanStack Form when indexing/watcher config is added in Phase 3. |
+| MetadataList result set is too small for large libraries | Phase 3 | MVP fetches up to 200 results via search. Add a dedicated paginated backend listing endpoint later if users need larger library-wide inspection. |
+| Over-engineering settings with TanStack Form too early | Phase 1/Future | Keep current v-model approach for SettingsModal in Phase 1. Only introduce TanStack Form when staged settings and backend configuration endpoints exist. |
 | Breaking plain text search when adding Advanced Search | Phase 2 | Keep plain search input completely separate. AdvancedSearchDrawer is opt-in. Plain search regression tests guard this. |
 | Accessibility regression from new components | All Phases | Add ARIA roles in Phase 1 accessibility fixes. New components follow the established patterns. Test with `role` assertions. |
 | bfcache/lifecycle regressions on iOS Safari | All Phases | Keep global TanStack Query `refetchOnWindowFocus: false`. Index status may use a local, debounced refetch-on-focus/pageshow/visibilitychange if needed, but must not re-enable noisy global refetches. No `beforeunload`/`unload` listeners. Test mobile sheet behavior. |
@@ -868,7 +855,8 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 ### Non-Goals (Explicitly Excluded)
 
 - **Do not rewrite the whole UI into shadcn-vue.** Adapt patterns for structure, accessibility, and keyboard behavior. Standard UI uses shadcn-vue Stone defaults; gallery warm/premium styling is reserved for brand and explicitly approved artwork surfaces.
-- **Do not replace GalleryGrid with a table.** GalleryGrid uses TanStack Virtual for visual photo browsing. TanStack Table is for data admin only.
+- **Do not replace GalleryGrid with a table.** GalleryGrid uses TanStack Virtual for visual photo browsing. MetadataList is a secondary utility view, not the primary browsing UI.
+- **Phase 3 is NOT an admin cockpit.** No duplicate finder, no broken image scanner, no watcher/refresh panel, no batch operations.
 - **Do not add new dependencies unless clearly justified.** TanStack Table and Form are already installed. No additional Vue ecosystem packages needed.
 - **Do not create indexing toast spam.** IndexStatusChip is a passive indicator. No toasts per job. Errors shown only in panel on click.
 - **Do not regress mobile sheets or introduce bounce/jank.** Keep VSBS for metadata sheet; new sheets follow established patterns.
@@ -920,12 +908,12 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 | SearchFilterChips render active filters | Phase 2 | Chips visible when fielded search is active; content matches filter values |
 | SearchFilterChip removal updates search | Phase 2 | Removing chip removes filter from active query |
 | Plain text search regression | Phase 2 | Existing search behavior unchanged when no fielded filters active |
-| MetadataTable renders columns and data | Phase 3 | Column headers and data rows match mock response |
-| Table sorting by column | Phase 3 | Click header toggles sort direction; data reorders correctly |
-| Table filtering (text column) | Phase 3 | Filter input narrows visible rows |
-| Column visibility toggle | Phase 3 | Hidden columns removed from DOM; visibility persists in localStorage |
-| Row selection (individual, select all, deselect all) | Phase 3 | Checkbox state toggles; selected count toolbar appears |
-| Pagination | Phase 3 | Page size selector changes rows per page; page navigation works |
+| MetadataList renders columns and data | Phase 3 | Thumbnail, name, folder, model, sampler, seed, dimensions, and modified date render from mocked `unifiedSearch()` results |
+| MetadataList sorting by column | Phase 3 | Click sortable headers to toggle direction; visible data reorders correctly |
+| MetadataList text filtering | Phase 3 | Search input narrows visible rows across supported metadata fields |
+| MetadataList row limit | Phase 3 | Result count is bounded by the configured limit and communicates the cap clearly |
+| MetadataList row actions | Phase 3 | Thumbnail opens lightbox; copy path and copy metadata actions call clipboard APIs |
+| MetadataList excludes bulk controls | Phase 3 | No row selection, select-all checkbox, batch toolbar, or column visibility toggle is rendered |
 | GalleryGrid unchanged | Phase 3 | Existing GalleryGrid tests pass without modification |
 
 ### Integration/E2E Tests
@@ -934,7 +922,7 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 |---|---|---|
 | Desktop AdvancedSearchDrawer opens/closes | Phase 2 | Slide-over panel behavior on desktop breakpoint |
 | Full search flow: plain → advanced → filter chip removal → plain | Phase 2 | End-to-end search state transitions |
-| MetadataTable → lightbox round-trip | Phase 3 | Click thumbnail opens lightbox; close returns to table |
+| MetadataList → lightbox round-trip | Phase 3 | Click thumbnail opens lightbox; close returns to MetadataList |
 
 ### Performance Tests
 
@@ -942,7 +930,7 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 |---|---|---|
 | Album-open perf unchanged | All | Scan p95, first thumbnail, thumbnail p95 within existing budgets |
 | Lightbox perf unchanged | All | Visible time, preview loaded time within existing budgets |
-| MetadataTable render time with 100 rows | Phase 3 | Initial render under 500ms |
+| MetadataList render time with 200 rows | Phase 3 | Initial render under 500ms |
 
 ### Accessibility Tests
 
@@ -957,7 +945,7 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 | Polling frequency not excessive | Phase 1B | Fast-poll only when active/queued work exists; failed-only slow-polls |
 | FolderTreeItem TreeView roles | Phase 1 | `role="tree"`, `role="treeitem"`, `aria-expanded` |
 | Form field labels linked to inputs | Phase 2 | Each input has `aria-labelledby` or `<label>` association |
-| Table column headers sortable via keyboard | Phase 3 | Enter/Space on column header triggers sort |
+| MetadataList sortable headers accessible via keyboard | Phase 3 | Enter/Space on sortable header triggers sort |
 
 ---
 
@@ -975,33 +963,31 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 | `frontend/src/components/search/AdvancedSearchDrawer.vue` | Phase 2 | TanStack Form search builder |
 | `frontend/src/components/SearchFilterChips.vue` | Phase 2 | Removable active filter chips |
 | `frontend/src/components/search/SearchCommandPalette.vue` | Phase 2 | Quick command/search palette (optional) |
-| `frontend/src/components/admin/MetadataTable.vue` | Phase 3 | TanStack Table metadata browser |
-| `frontend/src/views/MetadataAdminView.vue` | Phase 3 | Admin view container |
-| `frontend/src/composables/useMetadataTableData.ts` | Phase 3 | TanStack Query wrapper for table data |
+| `frontend/src/components/MetadataList.vue` | Phase 3 | Lightweight read-only metadata list / library inspector |
+| `frontend/src/composables/useMetadataListQuery.ts` | Phase 3 | TanStack Query wrapper that reuses `unifiedSearch()` |
 
 ### Modified Files
 
 | File | Phase | Description | Constraint |
 |---|---|---|---|
 | `frontend/src/services/api.ts` | Phase 1A | Add `fetchIndexStatus()`, `fetchFacets()` | Data-layer only |
-| `frontend/src/services/api.ts` | Phase 3 | Add `fetchMetadataTableData()` | Data-layer only |
 | `frontend/src/query/keys.ts` | Phase 1A | Add `indexStatus`, `facets` keys | Data-layer only |
-| `frontend/src/query/keys.ts` | Phase 3 | Add `metadataTable` key | Data-layer only |
+| `frontend/src/query/keys.ts` | Phase 3 | Add `metadataList` key, or reuse existing search keys if cleaner | Data-layer only |
 | `frontend/src/types/index.ts` | Phase 1A | Add index status, facets types | Data-layer only |
 | `frontend/src/types/index.ts` | Phase 2 | Add fielded search types | Data-layer only |
-| `frontend/src/types/index.ts` | Phase 3 | Add table row, column, sort, filter types | Data-layer only |
+| `frontend/src/types/index.ts` | Phase 3 | Add `MetadataListRow` type if normalization needs a shared type | Data-layer only |
 | `frontend/src/components/AppHeader.vue` | Phase 1B | IndexStatusChip (desktop-only) | Must not affect mobile/tablet |
 | `frontend/src/components/AppHeader.vue` | Phase 2 | AdvancedSearch trigger, SearchFilterChips (desktop) | Desktop-only |
-| `frontend/src/components/AppHeader.vue` | Phase 3 | Metadata admin nav entry | Desktop-only |
+| `frontend/src/components/AppHeader.vue` | Phase 3 | Small Metadata nav entry | Desktop-only |
 | `frontend/src/components/GalleryGrid.vue` | Phase 1C | `role="alert"` on error banner (desktop-safe only) | Frozen for behavior/layout/virtualization |
 | `frontend/src/components/GalleryGrid.vue` | Phase 2 | SearchFilterChips integration | Frozen for behavior/layout/virtualization |
 | `frontend/src/components/SettingsModal.vue` | Phase 1C | Header/Body/Footer structure, ARIA roles | Desktop-safe only. No mobile behavior changes. |
-| `frontend/src/components/SettingsModal.vue` | Phase 3 | Tabs + TanStack Form (if indexing config added) | Phase 3 only if config grows |
+| `frontend/src/components/SettingsModal.vue` | Future | Tabs + TanStack Form only if staged backend configuration is added | Not Phase 3 MVP |
 | `frontend/src/components/RootPathSheet.vue` | Future Mobile/Tablet Spec | Structure refactor, loading state, ARIA | Deferred to future Mobile/Tablet Spec |
 | `frontend/src/components/ToastItem.vue` | Phase 1C | `role="alert"` | Desktop-safe only |
 | `frontend/src/components/FolderTreeItem.vue` | Phase 1C | TreeView ARIA roles | Desktop-safe only |
 | `frontend/src/components/LightboxMobileSheet.vue` | Future Mobile/Tablet Spec | Tab ARIA roles | Deferred to future Mobile/Tablet Spec |
-| `frontend/src/App.vue` | Phase 3 | MetadataAdminView switching | Desktop-only |
+| `frontend/src/App.vue` | Phase 3 | MetadataList view switching while keeping GalleryGrid as the default | Desktop-only |
 
 ### Files Frozen in Phase 1
 
@@ -1025,7 +1011,7 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 | `frontend/tests/advanced-search-drawer.spec.ts` | Phase 2 |
 | `frontend/tests/search-filter-chips.spec.ts` | Phase 2 |
 | `frontend/tests/search-plain-regression.spec.ts` | Phase 2 |
-| `frontend/tests/metadata-table.spec.ts` | Phase 3 |
+| `frontend/tests/metadata-list.spec.ts` | Phase 3 |
 | `frontend/tests/gallery-grid-unchanged.spec.ts` | Phase 3 |
 
 ---
@@ -1038,13 +1024,13 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 
 2. **Phase 2 second (desktop-first)** — Unlock the powerful fielded search that the backend already supports. TanStack Form is the correct tool for this and justifies the existing installation. The AdvancedSearchDrawer + SearchFilterChips provide a discoverable interface for 30+ search fields that currently require manual query construction. Mobile/tablet advanced search deferred to separate spec.
 
-3. **Phase 3 last (desktop-first)** — TanStack Table for admin/metadata management. This is the largest new dependency usage and should come last to ensure the TanStack Form patterns from Phase 2 are well-understood. Many planned tables require backend prerequisites (per-job rows, diagnostics endpoint) that should be documented but not blocked on. Mobile/tablet admin view deferred.
+3. **Phase 3 last (desktop-first)** — Lightweight Metadata List / Library Inspector. A read-only utility view that reuses the existing search API. The smallest dependency surface — no TanStack Table required for the MVP. Explicitly excludes admin cockpit, duplicate finder, broken image scanner, watcher/refresh panels, and batch operations. Mobile/tablet deferred.
 
 ### Risk/Reward Balance
 
 - **Phase 1**: Lowest risk (desktop-only, mobile/tablet frozen), immediate UX value. Visibility into background indexing is the single biggest missing piece.
 - **Phase 2**: Medium risk (new TanStack Form usage, desktop-first), high reward. Fielded search turns an invisible backend capability into a primary user feature.
-- **Phase 3**: Medium risk (new TanStack Table usage, desktop-first), moderate reward. Admin/metadata views benefit power users but are not essential for the core gallery browsing experience.
+- **Phase 3**: Low risk (reuses existing search API, no new dependencies, read-only), moderate reward. Metadata List gives power users a compact way to inspect indexed metadata while keeping GalleryGrid as the primary browsing experience.
 
 ### What Makes This Different
 
@@ -1052,4 +1038,4 @@ This is not a generic UI modernization plan. Every recommendation is grounded in
 
 - Backend Phase 1 (indexer, batch writer, index status) → Frontend Phase 1 (index visibility, UI standardization) — desktop-only
 - Backend Phase 2B (fielded search, DB-first metadata) → Frontend Phase 2 (advanced search, faceted discovery) — desktop-first
-- Backend Phase 3 (warm listing, watcher, facets) → Frontend Phase 3 (admin cockpit, audit tables) — desktop-first
+- Backend Phase 3 (warm listing, watcher, facets) → Frontend Phase 3 (Metadata List / Lightweight Library Inspector) — desktop-first

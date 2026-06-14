@@ -75,7 +75,7 @@ This document presents a detailed migration plan for adopting Tailwind CSS in th
 - 133 `transform` property uses
 - PhotoSwipe 5 and vue-spring-bottom-sheet for lightbox/mobile sheets
 
-**Recommendation:** Hybrid migration covering Phases 0-2. Tailwind for desktop-first common utilities, CSS variables as the semantic theme backbone, SCSS preserved for animations, complex effects, third-party overrides, and mobile/iOS quirks. shadcn-vue approved for selective, component-by-component adoption where it improves quality, accessibility, or maintainability — not for wholesale rewrite or mobile/tablet risky surfaces in Phase 1. **Phase 3 (Metadata/Admin Table) is deferred — not implementing now. Revisit when TanStack Table features are needed.**
+**Recommendation:** Hybrid migration covering Phases 0-2. Tailwind for desktop-first common utilities, CSS variables as the semantic theme backbone, SCSS preserved for animations, complex effects, third-party overrides, and mobile/iOS quirks. shadcn-vue approved for selective, component-by-component adoption where it improves quality, accessibility, or maintainability — not for wholesale rewrite or mobile/tablet risky surfaces in Phase 1. **Phase 3 (Metadata List / Library Inspector) is deferred — not implementing now. Revisit when frontend implementation of FRONTEND plan Phase 3 begins.**
 
 ---
 
@@ -989,19 +989,28 @@ Behavior-heavy components such as Dialog, Dropdown Menu, Select, Tooltip, Popove
 - Preserve gallery brand identity on approved brand surfaces only, not for standard UI primitives. Standard shadcn components use shadcn-vue Stone pixel-level defaults (see §6.4, §6.5).
 - New standard UI components built in this phase should be Tailwind-first with shadcn-vue Stone tokens, using shadcn-vue primitives where they reduce boilerplate for standard interaction patterns.
 
-### Phase 3 (Future — deferred) — Metadata/Admin Table
+### Phase 3 (Future — deferred) — Metadata List / Library Inspector
 
-**Not implementing now. Revisit when TanStack Table features are needed.**
+**Not implementing now. Revisit when FRONTEND plan Phase 3 implementation begins.**
 
-**Allowed candidates (deferred):**
-- TanStack Table integration (new MetadataTable component, Tailwind-first)
-- TanStack Table toolbar/action menu (Tailwind utilities; shadcn Button, Dropdown Menu, Dialog, Badge, Tooltip for table controls)
-- Column visibility / pagination UI
+**Scope (per FRONTEND plan Phase 3 — lightweight, read-only, desktop-first):**
+- A lightweight read-only metadata list that reuses the existing `/api/search?scope=all&limit=200` endpoint.
+- Uses a native table or basic component — not TanStack Table.
+- Columns: thumbnail, name, folder, model, sampler, seed, dimensions, modified date.
+- Client-side sorting and text search filtering.
+- Row actions: open in lightbox, copy path, copy metadata.
+- Desktop-only; mobile/tablet deferred to separate spec.
+
+**Explicitly excluded from MVP:**
+- Row selection, bulk actions, column visibility toggle.
+- Duplicate finder, broken image scanner, diagnostics dashboard.
+- Watcher/refresh control panels.
+- Editable or batch metadata.
 
 **Guidance:**
-- shadcn-vue can be considered for table controls, dropdowns, dialogs, badges, and tooltips.
+- shadcn-vue can be considered for any standard UI chrome that accompanies the list (buttons, tooltips).
 - shadcn-vue must NOT be used for replacing gallery browsing UI (GalleryGrid, PhotoCard, lightbox).
-- Table-specific standard UI must use shadcn-vue Stone tokens via the bridge.
+- No TanStack Table dependency is needed for this MVP. Revisit if a backend-paginated listing endpoint is added later.
 
 ### Phase 4 — Mobile/Tablet (Future Spec Only)
 
