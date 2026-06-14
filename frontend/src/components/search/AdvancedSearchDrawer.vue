@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
-import { useForm } from '@tanstack/vue-form'
+import { useForm, useStore } from '@tanstack/vue-form'
 import { X, Search, RotateCcw } from 'lucide-vue-next'
 import Button from '@/components/ui/Button.vue'
 import Input from '@/components/ui/Input.vue'
@@ -254,7 +254,8 @@ function handleCancel() {
   emit('close')
 }
 
-const isDirty = computed(() => form.state.isDirty)
+const formState = useStore(form.store)
+const isDirty = computed(() => formState.value.isDirty)
 
 const facetData = computed(() => facetsQuery.data.value)
 const facetModelOptions = computed(() => facetData.value?.model?.map((e: FacetEntry) => e.value) || [])
@@ -521,7 +522,7 @@ function applyAspectRatio(ratio: string) {
                 <Button type="button" variant="ghost" size="sm" @click="handleCancel">
                   Cancel
                 </Button>
-                <Button type="submit" variant="default" size="sm" :disabled="!form.state.isValid || !isDirty">
+                <Button type="submit" variant="default" size="sm" :disabled="!(isDirty && formState.isValid)">
                   <Search class="size-3.5 mr-1" />
                   Apply
                 </Button>

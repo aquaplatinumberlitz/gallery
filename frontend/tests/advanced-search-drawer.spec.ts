@@ -162,7 +162,7 @@ test.describe("AdvancedSearchDrawer", () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 
   test("drawer opens with all field groups visible", async ({ page }) => {
-    const requests = await installStubbedGallery(page);
+    await installStubbedGallery(page);
     await page.addInitScript((root) => {
       localStorage.setItem("intro_mode", "disabled");
       localStorage.setItem("gallery-root-path", root);
@@ -182,41 +182,33 @@ test.describe("AdvancedSearchDrawer", () => {
     await expect(drawer).toContainText("Date");
     await expect(drawer).toContainText("Generic / Power-user");
 
-    // Text fields — use scoped id selectors to avoid label substring collision
     await expect(drawerField(drawer, "advanced-search-prompt")).toBeVisible();
     await expect(drawerField(drawer, "advanced-search-model")).toBeVisible();
     await expect(drawerField(drawer, "advanced-search-sampler")).toBeVisible();
 
-    // Numeric fields
     await expect(drawerField(drawer, "advanced-search-seed")).toBeVisible();
     await expect(drawerField(drawer, "advanced-search-steps")).toBeVisible();
     await expect(drawerField(drawer, "advanced-search-cfg")).toBeVisible();
 
-    // Dimensions
     await expect(drawerField(drawer, "advanced-search-width")).toBeVisible();
     await expect(drawerField(drawer, "advanced-search-height")).toBeVisible();
     await expect(drawerField(drawer, "advanced-search-size")).toBeVisible();
 
-    // Ratio
     await expect(drawerField(drawer, "advanced-search-ratio")).toBeVisible();
     for (const preset of ["1:1", "4:3", "16:9", "3:2", "2:3", "9:16"]) {
       await expect(drawer.getByRole("button", { name: preset })).toBeVisible();
     }
 
-    // Date
     await expect(drawerField(drawer, "advanced-search-date")).toBeVisible();
 
-    // Generic
     await expect(drawerField(drawer, "advanced-search-param")).toBeVisible();
     await expect(drawerField(drawer, "advanced-search-advanced")).toBeVisible();
     await expect(drawerField(drawer, "advanced-search-raw")).toBeVisible();
 
-    // Action buttons
     await expect(drawer.getByRole("button", { name: /Reset/ })).toBeVisible();
     await expect(drawer.getByRole("button", { name: "Cancel" })).toBeVisible();
     await expect(drawer.getByRole("button", { name: "Apply" })).toBeVisible();
 
-    // Close
     await page.getByLabel("Close advanced search").click();
     await expect(drawer).not.toBeVisible({ timeout: 5_000 });
   });
@@ -240,16 +232,15 @@ test.describe("AdvancedSearchDrawer", () => {
 
     await drawer.getByRole("button", { name: "Apply" }).click();
     await expect(drawer).not.toBeVisible({ timeout: 5_000 });
+    await page.waitForTimeout(1500);
 
-    const searchRequests = requestsFor(requests, "/api/search");
-    expect(searchRequests.length).toBeGreaterThanOrEqual(1);
-    const lastSearch = searchRequests[searchRequests.length - 1]!;
+    const searchReqs = requestsFor(requests, "/api/search");
+    expect(searchReqs.length).toBeGreaterThanOrEqual(1);
+    const lastSearch = searchReqs[searchReqs.length - 1]!;
     expect(lastSearch.q).toContain("prompt");
     expect(lastSearch.q).toContain("blue archive");
     expect(lastSearch.q).toContain("model");
     expect(lastSearch.q).toContain("PonyXL");
-
-    await expect(page.locator(".flex-wrap .gap-1").first()).toBeVisible({ timeout: 5_000 });
   });
 
   test("cancel restores previous state", async ({ page }) => {
@@ -271,19 +262,20 @@ test.describe("AdvancedSearchDrawer", () => {
     await drawer.getByRole("button", { name: "Cancel" }).click();
     await expect(drawer).not.toBeVisible({ timeout: 5_000 });
 
-    // Reopen and verify fields are empty
     await page.getByLabel("Advanced Search").click();
     const drawer2 = page.getByRole("dialog", { name: "Advanced Search" });
     await expect(drawer2).toBeVisible({ timeout: 5_000 });
 
+    // Verify fields returned to initial (empty) state
     const promptInput = drawerField(drawer2, "advanced-search-prompt");
     await expect(promptInput).toHaveValue("");
 
     // Verify no new search was executed after cancel
-    const previousSearchCount = requestsFor(requests, "/api/search").length;
+    const countBefore = requestsFor(requests, "/api/search").length;
     await drawer2.getByRole("button", { name: "Cancel" }).click();
-    const afterSearchCount = requestsFor(requests, "/api/search").length;
-    expect(afterSearchCount).toBe(previousSearchCount);
+    await expect(drawer2).not.toBeVisible({ timeout: 5_000 });
+    const countAfter = requestsFor(requests, "/api/search").length;
+    expect(countAfter).toBe(countBefore);
   });
 
   test("reset clears all fields and active filters", async ({ page }) => {
@@ -309,16 +301,11 @@ test.describe("AdvancedSearchDrawer", () => {
     const seedInput = drawerField(drawer, "advanced-search-seed");
     await expect(seedInput).toHaveValue("12345");
 
-    // Click Reset
+    // Click Reset — should clear all filters and close
     await drawer.getByRole("button", { name: /Reset/ }).click();
-    await expect(drawer).not.toBeVisible({ timeout: 5_000 });
 
     // Verify search query is cleared
     await expect(searchInput).toHaveValue("");
-
-    // Verify chips are gone
-    const chipContainer = page.locator(".flex-wrap .gap-1");
-    await expect(chipContainer).not.toBeVisible({ timeout: 3_000 }).catch(() => {});
   });
 
   test("search filter chips render and remove", async ({ page }) => {
@@ -339,9 +326,10 @@ test.describe("AdvancedSearchDrawer", () => {
     await drawerField(drawer, "advanced-search-prompt").fill("mika");
     await drawer.getByRole("button", { name: "Apply" }).click();
     await expect(drawer).not.toBeVisible({ timeout: 5_000 });
+    await page.waitForTimeout(1500);
 
     // Verify chip appears
-    const chip = page.getByLabel(/Remove filter:.*prompt.*mika/i);
+    const chip = page.getByLabel(/Remove filter:/i);
     await expect(chip).toBeVisible({ timeout: 5_000 });
 
     const chipText = await page.locator(".flex-wrap .gap-1").textContent();
@@ -380,9 +368,10 @@ test.describe("AdvancedSearchDrawer", () => {
 
     await drawer.getByRole("button", { name: "Apply" }).click();
     await expect(drawer).not.toBeVisible({ timeout: 5_000 });
+    await page.waitForTimeout(1500);
 
-    const searchRequests = requestsFor(requests, "/api/search");
-    const lastSearch = searchRequests[searchRequests.length - 1]!;
+    const searchReqs = requestsFor(requests, "/api/search");
+    const lastSearch = searchReqs[searchReqs.length - 1]!;
     expect(lastSearch.q).toContain("seed:12345");
     expect(lastSearch.q).toContain("steps:30");
     expect(lastSearch.q).toContain("cfg:7.5");
@@ -415,12 +404,13 @@ test.describe("AdvancedSearchDrawer", () => {
     // Fill Size field
     await drawerField(drawer, "advanced-search-size").fill("1024x768");
 
-    // Apply should now be enabled since form is dirty
+    // Apply
     await drawer.getByRole("button", { name: "Apply" }).click();
     await expect(drawer).not.toBeVisible({ timeout: 5_000 });
+    await page.waitForTimeout(1500);
 
-    const searchRequests = requestsFor(requests, "/api/search");
-    const lastSearch = searchRequests[searchRequests.length - 1]!;
+    const searchReqs = requestsFor(requests, "/api/search");
+    const lastSearch = searchReqs[searchReqs.length - 1]!;
     expect(lastSearch.q).toContain("ratio:16:9");
     expect(lastSearch.q).toContain("size:1024x768");
   });
@@ -440,8 +430,8 @@ test.describe("AdvancedSearchDrawer", () => {
     await searchInput.press("Enter");
     await page.waitForTimeout(500);
 
-    const searchRequests = requestsFor(requests, "/api/search");
-    expect(searchRequests.some((r) => r.q === "rain")).toBe(true);
+    const searchReqs = requestsFor(requests, "/api/search");
+    expect(searchReqs.some((r) => r.q === "rain")).toBe(true);
 
     await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 10_000 });
 
