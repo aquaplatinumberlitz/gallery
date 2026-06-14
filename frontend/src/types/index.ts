@@ -139,6 +139,16 @@ export type IndexStatusState =
   | "unavailable"
   | "disabled";
 
+export interface FieldFilter {
+  field: string
+  operator?: string
+  value: string
+}
+
+export interface FieldedSearchParams {
+  filters: FieldFilter[]
+}
+
 export interface FacetEntry {
   value: string;
   count: number;

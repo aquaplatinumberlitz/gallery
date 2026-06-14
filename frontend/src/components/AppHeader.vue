@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Landmark, Search, X, Settings, Menu, Sun, Moon, Monitor } from 'lucide-vue-next'
+import { ref } from 'vue'
+import { Landmark, Search, X, Settings, Menu, Sun, Moon, Monitor, SlidersHorizontal } from 'lucide-vue-next'
 import Button from '@/components/ui/Button.vue'
 import Input from '@/components/ui/Input.vue'
 import {
@@ -14,6 +15,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { useGalleryTheme } from "@/composables/useGalleryTheme"
+import { useFieldedSearch } from "@/composables/useFieldedSearch"
+import AdvancedSearchDrawer from "@/components/search/AdvancedSearchDrawer.vue"
+import SearchFilterChips from "@/components/SearchFilterChips.vue"
+import type { FieldFilter } from "@/types"
+import { serializeAdvancedSearchToQuery } from "@/utils/serializeAdvancedSearchToQuery"
 
 interface Props {
   isMobile: boolean
@@ -33,14 +39,37 @@ const emit = defineEmits<{
 }>()
 
 const { mode, resolvedTheme, setTheme } = useGalleryTheme()
+const { fieldedFilters, isActive: isFieldedSearchActive, queryString: fieldedQueryString, applyFilters, removeFilter, clearAll } = useFieldedSearch()
+
+const isAdvancedSearchOpen = ref(false)
 
 function clearSearch() {
+  clearAll()
   emit('update:searchQuery', '')
 }
 
 function onScopeChange(e: Event) {
   const target = e.target as HTMLSelectElement
   emit('scope-change', target.value as 'current' | 'all')
+}
+
+function handleAdvancedSearchApply(filters: FieldFilter[]) {
+  applyFilters(filters)
+  emit('update:searchQuery', serializeAdvancedSearchToQuery(filters))
+}
+
+function handleAdvancedSearchClose() {
+  isAdvancedSearchOpen.value = false
+}
+
+function handleRemoveFilter(index: number) {
+  removeFilter(index)
+  emit('update:searchQuery', fieldedQueryString.value)
+}
+
+function handleClearAll() {
+  clearAll()
+  emit('update:searchQuery', '')
 }
 </script>
 
@@ -111,55 +140,84 @@ function onScopeChange(e: Event) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <div class="search-box">
-        <Tooltip>
-          <TooltipTrigger as-child>
-            <Button
-              variant="ghost"
-              size="icon"
-              class="search-icon-btn"
-              type="button"
-              aria-label="Search"
-            >
-              <Search class="gallery-icon-toolbar" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Search</TooltipContent>
-        </Tooltip>
-        <Input
-          id="gallery-search"
-          :modelValue="searchQuery"
-          @update:model-value="(v: string) => emit('update:searchQuery', v)"
-          type="search"
-          placeholder="Photos, albums, prompts"
-          autocomplete="off"
-          class="search-input"
+      <div class="header-search-area">
+        <div class="search-box">
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button
+                variant="ghost"
+                size="icon"
+                class="search-icon-btn"
+                type="button"
+                aria-label="Search"
+              >
+                <Search class="gallery-icon-toolbar" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Search</TooltipContent>
+          </Tooltip>
+          <Input
+            id="gallery-search"
+            :modelValue="searchQuery"
+            @update:model-value="(v: string) => emit('update:searchQuery', v)"
+            type="search"
+            placeholder="Photos, albums, prompts"
+            autocomplete="off"
+            class="search-input"
+          />
+          <Tooltip v-if="searchQuery">
+            <TooltipTrigger as-child>
+              <Button
+                variant="ghost"
+                size="icon"
+                class="clear-btn"
+                type="button"
+                aria-label="Clear search"
+                @click="clearSearch"
+              >
+                <X class="gallery-icon-xs" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Clear search</TooltipContent>
+          </Tooltip>
+          <select
+            class="scope-select"
+            :value="searchScope"
+            aria-label="Search scope"
+            @change="onScopeChange"
+          >
+            <option value="current">This folder</option>
+            <option value="all">All indexed</option>
+          </select>
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button
+                variant="ghost"
+                size="icon"
+                class="advanced-search-btn"
+                type="button"
+                :class="{ 'text-primary': isFieldedSearchActive }"
+                aria-label="Advanced Search"
+                @click="isAdvancedSearchOpen = true"
+              >
+                <SlidersHorizontal class="gallery-icon-toolbar" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Advanced Search</TooltipContent>
+          </Tooltip>
+        </div>
+        <SearchFilterChips
+          :filters="fieldedFilters"
+          @remove="handleRemoveFilter"
+          @clear-all="handleClearAll"
         />
-        <Tooltip v-if="searchQuery">
-          <TooltipTrigger as-child>
-            <Button
-              variant="ghost"
-              size="icon"
-              class="clear-btn"
-              type="button"
-              aria-label="Clear search"
-              @click="clearSearch"
-            >
-              <X class="gallery-icon-xs" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Clear search</TooltipContent>
-        </Tooltip>
-        <select
-          class="scope-select"
-          :value="searchScope"
-          aria-label="Search scope"
-          @change="onScopeChange"
-        >
-          <option value="current">This folder</option>
-          <option value="all">All indexed</option>
-        </select>
       </div>
+      <AdvancedSearchDrawer
+        :is-open="isAdvancedSearchOpen"
+        :initial-filters="fieldedFilters"
+        @close="handleAdvancedSearchClose"
+        @apply="handleAdvancedSearchApply"
+      />
     </div>
   </header>
 </template>
@@ -304,6 +362,17 @@ h1 {
   gap: 6px;
   min-width: 220px;
   height: 40px;
+}
+
+.header-search-area {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+}
+
+.advanced-search-btn {
+  flex-shrink: 0;
 }
 
 .search-input {
