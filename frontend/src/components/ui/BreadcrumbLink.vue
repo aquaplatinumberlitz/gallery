@@ -16,6 +16,7 @@ const emit = defineEmits<{
 <template>
   <button
     type="button"
+    data-reka-collection-item
     :class="
       cn(
         'text-sm text-muted-foreground hover:text-foreground px-2 py-1 transition-colors max-w-[150px] truncate',

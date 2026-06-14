@@ -56,6 +56,7 @@ withDefaults(defineProps<Props>(), {
   <button
     :type="type"
     :disabled="disabled"
+    :data-size="size"
     :class="cn(buttonVariants({ variant, size }), $props.class)"
   >
     <slot />

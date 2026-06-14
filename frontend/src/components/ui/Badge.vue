@@ -15,9 +15,7 @@ const badgeVariants = cva(
           "border-transparent bg-destructive text-destructive-foreground shadow hover:bg-destructive/80",
         outline: "text-foreground",
         loading:
-          "bg-accent text-accent-foreground",
-        subtle:
-          "opacity-70",
+          "bg-accent text-accent-foreground", // local extension
       },
     },
     defaultVariants: {
