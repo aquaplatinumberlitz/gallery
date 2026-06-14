@@ -678,7 +678,7 @@ watch(loadMoreSentinel, () => setupLoadObserver());
       @select-density="selectDensity"
     />
 
-    <div v-if="errorMessage" class="error-banner">
+    <div v-if="errorMessage" role="alert" class="error-banner">
       <div class="error-text">
         <TriangleAlert class="gallery-icon-md" />
         <span>{{ errorMessage }}</span>

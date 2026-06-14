@@ -45,7 +45,7 @@ function onScopeChange(e: Event) {
 </script>
 
 <template>
-  <header class="content-header grid grid-cols-[auto_1fr_auto] items-start gap-3 shrink-0">
+  <header role="banner" class="content-header grid grid-cols-[auto_1fr_auto] items-start gap-3 shrink-0">
     <div class="header-left flex items-center gap-3">
       <Tooltip>
         <TooltipTrigger as-child>

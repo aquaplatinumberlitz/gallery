@@ -101,6 +101,7 @@ const handleKeydown = (e: KeyboardEvent) => {
 
 <template>
   <div 
+    role="tree"
     class="tree-item block group-data-[collapsible=icon]:hidden"
   >
     <div class="tree-row-shell flex items-center gap-1.5">
@@ -120,6 +121,9 @@ const handleKeydown = (e: KeyboardEvent) => {
         variant="ghost"
         size="sm"
         type="button"
+        role="treeitem"
+        :aria-expanded="node.has_children ? isOpen : undefined"
+        :aria-selected="isActive ? true : undefined"
         :class="cn('tree-row min-w-0 flex-1 justify-start gap-1.5 px-1.5 py-[3px] text-[13px]', isActive && 'bg-accent text-accent-foreground')"
         @click="onSelect"
         @keydown="handleKeydown"

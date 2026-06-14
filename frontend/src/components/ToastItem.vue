@@ -85,6 +85,7 @@ onUnmounted(() => {
 
 <template>
   <div 
+    role="alert"
     :class="['toast flex items-start gap-3 py-3.5 px-4 bg-[var(--toast-bg,#fff)] rounded-xl pointer-events-auto relative overflow-hidden border-l-4 border-l-[var(--toast-accent)] shadow-[0_4px_12px_rgba(0,0,0,0.15),0_0_1px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.4),0_0_1px_rgba(0,0,0,0.2)]', typeClass]"
     @mouseenter="pauseProgress"
     @mouseleave="resumeProgress"
