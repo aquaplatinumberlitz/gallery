@@ -26,7 +26,7 @@
   --color-text-inverse: var(--gallery-text-inverse);
   --color-text-placeholder: var(--gallery-text-placeholder);
   --color-title: var(--title-color);
-  --color-muted: var(--muted-text);
+  --color-muted: var(--gallery-surface-hover);
   --color-muted-foreground: var(--muted-text);
   --color-border: var(--gallery-border-default);
   --color-border-subtle: var(--gallery-border-subtle);
@@ -47,6 +47,21 @@
   --color-neon: var(--neon-color);
   --color-neon-border: var(--neon-border-color);
   --color-folder: var(--folder-color);
+
+  /* shadcn-vue color tokens (bridged to gallery semantic colors) */
+  --color-primary-foreground: #ffffff;
+  --color-secondary: var(--surface-color);
+  --color-secondary-foreground: var(--text-color);
+  --color-accent: var(--gallery-surface-hover);
+  --color-accent-foreground: var(--text-color);
+  --color-destructive: var(--gallery-error);
+  --color-destructive-foreground: #ffffff;
+  --color-input: var(--gallery-border-default);
+  --color-ring: var(--primary-color);
+  --color-card: var(--surface-color);
+  --color-card-foreground: var(--text-color);
+  --color-popover: var(--gallery-surface-elevated);
+  --color-popover-foreground: var(--text-color);
 
   /* Radius */
   --radius-sm: var(--gallery-radius-sm);

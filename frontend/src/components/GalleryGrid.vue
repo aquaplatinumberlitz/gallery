@@ -591,7 +591,7 @@ onBeforeUnmount(() => {
         <Button
           variant="ghost"
           size="nav"
-          class="nav-btn"
+          class="nav-btn border border-border"
           :disabled="!canBack"
           @click="goBack"
           title="Back"
@@ -601,7 +601,7 @@ onBeforeUnmount(() => {
         <Button
           variant="ghost"
           size="nav"
-          class="nav-btn"
+          class="nav-btn border border-border"
           :disabled="!canForward"
           @click="goForward"
           title="Forward"

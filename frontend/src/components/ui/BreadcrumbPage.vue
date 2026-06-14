@@ -14,7 +14,7 @@ defineProps<{
     aria-current="page"
     :class="
       cn(
-        'text-sm text-title font-semibold max-w-[200px] truncate px-2 py-1',
+        'text-sm font-normal text-foreground max-w-[200px] truncate px-2 py-1',
         $props.class,
       )
     "

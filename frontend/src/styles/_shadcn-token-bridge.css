@@ -5,6 +5,9 @@
  * (--background, --foreground, --primary, --muted, --accent, etc.).
  *
  * This file bridges those names to gallery semantic tokens.
+ * Colors only — radius, shadow, and transition are handled by upstream
+ * shadcn utility classes.
+ *
  * Imported AFTER tokens.css, BEFORE Tailwind and main.scss.
  */
 
@@ -13,7 +16,7 @@
   --foreground: var(--text-color);
   --card: var(--surface-color);
   --card-foreground: var(--text-color);
-  --popover: var(--surface-color);
+  --popover: var(--gallery-surface-elevated);
   --popover-foreground: var(--text-color);
   --primary: var(--primary-color);
   --primary-foreground: #ffffff;
@@ -28,11 +31,8 @@
   --border: var(--gallery-border-default);
   --input: var(--gallery-border-default);
   --ring: var(--primary-color);
-  --radius: var(--gallery-radius-md);
 }
 
 :root[data-theme="dark"] {
   --primary-foreground: #1a1918;
-  --secondary-foreground: var(--text-color);
-  --destructive-foreground: #ffffff;
 }

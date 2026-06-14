@@ -442,6 +442,70 @@ The original plan treated shadcn-vue strictly as a "pattern reference only — n
 
 ---
 
+### 6.1a shadcn-vue Visual Mechanics Policy
+
+For shadcn-vue adopted primitives, the project preserves upstream shadcn-vue visual mechanics:
+- component anatomy
+- spacing
+- radius utility classes (e.g. `rounded-md`, `rounded-sm`)
+- shadow utility classes (e.g. `shadow-sm`, `shadow-xs` if upstream uses it)
+- hover/active/focus behavior
+- focus-visible mechanics (e.g. `focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring`)
+- transition classes (e.g. `transition-colors`)
+- size variants
+- font weight and text sizing when part of the upstream primitive
+
+The gallery only customizes:
+- color token values (see §6.4a color token mapping policy)
+- dark-mode selector compatibility for `[data-theme="dark"]`
+- import paths / component names
+- app-specific aria-label/title/copy text
+
+**Bad / no longer allowed for shadcn primitives:**
+- `rounded-gallery-xl` — custom gallery radius
+- `shadow-gallery-lg` — custom gallery shadow
+- `hover:-translate-y-px` — custom lift effect
+- `active:scale-[0.98]` — custom press scale
+- `transition custom gallery-spring` — custom easing
+- `ease-gallery` — custom easing
+- `duration-[120ms]` unless upstream uses it
+- `hover:bg-surface-hover` when upstream expects `hover:bg-accent`
+- `focus-visible:shadow-[var(--focus-ring-shadow)]` — custom gallery focus shadow
+
+**Preferred for shadcn primitives:**
+- `rounded-md` / `rounded-sm` as used upstream
+- `shadow-sm` / `shadow-xs` if upstream uses it
+- `hover:bg-accent hover:text-accent-foreground`
+- `focus-visible:ring-1 focus-visible:ring-ring`
+- `transition-colors`
+- `disabled:pointer-events-none disabled:opacity-50`
+
+**Important:**
+- Do NOT describe shadcn-vue as "pattern/reference only" anymore.
+- Do NOT describe it as "fully gallery-restyled" either.
+- The correct wording is: shadcn-vue primitives are adopted with upstream mechanics preserved and gallery colors mapped through tokens.
+
+---
+
+### 6.1b Color Token Mapping Policy
+
+```
+background   → gallery background (--bg-color)
+foreground   → gallery foreground (--text-color)
+card         → gallery surface (--surface-color)
+popover      → gallery surface-elevated (--gallery-surface-elevated)
+primary      → gallery primary/accent (--primary-color)
+secondary    → gallery muted surface (--surface-color)
+muted        → gallery muted surface (--gallery-surface-hover)
+accent       → gallery surface-hover (--gallery-surface-hover)
+border       → gallery border (--gallery-border-default)
+input        → gallery input/border (--gallery-border-default)
+ring         → gallery focus ring (--primary-color)
+destructive  → gallery danger (--gallery-error)
+```
+
+---
+
 ### 6.2 Component Grouping
 
 #### Group A — Replace with shadcn-vue early where practical
@@ -528,9 +592,41 @@ shadcn-vue components typically reference CSS variables from a shadcn theme (def
 
 **Bridging approach:**
 - Do NOT duplicate the shadcn theme variables in gallery. Instead, create an alias layer that maps shadcn variable names to gallery token values.
-- Example: `--background: var(--bg-color); --foreground: var(--text-color); --primary: var(--primary-color); --border: var(--gallery-border-default); --radius: var(--gallery-radius-md);`
-- This alias layer should live in a new file (e.g., `frontend/src/styles/_shadcn-token-bridge.css`) imported after `tokens.css` and before Tailwind.
-- The bridge must work for both light and dark modes via `[data-theme="dark"]`.
+- This alias layer lives in `frontend/src/styles/_shadcn-token-bridge.css`, imported after `tokens.css` and before Tailwind.
+- The bridge maps shadcn color variable names (e.g., `--background`, `--foreground`, `--primary`) to gallery semantic tokens (e.g., `--bg-color`, `--text-color`, `--primary-color`).
+- Dark mode works through `[data-theme="dark"]` selectors in the bridge — do NOT require `.dark` class.
+- Tailwind utility classes (`bg-primary`, `text-primary-foreground`) are enabled through `@theme inline` entries in `tailwind.css` that reference the bridged CSS variables.
+
+**Scope — colors only:**
+- The bridge maps **color tokens only**.
+- Do NOT remap shadcn radius to custom gallery radius — keep upstream `rounded-md`, `rounded-sm` etc. as used by shadcn primitives.
+- Do NOT create shadcn shadow variables pointing to gallery-specific shadows — keep upstream `shadow-sm`, `shadow-xs`.
+- Do NOT create shadcn transition/easing variables for primitives — preserve upstream utility classes like `transition-colors`.
+- If shadcn-vue requires `--radius`, keep upstream default or document why a bridge entry is needed.
+
+**Color token mapping (allowed mappings):**
+
+```
+--background: var(--gallery-background-or-equivalent)
+--foreground: var(--gallery-foreground-or-equivalent)
+--card: var(--gallery-surface-or-equivalent)
+--card-foreground: var(--gallery-foreground-or-equivalent)
+--popover: var(--gallery-surface-elevated-or-equivalent)
+--popover-foreground: var(--gallery-foreground-or-equivalent)
+--primary: var(--gallery-primary-or-accent-equivalent)
+--primary-foreground: var(--gallery-primary-foreground-or-equivalent)
+--secondary: var(--gallery-muted-surface-or-equivalent)
+--secondary-foreground: var(--gallery-foreground-or-equivalent)
+--muted: var(--gallery-muted-surface-or-equivalent)
+--muted-foreground: var(--gallery-muted-foreground-or-equivalent)
+--accent: var(--gallery-surface-hover-or-accent-muted-equivalent)
+--accent-foreground: var(--gallery-foreground-or-equivalent)
+--destructive: var(--gallery-danger-or-equivalent)
+--destructive-foreground: var(--gallery-danger-foreground-or-equivalent)
+--border: var(--gallery-border-or-equivalent)
+--input: var(--gallery-input-border-or-equivalent)
+--ring: var(--gallery-focus-ring-or-equivalent)
+```
 
 **Guidance:**
 - Token bridging is a **pre-requisite** to any shadcn component adoption.
@@ -576,10 +672,11 @@ Every shadcn-vue adoption step must run:
 
 1. **shadcn-vue is approved for selective, component-by-component adoption** where it improves quality, accessibility, or maintainability. It is **not** approved for wholesale rewrite or mobile/tablet risky surfaces in Phase 1.
 2. **`npx shadcn-vue@latest add ...`** is allowed for specific components, but only after a dependency/token audit (see §6.4) and only targeting Group A or Group B components.
-3. **Gallery semantic tokens and visual identity always take precedence** over shadcn defaults.
-4. **Every adoption must be individually tested** with type-checks, builds, and Playwright before/after screenshots.
-5. **Mobile/tablet Group C components must not be touched** in Phase 1. Any accidental change to these files is a blocker.
-6. **Do not install shadcn dependencies globally without a specific component target.** Each dependency must map to at least one concrete component replacement.
+3. **shadcn-vue primitives must preserve upstream visual mechanics** — radius, shadow, hover/active/focus behavior, focus-visible mechanics, transition classes, size variants, font weight, and text sizing. The gallery only customizes color tokens, dark-mode selector, import paths/component names, and app-specific labels/aria-label text (see §6.1a).
+4. **Gallery color tokens are mapped through the token bridge** — shadcn primitives use shadcn token class names (`bg-primary`, `text-primary-foreground`, `bg-accent`, etc.), with actual color values supplied by the gallery token bridge mapping to gallery semantic colors (see §6.1b, §6.5).
+5. **Every adoption must be individually tested** with type-checks, builds, and Playwright before/after screenshots.
+6. **Mobile/tablet Group C components must not be touched** in Phase 1. Any accidental change to these files is a blocker.
+7. **Do not install shadcn dependencies globally without a specific component target.** Each dependency must map to at least one concrete component replacement.
 
 ---
 
