@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import GallerySidebarContent from "../components/GallerySidebarContent.vue";
-import GallerySidebarEdgeTrigger from "../components/GallerySidebarEdgeTrigger.vue";
 import AppHeader from "../components/AppHeader.vue";
 import GalleryGrid from "../components/GalleryGrid.vue";
 import {
@@ -36,7 +35,7 @@ const emit = defineEmits<{
     @update:open="emit('update:sidebarOpen', $event)"
   >
     <Sidebar side="left" variant="sidebar" collapsible="icon">
-      <div class="gallery-sidebar-surface flex h-full w-full flex-col group-data-[collapsible=icon]:items-center">
+      <div class="flex h-full w-full flex-col group-data-[collapsible=icon]:items-center">
         <GallerySidebarContent
           :tree="tree"
           :is-loading="isLoading"
@@ -45,8 +44,6 @@ const emit = defineEmits<{
       </div>
       <SidebarRail />
     </Sidebar>
-
-    <GallerySidebarEdgeTrigger />
 
     <SidebarInset id="main-content" tabindex="-1" class="content">
       <AppHeader
@@ -72,9 +69,6 @@ const emit = defineEmits<{
 </template>
 
 <style scoped lang="scss">
-.gallery-sidebar-surface {
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.04)), var(--surface-color);
-}
 
 .content {
   display: flex;
