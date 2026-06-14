@@ -5,10 +5,12 @@ import { Loader } from "lucide-vue-next";
 import {
   SidebarHeader as ShadSidebarHeader,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
 } from "@/components/ui/sidebar";
+import IndexStatusPanel from "@/components/IndexStatusPanel.vue";
 
 defineProps<{
   tree: any[];
@@ -47,6 +49,10 @@ defineProps<{
       </SidebarGroupContent>
     </SidebarGroup>
   </SidebarContent>
+
+  <SidebarFooter class="p-2 border-t border-border">
+    <IndexStatusPanel />
+  </SidebarFooter>
 </template>
 
 <style scoped>

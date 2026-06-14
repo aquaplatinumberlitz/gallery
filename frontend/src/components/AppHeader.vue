@@ -2,7 +2,6 @@
 import { Landmark, Search, X, Settings, Menu, Sun, Moon, Monitor } from 'lucide-vue-next'
 import Button from '@/components/ui/Button.vue'
 import Input from '@/components/ui/Input.vue'
-import IndexStatusPanel from '@/components/IndexStatusPanel.vue'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -92,7 +91,6 @@ function onScopeChange(e: Event) {
     </div>
     <div class="header-actions flex flex-col items-end gap-2">
       <div class="flex items-center gap-2">
-        <IndexStatusPanel />
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
             <Button variant="ghost" size="icon" aria-label="Theme">
