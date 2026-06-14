@@ -2,6 +2,11 @@
 import GallerySidebarContent from "../components/GallerySidebarContent.vue";
 import TabletHeader from "../components/TabletHeader.vue";
 import GalleryGrid from "../components/GalleryGrid.vue";
+import {
+  SidebarProvider,
+  Sidebar,
+  SidebarInset,
+} from "@/components/ui/sidebar";
 
 defineProps<{
   theme: "light" | "dark";
@@ -18,33 +23,27 @@ const emit = defineEmits<{
   (e: "scope-change", value: "current" | "all"): void;
   (e: "toggleSidebar"): void;
   (e: "toggleTheme"): void;
+  (e: "openSettings"): void;
 }>();
 </script>
 
 <template>
-  <div class="layout">
-    <aside
-      id="sidebar"
-      class="sidebar tablet-overlay"
-      :class="{ open: isSidebarOpen }"
-      :inert="!isSidebarOpen"
-    >
-      <GallerySidebarContent
-        :tree="tree"
-        :is-loading="isLoading"
-        :current-path="currentPath"
-      />
-    </aside>
+  <SidebarProvider
+    :open="true"
+    :open-mobile="isSidebarOpen"
+    @update:open-mobile="emit('toggleSidebar')"
+  >
+    <Sidebar side="left" variant="sidebar" collapsible="offcanvas">
+      <div class="gallery-sidebar-surface flex h-full w-full flex-col">
+        <GallerySidebarContent
+          :tree="tree"
+          :is-loading="isLoading"
+          :current-path="currentPath"
+        />
+      </div>
+    </Sidebar>
 
-    <Transition name="sidebar-backdrop">
-      <div
-        v-if="isSidebarOpen"
-        class="sidebar-backdrop"
-        @click="emit('toggleSidebar')"
-      ></div>
-    </Transition>
-
-    <section class="content" id="main-content" tabindex="-1">
+    <SidebarInset id="main-content" tabindex="-1" class="content">
       <TabletHeader
         :is-dark="theme === 'dark'"
         :search-query="searchQuery"
@@ -62,28 +61,22 @@ const emit = defineEmits<{
           :show-toolbar-breadcrumb="false"
         />
       </div>
-    </section>
-  </div>
+    </SidebarInset>
+  </SidebarProvider>
 </template>
 
 <style scoped>
-.layout {
-  height: 100dvh;
-  height: 100vh; /* fallback */
-  background: var(--bg-color);
-  color: var(--text-color);
-  display: grid;
-  grid-template-columns: 1fr;
-  overflow: hidden;
+.gallery-sidebar-surface {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.04)), var(--surface-color);
 }
 
 .content {
-  padding: 16px 12px 20px 12px;
   display: flex;
   flex-direction: column;
   gap: 16px;
   height: 100%;
   overflow: hidden;
+  padding: 16px 12px 20px 12px;
   transition: padding-top 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -97,53 +90,5 @@ const emit = defineEmits<{
   overflow: visible;
   display: flex;
   flex-direction: column;
-}
-
-/* Tablet overlay drawer */
-.sidebar.tablet-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 280px;
-  height: 100dvh;
-  z-index: 100;
-  pointer-events: none;
-  transform: translateX(-100%);
-  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: var(--gallery-shadow-xl);
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.04)), var(--surface-color);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  will-change: transform;
-}
-
-.sidebar.tablet-overlay.open {
-  transform: translateX(0);
-  pointer-events: auto;
-}
-
-.sidebar-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  z-index: 90;
-}
-
-/* Backdrop transition */
-.sidebar-backdrop-enter-active {
-  transition: opacity 0.18s ease;
-}
-.sidebar-backdrop-leave-active {
-  transition: opacity 0.18s ease;
-  pointer-events: none;
-}
-.sidebar-backdrop-enter-from,
-.sidebar-backdrop-leave-to {
-  opacity: 0;
-}
-.sidebar-backdrop-enter-to,
-.sidebar-backdrop-leave-from {
-  opacity: 1;
 }
 </style>

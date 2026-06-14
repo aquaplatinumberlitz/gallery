@@ -3,6 +3,11 @@ import GallerySidebarContent from "../components/GallerySidebarContent.vue";
 import MobileHeader from "../components/MobileHeader.vue";
 import GalleryGrid from "../components/GalleryGrid.vue";
 import MobileFloatingBottomBar from "../components/MobileFloatingBottomBar.vue";
+import {
+  SidebarProvider,
+  Sidebar,
+  SidebarInset,
+} from "@/components/ui/sidebar";
 
 defineProps<{
   theme: "light" | "dark";
@@ -29,26 +34,22 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="layout">
-    <aside
-      id="sidebar"
-      class="sidebar mobile"
-      :class="{ open: isSidebarOpen, closed: !isSidebarOpen }"
-    >
-      <GallerySidebarContent
-        :tree="tree"
-        :is-loading="isLoading"
-        :current-path="currentPath"
-      />
-    </aside>
+  <SidebarProvider
+    :open="true"
+    :open-mobile="isSidebarOpen"
+    @update:open-mobile="emit('toggleSidebar')"
+  >
+    <Sidebar side="left" variant="sidebar" collapsible="offcanvas">
+      <div class="gallery-sidebar-surface flex h-full w-full flex-col">
+        <GallerySidebarContent
+          :tree="tree"
+          :is-loading="isLoading"
+          :current-path="currentPath"
+        />
+      </div>
+    </Sidebar>
 
-    <div
-      v-if="isSidebarOpen"
-      class="sidebar-backdrop"
-      @click="emit('toggleSidebar')"
-    ></div>
-
-    <section class="content" :class="{ 'bars-hidden': !barsVisible }" id="main-content" tabindex="-1">
+    <SidebarInset id="main-content" tabindex="-1" class="content" :class="{ 'bars-hidden': !barsVisible }">
       <MobileHeader
         :is-dark="theme === 'dark'"
         :search-query="searchQuery"
@@ -76,19 +77,13 @@ const emit = defineEmits<{
         @forward="emit('forward')"
         @open-folder="emit('openFolder')"
       />
-    </section>
-  </div>
+    </SidebarInset>
+  </SidebarProvider>
 </template>
 
 <style scoped>
-.layout {
-  height: 100dvh;
-  height: 100vh; /* fallback */
-  background: var(--bg-color);
-  color: var(--text-color);
-  display: grid;
-  grid-template-columns: 1fr;
-  overflow: hidden;
+.gallery-sidebar-surface {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.04)), var(--surface-color);
 }
 
 .content {
@@ -118,40 +113,7 @@ const emit = defineEmits<{
   flex-direction: column;
 }
 
-.sidebar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 240px;
-  height: 100dvh;
-  height: 100vh; /* fallback */
-  z-index: 100;
-  transform: translateX(-100%);
-  box-shadow: var(--gallery-shadow-xl, 0 10px 30px rgba(0, 0, 0, 0.25));
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.04)), var(--surface-color);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.sidebar.mobile.open {
-  transform: translateX(0);
-}
-
-.sidebar.closed {
-  transform: translateX(-100%);
-}
-
-.sidebar-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  z-index: 90;
-  backdrop-filter: blur(2px);
-}
-
-/* Compact: <480px — compact layout */
+/* Compact: <480px */
 @media (max-width: 480px) {
   .content {
     padding: 56px 12px 72px 12px;
@@ -168,11 +130,6 @@ const emit = defineEmits<{
     border-radius: 0;
     background: transparent;
     box-shadow: none;
-  }
-
-  .sidebar {
-    width: 100%;
-    max-width: 300px;
   }
 }
 </style>
