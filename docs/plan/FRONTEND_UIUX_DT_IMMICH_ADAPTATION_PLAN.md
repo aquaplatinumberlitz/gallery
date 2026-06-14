@@ -19,8 +19,8 @@ The backend has a rich set of capabilities that are either completely invisible 
 
 | Missing UX | Backend Capability Exists? | Frontend Status |
 |---|---|---|
-| Index status visibility | Yes (`/api/index/status`, `indexer.py:599`) | No API wrapper, no UI component, no query key |
-| Faceted search/advanced search | Yes (`/api/facets`, `facets.py:248`; fielded parser with 30+ fields) | No API wrapper for facets; search is single text input with scope toggle only |
+| Index status visibility | Yes (`/api/index/status`, `indexer.py:599`) | Desktop API wrapper/query/UI complete after Tailwind Phase 2B refactor |
+| Faceted search/advanced search | Yes (`/api/facets`, `facets.py:248`; fielded parser with 30+ fields) | Facets data layer complete; visible facets/search UI remains Phase 2 |
 | Watcher/refresh status | Yes (`get_watcher_status()`, `get_refresh_status()` exist) | No HTTP endpoints wired; no frontend exposure possible |
 | TanStack Vue Table for metadata/admin | Installed (v8.21.3) | Not used in any runtime component |
 | TanStack Vue Form for advanced search/settings | Installed (v1.33.0) | Not used in any runtime component |
@@ -56,6 +56,21 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 Phase 1 is desktop/PC-only. The previous attempt proved that wiring new status UI into mobile/tablet headers is too risky without a dedicated mobile/tablet design. Therefore, Phase 1 must only improve desktop visibility and desktop UI structure.
 
 Mobile and tablet layouts are frozen during Phase 1.
+
+---
+
+### Cross-Plan Status Map
+
+| FRONTEND plan scope | TAILWIND plan status |
+|---|---|
+| FRONTEND Phase 1A/1B | Superseded by TAILWIND Phase 2B (Index Status) |
+| FRONTEND Phase 1C (SettingsModal, Dialog) | Superseded by TAILWIND Phase 1.5 + 2B |
+| FRONTEND Phase 1D (SearchFilterChips, Badge) | Superseded by TAILWIND Phase 2B |
+| FRONTEND Phase 2 (AdvancedSearchDrawer, facets UI) | Still valid; NOT superseded |
+
+### Desktop Theme Note
+
+Desktop theme selection now uses the `useGalleryTheme()` composable with a shadcn `DropdownMenu` for Light/Dark/System. This replaces the old two-state toggle while keeping `[data-theme="dark"]` as the dark-mode selector.
 
 ---
 
@@ -98,9 +113,9 @@ Any mobile/tablet change requires:
 
 | Capability | Backend Status | Frontend API Wrapper | Frontend UI | Gap | Priority |
 |---|---|---|---|---|---|
-| Background metadata indexing | Complete (`indexer.py`, 607 lines) | **Missing** — no `fetchIndexStatus()` | **Missing** — no status chip/panel | Backend capability exists, frontend UX missing | P1 (Phase 1) |
-| Index status (`/api/index/status`) | Complete (`indexer.py:599`) | **Missing** | **Missing** — referenced only in debug `reloadMonitor.ts:163` | Full gap | P1 (Phase 1) |
-| Facets (`/api/facets`) | Complete (`facets.py:248`, 8 facet types) | **Missing** — no `fetchFacets()` | **Missing** — no facet chips, filter UI, or suggestion dropdowns | Full gap | Phase 1: add/verify API wrappers, frontend types, query keys, and composables. Phase 2: expose visible facets UI, filter chips, and AdvancedSearchDrawer integration. |
+| Background metadata indexing | Complete (`indexer.py`, 607 lines) | Complete — `fetchIndexStatus(path)` | Complete — desktop `IndexStatusChip`/`IndexStatusPanel` | Desktop visibility complete after Tailwind Phase 2B refactor; mobile/tablet remains frozen | Complete for desktop Phase 1 |
+| Index status (`/api/index/status`) | Complete (`indexer.py:599`) | Complete | Complete — desktop AppHeader chip + popover panel | Mobile/tablet intentionally excluded | Complete for desktop Phase 1 |
+| Facets (`/api/facets`) | Complete (`facets.py:248`, 8 facet types) | Complete — `fetchFacets(path)` | **Missing** — no visible facet chips, filter UI, or suggestion dropdowns | Phase 1 data layer complete. Phase 2 exposes visible facets UI, filter chips, and AdvancedSearchDrawer integration. | Phase 2 UI |
 | Fielded search parser | Complete (`fielded_search_parser.py`, 30+ field types) | Partial — `unifiedSearch()` supports `scope` but no fielded search API wrapper | **Missing** — no AdvancedSearchDrawer, no filter chips, no field autocomplete | Backend is ready, frontend has basic text search only | P1 (Phase 2) |
 | Warm indexed folder listing | Complete (`scan.py` returns `index_source`) | Partial — `scanDirectory()` does not distinguish source | **Missing** — no visual indicator of warm vs direct scan source | Low priority (transparent optimization) | P3 |
 | Watcher | Watcher module implemented (`watcher.py:191`); HTTP route missing | **Missing** — no HTTP route for watcher status | **Missing** — frontend UI blocked until route exists | Both sides need work; watcher is P3 | P3 |
@@ -139,7 +154,7 @@ Frontend should not invent a new payload shape when an existing backend contract
 | **AppHeader + Search** (`AppHeader.vue`) | Desktop header with brand, theme toggle, search box + scope selector | Search is single text input; no fielded search, no facet chips, no advanced search trigger. Scope selector is a native `<select>`. | Command palette (search suggestions), Popover (scope/field selector), Badge (fielded search chips) | **Phase 1: allowed** — Add IndexStatusChip and desktop panel/popover. Must not affect mobile/tablet. Keep native `<select>` for scope in Phase 1. | Add IndexStatusChip only. No mobile/tablet impact. |
 | **MobileHeader** (`MobileHeader.vue`) | Mobile top bar with expandable search, sort popover, theme toggle | Same search limitations as desktop. Search overlay has no fielded mode. | Command (mobile search palette), Sheet (advanced search drawer on mobile) | **Phase 1: frozen** — No changes. No IndexStatusChip. No status panel. No button reorder. | Frozen. No changes. |
 | **TabletHeader** (`TabletHeader.vue`) | Tablet top bar | Scope selector, theme toggle, search. | — | **Phase 1: frozen** — No changes. No IndexStatusChip. No status panel. No layout changes. | Frozen. No changes. |
-| **SettingsModal** (`SettingsModal.vue`) | Application settings: intro screen mode, theme selection, original-image toggle | No Footer (auto-saves silently). No tabs (flat vertical scroll). No ARIA dialog roles (`role="dialog"`, `aria-modal` missing). Error state is console-only. | Dialog (Header/Body/Footer structure), Tabs (settings sections), Form layout (Label/Description pattern) | **Phase 1: desktop-safe ARIA/structure only** — No mobile behavior changes. Add Header/Body/Footer with Done/Close button. Add ARIA roles. Keep current auto-save behavior (watcher/localStorage). | Desktop-safe ARIA/structure only. No mobile behavior changes. |
+| **SettingsModal** (`SettingsModal.vue`) | Application settings: intro screen mode, theme selection, original-image toggle | Now uses shadcn Dialog component (migrated in Tailwind Phase 1.5/2B). No tabs yet; flat auto-save settings remain correct. | Dialog is complete for current scope; Tabs/Form remain future-only if settings grow. | **Superseded by Tailwind Phase 1.5/2B** — shadcn Dialog migration complete. Keep current auto-save behavior (watcher/localStorage). | No mobile behavior changes. |
 | **RootPathSheet** (`RootPathSheet.vue`) | Bottom sheet for editing root folder path on mobile | No loading state during path load. Missing ARIA dialog roles. Paste button hides when textarea focused (discoverability). | Sheet (Header/Description/Footer pattern) | **Phase 1: NOT in Phase 1. Deferred to future Mobile/Tablet Spec.** | Not in Phase 1. Deferred to future Mobile/Tablet Spec. |
 | **Lightbox + Metadata Panel** (`Lightbox.vue`, `LightboxDesktopPanel.vue`, `LightboxMobileSheet.vue`, `LightboxTabletPanel.vue`) | Device-adaptive image viewer with metadata display | Desktop panel lacks `role="complementary"`. Mobile sheet tabs lack `role="tablist"`/`role="tab"`/`aria-selected`. Metadata display itself is well-built with sections, copy buttons, LoRA highlighting. | Tabs (mobile metadata tabs ARIA roles), Sheet (mobile panel structure) | **Keep as-is with light accessibility fixes**. Metadata panels are mature and should not be rewritten. Add ARIA roles for tabs and complementary landmark. | Lightbox behavior frozen for mobile/tablet. |
 | **Toast** (`ToastContainer.vue`, `ToastItem.vue`) | Fixed-position toast notifications with TransitionGroup | No `role="alert"` or `aria-live` for screen reader announcements. No toast queue overflow beyond capping at 3. | Toast/Sonner pattern (position, stacking, dismiss) | **Keep as-is**. Toast system is mature and styled per gallery theme. Add `role="alert"` to ToastItem. | Desktop-safe ARIA only. |
@@ -200,21 +215,21 @@ Frontend should not invent a new payload shape when an existing backend contract
 
 | shadcn-vue Pattern | Gallery Use Case | Adaptation Approach |
 |---|---|---|
-| **Command** | Search suggestions, quick command palette (e.g., "Go to folder...", "Search by model...") | Adapt the keyboard-navigable list + filter pattern. Use gallery's existing warm-latte theme tokens instead of shadcn defaults. Bind to existing search store and folder navigation. |
-| **Dialog** | Desktop SettingsModal, Index Status detail view | Refactor SettingsModal to use Header/Body/Footer structure with proper ARIA roles (`role="dialog"`, `aria-modal`, `aria-labelledby`). A search filter panel with form fields (Advanced Search on desktop) should use a Side Sheet, not a Dialog per MD3. |
+| **Command** | Search suggestions, quick command palette (e.g., "Go to folder...", "Search by model...") | Adapt the keyboard-navigable list + filter pattern. Standard UI chrome uses shadcn-vue Stone defaults. Bind to existing search store and folder navigation. |
+| **Dialog** | Desktop SettingsModal, Index Status detail view | SettingsModal now uses the shadcn Dialog component (migrated in Tailwind Phase 1.5/2B). A search filter panel with form fields (Advanced Search on desktop) should use a Side Sheet, not a Dialog per MD3. |
 | **Drawer / Sheet** | Mobile Settings (sheet), Advanced Search (mobile: bottom sheet; desktop: side sheet), Index Status (mobile), RootPathSheet | Existing `RootPathSheet` already has sheet-like behavior. Standardize the Header/Description/Footer pattern. Use existing VSBS for metadata sheet; do not replace it. New sheets (advanced search, index panel) should follow the same structure. **Future-only. All mobile/tablet Drawer/Sheet uses excluded from Phase 1.** |
 | **Popover** | Index status details (click chip to see queue counts), search scope selector (future: Phase 2, if scope options expand beyond simple "This folder"/"All indexed"), field help tooltips | Keep native `<select>` for scope in Phase 1. Replace with Popover/DropdownMenu only in Phase 2 if scope options grow. Keep popovers compact and non-modal. |
 | **DropdownMenu** | Search scope, sort options, density grid options, toolbar actions menu | Current custom dropdowns (sort, density) already function well. Adapt them to DropdownMenu pattern for consistency: keyboard navigation, `aria-haspopup`/`aria-expanded`, focus management. |
-| **Data Table** | MetadataAdminTable, IndexJobTable, AuditTable, DuplicateFinderTable | Use TanStack Table with gallery-themed styling. Columns: thumbnail, name, folder, model, sampler, seed, dimensions, modified, actions. Sorting, filtering, column visibility, row selection. Match the gallery warm-latte color palette, not shadcn defaults. |
-| **Form** | AdvancedSearchDrawer, future batch editor, expanded SettingsModal | TanStack Form with gallery form layout: field label, description, error message, Apply/Cancel/Reset buttons. Use gallery form tokens for spacing, borders, and focus states. |
-| **Badge** | Index status (idle/active/queued/failed/disabled), facet chips, fielded search filter chips, error counts | Adapt Badge variants with gallery semantic colors. Removeable badge pattern for filter chips (x button to clear). |
+| **Data Table** | MetadataAdminTable, IndexJobTable, AuditTable, DuplicateFinderTable | Use TanStack Table with shadcn-vue Stone standard UI styling. Columns: thumbnail, name, folder, model, sampler, seed, dimensions, modified, actions. Sorting, filtering, column visibility, row selection. Do not gallery-colorize table chrome. |
+| **Form** | AdvancedSearchDrawer, future batch editor, expanded SettingsModal | TanStack Form with shadcn-vue Stone form controls: field label, description, error message, Apply/Cancel/Reset buttons. Use Stone border/focus/input defaults for standard form chrome. |
+| **Badge** | Index status (idle/active/queued/failed/disabled), facet chips, fielded search filter chips, error counts | Use shadcn-vue Stone Badge defaults for standard chips. Removable badge pattern for filter chips (x button to clear). State colors should be semantic and minimal, not brand warm colors. |
 | **Alert** | Indexing errors, scan errors, metadata parse warnings | Existing error banner in GalleryGrid and toast system already cover this. Enhance with Alert pattern: icon + title + description + dismiss. Keep gallery toast styling. |
-| **Tabs** | Settings sections (General / Indexing / Watcher), admin panel sections, mobile metadata tabs (ARIA already needed) | Existing mobile metadata tabs need `role="tablist"`/`role="tab"`/`aria-selected`. SettingsModal should add Tabs if indexing/watcher config is added. Use gallery token styling. |
+| **Tabs** | Settings sections (General / Indexing / Watcher), admin panel sections, mobile metadata tabs (ARIA already needed) | Existing mobile metadata tabs need `role="tablist"`/`role="tab"`/`aria-selected`. SettingsModal should add Tabs if indexing/watcher config is added. Use shadcn-vue Stone defaults for standard tab chrome. |
 | **Toast / Sonner** | Existing toast system | Keep current toast implementation. It already handles positioning, stacking, dismiss, and types. Add `role="alert"` to ToastItem for accessibility. |
 
 ### Key Principle
 
-**Do not blindly copy shadcn-vue code.** The gallery has an established SCSS/warm-latte/premium design language with `--gallery-*` CSS custom properties. Adapt patterns to use these tokens rather than replacing the theme system. The shadcn-vue patterns are valuable for structure, accessibility, and keyboard behavior — the visual styling should remain gallery-native.
+**Do not blindly copy shadcn-vue code.** Standard UI components use shadcn-vue Stone defaults, not gallery warm colors. Gallery warm/premium identity is reserved for the brand hero and explicitly approved brand/artwork surfaces. The shadcn-vue patterns are valuable for structure, accessibility, keyboard behavior, and standard UI styling.
 
 ### shadcn-vue Selective Adoption Decision
 
@@ -279,11 +294,13 @@ This is a preflight checklist, not a fourth implementation phase.
 
 #### Phase 1A — Desktop data layer
 
-- [ ] IndexStatusResponse, FacetsResponse, IndexStatusState types
-- [ ] `queryKeys.indexStatus(path)`, `queryKeys.facets(path)`
-- [ ] `fetchIndexStatus(path)`, `fetchFacets(path)` in `api.ts`
-- [ ] `useIndexStatusQuery(path, enabled)` composable
-- [ ] `useFacetsQuery(path, enabled)` composable
+- [x] IndexStatusResponse, FacetsResponse, IndexStatusState types
+- [x] `queryKeys.indexStatus(path)`, `queryKeys.facets(path)`
+- [x] `fetchIndexStatus(path)`, `fetchFacets(path)` in `api.ts`
+- [x] `useIndexStatusQuery(path, enabled)` composable
+- [x] `useFacetsQuery(path, enabled)` composable
+
+Completed via Tailwind Phase 2B Index Status refactor: status/facets data layer is path-scoped and desktop-only consumers remain isolated from mobile/tablet headers.
 
 Rules:
 - no mobile/tablet consumption
@@ -294,18 +311,20 @@ Rules:
 
 #### Phase 1B — Desktop index status UI
 
-- [ ] Desktop AppHeader-only IndexStatusChip
-- [ ] Desktop-only IndexStatusPanel
-- [ ] Use Badge + Popover/Dialog pattern inspired by shadcn-vue
-- [ ] Adaptive polling: fast only when active/queued work exists; failed-only/no moving work slow-polls; unavailable/error visible but not noisy
-- [ ] No MobileHeader/TabletHeader imports
+- [x] Desktop AppHeader-only IndexStatusChip
+- [x] Desktop-only IndexStatusPanel
+- [x] Use Badge + Popover/Dialog pattern inspired by shadcn-vue
+- [x] Adaptive polling: fast only when active/queued work exists; failed-only/no moving work slow-polls; unavailable/error visible but not noisy
+- [x] No MobileHeader/TabletHeader imports
+
+Completed via Tailwind Phase 2B Index Status refactor: `fetchIndexStatus(path)` and `queryKeys.indexStatus(path)` are path-scoped, polling is adaptive, and the desktop AppHeader chip opens a shadcn Popover panel.
 
 **Tasks:**
 
-- [ ] **Add `fetchIndexStatus()` to `api.ts`** — wraps `GET /api/index/status?path=...`. Response includes: `enabled`, `worker_count`, `active_jobs`, `runtime_queue_depth`, counts by state, `last_error`, `updated_at`.
-- [ ] **Add `useIndexStatusQuery()` composable** — TanStack Query wrapper with `queryKeys.indexStatus(path)`. Adaptive polling per Section 10 policy: fast 2-3s only when active/queued work exists; failed-only with no work slow-polls at 60s; unavailable/error slow-polls at 60s. Browser tab hidden: pause or slow down. Window focus: local debounced refetch. No beforeunload/unload listeners. Enabled only when a folder is loaded.
-- [ ] **Add query key `indexStatus(path)` in `query/keys.ts`**.
-- [ ] **Add `IndexStatusChip.vue`** — small badge in AppHeader (desktop only) near search area. Shows one of six states:
+- [x] **Add `fetchIndexStatus()` to `api.ts`** — wraps `GET /api/index/status?path=...`. Response includes: `enabled`, `worker_count`, `active_jobs`, `runtime_queue_depth`, counts by state, `last_error`, `updated_at`.
+- [x] **Add `useIndexStatusQuery()` composable** — TanStack Query wrapper with `queryKeys.indexStatus(path)`. Adaptive polling per Section 10 policy: fast 2-3s only when active/queued work exists; failed-only with no work slow-polls at 60s; unavailable/error slow-polls at 60s. Browser tab hidden: pause or slow down. Window focus: local debounced refetch. No beforeunload/unload listeners. Enabled only when a folder is loaded.
+- [x] **Add query key `indexStatus(path)` in `query/keys.ts`**.
+- [x] **Add `IndexStatusChip.vue`** — small badge in AppHeader (desktop only) near search area. Shows one of six states:
   - `failed` — `failed > 0 || staged_path_failed > 0 || last_error` (red badge with error icon)
   - `active` — workers are running (amber/yellow badge with pulse animation)
   - `queued` — jobs are pending (blue badge)
@@ -321,7 +340,7 @@ Rules:
     ```
   - **UI behavior**: Click chip opens IndexStatusPanel (popover on desktop). **Do NOT auto-hide when idle.** Idle/up-to-date state collapses into a muted status (compact chip or muted icon) — not disappear completely. Indexing status should be quiet but discoverable. Active/error states should be obvious. Disabled/no-folder state is hidden. Never blocks interaction. Never creates toast spam.
   - **Phase 1 constraint**: Must not be imported by MobileHeader or TabletHeader.
-- [ ] **Add `IndexStatusPanel.vue`** — detailed index status shown on chip click. Shows:
+- [x] **Add `IndexStatusPanel.vue`** — detailed index status shown on chip click. Shows:
   - Summary line: "Indexing — X queued, Y active, Z done" (using queued/running/done/failed counts that the backend actually returns; there is no total file count from `/api/index/status`)
   - Per-state counts: queued, running, done, failed, stale, skipped
   - Last error text (if any)
@@ -330,8 +349,8 @@ Rules:
   - **Desktop**: Popover anchored to chip
   - **Not allowed in Phase 1**: Mobile bottom sheet following RootPathSheet-style structure
   - **No blocking overlay, no toast per job**
-- [ ] **Add `fetchFacets()` to `api.ts`** — wraps `GET /api/facets?path=...`. Response includes `tool`, `model`, `sampler`, `scheduler`, `orientation`, `seed_availability`, `metadata_availability`, `lora`, `folders`. Backend endpoint confirmed at `facets.py:248`.
-- [ ] **Add `useFacetsQuery()` composable** — TanStack Query wrapper with `queryKeys.facets(path)`. Long staleTime (5min) since facets change slowly. Phase 1 prepares the facets data layer only. Visible facets UI belongs to Phase 2.
+- [x] **Add `fetchFacets()` to `api.ts`** — wraps `GET /api/facets?path=...`. Response includes `tool`, `model`, `sampler`, `scheduler`, `orientation`, `seed_availability`, `metadata_availability`, `lora`, `folders`. Backend endpoint confirmed at `facets.py:248`.
+- [x] **Add `useFacetsQuery()` composable** — TanStack Query wrapper with `queryKeys.facets(path)`. Long staleTime (5min) since facets change slowly. Phase 1 prepares the facets data layer only. Visible facets UI belongs to Phase 2.
 
 ---
 
@@ -343,7 +362,7 @@ Rules:
 
 **Tasks:**
 
-- [ ] **Refactor SettingsModal structure** — add formal Header/Body/Footer sections:
+- [x] **SettingsModal shadcn Dialog migration** — now uses the shadcn Dialog component, migrated in Tailwind Phase 1.5/2B:
   - **Header**: Title "Settings" + Close button
   - **Body**: Scrollable content area (current settings)
   - **Footer**: "Close" button (desktop-safe, no API call — just closes the modal). **Do NOT use Apply/Cancel.** Settings auto-save immediately via existing watcher/localStorage behavior; there is no staged draft state to apply or cancel.
@@ -385,9 +404,9 @@ Rules:
 | `frontend/src/query/keys.ts` | Add `indexStatus(path)`, `facets(path)` keys | Data-layer only |
 | `frontend/src/composables/useIndexStatusQuery.ts` | New composable | Data-layer only |
 | `frontend/src/composables/useFacetsQuery.ts` | New composable | Data-layer only, no visible UI in Phase 1 |
-| `frontend/src/components/indexing/IndexStatusChip.vue` | New component | Desktop-only |
-| `frontend/src/components/indexing/IndexStatusPanel.vue` | New component | Desktop-only |
-| `frontend/src/components/SettingsModal.vue` | Structure refactor + ARIA | Desktop-safe only |
+| `frontend/src/components/IndexStatusChip.vue` | New component | Desktop-only |
+| `frontend/src/components/IndexStatusPanel.vue` | New component | Desktop-only |
+| `frontend/src/components/SettingsModal.vue` | shadcn Dialog migration complete | Desktop-safe only |
 | `frontend/src/components/RootPathSheet.vue` | Deferred to future Mobile/Tablet Spec | Not in Phase 1 |
 | `frontend/src/components/AppHeader.vue` | Add IndexStatusChip | Desktop-only. Must not affect mobile/tablet. |
 | `frontend/src/components/ToastItem.vue` | Add `role="alert"` | Desktop-safe only |
@@ -478,7 +497,7 @@ Rules:
   - Each chip shows "field: value" (e.g., "model: realistic", "seed: 12345")
   - X button removes individual filter
   - "Clear All" button when multiple filters are active
-  - Styled as gallery Badge variant with warm-latte tokens
+  - Styled as shadcn-vue Badge with Stone defaults for standard chip chrome
   - Displays when fielded search is active (in both plain search and advanced search modes)
   - Phase 2 constraint: Desktop-first. Mobile/tablet filter chips deferred.
 
@@ -488,7 +507,7 @@ Rules:
 - [ ] **Add command/palette pattern** (light, optional):
   - Cmd+K (desktop) or tap search icon (mobile) opens a quick search palette
   - Palette shows: recent searches, common field shortcuts, "Advanced search..." entry point
-  - Adapts shadcn-vue Command pattern using gallery tokens
+  - Adapts shadcn-vue Command pattern using Stone defaults for standard command chrome
 
 - [ ] **Reuse existing `queryKeys.search(q, scope, path)`** — Advanced Search produces a normal backend-compatible `q` string and must reuse the existing `unifiedSearch()` path and `queryKeys.search(q, scope, path)`. Do not create a separate fielded-search cache path unless the backend/API contract changes.
 
@@ -510,7 +529,7 @@ Rules:
 |---|---|
 | `frontend/src/utils/serializeAdvancedSearchToQuery.ts` | New utility (serialize form → q string) |
 | `frontend/src/components/search/AdvancedSearchDrawer.vue` | New component (TanStack Form) |
-| `frontend/src/components/search/SearchFilterChips.vue` | New component |
+| `frontend/src/components/SearchFilterChips.vue` | New component |
 | `frontend/src/components/search/SearchCommandPalette.vue` | New component (optional, light) |
 | `frontend/src/components/AppHeader.vue` | Add Advanced Search trigger button, SearchFilterChips (desktop) |
 | `frontend/src/components/GalleryGrid.vue` | Integrate SearchFilterChips near the search/results context. Must not alter GalleryGrid virtualization or photo browsing behavior. |
@@ -845,7 +864,7 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 
 ### Non-Goals (Explicitly Excluded)
 
-- **Do not rewrite the whole UI into shadcn-vue.** Adapt patterns for structure, accessibility, and keyboard behavior. Keep gallery-native SCSS/warm-latte/premium theme.
+- **Do not rewrite the whole UI into shadcn-vue.** Adapt patterns for structure, accessibility, and keyboard behavior. Standard UI uses shadcn-vue Stone defaults; gallery warm/premium styling is reserved for brand and explicitly approved artwork surfaces.
 - **Do not replace GalleryGrid with a table.** GalleryGrid uses TanStack Virtual for visual photo browsing. TanStack Table is for data admin only.
 - **Do not add new dependencies unless clearly justified.** TanStack Table and Form are already installed. No additional Vue ecosystem packages needed.
 - **Do not create indexing toast spam.** IndexStatusChip is a passive indicator. No toasts per job. Errors shown only in panel on click.
@@ -947,11 +966,11 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 |---|---|---|
 | `frontend/src/composables/useIndexStatusQuery.ts` | Phase 1A | TanStack Query wrapper for `/api/index/status` |
 | `frontend/src/composables/useFacetsQuery.ts` | Phase 1A | TanStack Query wrapper for `/api/facets` |
-| `frontend/src/components/indexing/IndexStatusChip.vue` | Phase 1B | Compact status badge (failed/active/queued/idle/disabled) — desktop-only |
-| `frontend/src/components/indexing/IndexStatusPanel.vue` | Phase 1B | Detailed popover with job counts — desktop-only |
+| `frontend/src/components/IndexStatusChip.vue` | Phase 1B | Compact status badge (failed/active/queued/idle/disabled) — desktop-only |
+| `frontend/src/components/IndexStatusPanel.vue` | Phase 1B | Detailed popover with job counts — desktop-only |
 | `frontend/src/utils/serializeAdvancedSearchToQuery.ts` | Phase 2 | Serializer: TanStack Form state → q string |
 | `frontend/src/components/search/AdvancedSearchDrawer.vue` | Phase 2 | TanStack Form search builder |
-| `frontend/src/components/search/SearchFilterChips.vue` | Phase 2 | Removable active filter chips |
+| `frontend/src/components/SearchFilterChips.vue` | Phase 2 | Removable active filter chips |
 | `frontend/src/components/search/SearchCommandPalette.vue` | Phase 2 | Quick command/search palette (optional) |
 | `frontend/src/components/admin/MetadataTable.vue` | Phase 3 | TanStack Table metadata browser |
 | `frontend/src/views/MetadataAdminView.vue` | Phase 3 | Admin view container |

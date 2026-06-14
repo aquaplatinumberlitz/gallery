@@ -9,40 +9,57 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  getIndexStatusState,
+  getIndexStatusCounts,
+  getIndexStatusProgress,
+} from "@/utils/indexStatus";
+import type { IndexStatusState } from "@/types";
+
+const props = withDefaults(defineProps<{
+  path?: string;
+}>(), {
+  path: "",
+});
 
 const queryEnabled = ref(false);
+const pathRef = computed(() => props.path || undefined);
 
-const { data, isLoading, isError, error } = useIndexStatusQuery(queryEnabled);
+const { data, isLoading, isError, error } = useIndexStatusQuery(pathRef, queryEnabled);
 
-type StatusState = "loading" | "idle" | "indexing" | "disabled" | "error";
-
-const statusState = computed<StatusState>(() => {
-  if (isLoading.value) return "loading";
-  if (isError.value) return "error";
-  if (data.value && !data.value.enabled) return "disabled";
-  if (data.value && (data.value.queued > 0 || data.value.running > 0 || data.value.active_jobs > 0)) return "indexing";
-  return "idle";
+const statusState = computed<IndexStatusState>(() => {
+  if (isError.value) return "unavailable";
+  if (isLoading.value) return "idle";
+  return getIndexStatusState(data.value ?? null, {
+    hasPath: !!props.path,
+    isUnavailable: false,
+  });
 });
 
 const statusLabel = computed<string>(() => {
   switch (statusState.value) {
-    case "loading": return "Loading...";
+    case "failed": return "Failed";
+    case "active": return "Indexing";
+    case "queued": return "Queued";
     case "idle": return "Idle";
-    case "indexing": return "Indexing";
+    case "unavailable": return "Unavailable";
     case "disabled": return "Disabled";
-    case "error": return "Error";
   }
 });
 
-const statusBadgeVariant = computed<"default" | "secondary" | "destructive" | "outline" | "loading" | "subtle">(() => {
-  switch (statusState.value) {
-    case "loading": return "loading";
-    case "idle": return "default";
-    case "indexing": return "secondary";
-    case "disabled": return "outline";
-    case "error": return "destructive";
-  }
-});
+const badgeVariantMap: Record<IndexStatusState, "default" | "secondary" | "destructive" | "outline"> = {
+  failed: "destructive",
+  active: "secondary",
+  queued: "default",
+  idle: "outline",
+  unavailable: "destructive",
+  disabled: "outline",
+};
+
+const statusBadgeVariant = computed(() => badgeVariantMap[statusState.value]);
+
+const counts = computed(() => getIndexStatusCounts(data.value));
+const progress = computed(() => getIndexStatusProgress(data.value));
 
 function onOpenChange(open: boolean) {
   if (open && !queryEnabled.value) {
@@ -68,12 +85,12 @@ function onOpenChange(open: boolean) {
       </Button>
     </PopoverTrigger>
     <PopoverContent class="w-72 p-4" align="end" :side-offset="8">
-      <div v-if="statusState === 'loading'" class="flex items-center gap-2 text-sm text-muted-foreground">
+      <div v-if="isLoading" class="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader class="size-4 animate-spin" />
         Loading index status...
       </div>
 
-      <div v-else-if="statusState === 'error'" class="flex items-start gap-2 text-sm">
+      <div v-else-if="isError" class="flex items-start gap-2 text-sm">
         <AlertCircle class="size-4 text-destructive shrink-0 mt-0.5" />
         <span class="text-destructive">{{ (error as Error)?.message || "Failed to load status" }}</span>
       </div>
@@ -84,42 +101,41 @@ function onOpenChange(open: boolean) {
           <Badge :variant="statusBadgeVariant">{{ statusLabel }}</Badge>
         </div>
 
-        <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-          <span class="text-muted-foreground">Jobs Total</span>
-          <span class="text-right font-medium">{{ data.total.toLocaleString() }}</span>
+        <!-- Progress bar -->
+        <div v-if="progress !== null && statusState === 'active'" class="space-y-1">
+          <div class="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+            <div
+              class="h-full rounded-full bg-primary transition-all duration-500"
+              :style="{ width: progress + '%' }"
+            />
+          </div>
+          <span class="text-[10px] text-muted-foreground">{{ progress }}% complete</span>
+        </div>
 
+        <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
           <span class="text-muted-foreground">Done</span>
-          <span class="text-right font-medium">{{ data.done.toLocaleString() }}</span>
+          <span class="text-right font-medium">{{ counts.done.toLocaleString() }}</span>
 
           <span class="text-muted-foreground">Running</span>
-          <span class="text-right font-medium">{{ data.running }}</span>
+          <span class="text-right font-medium">{{ counts.running }}</span>
 
           <span class="text-muted-foreground">Queued</span>
-          <span class="text-right font-medium">{{ data.queued }}</span>
+          <span class="text-right font-medium">{{ counts.queued }}</span>
 
           <span class="text-muted-foreground">Failed</span>
-          <span class="text-right font-medium">{{ data.failed }}</span>
+          <span class="text-right font-medium">{{ counts.failed }}</span>
 
           <span class="text-muted-foreground">Stale</span>
-          <span class="text-right font-medium">{{ data.stale }}</span>
+          <span class="text-right font-medium">{{ counts.stale }}</span>
 
           <span class="text-muted-foreground">Workers</span>
           <span class="text-right font-medium">{{ data.worker_count }}</span>
 
           <span class="text-muted-foreground">Active Jobs</span>
-          <span class="text-right font-medium">{{ data.active_jobs }}</span>
+          <span class="text-right font-medium">{{ counts.activeJobs }}</span>
 
           <span class="text-muted-foreground">Queue Depth</span>
-          <span class="text-right font-medium">{{ data.runtime_queue_depth }}</span>
-
-          <span class="text-muted-foreground">Coalesced</span>
-          <span class="text-right font-medium">{{ data.coalesced_duplicates }}</span>
-
-          <span class="text-muted-foreground">Staged</span>
-          <span class="text-right font-medium">{{ data.staged_path_queue_depth }}</span>
-
-          <span class="text-muted-foreground">Scan Requests</span>
-          <span class="text-right font-medium">{{ data.active_scan_requests }}</span>
+          <span class="text-right font-medium">{{ counts.runtimeQueueDepth }}</span>
         </div>
 
         <div v-if="data.last_error" class="rounded-md bg-destructive/10 p-2 text-xs">

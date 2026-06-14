@@ -62,6 +62,7 @@ export interface ScanResponse {
   next_cursor: number | null;
   total_images: number;
   request_path?: string;
+  index_source?: "warm_db" | "direct_scan" | "mixed";
 }
 
 export type FolderChildrenResponse = FileNode[];
@@ -128,4 +129,30 @@ export interface IndexStatusResponse {
   batch_size: number;
   staged_path_batch_size: number;
   stage_max_wait_seconds: number;
+}
+
+export type IndexStatusState =
+  | "failed"
+  | "active"
+  | "queued"
+  | "idle"
+  | "unavailable"
+  | "disabled";
+
+export interface FacetEntry {
+  value: string;
+  count: number;
+}
+
+export interface FacetsResponse {
+  tool?: FacetEntry[];
+  model?: FacetEntry[];
+  sampler?: FacetEntry[];
+  scheduler?: FacetEntry[];
+  orientation?: FacetEntry[];
+  seed_availability?: FacetEntry[];
+  metadata_availability?: FacetEntry[];
+  lora?: FacetEntry[];
+  folders?: FacetEntry[];
+  [key: string]: FacetEntry[] | undefined;
 }

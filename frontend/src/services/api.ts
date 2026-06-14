@@ -1,5 +1,5 @@
 import axios, { AxiosError } from "axios";
-import type { FolderChildrenResponse, IndexStatusResponse, MetadataResponse, ScanResponse, SearchScope, UnifiedSearchResponse } from "../types";
+import type { FacetsResponse, FolderChildrenResponse, IndexStatusResponse, MetadataResponse, ScanResponse, SearchScope, UnifiedSearchResponse } from "../types";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -227,9 +227,25 @@ export const getPreviewUrl = (path: string, maxLongEdge: number = 1440) => {
   return `${API_BASE}/api/preview?${params.toString()}`;
 };
 
-export const fetchIndexStatus = async (): Promise<IndexStatusResponse> => {
+export const fetchIndexStatus = async (path: string): Promise<IndexStatusResponse> => {
   try {
-    const { data } = await api.get<IndexStatusResponse>("/api/index/status");
+    const { data } = await api.get<IndexStatusResponse>("/api/index/status", {
+      params: { path },
+    });
+    return data;
+  } catch (error) {
+    if (error instanceof AxiosError) {
+      throw GalleryAPIError.fromAxiosError(error);
+    }
+    throw error;
+  }
+};
+
+export const fetchFacets = async (path: string): Promise<FacetsResponse> => {
+  try {
+    const { data } = await api.get<FacetsResponse>("/api/facets", {
+      params: { path },
+    });
     return data;
   } catch (error) {
     if (error instanceof AxiosError) {

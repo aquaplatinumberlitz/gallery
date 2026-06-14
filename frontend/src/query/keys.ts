@@ -22,5 +22,9 @@ export const queryKeys = {
   metadata: (path: string) =>
     ["metadata", normalizeQueryPath(path)] as const,
 
-  indexStatus: () => ["index-status"] as const,
+  indexStatus: (path: string) =>
+    ["index-status", normalizeQueryPath(path)] as const,
+
+  facets: (path: string) =>
+    ["facets", normalizeQueryPath(path)] as const,
 };

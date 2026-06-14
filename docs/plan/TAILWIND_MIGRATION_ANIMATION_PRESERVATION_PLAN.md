@@ -271,7 +271,7 @@ These are repeated patterns across **desktop** components that benefit from a co
 |---|---|---|---|
 | **Icon button** | Desktop AppHeader `.nav-btn`, `.hamburger-btn`, `.settings-btn` | `@layer components { .btn-icon { ... } }` combining 8-10 utilities | desktop AppHeader button/icon-button variants only. MobileHeader and TabletHeader are excluded. |
 | **Navigation button** | GalleryGrid nav buttons (desktop) | Component class | desktop-only |
-| **Badge/Chip/Status pill** | Desktop toast badges, loading badge, desktop status indicators | Semantic component class using gallery tokens | desktop Badge/Chip primitives |
+| **Badge/Chip/Status pill** | Desktop toast badges, loading badge, desktop status indicators | shadcn-vue Stone defaults for standard Badge/Chip primitives | desktop Badge/Chip primitives |
 | **Input shell/pill** | Desktop search box layout only | Component class for the pill-shaped input wrapper | desktop search/input only. mobile/tablet search excluded. |
 | **Dropdown menu** (sort, density) | GalleryGrid sort/density dropdowns (desktop) | Component class with transition | desktop toolbar pieces only |
 | **Modal shell** (backdrop + content + header/body/footer) | SettingsModal (desktop) | Component class pattern | SettingsModal desktop-safe only. RootPathSheet excluded. |
@@ -347,114 +347,39 @@ These files and their behaviors are **frozen** during phases 0-2. Any change to 
 
 ### 5.1 CSS Variable to Tailwind Token Mapping
 
-Rather than hardcoding Tailwind palette colors (e.g., `bg-stone-100`), we map the existing `--gallery-*` CSS custom properties into Tailwind's theme as semantic tokens:
+Rather than hardcoding Tailwind palette colors (e.g., `bg-stone-100`) or mapping standard UI tokens to legacy gallery warm variables, standard Tailwind/shadcn tokens reference the shadcn bridge variables. `_shadcn-token-bridge.css` supplies exact shadcn-vue Stone oklch values for those variables.
 
-```js
-// Tailwind v3 tailwind.config.js alternative — NOT recommended for this repo.
-// This is provided as a reference only. Target is Tailwind v4 CSS-first @theme.
-// module.exports = {
-//   theme: {
-//     extend: {
-//       colors: {
-        // Semantic surface colors (do NOT use raw Tailwind palette)
-        background: 'var(--bg-color)',
-        foreground: 'var(--text-color)',
-        surface: 'var(--surface-color)',
-        'surface-elevated': 'var(--gallery-surface-elevated)',
-        'surface-hover': 'var(--gallery-surface-hover)',
-        'surface-dim': 'var(--gallery-surface-dim)',
+```css
+@theme inline {
+  /* Standard UI tokens: shadcn-vue Stone defaults */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
 
-        // Semantic text colors
-        'text-primary': 'var(--gallery-text-primary)',
-        'text-secondary': 'var(--gallery-text-secondary)',
-        'text-tertiary': 'var(--gallery-text-tertiary)',
-        'text-disabled': 'var(--gallery-text-disabled)',
-        'text-inverse': 'var(--gallery-text-inverse)',
-        'text-placeholder': 'var(--gallery-text-placeholder)',
-
-        // Legacy text tokens (used by components)
-        title: 'var(--title-color)',
-        muted: 'var(--muted-text)',
-        'muted-foreground': 'var(--muted-text)',
-
-        // Semantic border colors
-        border: 'var(--gallery-border-default)',
-        'border-subtle': 'var(--gallery-border-subtle)',
-        'border-hover': 'var(--gallery-border-hover)',
-
-        // Accent/primary
-        primary: 'var(--primary-color)',
-        'primary-hover': 'var(--gallery-accent-hover)',
-        'primary-muted': 'var(--gallery-accent-muted)',
-        'primary-text': 'var(--gallery-accent-text)',
-        'primary-border': 'var(--gallery-accent-border)',
-
-        // Semantic status
-        success: 'var(--gallery-success)',
-        'success-bg': 'var(--gallery-success-bg)',
-        warning: 'var(--gallery-warning)',
-        'warning-bg': 'var(--gallery-warning-bg)',
-        error: 'var(--gallery-error)',
-        'error-bg': 'var(--gallery-error-bg)',
-        info: 'var(--gallery-info)',
-        'info-bg': 'var(--gallery-info-bg)',
-
-        // Neon (brand icon, dark mode search)
-        neon: 'var(--neon-color)',
-        'neon-border': 'var(--neon-border-color)',
-
-        // Folder icon
-        folder: 'var(--folder-color)',
-      },
-      borderRadius: {
-        // Keep standard Tailwind/shadcn radius classes neutral.
-        // shadcn primitives should use upstream classes like rounded-md.
-        // Gallery radius tokens get explicit names for approved brand surfaces.
-        'gallery-sm': 'var(--gallery-radius-sm)',
-        'gallery-md': 'var(--gallery-radius-md)',
-        'gallery-lg': 'var(--gallery-radius-lg)',
-        'gallery-xl': 'var(--gallery-radius-xl)',
-        'gallery-full': 'var(--gallery-radius-full)',
-      },
-      boxShadow: {
-        // Keep standard Tailwind/shadcn shadow classes neutral.
-        // shadcn primitives should use upstream classes like shadow-xs or shadow-sm.
-        // Gallery shadow tokens get explicit names for approved brand surfaces.
-        'gallery-sm': 'var(--gallery-shadow-sm)',
-        'gallery-md': 'var(--gallery-shadow-md)',
-        'gallery-lg': 'var(--gallery-shadow-lg)',
-        'gallery-xl': 'var(--gallery-shadow-xl)',
-        // Legacy shadows for approved brand/gallery-specific surfaces only
-        'gallery-card': 'var(--shadow-card)',
-        'gallery-card-hover': 'var(--shadow-card-hover)',
-        'gallery-card-level2': 'var(--shadow-card-level2)',
-        'gallery-card-level4': 'var(--shadow-card-level4)',
-        // Focus ring
-        'focus-ring': 'var(--focus-ring-shadow)',
-      },
-      fontFamily: {
-        body: 'var(--font-body)',
-        code: 'var(--font-code)',
-        // Also support the gallery-specific fonts directly
-        cinzel: ['Cinzel', 'serif'],
-        inter: ['InterVariable', 'Segoe UI', 'SF Pro Display', 'sans-serif'],
-        mono: ['JetBrains Mono', 'monospace'],
-      },
-      transitionTimingFunction: {
-        'gallery': 'cubic-bezier(0.4, 0, 0.2, 1)',
-        'gallery-bounce': 'cubic-bezier(0.34, 1.56, 0.64, 1)',
-        'gallery-spring': 'cubic-bezier(0.68, -0.15, 0.265, 1.35)',
-      },
-      transitionDuration: {
-        fast: 'var(--gallery-timing-fast)',    // 80ms
-        normal: 'var(--gallery-timing-normal)', // 200ms
-        slow: 'var(--gallery-timing-slow)',     // 400ms
-      },
-//     },
-//   },
-// };
+  /* Brand/gallery-only escape hatches */
+  --color-neon: var(--neon-color);
+  --color-folder: var(--folder-color);
+  --shadow-gallery-card: var(--shadow-card);
+  --shadow-gallery-card-hover: var(--shadow-card-hover);
+  --radius-gallery-md: var(--gallery-radius-md);
+}
 ```
-This is a Tailwind v3 alternative. The target is Tailwind v4 CSS-first configuration via `@theme`.
+Gallery-specific tokens remain available only under explicit brand/gallery names and must not replace shadcn Stone defaults for standard UI components.
 
 ### 5.2 Class Naming Strategy
 
@@ -494,7 +419,7 @@ darkMode: ['selector', '[data-theme="dark"]'],
 **Constraints (hard):**
 - shadcn-vue is NOT a wholesale replacement framework.
 - shadcn-vue must NOT override gallery brand identity on approved brand surfaces. For standard UI primitives, shadcn-vue default appearance is the baseline.
-- shadcn-vue must NOT force a parallel token system unless tokens are explicitly bridged to existing gallery semantic tokens (see §6.4).
+- shadcn-vue standard UI tokens are supplied by the implemented Stone bridge (`_shadcn-token-bridge.css`). Do not remap them to gallery warm tokens (see §6.4).
 - Every adoption step is component-by-component, individually tested, and individually reviewed.
 - Mobile/tablet risky surfaces remain frozen during Phase 1 (see §6.3 Group C).
 
@@ -589,27 +514,25 @@ The exact classes should follow current shadcn-vue Tailwind v4 output where poss
 
 ### 6.1b Color Token Mapping Policy
 
-Color mapping should be conservative and shadcn-compatible.
+Color mapping is finalized as shadcn-vue Stone for standard UI.
 
 Prefer shadcn semantic tokens: `background`, `foreground`, `card`, `popover`, `primary`, `secondary`, `muted`, `accent`, `border`, `input`, `ring`, `destructive`.
 
-But their visual values should be neutral/premium and close to shadcn expectations, not automatically warm/orange gallery values.
-
-Gallery warm palette is allowed mainly for brand hero and explicitly approved brand surfaces.
+Their visual values come from `_shadcn-token-bridge.css`, which supplies exact shadcn-vue Stone oklch defaults. Gallery warm palette is allowed only for the brand hero and explicitly approved brand/artwork surfaces.
 
 ```
-background   → neutral gallery background (--bg-color)
-foreground   → neutral gallery foreground (--text-color)
-card         → neutral gallery card surface (--surface-color)
-popover      → neutral gallery popover surface (--gallery-surface-elevated)
-primary      → neutral primary accent (not automatically warm/orange)
-secondary    → neutral secondary surface
-muted        → neutral muted surface
-accent       → neutral accent surface
-border       → neutral gallery border (--gallery-border-default)
-input        → neutral gallery input border (--gallery-border-default)
-ring         → neutral focus ring
-destructive  → gallery danger (--gallery-error)
+background   → shadcn-vue Stone --background
+foreground   → shadcn-vue Stone --foreground
+card         → shadcn-vue Stone --card
+popover      → shadcn-vue Stone --popover
+primary      → shadcn-vue Stone --primary
+secondary    → shadcn-vue Stone --secondary
+muted        → shadcn-vue Stone --muted
+accent       → shadcn-vue Stone --accent
+border       → shadcn-vue Stone --border
+input        → shadcn-vue Stone --input
+ring         → shadcn-vue Stone --ring
+destructive  → shadcn default destructive
 ```
 
 ---
@@ -686,7 +609,7 @@ These must stay frozen. Do not migrate to shadcn-vue in Phase 1:
 3. Does the component require Reka UI (formerly Radix-Vue)?
 4. Does it require `vue-sonner`?
 5. Does it require class utilities such as `clsx` / `cva` / `tailwind-merge`?
-6. How will shadcn CSS variables (e.g., `--background`, `--foreground`, `--primary`) map to existing gallery tokens (e.g., `--bg-color`, `--text-color`, `--primary-color`)?
+6. Does the component preserve the implemented shadcn-vue Stone bridge variables (`--background`, `--foreground`, `--primary`, etc.) without remapping them to gallery warm tokens?
 7. How will dark mode work with the existing `[data-theme="dark"]` attribute? (See §5.3 for the `@custom-variant dark` strategy.)
 8. Does this component work cleanly with Tailwind v4 and the current `@theme inline` setup?
 9. What tests will prove no visual or behavior regression?
@@ -697,60 +620,59 @@ These must stay frozen. Do not migrate to shadcn-vue in Phase 1:
 
 ### 6.5 Token Bridging
 
-shadcn-vue components typically reference CSS variables from a shadcn theme (defined on `:root` in a `globals.css` — e.g., `--background`, `--foreground`, `--primary`, `--muted`, `--accent`, `--border`, `--ring`, `--radius`). Gallery uses its own semantic tokens in `tokens.css`.
+shadcn-vue components reference CSS variables from a shadcn theme (defined on `:root` in a `globals.css` — e.g., `--background`, `--foreground`, `--primary`, `--muted`, `--accent`, `--border`, `--ring`, `--radius`). Gallery standard UI now uses the shadcn-vue Stone values for those variables.
 
 **Bridging approach:**
-- Do NOT duplicate the shadcn theme variables in gallery. Instead, create an alias layer that maps shadcn variable names to gallery token values.
-- This alias layer lives in `frontend/src/styles/_shadcn-token-bridge.css`, imported after `tokens.css` and before Tailwind.
-- The bridge maps shadcn color variable names (e.g., `--background`, `--foreground`, `--primary`) to gallery semantic tokens (e.g., `--bg-color`, `--text-color`, `--primary-color`).
+- `_shadcn-token-bridge.css` is the canonical shadcn token layer, imported after `tokens.css` and before Tailwind.
+- The bridge supplies exact shadcn-vue Stone oklch values for shadcn color variable names (e.g., `--background`, `--foreground`, `--primary`).
+- Do NOT map shadcn variables to gallery warm/orange values or legacy gallery surface/accent variables.
 - Dark mode works through `[data-theme="dark"]` selectors in the bridge — do NOT require `.dark` class.
 - Tailwind utility classes (`bg-primary`, `text-primary-foreground`) are enabled through `@theme inline` entries in `tailwind.css` that reference the bridged CSS variables.
 
-**Scope — colors only:**
+**Scope — Stone standard UI plus explicit brand escape hatches:**
 
-- The bridge maps **color tokens only**.
-- Gallery legacy/warm tokens should not globally redefine shadcn pixel mechanics.
+- Standard UI color tokens are Stone defaults.
+- Gallery legacy/warm tokens should not globally redefine shadcn color tokens or pixel mechanics.
 - Do NOT globally remap standard Tailwind/shadcn shadow tokens to warm/orange gallery shadows if that changes shadcn component appearance.
 - Do NOT globally remap standard Tailwind/shadcn radius tokens to gallery-specific large radius if that changes shadcn component appearance.
 - Do NOT remap shadcn radius to custom gallery radius — keep upstream `rounded-md`, `rounded-sm` etc. as used by shadcn primitives.
 - Do NOT create shadcn shadow variables pointing to gallery-specific shadows — keep upstream `shadow-sm`, `shadow-xs`.
 - Do NOT create shadcn transition/easing variables for primitives — preserve upstream utility classes like `transition-colors`.
-- If shadcn-vue requires `--radius`, keep upstream default or document why a bridge entry is needed.
+- `--radius` uses the standard shadcn default.
 - If gallery-specific shadows/radius are needed, they should use separate names such as `shadow-gallery-*` and `rounded-gallery-*` and should only be used on approved brand/gallery-specific surfaces.
 
-**Color token mapping (allowed mappings):**
+**Color token mapping (implemented Stone defaults):**
 
 ```
---background: var(--gallery-background-or-equivalent)
---foreground: var(--gallery-foreground-or-equivalent)
---card: var(--gallery-surface-or-equivalent)
---card-foreground: var(--gallery-foreground-or-equivalent)
---popover: var(--gallery-surface-elevated-or-equivalent)
---popover-foreground: var(--gallery-foreground-or-equivalent)
---primary: var(--gallery-primary-or-accent-equivalent)
---primary-foreground: var(--gallery-primary-foreground-or-equivalent)
---secondary: var(--gallery-muted-surface-or-equivalent)
---secondary-foreground: var(--gallery-foreground-or-equivalent)
---muted: var(--gallery-muted-surface-or-equivalent)
---muted-foreground: var(--gallery-muted-foreground-or-equivalent)
---accent: var(--gallery-surface-hover-or-accent-muted-equivalent)
---accent-foreground: var(--gallery-foreground-or-equivalent)
---destructive: var(--gallery-danger-or-equivalent)
---destructive-foreground: var(--gallery-danger-foreground-or-equivalent)
---border: var(--gallery-border-or-equivalent)
---input: var(--gallery-input-border-or-equivalent)
---ring: var(--gallery-focus-ring-or-equivalent)
+--background: shadcn-vue Stone background
+--foreground: shadcn-vue Stone foreground
+--card: shadcn-vue Stone card
+--card-foreground: shadcn-vue Stone card foreground
+--popover: shadcn-vue Stone popover
+--popover-foreground: shadcn-vue Stone popover foreground
+--primary: shadcn-vue Stone primary
+--primary-foreground: shadcn-vue Stone primary foreground
+--secondary: shadcn-vue Stone secondary
+--secondary-foreground: shadcn-vue Stone secondary foreground
+--muted: shadcn-vue Stone muted
+--muted-foreground: shadcn-vue Stone muted foreground
+--accent: shadcn-vue Stone neutral accent
+--accent-foreground: shadcn-vue Stone accent foreground
+--destructive: shadcn default destructive
+--border: shadcn-vue Stone border
+--input: shadcn-vue Stone input
+--ring: shadcn-vue Stone ring
 ```
 
 **Color values:**
-- Color mapping should be conservative and shadcn-compatible (see §6.1b).
-- The visual values mapped into shadcn token slots should be neutral/premium and close to shadcn expectations, not automatically warm/orange gallery values.
-- Gallery warm palette is allowed mainly for brand hero and explicitly approved brand surfaces.
+- Color mapping follows the final Stone policy at the top of this document (see §6.1b).
+- `--accent` is Stone neutral, not gallery orange/warm.
+- Gallery warm palette is reserved for the brand hero and explicitly approved brand/artwork surfaces.
 
 **Guidance:**
 - Token bridging is a **pre-requisite** to any shadcn component adoption.
-- Do not write a full shadcn theme from scratch. Only bridge the variables actually used by adopted components.
-- Document each bridged variable with its gallery source and the shadcn component(s) that consume it.
+- Do not write a custom gallery-colored shadcn theme for standard UI.
+- Document any future deviation from Stone defaults and require explicit user approval.
 
 ---
 
@@ -791,8 +713,8 @@ Every shadcn-vue adoption step must run:
 
 1. **shadcn-vue is approved for selective, component-by-component adoption** where it improves quality, accessibility, or maintainability. It is **not** approved for wholesale rewrite or mobile/tablet risky surfaces in Phase 1.
 2. **`npx shadcn-vue@latest add ...`** is allowed for specific components, but only after a dependency/token audit (see §6.4) and only targeting Group A or Group B components.
-3. **shadcn-vue primitives must follow pixel-level defaults** — radius, shadow, hover/active/focus behavior, focus-visible mechanics, transition classes, size variants, font weight, and text sizing must preserve upstream shadcn-vue defaults. Gallery only customizes color tokens (conservative, shadcn-compatible), dark-mode selector, import paths/component names, and app-specific labels/aria-label text (see §6.1a).
-4. **Color tokens must be conservative and shadcn-compatible** — shadcn primitives use shadcn token class names (`bg-primary`, `text-primary-foreground`, `bg-accent`, etc.), with actual color values supplied by the token bridge. Color values should be neutral/premium and close to shadcn expectations, not automatically warm/orange gallery values. Gallery warm palette is reserved for brand hero and explicitly approved brand surfaces (see §6.1b, §6.5).
+3. **shadcn-vue primitives must follow pixel-level defaults** — radius, shadow, hover/active/focus behavior, focus-visible mechanics, transition classes, size variants, font weight, and text sizing must preserve upstream shadcn-vue defaults. Gallery only customizes the dark-mode selector, import paths/component names, and app-specific labels/aria-label text (see §6.1a).
+4. **Color tokens use shadcn-vue Stone defaults** — shadcn primitives use shadcn token class names (`bg-primary`, `text-primary-foreground`, `bg-accent`, etc.), with Stone color values supplied by the token bridge. Gallery warm palette is reserved for brand hero and explicitly approved brand surfaces (see §6.1b, §6.5).
 5. **Every adoption must be individually tested** with type-checks, builds, and Playwright before/after screenshots.
 6. **Mobile/tablet Group C components must not be touched** in Phase 1. Any accidental change to these files is a blocker.
 7. **Do not install shadcn dependencies globally without a specific component target.** Each dependency must map to at least one concrete component replacement.
@@ -1047,8 +969,8 @@ Behavior-heavy components such as Dialog, Dropdown Menu, Select, Tooltip, Popove
 - 617 lines warm CSS removed, 207 lines added
 - 101/101 Playwright tests pass
 
-**Phase 2B — Desktop Status & Dialog Integration (completed commit a26fe9e):** ✅
-- IndexStatusPanel — new desktop component with shadcn Popover + Badge, polls /api/index/status every 30s
+**Phase 2B — Desktop Status & Dialog Integration (completed commit a26fe9e; Index Status polling refactored afterward):** ✅
+- IndexStatusChip + IndexStatusPanel — desktop component pair with shadcn Popover + Badge, path-scoped `/api/index/status?path=...`, adaptive polling, and no mobile/tablet imports
 - SettingsModal → shadcn Dialog — replaced hand-rolled modal shell, removed useFocusTrap (built-in), removed 226 lines stale CSS
 - SearchFilterChips — new component using shadcn Badge variant="secondary"
 - IndexStatusResponse type aligned with actual backend API response
@@ -1057,15 +979,15 @@ Behavior-heavy components such as Dialog, Dropdown Menu, Select, Tooltip, Popove
 
 **Allowed candidates:**
 - Desktop AdvancedSearch layout (future component, Tailwind-first, shadcn-vue Input/Badge/Button as building blocks)
-- Desktop filter chips (future SearchFilterChips, Tailwind + gallery tokens, shadcn Badge for chip base)
+- Desktop filter chips (future SearchFilterChips, Tailwind + shadcn-vue Stone defaults, shadcn Badge for chip base)
 - Desktop popover/dialog shell (future components, Tailwind `@layer`, shadcn Popover/Dialog where behavior/a11y benefits are clear)
 - Desktop status panel (IndexStatusPanel, shadcn Tooltip/Popover for detail overlays)
 - Desktop command/search palette shell (shadcn Command pattern where keyboard navigation adds value)
 
 **Guidance:**
 - shadcn-vue may be used where behavior or accessibility benefits are clear.
-- Preserve gallery brand identity on approved brand surfaces only, not for standard UI primitives. Standard shadcn components use shadcn-vue pixel-level defaults with conservative bridged color tokens (see §6.4, §6.5).
-- New components built in this phase should be Tailwind-first with gallery tokens, using shadcn-vue primitives where they reduce boilerplate for standard interaction patterns.
+- Preserve gallery brand identity on approved brand surfaces only, not for standard UI primitives. Standard shadcn components use shadcn-vue Stone pixel-level defaults (see §6.4, §6.5).
+- New standard UI components built in this phase should be Tailwind-first with shadcn-vue Stone tokens, using shadcn-vue primitives where they reduce boilerplate for standard interaction patterns.
 
 ### Phase 3 (Future — deferred) — Metadata/Admin Table
 
@@ -1079,7 +1001,7 @@ Behavior-heavy components such as Dialog, Dropdown Menu, Select, Tooltip, Popove
 **Guidance:**
 - shadcn-vue can be considered for table controls, dropdowns, dialogs, badges, and tooltips.
 - shadcn-vue must NOT be used for replacing gallery browsing UI (GalleryGrid, PhotoCard, lightbox).
-- Table-specific UI must still use gallery semantic tokens via the token bridge.
+- Table-specific standard UI must use shadcn-vue Stone tokens via the bridge.
 
 ### Phase 4 — Mobile/Tablet (Future Spec Only)
 
@@ -1355,7 +1277,7 @@ If a critical visual regression is discovered in production after Tailwind migra
 | **Visual effects** | SCSS | Dark mode neon glows, album card 3D, brand title shimmer, backdrop-filter compositions, `color-mix()` rules. |
 | **Third-party overrides** | SCSS | PhotoSwipe, vue-spring-bottom-sheet, scrollbar styles. |
 | **Mobile/iOS fixes** | SCSS | Safe-area, touch hover disables, rubber-band, viewport hacks. |
-| **New components (future)** | Tailwind-first + gallery tokens | AdvancedSearch, IndexPanel — built with Tailwind from the start. MetadataTable deferred to Phase 3 (Future). |
+| **New components (future)** | Tailwind-first + shadcn-vue Stone defaults for standard UI | AdvancedSearch, IndexPanel — built with Tailwind from the start. MetadataTable deferred to Phase 3 (Future). |
 
 ### Why Not Full Migration
 
@@ -1371,7 +1293,7 @@ If a critical visual regression is discovered in production after Tailwind migra
 ### Why Hybrid Works
 
 1. Candidate estimate: Tailwind may cover a large portion of static layout/spacing styles, but the actual SCSS reduction must be proven by migration diffs. Do not commit to a 60-70% SCSS reduction until Phase 1 migration proves it without visual regressions.
-2. Semantic tokens via CSS variables keep the warm-latte/premium theme intact
+2. Semantic tokens via CSS variables keep shadcn-vue Stone defaults for standard UI and preserve warm/premium identity only on approved brand surfaces.
 3. If migration diffs prove safe, SCSS may eventually shrink toward animation/effect/override concerns. Do not assume a fixed percentage before Phase 1 evidence.
 4. New components are Tailwind-first, avoiding accumulation of new SCSS
 5. Mobile/tablet code is untouched and safe
