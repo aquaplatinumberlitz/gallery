@@ -147,6 +147,12 @@
   --glow-card-active: none;
 }
 
+@media (max-width: 480px) {
+  :root {
+    --gallery-sidebar-mobile-width: min(300px, 100vw);
+  }
+}
+
 :root[data-theme="dark"] {
   /* ── Surface (warm near-black — Facebook-inspired) ── */
   --gallery-surface-dim:        #0f0f0f;

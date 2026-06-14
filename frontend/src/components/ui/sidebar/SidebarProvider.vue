@@ -9,22 +9,31 @@ import { provideSidebarContext, SIDEBAR_WIDTH, SIDEBAR_WIDTH_ICON } from "./util
 const props = withDefaults(defineProps<{
   defaultOpen?: boolean
   open?: boolean
+  openMobile?: boolean
+  defaultOpenMobile?: boolean
   class?: HTMLAttributes["class"]
 }>(), {
   defaultOpen: true,
   open: undefined,
+  openMobile: undefined,
+  defaultOpenMobile: false,
 })
 
 const emits = defineEmits<{
   "update:open": [open: boolean]
+  "update:openMobile": [open: boolean]
 }>()
 
-const isMobile = useMediaQuery("(max-width: 768px)")
-const openMobile = ref(false)
+const isMobile = useMediaQuery("(max-width: 1199px)")
 
 const open = useVModel(props, "open", emits, {
   defaultValue: props.defaultOpen ?? false,
   passive: (props.open === undefined) as false,
+}) as Ref<boolean>
+
+const openMobile = useVModel(props, "openMobile", emits, {
+  defaultValue: props.defaultOpenMobile ?? false,
+  passive: (props.openMobile === undefined) as false,
 }) as Ref<boolean>
 
 function setOpen(value: boolean) {
