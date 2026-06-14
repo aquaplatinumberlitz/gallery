@@ -126,7 +126,7 @@ Purpose: Make it clear what backend endpoints and frontend types/composables mus
 | `/api/index/status` | `IndexStatusResponse` | `fetchIndexStatus()` | `useIndexStatusQuery()` | Backend complete at `indexer.py:599` |
 | `/api/facets` | `FacetsResponse` | `fetchFacets()` | `useFacetsQuery()` | Backend complete at `facets.py:248` |
 | `/api/search` | Existing `unifiedSearch()` contract | `unifiedSearch()` | Existing query composable | Current contract: `q`, `scope`, `path`, `limit`. Fielded search is parsed server-side from the `q` string. Advanced Search should serialize form state into backend-compatible `q`. |
-| `/api/scan` | `ScanResponse` (add/check `index_source?: "warm_db" \| "direct_scan" \| "mixed"` if backend returns it) | `scanDirectory()` | Existing scan composable | Backend returns `index_source`; frontend type should reflect it if available. |
+| `/api/scan` | `ScanResponse` (include `index_source?: "warm_db" \| "direct_scan" \| "mixed"`) | `scanDirectory()` | Existing scan composable | Backend returns `index_source`; frontend type must reflect it. |
 
 Frontend should not invent a new payload shape when an existing backend contract already exists.
 
@@ -216,6 +216,10 @@ Frontend should not invent a new payload shape when an existing backend contract
 
 **Do not blindly copy shadcn-vue code.** The gallery has an established SCSS/warm-latte/premium design language with `--gallery-*` CSS custom properties. Adapt patterns to use these tokens rather than replacing the theme system. The shadcn-vue patterns are valuable for structure, accessibility, and keyboard behavior — the visual styling should remain gallery-native.
 
+### shadcn-vue Selective Adoption Decision
+
+shadcn-vue is now approved for selective adoption of desktop primitive UI components where it improves accessibility or maintainability. Use this plan for frontend use cases, and use [Tailwind plan §6](TAILWIND_MIGRATION_ANIMATION_PRESERVATION_PLAN.md#6-shadcn-vue-selective-adoption-strategy) for the full component grouping and token-bridge/testing rules.
+
 ---
 
 ## 8. Implementation Phases
@@ -266,7 +270,7 @@ This is a preflight checklist, not a fourth implementation phase.
 - [ ] Verify `/api/index/status` response shape against frontend type.
 - [ ] Verify `/api/facets` response shape against frontend type.
 - [ ] Verify frontend types for index status and facets are defined or document gaps.
-- [ ] Verify `ScanResponse.index_source` if backend returns it.
+- [ ] Verify `ScanResponse.index_source` is present in frontend types and scan data handling.
 - [ ] Confirm Advanced Search will serialize to `q` and call existing `unifiedSearch()`.
 - [ ] Confirm no `beforeunload`/`unload` lifecycle regression is introduced.
 - [ ] Confirm Phase 1 does not change GalleryGrid behavior, layout, virtualization, image loading, or browsing semantics. Only small accessibility annotations or non-behavioral wiring are allowed if needed.

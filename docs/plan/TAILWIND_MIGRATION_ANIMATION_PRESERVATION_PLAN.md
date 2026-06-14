@@ -53,7 +53,7 @@ The following patterns are Tailwind v3 conventions and should NOT be used unless
 Preferred Tailwind v4 direction:
 - Use Tailwind v4 CSS-first setup with `@import "tailwindcss"`
 - Import only the layers needed during early migration: theme layer, utilities layer
-- Preflight/base layer was tested as a separate spike after initial foundation (completed — Preflight now enabled permanently after passing 25/25 tests on PC, iPad, iPhone)
+- Preflight/base layer was tested as a separate spike after initial foundation (completed — Preflight now enabled permanently after passing 25/25 `tailwind-preflight.spec.ts` tests on PC, iPad, iPhone)
 
 ---
 
@@ -548,7 +548,7 @@ Every shadcn-vue adoption step must run:
 - `npm run build`
 
 **Existing regression tests:**
-- All existing Playwright tests (tailwind-phase0, tailwind-preflight)
+- All existing Playwright tests, including active `tailwind-preflight.spec.ts` (25 tests)
 
 **New component-specific tests:**
 - Visual regression screenshot for the affected component (light + dark) — pixel diff is informational, use manual inspection
@@ -627,7 +627,7 @@ Similarly, vue-spring-bottom-sheet generates `[data-vsbs-*]` elements with its o
 
 **Phase 0A — Start without Preflight (initial)**
 - Started with Tailwind v4 utilities and theme layer only.
-- Preflight was omitted during initial Phase 0 foundation (commit `90e6623`).
+- Phase 0A initially omitted Preflight during initial foundation (commit `90e6623`).
 
 **Phase 0B — Screenshot baselines**
 - Desktop/mobile/tablet screenshot baselines captured with Preflight disabled.
@@ -637,18 +637,18 @@ Similarly, vue-spring-bottom-sheet generates `[data-vsbs-*]` elements with its o
 **Phase 0C — Preflight enabled — testing passed**
 - Preflight enabled at commit `6eb447d` + `@import "tailwindcss/preflight.css" layer(base);`
 - Deployed to VPS for real-device testing on PC, iPad, iPhone.
-- ✅ User tested on PC, iPad, iPhone — 25/25 Playwright Preflight tests pass
+- ✅ User tested on PC, iPad, iPhone — 25/25 `tailwind-preflight.spec.ts` tests pass
 - ✅ Preflight stays enabled permanently
 - ✅ No `_tailwind-patches.scss` patches required for Preflight (no regressions found)
 
-**If Preflight remains disabled — compatibility notes:**
+**Historical disabled-Preflight compatibility notes:**
 - Tailwind utilities are fully functional without Preflight. Most utilities do not depend on Preflight resets.
-- A few utilities (notably `border`, `border-*`) assume Preflight has reset `border-style` to `solid`. If Preflight is disabled, document that explicit `border-style: solid` may be needed alongside `border` utility in rare cases.
+- A few utilities (notably `border`, `border-*`) assume Preflight has reset `border-style` to `solid`. When Preflight was disabled, explicit `border-style: solid` could be needed alongside `border` utility in rare cases.
 - No other Tailwind utility requires Preflight to function correctly.
 
-**If Preflight is eventually enabled (future spike) — required safeguard patches:**
+**Preflight-enabled safeguard patches considered during Phase 0C:**
 
-Before enabling Preflight, the following patches must be verified against Playwright screenshot baselines (see §10). All must be applied AFTER Tailwind in the CSS cascade:
+During Phase 0C Preflight verification, the following patches were candidate safeguards to verify against Playwright screenshot baselines (see §10). Any required patch must be applied AFTER Tailwind in the CSS cascade:
 
 ```css
 /* In _tailwind-patches.scss, loaded AFTER Tailwind */
@@ -694,8 +694,8 @@ html, body {
 | `#app` height | Explicit `height: 100%` | Preflight may not set this |
 
 **Safety verification:**
-1. Before enabling Preflight: Run full Playwright screenshot tests on desktop/mobile/tablet
-2. After enabling Preflight with patches: Run same tests, compare pixel diff
+1. Phase 0C Preflight verification: Run full Playwright screenshot tests on desktop/mobile/tablet
+2. With Preflight enabled: Run same tests, compare pixel diff
 3. Investigate any deviations manually; pixel diff is informational, not a blocker
 
 ---
@@ -720,13 +720,13 @@ html, body {
 - ✅ `tailwind.css` imported in `main.ts` AFTER `tokens.css` but BEFORE `main.scss`
 - ✅ Dark mode configured via `@custom-variant dark (&:where([data-theme=\"dark\"], [data-theme=\"dark\"] *))`
 - ✅ Created `frontend/src/styles/_tailwind-patches.scss` (placeholder, unimported)
-- ✅ Preflight was omitted during Phase 0A (commit `90e6623`); enabled in Phase 0C and approved after user testing (commit `6eb447d+`). 25/25 Playwright Preflight tests pass. Preflight stays enabled permanently.
+- ✅ Phase 0A initially omitted Preflight (commit `90e6623`); enabled in Phase 0C and approved after user testing (commit `6eb447d+`). 25/25 `tailwind-preflight.spec.ts` tests pass. Preflight stays enabled permanently.
 - ✅ `vue-tsc --noEmit` passes
 - ✅ `npm run build` passes
 - ✅ 23 Playwright smoke tests pass — no regressions found (commit `b2dde0b`)
-- ✅ No visual changes confirmed with Preflight disabled (Phase 0A/B); Preflight tested on PC, iPad, iPhone — 25/25 tests pass, Preflight stays enabled permanently (Phase 0C)
+- ✅ No visual changes confirmed during the disabled-Preflight Phase 0A/B baseline; Preflight tested on PC, iPad, iPhone — 25/25 `tailwind-preflight.spec.ts` tests pass, Preflight stays enabled permanently (Phase 0C)
 
-> **Status:** Phase 0 complete. Tailwind v4 is available. Preflight enabled, tested on PC/iPad/iPhone. 25/25 Playwright Preflight tests pass. No regressions found. No `_tailwind-patches.scss` patches required. Preflight stays enabled permanently. Desktop Phase 1 migration is ready to proceed.
+> **Status:** Phase 0 complete. Tailwind v4 is available. Preflight enabled, tested on PC/iPad/iPhone. 25/25 `tailwind-preflight.spec.ts` tests pass. No regressions found. No `_tailwind-patches.scss` patches required. Preflight stays enabled permanently. Desktop Phase 1 migration is ready to proceed.
 
 ### Phase 1 — Desktop Primitive Adoption
 
@@ -1153,7 +1153,7 @@ This document was created as a research + planning exercise only. Updated as Pha
 - ✅ Tailwind v4 installed (`tailwindcss`, `@tailwindcss/vite`)
 - ✅ Vite config updated (`tailwindcss()` plugin added)
 - ✅ `tailwind.css` created with `@theme inline` + `@custom-variant dark`
-- ✅ Preflight enabled — 25/25 tests pass, stays enabled permanently
+- ✅ Preflight enabled — 25/25 `tailwind-preflight.spec.ts` tests pass, stays enabled permanently
 - ❌ No Tailwind packages installed — now installed (Phase 0A)
 - ❌ No package.json edited — now edited (Phase 0A)
 - ❌ No Vite config edited — now edited (Phase 0A)

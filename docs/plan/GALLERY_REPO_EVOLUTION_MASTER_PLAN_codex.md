@@ -14,10 +14,10 @@ gallery-repo should preserve its fast local web hot path, then selectively add a
 | Best current architecture to preserve | The direct `/api/scan` folder-open path, lazy `/api/thumbnail` image-open path, on-demand/coalesced `/api/metadata` path, derivative-first PhotoSwipe `/api/preview` main source + on-demand `/api/image` original, SQLite cache/index, and TanStack Query ownership of server state. |
 | Best DT idea to borrow | A bounded local metadata indexing queue with coalesced jobs and batched SQLite writes. DT's best lesson is not its viewer path; it is its background scanner/writer discipline. |
 | Best Immich idea to borrow | DB-first warm viewer metadata and derivative readiness/status rows, implemented with SQLite and local workers rather than PostgreSQL, Redis, and BullMQ. |
-| Biggest current gallery-repo weakness | Metadata/search warmness depends mostly on user-triggered thumbnail and metadata opens. A folder can scan quickly but still be cold for prompt search and lightbox metadata. |
+| Biggest gallery-repo weakness before Phases 1-3 [Historical] | Metadata/search warmness depends mostly on user-triggered thumbnail and metadata opens. A folder can scan quickly but still be cold for prompt search and lightbox metadata. |
 | Biggest danger if we copy DT blindly | DT-style full-file reads, hashing, pixel fallback scans, or synchronous viewer metadata reparsing would destroy the folder-open and lightbox responsiveness that gallery-repo already has. |
 | Biggest danger if we copy Immich blindly | Immich's full server stack, multi-user storage model, preview-first behavior without original-on-demand guarantees, and DB-first-only timeline assumptions would add operational weight and fundamentally change the product. (gallery-repo adapted Immich's derivative-first concept in Phase 2A but kept original-on-zoom guarantee.) |
-| Recommended direction for the implementation phases | Phase 0: lock current guarantees. Phase 1: add a unified parser core, local background metadata indexer, batched writer, and index status. **Phase 2A (✅ done): derivative-first lightbox** — `/api/preview` (1440px) as PhotoSwipe main src, original `/api/image` only on zoom/fullscreen/download/animated, shared derivative core (`generate_derivative`), cache key per derivative type, neighbor preload (thumbnail + preview only, never original). **Phase 2B (next): fielded metadata search + DB-first warm metadata reads** — first-class search fields for all lightbox-visible metadata, generic `param:`/`advanced:`/`raw:` fallback, backward-compatible unified plain text, and SQLite-first metadata reads for the lightbox panel. Phase 3: warm indexed folder listing + optional watcher. |
+| Recommended direction for the implementation phases | Phase 0: lock current guarantees. Phase 1: add a unified parser core, local background metadata indexer, batched writer, and index status. **Phase 2A (✅ done): derivative-first lightbox** — `/api/preview` (1440px) as PhotoSwipe main src, original `/api/image` only on zoom/fullscreen/download/animated, shared derivative core (`generate_derivative`), cache key per derivative type, neighbor preload (thumbnail + preview only, never original). **Phase 2B (✅ done): fielded metadata search + DB-first warm metadata reads** — first-class search fields for all lightbox-visible metadata, generic `param:`/`advanced:`/`raw:` fallback, backward-compatible unified plain text, and SQLite-first metadata reads for the lightbox panel. **Phase 3 (✅ done): warm indexed folder listing + optional watcher.** Backend Phases 0-3 are complete; Phase 4 remains research-only. |
 
 The correct direction is not "DT plus a web UI" and not "Immich lite." It is:
 
@@ -82,7 +82,7 @@ These facts are the constraints the roadmap must respect.
 | TanStack Query metadata cache | frontend query layer | `["metadata", path]` | `fetchMetadata()` | `Lightbox.vue`, `usePhotoSwipe.ts` |
 | Pinia lightbox dimensions | `frontend/src/stores/lightbox.ts` | path | `PhotoCard` natural dimensions and PhotoSwipe resolver | `usePhotoSwipe.ts` and lightbox navigation |
 
-### Current Metadata/Search Limitations
+### Current Metadata/Search Limitations [Historical]
 
 - Metadata parser coverage is useful but split across two stacks:
   - `metadata_parse.py` powers `/api/metadata` and has richer SwarmUI, ComfyUI, A1111, NovelAI, EasyDiffusion, LoRA, and exact `.txt` sidecar behavior.
@@ -571,7 +571,7 @@ Decision values:
 | Multi-user/album/sharing/storage-template model | Immich | Reject | It solves backup/photo-server needs, not local gallery browsing. | Full photo app features. | Massive schema/UI scope. | Very high | Very high | Never |
 | Redis/BullMQ/PostgreSQL full stack | Immich | Reject | The operational cost is wrong for gallery-repo. | Robust distributed processing. | External services become required. | Very high | Very high | Never |
 
-## Root-Cause Driven Improvement Plan
+## Root-Cause Driven Improvement Plan [Historical]
 
 ### Problem 1: Metadata is still mostly on-demand; warm cache depends on user opening thumbnails/metadata.
 
@@ -1133,7 +1133,7 @@ How to test:
 | Risk level | Medium (successfully mitigated — tests pass, budgets met). |
 | What was learned | iPad Safari doesn't support `color-mix()`. `backdrop-filter + v-if + transition` causes jank on iPad. test-only hook must be gated; do not expose __pswp in production |
 
-### Phase 2B (Next) — Fielded Metadata Search + DB-first Warm Metadata Reads
+### Phase 2B (✅ Done) — Fielded Metadata Search + DB-first Warm Metadata Reads
 
 **Rule:** Any metadata field visible in the lightbox should be searchable either as a first-class field or via a generic `param:` / `advanced:` / `raw:` fallback.
 
@@ -1431,12 +1431,12 @@ DiffusionToolkit treats residual text as prompt-only; gallery-repo keeps it as u
 | stale file invalidation test | mtime/size changes invalidate dimensions, metadata, queued jobs, and derivative readiness. | Old rows are ignored or marked stale; fresh row/job is created. | ✅ Phase 1 |
 | batch writer test | Parsed metadata writes flush in bounded batches. | Correct rows/FTS updates; transaction size bounded; write errors reported. | ✅ Phase 1 |
 | parser fixture tests | Lock supported generator formats and sidecars. | Same normalized fields for API and index paths. | ✅ Phase 1 |
-| fielded search parser tests | Preserve plain search and support supported fields. | Tokens parse correctly; malformed fields are predictable; residual text preserved. | 📋 Phase 2B |
+| fielded search parser tests | Preserve plain search and support supported fields. | Tokens parse correctly; malformed fields are predictable; residual text preserved. | ✅ Phase 2B |
 | derivative readiness tests | Thumbnail/preview generation updates readiness and invalidates stale derivatives. | Ready row matches disk cache; missing file recovers. | ✅ Phase 2A |
 | index status tests | `/api/index/status` reports queued/running/done/error quickly. | Counts accurate enough; last error present; p95 <= 50 ms warm. | ✅ Phase 1 |
 | scan no-PIL test | Protect Rule 1. | `/api/scan` does not call `Image.open` or metadata parser. | ✅ Phase 0 |
 | scan cached dimensions test | Protect Rule 2. | Only path+mtime+size-matching rows are returned. | ✅ Phase 0 |
-| direct scan fallback test | Warm listing never hides stale filesystem changes. | Stale/incomplete index falls back to direct scan. | 📋 Phase 3 |
+| direct scan fallback test | Warm listing never hides stale filesystem changes. | Stale/incomplete index falls back to direct scan. | ✅ Phase 3 |
 
 ### Frontend Test Matrix
 
@@ -1450,7 +1450,7 @@ DiffusionToolkit treats residual text as prompt-only; gallery-repo keeps it as u
 | empty state no flicker | Preserve `hasEverLoaded`/delayed empty behavior. | Empty state appears only after settled scan and no content. | ✅ Phase 0 |
 | search no-results only after fetch settled | Preserve current no-results guard. | No-results state appears only after successful non-fetching search with empty sections. | ✅ Phase 0 |
 | lightbox does not preload full original for neighbors | Prevent bandwidth spike. | Neighbor prefetch may request metadata/thumbnail/preview, not `/api/image`. | ✅ Phase 2A |
-| fielded search plain compatibility | Ensure parser does not break normal search UI. | Plain query behavior/result grouping remains compatible. | 📋 Phase 2B |
+| fielded search plain compatibility | Ensure parser does not break normal search UI. | Plain query behavior/result grouping remains compatible. | ✅ Phase 2B |
 
 ### Perf Budgets
 
@@ -1547,12 +1547,12 @@ Do first:
 4. Add a batched SQLite writer and `/api/index/status`.
 5. [Phase 2A] Add preview/derivative layer to lightbox: `/api/preview` (1440px) as PhotoSwipe main src, original `/api/image` only on zoom/fullscreen/download/animated. Keep loading policy strict in tests (`lightbox-loading-policy.spec.ts`).
 
-Do next:
+Do next [Historical — completed]:
 
-1. [Phase 2B] Add fielded search: first-class fields for all lightbox-visible metadata (prompt:, negative:, seed:, steps:, cfg:, sampler:, scheduler:, model:, model_hash:, lora:, path:, folder:, size:, width:, height:, aspect_ratio:, source:/tool:, date:, generation_time:, clip_skip:, hires_*, denoising_strength:, vae:, ensd:, aesthetic_score:), generic `param:<key>:`, `advanced:<key>:`, and `raw:` fallback for non-first-class keys.
-2. [Phase 2B] Add DB-first warm metadata reads for the lightbox panel (read from SQLite, no re-parse when fresh).
-3. [Phase 3] Add warm indexed folder listing behind freshness checks and fallback.
-4. [Phase 3] Add optional watcher/scheduled refresh.
+1. [Phase 2B — done] Add fielded search: first-class fields for all lightbox-visible metadata (prompt:, negative:, seed:, steps:, cfg:, sampler:, scheduler:, model:, model_hash:, lora:, path:, folder:, size:, width:, height:, aspect_ratio:, source:/tool:, date:, generation_time:, clip_skip:, hires_*, denoising_strength:, vae:, ensd:, aesthetic_score:), generic `param:<key>:`, `advanced:<key>:`, and `raw:` fallback for non-first-class keys.
+2. [Phase 2B — done] Add DB-first warm metadata reads for the lightbox panel (read from SQLite, no re-parse when fresh).
+3. [Phase 3 — done] Add warm indexed folder listing behind freshness checks and fallback.
+4. [Phase 3 — done] Add optional watcher/scheduled refresh.
 
 Defer:
 

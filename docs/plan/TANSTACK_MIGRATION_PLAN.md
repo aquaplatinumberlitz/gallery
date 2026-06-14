@@ -2,9 +2,15 @@
 
 Last reviewed: 2026-06-09
 
+Status: FULLY IMPLEMENTED — all phases complete.
+
+This migration is complete. The document is kept for historical reference.
+
+Executive summary: Implementation is done. TanStack Query now owns the planned scan/search/metadata/folder server-state flows, Pinia owns UI/navigation state, and TanStack DB remains limited to the landing-pages pilot.
+
 Cleanup status: completed after the TanStack migration. Pinia legacy scan/search server-state compatibility fields and actions were removed once grep/build verification showed no active UI callers.
 
-This plan keeps the TanStack migration incremental. It documents the ownership boundary first, then limits each phase to one behavioral surface.
+This plan documents the completed TanStack migration. It records the ownership boundary first, then preserves each phase as one behavioral surface.
 
 ## Current Installation and Runtime Use
 
@@ -107,7 +113,7 @@ Therefore search, scan, and infinite load stay with plain TanStack Query first. 
 
 7. DB only for collection/live-query cases with stable keys and clear full-state semantics
 
-## Phase 0 Scope
+## Phase 0 Scope (COMPLETED)
 
 Phase 0 creates a centralized query key module and refactors existing Query/DB pilot code to use it.
 
@@ -130,29 +136,29 @@ Not allowed:
 - change backend behavior
 - change UI/UX
 
-## Phase 1 Scope
+## Phase 1 Scope (COMPLETED)
 
-Phase 1 landing pages are complete for Settings theme selection. The existing landing-pages Query Collection still uses `url` as the collection key, defensively ignores duplicate URLs, preserves API order with an index, and `SettingsModal.vue` reads it through `useLandingPagesLiveQuery()` with a pending-data guard. `IntroScreen.vue` keeps its direct conditional `fetchLandingPages()` call so disabled, manual, and forced-preview flows do not start an eager landing-pages query.
+Status: complete. Phase 1 landing pages are complete for Settings theme selection. The existing landing-pages Query Collection still uses `url` as the collection key, defensively ignores duplicate URLs, preserves API order with an index, and `SettingsModal.vue` reads it through `useLandingPagesLiveQuery()` with a pending-data guard. `IntroScreen.vue` keeps its direct conditional `fetchLandingPages()` call so disabled, manual, and forced-preview flows do not start an eager landing-pages query.
 
-## Phase 2 Scope
+## Phase 2 Scope (COMPLETED)
 
 Status: complete and cleaned up. Active unified search UI uses `useUnifiedSearchQuery()` with plain TanStack Query and `queryKeys.search(trimmedQuery, scope, path)`. Pinia keeps search input text, search scope, and navigation state. TanStack Query owns `/api/search` results, loading/fetching, errors, and cache. The legacy Pinia `unifiedSearchResults`, `searchLoading`, `searchError`, and `unifiedSearch()` action were removed after grep showed no active callers.
 
-## Phase 3 Scope
+## Phase 3 Scope (COMPLETED)
 
 Status: complete. Lightbox metadata uses `usePhotoMetadataQuery()` with plain TanStack Query and `queryKeys.metadata(path)`. The query is enabled only while the lightbox is open and a current image path exists, with a 10-minute stale time and 30-minute garbage-collection time. Pinia lightbox state keeps open/current-index/gallery-item navigation and current item path/name only; TanStack Query owns `/api/metadata` response, loading, errors, and cache.
 
-## Phase 4 Scope
+## Phase 4 Scope (COMPLETED)
 
 Status: complete and cleaned up. The root-load path still fetches the first `/api/scan` page through TanStack Query to initialize the sidebar tree and toast summary, while active gallery rendering uses the Phase 5 infinite query. The unused `useCurrentScanQuery()` wrapper and old first-page cache bridge helpers were removed after grep showed no callers.
 
-## Phase 5 Scope
+## Phase 5 Scope (COMPLETED)
 
 Status: complete. `useInfiniteScanQuery()` uses plain TanStack Query `useInfiniteQuery` with `queryKeys.scanInfinite(path, IMAGE_PAGE_SIZE)`, `initialPageParam: 0`, and `getNextPageParam(lastPage) => lastPage.next_cursor ?? undefined`. `GalleryGrid.vue` renders folders from the first infinite page and images from flattened infinite pages, and its load-more sentinel calls `fetchNextPage()` only when `hasNextPage` is true and no next-page/background fetch is already active.
 
 TanStack DB is not used for scan or infinite cursor pagination. Pinia `galleryImages`, `nextImageCursor`, `loadingMoreImages`, and `loadMoreImages()` were removed after grep showed they were only self-referenced inside the store. `useInfiniteScanQuery().fetchNextPage()` owns active cursor pagination.
 
-## Phase 6 Scope
+## Phase 6 Scope (COMPLETED)
 
 Status: complete. `useFolderChildrenQuery()` loads expanded folder children with plain TanStack Query, `queryKeys.folderChildren(path)`, and `listFolderChildren(path)`.
 
@@ -164,9 +170,9 @@ Folder tree expansion uses `GET /api/folders?path=...`, which is a lightweight f
 
 TanStack DB is not used for folder tree. Folder child data remains per-path server state owned by Query; it is not modeled as a Query Collection.
 
-## Phase 7 Scope
+## Phase 7 Scope (COMPLETED)
 
-Status: reviewed/documented. No new runtime TanStack DB collection was added.
+Status: complete; reviewed/documented. No new runtime TanStack DB collection was added.
 
 Current approved DB runtime use remains the landing-pages pilot only. It is safe because `/api/landing-pages` returns the complete scoped list and rows are keyed by stable `url` values.
 
