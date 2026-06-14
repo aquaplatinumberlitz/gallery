@@ -1,7 +1,7 @@
 # Tailwind Migration Plan — Animation & Visual Preservation
 
-**Last reviewed:** 2026-06-14 (Token bridge refactored — shadcn neutral pixel-level defaults)
-**Status:** Phase 1 token bridge aligned with upstream shadcn-vue defaults
+**Last reviewed:** 2026-06-15 (Phase 1 + Phase 1.5 complete, token bridge refactored)
+**Status:** Phase 1 ✅, Phase 1.5 ✅ — ready for Phase 2
 **Decision:** Hybrid Migration (see §14)
 
 ---
@@ -963,6 +963,12 @@ Phase 1 adopts shadcn-vue primitives with upstream pixel-level defaults preserve
 - Tailwind utilities are allowed for layout, but standard controls inside these areas should still use shadcn-like defaults.
 - Do not introduce warm gallery shadows/radius/hover effects into generic controls unless approved.
 
+**Completed (commits d980005..f00b167):** ✅
+- Button, Badge, Input, Separator, Breadcrumb — shadcn-vue with pixel-level defaults
+- AppHeader, toast shell, GalleryGrid toolbar, SidebarHeader, FolderTreeItem — Tailwind utilities for layout
+- 101/101 Playwright tests pass
+- Phase 1 token bridge refactored to neutral shadcn oklch values (commit 165bd0a)
+
 **Not allowed in Phase 1 (confirming):**
 - ❌ No MobileHeader, TabletHeader
 - ❌ No RootPathSheet, LightboxMobileSheet
@@ -992,12 +998,21 @@ Behavior-heavy components such as Dialog, Dropdown Menu, Select, Tooltip, Popove
 - Token bridging file created and verified in both light and dark modes (see §6.5).
 - Phase 1 Group A lightweight candidates (Button, Badge, Input, Separator, Breadcrumb) already adopted and proven stable.
 
+**Completed (commits a304f0f, 733eb31, 91ed421):** ✅
+- Dialog, Dropdown Menu, Select, Tooltip, Popover, Tabs — 51 component files generated via `npx shadcn-vue add`
+- 14 animation modifier utilities (`fade-in-0`, `zoom-in-95`, `slide-in-from-left-1/2`, etc.) added to `tailwind.css` with CSS-variable-driven keyframes
+- All components follow pixel-level defaults policy (shadcn radius/shadow/hover, no gallery warm)
+- SettingsModal not replaced yet — Dialog shell available for Phase 2
+- 101/101 Playwright tests pass
+
 **Guidance:**
 - Each component must pass the full testing checklist in §6.6 before being considered "adopted."
 - Do not replace SettingsModal wholesale in one commit — adopt Dialog as the shell first, then migrate internal panels incrementally.
 - Present the default shadcn-like result to the user for review before applying any gallery-specific styling.
 
 ### Phase 2 — Desktop Search/Filter/Admin Primitives
+
+**Next up — ready to start**
 
 **Allowed candidates:**
 - Desktop AdvancedSearch layout (future component, Tailwind-first, shadcn-vue Input/Badge/Button as building blocks)
