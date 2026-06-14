@@ -7,6 +7,7 @@ import {
   SidebarProvider,
   Sidebar,
   SidebarInset,
+  SidebarRail,
 } from "@/components/ui/sidebar";
 
 defineProps<{
@@ -34,17 +35,18 @@ const emit = defineEmits<{
     :open="isSidebarOpen"
     @update:open="emit('update:sidebarOpen', $event)"
   >
-    <Sidebar side="left" variant="sidebar" collapsible="offcanvas">
-      <div class="gallery-sidebar-surface flex h-full w-full flex-col">
+    <Sidebar side="left" variant="sidebar" collapsible="icon">
+      <div class="gallery-sidebar-surface flex h-full w-full flex-col group-data-[collapsible=icon]:items-center">
         <GallerySidebarContent
           :tree="tree"
           :is-loading="isLoading"
           :current-path="currentPath"
         />
       </div>
+      <SidebarRail />
     </Sidebar>
 
-    <GallerySidebarEdgeTrigger @toggle="emit('toggleSidebar')" />
+    <GallerySidebarEdgeTrigger />
 
     <SidebarInset id="main-content" tabindex="-1" class="content">
       <AppHeader

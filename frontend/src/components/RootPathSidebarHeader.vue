@@ -86,44 +86,52 @@ watch(
 
     <!-- DESKTOP: Full input with controls (unchanged) -->
     <template v-else>
-      <label class="field-label" for="root-path">ROOT PATH</label>
-      
-      <div class="field-container">
-        <FolderOpen class="field-icon gallery-icon-md" />
-        <Input
-          id="root-path"
-          ref="inputRef"
-          v-model.trim="pathInput"
-          variant="ghost"
-          type="text"
-          placeholder="Enter folder path..."
-          autocomplete="off"
-          aria-label="Root path"
-          @keyup.enter="onLoad"
-        />
-        
-        <Tooltip>
-          <TooltipTrigger as-child>
-            <Button
-              v-if="pathInput"
-              variant="ghost"
-              size="icon-sm"
-              class="action-btn"
-              type="button"
-              aria-label="Reset path"
-              @click="onReset"
-            >
-              <RotateCcw class="gallery-icon-sm" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Reset path</TooltipContent>
-        </Tooltip>
+      <!-- Icon-only view for collapsed icon mode -->
+      <div class="hidden group-data-[collapsible=icon]:flex items-center justify-center py-1" aria-label="Root Path">
+        <FolderOpen class="size-4 text-sidebar-foreground/70" />
       </div>
-      
-      <p class="field-hint">
-        <Info class="gallery-icon-xs" />
-        Press Enter to load
-      </p>
+
+      <!-- Full desktop view, hidden in collapsed icon mode -->
+      <div class="group-data-[collapsible=icon]:hidden">
+        <label class="field-label" for="root-path">ROOT PATH</label>
+
+        <div class="field-container">
+          <FolderOpen class="field-icon gallery-icon-md" />
+          <Input
+            id="root-path"
+            ref="inputRef"
+            v-model.trim="pathInput"
+            variant="ghost"
+            type="text"
+            placeholder="Enter folder path..."
+            autocomplete="off"
+            aria-label="Root path"
+            @keyup.enter="onLoad"
+          />
+
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button
+                v-if="pathInput"
+                variant="ghost"
+                size="icon-sm"
+                class="action-btn"
+                type="button"
+                aria-label="Reset path"
+                @click="onReset"
+              >
+                <RotateCcw class="gallery-icon-sm" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Reset path</TooltipContent>
+          </Tooltip>
+        </div>
+
+        <p class="field-hint">
+          <Info class="gallery-icon-xs" />
+          Press Enter to load
+        </p>
+      </div>
     </template>
   </div>
 </template>

@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useSidebar } from "@/components/ui/sidebar";
 
-const { state } = useSidebar();
+const { state, toggleSidebar } = useSidebar();
 </script>
 
 <template>
@@ -21,7 +21,7 @@ const { state } = useSidebar();
         :data-state="state"
         type="button"
         :aria-label="state === 'expanded' ? 'Hide Sidebar' : 'Show Sidebar'"
-        @click="$emit('toggle')"
+        @click="toggleSidebar"
       >
         <ChevronLeft v-if="state === 'expanded'" class="gallery-icon-sm" />
         <ChevronRight v-else class="gallery-icon-sm" />
@@ -45,7 +45,7 @@ const { state } = useSidebar();
 }
 
 .gallery-sidebar-edge-trigger[data-state="collapsed"] {
-  left: 0;
+  left: calc(var(--sidebar-width-icon) - 20px);
   border-radius: 0 8px 8px 0;
 }
 

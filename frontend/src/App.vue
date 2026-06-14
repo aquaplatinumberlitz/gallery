@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onBeforeUnmount, defineAsyncComponent, provide } from "vue";
+import { computed, ref, onMounted, onBeforeUnmount, defineAsyncComponent, provide, watch } from "vue";
 import { useGalleryStore } from "./stores/gallery";
 import ToastContainer from "./components/ToastContainer.vue";
 import SettingsModal from "./components/SettingsModal.vue";
@@ -44,7 +44,24 @@ const galleryStore = useGalleryStore();
 
 const { resolvedTheme, toggleTheme } = useGalleryTheme();
 
-const isSidebarOpen = ref(true);
+const SIDEBAR_STATE_KEY = "gallery-sidebar-open"
+
+const isSidebarOpen = ref(
+  (() => {
+    try {
+      const stored = localStorage.getItem(SIDEBAR_STATE_KEY)
+      return stored !== null ? stored === "true" : true
+    } catch {
+      return true
+    }
+  })()
+)
+
+watch(isSidebarOpen, (val) => {
+  try {
+    localStorage.setItem(SIDEBAR_STATE_KEY, String(val))
+  } catch { /* ignore */ }
+})
 const tree = computed(() => galleryStore.sidebarTree);
 const isLoading = computed(() => galleryStore.isLoading);
 const currentPath = computed(() => galleryStore.currentPath);
