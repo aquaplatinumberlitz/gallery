@@ -31,7 +31,7 @@
   --color-border: var(--gallery-border-default);
   --color-border-subtle: var(--gallery-border-subtle);
   --color-border-hover: var(--gallery-border-hover);
-  --color-primary: var(--primary-color);
+  --color-primary: var(--primary);
   --color-primary-hover: var(--gallery-accent-hover);
   --color-primary-muted: var(--gallery-accent-muted);
   --color-primary-text: var(--gallery-accent-text);
@@ -49,7 +49,7 @@
   --color-folder: var(--folder-color);
 
   /* shadcn-vue color tokens (bridged to gallery semantic colors) */
-  --color-primary-foreground: #ffffff;
+  --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--surface-color);
   --color-secondary-foreground: var(--text-color);
   --color-accent: var(--gallery-surface-hover);
@@ -57,7 +57,7 @@
   --color-destructive: var(--gallery-error);
   --color-destructive-foreground: #ffffff;
   --color-input: var(--gallery-border-default);
-  --color-ring: var(--primary-color);
+  --color-ring: var(--ring);
   --color-card: var(--surface-color);
   --color-card-foreground: var(--text-color);
   --color-popover: var(--gallery-surface-elevated);

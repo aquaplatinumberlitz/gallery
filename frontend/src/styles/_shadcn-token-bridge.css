@@ -18,7 +18,7 @@
   --card-foreground: var(--text-color);
   --popover: var(--gallery-surface-elevated);
   --popover-foreground: var(--text-color);
-  --primary: var(--primary-color);
+  --primary: hsl(25deg 3% 12%);
   --primary-foreground: #ffffff;
   --secondary: var(--surface-color);
   --secondary-foreground: var(--text-color);
@@ -30,9 +30,11 @@
   --destructive-foreground: #ffffff;
   --border: var(--gallery-border-default);
   --input: var(--gallery-border-default);
-  --ring: var(--primary-color);
+  --ring: hsl(25deg 3% 12%);
 }
 
 :root[data-theme="dark"] {
+  --primary: hsl(40deg 4% 95%);
   --primary-foreground: #1a1918;
+  --ring: hsl(40deg 4% 95%);
 }
