@@ -78,7 +78,7 @@ async function installStubbedGallery(page: Page) {
 }
 
 async function dismissMobileSidebar(page: Page) {
-  const sidebar = page.locator("#sidebar.mobile.open, aside.sidebar.mobile.open");
+  const sidebar = page.locator('[data-sidebar="sidebar"][data-mobile="true"]');
   if (await sidebar.isVisible({ timeout: 3000 }).catch(() => false)) {
     const viewport = page.viewportSize();
     const clickX = viewport ? viewport.width - 50 : 340;
@@ -517,7 +517,7 @@ test.describe("Tailwind Preflight Regression", () => {
       await page.waitForTimeout(300);
 
       // Sidebar should be open
-      const sidebar = page.locator("#sidebar.mobile.open, aside.sidebar.mobile.open");
+      const sidebar = page.locator('[data-sidebar="sidebar"][data-mobile="true"]');
       const isOpen = await sidebar.isVisible({ timeout: 3000 }).catch(() => false);
       expect(isOpen, "sidebar should open after hamburger click").toBe(true);
 
@@ -681,9 +681,7 @@ test.describe("Tailwind Preflight Regression", () => {
       // On tablet, sidebar may already be open (persistent overlay) which
       // intercepts pointer events on the hamburger. Dismiss it first if needed,
       // then test toggling.
-      const sidebar = page.locator(
-        "#sidebar.open, aside.sidebar.open, #sidebar.tablet.open"
-      );
+      const sidebar = page.locator('[data-sidebar="sidebar"][data-mobile="true"]');
       const wasOpen = await sidebar.isVisible({ timeout: 2000 }).catch(() => false);
 
       if (wasOpen) {

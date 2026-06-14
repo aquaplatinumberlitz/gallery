@@ -788,21 +788,21 @@ Do not add navigation clutter just to expose every future tool. Prefer progressi
 
 ### Phase 1 Done when:
 
-- [ ] `fetchIndexStatus()` is typed and tested.
-- [ ] `useIndexStatusQuery()` exists and uses sane polling.
-- [ ] `IndexStatusChip` shows failed/active/queued/idle correctly (desktop only).
-- [ ] `IndexStatusPanel` shows useful status details (desktop only).
-- [ ] `fetchFacets()` and/or `useFacetsQuery()` are typed or explicitly deferred (data-layer only).
-- [ ] `SettingsModal` desktop-safe refactor does not change behavior unexpectedly (RootPathSheet deferred to future Mobile/Tablet Spec)
-- [ ] No indexing toast spam.
-- [ ] MobileHeader unchanged from pre-Phase-1 baseline.
-- [ ] TabletHeader unchanged from pre-Phase-1 baseline.
-- [ ] No IndexStatusChip in MobileHeader or TabletHeader.
-- [ ] Desktop smoke tests pass.
-- [ ] Mobile freeze verification passes (hamburger, search, sort, theme toggle).
-- [ ] Tablet freeze verification passes.
-- [ ] Typecheck passes.
-- [ ] GalleryGrid behavior is unchanged.
+- [x] `fetchIndexStatus()` is typed and tested.
+- [x] `useIndexStatusQuery()` exists and uses sane polling.
+- [x] `IndexStatusChip` shows failed/active/queued/idle correctly (desktop only).
+- [x] `IndexStatusPanel` shows useful status details (desktop only).
+- [x] `fetchFacets()` and/or `useFacetsQuery()` are typed or explicitly deferred (data-layer only).
+- [x] `SettingsModal` desktop-safe refactor does not change behavior unexpectedly (RootPathSheet deferred to future Mobile/Tablet Spec)
+- [x] No indexing toast spam.
+- [x] MobileHeader unchanged from pre-Phase-1 baseline.
+- [x] TabletHeader unchanged from pre-Phase-1 baseline.
+- [x] No IndexStatusChip in MobileHeader or TabletHeader.
+- [x] Desktop smoke tests pass.
+- [x] Mobile freeze verification passes (hamburger, search, sort, theme toggle).
+- [x] Tablet freeze verification passes.
+- [x] Typecheck passes.
+- [x] GalleryGrid behavior is unchanged.
 
 ### Phase 2 Done when:
 

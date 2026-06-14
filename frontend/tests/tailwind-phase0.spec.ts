@@ -78,7 +78,7 @@ async function installStubbedGallery(page: Page) {
 }
 
 async function dismissMobileSidebar(page: Page) {
-  const sidebar = page.locator("#sidebar.mobile.open, aside.sidebar.mobile.open");
+  const sidebar = page.locator('[data-sidebar="sidebar"][data-mobile="true"]');
   if (await sidebar.isVisible({ timeout: 3000 }).catch(() => false)) {
     const viewport = page.viewportSize();
     const clickX = viewport ? viewport.width - 50 : 340;
@@ -203,7 +203,7 @@ test.describe("Tailwind Phase 0 — Mobile (390x844)", () => {
     await page.waitForTimeout(300);
 
     // Sidebar should be open now
-    const sidebar = page.locator("#sidebar.mobile.open, aside.sidebar.mobile.open");
+    const sidebar = page.locator('[data-sidebar="sidebar"][data-mobile="true"]');
     const isOpen = await sidebar.isVisible({ timeout: 3000 }).catch(() => false);
     expect(isOpen).toBe(true);
 

@@ -161,8 +161,8 @@ test.describe("Desktop layout (1200px+)", () => {
     await installStubbedGallery(page);
     await openStubbedGallery(page);
 
-    // Desktop has a search input with id gallery-search
-    const searchInput = page.locator("#gallery-search");
+    // Desktop has a search input
+    const searchInput = page.getByRole("searchbox");
     await expect(searchInput).toBeVisible({ timeout: 5000 });
   });
 
@@ -172,7 +172,7 @@ test.describe("Desktop layout (1200px+)", () => {
 
     // Desktop should have a toggle sidebar button or a sidebar visible
     const sidebarToggle = page.getByLabel("Toggle sidebar");
-    const searchInput = page.locator("#gallery-search");
+    const searchInput = page.getByRole("searchbox");
     // At least one of these desktop-specific elements should be present
     const hasDesktopUI = await Promise.race([
       sidebarToggle.isVisible().then(() => true).catch(() => false),
@@ -202,7 +202,7 @@ test.describe("Layout transitions", () => {
     await openStubbedGallery(page);
 
     // Verify desktop layout
-    await expect(page.locator("#gallery-search")).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole("searchbox")).toBeVisible({ timeout: 5000 });
 
     // Resize to mobile
     await page.setViewportSize({ width: 375, height: 812 });

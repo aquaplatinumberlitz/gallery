@@ -89,12 +89,8 @@ async function installStubbedGallery(page: Page) {
 }
 
 async function dismissMobileSidebar(page: Page) {
-  const sidebar = page.locator("#sidebar.mobile.open, aside.sidebar.mobile.open");
+  const sidebar = page.locator('[data-sidebar="sidebar"][data-mobile="true"]');
   if (await sidebar.isVisible({ timeout: 3000 }).catch(() => false)) {
-    // On mobile, sidebar (z-index 100, 240px wide) overlays the left side.
-    // The backdrop (z-index 90, fullscreen) is behind the sidebar.
-    // Click on the right half of the viewport (outside the sidebar area)
-    // to hit the backdrop and close the sidebar.
     const viewport = page.viewportSize();
     const clickX = viewport ? viewport.width - 50 : 340;
     const clickY = viewport ? viewport.height / 2 : 400;
