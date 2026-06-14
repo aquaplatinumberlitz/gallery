@@ -63,18 +63,33 @@
   --color-popover: var(--gallery-surface-elevated);
   --color-popover-foreground: var(--text-color);
 
-  /* Radius */
-  --radius-sm: var(--gallery-radius-sm);
-  --radius-md: var(--gallery-radius-md);
-  --radius-lg: var(--gallery-radius-lg);
-  --radius-xl: var(--gallery-radius-xl);
-  --radius-full: var(--gallery-radius-full);
+  /* Radius — standard shadcn defaults */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-full: 9999px;
 
-  /* Shadows */
-  --shadow-sm: var(--gallery-shadow-sm);
-  --shadow-md: var(--gallery-shadow-md);
-  --shadow-lg: var(--gallery-shadow-lg);
-  --shadow-xl: var(--gallery-shadow-xl);
+  /* Radius — gallery-specific overrides for brand surfaces */
+  --radius-gallery-sm: var(--gallery-radius-sm);
+  --radius-gallery-md: var(--gallery-radius-md);
+  --radius-gallery-lg: var(--gallery-radius-lg);
+  --radius-gallery-xl: var(--gallery-radius-xl);
+  --radius-gallery-full: var(--gallery-radius-full);
+
+  /* Shadows — standard shadcn defaults */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+
+  /* Shadows — gallery-specific overrides for brand surfaces */
+  --shadow-gallery-sm: var(--gallery-shadow-sm);
+  --shadow-gallery-md: var(--gallery-shadow-md);
+  --shadow-gallery-lg: var(--gallery-shadow-lg);
+  --shadow-gallery-xl: var(--gallery-shadow-xl);
+
+  /* Shadows — card surfaces */
   --shadow-card: var(--shadow-card);
   --shadow-card-hover: var(--shadow-card-hover);
   --shadow-card-level2: var(--shadow-card-level2);
@@ -89,9 +104,9 @@
   --font-mono: JetBrains Mono, monospace;
 
   /* Durations */
-  --duration-fast: var(--gallery-timing-fast);
-  --duration-normal: var(--gallery-timing-normal);
-  --duration-slow: var(--gallery-timing-slow);
+  --duration-fast: 80ms;
+  --duration-normal: 200ms;
+  --duration-slow: 400ms;
 
   /* Easings */
   --ease-gallery: cubic-bezier(0.4, 0, 0.2, 1);
