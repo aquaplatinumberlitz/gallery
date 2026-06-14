@@ -12,7 +12,7 @@ import { useDevice } from "./composables/useDevice";
 import { useGalleryTheme } from "./composables/useGalleryTheme";
 import { galleryScrollContainerRefKey } from "./injectionKeys";
 import { closeSidebarKey } from "./injectionKeys";
-import { TooltipProvider } from "reka-ui";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const Lightbox = defineAsyncComponent(() => import("./components/Lightbox.vue"));
 const isDev = import.meta.env.DEV;
