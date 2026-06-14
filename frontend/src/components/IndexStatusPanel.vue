@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { Database, Loader, AlertCircle } from "lucide-vue-next";
+import { Database, Loader, AlertCircle, ChevronDown, ChevronRight } from "lucide-vue-next";
 import { useIndexStatusQuery } from "@/composables/useIndexStatusQuery";
 import Button from "@/components/ui/Button.vue";
 import Badge from "@/components/ui/Badge.vue";
@@ -27,6 +27,8 @@ const pathRef = computed(() => props.path || undefined);
 
 const { data, isLoading, isError, error } = useIndexStatusQuery(pathRef, queryEnabled);
 
+const showDetails = ref(false);
+
 const statusState = computed<IndexStatusState>(() => {
   if (isError.value) return "unavailable";
   if (isLoading.value) return "idle";
@@ -37,26 +39,21 @@ const statusState = computed<IndexStatusState>(() => {
 });
 
 const statusLabel = computed<string>(() => {
-  switch (statusState.value) {
-    case "failed": return "Failed";
-    case "active": return "Indexing";
-    case "queued": return "Queued";
-    case "idle": return "Idle";
-    case "unavailable": return "Unavailable";
-    case "disabled": return "Disabled";
+  const d = data.value;
+  if (!d) {
+    switch (statusState.value) {
+      case "disabled": return "Disabled";
+      case "idle": return "Idle";
+      case "unavailable": return "Unavailable";
+      default: return "Idle";
+    }
   }
+  if ((d.failed ?? 0) > 0) return "Error";
+  if ((d.running ?? 0) > 0 || (d.active_jobs ?? 0) > 0) return "Indexing";
+  if ((d.queued ?? 0) > 0 || (d.runtime_queue_depth ?? 0) > 0) return "Queued";
+  if ((d.stale ?? 0) > 0) return "Needs update";
+  return "Idle";
 });
-
-const badgeVariantMap: Record<IndexStatusState, "default" | "secondary" | "destructive" | "outline"> = {
-  failed: "destructive",
-  active: "secondary",
-  queued: "default",
-  idle: "outline",
-  unavailable: "destructive",
-  disabled: "outline",
-};
-
-const statusBadgeVariant = computed(() => badgeVariantMap[statusState.value]);
 
 const counts = computed(() => getIndexStatusCounts(data.value));
 const progress = computed(() => getIndexStatusProgress(data.value));
@@ -64,6 +61,9 @@ const progress = computed(() => getIndexStatusProgress(data.value));
 function onOpenChange(open: boolean) {
   if (open && !queryEnabled.value) {
     queryEnabled.value = true;
+  }
+  if (!open) {
+    showDetails.value = false;
   }
 }
 </script>
@@ -78,7 +78,7 @@ function onOpenChange(open: boolean) {
         aria-label="Index Status"
       >
         <Database class="size-3.5" />
-        <Badge :variant="statusBadgeVariant" class="px-1.5 py-0 text-[10px] leading-none group-data-[collapsible=icon]:hidden">
+        <Badge :variant="statusState === 'failed' || (data?.failed ?? 0) > 0 ? 'destructive' : statusState === 'active' ? 'secondary' : 'outline'" class="px-1.5 py-0 text-[10px] leading-none group-data-[collapsible=icon]:hidden">
           {{ statusLabel }}
         </Badge>
       </Button>
@@ -95,13 +95,17 @@ function onOpenChange(open: boolean) {
       </div>
 
       <div v-else-if="data" class="space-y-3">
+        <!-- Header row: icon + status badge -->
         <div class="flex items-center justify-between">
-          <span class="text-sm font-medium">Index Status</span>
-          <Badge :variant="statusBadgeVariant">{{ statusLabel }}</Badge>
+          <div class="flex items-center gap-2">
+            <Database class="size-4 text-muted-foreground" />
+            <span class="text-sm font-medium">Index</span>
+          </div>
+          <Badge :variant="statusState === 'failed' || (data.failed ?? 0) > 0 ? 'destructive' : statusState === 'active' ? 'secondary' : 'outline'">{{ statusLabel }}</Badge>
         </div>
 
         <!-- Progress bar -->
-        <div v-if="progress !== null && statusState === 'active'" class="space-y-1">
+        <div v-if="progress !== null && (data.running ?? 0) > 0" class="space-y-1">
           <div class="h-1.5 w-full rounded-full bg-muted overflow-hidden">
             <div
               class="h-full rounded-full bg-primary transition-all duration-500"
@@ -111,37 +115,63 @@ function onOpenChange(open: boolean) {
           <span class="text-[10px] text-muted-foreground">{{ progress }}% complete</span>
         </div>
 
-        <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-          <span class="text-muted-foreground">Done</span>
-          <span class="text-right font-medium">{{ counts.done.toLocaleString() }}</span>
+        <!-- Summary metrics -->
+        <div class="space-y-1 text-sm">
+          <div class="flex items-center justify-between">
+            <span class="text-muted-foreground">{{ counts.done.toLocaleString() }} indexed</span>
+          </div>
+          <div v-if="(data.failed ?? 0) > 0" class="flex items-center justify-between">
+            <span class="text-destructive">{{ data.failed }} {{ data.failed === 1 ? 'error' : 'errors' }}</span>
+          </div>
+          <div v-if="(data.queued ?? 0) > 0" class="flex items-center justify-between">
+            <span class="text-muted-foreground">{{ data.queued }} queued</span>
+          </div>
+        </div>
 
-          <span class="text-muted-foreground">Running</span>
+        <!-- Details toggle -->
+        <button
+          type="button"
+          class="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
+          :aria-expanded="showDetails"
+          @click="showDetails = !showDetails"
+        >
+          <ChevronRight v-if="!showDetails" class="size-3" />
+          <ChevronDown v-else class="size-3" />
+          Details
+        </button>
+
+        <!-- Details content -->
+        <div v-if="showDetails" class="grid grid-cols-2 gap-x-4 gap-y-2 text-xs border-t pt-2">
+          <span class="text-muted-foreground">Processing</span>
           <span class="text-right font-medium">{{ counts.running }}</span>
 
           <span class="text-muted-foreground">Queued</span>
           <span class="text-right font-medium">{{ counts.queued }}</span>
 
-          <span class="text-muted-foreground">Failed</span>
-          <span class="text-right font-medium">{{ counts.failed }}</span>
-
-          <span class="text-muted-foreground">Stale</span>
+          <span class="text-muted-foreground">Needs update</span>
           <span class="text-right font-medium">{{ counts.stale }}</span>
 
           <span class="text-muted-foreground">Workers</span>
           <span class="text-right font-medium">{{ data.worker_count }}</span>
 
-          <span class="text-muted-foreground">Active Jobs</span>
+          <span class="text-muted-foreground">Active jobs</span>
           <span class="text-right font-medium">{{ counts.activeJobs }}</span>
 
-          <span class="text-muted-foreground">Queue Depth</span>
+          <span class="text-muted-foreground">Queue depth</span>
           <span class="text-right font-medium">{{ counts.runtimeQueueDepth }}</span>
         </div>
 
+        <!-- Last error -->
         <div v-if="data.last_error" class="rounded-md bg-destructive/10 p-2 text-xs">
           <span class="font-medium text-destructive">Last Error:</span>
           <p class="text-muted-foreground mt-0.5">{{ data.last_error.message }}</p>
           <p class="text-muted-foreground mt-0.5 text-[10px]">{{ new Date(data.last_error.updated_at * 1000).toLocaleString() }}</p>
         </div>
+      </div>
+
+      <!-- Empty state when no data and not loading/error -->
+      <div v-else class="text-sm text-muted-foreground text-center py-2">
+        No index status available
       </div>
     </PopoverContent>
   </Popover>

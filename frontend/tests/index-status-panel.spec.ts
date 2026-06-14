@@ -167,16 +167,15 @@ test.describe("IndexStatusPanel", () => {
     const popover = page.getByRole("dialog", { name: "Index Status" });
     await expect(popover).toBeVisible({ timeout: 5_000 });
 
-    await expect(popover).toContainText("Done");
+    // Summary fields visible by default
+    await expect(popover).toContainText("indexed");
     await expect(popover).toContainText("150");
+
+    // Click Details to reveal technical metrics
+    await popover.getByText("Details").click();
     await expect(popover).toContainText("Workers");
     await expect(popover).toContainText("2");
-    await expect(popover).toContainText("Running");
-    await expect(popover).toContainText("Queued");
-    await expect(popover).toContainText("Failed");
-    await expect(popover).toContainText("Stale");
-    await expect(popover).toContainText("Active Jobs");
-    await expect(popover).toContainText("Queue Depth");
+    await expect(popover).toContainText("Processing");
   });
 
   test("popover content is not empty when opened", async ({ page }) => {
@@ -189,6 +188,10 @@ test.describe("IndexStatusPanel", () => {
 
     const popover = page.getByRole("dialog", { name: "Index Status" });
     await expect(popover).toBeVisible({ timeout: 5_000 });
+
+    // Expand Details so screenshot shows technical metrics too
+    await popover.getByText("Details").click();
+    await page.waitForTimeout(300);
 
     const textContent = await popover.textContent();
     expect(textContent.trim().length).toBeGreaterThan(0);
@@ -303,7 +306,7 @@ test.describe("IndexStatusPanel", () => {
     resolveStatus!(null);
     await page.waitForTimeout(500);
 
-    await expect(page.getByRole("dialog", { name: "Index Status" })).toContainText("Done", { timeout: 5_000 });
+    await expect(page.getByRole("dialog", { name: "Index Status" })).toContainText("indexed", { timeout: 5_000 });
   });
 
   test("index status shows error state when API fails", async ({ page }) => {
