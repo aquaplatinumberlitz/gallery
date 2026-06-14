@@ -170,16 +170,16 @@ test("revisit after browser back preserves gallery without duplicate scans", asy
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
 
-  // Navigate away
-  await page.goto("data:text/html,<h1>Away</h1>", { waitUntil: "domcontentloaded" });
+  // Navigate away — go to blank page on same origin to preserve localStorage access
+  await page.goto(baseUrl.replace(/\/+$/, "") + "/blank-non-existent-path", { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(300);
 
   // Track requests after re-entry
   requests.length = 0;
 
   // Navigate back
-  await page.goBack({ waitUntil: "domcontentloaded" });
-  await page.waitForTimeout(500);
+  await page.goBack({ waitUntil: "networkidle" });
+  await page.waitForTimeout(1500);
 
   // Photo cards should be visible without excessive new scans
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });

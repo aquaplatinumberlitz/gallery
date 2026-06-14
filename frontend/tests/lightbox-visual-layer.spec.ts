@@ -319,6 +319,10 @@ test.describe("EXIF-rotated portrait JPEG", () => {
     await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
 
+    // Close mobile sidebar before interacting with photo cards
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(200);
+
     await page.getByTestId("photo-card").first().click();
     await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
     await page.waitForTimeout(3000);
