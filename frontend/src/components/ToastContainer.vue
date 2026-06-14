@@ -8,7 +8,7 @@ const toastStore = useToastStore();
 <template>
   <Teleport to="body">
     <div 
-      class="toast-container"
+      class="toast-container fixed bottom-6 right-6 z-[10000] flex flex-col-reverse gap-3 max-w-[420px] w-full pointer-events-none max-[480px]:bottom-4 max-[480px]:right-4 max-[480px]:left-4 max-[480px]:max-w-none"
     >
       <TransitionGroup name="toast">
         <ToastItem
@@ -23,28 +23,8 @@ const toastStore = useToastStore();
 </template>
 
 <style scoped>
-.toast-container {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  z-index: 10000;
-  display: flex;
-  flex-direction: column-reverse;
-  gap: 12px;
-  max-width: 420px;
-  width: 100%;
-  pointer-events: none;
-}
-
-/* Responsive positioning */
-@media (max-width: 480px) {
-  .toast-container {
-    bottom: 16px;
-    right: 16px;
-    left: 16px;
-    max-width: none;
-  }
-}
+/* Container positioning and layout handled by Tailwind utilities */
+/* Only animation and reduced motion rules remain */
 
 /* Toast animations */
 .toast-enter-active {

@@ -31,8 +31,8 @@ function onScopeChange(e: Event) {
 </script>
 
 <template>
-  <header class="content-header">
-    <div class="header-left">
+  <header class="content-header grid grid-cols-[auto_1fr_auto] items-start gap-3 shrink-0">
+    <div class="header-left flex items-center gap-3">
       <Button
         v-if="!isMobile"
         variant="ghost"
@@ -53,11 +53,11 @@ function onScopeChange(e: Event) {
         <Settings class="gallery-icon-toolbar" />
       </Button>
     </div>
-    <div class="brand-hero">
+    <div class="brand-hero flex items-center justify-center gap-3 text-center">
       <div class="brand-icon flicker-effect">
         <Landmark :size="40" />
       </div>
-      <div class="brand-text">
+      <div class="brand-text text-left">
         <p class="eyebrow">Local collections</p>
         <h1 class="brand-title">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="18" height="18" class="title-sparkle"><path fill="currentColor" d="M480 96L512 24L544 96L616 128L544 160L512 232L480 160L408 128L480 96zM160 256L224 112L288 256L432 320L288 384L224 528L160 384L16 320L160 256zM480 408L512 480L584 512L512 544L480 616L448 544L376 512L448 480L480 408z"/></svg>
@@ -65,7 +65,7 @@ function onScopeChange(e: Event) {
         </h1>
       </div>
     </div>
-    <div class="header-actions">
+    <div class="header-actions flex flex-col items-end gap-2">
       <button 
         class="theme-toggle" 
         type="button" 
@@ -118,33 +118,16 @@ function onScopeChange(e: Event) {
 </template>
 
 <style scoped lang="scss">
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
+/* brand-hero, header-left, header-actions, content-header layout handled by Tailwind utilities */
+/* Only visual effects, animations, and responsive overrides remain */
 
-/* settings-btn and hamburger-btn: base styling handled by shadcn Button size="icon" variant="ghost" */
-/* Only responsive overrides and display toggles remain here */
-
+/* Hamburger: hidden on desktop, shown on tablet/mobile */
 .hamburger-btn {
   display: none;
 }
 
-.content-header {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: start;
-  gap: 12px;
-  flex-shrink: 0;
-}
-
-.header-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-}
+/* Search box container (visual shell - border, background, rounded, padding) */
+/* Input and clear-btn styling handled by shadcn components */
 
 .eyebrow {
   margin: 0;
@@ -317,15 +300,10 @@ h1 {
   height: var(--gallery-icon-xs);
 }
 
-.brand-hero {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  text-align: center;
-}
+/* brand-hero and brand-text layout handled by Tailwind utilities */
+/* Keep hover effects and keyframes */
 
-/* === Brand icon === */
+/* === Brand icon (visual effects, NOT layout) === */
 
 .brand-icon {
   /* --- 1. CẤU TRÚC CHUNG (Giữ nguyên kích thước cho cả 2 theme) --- */
@@ -350,9 +328,7 @@ h1 {
 
 /* Dark mode styles được chuyển xuống <style> block riêng (không scoped) ở cuối file */
 
-.brand-text {
-  text-align: left;
-}
+/* brand-text layout handled by Tailwind text-left */
 
 /* Keyframes for hover effects only - main animation in main.scss */
 @keyframes underline-grow {

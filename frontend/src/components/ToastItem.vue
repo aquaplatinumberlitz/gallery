@@ -85,7 +85,7 @@ onUnmounted(() => {
 
 <template>
   <div 
-    :class="['toast', typeClass]"
+    :class="['toast flex items-start gap-3 py-3.5 px-4 bg-[var(--toast-bg,#fff)] rounded-xl pointer-events-auto relative overflow-hidden border-l-4 border-l-[var(--toast-accent)] shadow-[0_4px_12px_rgba(0,0,0,0.15),0_0_1px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.4),0_0_1px_rgba(0,0,0,0.2)]', typeClass]"
     @mouseenter="pauseProgress"
     @mouseleave="resumeProgress"
     @focusin="pauseProgress"
@@ -141,21 +141,8 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.toast {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 14px 16px;
-  background: var(--toast-bg, #ffffff);
-  border-radius: 12px;
-  box-shadow: 
-    0 4px 12px rgba(0, 0, 0, 0.15),
-    0 0 1px rgba(0, 0, 0, 0.1);
-  pointer-events: auto;
-  position: relative;
-  overflow: hidden;
-  border-left: 4px solid var(--toast-accent);
-}
+/* Toast item layout (flex, gap, padding, border-radius, shadows) handled by Tailwind utilities */
+/* Keep type variants and interactive elements */
 
 /* Type variants */
 .toast--success {
@@ -319,9 +306,6 @@ onUnmounted(() => {
   --toast-title: var(--gallery-text-primary, #f9fafb);
   --toast-message: var(--gallery-text-secondary, #9ca3af);
   --toast-dismiss: var(--gallery-text-tertiary, #6b7280);
-  box-shadow: 
-    0 4px 12px rgba(0, 0, 0, 0.4),
-    0 0 1px rgba(0, 0, 0, 0.2);
 }
 
 :root[data-theme="dark"] .toast__dismiss:hover {
