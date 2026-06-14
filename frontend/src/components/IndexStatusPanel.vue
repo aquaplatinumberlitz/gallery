@@ -74,11 +74,11 @@ function onOpenChange(open: boolean) {
       <Button
         variant="outline"
         size="sm"
-        class="h-8 gap-1.5 px-2.5"
+        class="h-8 gap-1.5 px-2.5 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center"
         aria-label="Index Status"
       >
         <Database class="size-3.5" />
-        <Badge :variant="statusBadgeVariant" class="px-1.5 py-0 text-[10px] leading-none">
+        <Badge :variant="statusBadgeVariant" class="px-1.5 py-0 text-[10px] leading-none group-data-[collapsible=icon]:hidden">
           {{ statusLabel }}
         </Badge>
       </Button>
