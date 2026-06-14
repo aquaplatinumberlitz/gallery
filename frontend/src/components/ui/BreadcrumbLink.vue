@@ -1,32 +1,22 @@
 <script setup lang="ts">
+import { Primitive, type PrimitiveProps } from "reka-ui";
 import type { HTMLAttributes } from "vue";
-import { cn } from "../../lib/utils";
+import { cn } from "@/lib/utils";
 
-defineProps<{
-  class?: HTMLAttributes["class"];
-  disabled?: boolean;
-  title?: string;
-}>();
-
-const emit = defineEmits<{
-  (e: "click", event: MouseEvent): void;
-}>();
+const props = withDefaults(
+  defineProps<PrimitiveProps & { class?: HTMLAttributes["class"] }>(),
+  { as: "a" },
+);
 </script>
 
 <template>
-  <button
-    type="button"
+  <Primitive
+    :as="as"
+    :as-child="asChild"
     data-reka-collection-item
-    :class="
-      cn(
-        'transition-colors hover:text-foreground',
-        $props.class,
-      )
-    "
-    :disabled="disabled"
-    :title="title"
-    @click="!disabled && emit('click', $event)"
+    :class="cn('transition-colors hover:text-foreground', props.class)"
+    v-bind="$attrs"
   >
     <slot />
-  </button>
+  </Primitive>
 </template>
