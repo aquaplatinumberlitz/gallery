@@ -1,15 +1,13 @@
 <script setup lang="ts">
 import GallerySidebarContent from "../components/GallerySidebarContent.vue";
+import GallerySidebarEdgeTrigger from "../components/GallerySidebarEdgeTrigger.vue";
 import AppHeader from "../components/AppHeader.vue";
 import GalleryGrid from "../components/GalleryGrid.vue";
-import { ChevronLeft, ChevronRight } from "lucide-vue-next";
-import Button from "@/components/ui/Button.vue";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+  SidebarProvider,
+  Sidebar,
+  SidebarInset,
+} from "@/components/ui/sidebar";
 
 defineProps<{
   theme: "light" | "dark";
@@ -31,38 +29,21 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="layout" :class="{ collapsed: !isSidebarOpen }">
-    <aside
-      id="sidebar"
-      class="sidebar"
-      :class="{ closed: !isSidebarOpen }"
-    >
+  <SidebarProvider
+    :open="isSidebarOpen"
+    @update:open="emit('toggleSidebar')"
+  >
+    <Sidebar side="left" variant="sidebar" collapsible="offcanvas" class="gallery-sidebar-surface">
       <GallerySidebarContent
         :tree="tree"
         :is-loading="isLoading"
         :current-path="currentPath"
       />
-    </aside>
+    </Sidebar>
 
-    <!-- Sidebar Edge Toggle Button -->
-    <Tooltip>
-      <TooltipTrigger as-child>
-        <Button
-          variant="ghost"
-          size="icon"
-          :class="cn('sidebar-edge-toggle border border-border bg-background shadow-xs', isSidebarOpen && 'sidebar-open')"
-          type="button"
-          :aria-label="isSidebarOpen ? 'Hide Sidebar' : 'Show Sidebar'"
-          @click="emit('toggleSidebar')"
-        >
-          <ChevronLeft v-if="isSidebarOpen" class="gallery-icon-sm" />
-          <ChevronRight v-else class="gallery-icon-sm" />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{{ isSidebarOpen ? 'Hide Sidebar' : 'Show Sidebar' }}</TooltipContent>
-    </Tooltip>
+    <GallerySidebarEdgeTrigger @toggle="emit('toggleSidebar')" />
 
-    <section class="content" id="main-content" tabindex="-1">
+    <SidebarInset id="main-content" tabindex="-1" class="content">
       <AppHeader
         :is-mobile="false"
         :is-sidebar-open="isSidebarOpen"
@@ -81,65 +62,23 @@ const emit = defineEmits<{
           :is-mobile="false"
         />
       </div>
-    </section>
-  </div>
+    </SidebarInset>
+  </SidebarProvider>
 </template>
 
 <style scoped lang="scss">
-.layout {
-  height: 100dvh;
-  height: 100vh; /* fallback */
-  background: var(--bg-color);
-  color: var(--text-color);
-  display: grid;
-  grid-template-columns: 280px 1fr;
-  overflow: hidden;
-}
-
-.layout.collapsed {
-  grid-template-columns: 0 1fr;
-}
-
-.sidebar {
+.gallery-sidebar-surface {
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.04)), var(--surface-color);
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.sidebar.closed {
-  transform: translateX(-100%);
-  box-shadow: none;
 }
 
 .content {
-  padding: 16px 16px 24px 16px;
   display: flex;
   flex-direction: column;
   gap: 16px;
   height: 100%;
   overflow: hidden;
+  padding: 16px 16px 24px 16px;
   transition: padding-top 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Sidebar Edge Toggle Button */
-.sidebar-edge-toggle {
-  position: fixed;
-  left: 260px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 101;
-  width: 24px;
-  height: 48px;
-  border-radius: 0 8px 8px 0;
-  transition: all 0.3s ease;
-}
-
-.sidebar-edge-toggle:not(.sidebar-open) {
-  left: 0;
-  border-radius: 0 8px 8px 0;
 }
 
 .content-body {
@@ -157,56 +96,10 @@ const emit = defineEmits<{
 /* Import breakpoint mixins */
 @import "../styles/breakpoints";
 
-/* Icon sizes using design tokens */
-.gallery-icon-md {
-  width: var(--gallery-icon-md);
-  height: var(--gallery-icon-md);
-}
-.gallery-icon-sm {
-  width: var(--gallery-icon-sm);
-  height: var(--gallery-icon-sm);
-}
-
-/* =============================================
-   RESPONSIVE BREAKPOINTS
-   ============================================= */
-
 /* Tablet & below: 1199px */
 @media (max-width: 1199px) {
-  .layout {
-    grid-template-columns: 240px 1fr;
-  }
-
-  .layout.collapsed {
-    grid-template-columns: 0 1fr;
-  }
-
   .content {
     padding: 16px 12px 20px 12px;
-  }
-
-  .sidebar-edge-toggle {
-    left: 220px;
-  }
-
-  .sidebar-edge-toggle:not(.sidebar-open) {
-    left: 0;
-  }
-}
-
-/* Tablet range (768-1199px) — sidebar 240px persistent + hamburger always visible, edge-toggle hidden */
-@include tablet {
-  .sidebar-edge-toggle {
-    display: none !important;
-  }
-
-  .sidebar {
-    width: 240px;
-  }
-
-  .sidebar.closed {
-    transform: translateX(0);
-    width: 240px;
   }
 }
 </style>

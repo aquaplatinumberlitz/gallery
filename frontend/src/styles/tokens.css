@@ -105,6 +105,10 @@
   --gallery-icon-nav:               var(--gallery-icon-xxl);
   --gallery-icon-card:              var(--gallery-icon-md);
 
+  /* ── Sidebar widths ── */
+  --gallery-sidebar-width: 280px;
+  --gallery-sidebar-mobile-width: 240px;
+
   /* ── Theme-toggle (giữ nguyên gradient) ── */
   --gallery-toggle-gradient-light:   linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   --gallery-toggle-gradient-dark:    linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
