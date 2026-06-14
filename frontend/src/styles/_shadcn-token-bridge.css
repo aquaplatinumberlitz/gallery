@@ -1,0 +1,38 @@
+/*
+ * shadcn-vue — Gallery Token Bridge
+ *
+ * shadcn-vue components reference standard shadcn CSS variable names
+ * (--background, --foreground, --primary, --muted, --accent, etc.).
+ *
+ * This file bridges those names to gallery semantic tokens.
+ * Imported AFTER tokens.css, BEFORE Tailwind and main.scss.
+ */
+
+:root {
+  --background: var(--bg-color);
+  --foreground: var(--text-color);
+  --card: var(--surface-color);
+  --card-foreground: var(--text-color);
+  --popover: var(--surface-color);
+  --popover-foreground: var(--text-color);
+  --primary: var(--primary-color);
+  --primary-foreground: #ffffff;
+  --secondary: var(--surface-color);
+  --secondary-foreground: var(--text-color);
+  --muted: var(--gallery-surface-hover);
+  --muted-foreground: var(--muted-text);
+  --accent: var(--gallery-surface-hover);
+  --accent-foreground: var(--text-color);
+  --destructive: var(--gallery-error);
+  --destructive-foreground: #ffffff;
+  --border: var(--gallery-border-default);
+  --input: var(--gallery-border-default);
+  --ring: var(--primary-color);
+  --radius: var(--gallery-radius-md);
+}
+
+:root[data-theme="dark"] {
+  --primary-foreground: #1a1918;
+  --secondary-foreground: var(--text-color);
+  --destructive-foreground: #ffffff;
+}

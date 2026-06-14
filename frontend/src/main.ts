@@ -1,5 +1,6 @@
 import "./assets/fonts.css";
 import "./styles/tokens.css";
+import "./styles/_shadcn-token-bridge.css";
 import "./styles/tailwind.css";
 import "./styles/main.scss";
 

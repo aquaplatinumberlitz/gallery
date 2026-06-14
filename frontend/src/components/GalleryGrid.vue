@@ -28,6 +28,7 @@ import {
   ArrowDownToLine, Check,
   Type, Clock, Images, Folder, FolderOpen
 } from "lucide-vue-next";
+import Button from "./ui/Button.vue";
 
 const _icons: Record<string, any> = { Type, Clock }
 
@@ -586,22 +587,26 @@ onBeforeUnmount(() => {
          ============================================================ -->
     <div v-if="deviceCategory === 'desktop'" class="grid-header">
       <div class="nav-group">
-        <button 
-          class="nav-btn ghost" 
-          :disabled="!canBack" 
-          @click="goBack" 
+        <Button
+          variant="ghost"
+          size="nav"
+          class="nav-btn"
+          :disabled="!canBack"
+          @click="goBack"
           title="Back"
         >
           <ArrowLeft />
-        </button>
-        <button 
-          class="nav-btn ghost" 
-          :disabled="!canForward" 
-          @click="goForward" 
+        </Button>
+        <Button
+          variant="ghost"
+          size="nav"
+          class="nav-btn"
+          :disabled="!canForward"
+          @click="goForward"
           title="Forward"
         >
           <ArrowRight />
-        </button>
+        </Button>
       </div>
       <Breadcrumb v-if="showToolbarBreadcrumb" class="breadcrumb-wrap" :path="currentPath" @navigate="handleOpenFolder" />
 
@@ -1320,34 +1325,11 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
+/* nav-btn base and ghost styles handled by shadcn Button size="nav" variant="ghost" */
+/* Keep only open-folder (color-mix), responsive overrides, and focus-visible */
+
 .nav-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  background: transparent;
-  color: var(--text-color);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: transform 120ms ease, box-shadow 150ms ease, border-color 120ms ease, background-color 120ms ease;
-}
-
-.nav-btn.ghost {
-  background: transparent;
-}
-
-.nav-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.nav-btn:not(:disabled):hover {
-  border-color: var(--primary-color);
-  background: rgba(0, 0, 0, 0.04);
-  box-shadow: var(--gallery-shadow-sm, 0 8px 18px rgba(0, 0, 0, 0.08));
-  transform: translateY(-1px);
+  /* Base class preserved for responsive grid (mobile overrides) and open-folder variant */
 }
 
 /* Open Folder Button - Tinted Pill Style */

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Landmark, Search, X, Settings, Menu } from 'lucide-vue-next'
+import Button from './ui/Button.vue'
 
 interface Props {
   isMobile: boolean
@@ -36,21 +37,25 @@ function onScopeChange(e: Event) {
 <template>
   <header class="content-header">
     <div class="header-left">
-      <button 
+      <Button
         v-if="!isMobile"
+        variant="ghost"
+        size="icon"
         class="hamburger-btn"
         @click="emit('toggle-sidebar')"
         title="Toggle sidebar"
       >
         <Menu class="gallery-icon-toolbar" />
-      </button>
-      <button 
-        class="settings-btn" 
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        class="settings-btn"
         @click="emit('open-settings')"
         title="Change Intro Page"
       >
         <Settings class="gallery-icon-toolbar" />
-      </button>
+      </Button>
     </div>
     <div class="brand-hero">
       <div class="brand-icon flicker-effect">
@@ -120,48 +125,11 @@ function onScopeChange(e: Event) {
   gap: 12px;
 }
 
-.settings-btn {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  background: var(--surface-color);
-  color: var(--text-color);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 120ms ease, box-shadow 150ms ease, border-color 120ms ease;
-  font-size: 16px;
-}
-
-.settings-btn:hover {
-  border-color: var(--primary-color);
-  box-shadow: var(--gallery-shadow-md, 0 4px 12px rgba(214, 161, 93, 0.25));
-  transform: translateY(-1px);
-  color: var(--primary-color);
-}
+/* settings-btn and hamburger-btn: base styling handled by shadcn Button size="icon" variant="ghost" */
+/* Only responsive overrides and display toggles remain here */
 
 .hamburger-btn {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  background: var(--surface-color);
-  color: var(--text-color);
-  cursor: pointer;
   display: none;
-  align-items: center;
-  justify-content: center;
-  transition: transform 120ms ease, box-shadow 150ms ease, border-color 120ms ease;
-  font-size: 16px;
-}
-
-.hamburger-btn:hover {
-  border-color: var(--primary-color);
-  box-shadow: var(--gallery-shadow-md, 0 4px 12px rgba(214, 161, 93, 0.25));
-  transform: translateY(-1px);
-  color: var(--primary-color);
 }
 
 .content-header {
