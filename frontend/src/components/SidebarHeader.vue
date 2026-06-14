@@ -5,6 +5,8 @@ import { FolderOpen, RotateCcw, Info, Edit3 } from "lucide-vue-next";
 import { useDevice } from "../composables/useDevice";
 import RootPathSheet from "./RootPathSheet.vue";
 import { closeSidebarKey } from "../injectionKeys";
+import Input from "./ui/Input.vue";
+import Button from "./ui/Button.vue";
 
 const { isMobile } = useDevice();
 const closeSidebar = inject(closeSidebarKey, () => {});
@@ -78,26 +80,29 @@ watch(
       
       <div class="field-container">
         <FolderOpen class="field-icon gallery-icon-md" />
-        <input
+        <Input
           id="root-path"
           ref="inputRef"
-          v-model="pathInput"
+          v-model.trim="pathInput"
+          variant="ghost"
           type="text"
           placeholder="Enter folder path..."
-          @keyup.enter="onLoad"
           autocomplete="off"
           :title="pathInput"
+          @keyup.enter="onLoad"
         />
         
-        <button 
+        <Button
           v-if="pathInput"
-          class="action-btn" 
-          type="button" 
-          @click="onReset" 
+          variant="ghost"
+          size="icon-sm"
+          class="action-btn"
+          type="button"
+          @click="onReset"
           title="Reset path"
         >
           <RotateCcw class="gallery-icon-sm" />
-        </button>
+        </Button>
       </div>
       
       <p class="field-hint">
@@ -123,6 +128,10 @@ watch(
   margin-bottom: 8px;
   letter-spacing: 0.5px;
 }
+
+/* field-container and input styling handled by shadcn Input variant="ghost" */
+/* and shadcn Button variant="ghost" size="icon-sm" */
+/* Only container shell and responsive rules remain */
 
 .field-container {
   background: var(--surface-color, #fff);
@@ -157,54 +166,6 @@ watch(
   margin: 8px 0 0;
   font-size: 12px;
   color: var(--muted-text, #65676b);
-}
-
-input {
-  flex: 1;
-  border: none;
-  background: transparent;
-  padding: 0 8px;
-  font-size: 14px;
-  outline: none;
-  color: var(--text-color, #050505);
-  min-width: 0;
-}
-
-input::placeholder {
-  color: var(--muted-text, #aaa);
-}
-
-.action-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: none;
-  background: transparent;
-  color: var(--muted-text, #65676b);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-left: 4px;
-  transition: all 0.2s;
-}
-
-.action-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--text-color, #000);
-}
-
-.action-btn:focus {
-  outline: none;
-}
-
-.action-btn:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring-shadow);
-}
-
-.action-btn:active {
-  transform: scale(0.95);
 }
 
 /* Responsive: iOS Safari zoom fix — font-size >= 16px prevents auto-zoom on input focus */

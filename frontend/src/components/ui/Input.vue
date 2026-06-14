@@ -1,25 +1,52 @@
 <script setup lang="ts">
 import type { HTMLAttributes } from "vue";
+import { computed } from "vue";
+import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/utils";
+
+const inputVariants = cva(
+  "flex w-full text-sm text-foreground placeholder:text-muted-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+  {
+    variants: {
+      variant: {
+        default:
+          "h-10 rounded-[10px] border border-border bg-surface px-3 py-2 file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:outline-none focus-visible:border-primary focus-visible:shadow-[var(--focus-ring-shadow)]",
+        ghost:
+          "h-full border-none bg-transparent px-2 py-0 outline-none min-w-0 text-sm text-foreground placeholder:text-muted-foreground",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
+  }
+);
+
+type InputVariants = VariantProps<typeof inputVariants>;
 
 interface Props {
   class?: HTMLAttributes["class"];
   type?: string;
+  variant?: InputVariants["variant"];
+  modelValue?: string;
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   type: "text",
+  variant: "default",
 });
+
+const emit = defineEmits<{
+  "update:modelValue": [value: string];
+}>();
+
+const inputClasses = computed(() => cn(inputVariants({ variant: props.variant }), props.class));
 </script>
 
 <template>
   <input
     :type="type"
-    :class="
-      cn(
-        'flex h-10 w-full rounded-[10px] border border-border bg-surface px-3 py-2 text-sm text-foreground file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary focus-visible:shadow-[var(--focus-ring-shadow)] disabled:cursor-not-allowed disabled:opacity-50 transition-colors',
-        $props.class,
-      )
-    "
+    :value="modelValue"
+    :class="inputClasses"
+    @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
   />
 </template>

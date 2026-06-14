@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Landmark, Search, X, Settings, Menu } from 'lucide-vue-next'
 import Button from './ui/Button.vue'
+import Input from './ui/Input.vue'
 
 interface Props {
   isMobile: boolean
@@ -18,11 +19,6 @@ const emit = defineEmits<{
   'toggle-theme': []
   'open-settings': []
 }>()
-
-function onSearchInput(e: Event) {
-  const target = e.target as HTMLInputElement
-  emit('update:searchQuery', target.value)
-}
 
 function clearSearch() {
   emit('update:searchQuery', '')
@@ -88,22 +84,25 @@ function onScopeChange(e: Event) {
       </button>
       <div class="search-box">
         <Search class="gallery-icon-toolbar search-icon" />
-        <input
+        <Input
           id="gallery-search"
-          :value="searchQuery"
-          @input="onSearchInput"
+          :modelValue="searchQuery"
+          @update:model-value="(v: string) => emit('update:searchQuery', v)"
+          variant="ghost"
           type="search"
           placeholder="Photos, albums, prompts"
           autocomplete="off"
         />
-        <button 
-          v-if="searchQuery" 
-          class="clear-btn" 
+        <Button
+          v-if="searchQuery"
+          variant="ghost"
+          size="icon-sm"
+          class="clear-btn"
           @click="clearSearch"
           type="button"
         >
           <X class="gallery-icon-xs" />
-        </button>
+        </Button>
         <select
           class="scope-select"
           :value="searchScope"
@@ -292,37 +291,8 @@ h1 {
   box-shadow: var(--gallery-shadow-md, 0 4px 12px rgba(214, 161, 93, 0.25));
 }
 
-.search-box input {
-  flex: 1;
-  border: none;
-  background: transparent;
-  padding: 0 8px;
-  font-size: 14px;
-  color: var(--text-color);
-  outline: none;
-  min-width: 0;
-}
-
-.search-box input::placeholder {
-  color: var(--muted-text);
-}
-
-.search-box .clear-btn {
-  background: transparent;
-  border: none;
-  color: var(--muted-text);
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-}
-
-.search-box .clear-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--text-color);
-}
+/* search-box input and clear-btn styling handled by shadcn Input variant="ghost" and Button variant="ghost" size="icon-sm" */
+/* Only responsive rules remain */
 
 .scope-select {
   border: 1px solid color-mix(in srgb, var(--border-color, rgba(0, 0, 0, 0.1)) 55%, transparent);
