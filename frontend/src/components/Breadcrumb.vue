@@ -354,7 +354,7 @@ const closeMenu = () => {
 }
 
 .expand-btn {
-  color: var(--primary-color);
+  color: var(--foreground);
 }
 
 /* Dropdown Animation */
