@@ -6,12 +6,12 @@ References inspected:
 
 - gallery-repo: `155f120f81730fa7ac1e65609364135e4262e776`
 - Immich: `f382624e689315f327632fff1505cca3cfa21640`
-- DiffusionToolkit audit: [docs/DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md](DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md), which inspected DiffusionToolkit commit `153409c3a0e9569886e6601530365808d4ecbb0e`
+- DiffusionToolkit audit: [docs/DT&IMMICH analysis/DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md](DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md), which inspected DiffusionToolkit commit `153409c3a0e9569886e6601530365808d4ecbb0e`
 
 Inputs:
 
-- Local gallery-repo code and docs listed in [docs/IMMICH_PIPELINE_AUDIT.md](IMMICH_PIPELINE_AUDIT.md).
-- Immich source files listed in [docs/IMMICH_PIPELINE_AUDIT.md](IMMICH_PIPELINE_AUDIT.md).
+- Local gallery-repo code and docs listed in [docs/DT&IMMICH analysis/IMMICH_PIPELINE_AUDIT.md](IMMICH_PIPELINE_AUDIT.md).
+- Immich source files listed in [docs/DT&IMMICH analysis/IMMICH_PIPELINE_AUDIT.md](IMMICH_PIPELINE_AUDIT.md).
 - Existing DiffusionToolkit audit doc. I did not reclone DiffusionToolkit because the existing audit already contains recent file-level evidence for the claims used here.
 
 ## Executive Summary
