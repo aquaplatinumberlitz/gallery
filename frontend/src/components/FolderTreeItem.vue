@@ -101,7 +101,7 @@ const handleKeydown = (e: KeyboardEvent) => {
 
 <template>
   <div 
-    class="tree-item block"
+    class="tree-item block group-data-[collapsible=icon]:hidden"
   >
     <div class="tree-row-shell flex items-center gap-1.5">
       <Button

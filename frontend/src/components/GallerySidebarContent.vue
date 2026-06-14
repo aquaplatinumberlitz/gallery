@@ -33,7 +33,7 @@ defineProps<{
 
       <SidebarGroupContent>
         <div class="tree-container">
-          <p v-if="!isLoading && !tree.length" class="empty-state">
+          <p v-if="!isLoading && !tree.length" class="empty-state group-data-[collapsible=icon]:hidden">
             Enter a root path and click Load to start.
           </p>
           <FolderTreeItem
