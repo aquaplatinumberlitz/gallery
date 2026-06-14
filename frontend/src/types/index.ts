@@ -97,3 +97,16 @@ export interface UnifiedSearchResponse extends UnifiedSearchResults {
   scope: SearchScope;
   root: string;
 }
+
+export interface IndexStatusResponse {
+  index_type: "full" | "partial" | "none";
+  indexed_files: number;
+  total_files: number;
+  enabled: boolean;
+  worker_count: number;
+  active_jobs: number;
+  runtime_queue_depth: number;
+  coalesced_duplicates: number;
+  staged_path_queue_depth: number;
+  active_scan_requests: number;
+}

@@ -21,4 +21,6 @@ export const queryKeys = {
 
   metadata: (path: string) =>
     ["metadata", normalizeQueryPath(path)] as const,
+
+  indexStatus: () => ["index-status"] as const,
 };

@@ -1,10 +1,16 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
-import { useFocusTrap } from '../composables/useFocusTrap';
+import { computed, ref, onMounted, watch } from 'vue';
 import { useLandingPagesLiveQuery } from '../db/composables/useLandingPagesLiveQuery';
 import { LIGHTBOX_ALWAYS_LOAD_ORIGINAL_KEY } from '../utils/lightbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 
-const props = defineProps<{
+defineProps<{
   isOpen: boolean;
 }>();
 
@@ -16,23 +22,14 @@ const emit = defineEmits<{
 const introMode = ref<'auto' | 'disabled' | 'manual'>('auto');
 const selectedTheme = ref('');
 const alwaysLoadOriginal = ref(false);
-const modalRef = ref<HTMLElement | null>(null);
-const closeButtonRef = ref<HTMLElement | null>(null);
 const landingPagesQuery = useLandingPagesLiveQuery();
 const availableThemes = computed(() =>
   (landingPagesQuery.data.value ?? []).map((page) => page.url)
 );
 const isLoadingThemes = computed(() => landingPagesQuery.isLoading.value);
 
-const { activate, deactivate } = useFocusTrap(modalRef, {
-  initialFocus: closeButtonRef,
-  returnFocus: true,
-});
-
-// Helper: /landpage/birthday/index.html -> Birthday
 const formatThemeName = (path: string) => {
   const parts = path.split('/').filter(p => p && p !== 'landpage' && !p.endsWith('.html'));
-  // parts[0] should be the folder name e.g. 'birthday'
   if (parts.length > 0) {
     const name = parts[0];
     return name.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
@@ -88,326 +85,78 @@ const handlePreview = () => {
   }
 };
 
-const handleKeydown = (e: KeyboardEvent) => {
-  if (!props.isOpen) return;
-  if (e.key === 'Escape') {
+function onOpenChange(open: boolean) {
+  if (!open) {
     emit('close');
   }
-};
-
-watch(
-  () => props.isOpen,
-  (open) => {
-    if (open) {
-      activate();
-      document.addEventListener('keydown', handleKeydown);
-    } else {
-      deactivate();
-      document.removeEventListener('keydown', handleKeydown);
-    }
-  }
-);
-
-onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeydown);
-  deactivate();
-});
+}
 </script>
 
 <template>
-  <Teleport to="body">
-    <div v-if="isOpen" class="modal-backdrop" @click="$emit('close')">
-      <div ref="modalRef" class="modal-content" @click.stop>
-        <header class="modal-header">
-          <h2 class="modal-title">SETTINGS</h2>
-          <button ref="closeButtonRef" class="close-text-btn" @click="$emit('close')">CLOSE</button>
-        </header>
+  <Dialog :open="isOpen" @update:open="onOpenChange">
+    <DialogContent class="sm:max-w-[400px]">
+      <DialogHeader>
+        <DialogTitle class="font-[Cinzel] tracking-wider uppercase text-base">Settings</DialogTitle>
+        <DialogDescription class="sr-only">Configure gallery intro and viewer settings</DialogDescription>
+      </DialogHeader>
 
-        <div class="modal-body">
-          <section class="setting-section">
-            <h3 class="section-title">Intro Screen</h3>
-            
-            <div class="options-list">
-              <label class="option-item" :class="{ active: introMode === 'auto' }">
-                <input type="radio" v-model="introMode" value="auto" class="sr-only">
-                <div class="option-content">
-                  <span class="option-label">Automatic</span>
-                  <span class="option-desc">Random themes, prioritizing holidays</span>
-                </div>
-              </label>
-
-              <label class="option-item" :class="{ active: introMode === 'disabled' }">
-                <input type="radio" v-model="introMode" value="disabled" class="sr-only">
-                <div class="option-content">
-                  <span class="option-label">Disabled</span>
-                  <span class="option-desc">Skip intro and enter gallery directly</span>
-                </div>
-              </label>
-
-              <label class="option-item" :class="{ active: introMode === 'manual' }">
-                <input type="radio" v-model="introMode" value="manual" class="sr-only">
-                <div class="option-content">
-                  <span class="option-label">Manual Selection</span>
-                  <span class="option-desc">Always show a specific theme</span>
-                </div>
-              </label>
-            </div>
-
-            <div v-if="introMode === 'manual'" class="sub-settings">
-              <div v-if="isLoadingThemes" class="loading-text">Loading themes...</div>
-              <div v-else class="theme-selector-group">
-                <select v-model="selectedTheme" class="theme-select">
-                  <option v-for="theme in availableThemes" :key="theme" :value="theme">
-                    {{ formatThemeName(theme) }}
-                  </option>
-                </select>
-                <button class="preview-btn" @click="handlePreview">
-                  PREVIEW
-                </button>
-              </div>
-            </div>
-          </section>
-
-          <section class="setting-section">
-            <h3 class="section-title">Viewer Images</h3>
-
-            <label class="option-item" :class="{ active: alwaysLoadOriginal }">
-              <input type="checkbox" v-model="alwaysLoadOriginal" class="sr-only">
-              <div class="option-content">
-                <span class="option-label">Always load original</span>
-                <span class="option-desc">Use source files immediately in the viewer</span>
+      <div class="space-y-6">
+        <section class="space-y-4">
+          <h3 class="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Intro Screen</h3>
+          
+          <div class="flex flex-col gap-2">
+            <label class="flex items-center rounded-md border px-4 py-3 cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground" :class="{ 'border-primary bg-accent text-accent-foreground': introMode === 'auto' }">
+              <input type="radio" v-model="introMode" value="auto" class="sr-only">
+              <div class="flex flex-col gap-0.5">
+                <span class="text-sm font-medium">Automatic</span>
+                <span class="text-xs text-muted-foreground">Random themes, prioritizing holidays</span>
               </div>
             </label>
-          </section>
-        </div>
+
+            <label class="flex items-center rounded-md border px-4 py-3 cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground" :class="{ 'border-primary bg-accent text-accent-foreground': introMode === 'disabled' }">
+              <input type="radio" v-model="introMode" value="disabled" class="sr-only">
+              <div class="flex flex-col gap-0.5">
+                <span class="text-sm font-medium">Disabled</span>
+                <span class="text-xs text-muted-foreground">Skip intro and enter gallery directly</span>
+              </div>
+            </label>
+
+            <label class="flex items-center rounded-md border px-4 py-3 cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground" :class="{ 'border-primary bg-accent text-accent-foreground': introMode === 'manual' }">
+              <input type="radio" v-model="introMode" value="manual" class="sr-only">
+              <div class="flex flex-col gap-0.5">
+                <span class="text-sm font-medium">Manual Selection</span>
+                <span class="text-xs text-muted-foreground">Always show a specific theme</span>
+              </div>
+            </label>
+          </div>
+
+          <div v-if="introMode === 'manual'" class="space-y-3 pt-3 border-t">
+            <div v-if="isLoadingThemes" class="text-sm text-muted-foreground">Loading themes...</div>
+            <div v-else class="flex flex-col gap-3">
+              <select v-model="selectedTheme" class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer">
+                <option v-for="theme in availableThemes" :key="theme" :value="theme">
+                  {{ formatThemeName(theme) }}
+                </option>
+              </select>
+              <button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring h-9 px-4 py-2 border border-primary text-primary hover:bg-primary hover:text-primary-foreground uppercase tracking-wider" @click="handlePreview">
+                Preview
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section class="space-y-4">
+          <h3 class="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Viewer Images</h3>
+
+          <label class="flex items-center rounded-md border px-4 py-3 cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground" :class="{ 'border-primary bg-accent text-accent-foreground': alwaysLoadOriginal }">
+            <input type="checkbox" v-model="alwaysLoadOriginal" class="sr-only">
+            <div class="flex flex-col gap-0.5">
+              <span class="text-sm font-medium">Always load original</span>
+              <span class="text-xs text-muted-foreground">Use source files immediately in the viewer</span>
+            </div>
+          </label>
+        </section>
       </div>
-    </div>
-  </Teleport>
+    </DialogContent>
+  </Dialog>
 </template>
-
-<style scoped>
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: var(--gallery-lightbox-overlay, rgba(0, 0, 0, 0.4));
-  backdrop-filter: blur(4px);
-  z-index: 10000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: fadeIn 0.2s ease;
-}
-
-.modal-content {
-  background: var(--surface-color);
-  width: 100%;
-  max-width: 400px;
-  border-radius: 16px;
-  box-shadow: var(--gallery-shadow-xl, 0 20px 50px rgba(0, 0, 0, 0.2));
-  overflow: hidden;
-  border: 1px solid var(--gallery-border-default, rgba(0, 0, 0, 0.08));
-  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-[data-theme="dark"] .modal-content {
-  border: 1px solid var(--gallery-border-default, rgba(255, 255, 255, 0.1));
-  background: var(--surface-color);
-}
-
-.modal-header {
-  padding: 20px 24px;
-  border-bottom: 1px solid var(--gallery-border-subtle, rgba(0, 0, 0, 0.06));
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-[data-theme="dark"] .modal-header {
-  border-bottom-color: var(--gallery-border-subtle, rgba(255, 255, 255, 0.06));
-}
-
-.modal-title {
-  font-family: 'Cinzel', serif;
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  margin: 0;
-  color: var(--title-color);
-}
-
-[data-theme="dark"] .modal-title {
-  color: var(--text-color);
-}
-
-.close-text-btn {
-  background: none;
-  border: none;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  color: var(--muted-text);
-  cursor: pointer;
-  padding: 4px 8px;
-  transition: color 0.2s;
-  text-transform: uppercase;
-}
-
-.close-text-btn:hover {
-  color: var(--text-color);
-}
-
-.modal-body {
-  padding: 24px;
-}
-
-.setting-section + .setting-section {
-  margin-top: 24px;
-}
-
-.section-title {
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--muted-text);
-  margin: 0 0 16px 0;
-  font-weight: 600;
-}
-
-.options-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.option-item {
-  display: flex;
-  align-items: center;
-  padding: 12px 16px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border: 1px solid transparent;
-  background: var(--gallery-surface-hover, rgba(0, 0, 0, 0.02));
-}
-
-[data-theme="dark"] .option-item {
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.option-item:hover {
-  background: var(--gallery-surface-hover, rgba(0, 0, 0, 0.04));
-}
-
-[data-theme="dark"] .option-item:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.option-item.active {
-  background: var(--surface-color);
-  border-color: var(--primary-color);
-  box-shadow: var(--gallery-shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.05));
-}
-
-[data-theme="dark"] .option-item.active {
-  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
-  border-color: var(--primary-color);
-}
-
-.option-content {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.option-label {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-color);
-}
-
-.option-item.active .option-label {
-  color: var(--primary-color);
-  font-weight: 600;
-}
-
-.option-desc {
-  font-size: 12px;
-  color: var(--muted-text);
-}
-
-.sub-settings {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--gallery-border-subtle, rgba(0, 0, 0, 0.06));
-  animation: fadeIn 0.3s ease;
-}
-
-[data-theme="dark"] .sub-settings {
-  border-top-color: var(--gallery-border-subtle, rgba(255, 255, 255, 0.06));
-}
-
-.theme-selector-group {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.theme-select {
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--gallery-border-default, rgba(0, 0, 0, 0.1));
-  background: var(--surface-color);
-  color: var(--text-color);
-  font-size: 14px;
-  outline: none;
-  cursor: pointer;
-  transition: border-color 0.2s;
-}
-
-[data-theme="dark"] .theme-select {
-  background: var(--bg-color);
-  border-color: var(--gallery-border-default, rgba(255, 255, 255, 0.2));
-  color: var(--text-color);
-  color-scheme: dark;
-}
-
-[data-theme="dark"] .theme-select option {
-  background-color: var(--bg-color);
-  color: var(--text-color);
-}
-
-.theme-select:focus {
-  border-color: var(--primary-color);
-}
-
-.preview-btn {
-  width: 100%;
-  padding: 10px;
-  background: transparent;
-  border: 1px solid var(--primary-color);
-  color: var(--primary-color);
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  cursor: pointer;
-  transition: all 0.2s;
-  text-transform: uppercase;
-}
-
-.preview-btn:hover {
-  background: var(--primary-color);
-  color: var(--gallery-text-inverse, #fff);
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes slideUp {
-  from { transform: translateY(10px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-</style>

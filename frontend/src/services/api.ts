@@ -1,5 +1,5 @@
 import axios, { AxiosError } from "axios";
-import type { FolderChildrenResponse, MetadataResponse, ScanResponse, SearchScope, UnifiedSearchResponse } from "../types";
+import type { FolderChildrenResponse, IndexStatusResponse, MetadataResponse, ScanResponse, SearchScope, UnifiedSearchResponse } from "../types";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -225,6 +225,18 @@ export const getPreviewUrl = (path: string, maxLongEdge: number = 1440) => {
   const params = new URLSearchParams({ path });
   params.set("max_long_edge", String(maxLongEdge));
   return `${API_BASE}/api/preview?${params.toString()}`;
+};
+
+export const fetchIndexStatus = async (): Promise<IndexStatusResponse> => {
+  try {
+    const { data } = await api.get<IndexStatusResponse>("/api/index/status");
+    return data;
+  } catch (error) {
+    if (error instanceof AxiosError) {
+      throw GalleryAPIError.fromAxiosError(error);
+    }
+    throw error;
+  }
 };
 
 export const fetchLandingPages = async (): Promise<string[]> => {

@@ -2,6 +2,7 @@
 import { Landmark, Search, X, Settings, Menu } from 'lucide-vue-next'
 import Button from '@/components/ui/Button.vue'
 import Input from '@/components/ui/Input.vue'
+import IndexStatusPanel from '@/components/IndexStatusPanel.vue'
 
 interface Props {
   isMobile: boolean
@@ -66,7 +67,9 @@ function onScopeChange(e: Event) {
       </div>
     </div>
     <div class="header-actions flex flex-col items-end gap-2">
-      <button 
+      <div class="flex items-center gap-2">
+        <IndexStatusPanel />
+        <button 
         class="theme-toggle" 
         type="button" 
         @click="emit('toggle-theme')" 
@@ -82,6 +85,7 @@ function onScopeChange(e: Event) {
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="16" height="16" class="icon-right"><path fill="currentColor" d="M423.7 85.9C336.6 107.5 272 186.2 272 280C272 390.4 361.5 480 472 480C490.5 480 508.4 477.5 525.4 472.8C478.8 535.4 404.1 576 320 576C178.6 576 64 461.4 64 320C64 178.6 178.6 64 320 64C356.9 64 392 71.8 423.7 85.9z"/></svg>
         </span>
       </button>
+      </div>
       <div class="search-box">
         <Button
           variant="ghost"
