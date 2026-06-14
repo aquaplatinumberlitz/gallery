@@ -81,10 +81,10 @@ const emit = defineEmits<{
 }
 
 .content-body {
-  background: var(--surface-color);
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04);
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
+  border-radius: 0;
   flex: 1;
   min-height: 0;
   overflow: visible;
