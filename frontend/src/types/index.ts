@@ -99,14 +99,33 @@ export interface UnifiedSearchResponse extends UnifiedSearchResults {
 }
 
 export interface IndexStatusResponse {
-  index_type: "full" | "partial" | "none";
-  indexed_files: number;
-  total_files: number;
+  // From get_metadata_index_status (job stats)
+  path: string;
+  total: number;
+  counts: Record<string, number>;
+  queued: number;
+  running: number;
+  done: number;
+  failed: number;
+  stale: number;
+  skipped: number;
+  oldest_queued_age_seconds: number | null;
+  last_error: { path: string; message: string; updated_at: number } | null;
+  updated_at: number | null;
+
+  // From get_indexer_runtime_status
   enabled: boolean;
   worker_count: number;
   active_jobs: number;
   runtime_queue_depth: number;
   coalesced_duplicates: number;
   staged_path_queue_depth: number;
+  staged_path_coalesced: number;
+  staged_path_failed: number;
+  staged_path_flushes_forced: number;
+  staged_path_worker_count: number;
   active_scan_requests: number;
+  batch_size: number;
+  staged_path_batch_size: number;
+  stage_max_wait_seconds: number;
 }

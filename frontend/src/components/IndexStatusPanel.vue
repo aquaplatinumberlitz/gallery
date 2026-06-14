@@ -20,7 +20,7 @@ const statusState = computed<StatusState>(() => {
   if (isLoading.value) return "loading";
   if (isError.value) return "error";
   if (data.value && !data.value.enabled) return "disabled";
-  if (data.value && data.value.active_jobs > 0) return "indexing";
+  if (data.value && (data.value.queued > 0 || data.value.running > 0 || data.value.active_jobs > 0)) return "indexing";
   return "idle";
 });
 
@@ -85,14 +85,23 @@ function onOpenChange(open: boolean) {
         </div>
 
         <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-          <span class="text-muted-foreground">Index Type</span>
-          <span class="text-right font-medium capitalize">{{ data.index_type }}</span>
+          <span class="text-muted-foreground">Jobs Total</span>
+          <span class="text-right font-medium">{{ data.total.toLocaleString() }}</span>
 
-          <span class="text-muted-foreground">Indexed Files</span>
-          <span class="text-right font-medium">{{ data.indexed_files.toLocaleString() }}</span>
+          <span class="text-muted-foreground">Done</span>
+          <span class="text-right font-medium">{{ data.done.toLocaleString() }}</span>
 
-          <span class="text-muted-foreground">Total Files</span>
-          <span class="text-right font-medium">{{ data.total_files.toLocaleString() }}</span>
+          <span class="text-muted-foreground">Running</span>
+          <span class="text-right font-medium">{{ data.running }}</span>
+
+          <span class="text-muted-foreground">Queued</span>
+          <span class="text-right font-medium">{{ data.queued }}</span>
+
+          <span class="text-muted-foreground">Failed</span>
+          <span class="text-right font-medium">{{ data.failed }}</span>
+
+          <span class="text-muted-foreground">Stale</span>
+          <span class="text-right font-medium">{{ data.stale }}</span>
 
           <span class="text-muted-foreground">Workers</span>
           <span class="text-right font-medium">{{ data.worker_count }}</span>
@@ -111,6 +120,12 @@ function onOpenChange(open: boolean) {
 
           <span class="text-muted-foreground">Scan Requests</span>
           <span class="text-right font-medium">{{ data.active_scan_requests }}</span>
+        </div>
+
+        <div v-if="data.last_error" class="rounded-md bg-destructive/10 p-2 text-xs">
+          <span class="font-medium text-destructive">Last Error:</span>
+          <p class="text-muted-foreground mt-0.5">{{ data.last_error.message }}</p>
+          <p class="text-muted-foreground mt-0.5 text-[10px]">{{ new Date(data.last_error.updated_at * 1000).toLocaleString() }}</p>
         </div>
       </div>
     </PopoverContent>
