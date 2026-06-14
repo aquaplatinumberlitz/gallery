@@ -12,10 +12,19 @@ function quoteValue(value: string): string {
   return value
 }
 
+const LITERAL_FIELDS = new Set(['ratio', 'size', 'date'])
+
+function serializedOperator(filter: FieldFilter): string {
+  if (LITERAL_FIELDS.has(filter.field.toLowerCase())) {
+    return ''
+  }
+  return filter.operator || ''
+}
+
 export function serializeAdvancedSearchToQuery(filters: FieldFilter[]): string {
   return filters
     .map((f) => {
-      const op = f.operator || ''
+      const op = serializedOperator(f)
       const val = quoteValue(f.value)
       return `${f.field}:${op}${val}`
     })
@@ -23,7 +32,7 @@ export function serializeAdvancedSearchToQuery(filters: FieldFilter[]): string {
 }
 
 export function filterToDisplayString(filter: FieldFilter): string {
-  const op = filter.operator || ''
+  const op = serializedOperator(filter)
   let displayValue = filter.value
   if (needsQuoting(filter.value)) {
     displayValue = `"${filter.value}"`

@@ -19,7 +19,7 @@ import { useFieldedSearch } from "@/composables/useFieldedSearch"
 import AdvancedSearchDrawer from "@/components/search/AdvancedSearchDrawer.vue"
 import SearchFilterChips from "@/components/SearchFilterChips.vue"
 import type { FieldFilter } from "@/types"
-import { serializeAdvancedSearchToQuery } from "@/utils/serializeAdvancedSearchToQuery"
+import { parseFieldedQuery, serializeAdvancedSearchToQuery } from "@/utils/serializeAdvancedSearchToQuery"
 
 interface Props {
   isMobile: boolean
@@ -28,7 +28,7 @@ interface Props {
   searchQuery: string
   searchScope: 'current' | 'all'
 }
-defineProps<Props>()
+const props = defineProps<Props>()
 
 const emit = defineEmits<{
   'update:searchQuery': [value: string]
@@ -42,6 +42,33 @@ const { mode, resolvedTheme, setTheme } = useGalleryTheme()
 const { fieldedFilters, isActive: isFieldedSearchActive, queryString: fieldedQueryString, applyFilters, removeFilter, clearAll } = useFieldedSearch()
 
 const isAdvancedSearchOpen = ref(false)
+const advancedSearchInitialFilters = ref<FieldFilter[]>([])
+
+function getFilterFieldKey(filter: FieldFilter) {
+  return filter.field.toLowerCase()
+}
+
+function getAdvancedSearchInitialFilters() {
+  const parsedFilters = parseFieldedQuery(props.searchQuery)
+
+  if (parsedFilters.length === 0) {
+    return [...fieldedFilters.value]
+  }
+
+  const mergedByField = new Map<string, FieldFilter>()
+  for (const filter of parsedFilters) {
+    mergedByField.set(getFilterFieldKey(filter), filter)
+  }
+  for (const filter of fieldedFilters.value) {
+    mergedByField.set(getFilterFieldKey(filter), filter)
+  }
+  return Array.from(mergedByField.values())
+}
+
+function openAdvancedSearch() {
+  advancedSearchInitialFilters.value = getAdvancedSearchInitialFilters()
+  isAdvancedSearchOpen.value = true
+}
 
 function clearSearch() {
   clearAll()
@@ -198,7 +225,7 @@ function handleClearAll() {
                 type="button"
                 :class="{ 'text-primary': isFieldedSearchActive }"
                 aria-label="Advanced Search"
-                @click="isAdvancedSearchOpen = true"
+                @click="openAdvancedSearch"
               >
                 <SlidersHorizontal class="gallery-icon-toolbar" />
               </Button>
@@ -214,7 +241,7 @@ function handleClearAll() {
       </div>
       <AdvancedSearchDrawer
         :is-open="isAdvancedSearchOpen"
-        :initial-filters="fieldedFilters"
+        :initial-filters="advancedSearchInitialFilters"
         @close="handleAdvancedSearchClose"
         @apply="handleAdvancedSearchApply"
       />
