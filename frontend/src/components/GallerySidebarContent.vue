@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import RootPathSidebarHeader from "@/components/SidebarHeader.vue";
+import RootPathSidebarHeader from "@/components/RootPathSidebarHeader.vue";
 import FolderTreeItem from "@/components/FolderTreeItem.vue";
 import { Loader } from "lucide-vue-next";
 import {

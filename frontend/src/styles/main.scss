@@ -210,14 +210,14 @@ html[data-theme="dark"] .field-container:focus-within {
 }
 
 /* Dark mode neon effect for sidebar edge toggle */
-html[data-theme="dark"] .sidebar-edge-toggle {
+html[data-theme="dark"] .gallery-sidebar-edge-trigger {
   background: var(--surface-color);
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.3), 0 0 6px rgba(214, 161, 93, 0.3);
   border: 1px solid rgba(214, 161, 93, 0.3);
   border-left: none;
 }
 
-html[data-theme="dark"] .sidebar-edge-toggle:hover {
+html[data-theme="dark"] .gallery-sidebar-edge-trigger:hover {
   box-shadow: 2px 0 12px rgba(214, 161, 93, 0.5), 0 0 8px rgba(214, 161, 93, 0.4);
 }
 

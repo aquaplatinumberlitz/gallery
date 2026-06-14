@@ -33,12 +33,14 @@ const emit = defineEmits<{
     :open="isSidebarOpen"
     @update:open="emit('toggleSidebar')"
   >
-    <Sidebar side="left" variant="sidebar" collapsible="offcanvas" class="gallery-sidebar-surface">
-      <GallerySidebarContent
-        :tree="tree"
-        :is-loading="isLoading"
-        :current-path="currentPath"
-      />
+    <Sidebar side="left" variant="sidebar" collapsible="offcanvas">
+      <div class="gallery-sidebar-surface flex h-full w-full flex-col">
+        <GallerySidebarContent
+          :tree="tree"
+          :is-loading="isLoading"
+          :current-path="currentPath"
+        />
+      </div>
     </Sidebar>
 
     <GallerySidebarEdgeTrigger @toggle="emit('toggleSidebar')" />
