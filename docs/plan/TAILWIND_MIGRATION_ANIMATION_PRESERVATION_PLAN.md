@@ -1,8 +1,39 @@
 # Tailwind Migration Plan — Animation & Visual Preservation
 
-**Last reviewed:** 2026-06-13 (Preflight approved)
-**Status:** Phase 0 complete — Preflight enabled, all tests pass
+**Last reviewed:** 2026-06-14 (Token bridge refactored — shadcn neutral pixel-level defaults)
+**Status:** Phase 1 token bridge aligned with upstream shadcn-vue defaults
 **Decision:** Hybrid Migration (see §14)
+
+---
+
+## Shadcn Pixel-Level Default Policy — FINAL
+
+**Approved and implemented policy (2026-06-14):**
+
+1. **Standard UI components use shadcn-vue pixel-level defaults.** This includes Button/IconButton, Badge, Input, Separator, Breadcrumb, Dropdown, Select, Popover, Tooltip, Dialog, Tabs, and future shadcn primitives. Do not gallery-colorize them. Do not use warm/orange gallery shadows, accent hover colors, large gallery radius, or custom gallery effects on standard UI.
+
+2. **Legacy gallery warm identity is reserved for the brand hero and explicitly approved brand/artwork surfaces only.** Brand hero / logo / title treatment may continue to use gallery warm colors and effects. Brand hero uses its own gallery token variables (`--title-color`, `--neon-color`, `--primary-color`) and explicit brand-identity CSS in `main.scss` and `AppHeader.vue` — these are NOT mapped through shadcn tokens.
+
+3. **Do not globally map shadcn tokens to gallery warm/orange values.** The shadcn token bridge (`_shadcn-token-bridge.css`) supplies neutral oklch values matching upstream shadcn-vue Tailwind v4 defaults.
+
+4. **Do not use warm gallery shadows/radius/hover on generic UI.** Gallery-specific shadows (`shadow-gallery-*`) and radius (`rounded-gallery-*`) are available only for approved brand surfaces, not standard shadcn primitives.
+
+5. **Any future deviation from shadcn defaults requires explicit user approval.**
+
+**Key token values (implemented in `_shadcn-token-bridge.css`):**
+
+| Token | Light (oklch) | Dark (oklch) | Notes |
+|---|---|---|---|
+| `--accent` | `oklch(0.97 0 0)` | `oklch(0.269 0 0)` | Neutral hover surface (was `var(--gallery-surface-hover)` warm) |
+| `--ring` | `oklch(0.708 0 0)` | `oklch(0.556 0 0)` | Neutral focus ring (was warm `hsl(25 3% 12%)`) |
+| `--primary` | `oklch(0.205 0 0)` | `oklch(0.922 0 0)` | Neutral primary (was warm `hsl(25 3% 12%)`) |
+| `--muted` | `oklch(0.97 0 0)` | `oklch(0.269 0 0)` | Neutral muted surface |
+| `--border` | `oklch(0.922 0 0)` | `oklch(1 0 0 / 10%)` | Neutral border |
+| `--input` | `oklch(0.922 0 0)` | `oklch(1 0 0 / 15%)` | Neutral input border |
+
+**Dark mode:** Uses `[data-theme="dark"]` attribute selector, NOT `.dark` class.
+
+**Brand hero preservation:** Brand hero continues to use `--title-color`, `--neon-color`, `--primary-color` from `tokens.css` (warm orange/gold). Brand animations (`iconFlicker`, `dark-title-shimmer`, `dark-title-glow`, `dark-underline-pulse`) remain in `main.scss` unchanged.
 
 ---
 
