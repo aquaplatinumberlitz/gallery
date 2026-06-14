@@ -113,24 +113,26 @@ test.describe("Tailwind Phase 0 — Desktop (1440x900)", () => {
   });
 
   test("1b. theme toggle works and changes data-theme", async ({ page }) => {
-    const themeToggle = page.locator(".theme-toggle");
+    const themeToggle = page.locator('[aria-label="Theme"]');
     await expect(themeToggle).toBeVisible();
 
     const initialTheme = await page.evaluate(() =>
       document.documentElement.getAttribute("data-theme")
     );
 
+    // Open dropdown, then click Dark
     await themeToggle.click();
+    await page.locator('[role="menuitem"]', { hasText: "Dark" }).click();
     await page.waitForTimeout(300);
 
     const newTheme = await page.evaluate(() =>
       document.documentElement.getAttribute("data-theme")
     );
-    expect(newTheme).not.toBe(initialTheme);
-    expect(["light", "dark"]).toContain(newTheme);
+    expect(newTheme).toBe("dark");
 
-    // Toggle back
+    // Open dropdown, then click Light
     await themeToggle.click();
+    await page.locator('[role="menuitem"]', { hasText: "Light" }).click();
     await page.waitForTimeout(300);
 
     const restoredTheme = await page.evaluate(() =>
@@ -235,10 +237,9 @@ test.describe("Tailwind Phase 0 — Mobile (390x844)", () => {
     const newTheme = await page.evaluate(() =>
       document.documentElement.getAttribute("data-theme")
     );
-    expect(newTheme).not.toBe(initialTheme);
-    expect(["light", "dark"]).toContain(newTheme);
+    expect(newTheme).toBe("dark");
 
-    // Toggle back
+    // Toggle back (mobile — single button click)
     await page.getByLabel("Switch to light mode").or(
       page.getByLabel("Switch to dark mode")
     ).click();
@@ -314,7 +315,7 @@ test.describe("Tailwind Phase 0 — Theme smoke test", () => {
     await installStubbedGallery(page);
     await openStubbedGallery(page);
 
-    const themeToggle = page.locator(".theme-toggle");
+    const themeToggle = page.locator('[aria-label="Theme"]');
     await expect(themeToggle).toBeVisible();
 
     // Start in light (default for intro_mode=disabled)
@@ -322,16 +323,14 @@ test.describe("Tailwind Phase 0 — Theme smoke test", () => {
       document.documentElement.getAttribute("data-theme")
     );
 
-    // Toggle to dark
+    // Open dropdown, then click Dark
     await themeToggle.click();
+    await page.locator('[role="menuitem"]', { hasText: "Dark" }).click();
     await page.waitForTimeout(500);
     currentTheme = await page.evaluate(() =>
       document.documentElement.getAttribute("data-theme")
     );
     expect(currentTheme).toBe("dark");
-
-    // Verify visible colors changed — the theme toggle should have .is-dark class
-    await expect(themeToggle).toHaveClass(/is-dark/);
 
     // Verify photo cards still visible with no shift
     const cards = page.getByTestId("photo-card");
@@ -339,8 +338,9 @@ test.describe("Tailwind Phase 0 — Theme smoke test", () => {
     const cardCount = await cards.count();
     expect(cardCount).toBeGreaterThanOrEqual(1);
 
-    // Toggle back to light
+    // Open dropdown, then click Light
     await themeToggle.click();
+    await page.locator('[role="menuitem"]', { hasText: "Light" }).click();
     await page.waitForTimeout(500);
     currentTheme = await page.evaluate(() =>
       document.documentElement.getAttribute("data-theme")
@@ -397,10 +397,11 @@ test.describe("Tailwind Phase 0 — Theme smoke test", () => {
 
     // The @custom-variant dark selector uses data-theme="dark"
     // Verify it's present and functioning by checking a dark-mode CSS variable
-    const themeToggle = page.locator(".theme-toggle");
+    const themeToggle = page.locator('[aria-label="Theme"]');
 
     // Toggle to dark
     await themeToggle.click();
+    await page.locator('[role="menuitem"]', { hasText: "Dark" }).click();
     await page.waitForTimeout(500);
 
     const isDark = await page.evaluate(() =>
@@ -410,6 +411,7 @@ test.describe("Tailwind Phase 0 — Theme smoke test", () => {
 
     // Toggle back to light
     await themeToggle.click();
+    await page.locator('[role="menuitem"]', { hasText: "Light" }).click();
     await page.waitForTimeout(500);
 
     const isLight = await page.evaluate(() =>

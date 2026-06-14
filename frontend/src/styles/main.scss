@@ -424,6 +424,22 @@ body {
 }
 
 /* ==========================================================================
+   THEME TRANSITIONS (VueUse useColorMode)
+   ========================================================================== */
+
+html.theme-transitioning,
+html.theme-transitioning * {
+  transition:
+    background-color 180ms ease,
+    color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    fill 180ms ease,
+    stroke 180ms ease !important;
+  transition-delay: 0ms !important;
+}
+
+/* ==========================================================================
    RESPONSIVE DESIGN SYSTEM
    Breakpoints:
      Desktop:  >=1200px

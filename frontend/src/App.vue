@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watchEffect, watch, onMounted, onBeforeUnmount, defineAsyncComponent, provide } from "vue";
+import { computed, ref, onMounted, onBeforeUnmount, defineAsyncComponent, provide } from "vue";
 import { useGalleryStore } from "./stores/gallery";
 import ToastContainer from "./components/ToastContainer.vue";
 import SettingsModal from "./components/SettingsModal.vue";
@@ -9,6 +9,7 @@ import TabletLayout from "./layouts/TabletLayout.vue";
 import MobileLayout from "./layouts/MobileLayout.vue";
 import { useScrollVisibility } from "./composables/useScrollVisibility";
 import { useDevice } from "./composables/useDevice";
+import { useGalleryTheme } from "./composables/useGalleryTheme";
 import { galleryScrollContainerRefKey } from "./injectionKeys";
 import { closeSidebarKey } from "./injectionKeys";
 
@@ -40,32 +41,8 @@ const handlePreviewIntro = (url: string) => {
 
 const galleryStore = useGalleryStore();
 
-const theme = ref<"light" | "dark">(
-  (() => {
-    // Initialize from system preference during setup to avoid initial flash
-    if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem('gallery-theme');
-        if (saved === "dark" || saved === "light") return saved;
-      } catch (e) {
-        // Safari Private Browsing — localStorage throws
-      }
-      if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-        return "dark";
-      }
-    }
-    return "light";
-  })()
-);
-const THEME_STORAGE_KEY = "gallery-theme";
-let themeMediaQuery: MediaQueryList | null = null;
+const { resolvedTheme, toggleTheme } = useGalleryTheme();
 
-const handleMediaChange = (e: MediaQueryListEvent) => {
-  // Only auto-switch if user hasn't manually selected a theme
-  if (!localStorage.getItem(THEME_STORAGE_KEY)) {
-    theme.value = e.matches ? "dark" : "light";
-  }
-};
 const isSidebarOpen = ref(true);
 const tree = computed(() => galleryStore.sidebarTree);
 const isLoading = computed(() => galleryStore.isLoading);
@@ -75,10 +52,6 @@ const scrollerRef = ref<HTMLElement | null>(null);
 provide(galleryScrollContainerRefKey, scrollerRef);
 
 const { barsVisible } = useScrollVisibility(scrollerRef);
-
-const toggleTheme = () => {
-  theme.value = theme.value === "light" ? "dark" : "light";
-};
 
 const toggleSidebar = () => {
   isSidebarOpen.value = !isSidebarOpen.value;
@@ -104,49 +77,11 @@ onMounted(() => {
     galleryStore.setRootPath(galleryStore.rootPath);
   }
 
-  // Restore theme from storage or system preference
-  if (typeof window !== "undefined") {
-    try {
-      const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
-      if (savedTheme === "dark" || savedTheme === "light") {
-        theme.value = savedTheme;
-      } else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-        theme.value = "dark";
-      }
-    } catch (e) {
-      // Safari Private Browsing — localStorage throws; use system preference
-      if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-        theme.value = "dark";
-      }
-    }
-  }
-
-  // Listen for system theme changes
-  themeMediaQuery = typeof window !== "undefined"
-    ? window.matchMedia("(prefers-color-scheme: dark)")
-    : null;
-  themeMediaQuery?.addEventListener("change", handleMediaChange);
-
   window.addEventListener('keydown', handleGlobalKeydown);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleGlobalKeydown);
-  themeMediaQuery?.removeEventListener("change", handleMediaChange);
-});
-
-watchEffect(() => {
-  document.documentElement.setAttribute("data-theme", theme.value);
-});
-
-watch(theme, (val) => {
-  if (typeof window !== "undefined") {
-    try {
-      localStorage.setItem(THEME_STORAGE_KEY, val);
-    } catch (e) {
-      // Safari Private Browsing — localStorage throws; silently ignore
-    }
-  }
 });
 
 const canBack = computed(() => galleryStore.historyIndex > 0);
@@ -165,7 +100,7 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
   <!-- Main App Layout -->
   <MobileLayout
     v-else-if="isMobile"
-    :theme="theme"
+    :theme="resolvedTheme"
     :is-sidebar-open="isSidebarOpen"
     :tree="tree"
     :is-loading="isLoading"
@@ -186,7 +121,7 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
 
   <TabletLayout
     v-else-if="isTablet"
-    :theme="theme"
+    :theme="resolvedTheme"
     :is-sidebar-open="isSidebarOpen"
     :tree="tree"
     :is-loading="isLoading"
@@ -202,7 +137,7 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
 
   <DesktopLayout
     v-else
-    :theme="theme"
+    :theme="resolvedTheme"
     :is-sidebar-open="isSidebarOpen"
     :tree="tree"
     :is-loading="isLoading"

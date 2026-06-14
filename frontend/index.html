@@ -7,20 +7,26 @@
     <title>Museum Art Gallery</title>
     <script>
       // Prevent FOUC: apply theme before CSS renders
-      (function() {
+      (() => {
+        const key = "gallery-theme"
+        let stored = null
         try {
-          var theme = localStorage.getItem('gallery-theme');
-          if (theme && (theme === 'dark' || theme === 'light')) {
-            document.documentElement.setAttribute('data-theme', theme);
-            return;
-          }
-        } catch(e) {
-          // Safari Private Browsing — localStorage throws; fall through to matchMedia
+          stored = localStorage.getItem(key)
+        } catch (_) {
+          stored = null
         }
-        // Fallback: use system preference
-        var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
-      })();
+        const explicit = stored === "light" || stored === "dark"
+        const auto = stored === "auto" || stored === null
+        const systemDark = window.matchMedia &&
+          window.matchMedia("(prefers-color-scheme: dark)").matches
+        const theme = explicit
+          ? stored
+          : auto && systemDark
+            ? "dark"
+            : "light"
+        document.documentElement.setAttribute("data-theme", theme)
+        document.documentElement.style.colorScheme = theme
+      })()
     </script>
   </head>
   <body>
