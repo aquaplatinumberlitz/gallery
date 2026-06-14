@@ -25,11 +25,19 @@ import { fuzzySearchFileNodes } from "../utils/fuzzySearch";
 import { 
   ArrowLeft, ArrowRight, ArrowUpRight, ArrowUpDown, ChevronDown, 
   ArrowUp, ArrowDown, LayoutGrid, Loader, TriangleAlert, X, 
-  ArrowDownToLine, Check,
+  ArrowDownToLine,
   Type, Clock, Images, Folder, FolderOpen
 } from "lucide-vue-next";
-import Button from "./ui/Button.vue";
+import Button from "@/components/ui/Button.vue";
 import Badge from "./ui/Badge.vue";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const _icons: Record<string, any> = { Type, Clock }
 
@@ -102,10 +110,6 @@ const unifiedSearchQuery = useUnifiedSearchQuery(searchQuery, searchScope, searc
 const sortField = computed(() => galleryStore.sortField);
 const sortOrder = computed(() => galleryStore.sortOrder);
 
-// Sort dropdown state
-const showSortMenu = ref(false);
-const sortMenuRef = ref<HTMLElement | null>(null);
-
 const sortOptions: { field: SortField; label: string; icon: string }[] = [
   { field: "name", label: "Name", icon: "Type" },
   { field: "date", label: "Date modified", icon: "Clock" },
@@ -116,9 +120,18 @@ const currentSortLabel = computed(() => {
   return option?.label || "Name";
 });
 
+// Tablet toolbar menu state (desktop uses shadcn DropdownMenu instead)
+const showSortMenu = ref(false);
+const showDensityMenu = ref(false);
+
 const toggleSortMenu = () => {
   showDensityMenu.value = false;
   showSortMenu.value = !showSortMenu.value;
+};
+
+const toggleDensityMenu = () => {
+  showSortMenu.value = false;
+  showDensityMenu.value = !showDensityMenu.value;
 };
 
 const selectSort = (field: SortField) => {
@@ -128,43 +141,17 @@ const selectSort = (field: SortField) => {
     galleryStore.setSortField(field);
     galleryStore.setSortOrder(field === "date" ? "desc" : "asc");
   }
-  showSortMenu.value = false;
-};
-
-const closeSortMenu = (e: MouseEvent) => {
-  const target = e.target as HTMLElement;
-  if (!target.closest(".sort-dropdown")) {
-    showSortMenu.value = false;
-  }
-};
-
-// Handle keyboard navigation in sort menu
-const handleSortMenuKeydown = (e: KeyboardEvent) => {
-  if (!showSortMenu.value) return;
-  
-  if (e.key === 'Escape') {
-    showSortMenu.value = false;
-  } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-    e.preventDefault();
-    const buttons = sortMenuRef.value?.querySelectorAll('button');
-    if (buttons) {
-      const currentIndex = Array.from(buttons).findIndex(b => b === document.activeElement);
-      const nextIndex = e.key === 'ArrowDown' 
-        ? (currentIndex + 1) % buttons.length 
-        : (currentIndex - 1 + buttons.length) % buttons.length;
-      (buttons[nextIndex] as HTMLElement).focus();
-    }
-  }
 };
 
 onMounted(() => {
-  document.addEventListener("click", closeSortMenu);
-  document.addEventListener("click", closeDensityMenu);
+  setupLoadObserver();
 });
 
 onBeforeUnmount(() => {
-  document.removeEventListener("click", closeSortMenu);
-  document.removeEventListener("click", closeDensityMenu);
+  if (loadObserver) {
+    loadObserver.disconnect();
+    loadObserver = null;
+  }
 });
 
 const sortItems = <T extends { name: string; mtime?: number }>(items: T[]): T[] => {
@@ -411,10 +398,7 @@ const { isTablet } = useDevice()
 const deviceCategory = computed(() => props.isMobile ? 'mobile' : isTablet.value ? 'tablet' : 'desktop')
 const { columnCount, sliderLevel, rowHeight, setGridRef } = useColumnResize(deviceCategory);
 
-// Density dropdown state
-const showDensityMenu = ref(false);
-const densityMenuRef = ref<HTMLElement | null>(null);
-
+// Density dropdown options
 const densityOptions = computed(() => {
   if (deviceCategory.value !== 'tablet') return PHOTO_GRID_LEVELS
   const map = GRID_COLUMN_MAP.tablet
@@ -430,39 +414,8 @@ const densityOptions = computed(() => {
   return result
 })
 
-const toggleDensityMenu = () => {
-  showSortMenu.value = false;
-  showDensityMenu.value = !showDensityMenu.value;
-};
-
 const selectDensity = (level: number) => {
   sliderLevel.value = level;
-  showDensityMenu.value = false;
-};
-
-const closeDensityMenu = (e: MouseEvent) => {
-  const target = e.target as HTMLElement;
-  if (!target.closest('.density-dropdown')) {
-    showDensityMenu.value = false;
-  }
-};
-
-const handleDensityMenuKeydown = (e: KeyboardEvent) => {
-  if (!showDensityMenu.value) return;
-  
-  if (e.key === 'Escape') {
-    showDensityMenu.value = false;
-  } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-    e.preventDefault();
-    const buttons = densityMenuRef.value?.querySelectorAll('button');
-    if (buttons) {
-      const currentIndex = Array.from(buttons).findIndex(b => b === document.activeElement);
-      const nextIndex = e.key === 'ArrowDown' 
-        ? (currentIndex + 1) % buttons.length 
-        : (currentIndex - 1 + buttons.length) % buttons.length;
-      (buttons[nextIndex] as HTMLElement).focus();
-    }
-  }
 };
 
 const imageRows = computed(() => {
@@ -544,18 +497,7 @@ const setupLoadObserver = () => {
   loadObserver.observe(loadMoreSentinel.value);
 };
 
-onMounted(() => {
-  setupLoadObserver();
-});
-
 watch(loadMoreSentinel, () => setupLoadObserver());
-
-onBeforeUnmount(() => {
-  if (loadObserver) {
-    loadObserver.disconnect();
-    loadObserver = null;
-  }
-});
 
 // ── Album Horizontal Scroll (handled by AlbumScroller component) ──
 </script>
@@ -590,113 +532,101 @@ onBeforeUnmount(() => {
       <div class="nav-group inline-flex items-center gap-2">
         <Button
           variant="ghost"
-          size="nav"
-          class="nav-btn border border-border"
+          size="icon"
+          class="nav-btn"
           :disabled="!canBack"
+          type="button"
           @click="goBack"
           title="Back"
         >
-          <ArrowLeft />
+          <ArrowLeft class="gallery-icon-toolbar" />
         </Button>
         <Button
           variant="ghost"
-          size="nav"
-          class="nav-btn border border-border"
+          size="icon"
+          class="nav-btn"
           :disabled="!canForward"
+          type="button"
           @click="goForward"
           title="Forward"
         >
-          <ArrowRight />
+          <ArrowRight class="gallery-icon-toolbar" />
         </Button>
       </div>
       <Breadcrumb v-if="showToolbarBreadcrumb" class="breadcrumb-wrap" :path="currentPath" @navigate="handleOpenFolder" />
 
-      <button 
-        class="nav-btn open-folder" 
-        @click="openFolder" 
+      <Button
+        variant="outline"
+        size="sm"
+        class="open-folder-btn"
+        type="button"
+        @click="openFolder"
         title="Open current folder in file explorer"
       >
-        <ArrowUpRight />
-      </button>
+        <ArrowUpRight class="gallery-icon-sm" />
+        <span>Open</span>
+      </Button>
 
-      <!-- Sort Dropdown (Google Photos style) -->
-      <div class="sort-dropdown" :class="{ open: showSortMenu }">
-        <button 
-          class="sort-trigger" 
-          @click.stop="toggleSortMenu" 
-          title="Sort by"
-        >
-          <ArrowUpDown />
-          <span class="sort-label">{{ currentSortLabel }}</span>
-          <ChevronDown class="sort-chevron" />
-        </button>
-        <Transition name="dropdown">
-          <div 
-            v-if="showSortMenu" 
-            ref="sortMenuRef"
-            class="sort-menu"
-            @keydown="handleSortMenuKeydown"
+      <!-- Sort Dropdown -->
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <Button variant="outline" size="sm" type="button" title="Sort by" class="sort-trigger">
+            <ArrowUpDown class="gallery-icon-sm" />
+            <span>{{ currentSortLabel }}</span>
+            <component
+              :is="sortOrder === 'asc' ? ArrowUp : ArrowDown"
+              class="gallery-icon-xs"
+            />
+            <ChevronDown class="gallery-icon-xs opacity-60" />
+          </Button>
+        </DropdownMenuTrigger>
+
+        <DropdownMenuContent align="end" class="w-44">
+          <DropdownMenuItem
+            v-for="option in sortOptions"
+            :key="option.field"
+            class="gap-2"
+            @select="selectSort(option.field)"
           >
-            <button
-              v-for="option in sortOptions"
-              :key="option.field"
-              class="sort-option"
-              :class="{ active: sortField === option.field }"
-              @click="selectSort(option.field)"
-            >
-              <component :is="_icons[option.icon]" class="gallery-icon-sm" />
-              <span>{{ option.label }}</span>
-              <component 
-                v-if="sortField === option.field" 
-                :is="sortOrder === 'asc' ? ArrowUp : ArrowDown" 
-                class="sort-direction gallery-icon-xs"
-              />
-            </button>
-          </div>
-        </Transition>
-      </div>
+            <component :is="_icons[option.icon]" class="gallery-icon-sm" />
+            <span class="flex-1">{{ option.label }}</span>
+            <component
+              v-if="sortField === option.field"
+              :is="sortOrder === 'asc' ? ArrowUp : ArrowDown"
+              class="gallery-icon-xs"
+            />
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <!-- Density Dropdown -->
-      <div 
-        class="density-dropdown" 
-        :class="{ open: showDensityMenu }"
-      >
-        <button 
-          class="density-trigger" 
-          @click.stop="toggleDensityMenu" 
-          aria-haspopup="true"
-          :aria-expanded="showDensityMenu"
-          title="Thumbnail size"
-        >
-          <LayoutGrid />
-          <span class="density-label">{{ columnCount }} cols</span>
-          <ChevronDown class="density-chevron" />
-        </button>
-        <Transition name="dropdown">
-          <div 
-            v-if="showDensityMenu" 
-            ref="densityMenuRef"
-            class="density-menu"
-            @keydown="handleDensityMenuKeydown"
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <Button variant="outline" size="sm" type="button" title="Thumbnail size">
+            <LayoutGrid class="gallery-icon-sm" />
+            <span>{{ columnCount }} cols</span>
+            <ChevronDown class="gallery-icon-xs opacity-60" />
+          </Button>
+        </DropdownMenuTrigger>
+
+        <DropdownMenuContent align="end" class="w-48">
+          <DropdownMenuRadioGroup
+            :model-value="String(sliderLevel)"
+            @update:model-value="(value: unknown) => selectDensity(Number(value))"
           >
-            <button
+            <DropdownMenuRadioItem
               v-for="option in densityOptions"
               :key="option.level"
-              class="density-option"
-              :class="{ active: sliderLevel === option.level }"
-              @click="selectDensity(option.level)"
+              :value="String(option.level)"
+              class="gap-2"
             >
               <LayoutGrid class="gallery-icon-sm" />
-              <span>{{ option.label }}</span>
-              <span class="density-cols">{{ option.columns }} cols</span>
-              <Check 
-                v-if="sliderLevel === option.level" 
-                class="density-check gallery-icon-xs"
-              />
-            </button>
-          </div>
-        </Transition>
-      </div>
+              <span class="flex-1">{{ option.label }}</span>
+              <span class="text-xs text-muted-foreground">{{ option.columns }} cols</span>
+            </DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <Badge v-if="isLoading || isRefetching" variant="loading" :class="{ 'opacity-70': isRefetching && !isLoading }" class="loading-badge">
         <Loader class="gallery-icon-md lucide-spin" /> 
@@ -1328,226 +1258,16 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
-/* nav-btn base and ghost styles handled by shadcn Button size="nav" variant="ghost" */
-/* Keep only open-folder (color-mix), responsive overrides, and focus-visible */
-
 .nav-btn {
-  /* Base class preserved for responsive grid (mobile overrides) and open-folder variant */
+  /* Layout hook only — visual styling owned by shadcn Button */
 }
 
-/* Open Folder Button - Tinted Pill Style */
-.nav-btn.open-folder {
-  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--primary-color) 20%, transparent);
-  color: var(--primary-color);
-  box-shadow: none;
-}
-
-.nav-btn.open-folder:hover {
-  background: color-mix(in srgb, var(--primary-color) 16%, transparent);
-  border-color: var(--primary-color);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--primary-color) 12%, transparent);
-  transform: translateY(-1px);
-}
-
-.nav-btn.open-folder:active {
-  transform: translateY(0) scale(0.98);
-  box-shadow: none;
+.open-folder-btn {
+  /* Layout hook only — visual styling owned by shadcn Button */
 }
 
 .breadcrumb-wrap {
   min-width: 0;
-}
-
-/* Sort Dropdown - Google Photos Style */
-.sort-dropdown {
-  position: relative;
-}
-
-.sort-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: var(--surface-color);
-  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
-  border-radius: 10px;
-  color: var(--text-color);
-  font-size: 13px;
-  font-family: var(--font-body);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.sort-trigger:hover,
-.density-trigger:hover {
-  border-color: var(--primary-color);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--primary-color) 25%, transparent);
-}
-
-.sort-dropdown.open .sort-trigger,
-.density-dropdown.open .density-trigger {
-  border-color: var(--primary-color);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--primary-color) 25%, transparent);
-}
-
-.sort-label {
-  font-weight: 500;
-}
-
-.sort-chevron {
-  opacity: 0.6;
-  transition: transform 0.2s ease;
-}
-
-.sort-dropdown.open .sort-chevron {
-  transform: rotate(180deg);
-}
-
-.sort-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  min-width: 180px;
-  background: var(--surface-color);
-  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
-  border-radius: 12px;
-  box-shadow: var(--gallery-shadow-lg, 0 10px 40px rgba(0, 0, 0, 0.15));
-  padding: 6px;
-  z-index: 100;
-  overflow: hidden;
-}
-
-.sort-option {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 10px 12px;
-  background: transparent;
-  border: none;
-  border-radius: 8px;
-  color: var(--text-color);
-  font-size: 13px;
-  font-family: var(--font-body);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  text-align: left;
-}
-
-.sort-option:hover {
-  background: rgba(0, 0, 0, 0.05);
-}
-
-.sort-option.active {
-  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
-  color: var(--primary-color);
-  font-weight: 500;
-}
-
-.sort-direction {
-  margin-left: auto;
-}
-
-/* Dropdown animation */
-.dropdown-enter-active,
-.dropdown-leave-active {
-  transition: all 0.2s ease;
-  transform-origin: top right;
-}
-
-.dropdown-enter-from,
-.dropdown-leave-to {
-  opacity: 0;
-  transform: scale(0.95) translateY(-4px);
-}
-
-/* Density Dropdown */
-.density-dropdown {
-  position: relative;
-}
-
-.density-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: var(--surface-color);
-  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
-  border-radius: 10px;
-  color: var(--text-color);
-  font-size: 13px;
-  font-family: var(--font-body);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.density-label {
-  font-weight: 500;
-}
-
-.density-chevron {
-  opacity: 0.6;
-  transition: transform 0.2s ease;
-}
-
-.density-dropdown.open .density-chevron {
-  transform: rotate(180deg);
-}
-
-.density-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  min-width: 180px;
-  background: var(--surface-color);
-  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
-  border-radius: 12px;
-  box-shadow: var(--gallery-shadow-lg, 0 10px 40px rgba(0, 0, 0, 0.15));
-  padding: 6px;
-  z-index: 100;
-  overflow: hidden;
-}
-
-.density-option {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 10px 12px;
-  background: transparent;
-  border: none;
-  border-radius: 8px;
-  color: var(--text-color);
-  font-size: 13px;
-  font-family: var(--font-body);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  text-align: left;
-  position: relative;
-}
-
-.density-option:hover {
-  background: rgba(0, 0, 0, 0.05);
-}
-
-.density-option.active {
-  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
-  color: var(--primary-color);
-  font-weight: 500;
-}
-
-.density-cols {
-  opacity: 0.6;
-  font-weight: 400;
-}
-
-.density-option.active .density-cols {
-  opacity: 0.8;
-}
-
-.density-check {
-  margin-left: auto;
 }
 
 /* loading-badge base styles handled by shadcn Badge variant="loading" */
@@ -1557,27 +1277,6 @@ onBeforeUnmount(() => {
 }
 
 /* ── Album scroll styles are in AlbumScroller.vue ── */
-
-/* ── SVG icon sizing via design tokens ── */
-/* Nav button icons (ArrowLeft, ArrowRight, ArrowUpRight) */
-.nav-btn svg {
-  width: var(--gallery-icon-toolbar);
-  height: var(--gallery-icon-toolbar);
-}
-
-/* Sort/density trigger main icons (ArrowUpDown, LayoutGrid) */
-.sort-trigger > svg:not(.sort-chevron),
-.density-trigger > svg:not(.density-chevron) {
-  width: var(--gallery-icon-md);
-  height: var(--gallery-icon-md);
-}
-
-/* Chevron icons inside sort/density triggers */
-.sort-trigger svg.sort-chevron,
-.density-trigger svg.density-chevron {
-  width: var(--gallery-icon-xs);
-  height: var(--gallery-icon-xs);
-}
 
 /* Generic icon size classes */
 .gallery-icon-toolbar {
@@ -1686,20 +1385,8 @@ onBeforeUnmount(() => {
     display: none;
   }
 
-  /* Hide open-folder button from mobile nav — icon moved to folder bar */
-  .nav-btn.open-folder {
-    display: none;
-  }
-
   .nav-group {
     flex-shrink: 0;
-  }
-
-  .nav-btn {
-    width: 44px;
-    height: 44px;
-    min-width: 44px;
-    min-height: 44px;
   }
 
   .breadcrumb-wrap {
@@ -1710,16 +1397,6 @@ onBeforeUnmount(() => {
 
   .nav-group {
     display: flex;
-  }
-
-  /* Sort: hidden on mobile */
-  .sort-dropdown {
-    display: none;
-  }
-
-  /* Density: hidden on mobile */
-  .density-dropdown {
-    display: none;
   }
 
   .albums-section {
@@ -1791,33 +1468,12 @@ onBeforeUnmount(() => {
   .grid-header {
     gap: 4px;
   }
-
-  .nav-btn {
-    width: 30px;
-    height: 30px;
-  }
-}
-
-/* Screen reader only - visually hidden but accessible */
-/* Focus styles for keyboard navigation */
-.nav-btn:focus-visible,
-.sort-trigger:focus-visible,
-.sort-option:focus-visible,
-.density-trigger:focus-visible,
-.density-option:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring-shadow);
 }
 
 /* Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
   .fade-slide {
     animation: none;
-  }
-  
-  .dropdown-enter-active,
-  .dropdown-leave-active {
-    transition: none;
   }
 }
 

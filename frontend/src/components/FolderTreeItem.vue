@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed, ref, inject } from "vue";
+import { computed, inject } from "vue";
 import { useGalleryStore } from "../stores/gallery";
 import type { FileNode } from "../types";
 import { ChevronDown, ChevronRight, Folder, FolderOpen, Loader } from "lucide-vue-next";
 import { useDevice } from "../composables/useDevice";
 import { useFolderChildrenQuery } from "../composables/useFolderChildrenQuery";
 import { closeSidebarKey } from "../injectionKeys";
+import Button from "@/components/ui/Button.vue";
+import { cn } from "@/lib/utils";
 
 defineOptions({ name: "FolderTreeItem" });
 
@@ -20,7 +22,6 @@ const props = withDefaults(defineProps<{
 const galleryStore = useGalleryStore();
 const { isMobile, isTablet } = useDevice();
 const closeSidebar = inject(closeSidebarKey, () => {});
-const itemRef = ref<HTMLElement | null>(null);
 
 const isActive = computed(() => props.activePath === props.node.path);
 const isOpen = computed(() => galleryStore.isFolderExpanded(props.node.path));
@@ -102,24 +103,31 @@ const handleKeydown = (e: KeyboardEvent) => {
   <div 
     class="tree-item block"
   >
-    <div 
-      ref="itemRef"
-      class="tree-row flex items-center gap-1.5 py-[3px] px-1.5 rounded-lg cursor-pointer text-foreground text-[13px] transition-colors duration-[120ms]"
-      :class="{ active: isActive }" 
-      @click="onSelect"
-      @keydown="handleKeydown"
-    >
-      <button
-        class="toggle-btn"
+    <div class="tree-row-shell flex items-center gap-1.5">
+      <Button
+        variant="ghost"
+        size="icon"
+        class="toggle-btn size-7 shrink-0"
         type="button"
         :disabled="!node.has_children"
         @click.stop="onToggle"
+        :aria-label="isOpen ? 'Collapse folder' : 'Expand folder'"
       >
         <component :is="arrowIcon" class="gallery-icon-xs" />
-      </button>
-      <component :is="folderIcon" class="folder-icon gallery-icon-md" />
-      <span class="name flex-1 min-w-0 truncate">{{ node.name }}</span>
-      <Loader v-if="isLoading" class="gallery-icon-sm lucide-spin spinner" />
+      </Button>
+
+      <Button
+        variant="ghost"
+        size="sm"
+        type="button"
+        :class="cn('tree-row min-w-0 flex-1 justify-start gap-1.5 px-1.5 py-[3px] text-[13px]', isActive && 'bg-accent text-accent-foreground')"
+        @click="onSelect"
+        @keydown="handleKeydown"
+      >
+        <component :is="folderIcon" class="folder-icon gallery-icon-md" />
+        <span class="name flex-1 min-w-0 truncate text-left">{{ node.name }}</span>
+        <Loader v-if="isLoading" class="gallery-icon-sm lucide-spin spinner" />
+      </Button>
     </div>
 
     <div 
@@ -152,65 +160,23 @@ const handleKeydown = (e: KeyboardEvent) => {
 </template>
 
 <style scoped>
-/* tree-item, tree-row, children, empty-children layout handled by Tailwind utilities */
-/* Keep only color-mix active state, focus styles, and icon sizing */
+/* tree-item, children, empty-children layout handled by Tailwind utilities */
+/* Keep only icon sizing and folder color */
 
 .tree-item {
   /* Class preserved for scoped style encapsulation */
 }
 
 .tree-row {
+  /* Layout handled by Tailwind utilities; visual states via shadcn Button */
+}
+
+.tree-row-shell {
   /* Layout handled by Tailwind utilities */
 }
 
-.tree-row:hover {
-  background: var(--gallery-surface-hover, rgba(0, 0, 0, 0.03));
-}
-
-.tree-row.active {
-  background: color-mix(in srgb, var(--primary-color) 16%, transparent);
-  color: var(--primary-color);
-  position: relative;
-}
-
-.tree-row.active .folder-icon,
-.tree-row:hover .folder-icon {
-  color: var(--folder-color);
-}
-
-.tree-row.active::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 4px;
-  bottom: 4px;
-  width: 1.5px;
-  border-radius: 999px;
-  background: var(--primary-color);
-}
-
 .toggle-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  border: 1px solid var(--gallery-border-subtle, rgba(0, 0, 0, 0.08));
-  background: transparent;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: inherit;
-  cursor: pointer;
-  transition: border-color 120ms ease, background-color 120ms ease;
-}
-
-.toggle-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.toggle-btn:not(:disabled):hover {
-  border-color: var(--primary-color);
-  background: var(--gallery-surface-hover, rgba(0, 0, 0, 0.04));
+  /* Layout handled by Tailwind utilities; visual states via shadcn Button */
 }
 
 .folder-icon {
@@ -226,21 +192,6 @@ const handleKeydown = (e: KeyboardEvent) => {
 
 .empty-children {
   /* Layout handled by Tailwind utilities */
-}
-
-/* Focus styles for keyboard navigation */
-.tree-row:focus {
-  outline: none;
-  box-shadow: var(--focus-ring-shadow);
-}
-
-.tree-row:focus:not(:focus-visible) {
-  outline: none;
-}
-
-.tree-row:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring-shadow);
 }
 
 /* Icon sizes using design tokens */

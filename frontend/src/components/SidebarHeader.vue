@@ -5,8 +5,8 @@ import { FolderOpen, RotateCcw, Info, Edit3 } from "lucide-vue-next";
 import { useDevice } from "../composables/useDevice";
 import RootPathSheet from "./RootPathSheet.vue";
 import { closeSidebarKey } from "../injectionKeys";
-import Input from "./ui/Input.vue";
-import Button from "./ui/Button.vue";
+import Input from "@/components/ui/Input.vue";
+import Button from "@/components/ui/Button.vue";
 
 const { isMobile } = useDevice();
 const closeSidebar = inject(closeSidebarKey, () => {});
@@ -136,18 +136,7 @@ watch(
   align-items: center;
   padding: 0 12px;
   height: 40px;
-  transition: border-color 0.2s, box-shadow 0.2s;
   border: 1px solid rgba(0, 0, 0, 0.1);
-}
-
-.field-container:hover {
-  border-color: var(--primary-color, #ff6b35);
-  box-shadow: var(--gallery-shadow-md, 0 4px 12px rgba(255, 107, 53, 0.25));
-}
-
-.field-container:focus-within {
-  border-color: var(--primary-color, #ff6b35);
-  box-shadow: var(--gallery-shadow-md, 0 4px 12px rgba(255, 107, 53, 0.25));
 }
 
 .field-icon {

@@ -4,6 +4,8 @@ import FolderTreeItem from "../components/FolderTreeItem.vue";
 import AppHeader from "../components/AppHeader.vue";
 import GalleryGrid from "../components/GalleryGrid.vue";
 import { ChevronLeft, ChevronRight, Loader } from "lucide-vue-next";
+import Button from "@/components/ui/Button.vue";
+import { cn } from "@/lib/utils";
 
 defineProps<{
   theme: "light" | "dark";
@@ -55,16 +57,17 @@ const emit = defineEmits<{
     </aside>
 
     <!-- Sidebar Edge Toggle Button -->
-    <button
-      class="sidebar-edge-toggle"
-      :class="{ 'sidebar-open': isSidebarOpen }"
+    <Button
+      variant="ghost"
+      size="icon"
+      :class="cn('sidebar-edge-toggle border border-border bg-background shadow-xs', isSidebarOpen && 'sidebar-open')"
       type="button"
       @click="emit('toggleSidebar')"
       :title="isSidebarOpen ? 'Hide Sidebar' : 'Show Sidebar'"
     >
       <ChevronLeft v-if="isSidebarOpen" class="gallery-icon-sm" />
       <ChevronRight v-else class="gallery-icon-sm" />
-    </button>
+    </Button>
 
     <section class="content" id="main-content" tabindex="-1">
       <AppHeader
@@ -193,22 +196,8 @@ const emit = defineEmits<{
   z-index: 101;
   width: 24px;
   height: 48px;
-  border: none;
   border-radius: 0 8px 8px 0;
-  background: var(--surface-color);
-  color: var(--muted-text);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: var(--gallery-shadow-sm, 2px 0 8px rgba(0, 0, 0, 0.1));
   transition: all 0.3s ease;
-}
-
-.sidebar-edge-toggle:hover {
-  color: var(--primary-color);
-  background: var(--surface-color);
-  box-shadow: var(--gallery-shadow-md, 2px 0 12px rgba(214, 161, 93, 0.3));
 }
 
 .sidebar-edge-toggle:not(.sidebar-open) {

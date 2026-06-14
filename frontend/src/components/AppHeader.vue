@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Landmark, Search, X, Settings, Menu } from 'lucide-vue-next'
-import Button from './ui/Button.vue'
-import Input from './ui/Input.vue'
+import Button from '@/components/ui/Button.vue'
+import Input from '@/components/ui/Input.vue'
 
 interface Props {
   isMobile: boolean
@@ -83,23 +83,34 @@ function onScopeChange(e: Event) {
         </span>
       </button>
       <div class="search-box">
-        <Search class="gallery-icon-toolbar search-icon" />
+        <Button
+          variant="ghost"
+          size="icon"
+          class="search-icon-btn"
+          type="button"
+          title="Search"
+          aria-label="Search"
+        >
+          <Search class="gallery-icon-toolbar" />
+        </Button>
         <Input
           id="gallery-search"
           :modelValue="searchQuery"
           @update:model-value="(v: string) => emit('update:searchQuery', v)"
-          variant="ghost"
           type="search"
           placeholder="Photos, albums, prompts"
           autocomplete="off"
+          class="search-input"
         />
         <Button
           v-if="searchQuery"
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           class="clear-btn"
-          @click="clearSearch"
           type="button"
+          title="Clear search"
+          aria-label="Clear search"
+          @click="clearSearch"
         >
           <X class="gallery-icon-xs" />
         </Button>
@@ -255,26 +266,20 @@ h1 {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: var(--surface-color);
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 10px;
-  padding: 0 12px;
   min-width: 220px;
   height: 40px;
-  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.search-box:hover {
-  border-color: var(--primary-color);
-  box-shadow: var(--gallery-shadow-md, 0 4px 12px rgba(214, 161, 93, 0.25));
+.search-input {
+  min-width: 0;
 }
 
-.search-box:focus-within {
-  border-color: var(--primary-color);
-  box-shadow: var(--gallery-shadow-md, 0 4px 12px rgba(214, 161, 93, 0.25));
+.search-icon-btn,
+.clear-btn {
+  flex-shrink: 0;
 }
 
-/* search-box input and clear-btn styling handled by shadcn Input variant="ghost" and Button variant="ghost" size="icon-sm" */
+/* Input and clear-btn styling handled by shadcn Button variant="ghost" size="icon" */
 /* Only responsive rules remain */
 
 .scope-select {
