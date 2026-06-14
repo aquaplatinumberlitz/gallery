@@ -1,11 +1,16 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, onBeforeUnmount } from "vue";
 import { vClickOutside } from "../directives/clickOutside";
-import { ChevronRight, Ellipsis, Folder, ArrowsUpFromLine, Minimize, Home } from "lucide-vue-next";
+import { Ellipsis, Folder, ArrowsUpFromLine, Minimize, Home } from "lucide-vue-next";
+import BreadcrumbRoot from "./ui/Breadcrumb.vue";
+import BreadcrumbList from "./ui/BreadcrumbList.vue";
+import BreadcrumbItem from "./ui/BreadcrumbItem.vue";
+import BreadcrumbLink from "./ui/BreadcrumbLink.vue";
+import BreadcrumbPage from "./ui/BreadcrumbPage.vue";
+import BreadcrumbSeparator from "./ui/BreadcrumbSeparator.vue";
 
 const props = defineProps<{
   path?: string;
-  /** Maximum visible segments before collapsing (default: 4) */
   maxVisible?: number;
 }>();
 
@@ -13,13 +18,11 @@ const emit = defineEmits<{
   (e: "navigate", path: string): void;
 }>();
 
-// State for expanded/collapsed ellipsis menu
 const isExpanded = ref(false);
 const ellipsisMenuOpen = ref(false);
 const ellipsisBtnRef = ref<HTMLElement | null>(null);
 const menuPosition = ref({ top: 0, left: 0 });
 
-// Calculate fixed position from the ellipsis button's bounding rect
 function updateMenuPosition() {
   if (!ellipsisBtnRef.value) return;
   const rect = ellipsisBtnRef.value.getBoundingClientRect();
@@ -47,8 +50,6 @@ onBeforeUnmount(() => {
 });
 
 const separator = computed(() => (props.path?.includes("\\") ? "\\" : "/"));
-
-// Maximum segments to show before collapsing
 const maxSegments = computed(() => props.maxVisible ?? 4);
 
 const allSegments = computed(() => {
@@ -78,42 +79,29 @@ const allSegments = computed(() => {
   return result;
 });
 
-// Determine if we need to collapse
-const shouldCollapse = computed(() => 
+const shouldCollapse = computed(() =>
   !isExpanded.value && allSegments.value.length > maxSegments.value
 );
 
-// Visible segments with ellipsis logic
 const visibleSegments = computed(() => {
   const all = allSegments.value;
-  
-  if (!shouldCollapse.value) {
-    return all;
-  }
+  if (!shouldCollapse.value) return all;
 
-  // Show: first segment + "..." + last (maxSegments - 2) segments
-  // Example with maxSegments=4: [first] [...] [second-to-last] [last]
   const firstCount = 1;
-  const lastCount = maxSegments.value - 1; // Keep more items at the end for context
-  
+  const lastCount = maxSegments.value - 1;
   const firstPart = all.slice(0, firstCount);
   const lastPart = all.slice(-lastCount);
-  
   return [...firstPart, ...lastPart];
 });
 
-// Hidden segments (for dropdown menu)
 const hiddenSegments = computed(() => {
   if (!shouldCollapse.value) return [];
-  
   const all = allSegments.value;
   const firstCount = 1;
   const lastCount = maxSegments.value - 1;
-  
   return all.slice(firstCount, all.length - lastCount);
 });
 
-// Check if ellipsis should be shown after a segment
 const showEllipsisAfter = (segmentIndex: number) => {
   return shouldCollapse.value && segmentIndex === 0 && hiddenSegments.value.length > 0;
 };
@@ -133,100 +121,89 @@ const expandAll = () => {
   ellipsisMenuOpen.value = false;
 };
 
-// Close menu on outside click
 const closeMenu = () => {
   ellipsisMenuOpen.value = false;
 };
 </script>
 
 <template>
-  <nav class="breadcrumb" v-click-outside="closeMenu">
-    <ol class="breadcrumb-list">
-      <li class="breadcrumb-item home-item">
-        <Home class="gallery-icon-sm home-icon" />
-      </li>
+  <BreadcrumbRoot v-click-outside="closeMenu" class="breadcrumb">
+    <BreadcrumbList>
+      <BreadcrumbItem>
+        <Home class="size-3.5 text-primary opacity-50 shrink-0" />
+      </BreadcrumbItem>
       <template v-if="allSegments.length">
         <template v-for="seg in visibleSegments" :key="seg.fullPath">
-          <!-- Regular breadcrumb item -->
-          <li class="breadcrumb-item">
-            <button
-              class="crumb"
-              :class="{ active: seg.isLast }"
-              type="button"
-              @click="onNavigate(seg)"
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbLink
+              v-if="!seg.isLast"
               :disabled="seg.isLast"
-              :title="seg.name"
+              :as="seg.name"
+              @click="onNavigate(seg)"
             >
-              <span class="crumb-text">{{ seg.name }}</span>
-            </button>
-          </li>
+              {{ seg.name }}
+            </BreadcrumbLink>
+            <BreadcrumbPage v-else>
+              {{ seg.name }}
+            </BreadcrumbPage>
+          </BreadcrumbItem>
 
-          <!-- Ellipsis dropdown after first segment -->
-          <li v-if="showEllipsisAfter(seg.index)" class="breadcrumb-item ellipsis-item">
-            <span class="separator">
-              <ChevronRight class="gallery-icon-xs" />
-            </span>
-            
-            <div class="ellipsis-container">
-              <button
-                ref="ellipsisBtnRef"
-                class="ellipsis-btn"
-                type="button"
-                @click="toggleEllipsisMenu"
-                :title="`${hiddenSegments.length} more folders`"
-              >
-                <Ellipsis class="gallery-icon-md" />
-              </button>
-              
-              <!-- Dropdown menu for hidden segments (position:fixed escapes overflow:hidden parents) -->
-              <Transition name="dropdown">
-                <div 
-                  v-if="ellipsisMenuOpen" 
-                  class="ellipsis-menu"
-                  :style="{ top: menuPosition.top + 'px', left: menuPosition.left + 'px' }"
+          <template v-if="showEllipsisAfter(seg.index)">
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <div class="relative">
+                <button
+                  ref="ellipsisBtnRef"
+                  class="ellipsis-btn"
+                  type="button"
+                  @click="toggleEllipsisMenu"
+                  :title="`${hiddenSegments.length} more folders`"
                 >
-                  <button
-                    v-for="hidden in hiddenSegments"
-                    :key="hidden.fullPath"
-                    class="ellipsis-menu-item"
-                    @click="onNavigate(hidden)"
-                    :title="hidden.fullPath"
-                  >
-                    <Folder class="gallery-icon-sm" />
-                    <span>{{ hidden.name }}</span>
-                  </button>
-                  
-                  <div class="ellipsis-menu-divider"></div>
-                  
-                  <button
-                    class="ellipsis-menu-item expand-btn"
-                    @click="expandAll"
-                  >
-                    <ArrowsUpFromLine class="gallery-icon-sm" />
-                    <span>Show full path</span>
-                  </button>
-                </div>
-              </Transition>
-            </div>
-          </li>
+                  <Ellipsis class="size-4" />
+                </button>
 
-          <!-- Separator (not after ellipsis, not after last) -->
-          <li 
-            v-if="!seg.isLast && !showEllipsisAfter(seg.index)" 
-            class="breadcrumb-separator"
-          >
-            <span class="separator">
-              <ChevronRight class="gallery-icon-xs" />
-            </span>
-          </li>
+                <Transition name="dropdown">
+                  <div
+                    v-if="ellipsisMenuOpen"
+                    class="ellipsis-menu"
+                    :style="{ top: menuPosition.top + 'px', left: menuPosition.left + 'px' }"
+                  >
+                    <button
+                      v-for="hidden in hiddenSegments"
+                      :key="hidden.fullPath"
+                      class="ellipsis-menu-item"
+                      @click="onNavigate(hidden)"
+                      :title="hidden.fullPath"
+                    >
+                      <Folder class="size-3.5" />
+                      <span>{{ hidden.name }}</span>
+                    </button>
+
+                    <div class="ellipsis-menu-divider"></div>
+
+                    <button
+                      class="ellipsis-menu-item expand-btn"
+                      @click="expandAll"
+                    >
+                      <ArrowsUpFromLine class="size-3.5" />
+                      <span>Show full path</span>
+                    </button>
+                  </div>
+                </Transition>
+              </div>
+            </BreadcrumbItem>
+          </template>
         </template>
       </template>
-      <li v-else class="breadcrumb-item">
-        <span class="empty-breadcrumb">No path</span>
-      </li>
-    </ol>
-    
-    <!-- Collapse button when expanded -->
+      <template v-else>
+        <BreadcrumbSeparator />
+        <BreadcrumbItem>
+          <span class="text-sm text-muted-foreground">No path</span>
+        </BreadcrumbItem>
+      </template>
+    </BreadcrumbList>
+
     <button
       v-if="isExpanded && allSegments.length > maxSegments"
       class="collapse-btn"
@@ -234,119 +211,22 @@ const closeMenu = () => {
       @click="isExpanded = false"
       title="Collapse path"
     >
-      <Minimize class="gallery-icon-sm" />
+      <Minimize class="size-3.5" />
     </button>
-  </nav>
+  </BreadcrumbRoot>
 </template>
 
 <style scoped>
+/* Breadcrumb wrapper */
 .breadcrumb {
   display: inline-flex;
   align-items: center;
   min-width: 0;
   max-width: 100%;
-  gap: 6px;
+  gap: 1.5rem;
 }
 
-.breadcrumb-list {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  min-width: 0;
-  flex-wrap: nowrap;
-  /* Allow dropdown to overflow beyond the list container */
-  overflow: visible;
-}
-
-.breadcrumb-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  flex-shrink: 0;
-}
-
-/* Allow last item to shrink and show ellipsis */
-.breadcrumb-item:last-child {
-  flex-shrink: 1;
-  min-width: 60px;
-}
-
-.breadcrumb-separator {
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.crumb {
-  border: none;
-  background: transparent;
-  padding: 4px 8px;
-  margin: 0;
-  font-size: 14px;
-  color: var(--muted-text);
-  cursor: pointer;
-  white-space: nowrap;
-  border-radius: 4px;
-  transition: color 0.15s ease, background-color 0.15s ease;
-  max-width: 150px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.crumb-text {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.crumb:hover:not(:disabled) {
-  color: var(--title-color);
-  background-color: var(--gallery-surface-hover, rgba(0, 0, 0, 0.05));
-}
-
-.crumb:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring-shadow);
-}
-
-.crumb.active {
-  color: var(--title-color);
-  font-weight: 600;
-  cursor: default;
-  max-width: 200px;
-}
-
-.crumb:disabled {
-  cursor: default;
-}
-
-.separator {
-  color: var(--muted-text);
-  font-size: 10px;
-  display: inline-flex;
-  align-items: center;
-  opacity: 0.6;
-  flex-shrink: 0;
-}
-
-.empty-breadcrumb {
-  color: var(--muted-text);
-  font-size: 13px;
-}
-
-/* Ellipsis Button & Dropdown */
-.ellipsis-item {
-  position: relative;
-}
-
-.ellipsis-container {
-  position: relative;
-}
-
+/* Ellipsis button */
 .ellipsis-btn {
   display: inline-flex;
   align-items: center;
@@ -373,7 +253,50 @@ const closeMenu = () => {
   box-shadow: var(--focus-ring-shadow);
 }
 
-/* Dropdown Menu — position:fixed to escape overflow:hidden parents */
+:root[data-theme="dark"] .ellipsis-btn {
+  background: var(--gallery-surface-hover, rgba(255, 255, 255, 0.08));
+}
+
+:root[data-theme="dark"] .ellipsis-btn:hover {
+  background: var(--gallery-surface-elevated, rgba(255, 255, 255, 0.15));
+}
+
+/* Collapse button */
+.collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: var(--gallery-surface-hover, rgba(0, 0, 0, 0.05));
+  color: var(--muted-text);
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 12px;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.collapse-btn:hover {
+  background: var(--gallery-surface-hover, rgba(0, 0, 0, 0.1));
+  color: var(--title-color);
+}
+
+.collapse-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring-shadow);
+}
+
+:root[data-theme="dark"] .collapse-btn {
+  background: var(--gallery-surface-hover, rgba(255, 255, 255, 0.08));
+}
+
+:root[data-theme="dark"] .collapse-btn:hover {
+  background: var(--gallery-surface-elevated, rgba(255, 255, 255, 0.15));
+}
+
+/* Dropdown Menu */
 .ellipsis-menu {
   position: fixed;
   min-width: 200px;
@@ -432,33 +355,6 @@ const closeMenu = () => {
   color: var(--primary-color);
 }
 
-/* Collapse Button */
-.collapse-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border: none;
-  background: var(--gallery-surface-hover, rgba(0, 0, 0, 0.05));
-  color: var(--muted-text);
-  cursor: pointer;
-  border-radius: 4px;
-  font-size: 12px;
-  transition: all 0.15s ease;
-  flex-shrink: 0;
-}
-
-.collapse-btn:hover {
-  background: var(--gallery-surface-hover, rgba(0, 0, 0, 0.1));
-  color: var(--title-color);
-}
-
-.collapse-btn:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring-shadow);
-}
-
 /* Dropdown Animation */
 .dropdown-enter-active,
 .dropdown-leave-active {
@@ -471,15 +367,7 @@ const closeMenu = () => {
   transform: translateY(-8px);
 }
 
-/* Dark mode support */
-:root[data-theme="dark"] .ellipsis-btn {
-  background: var(--gallery-surface-hover, rgba(255, 255, 255, 0.08));
-}
-
-:root[data-theme="dark"] .ellipsis-btn:hover {
-  background: var(--gallery-surface-elevated, rgba(255, 255, 255, 0.15));
-}
-
+/* Dark mode dropdown */
 :root[data-theme="dark"] .ellipsis-menu {
   background: var(--bg-secondary, #1e1e1e);
   border-color: var(--gallery-border-default, rgba(255, 255, 255, 0.1));
@@ -490,18 +378,6 @@ const closeMenu = () => {
   background: var(--gallery-surface-hover, rgba(255, 255, 255, 0.08));
 }
 
-:root[data-theme="dark"] .collapse-btn {
-  background: var(--gallery-surface-hover, rgba(255, 255, 255, 0.08));
-}
-
-:root[data-theme="dark"] .collapse-btn:hover {
-  background: var(--gallery-surface-elevated, rgba(255, 255, 255, 0.15));
-}
-
-:root[data-theme="dark"] .crumb:hover:not(:disabled) {
-  background-color: var(--gallery-surface-hover, rgba(255, 255, 255, 0.08));
-}
-
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .dropdown-enter-active,
@@ -510,41 +386,10 @@ const closeMenu = () => {
   }
 }
 
-/* Home icon */
-.home-item {
-  display: inline-flex;
-  align-items: center;
-}
-
-.home-icon {
-  color: var(--primary-color);
-  opacity: 0.5;
-  flex-shrink: 0;
-  transition: opacity 0.15s ease;
-}
-
-.home-icon:hover {
-  opacity: 0.8;
-}
-
-/* Responsive: reduce breadcrumb text max-width on phones */
+/* Responsive */
 @media (max-width: 480px) {
-  .crumb {
-    max-width: 100px;
-    padding: 3px 6px;
-    font-size: 13px;
-  }
-
-  .crumb.active {
-    max-width: 120px;
-  }
-
   .breadcrumb {
     gap: 4px;
-  }
-
-  .breadcrumb-list {
-    gap: 2px;
   }
 
   .ellipsis-btn {
@@ -552,19 +397,5 @@ const closeMenu = () => {
     min-height: 36px;
     padding: 2px 6px;
   }
-}
-
-/* Icon sizes using design tokens */
-.gallery-icon-md {
-  width: var(--gallery-icon-md);
-  height: var(--gallery-icon-md);
-}
-.gallery-icon-sm {
-  width: var(--gallery-icon-sm);
-  height: var(--gallery-icon-sm);
-}
-.gallery-icon-xs {
-  width: var(--gallery-icon-xs);
-  height: var(--gallery-icon-xs);
 }
 </style>
