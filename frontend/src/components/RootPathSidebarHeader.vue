@@ -57,7 +57,7 @@ watch(
 </script>
 
 <template>
-  <div class="sidebar-header p-4 bg-surface border-b border-black/5 dark:border-white/5">
+  <div class="sidebar-header p-4 group-data-[collapsible=icon]:p-1 bg-surface border-b border-black/5 dark:border-white/5 group-data-[collapsible=icon]:border-b-0">
     <!-- MOBILE: Compact display with tappable edit -->
     <template v-if="isMobile">
       <label class="field-label block text-[11px] font-semibold text-muted-foreground mb-2 tracking-[0.5px]">ROOT PATH</label>
