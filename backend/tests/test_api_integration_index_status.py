@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.metadata_store import get_metadata_index_status, index_directory_tree
+from .conftest import create_test_image
 
 
 class TestIndexStatus:
@@ -68,6 +69,29 @@ class TestIndexStatus:
         assert resp.status_code == 200
         data = resp.json()
         assert isinstance(data, dict)
+
+    def test_index_status_is_json_serializable_with_previous_job_error(
+        self,
+        isolated_app: TestClient,
+        temp_gallery: Path,
+    ):
+        from backend.metadata_store import mark_metadata_jobs_failed, queue_metadata_index_paths
+
+        image_path = temp_gallery / "album_a" / "binary-error.png"
+        create_test_image(image_path)
+        queued = queue_metadata_index_paths([image_path], temp_gallery / "album_a")
+        assert len(queued.enqueued) == 1
+        mark_metadata_jobs_failed(
+            [(queued.enqueued[0], "Object of type bytes is not JSON serializable")]
+        )
+
+        resp = isolated_app.get("/api/index/status", params={"path": str(temp_gallery / "album_a")})
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["failed"] == 1
+        assert data["last_error"]["path"] == str(image_path.resolve())
+        assert data["last_error"]["message"] == "Object of type bytes is not JSON serializable"
 
     def test_rebuild_requires_confirmation(self, isolated_app: TestClient, temp_gallery: Path):
         resp = isolated_app.post(

@@ -14,6 +14,8 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 LORA_PATTERN = re.compile(r"<lora:([^:>]+)(?::([^>]+))?>", re.IGNORECASE)
 CJK_RE = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
 GENERIC_TEXT_KEYS = ("Description", "Comment", "UserComment", "Software", "parameters", "prompt", "workflow")
+_JSON_OMIT = object()
+_BINARY_IMAGE_INFO_KEYS = {"exif", "icc_profile", "profile", "thumbnail", "photoshop"}
 
 
 @dataclass
@@ -69,15 +71,62 @@ def contains_cjk(query: str) -> bool:
     return bool(CJK_RE.search(query))
 
 
-def safe_text(value: Any) -> str:
+def _key_name(key: Any) -> str:
+    return str(key).lower()
+
+
+def sanitize_metadata_for_json(value: Any, key_path: tuple[Any, ...] = ()) -> Any:
+    """Return a JSON-safe metadata value, omitting non-searchable binary image blobs."""
+    if (
+        key_path
+        and _key_name(key_path[-1]) in _BINARY_IMAGE_INFO_KEYS
+        and isinstance(value, (bytes, bytearray, memoryview, dict, list, tuple))
+    ):
+        return _JSON_OMIT
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        length = len(value)
+        # PIL image.info can contain raw binary fields. These are not useful for
+        # search/indexing and must not be persisted directly as JSON.
+        if any(_key_name(key) in _BINARY_IMAGE_INFO_KEYS for key in key_path):
+            return _JSON_OMIT
+        return {"type": "bytes", "length": length}
+    if isinstance(value, dict):
+        sanitized: dict[str, Any] = {}
+        for key, child in value.items():
+            child_value = sanitize_metadata_for_json(child, (*key_path, key))
+            if child_value is _JSON_OMIT:
+                continue
+            sanitized[str(key)] = child_value
+        return sanitized
+    if isinstance(value, (list, tuple)):
+        sanitized_list: list[Any] = []
+        for index, child in enumerate(value):
+            child_value = sanitize_metadata_for_json(child, (*key_path, index))
+            if child_value is not _JSON_OMIT:
+                sanitized_list.append(child_value)
+        return sanitized_list
+    return str(value)
+
+
+def safe_text(value: Any, key_path: tuple[Any, ...] = ()) -> str:
     if value is None:
         return ""
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        if any(_key_name(key) in _BINARY_IMAGE_INFO_KEYS for key in key_path):
+            return ""
     if isinstance(value, bytes):
         if value.startswith(b"ASCII\x00\x00\x00"):
             value = value[8:]
         return value.decode("utf-8", errors="ignore").strip()
-    if isinstance(value, (dict, list)):
-        return json.dumps(value, ensure_ascii=False, sort_keys=True)
+    if isinstance(value, (bytearray, memoryview)):
+        return bytes(value).decode("utf-8", errors="ignore").strip()
+    if isinstance(value, (dict, list, tuple)):
+        sanitized = sanitize_metadata_for_json(value, key_path)
+        if sanitized is _JSON_OMIT:
+            return ""
+        return json.dumps(sanitized, ensure_ascii=False, sort_keys=True)
     return str(value).strip()
 
 
@@ -538,7 +587,11 @@ def _read_image_info(path: Path) -> tuple[int | None, int | None, str, str, int,
         image_format = img.format or ""
         mode = img.mode or ""
         has_alpha = 1 if (img.mode in {"RGBA", "LA"} or (img.mode == "P" and "transparency" in img.info)) else 0
-        info = {str(key): safe_text(value) for key, value in img.info.items() if safe_text(value)}
+        info: dict[str, str] = {}
+        for key, value in img.info.items():
+            text = safe_text(value, (key,))
+            if text:
+                info[str(key)] = text
         try:
             exif = img.getexif()
         except Exception:
@@ -701,6 +754,9 @@ def extract_metadata(path: Path) -> ExtractedMetadata:
         info = {}
 
     result, raw_source_text = _api_metadata_from_sources(path, info)
+    result = sanitize_metadata_for_json(result)
+    if result is _JSON_OMIT or not isinstance(result, dict):
+        result = {"tool": "Unknown", "prompt": "", "negative_prompt": "", "params": {}}
     metadata_json = json.dumps(result, ensure_ascii=False, sort_keys=True)
     raw_parts = [
         f"{key}: {value}"

@@ -25,6 +25,7 @@ from .metadata_extract import (
     parse_float,
     parse_int,
     safe_text,
+    sanitize_metadata_for_json,
 )
 
 
@@ -1134,6 +1135,11 @@ def upsert_metadata_result(path: str | Path, metadata: dict[str, Any]) -> bool:
         stat = image_path.stat()
     except OSError:
         return False
+
+    sanitized_metadata = sanitize_metadata_for_json(metadata)
+    if not isinstance(sanitized_metadata, dict):
+        sanitized_metadata = {}
+    metadata = sanitized_metadata
 
     width = metadata.get("width")
     height = metadata.get("height")
