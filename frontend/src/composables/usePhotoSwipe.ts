@@ -48,6 +48,7 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
   const pswp = ref<PhotoSwipe | null>(null);
   const lightboxStore = useLightboxStore();
   const initTimer = ref<ReturnType<typeof setTimeout> | null>(null);
+  const initRunId = ref(0);
   const pendingDimensions = new Map<string, Promise<LightboxDimensions | null>>();
   const originalLoadPromises = new Map<string, Promise<void>>();
   const originalLoadingPath = ref<string | null>(null);
@@ -93,20 +94,48 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
       }
 
       const image = new Image();
+      image.decoding = "async";
       image.onload = () => {
-        resolve(
-          image.naturalWidth && image.naturalHeight
-            ? {
-                width: image.naturalWidth,
-                height: image.naturalHeight,
-                source: "fallback",
-              }
-            : null
-        );
+        const resolveNaturalDimensions = () => {
+          resolve(
+            image.naturalWidth && image.naturalHeight
+              ? {
+                  width: image.naturalWidth,
+                  height: image.naturalHeight,
+                  source: "preview",
+                }
+              : null
+          );
+        };
+
+        if (typeof image.decode === "function") {
+          void image.decode().catch(() => undefined).then(resolveNaturalDimensions);
+        } else {
+          resolveNaturalDimensions();
+        }
       };
       image.onerror = () => resolve(null);
       image.src = getPreviewUrl(path, LIGHTBOX_PREVIEW_EDGE);
     });
+
+  const resolveOpeningSlideDimensions = async (item: FileNode): Promise<LightboxDimensions | null> => {
+    const known = bestKnownDimensions(item);
+    if (known) return known;
+
+    const previewDimensions = await loadPreviewDimensions(item.path);
+    if (previewDimensions) {
+      lightboxStore.rememberDimensions(item.path, previewDimensions);
+      return previewDimensions;
+    }
+
+    const metadataDimensions = await fetchMetadataDimensions(item.path).catch(() => null);
+    if (metadataDimensions) {
+      lightboxStore.rememberDimensions(item.path, metadataDimensions);
+      return metadataDimensions;
+    }
+
+    return null;
+  };
 
   const resolveDimensions = (item: FileNode): Promise<LightboxDimensions | null> => {
     const known = scanDimensions(item) ?? rememberedDimensions(item);
@@ -293,7 +322,7 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
     });
   }
 
-  function initPhotoSwipe() {
+  async function initPhotoSwipe() {
     if (!containerRef.value || !isOpen.value || pswp.value) return;
 
     if (initTimer.value) {
@@ -301,8 +330,22 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
       initTimer.value = null;
     }
 
-    const dataSource = items.value.map((item) =>
-      buildPhotoSwipeItem(item, bestKnownDimensions(item))
+    const runId = ++initRunId.value;
+    const openingIndex = currentIndex.value;
+    const openingItem = items.value[openingIndex];
+    const openingDimensions = openingItem
+      ? await resolveOpeningSlideDimensions(openingItem)
+      : null;
+
+    if (!containerRef.value || !isOpen.value || pswp.value || runId !== initRunId.value) return;
+
+    const dataSource = items.value.map((item, index) =>
+      buildPhotoSwipeItem(
+        item,
+        index === openingIndex
+          ? openingDimensions ?? bestKnownDimensions(item)
+          : bestKnownDimensions(item)
+      )
     );
     const initialItem = dataSource[currentIndex.value];
     if (initialItem?.isAnimatedAsset) {
@@ -374,6 +417,7 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
   }
 
   function destroyPhotoSwipe() {
+    initRunId.value++;
     if (initTimer.value) {
       clearTimeout(initTimer.value);
       initTimer.value = null;
@@ -401,7 +445,7 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
         if (initTimer.value) clearTimeout(initTimer.value);
         initTimer.value = setTimeout(() => {
           initTimer.value = null;
-          initPhotoSwipe();
+          void initPhotoSwipe();
         }, 0);
       } else {
         destroyPhotoSwipe();
@@ -421,7 +465,7 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
 
   onMounted(() => {
     if (isOpen.value) {
-      initPhotoSwipe();
+      void initPhotoSwipe();
     }
   });
 

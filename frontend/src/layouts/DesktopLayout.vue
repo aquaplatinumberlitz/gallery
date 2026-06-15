@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import GallerySidebarContent from "../components/GallerySidebarContent.vue";
 import AppHeader from "../components/AppHeader.vue";
+import { computed } from "vue";
 import { RouterView } from "vue-router";
 import {
   SidebarProvider,
   Sidebar,
   SidebarInset,
   SidebarRail,
+  useSidebar,
 } from "@/components/ui/sidebar";
 
 defineProps<{
@@ -27,6 +29,11 @@ const emit = defineEmits<{
   (e: "toggleTheme"): void;
   (e: "openSettings"): void;
 }>();
+
+const { state } = useSidebar();
+const indexStatusVariant = computed(() =>
+  state.value === "collapsed" ? "button" : "card"
+);
 </script>
 
 <template>
@@ -40,7 +47,7 @@ const emit = defineEmits<{
           :tree="tree"
           :is-loading="isLoading"
           :current-path="currentPath"
-          index-status-variant="card"
+          :index-status-variant="indexStatusVariant"
         />
       </div>
       <SidebarRail />

@@ -11,6 +11,10 @@ const png1x1 = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/luz4nQAAAABJRU5ErkJggg==",
   "base64"
 );
+const svgImage = (width: number, height: number) =>
+  Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="#456"/></svg>`
+  );
 
 type ApiRequest = {
   pathname: string;
@@ -28,10 +32,18 @@ function requestedPath(requests: ApiRequest[], pathname: string, path: string) {
 
 async function installStubbedGallery(
   page: Page,
-  options: { failPreviewFor?: string; includeScanDimensions?: boolean } = {}
+  options: {
+    failPreviewFor?: string;
+    includeScanDimensions?: boolean;
+    metadataDimensions?: { width: number; height: number } | null;
+    previewNaturalSize?: { width: number; height: number };
+  } = {}
 ) {
   const requests: ApiRequest[] = [];
   const includeScanDimensions = options.includeScanDimensions ?? true;
+  const metadataDimensions = options.metadataDimensions === undefined
+    ? { width: 1600, height: 1000 }
+    : options.metadataDimensions;
 
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
@@ -74,8 +86,8 @@ async function installStubbedGallery(
           params: {},
           date: "",
           generation_time: "",
-          width: 1600,
-          height: 1000,
+          width: metadataDimensions?.width ?? null,
+          height: metadataDimensions?.height ?? null,
           name: request.path.split("/").pop() ?? "image.png",
         }),
       });
@@ -102,6 +114,15 @@ async function installStubbedGallery(
             message: "Unable to generate preview",
           },
         }),
+      });
+      return;
+    }
+
+    if (url.pathname === "/api/preview" && options.previewNaturalSize) {
+      await route.fulfill({
+        contentType: "image/svg+xml",
+        headers: { "Cache-Control": "no-store" },
+        body: svgImage(options.previewNaturalSize.width, options.previewNaturalSize.height),
       });
       return;
     }
@@ -169,7 +190,11 @@ test("normal lightbox open uses thumbnail and preview without original", async (
 });
 
 test("lightbox does not size the first open from grid thumbnail dimensions", async ({ page }) => {
-  const requests = await installStubbedGallery(page, { includeScanDimensions: false });
+  const requests = await installStubbedGallery(page, {
+    includeScanDimensions: false,
+    metadataDimensions: null,
+    previewNaturalSize: { width: 824, height: 1024 },
+  });
   await openStubbedGallery(page, requests);
   await openLightbox(page, requests);
 
@@ -185,6 +210,45 @@ test("lightbox does not size the first open from grid thumbnail dimensions", asy
   expect(imageRect, "PhotoSwipe image should exist").not.toBeNull();
   expect(imageRect!.width, "first open must not use the 1px stub thumbnail width").toBeGreaterThan(300);
   expect(imageRect!.height, "first open must not use the 1px stub thumbnail height").toBeGreaterThan(300);
+});
+
+test("cold-cache lightbox uses preview dimensions for the opening slide aspect ratio", async ({ page }) => {
+  const previewNaturalSize = { width: 824, height: 1024 };
+  const expectedRatio = previewNaturalSize.width / previewNaturalSize.height;
+  const requests = await installStubbedGallery(page, {
+    includeScanDimensions: false,
+    metadataDimensions: null,
+    previewNaturalSize,
+  });
+  await openStubbedGallery(page, requests);
+  await openLightbox(page, requests);
+
+  await expect.poll(async () => page.evaluate(() => {
+    const img = document.querySelector<HTMLImageElement>(".pswp__img[alt='image-1.png']");
+    if (!img || !img.currentSrc.includes("/api/preview")) return 0;
+    const rect = img.getBoundingClientRect();
+    return rect.height > 0 ? rect.width / rect.height : 0;
+  })).toBeCloseTo(expectedRatio, 1);
+
+  const activeImage = await page.evaluate(() => {
+    const img = document.querySelector<HTMLImageElement>(".pswp__img[alt='image-1.png']");
+    if (!img || !img.currentSrc.includes("/api/preview")) return null;
+    const rect = img.getBoundingClientRect();
+    return {
+      currentSrc: img.currentSrc,
+      naturalWidth: img.naturalWidth,
+      naturalHeight: img.naturalHeight,
+      rectWidth: rect.width,
+      rectHeight: rect.height,
+    };
+  });
+
+  expect(activeImage, "PhotoSwipe preview image should exist").not.toBeNull();
+  expect(activeImage!.currentSrc).toContain("/api/preview");
+  expect(activeImage!.currentSrc).not.toContain("/api/thumbnail");
+  expect(activeImage!.naturalWidth).toBe(previewNaturalSize.width);
+  expect(activeImage!.naturalHeight).toBe(previewNaturalSize.height);
+  expect(activeImage!.rectWidth / activeImage!.rectHeight).toBeCloseTo(expectedRatio, 1);
 });
 
 test("zoom beyond threshold requests original for the current image", async ({ page }) => {

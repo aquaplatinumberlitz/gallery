@@ -9,7 +9,7 @@ export const LIGHTBOX_ALWAYS_LOAD_ORIGINAL_KEY = "gallery-lightbox-always-load-o
 export type LightboxDimensions = {
   width: number;
   height: number;
-  source: "scan" | "thumbnail" | "metadata" | "fallback";
+  source: "scan" | "thumbnail" | "metadata" | "preview" | "fallback";
 };
 
 export type PhotoSwipeImageItem = {
