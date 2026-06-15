@@ -172,21 +172,19 @@ function formatUpdatedAt(value: number | null | undefined) {
 }
 
 .index-details__row {
+  min-width: 0;
   color: var(--muted-text);
   font-size: 12px;
 }
 
 .index-details__row strong {
   min-width: 0;
-  color: var(--text-color);
-  font-weight: 600;
-  text-align: right;
-}
-
-.index-details__row--path strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--text-color);
+  font-weight: 600;
+  text-align: right;
 }
 
 .index-details__muted {
@@ -195,6 +193,8 @@ function formatUpdatedAt(value: number | null | undefined) {
 }
 
 .index-details__error {
+  overflow-wrap: anywhere;
+  overflow: hidden;
   border-radius: var(--gallery-radius-md);
   background: var(--gallery-error-bg);
   color: var(--gallery-error);
@@ -234,6 +234,8 @@ function formatUpdatedAt(value: number | null | undefined) {
 .index-details__last-error {
   display: grid;
   gap: 4px;
+  overflow-wrap: anywhere;
+  overflow: hidden;
   border-radius: var(--gallery-radius-md);
   background: var(--gallery-error-bg);
   color: var(--muted-text);

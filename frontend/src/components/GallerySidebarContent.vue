@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import RootPathSidebarHeader from "@/components/RootPathSidebarHeader.vue";
 import FolderTreeItem from "@/components/FolderTreeItem.vue";
 import { Loader } from "lucide-vue-next";
@@ -9,6 +10,7 @@ import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import IndexStatusPanel from "@/components/IndexStatusPanel.vue";
 
@@ -16,8 +18,11 @@ defineProps<{
   tree: any[];
   isLoading: boolean;
   currentPath: string;
-  indexStatusVariant?: "button" | "card";
 }>();
+
+const { isMobile, state } = useSidebar();
+const isCollapsed = computed(() => state.value === "collapsed");
+const indexStatusVariant = computed(() => isMobile.value || isCollapsed.value ? "button" : "card");
 </script>
 
 <template>
@@ -51,7 +56,7 @@ defineProps<{
     </SidebarGroup>
   </SidebarContent>
 
-  <SidebarFooter class="p-2 border-t border-border group-data-[collapsible=icon]:hidden">
+  <SidebarFooter class="border-t border-border p-2 overflow-hidden group-data-[collapsible=icon]:p-1 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center">
     <IndexStatusPanel :path="currentPath" :variant="indexStatusVariant" />
   </SidebarFooter>
 </template>

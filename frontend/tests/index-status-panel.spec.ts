@@ -155,6 +155,18 @@ async function openStubbedGallery(page: Page, withPath = true) {
 test.describe("IndexStatusPanel", () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 
+  test("desktop load does not throw SidebarContext injection errors", async ({ page, monitoredErrors }) => {
+    await installStubbedGallery(page);
+    await openStubbedGallery(page, true);
+
+    await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 10_000 });
+    expect(
+      monitoredErrors.consoleErrors.some((message) =>
+        message.includes("SidebarContext") || message.includes("Injection `Symbol(SidebarContext)` not found")
+      )
+    ).toBe(false);
+  });
+
   test("shows Unknown status when no root path is set", async ({ page }) => {
     await installStubbedGallery(page);
 
@@ -482,20 +494,83 @@ test.describe("IndexStatusPanel", () => {
     await expect(dbIcon).toHaveClass(/lucide-database/);
   });
 
-  test("collapsed state shows status dot on icon", async ({ page }) => {
-    await page.setViewportSize({ width: 768, height: 1024 });
-
+  test("collapsed desktop sidebar shows compact status button with dot", async ({ page }) => {
     await installStubbedGallery(page);
     await openStubbedGallery(page, true);
 
-    const dot = page.getByLabel("Index Status").locator("span.relative span.absolute");
+    const trigger = page.locator('[data-sidebar="trigger"]');
+    await expect(trigger).toBeVisible({ timeout: 5_000 });
+    await trigger.click();
+    await expect(trigger).toHaveAttribute("aria-label", "Expand sidebar");
+
+    const sidebarContainer = page.locator('[data-sidebar="sidebar"]');
+    const statusButton = page.getByLabel("Index Status");
+    await expect(statusButton).toBeVisible({ timeout: 10_000 });
+    await expect(statusButton.locator(".lucide-database")).toBeVisible();
+
+    const buttonBox = await statusButton.boundingBox();
+    expect(buttonBox).not.toBeNull();
+    expect(buttonBox!.width).toBeLessThanOrEqual(40);
+    expect(buttonBox!.height).toBeLessThanOrEqual(40);
+
+    const dot = statusButton.locator("span.relative span.absolute");
     await expect(dot).toBeAttached();
     await expect(dot).toHaveAttribute("aria-hidden", "true");
     await expect(dot).toHaveClass(/size-1\.5/);
     await expect(dot).toHaveClass(/rounded-full/);
-    await expect(dot).toHaveClass(/hidden/);
-    await expect(dot).toHaveClass(/group-data-\[collapsible=icon\]:block/);
     await expect(dot).toHaveClass(/(bg-green-500|bg-amber-500|bg-red-500|bg-gray-400)/);
+
+    const footer = page.locator('[data-sidebar="footer"]');
+    await expect(footer).toBeVisible();
+    const sidebarBox = await sidebarContainer.boundingBox();
+    const footerBox = await footer.boundingBox();
+    expect(sidebarBox).not.toBeNull();
+    expect(footerBox).not.toBeNull();
+    expect(footerBox!.width).toBeLessThanOrEqual(sidebarBox!.width + 1);
+  });
+
+  test("collapsed desktop index button opens details popover", async ({ page }) => {
+    await installStubbedGallery(page);
+    await openStubbedGallery(page, true);
+
+    const trigger = page.locator('[data-sidebar="trigger"]');
+    await expect(trigger).toBeVisible({ timeout: 5_000 });
+    await trigger.click();
+    await expect(trigger).toHaveAttribute("aria-label", "Expand sidebar");
+
+    const statusButton = page.getByLabel("Index Status");
+    await expect(statusButton).toBeVisible({ timeout: 10_000 });
+    await statusButton.click();
+
+    const popover = page.getByRole("dialog", { name: "Index Status" });
+    await expect(popover).toBeVisible({ timeout: 5_000 });
+    await expect(popover).toContainText("150 indexed");
+  });
+
+  test("details popover does not overflow with long root path", async ({ page }) => {
+    const longRootPath = "/home/ubuntu/gallery-repo/test-images/comfyui/some/very/long/path/that/should/overflow";
+    const origPath = indexStatusData.path;
+    indexStatusData.path = longRootPath;
+
+    await installStubbedGallery(page);
+    await openStubbedGallery(page, true);
+
+    indexStatusData.path = origPath;
+
+    const statusButton = page.getByLabel("Index Status");
+    await statusButton.click();
+
+    const popover = page.getByRole("dialog", { name: "Index Status" });
+    await expect(popover).toBeVisible({ timeout: 5_000 });
+    await expect(popover).toContainText("Root");
+
+    const rootValue = popover.locator("strong[title]");
+    await expect(rootValue).toHaveAttribute("title", longRootPath);
+
+    const box = await popover.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x + box!.width).toBeLessThanOrEqual(1280);
+    expect(box!.y + box!.height).toBeLessThanOrEqual(900);
   });
 
   test("mobile viewport preserves button variant", async ({ page }) => {

@@ -25,12 +25,21 @@ const emit = defineEmits<{
 
 const isExpanded = ref(false);
 const ellipsisMenuOpen = ref(false);
-const ellipsisBtnRef = ref<HTMLElement | null>(null);
+const ellipsisBtnRef = ref<HTMLElement | HTMLElement[] | null>(null);
 const menuPosition = ref({ top: 0, left: 0 });
 
+function getEllipsisButtonElement() {
+  const value = ellipsisBtnRef.value;
+  if (Array.isArray(value)) {
+    return value.find((item): item is HTMLElement => item instanceof HTMLElement) ?? null;
+  }
+  return value instanceof HTMLElement ? value : null;
+}
+
 function updateMenuPosition() {
-  if (!ellipsisBtnRef.value) return;
-  const rect = ellipsisBtnRef.value.getBoundingClientRect();
+  const button = getEllipsisButtonElement();
+  if (!button) return;
+  const rect = button.getBoundingClientRect();
   menuPosition.value = {
     top: Math.min(rect.bottom + 4, window.innerHeight - 320),
     left: Math.min(rect.left, window.innerWidth - 310),
@@ -144,7 +153,8 @@ const closeMenu = () => {
             <BreadcrumbLink
               v-if="!seg.isLast"
               :disabled="seg.isLast"
-              :as="seg.name"
+              as="button"
+              type="button"
               @click="onNavigate(seg)"
             >
               {{ seg.name }}
