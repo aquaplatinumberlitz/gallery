@@ -13,6 +13,8 @@ The backend has completed a comprehensive adaptation of DT/Immich patterns acros
 - **Phase 2B (Fielded Search + DB-First Metadata)**: Full fielded search parser (`seed:`, `model:`, `sampler:`, `cfg:`, `negative:`, `prompt:`, 30+ supported fields), DB-first warm metadata reads for lightbox panel.
 - **Phase 3 (Warm Listing + Watcher/Refresh + Facets)**: Warm indexed folder listing from `file_index` with `index_source: "warm_db"`, optional file watcher (`watchdog`), optional scheduled refresh, and `/api/facets` endpoint.
 
+Terminology note: backend Phase 3 and frontend Phase 3 are related but not identical. Backend Phase 3 refers to warm listing, watcher/refresh plumbing, and facets. Frontend Phase 3 in this plan refers specifically to the desktop-first `LibraryInspector` MVP at `/metadata`, which reuses indexed metadata and shared fielded-search semantics without adding watcher/refresh controls.
+
 ### What frontend UX is still missing
 
 The backend has a rich set of capabilities that are either completely invisible or severely underutilized in the frontend:
@@ -51,11 +53,11 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 - **Badge** for indexing/error/facet states.
 - **Tabs** for settings sections and future diagnostics sections.
 
-### Current strategy: PC-first Phase 1
+### Current strategy: Desktop-first Phase 3 Library Inspector
 
-Phase 1 is desktop/PC-only. The previous attempt proved that wiring new status UI into mobile/tablet headers is too risky without a dedicated mobile/tablet design. Therefore, Phase 1 must only improve desktop visibility and desktop UI structure.
+Phase 1 and Phase 2 are complete. The remaining implementation target is a desktop-first Phase 3 `LibraryInspector` at `/metadata`, backed by read-only metadata inspection APIs.
 
-Mobile and tablet layouts are frozen during Phase 1.
+Mobile and tablet Library Inspector layouts are deferred unless a separate mobile/tablet design is approved. The historical Phase 1 mobile/tablet freeze remains relevant as a guardrail: do not wire new inspector/status controls into mobile or tablet headers opportunistically.
 
 ---
 
@@ -66,7 +68,7 @@ Mobile and tablet layouts are frozen during Phase 1.
 | FRONTEND Phase 1A/1B | Superseded by TAILWIND Phase 2B (Index Status) |
 | FRONTEND Phase 1C (SettingsModal, Dialog) | Superseded by TAILWIND Phase 1.5 + 2B |
 | FRONTEND Phase 1D (SearchFilterChips, Badge) | Superseded by TAILWIND Phase 2B |
-| FRONTEND Phase 2 (AdvancedSearchDrawer, facets UI) | Still valid; NOT superseded |
+| FRONTEND Phase 2 (AdvancedSearchDrawer, facets UI) | Complete for desktop; Library Inspector reuses its fielded-search semantics and does not rebuild facets |
 
 ### Desktop Theme Note
 
@@ -74,9 +76,9 @@ Desktop theme selection now uses the `useGalleryTheme()` composable with a shadc
 
 ---
 
-### Mobile/Tablet Freeze for Phase 1
+### Mobile/Tablet Guardrail
 
-During Phase 1, these files and behaviors are out of scope:
+During completed Phase 1, these files and behaviors were intentionally out of scope. Keep the same constraint for Phase 3 Library Inspector unless a separate responsive design is approved:
 - frontend/src/components/MobileHeader.vue
 - frontend/src/components/TabletHeader.vue
 - frontend/src/layouts/MobileLayout.vue
@@ -91,7 +93,7 @@ During Phase 1, these files and behaviors are out of scope:
 - mobile/tablet lightbox behavior
 - mobile/tablet sheet behavior
 
-Phase 1 must not:
+Phase 3 Library Inspector must not opportunistically:
 - add IndexStatusChip to mobile header
 - add IndexStatusChip to tablet header
 - reorder mobile/tablet buttons
@@ -115,21 +117,21 @@ Any mobile/tablet change requires:
 |---|---|---|---|---|---|
 | Background metadata indexing | Complete (`indexer.py`, 607 lines) | Complete — `fetchIndexStatus(path)` | Complete — desktop `IndexStatusChip`/`IndexStatusPanel` | Desktop visibility complete after Tailwind Phase 2B refactor; mobile/tablet remains frozen | Complete for desktop Phase 1 |
 | Index status (`/api/index/status`) | Complete (`indexer.py:599`) | Complete | Complete — desktop AppHeader chip + popover panel | Mobile/tablet intentionally excluded | Complete for desktop Phase 1 |
-| Facets (`/api/facets`) | Complete (`facets.py:248`, 8 facet types) | Complete — `fetchFacets(path)` | **Missing** — no visible facet chips, filter UI, or suggestion dropdowns | Phase 1 data layer complete. Phase 2 exposes visible facets UI, filter chips, and AdvancedSearchDrawer integration. | Phase 2 UI |
-| Fielded search parser | Complete (`fielded_search_parser.py`, 30+ field types) | Partial — `unifiedSearch()` supports `scope` but no fielded search API wrapper | **Missing** — no AdvancedSearchDrawer, no filter chips, no field autocomplete | Backend is ready, frontend has basic text search only | P1 (Phase 2) |
+| Facets (`/api/facets`) | Complete (`facets.py:248`, 8 facet types) | Complete — `fetchFacets(path)` | Complete for desktop Phase 2 — facets/filter UI belongs to Advanced Search | No Phase 3 Library Inspector gap. Do not rebuild facets or filter chips inside the inspector MVP. | Complete for desktop Phase 2 |
+| Fielded search parser | Complete (`fielded_search_parser.py`, 30+ field types) | Complete for Phase 2 Advanced Search query serialization/search requests | Complete for desktop Phase 2 — `AdvancedSearchDrawer` and active filter chips expose fielded search | Phase 3 must reuse this parser/query-builder semantics for `/api/library/inspector`, not create a second parser. | Complete for desktop Phase 2; reused in Phase 3 |
 | Warm indexed folder listing | Complete (`scan.py` returns `index_source`) | Partial — `scanDirectory()` does not distinguish source | **Missing** — no visual indicator of warm vs direct scan source | Low priority (transparent optimization) | P3 |
 | Library Inspector listing/detail | **Missing endpoints** — indexed rows exist in `file_index` + `image_metadata`, but `/api/search?q=` intentionally returns empty | **Missing** — add `fetchLibraryInspector()` and `fetchLibraryInspectorMetadata()` | **Missing** — no `/metadata` route/view | Add read-only `/api/library/inspector` list and `/api/library/inspector/metadata` detail endpoints, sharing Phase 2 fielded parser/query semantics where possible | P3 |
-| Watcher | Watcher module implemented (`watcher.py:191`); HTTP route missing | **Missing** — no HTTP route for watcher status | **Missing** — frontend UI blocked until route exists | Both sides need work; watcher is P3 | P3 |
-| Scheduled refresh | Refresh module implemented (`refresh.py:150`); HTTP route missing | **Missing** — no HTTP route for refresh status | **Missing** — frontend UI blocked until route exists | Both sides need work; refresh is P3 | P3 |
+| Watcher | Watcher module implemented (`watcher.py:191`); HTTP route missing | **Missing** — no HTTP route for watcher status | Deferred — no watcher controls in Library Inspector MVP | Future status panel work only; not a Phase 3 Library Inspector prerequisite | Future |
+| Scheduled refresh | Refresh module implemented (`refresh.py:150`); HTTP route missing | **Missing** — no HTTP route for refresh status | Deferred — no refresh controls in Library Inspector MVP | Future status panel work only; not a Phase 3 Library Inspector prerequisite | Future |
 | Metadata extraction | Complete (`metadata_extract.py`, 5+ tools) | Complete — `fetchMetadata()` exists (`api.ts:179`) | **Complete** — lightbox panels display metadata well | No gap | N/A |
 | `/api/health` | Complete (`health.py:23`) | **Missing** — no `fetchHealth()` | **Missing** — not displayed in UI | Low priority; backend status is adequate | P3 |
 | `/api/search-metadata` (legacy) | Complete (`search.py:17`) | Not used — unified search replaced it | Not needed | No gap | N/A |
 | Duplicate/broken image handling | **Missing** — no duplicate detection endpoint | **Missing** | **Missing** | Backend prerequisite | Future |
 | Audit/diagnostics endpoint | **Missing** — no unified `/api/diagnostics` | **Missing** | **Missing** | Backend prerequisite | Future |
 
-### Key Gap: Watcher/Refresh Status Endpoints
+### Deferred Gap: Watcher/Refresh Status Endpoints
 
-`get_watcher_status()` (`watcher.py:191`) and `get_refresh_status()` (`refresh.py:150`) are implemented at the Python module level but not wired to any HTTP route in `app.py`. These need backend API routes before any frontend UI can be built. Treat as Phase 3 prerequisite.
+`get_watcher_status()` (`watcher.py:191`) and `get_refresh_status()` (`refresh.py:150`) are implemented at the Python module level but not wired to any HTTP route in `app.py`. These routes are prerequisites only for a future watcher/refresh status panel. They are not prerequisites for the Phase 3 Library Inspector MVP, which explicitly excludes watcher controls, refresh controls, diagnostics dashboards, and admin cockpit features.
 
 ---
 
@@ -143,7 +145,7 @@ Purpose: Make it clear what backend endpoints and frontend types/composables mus
 | `/api/facets` | `FacetsResponse` | `fetchFacets()` | `useFacetsQuery()` | Backend complete at `facets.py:248` |
 | `/api/search` | Existing `unifiedSearch()` contract | `unifiedSearch()` | Existing query composable | Current contract: `q`, `scope`, `path`, `limit`. Fielded search is parsed server-side from the `q` string. Advanced Search should serialize form state into backend-compatible `q`. |
 | `/api/library/inspector` | `LibraryInspectorResponse`, `LibraryInspectorRow` | `fetchLibraryInspector()` | `useLibraryInspectorQuery()` | **New Phase 3 list endpoint.** Empty `q` returns latest indexed metadata rows; optional `q` supports free text plus shared Phase 2 fielded syntax (`prompt:`, `negative:`, `model:`, `sampler:`, `seed:`, `date:`, `folder:`, `lora:`, `resource:`, `resource_hash:`). This endpoint must not change `/api/search?q=` empty-query behavior. |
-| `/api/library/inspector/metadata` | `LibraryInspectorMetadataResponse` | `fetchLibraryInspectorMetadata(path)` | `useLibraryInspectorMetadataQuery(path, enabled)` | **New Phase 3 detail endpoint.** Reads prompt/negative/LoRA/resource detail from indexed DB metadata by `path`; must not synchronously parse original image files during Popover open. |
+| `/api/library/inspector/metadata` | `LibraryInspectorMetadataResponse` | `fetchLibraryInspectorMetadata(path)` | `useLibraryInspectorMetadataQuery(path, enabled)` | **New Phase 3 detail endpoint.** Frontend must URL-encode `path`; backend must validate it belongs to the configured gallery root/indexed library. Reads prompt/negative/LoRA/resource detail from indexed DB metadata by `path`; must not synchronously parse original image files during Popover open. |
 | `/api/scan` | `ScanResponse` (include `index_source?: "warm_db" \| "direct_scan" \| "mixed"`) | `scanDirectory()` | Existing scan composable | Backend returns `index_source`; frontend type must reflect it. |
 
 Frontend should not invent a new payload shape when an existing backend contract already exists.
@@ -574,10 +576,13 @@ Completed via Tailwind Phase 2B Index Status refactor: `fetchIndexStatus(path)` 
 - [ ] **Add read-only list endpoint `GET /api/library/inspector`**:
   - Purpose: bounded metadata listing for `LibraryInspector`; do not change `/api/search?q=` empty-query behavior.
   - Query params: `q` (optional), `scope=current|all` (default `all`), `path` (for `scope=current`), `limit` (1-200, default 200).
+  - Scope semantics: default `scope=all` returns latest/search-matched rows across all indexed metadata. `scope=current` requires a `path` and should match existing gallery search/scan folder-scope semantics where possible, including the existing recursive/non-recursive behavior. Do not invent a second inspector-only scope model.
+  - Path params must be URL-encoded by the frontend. Backend must validate any `path` is under the configured gallery root and/or present in indexed library rows before using it for filtering.
   - Empty or missing `q`: return latest indexed metadata rows ordered recent-first, preferably `mtime_desc`.
   - Non-empty `q`: support free text and shared Phase 2 fielded syntax where applicable, including `prompt:`, `negative:`, `model:`, `sampler:`, `seed:`, `date:`, `folder:`, `lora:`, `resource:`, and `resource_hash:`.
   - Reuse the existing backend fielded-search parser/query builder used by `/api/search`; do not implement a second independent parser.
   - Data source: indexed DB tables (`file_index` + `image_metadata`) joined by `path`; include rows when core file data exists even if optional metadata is missing.
+  - `prompt_preview`, `has_prompt`, `has_negative`, `has_lora`, `lora_count`, and `lora_preview` must be derived from indexed DB metadata, not from synchronous image-file parsing during the list request.
   - Response wrapper: `{ root, scope, query, limit, total_indexed, returned, truncated, sort: "mtime_desc", rows }`.
   - `LibraryInspectorRow`: `path`, `name`, `folder`, `relative_path`, `mtime`, `width`, `height`, `model`, `tool`, `sampler`, `seed`, `prompt_preview`, `has_prompt`, `has_negative`, `has_lora`, `lora_count`, `lora_preview`, `metadata_detail_available`.
   - Keep list rows lightweight: no full prompt, negative prompt, raw metadata, or full LoRA/resource metadata. `prompt_preview` should be short and safe for table display (about 100-160 chars).
@@ -585,6 +590,8 @@ Completed via Tailwind Phase 2B Index Status refactor: `fetchIndexStatus(path)` 
 
 - [ ] **Add DB-first detail endpoint `GET /api/library/inspector/metadata?path=<encoded_path>`**:
   - Called only when the user opens prompt/LoRA/path metadata UI or chooses copy metadata actions.
+  - Frontend must call with URL-encoded `path`.
+  - Backend must validate `path` against the configured gallery root and indexed library rows before lookup. Reject missing, non-indexed, or out-of-library paths instead of treating the query param as an arbitrary filesystem path.
   - Response: `path`, `prompt`, `negative_prompt`, `raw_metadata` only if already indexed/cheap, `model`, `tool`, `sampler`, `seed`, `width`, `height`, `mtime`, `loras`, `resources`.
   - LoRA/resource entries include name, hash/resource_hash, and weight/strength when available.
   - Must read full prompt/negative/LoRA/resource detail from indexed DB metadata; must not synchronously parse original image files during Popover open.
