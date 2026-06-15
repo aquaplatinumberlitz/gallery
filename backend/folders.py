@@ -9,7 +9,7 @@ from fastapi.concurrency import run_in_threadpool
 from .albums import has_subfolders
 from .config import DEFAULT_ROOT, OPEN_FOLDER_ENABLED
 from .errors import APIError, ErrorType
-from .files import natural_sort_key
+from .files import is_index_excluded_path, natural_sort_key
 from .models import FileNode
 from .paths import is_path_safe, resolve_path
 
@@ -25,7 +25,7 @@ def list_folder_children(target_path: Path) -> list[FileNode]:
     folders: list[FileNode] = []
     try:
         for entry in os.scandir(target_path):
-            if entry.name.startswith("."):
+            if entry.name.startswith(".") or is_index_excluded_path(entry.path):
                 continue
 
             entry_path = Path(entry.path)

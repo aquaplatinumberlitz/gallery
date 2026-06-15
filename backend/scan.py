@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from .albums import build_album_metadata
 from .config import DEFAULT_ROOT, ENABLE_WARM_INDEXED_LISTING, SCAN_PERF_LOGS_ENABLED
 from .errors import APIError, ErrorType
-from .files import is_image, natural_sort_key
+from .files import is_image, is_index_excluded_path, natural_sort_key
 from .indexer import (
     enqueue_metadata_jobs_from_scan,
     note_scan_request_finished,
@@ -95,7 +95,7 @@ def scan_directory(target_path: Path) -> tuple[list[FileNode], list[FileNode], d
         perf["entries_scanned"] = len(entries)
 
         for entry in entries:
-            if entry.name.startswith("."):
+            if entry.name.startswith(".") or is_index_excluded_path(entry.path):
                 continue
 
             entry_path = Path(entry.path)

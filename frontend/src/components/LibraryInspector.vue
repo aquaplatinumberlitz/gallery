@@ -246,7 +246,7 @@ function sortAriaLabel(columnId: string, header: unknown) {
             Library Inspector
           </h2>
           <p class="truncate text-sm text-muted-foreground">
-            {{ inspectorQuery.data.value.returned }} returned from {{ inspectorQuery.data.value.total_indexed }} indexed
+            {{ inspectorQuery.data.value.returned }} returned from {{ inspectorQuery.data.value.total_indexed }} metadata records
             <span v-if="inspectorQuery.data.value.truncated">(showing first {{ inspectorQuery.data.value.limit }})</span>
           </p>
         </div>

@@ -111,7 +111,12 @@ async function triggerIndexAction(action: "rescan" | "rebuild") {
       queryClient.invalidateQueries({ queryKey: queryKeys.scan(requestPath, IMAGE_PAGE_SIZE) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.scanInfinite(requestPath, IMAGE_PAGE_SIZE) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.folderChildren(requestPath) }),
+      queryClient.invalidateQueries({ queryKey: ["library-inspector"] }),
+      queryClient.invalidateQueries({ queryKey: ["library-inspector-metadata"] }),
+      queryClient.invalidateQueries({ queryKey: ["search"] }),
+      queryClient.invalidateQueries({ queryKey: ["facets"] }),
     ]);
+    await queryClient.refetchQueries({ queryKey: ["library-inspector"], type: "active" });
     await refetch();
   } catch (err) {
     actionError.value = err instanceof Error ? err.message : "Unable to update the index.";

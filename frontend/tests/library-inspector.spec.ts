@@ -137,6 +137,7 @@ async function installStubbedInspector(page: Page) {
     requests.push(`${url.pathname}?${url.searchParams.toString()}`);
 
     if (url.pathname === "/api/library/inspector") {
+      const requestNumber = requests.filter((request) => request.startsWith("/api/library/inspector?")).length - 1;
       const query = url.searchParams.get("q") ?? "";
       const rows = rowsForQuery(query);
       await route.fulfill({
@@ -146,11 +147,78 @@ async function installStubbedInspector(page: Page) {
           scope: url.searchParams.get("scope") ?? "all",
           query,
           limit: Number(url.searchParams.get("limit") ?? 200),
-          total_indexed: baseRows.length,
+          total_indexed: baseRows.length + requestNumber,
           returned: rows.length,
           truncated: false,
           sort: "mtime_desc",
           rows,
+        }),
+      });
+      return;
+    }
+
+    if (url.pathname === "/api/scan") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          folders: [],
+          images: [],
+          next_cursor: null,
+          total_images: 0,
+          index_source: "direct_scan",
+        }),
+      });
+      return;
+    }
+
+    if (url.pathname === "/api/index/status") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          enabled: true,
+          worker_count: 0,
+          active_jobs: 0,
+          runtime_queue_depth: 0,
+          done: 150,
+          running: 0,
+          queued: 0,
+          failed: 0,
+          stale: 0,
+          skipped: 0,
+          total: 150,
+          path: rootPath,
+          counts: { done: 150 },
+          oldest_queued_age_seconds: null,
+          last_error: null,
+          updated_at: 1000000000,
+          coalesced_duplicates: 0,
+          staged_path_queue_depth: 0,
+          staged_path_coalesced: 0,
+          staged_path_failed: 0,
+          staged_path_flushes_forced: 0,
+          staged_path_worker_count: 0,
+          active_scan_requests: 0,
+          batch_size: 100,
+          staged_path_batch_size: 50,
+          stage_max_wait_seconds: 30,
+        }),
+      });
+      return;
+    }
+
+    if (url.pathname === "/api/index/rebuild") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          path: url.searchParams.get("path") ?? rootPath,
+          cleared: {
+            file_index_fts: 1,
+            file_index: 1,
+            image_metadata: 1,
+            metadata_index_jobs: 1,
+            folder_index_state: 1,
+          },
+          rebuild_started: true,
         }),
       });
       return;
@@ -206,6 +274,7 @@ test.describe("LibraryInspector", () => {
 
     await expect(page.getByRole("heading", { name: "Library Inspector" })).toBeVisible();
     await expect(page.getByRole("link", { name: /Metadata/ })).toHaveAttribute("aria-current", "page");
+    await expect(page.getByText("metadata records", { exact: false })).toBeVisible();
 
     const galleryLink = page.getByRole("link", { name: "Gallery" });
     await expect(galleryLink).toBeVisible();
@@ -223,6 +292,33 @@ test.describe("LibraryInspector", () => {
 
     await galleryLink.click();
     await expect(page).toHaveURL(`${baseUrl}/`);
+  });
+
+  test("refetches active metadata records after rebuild index", async ({ page }) => {
+    const requests = await installStubbedInspector(page);
+    await page.addInitScript((root) => {
+      localStorage.setItem("intro_mode", "disabled");
+      localStorage.setItem("gallery-root-path", root);
+      localStorage.setItem("gallery-sidebar-open", "true");
+    }, rootPath);
+
+    await page.goto(`${baseUrl}/metadata`, { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { name: "Library Inspector" })).toBeVisible();
+    await expect(page.getByText("40 metadata records", { exact: false })).toBeVisible();
+
+    const inspectorRequestsBefore = requests.filter((request) => request.startsWith("/api/library/inspector?")).length;
+    await page.getByLabel("Index Status").click();
+    const popover = page.getByRole("dialog", { name: "Index Status" });
+    await expect(popover).toBeVisible({ timeout: 5_000 });
+    await popover.getByRole("button", { name: "Rebuild index" }).click();
+
+    const dialog = page.getByRole("dialog", { name: "Rebuild index?" });
+    await expect(dialog).toBeVisible({ timeout: 5_000 });
+    await dialog.getByRole("button", { name: "Rebuild index" }).click();
+
+    await expect
+      .poll(() => requests.filter((request) => request.startsWith("/api/library/inspector?")).length)
+      .toBeGreaterThan(inspectorRequestsBefore);
   });
 
   test("keeps prompt preview constrained and makes the table the scroll owner", async ({ page }) => {

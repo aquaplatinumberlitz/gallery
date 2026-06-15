@@ -16,7 +16,7 @@ from .config import (
     GALLERY_METADATA_DB,
     GALLERY_ROOT,
 )
-from .files import is_image_path
+from .files import is_image_path, is_index_excluded_path
 from .models import FileNode
 from .metadata_extract import (
     ExtractedMetadata,
@@ -269,6 +269,8 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
             conn.execute("UPDATE file_index SET width = NULL, height = NULL")
             conn.execute("PRAGMA user_version = 1")
 
+        _cleanup_ignored_index_conn(conn)
+
 
 def _current_metadata_is_complete(conn: sqlite3.Connection, path: str, mtime: float, size: int) -> bool:
     row = conn.execute(
@@ -286,7 +288,7 @@ def _current_metadata_is_complete(conn: sqlite3.Connection, path: str, mtime: fl
 
 def _metadata_job_from_path(path_value: str | Path, root_path: str | Path | None = None) -> MetadataIndexJob | None:
     path = Path(path_value)
-    if not is_image_path(path):
+    if is_index_excluded_path(path) or not is_image_path(path):
         return None
     try:
         stat = path.stat()
@@ -680,6 +682,8 @@ def _upsert_extracted_metadata_conn(conn: sqlite3.Connection, metadata: Extracte
 
 
 def upsert_extracted_metadata(metadata: ExtractedMetadata, *, mark_job_done: bool = False) -> bool:
+    if is_index_excluded_path(metadata.path):
+        return False
     initialize_database()
     with _DB_LOCK, _connect() as conn:
         _upsert_extracted_metadata_conn(conn, metadata)
@@ -703,7 +707,7 @@ def upsert_metadata_batch(metadata_items: Iterable[ExtractedMetadata]) -> int:
 
 
 def index_image(path: Path) -> bool:
-    if not is_image_path(path):
+    if is_index_excluded_path(path) or not is_image_path(path):
         return False
     try:
         stat = path.stat()
@@ -1227,6 +1231,8 @@ def index_file(
     width: int | None,
     height: int | None,
 ) -> bool:
+    if is_index_excluded_path(path):
+        return False
     resolved_path = str(Path(path).resolve())
     resolved_parent = str(Path(parent_path).resolve())
     normalized_type = _normalize_file_type(type)
@@ -1293,6 +1299,28 @@ def _cleanup_stale_index_conn(conn: sqlite3.Connection, root_path: str | Path | 
     return len(stale_paths)
 
 
+def _cleanup_ignored_index_conn(conn: sqlite3.Connection, root_path: str | Path | None = None) -> int:
+    root = Path(root_path).resolve() if root_path is not None else None
+    candidate_paths: set[str] = set()
+    for table in ("file_index", "file_index_fts", "image_metadata", "metadata_index_jobs", "folder_index_state"):
+        candidate_paths.update(row["path"] for row in conn.execute(f"SELECT path FROM {table}"))
+
+    ignored_paths = [
+        path_value
+        for path_value in candidate_paths
+        if (root is None or _is_inside_root(Path(path_value), root)) and is_index_excluded_path(path_value)
+    ]
+    if not ignored_paths:
+        return 0
+
+    conn.executemany("DELETE FROM file_index_fts WHERE path = ?", ((path,) for path in ignored_paths))
+    conn.executemany("DELETE FROM file_index WHERE path = ?", ((path,) for path in ignored_paths))
+    conn.executemany("DELETE FROM image_metadata WHERE path = ?", ((path,) for path in ignored_paths))
+    conn.executemany("DELETE FROM metadata_index_jobs WHERE path = ?", ((path,) for path in ignored_paths))
+    conn.executemany("DELETE FROM folder_index_state WHERE path = ?", ((path,) for path in ignored_paths))
+    return len(ignored_paths)
+
+
 def cleanup_stale_index(state: Any, root_path: str | Path | None = None) -> int:
     """Remove stale database rows for missing or out-of-root paths.
 
@@ -1304,6 +1332,13 @@ def cleanup_stale_index(state: Any, root_path: str | Path | None = None) -> int:
 
     with _DB_LOCK, _connect() as conn:
         return _cleanup_stale_index_conn(conn, root_path)
+
+
+def cleanup_ignored_index(root_path: str | Path | None = None) -> int:
+    """Remove ignored dependency/cache/app-build paths from persisted index rows only."""
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        return _cleanup_ignored_index_conn(conn, root_path)
 
 
 def _scoped_path_where(root: Path) -> tuple[str, list[Any]]:
@@ -1406,6 +1441,8 @@ def index_directory_tree(
 
     def visit(folder: Path, visited_inodes: set[tuple[int, int]]) -> None:
         nonlocal indexed
+        if is_index_excluded_path(folder):
+            return
         try:
             stat = folder.stat()
             folder_inode = (stat.st_dev, stat.st_ino)
@@ -1429,7 +1466,7 @@ def index_directory_tree(
             return
 
         for entry in entries:
-            if entry.name.startswith("."):
+            if entry.name.startswith(".") or is_index_excluded_path(entry):
                 continue
             try:
                 # Skip symlinked directories to avoid loops; files are still followed.

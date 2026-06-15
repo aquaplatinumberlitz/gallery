@@ -81,6 +81,7 @@ def test_library_inspector_empty_query_returns_latest_rows(
     data = resp.json()
     assert data["query"] == ""
     assert data["scope"] == "all"
+    assert data["total_indexed"] == 2
     assert data["returned"] >= 2
     assert data["rows"][0]["path"]
     assert "prompt" not in data["rows"][0]
@@ -88,6 +89,48 @@ def test_library_inspector_empty_query_returns_latest_rows(
     assert "raw_metadata" not in data["rows"][0]
     for key in ("prompt_preview", "has_prompt", "has_negative", "has_lora", "lora_count", "lora_preview", "metadata_detail_available"):
         assert key in data["rows"][0]
+
+
+def test_library_inspector_excludes_app_build_assets_but_keeps_gallery_dist_folder(
+    isolated_app: TestClient,
+    isolated_gallery_root: Path,
+):
+    from .conftest import create_test_png_with_metadata
+    from backend.metadata_store import _connect, index_directory_tree
+
+    app_dist_image = isolated_gallery_root / "frontend" / "dist" / "landpage" / "asset.png"
+    app_public_image = isolated_gallery_root / "frontend" / "public" / "landpage" / "asset.png"
+    node_modules_image = isolated_gallery_root / "node_modules" / "fixture.png"
+    gallery_dist_image = isolated_gallery_root / "albums" / "dist" / "real-gallery-image.png"
+    create_test_png_with_metadata(app_dist_image, prompt="app build asset", seed="1")
+    create_test_png_with_metadata(app_public_image, prompt="app public asset", seed="4")
+    create_test_png_with_metadata(node_modules_image, prompt="dependency asset", seed="2")
+    create_test_png_with_metadata(gallery_dist_image, prompt="real gallery image", seed="3")
+
+    collected: list[Path] = []
+    index_directory_tree(isolated_gallery_root, include_metadata=True, collected_image_paths=collected)
+
+    with _connect() as conn:
+        image_metadata_paths = {
+            row["path"] for row in conn.execute("SELECT path FROM image_metadata")
+        }
+        file_index_paths = {
+            row["path"] for row in conn.execute("SELECT path FROM file_index WHERE type = 'photo'")
+        }
+
+    assert str(app_dist_image.resolve()) not in image_metadata_paths
+    assert str(app_dist_image.resolve()) not in file_index_paths
+    assert str(app_public_image.resolve()) not in image_metadata_paths
+    assert str(app_public_image.resolve()) not in file_index_paths
+    assert str(node_modules_image.resolve()) not in image_metadata_paths
+    assert str(gallery_dist_image.resolve()) in image_metadata_paths
+    assert str(gallery_dist_image.resolve()) in file_index_paths
+
+    resp = isolated_app.get("/api/library/inspector", params={"q": "", "scope": "all", "limit": 200})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_indexed"] == 1
+    assert [row["name"] for row in data["rows"]] == ["real-gallery-image.png"]
 
 
 def test_library_inspector_does_not_change_search_empty_behavior(

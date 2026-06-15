@@ -1,4 +1,5 @@
 import re
+import os
 from pathlib import Path
 
 from PIL import Image, UnidentifiedImageError
@@ -8,6 +9,57 @@ from .errors import APIError, ErrorType
 
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff"}
+DEFAULT_INDEX_EXCLUDED_DIR_NAMES = frozenset({
+    ".git",
+    "node_modules",
+    "__pycache__",
+    ".venv",
+    "venv",
+})
+DEFAULT_INDEX_EXCLUDED_SEGMENTS = (
+    ("frontend", "public"),
+    ("frontend", "dist"),
+    ("frontend", "build"),
+    ("backend", "__pycache__"),
+    ("backend", ".cache"),
+)
+
+
+def _configured_excluded_dir_names() -> set[str]:
+    configured = {
+        item.strip()
+        for item in os.getenv("GALLERY_INDEX_EXCLUDE_DIRS", "").split(",")
+        if item.strip()
+    }
+    return set(DEFAULT_INDEX_EXCLUDED_DIR_NAMES) | configured
+
+
+def _configured_excluded_segments() -> tuple[tuple[str, ...], ...]:
+    configured = tuple(
+        tuple(part for part in item.strip().replace("\\", "/").split("/") if part)
+        for item in os.getenv("GALLERY_INDEX_EXCLUDE_PATTERNS", "").split(",")
+        if item.strip()
+    )
+    return DEFAULT_INDEX_EXCLUDED_SEGMENTS + configured
+
+
+def _path_parts(path: str | Path) -> tuple[str, ...]:
+    return tuple(part for part in Path(path).parts if part not in {"", Path(path).anchor})
+
+
+def _contains_segment(parts: tuple[str, ...], segment: tuple[str, ...]) -> bool:
+    if not segment or len(segment) > len(parts):
+        return False
+    return any(parts[index:index + len(segment)] == segment for index in range(len(parts) - len(segment) + 1))
+
+
+def is_index_excluded_path(path: str | Path) -> bool:
+    """Return True for dependency/cache/app-build paths that should not enter the gallery index."""
+    parts = _path_parts(path)
+    excluded_names = _configured_excluded_dir_names()
+    if any(part in excluded_names for part in parts):
+        return True
+    return any(_contains_segment(parts, segment) for segment in _configured_excluded_segments())
 
 
 def is_image(path: Path) -> bool:

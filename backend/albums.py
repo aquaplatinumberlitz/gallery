@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from .files import is_image
+from .files import is_image, is_index_excluded_path
 
 
 def has_any_children(dir_path: Path) -> bool:
@@ -19,7 +19,7 @@ def has_subfolders(dir_path: Path) -> bool:
     """Return True when a directory contains at least one non-hidden child directory."""
     try:
         for entry in os.scandir(dir_path):
-            if entry.name.startswith("."):
+            if entry.name.startswith(".") or is_index_excluded_path(entry.path):
                 continue
             if entry.is_dir(follow_symlinks=False):
                 return True
@@ -36,6 +36,8 @@ def first_images_in_dir(dir_path: Path, limit: int = 3) -> list[str]:
     images: list[tuple[float, str]] = []
     try:
         for entry in dir_path.iterdir():
+            if is_index_excluded_path(entry):
+                continue
             if entry.is_file() and is_image(entry):
                 try:
                     mtime = entry.stat().st_mtime
@@ -53,7 +55,10 @@ def count_images_in_dir(dir_path: Path) -> int:
     try:
         return sum(
             1 for entry in dir_path.iterdir()
-            if not entry.name.startswith(".") and entry.is_file() and is_image(entry)
+            if not entry.name.startswith(".")
+            and not is_index_excluded_path(entry)
+            and entry.is_file()
+            and is_image(entry)
         )
     except (PermissionError, OSError):
         return 0
