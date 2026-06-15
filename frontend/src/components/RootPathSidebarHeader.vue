@@ -19,7 +19,7 @@ const closeSidebar = inject(closeSidebarKey, () => {});
 const { setOpen } = useSidebar();
 const galleryStore = useGalleryStore();
 const pathInput = ref(galleryStore.rootPath || "");
-const inputRef = ref<HTMLInputElement | null>(null);
+const inputRef = ref<{ blur: () => void } | null>(null);
 const showSheet = ref(false);
 
 const onLoad = async () => {
@@ -169,17 +169,17 @@ watch(
 /* Only container shell and responsive rules remain */
 
 .field-container {
-  background: var(--surface-color, #fff);
+  background: var(--card);
   border-radius: 10px;
   display: flex;
   align-items: center;
   padding: 0 12px;
   height: 40px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--border);
 }
 
 .field-icon {
-  color: var(--primary-color);
+  color: var(--primary);
   flex-shrink: 0;
 }
 
@@ -189,7 +189,7 @@ watch(
   gap: 6px;
   margin: 8px 0 0;
   font-size: 12px;
-  color: var(--muted-text, #65676b);
+  color: var(--muted-foreground);
 }
 
 /* Responsive: iOS Safari zoom fix — font-size >= 16px prevents auto-zoom on input focus */
@@ -221,7 +221,7 @@ watch(
     padding: 0 10px;
     height: 40px;
     border-radius: 10px;
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--border);
     cursor: pointer;
     transition: border-color 0.2s, box-shadow 0.2s;
     touch-action: manipulation;
@@ -234,8 +234,8 @@ watch(
   }
 
   .mobile-root-display:active {
-    border-color: var(--primary-color, #ff6b35);
-    box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.15);
+    border-color: var(--ring);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 25%, transparent);
   }
 
   .mobile-root-display .field-icon {
@@ -246,7 +246,7 @@ watch(
     flex: 1;
     min-width: 0;
     font-size: 14px;
-    color: var(--text-color, #050505);
+    color: var(--foreground);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -259,7 +259,7 @@ watch(
     border-radius: 50%;
     border: none;
     background: transparent;
-    color: var(--muted-text, #65676b);
+    color: var(--muted-foreground);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -270,7 +270,7 @@ watch(
 
   .mobile-edit-btn:active {
     background: rgba(0, 0, 0, 0.05);
-    color: var(--primary-color, #ff6b35);
+    color: var(--primary);
   }
 }
 

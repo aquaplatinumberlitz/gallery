@@ -220,10 +220,10 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  background: color-mix(in srgb, var(--surface-color) 85%, transparent);
+  background: color-mix(in srgb, var(--card) 85%, transparent);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid color-mix(in srgb, var(--border-color, rgba(0, 0, 0, 0.08)) 50%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
   border-radius: 12px;
   flex-shrink: 0;
 }
@@ -244,7 +244,7 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
   border: none;
   border-radius: 12px;
   background: transparent;
-  color: var(--text-color);
+  color: var(--foreground);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -254,11 +254,11 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
 }
 
 .tgt-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--text-color) 8%, transparent);
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
 }
 
 .tgt-btn:active:not(:disabled) {
-  background: color-mix(in srgb, var(--text-color) 14%, transparent);
+  background: color-mix(in srgb, var(--foreground) 14%, transparent);
   transform: scale(0.96);
 }
 
@@ -281,10 +281,10 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
   gap: 8px;
   padding: 10px 14px;
   min-height: 44px;
-  background: color-mix(in srgb, var(--surface-color) 95%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border-color, rgba(0, 0, 0, 0.1)) 70%, transparent);
+  background: color-mix(in srgb, var(--card) 95%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   border-radius: 10px;
-  color: var(--text-color);
+  color: var(--foreground);
   font-size: 13px;
   font-family: var(--font-body);
   cursor: pointer;
@@ -292,14 +292,14 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
 }
 
 .tgt-trigger:hover {
-  border-color: var(--primary-color);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--primary-color) 25%, transparent);
+  border-color: var(--ring);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--ring) 25%, transparent);
 }
 
 .sort-dropdown.open .tgt-trigger,
 .density-dropdown.open .tgt-trigger {
-  border-color: var(--primary-color);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--primary-color) 25%, transparent);
+  border-color: var(--ring);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--ring) 25%, transparent);
 }
 
 .tgt-trigger-label {
@@ -327,8 +327,8 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
   top: calc(100% + 6px);
   right: 0;
   min-width: 180px;
-  background: var(--surface-color);
-  border: 1px solid color-mix(in srgb, var(--border-color, rgba(0, 0, 0, 0.1)) 70%, transparent);
+  background: var(--popover);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   border-radius: 12px;
   box-shadow: var(--gallery-shadow-lg, 0 10px 40px rgba(0, 0, 0, 0.15));
   padding: 6px;
@@ -341,8 +341,8 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
   top: calc(100% + 6px);
   right: 0;
   min-width: 180px;
-  background: var(--surface-color);
-  border: 1px solid color-mix(in srgb, var(--border-color, rgba(0, 0, 0, 0.1)) 70%, transparent);
+  background: var(--popover);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   border-radius: 12px;
   box-shadow: var(--gallery-shadow-lg, 0 10px 40px rgba(0, 0, 0, 0.15));
   padding: 6px;
@@ -359,7 +359,7 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
   background: transparent;
   border: none;
   border-radius: 8px;
-  color: var(--text-color);
+  color: var(--foreground);
   font-size: 13px;
   font-family: var(--font-body);
   cursor: pointer;
@@ -372,8 +372,8 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
 }
 
 .sort-option.active {
-  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
-  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  color: var(--primary);
   font-weight: 500;
 }
 
@@ -386,7 +386,7 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
   background: transparent;
   border: none;
   border-radius: 8px;
-  color: var(--text-color);
+  color: var(--foreground);
   font-size: 13px;
   font-family: var(--font-body);
   cursor: pointer;
@@ -400,8 +400,8 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
 }
 
 .density-option.active {
-  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
-  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  color: var(--primary);
   font-weight: 500;
 }
 
@@ -438,7 +438,7 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
 
 /* Dark mode support: surface adjustments */
 :root[data-theme="dark"] .tablet-gallery-toolbar {
-  border-color: color-mix(in srgb, var(--border-color, rgba(255, 255, 255, 0.08)) 50%, transparent);
+  border-color: color-mix(in srgb, var(--border) 50%, transparent);
 }
 
 /* ============================================================

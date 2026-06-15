@@ -292,10 +292,10 @@ onMounted(() => {
   gap: 6px;
   padding: 8px 12px;
   padding-top: max(8px, env(safe-area-inset-top));
-  background: color-mix(in srgb, var(--surface-color) 85%, transparent);
+  background: color-mix(in srgb, var(--card) 85%, transparent);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid color-mix(in srgb, var(--border-color, rgba(0, 0, 0, 0.08)) 50%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
   transform: translateY(0);
   opacity: 1;
   transition:
@@ -334,7 +334,7 @@ onMounted(() => {
   border: none;
   border-radius: 10px;
   background: transparent;
-  color: var(--text-color);
+  color: var(--foreground);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -349,11 +349,11 @@ onMounted(() => {
 }
 
 .mh-btn:hover {
-  background: color-mix(in srgb, var(--text-color) 8%, transparent);
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
 }
 
 .mh-btn:active {
-  background: color-mix(in srgb, var(--text-color) 14%, transparent);
+  background: color-mix(in srgb, var(--foreground) 14%, transparent);
 }
 
 /* ============================================================
@@ -375,7 +375,7 @@ onMounted(() => {
   border: none;
   border-radius: 10px;
   background: transparent;
-  color: var(--text-color);
+  color: var(--foreground);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -385,11 +385,11 @@ onMounted(() => {
 }
 
 .mh-search-btn:hover {
-  background: color-mix(in srgb, var(--text-color) 8%, transparent);
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
 }
 
 .mh-search-btn:active {
-  background: color-mix(in srgb, var(--text-color) 14%, transparent);
+  background: color-mix(in srgb, var(--foreground) 14%, transparent);
 }
 
 /* ============================================================
@@ -422,8 +422,8 @@ onMounted(() => {
   align-items: center;
   gap: 6px;
   flex: 1;
-  background: var(--gallery-surface-elevated, var(--surface-color));
-  border: 1px solid color-mix(in srgb, var(--border-color, rgba(0, 0, 0, 0.12)) 80%, transparent);
+  background: var(--card);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
   border-radius: var(--gallery-radius-full, 9999px);
   padding: 0 12px;
   height: 42px;
@@ -435,14 +435,14 @@ onMounted(() => {
 
 /* When input is focused, subtle ring */
 .search-focus-input-wrap:focus-within {
-  border-color: var(--gallery-accent-default, var(--primary-color));
+  border-color: var(--ring);
   box-shadow:
-    0 0 0 1px var(--gallery-accent-default, var(--primary-color)),
+    0 0 0 1px var(--ring),
     var(--gallery-shadow-sm, 0 1px 3px rgba(0,0,0,0.08));
 }
 
 .search-focus-input-icon {
-  color: var(--gallery-text-tertiary, var(--muted-text));
+  color: var(--muted-foreground);
   flex-shrink: 0;
   width: var(--gallery-icon-md);
   height: var(--gallery-icon-md);
@@ -456,7 +456,7 @@ onMounted(() => {
   border: none;
   background: transparent;
   font-size: 16px; /* Prevent iOS auto-zoom */
-  color: var(--text-color);
+  color: var(--foreground);
   outline: none;
   min-width: 0;
   line-height: 1.3;
@@ -464,7 +464,7 @@ onMounted(() => {
 }
 
 .search-focus-input::placeholder {
-  color: var(--gallery-text-placeholder, var(--muted-text));
+  color: var(--muted-foreground);
   font-weight: 400;
 }
 
@@ -487,9 +487,9 @@ onMounted(() => {
    Clear button
    ============================================================ */
 .search-focus-clear {
-  background: color-mix(in srgb, var(--gallery-text-tertiary, var(--muted-text)) 12%, transparent);
+  background: color-mix(in srgb, var(--muted-foreground) 12%, transparent);
   border: none;
-  color: var(--gallery-text-secondary, var(--text-color));
+  color: var(--foreground);
   cursor: pointer;
   padding: 0;
   width: 26px;
@@ -503,11 +503,11 @@ onMounted(() => {
 }
 
 .search-focus-clear:hover {
-  background: color-mix(in srgb, var(--gallery-text-tertiary, var(--muted-text)) 20%, transparent);
+  background: color-mix(in srgb, var(--muted-foreground) 20%, transparent);
 }
 
 .search-focus-clear:active {
-  background: color-mix(in srgb, var(--gallery-text-tertiary, var(--muted-text)) 30%, transparent);
+  background: color-mix(in srgb, var(--muted-foreground) 30%, transparent);
 }
 
 .search-focus-clear svg {
@@ -518,10 +518,10 @@ onMounted(() => {
 .search-scope-chip {
   max-width: 104px;
   height: 28px;
-  border: 1px solid color-mix(in srgb, var(--border-color, rgba(0, 0, 0, 0.12)) 58%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--muted-text) 4%, var(--gallery-surface-elevated, var(--surface-color)));
-  color: var(--muted-text);
+  background: color-mix(in srgb, var(--muted-foreground) 4%, var(--card));
+  color: var(--muted-foreground);
   font-size: 12px;
   font-weight: 600;
   padding: 0 8px;
@@ -538,7 +538,7 @@ onMounted(() => {
   border: none;
   border-radius: 10px;
   background: transparent;
-  color: var(--text-color);
+  color: var(--foreground);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -559,11 +559,11 @@ onMounted(() => {
 }
 
 .search-focus-back:hover {
-  background: color-mix(in srgb, var(--text-color) 8%, transparent);
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
 }
 
 .search-focus-back:active {
-  background: color-mix(in srgb, var(--text-color) 14%, transparent);
+  background: color-mix(in srgb, var(--foreground) 14%, transparent);
 }
 
 .search-focus-back svg {
@@ -702,8 +702,8 @@ onMounted(() => {
   top: calc(100% + 8px);
   right: 0;
   min-width: 220px;
-  background: var(--surface-color);
-  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
+  background: var(--popover);
+  border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
   padding: 6px;
@@ -721,7 +721,7 @@ onMounted(() => {
   background: transparent;
   border: none;
   border-radius: 8px;
-  color: var(--text-color);
+  color: var(--foreground);
   font-size: 14px;
   font-family: var(--font-body);
   cursor: pointer;
@@ -739,8 +739,8 @@ onMounted(() => {
 }
 
 .mobile-sort-option.active {
-  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
-  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  color: var(--primary);
   font-weight: 600;
 }
 

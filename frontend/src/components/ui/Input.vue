@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { HTMLAttributes } from "vue";
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/utils";
 
@@ -40,10 +40,17 @@ const emit = defineEmits<{
 }>();
 
 const inputClasses = computed(() => cn(inputVariants({ variant: props.variant }), props.class));
+const inputRef = ref<HTMLInputElement | null>(null);
+
+defineExpose({
+  blur: () => inputRef.value?.blur(),
+  focus: () => inputRef.value?.focus(),
+});
 </script>
 
 <template>
   <input
+    ref="inputRef"
     :type="type"
     :value="modelValue"
     :class="inputClasses"

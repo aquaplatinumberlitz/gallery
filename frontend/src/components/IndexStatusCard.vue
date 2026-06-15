@@ -101,10 +101,10 @@ function formatCount(value: number) {
   display: grid;
   width: 100%;
   gap: 8px;
-  border: 1px solid var(--gallery-border-subtle);
+  border: 1px solid var(--border);
   border-radius: var(--gallery-radius-md);
-  background: var(--gallery-surface-elevated);
-  color: var(--text-color);
+  background: var(--card);
+  color: var(--foreground);
   padding: 10px 11px;
   text-align: left;
   transition:
@@ -114,8 +114,8 @@ function formatCount(value: number) {
 }
 
 .index-status-card:hover {
-  border-color: var(--gallery-border-hover);
-  background: var(--gallery-surface-hover);
+  border-color: var(--ring);
+  background: var(--accent);
 }
 
 .index-status-card:focus-visible {
@@ -135,13 +135,13 @@ function formatCount(value: number) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--text-color);
+  color: var(--foreground);
   font-size: 13px;
   font-weight: 650;
 }
 
 .index-status-card__body {
-  color: var(--muted-text);
+  color: var(--muted-foreground);
   font-size: 12px;
   line-height: 1.25;
 }
@@ -162,7 +162,7 @@ function formatCount(value: number) {
 }
 
 .index-status-card__details {
-  color: var(--primary-color);
+  color: var(--primary);
   font-size: 12px;
   font-weight: 600;
   line-height: 1.2;

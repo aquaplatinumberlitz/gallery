@@ -67,7 +67,7 @@ const indexStatusVariant = computed(() => isMobile.value || isCollapsed.value ? 
   align-items: center;
   justify-content: space-between;
   font-weight: 600;
-  color: var(--title-color);
+  color: var(--foreground);
   flex-shrink: 0;
 }
 
@@ -102,7 +102,7 @@ const indexStatusVariant = computed(() => isMobile.value || isCollapsed.value ? 
 
 .empty-state {
   margin: 0;
-  color: var(--muted-text);
+  color: var(--muted-foreground);
   font-size: 14px;
 }
 

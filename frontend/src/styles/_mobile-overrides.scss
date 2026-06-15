@@ -50,7 +50,7 @@
     .mbb-btn
   ):hover {
     box-shadow: none !important;
-    border-color: var(--border-color) !important;
+    border-color: var(--border) !important;
   }
 
   /* Allow :active to work normally */
@@ -70,7 +70,7 @@
   #app,
   .layout,
   .content {
-    background-color: var(--bg-color) !important;
+    background-color: var(--background) !important;
   }
 
   /* Dark mode override for the anchored backgrounds */
@@ -79,7 +79,7 @@
   html[data-theme="dark"] #app,
   html[data-theme="dark"] .layout,
   html[data-theme="dark"] .content {
-    background-color: var(--bg-color) !important;
+    background-color: var(--background) !important;
   }
 }
 

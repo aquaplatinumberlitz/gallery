@@ -45,8 +45,8 @@ defineProps<{
   cursor: pointer;
   border-radius: 10px;
   overflow: hidden;
-  background: var(--gallery-surface-elevated, #ffffff);
-  border: 1px solid var(--gallery-border-default, #e5ddd4);
+  background: var(--card);
+  border: 1px solid var(--border);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   transition: transform 160ms ease, box-shadow 160ms ease;
 
@@ -54,7 +54,7 @@ defineProps<{
     width: 100%;
     height: 130px;
     overflow: hidden;
-    background: var(--surface-color);
+    background: var(--card);
 
     img {
       width: 100%;
@@ -65,10 +65,10 @@ defineProps<{
     .placeholder {
       width: 100%;
       height: 100%;
-      background: var(--placeholder-bg);
+      background: color-mix(in srgb, var(--muted) 75%, transparent);
       display: grid;
       place-items: center;
-      color: var(--muted-text);
+      color: var(--muted-foreground);
     }
   }
 
@@ -80,7 +80,7 @@ defineProps<{
       font-family: var(--font-body);
       font-weight: 600;
       font-size: 15px;
-      color: var(--title-color);
+      color: var(--foreground);
       margin: 0;
       text-overflow: ellipsis;
       overflow: hidden;
@@ -93,14 +93,14 @@ defineProps<{
       gap: 4px;
       font-family: var(--font-code);
       font-size: 12px;
-      color: var(--muted-text);
+      color: var(--muted-foreground);
       margin: 4px 0 0;
       letter-spacing: 0.5px;
     }
 
     .album-meta-icon {
       flex-shrink: 0;
-      color: var(--muted-text);
+      color: var(--muted-foreground);
     }
     .gallery-icon-meta {
       width: var(--gallery-icon-meta);
@@ -113,7 +113,7 @@ defineProps<{
     box-shadow: none;
 
     .album-name {
-      color: var(--gallery-accent-default, var(--neon-color));
+      color: var(--foreground);
     }
   }
 
@@ -144,6 +144,6 @@ defineProps<{
   width: 32px;
   height: 32px;
   display: block;
-  color: var(--muted-text);
+  color: var(--muted-foreground);
 }
 </style>

@@ -178,7 +178,7 @@ watch(
 }
 
 .root-path-sheet {
-  background: var(--surface-color, #fff);
+  background: var(--card);
   width: 100%;
   max-width: 100%;
   border-radius: 16px 16px 0 0;
@@ -187,10 +187,6 @@ watch(
   animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   max-height: 85vh;
   overflow-y: auto;
-}
-
-[data-theme="dark"] .root-path-sheet {
-  background: var(--surface-color, #1c1c1e);
 }
 
 .sheet-handle-wrapper {
@@ -217,11 +213,11 @@ watch(
   padding: 8px 0 12px;
   font-size: 15px;
   font-weight: 600;
-  color: var(--text-color, #050505);
+  color: var(--foreground);
 }
 
 .title-icon {
-  color: var(--primary-color, #ff6b35);
+  color: var(--primary);
   flex-shrink: 0;
 }
 
@@ -234,9 +230,9 @@ watch(
   font-size: 16px;
   font-family: inherit;
   line-height: 1.45;
-  color: var(--text-color, #050505);
-  background: var(--bg-color, #f5f5f5);
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  color: var(--foreground);
+  background: var(--background);
+  border: 1px solid var(--border);
   border-radius: 10px;
   outline: none;
   resize: none;
@@ -253,15 +249,9 @@ watch(
   box-shadow: 0 0 0 2px rgba(231, 76, 60, 0.15);
 }
 
-[data-theme="dark"] .root-path-textarea {
-  background: var(--bg-color, #2c2c2e);
-  border-color: rgba(255, 255, 255, 0.12);
-  color: var(--text-color, #f0f0f0);
-}
-
 .root-path-textarea:focus {
-  border-color: var(--primary-color, #ff6b35);
-  box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.15);
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 25%, transparent);
 }
 
 .root-path-textarea.has-error:focus {
@@ -270,7 +260,7 @@ watch(
 }
 
 .root-path-textarea::placeholder {
-  color: var(--muted-text, #aaa);
+  color: var(--muted-foreground);
 }
 
 .sheet-error {
@@ -313,13 +303,8 @@ watch(
   white-space: nowrap;
   transition: all 0.2s;
   touch-action: manipulation;
-  color: var(--text-color, #050505);
+  color: var(--foreground);
   background: rgba(0, 0, 0, 0.05);
-}
-
-[data-theme="dark"] .action-btn {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--text-color, #f0f0f0);
 }
 
 .action-btn:active {
@@ -331,16 +316,16 @@ watch(
 }
 
 .cancel-btn {
-  color: var(--muted-text, #65676b);
+  color: var(--muted-foreground);
 }
 
 .load-btn {
-  background: var(--primary-color, #ff6b35);
-  color: #fff;
+  background: var(--primary);
+  color: var(--primary-foreground);
 }
 
 .load-btn:active {
-  background: color-mix(in srgb, var(--primary-color, #ff6b35) 85%, black);
+  background: color-mix(in srgb, var(--primary) 85%, black);
 }
 
 @keyframes fadeIn {

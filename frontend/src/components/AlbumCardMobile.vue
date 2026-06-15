@@ -45,8 +45,8 @@ defineProps<{
   cursor: pointer;
   border-radius: 8px;
   overflow: hidden;            // Outer card clips content — clean straight edge at bottom
-  background: var(--gallery-surface-elevated, #ffffff);
-  border: 1px solid var(--gallery-border-default, #e5ddd4);
+  background: var(--card);
+  border: 1px solid var(--border);
   box-shadow: none;
   transition: transform 160ms ease, opacity 160ms ease;
 
@@ -56,7 +56,7 @@ defineProps<{
     border-radius: 8px 8px 0 0;  // Only top corners rounded — bottom is straight horizontal edge
     overflow: hidden;
     border: none;                  // Removed border for cleaner look (Apple Photos style)
-    background: var(--surface-color);
+    background: var(--card);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);  // Subtle depth (Google Photos style)
 
     img {
@@ -68,10 +68,10 @@ defineProps<{
     .placeholder {
       width: 100%;
       height: 100%;
-      background: var(--placeholder-bg);
+      background: color-mix(in srgb, var(--muted) 75%, transparent);
       display: grid;
       place-items: center;
-      color: var(--muted-text);
+      color: var(--muted-foreground);
     }
   }
 
@@ -84,7 +84,7 @@ defineProps<{
       font-weight: 600;
       font-size: 13px;
       line-height: 1.25;
-      color: var(--title-color);
+      color: var(--foreground);
       margin: 0;
       display: -webkit-box;
       -webkit-box-orient: vertical;
@@ -101,13 +101,13 @@ defineProps<{
       gap: 4px;
       font-family: var(--font-code);
       font-size: 11px;             // Increased from 10px → 11px (better readability)
-      color: var(--muted-text);
+      color: var(--muted-foreground);
       margin: 4px 0 0;
       letter-spacing: 0.5px;
     }
     .album-meta-icon {
       flex-shrink: 0;
-      color: var(--muted-text);
+      color: var(--muted-foreground);
     }
     .gallery-icon-meta {
       width: var(--gallery-icon-meta);
@@ -135,7 +135,7 @@ defineProps<{
     }
 
     .album-name {
-      color: var(--gallery-accent-default, var(--neon-color));
+      color: var(--foreground);
     }
 
     @media (hover: hover) {
@@ -172,6 +172,6 @@ defineProps<{
   width: 32px;
   height: 32px;
   display: block;
-  color: var(--muted-text);
+  color: var(--muted-foreground);
 }
 </style>

@@ -58,7 +58,7 @@ const props = withDefaults(
   height: 12px;
   width: 100%;
   border-radius: 8px;
-  background: linear-gradient(90deg, var(--placeholder-bg, rgba(0, 0, 0, 0.05)), rgba(0, 0, 0, 0.035), var(--placeholder-bg, rgba(0, 0, 0, 0.05)));
+  background: linear-gradient(90deg, var(--muted), rgba(0, 0, 0, 0.035), var(--muted));
   position: relative;
 }
 
@@ -117,7 +117,7 @@ const props = withDefaults(
 
 :global(html[data-theme="dark"]) .skeleton-block,
 :global(html[data-theme="dark"]) .skeleton-line {
-  background: linear-gradient(90deg, var(--gallery-surface-hover, rgba(255, 255, 255, 0.08)), rgba(255, 255, 255, 0.06), var(--gallery-surface-hover, rgba(255, 255, 255, 0.08)));
+  background: linear-gradient(90deg, var(--muted), rgba(255, 255, 255, 0.06), var(--muted));
 }
 
 :global(html[data-theme="dark"]) .shimmer-wave {

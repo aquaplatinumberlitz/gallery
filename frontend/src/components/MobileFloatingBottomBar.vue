@@ -56,10 +56,10 @@ const folderName = computed(() => {
   padding: 6px 8px;
   margin-bottom: env(safe-area-inset-bottom, 0px);
   border-radius: 24px;
-  background: color-mix(in srgb, var(--surface-color) 85%, transparent);
+  background: color-mix(in srgb, var(--card) 85%, transparent);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid color-mix(in srgb, var(--border-color, rgba(0, 0, 0, 0.08)) 50%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
   box-shadow: var(--gallery-shadow-md, 0 4px 20px rgba(0, 0, 0, 0.1));
   opacity: 1;
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
@@ -79,7 +79,7 @@ const folderName = computed(() => {
   border: none;
   border-radius: 50%;
   background: transparent;
-  color: var(--text-color);
+  color: var(--foreground);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -94,11 +94,11 @@ const folderName = computed(() => {
 }
 
 .mbb-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--text-color) 8%, transparent);
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
 }
 
 .mbb-btn:active:not(:disabled) {
-  background: color-mix(in srgb, var(--text-color) 14%, transparent);
+  background: color-mix(in srgb, var(--foreground) 14%, transparent);
 }
 
 .mbb-btn:disabled {
@@ -116,14 +116,14 @@ const folderName = computed(() => {
 }
 
 .path-icon {
-  color: var(--primary-color, #d4af37);
+  color: var(--primary);
   flex-shrink: 0;
 }
 
 .path-text {
   font-size: 13px;
   font-weight: 500;
-  color: var(--text-color);
+  color: var(--foreground);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

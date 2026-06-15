@@ -193,13 +193,13 @@ onUnmounted(() => {
 .toast__title {
   font-size: 14px;
   font-weight: 600;
-  color: var(--toast-title, var(--gallery-text-primary, #1f2937));
+  color: var(--toast-title, var(--foreground));
   line-height: 1.4;
 }
 
 .toast__message {
   font-size: 13px;
-  color: var(--toast-message, var(--gallery-text-secondary, #6b7280));
+  color: var(--toast-message, var(--muted-foreground));
   line-height: 1.4;
   margin-top: 2px;
 }
@@ -266,7 +266,7 @@ onUnmounted(() => {
   height: 28px;
   border: none;
   background: transparent;
-  color: var(--toast-dismiss, var(--gallery-text-tertiary, #9ca3af));
+  color: var(--toast-dismiss, var(--muted-foreground));
   font-size: 14px;
   cursor: pointer;
   border-radius: 6px;
@@ -303,10 +303,10 @@ onUnmounted(() => {
 
 /* Dark mode */
 :root[data-theme="dark"] .toast {
-  --toast-bg: var(--gallery-surface-elevated, #1f2937);
-  --toast-title: var(--gallery-text-primary, #f9fafb);
-  --toast-message: var(--gallery-text-secondary, #9ca3af);
-  --toast-dismiss: var(--gallery-text-tertiary, #6b7280);
+  --toast-bg: var(--popover);
+  --toast-title: var(--foreground);
+  --toast-message: var(--muted-foreground);
+  --toast-dismiss: var(--muted-foreground);
 }
 
 :root[data-theme="dark"] .toast__dismiss:hover {

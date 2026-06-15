@@ -159,14 +159,14 @@ function formatUpdatedAt(value: number | null | undefined) {
 
 .index-details__eyebrow {
   margin: 0;
-  color: var(--muted-text);
+  color: var(--muted-foreground);
   font-size: 11px;
   font-weight: 600;
 }
 
 .index-details__title {
   margin: 2px 0 0;
-  color: var(--text-color);
+  color: var(--foreground);
   font-size: 14px;
   font-weight: 650;
 }
@@ -178,7 +178,7 @@ function formatUpdatedAt(value: number | null | undefined) {
 
 .index-details__row {
   min-width: 0;
-  color: var(--muted-text);
+  color: var(--muted-foreground);
   font-size: 12px;
 }
 
@@ -187,13 +187,13 @@ function formatUpdatedAt(value: number | null | undefined) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text-color);
+  color: var(--foreground);
   font-weight: 600;
   text-align: right;
 }
 
 .index-details__muted {
-  color: var(--muted-text);
+  color: var(--muted-foreground);
   font-size: 13px;
 }
 
@@ -213,12 +213,12 @@ function formatUpdatedAt(value: number | null | undefined) {
 }
 
 .index-details__progress-label {
-  color: var(--muted-text);
+  color: var(--muted-foreground);
   font-size: 12px;
 }
 
 .index-details__progress-label strong {
-  color: var(--text-color);
+  color: var(--foreground);
   font-weight: 600;
 }
 
@@ -243,7 +243,7 @@ function formatUpdatedAt(value: number | null | undefined) {
   overflow: hidden;
   border-radius: var(--gallery-radius-md);
   background: var(--gallery-error-bg);
-  color: var(--muted-text);
+  color: var(--muted-foreground);
   padding: 8px 10px;
   font-size: 12px;
 }

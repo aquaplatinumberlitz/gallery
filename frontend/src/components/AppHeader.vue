@@ -281,13 +281,13 @@ function handleClearAll() {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-size: 12px;
-  color: var(--muted-text);
+  color: var(--muted-foreground);
 }
 
 h1 {
   margin: 4px 0 0 0;
   font-size: clamp(22px, 3vw, 30px);
-  color: var(--title-color);
+  color: var(--foreground);
 }
 
 .theme-toggle {
@@ -329,7 +329,7 @@ h1 {
   transform: translateY(-50%);
   width: 28px;
   height: 28px;
-  background: var(--surface-color);
+  background: var(--card);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -430,9 +430,9 @@ h1 {
 /* Only responsive rules remain */
 
 .scope-select {
-  border: 1px solid color-mix(in srgb, var(--border-color, rgba(0, 0, 0, 0.1)) 55%, transparent);
-  background: color-mix(in srgb, var(--muted-text) 4%, var(--surface-color));
-  color: var(--muted-text);
+  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  background: color-mix(in srgb, var(--muted-foreground) 4%, var(--card));
+  color: var(--muted-foreground);
   border-radius: 999px;
   height: 28px;
   padding: 0 10px;
@@ -472,7 +472,7 @@ h1 {
   transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 
   /* --- 2. LIGHT MODE (Mặc định: Đơn sắc, Không viền, Không Glow) --- */
-  color: var(--title-color);     /* Dùng màu Navy đậm của tiêu đề cho đồng bộ */
+  color: var(--foreground);     /* Dùng màu Navy đậm của tiêu đề cho đồng bộ */
   border: 2px solid transparent; /* Viền trong suốt (giữ chỗ) */
   box-shadow: none;              /* Không bóng */
   filter: none;                  /* Không phát sáng */
@@ -503,7 +503,7 @@ h1 {
   display: inline-block;
   
   /* Clean solid color - elegant & readable */
-  color: var(--title-color);
+  color: var(--foreground);
   
   /* Smooth transitions for hover effects */
   transition: 
@@ -640,18 +640,18 @@ h1 {
     gap: 6px;
     border-radius: 10px;
     border: 1px solid rgba(0, 0, 0, 0.12);
-    background: var(--surface-color);
+    background: var(--card);
     transition: border-color 0.2s, box-shadow 0.2s;
   }
 
   .search-box:hover {
-    border-color: var(--primary-color);
-    box-shadow: 0 4px 12px rgba(214, 161, 93, 0.25);
+    border-color: var(--primary);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--ring) 25%, transparent);
   }
 
   .search-box:focus-within {
-    border-color: var(--primary-color);
-    box-shadow: 0 4px 12px rgba(214, 161, 93, 0.25);
+    border-color: var(--primary);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--ring) 25%, transparent);
   }
 
   .search-box input {
@@ -660,19 +660,19 @@ h1 {
     background: transparent;
     padding: 0;
     font-size: 14px;
-    color: var(--text-color);
+    color: var(--foreground);
     outline: none;
     min-width: 0;
   }
 
   .search-box input::placeholder {
-    color: var(--muted-text);
+    color: var(--muted-foreground);
   }
 
   .search-box .clear-btn {
     background: transparent;
     border: none;
-    color: var(--muted-text);
+    color: var(--muted-foreground);
     cursor: pointer;
     padding: 4px;
     display: flex;
@@ -684,7 +684,7 @@ h1 {
 
   .search-box .clear-btn:hover {
     background: rgba(0, 0, 0, 0.05);
-    color: var(--text-color);
+    color: var(--foreground);
   }
 
   .theme-toggle {

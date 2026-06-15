@@ -4,33 +4,6 @@
    ========================================================================== */
 
 :root {
-  /* ── Surface (3 levels, warm, no shadow) ── */
-  --gallery-surface-dim:        #f5eee6;
-  --gallery-surface-default:    #ffffff;
-  --gallery-surface-elevated:   #ffffff;
-  --gallery-surface-hover:      #faf5ef;
-
-  /* ── Text ── */
-  --gallery-text-primary:       #143d60;
-  --gallery-text-secondary:     #4a6587;
-  --gallery-text-tertiary:      #8ba0b8;
-  --gallery-text-disabled:      #bcc8d6;
-  --gallery-text-inverse:       #ffffff;
-  --gallery-text-placeholder:   #8ba0b8;
-
-  /* ── Accent (orange — Reddit-inspired, brand = primary) ── */
-  --gallery-accent-default:     #ff6b35;
-  --gallery-accent-hover:       #e85a26;
-  --gallery-accent-muted:       #fff0ea;
-  --gallery-accent-text:        #d45420;
-  --gallery-accent-border:      #ff8f66;
-
-  /* ── Border ── */
-  --gallery-border-default:     #e5ddd4;
-  --gallery-border-subtle:      #ede7e0;
-  --gallery-border-hover:       #d6cec4;
-  --gallery-border-accent:      #ede7e0;
-
   /* ── Semantic ── */
   --gallery-success:            #22c55e;
   --gallery-success-bg:         rgba(34, 197, 94, 0.1);
@@ -114,23 +87,16 @@
   --gallery-toggle-gradient-dark:    linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
   --gallery-toggle-thumb-bg-dark:    linear-gradient(180deg, #ffd54f 0%, #ffb300 100%);
 
-  /* ── LEGACY MAPPINGS (giữ tương thích ngược) ── */
-  --bg-color: #f5eee6;
-  --bg-secondary: #ffffff;
-  --text-color: #143d60;
-  --title-color: #143d60;
-  --surface-color: #ffffff;
-  --album-border-color: #e5ddd4;
-  --border-color: rgba(0, 0, 0, 0.12);
-  --muted-text: #4a6587;
-  --neon-color: #ff6b35;
-  --primary-color: #ff6b35;
-  --placeholder-bg: rgba(0,0,0,0.10);
-  --folder-color: #f2a007;
+  /* ── Brand/decorative tokens (not for standard UI surfaces) ── */
+  --brand-hero-text: #143d60;
+  --brand-accent: #ff6b35;
+  --brand-neon-color: #ff6b35;
+  --brand-neon-border-color: #08f;
+  --brand-folder-color: #f2a007;
+
   --font-body: "InterVariable", "Segoe UI", "SF Pro Display", system-ui, -apple-system, sans-serif;
   --font-code: "JetBrains Mono", monospace;
-  --focus-ring-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--primary-color, #ff6b35);
-  --photocard-border: transparent;
+  --focus-ring-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring);
 
   /* Legacy shadow tokens (giữ tương thích) */
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px 1px rgba(0, 0, 0, 0.15);
@@ -154,55 +120,19 @@
 }
 
 :root[data-theme="dark"] {
-  /* ── Surface (warm near-black — Facebook-inspired) ── */
-  --gallery-surface-dim:        #0f0f0f;
-  --gallery-surface-default:    #1a1918;
-  --gallery-surface-elevated:   #242321;
-  --gallery-surface-hover:      #2a2826;
-
-  /* ── Text ── */
-  --gallery-text-primary:       #e4e6eb;
-  --gallery-text-secondary:     #b0b3b8;
-  --gallery-text-tertiary:      #7a7f85;
-  --gallery-text-disabled:      #505459;
-  --gallery-text-inverse:       #1a1918;
-  --gallery-text-placeholder:   #5c6065;
-
-  /* ── Accent (warm gold) ── */
-  --gallery-accent-default:     #d6a15d;
-  --gallery-accent-hover:       #e0b070;
-  --gallery-accent-muted:       #2a2218;
-  --gallery-accent-text:        #e8c07a;
-  --gallery-accent-border:      #c49040;
-
-  /* ── Border (warm subtle) ── */
-  --gallery-border-default:     #2d2b28;
-  --gallery-border-subtle:      #262422;
-  --gallery-border-hover:       #3a3734;
-  --gallery-border-accent:      #3d3528;
-
   /* ── Shadow (dark mode) ── */
   --gallery-shadow-sm:  0 1px 2px rgba(0,0,0,0.30), 0 1px 3px rgba(0,0,0,0.15);
   --gallery-shadow-md:  0 2px 4px rgba(0,0,0,0.35), 0 4px 8px rgba(0,0,0,0.15);
   --gallery-shadow-lg:  0 4px 8px rgba(0,0,0,0.40), 0 8px 16px rgba(0,0,0,0.15);
   --gallery-shadow-xl:  0 8px 16px rgba(0,0,0,0.45), 0 16px 32px rgba(0,0,0,0.15);
 
-  /* ── LEGACY MAPPINGS (dark mode) ── */
-  --bg-color: #080808;
-  --bg-secondary: #1e1e1e;
-  --text-color: #eaeaea;
-  --title-color: #d6a15d;
-  --surface-color: #11100f;
-  --album-border-color: #eaeaea;
-  --border-color: rgba(255, 255, 255, 0.075);
-  --muted-text: #b3b3b3;
-  --neon-color: #d6a15d;
-  --primary-color: #d6a15d;
-  --placeholder-bg: rgba(255,255,255,0.06);
-  --neon-border-color: #08f;
-  --folder-color: #f2a007;
-  --focus-ring-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--primary-color, #d6a15d);
-  --photocard-border: rgba(255, 255, 255, 0.06);
+  /* ── Brand/decorative tokens (dark mode) ── */
+  --brand-hero-text: #d6a15d;
+  --brand-accent: #d6a15d;
+  --brand-neon-color: #d6a15d;
+  --brand-neon-border-color: #08f;
+  --brand-folder-color: #f2a007;
+  --focus-ring-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring);
 
   /* Legacy shadow tokens (dark mode) */
   --shadow-card: 0 1px 3px 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.7);

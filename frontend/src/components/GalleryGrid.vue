@@ -1029,9 +1029,9 @@ watch(loadMoreSentinel, () => setupLoadObserver());
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--primary-color) 40%, transparent);
-  color: var(--title-color);
+  background: color-mix(in srgb, var(--destructive) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--destructive) 40%, transparent);
+  color: var(--foreground);
   padding: 10px 12px;
   border-radius: 10px;
 }
@@ -1106,7 +1106,7 @@ watch(loadMoreSentinel, () => setupLoadObserver());
   display: block;
   min-width: 0;
   max-width: 100%;
-  color: var(--title-color);
+  color: var(--foreground);
   font-size: 13px;
   font-weight: 600;
   line-height: 1.25;
@@ -1141,7 +1141,7 @@ watch(loadMoreSentinel, () => setupLoadObserver());
   align-items: center;
   gap: 4px;
   min-width: 0;
-  color: var(--muted-text);
+  color: var(--muted-foreground);
   font-size: 12px;
   line-height: 1.3;
 }
@@ -1157,7 +1157,7 @@ watch(loadMoreSentinel, () => setupLoadObserver());
   width: 12px;
   height: 12px;
   flex-shrink: 0;
-  color: color-mix(in srgb, var(--muted-text) 82%, var(--primary-color));
+  color: color-mix(in srgb, var(--muted-foreground) 82%, var(--primary));
 }
 
 .search-album-path {
@@ -1166,7 +1166,7 @@ watch(loadMoreSentinel, () => setupLoadObserver());
 
 .search-scope-hint {
   margin: 10px 0 0;
-  color: var(--muted-text);
+  color: var(--muted-foreground);
   font-size: 13px;
 }
 
@@ -1266,7 +1266,7 @@ watch(loadMoreSentinel, () => setupLoadObserver());
   gap: 8px;
   padding: 8px 10px;
   background: rgba(0, 0, 0, 0.04);
-  color: var(--text-color);
+  color: var(--foreground);
   border-radius: 10px;
 }
 
@@ -1504,7 +1504,7 @@ watch(loadMoreSentinel, () => setupLoadObserver());
   justify-content: center;
   gap: 8px;
   padding: 12px 0 8px;
-  color: var(--primary-color);
+  color: var(--primary);
   font-size: 13px;
   font-weight: 500;
   transition: transform 0.3s cubic-bezier(0.2, 0, 0, 1), opacity 0.2s ease;
@@ -1517,14 +1517,14 @@ watch(loadMoreSentinel, () => setupLoadObserver());
   align-items: center;
   justify-content: center;
   transition: transform 0.2s ease;
-  color: var(--primary-color);
+  color: var(--primary);
 }
 
 .pull-spinner {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--primary-color);
+  color: var(--primary);
 }
 
 .pull-label {

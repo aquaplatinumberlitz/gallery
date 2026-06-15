@@ -34,8 +34,8 @@
   transition: all 0.2s ease;
 
   &.active {
-    color: var(--primary-color);
-    border-bottom-color: var(--primary-color);
+    color: var(--gallery-lightbox-text-primary);
+    border-bottom-color: var(--gallery-lightbox-text-primary);
   }
 
   &:focus-visible {

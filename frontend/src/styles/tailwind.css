@@ -60,9 +60,9 @@
   --color-info-bg: var(--gallery-info-bg);
 
   /* Brand-only tokens (reserved for brand hero, not standard UI) */
-  --color-neon: var(--neon-color);
-  --color-neon-border: var(--neon-border-color);
-  --color-folder: var(--folder-color);
+  --color-neon: var(--brand-neon-color);
+  --color-neon-border: var(--brand-neon-border-color);
+  --color-folder: var(--brand-folder-color);
 
   /* shadcn-vue color tokens (neutral shadcn pixel-level defaults) */
   --color-primary-foreground: var(--primary-foreground);
@@ -201,5 +201,4 @@
 .slide-out-to-top-\[48\%\] { --tw-exit-translate-y: -48%; }
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
-
 

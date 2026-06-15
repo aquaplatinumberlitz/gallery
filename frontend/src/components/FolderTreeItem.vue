@@ -184,7 +184,7 @@ const handleKeydown = (e: KeyboardEvent) => {
 }
 
 .folder-icon {
-  color: var(--folder-color);
+  color: var(--primary);
   transition: color 120ms ease;
 }
 

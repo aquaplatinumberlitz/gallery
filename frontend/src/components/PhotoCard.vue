@@ -156,7 +156,7 @@ onBeforeUnmount(() => {
   aspect-ratio: 1;
   border-radius: 12px;
   overflow: hidden;
-  background: var(--surface-color, #fff);
+  background: var(--card);
   /* Facebook-inspired: no shadow */
   box-shadow: none;
   contain: content; /* Isolate layout/paint — prevents reflows during scroll */
@@ -200,8 +200,7 @@ onBeforeUnmount(() => {
   // Dark mode - Apple Style
   // Content-first: image fills 100%, no padding
   // Subtle border glow for hover feedback
-  // Uses --photocard-border from tokens.css (set via data-theme attribute)
-  border: 1px solid var(--photocard-border, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
   box-shadow: none;
 
   /* ── Mobile overrides ── */
@@ -225,7 +224,7 @@ onBeforeUnmount(() => {
   position: absolute;
   inset: 0;
   z-index: 2;
-  background: var(--surface-color, #fff);
+  background: var(--card);
 }
 
 .type-badge {
@@ -259,7 +258,7 @@ onBeforeUnmount(() => {
   height: 100%;
   display: grid;
   place-items: center;
-  color: var(--muted-text);
+  color: var(--muted-foreground);
   font-size: 22px;
   text-align: center;
   gap: 6px;

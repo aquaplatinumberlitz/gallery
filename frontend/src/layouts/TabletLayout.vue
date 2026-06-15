@@ -68,7 +68,7 @@ const emit = defineEmits<{
 
 <style scoped>
 .gallery-sidebar-surface {
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.04)), var(--surface-color);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--foreground) 2%, transparent), color-mix(in srgb, var(--foreground) 4%, transparent)), var(--card);
 }
 
 .content {
@@ -82,7 +82,7 @@ const emit = defineEmits<{
 }
 
 .content-body {
-  background: var(--surface-color);
+  background: var(--card);
   border-radius: 12px;
   padding: 20px;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04);

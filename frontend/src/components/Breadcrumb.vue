@@ -328,8 +328,8 @@ const closeMenu = () => {
   max-width: 300px;
   max-height: 300px;
   overflow-y: auto;
-  background: var(--bg-secondary, #fff);
-  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
+  background: var(--popover);
+  border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
   z-index: 1000;
@@ -345,7 +345,7 @@ const closeMenu = () => {
   padding: 8px 12px;
   border: none;
   background: transparent;
-  color: var(--text-color, #333);
+  color: var(--foreground);
   font-size: 13px;
   text-align: left;
   cursor: pointer;
@@ -372,7 +372,7 @@ const closeMenu = () => {
 
 .ellipsis-menu-divider {
   height: 1px;
-  background: var(--border-color, rgba(0, 0, 0, 0.1));
+  background: var(--border);
   margin: 4px 8px;
 }
 
@@ -394,7 +394,7 @@ const closeMenu = () => {
 
 /* Dark mode dropdown */
 :root[data-theme="dark"] .ellipsis-menu {
-  background: var(--bg-secondary, #1e1e1e);
+  background: var(--popover);
   border-color: var(--border, rgba(255, 255, 255, 0.1));
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }

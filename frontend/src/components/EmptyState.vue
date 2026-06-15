@@ -246,7 +246,7 @@ const actionIconComponent = computed(() => {
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background: var(--gallery-surface-default, rgba(255,255,255,0.1));
+  background: var(--card);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   border: 2px solid var(--accent-color);
@@ -381,7 +381,7 @@ const actionIconComponent = computed(() => {
   margin: 0 0 8px;
   font-size: 18px;
   font-weight: 600;
-  color: var(--title-color);
+  color: var(--foreground);
 }
 
 .compact .title {
@@ -391,7 +391,7 @@ const actionIconComponent = computed(() => {
 .description {
   margin: 0;
   font-size: 14px;
-  color: var(--muted-text);
+  color: var(--muted-foreground);
   line-height: 1.5;
 }
 
@@ -409,8 +409,8 @@ const actionIconComponent = computed(() => {
   padding: 10px 20px;
   border: none;
   border-radius: 8px;
-  background: var(--primary-color);
-  color: var(--gallery-text-inverse, #fff);
+  background: var(--primary);
+  color: var(--primary-foreground);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -441,7 +441,7 @@ const actionIconComponent = computed(() => {
 }
 
 .action-btn .action-icon-fa {
-  color: var(--gallery-text-inverse, #fff);
+  color: var(--primary-foreground);
 }
 
 /* Animations */

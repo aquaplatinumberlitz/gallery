@@ -34,7 +34,7 @@ defineProps<{
   margin: 0;
   font-family: "Cinzel", serif;
   font-size: 16px;
-  color: var(--primary-color);
+  color: var(--primary);
   position: relative;
   display: inline-block;
 }
@@ -46,7 +46,7 @@ defineProps<{
   left: 0;
   width: 100%;
   height: 1.5px;
-  background: linear-gradient(90deg, var(--primary-color, #d6a15d) 0%, transparent 100%);
+  background: linear-gradient(90deg, var(--primary) 0%, transparent 100%);
   border-radius: 1px;
 }
 
@@ -56,10 +56,10 @@ defineProps<{
   gap: 4px;
   padding: 3px 10px 3px 8px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
   font-size: 12px;
   font-family: var(--font-code);
-  color: var(--primary-color);
+  color: var(--primary);
 }
 
 .toggle-chevron {

@@ -163,12 +163,12 @@ onBeforeUnmount(() => {
 
 .album-grid-wrapper.has-overflow::before {
   left: 0;
-  background: linear-gradient(to right, var(--surface-color), transparent);
+  background: linear-gradient(to right, var(--card), transparent);
 }
 
 .album-grid-wrapper.has-overflow::after {
   right: 0;
-  background: linear-gradient(to left, var(--surface-color), transparent);
+  background: linear-gradient(to left, var(--card), transparent);
 }
 
 .album-grid {
@@ -207,7 +207,7 @@ onBeforeUnmount(() => {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.96);
   border: 1px solid rgba(20, 61, 96, 0.22);
-  color: var(--text-color);
+  color: var(--foreground);
   box-shadow:
     0 10px 24px rgba(20, 61, 96, 0.14),
     inset 0 0 0 1px rgba(255, 255, 255, 0.48);
@@ -245,9 +245,9 @@ onBeforeUnmount(() => {
 
 .album-scroll-btn:not(:disabled):hover {
   transform: translateY(-50%) scale(1.035);
-  color: var(--primary-color);
-  border-color: rgba(255, 184, 77, 0.48);
-  background: rgba(255, 248, 238, 0.96);
+  color: var(--primary);
+  border-color: color-mix(in srgb, var(--ring) 48%, transparent);
+  background: color-mix(in srgb, var(--accent) 96%, transparent);
 }
 
 .album-scroll-btn:not(:disabled):active {
@@ -263,7 +263,7 @@ onBeforeUnmount(() => {
 /* Dark theme */
 :root[data-theme="dark"] .album-scroll-btn {
   background: rgba(32, 28, 24, 0.96);
-  border-color: rgba(255, 184, 77, 0.38);
+  border-color: color-mix(in srgb, var(--ring) 38%, transparent);
   box-shadow:
     0 12px 30px rgba(0, 0, 0, 0.52),
     inset 0 0 0 1px rgba(255, 216, 138, 0.08);
@@ -272,35 +272,35 @@ onBeforeUnmount(() => {
 :root[data-theme="dark"] .album-scroll-btn:not(:disabled):hover {
   box-shadow:
     0 12px 30px rgba(0, 0, 0, 0.52),
-    inset 0 0 0 1px rgba(255, 184, 77, 0.24);
+    inset 0 0 0 1px color-mix(in srgb, var(--ring) 24%, transparent);
 }
 
 @supports (background: color-mix(in srgb, white 90%, black 10%)) {
   .album-scroll-btn {
-    background: color-mix(in srgb, var(--surface-color, #ffffff) 94%, var(--text-color, #143d60) 6%);
-    border: 1px solid color-mix(in srgb, var(--text-color, #143d60) 22%, transparent);
+    background: color-mix(in srgb, var(--card) 94%, var(--foreground) 6%);
+    border: 1px solid color-mix(in srgb, var(--foreground) 22%, transparent);
     box-shadow:
       var(--gallery-shadow-md, 0 4px 12px rgba(0, 0, 0, 0.12)),
       inset 0 0 0 1px color-mix(in srgb, #ffffff 48%, transparent);
   }
 
   :root[data-theme="dark"] .album-scroll-btn {
-    background: color-mix(in srgb, var(--surface-color, #1a1918) 88%, var(--primary-color, #ffb84d) 12%);
-    border-color: color-mix(in srgb, var(--primary-color, #ffb84d) 40%, transparent);
+    background: color-mix(in srgb, var(--card) 88%, var(--primary) 12%);
+    border-color: color-mix(in srgb, var(--primary) 40%, transparent);
     box-shadow:
       var(--gallery-shadow-md, 0 4px 12px rgba(0, 0, 0, 0.4)),
       inset 0 0 0 1px color-mix(in srgb, #ffffff 12%, transparent);
   }
 
   .album-scroll-btn:not(:disabled):hover {
-    border-color: color-mix(in srgb, var(--primary-color, #ffb84d) 48%, transparent);
-    background: color-mix(in srgb, var(--surface-color, #ffffff) 88%, var(--primary-color, #ffb84d) 12%);
+    border-color: color-mix(in srgb, var(--primary) 48%, transparent);
+    background: color-mix(in srgb, var(--card) 88%, var(--primary) 12%);
   }
 
   :root[data-theme="dark"] .album-scroll-btn:not(:disabled):hover {
     box-shadow:
       var(--gallery-shadow-md, 0 4px 12px rgba(0, 0, 0, 0.4)),
-      inset 0 0 0 1px color-mix(in srgb, var(--primary-color, #ffb84d) 24%, transparent);
+      inset 0 0 0 1px color-mix(in srgb, var(--primary) 24%, transparent);
   }
 }
 

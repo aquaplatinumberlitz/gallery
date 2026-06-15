@@ -84,7 +84,7 @@ const emit = defineEmits<{
 
 <style scoped>
 .gallery-sidebar-surface {
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.04)), var(--surface-color);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--foreground) 2%, transparent), color-mix(in srgb, var(--foreground) 4%, transparent)), var(--card);
 }
 
 .content {

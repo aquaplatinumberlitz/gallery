@@ -12,19 +12,19 @@
       box-shadow:
           0 0 .2rem #fff,
           inset 0 0 .2rem #fff,
-          0 0 0.5rem var(--neon-border-color, #08f),
-          inset 0 0 0.5rem var(--neon-border-color, #08f),
-          0 0 1rem var(--neon-border-color, #08f),
-          inset 0 0 1rem var(--neon-border-color, #08f);
+          0 0 0.5rem var(--brand-neon-border-color, #08f),
+          inset 0 0 0.5rem var(--brand-neon-border-color, #08f),
+          0 0 1rem var(--brand-neon-border-color, #08f),
+          inset 0 0 1rem var(--brand-neon-border-color, #08f);
       
       /* Giữ icon glow cam */
-      filter: drop-shadow(0 0 6px var(--neon-color));
+      filter: drop-shadow(0 0 6px var(--brand-neon-color));
   }
   
   20%, 24%, 55% {
       /* Tắt hoàn toàn để tạo hiệu ứng flicker giống sample */
       box-shadow: none;
-      filter: drop-shadow(0 0 2px var(--neon-color));
+      filter: drop-shadow(0 0 2px var(--brand-neon-color));
   }
 }
 
@@ -35,10 +35,10 @@ html[data-theme="dark"] .brand-icon {
   background: rgba(10, 10, 10, 0.7);
   backdrop-filter: blur(3px);
   box-shadow: 
-    0 0 10px var(--neon-border-color, #08f) inset, 
-    0 0 15px var(--neon-border-color, #08f);
-  filter: drop-shadow(0 0 6px var(--neon-color));
-  --neon-border-color: #08f;
+    0 0 10px var(--brand-neon-border-color, #08f) inset, 
+    0 0 15px var(--brand-neon-border-color, #08f);
+  filter: drop-shadow(0 0 6px var(--brand-neon-color));
+  --brand-neon-border-color: #08f;
 }
 
 /* Animation trigger cho dark mode */
@@ -189,30 +189,30 @@ html[data-theme="dark"] .brand-hero:hover .brand-title::after {
 
 /* Dark mode neon effect for search box (Global Override) */
 html[data-theme="dark"] .search-box {
-  border: 1px solid var(--neon-color);
-  box-shadow: 0 0 6px rgba(214, 161, 93, 0.4);
+  border: 1px solid var(--ring);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--ring) 40%, transparent);
 }
 
 html[data-theme="dark"] .search-box:focus-within {
-  border-color: var(--neon-color);
-  box-shadow: 0 0 12px var(--neon-color), inset 0 0 4px rgba(214, 161, 93, 0.3);
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 35%, transparent);
 }
 
 /* Dark mode neon effect for sidebar field-container */
 html[data-theme="dark"] .field-container {
-  border: 1px solid var(--neon-color);
-  box-shadow: 0 0 6px rgba(214, 161, 93, 0.4);
+  border: 1px solid var(--ring);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--ring) 40%, transparent);
 }
 
 html[data-theme="dark"] .field-container:focus-within {
-  border-color: var(--neon-color);
-  box-shadow: 0 0 12px var(--neon-color), inset 0 0 4px rgba(214, 161, 93, 0.3);
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 35%, transparent);
 }
 
 /* Dark mode neon effect for theme-toggle button */
 html[data-theme="dark"] .theme-toggle {
   border-color: rgba(255, 236, 179, 0.3);
-  background: var(--surface-color);
+  background: var(--card);
   color: #ffe4a0;
 }
 
@@ -234,9 +234,9 @@ body {
   overflow: hidden;
   overscroll-behavior: none;
   font-family: var(--font-body);
-  background-color: var(--bg-color);
-  background-image: radial-gradient(ellipse 80% 50% at 50% 0%, color-mix(in srgb, var(--primary-color) 4%, transparent) 0%, transparent 100%);
-  color: var(--text-color);
+  background-color: var(--background);
+  background-image: radial-gradient(ellipse 80% 50% at 50% 0%, color-mix(in srgb, var(--primary) 4%, transparent) 0%, transparent 100%);
+  color: var(--foreground);
   line-height: 1.5;
   transition: background-color 200ms ease, color 200ms ease;
 }
@@ -301,8 +301,8 @@ pre {
   transform: translateX(-50%);
   z-index: 10000;
   padding: 12px 24px;
-  background: var(--primary-color, #d6a15d);
-  color: #fff;
+  background: var(--primary);
+  color: var(--primary-foreground);
   font-weight: 600;
   text-decoration: none;
   border-radius: 0 0 8px 8px;
@@ -344,13 +344,13 @@ pre {
 /* High Contrast Mode Support */
 @media (prefers-contrast: high) {
   :root {
-    --primary-color: #c98930;
-    --border-color: #000;
+    --ring: oklch(0.216 0.006 56.043);
+    --border: #000;
   }
   
   :root[data-theme="dark"] {
-    --primary-color: #e8c07a;
-    --border-color: #fff;
+    --ring: oklch(0.923 0.003 48.717);
+    --border: #fff;
   }
   
   :focus-visible {
