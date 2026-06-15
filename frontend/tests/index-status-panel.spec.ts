@@ -23,6 +23,8 @@ const indexStatusData = {
   stale: 0,
   skipped: 0,
   total: 150,
+  indexed_photos: 150,
+  metadata_records: 150,
   path: rootPath,
   counts: { done: 150 },
   oldest_queued_age_seconds: null,
@@ -190,7 +192,7 @@ test.describe("IndexStatusPanel", () => {
     await expect(statusButton).toBeVisible();
 
     await expect(statusButton).toContainText("Ready");
-    await expect(statusButton).toContainText("150 metadata indexed");
+    await expect(statusButton).toContainText("150 metadata records");
     await expect(statusButton).toContainText("Details");
 
     await statusButton.click();
@@ -200,14 +202,14 @@ test.describe("IndexStatusPanel", () => {
     // Summary fields visible by default
     await expect(popover).toContainText("Status");
     await expect(popover).toContainText("Ready");
-    await expect(popover).toContainText("Metadata indexed");
+    await expect(popover).toContainText("Metadata records");
     await expect(popover).toContainText("150");
     await expect(popover).toContainText("Scope");
     await expect(popover).toContainText(rootPath);
     await expect(popover).toContainText("Recursive");
     await expect(popover).toContainText("Yes");
     await expect(popover.getByRole("button", { name: "Rescan" })).toBeVisible();
-    await expect(popover.getByRole("button", { name: "Rebuild index" })).toBeVisible();
+    await expect(popover.getByRole("button", { name: "Rebuild" })).toBeVisible();
     await expect(popover).toContainText("Rebuild clears this folder's index and extracted metadata cache before indexing again. Source image files are not deleted.");
     await expect(popover).not.toContainText("Clear cache");
     await expect(popover).not.toContainText("Clear DB");
@@ -340,7 +342,7 @@ test.describe("IndexStatusPanel", () => {
     resolveStatus!(null);
     await page.waitForTimeout(500);
 
-    await expect(page.getByRole("dialog", { name: "Index Status" })).toContainText("Metadata indexed", { timeout: 5_000 });
+    await expect(page.getByRole("dialog", { name: "Index Status" })).toContainText("Metadata records", { timeout: 5_000 });
   });
 
   test("index status shows error state when API fails", async ({ page }) => {
@@ -458,13 +460,13 @@ test.describe("IndexStatusPanel", () => {
     const popover = page.getByRole("dialog", { name: "Index Status" });
     await expect(popover).toBeVisible({ timeout: 5_000 });
 
-    const rebuildButton = popover.getByRole("button", { name: "Rebuild index" });
+    const rebuildButton = popover.getByRole("button", { name: "Rebuild" });
 
     // Opening the dialog should not call the API yet.
     await rebuildButton.click();
-    const dialog = page.getByRole("dialog", { name: "Rebuild index?" });
+    const dialog = page.getByRole("dialog", { name: "Rebuild?" });
     await expect(dialog).toBeVisible({ timeout: 5_000 });
-    await expect(dialog).toContainText("Rebuild index?");
+    await expect(dialog).toContainText("Rebuild?");
     await expect(dialog).toContainText(
       "Rebuild clears this folder's index and extracted metadata cache before indexing again. Source image files are not deleted."
     );
@@ -480,7 +482,7 @@ test.describe("IndexStatusPanel", () => {
       (req) => new URL(req.url()).pathname === "/api/index/rebuild",
       { timeout: 5_000 }
     );
-    await dialog.getByRole("button", { name: "Rebuild index" }).click();
+    await dialog.getByRole("button", { name: "Rebuild" }).click();
     const rebuildReq = await rebuildPromise;
     expect(rebuildReq.method()).toBe("POST");
     const rebuildUrl = new URL(rebuildReq.url());
@@ -546,7 +548,7 @@ test.describe("IndexStatusPanel", () => {
 
     const popover = page.getByRole("dialog", { name: "Index Status" });
     await expect(popover).toBeVisible({ timeout: 5_000 });
-    await expect(popover).toContainText("150 metadata indexed");
+    await expect(popover).toContainText("150 metadata records");
   });
 
   test("details popover does not overflow with long root path", async ({ page }) => {
@@ -587,6 +589,6 @@ test.describe("IndexStatusPanel", () => {
 
     const popover = page.getByRole("dialog", { name: "Index Status" });
     await expect(popover).toBeVisible({ timeout: 5_000 });
-    await expect(popover).toContainText("150 metadata indexed");
+    await expect(popover).toContainText("150 metadata records");
   });
 });

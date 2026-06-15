@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import {
   createColumnHelper,
   getCoreRowModel,
@@ -25,6 +25,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useClipboard } from "@/composables/useClipboard";
+import { useIndexStatusQuery } from "@/composables/useIndexStatusQuery";
 import { useToast } from "@/composables/useToast";
 import { useLibraryInspectorMetadataQuery } from "@/composables/useLibraryInspectorMetadataQuery";
 import { useLibraryInspectorQuery } from "@/composables/useLibraryInspectorQuery";
@@ -34,6 +35,8 @@ import { fetchLibraryInspectorMetadata, getThumbnailUrl } from "@/services/api";
 import { queryClient } from "@/query";
 import { queryKeys } from "@/query/keys";
 import { clearScopeRebuildMarker, getScopeRebuildStartedAt } from "@/utils/indexMaintenance";
+import { logIndexRebuildDebug } from "@/utils/indexRebuildDebug";
+import { hasActiveIndexWork, hasQueuedIndexWork } from "@/utils/indexStatus";
 import type {
   FileNode,
   LibraryInspectorMetadataResponse,
@@ -62,6 +65,21 @@ const metadataQuery = useLibraryInspectorMetadataQuery(detailPath, detailEnabled
 const rebuildStartedAt = computed(() =>
   scope.value === "current" ? getScopeRebuildStartedAt(currentPath.value) : 0
 );
+const indexStatusEnabled = computed(() =>
+  scope.value === "current" && Boolean(currentPath.value) && Boolean(rebuildStartedAt.value)
+);
+const indexStatusQuery = useIndexStatusQuery(currentPath, indexStatusEnabled);
+const rebuildMarkerFirstSeenAtMs = ref(0);
+const statusMetadataRecords = computed(() => indexStatusQuery.data.value?.metadata_records ?? null);
+const indexStatusHasPendingWork = computed(() =>
+  hasActiveIndexWork(indexStatusQuery.data.value) || hasQueuedIndexWork(indexStatusQuery.data.value)
+);
+const isInspectorPlaceholderData = computed(() => inspectorQuery.isPlaceholderData.value);
+const inspectorSnapshotIsAfterRebuild = computed(() => {
+  const startedAt = rebuildStartedAt.value;
+  if (!startedAt || isInspectorPlaceholderData.value) return false;
+  return (inspectorQuery.data.value.generated_at || 0) >= startedAt;
+});
 /**
  * True when the inspector snapshot in view is stale — its generated_at is before
  * the most recent rebuild_started_at for this scope. This means placeholder
@@ -73,6 +91,7 @@ const rebuildStartedAt = computed(() =>
 const isInspectorDataStale = computed(() => {
   const startedAt = rebuildStartedAt.value;
   if (!startedAt) return false;
+  if (isInspectorPlaceholderData.value) return true;
   return (inspectorQuery.data.value.generated_at || 0) < startedAt;
 });
 const inspectorSummary = computed(() => {
@@ -80,14 +99,128 @@ const inspectorSummary = computed(() => {
   return `${inspectorQuery.data.value.returned} returned from ${inspectorQuery.data.value.total_indexed} metadata records in this scope`;
 });
 
+const REBUILD_INSPECTOR_REFETCH_MS = 1_500;
+const REBUILD_INSPECTOR_MAX_SETTLE_MS = 30_000;
+const REBUILD_INSPECTOR_REFETCH_DEDUPE_MS = 350;
+let rebuildInspectorPollTimer: number | undefined;
+let lastRebuildInspectorRefetchAtMs = 0;
+
+function canClearRebuildMarker() {
+  const startedAt = rebuildStartedAt.value;
+  if (!startedAt || !inspectorSnapshotIsAfterRebuild.value || indexStatusHasPendingWork.value) {
+    return false;
+  }
+
+  const statusRecords = statusMetadataRecords.value;
+  const inspectorRecords = inspectorQuery.data.value.total_indexed;
+  const elapsedMs = rebuildMarkerFirstSeenAtMs.value
+    ? Date.now() - rebuildMarkerFirstSeenAtMs.value
+    : 0;
+
+  if (statusRecords === null) {
+    return elapsedMs >= REBUILD_INSPECTOR_MAX_SETTLE_MS;
+  }
+  if (statusRecords !== inspectorRecords) {
+    return false;
+  }
+
+  return statusRecords > 0 || elapsedMs >= REBUILD_INSPECTOR_MAX_SETTLE_MS;
+}
+
+function maybeClearRebuildMarker() {
+  if (!canClearRebuildMarker()) return;
+  logIndexRebuildDebug("inspector-clear-rebuild-marker", {
+    path: currentPath.value,
+    generated_at: inspectorQuery.data.value.generated_at,
+    rebuild_started_at: rebuildStartedAt.value,
+    inspector_total_indexed: inspectorQuery.data.value.total_indexed,
+    status_metadata_records: statusMetadataRecords.value,
+    status_updated_at: indexStatusQuery.data.value?.updated_at ?? null,
+  });
+  clearScopeRebuildMarker(currentPath.value, inspectorQuery.data.value.generated_at);
+}
+
+function refetchInspectorAfterRebuild(reason: string) {
+  if (!rebuildStartedAt.value || scope.value !== "current") return;
+  const now = Date.now();
+  if (now - lastRebuildInspectorRefetchAtMs < REBUILD_INSPECTOR_REFETCH_DEDUPE_MS) {
+    return;
+  }
+  lastRebuildInspectorRefetchAtMs = now;
+  logIndexRebuildDebug("inspector-refetch", {
+    reason,
+    path: currentPath.value,
+    activeLibraryInspectorQueryKey: queryKeys.libraryInspector(
+      inspectorQuery.debouncedQuery.value,
+      scope.value,
+      currentPath.value,
+      limit.value,
+    ),
+    rebuild_started_at: rebuildStartedAt.value,
+    inspector_generated_at: inspectorQuery.data.value.generated_at,
+    inspector_total_indexed: inspectorQuery.data.value.total_indexed,
+    status_metadata_records: statusMetadataRecords.value,
+  });
+  void inspectorQuery.refetch();
+}
+
+function refetchRebuildState(reason: string) {
+  if (!rebuildStartedAt.value || scope.value !== "current") return;
+  void indexStatusQuery.refetch();
+  refetchInspectorAfterRebuild(reason);
+}
+
 watch(
-  () => inspectorQuery.data.value.generated_at,
-  (generatedAt) => {
-    if (generatedAt && rebuildStartedAt.value && generatedAt >= rebuildStartedAt.value) {
-      clearScopeRebuildMarker(currentPath.value, generatedAt);
+  rebuildStartedAt,
+  (startedAt) => {
+    if (startedAt) {
+      rebuildMarkerFirstSeenAtMs.value = Date.now();
+      refetchRebuildState("rebuild-marker");
+      return;
     }
+    rebuildMarkerFirstSeenAtMs.value = 0;
+  },
+  { immediate: true }
+);
+
+watch(
+  () => statusMetadataRecords.value,
+  () => {
+    refetchInspectorAfterRebuild("status-count-change");
   }
 );
+
+watch(
+  () => [
+    inspectorQuery.data.value.generated_at,
+    inspectorQuery.data.value.total_indexed,
+    statusMetadataRecords.value,
+    indexStatusHasPendingWork.value,
+  ],
+  maybeClearRebuildMarker
+);
+
+watch(
+  () => Boolean(rebuildStartedAt.value && scope.value === "current"),
+  (shouldPoll) => {
+    if (rebuildInspectorPollTimer) {
+      window.clearInterval(rebuildInspectorPollTimer);
+      rebuildInspectorPollTimer = undefined;
+    }
+    if (!shouldPoll) return;
+    rebuildInspectorPollTimer = window.setInterval(() => {
+      refetchRebuildState("rebuild-poll");
+      maybeClearRebuildMarker();
+    }, REBUILD_INSPECTOR_REFETCH_MS);
+  },
+  { immediate: true }
+);
+
+onBeforeUnmount(() => {
+  if (rebuildInspectorPollTimer) {
+    window.clearInterval(rebuildInspectorPollTimer);
+  }
+});
 
 const columnHelper = createColumnHelper<LibraryInspectorRow>();
 const columns = [

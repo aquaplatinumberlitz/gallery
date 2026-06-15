@@ -150,3 +150,25 @@ class TestIndexStatus:
         status = isolated_app.get("/api/index/status", params={"path": str(album)}).json()
         assert status["total"] >= 3
         assert status["queued"] >= 3
+
+    def test_index_status_metadata_records_matches_fresh_library_inspector_scope(
+        self,
+        isolated_app: TestClient,
+        temp_gallery: Path,
+    ):
+        album = temp_gallery / "album_a"
+
+        from backend.metadata_store import index_directory_tree
+
+        collected: list[Path] = []
+        index_directory_tree(album, include_metadata=True, collected_image_paths=collected)
+
+        status_resp = isolated_app.get("/api/index/status", params={"path": str(album)})
+        inspector_resp = isolated_app.get(
+            "/api/library/inspector",
+            params={"q": "", "scope": "current", "path": str(album), "limit": 200},
+        )
+
+        assert status_resp.status_code == 200
+        assert inspector_resp.status_code == 200
+        assert status_resp.json()["metadata_records"] == inspector_resp.json()["total_indexed"]

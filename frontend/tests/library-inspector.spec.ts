@@ -201,6 +201,8 @@ async function installStubbedInspector(page: Page) {
           batch_size: 100,
           staged_path_batch_size: 50,
           stage_max_wait_seconds: 30,
+          metadata_records: 150,
+          indexed_photos: 150,
         }),
       });
       return;
@@ -219,6 +221,7 @@ async function installStubbedInspector(page: Page) {
             folder_index_state: 1,
           },
           rebuild_started: true,
+          rebuild_started_at: Date.now() / 1000,
         }),
       });
       return;
@@ -274,7 +277,7 @@ test.describe("LibraryInspector", () => {
 
     await expect(page.getByRole("heading", { name: "Library Inspector" })).toBeVisible();
     await expect(page.getByRole("link", { name: /Metadata/ })).toHaveAttribute("aria-current", "page");
-    await expect(page.getByText("metadata records", { exact: false })).toBeVisible();
+    await expect(page.getByText("40 returned from 40 metadata records in this scope")).toBeVisible();
 
     const galleryLink = page.getByRole("link", { name: "Gallery" });
     await expect(galleryLink).toBeVisible();
@@ -310,11 +313,11 @@ test.describe("LibraryInspector", () => {
     await page.getByLabel("Index Status").click();
     const popover = page.getByRole("dialog", { name: "Index Status" });
     await expect(popover).toBeVisible({ timeout: 5_000 });
-    await popover.getByRole("button", { name: "Rebuild index" }).click();
+    await popover.getByRole("button", { name: "Rebuild" }).click();
 
-    const dialog = page.getByRole("dialog", { name: "Rebuild index?" });
+    const dialog = page.getByRole("dialog", { name: "Rebuild?" });
     await expect(dialog).toBeVisible({ timeout: 5_000 });
-    await dialog.getByRole("button", { name: "Rebuild index" }).click();
+    await dialog.getByRole("button", { name: "Rebuild" }).click();
 
     await expect
       .poll(() => requests.filter((request) => request.startsWith("/api/library/inspector?")).length)

@@ -25,11 +25,17 @@ export const queryKeys = {
   indexStatus: (path: string) =>
     ["index-status", normalizeQueryPath(path)] as const,
 
+  libraryInspectorRoot: () =>
+    ["library-inspector"] as const,
+
   facets: (path: string) =>
     ["facets", normalizeQueryPath(path)] as const,
 
   libraryInspector: (query: string, scope: string, path: string, limit: number) =>
     ["library-inspector", query.trim(), scope, normalizeQueryPath(path), limit] as const,
+
+  libraryInspectorMetadataRoot: () =>
+    ["library-inspector-metadata"] as const,
 
   libraryInspectorMetadata: (path: string) =>
     ["library-inspector-metadata", normalizeQueryPath(path)] as const,

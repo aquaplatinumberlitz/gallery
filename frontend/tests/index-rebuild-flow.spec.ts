@@ -320,3 +320,328 @@ test.describe("inspector stale notice (mocked)", () => {
     }
   });
 });
+
+// ════════════════════════════════════════════════════════════
+// Deterministic mocked: rebuild while staying on /metadata
+// ════════════════════════════════════════════════════════════
+test.describe("metadata rebuild refresh regression", () => {
+  test.use({ viewport: { width: 1366, height: 900 } });
+
+  const flowRoot = "/home/ubuntu/gallery-repo";
+  const oldGeneratedAt = 1_800_000_000;
+  const rebuildStartedAt = oldGeneratedAt + 100;
+  const finishedGeneratedAt = rebuildStartedAt + 10;
+  const png1x1 = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/luz4nQAAAABJRU5ErkJggg==",
+    "base64"
+  );
+
+  function makeRows(count: number, prefix: string) {
+    return Array.from({ length: count }, (_, index) => {
+      const padded = String(index + 1).padStart(3, "0");
+      return {
+        path: `${flowRoot}/${prefix}-${padded}.png`,
+        name: `${prefix}-${padded}.png`,
+        folder: flowRoot,
+        relative_path: ".",
+        mtime: oldGeneratedAt - index,
+        width: 1024,
+        height: 1024,
+        model: "SDXL",
+        tool: "ComfyUI",
+        sampler: "DPM++ 2M",
+        seed: `${prefix}-${padded}`,
+        prompt_preview: `${prefix} prompt ${padded}`,
+        has_prompt: true,
+        has_negative: false,
+        has_lora: false,
+        lora_count: 0,
+        lora_preview: "",
+        metadata_detail_available: true,
+      };
+    });
+  }
+
+  test("refreshes Library Inspector after rebuild without route remount", async ({ page }) => {
+    const requestTimeline: Record<string, unknown>[] = [];
+    const debugConsole: string[] = [];
+    const oldRows = makeRows(88, "old-row");
+    const newRows = makeRows(200, "new-row");
+    let rebuildConfirmedAt = 0;
+    let rebuildStarted = false;
+    let reindexFinished = false;
+
+    function relMs() {
+      return rebuildConfirmedAt ? Math.round(performance.now() - rebuildConfirmedAt) : null;
+    }
+
+    function logResponse(url: URL, body: Record<string, unknown>) {
+      requestTimeline.push({
+        relMs: relMs(),
+        requestUrl: `${url.pathname}?${url.searchParams.toString()}`,
+        scope: url.searchParams.get("scope"),
+        path: url.searchParams.get("path"),
+        generated_at: body.generated_at,
+        rebuild_started_at: body.rebuild_started_at,
+        inspector_total_metadata_records: body.total_indexed,
+        inspector_returned_row_count: body.returned,
+        first_row_path: Array.isArray(body.rows) ? body.rows[0]?.path : undefined,
+        index_status_metadata_records: body.metadata_records,
+        index_status_indexed_photos: body.indexed_photos,
+        index_status_done_jobs: body.done,
+        index_status_status:
+          (body.running as number | undefined) || (body.queued as number | undefined)
+            ? "indexing"
+            : body.enabled === false
+              ? "disabled"
+              : body.metadata_records !== undefined
+                ? "ready"
+                : undefined,
+      });
+    }
+
+    page.on("console", (message) => {
+      const text = message.text();
+      if (text.includes("[index-rebuild-debug]")) {
+        debugConsole.push(text);
+      }
+    });
+
+    await page.addInitScript((root) => {
+      localStorage.setItem("intro_mode", "disabled");
+      localStorage.setItem("gallery-root-path", root);
+      localStorage.setItem("gallery-sidebar-open", "true");
+      localStorage.setItem("debug-index-rebuild", "true");
+    }, flowRoot);
+
+    await page.route("**/api/**", async (route) => {
+      const url = new URL(route.request().url());
+      const method = route.request().method();
+
+      if (url.pathname === "/api/library/inspector") {
+        const body = reindexFinished
+          ? {
+              root: flowRoot,
+              scope: "current",
+              query: url.searchParams.get("q") ?? "",
+              limit: 200,
+              generated_at: finishedGeneratedAt,
+              total_indexed: 205,
+              returned: 200,
+              truncated: true,
+              sort: "mtime_desc",
+              rows: newRows,
+            }
+          : {
+              root: flowRoot,
+              scope: "current",
+              query: url.searchParams.get("q") ?? "",
+              limit: 200,
+              generated_at: oldGeneratedAt,
+              total_indexed: 88,
+              returned: 88,
+              truncated: false,
+              sort: "mtime_desc",
+              rows: oldRows,
+            };
+        logResponse(url, body);
+        await route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
+        return;
+      }
+
+      if (url.pathname === "/api/index/status") {
+        const body = reindexFinished
+          ? {
+              enabled: true,
+              path: flowRoot,
+              total: 205,
+              indexed_photos: 205,
+              metadata_records: 205,
+              counts: { done: 205, running: 0, queued: 0, failed: 0, stale: 0, skipped: 0 },
+              queued: 0,
+              running: 0,
+              done: 205,
+              failed: 0,
+              stale: 0,
+              skipped: 0,
+              oldest_queued_age_seconds: null,
+              last_error: null,
+              updated_at: finishedGeneratedAt,
+              worker_count: 2,
+              active_jobs: 0,
+              runtime_queue_depth: 0,
+              coalesced_duplicates: 0,
+              staged_path_queue_depth: 0,
+              staged_path_coalesced: 0,
+              staged_path_failed: 0,
+              staged_path_flushes_forced: 0,
+              staged_path_worker_count: 1,
+              active_scan_requests: 0,
+              batch_size: 100,
+              staged_path_batch_size: 50,
+              stage_max_wait_seconds: 30,
+            }
+          : rebuildStarted
+            ? {
+                enabled: true,
+                path: flowRoot,
+                total: 0,
+                indexed_photos: 0,
+                metadata_records: 0,
+                counts: { done: 0, running: 0, queued: 0, failed: 0, stale: 0, skipped: 0 },
+                queued: 0,
+                running: 0,
+                done: 0,
+                failed: 0,
+                stale: 0,
+                skipped: 0,
+                oldest_queued_age_seconds: null,
+                last_error: null,
+                updated_at: rebuildStartedAt + 1,
+                worker_count: 2,
+                active_jobs: 0,
+                runtime_queue_depth: 0,
+                coalesced_duplicates: 0,
+                staged_path_queue_depth: 0,
+                staged_path_coalesced: 0,
+                staged_path_failed: 0,
+                staged_path_flushes_forced: 0,
+                staged_path_worker_count: 1,
+                active_scan_requests: 0,
+                batch_size: 100,
+                staged_path_batch_size: 50,
+                stage_max_wait_seconds: 30,
+              }
+            : {
+                enabled: true,
+                path: flowRoot,
+                total: 88,
+                indexed_photos: 88,
+                metadata_records: 88,
+                counts: { done: 88, running: 0, queued: 0, failed: 0, stale: 0, skipped: 0 },
+                queued: 0,
+                running: 0,
+                done: 88,
+                failed: 0,
+                stale: 0,
+                skipped: 0,
+                oldest_queued_age_seconds: null,
+                last_error: null,
+                updated_at: oldGeneratedAt,
+                worker_count: 2,
+                active_jobs: 0,
+                runtime_queue_depth: 0,
+                coalesced_duplicates: 0,
+                staged_path_queue_depth: 0,
+                staged_path_coalesced: 0,
+                staged_path_failed: 0,
+                staged_path_flushes_forced: 0,
+                staged_path_worker_count: 1,
+                active_scan_requests: 0,
+                batch_size: 100,
+                staged_path_batch_size: 50,
+                stage_max_wait_seconds: 30,
+              };
+        logResponse(url, body);
+        await route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
+        return;
+      }
+
+      if (url.pathname === "/api/index/rebuild" && method === "POST") {
+        rebuildConfirmedAt = performance.now();
+        rebuildStarted = true;
+        const body = {
+          path: url.searchParams.get("path") ?? flowRoot,
+          cleared: {
+            file_index_fts: 88,
+            file_index: 88,
+            image_metadata: 88,
+            metadata_index_jobs: 88,
+            folder_index_state: 1,
+          },
+          rebuild_started: true,
+          rebuild_started_at: rebuildStartedAt,
+        };
+        logResponse(url, body);
+        await route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
+        return;
+      }
+
+      if (url.pathname === "/api/scan") {
+        await route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({ folders: [], images: [], next_cursor: null, total_images: 0, index_source: "direct_scan" }),
+        });
+        return;
+      }
+      if (url.pathname === "/api/landing-pages") {
+        await route.fulfill({ contentType: "application/json", body: JSON.stringify([]) });
+        return;
+      }
+      if (url.pathname === "/api/health") {
+        await route.fulfill({ contentType: "application/json", body: JSON.stringify({ status: "ok" }) });
+        return;
+      }
+      if (url.pathname === "/api/facets") {
+        await route.fulfill({ contentType: "application/json", body: JSON.stringify({}) });
+        return;
+      }
+      if (["/api/thumbnail", "/api/preview", "/api/image"].includes(url.pathname)) {
+        await route.fulfill({ contentType: "image/png", body: png1x1 });
+        return;
+      }
+
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify({}) });
+    });
+
+    await page.goto(`${baseUrl}/metadata`, { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { name: "Library Inspector" })).toBeVisible();
+    await expect(page.getByText("88 returned from 88 metadata records in this scope")).toBeVisible();
+    await expect(page.getByText("old-row-001.png")).toBeVisible();
+
+    await page.getByLabel("Index Status").click();
+    const popover = page.getByRole("dialog", { name: "Index Status" });
+    await expect(popover).toBeVisible({ timeout: 5_000 });
+    await popover.getByRole("button", { name: "Rebuild" }).click();
+
+    const confirmDialog = page.getByRole("dialog", { name: "Rebuild?" });
+    await expect(confirmDialog).toBeVisible({ timeout: 5_000 });
+    await confirmDialog.getByRole("button", { name: "Rebuild" }).click();
+
+    await expect(page.getByText("Refreshing Inspector. Previous metadata rows are shown until the latest snapshot arrives.")).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator(".table-shell")).toHaveClass(/table-shell--rebuilding/);
+    await expect(page.getByText("old-row-001.png")).toBeVisible();
+
+    await expect
+      .poll(() =>
+        requestTimeline.filter((entry) =>
+          String(entry.requestUrl).startsWith("/api/library/inspector?")
+        ).length
+      )
+      .toBeGreaterThan(1);
+
+    reindexFinished = true;
+
+    await expect(page.getByText("200 returned from 205 metadata records in this scope")).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByText("Refreshing Inspector. Previous metadata rows are shown until the latest snapshot arrives.")).toBeHidden();
+    await expect(page.locator(".table-shell")).not.toHaveClass(/table-shell--rebuilding/);
+    await expect(page.getByText("new-row-001.png")).toBeVisible();
+
+    await expect(page.locator(".index-status-card")).toContainText("205 metadata records", { timeout: 5_000 });
+
+    const inspectorRequests = requestTimeline.filter((entry) =>
+      String(entry.requestUrl).startsWith("/api/library/inspector?")
+    );
+    expect(inspectorRequests.length).toBeGreaterThan(1);
+    expect(inspectorRequests.every((entry) => entry.scope === "current")).toBe(true);
+    expect(inspectorRequests.every((entry) => entry.path === flowRoot)).toBe(true);
+    expect(debugConsole.some((line) => line.includes("invalidate-before"))).toBe(true);
+    expect(debugConsole.some((line) => line.includes('"invalidatedLibraryInspectorQueryKey":["library-inspector"]'))).toBe(true);
+    expect(debugConsole.some((line) => line.includes(`"current","${flowRoot}",200`))).toBe(true);
+
+    console.log("=== INDEX REBUILD REQUEST TIMELINE ===");
+    console.log(JSON.stringify(requestTimeline, null, 2));
+    console.log("=== INDEX REBUILD QUERY DEBUG ===");
+    console.log(debugConsole.join("\n"));
+  });
+});
