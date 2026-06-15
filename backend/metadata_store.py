@@ -1300,6 +1300,29 @@ def cleanup_stale_index(state: Any, root_path: str | Path | None = None) -> int:
         return _cleanup_stale_index_conn(conn, root_path)
 
 
+def _scoped_path_where(root: Path) -> tuple[str, list[Any]]:
+    resolved = str(root.resolve())
+    prefix = f"{resolved.rstrip(os.sep)}{os.sep}"
+    return "(path = ? OR path LIKE ? ESCAPE '\\')", [resolved, f"{_like_escape(prefix)}%"]
+
+
+def clear_index_records(root_path: str | Path) -> dict[str, int]:
+    """Delete persisted index/cache rows under root_path without touching files on disk."""
+    initialize_database()
+    root = Path(root_path).resolve()
+    where, params = _scoped_path_where(root)
+    tables = ("file_index_fts", "file_index", "image_metadata", "metadata_index_jobs", "folder_index_state")
+    deleted: dict[str, int] = {}
+
+    with _DB_LOCK, _connect() as conn:
+        for table in tables:
+            row = conn.execute(f"SELECT count(*) AS total FROM {table} WHERE {where}", params).fetchone()
+            deleted[table] = int(row["total"] if row else 0)
+            conn.execute(f"DELETE FROM {table} WHERE {where}", params)
+
+    return deleted
+
+
 def _scan_folder_counts(folder_path: Path) -> dict:
     folders = 0
     images = 0
@@ -1361,15 +1384,32 @@ def index_files_from_scan(folders: list[Any], images: list[Any], *, scan_folder_
     return indexed
 
 
-def index_directory_tree(root: str | Path, include_metadata: bool = False) -> int:
-    root_path = Path(root)
-    indexed = 0
-    image_paths: list[Path] = []
+def index_directory_tree(
+    root: str | Path,
+    include_metadata: bool = False,
+    collected_image_paths: list[Path] | None = None,
+) -> int:
+    """Recreate file_index rows under root. Optionally extract metadata or collect image paths.
 
-    def visit(folder: Path) -> None:
+    Symlinked directories are skipped to avoid traversal loops. Hidden files and
+    folders are ignored to match the existing scanner behavior.
+    """
+    root_path = Path(root).resolve()
+    indexed = 0
+    local_image_paths: list[Path] = [] if include_metadata else None  # type: ignore[assignment]
+
+    def visit(folder: Path, visited_inodes: set[tuple[int, int]]) -> None:
         nonlocal indexed
         try:
             stat = folder.stat()
+            folder_inode = (stat.st_dev, stat.st_ino)
+            if folder_inode in visited_inodes:
+                return
+            visited_inodes.add(folder_inode)
+        except OSError:
+            return
+
+        try:
             if index_file(folder, folder.name or str(folder), folder.parent, "folder", stat.st_mtime, None, None, None):
                 indexed += 1
         except OSError:
@@ -1386,19 +1426,23 @@ def index_directory_tree(root: str | Path, include_metadata: bool = False) -> in
             if entry.name.startswith("."):
                 continue
             try:
-                if entry.is_dir():
-                    visit(entry)
+                # Skip symlinked directories to avoid loops; files are still followed.
+                if entry.is_dir() and not entry.is_symlink():
+                    visit(entry, visited_inodes)
                 elif entry.is_file() and is_image_path(entry):
                     stat = entry.stat()
                     if index_file(entry, entry.name, entry.parent, "photo", stat.st_mtime, stat.st_size, None, None):
                         indexed += 1
-                    image_paths.append(entry)
+                    if include_metadata:
+                        local_image_paths.append(entry)
+                    if collected_image_paths is not None:
+                        collected_image_paths.append(entry)
             except (OSError, PermissionError):
                 continue
 
-    visit(root_path)
-    if include_metadata:
-        indexed += index_images(image_paths)
+    visit(root_path, set())
+    if include_metadata and local_image_paths:
+        indexed += index_images(local_image_paths)
     return indexed
 
 

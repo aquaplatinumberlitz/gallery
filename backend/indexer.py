@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, BackgroundTasks, Query
 from fastapi.concurrency import run_in_threadpool
 
 from .config import (
@@ -26,7 +26,9 @@ from .errors import APIError, ErrorType
 from .metadata_extract import ExtractedMetadata, extract_metadata
 from .metadata_store import (
     MetadataIndexJob,
+    clear_index_records,
     get_metadata_index_status,
+    index_directory_tree,
     mark_metadata_jobs_done,
     mark_metadata_jobs_failed,
     mark_metadata_jobs_running,
@@ -596,6 +598,37 @@ def get_indexer_runtime_status() -> dict[str, Any]:
     }
 
 
+def rebuild_index_scope(root: str | Path) -> dict[str, Any]:
+    """Rebuild non-destructively for files: recreate DB index rows for a scoped root."""
+    root_path = Path(root).resolve()
+    image_paths: list[Path] = []
+    indexed = index_directory_tree(root_path, include_metadata=False, collected_image_paths=image_paths)
+    queued_result = queue_metadata_index_paths(image_paths, root_path)
+
+    if METADATA_INDEXER_ENABLED:
+        metadata = _enqueue_metadata_jobs_from_result(queued_result, start_worker=True)
+    else:
+        metadata = {
+            "queued": len(queued_result.enqueued),
+            "coalesced": queued_result.coalesced,
+            "skipped": queued_result.skipped,
+            "failed": queued_result.failed,
+        }
+
+    return {
+        "path": str(root_path),
+        "indexed": indexed,
+        "metadata": metadata,
+    }
+
+
+def _rebuild_index_scope_safely(root: str | Path) -> None:
+    try:
+        rebuild_index_scope(root)
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.exception("Index rebuild failed for %s: %s", root, exc)
+
+
 @router.get("/api/index/status")
 async def api_index_status(path: str | None = Query(None, description="Folder/root path to scope index status")):
     target = resolve_path(path) if path else None
@@ -605,3 +638,30 @@ async def api_index_status(path: str | None = Query(None, description="Folder/ro
     status = await run_in_threadpool(get_metadata_index_status, target)
     status.update(get_indexer_runtime_status())
     return status
+
+
+@router.post("/api/index/rebuild")
+async def api_index_rebuild(
+    background_tasks: BackgroundTasks,
+    path: str = Query(..., description="Folder/root path to rebuild"),
+    confirm: bool = Query(False, description="Must be true because rebuild clears persisted index rows first"),
+):
+    if not confirm:
+        raise APIError(400, "confirmation_required", "Rebuild requires explicit confirmation")
+
+    target = resolve_path(path)
+    if not is_path_safe(target):
+        raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied")
+    if not target.exists():
+        raise APIError(404, ErrorType.NOT_FOUND, "Path not found")
+    if not target.is_dir():
+        raise APIError(400, ErrorType.NOT_DIRECTORY, "Path is not a folder")
+
+    cleared = await run_in_threadpool(clear_index_records, target)
+    background_tasks.add_task(_rebuild_index_scope_safely, target)
+
+    return {
+        "path": str(target),
+        "cleared": cleared,
+        "rebuild_started": True,
+    }

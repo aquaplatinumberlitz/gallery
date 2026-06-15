@@ -113,6 +113,24 @@ async function installStubbedGallery(page: Page) {
       return;
     }
 
+    if (url.pathname === "/api/index/rebuild") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          path: url.searchParams.get("path"),
+          cleared: {
+            file_index_fts: 0,
+            file_index: 0,
+            image_metadata: 0,
+            metadata_index_jobs: 0,
+            folder_index_state: 0,
+          },
+          rebuild_started: true,
+        }),
+      });
+      return;
+    }
+
     if (["/api/thumbnail", "/api/preview", "/api/image"].includes(url.pathname)) {
       await route.fulfill({ contentType: "image/png", body: png1x1 });
       return;
@@ -137,7 +155,7 @@ async function openStubbedGallery(page: Page, withPath = true) {
 test.describe("IndexStatusPanel", () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 
-  test("shows Disabled badge when no root path is set", async ({ page }) => {
+  test("shows Unknown status when no root path is set", async ({ page }) => {
     await installStubbedGallery(page);
 
     await page.addInitScript(() => {
@@ -149,8 +167,7 @@ test.describe("IndexStatusPanel", () => {
     const statusButton = page.getByLabel("Index Status");
     await expect(statusButton).toBeVisible();
 
-    const badge = statusButton.locator(".inline-flex");
-    await expect(badge).toContainText("Disabled");
+    await expect(statusButton).toContainText("Unknown");
   });
 
   test("shows index status details when path is set", async ({ page }) => {
@@ -160,22 +177,29 @@ test.describe("IndexStatusPanel", () => {
     const statusButton = page.getByLabel("Index Status");
     await expect(statusButton).toBeVisible();
 
-    const badge = statusButton.locator(".inline-flex");
-    await expect(badge).toContainText("Idle");
+    await expect(statusButton).toContainText("Ready");
+    await expect(statusButton).toContainText("150 indexed");
+    await expect(statusButton).toContainText("Details");
 
     await statusButton.click();
     const popover = page.getByRole("dialog", { name: "Index Status" });
     await expect(popover).toBeVisible({ timeout: 5_000 });
 
     // Summary fields visible by default
-    await expect(popover).toContainText("indexed");
+    await expect(popover).toContainText("Status");
+    await expect(popover).toContainText("Ready");
+    await expect(popover).toContainText("Indexed");
     await expect(popover).toContainText("150");
-
-    // Click Details to reveal technical metrics
-    await popover.getByText("Details").click();
-    await expect(popover).toContainText("Workers");
-    await expect(popover).toContainText("2");
-    await expect(popover).toContainText("Processing");
+    await expect(popover).toContainText("Root");
+    await expect(popover).toContainText(rootPath);
+    await expect(popover.getByRole("button", { name: "Rescan" })).toBeVisible();
+    await expect(popover.getByRole("button", { name: "Rebuild index" })).toBeVisible();
+    await expect(popover).toContainText("Rebuild clears this folder's index and extracted metadata cache before indexing again. Source image files are not deleted.");
+    await expect(popover).not.toContainText("Clear cache");
+    await expect(popover).not.toContainText("Clear DB");
+    await expect(popover).not.toContainText("Clear index");
+    await expect(popover).not.toContainText("Reset DB");
+    await expect(popover).not.toContainText("Reset");
   });
 
   test("popover content is not empty when opened", async ({ page }) => {
@@ -189,8 +213,6 @@ test.describe("IndexStatusPanel", () => {
     const popover = page.getByRole("dialog", { name: "Index Status" });
     await expect(popover).toBeVisible({ timeout: 5_000 });
 
-    // Expand Details so screenshot shows technical metrics too
-    await popover.getByText("Details").click();
     await page.waitForTimeout(300);
 
     const textContent = await popover.textContent();
@@ -203,8 +225,6 @@ test.describe("IndexStatusPanel", () => {
     expect(boundingBox).not.toBeNull();
     expect(boundingBox!.width).toBeGreaterThan(0);
     expect(boundingBox!.height).toBeGreaterThan(0);
-
-    await expect(popover).toHaveScreenshot("index-status-popover.png");
   });
 
   test("index status shows loading state initially", async ({ page }) => {
@@ -306,7 +326,7 @@ test.describe("IndexStatusPanel", () => {
     resolveStatus!(null);
     await page.waitForTimeout(500);
 
-    await expect(page.getByRole("dialog", { name: "Index Status" })).toContainText("indexed", { timeout: 5_000 });
+    await expect(page.getByRole("dialog", { name: "Index Status" })).toContainText("Indexed", { timeout: 5_000 });
   });
 
   test("index status shows error state when API fails", async ({ page }) => {
@@ -394,6 +414,62 @@ test.describe("IndexStatusPanel", () => {
 
     const popover = page.getByRole("dialog", { name: "Index Status" });
     await expect(popover).toBeVisible({ timeout: 5_000 });
-    await expect(popover).toContainText(/Failed to load status|Unavailable|Something went wrong/);
+    await expect(popover).toContainText(/Failed to load status|Error|Something went wrong/);
+  });
+
+  test("Rescan calls /api/scan", async ({ page }) => {
+    await installStubbedGallery(page);
+    await openStubbedGallery(page, true);
+
+    const statusButton = page.getByLabel("Index Status");
+    await statusButton.click();
+    const popover = page.getByRole("dialog", { name: "Index Status" });
+    await expect(popover).toBeVisible({ timeout: 5_000 });
+
+    const scanPromise = page.waitForRequest(
+      (req) => new URL(req.url()).pathname === "/api/scan",
+      { timeout: 5_000 }
+    );
+    await popover.getByRole("button", { name: "Rescan" }).click();
+    const scanReq = await scanPromise;
+    expect(scanReq.method()).toBe("GET");
+  });
+
+  test("Rebuild index shows confirmation dialog and calls /api/index/rebuild after confirm", async ({ page }) => {
+    await installStubbedGallery(page);
+    await openStubbedGallery(page, true);
+
+    const statusButton = page.getByLabel("Index Status");
+    await statusButton.click();
+    const popover = page.getByRole("dialog", { name: "Index Status" });
+    await expect(popover).toBeVisible({ timeout: 5_000 });
+
+    const rebuildButton = popover.getByRole("button", { name: "Rebuild index" });
+
+    // Opening the dialog should not call the API yet.
+    await rebuildButton.click();
+    const dialog = page.getByRole("dialog", { name: "Rebuild index?" });
+    await expect(dialog).toBeVisible({ timeout: 5_000 });
+    await expect(dialog).toContainText("Rebuild index?");
+    await expect(dialog).toContainText(
+      "Rebuild clears this folder's index and extracted metadata cache before indexing again. Source image files are not deleted."
+    );
+
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog).not.toBeVisible();
+
+    // Confirming should issue the rebuild request.
+    await rebuildButton.click();
+    await expect(dialog).toBeVisible({ timeout: 5_000 });
+
+    const rebuildPromise = page.waitForRequest(
+      (req) => new URL(req.url()).pathname === "/api/index/rebuild",
+      { timeout: 5_000 }
+    );
+    await dialog.getByRole("button", { name: "Rebuild index" }).click();
+    const rebuildReq = await rebuildPromise;
+    expect(rebuildReq.method()).toBe("POST");
+    const rebuildUrl = new URL(rebuildReq.url());
+    expect(rebuildUrl.searchParams.get("confirm")).toBe("true");
   });
 });

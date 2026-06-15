@@ -16,6 +16,7 @@ defineProps<{
   tree: any[];
   isLoading: boolean;
   currentPath: string;
+  indexStatusVariant?: "button" | "card";
 }>();
 </script>
 
@@ -51,7 +52,7 @@ defineProps<{
   </SidebarContent>
 
   <SidebarFooter class="p-2 border-t border-border">
-    <IndexStatusPanel :path="currentPath" />
+    <IndexStatusPanel :path="currentPath" :variant="indexStatusVariant" />
   </SidebarFooter>
 </template>
 

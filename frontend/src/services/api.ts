@@ -21,11 +21,18 @@ export type ErrorType =
   | 'invalid_file' 
   | 'timeout' 
   | 'server_error'
+  | 'confirmation_required'
   | 'network';
 
 export interface APIErrorResponse {
   error: ErrorType;
   message: string;
+}
+
+export interface IndexRebuildResponse {
+  path: string;
+  cleared: Record<string, number>;
+  rebuild_started: boolean;
 }
 
 export class GalleryAPIError extends Error {
@@ -278,6 +285,20 @@ export const fetchIndexStatus = async (path: string): Promise<IndexStatusRespons
   try {
     const { data } = await api.get<IndexStatusResponse>("/api/index/status", {
       params: { path },
+    });
+    return data;
+  } catch (error) {
+    if (error instanceof AxiosError) {
+      throw GalleryAPIError.fromAxiosError(error);
+    }
+    throw error;
+  }
+};
+
+export const rebuildIndex = async (path: string): Promise<IndexRebuildResponse> => {
+  try {
+    const { data } = await api.post<IndexRebuildResponse>("/api/index/rebuild", null, {
+      params: { path, confirm: true },
     });
     return data;
   } catch (error) {

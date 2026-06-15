@@ -1,5 +1,20 @@
 import type { IndexStatusResponse, IndexStatusState } from "@/types";
 
+export type IndexUiStatus =
+  | "unknown"
+  | "ready"
+  | "indexing"
+  | "stale"
+  | "warning"
+  | "error";
+
+export interface IndexStatusPresentation {
+  status: IndexUiStatus;
+  label: string;
+  tone: "green" | "yellow" | "red" | "gray";
+  showPulse: boolean;
+}
+
 export interface IndexStatusCounts {
   queued: number;
   running: number;
@@ -13,6 +28,52 @@ export interface IndexStatusCounts {
   stagedPathFailed: number;
   activeScanRequests: number;
 }
+
+export interface IndexStatusProgressInfo {
+  indexed: number;
+  pending: number;
+  total: number | null;
+  percent: number | null;
+}
+
+const INDEX_STATUS_PRESENTATION: Record<IndexUiStatus, IndexStatusPresentation> = {
+  unknown: {
+    status: "unknown",
+    label: "Unknown",
+    tone: "gray",
+    showPulse: false,
+  },
+  ready: {
+    status: "ready",
+    label: "Ready",
+    tone: "green",
+    showPulse: false,
+  },
+  indexing: {
+    status: "indexing",
+    label: "Indexing",
+    tone: "yellow",
+    showPulse: true,
+  },
+  stale: {
+    status: "stale",
+    label: "Stale",
+    tone: "yellow",
+    showPulse: false,
+  },
+  warning: {
+    status: "warning",
+    label: "Warning",
+    tone: "yellow",
+    showPulse: false,
+  },
+  error: {
+    status: "error",
+    label: "Error",
+    tone: "red",
+    showPulse: false,
+  },
+};
 
 export function getIndexStatusCounts(status: IndexStatusResponse | null | undefined): IndexStatusCounts {
   return {
@@ -43,6 +104,26 @@ export function hasActiveIndexWork(status: IndexStatusResponse | null | undefine
 export function hasQueuedIndexWork(status: IndexStatusResponse | null | undefined) {
   const counts = getIndexStatusCounts(status);
   return counts.queued > 0 || counts.runtimeQueueDepth > 0 || counts.stagedPathQueueDepth > 0;
+}
+
+export function getIndexUiStatus(
+  status: IndexStatusResponse | null | undefined,
+  opts: { hasPath: boolean; isLoading?: boolean; isError?: boolean } = { hasPath: true }
+): IndexUiStatus {
+  if (opts.isError) return "error";
+  if (!opts.hasPath || opts.isLoading || !status) return "unknown";
+  if (!status.enabled) return "warning";
+  if (hasFailedIndexWork(status)) return "error";
+  if (hasActiveIndexWork(status) || hasQueuedIndexWork(status)) return "indexing";
+  if ((status.stale ?? 0) > 0) return "stale";
+  return "ready";
+}
+
+export function getIndexStatusPresentation(
+  status: IndexStatusResponse | null | undefined,
+  opts: { hasPath: boolean; isLoading?: boolean; isError?: boolean } = { hasPath: true }
+): IndexStatusPresentation {
+  return INDEX_STATUS_PRESENTATION[getIndexUiStatus(status, opts)];
 }
 
 export function getIndexStatusState(
@@ -80,4 +161,31 @@ export function getIndexStatusProgress(status: IndexStatusResponse | null | unde
 
   if (total <= 0) return null;
   return Math.max(0, Math.min(100, Math.round((counts.done / total) * 100)));
+}
+
+export function getIndexStatusProgressInfo(status: IndexStatusResponse | null | undefined): IndexStatusProgressInfo {
+  const counts = getIndexStatusCounts(status);
+  const pending =
+    counts.queued +
+    counts.running +
+    counts.stale +
+    counts.runtimeQueueDepth +
+    counts.stagedPathQueueDepth +
+    counts.activeJobs +
+    counts.activeScanRequests;
+  const fallbackTotal =
+    counts.queued +
+    counts.running +
+    counts.done +
+    counts.failed +
+    counts.stale +
+    counts.skipped;
+  const total = (status?.total ?? 0) > 0 ? status!.total : fallbackTotal > 0 ? fallbackTotal : null;
+
+  return {
+    indexed: counts.done,
+    pending,
+    total,
+    percent: total ? Math.max(0, Math.min(100, Math.round((counts.done / total) * 100))) : null,
+  };
 }

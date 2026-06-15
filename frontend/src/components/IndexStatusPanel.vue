@@ -4,30 +4,49 @@ import { Database, Loader, AlertCircle, ChevronDown, ChevronRight } from "lucide
 import { useIndexStatusQuery } from "@/composables/useIndexStatusQuery";
 import Button from "@/components/ui/Button.vue";
 import Badge from "@/components/ui/Badge.vue";
+import IndexStatusCard from "@/components/IndexStatusCard.vue";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { IMAGE_PAGE_SIZE } from "@/constants";
+import { queryClient } from "@/query";
+import { normalizeQueryPath, queryKeys } from "@/query/keys";
+import { rebuildIndex, scanDirectory } from "@/services/api";
+import {
   getIndexStatusState,
   getIndexStatusCounts,
   getIndexStatusProgress,
+  getIndexStatusPresentation,
+  getIndexStatusProgressInfo,
 } from "@/utils/indexStatus";
 import type { IndexStatusState } from "@/types";
 
 const props = withDefaults(defineProps<{
   path?: string;
+  variant?: "button" | "card";
 }>(), {
   path: "",
+  variant: "button",
 });
 
-const queryEnabled = ref(false);
+const legacyQueryEnabled = ref(false);
 const pathRef = computed(() => props.path || undefined);
+const queryEnabled = computed(() => props.variant === "card" ? Boolean(pathRef.value) : legacyQueryEnabled.value);
 
-const { data, isLoading, isError, error } = useIndexStatusQuery(pathRef, queryEnabled);
+const { data, isLoading, isError, error, refetch } = useIndexStatusQuery(pathRef, queryEnabled);
 
 const showDetails = ref(false);
+const showRebuildConfirm = ref(false);
+const actionPending = ref<"rescan" | "rebuild" | null>(null);
+const actionError = ref("");
 
 const statusState = computed<IndexStatusState>(() => {
   if (isError.value) return "unavailable";
@@ -57,19 +76,83 @@ const statusLabel = computed<string>(() => {
 
 const counts = computed(() => getIndexStatusCounts(data.value));
 const progress = computed(() => getIndexStatusProgress(data.value));
+const progressInfo = computed(() => getIndexStatusProgressInfo(data.value));
+const statusPresentation = computed(() => getIndexStatusPresentation(data.value ?? null, {
+  hasPath: !!props.path,
+  isLoading: isLoading.value,
+  isError: isError.value,
+}));
+const errorMessage = computed(() => (error.value as Error | null)?.message || "Failed to load status");
 
 function onOpenChange(open: boolean) {
-  if (open && !queryEnabled.value) {
-    queryEnabled.value = true;
+  if (open && !legacyQueryEnabled.value) {
+    legacyQueryEnabled.value = true;
   }
   if (!open) {
     showDetails.value = false;
   }
 }
+
+async function triggerIndexAction(action: "rescan" | "rebuild") {
+  const requestPath = normalizeQueryPath(pathRef.value || "");
+  if (!requestPath || actionPending.value) return;
+
+  actionPending.value = action;
+  actionError.value = "";
+
+  try {
+    if (action === "rebuild") {
+      await rebuildIndex(requestPath);
+    } else {
+      await scanDirectory(requestPath, { imageLimit: 1, imageCursor: 0 });
+    }
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.indexStatus(requestPath) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.scan(requestPath, IMAGE_PAGE_SIZE) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.scanInfinite(requestPath, IMAGE_PAGE_SIZE) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.folderChildren(requestPath) }),
+    ]);
+    await refetch();
+  } catch (err) {
+    actionError.value = err instanceof Error ? err.message : "Unable to update the index.";
+  } finally {
+    actionPending.value = null;
+  }
+}
+
+function onRebuildRequested() {
+  if (actionPending.value) return;
+  showRebuildConfirm.value = true;
+}
+
+function onRebuildConfirmed() {
+  showRebuildConfirm.value = false;
+  triggerIndexAction("rebuild");
+}
+
+function onRebuildCancelled() {
+  showRebuildConfirm.value = false;
+}
 </script>
 
 <template>
-  <Popover @update:open="onOpenChange">
+  <IndexStatusCard
+    v-if="variant === 'card'"
+    :data="data"
+    :counts="counts"
+    :presentation="statusPresentation"
+    :progress="progressInfo"
+    :path="path"
+    :is-loading="isLoading"
+    :is-error="isError"
+    :error-message="errorMessage"
+    :action-pending="actionPending"
+    :action-error="actionError"
+    @rescan="triggerIndexAction('rescan')"
+    @rebuild="onRebuildRequested"
+  />
+
+  <Popover v-else @update:open="onOpenChange">
     <PopoverTrigger as-child>
       <Button
         variant="outline"
@@ -175,4 +258,17 @@ function onOpenChange(open: boolean) {
       </div>
     </PopoverContent>
   </Popover>
+
+  <Dialog v-model:open="showRebuildConfirm">
+    <DialogContent role="alertdialog" aria-modal="true">
+      <DialogTitle>Rebuild index?</DialogTitle>
+      <DialogDescription>
+        Rebuild clears this folder's index and extracted metadata cache before indexing again. Source image files are not deleted.
+      </DialogDescription>
+      <div class="flex justify-end gap-2 mt-4">
+        <Button variant="outline" size="sm" @click="onRebuildCancelled">Cancel</Button>
+        <Button variant="secondary" size="sm" @click="onRebuildConfirmed">Rebuild index</Button>
+      </div>
+    </DialogContent>
+  </Dialog>
 </template>

@@ -40,6 +40,7 @@ const emit = defineEmits<{
           :tree="tree"
           :is-loading="isLoading"
           :current-path="currentPath"
+          index-status-variant="card"
         />
       </div>
       <SidebarRail />
