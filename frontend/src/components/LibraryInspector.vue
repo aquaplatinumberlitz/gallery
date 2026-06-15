@@ -192,8 +192,8 @@ function sortLabel(columnId: string) {
           Library Inspector
         </h2>
         <p class="text-sm text-muted-foreground">
-          {{ inspectorQuery.data.value.returned }} of {{ inspectorQuery.data.value.total_indexed }} indexed rows
-          <span v-if="inspectorQuery.data.value.truncated">shown, capped at {{ inspectorQuery.data.value.limit }}</span>
+          {{ inspectorQuery.data.value.returned }} returned from {{ inspectorQuery.data.value.total_indexed }} indexed rows
+          <span v-if="inspectorQuery.data.value.truncated">(capped at {{ inspectorQuery.data.value.limit }})</span>
         </p>
       </div>
       <div class="relative w-full max-w-xl">
@@ -317,11 +317,14 @@ function sortLabel(columnId: string) {
             <td class="table-cell col-seed">
               <button
                 v-if="row.original.seed"
-                class="font-mono text-xs hover:underline"
+                class="inline-flex cursor-copy items-center gap-1 rounded-sm font-mono text-xs hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 type="button"
+                :aria-label="`Copy seed ${row.original.seed}`"
+                title="Copy seed"
                 @click.stop="copyText(row.original.seed, 'seed')"
               >
-                {{ row.original.seed }}
+                <span>{{ row.original.seed }}</span>
+                <Copy class="size-3 opacity-50" aria-hidden="true" />
               </button>
               <span v-else class="text-muted-foreground">-</span>
             </td>
