@@ -7,9 +7,10 @@ import {
   useVueTable,
   type SortingState,
 } from "@tanstack/vue-table";
-import { Copy, ExternalLink, MoreHorizontal, Search } from "lucide-vue-next";
+import { ArrowLeft, Copy, ExternalLink, MoreHorizontal, Search } from "lucide-vue-next";
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
+import ButtonLink from "@/components/ui/ButtonLink.vue";
 import Input from "@/components/ui/Input.vue";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -61,12 +62,11 @@ const columnHelper = createColumnHelper<LibraryInspectorRow>();
 const columns = [
   columnHelper.display({ id: "thumbnail", header: "", enableSorting: false }),
   columnHelper.accessor("name", { id: "name", header: "File", enableSorting: true }),
-  columnHelper.accessor("relative_path", { id: "path", header: "Folder", enableSorting: false }),
+  columnHelper.accessor("prompt_preview", { id: "prompt", header: "Prompt", enableSorting: false }),
   columnHelper.accessor((row) => row.model || row.tool, { id: "model", header: "Model", enableSorting: true }),
   columnHelper.accessor("seed", { id: "seed", header: "Seed", enableSorting: true }),
   columnHelper.accessor((row) => `${row.width || ""}x${row.height || ""}`, { id: "dimensions", header: "Size", enableSorting: true }),
   columnHelper.accessor("mtime", { id: "mtime", header: "Modified", enableSorting: true }),
-  columnHelper.accessor("prompt_preview", { id: "prompt", header: "Prompt", enableSorting: false }),
   columnHelper.display({ id: "actions", header: "", enableSorting: false }),
 ];
 
@@ -87,7 +87,19 @@ const table = useVueTable({
   getSortedRowModel: getSortedRowModel(),
 });
 
-const visibleRows = computed(() => table.getRowModel().rows.map((row) => row.original));
+const visibleTableRows = computed(() => table.getRowModel().rows);
+const visibleRows = computed(() => visibleTableRows.value.map((row) => row.original));
+const visibleLightboxItems = computed<FileNode[]>(() =>
+  visibleRows.value.map((row) => ({
+    name: row.name,
+    path: row.path,
+    type: "image",
+    has_children: false,
+    mtime: row.mtime ?? undefined,
+    width: row.width,
+    height: row.height,
+  })),
+);
 
 function openDetail(path: string, open: boolean) {
   if (!open) return;
@@ -119,20 +131,10 @@ function folderLabel(row: LibraryInspectorRow) {
   return row.relative_path || row.folder || "Root";
 }
 
-function rowsAsLightboxItems(): FileNode[] {
-  return visibleRows.value.map((row) => ({
-    name: row.name,
-    path: row.path,
-    type: "image",
-    has_children: false,
-    mtime: row.mtime ?? undefined,
-    width: row.width,
-    height: row.height,
-  }));
-}
-
 function openImage(row: LibraryInspectorRow) {
-  lightboxStore.open({ path: row.path, name: row.name }, rowsAsLightboxItems());
+  const items = visibleLightboxItems.value;
+  const visibleIndex = items.findIndex((item) => item.path === row.path);
+  lightboxStore.open({ path: row.path, name: row.name }, items, visibleIndex);
 }
 
 function composeMetadata(detail: LibraryInspectorMetadataResponse) {
@@ -191,23 +193,38 @@ async function copyDetail(row: LibraryInspectorRow, kind: "prompt" | "negative" 
 function sortLabel(columnId: string) {
   const column = table.getColumn(columnId);
   const state = column?.getIsSorted();
-  return state === "asc" ? " sorted ascending" : state === "desc" ? " sorted descending" : "";
+  return state === "asc" ? " ↑" : state === "desc" ? " ↓" : "";
+}
+
+function sortAriaLabel(columnId: string, header: unknown) {
+  const label = typeof header === "string" ? header : "Column";
+  const column = table.getColumn(columnId);
+  const state = column?.getIsSorted();
+  if (state === "asc") return `${label}, sorted ascending`;
+  if (state === "desc") return `${label}, sorted descending`;
+  return `${label}, not sorted`;
 }
 </script>
 
 <template>
   <section class="library-inspector" aria-labelledby="library-inspector-title">
     <div class="inspector-header">
-      <div>
-        <h2 id="library-inspector-title" class="text-xl font-semibold tracking-normal">
-          Library Inspector
-        </h2>
-        <p class="text-sm text-muted-foreground">
-          {{ inspectorQuery.data.value.returned }} returned from {{ inspectorQuery.data.value.total_indexed }} indexed rows
-          <span v-if="inspectorQuery.data.value.truncated">(capped at {{ inspectorQuery.data.value.limit }})</span>
-        </p>
+      <div class="inspector-heading">
+        <ButtonLink to="/" variant="outline" size="sm" class="h-8 shrink-0 gap-1.5">
+          <ArrowLeft class="size-4" aria-hidden="true" />
+          Gallery
+        </ButtonLink>
+        <div class="min-w-0">
+          <h2 id="library-inspector-title" class="truncate text-xl font-semibold tracking-normal">
+            Library Inspector
+          </h2>
+          <p class="truncate text-sm text-muted-foreground">
+            {{ inspectorQuery.data.value.returned }} returned from {{ inspectorQuery.data.value.total_indexed }} indexed
+            <span v-if="inspectorQuery.data.value.truncated">(showing first {{ inspectorQuery.data.value.limit }})</span>
+          </p>
+        </div>
       </div>
-      <div class="relative w-full max-w-xl">
+      <div class="inspector-search relative">
         <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           v-model="query"
@@ -238,6 +255,8 @@ function sortLabel(columnId: string) {
                 variant="ghost"
                 size="sm"
                 class="h-8 px-2 text-xs font-medium"
+                :aria-label="sortAriaLabel(header.column.id, header.column.columnDef.header)"
+                :title="sortAriaLabel(header.column.id, header.column.columnDef.header)"
                 @click="header.column.getToggleSortingHandler()?.($event)"
               >
                 {{ header.column.columnDef.header }}{{ sortLabel(header.column.id) }}
@@ -250,14 +269,14 @@ function sortLabel(columnId: string) {
         </thead>
         <tbody>
           <tr v-if="inspectorQuery.isLoading.value">
-            <td colspan="9" class="p-4">
+            <td colspan="8" class="p-4">
               <div class="space-y-2">
                 <Skeleton v-for="idx in 8" :key="idx" class="h-10 w-full" />
               </div>
             </td>
           </tr>
           <tr v-else-if="table.getRowModel().rows.length === 0">
-            <td colspan="9" class="p-8 text-center text-sm text-muted-foreground">
+            <td colspan="8" class="p-8 text-center text-sm text-muted-foreground">
               No indexed metadata rows.
             </td>
           </tr>
@@ -274,29 +293,64 @@ function sortLabel(columnId: string) {
               </button>
             </td>
             <td class="table-cell col-name">
-              <div class="min-w-0">
-                <button class="long-text-trigger font-medium" type="button" @click.stop="openImage(row.original)">
+              <div class="file-cell-content">
+                <button class="long-text-trigger file-name-trigger" type="button" @click.stop="openImage(row.original)">
                   <span class="long-text-preview">{{ row.original.name }}</span>
                 </button>
-                <span class="block truncate text-xs text-muted-foreground">{{ folderLabel(row.original) }}</span>
+                <Popover @update:open="(open) => open && (selectedPath = row.original.path)">
+                  <PopoverTrigger as-child>
+                    <button class="long-text-trigger folder-path-trigger" type="button" @click.stop>
+                      <span class="long-text-preview">{{ folderLabel(row.original) }}</span>
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" class="w-96">
+                    <div class="space-y-3">
+                      <p class="break-all text-sm">{{ row.original.path }}</p>
+                      <Button size="sm" variant="secondary" @click="copyText(row.original.path, 'path')">
+                        <Copy class="size-4" /> Copy full path
+                      </Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
             </td>
-            <td class="table-cell col-path">
-              <Popover @update:open="(open) => open && (selectedPath = row.original.path)">
-                <PopoverTrigger as-child>
-                  <button class="long-text-trigger text-muted-foreground" type="button" @click.stop>
-                    <span class="long-text-preview">{{ folderLabel(row.original) }}</span>
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent align="start" class="w-96">
-                  <div class="space-y-3">
-                    <p class="break-all text-sm">{{ row.original.path }}</p>
-                    <Button size="sm" variant="secondary" @click="copyText(row.original.path, 'path')">
-                      <Copy class="size-4" /> Copy full path
-                    </Button>
-                  </div>
-                </PopoverContent>
-              </Popover>
+            <td class="table-cell col-prompt">
+              <div class="prompt-cell">
+                <Popover v-if="row.original.has_prompt || row.original.has_negative" @update:open="(open) => openDetail(row.original.path, open)">
+                  <PopoverTrigger as-child>
+                    <button class="long-text-trigger prompt-trigger" type="button" @click.stop>
+                      <span class="long-text-preview">{{ row.original.prompt_preview || 'No prompt metadata' }}</span>
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" class="w-[32rem]">
+                    <div v-if="metadataQuery.isLoading.value && detailPath === row.original.path" class="space-y-2">
+                      <Skeleton class="h-4 w-2/3" />
+                      <Skeleton class="h-24 w-full" />
+                      <Skeleton class="h-16 w-full" />
+                    </div>
+                    <div v-else-if="metadataQuery.isError.value && detailPath === row.original.path" class="space-y-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                      <p class="font-medium">Unable to load metadata detail.</p>
+                      <Button size="sm" variant="outline" @click="metadataQuery.refetch()">Retry</Button>
+                    </div>
+                    <div v-else class="space-y-4">
+                      <div>
+                        <p class="mb-1 text-sm font-medium">Prompt</p>
+                        <p class="metadata-block">{{ metadataQuery.data.value?.prompt || 'No prompt metadata' }}</p>
+                      </div>
+                      <div v-if="metadataQuery.data.value?.negative_prompt">
+                        <p class="mb-1 text-sm font-medium">Negative prompt</p>
+                        <p class="metadata-block">{{ metadataQuery.data.value.negative_prompt }}</p>
+                      </div>
+                      <div class="flex flex-wrap gap-2">
+                        <Button size="sm" variant="secondary" @click="copyDetail(row.original, 'prompt')">Copy prompt</Button>
+                        <Button size="sm" variant="secondary" @click="copyDetail(row.original, 'negative')">Copy negative</Button>
+                        <Button size="sm" variant="outline" @click="copyDetail(row.original, 'metadata')">Copy full metadata</Button>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                <span v-else class="block min-w-0 max-w-full truncate text-muted-foreground">No prompt metadata</span>
+              </div>
             </td>
             <td class="table-cell col-model">
               <div class="space-y-1">
@@ -308,15 +362,15 @@ function sortLabel(columnId: string) {
                     </button>
                   </PopoverTrigger>
                   <PopoverContent align="start" class="w-[28rem]">
-	                    <div v-if="metadataQuery.isLoading.value && detailPath === row.original.path" class="space-y-2">
-	                      <Skeleton class="h-4 w-3/4" />
-	                      <Skeleton class="h-20 w-full" />
-	                    </div>
-	                    <div v-else-if="metadataQuery.isError.value && detailPath === row.original.path" class="space-y-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-	                      <p class="font-medium">Unable to load resource detail.</p>
-	                      <Button size="sm" variant="outline" @click="metadataQuery.refetch()">Retry</Button>
-	                    </div>
-	                    <div v-else class="space-y-3">
+                    <div v-if="metadataQuery.isLoading.value && detailPath === row.original.path" class="space-y-2">
+                      <Skeleton class="h-4 w-3/4" />
+                      <Skeleton class="h-20 w-full" />
+                    </div>
+                    <div v-else-if="metadataQuery.isError.value && detailPath === row.original.path" class="space-y-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                      <p class="font-medium">Unable to load resource detail.</p>
+                      <Button size="sm" variant="outline" @click="metadataQuery.refetch()">Retry</Button>
+                    </div>
+                    <div v-else class="space-y-3">
                       <p class="text-sm font-medium">LoRA resources</p>
                       <pre class="metadata-block">{{ formatResources(metadataQuery.data.value?.loras || []) || row.original.lora_preview }}</pre>
                       <div class="flex flex-wrap gap-2">
@@ -339,48 +393,12 @@ function sortLabel(columnId: string) {
                 @click.stop="copyText(row.original.seed, 'seed')"
               >
                 <span>{{ row.original.seed }}</span>
-                <Copy class="size-3 opacity-50" aria-hidden="true" />
+                <Copy class="seed-copy-icon size-3" aria-hidden="true" />
               </button>
               <span v-else class="text-muted-foreground">-</span>
             </td>
             <td class="table-cell col-dimensions">{{ formatDimensions(row.original) }}</td>
             <td class="table-cell col-mtime">{{ formatDate(row.original.mtime) }}</td>
-            <td class="table-cell col-prompt">
-              <Popover v-if="row.original.has_prompt || row.original.has_negative" @update:open="(open) => openDetail(row.original.path, open)">
-                <PopoverTrigger as-child>
-                  <button class="long-text-trigger" type="button" @click.stop>
-                    <span class="long-text-preview">{{ row.original.prompt_preview || 'No prompt metadata' }}</span>
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent align="start" class="w-[32rem]">
-	                  <div v-if="metadataQuery.isLoading.value && detailPath === row.original.path" class="space-y-2">
-	                    <Skeleton class="h-4 w-2/3" />
-	                    <Skeleton class="h-24 w-full" />
-	                    <Skeleton class="h-16 w-full" />
-	                  </div>
-	                  <div v-else-if="metadataQuery.isError.value && detailPath === row.original.path" class="space-y-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-	                    <p class="font-medium">Unable to load metadata detail.</p>
-	                    <Button size="sm" variant="outline" @click="metadataQuery.refetch()">Retry</Button>
-	                  </div>
-	                  <div v-else class="space-y-4">
-                    <div>
-                      <p class="mb-1 text-sm font-medium">Prompt</p>
-                      <p class="metadata-block">{{ metadataQuery.data.value?.prompt || 'No prompt metadata' }}</p>
-                    </div>
-                    <div v-if="metadataQuery.data.value?.negative_prompt">
-                      <p class="mb-1 text-sm font-medium">Negative prompt</p>
-                      <p class="metadata-block">{{ metadataQuery.data.value.negative_prompt }}</p>
-                    </div>
-                    <div class="flex flex-wrap gap-2">
-                      <Button size="sm" variant="secondary" @click="copyDetail(row.original, 'prompt')">Copy prompt</Button>
-                      <Button size="sm" variant="secondary" @click="copyDetail(row.original, 'negative')">Copy negative</Button>
-                      <Button size="sm" variant="outline" @click="copyDetail(row.original, 'metadata')">Copy full metadata</Button>
-                    </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
-              <span v-else class="block truncate text-muted-foreground">No prompt metadata</span>
-            </td>
             <td class="table-cell col-actions">
               <DropdownMenu>
                 <DropdownMenuTrigger as-child>
@@ -426,14 +444,27 @@ function sortLabel(columnId: string) {
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  gap: 16px;
+  overflow: hidden;
+  gap: 12px;
 }
 
 .inspector-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
+}
+
+.inspector-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.inspector-search {
+  width: min(100%, 520px);
+  min-width: 280px;
 }
 
 .table-shell {
@@ -447,7 +478,7 @@ function sortLabel(columnId: string) {
 
 .inspector-table {
   width: 100%;
-  min-width: 1180px;
+  min-width: 1100px;
   table-layout: fixed;
   border-collapse: collapse;
   font-size: 13px;
@@ -459,7 +490,7 @@ function sortLabel(columnId: string) {
   z-index: 1;
   height: 40px;
   border-bottom: 1px solid hsl(var(--border));
-  background: hsl(var(--background));
+  background: hsl(var(--muted) / 0.72);
   color: hsl(var(--muted-foreground));
   text-align: left;
   vertical-align: middle;
@@ -471,7 +502,7 @@ function sortLabel(columnId: string) {
 
 .table-row:hover,
 .table-row.selected {
-  background: hsl(var(--accent) / 0.55);
+  background: hsl(var(--accent) / 0.42);
 }
 
 .table-cell {
@@ -487,15 +518,11 @@ function sortLabel(columnId: string) {
 }
 
 .col-name {
-  width: 210px;
-}
-
-.col-path {
-  width: 180px;
+  width: 250px;
 }
 
 .col-model {
-  width: 140px;
+  width: 145px;
 }
 
 .col-seed {
@@ -507,11 +534,11 @@ function sortLabel(columnId: string) {
 }
 
 .col-mtime {
-  width: 160px;
+  width: 150px;
 }
 
 .col-prompt {
-  width: 280px;
+  width: 330px;
 }
 
 .col-actions {
@@ -544,6 +571,32 @@ function sortLabel(columnId: string) {
   text-align: left;
 }
 
+.file-cell-content,
+.prompt-cell {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.file-name-trigger {
+  color: hsl(var(--foreground));
+  font-weight: 500;
+}
+
+.folder-path-trigger {
+  color: hsl(var(--muted-foreground));
+  font-size: 12px;
+}
+
+.folder-path-trigger:hover,
+.prompt-trigger:hover {
+  color: hsl(var(--foreground));
+}
+
+.prompt-trigger {
+  color: hsl(var(--foreground));
+}
+
 .long-text-preview {
   display: block;
   width: 100%;
@@ -552,6 +605,16 @@ function sortLabel(columnId: string) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.seed-copy-icon {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.col-seed button:hover .seed-copy-icon,
+.col-seed button:focus-visible .seed-copy-icon {
+  opacity: 0.55;
 }
 
 .metadata-block {

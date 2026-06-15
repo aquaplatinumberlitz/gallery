@@ -146,7 +146,9 @@ async def api_library_inspector(
 
     query_truncated = bool(data.get("truncated"))
     safe_rows, stale_detected = _filter_safe_rows(data["rows"])
-    if stale_detected and len(safe_rows) < limit:
+    # Overscan once if stale rows were detected and the current page is not full,
+    # or if the query was truncated and may contain stale entries just past the page.
+    if stale_detected and (len(safe_rows) < limit or query_truncated):
         overscan_limit = min(max(limit * 2, limit + 25), 1000)
         try:
             overscan_data = await run_in_threadpool(list_library_inspector_rows, q, scope, root_path, overscan_limit)
@@ -164,7 +166,7 @@ async def api_library_inspector(
     data["rows"] = safe_rows
     data["returned"] = len(safe_rows)
     data["limit"] = limit
-    data["truncated"] = query_truncated or len(safe_rows) > limit
+    data["truncated"] = query_truncated
     return data
 
 

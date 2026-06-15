@@ -26,7 +26,7 @@ export const useLightboxStore = defineStore("lightbox", {
     dimensionsByPath: {} as Record<string, LightboxDimensions>,
   }),
   actions: {
-    open(node: FileNode | { path: string; name?: string }, items: FileNode[] = []) {
+    open(node: FileNode | { path: string; name?: string }, items: FileNode[] = [], preferredIndex?: number) {
       const path = "path" in node ? node.path : "";
       const name = "name" in node ? node.name || "" : "";
       
@@ -36,7 +36,11 @@ export const useLightboxStore = defineStore("lightbox", {
       
       // Setup navigation
       this.galleryItems = items.filter(i => i.type === 'image');
-      this.currentIndex = this.galleryItems.findIndex(i => i.path === path);
+      const candidateIndex = typeof preferredIndex === "number" && preferredIndex >= 0 ? preferredIndex : -1;
+      const preferredItem = candidateIndex >= 0 ? this.galleryItems[candidateIndex] : undefined;
+      this.currentIndex = preferredItem?.path === path
+        ? candidateIndex
+        : this.galleryItems.findIndex(i => i.path === path);
 
       this.preloadNeighbors();
     },

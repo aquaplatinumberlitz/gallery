@@ -72,7 +72,8 @@ const emit = defineEmits<{
   display: flex;
   flex-direction: column;
   gap: 16px;
-  height: 100%;
+  height: 100svh;
+  min-height: 0;
   overflow: hidden;
   padding: 16px 16px 24px 16px;
   transition: padding-top 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -85,7 +86,7 @@ const emit = defineEmits<{
   border-radius: 0;
   flex: 1;
   min-height: 0;
-  overflow: visible;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
