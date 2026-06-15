@@ -132,6 +132,9 @@ function formatCount(value: number) {
 }
 
 .index-status-card__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: var(--text-color);
   font-size: 13px;
   font-weight: 650;
