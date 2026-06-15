@@ -62,13 +62,21 @@ const metadataQuery = useLibraryInspectorMetadataQuery(detailPath, detailEnabled
 const rebuildStartedAt = computed(() =>
   scope.value === "current" ? getScopeRebuildStartedAt(currentPath.value) : 0
 );
-const isInspectorRebuilding = computed(() => {
+/**
+ * True when the inspector snapshot in view is stale — its generated_at is before
+ * the most recent rebuild_started_at for this scope. This means placeholder
+ * (pre-rebuild) data is being shown while the inspector refetches.
+ *
+ * This does NOT reflect the actual index rebuild state. True rebuild progress
+ * (active jobs, completion %) is shown in the sidebar Index Status panel.
+ */
+const isInspectorDataStale = computed(() => {
   const startedAt = rebuildStartedAt.value;
   if (!startedAt) return false;
   return (inspectorQuery.data.value.generated_at || 0) < startedAt;
 });
 const inspectorSummary = computed(() => {
-  if (isInspectorRebuilding.value) return "Rebuilding this scope...";
+  if (isInspectorDataStale.value) return "Refreshing Inspector…";
   return `${inspectorQuery.data.value.returned} returned from ${inspectorQuery.data.value.total_indexed} metadata records in this scope`;
 });
 
@@ -269,7 +277,7 @@ function sortAriaLabel(columnId: string, header: unknown) {
           </h2>
           <p class="truncate text-sm text-muted-foreground">
             {{ inspectorSummary }}
-            <span v-if="!isInspectorRebuilding && inspectorQuery.data.value.truncated">(showing first {{ inspectorQuery.data.value.limit }})</span>
+            <span v-if="!isInspectorDataStale && inspectorQuery.data.value.truncated">(showing first {{ inspectorQuery.data.value.limit }})</span>
           </p>
           <p class="truncate text-xs text-muted-foreground/70">
             Scope: {{ inspectorQuery.data.value.root || galleryStore.currentPath || "All indexed" }} · Recursive: Yes
@@ -292,11 +300,11 @@ function sortAriaLabel(columnId: string, header: unknown) {
       Unable to load metadata rows.
     </div>
 
-    <div v-if="isInspectorRebuilding" class="rebuild-notice">
-      Rebuilding this scope. Previous metadata rows are dimmed until the Inspector receives a fresh snapshot.
+    <div v-if="isInspectorDataStale" class="rebuild-notice">
+      Refreshing Inspector. Previous metadata rows are shown until the latest snapshot arrives.
     </div>
 
-    <div :class="['table-shell', isInspectorRebuilding && 'table-shell--rebuilding']">
+    <div :class="['table-shell', isInspectorDataStale && 'table-shell--rebuilding']">
       <table class="inspector-table">
         <thead>
           <tr v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
@@ -333,7 +341,7 @@ function sortAriaLabel(columnId: string, header: unknown) {
           </tr>
           <tr v-else-if="table.getRowModel().rows.length === 0">
             <td colspan="8" class="p-8 text-center text-sm text-muted-foreground">
-              {{ isInspectorRebuilding ? "Rebuilding metadata rows..." : "No indexed metadata rows." }}
+              {{ isInspectorDataStale ? "Refreshing metadata rows…" : "No indexed metadata rows." }}
             </td>
           </tr>
           <tr
