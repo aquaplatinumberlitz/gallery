@@ -214,10 +214,10 @@ function onRebuildCancelled() {
         <!-- Summary metrics -->
         <div class="space-y-1 text-sm">
           <div class="flex items-center justify-between">
-            <span class="text-muted-foreground">{{ counts.done.toLocaleString() }} indexed</span>
+            <span class="text-muted-foreground">{{ counts.done.toLocaleString() }} metadata indexed</span>
           </div>
           <div v-if="(data.failed ?? 0) > 0" class="flex items-center justify-between">
-            <span class="text-destructive">{{ data.failed }} {{ data.failed === 1 ? 'error' : 'errors' }}</span>
+            <span class="text-destructive">{{ data.failed }} {{ data.failed === 1 ? 'failed job' : 'failed jobs' }}</span>
           </div>
           <div v-if="(data.queued ?? 0) > 0" class="flex items-center justify-between">
             <span class="text-muted-foreground">{{ data.queued }} queued</span>

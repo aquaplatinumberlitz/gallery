@@ -190,7 +190,7 @@ test.describe("IndexStatusPanel", () => {
     await expect(statusButton).toBeVisible();
 
     await expect(statusButton).toContainText("Ready");
-    await expect(statusButton).toContainText("150 indexed");
+    await expect(statusButton).toContainText("150 metadata indexed");
     await expect(statusButton).toContainText("Details");
 
     await statusButton.click();
@@ -200,10 +200,12 @@ test.describe("IndexStatusPanel", () => {
     // Summary fields visible by default
     await expect(popover).toContainText("Status");
     await expect(popover).toContainText("Ready");
-    await expect(popover).toContainText("Indexed");
+    await expect(popover).toContainText("Metadata indexed");
     await expect(popover).toContainText("150");
-    await expect(popover).toContainText("Root");
+    await expect(popover).toContainText("Scope");
     await expect(popover).toContainText(rootPath);
+    await expect(popover).toContainText("Recursive");
+    await expect(popover).toContainText("Yes");
     await expect(popover.getByRole("button", { name: "Rescan" })).toBeVisible();
     await expect(popover.getByRole("button", { name: "Rebuild index" })).toBeVisible();
     await expect(popover).toContainText("Rebuild clears this folder's index and extracted metadata cache before indexing again. Source image files are not deleted.");
@@ -338,7 +340,7 @@ test.describe("IndexStatusPanel", () => {
     resolveStatus!(null);
     await page.waitForTimeout(500);
 
-    await expect(page.getByRole("dialog", { name: "Index Status" })).toContainText("Indexed", { timeout: 5_000 });
+    await expect(page.getByRole("dialog", { name: "Index Status" })).toContainText("Metadata indexed", { timeout: 5_000 });
   });
 
   test("index status shows error state when API fails", async ({ page }) => {
@@ -544,7 +546,7 @@ test.describe("IndexStatusPanel", () => {
 
     const popover = page.getByRole("dialog", { name: "Index Status" });
     await expect(popover).toBeVisible({ timeout: 5_000 });
-    await expect(popover).toContainText("150 indexed");
+    await expect(popover).toContainText("150 metadata indexed");
   });
 
   test("details popover does not overflow with long root path", async ({ page }) => {
@@ -562,7 +564,7 @@ test.describe("IndexStatusPanel", () => {
 
     const popover = page.getByRole("dialog", { name: "Index Status" });
     await expect(popover).toBeVisible({ timeout: 5_000 });
-    await expect(popover).toContainText("Root");
+    await expect(popover).toContainText("Scope");
 
     const rootValue = popover.locator("strong[title]");
     await expect(rootValue).toHaveAttribute("title", longRootPath);
@@ -585,6 +587,6 @@ test.describe("IndexStatusPanel", () => {
 
     const popover = page.getByRole("dialog", { name: "Index Status" });
     await expect(popover).toBeVisible({ timeout: 5_000 });
-    await expect(popover).toContainText("150 indexed");
+    await expect(popover).toContainText("150 metadata indexed");
   });
 });

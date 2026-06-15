@@ -62,7 +62,7 @@ function formatUpdatedAt(value: number | null | undefined) {
         </div>
 
         <div class="index-details__row">
-          <span>Indexed</span>
+          <span>Metadata indexed</span>
           <strong>{{ formatCount(progress.indexed) }}</strong>
         </div>
 
@@ -72,7 +72,7 @@ function formatUpdatedAt(value: number | null | undefined) {
         </div>
 
         <div v-if="counts.failed > 0 || counts.stagedPathFailed > 0" class="index-details__row">
-          <span>Errors</span>
+          <span>Failed jobs</span>
           <strong>{{ formatCount(counts.failed + counts.stagedPathFailed) }}</strong>
         </div>
 
@@ -82,8 +82,13 @@ function formatUpdatedAt(value: number | null | undefined) {
         </div>
 
         <div v-if="data?.path || path" class="index-details__row index-details__row--path">
-          <span>Root</span>
+          <span>Scope</span>
           <strong :title="data?.path || path">{{ data?.path || path }}</strong>
+        </div>
+
+        <div v-if="data?.path || path" class="index-details__row">
+          <span>Recursive</span>
+          <strong>Yes</strong>
         </div>
       </div>
 
@@ -91,7 +96,7 @@ function formatUpdatedAt(value: number | null | undefined) {
         <div class="index-details__progress-label">
           <span>Progress</span>
           <strong v-if="progress.total !== null">
-            {{ formatCount(progress.indexed) }} / {{ formatCount(progress.total) }} indexed
+            {{ formatCount(progress.indexed) }} / {{ formatCount(progress.total) }} metadata indexed
           </strong>
           <strong v-else>Indexing...</strong>
         </div>
