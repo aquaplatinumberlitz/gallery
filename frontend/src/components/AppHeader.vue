@@ -281,7 +281,7 @@ function handleClearAll() {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-size: 12px;
-  color: var(--muted-foreground);
+  color: var(--brand-hero-text);
 }
 
 h1 {
