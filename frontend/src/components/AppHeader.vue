@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { Landmark, Search, X, Settings, Menu, Sun, Moon, Monitor, SlidersHorizontal, Table2 } from 'lucide-vue-next'
-import { RouterLink, useRoute } from 'vue-router'
+import { useRoute } from 'vue-router'
 import Button from '@/components/ui/Button.vue'
+import ButtonLink from '@/components/ui/ButtonLink.vue'
 import Input from '@/components/ui/Input.vue'
 import {
   DropdownMenu,
@@ -150,20 +151,17 @@ function handleClearAll() {
     </div>
     <div class="header-actions flex flex-col items-end gap-2">
       <div class="flex items-center gap-2">
-        <RouterLink
+        <ButtonLink
           v-if="!isMobile"
           to="/metadata"
+          :variant="isMetadataRoute ? 'secondary' : 'ghost'"
+          size="sm"
           :aria-current="isMetadataRoute ? 'page' : undefined"
-          :class="[
-            'metadata-link inline-flex h-8 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
-            isMetadataRoute
-              ? 'bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80'
-              : 'hover:bg-accent hover:text-accent-foreground'
-          ]"
+          class="metadata-link h-8 text-xs"
         >
           <Table2 class="size-4" />
           <span>Metadata</span>
-        </RouterLink>
+        </ButtonLink>
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
             <Button variant="ghost" size="icon" aria-label="Theme">

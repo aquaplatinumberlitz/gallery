@@ -24,11 +24,14 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useClipboard } from "@/composables/useClipboard";
+import { useToast } from "@/composables/useToast";
 import { useLibraryInspectorMetadataQuery } from "@/composables/useLibraryInspectorMetadataQuery";
 import { useLibraryInspectorQuery } from "@/composables/useLibraryInspectorQuery";
 import { useGalleryStore } from "@/stores/gallery";
 import { useLightboxStore } from "@/stores/lightbox";
 import { fetchLibraryInspectorMetadata, getThumbnailUrl } from "@/services/api";
+import { queryClient } from "@/query";
+import { queryKeys } from "@/query/keys";
 import type {
   FileNode,
   LibraryInspectorMetadataResponse,
@@ -40,6 +43,7 @@ import type {
 const galleryStore = useGalleryStore();
 const lightboxStore = useLightboxStore();
 const { copyText } = useClipboard();
+const toast = useToast();
 
 const query = ref("");
 const scope = ref<SearchScope>("all");
@@ -163,18 +167,25 @@ function formatResources(resources: LibraryInspectorResource[]) {
 }
 
 async function copyDetail(row: LibraryInspectorRow, kind: "prompt" | "negative" | "metadata" | "loras" | "hashes") {
-  const detail = await fetchLibraryInspectorMetadata(row.path);
-  if (kind === "prompt") return copyText(detail.prompt, "prompt");
-  if (kind === "negative") return copyText(detail.negative_prompt, "neg");
-  if (kind === "loras") return copyText(formatResources(detail.loras), "loras");
-  if (kind === "hashes") {
-    const hashes = [...detail.loras, ...detail.resources]
-      .map((item) => item.resource_hash || item.hash)
-      .filter(Boolean)
-      .join("\n");
-    return copyText(hashes, "hashes");
+  try {
+    const detail = await queryClient.fetchQuery({
+      queryKey: queryKeys.libraryInspectorMetadata(row.path),
+      queryFn: () => fetchLibraryInspectorMetadata(row.path),
+    });
+    if (kind === "prompt") return copyText(detail.prompt, "prompt");
+    if (kind === "negative") return copyText(detail.negative_prompt, "neg");
+    if (kind === "loras") return copyText(formatResources(detail.loras), "loras");
+    if (kind === "hashes") {
+      const hashes = [...detail.loras, ...detail.resources]
+        .map((item) => item.resource_hash || item.hash)
+        .filter(Boolean)
+        .join("\n");
+      return copyText(hashes, "hashes");
+    }
+    return copyText(composeMetadata(detail), "metadata");
+  } catch {
+    toast.error("Unable to load metadata", "The indexed metadata detail could not be fetched.");
   }
-  return copyText(composeMetadata(detail), "metadata");
 }
 
 function sortLabel(columnId: string) {
@@ -297,11 +308,15 @@ function sortLabel(columnId: string) {
                     </button>
                   </PopoverTrigger>
                   <PopoverContent align="start" class="w-[28rem]">
-                    <div v-if="metadataQuery.isLoading.value && detailPath === row.original.path" class="space-y-2">
-                      <Skeleton class="h-4 w-3/4" />
-                      <Skeleton class="h-20 w-full" />
-                    </div>
-                    <div v-else class="space-y-3">
+	                    <div v-if="metadataQuery.isLoading.value && detailPath === row.original.path" class="space-y-2">
+	                      <Skeleton class="h-4 w-3/4" />
+	                      <Skeleton class="h-20 w-full" />
+	                    </div>
+	                    <div v-else-if="metadataQuery.isError.value && detailPath === row.original.path" class="space-y-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+	                      <p class="font-medium">Unable to load resource detail.</p>
+	                      <Button size="sm" variant="outline" @click="metadataQuery.refetch()">Retry</Button>
+	                    </div>
+	                    <div v-else class="space-y-3">
                       <p class="text-sm font-medium">LoRA resources</p>
                       <pre class="metadata-block">{{ formatResources(metadataQuery.data.value?.loras || []) || row.original.lora_preview }}</pre>
                       <div class="flex flex-wrap gap-2">
@@ -338,12 +353,16 @@ function sortLabel(columnId: string) {
                   </button>
                 </PopoverTrigger>
                 <PopoverContent align="start" class="w-[32rem]">
-                  <div v-if="metadataQuery.isLoading.value && detailPath === row.original.path" class="space-y-2">
-                    <Skeleton class="h-4 w-2/3" />
-                    <Skeleton class="h-24 w-full" />
-                    <Skeleton class="h-16 w-full" />
-                  </div>
-                  <div v-else class="space-y-4">
+	                  <div v-if="metadataQuery.isLoading.value && detailPath === row.original.path" class="space-y-2">
+	                    <Skeleton class="h-4 w-2/3" />
+	                    <Skeleton class="h-24 w-full" />
+	                    <Skeleton class="h-16 w-full" />
+	                  </div>
+	                  <div v-else-if="metadataQuery.isError.value && detailPath === row.original.path" class="space-y-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+	                    <p class="font-medium">Unable to load metadata detail.</p>
+	                    <Button size="sm" variant="outline" @click="metadataQuery.refetch()">Retry</Button>
+	                  </div>
+	                  <div v-else class="space-y-4">
                     <div>
                       <p class="mb-1 text-sm font-medium">Prompt</p>
                       <p class="metadata-block">{{ metadataQuery.data.value?.prompt || 'No prompt metadata' }}</p>

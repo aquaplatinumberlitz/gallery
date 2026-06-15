@@ -248,7 +248,7 @@ class TestParseFieldedQuery:
 
     def test_resource_hash(self):
         result = parse_fielded_query("resource_hash:abc123")
-        assert result.fields[0].field == "model_hash"
+        assert result.fields[0].field == "resource_hash"
 
     def test_clip_skip_field(self):
         result = parse_fielded_query("clip_skip:2")
@@ -365,6 +365,14 @@ class TestBuildFieldedSearchSql:
         parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="model_hash", value="abc123")])
         sql, params = build_fielded_search_sql(parsed, limit=10)
         assert "m.model_hash" in sql
+
+    def test_resource_hash_sql_searches_resource_metadata(self):
+        parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="resource_hash", value="abc123")])
+        sql, params = build_fielded_search_sql(parsed, limit=10)
+        assert "m.lora_text" in sql
+        assert "m.raw_metadata_text" in sql
+        assert "m.metadata_json" in sql
+        assert "m.model_hash" not in sql
 
     # --- param / advanced SQL ---
 

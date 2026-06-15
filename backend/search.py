@@ -124,30 +124,47 @@ async def api_library_inspector(
         if not root_path.exists() or not root_path.is_dir():
             raise APIError(404, ErrorType.NOT_FOUND, "Folder not found")
 
+    def _filter_safe_rows(rows: list[dict]) -> tuple[list[dict], bool]:
+        stale = False
+        safe: list[dict] = []
+        for row in rows:
+            try:
+                resolved = resolve_path(row["path"])
+            except (OSError, RuntimeError):
+                stale = True
+                continue
+            if os.path.exists(resolved) and is_path_safe(resolved):
+                safe.append(row)
+            else:
+                stale = True
+        return safe, stale
+
     try:
         data = await run_in_threadpool(list_library_inspector_rows, q, scope, root_path, limit)
     except Exception as exc:  # noqa: BLE001
         raise APIError(500, ErrorType.SERVER_ERROR, f"Library inspector failed: {exc}") from exc
 
-    stale_detected = False
-    safe_rows: list[dict] = []
-    for row in data["rows"]:
+    query_truncated = bool(data.get("truncated"))
+    safe_rows, stale_detected = _filter_safe_rows(data["rows"])
+    if stale_detected and len(safe_rows) < limit:
+        overscan_limit = min(max(limit * 2, limit + 25), 1000)
         try:
-            resolved = resolve_path(row["path"])
-        except (OSError, RuntimeError):
-            stale_detected = True
-            continue
-        if os.path.exists(resolved) and is_path_safe(resolved):
-            safe_rows.append(row)
-        else:
-            stale_detected = True
+            overscan_data = await run_in_threadpool(list_library_inspector_rows, q, scope, root_path, overscan_limit)
+        except Exception as exc:  # noqa: BLE001
+            raise APIError(500, ErrorType.SERVER_ERROR, f"Library inspector failed: {exc}") from exc
+        overscan_safe_rows, overscan_stale_detected = _filter_safe_rows(overscan_data["rows"])
+        data = overscan_data
+        query_truncated = bool(overscan_data.get("truncated")) or len(overscan_safe_rows) > limit
+        safe_rows = overscan_safe_rows[:limit]
+        stale_detected = stale_detected or overscan_stale_detected
 
     if stale_detected:
         await run_in_threadpool(cleanup_stale_index, None, GALLERY_ROOT)
 
     data["rows"] = safe_rows
     data["returned"] = len(safe_rows)
-    data["truncated"] = len(safe_rows) >= data["limit"]
+    data["limit"] = limit
+    data["truncated"] = query_truncated or len(safe_rows) > limit
     return data
 
 

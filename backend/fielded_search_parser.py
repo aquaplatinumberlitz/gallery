@@ -41,7 +41,6 @@ def _normalize_field_name(field: str) -> str:
         "folder": "path",
         "location": "path",
         "resource": "lora",
-        "resource_hash": "model_hash",
     }
     # model_or_hash is NOT aliased — it is a distinct field with its own SQL predicate.
     return aliases.get(field, field)
@@ -186,7 +185,7 @@ def _like_value(raw_value: str) -> str:
 
 TEXT_LIKE_FIELDS: set[str] = {
     "prompt", "negative", "name", "tool", "sampler", "scheduler",
-    "model", "lora", "vae", "date", "generation_time",
+    "model", "lora", "resource_hash", "vae", "date", "generation_time",
 }
 
 COLUMN_MAP: dict[str, str] = {
@@ -324,6 +323,22 @@ def build_fielded_conditions(parsed: ParsedQuery) -> tuple[list[str], dict[str, 
         if ft.field == "path":
             like_val = _like_value(ft.value)
             conditions.append(f"m.path LIKE {next_param(f'%{like_val}%')} ESCAPE '\\'")
+            continue
+
+        if ft.field == "resource_hash":
+            escaped = ft.value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            pattern = f"%{escaped}%"
+            conditions.append(
+                "("
+                + " OR ".join(
+                    (
+                        f"m.lora_text LIKE {next_param(pattern)} ESCAPE '\\'",
+                        f"m.raw_metadata_text LIKE {next_param(pattern)} ESCAPE '\\'",
+                        f"m.metadata_json LIKE {next_param(pattern)} ESCAPE '\\'",
+                    )
+                )
+                + ")"
+            )
             continue
 
         col = COLUMN_MAP.get(ft.field)

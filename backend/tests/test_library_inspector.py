@@ -1,8 +1,72 @@
 from pathlib import Path
+import json
 
 from fastapi.testclient import TestClient
 
 from .test_api_integration_metadata_search_facets import _index_gallery_images
+
+
+def _seed_mika_lora_resource_metadata(gallery_root: Path) -> None:
+    from backend.metadata_extract import ExtractedMetadata
+    from backend.metadata_store import upsert_extracted_metadata
+    import time as _time
+
+    path = gallery_root / "mika_album" / "mika_portrait.png"
+    stat = path.stat()
+    metadata = {
+        "tool": "A1111",
+        "loras": [
+            {
+                "name": "detail_lora",
+                "resource_hash": "lora-resource-abc",
+                "weight": 0.8,
+            }
+        ],
+        "resources": [
+            {
+                "name": "detail-resource",
+                "resource_hash": "resource-hash-xyz",
+                "weight": 0.5,
+            }
+        ],
+    }
+    upsert_extracted_metadata(
+        ExtractedMetadata(
+            path=str(path.resolve()),
+            name=path.name,
+            mtime=stat.st_mtime,
+            size=stat.st_size,
+            width=1024,
+            height=1536,
+            format="PNG",
+            mode="RGB",
+            has_alpha=0,
+            prompt="masterpiece, 1girl, mika, blue eyes, rain",
+            negative_prompt="low quality, blurry",
+            model="ponyDiffusionV6XL",
+            sampler="Euler a",
+            seed="12345",
+            steps=30,
+            cfg_scale=7.0,
+            raw_metadata_text="detail_lora lora-resource-abc resource-hash-xyz",
+            metadata_json=json.dumps(metadata, ensure_ascii=False, sort_keys=True),
+            tool="A1111",
+            scheduler="karras",
+            model_hash="checkpoint-abc",
+            lora_text="detail_lora:0.8, lora-resource-abc, resource-hash-xyz",
+            generation_time=None,
+            clip_skip=None,
+            hires_upscale=None,
+            hires_steps=None,
+            denoising_strength=None,
+            vae=None,
+            ensd=None,
+            aesthetic_score=None,
+            date="2026-01-02",
+            aspect_ratio="2:3",
+            indexed_at=_time.time(),
+        )
+    )
 
 
 def test_library_inspector_empty_query_returns_latest_rows(
@@ -56,12 +120,114 @@ def test_library_inspector_reuses_fielded_prompt_and_seed_semantics(
     assert [row["name"] for row in seed_resp.json()["rows"]] == ["mika_portrait.png"]
 
 
-def test_library_inspector_detail_is_db_first(
+def test_library_inspector_reuses_negative_lora_resource_and_scope_fields(
     isolated_app: TestClient,
     temp_gallery_with_metadata: Path,
 ):
     _index_gallery_images(temp_gallery_with_metadata)
+    _seed_mika_lora_resource_metadata(temp_gallery_with_metadata)
+
+    exact_queries = [
+        "negative:blurry",
+        "lora:detail_lora",
+        "resource:detail_lora",
+        "resource_hash:lora-resource-abc",
+        "resource_hash:resource-hash-xyz",
+        "date:2026-01-02",
+    ]
+
+    for query in exact_queries:
+        resp = isolated_app.get("/api/library/inspector", params={"q": query, "scope": "all"})
+        assert resp.status_code == 200
+        assert [row["name"] for row in resp.json()["rows"]] == ["mika_portrait.png"]
+
+    folder_resp = isolated_app.get("/api/library/inspector", params={"q": "folder:mika_album", "scope": "all"})
+    assert folder_resp.status_code == 200
+    assert "mika_portrait.png" in [row["name"] for row in folder_resp.json()["rows"]]
+
+
+def test_library_inspector_resource_hash_does_not_match_model_hash(
+    isolated_app: TestClient,
+    temp_gallery_with_metadata: Path,
+):
+    _index_gallery_images(temp_gallery_with_metadata)
+    _seed_mika_lora_resource_metadata(temp_gallery_with_metadata)
+
+    resp = isolated_app.get("/api/library/inspector", params={"q": "resource_hash:checkpoint-abc", "scope": "all"})
+
+    assert resp.status_code == 200
+    assert resp.json()["rows"] == []
+
+
+def test_library_inspector_uses_file_index_dimension_fallback(
+    isolated_app: TestClient,
+    temp_gallery_with_metadata: Path,
+):
+    from backend.metadata_store import _connect
+
+    _index_gallery_images(temp_gallery_with_metadata)
     path = str((temp_gallery_with_metadata / "mika_album" / "mika_portrait.png").resolve())
+    with _connect() as conn:
+        conn.execute("UPDATE image_metadata SET width = NULL, height = NULL WHERE path = ?", (path,))
+        conn.execute("UPDATE file_index SET width = 2048, height = 3072 WHERE path = ?", (path,))
+
+    list_resp = isolated_app.get("/api/library/inspector", params={"q": "seed:12345", "scope": "all"})
+    detail_resp = isolated_app.get("/api/library/inspector/metadata", params={"path": path})
+
+    assert list_resp.status_code == 200
+    assert detail_resp.status_code == 200
+    row = list_resp.json()["rows"][0]
+    detail = detail_resp.json()
+    assert row["width"] == 2048
+    assert row["height"] == 3072
+    assert detail["width"] == 2048
+    assert detail["height"] == 3072
+
+
+def test_library_inspector_overscans_when_limited_rows_are_stale(
+    isolated_app: TestClient,
+    temp_gallery_with_metadata: Path,
+):
+    from backend.metadata_store import _connect
+
+    _index_gallery_images(temp_gallery_with_metadata)
+    stale_path = str((temp_gallery_with_metadata / "mika_album" / "deleted.png").resolve())
+    with _connect() as conn:
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO file_index(path, name, parent_path, type, mtime, size, width, height, indexed_at)
+            VALUES (?, 'deleted.png', ?, 'photo', 9999999999, 1, 1, 1, 9999999999)
+            """,
+            (stale_path, str((temp_gallery_with_metadata / "mika_album").resolve())),
+        )
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO image_metadata(path, name, mtime, size, prompt, metadata_json, updated_at, indexed_at)
+            VALUES (?, 'deleted.png', 9999999999, 1, 'stale prompt', '{}', 9999999999, 9999999999)
+            """,
+            (stale_path,),
+        )
+
+    resp = isolated_app.get("/api/library/inspector", params={"q": "", "scope": "all", "limit": 1})
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["returned"] == 1
+    assert data["rows"][0]["name"] != "deleted.png"
+
+
+def test_library_inspector_detail_is_db_first(
+    isolated_app: TestClient,
+    temp_gallery_with_metadata: Path,
+    monkeypatch,
+):
+    _index_gallery_images(temp_gallery_with_metadata)
+    path = str((temp_gallery_with_metadata / "mika_album" / "mika_portrait.png").resolve())
+
+    def fail_extract(*args, **kwargs):
+        raise AssertionError("detail endpoint must not parse original image files")
+
+    monkeypatch.setattr("backend.metadata_store.extract_metadata", fail_extract)
 
     resp = isolated_app.get("/api/library/inspector/metadata", params={"path": path})
 

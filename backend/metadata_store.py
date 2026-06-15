@@ -2034,14 +2034,17 @@ def _lora_summary(row: sqlite3.Row) -> tuple[bool, int, str]:
 def _format_inspector_row(row: sqlite3.Row, root: Path) -> dict[str, Any]:
     has_lora, lora_count, lora_preview = _lora_summary(row)
     parent_path = row["parent_path"] or str(Path(row["path"]).parent)
+    row_keys = set(row.keys())
+    width = row["indexed_width"] if "indexed_width" in row_keys else row["width"]
+    height = row["indexed_height"] if "indexed_height" in row_keys else row["height"]
     return {
         "path": row["path"],
         "name": row["name"],
         "folder": parent_path,
         "relative_path": _folder_relative_path(parent_path, root),
         "mtime": row["mtime"],
-        "width": row["width"],
-        "height": row["height"],
+        "width": width,
+        "height": height,
         "model": row["model"] or "",
         "tool": row["tool"] or "",
         "sampler": row["sampler"] or "",
@@ -2068,7 +2071,7 @@ def list_library_inspector_rows(
     initialize_database()
     trimmed = query.strip()
     normalized_scope = "current" if scope == "current" else "all"
-    bounded_limit = max(1, min(limit, 200))
+    bounded_limit = max(1, min(limit, 1000))
     root = Path(root_path).resolve() if normalized_scope == "current" and root_path else GALLERY_ROOT
     scope_cond, scope_params = _build_scope_named(normalized_scope, root, "fi")
 
@@ -2086,9 +2089,9 @@ def list_library_inspector_rows(
 
         params: dict[str, Any] = dict(scope_params)
         params.update(field_params)
-        params["limit"] = bounded_limit
+        params["limit"] = bounded_limit + 1
 
-        rows = list(
+        fetched_rows = list(
             conn.execute(
                 f"""
                 SELECT
@@ -2107,6 +2110,7 @@ def list_library_inspector_rows(
                 params,
             )
         )
+        rows = fetched_rows[:bounded_limit]
 
         total_row = conn.execute(
             f"""
@@ -2126,7 +2130,7 @@ def list_library_inspector_rows(
         "limit": bounded_limit,
         "total_indexed": int(total_row["total"] if total_row else 0),
         "returned": len(rows),
-        "truncated": len(rows) >= bounded_limit,
+        "truncated": len(fetched_rows) > bounded_limit,
         "sort": "mtime_desc",
         "rows": _dedupe_inspector_rows(rows, root),
     }
@@ -2150,7 +2154,12 @@ def get_library_inspector_metadata(path: str | Path) -> dict[str, Any] | None:
     with _DB_LOCK, _connect() as conn:
         row = conn.execute(
             """
-            SELECT m.*, fi.parent_path, fi.type AS file_type
+            SELECT
+              m.*,
+              fi.parent_path,
+              fi.type AS file_type,
+              COALESCE(fi.width, m.width) AS indexed_width,
+              COALESCE(fi.height, m.height) AS indexed_height
             FROM image_metadata m
             JOIN file_index fi ON fi.path = m.path
             WHERE m.path = ? AND fi.type = 'photo'
@@ -2194,8 +2203,8 @@ def get_library_inspector_metadata(path: str | Path) -> dict[str, Any] | None:
         "tool": row["tool"] or "",
         "sampler": row["sampler"] or "",
         "seed": row["seed"] or "",
-        "width": row["width"],
-        "height": row["height"],
+        "width": row["indexed_width"],
+        "height": row["indexed_height"],
         "mtime": row["mtime"],
         "loras": loras,
         "resources": resources,
