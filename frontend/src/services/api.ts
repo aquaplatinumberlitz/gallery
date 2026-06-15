@@ -131,6 +131,14 @@ export class GalleryAPIError extends Error {
           true
         );
       
+      case 'confirmation_required':
+        return new GalleryAPIError(
+          'confirmation_required',
+          'Confirmation required',
+          'This action requires explicit confirmation.',
+          false
+        );
+      
       default:
         return new GalleryAPIError(
           'server_error',

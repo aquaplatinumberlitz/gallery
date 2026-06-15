@@ -51,7 +51,7 @@ defineProps<{
     </SidebarGroup>
   </SidebarContent>
 
-  <SidebarFooter class="p-2 border-t border-border">
+  <SidebarFooter class="p-2 border-t border-border group-data-[collapsible=icon]:hidden">
     <IndexStatusPanel :path="currentPath" :variant="indexStatusVariant" />
   </SidebarFooter>
 </template>
