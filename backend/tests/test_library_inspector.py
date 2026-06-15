@@ -69,6 +69,46 @@ def _seed_mika_lora_resource_metadata(gallery_root: Path) -> None:
     )
 
 
+def test_library_inspector_scoped_current_returns_only_path_descendants(
+    isolated_app: TestClient,
+    isolated_gallery_root: Path,
+):
+    from .conftest import create_test_png_with_metadata
+    from backend.metadata_store import index_directory_tree
+
+    album_a = isolated_gallery_root / "album_a" / "sky.png"
+    album_b = isolated_gallery_root / "album_b" / "ocean.png"
+    create_test_png_with_metadata(album_a, prompt="blue sky", seed="1")
+    create_test_png_with_metadata(album_b, prompt="deep ocean", seed="2")
+
+    collected: list[Path] = []
+    index_directory_tree(isolated_gallery_root, include_metadata=True, collected_image_paths=collected)
+
+    scoped = isolated_app.get(
+        "/api/library/inspector",
+        params={"q": "", "scope": "current", "path": str(isolated_gallery_root / "album_a"), "limit": 200},
+    )
+    assert scoped.status_code == 200
+    scoped_data = scoped.json()
+    assert scoped_data["scope"] == "current"
+    assert scoped_data["total_indexed"] == 1
+    assert len(scoped_data["rows"]) == 1
+    assert scoped_data["rows"][0]["name"] == "sky.png"
+
+    scoped_b = isolated_app.get(
+        "/api/library/inspector",
+        params={"q": "", "scope": "current", "path": str(isolated_gallery_root / "album_b"), "limit": 200},
+    )
+    assert scoped_b.status_code == 200
+    scoped_b_data = scoped_b.json()
+    assert scoped_b_data["total_indexed"] == 1
+    assert scoped_b_data["rows"][0]["name"] == "ocean.png"
+
+    all_resp = isolated_app.get("/api/library/inspector", params={"q": "", "scope": "all", "limit": 200})
+    assert all_resp.status_code == 200
+    assert all_resp.json()["total_indexed"] == 2
+
+
 def test_library_inspector_empty_query_returns_latest_rows(
     isolated_app: TestClient,
     temp_gallery_with_metadata: Path,

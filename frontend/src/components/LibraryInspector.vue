@@ -47,7 +47,7 @@ const { copyText } = useClipboard();
 const toast = useToast();
 
 const query = ref("");
-const scope = ref<SearchScope>("all");
+const scope = ref<SearchScope>("current");
 const currentPath = computed(() => galleryStore.currentPath || "");
 const limit = ref(200);
 const sorting = ref<SortingState>([{ id: "mtime", desc: true }]);
@@ -246,8 +246,11 @@ function sortAriaLabel(columnId: string, header: unknown) {
             Library Inspector
           </h2>
           <p class="truncate text-sm text-muted-foreground">
-            {{ inspectorQuery.data.value.returned }} returned from {{ inspectorQuery.data.value.total_indexed }} metadata records
+            {{ inspectorQuery.data.value.returned }} returned from {{ inspectorQuery.data.value.total_indexed }} metadata records in this scope
             <span v-if="inspectorQuery.data.value.truncated">(showing first {{ inspectorQuery.data.value.limit }})</span>
+          </p>
+          <p class="truncate text-xs text-muted-foreground/70">
+            Scope: {{ inspectorQuery.data.value.root || galleryStore.currentPath || "All indexed" }} · Recursive: Yes
           </p>
         </div>
       </div>

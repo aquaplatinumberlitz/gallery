@@ -6,7 +6,7 @@ import type { LibraryInspectorResponse, SearchScope } from "@/types";
 
 const EMPTY_RESPONSE: LibraryInspectorResponse = {
   root: "",
-  scope: "all",
+  scope: "current",
   query: "",
   limit: 200,
   total_indexed: 0,
