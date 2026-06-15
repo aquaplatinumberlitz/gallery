@@ -52,10 +52,14 @@ withDefaults(defineProps<{
 <style scoped lang="scss">
 .album-card {
   // Component-level tokens
-  --album-card-bg: var(--card);
-  --album-card-border: 1px solid var(--border);
+  --album-frame-bg: var(--brand-album-paper);
+  --album-frame-border: var(--brand-album-paper-border);
+  --album-title-color: var(--brand-album-title);
+  --album-meta-color: var(--brand-album-muted);
+  --album-card-bg: var(--album-frame-bg);
+  --album-card-border: 1px solid var(--album-frame-border);
   --album-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-  --album-layer-border-color: var(--border);
+  --album-layer-border-color: var(--brand-album-layer-border);
   --album-back-shadow: var(--shadow-card);
   --album-front-shadow: var(--shadow-card-level2);
   --album-hover-shadow: var(--shadow-card-hover);
@@ -161,7 +165,7 @@ withDefaults(defineProps<{
     overflow: hidden;
     transition: all 0.4s ease;
     border: 4px solid var(--album-layer-border-color); // Separate border color
-    background: var(--card);
+    background: var(--album-frame-bg);
 
     img {
       width: 100%;
@@ -172,11 +176,11 @@ withDefaults(defineProps<{
     .placeholder {
       width: 100%;
       height: 100%;
-      background: color-mix(in srgb, var(--muted) 75%, transparent);
+      background: color-mix(in srgb, var(--album-meta-color) 14%, transparent);
       display: grid;
       place-items: center;
       font-size: 2rem;
-      color: var(--muted-foreground);
+      color: var(--album-meta-color);
     }
   }
 
@@ -207,7 +211,7 @@ withDefaults(defineProps<{
       font-family: var(--font-body); // Inter font
       font-weight: 600;
       font-size: 16px;
-      color: var(--foreground);
+      color: var(--album-title-color);
       margin: 0;
       text-overflow: ellipsis;
       overflow: hidden;
@@ -220,13 +224,13 @@ withDefaults(defineProps<{
       gap: 4px;
       font-family: var(--font-code); // JetBrains Mono
       font-size: 11px;
-      color: var(--muted-foreground);
+      color: var(--album-meta-color);
       margin: 4px 0 0;
       letter-spacing: 0.5px;
     }
     .album-meta-icon {
       flex-shrink: 0;
-      color: var(--muted-foreground);
+      color: var(--album-meta-color);
     }
     .gallery-icon-meta {
       width: var(--gallery-icon-meta);
@@ -268,7 +272,7 @@ withDefaults(defineProps<{
     }
 
     .album-name {
-      color: var(--foreground);
+      color: var(--album-title-color);
     }
 
     @media (hover: hover) {
@@ -327,7 +331,7 @@ withDefaults(defineProps<{
   width: 32px;
   height: 32px;
   display: block;
-  color: var(--muted-foreground);
+  color: var(--album-meta-color);
 }
 
 /* ── Light theme: match original transparent card ── */
@@ -336,7 +340,6 @@ html[data-theme="light"] .album-card,
   --album-card-bg: transparent;
   --album-card-border: none;
   --album-card-shadow: none;
-  --album-layer-border-color: #ffffff;
   --album-back-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 1px 3px 1px rgba(0,0,0,0.15);
   --album-front-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 2px 6px 2px rgba(0,0,0,0.15);
   --album-hover-shadow: 0 1px 3px rgba(0,0,0,0.3), 0 4px 8px 3px rgba(0,0,0,0.15);

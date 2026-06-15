@@ -472,7 +472,7 @@ h1 {
   transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 
   /* --- 2. LIGHT MODE (Mặc định: Đơn sắc, Không viền, Không Glow) --- */
-  color: var(--foreground);     /* Dùng màu Navy đậm của tiêu đề cho đồng bộ */
+  color: var(--brand-hero-text);
   border: 2px solid transparent; /* Viền trong suốt (giữ chỗ) */
   box-shadow: none;              /* Không bóng */
   filter: none;                  /* Không phát sáng */
@@ -503,7 +503,7 @@ h1 {
   display: inline-block;
   
   /* Clean solid color - elegant & readable */
-  color: var(--foreground);
+  color: var(--brand-hero-text);
   
   /* Smooth transitions for hover effects */
   transition: 

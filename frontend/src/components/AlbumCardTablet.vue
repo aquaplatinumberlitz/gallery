@@ -41,12 +41,17 @@ defineProps<{
 
 <style scoped lang="scss">
 .album-card-tablet {
+  --album-frame-bg: var(--brand-album-paper);
+  --album-frame-border: var(--brand-album-paper-border);
+  --album-title-color: var(--brand-album-title);
+  --album-meta-color: var(--brand-album-muted);
+
   width: 100%;
   cursor: pointer;
   border-radius: 10px;
   overflow: hidden;
-  background: var(--card);
-  border: 1px solid var(--border);
+  background: var(--album-frame-bg);
+  border: 1px solid var(--album-frame-border);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   transition: transform 160ms ease, box-shadow 160ms ease;
 
@@ -54,7 +59,7 @@ defineProps<{
     width: 100%;
     height: 130px;
     overflow: hidden;
-    background: var(--card);
+    background: var(--album-frame-bg);
 
     img {
       width: 100%;
@@ -65,10 +70,10 @@ defineProps<{
     .placeholder {
       width: 100%;
       height: 100%;
-      background: color-mix(in srgb, var(--muted) 75%, transparent);
+      background: color-mix(in srgb, var(--album-meta-color) 14%, transparent);
       display: grid;
       place-items: center;
-      color: var(--muted-foreground);
+      color: var(--album-meta-color);
     }
   }
 
@@ -80,7 +85,7 @@ defineProps<{
       font-family: var(--font-body);
       font-weight: 600;
       font-size: 15px;
-      color: var(--foreground);
+      color: var(--album-title-color);
       margin: 0;
       text-overflow: ellipsis;
       overflow: hidden;
@@ -93,14 +98,14 @@ defineProps<{
       gap: 4px;
       font-family: var(--font-code);
       font-size: 12px;
-      color: var(--muted-foreground);
+      color: var(--album-meta-color);
       margin: 4px 0 0;
       letter-spacing: 0.5px;
     }
 
     .album-meta-icon {
       flex-shrink: 0;
-      color: var(--muted-foreground);
+      color: var(--album-meta-color);
     }
     .gallery-icon-meta {
       width: var(--gallery-icon-meta);
@@ -113,7 +118,7 @@ defineProps<{
     box-shadow: none;
 
     .album-name {
-      color: var(--foreground);
+      color: var(--album-title-color);
     }
   }
 
@@ -144,6 +149,6 @@ defineProps<{
   width: 32px;
   height: 32px;
   display: block;
-  color: var(--muted-foreground);
+  color: var(--album-meta-color);
 }
 </style>

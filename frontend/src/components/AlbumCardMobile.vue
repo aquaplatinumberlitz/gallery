@@ -41,12 +41,17 @@ defineProps<{
 
 <style scoped lang="scss">
 .album-card-mobile {
+  --album-frame-bg: var(--brand-album-paper);
+  --album-frame-border: var(--brand-album-paper-border);
+  --album-title-color: var(--brand-album-title);
+  --album-meta-color: var(--brand-album-muted);
+
   width: 100%;
   cursor: pointer;
   border-radius: 8px;
   overflow: hidden;            // Outer card clips content — clean straight edge at bottom
-  background: var(--card);
-  border: 1px solid var(--border);
+  background: var(--album-frame-bg);
+  border: 1px solid var(--album-frame-border);
   box-shadow: none;
   transition: transform 160ms ease, opacity 160ms ease;
 
@@ -56,7 +61,7 @@ defineProps<{
     border-radius: 8px 8px 0 0;  // Only top corners rounded — bottom is straight horizontal edge
     overflow: hidden;
     border: none;                  // Removed border for cleaner look (Apple Photos style)
-    background: var(--card);
+    background: var(--album-frame-bg);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);  // Subtle depth (Google Photos style)
 
     img {
@@ -68,10 +73,10 @@ defineProps<{
     .placeholder {
       width: 100%;
       height: 100%;
-      background: color-mix(in srgb, var(--muted) 75%, transparent);
+      background: color-mix(in srgb, var(--album-meta-color) 14%, transparent);
       display: grid;
       place-items: center;
-      color: var(--muted-foreground);
+      color: var(--album-meta-color);
     }
   }
 
@@ -84,7 +89,7 @@ defineProps<{
       font-weight: 600;
       font-size: 13px;
       line-height: 1.25;
-      color: var(--foreground);
+      color: var(--album-title-color);
       margin: 0;
       display: -webkit-box;
       -webkit-box-orient: vertical;
@@ -101,13 +106,13 @@ defineProps<{
       gap: 4px;
       font-family: var(--font-code);
       font-size: 11px;             // Increased from 10px → 11px (better readability)
-      color: var(--muted-foreground);
+      color: var(--album-meta-color);
       margin: 4px 0 0;
       letter-spacing: 0.5px;
     }
     .album-meta-icon {
       flex-shrink: 0;
-      color: var(--muted-foreground);
+      color: var(--album-meta-color);
     }
     .gallery-icon-meta {
       width: var(--gallery-icon-meta);
@@ -135,7 +140,7 @@ defineProps<{
     }
 
     .album-name {
-      color: var(--foreground);
+      color: var(--album-title-color);
     }
 
     @media (hover: hover) {
@@ -172,6 +177,6 @@ defineProps<{
   width: 32px;
   height: 32px;
   display: block;
-  color: var(--muted-foreground);
+  color: var(--album-meta-color);
 }
 </style>

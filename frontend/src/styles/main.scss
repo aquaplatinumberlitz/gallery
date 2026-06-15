@@ -30,7 +30,7 @@
 
 /* Dark mode styles cho brand-icon */
 html[data-theme="dark"] .brand-icon {
-  color: #ff6b35;
+  color: var(--brand-hero-accent);
   border: 0.1rem solid #fff;
   background: rgba(10, 10, 10, 0.7);
   backdrop-filter: blur(3px);
