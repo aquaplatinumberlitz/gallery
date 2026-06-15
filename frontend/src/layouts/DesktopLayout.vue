@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import GallerySidebarContent from "../components/GallerySidebarContent.vue";
 import AppHeader from "../components/AppHeader.vue";
-import GalleryGrid from "../components/GalleryGrid.vue";
+import { RouterView } from "vue-router";
 import {
   SidebarProvider,
   Sidebar,
@@ -60,9 +60,7 @@ const emit = defineEmits<{
       />
 
       <div class="content-body">
-        <GalleryGrid
-          :is-mobile="false"
-        />
+        <RouterView />
       </div>
     </SidebarInset>
   </SidebarProvider>

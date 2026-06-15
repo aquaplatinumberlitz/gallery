@@ -8,7 +8,14 @@ from fastapi.concurrency import run_in_threadpool
 from .config import DEFAULT_ROOT, GALLERY_ROOT
 from .errors import APIError, ErrorType
 from .fielded_search_parser import parse_fielded_query
-from .metadata_store import cleanup_stale_index, search_index, search_index_fielded, search_metadata
+from .metadata_store import (
+    cleanup_stale_index,
+    get_library_inspector_metadata,
+    list_library_inspector_rows,
+    search_index,
+    search_index_fielded,
+    search_metadata,
+)
 from .paths import is_path_safe, resolve_path
 
 router = APIRouter()
@@ -100,3 +107,64 @@ async def api_search(
         "photos": photos,
         "prompt": prompt,
     }
+
+
+@router.get("/api/library/inspector")
+async def api_library_inspector(
+    q: str = Query("", description="Free text or fielded metadata query"),
+    scope: Literal["current", "all"] = Query("all", description="Inspect current folder recursively or all indexed files"),
+    path: str | None = Query(None, description="Current folder path when scope=current"),
+    limit: int = Query(200, ge=1, le=200, description="Maximum inspector rows"),
+):
+    root_path: Path | None = None
+    if scope == "current":
+        root_path = resolve_path(path) if path else DEFAULT_ROOT
+        if not is_path_safe(root_path):
+            raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied: path outside allowed root")
+        if not root_path.exists() or not root_path.is_dir():
+            raise APIError(404, ErrorType.NOT_FOUND, "Folder not found")
+
+    try:
+        data = await run_in_threadpool(list_library_inspector_rows, q, scope, root_path, limit)
+    except Exception as exc:  # noqa: BLE001
+        raise APIError(500, ErrorType.SERVER_ERROR, f"Library inspector failed: {exc}") from exc
+
+    stale_detected = False
+    safe_rows: list[dict] = []
+    for row in data["rows"]:
+        try:
+            resolved = resolve_path(row["path"])
+        except (OSError, RuntimeError):
+            stale_detected = True
+            continue
+        if os.path.exists(resolved) and is_path_safe(resolved):
+            safe_rows.append(row)
+        else:
+            stale_detected = True
+
+    if stale_detected:
+        await run_in_threadpool(cleanup_stale_index, None, GALLERY_ROOT)
+
+    data["rows"] = safe_rows
+    data["returned"] = len(safe_rows)
+    data["truncated"] = len(safe_rows) >= data["limit"]
+    return data
+
+
+@router.get("/api/library/inspector/metadata")
+async def api_library_inspector_metadata(
+    path: str = Query(..., description="Encoded image path from an indexed library row"),
+):
+    resolved = resolve_path(path)
+    if not is_path_safe(resolved):
+        raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied: path outside allowed root")
+
+    try:
+        data = await run_in_threadpool(get_library_inspector_metadata, resolved)
+    except Exception as exc:  # noqa: BLE001
+        raise APIError(500, ErrorType.SERVER_ERROR, f"Library inspector metadata failed: {exc}") from exc
+
+    if data is None:
+        raise APIError(404, ErrorType.NOT_FOUND, "Indexed metadata unavailable for this path")
+
+    return data

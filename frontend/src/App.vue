@@ -13,6 +13,7 @@ import { useGalleryTheme } from "./composables/useGalleryTheme";
 import { galleryScrollContainerRefKey } from "./injectionKeys";
 import { closeSidebarKey } from "./injectionKeys";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useRoute } from "vue-router";
 
 const Lightbox = defineAsyncComponent(() => import("./components/Lightbox.vue"));
 const isDev = import.meta.env.DEV;
@@ -23,9 +24,10 @@ const VueQueryDevtools = isDev
   : null;
 
 const { isMobile, isTablet } = useDevice();
+const route = useRoute();
 
 // --- INTRO PAGE LOGIC ---
-const showIntro = ref(!isMobile.value && !isTablet.value);
+const showIntro = ref(!isMobile.value && !isTablet.value && route.path !== "/metadata");
 const introPreviewUrl = ref<string | null>(null);
 const isSettingsOpen = ref(false);
 const handleIntroEnter = () => {
@@ -39,6 +41,16 @@ const handlePreviewIntro = (url: string) => {
   isSettingsOpen.value = false;
 };
 // ------------------------
+
+watch(
+  () => route.path,
+  (path) => {
+    if (path === "/metadata") {
+      showIntro.value = false;
+      introPreviewUrl.value = null;
+    }
+  }
+);
 
 const galleryStore = useGalleryStore();
 

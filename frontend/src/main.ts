@@ -13,6 +13,7 @@ import { createApp } from "vue";
 import { createPinia } from "pinia";
 import App from "./App.vue";
 import { installVueQuery } from "./query";
+import { router } from "./router";
 
 const app = createApp(App);
 
@@ -74,5 +75,6 @@ if (import.meta.env.DEV) {
 }
 
 app.use(createPinia());
+app.use(router);
 installVueQuery(app);
 app.mount("#app");

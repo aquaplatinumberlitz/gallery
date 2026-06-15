@@ -166,3 +166,61 @@ export interface FacetsResponse {
   folders?: FacetEntry[];
   [key: string]: FacetEntry[] | undefined;
 }
+
+export interface LibraryInspectorRow {
+  path: string;
+  name: string;
+  folder: string;
+  relative_path: string;
+  mtime: number | null;
+  width: number | null;
+  height: number | null;
+  model: string;
+  tool: string;
+  sampler: string;
+  seed: string;
+  prompt_preview: string;
+  has_prompt: boolean;
+  has_negative: boolean;
+  has_lora: boolean;
+  lora_count: number;
+  lora_preview: string;
+  metadata_detail_available: boolean;
+}
+
+export interface LibraryInspectorResponse {
+  root: string;
+  scope: SearchScope;
+  query: string;
+  limit: number;
+  total_indexed: number;
+  returned: number;
+  truncated: boolean;
+  sort: string;
+  rows: LibraryInspectorRow[];
+}
+
+export interface LibraryInspectorResource {
+  name?: string;
+  hash?: string | null;
+  resource_hash?: string | null;
+  weight?: string | number | null;
+  strength?: string | number | null;
+}
+
+export interface LibraryInspectorMetadataResponse {
+  path: string;
+  prompt: string;
+  negative_prompt: string;
+  raw_metadata: Record<string, unknown> | null;
+  model: string;
+  tool: string;
+  sampler: string;
+  seed: string;
+  width: number | null;
+  height: number | null;
+  mtime: number | null;
+  loras: LibraryInspectorResource[];
+  resources: LibraryInspectorResource[];
+  metadata_detail_available: boolean;
+}

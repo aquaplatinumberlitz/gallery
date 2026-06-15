@@ -1,5 +1,15 @@
 import axios, { AxiosError } from "axios";
-import type { FacetsResponse, FolderChildrenResponse, IndexStatusResponse, MetadataResponse, ScanResponse, SearchScope, UnifiedSearchResponse } from "../types";
+import type {
+  FacetsResponse,
+  FolderChildrenResponse,
+  IndexStatusResponse,
+  LibraryInspectorMetadataResponse,
+  LibraryInspectorResponse,
+  MetadataResponse,
+  ScanResponse,
+  SearchScope,
+  UnifiedSearchResponse,
+} from "../types";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -202,6 +212,43 @@ export const unifiedSearch = async (
         path: opts?.path,
         limit: opts?.limit ?? 50,
       },
+    });
+    return data;
+  } catch (error) {
+    if (error instanceof AxiosError) {
+      throw GalleryAPIError.fromAxiosError(error);
+    }
+    throw error;
+  }
+};
+
+export const fetchLibraryInspector = async (
+  opts?: { q?: string; scope?: SearchScope; path?: string; limit?: number }
+): Promise<LibraryInspectorResponse> => {
+  try {
+    const { data } = await api.get<LibraryInspectorResponse>("/api/library/inspector", {
+      params: {
+        q: opts?.q ?? "",
+        scope: opts?.scope ?? "all",
+        path: opts?.scope === "current" ? opts?.path : undefined,
+        limit: opts?.limit ?? 200,
+      },
+    });
+    return data;
+  } catch (error) {
+    if (error instanceof AxiosError) {
+      throw GalleryAPIError.fromAxiosError(error);
+    }
+    throw error;
+  }
+};
+
+export const fetchLibraryInspectorMetadata = async (
+  path: string
+): Promise<LibraryInspectorMetadataResponse> => {
+  try {
+    const { data } = await api.get<LibraryInspectorMetadataResponse>("/api/library/inspector/metadata", {
+      params: { path },
     });
     return data;
   } catch (error) {

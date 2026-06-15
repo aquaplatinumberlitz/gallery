@@ -1960,3 +1960,244 @@ def search_index_fielded(query: str, scope: str, root_path: str | Path | None = 
         "photos": _format_file_index_rows(photo_rows, root, "filename"),
         "prompt": _format_prompt_rows(prompt_rows, root),
     }
+
+
+def _truncate_preview(text: str | None, limit: int = 140) -> str:
+    normalized = " ".join((text or "").split())
+    if len(normalized) <= limit:
+        return normalized
+    return normalized[: max(0, limit - 3)].rstrip() + "..."
+
+
+def _safe_json_loads(raw: str | None) -> Any:
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+
+def _iter_metadata_loras(metadata: Any) -> list[dict[str, Any]]:
+    if not isinstance(metadata, dict):
+        return []
+
+    params = metadata.get("params")
+    candidates: list[Any] = []
+    for container in (metadata, params if isinstance(params, dict) else {}):
+        for key in ("loras", "Loras", "lora", "Lora", "LoRA"):
+            value = container.get(key)
+            if value:
+                candidates.append(value)
+
+    loras: list[dict[str, Any]] = []
+    for candidate in candidates:
+        items = candidate if isinstance(candidate, list) else [candidate]
+        for item in items:
+            if isinstance(item, dict):
+                name = item.get("name") or item.get("model") or item.get("resource_name") or item.get("alias")
+                loras.append(
+                    {
+                        "name": name or "",
+                        "hash": item.get("hash") or item.get("model_hash") or item.get("resource_hash"),
+                        "resource_hash": item.get("resource_hash") or item.get("hash"),
+                        "weight": item.get("weight") or item.get("strength"),
+                        "strength": item.get("strength") or item.get("weight"),
+                    }
+                )
+            elif isinstance(item, str) and item.strip():
+                loras.append({"name": item.strip(), "hash": None, "resource_hash": None, "weight": None, "strength": None})
+
+    return loras
+
+
+def _split_lora_text(lora_text: str | None) -> list[str]:
+    if not lora_text:
+        return []
+    parts = re.split(r"[\n,;]+", lora_text)
+    return [part.strip() for part in parts if part.strip()]
+
+
+def _lora_summary(row: sqlite3.Row) -> tuple[bool, int, str]:
+    metadata_loras = _iter_metadata_loras(_safe_json_loads(row["metadata_json"]))
+    text_loras = _split_lora_text(row["lora_text"])
+    names = [
+        str(item.get("name") or item.get("hash") or item.get("resource_hash") or "").strip()
+        for item in metadata_loras
+    ]
+    names.extend(text_loras)
+    unique_names = [name for idx, name in enumerate(names) if name and name not in names[:idx]]
+    count = len(unique_names)
+    return count > 0, count, _truncate_preview(", ".join(unique_names), 120)
+
+
+def _format_inspector_row(row: sqlite3.Row, root: Path) -> dict[str, Any]:
+    has_lora, lora_count, lora_preview = _lora_summary(row)
+    parent_path = row["parent_path"] or str(Path(row["path"]).parent)
+    return {
+        "path": row["path"],
+        "name": row["name"],
+        "folder": parent_path,
+        "relative_path": _folder_relative_path(parent_path, root),
+        "mtime": row["mtime"],
+        "width": row["width"],
+        "height": row["height"],
+        "model": row["model"] or "",
+        "tool": row["tool"] or "",
+        "sampler": row["sampler"] or "",
+        "seed": row["seed"] or "",
+        "prompt_preview": _truncate_preview(row["prompt"], 140),
+        "has_prompt": bool(row["prompt"]),
+        "has_negative": bool(row["negative_prompt"]),
+        "has_lora": has_lora,
+        "lora_count": lora_count,
+        "lora_preview": lora_preview,
+        "metadata_detail_available": bool(row["metadata_json"] or row["prompt"] or row["negative_prompt"] or row["lora_text"]),
+    }
+
+
+def list_library_inspector_rows(
+    query: str = "",
+    scope: str = "all",
+    root_path: str | Path | None = None,
+    limit: int = 200,
+) -> dict[str, Any]:
+    """Return bounded DB/index-backed rows for the read-only Library Inspector."""
+    from .fielded_search_parser import build_fielded_conditions, parse_fielded_query
+
+    initialize_database()
+    trimmed = query.strip()
+    normalized_scope = "current" if scope == "current" else "all"
+    bounded_limit = max(1, min(limit, 200))
+    root = Path(root_path).resolve() if normalized_scope == "current" and root_path else GALLERY_ROOT
+    scope_cond, scope_params = _build_scope_named(normalized_scope, root, "fi")
+
+    with _DB_LOCK, _connect() as conn:
+        parsed = parse_fielded_query(trimmed)
+        field_conditions: list[str] = []
+        field_params: dict[str, Any] = {}
+        if trimmed:
+            field_conditions, field_params = build_fielded_conditions(parsed)
+
+        where_parts = ["fi.type = 'photo'"]
+        if field_conditions:
+            where_parts.extend(field_conditions)
+        where_sql = " AND ".join(where_parts)
+
+        params: dict[str, Any] = dict(scope_params)
+        params.update(field_params)
+        params["limit"] = bounded_limit
+
+        rows = list(
+            conn.execute(
+                f"""
+                SELECT
+                  m.*,
+                  fi.parent_path,
+                  fi.type AS file_type,
+                  COALESCE(fi.width, m.width) AS indexed_width,
+                  COALESCE(fi.height, m.height) AS indexed_height
+                FROM image_metadata m
+                JOIN file_index fi ON fi.path = m.path
+                WHERE {where_sql}
+                {scope_cond}
+                ORDER BY COALESCE(m.mtime, fi.mtime) DESC, m.name ASC
+                LIMIT :limit
+                """,
+                params,
+            )
+        )
+
+        total_row = conn.execute(
+            f"""
+            SELECT count(*) AS total
+            FROM image_metadata m
+            JOIN file_index fi ON fi.path = m.path
+            WHERE fi.type = 'photo'
+            {scope_cond}
+            """,
+            scope_params,
+        ).fetchone()
+
+    return {
+        "root": str(root),
+        "scope": normalized_scope,
+        "query": query,
+        "limit": bounded_limit,
+        "total_indexed": int(total_row["total"] if total_row else 0),
+        "returned": len(rows),
+        "truncated": len(rows) >= bounded_limit,
+        "sort": "mtime_desc",
+        "rows": _dedupe_inspector_rows(rows, root),
+    }
+
+
+def _dedupe_inspector_rows(rows: list[sqlite3.Row], root: Path) -> list[dict[str, Any]]:
+    seen: set[str] = set()
+    results: list[dict[str, Any]] = []
+    for row in rows:
+        if row["path"] in seen:
+            continue
+        seen.add(row["path"])
+        results.append(_format_inspector_row(row, root))
+    return results
+
+
+def get_library_inspector_metadata(path: str | Path) -> dict[str, Any] | None:
+    """Read full inspector metadata from indexed DB rows only."""
+    resolved = str(Path(path).resolve())
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        row = conn.execute(
+            """
+            SELECT m.*, fi.parent_path, fi.type AS file_type
+            FROM image_metadata m
+            JOIN file_index fi ON fi.path = m.path
+            WHERE m.path = ? AND fi.type = 'photo'
+            """,
+            (resolved,),
+        ).fetchone()
+        if row is None:
+            return None
+
+    metadata = _safe_json_loads(row["metadata_json"])
+    loras = _iter_metadata_loras(metadata)
+    if not loras:
+        loras = [
+            {"name": name, "hash": None, "resource_hash": None, "weight": None, "strength": None}
+            for name in _split_lora_text(row["lora_text"])
+        ]
+
+    resources: list[dict[str, Any]] = []
+    if isinstance(metadata, dict):
+        for key in ("resources", "Resources"):
+            value = metadata.get(key)
+            if isinstance(value, list):
+                for item in value:
+                    if isinstance(item, dict):
+                        resources.append(
+                            {
+                                "name": item.get("name") or item.get("resource_name") or "",
+                                "hash": item.get("hash"),
+                                "resource_hash": item.get("resource_hash") or item.get("hash"),
+                                "weight": item.get("weight") or item.get("strength"),
+                                "strength": item.get("strength") or item.get("weight"),
+                            }
+                        )
+
+    return {
+        "path": row["path"],
+        "prompt": row["prompt"] or "",
+        "negative_prompt": row["negative_prompt"] or "",
+        "raw_metadata": metadata,
+        "model": row["model"] or "",
+        "tool": row["tool"] or "",
+        "sampler": row["sampler"] or "",
+        "seed": row["seed"] or "",
+        "width": row["width"],
+        "height": row["height"],
+        "mtime": row["mtime"],
+        "loras": loras,
+        "resources": resources,
+        "metadata_detail_available": bool(metadata or row["prompt"] or row["negative_prompt"] or loras or resources),
+    }
