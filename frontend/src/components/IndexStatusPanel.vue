@@ -287,13 +287,13 @@ function onRebuildCancelled() {
 
   <Dialog v-model:open="showRebuildConfirm">
     <DialogContent role="alertdialog" aria-modal="true">
-      <DialogTitle>Rebuild index?</DialogTitle>
+      <DialogTitle>Rebuild?</DialogTitle>
       <DialogDescription>
         Rebuild clears this folder's index and extracted metadata cache before indexing again. Source image files are not deleted.
       </DialogDescription>
       <div class="flex justify-end gap-2 mt-4">
         <Button variant="outline" size="sm" @click="onRebuildCancelled">Cancel</Button>
-        <Button variant="secondary" size="sm" @click="onRebuildConfirmed">Rebuild index</Button>
+        <Button variant="secondary" size="sm" @click="onRebuildConfirmed">Rebuild</Button>
       </div>
     </DialogContent>
   </Dialog>
