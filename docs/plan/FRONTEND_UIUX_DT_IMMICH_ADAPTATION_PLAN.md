@@ -22,7 +22,7 @@ The backend has a rich set of capabilities that are either completely invisible 
 | Index status visibility | Yes (`/api/index/status`, `indexer.py:599`) | Desktop API wrapper/query/UI complete after Tailwind Phase 2B refactor |
 | Faceted search/advanced search | Yes (`/api/facets`, `facets.py:248`; fielded parser with 30+ fields) | Facets data layer complete; visible facets/search UI remains Phase 2 |
 | Watcher/refresh status | Yes (`get_watcher_status()`, `get_refresh_status()` exist) | No HTTP endpoints wired; no frontend exposure possible |
-| Metadata list / library inspector | Yes (`/api/search?scope=all&limit=200`, indexed metadata via `unifiedSearch()`) | Not built; Phase 3 should use a lightweight read-only table/list, not TanStack Table |
+| Library Inspector | Partial — indexed metadata exists, but no library-list endpoint yet | Not built; Phase 3 adds a minimal read-only backend endpoint plus a lightweight inspector table, not TanStack Table |
 | TanStack Vue Form for advanced search/settings | Installed (v1.33.0) | Not used in any runtime component |
 
 ### Why a frontend control/visibility layer is needed
@@ -31,12 +31,12 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 - Users cannot tell if indexing is running, complete, or failed.
 - The powerful fielded search parser exists but has no discoverable search UI.
 - Facets data is computed on the backend but never presented to users.
-- The TanStack Form foundation is installed but unused, while Advanced Search is a strong fit. TanStack Table is not needed for the Phase 3 Metadata List MVP.
+- The TanStack Form foundation is installed but unused, while Advanced Search is a strong fit. TanStack Table is not needed for the Phase 3 Library Inspector MVP.
 
 ### Where TanStack Table/Form fit
 
 - **TanStack Vue Form**: Strong fit for AdvancedSearchDrawer (fielded search with validation, Apply/Cancel/Reset). Future settings or editing workflows may use it only after backend and UX prerequisites exist.
-- **TanStack Vue Table**: Not needed for the Phase 3 Metadata List MVP. Revisit only if a dedicated paginated metadata or diagnostics endpoint is added and heavier table features become necessary.
+- **TanStack Vue Table**: Not needed for the Phase 3 Library Inspector MVP. Revisit only if a dedicated paginated metadata or diagnostics endpoint is added and heavier table features become necessary.
 - **Neither should be used** for: main GalleryGrid (photo browsing), simple search input, toast, or lightbox metadata panel.
 
 ### Which shadcn-vue patterns should be adapted
@@ -46,7 +46,7 @@ DT/Immich-style background jobs (indexing, watcher, search caching) require user
 - **Drawer/Sheet** for mobile settings, mobile advanced search, and mobile index panel are future-only patterns, explicitly excluded from Phase 1. Phase 1 may only adapt desktop-safe Badge + Popover/Dialog patterns.
 - **Popover** for index status details, filter mini-panels.
 - **DropdownMenu** for search scope and toolbar actions.
-- **Data Table** only for future backend-backed paginated metadata or diagnostics tables; Phase 3 MetadataList uses plain table/list styling.
+- **Data Table** only for future backend-backed paginated metadata or diagnostics tables; Phase 3 Library Inspector uses plain table/list styling.
 - **Form** layout (Label/Description/Error pattern) for advanced search and future backend-backed editing workflows.
 - **Badge** for indexing/error/facet states.
 - **Tabs** for settings sections and future diagnostics sections.
@@ -118,6 +118,7 @@ Any mobile/tablet change requires:
 | Facets (`/api/facets`) | Complete (`facets.py:248`, 8 facet types) | Complete — `fetchFacets(path)` | **Missing** — no visible facet chips, filter UI, or suggestion dropdowns | Phase 1 data layer complete. Phase 2 exposes visible facets UI, filter chips, and AdvancedSearchDrawer integration. | Phase 2 UI |
 | Fielded search parser | Complete (`fielded_search_parser.py`, 30+ field types) | Partial — `unifiedSearch()` supports `scope` but no fielded search API wrapper | **Missing** — no AdvancedSearchDrawer, no filter chips, no field autocomplete | Backend is ready, frontend has basic text search only | P1 (Phase 2) |
 | Warm indexed folder listing | Complete (`scan.py` returns `index_source`) | Partial — `scanDirectory()` does not distinguish source | **Missing** — no visual indicator of warm vs direct scan source | Low priority (transparent optimization) | P3 |
+| Library Inspector listing | **Missing endpoint** — indexed rows exist in `file_index` + `image_metadata`, but `/api/search?q=` intentionally returns empty | **Missing** — add `fetchLibraryInspector()` | **Missing** — no inspector view | Add a minimal read-only `/api/library/inspector` endpoint instead of changing `/api/search` empty-query semantics | P3 |
 | Watcher | Watcher module implemented (`watcher.py:191`); HTTP route missing | **Missing** — no HTTP route for watcher status | **Missing** — frontend UI blocked until route exists | Both sides need work; watcher is P3 | P3 |
 | Scheduled refresh | Refresh module implemented (`refresh.py:150`); HTTP route missing | **Missing** — no HTTP route for refresh status | **Missing** — frontend UI blocked until route exists | Both sides need work; refresh is P3 | P3 |
 | Metadata extraction | Complete (`metadata_extract.py`, 5+ tools) | Complete — `fetchMetadata()` exists (`api.ts:179`) | **Complete** — lightbox panels display metadata well | No gap | N/A |
@@ -141,6 +142,7 @@ Purpose: Make it clear what backend endpoints and frontend types/composables mus
 | `/api/index/status` | `IndexStatusResponse` | `fetchIndexStatus()` | `useIndexStatusQuery()` | Backend complete at `indexer.py:599` |
 | `/api/facets` | `FacetsResponse` | `fetchFacets()` | `useFacetsQuery()` | Backend complete at `facets.py:248` |
 | `/api/search` | Existing `unifiedSearch()` contract | `unifiedSearch()` | Existing query composable | Current contract: `q`, `scope`, `path`, `limit`. Fielded search is parsed server-side from the `q` string. Advanced Search should serialize form state into backend-compatible `q`. |
+| `/api/library/inspector` | `LibraryInspectorResponse`, `LibraryInspectorRow` | `fetchLibraryInspector()` | `useLibraryInspectorQuery()` | **New Phase 3 endpoint.** Empty `q` returns latest indexed photos; optional `q` filters name, folder, model, sampler, and seed. This endpoint must not change `/api/search?q=` empty-query behavior. |
 | `/api/scan` | `ScanResponse` (include `index_source?: "warm_db" \| "direct_scan" \| "mixed"`) | `scanDirectory()` | Existing scan composable | Backend returns `index_source`; frontend type must reflect it. |
 
 Frontend should not invent a new payload shape when an existing backend contract already exists.
@@ -165,7 +167,7 @@ Frontend should not invent a new payload shape when an existing backend contract
 | **Future: IndexStatusPanel** | Does not exist | — | Popover/Sheet pattern for details | **Phase 1: desktop-only** — Must not open as mobile sheet in Phase 1. | Desktop-only. No mobile sheet. |
 | **Future: AdvancedSearchDrawer** | Does not exist | — | Sheet (mobile) / Side Sheet (desktop), Form (TanStack), Command palette | **Add new component**. See Phase 2. | Phase 2. |
 | **Future: SearchFilterChips** | Does not exist | — | Badge (removable chips) | **Add new component**. See Phase 2. | Phase 2. |
-| **Future: MetadataList** | Does not exist | — | Plain table/list styling | **Add lightweight read-only component**. See Phase 3. | Phase 3. |
+| **Future: LibraryInspector** | Does not exist | — | Plain table/list styling | **Add lightweight read-only component** backed by `/api/library/inspector`. See Phase 3. | Phase 3. |
 
 ---
 
@@ -191,7 +193,7 @@ Frontend should not invent a new payload shape when an existing backend contract
 
 | Candidate | Use Table? | Why | Why Not | Phase |
 |---|---|---|---|---|
-| **MetadataList** | **NO** | Phase 3 needs a compact read-only utility view over up to 200 search results. Client-side sorting and text filtering can be handled with simple Vue state/computed values. | TanStack Table would add column visibility, row selection, pagination, and table state overhead that the MVP explicitly excludes. Revisit if/when a dedicated backend paginated listing endpoint is added. | Phase 3 |
+| **LibraryInspector** | **NO** | Phase 3 needs a compact read-only utility view over a capped result set from `/api/library/inspector`. Client-side sorting can be handled with simple Vue state/computed values. | TanStack Table would add column visibility, row selection, pagination, and table state overhead that the MVP explicitly excludes. Revisit if/when a dedicated paginated metadata endpoint is added. | Phase 3 |
 | **Future paginated metadata table** | **YES (conditional)** | If the backend later exposes an all-indexed paginated listing endpoint with server-side sorting/filtering, TanStack Table may be appropriate. | No such endpoint exists today, and editable/batch metadata workflows are out of Phase 3 scope. | Future (backend prerequisite) |
 | **Future diagnostics/audit tables** | **YES (conditional)** | Row-level index errors, metadata parse errors, duplicate candidates, and broken-image scan results would be structured table data if the backend exposes them. | Current backend does not expose row-level diagnostics, per-job errors, duplicate data, or broken-image data. | Future (backend prerequisite) |
 | **Facets Table** | **NO** | Facets are better rendered as chips/tokens with counts, not as a table. A table would waste space on what is essentially a filter UI. | Use Badge/Popover pattern for facets, not TanStack Table. | Never |
@@ -200,7 +202,7 @@ Frontend should not invent a new payload shape when an existing backend contract
 ### Mandatory Conclusions
 
 - **Main GalleryGrid MUST NOT use TanStack Table.** It is a visual photo browser, not a data table. TanStack Virtual is the correct technology for this component.
-- **MetadataList SHOULD NOT use TanStack Table for the MVP.** It is a lightweight read-only inspector with a bounded search result set, not a full data-management surface.
+- **LibraryInspector SHOULD NOT use TanStack Table for the MVP.** It is a lightweight read-only inspector with a bounded result set, not a full data-management surface.
 - **TanStack Table is future-only for metadata/diagnostics.** Use it only if backend pagination or row-level diagnostics make table state management necessary.
 
 ---
@@ -214,7 +216,7 @@ Frontend should not invent a new payload shape when an existing backend contract
 | **Drawer / Sheet** | Mobile Settings (sheet), Advanced Search (mobile: bottom sheet; desktop: side sheet), Index Status (mobile), RootPathSheet | Existing `RootPathSheet` already has sheet-like behavior. Standardize the Header/Description/Footer pattern. Use existing VSBS for metadata sheet; do not replace it. New sheets (advanced search, index panel) should follow the same structure. **Future-only. All mobile/tablet Drawer/Sheet uses excluded from Phase 1.** |
 | **Popover** | Index status details (click chip to see queue counts), search scope selector (future: Phase 2, if scope options expand beyond simple "This folder"/"All indexed"), field help tooltips | Keep native `<select>` for scope in Phase 1. Replace with Popover/DropdownMenu only in Phase 2 if scope options grow. Keep popovers compact and non-modal. |
 | **DropdownMenu** | Search scope, sort options, density grid options, toolbar actions menu | Current custom dropdowns (sort, density) already function well. Adapt them to DropdownMenu pattern for consistency: keyboard navigation, `aria-haspopup`/`aria-expanded`, focus management. |
-| **Data Table** | Future backend-backed metadata/diagnostics tables; not Phase 3 MetadataList MVP | MetadataList should use plain table/list styling, not TanStack Table with the shadcn Data Table pattern. Revisit if/when a dedicated backend paginated listing endpoint is added. |
+| **Data Table** | Future backend-backed metadata/diagnostics tables; not Phase 3 Library Inspector MVP | LibraryInspector should use plain table/list styling, not TanStack Table with the shadcn Data Table pattern. Revisit if/when a dedicated backend paginated listing endpoint is added. |
 | **Form** | AdvancedSearchDrawer, future batch editor, expanded SettingsModal | TanStack Form with shadcn-vue Stone form controls: field label, description, error message, Apply/Cancel/Reset buttons. Use Stone border/focus/input defaults for standard form chrome. |
 | **Badge** | Index status (idle/active/queued/failed/disabled), facet chips, fielded search filter chips, error counts | Use shadcn-vue Stone Badge defaults for standard chips. Removable badge pattern for filter chips (x button to clear). State colors should be semantic and minimal, not brand warm colors. |
 | **Alert** | Indexing errors, scan errors, metadata parse warnings | Existing error banner in GalleryGrid and toast system already cover this. Enhance with Alert pattern: icon + title + description + dismiss. Keep gallery toast styling. |
@@ -556,17 +558,27 @@ Completed via Tailwind Phase 2B Index Status refactor: `fetchIndexStatus(path)` 
 
 ---
 
-### Phase 3 — Desktop Metadata List / Library Inspector (Desktop-First)
+### Phase 3 — Library Inspector (Desktop-First MVP)
 
-**Goal:** Add a lightweight read-only metadata list view for inspecting indexed photos and AI metadata. This is a secondary utility for power users, not an admin cockpit and not a replacement for GalleryGrid.
+**Goal:** Add a lightweight read-only Library Inspector for scanning indexed photos and key AI metadata. This is a secondary utility for power users, not an admin cockpit and not a replacement for GalleryGrid.
 
-**Why:** The backend indexes rich metadata, but the frontend has no compact way to scan, search, and compare metadata across photos. A desktop-first Metadata List fills that gap while keeping the visual GalleryGrid as the primary browsing UI.
+**Why:** The backend indexes rich metadata, but `/api/search?q=` intentionally returns empty and should not be repurposed as a library listing API. A minimal read-only inspector endpoint gives the frontend a contract-correct way to show the latest indexed photos while keeping GalleryGrid as the primary visual browsing UI.
 
-**Mobile/tablet constraint:** Mobile/tablet metadata list experience is deferred to a separate spec.
+**Mobile/tablet constraint:** Mobile/tablet Library Inspector experience is deferred to a separate spec.
 
 #### Tasks
 
-- [ ] **Add `MetadataList.vue`** — a lightweight read-only table/list component. Use a native table or basic component structure, not TanStack Table.
+- [ ] **Add read-only backend endpoint `GET /api/library/inspector`**:
+  - **Purpose:** bounded library listing for the inspector; do not change `/api/search?q=` empty-query behavior.
+  - **Query params:** `scope=current|all` (default `all`), `path` (only used for `scope=current`), `q` (optional), `limit` (1-200, default 200).
+  - **Default behavior:** empty `q` returns latest indexed photos ordered by `mtime DESC, name ASC`.
+  - **Filter behavior:** non-empty `q` filters indexed photo rows across name, folder/path, model, sampler, and seed.
+  - **Data source:** join `file_index` photo rows with `image_metadata` by `path`; include rows even when metadata is missing.
+  - **Response:** `{ root, scope, query, limit, total_indexed, returned, truncated, sort: "mtime_desc", rows }`.
+  - **Row shape:** `path`, `name`, `folder`, `relative_path`, `mtime`, `width`, `height`, `model`, `sampler`, `seed`.
+  - **Safety:** apply the same path safety/stale cleanup filtering used by `/api/search`.
+
+- [ ] **Add `LibraryInspector.vue`** — a lightweight read-only table/list component. Use a native table or basic component structure, not TanStack Table.
   - **Columns**:
     - Thumbnail
     - Name
@@ -577,27 +589,34 @@ Completed via Tailwind Phase 2B Index Status refactor: `fetchIndexStatus(path)` 
     - Dimensions
     - Modified date
   - **Features**:
-    - Client-side sorting by supported columns
-    - Text search filter across visible metadata fields
-    - Row limit display/control for the bounded search result set
-    - Open-in-lightbox from thumbnail or row action
+    - One global query input wired to `GET /api/library/inspector?q=...`
+    - Client-side single-column sorting over returned rows, with default server order `mtime DESC`
+    - Compact capped count: show `returned`, `total_indexed`, and `truncated`; no row limit control
+    - Open-in-lightbox from thumbnail or row action using the current visible rows for prev/next navigation
     - Copy path
-    - Copy metadata
+    - Copy seed
   - **Explicitly excluded from MVP**:
     - Row selection
     - Bulk actions
     - Column visibility toggle
     - Server-side pagination
     - Editable metadata
+    - Copy metadata blob
+    - Facets
+    - Selected-row detail drawer
+    - Density control
+    - Table virtualization
 
-- [ ] **Add `useMetadataListQuery.ts`** — a small TanStack Query composable that reuses the existing search API:
-  - `unifiedSearch(q = '', scope = 'all', limit = 200)`
-  - No new backend endpoint required for the MVP.
-  - Normalize only the fields needed by `MetadataList.vue`.
+- [ ] **Add frontend data layer for the new endpoint**:
+  - Add `LibraryInspectorRow` and `LibraryInspectorResponse` types.
+  - Add `fetchLibraryInspector({ scope, path, q, limit })` in `frontend/src/services/api.ts`.
+  - Add `queryKeys.libraryInspector(scope, path, q, limit)`.
+  - Add `useLibraryInspectorQuery.ts` with debounced `q` and default `limit=200`.
+  - Normalize only display fields needed by `LibraryInspector.vue`; thumbnails continue to use `getThumbnailUrl(path)`.
 
 - [ ] **Add a desktop entry point**:
-  - Add a small "Metadata" button in `AppHeader.vue`.
-  - Use the existing no-router view-switching pattern if a full-page utility view is needed.
+  - Add a small "Library Inspector" entry in the desktop `AppHeader.vue`.
+  - Keep view switching inside `DesktopLayout.vue` with a simple `activeDesktopView: "gallery" | "library-inspector"` state.
   - Keep GalleryGrid as the default and primary photo browsing UI.
 
 - [ ] **Keep desktop-only scope explicit**:
@@ -616,18 +635,26 @@ Completed via Tailwind Phase 2B Index Status refactor: `fetchIndexStatus(path)` 
   - Row selection
   - Index error table
   - Metadata error table
+  - Row limit control
+  - Facet UI
+  - Selected-row detail drawer
+  - Density controls
+  - Virtualized table implementation
+  - Copy full metadata action
 
 - [ ] **Future/backend prerequisites to document**:
-  - Current backend does not expose row-level diagnostics, per-job errors, duplicate data, or broken-image data.
+  - Current backend does not expose row-level diagnostics, per-job errors, duplicate data, broken-image data, pagination cursors, or server-side sorting beyond the new endpoint's default `mtime_desc`.
   - Those features remain future backend prerequisites and should not be represented as Phase 3 MVP tasks.
 
 - [ ] **Add tests**:
-  - MetadataList renders columns with correct data
+  - `GET /api/library/inspector` returns latest indexed photo rows when `q` is empty
+  - `GET /api/library/inspector?q=...` filters by name, folder/path, model, sampler, and seed
+  - LibraryInspector renders columns with correct data
   - Sorting by column works (ascending/descending)
-  - Text filtering narrows visible rows
-  - Row limit is respected
+  - Query input narrows returned rows through the endpoint
+  - Capped count communicates returned/total/truncated state
   - Thumbnail opens lightbox
-  - Copy path and copy metadata actions function
+  - Copy path and copy seed actions function
   - Row selection and bulk action controls are absent
   - GalleryGrid unchanged (regression)
 
@@ -635,31 +662,37 @@ Completed via Tailwind Phase 2B Index Status refactor: `fetchIndexStatus(path)` 
 
 | File | Change |
 |---|---|
-| `frontend/src/components/MetadataList.vue` | New lightweight read-only metadata list |
-| `frontend/src/composables/useMetadataListQuery.ts` | New composable that reuses `unifiedSearch()` |
-| `frontend/src/query/keys.ts` | Add `metadataList` key, or reuse existing search keys if that is cleaner |
-| `frontend/src/components/AppHeader.vue` | Add small "Metadata" nav entry |
+| `backend/metadata_store.py` | Add bounded library inspector query helper over `file_index` + `image_metadata` |
+| `backend/search.py` | Add `GET /api/library/inspector` |
+| `frontend/src/components/LibraryInspector.vue` | New lightweight read-only Library Inspector |
+| `frontend/src/composables/useLibraryInspectorQuery.ts` | New composable for `/api/library/inspector` |
+| `frontend/src/services/api.ts` | Add `fetchLibraryInspector()` |
+| `frontend/src/query/keys.ts` | Add `libraryInspector` query key |
+| `frontend/src/types/index.ts` | Add `LibraryInspectorRow` and `LibraryInspectorResponse` |
+| `frontend/src/layouts/DesktopLayout.vue` | Add desktop-only view switching between GalleryGrid and LibraryInspector |
+| `frontend/src/components/AppHeader.vue` | Desktop-only Library Inspector entry that emits view-change intent |
 
-**Removed from Phase 3 MVP scope:** `MetadataTable.vue`, `MetadataAdminView.vue`, `useMetadataTableData.ts`, and `api.ts` additions for metadata table data.
+**Removed from Phase 3 MVP scope:** `MetadataTable.vue`, `MetadataAdminView.vue`, `useMetadataTableData.ts`, TanStack Table adoption, copy-full-metadata actions, row limit controls, facets, detail drawers, density controls, and table virtualization.
 
 #### Risk Assessment (Phase 3)
 
-- **Low risk.** The MVP reuses the existing search API, adds no new dependency, and remains read-only.
-- Main risk is dataset size: `MetadataList` fetches up to 200 results through search. Larger libraries may need a future backend paginated listing endpoint.
+- **Low-to-medium risk.** The MVP adds one read-only backend endpoint and no new frontend dependency.
+- Main risk is dataset size: Library Inspector fetches a capped result set of up to 200 rows. Larger libraries may need a future paginated backend listing endpoint with server-side sorting.
 - GalleryGrid remains unchanged and continues to be the primary browsing surface.
 
 #### Acceptance Criteria (Phase 3)
 
-1. MetadataList renders thumbnail, name, folder, model, sampler, seed, dimensions, and modified date from `unifiedSearch(q = '', scope = 'all', limit = 200)`.
-2. Sorting works for supported columns.
-3. Text filtering narrows visible results.
-4. Row limit behavior is clear and bounded.
-5. Thumbnail click opens the lightbox.
-6. Copy path and copy metadata actions work.
-7. GalleryGrid remains the primary browsing UI and is not replaced by a table.
-8. No admin cockpit features are introduced.
-9. Backend prerequisites are clearly documented for deferred diagnostics, duplicate finder, broken-image scanner, watcher/refresh panel, and batch editing features.
-10. New tests pass.
+1. `GET /api/library/inspector?scope=all&limit=200` returns latest indexed photo rows when `q` is empty; `/api/search?q=` remains empty by design.
+2. LibraryInspector renders thumbnail, name, folder, model, sampler, seed, dimensions, and modified date from `LibraryInspectorResponse.rows`.
+3. Global query calls `/api/library/inspector?q=...` and filters by name, folder/path, model, sampler, and seed.
+4. Single-column client-side sorting works over returned rows.
+5. Capped count clearly shows returned rows, total indexed rows, and truncated state without exposing a row limit control.
+6. Thumbnail click opens the lightbox with current visible rows as the navigation set.
+7. Copy path and copy seed actions work.
+8. GalleryGrid remains the primary browsing UI and is not replaced by a table.
+9. No admin cockpit features are introduced.
+10. Backend prerequisites are clearly documented for deferred diagnostics, duplicate finder, broken-image scanner, watcher/refresh panel, pagination, server-side sorting, and batch editing features.
+11. New tests pass.
 
 ---
 
@@ -762,8 +795,8 @@ Purpose: Every planned component should have a clear way for users to open it.
 | `IndexStatusPanel` | `IndexStatusChip` (click) — desktop only in Phase 1 |
 | `AdvancedSearchDrawer` | Search filter button or command/search affordance |
 | `SearchFilterChips` | Appears near the search bar/results context after filters are applied |
-| `MetadataList` | Small "Metadata" button in `AppHeader.vue` — desktop only |
-| `FacetsPanel` | Inside Advanced Search or MetadataList if useful |
+| `LibraryInspector` | Small "Library Inspector" entry in desktop `AppHeader.vue` — desktop only |
+| `FacetsPanel` | Inside Advanced Search only for MVP; Library Inspector facet UI is deferred |
 | Future diagnostics dashboards | Future diagnostics area, not from the main gallery grid |
 
 Do not add navigation clutter just to expose every future tool. Prefer progressive disclosure.
@@ -802,26 +835,29 @@ Do not add navigation clutter just to expose every future tool. Prefer progressi
 
 ### Phase 3 Done when:
 
-- [ ] MetadataList renders columns from the existing search API.
+- [ ] `GET /api/library/inspector` exists and returns latest indexed rows for empty `q`.
+- [ ] LibraryInspector renders columns from `LibraryInspectorResponse.rows`.
 - [ ] GalleryGrid is not replaced by a table.
 - [ ] Sorting works.
-- [ ] Text filtering narrows results.
+- [ ] Global query narrows results through the inspector endpoint.
 - [ ] Thumbnail click opens lightbox.
+- [ ] Copy path and copy seed work.
 - [ ] No admin cockpit features are introduced.
 - [ ] Backend prerequisites are clearly documented for deferred admin features.
-- [ ] MetadataList tests pass.
+- [ ] LibraryInspector tests pass.
 
 ---
 
 ## 14. Backend Prerequisites Backlog
 
-Purpose: Separate the Phase 3 MetadataList MVP from future features that require backend data first. Do not ask the frontend to build diagnostics, duplicate, broken-image, watcher/refresh, or editing workflows before the backend exposes the required row-level data and write endpoints.
+Purpose: Separate the Phase 3 Library Inspector MVP from future features that require backend data first. Do not ask the frontend to build diagnostics, duplicate, broken-image, watcher/refresh, pagination, server-side sorting, or editing workflows before the backend exposes the required row-level data and write endpoints.
 
-Current backend does NOT expose row-level diagnostics, per-job errors, or duplicate/broken-image data. These remain future backend prerequisites.
+Phase 3 adds only a bounded read-only `/api/library/inspector` endpoint. The backend still does NOT expose row-level diagnostics, per-job errors, duplicate/broken-image data, pagination cursors, or inspector server-side sorting beyond default `mtime_desc`.
 
 | Possible Future Endpoint | Deferred Feature | Why It Is Not Phase 3 MVP |
 |---|---|---|
-| Dedicated paginated metadata listing endpoint | Server-side metadata browsing at library scale | MVP uses `unifiedSearch(q = '', scope = 'all', limit = 200)` and client-side sorting/filtering |
+| Dedicated paginated metadata listing endpoint | Server-side metadata browsing at library scale | MVP uses bounded `/api/library/inspector` results with no pagination controls |
+| Inspector server-side sort params | Server-side sort over full indexed library | MVP supports client-side single-sort over returned rows only |
 | `/api/index/errors` | Index error table | Current `/api/index/status` returns counts and summary state, not per-job rows |
 | `/api/metadata/errors` | Metadata parse error table | No endpoint exposes row-level metadata parse failures |
 | `/api/diagnostics` | Diagnostics dashboard | No unified diagnostics endpoint exists |
@@ -842,7 +878,7 @@ Current backend does NOT expose row-level diagnostics, per-job errors, or duplic
 |---|---|---|
 | IndexStatusChip becomes noisy or distracting | Phase 1 | Use muted idle state (compact muted chip/icon), not auto-hide. Pulse-only when active. Never block interaction, no toasts. Test `no-toast-spam` assertion. |
 | TanStack Form serialization doesn't match backend parser | Phase 2 | Build serializer tests first. Validate against known-good query examples from `fielded_search_parser.py` tests. |
-| MetadataList result set is too small for large libraries | Phase 3 | MVP fetches up to 200 results via search. Add a dedicated paginated backend listing endpoint later if users need larger library-wide inspection. |
+| Library Inspector result set is too small for large libraries | Phase 3 | MVP fetches up to 200 rows through `/api/library/inspector`. Add pagination and server-side sorting later if users need larger library-wide inspection. |
 | Over-engineering settings with TanStack Form too early | Phase 1/Future | Keep current v-model approach for SettingsModal in Phase 1. Only introduce TanStack Form when staged settings and backend configuration endpoints exist. |
 | Breaking plain text search when adding Advanced Search | Phase 2 | Keep plain search input completely separate. AdvancedSearchDrawer is opt-in. Plain search regression tests guard this. |
 | Accessibility regression from new components | All Phases | Add ARIA roles in Phase 1 accessibility fixes. New components follow the established patterns. Test with `role` assertions. |
@@ -855,7 +891,7 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 ### Non-Goals (Explicitly Excluded)
 
 - **Do not rewrite the whole UI into shadcn-vue.** Adapt patterns for structure, accessibility, and keyboard behavior. Standard UI uses shadcn-vue Stone defaults; gallery warm/premium styling is reserved for brand and explicitly approved artwork surfaces.
-- **Do not replace GalleryGrid with a table.** GalleryGrid uses TanStack Virtual for visual photo browsing. MetadataList is a secondary utility view, not the primary browsing UI.
+- **Do not replace GalleryGrid with a table.** GalleryGrid uses TanStack Virtual for visual photo browsing. Library Inspector is a secondary utility view, not the primary browsing UI.
 - **Phase 3 is NOT an admin cockpit.** No duplicate finder, no broken image scanner, no watcher/refresh panel, no batch operations.
 - **Do not add new dependencies unless clearly justified.** TanStack Table and Form are already installed. No additional Vue ecosystem packages needed.
 - **Do not create indexing toast spam.** IndexStatusChip is a passive indicator. No toasts per job. Errors shown only in panel on click.
@@ -908,12 +944,14 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 | SearchFilterChips render active filters | Phase 2 | Chips visible when fielded search is active; content matches filter values |
 | SearchFilterChip removal updates search | Phase 2 | Removing chip removes filter from active query |
 | Plain text search regression | Phase 2 | Existing search behavior unchanged when no fielded filters active |
-| MetadataList renders columns and data | Phase 3 | Thumbnail, name, folder, model, sampler, seed, dimensions, and modified date render from mocked `unifiedSearch()` results |
-| MetadataList sorting by column | Phase 3 | Click sortable headers to toggle direction; visible data reorders correctly |
-| MetadataList text filtering | Phase 3 | Search input narrows visible rows across supported metadata fields |
-| MetadataList row limit | Phase 3 | Result count is bounded by the configured limit and communicates the cap clearly |
-| MetadataList row actions | Phase 3 | Thumbnail opens lightbox; copy path and copy metadata actions call clipboard APIs |
-| MetadataList excludes bulk controls | Phase 3 | No row selection, select-all checkbox, batch toolbar, or column visibility toggle is rendered |
+| Library Inspector endpoint empty query | Phase 3 | `GET /api/library/inspector?scope=all&limit=200` returns latest indexed photo rows; `/api/search?q=` still returns empty |
+| Library Inspector endpoint filtered query | Phase 3 | `q` filters rows by name, folder/path, model, sampler, and seed |
+| LibraryInspector renders columns and data | Phase 3 | Thumbnail, name, folder, model, sampler, seed, dimensions, and modified date render from mocked `fetchLibraryInspector()` results |
+| LibraryInspector sorting by column | Phase 3 | Click sortable headers to toggle direction; visible data reorders correctly |
+| LibraryInspector query input | Phase 3 | Search input calls the inspector endpoint and narrows returned rows |
+| LibraryInspector capped count | Phase 3 | Returned/total/truncated count is shown without row limit controls |
+| LibraryInspector row actions | Phase 3 | Thumbnail opens lightbox; copy path and copy seed actions call clipboard APIs |
+| LibraryInspector excludes bulk controls | Phase 3 | No row selection, select-all checkbox, batch toolbar, column visibility toggle, facets, density control, or detail drawer is rendered |
 | GalleryGrid unchanged | Phase 3 | Existing GalleryGrid tests pass without modification |
 
 ### Integration/E2E Tests
@@ -922,7 +960,7 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 |---|---|---|
 | Desktop AdvancedSearchDrawer opens/closes | Phase 2 | Slide-over panel behavior on desktop breakpoint |
 | Full search flow: plain → advanced → filter chip removal → plain | Phase 2 | End-to-end search state transitions |
-| MetadataList → lightbox round-trip | Phase 3 | Click thumbnail opens lightbox; close returns to MetadataList |
+| LibraryInspector → lightbox round-trip | Phase 3 | Click thumbnail opens lightbox using current visible rows; close returns to LibraryInspector |
 
 ### Performance Tests
 
@@ -930,7 +968,7 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 |---|---|---|
 | Album-open perf unchanged | All | Scan p95, first thumbnail, thumbnail p95 within existing budgets |
 | Lightbox perf unchanged | All | Visible time, preview loaded time within existing budgets |
-| MetadataList render time with 200 rows | Phase 3 | Initial render under 500ms |
+| LibraryInspector render time with 200 rows | Phase 3 | Initial render under 500ms |
 
 ### Accessibility Tests
 
@@ -945,7 +983,7 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 | Polling frequency not excessive | Phase 1B | Fast-poll only when active/queued work exists; failed-only slow-polls |
 | FolderTreeItem TreeView roles | Phase 1 | `role="tree"`, `role="treeitem"`, `aria-expanded` |
 | Form field labels linked to inputs | Phase 2 | Each input has `aria-labelledby` or `<label>` association |
-| MetadataList sortable headers accessible via keyboard | Phase 3 | Enter/Space on sortable header triggers sort |
+| LibraryInspector sortable headers accessible via keyboard | Phase 3 | Enter/Space on sortable header triggers sort |
 
 ---
 
@@ -963,8 +1001,8 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 | `frontend/src/components/search/AdvancedSearchDrawer.vue` | Phase 2 | TanStack Form search builder |
 | `frontend/src/components/SearchFilterChips.vue` | Phase 2 | Removable active filter chips |
 | `frontend/src/components/search/SearchCommandPalette.vue` | Phase 2 | Quick command/search palette (optional) |
-| `frontend/src/components/MetadataList.vue` | Phase 3 | Lightweight read-only metadata list / library inspector |
-| `frontend/src/composables/useMetadataListQuery.ts` | Phase 3 | TanStack Query wrapper that reuses `unifiedSearch()` |
+| `frontend/src/components/LibraryInspector.vue` | Phase 3 | Lightweight read-only Library Inspector |
+| `frontend/src/composables/useLibraryInspectorQuery.ts` | Phase 3 | TanStack Query wrapper for `/api/library/inspector` |
 
 ### Modified Files
 
@@ -972,13 +1010,16 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 |---|---|---|---|
 | `frontend/src/services/api.ts` | Phase 1A | Add `fetchIndexStatus()`, `fetchFacets()` | Data-layer only |
 | `frontend/src/query/keys.ts` | Phase 1A | Add `indexStatus`, `facets` keys | Data-layer only |
-| `frontend/src/query/keys.ts` | Phase 3 | Add `metadataList` key, or reuse existing search keys if cleaner | Data-layer only |
+| `backend/metadata_store.py` | Phase 3 | Add bounded Library Inspector query helper over `file_index` + `image_metadata` | Read-only |
+| `backend/search.py` | Phase 3 | Add `GET /api/library/inspector` | Read-only |
+| `frontend/src/services/api.ts` | Phase 3 | Add `fetchLibraryInspector()` | Data-layer only |
+| `frontend/src/query/keys.ts` | Phase 3 | Add `libraryInspector` key | Data-layer only |
 | `frontend/src/types/index.ts` | Phase 1A | Add index status, facets types | Data-layer only |
 | `frontend/src/types/index.ts` | Phase 2 | Add fielded search types | Data-layer only |
-| `frontend/src/types/index.ts` | Phase 3 | Add `MetadataListRow` type if normalization needs a shared type | Data-layer only |
+| `frontend/src/types/index.ts` | Phase 3 | Add `LibraryInspectorRow` and `LibraryInspectorResponse` types | Data-layer only |
 | `frontend/src/components/AppHeader.vue` | Phase 1B | IndexStatusChip (desktop-only) | Must not affect mobile/tablet |
 | `frontend/src/components/AppHeader.vue` | Phase 2 | AdvancedSearch trigger, SearchFilterChips (desktop) | Desktop-only |
-| `frontend/src/components/AppHeader.vue` | Phase 3 | Small Metadata nav entry | Desktop-only |
+| `frontend/src/components/AppHeader.vue` | Phase 3 | Small Library Inspector entry that emits view-change intent | Desktop-only |
 | `frontend/src/components/GalleryGrid.vue` | Phase 1C | `role="alert"` on error banner (desktop-safe only) | Frozen for behavior/layout/virtualization |
 | `frontend/src/components/GalleryGrid.vue` | Phase 2 | SearchFilterChips integration | Frozen for behavior/layout/virtualization |
 | `frontend/src/components/SettingsModal.vue` | Phase 1C | Header/Body/Footer structure, ARIA roles | Desktop-safe only. No mobile behavior changes. |
@@ -987,7 +1028,7 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 | `frontend/src/components/ToastItem.vue` | Phase 1C | `role="alert"` | Desktop-safe only |
 | `frontend/src/components/FolderTreeItem.vue` | Phase 1C | TreeView ARIA roles | Desktop-safe only |
 | `frontend/src/components/LightboxMobileSheet.vue` | Future Mobile/Tablet Spec | Tab ARIA roles | Deferred to future Mobile/Tablet Spec |
-| `frontend/src/App.vue` | Phase 3 | MetadataList view switching while keeping GalleryGrid as the default | Desktop-only |
+| `frontend/src/layouts/DesktopLayout.vue` | Phase 3 | Library Inspector view switching while keeping GalleryGrid as the default | Desktop-only |
 
 ### Files Frozen in Phase 1
 
@@ -1011,7 +1052,8 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 | `frontend/tests/advanced-search-drawer.spec.ts` | Phase 2 |
 | `frontend/tests/search-filter-chips.spec.ts` | Phase 2 |
 | `frontend/tests/search-plain-regression.spec.ts` | Phase 2 |
-| `frontend/tests/metadata-list.spec.ts` | Phase 3 |
+| `frontend/tests/library-inspector.spec.ts` | Phase 3 |
+| `backend/tests/test_library_inspector.py` | Phase 3 |
 | `frontend/tests/gallery-grid-unchanged.spec.ts` | Phase 3 |
 
 ---
@@ -1024,13 +1066,13 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 
 2. **Phase 2 second (desktop-first)** — Unlock the powerful fielded search that the backend already supports. TanStack Form is the correct tool for this and justifies the existing installation. The AdvancedSearchDrawer + SearchFilterChips provide a discoverable interface for 30+ search fields that currently require manual query construction. Mobile/tablet advanced search deferred to separate spec.
 
-3. **Phase 3 last (desktop-first)** — Lightweight Metadata List / Library Inspector. A read-only utility view that reuses the existing search API. The smallest dependency surface — no TanStack Table required for the MVP. Explicitly excludes admin cockpit, duplicate finder, broken image scanner, watcher/refresh panels, and batch operations. Mobile/tablet deferred.
+3. **Phase 3 last (desktop-first)** — Library Inspector. A read-only utility view backed by a minimal `/api/library/inspector` endpoint. The frontend remains simple — no TanStack Table required for the MVP. Explicitly excludes admin cockpit, duplicate finder, broken image scanner, watcher/refresh panels, facets, detail drawers, density controls, virtualization, and batch operations. Mobile/tablet deferred.
 
 ### Risk/Reward Balance
 
 - **Phase 1**: Lowest risk (desktop-only, mobile/tablet frozen), immediate UX value. Visibility into background indexing is the single biggest missing piece.
 - **Phase 2**: Medium risk (new TanStack Form usage, desktop-first), high reward. Fielded search turns an invisible backend capability into a primary user feature.
-- **Phase 3**: Low risk (reuses existing search API, no new dependencies, read-only), moderate reward. Metadata List gives power users a compact way to inspect indexed metadata while keeping GalleryGrid as the primary browsing experience.
+- **Phase 3**: Low-to-medium risk (one new read-only endpoint, no new frontend dependencies), moderate reward. Library Inspector gives power users a compact way to inspect indexed metadata while keeping GalleryGrid as the primary browsing experience.
 
 ### What Makes This Different
 
@@ -1038,4 +1080,4 @@ This is not a generic UI modernization plan. Every recommendation is grounded in
 
 - Backend Phase 1 (indexer, batch writer, index status) → Frontend Phase 1 (index visibility, UI standardization) — desktop-only
 - Backend Phase 2B (fielded search, DB-first metadata) → Frontend Phase 2 (advanced search, faceted discovery) — desktop-first
-- Backend Phase 3 (warm listing, watcher, facets) → Frontend Phase 3 (Metadata List / Lightweight Library Inspector) — desktop-first
+- Backend Phase 3 (warm listing, watcher, facets) → Frontend Phase 3 (Library Inspector endpoint + lightweight inspector UI) — desktop-first
