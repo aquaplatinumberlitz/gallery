@@ -1,259 +1,275 @@
 # Third-Party Libraries
 
-Last reviewed: 2026-06-09
+Last reviewed: 2026-06-15
 
-This document explains how major external libraries are used in this project.
+This document records how major third-party libraries are used in the current codebase and which integration contracts should not be changed casually.
 
 ## Quick Index
 
 | Library | Used for | Main integration file(s) | Notes |
 |---|---|---|---|
-| `@douxcode/vue-spring-bottom-sheet` | Mobile lightbox metadata sheet, drag/snap/spring animation, native-feeling scroll | `frontend/src/components/LightboxMobileSheet.vue`, `frontend/src/styles/_lightbox-mobile.scss` | Used as the sheet and motion engine only; Gallery owns metadata UI and behavior |
-| `@tanstack/vue-query` | Server-state caching for gallery scans, folder children, search, and metadata | `frontend/src/query/index.ts`, `frontend/src/query/scan.ts`, `frontend/src/composables/useInfiniteScanQuery.ts`, `frontend/src/composables/useFolderChildrenQuery.ts`, `frontend/src/composables/useUnifiedSearchQuery.ts`, `frontend/src/composables/usePhotoMetadataQuery.ts` | Owns API/server-state cache; Pinia owns UI/navigation state |
-| `@tanstack/vue-db` | Beta local reactive DB foundation and live queries | `frontend/src/db/` | Complements TanStack Query; foundation only, with landing pages as an additive pilot collection |
-| `@tanstack/query-db-collection` | TanStack DB Query Collection adapter for REST/API-backed collections | `frontend/src/db/collections/landingPagesCollection.ts` | Reuses the shared Query client and existing API functions |
-| PhotoSwipe 5 | Responsive lightbox image viewer, image navigation, swipe/pan/zoom | `frontend/src/components/Lightbox.vue`, `MobilePhotoSwipe.vue`, `TabletPhotoSwipe.vue`, `PhotoSwipeViewer.vue`, `frontend/src/composables/usePhotoSwipe.ts`, `frontend/src/styles/_lightbox-*.scss` | Used as the image viewer engine; Gallery owns metadata panels, custom controls, and responsive layout |
-| Vue 3 | Frontend framework | `frontend/src/main.ts`, `frontend/src/App.vue`, `frontend/src/components/`, `frontend/src/layouts/` | Composition API, SFC, and `<script setup>` |
-| Vite | Frontend build tool and dev server | `frontend/` | No custom plugins beyond defaults |
-| Lucide | Icons across the gallery | Vue components and shared UI styles | Prefer semantic icon tokens and component-level sizing rules |
-| `@tanstack/vue-virtual` | Row-based virtual scrolling in the image grid | `frontend/src/components/GalleryGrid.vue` | Used for large desktop/tablet grids |
-| `@tanstack/vue-form` | Future: metadata forms, batch editor, settings | `frontend/src/lib/tanstack/README.md` | Foundation only; not yet in use |
-| `@tanstack/vue-table` | Future: metadata management table, admin views | `frontend/src/lib/tanstack/README.md` | Foundation only; not yet in use |
-| Fuse.js | Lightweight client-side filtering helper for normal gallery folder/image lists | `frontend/src/utils/fuzzySearch.ts`, `frontend/src/components/GalleryGrid.vue`, `frontend/package.json` | Active non-empty gallery search is handled by backend `/api/search` |
-| SQLite FTS5 | Backend full-text search for indexed albums, photo filenames, and prompt/metadata | `backend/services/metadata_index.py`, `backend/main.py` | Uses Python stdlib `sqlite3`; no external search service |
-| Pillow | Image metadata extraction and image processing | `backend/main.py`, `backend/services/metadata_index.py`, `backend/requirements.txt` | Reads PNG/JPEG/WebP metadata exposed by Pillow; also used for thumbnails |
-| diskcache | Persistent thumbnail byte cache | `backend/main.py`, `backend/requirements.txt` | Stores rendered WebP thumbnails under `backend/.cache/thumbnails/` across backend restarts |
-| cachetools | In-memory metadata response cache | `backend/main.py`, `backend/requirements.txt` | Thumbnail caching moved to diskcache; cachetools remains for metadata only |
+| FastAPI | Backend API app and routing | `backend/app.py`, route modules in `backend/` | Routers are composed in `app.py`; `backend.main:app` is the uvicorn target |
+| Uvicorn | ASGI dev/prod server | `start.py`, `backend/main.py` | `start.py` runs `python -m uvicorn backend.main:app` from repo root |
+| Pydantic | Backend DTO validation | `backend/models.py` | Used for `FileNode` and shared response/request schemas |
+| Pillow | Image opening, dimensions, metadata, derivative rendering | `backend/metadata_extract.py`, `backend/thumbnails.py`, `backend/files.py` | Honors project file size/pixel limits |
+| diskcache | Persistent derivative cache | `backend/thumbnails.py`, `backend/config.py` | Stores rendered WebP thumbnail/preview files under `backend/.cache/thumbnails/` by default |
+| cachetools | In-memory metadata response cache | `backend/metadata_parse.py` | Metadata cache only; thumbnail bytes are disk-backed |
+| SQLite FTS5 | Folder/photo/metadata index and search | `backend/metadata_store.py`, `backend/search.py`, `backend/facets.py` | Uses Python stdlib `sqlite3`; no external search service |
+| prometheus-fastapi-instrumentator / prometheus-client | Optional metrics | `backend/app.py`, `backend/scan.py`, `backend/indexer.py` | Enabled by default outside production through `ENABLE_METRICS` |
+| pyinstrument | Optional endpoint profiling | `backend/app.py` | Enabled by `ENABLE_PROFILER=1`; writes HTML profiles to `backend/profiles/` |
+| Vue 3 | Frontend framework | `frontend/src/main.ts`, `frontend/src/App.vue`, components/layouts | Composition API and SFCs |
+| Vue Router | `/` gallery and `/metadata` inspector routing | `frontend/src/router/index.ts`, `frontend/src/layouts/DesktopLayout.vue`, `frontend/src/App.vue` | Production fallback is served by backend static route |
+| Pinia | UI/navigation state stores | `frontend/src/stores/` | Server state belongs in TanStack Query, not Pinia |
+| Axios | API client and error mapping | `frontend/src/services/api.ts` | Uses `VITE_API_URL` or same-origin proxy |
+| Vite | Frontend build/dev server | `frontend/vite.config.ts` | Uses Vue plugin and Tailwind 4 Vite plugin |
+| Tailwind CSS 4 | Utility layer and shadcn token bridge | `frontend/src/styles/tailwind.css`, `frontend/src/styles/_shadcn-token-bridge.css`, component classes | Coexists with SCSS lightbox/layout styles |
+| SCSS / Sass | Global layout, lightbox, breakpoint styles | `frontend/src/styles/*.scss` | Keep breakpoints in sync with `useDevice.ts` |
+| shadcn-vue-style local components | Buttons, inputs, menus, sheets, sidebar, popover, tabs, tooltip, skeleton | `frontend/src/components/ui/` | Local components built on Reka UI, CVA, clsx, tailwind-merge, VueUse |
+| Reka UI | Headless primitives for local UI components | `frontend/src/components/ui/` | Dialog, sheet, dropdown, select, tooltip, popover, tabs, primitive/sidebar context |
+| class-variance-authority / clsx / tailwind-merge | Variant and class composition | `frontend/src/components/ui/Button.vue`, `Badge.vue`, `Input.vue`, `frontend/src/lib/utils.ts` | `cn()` merges Tailwind classes consistently |
+| Lucide Vue | Icons | Gallery and UI components | Both `lucide-vue-next` and `@lucide/vue` are installed; code currently imports `lucide-vue-next` |
+| @vueuse/core | Theme, v-model helpers, media queries, UI primitive helpers | `frontend/src/composables/useGalleryTheme.ts`, `frontend/src/components/ui/` | Used by shadcn-style components and theme handling |
+| @tanstack/vue-query | Server-state caching | `frontend/src/query/`, Query composables | Owns API data, stale time, retries, GC |
+| @tanstack/vue-query-devtools | Development Query inspection | `frontend/src/App.vue`, `frontend/package.json` | Dev mode only |
+| @tanstack/vue-virtual | Row-based large gallery grid | `frontend/src/components/GalleryGrid.vue` | Desktop/tablet grid virtualization |
+| @tanstack/vue-form | Advanced fielded search form | `frontend/src/components/search/AdvancedSearchDrawer.vue` | Active runtime usage |
+| @tanstack/vue-table | Library Inspector data table | `frontend/src/components/LibraryInspector.vue` | Active runtime usage |
+| @tanstack/db / @tanstack/vue-db / @tanstack/query-db-collection | Beta local reactive collection foundation | `frontend/src/db/` | Runtime pilot is landing pages only |
+| PhotoSwipe 5 | Lightbox image viewer | `frontend/src/components/Lightbox.vue`, PhotoSwipe wrappers, `usePhotoSwipe.ts` | Gallery owns custom metadata UI and controls |
+| @douxcode/vue-spring-bottom-sheet | Mobile lightbox metadata sheet | `frontend/src/components/LightboxMobileSheet.vue`, `frontend/src/styles/_lightbox-mobile.scss` | Sheet/motion engine only, non-modal inside PhotoSwipe |
+| Fuse.js | Local fuzzy filtering helper | `frontend/src/utils/fuzzySearch.ts`, `GalleryGrid.vue` | Backend `/api/search` owns active recursive search |
+| embla-carousel-vue | shadcn-style carousel primitive | `frontend/src/components/ui/carousel/` | Used by desktop album carousel through local carousel component |
+| eruda | Optional mobile browser debug console | `frontend/src/utils/erudaDebug.ts`, `frontend/src/main.ts` | Enabled by query/localStorage debug flag |
+| Playwright | Frontend and contract tests | `frontend/tests/`, `frontend/playwright.config.ts` | Also used by perf smoke scripts |
 
-### @douxcode/vue-spring-bottom-sheet
+## Backend Libraries
 
-Official links:
+### FastAPI, Uvicorn, and Pydantic
 
-- Docs: https://github.com/megaarmos/vue-spring-bottom-sheet/tree/master/apps/docs/guide
-- GitHub: https://github.com/megaarmos/vue-spring-bottom-sheet
-- npm: https://www.npmjs.com/package/@douxcode/vue-spring-bottom-sheet
+FastAPI owns API routing, middleware, CORS, metrics/profiling hooks, and static production fallback. `backend/app.py` creates the app and includes route modules; `backend/main.py` exposes the import-compatible `app`.
 
-Used for: Mobile lightbox metadata sheet, drag/snap/spring animation, native-feeling scroll.
+Run targets:
 
-Core features we use: `BottomSheet` component, `v-model`, `snapToPoint`, `snapPoints`, built-in drag/swipe, scroll container, `headerClass`/`contentClass`, CSS variables.
+```bash
+python3 -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
+```
 
-Features we intentionally do NOT use: `blocking=true` / focus trap, VSBS backdrop close, content drag expansion.
+`start.py` uses this form from repo root and sets `FRONTEND_PORT` so CORS includes the actual dev frontend port.
 
-Why not: The sheet lives inside PhotoSwipe, and PhotoSwipe is already the modal/focus context. `blocking=true` caused historical "too much recursion" focus recursion. With `blocking=false`, VSBS acts as a non-modal metadata inspector inside the lightbox.
+### Pillow
 
-Project customizations: `blocking=false`, no VSBS backdrop, no VSBS focus trap, `teleport-defer`, `v-model`, VSBS used as sheet/motion engine only, gallery owns metadata content/tabs/copy/Show more/chevron/outside-tap close, global CSS overrides required because VSBS teleports DOM, width chain override, background override, chevron expands sheet + Prompt details.
+Pillow is used for:
 
-Integration files: `frontend/src/components/LightboxMobileSheet.vue`, `frontend/src/styles/_lightbox-mobile.scss`
+- Opening images safely within configured pixel/file-size limits.
+- Reading dimensions and format/mode information.
+- Extracting PNG text chunks, EXIF/UserComment, WebP metadata where available, and other Pillow-exposed metadata.
+- Rendering WebP thumbnails and previews.
 
-Common pitfalls: Do not place overrides in scoped-only styles, do not rely on class passed to `BottomSheet` root (teleport/fragment), do not enable `blocking=true`, do not remove width-chain overrides (content collapses to 4px), do not remove scroll background override (gray strip returns), do not reintroduce old `.sheet-panel` pointer drag code, test on real iPhone/Safari.
+Metadata extraction lives in `metadata_extract.py`; derivative rendering lives in `thumbnails.py`. ExifTool is not part of the runtime.
 
-Decision: We use VSBS as the mobile sheet motion engine, not as the owner of metadata UI. Gallery owns content and behavior; VSBS owns drag/snap/scroll.
+### diskcache
 
-Outside-tap close: Because `blocking=false` renders no VSBS backdrop, `canBackdropClose` does nothing. Gallery implements document pointer listeners that close the metadata sheet only. These listeners must not call `stopPropagation()` because that broke PhotoSwipe swipe. They must track `pointerId` and `isPrimary`, require pointerdown and pointerup outside the sheet, use the 10px movement threshold, and handle `pointercancel`.
+`diskcache` backs persistent WebP derivatives. Cache path defaults to `backend/.cache/thumbnails/` and can be changed with `GALLERY_THUMBNAIL_CACHE_DIR`.
 
-Teleport styling: VSBS teleports DOM to `<body>`, so scoped SFC styles may not reach sheet internals. Keep global/non-scoped width rules for `[data-vsbs-sheet]`, `[data-vsbs-scroll]`, `[data-vsbs-content]`, `.sheet-content`, and `.expandable-text`. A previous scoped-only change collapsed `[data-vsbs-scroll]` to 4px, `[data-vsbs-content]` to 24px, and `.expandable-text` to 0px.
+Derivative cache keys include:
 
-Legacy code warning: The old custom sheet drag implementation was removed. Do not reintroduce `.sheet-panel` drag transforms, `.sheet-backdrop`, `.sheet-handle-wrapper` pointer drag, `--sheet-drag-y`, `dragDelta`, `sheetDragState`, custom pointer drag, or an rAF drag loop. VSBS provides the smoother drag/snap/scroll behavior.
+- derivative kind (`thumbnail` or `preview`)
+- cache version
+- resolved source path
+- source mtime and size
+- requested max long edge
+- output format and quality
 
-### @tanstack/vue-query
+Changing the source file or derivative settings creates a new cache entry automatically.
 
-Official links:
+### cachetools
 
-- Docs: https://tanstack.com/query/v5/docs/framework/vue
-- npm: https://www.npmjs.com/package/@tanstack/vue-query
+`cachetools.LRUCache` is used for in-memory `/api/metadata` response caching. It is not used for thumbnail or preview bytes.
 
-Used for: Server-state caching for gallery folder scans, infinite image pages, folder children, search, and metadata.
+### SQLite FTS5
 
-Integration files: `frontend/src/query/index.ts`, `frontend/src/query/scan.ts`, `frontend/src/composables/useInfiniteScanQuery.ts`, `frontend/src/composables/useFolderChildrenQuery.ts`, `frontend/src/composables/useUnifiedSearchQuery.ts`, `frontend/src/composables/usePhotoMetadataQuery.ts`
+SQLite is the shared local index and cache, stored at `backend/.cache/gallery_metadata.db` by default or `GALLERY_METADATA_DB` if set.
 
-Query key: `["scan", normalizedPath, imageLimit]`, where `normalizedPath` is trimmed, slash-normalized, and has trailing slashes removed.
+Important tables:
 
-Default behavior: Scan data is fresh for 1 minute, retained for 10 minutes after last use, retries once, and does not refetch on window focus.
+- `file_index`: indexed folders/photos, parent path, type, mtime, size, dimensions.
+- `file_index_fts`: FTS5 folder/photo filename search for Albums and Photos results.
+- `image_metadata`: normalized metadata, dimensions, prompts, model/sampler/seed/steps/cfg/raw text.
+- `image_metadata_fts`: unicode61 FTS5 metadata search.
+- `image_metadata_fts_trigram`: trigram FTS5 for substring/CJK-oriented metadata search.
+- `metadata_index_jobs`: queued/running/done/failed/stale background metadata indexing jobs.
 
-Decision: TanStack Query owns cached `/api/scan`, `/api/folders`, `/api/search`, and `/api/metadata` server state. Pinia owns UI/navigation state such as current path, history, search input/scope, sort, and expanded folder paths. The post-migration cleanup removed old Pinia scan image/cursor/load-more state and old Pinia search result/loading/error state after grep showed no active UI callers.
+Search behavior:
 
-### @tanstack/vue-db and @tanstack/query-db-collection
+- `/api/search` returns grouped `albums`, `photos`, and `prompt` sections.
+- `scope=current` searches the current folder recursively.
+- `scope=all` searches all indexed files under `GALLERY_ROOT`.
+- Fielded queries are parsed by `fielded_search_parser.py` and executed by metadata-store search helpers.
+- `/api/library/inspector` returns bounded DB-backed metadata rows; detail popovers call `/api/library/inspector/metadata`.
+- `/api/facets` derives counts from indexed DB metadata.
 
-Official links:
+Not used: Meilisearch, Typesense, Tantivy, Whoosh, sqlite-vec, MeCab, Sudachi, Kuromoji, or an external search service.
 
-- Docs: https://tanstack.com/db/latest/docs/overview
-- Vue adapter: https://tanstack.com/db/latest/docs/framework/vue/overview
-- Query Collection: https://tanstack.com/db/latest/docs/collections/query-collection
-- queryCollectionOptions: https://tanstack.com/db/latest/docs/reference/query-db-collection/functions/queryCollectionOptions
+### Metrics and Profiling
 
-Used for: Beta foundation for TanStack DB collections and Vue live queries over API-backed data.
+`prometheus-fastapi-instrumentator` exposes `/metrics` when `ENABLE_METRICS` is true. It defaults to true outside production and false in production can be forced with `ENABLE_METRICS=0`.
 
-Core features we are preparing to use: `createCollection`, Query Collection via `queryCollectionOptions`, shared TanStack Query client integration, and Vue `useLiveQuery`.
+`pyinstrument` profiling is opt-in:
 
-Current pilot: `frontend/src/db/collections/landingPagesCollection.ts` wraps `/api/landing-pages` through the existing `fetchLandingPages()` API function. The backend response is `string[]`, so each row is normalized to `{ url }` and keyed by `url`, which is the stable value already used by the intro/settings UI.
+```bash
+ENABLE_PROFILER=1 PROFILE_ENDPOINTS=/api/scan,/api/metadata python3 -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+```
 
-Decision: TanStack DB complements TanStack Query. Query remains responsible for fetching, cache timing, retries, and refetch behavior. DB collections and live queries are for local reactive querying across loaded collection data. Pinia remains responsible for UI/navigation state.
+Profiles are written to `backend/profiles/`.
 
-Adoption rule: Keep usage incremental and reversible while TanStack DB is beta. Do not migrate `/api/scan`, infinite loading, folder tree, unified search, Fuse.js behavior, lightbox metadata, PhotoSwipe, virtual scrolling, backend routes, or Pinia gallery store shape as part of this foundation.
+## Frontend Libraries
+
+### Vue 3, Vue Router, and Pinia
+
+Vue 3 is the app framework. Vue Router defines:
+
+- `/`: gallery route through `GalleryRoute.vue`.
+- `/metadata`: desktop Library Inspector route.
+- fallback: redirect to `/`.
+
+Pinia stores UI/navigation state:
+
+- `gallery.ts`: root/current path, history, expanded folders, search input/scope, sort, loaded flags.
+- `lightbox.ts`: open item, current index, visible image list, navigation.
+- `toast.ts`: toast queue.
+
+Pinia should not duplicate new server/API response state that belongs in TanStack Query.
+
+### Axios
+
+`frontend/src/services/api.ts` owns the Axios instance, API wrapper functions, URL builders, and backend error mapping to `GalleryAPIError`.
+
+`VITE_API_URL` sets the base URL. In Vite dev without `VITE_API_URL`, requests are same-origin and `/api` is proxied by `vite.config.ts`.
+
+### TanStack Query
+
+TanStack Query owns API/server state.
+
+Integration files:
+
+- `frontend/src/query/index.ts`: shared `QueryClient` and Vue plugin installer.
+- `frontend/src/query/keys.ts`: normalized query-key factory.
+- `frontend/src/query/scan.ts`: scan prefetch/helper functions.
+- `frontend/src/composables/useInfiniteScanQuery.ts`
+- `frontend/src/composables/useFolderChildrenQuery.ts`
+- `frontend/src/composables/useUnifiedSearchQuery.ts`
+- `frontend/src/composables/usePhotoMetadataQuery.ts`
+- `frontend/src/composables/useFacetsQuery.ts`
+- `frontend/src/composables/useIndexStatusQuery.ts`
+- `frontend/src/composables/useLibraryInspectorQuery.ts`
+- `frontend/src/composables/useLibraryInspectorMetadataQuery.ts`
+
+Default client behavior: 1 minute stale time, 10 minute garbage collection, one retry, no refetch on window focus.
+
+### TanStack Virtual
+
+`@tanstack/vue-virtual` provides row-based virtualization in `GalleryGrid.vue` for desktop/tablet grids. Mobile uses native scroll behavior rather than the same virtualized grid contract.
+
+### TanStack Form
+
+`@tanstack/vue-form` is active in `AdvancedSearchDrawer.vue`. It manages the fielded-search form state and validation for numeric fields and size-format fields, then emits structured filters that serialize to backend fielded query syntax.
+
+Do not document this as unused; it is now production runtime code.
+
+### TanStack Table
+
+`@tanstack/vue-table` is active in `LibraryInspector.vue`. It builds columns and client-side returned-row sorting over rows returned by `/api/library/inspector`.
+
+The backend remains responsible for query filtering, limit, DB-backed metadata fields, and detail lookup. The frontend table sorts the bounded returned row set.
+
+### TanStack DB
+
+TanStack DB is still an incremental beta foundation. Runtime usage is intentionally narrow:
+
+- `frontend/src/db/collections/landingPagesCollection.ts` wraps `/api/landing-pages`.
+- `frontend/src/db/composables/useLandingPagesLiveQuery.ts` exposes a Vue live query for settings/intro UI.
+
+Do not migrate `/api/scan`, infinite loading, folder tree, unified search, lightbox metadata, PhotoSwipe, virtual scrolling, or the Pinia gallery store shape into TanStack DB without a dedicated design for stable keys and complete collection state.
 
 ### PhotoSwipe 5
 
-Official links:
+PhotoSwipe is the image viewer engine only. Gallery owns metadata panels, custom controls, responsive layout, original-load policy, and copy actions.
 
-- Docs: https://github.com/dimsemenov/PhotoSwipe/tree/master/docs
-- Getting started: https://photoswipe.com/getting-started/
-- Options: https://photoswipe.com/options/
-- UI elements: https://photoswipe.com/adding-ui-elements/
+Integration files:
 
-Used for: Mobile/tablet/desktop lightbox image viewer, image navigation, swipe/pan/zoom.
+- `frontend/src/components/Lightbox.vue`
+- `frontend/src/components/MobilePhotoSwipe.vue`
+- `frontend/src/components/TabletPhotoSwipe.vue`
+- `frontend/src/components/PhotoSwipeViewer.vue`
+- `frontend/src/composables/usePhotoSwipe.ts`
+- `frontend/src/utils/lightbox.ts`
+- `frontend/src/styles/_lightbox-*.scss`
 
-Core features we use: PhotoSwipe core, slide navigation, image gestures, options (`closeOnVerticalDrag`, `allowPanToNext`), UI/event hooks.
+Normal PhotoSwipe image URLs use `/api/preview`. Original `/api/image` is reserved for explicit original-load behavior such as zoom/fullscreen/download settings or animated images.
 
-Features we intentionally do NOT use: PhotoSwipe default topbar (custom UI used), PS5 UI registration for mobile info button (replaced with Vue overlay).
+### @douxcode/vue-spring-bottom-sheet
 
-Why not: Custom metadata UI needs to match gallery design, PS5 UI registration required brittle overrides, Vue overlay controls easier to style.
+VSBS is used only for the mobile lightbox metadata sheet.
 
-Project customizations: Mobile info button/metadata sheet integration, desktop metadata panel, tablet panel/controls, interaction with VSBS mobile sheet, `metadataOpen` hides info button while sheet open.
+Core contract:
 
-Integration files: `frontend/src/components/Lightbox.vue`, `MobilePhotoSwipe.vue`, `TabletPhotoSwipe.vue`, `PhotoSwipeViewer.vue`, `frontend/src/composables/usePhotoSwipe.ts`, `frontend/src/styles/_lightbox-*.scss`
+- Use `blocking=false`; PhotoSwipe is already the modal/focus context.
+- Do not enable VSBS backdrop/focus trap inside PhotoSwipe.
+- Keep VSBS as the sheet and motion engine only.
+- Gallery owns tabs, metadata content, copy actions, prompt expansion, info button visibility, and custom outside-tap close.
+- VSBS DOM is teleported, so required width/background overrides must stay in global/non-scoped CSS.
 
-Common pitfalls: PhotoSwipe focus/keyboard can conflict with another modal/focus trap, do not enable another focus trap inside PhotoSwipe without testing, mobile vertical drag can conflict with bottom sheet, default PhotoSwipe UI styles can leak, desktop sidebar can overlap image if viewport is not adjusted.
+Common pitfalls:
 
-Decision: We use PhotoSwipe as the image viewer engine. Gallery owns metadata panels, custom controls, and responsive layout around it.
+- Do not move VSBS overrides into scoped-only styles.
+- Do not add `stopPropagation()` to outside-tap close; it can break PhotoSwipe swipe.
+- Do not reintroduce the removed custom sheet drag implementation.
+- `canBackdropClose` does not close anything when `blocking=false` because no VSBS backdrop is rendered.
 
-Mobile contract: PhotoSwipe owns image rendering, swipe left/right, pan/zoom, lightbox lifecycle, photo-area pointer/touch handling, and lightbox close. VSBS and outside-tap glue must never block image swipe before or after the metadata sheet opens and closes.
+### Tailwind CSS 4, shadcn-vue-style Components, and Reka UI
 
-### Other libraries
+The frontend uses Tailwind 4 through `@tailwindcss/vite` and `frontend/src/styles/tailwind.css`. Existing SCSS still owns core gallery layout and lightbox styles.
 
-#### Fuse.js
+Local UI primitives live under `frontend/src/components/ui/` and follow shadcn-vue patterns:
 
-Official links:
+- Reka UI provides headless primitives for dialog, sheet, dropdown menu, select, tooltip, popover, tabs, separator, and primitive/sidebar context.
+- `class-variance-authority` defines component variants.
+- `clsx` and `tailwind-merge` are wrapped by `cn()` in `frontend/src/lib/utils.ts`.
+- `_shadcn-token-bridge.css` maps neutral shadcn tokens without replacing gallery brand/design tokens.
 
-- Docs: https://www.fusejs.io/
-- GitHub: https://github.com/krisk/Fuse
-- npm: https://www.npmjs.com/package/fuse.js
+Keep standard UI component styling neutral and avoid mapping gallery-specific decorative colors into generic shadcn tokens.
 
-Used for: Lightweight client-side fuzzy filtering of already loaded gallery folders/images when the normal gallery view needs local filtering behavior.
+### Lucide Vue
 
-Core features we use: weighted keys, fuzzy matching, typo tolerance, `ignoreLocation`, client-side index.
+Code imports icons from `lucide-vue-next`. `@lucide/vue` is also installed, but the current source tree uses `lucide-vue-next` in gallery and UI components.
 
-Features we intentionally do NOT use: match highlighting, metadata/prompt full-text search, binary/image content search.
+Prefer Lucide icon components for buttons and controls where a semantic icon exists.
 
-Why: Keeps a small local fuzzy-search helper available for loaded gallery rows without making the frontend responsible for recursive indexed search.
+### @vueuse/core
 
-Integration files: `frontend/src/utils/fuzzySearch.ts`, `frontend/src/components/GalleryGrid.vue`, `frontend/package.json`, `frontend/package-lock.json`
+VueUse is used for theme mode, media/v-model helpers, and several local shadcn-style UI components. Examples include `useColorMode`, `useMediaQuery`, `useVModel`, `reactiveOmit`, and carousel injection helpers.
 
-Common pitfalls: Do not rebuild Fuse per card, do not use Fuse for active unified search results, do not let `path` weight dominate `name`, do not break existing sort behavior, do not add match highlighting unless UI is designed for it.
+### Fuse.js
 
-Decision: One visible search box calls backend `/api/search` for active search. Fuse remains as a local helper for normal loaded gallery rows only. Backend SQLite FTS5 owns recursive album/photo filename search and prompt/metadata search.
+Fuse.js remains a local fuzzy filtering helper for already loaded folder/image rows. Backend `/api/search` owns active recursive indexed search and metadata/prompt search.
 
-#### SQLite FTS5
+Do not use Fuse for the main unified search result set or indexed metadata search.
 
-- Official: https://www.sqlite.org/fts5.html
-- Used for: backend unified search over indexed folders/photos and AI prompt/metadata text.
-- Integration files: `backend/services/metadata_index.py`, `backend/main.py`
-- Database location: `backend/.cache/gallery_metadata.db`
-- Runtime dependency: Python stdlib `sqlite3` with SQLite FTS5 enabled.
+### embla-carousel-vue
 
-The shared search database stores:
+Embla powers the local shadcn-style carousel primitive in `frontend/src/components/ui/carousel/`. The desktop album carousel uses that primitive through `AlbumCarouselDesktop.vue`.
 
-- `file_index`: one row per indexed folder/photo, including path, name, parent path, type, mtime, size, and dimensions when available.
-- `file_index_fts`: standalone FTS5 table for folder/photo filename search. It powers the Albums and Photos result sections.
-- `image_metadata`: normalized metadata keyed by image path.
-- `image_metadata_fts` and `image_metadata_fts_trigram`: prompt/metadata FTS5 tables for the Prompt result section.
+### eruda
 
-Unified search behavior:
-
-- One search box in the frontend calls `GET /api/search`.
-- Default scope is `This folder`, meaning the current folder and all indexed subfolders recursively.
-- `All indexed` searches the whole indexed database under `GALLERY_ROOT`.
-- Results are grouped into Albums, Photos, and Prompt.
-- Recursive subfolder matches include `relative_path`, computed from the selected current folder or from `GALLERY_ROOT`.
-- Prompt search joins metadata rows through `file_index`, so prompt matches follow the same scope filtering as album/photo filename matches.
-
-The metadata index stores normalized fields in `image_metadata` and keeps two FTS5 virtual tables in sync with triggers:
-
-- `image_metadata_fts` uses `tokenize='unicode61'` for English prompts, filenames, model names, and sampler names.
-- `image_metadata_fts_trigram` uses `tokenize='trigram'` for Japanese/CJK substring search.
-
-CJK support deliberately avoids MeCab, Sudachi, Kuromoji, and custom native tokenizers. Short CJK queries and no-result trigram searches fall back to safe parameterized `LIKE` over indexed text fields.
-
-Not used: Meilisearch, Typesense, Tantivy, Whoosh, sqlite-vec, or any external search service.
-
-Backward compatibility: `/api/search-metadata` still exists for older callers, but the main gallery UI uses `/api/search`.
-
-#### Pillow
-
-- Official: https://pillow.readthedocs.io/
-- Used for: thumbnail generation, image dimensions, EXIF orientation, and metadata extraction for the SQLite index.
-
-Metadata search reads Pillow-exposed PNG text chunks and basic EXIF/UserComment text. Current indexed formats include A1111/Forge `parameters`, ComfyUI `prompt`/`workflow` JSON as searchable raw/basic summary text, and generic keys such as `Description`, `Comment`, `UserComment`, and `Software`.
-
-ExifTool is intentionally not used in this implementation. It remains deferred because it requires an external binary and process integration.
-
-#### diskcache
-
-- Official: https://grantjenks.com/docs/diskcache/
-- Used for: persistent WebP thumbnail caching.
-- Integration files: `backend/main.py`, `backend/requirements.txt`
-- Cache location: `backend/.cache/thumbnails/`
-
-Thumbnail cache keys include the resolved source path, source `mtime_ns`, source byte size, requested max size, and WebP quality. Changing the source image or requested thumbnail size creates a new cache key automatically. The endpoint serves persisted thumbnail files with `Cache-Control: public, max-age=86400, immutable`, `ETag`, `Content-Length`, and `Last-Modified` headers.
-
-#### cachetools
-
-- Official: https://cachetools.readthedocs.io/
-- Used for: in-memory metadata response caching only.
-- Integration files: `backend/main.py`, `backend/requirements.txt`
-
-`cachetools.LRUCache` is no longer used for thumbnail bytes. Metadata caching still uses explicit locks and in-flight request de-duplication around the in-memory LRU cache.
-
-#### Vue 3
-
-- Official: https://vuejs.org/
-- Used for: entire frontend framework
-- Core usage: Composition API, SFC, `<script setup>`
-
-#### Vite
-
-- Official: https://vite.dev/
-- Used for: frontend build tool, dev server
-- Customization: no custom plugins beyond defaults
-
-#### Lucide
-
-- Official: https://lucide.dev/
-- Used for: icons across the gallery
-
-#### @tanstack/vue-virtual
-
-- Library: TanStack Virtual (row-based virtualization)
-- Official Vue docs: https://tanstack.com/virtual/latest/docs/framework/vue/vue-virtual
-- Used for: `GalleryGrid.vue` desktop/tablet photo grid, with row-based virtualization via `useVirtualizer`
-
-#### @tanstack/vue-form
-
-- Library: TanStack Form (type-safe Vue form validation)
-- Official Vue docs: https://tanstack.com/form/latest/docs/framework/vue
-- Status: Foundation installed, not yet used in any component
-- Planned use: photo metadata editing, batch editor, import settings
-- See `frontend/src/lib/tanstack/README.md` for details
-
-#### @tanstack/vue-table
-
-- Library: TanStack Table (headless datagrid/table)
-- Official Vue docs: https://tanstack.com/table/latest/docs/framework/vue
-- Status: Foundation installed, not yet used in any component
-- Planned use: metadata management table, duplicate/broken image audit, import history
-- See `frontend/src/lib/tanstack/README.md` for details
-
-#### @tanstack/vue-query-devtools
-
-- Library: TanStack Query Devtools
-- npm: @tanstack/vue-query-devtools
-- Status: Installed as devDependency, active in dev mode only
-- Usage: Floating devtools panel visible in browser during development; tree-shaken in production
+Eruda is an optional mobile debugging console. `frontend/src/utils/erudaDebug.ts` loads it dynamically when enabled by the debug query/localStorage flag. It should stay out of the normal production path.
 
 ## Do Not Change Casually
 
-- Do not enable VSBS `blocking=true` without testing focus recursion with PhotoSwipe.
-- Do not move VSBS overrides back into scoped-only styles.
-- Do not remove VSBS width/background overrides.
-- Do not reintroduce old custom mobile sheet drag code.
-- Do not add `stopPropagation()` to mobile outside-tap close.
-- Do not replace Vue overlay buttons with PhotoSwipe UI registration unless necessary.
+- Do not run backend docs/examples with the wrong import target; prefer `python3 -m uvicorn backend.main:app` from repo root.
+- Do not move server/API state from TanStack Query into Pinia.
+- Do not move scan/infinite/folder/search/lightbox metadata flows into TanStack DB without a specific collection-state design.
+- Do not enable VSBS `blocking=true` or add a second focus trap inside PhotoSwipe.
+- Do not move VSBS teleported DOM overrides into scoped-only styles.
+- Do not add `stopPropagation()` to mobile sheet outside-tap close.
+- Do not replace backend SQLite FTS5 search with a client-side search path for active recursive search.
+- Do not document TanStack Form/Table as unused; both are active runtime integrations.

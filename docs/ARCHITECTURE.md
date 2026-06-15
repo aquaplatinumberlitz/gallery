@@ -1,86 +1,82 @@
 # Architecture
 
-Last reviewed: 2026-06-09
+Last reviewed: 2026-06-15
 
 ## Overview
 
 AI Art Gallery is a local-first image browser with a FastAPI backend and a Vue 3 frontend.
 
-- Backend: scans directories, serves originals, renders cached WebP thumbnails/previews, parses generation metadata, and indexes prompt/metadata text in SQLite FTS5.
-- Frontend: manages gallery state with Pinia, renders responsive layouts, virtualizes large grids, and opens images in a PhotoSwipe 5 lightbox.
-- Startup: `start.py` creates the Python virtualenv, installs Python and Node dependencies, and starts both servers.
+- Backend: scans folders, serves original images, generates cached WebP derivatives, extracts AI generation metadata, indexes folders/photos/metadata in SQLite FTS5, and exposes read-only inspection/search APIs.
+- Frontend: uses Vue Router for the gallery and metadata inspector routes, Pinia for UI/navigation state, TanStack Query for API state, TanStack Virtual for large grids, PhotoSwipe for the lightbox, TanStack Form for advanced search, and TanStack Table for the Library Inspector.
+- Startup: `start.py` creates/repairs the Python virtualenv, installs Python and npm dependencies when needed, finds free backend/frontend ports, and starts both servers.
 
 Major external library integrations are documented in [Third-Party Libraries](THIRD_PARTY_LIBRARIES.md).
 
 ## Backend
 
-Backend modules live flat in `backend/` (no nested packages beyond `tests/`).
+Backend modules live flat in `backend/`.
 
 | File | Purpose |
 |------|---------|
-| `app.py` | FastAPI app creation, CORS, Prometheus, pyinstrument, router composition |
-| `main.py` | Compatibility shim (`from .app import app`) + `__main__` uvicorn block |
-| `config.py` | Environment variables, constants, cache dirs |
-| `errors.py` | `APIError`, `ErrorType` |
-| `models.py` | Pydantic `FileNode` and shared request/response schemas |
-| `paths.py` | `resolve_path`, `is_path_safe`, GALLERY_ROOT boundary checks |
-| `files.py` | `is_image`, `natural_sort_key`, `IMAGE_EXTENSIONS`, `check_image_limits` |
-| `albums.py` | `build_album_metadata`, `has_subfolders`, cover/child detection |
-| `scan.py` | `GET /api/scan`, `scan_directory`, perf helpers |
-| `folders.py` | `GET /api/folders`, `POST /api/open-folder` |
-| `images.py` | `GET /api/image` (original image serving) |
-| `thumbnails.py` | `GET /api/thumbnail`, `GET /api/preview`, derivative generation, persistent disk cache |
-| `metadata_extract.py` | Raw metadata extraction from image files (lowest layer, no SQLite/API) |
-| `metadata_parse.py` | `GET /api/metadata`, LRU cache, rich response shaping |
-| `metadata_store.py` | SQLite metadata cache, FTS5 index/search |
-| `search.py` | `GET /api/search`, `GET /api/search-metadata` |
-| `health.py` | `GET /api/health`, favicon, GIT_COMMIT |
-| `static_files.py` | `GET /`, `GET /api/landing-pages`, production SPA fallback |
+| `app.py` | FastAPI app creation, CORS, optional Prometheus metrics, optional pyinstrument middleware, router composition, startup background services |
+| `main.py` | Import-compatible `app` shim and uvicorn fallback block |
+| `config.py` | Environment flags, cache paths, image limits, indexer tuning, production/static config |
+| `errors.py` | `APIError`, `ErrorType`, and FastAPI error shaping |
+| `models.py` | Shared Pydantic DTOs, including `FileNode` |
+| `paths.py` | `resolve_path`, `is_path_safe`, and `GALLERY_ROOT` boundary checks |
+| `files.py` | Image extension checks, natural sort, and image safety limits |
+| `albums.py` | Album cover/count/child-folder metadata |
+| `scan.py` | `/api/scan`, direct folder scans, optional warm SQLite listing, background index scheduling |
+| `folders.py` | `/api/folders` folder-tree endpoint and `/api/open-folder` OS explorer hook |
+| `images.py` | `/api/image` original file serving |
+| `thumbnails.py` | `/api/thumbnail`, `/api/preview`, WebP derivative generation, persistent disk cache |
+| `metadata_extract.py` | Raw metadata extraction/parsing helpers for A1111, SwarmUI, ComfyUI, NovelAI, EasyDiffusion, and generic EXIF/text fields |
+| `metadata_parse.py` | `/api/metadata`, in-memory metadata cache, response shaping |
+| `metadata_store.py` | SQLite schema, FTS5 search, folder/photo index, metadata rows, facets, Library Inspector data access |
+| `fielded_search_parser.py` | Parser for `prompt:`, `seed:`, `model:`, numeric operators, quoted values, and related fielded search syntax |
+| `search.py` | `/api/search`, `/api/search-metadata`, `/api/library/inspector`, `/api/library/inspector/metadata` |
+| `facets.py` | `/api/facets` aggregation over indexed metadata |
+| `indexer.py` | Background metadata queue, staged path batching, SQLite write batching, `/api/index/status` |
+| `refresh.py` | Optional scheduled refresh loop |
+| `watcher.py` | Optional filesystem watcher loop |
+| `health.py` | `/api/health`, favicon, git commit reporting |
+| `static_files.py` | `/`, `/api/landing-pages`, and production SPA fallback |
 
 ### Route Reference
 
 | Endpoint | Purpose | Module |
 |----------|---------|--------|
-| `GET /api/scan` | Return folders and paginated image files for a directory | `scan.py` |
-| `GET /api/folders` | Return folder children only for folder tree expansion | `folders.py` |
+| `GET /api/scan` | Return folder albums and paginated image rows for a directory | `scan.py` |
+| `GET /api/folders` | Return direct non-hidden child folders for sidebar expansion | `folders.py` |
 | `GET /api/image` | Serve an original image file | `images.py` |
-| `GET /api/thumbnail` | Serve a cached WebP thumbnail | `thumbnails.py` |
-| `GET /api/preview` | Serve a cached WebP viewer preview | `thumbnails.py` |
-| `GET /api/metadata` | Parse AI generation metadata | `metadata_parse.py` |
-| `GET /api/search` | Unified indexed search for albums, photo filenames, and prompt/metadata | `search.py` |
-| `GET /api/search-metadata` | Search indexed AI prompt/metadata fields with SQLite FTS5 | `search.py` |
+| `GET /api/thumbnail` | Serve a cached WebP thumbnail, default max long edge 512px | `thumbnails.py` |
+| `GET /api/preview` | Serve a cached WebP preview, default max long edge 1440px | `thumbnails.py` |
+| `GET /api/metadata` | Extract and normalize AI generation metadata for one image | `metadata_parse.py` |
+| `GET /api/search` | Unified album/photo/prompt search, including fielded metadata queries | `search.py` |
+| `GET /api/search-metadata` | Legacy metadata-only search endpoint | `search.py` |
+| `GET /api/library/inspector` | Bounded read-only rows for the desktop metadata inspector | `search.py` |
+| `GET /api/library/inspector/metadata` | DB-first full metadata detail for one inspector row | `search.py` |
+| `GET /api/facets` | DB-derived model/tool/sampler/etc. aggregation counts | `facets.py` |
+| `GET /api/index/status` | Metadata indexer queue/runtime status | `indexer.py` |
 | `POST /api/open-folder` | Open a folder in the OS file explorer when enabled | `folders.py` |
-| `GET /api/health` | Return service health | `health.py` |
-| `GET /api/landing-pages` | List intro page HTML files | `static_files.py` |
+| `GET /api/health` | Return service health and commit metadata | `health.py` |
+| `GET /api/landing-pages` | List intro page HTML templates from `frontend/public/landpage/` | `static_files.py` |
 | `GET /` and `GET /{path:path}` | Serve the built SPA in production mode | `static_files.py` |
 
-Important backend behavior:
+### Backend Behavior
 
-- `GALLERY_ROOT` bounds path safety. The default root is `/`, which is permissive for local use but still routes through path checks.
+- `GALLERY_ROOT` bounds path safety. The default root is `/`, which is permissive for local use but all file routes still resolve and check paths.
 - `GALLERY_OPEN_FOLDER=false` disables OS folder opening by default.
-- `ENABLE_METRICS=1` (default in dev) exposes Prometheus metrics at `/metrics` via `prometheus-fastapi-instrumentator`. Route-level labels only (no per-path cardinality explosion). Disable in production with `ENABLE_METRICS=0`.
-- `ENABLE_PROFILER=0` by default. When enabled, selected endpoints (configurable via `PROFILE_ENDPOINTS`, default `/api/scan,/api/metadata,/api/thumbnail,/api/preview`) are profiled with pyinstrument. HTML profiles are saved to `backend/profiles/` (gitignored).
-- Derivative cache keys include kind, cache version, path, mtime, size, max long edge, format, and quality. Rendered WebP thumbnails/previews are persisted under `backend/.cache/thumbnails/`, survive backend restarts, and are served with 24-hour browser caching headers.
-- Metadata cache: two layers.
-  - **In-memory LRU cache** (cachetools, 100MB max): caches parsed metadata dicts from `/api/metadata`. Keys include path + mtime + size.
-  - **SQLite dimension cache** (same DB as search cache): `image_metadata` table with `width`, `height`, `mtime`, `size` per path. Populated by `/api/metadata` (full metadata parse) and image derivative endpoints that already open the image. Queried by `/api/scan` as a single batch lookup to return cached dimensions without opening images.
-- Search cache lives at `backend/.cache/gallery_metadata.db`. It contains `file_index` rows for indexed folders/photos, `file_index_fts` for recursive album/photo filename search, and normalized image metadata with SQLite FTS5 tables for prompt/metadata search.
-- `/api/scan` must stay hot-path fast:
-  - Returns `width=None, height=None` when no cached dimensions exist.
-  - Performs a single batched SQL query (`get_cached_dimensions_for_files()`) to look up cached dimensions by path+mtime+size.
-  - Does NOT open images with PIL, does NOT batch-read metadata for all images.
-  - Indexes the scanned folder and its subfolders in the background (without re-indexing image metadata — `include_metadata=False`).
-  - File entries are indexed for albums/photos; image metadata indexing is deferred to `/api/metadata` or derivative endpoints that already open the image.
-- `/api/scan` dimension flow:
-  1. `os.scandir()` lists folder entries.
-  2. Image files are filtered and their stat (mtime, size) collected.
-  3. `get_cached_dimensions_for_files()` does a single `SELECT path, mtime, size, width, height FROM image_metadata WHERE path IN (...) AND width IS NOT NULL`.
-  4. Results validated against current mtime/size; stale entries discarded.
-  5. `FileNode` objects built with cached dimensions (or null if uncached).
-- `/api/metadata` populates cache after parsing (via `upsert_metadata_result()`).
-- `/api/thumbnail` and `/api/preview` populate cache after rendering derivatives (via `upsert_image_dimensions()`).
-- `/api/folders` is a lightweight folder-tree endpoint. It lists only direct, non-hidden folder children, does not return image rows, and does not compute image counts or cover images. `/api/folders` ignores symlinked directories and only lists real non-hidden child directories. For this endpoint, `has_children` means the folder has at least one non-hidden child directory, so sidebar chevrons are not shown for folders that contain only images. Album cover/count metadata remains part of `/api/scan`, not `/api/folders`.
-- Production mode is enabled with `PRODUCTION=1`, serving `frontend/dist/`.
+- `ENABLE_METRICS` defaults to enabled outside production and exposes `/metrics` with route-level labels.
+- `ENABLE_PROFILER=0` by default. When enabled, selected endpoints are profiled with pyinstrument and HTML reports are written to `backend/profiles/`.
+- Original images are served only by `/api/image`; thumbnails and previews are generated derivatives.
+- Derivative cache keys include kind, cache version, resolved path, mtime, size, long-edge target, format, and quality. WebP files persist under `backend/.cache/thumbnails/`.
+- The metadata DB defaults to `backend/.cache/gallery_metadata.db` and can be overridden with `GALLERY_METADATA_DB`.
+- SQLite uses WAL mode and stores both file index rows and normalized metadata rows. FTS5 tables cover folder/photo names and metadata text.
+- `/api/scan` stays hot-path focused: `os.scandir`, stat, natural sort, one batched dimension lookup, and no blanket metadata parsing.
+- `/api/scan` schedules background indexing work for scanned folders/images and metadata jobs. `/api/metadata`, `/api/thumbnail`, and `/api/preview` also update cached metadata/dimensions when they already open the image.
+- `ENABLE_WARM_INDEXED_LISTING=1` allows `/api/scan` to serve a warm SQLite-backed listing when the folder index is complete and fresh.
+- Scheduled refresh and file watcher are optional and disabled by default: `ENABLE_SCHEDULED_REFRESH=1`, `ENABLE_FILE_WATCHER=1`.
 
 ## Frontend
 
@@ -88,223 +84,174 @@ Key paths:
 
 | Path | Role |
 |------|------|
-| `frontend/src/App.vue` | Root orchestrator, layout dispatch, lightbox/modal/toast mounting |
-| `frontend/src/main.ts` | Vue entry point, Pinia setup, global styles, debug utilities |
+| `frontend/src/main.ts` | Vue entry, global styles, Pinia, Vue Router, TanStack Query installation, dev debug utilities |
+| `frontend/src/router/index.ts` | Routes: `/` gallery, `/metadata` Library Inspector, fallback redirect |
+| `frontend/src/App.vue` | Root shell, layout dispatch, lightbox/settings/toast mounting, Query Devtools in dev |
 | `frontend/src/layouts/` | Desktop, tablet, and mobile layout shells |
-| `frontend/src/components/` | Gallery, cards, headers, sidebars, lightbox wrappers, metadata panels |
-| `frontend/src/composables/` | Device detection, grid density, PhotoSwipe lifecycle, scroll visibility, haptics |
-| `frontend/src/query/` | TanStack Query client setup and default server-state cache options |
-| `frontend/src/stores/` | Pinia stores for gallery, lightbox, and toasts |
-| `frontend/src/styles/` | Global SCSS, tokens, breakpoint mixins, lightbox styles |
-| `frontend/src/services/api.ts` | Axios client and API error handling |
+| `frontend/src/components/GalleryGrid.vue` | Main gallery renderer, album/photo sections, infinite loading, search result rendering |
+| `frontend/src/components/Lightbox.vue` | Device-dispatch lightbox orchestrator |
+| `frontend/src/components/LibraryInspector.vue` | Desktop metadata inspection table at `/metadata` |
+| `frontend/src/components/search/AdvancedSearchDrawer.vue` | Facet-backed fielded search form |
+| `frontend/src/components/ui/` | shadcn-vue/Reka-inspired local UI primitives |
+| `frontend/src/composables/` | Query wrappers, device detection, PhotoSwipe lifecycle, metadata helpers, theme, haptics |
+| `frontend/src/query/` | TanStack Query client, normalized query keys, scan prefetch helpers |
+| `frontend/src/db/` | TanStack DB beta foundation and landing-pages pilot collection |
+| `frontend/src/stores/` | Pinia stores for gallery UI/navigation, lightbox, and toasts |
+| `frontend/src/services/api.ts` | Axios client, endpoint wrappers, URL helpers, API error mapping |
+| `frontend/src/styles/` | Tailwind 4 entry, shadcn token bridge, SCSS tokens, breakpoints, lightbox styles |
 
-## State Stores
-
-| Store | Responsibilities |
-|-------|------------------|
-| `gallery.ts` | Root/current path, folder tree expansion state, navigation history, search input/scope, sort, loaded state |
-| `lightbox.ts` | Open image, current index, gallery item list, metadata, navigation, neighbor preloading |
-| `toast.ts` | Toast queue, type helpers, auto-dismiss |
-
-## Server-State Caching
-
-TanStack Query caches `/api/scan`, `/api/folders`, `/api/search`, and `/api/metadata` responses, while Pinia keeps UI/navigation state.
+### State Ownership
 
 | Layer | Responsibilities |
 |-------|------------------|
-| TanStack Query | Cached scan first-page, folder-only tree child loads, active scan infinite image pages, unified search, and lightbox metadata responses, stale time, garbage collection, background refresh query keys |
-| TanStack DB | Minimal beta foundation for local reactive collections and live queries over already loaded/API-backed data |
-| Pinia gallery store | Current/root path, folder tree expanded/collapsed state, loaded/root flags, history, search input/scope, sort |
+| TanStack Query | `/api/scan`, `/api/folders`, `/api/search`, `/api/metadata`, `/api/facets`, `/api/index/status`, Library Inspector rows/details, landing page fetches |
+| TanStack DB | Beta local reactive collection foundation; currently only the landing-pages collection is a runtime pilot |
+| Pinia gallery store | Root/current path, selected path, history, expanded folders, search text/scope, sort, loaded flags, settings UI state |
+| Pinia lightbox store | Open image, current index, visible item list, navigation |
+| Pinia toast store | Toast queue and auto-dismiss state |
 
-Migration rule: TanStack Query should own server/API state and cache. Pinia should own UI/navigation state. Do not add new Query -> Pinia duplicated server-state flows unless needed for compatibility. The active `/api/scan` gallery rendering flow, infinite image pagination, unified search, folder children, and lightbox metadata are Query-owned.
+Query keys are centralized in `frontend/src/query/keys.ts`. Paths are normalized by trimming, converting backslashes to forward slashes, collapsing duplicate slashes, and removing a trailing slash except for `/`.
 
-TanStack DB is available as a beta, incremental layer that complements TanStack Query. Query Collection should reuse the shared Query client for REST/API-backed collections; live queries can then query across those loaded collections locally. Do not migrate scan, infinite loading, folder tree, unified search, or lightbox metadata into DB without a dedicated follow-up design that proves stable keys and complete collection state for the endpoint scope.
-
-Scan query keys use this deterministic pattern:
+Core keys:
 
 ```text
 ["scan", normalizedPath, imageLimit]
 ["scan-infinite", normalizedPath, imageLimit]
+["folder-children", normalizedPath]
+["search", query, scope, normalizedPath]
+["metadata", normalizedPath]
+["facets", normalizedPath]
+["index-status", normalizedPath]
+["library-inspector", query, scope, normalizedPath, limit]
+["library-inspector-metadata", normalizedPath]
+["landing-pages"]
 ```
-
-`normalizedPath` is trimmed, converts backslashes to forward slashes, collapses duplicate slashes, and removes a trailing slash. For the first image page, `imageLimit` is `IMAGE_PAGE_SIZE`.
 
 ## Data Flow
 
 ### Folder Load
 
 ```text
-Sidebar or album click
-→ galleryStore.selectFolder(path)
-→ useInfiniteScanQuery(path)
-→ GET /api/scan
-→ TanStack Query stores scan pages under ["scan-infinite", normalizedPath, IMAGE_PAGE_SIZE]
-→ GalleryGrid renders albums and image rows from useInfiniteScanQuery()
+Folder selection
+-> Pinia gallery store updates current path/history
+-> useInfiniteScanQuery(path)
+-> GET /api/scan
+-> TanStack Query stores pages under ["scan-infinite", normalizedPath, IMAGE_PAGE_SIZE]
+-> GalleryGrid renders albums and image rows
 ```
 
-Gallery loading behavior:
-
-- First uncached folder load can show the full skeleton.
-- Revisiting a cached folder can render cached albums/photos immediately and show only a subtle refreshing indicator while the background fetch completes.
-- Search loading has its own skeleton path and does not replace cached normal-gallery content during scan refresh.
+First uncached folder loads can show a skeleton. Cached revisits render immediately and show only subtle refresh state while Query refetches in the background.
 
 ### Folder Tree Expansion
 
 ```text
 FolderTreeItem toggle
-→ galleryStore.toggleFolderExpanded(node.path) updates path-keyed UI state
-→ useFolderChildrenQuery(node.path, galleryStore.isFolderExpanded(node.path) && node.has_children)
-→ read/fetch TanStack Query cache for ["folder-children", normalizedPath]
-→ GET /api/folders?path=... when cache policy requires it
-→ FolderTreeItem renders query loading/error state
-→ FolderTreeItem renders recursive children from Query data
+-> Pinia stores expanded/collapsed path state
+-> useFolderChildrenQuery(path, enabled)
+-> GET /api/folders when cache policy requires it
+-> FolderTreeItem renders Query-owned child folder rows
 ```
 
-Folder tree ownership:
-
-- Pinia owns root path, current path, selected path, history/back-forward, and expanded/collapsed state.
-- TanStack Query owns folder child server data, per-path loading/fetching/error state, stale time, garbage collection, and cache reuse.
-- Folder expansion is stored in Pinia as path-keyed UI state. `FileNode` objects returned from `/api/folders` are Query-owned server data and should not be mutated to store expansion state such as `isOpen`.
-- `FolderTreeItem.vue` no longer writes Query results into `node.children`; static/prebuilt children are only a compatibility fallback before Query data is available.
-- TanStack DB is not used for folder tree. Folder child loading is per-path server state, and Query owns it directly.
+Folder expansion state is UI state. Query-owned `FileNode` results should not be mutated to store expansion state.
 
 ### Infinite Scroll
 
 ```text
-IntersectionObserver sees loadMoreSentinel
-→ guard hasNextPage and isFetchingNextPage/isFetching
-→ useInfiniteScanQuery().fetchNextPage()
-→ GET /api/scan with image_cursor from pageParam
-→ TanStack Query appends returned page
-→ grid rows recompute
+IntersectionObserver sees load-more sentinel
+-> guard hasNextPage and fetch-in-progress flags
+-> fetchNextPage()
+-> GET /api/scan?image_cursor=...
+-> TanStack Query appends page
+-> grid rows recompute
 ```
 
-### Search and Sort
+### Search, Advanced Search, and Facets
 
 ```text
-Header or toolbar emits search/sort change
-→ gallery store updates query, scope, or sort state
-→ non-search gallery view keeps existing loaded folders/images and sort behavior
-→ non-empty search query enables TanStack Query for GET /api/search
-→ GalleryGrid renders Albums, Photos, and Prompt sections
+Header search or AdvancedSearchDrawer
+-> Pinia stores search text/scope
+-> useUnifiedSearchQuery()
+-> GET /api/search
+-> GalleryGrid renders Albums, Photos, and Prompt sections
 ```
 
-Unified gallery search uses one search box:
+- Default scope is `current`, meaning the current folder recursively.
+- `all` searches the indexed database under `GALLERY_ROOT`.
+- Fielded queries are parsed server-side, for example `prompt:"blue hair"`, `seed:12345`, `model:pony`, `steps:>25`, `width:>=1024`.
+- The Advanced Search drawer uses TanStack Form and `/api/facets` to build the same fielded query syntax.
+- `GET /api/search-metadata` remains available for older callers, but the main gallery UI uses `/api/search`.
 
-- Default scope is `This folder`, which means the current folder plus all indexed subfolders recursively.
-- Optional scope is `All indexed`, which searches the whole indexed database under `GALLERY_ROOT`.
-- Albums and Photos use `file_index_fts` over folder/photo names, scope-filtered by path.
-- Prompt uses the existing metadata FTS5 tables, joined through `file_index` so prompt matches share the same recursive scope rules.
-- Results are grouped as Albums, Photos, and Prompt. Subfolder matches include `relative_path`, computed from the current root for `This folder` and from `GALLERY_ROOT` for `All indexed`.
-- Empty queries restore the normal gallery view. Fuse.js remains in the codebase for lightweight filtering behavior in the non-search gallery view, but backend `/api/search` owns active search results.
-- TanStack Query owns active search result data, loading/fetching, errors, and cache. Pinia owns only the search input text, scope, and navigation context.
-- `GET /api/search-metadata` remains available for backward compatibility, but the frontend no longer uses it for the main gallery search.
+### Library Inspector
 
-Future fielded metadata search should preserve this FTS-backed flow and add a
-structured query parser on top of it. See
-[DiffusionToolkit Metadata Search Analysis](DIFFUSIONTOOLKIT_METADATA_SEARCH_ANALYSIS.md).
+```text
+/metadata route
+-> LibraryInspector.vue
+-> useLibraryInspectorQuery(query, scope, currentPath, limit)
+-> GET /api/library/inspector
+-> TanStack Table sorts returned rows client-side
+-> popovers/copy actions fetch GET /api/library/inspector/metadata
+```
+
+The inspector is read-only. It is backed by indexed SQLite metadata and opens images in the same lightbox store used by the gallery.
 
 ### Open Image
 
 ```text
-PhotoCard click
-→ lightboxStore.open({ path, name }, visibleImages)
-→ preload neighboring thumbnail 512 + preview 1440 only
-→ GET /api/metadata
-→ Lightbox.vue dispatches to the active device wrapper and metadata panel
-→ PhotoSwipe normal src is /api/preview; originalSrc is /api/image for on-demand triggers
+PhotoCard or inspector row click
+-> lightboxStore.open({ path, name }, visibleImages)
+-> PhotoSwipe wrapper opens derivative-first item
+-> usePhotoMetadataQuery(path)
+-> GET /api/metadata
+-> active device panel/sheet renders metadata
 ```
 
-### Derivative Request
-
-```text
-source image
-→ cache key from kind + version + resolved path + mtime_ns + size + max_long_edge + format + quality
-→ diskcache at backend/.cache/thumbnails/
-→ persisted WebP thumbnail/preview file
-→ FileResponse
-→ browser cache with Cache-Control: public, max-age=86400, immutable
-```
-
-### Lightbox Navigation
-
-```text
-PhotoSwipe change, arrow key, or toolbar action
-→ wrapper emits indexChange or store navigation action
-→ lightbox store updates current item
-→ TanStack Query loads metadata for the new path
-→ PhotoSwipe index watcher syncs only when indices differ
-```
+PhotoSwipe normal `src` is `/api/preview`. The original `/api/image` is used for explicit original-load paths such as zoom/fullscreen/download settings or animated images.
 
 ## Lightbox Design
 
-`Lightbox.vue` is the device-dispatch orchestrator:
+`Lightbox.vue` dispatches by device:
 
 ```text
-Desktop/Wide → PhotoSwipeViewer.vue + LightboxDesktopPanel.vue
-Tablet       → TabletPhotoSwipe.vue + LightboxTabletPanel.vue
-Mobile       → MobilePhotoSwipe.vue + LightboxMobileSheet.vue
+Desktop/Wide -> PhotoSwipeViewer.vue + LightboxDesktopPanel.vue
+Tablet       -> TabletPhotoSwipe.vue + LightboxTabletPanel.vue
+Mobile       -> MobilePhotoSwipe.vue + LightboxMobileSheet.vue
 ```
 
-All PhotoSwipe wrappers share `usePhotoSwipe.ts` for lifecycle, item creation, index sync, and destroy guards. All wrappers build items through `frontend/src/utils/lightbox.ts`.
+- All PhotoSwipe wrappers share `usePhotoSwipe.ts` for lifecycle, item creation, index sync, and destroy guards.
+- Lightbox item URL construction lives in `frontend/src/utils/lightbox.ts`.
+- Desktop reserves `DESKTOP_METADATA_WIDTH` through PhotoSwipe padding so the image is not hidden under the metadata sidebar.
+- Tablet uses custom top/bottom controls and a bottom metadata panel.
+- Mobile uses `@douxcode/vue-spring-bottom-sheet` as a non-modal metadata sheet inside PhotoSwipe.
 
-Device-specific behavior:
+Mobile sheet contract:
 
-- Desktop/wide uses `PhotoSwipeViewer.vue` with a PhotoSwipe `paddingFn` supplied by `Lightbox.vue`. The padding reserves the 400px metadata sidebar so the image viewport does not sit under the panel.
-- Tablet uses `TabletPhotoSwipe.vue`, which owns its top counter and bottom toolbar for close, zoom, and info.
-- Mobile uses `MobilePhotoSwipe.vue`, which owns a floating info button and hides it while the metadata sheet is open.
-
-Metadata panels:
-
-- Desktop: fixed right sidebar, accordions, fullscreen and close controls.
-- Tablet: two-column bottom sheet, expandable.
-- Mobile: tabbed VSBS bottom sheet with Prompt, Params, and Model tabs; library-managed drag/snap/scroll; safe-area-aware controls.
-- Planned, not yet implemented: a compact EXIF tab may be added across metadata panels only when `/api/metadata` returns `exif.hasData`. Without EXIF data, the tab set remains Prompt, Params, and Model. See [Metadata Parsing](METADATA_PARSING.md#planned-basic-exif-tab).
-
-Mobile sheet integration:
-
-- `LightboxMobileSheet.vue` uses `@douxcode/vue-spring-bottom-sheet` for mobile metadata only. Desktop and tablet lightbox panels are separate components and should not share this sheet code.
-- Library-specific rationale, customization details, and pitfalls live in [Third-Party Libraries](THIRD_PARTY_LIBRARIES.md).
-- PhotoSwipe owns image rendering, left/right swipe, pan/zoom, lightbox lifecycle, photo-area pointer/touch handling, and lightbox close.
-- VSBS owns only the mobile metadata sheet container: drag, snap, scroll, sheet animation, sheet open/close, and its scroll container.
-- Gallery glue owns the info button, hiding the info button while the sheet is open, chevron expand/compact behavior, Prompt and Negative Prompt Show more/less state, outside-tap sheet close, and the protections that keep VSBS from swallowing PhotoSwipe gestures.
-- VSBS is deliberately non-modal: `blocking=false`, no VSBS backdrop, no VSBS focus trap, `teleport-defer`, and `v-model`. PhotoSwipe is already the modal/focus context.
-- Enabling VSBS blocking/backdrop/focus trapping caused historical "too much recursion" focus-management failures. Keep VSBS as a non-modal metadata inspector inside PhotoSwipe.
-- VSBS DOM is teleported to `<body>`, so the component keeps its VSBS overrides in a non-scoped global style block.
-- Width and background overrides keep `[data-vsbs-sheet]`, `[data-vsbs-scroll]`, `[data-vsbs-content]`, `.sheet-content`, and `.expandable-text` full-width and dark themed.
-- Because `blocking=false` means VSBS renders no backdrop, `canBackdropClose` does nothing. Outside-tap close is custom document pointer handling that closes the metadata sheet only, never PhotoSwipe.
-- Approved UX: info opens the sheet, the info button is hidden while open, the chevron expands/collapses Prompt and Negative Prompt text, Prompt/Params/Model tabs work, copy buttons work, and PhotoSwipe image swipes continue to work.
-
-Historical dependency audit note, 2026-06-07:
-
-- `npm audit` reported 6 vulnerabilities: axios high, follow-redirects moderate, immutable high, picomatch high, rollup high, and vite high.
-- `npm audit --omit=dev` reported 2 production vulnerabilities: axios high and follow-redirects moderate.
-- Audit output suggested `npm audit fix`; no automatic fix was applied during the VSBS cleanup.
-- Re-run `npm audit` for current results before acting on these numbers.
+- PhotoSwipe owns image rendering, swipe, pan/zoom, keyboard/focus context, and lightbox lifecycle.
+- VSBS owns mobile sheet drag, snap, scroll, and animation only.
+- Gallery glue owns the info button, outside-tap sheet close, tab content, copy actions, prompt expansion, and protections that preserve PhotoSwipe gestures.
+- Keep VSBS `blocking=false`; do not add a second focus trap inside PhotoSwipe.
 
 ## Layout Dispatch
 
 `App.vue` selects the layout from `useDevice()`:
 
 ```vue
-<MobileLayout  v-else-if="isMobile"  />
-<TabletLayout  v-else-if="isTablet"  />
-<DesktopLayout v-else                />
+<MobileLayout  v-if="isMobile"  />
+<TabletLayout  v-else-if="isTablet" />
+<DesktopLayout v-else />
 ```
-
-Each layout owns its sidebar/header/content shell and receives data/actions from `App.vue`.
 
 | Device | Layout | Sidebar | Grid |
 |--------|--------|---------|------|
-| Mobile `<768px` | `MobileLayout.vue` | 240px overlay, destroyed on close | Native scroll |
-| Tablet `768-1199px` | `TabletLayout.vue` | 280px drawer, always in DOM, `inert` when closed | TanStack Virtual row-based grid |
-| Desktop/Wide `>=1200px` | `DesktopLayout.vue` | 280px persistent, collapsible | TanStack Virtual row-based grid |
+| Mobile `<768px` | `MobileLayout.vue` | Overlay/mobile shell | Native scroll |
+| Tablet `768-1199px` | `TabletLayout.vue` | Drawer/sidebar shell | TanStack Virtual row grid |
+| Desktop/Wide `>=1200px` | `DesktopLayout.vue` | Persistent/collapsible sidebar | TanStack Virtual row grid |
 
 ## Fragile Contracts
 
 - Keep `useDevice.ts`, `_breakpoints.scss`, and `useColumnResize.ts` synchronized when changing breakpoints.
 - Keep desktop lightbox `DESKTOP_METADATA_WIDTH`, `--lightbox-sidebar-width`, PhotoSwipe `paddingFn`, counter positioning, and next-arrow offset synchronized.
-- Keep mobile sheet drag/snap/scroll behavior delegated to VSBS; do not restore `.sheet-panel`, `.sheet-backdrop`, `.sheet-handle-wrapper` pointer drag, `--sheet-drag-y`, `dragDelta`, `sheetDragState`, custom pointer drag, or rAF drag-loop code.
-- Keep mobile outside-tap close non-blocking: no `stopPropagation()`, track `pointerId` and `isPrimary`, require pointerdown and pointerup outside the sheet, use the 10px movement threshold, handle `pointercancel`, and do not block PhotoSwipe swipe.
+- Keep mobile sheet drag/snap/scroll delegated to VSBS; do not restore the old custom pointer-drag sheet implementation.
+- Keep mobile outside-tap close non-blocking: no `stopPropagation()`, track `pointerId` and `isPrimary`, require pointerdown and pointerup outside the sheet, use the movement threshold, and handle `pointercancel`.
 - Keep `pswp.currIndex !== index` in the PhotoSwipe index watcher to prevent feedback loops.
-- Keep `hasEverLoaded` behavior in the gallery store so the UI does not show a false empty state before the first scan finishes.
+- Keep Query as the owner of server/API data and Pinia as the owner of UI/navigation state.
+- Do not move scan, infinite loading, folder tree, unified search, or lightbox metadata into TanStack DB without a dedicated collection-state design.
