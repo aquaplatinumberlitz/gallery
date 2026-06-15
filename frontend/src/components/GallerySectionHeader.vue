@@ -34,7 +34,7 @@ defineProps<{
   margin: 0;
   font-family: "Cinzel", serif;
   font-size: 16px;
-  font-weight: 400;
+  font-weight: 700;
   color: var(--brand-section-label);
   position: relative;
   display: inline-block;
