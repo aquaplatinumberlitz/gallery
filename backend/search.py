@@ -112,7 +112,7 @@ async def api_search(
 @router.get("/api/library/inspector")
 async def api_library_inspector(
     q: str = Query("", description="Free text or fielded metadata query"),
-    scope: Literal["current", "all"] = Query("all", description="Inspect current folder recursively or all indexed files"),
+    scope: Literal["current", "all"] = Query("current", description="Inspect current folder recursively or all indexed files"),
     path: str | None = Query(None, description="Current folder path when scope=current"),
     limit: int = Query(200, ge=1, le=200, description="Maximum inspector rows"),
 ):

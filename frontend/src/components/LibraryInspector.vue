@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import {
   createColumnHelper,
   getCoreRowModel,
@@ -33,6 +33,7 @@ import { useLightboxStore } from "@/stores/lightbox";
 import { fetchLibraryInspectorMetadata, getThumbnailUrl } from "@/services/api";
 import { queryClient } from "@/query";
 import { queryKeys } from "@/query/keys";
+import { clearScopeRebuildMarker, getScopeRebuildStartedAt } from "@/utils/indexMaintenance";
 import type {
   FileNode,
   LibraryInspectorMetadataResponse,
@@ -58,6 +59,27 @@ const rowMenuOpen = ref<Record<string, boolean>>({});
 
 const inspectorQuery = useLibraryInspectorQuery(query, scope, currentPath, limit);
 const metadataQuery = useLibraryInspectorMetadataQuery(detailPath, detailEnabled);
+const rebuildStartedAt = computed(() =>
+  scope.value === "current" ? getScopeRebuildStartedAt(currentPath.value) : 0
+);
+const isInspectorRebuilding = computed(() => {
+  const startedAt = rebuildStartedAt.value;
+  if (!startedAt) return false;
+  return (inspectorQuery.data.value.generated_at || 0) < startedAt;
+});
+const inspectorSummary = computed(() => {
+  if (isInspectorRebuilding.value) return "Rebuilding this scope...";
+  return `${inspectorQuery.data.value.returned} returned from ${inspectorQuery.data.value.total_indexed} metadata records in this scope`;
+});
+
+watch(
+  () => inspectorQuery.data.value.generated_at,
+  (generatedAt) => {
+    if (generatedAt && rebuildStartedAt.value && generatedAt >= rebuildStartedAt.value) {
+      clearScopeRebuildMarker(currentPath.value, generatedAt);
+    }
+  }
+);
 
 const columnHelper = createColumnHelper<LibraryInspectorRow>();
 const columns = [
@@ -246,8 +268,8 @@ function sortAriaLabel(columnId: string, header: unknown) {
             Library Inspector
           </h2>
           <p class="truncate text-sm text-muted-foreground">
-            {{ inspectorQuery.data.value.returned }} returned from {{ inspectorQuery.data.value.total_indexed }} metadata records in this scope
-            <span v-if="inspectorQuery.data.value.truncated">(showing first {{ inspectorQuery.data.value.limit }})</span>
+            {{ inspectorSummary }}
+            <span v-if="!isInspectorRebuilding && inspectorQuery.data.value.truncated">(showing first {{ inspectorQuery.data.value.limit }})</span>
           </p>
           <p class="truncate text-xs text-muted-foreground/70">
             Scope: {{ inspectorQuery.data.value.root || galleryStore.currentPath || "All indexed" }} · Recursive: Yes
@@ -270,7 +292,11 @@ function sortAriaLabel(columnId: string, header: unknown) {
       Unable to load metadata rows.
     </div>
 
-    <div class="table-shell">
+    <div v-if="isInspectorRebuilding" class="rebuild-notice">
+      Rebuilding this scope. Previous metadata rows are dimmed until the Inspector receives a fresh snapshot.
+    </div>
+
+    <div :class="['table-shell', isInspectorRebuilding && 'table-shell--rebuilding']">
       <table class="inspector-table">
         <thead>
           <tr v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
@@ -307,7 +333,7 @@ function sortAriaLabel(columnId: string, header: unknown) {
           </tr>
           <tr v-else-if="table.getRowModel().rows.length === 0">
             <td colspan="8" class="p-8 text-center text-sm text-muted-foreground">
-              No indexed metadata rows.
+              {{ isInspectorRebuilding ? "Rebuilding metadata rows..." : "No indexed metadata rows." }}
             </td>
           </tr>
           <tr
@@ -504,6 +530,19 @@ function sortAriaLabel(columnId: string, header: unknown) {
   border: 1px solid hsl(var(--border));
   border-radius: 8px;
   background: hsl(var(--background));
+}
+
+.table-shell--rebuilding .inspector-table {
+  opacity: 0.45;
+}
+
+.rebuild-notice {
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--muted) / 0.55);
+  padding: 10px 12px;
+  color: hsl(var(--muted-foreground));
+  font-size: 13px;
 }
 
 .inspector-table {

@@ -33,6 +33,7 @@ export interface IndexRebuildResponse {
   path: string;
   cleared: Record<string, number>;
   rebuild_started: boolean;
+  rebuild_started_at: number;
 }
 
 export class GalleryAPIError extends Error {
@@ -241,11 +242,12 @@ export const fetchLibraryInspector = async (
   opts?: { q?: string; scope?: SearchScope; path?: string; limit?: number }
 ): Promise<LibraryInspectorResponse> => {
   try {
+    const requestScope = opts?.scope ?? "current";
     const { data } = await api.get<LibraryInspectorResponse>("/api/library/inspector", {
       params: {
         q: opts?.q ?? "",
-        scope: opts?.scope ?? "all",
-        path: opts?.scope === "current" ? opts?.path : undefined,
+        scope: requestScope,
+        path: requestScope === "current" ? opts?.path : undefined,
         limit: opts?.limit ?? 200,
       },
     });

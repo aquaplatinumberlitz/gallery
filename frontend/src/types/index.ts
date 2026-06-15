@@ -103,6 +103,8 @@ export interface IndexStatusResponse {
   // From get_metadata_index_status (job stats)
   path: string;
   total: number;
+  indexed_photos: number;
+  metadata_records: number;
   counts: Record<string, number>;
   queued: number;
   running: number;
@@ -193,6 +195,7 @@ export interface LibraryInspectorResponse {
   scope: SearchScope;
   query: string;
   limit: number;
+  generated_at: number;
   total_indexed: number;
   returned: number;
   truncated: boolean;

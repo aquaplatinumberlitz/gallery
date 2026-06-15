@@ -55,13 +55,13 @@ function formatCount(value: number) {
 
         <span class="index-status-card__body">
           <span v-if="presentation.status === 'indexing' && progress.total !== null">
-            {{ formatCount(progress.indexed) }} / {{ formatCount(progress.total) }} metadata indexed
+            {{ formatCount(progress.indexed) }} / {{ formatCount(progress.total) }} jobs done
           </span>
           <span v-else-if="presentation.status === 'indexing'">
             Indexing...
           </span>
           <span v-else>
-            {{ formatCount(progress.indexed) }} metadata indexed
+            {{ formatCount(data?.metadata_records ?? 0) }} metadata records
           </span>
         </span>
 

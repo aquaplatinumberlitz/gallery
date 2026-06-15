@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import Button from "@/components/ui/Button.vue";
 import IndexStatusBadge from "@/components/IndexStatusBadge.vue";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type {
   IndexStatusCounts,
   IndexStatusPresentation,
@@ -62,7 +67,17 @@ function formatUpdatedAt(value: number | null | undefined) {
         </div>
 
         <div class="index-details__row">
-          <span>Metadata indexed</span>
+          <span>Metadata records</span>
+          <strong>{{ formatCount(data?.metadata_records ?? 0) }}</strong>
+        </div>
+
+        <div class="index-details__row">
+          <span>Indexed photos</span>
+          <strong>{{ formatCount(data?.indexed_photos ?? 0) }}</strong>
+        </div>
+
+        <div class="index-details__row">
+          <span>Done jobs</span>
           <strong>{{ formatCount(progress.indexed) }}</strong>
         </div>
 
@@ -96,7 +111,7 @@ function formatUpdatedAt(value: number | null | undefined) {
         <div class="index-details__progress-label">
           <span>Progress</span>
           <strong v-if="progress.total !== null">
-            {{ formatCount(progress.indexed) }} / {{ formatCount(progress.total) }} metadata indexed
+            {{ formatCount(progress.indexed) }} / {{ formatCount(progress.total) }} jobs done
           </strong>
           <strong v-else>Indexing...</strong>
         </div>
@@ -120,22 +135,40 @@ function formatUpdatedAt(value: number | null | undefined) {
     </p>
 
     <div class="index-details__actions">
-      <Button
-        variant="outline"
-        size="sm"
-        :disabled="!path || !!actionPending"
-        @click="emit('rescan')"
-      >
-        {{ actionPending === "rescan" ? "Rescanning..." : "Rescan" }}
-      </Button>
-      <Button
-        variant="secondary"
-        size="sm"
-        :disabled="!path || !!actionPending"
-        @click="emit('rebuild')"
-      >
-        {{ actionPending === "rebuild" ? "Rebuilding..." : "Rebuild index" }}
-      </Button>
+      <Tooltip>
+        <TooltipTrigger as-child>
+          <span class="inline-flex">
+            <Button
+              variant="outline"
+              size="sm"
+              :disabled="!path || !!actionPending"
+              @click="emit('rescan')"
+            >
+              {{ actionPending === "rescan" ? "Rescanning..." : "Rescan" }}
+            </Button>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>
+          Refresh this folder and queue new metadata work.
+        </TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger as-child>
+          <span class="inline-flex">
+            <Button
+              variant="secondary"
+              size="sm"
+              :disabled="!path || !!actionPending"
+              @click="emit('rebuild')"
+            >
+              {{ actionPending === "rebuild" ? "Rebuilding..." : "Rebuild" }}
+            </Button>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>
+          Clear this scope's index cache, then scan it again.
+        </TooltipContent>
+      </Tooltip>
     </div>
   </div>
 </template>

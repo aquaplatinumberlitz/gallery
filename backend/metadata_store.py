@@ -564,11 +564,40 @@ def get_metadata_index_status(path: str | Path | None = None) -> dict[str, Any]:
             params,
         ).fetchone()
 
+        indexed_photos_row = conn.execute(
+            f"""
+            SELECT count(*) AS total
+            FROM file_index
+            {where + (' AND' if where else 'WHERE')} type = 'photo'
+            """,
+            params,
+        ).fetchone()
+
+        metadata_scope = ""
+        metadata_params: list[Any] = []
+        if path:
+            resolved = str(Path(path).resolve())
+            prefix = f"{resolved.rstrip(os.sep)}{os.sep}"
+            metadata_scope = "AND (fi.path = ? OR fi.path LIKE ? ESCAPE '\\')"
+            metadata_params = [resolved, f"{_like_escape(prefix)}%"]
+        metadata_records_row = conn.execute(
+            f"""
+            SELECT count(*) AS total
+            FROM image_metadata m
+            JOIN file_index fi ON fi.path = m.path
+            WHERE fi.type = 'photo'
+            {metadata_scope}
+            """,
+            metadata_params,
+        ).fetchone()
+
     now = time.time()
     oldest_queued_at = oldest_queued_row["oldest_queued_at"] if oldest_queued_row else None
     return {
         "path": root,
         "total": sum(counts.values()),
+        "indexed_photos": int(indexed_photos_row["total"] if indexed_photos_row else 0),
+        "metadata_records": int(metadata_records_row["total"] if metadata_records_row else 0),
         "counts": counts,
         "queued": counts["queued"],
         "running": counts["running"],
@@ -2148,7 +2177,7 @@ def _format_inspector_row(row: sqlite3.Row, root: Path) -> dict[str, Any]:
 
 def list_library_inspector_rows(
     query: str = "",
-    scope: str = "all",
+    scope: str = "current",
     root_path: str | Path | None = None,
     limit: int = 200,
 ) -> dict[str, Any]:
@@ -2215,6 +2244,7 @@ def list_library_inspector_rows(
         "scope": normalized_scope,
         "query": query,
         "limit": bounded_limit,
+        "generated_at": time.time(),
         "total_indexed": int(total_row["total"] if total_row else 0),
         "returned": len(rows),
         "truncated": len(fetched_rows) > bounded_limit,

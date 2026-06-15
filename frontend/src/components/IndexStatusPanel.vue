@@ -20,6 +20,7 @@ import { IMAGE_PAGE_SIZE } from "@/constants";
 import { queryClient } from "@/query";
 import { normalizeQueryPath, queryKeys } from "@/query/keys";
 import { rebuildIndex, scanDirectory } from "@/services/api";
+import { markScopeRebuildStarted } from "@/utils/indexMaintenance";
 import {
   getIndexStatusState,
   getIndexStatusCounts,
@@ -102,7 +103,8 @@ async function triggerIndexAction(action: "rescan" | "rebuild") {
 
   try {
     if (action === "rebuild") {
-      await rebuildIndex(requestPath);
+      const rebuild = await rebuildIndex(requestPath);
+      markScopeRebuildStarted(rebuild.path || requestPath, rebuild.rebuild_started_at);
     } else {
       await scanDirectory(requestPath, { imageLimit: 1, imageCursor: 0 });
     }
@@ -219,7 +221,13 @@ function onRebuildCancelled() {
         <!-- Summary metrics -->
         <div class="space-y-1 text-sm">
           <div class="flex items-center justify-between">
-            <span class="text-muted-foreground">{{ counts.done.toLocaleString() }} metadata indexed</span>
+            <span class="text-muted-foreground">
+              {{ (data.metadata_records ?? 0).toLocaleString() }} metadata records ·
+              {{ (data.indexed_photos ?? 0).toLocaleString() }} indexed photos
+            </span>
+          </div>
+          <div v-if="counts.done > 0" class="flex items-center justify-between">
+            <span class="text-muted-foreground">{{ counts.done.toLocaleString() }} done jobs</span>
           </div>
           <div v-if="(data.failed ?? 0) > 0" class="flex items-center justify-between">
             <span class="text-destructive">{{ data.failed }} {{ data.failed === 1 ? 'failed job' : 'failed jobs' }}</span>

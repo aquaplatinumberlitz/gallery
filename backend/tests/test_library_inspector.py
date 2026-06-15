@@ -91,9 +91,20 @@ def test_library_inspector_scoped_current_returns_only_path_descendants(
     assert scoped.status_code == 200
     scoped_data = scoped.json()
     assert scoped_data["scope"] == "current"
+    assert isinstance(scoped_data["generated_at"], (int, float))
     assert scoped_data["total_indexed"] == 1
     assert len(scoped_data["rows"]) == 1
     assert scoped_data["rows"][0]["name"] == "sky.png"
+
+    default_scoped = isolated_app.get(
+        "/api/library/inspector",
+        params={"q": "", "path": str(isolated_gallery_root / "album_a"), "limit": 200},
+    )
+    assert default_scoped.status_code == 200
+    default_scoped_data = default_scoped.json()
+    assert default_scoped_data["scope"] == "current"
+    assert default_scoped_data["total_indexed"] == 1
+    assert default_scoped_data["rows"][0]["name"] == "sky.png"
 
     scoped_b = isolated_app.get(
         "/api/library/inspector",

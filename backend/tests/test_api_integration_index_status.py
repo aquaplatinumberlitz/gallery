@@ -19,7 +19,7 @@ class TestIndexStatus:
         assert resp.status_code == 200
         data = resp.json()
         # Core keys
-        for key in ("path", "total", "queued", "running", "done", "failed"):
+        for key in ("path", "total", "indexed_photos", "metadata_records", "queued", "running", "done", "failed"):
             assert key in data
         # Runtime keys
         for key in ("enabled", "active_jobs", "runtime_queue_depth"):
@@ -124,6 +124,8 @@ class TestIndexStatus:
 
         before_album = get_metadata_index_status(album)
         assert before_album["total"] > 0
+        assert before_album["indexed_photos"] >= 3
+        assert before_album["metadata_records"] >= 3
         before_sibling = get_metadata_index_status(sibling)
         assert before_sibling["total"] > 0
 
@@ -136,6 +138,7 @@ class TestIndexStatus:
         data = resp.json()
         assert data["path"] == str(album.resolve())
         assert data["rebuild_started"] is True
+        assert isinstance(data["rebuild_started_at"], (int, float))
         assert data["cleared"]["file_index"] > 0
         assert data["cleared"]["image_metadata"] > 0
         assert data["cleared"]["metadata_index_jobs"] > 0

@@ -658,10 +658,12 @@ async def api_index_rebuild(
         raise APIError(400, ErrorType.NOT_DIRECTORY, "Path is not a folder")
 
     cleared = await run_in_threadpool(clear_index_records, target)
+    rebuild_started_at = time.time()
     background_tasks.add_task(_rebuild_index_scope_safely, target)
 
     return {
         "path": str(target),
         "cleared": cleared,
         "rebuild_started": True,
+        "rebuild_started_at": rebuild_started_at,
     }
