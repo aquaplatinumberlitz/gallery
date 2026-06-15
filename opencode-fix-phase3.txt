@@ -1,0 +1,49 @@
+Fix the following issues in the gallery repo at /home/ubuntu/gallery-repo. All changes must be clean, well-typed, follow existing code patterns, and include proper error handling. No hotfixes, no lazy patches.
+
+IMPORTANT: Before editing any file, read it first with cat or git show to understand the full context around each line.
+
+---
+
+### FIX 1 — search.py:175 dead code (MINOR)
+
+File: backend/search.py, around line 175
+
+Issue: `data["truncated"] = query_truncated or len(safe_rows) > limit`
+`len(safe_rows)` is never greater than `limit` here because rows are already bounded by `limit` and sliced with `[:limit]`. The second disjunct is dead code.
+
+Fix: Simplify to `data["truncated"] = query_truncated`.
+
+Context: Read the file first to understand the full method. The `truncated` value is also used soon afterwards to pass to the response.
+
+---
+
+### FIX 2 — search.py:160 overscan stale filter (MINOR)
+
+File: backend/search.py, around line 155-165
+
+Issue: Overscan for stale rows only triggers when `len(safe_rows) < limit`. If exactly `limit` safe rows remain after filtering stale rows from the first batch, stale entries beyond the first page are not backfilled until the next request.
+
+Fix: After the stale filter loop, if `stale_detected` is true AND the returned rows are fewer than what the query originally requested (before truncation), do one more overscan+filter pass. Keep it simple — just one extra pass, no infinite loop.
+
+Read the full function first to understand the flow.
+
+---
+
+### FIX 3 — LibraryInspector.vue:170 copyDetail return boolean (SUGGESTION)
+
+File: frontend/src/components/LibraryInspector.vue, around line 165-175
+
+Issue: `copyDetail()` catches errors and shows a toast, but doesn't return a boolean. The dropdown menu item still executes even on failure.
+
+Fix: Make `copyDetail()` return `Promise<boolean>` (true on success, false on failure). Update callers (the DropdownMenuItems at around lines 350-380 that call `copyDetail`) to use the boolean if needed. Keep the toast on failure.
+
+Read the component first, understand the full function and all callers.
+
+---
+
+CRITICAL RULES:
+- Read each file in full before editing.
+- Use patch() or write_file() for each change.
+- After each fix, run `npm run build` in frontend/ to verify no type errors.
+- Do NOT change any test files unless the fix requires it.
+- Do NOT introduce console.log, debug code, or any other noise.

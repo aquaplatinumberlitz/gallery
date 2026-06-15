@@ -1,0 +1,19 @@
+Audit commit 71894ad in the gallery repo at /home/ubuntu/gallery-repo.
+
+First, run: git show 71894ad:backend/search.py to see search.py
+Then: git show 71894ad:backend/metadata_store.py | tail -150 to see the inspector functions
+Then: git show 71894ad:frontend/src/components/LibraryInspector.vue 
+Then: git show 71894ad:frontend/src/composables/useLibraryInspectorQuery.ts
+Then: git show 71894ad:frontend/src/services/api.ts | grep -A 20 libraryInspector
+
+Audit these files for:
+
+1. BACKEND SECURITY: Any path traversal, injection, unsafe patterns in the new endpoints?
+
+2. FRONTEND QUALITY: Dead code, console.log, missing error handling, type errors?
+
+3. PLAN COMPLIANCE: Phase 3 = read-only, desktop-first, no admin cockpit, no batch ops. Violations?
+
+4. REAL BUGS ONLY: Be specific with file:line. Skip anything you can't verify.
+
+Output format: Short report, severity (CRITICAL/MAJOR/MINOR/SUGGESTION).

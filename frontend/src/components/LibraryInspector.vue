@@ -54,6 +54,7 @@ const sorting = ref<SortingState>([{ id: "mtime", desc: true }]);
 const selectedPath = ref("");
 const detailPath = ref("");
 const detailEnabled = ref(false);
+const rowMenuOpen = ref<Record<string, boolean>>({});
 
 const inspectorQuery = useLibraryInspectorQuery(query, scope, currentPath, limit);
 const metadataQuery = useLibraryInspectorMetadataQuery(detailPath, detailEnabled);
@@ -168,26 +169,52 @@ function formatResources(resources: LibraryInspectorResource[]) {
     .join("\n");
 }
 
-async function copyDetail(row: LibraryInspectorRow, kind: "prompt" | "negative" | "metadata" | "loras" | "hashes") {
+async function copyDetail(
+  row: LibraryInspectorRow,
+  kind: "prompt" | "negative" | "metadata" | "loras" | "hashes",
+): Promise<boolean> {
   try {
     const detail = await queryClient.fetchQuery({
       queryKey: queryKeys.libraryInspectorMetadata(row.path),
       queryFn: () => fetchLibraryInspectorMetadata(row.path),
     });
-    if (kind === "prompt") return copyText(detail.prompt, "prompt");
-    if (kind === "negative") return copyText(detail.negative_prompt, "neg");
-    if (kind === "loras") return copyText(formatResources(detail.loras), "loras");
+    if (kind === "prompt") {
+      await copyText(detail.prompt, "prompt");
+      return true;
+    }
+    if (kind === "negative") {
+      await copyText(detail.negative_prompt, "neg");
+      return true;
+    }
+    if (kind === "loras") {
+      await copyText(formatResources(detail.loras), "loras");
+      return true;
+    }
     if (kind === "hashes") {
       const hashes = [...detail.loras, ...detail.resources]
         .map((item) => item.resource_hash || item.hash)
         .filter(Boolean)
         .join("\n");
-      return copyText(hashes, "hashes");
+      await copyText(hashes, "hashes");
+      return true;
     }
-    return copyText(composeMetadata(detail), "metadata");
+    await copyText(composeMetadata(detail), "metadata");
+    return true;
   } catch {
     toast.error("Unable to load metadata", "The indexed metadata detail could not be fetched.");
+    return false;
   }
+}
+
+function handleCopyDetailSelect(
+  event: Event,
+  row: LibraryInspectorRow,
+  kind: "prompt" | "negative" | "metadata" | "loras" | "hashes",
+) {
+  event.preventDefault();
+  copyDetail(row, kind).then((ok) => {
+    if (ok) rowMenuOpen.value[row.path] = false;
+  });
 }
 
 function sortLabel(columnId: string) {
@@ -400,7 +427,7 @@ function sortAriaLabel(columnId: string, header: unknown) {
             <td class="table-cell col-dimensions">{{ formatDimensions(row.original) }}</td>
             <td class="table-cell col-mtime">{{ formatDate(row.original.mtime) }}</td>
             <td class="table-cell col-actions">
-              <DropdownMenu>
+              <DropdownMenu v-model:open="rowMenuOpen[row.original.path]">
                 <DropdownMenuTrigger as-child>
                   <Button variant="ghost" size="icon-sm" aria-label="Row actions" @click.stop>
                     <MoreHorizontal class="size-4" />
@@ -416,16 +443,16 @@ function sortAriaLabel(columnId: string, header: unknown) {
                   <DropdownMenuItem v-if="row.original.seed" @click="copyText(row.original.seed, 'seed')">
                     <Copy class="size-4" /> Copy seed
                   </DropdownMenuItem>
-                  <DropdownMenuItem v-if="row.original.has_prompt" @click="copyDetail(row.original, 'prompt')">
+                  <DropdownMenuItem v-if="row.original.has_prompt" @select="(event: Event) => handleCopyDetailSelect(event, row.original, 'prompt')">
                     <Copy class="size-4" /> Copy prompt
                   </DropdownMenuItem>
-                  <DropdownMenuItem v-if="row.original.has_negative" @click="copyDetail(row.original, 'negative')">
+                  <DropdownMenuItem v-if="row.original.has_negative" @select="(event: Event) => handleCopyDetailSelect(event, row.original, 'negative')">
                     <Copy class="size-4" /> Copy negative
                   </DropdownMenuItem>
-                  <DropdownMenuItem v-if="row.original.has_lora" @click="copyDetail(row.original, 'loras')">
+                  <DropdownMenuItem v-if="row.original.has_lora" @select="(event: Event) => handleCopyDetailSelect(event, row.original, 'loras')">
                     <Copy class="size-4" /> Copy LoRA list
                   </DropdownMenuItem>
-                  <DropdownMenuItem @click="copyDetail(row.original, 'metadata')">
+                  <DropdownMenuItem @select="(event: Event) => handleCopyDetailSelect(event, row.original, 'metadata')">
                     <Copy class="size-4" /> Copy full metadata
                   </DropdownMenuItem>
                 </DropdownMenuContent>

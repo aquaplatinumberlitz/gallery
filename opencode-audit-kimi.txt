@@ -1,0 +1,29 @@
+Audit commit 71894ad in the gallery repo at /home/ubuntu/gallery-repo.
+
+Focus on real bugs and plan compliance only. Verify claims against actual code — do NOT guess file paths.
+
+REAL FILES (verify these exist before commenting):
+- backend/search.py — API routes: api_library_inspector (line 113), api_library_inspector_metadata (line 154)
+- backend/metadata_store.py — list_library_inspector_rows (line 2059), get_library_inspector_metadata (line 2146)
+- frontend/src/components/LibraryInspector.vue
+- frontend/src/composables/useLibraryInspectorQuery.ts
+- frontend/src/composables/useLibraryInspectorMetadataQuery.ts
+- frontend/src/services/api.ts
+- frontend/src/router/index.ts
+- frontend/src/types/index.ts
+- backend/tests/test_library_inspector.py
+- frontend/tests/library-inspector.spec.ts
+
+AUDIT SCOPE (keep each answer short, use bullet points):
+
+1. BACKEND SECURITY: Any path traversal, injection, or unsafe patterns in the new endpoints?
+
+2. FRONTEND QUALITY: Any dead code, console.log, missing error handling, or type errors?
+
+3. PLAN COMPLIANCE: The plan says Phase 3 is read-only, desktop-first, no admin cockpit, no batch ops. Does the code violate any of these?
+
+4. TESTS: Do the tests actually test what they claim? Any obvious gaps?
+
+5. REAL BUGS: List only genuine bugs you can verify in the actual code. Be specific: file:line, description.
+
+OUTPUT: A short report with severity (CRITICAL/MAJOR/MINOR/SUGGESTION). If a claim cannot be verified in the actual code, mark it as UNVERIFIED.

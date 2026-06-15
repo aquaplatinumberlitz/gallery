@@ -1,0 +1,50 @@
+Audit commit 71894ad (Phase 3 — Library Inspector MVP) in the gallery repo at /home/ubuntu/gallery-repo.
+
+CONTEXT:
+This commit implements Phase 3 — "Library Inspector" MVP. It adds:
+- Backend: GET /api/library/inspector (metadata listing), GET /api/library/inspector/metadata (detail)
+- Frontend: vue-router at /metadata route, LibraryInspector.vue (TanStack Table), GalleryRoute.vue, composables
+- Tests: backend test_library_inspector.py, frontend library-inspector.spec.ts (Playwright)
+
+The plan doc is at docs/plan/FRONTEND_UIUX_DT_IMMICH_ADAPTATION_PLAN.md
+
+AUDIT SCOPE:
+1. Backend:
+   - Do the new endpoints (/api/library/inspector, /api/library/inspector/metadata) follow existing patterns in search.py and metadata_store.py?
+   - Are paths properly validated (is_path_safe, resolve_path)?
+   - Are there any security issues (path traversal, injection)?
+   - Do the endpoints reuse the existing fielded search parser correctly?
+   - Are the response types consistent with existing APIs?
+
+2. Frontend:
+   - LibraryInspector.vue: Does it follow the plan's requirements?
+     - Read-only, desktop-first
+     - Columns: thumbnail, name, folder, model, sampler, seed, dimensions, modified
+     - Sorting by column headers
+     - Global search filter
+     - Row actions: open lightbox, copy path, copy seed, copy metadata
+     - Uses Popover for prompt/LoRA detail (DB-first, no sync parse)
+     - Uses DropdownMenu for row actions
+   - Does the vue-router setup (/metadata route) work correctly alongside existing IntroScreen/Gallery view-switching?
+   - Are there any type errors or missing imports?
+   - Does the shadcn-vue usage follow the project's finals policy (standard UI = Stone defaults, not gallery warm colors)?
+
+3. Tests:
+   - Do the backend tests actually test the new endpoints?
+   - Do the frontend Playwright tests pass?
+   - Are there any obvious gaps in test coverage?
+
+4. Plan compliance:
+   - Does the implementation match what docs/plan/FRONTEND_UIUX_DT_IMMICH_ADAPTATION_PLAN.md describes for Phase 3?
+   - Are there features in the code that the plan explicitly excludes (admin cockpit, duplicate finder, broken image scanner, watcher/refresh panels, batch operations)?
+
+5. Overall code quality:
+   - Any dead code, commented-out code, debug console.log left in?
+   - Any obvious performance issues?
+   - Any missing error handling?
+
+OUTPUT: A structured audit report. For each issue found, provide:
+- Severity (CRITICAL / MAJOR / MINOR / SUGGESTION)
+- File and line
+- Description of the issue
+- Recommended fix
