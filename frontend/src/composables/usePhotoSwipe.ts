@@ -57,8 +57,10 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
       ? { width: item.width, height: item.height, source: "scan" }
       : null;
 
-  const thumbnailDimensions = (item: FileNode): LightboxDimensions | null =>
-    lightboxStore.getRememberedDimensions(item.path) ?? null;
+  const rememberedDimensions = (item: FileNode): LightboxDimensions | null => {
+    const dimensions = lightboxStore.getRememberedDimensions(item.path);
+    return dimensions?.source === "thumbnail" ? null : dimensions ?? null;
+  };
 
   const cachedMetadataDimensions = (path: string): LightboxDimensions | null => {
     const metadata = queryClient.getQueryData<MetadataResponse>(queryKeys.metadata(path));
@@ -68,7 +70,7 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
   };
 
   const bestKnownDimensions = (item: FileNode): LightboxDimensions | null =>
-    scanDimensions(item) ?? thumbnailDimensions(item) ?? cachedMetadataDimensions(item.path);
+    scanDimensions(item) ?? rememberedDimensions(item) ?? cachedMetadataDimensions(item.path);
 
   const fetchMetadataDimensions = async (path: string): Promise<LightboxDimensions | null> => {
     const metadata = await queryClient.fetchQuery({
@@ -107,7 +109,7 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
     });
 
   const resolveDimensions = (item: FileNode): Promise<LightboxDimensions | null> => {
-    const known = scanDimensions(item) ?? thumbnailDimensions(item);
+    const known = scanDimensions(item) ?? rememberedDimensions(item);
     if (known) return Promise.resolve(known);
 
     const cachedMetadata = cachedMetadataDimensions(item.path);

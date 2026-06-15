@@ -47,6 +47,7 @@ export const useLightboxStore = defineStore("lightbox", {
 
     rememberDimensions(path: string, dimensions: LightboxDimensions) {
       if (!path || dimensions.width <= 0 || dimensions.height <= 0) return;
+      if (dimensions.source === "thumbnail") return;
 
       this.dimensionsByPath[path] = dimensions;
 

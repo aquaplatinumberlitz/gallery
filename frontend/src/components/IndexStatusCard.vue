@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Database } from "lucide-vue-next";
 import IndexStatusBadge from "@/components/IndexStatusBadge.vue";
 import IndexStatusDetailsPopover from "@/components/IndexStatusDetailsPopover.vue";
 import {
@@ -45,7 +46,10 @@ function formatCount(value: number) {
         aria-label="Index Status"
       >
         <span class="index-status-card__top">
-          <span class="index-status-card__title">Index</span>
+          <span class="index-status-card__title">
+            <Database class="size-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
+            <span>Index</span>
+          </span>
           <IndexStatusBadge :presentation="presentation" />
         </span>
 

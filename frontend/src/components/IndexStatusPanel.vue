@@ -160,7 +160,20 @@ function onRebuildCancelled() {
         class="h-8 gap-1.5 px-2.5 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center"
         aria-label="Index Status"
       >
-        <Database class="size-3.5" />
+        <span class="relative inline-flex">
+          <Database class="size-3.5" />
+          <span
+            class="absolute -bottom-0.5 -right-0.5 size-1.5 rounded-full hidden group-data-[collapsible=icon]:block"
+            :class="[
+              statusPresentation.tone === 'green' ? 'bg-green-500' :
+              statusPresentation.tone === 'yellow' ? 'bg-amber-500' :
+              statusPresentation.tone === 'red' ? 'bg-red-500' :
+              'bg-gray-400',
+              statusPresentation.showPulse ? 'animate-pulse' : '',
+            ]"
+            aria-hidden="true"
+          />
+        </span>
         <Badge :variant="statusState === 'failed' || (data?.failed ?? 0) > 0 ? 'destructive' : statusState === 'active' ? 'secondary' : 'outline'" class="px-1.5 py-0 text-[10px] leading-none group-data-[collapsible=icon]:hidden">
           {{ statusLabel }}
         </Badge>

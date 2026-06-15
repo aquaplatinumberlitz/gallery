@@ -26,8 +26,12 @@ function requestedPath(requests: ApiRequest[], pathname: string, path: string) {
   return requests.some((request) => request.pathname === pathname && request.path === path);
 }
 
-async function installStubbedGallery(page: Page, options: { failPreviewFor?: string } = {}) {
+async function installStubbedGallery(
+  page: Page,
+  options: { failPreviewFor?: string; includeScanDimensions?: boolean } = {}
+) {
   const requests: ApiRequest[] = [];
+  const includeScanDimensions = options.includeScanDimensions ?? true;
 
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
@@ -49,8 +53,8 @@ async function installStubbedGallery(page: Page, options: { failPreviewFor?: str
             path,
             type: "image",
             mtime: 1000 + index,
-            width: 1600,
-            height: 1000,
+            width: includeScanDimensions ? 1600 : null,
+            height: includeScanDimensions ? 1000 : null,
           })),
           next_cursor: null,
           total_images: imagePaths.length,
@@ -162,6 +166,25 @@ test("normal lightbox open uses thumbnail and preview without original", async (
   expect(requestsFor(requests, "/api/thumbnail").every((request) => request.maxLongEdge === "512")).toBe(true);
   expect(requestsFor(requests, "/api/preview").every((request) => request.maxLongEdge === "1440")).toBe(true);
   expect(requestsFor(requests, "/api/image")).toHaveLength(0);
+});
+
+test("lightbox does not size the first open from grid thumbnail dimensions", async ({ page }) => {
+  const requests = await installStubbedGallery(page, { includeScanDimensions: false });
+  await openStubbedGallery(page, requests);
+  await openLightbox(page, requests);
+
+  await expect.poll(async () => page.evaluate(() => Boolean(document.querySelector(".pswp__img")))).toBe(true);
+
+  const imageRect = await page.evaluate(() => {
+    const img = document.querySelector(".pswp__img") as HTMLElement | null;
+    if (!img) return null;
+    const rect = img.getBoundingClientRect();
+    return { width: rect.width, height: rect.height };
+  });
+
+  expect(imageRect, "PhotoSwipe image should exist").not.toBeNull();
+  expect(imageRect!.width, "first open must not use the 1px stub thumbnail width").toBeGreaterThan(300);
+  expect(imageRect!.height, "first open must not use the 1px stub thumbnail height").toBeGreaterThan(300);
 });
 
 test("zoom beyond threshold requests original for the current image", async ({ page }) => {

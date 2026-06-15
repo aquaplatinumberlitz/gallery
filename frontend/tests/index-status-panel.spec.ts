@@ -472,4 +472,44 @@ test.describe("IndexStatusPanel", () => {
     const rebuildUrl = new URL(rebuildReq.url());
     expect(rebuildUrl.searchParams.get("confirm")).toBe("true");
   });
+
+  test("card variant shows Database icon near Index title", async ({ page }) => {
+    await installStubbedGallery(page);
+    await openStubbedGallery(page, true);
+
+    const dbIcon = page.locator(".index-status-card .index-status-card__title .lucide-database");
+    await expect(dbIcon).toBeVisible({ timeout: 5_000 });
+    await expect(dbIcon).toHaveClass(/lucide-database/);
+  });
+
+  test("collapsed state shows status dot on icon", async ({ page }) => {
+    await page.setViewportSize({ width: 768, height: 1024 });
+
+    await installStubbedGallery(page);
+    await openStubbedGallery(page, true);
+
+    const dot = page.getByLabel("Index Status").locator("span.relative span.absolute");
+    await expect(dot).toBeAttached();
+    await expect(dot).toHaveAttribute("aria-hidden", "true");
+    await expect(dot).toHaveClass(/size-1\.5/);
+    await expect(dot).toHaveClass(/rounded-full/);
+    await expect(dot).toHaveClass(/hidden/);
+    await expect(dot).toHaveClass(/group-data-\[collapsible=icon\]:block/);
+    await expect(dot).toHaveClass(/(bg-green-500|bg-amber-500|bg-red-500|bg-gray-400)/);
+  });
+
+  test("mobile viewport preserves button variant", async ({ page }) => {
+    await page.setViewportSize({ width: 768, height: 1024 });
+
+    await installStubbedGallery(page);
+    await openStubbedGallery(page, true);
+
+    const statusButton = page.getByLabel("Index Status");
+    await expect(statusButton).toBeVisible({ timeout: 10_000 });
+    await statusButton.click();
+
+    const popover = page.getByRole("dialog", { name: "Index Status" });
+    await expect(popover).toBeVisible({ timeout: 5_000 });
+    await expect(popover).toContainText("150 indexed");
+  });
 });
