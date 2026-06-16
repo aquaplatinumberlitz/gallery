@@ -78,7 +78,7 @@ const compactReadySummary = computed(() => {
     if (staleCount > 0) {
       return `${staleCount.toLocaleString()} photos need updating`;
     }
-    return "Photo details need update";
+    return "Photo details need updating";
   }
 
   if (metadata === indexed || indexed === 0) {
