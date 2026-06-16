@@ -137,7 +137,7 @@ function handleClearAll() {
         <TooltipContent>Change Intro Page</TooltipContent>
       </Tooltip>
     </div>
-    <div class="brand-hero flex items-center justify-center gap-3 text-center">
+    <div v-if="!isMetadataRoute" class="brand-hero flex items-center justify-center gap-3 text-center">
       <div class="brand-icon flicker-effect">
         <Landmark :size="40" />
       </div>
@@ -182,7 +182,7 @@ function handleClearAll() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <div class="header-search-area">
+      <div v-if="!isMetadataRoute" class="header-search-area">
         <div class="search-box">
           <Tooltip>
             <TooltipTrigger as-child>

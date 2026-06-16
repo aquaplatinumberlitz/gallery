@@ -54,7 +54,6 @@ function formatUpdatedAt(value: number | null | undefined) {
     <div class="index-details__header">
       <div>
         <p class="index-details__eyebrow">Index</p>
-        <p class="index-details__title">Status details</p>
       </div>
       <IndexStatusBadge :presentation="presentation" />
     </div>
@@ -68,13 +67,6 @@ function formatUpdatedAt(value: number | null | undefined) {
     </div>
 
     <template v-else>
-      <div class="index-details__section">
-        <p class="index-details__section-label">Status</p>
-        <div class="index-details__row">
-          <strong class="index-details__row-key">{{ presentation.label }}</strong>
-        </div>
-      </div>
-
       <div class="index-details__section">
         <p class="index-details__section-label">Library</p>
 
@@ -241,15 +233,8 @@ function formatUpdatedAt(value: number | null | undefined) {
 
 .index-details__eyebrow {
   margin: 0;
-  color: var(--muted-foreground);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.index-details__title {
-  margin: 2px 0 0;
   color: var(--foreground);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 650;
 }
 

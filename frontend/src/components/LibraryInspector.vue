@@ -7,12 +7,27 @@ import {
   useVueTable,
   type SortingState,
 } from "@tanstack/vue-table";
-import { ArrowLeft, Copy, ExternalLink, MoreHorizontal, Search } from "lucide-vue-next";
+import { ArrowDown, ArrowLeft, ArrowUp, ArrowUpDown, Clock, Copy, ExternalLink, MoreHorizontal, Search } from "lucide-vue-next";
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
 import ButtonLink from "@/components/ui/ButtonLink.vue";
 import Input from "@/components/ui/Input.vue";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -56,6 +71,8 @@ const scope = ref<SearchScope>("current");
 const currentPath = computed(() => galleryStore.currentPath || "");
 const limit = ref(200);
 const sorting = ref<SortingState>([{ id: "mtime", desc: true }]);
+const modelFilter = ref("all");
+const promptFilter = ref<"all" | "has_prompt" | "no_prompt">("all");
 const selectedPath = ref("");
 const detailPath = ref("");
 const detailEnabled = ref(false);
@@ -100,9 +117,13 @@ const inspectorSummary = computed(() => {
   const returned = inspectorQuery.data.value.returned;
   const total = inspectorQuery.data.value.total_indexed;
   if (returned < total) {
-    return `Showing first ${returned.toLocaleString()} of ${total.toLocaleString()} photo details`;
+    return `${returned.toLocaleString()} of ${total.toLocaleString()} indexed photos shown`;
   }
-  return `Showing ${returned.toLocaleString()} photo details`;
+  return `${total.toLocaleString()} indexed photos`;
+});
+const pageSummary = computed(() => {
+  const root = inspectorQuery.data.value.root || galleryStore.currentPath || "All indexed";
+  return `${inspectorSummary.value} · ${root} · Including subfolders`;
 });
 
 const REBUILD_INSPECTOR_REFETCH_MS = 1_500;
@@ -230,9 +251,8 @@ onBeforeUnmount(() => {
 
 const columnHelper = createColumnHelper<LibraryInspectorRow>();
 const columns = [
-  columnHelper.display({ id: "thumbnail", header: "", enableSorting: false }),
   columnHelper.accessor("name", { id: "name", header: "File", enableSorting: true }),
-  columnHelper.accessor("prompt_preview", { id: "prompt", header: "Prompt", enableSorting: false }),
+  columnHelper.accessor("prompt_preview", { id: "prompt", header: "Prompt preview", enableSorting: false }),
   columnHelper.accessor((row) => row.model || row.tool, { id: "model", header: "Model", enableSorting: true }),
   columnHelper.accessor("seed", { id: "seed", header: "Seed", enableSorting: true }),
   columnHelper.accessor((row) => `${row.width || ""}x${row.height || ""}`, { id: "dimensions", header: "Size", enableSorting: true }),
@@ -240,9 +260,36 @@ const columns = [
   columnHelper.display({ id: "actions", header: "", enableSorting: false }),
 ];
 
+const modelOptions = computed(() => {
+  const options = new Set<string>();
+  for (const row of inspectorQuery.rows.value) {
+    const label = modelLabel(row);
+    if (label && label !== "Unknown") options.add(label);
+  }
+  return Array.from(options).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+});
+
+watch(modelOptions, (options) => {
+  if (modelFilter.value !== "all" && !options.includes(modelFilter.value)) {
+    modelFilter.value = "all";
+  }
+});
+
+const filteredRows = computed(() =>
+  inspectorQuery.rows.value.filter((row) => {
+    if (modelFilter.value !== "all" && modelLabel(row) !== modelFilter.value) return false;
+    if (promptFilter.value === "has_prompt" && !row.has_prompt) return false;
+    if (promptFilter.value === "no_prompt" && row.has_prompt) return false;
+    return true;
+  })
+);
+const metadataSortOrder = computed<"asc" | "desc">(() =>
+  sorting.value[0]?.id === "mtime" && sorting.value[0]?.desc === false ? "asc" : "desc"
+);
+
 const table = useVueTable({
   get data() {
-    return inspectorQuery.rows.value;
+    return filteredRows.value;
   },
   columns,
   state: {
@@ -253,6 +300,7 @@ const table = useVueTable({
   onSortingChange(updater) {
     sorting.value = typeof updater === "function" ? updater(sorting.value) : updater;
   },
+  enableSortingRemoval: false,
   getCoreRowModel: getCoreRowModel(),
   getSortedRowModel: getSortedRowModel(),
 });

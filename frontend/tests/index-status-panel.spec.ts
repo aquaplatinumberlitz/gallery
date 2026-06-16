@@ -213,7 +213,6 @@ test.describe("IndexStatusPanel", () => {
     await expect(popover).toBeVisible({ timeout: 5_000 });
 
     // Summary fields visible by default
-    await expect(popover).toContainText("Status");
     await expect(popover).toContainText("Ready");
     await expect(popover).toContainText("Photo details ready");
     await expect(popover).toContainText("150");
