@@ -68,6 +68,24 @@ const statusPresentation = computed(() => getIndexStatusPresentation(data.value 
 const errorMessage = computed(() => (error.value as Error | null)?.message || "Failed to load status");
 const isDebugEnabled = computed(() => isIndexRebuildDebugEnabled());
 
+const compactReadySummary = computed(() => {
+  const metadata = data.value?.metadata_records ?? 0;
+  const indexed = data.value?.indexed_photos ?? 0;
+  if (metadata === indexed || indexed === 0) {
+    return `${metadata.toLocaleString()} photos ready`;
+  }
+  return `${metadata.toLocaleString()} / ${indexed.toLocaleString()} photos ready`;
+});
+
+const errorIssueCount = computed(() => (data.value?.failed ?? 0) + (data.value?.staged_path_failed ?? 0));
+
+const compactErrorSummary = computed(() => {
+  if (errorIssueCount.value > 0) {
+    return `${errorIssueCount.value.toLocaleString()} items need attention`;
+  }
+  return "Index needs attention";
+});
+
 function onOpenChange(open: boolean) {
   if (open && !legacyQueryEnabled.value) {
     legacyQueryEnabled.value = true;
@@ -207,27 +225,19 @@ function onRebuildCancelled() {
 
         <!-- Compact summary -->
         <div class="space-y-1.5">
-          <!-- Ready / Stale state -->
+          <!-- Ready / Needs update state -->
           <p v-if="statusPresentation.status === 'ready' || statusPresentation.status === 'stale'" class="text-xs text-muted-foreground">
-            {{ (data.metadata_records ?? 0).toLocaleString() }}/{{ (data.indexed_photos ?? data.metadata_records ?? 0).toLocaleString() }} photos ready
+            {{ compactReadySummary }}
           </p>
 
           <!-- Updating state -->
-          <template v-else-if="statusPresentation.status === 'indexing'">
-            <p class="text-xs text-muted-foreground">
-              {{ progressInfo.indexed.toLocaleString() }} / {{ progressInfo.total !== null ? progressInfo.total.toLocaleString() : '—' }} details processed
-            </p>
-            <div v-if="progressInfo.percent !== null" class="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-              <div
-                class="h-full rounded-full bg-primary transition-all duration-500"
-                :style="{ width: `${progressInfo.percent}%` }"
-              />
-            </div>
-          </template>
+          <p v-else-if="statusPresentation.status === 'indexing'" class="text-xs text-muted-foreground">
+            Updating photo details…
+          </p>
 
           <!-- Error state -->
           <p v-else-if="statusPresentation.status === 'error'" class="text-xs text-muted-foreground">
-            {{ ((data.failed ?? 0) + (data.staged_path_failed ?? 0)).toLocaleString() }} items need attention
+            {{ compactErrorSummary }}
           </p>
 
           <!-- Unknown / other -->
@@ -298,25 +308,17 @@ function onRebuildCancelled() {
 
             <Tooltip v-if="detailsProcessedTooltip" :delay-duration="800">
               <TooltipTrigger as-child>
-                <div class="flex items-center justify-between text-xs">
-                  <span class="text-muted-foreground cursor-default">Details processed</span>
-                  <span class="text-right font-medium">
-                    {{ progressInfo.indexed.toLocaleString() }}
-                    <template v-if="progressInfo.total !== null"> / {{ progressInfo.total.toLocaleString() }}</template>
-                  </span>
-                </div>
+                <p class="text-xs text-muted-foreground cursor-default">
+                  {{ progressInfo.indexed.toLocaleString() }}<template v-if="progressInfo.total !== null"> / {{ progressInfo.total.toLocaleString() }}</template> details processed
+                </p>
               </TooltipTrigger>
               <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
                 {{ detailsProcessedTooltip }}
               </TooltipContent>
             </Tooltip>
-            <div v-else class="flex items-center justify-between text-xs">
-              <span class="text-muted-foreground">Details processed</span>
-              <span class="text-right font-medium">
-                {{ progressInfo.indexed.toLocaleString() }}
-                <template v-if="progressInfo.total !== null"> / {{ progressInfo.total.toLocaleString() }}</template>
-              </span>
-            </div>
+            <p v-else class="text-xs text-muted-foreground">
+              {{ progressInfo.indexed.toLocaleString() }}<template v-if="progressInfo.total !== null"> / {{ progressInfo.total.toLocaleString() }}</template> details processed
+            </p>
 
             <div v-if="progressInfo.percent !== null" class="h-1 w-full rounded-full bg-muted overflow-hidden" aria-hidden="true">
               <div

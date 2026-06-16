@@ -56,7 +56,7 @@ export const INDEX_STATUS_LABELS: Record<string, string> = {
   unknown: "Unknown",
   ready: "Ready",
   indexing: "Updating",
-  stale: "Ready",
+  stale: "Needs update",
   warning: "Unknown",
   error: "Error",
 };

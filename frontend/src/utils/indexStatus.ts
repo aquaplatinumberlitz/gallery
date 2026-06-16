@@ -57,7 +57,7 @@ const INDEX_STATUS_PRESENTATION: Record<IndexUiStatus, IndexStatusPresentation> 
   },
   stale: {
     status: "stale",
-    label: "Stale",
+    label: "Needs update",
     tone: "yellow",
     showPulse: false,
   },
