@@ -45,7 +45,7 @@ import { useClipboard } from "@/composables/useClipboard";
 import { useIndexStatusQuery } from "@/composables/useIndexStatusQuery";
 import { useToast } from "@/composables/useToast";
 import { useLibraryInspectorMetadataQuery } from "@/composables/useLibraryInspectorMetadataQuery";
-import { useLibraryInspectorQuery } from "@/composables/useLibraryInspectorQuery";
+import { useInfiniteLibraryInspectorQuery } from "@/composables/useInfiniteLibraryInspectorQuery";
 import { useGalleryStore } from "@/stores/gallery";
 import { useLightboxStore } from "@/stores/lightbox";
 import { fetchLibraryInspectorMetadata, getThumbnailUrl } from "@/services/api";
@@ -82,7 +82,7 @@ const scope = computed<SearchScope>({
   },
 });
 const currentPath = computed(() => galleryStore.currentPath || "");
-const limit = ref(100);
+const limit = ref(200);
 const inspectorSort = computed<SortValue>({
   get: () => galleryStore.metadataInspector.sort,
   set: (value) => {
@@ -123,7 +123,7 @@ const rowMenuOpen = ref<Record<string, boolean>>({});
 const tableShellRef = ref<HTMLElement | null>(null);
 const hasRestoredScroll = ref(false);
 
-const inspectorQuery = useLibraryInspectorQuery(query, scope, currentPath, limit, inspectorSort);
+const inspectorQuery = useInfiniteLibraryInspectorQuery(query, scope, currentPath, limit, inspectorSort);
 const metadataQuery = useLibraryInspectorMetadataQuery(detailPath, detailEnabled);
 const rebuildStartedAt = computed(() =>
   scope.value === "current" ? getScopeRebuildStartedAt(currentPath.value) : 0
@@ -443,6 +443,14 @@ watch(
   },
   { flush: "post" }
 );
+
+watch(virtualRows, (items) => {
+  if (!items.length || !inspectorQuery.hasNextPage.value || inspectorQuery.isFetchingNextPage.value) return;
+  const lastItem = items[items.length - 1];
+  if (lastItem && lastItem.index >= visibleTableRows.value.length - 5) {
+    void inspectorQuery.fetchNextPage();
+  }
+});
 const visibleRows = computed(() => visibleTableRows.value.map((row) => row.original));
 const visibleLightboxItems = computed<FileNode[]>(() =>
   visibleRows.value.map((row) => ({
@@ -885,6 +893,11 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
             :style="{ height: `${virtualPaddingBottom}px` }"
           >
             <TableCell colspan="7" class="p-0"></TableCell>
+          </TableRow>
+          <TableRow v-if="inspectorQuery.isFetchingNextPage.value" class="load-more-row">
+            <TableCell colspan="7" class="px-4 py-3 text-center text-xs text-muted-foreground">
+              Loading more metadata rows...
+            </TableCell>
           </TableRow>
           </template>
         </TableBody>

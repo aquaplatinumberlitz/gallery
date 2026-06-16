@@ -2392,6 +2392,7 @@ def list_library_inspector_rows(
     root_path: str | Path | None = None,
     limit: int = 200,
     sort: str = "date_desc",
+    offset: int = 0,
 ) -> dict[str, Any]:
     """Return bounded DB/index-backed rows for the read-only Library Inspector."""
     from .fielded_search_parser import build_fielded_conditions, parse_fielded_query
@@ -2425,6 +2426,7 @@ def list_library_inspector_rows(
         params: dict[str, Any] = dict(scope_params)
         params.update(field_params)
         params["limit"] = bounded_limit + 1
+        params["offset"] = max(0, offset)
 
         fetched_rows = list(
             conn.execute(
@@ -2460,7 +2462,7 @@ def list_library_inspector_rows(
                 WHERE {where_sql}
                 {scope_cond}
                 ORDER BY {order_sql}
-                LIMIT :limit
+                LIMIT :limit OFFSET :offset
                 """,
                 params,
             )
@@ -2483,6 +2485,7 @@ def list_library_inspector_rows(
         "scope": normalized_scope,
         "query": query,
         "limit": bounded_limit,
+        "offset": max(0, offset),
         "generated_at": time.time(),
         "total_indexed": int(total_row["total"] if total_row else 0),
         "returned": len(rows),

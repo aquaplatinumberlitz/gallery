@@ -239,6 +239,7 @@ export interface LibraryInspectorResponse {
   scope: SearchScope;
   query: string;
   limit: number;
+  offset: number;
   generated_at: number;
   total_indexed: number;
   returned: number;

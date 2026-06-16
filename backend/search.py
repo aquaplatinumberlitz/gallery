@@ -115,6 +115,7 @@ async def api_library_inspector(
     scope: Literal["current", "all"] = Query("current", description="Inspect current folder recursively or all indexed files"),
     path: str | None = Query(None, description="Current folder path when scope=current"),
     limit: int = Query(200, ge=1, le=200, description="Maximum inspector rows"),
+    offset: int = Query(0, ge=0, description="Row offset for pagination"),
     sort: Literal["name_asc", "name_desc", "date_asc", "date_desc"] = Query("date_desc", description="Inspector row sort"),
 ):
     root_path: Path | None = None
@@ -141,7 +142,7 @@ async def api_library_inspector(
         return safe, stale
 
     try:
-        data = await run_in_threadpool(list_library_inspector_rows, q, scope, root_path, limit, sort)
+        data = await run_in_threadpool(list_library_inspector_rows, q, scope, root_path, limit, sort, offset)
     except Exception as exc:  # noqa: BLE001
         raise APIError(500, ErrorType.SERVER_ERROR, f"Library inspector failed: {exc}") from exc
 
@@ -152,7 +153,15 @@ async def api_library_inspector(
     if stale_detected and (len(safe_rows) < limit or query_truncated):
         overscan_limit = min(max(limit * 2, limit + 25), 1000)
         try:
-            overscan_data = await run_in_threadpool(list_library_inspector_rows, q, scope, root_path, overscan_limit, sort)
+            overscan_data = await run_in_threadpool(
+                list_library_inspector_rows,
+                q,
+                scope,
+                root_path,
+                overscan_limit,
+                sort,
+                offset,
+            )
         except Exception as exc:  # noqa: BLE001
             raise APIError(500, ErrorType.SERVER_ERROR, f"Library inspector failed: {exc}") from exc
         overscan_safe_rows, overscan_stale_detected = _filter_safe_rows(overscan_data["rows"])
@@ -167,6 +176,7 @@ async def api_library_inspector(
     data["rows"] = safe_rows
     data["returned"] = len(safe_rows)
     data["limit"] = limit
+    data["offset"] = offset
     data["truncated"] = query_truncated
     return data
 
