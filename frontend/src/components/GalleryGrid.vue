@@ -29,6 +29,8 @@ import {
   ArrowDownToLine,
   Images, Folder, FolderOpen
 } from "lucide-vue-next";
+import { cn } from "@/lib/utils";
+import { toolbarTriggerClass } from "@/lib/toolbarTrigger";
 import Button from "@/components/ui/Button.vue";
 import Badge from "./ui/Badge.vue";
 import {
@@ -571,18 +573,22 @@ watch(loadMoreSentinel, () => setupLoadObserver());
 
       <SortDropdown
         v-model="gallerySortValue"
-        trigger-class="sort-trigger"
+        trigger-style="select"
+        trigger-class="gallery-sort-trigger"
         aria-label="Sort gallery"
       />
 
       <!-- Density Dropdown -->
       <DropdownMenu>
         <DropdownMenuTrigger as-child>
-          <Button variant="outline" size="sm" type="button" class="density-trigger">
-            <LayoutGrid class="gallery-icon-sm" />
+          <button
+            type="button"
+            :class="cn(toolbarTriggerClass, 'gallery-density-trigger')"
+          >
+            <LayoutGrid class="size-4" />
             <span>{{ columnCount }} cols</span>
-            <ChevronDown class="gallery-icon-xs opacity-60" />
-          </Button>
+            <ChevronDown class="size-4 shrink-0 opacity-50" />
+          </button>
         </DropdownMenuTrigger>
 
         <DropdownMenuContent align="end" class="w-48">

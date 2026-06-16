@@ -8,6 +8,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
+import { toolbarTriggerClass } from "@/lib/toolbarTrigger";
 import type { SortValue } from "@/types";
 
 const SORT_OPTIONS: { value: SortValue; label: string }[] = [
@@ -52,10 +54,7 @@ const selectedOption = computed(() =>
       <button
         v-else
         type="button"
-        :class="[
-          'flex h-9 w-[150px] flex-none items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-start text-[13px] font-normal ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 max-[900px]:w-full',
-          triggerClass,
-        ]"
+        :class="cn(toolbarTriggerClass, 'w-[150px] flex-none max-[900px]:w-full', triggerClass)"
         :aria-label="ariaLabel || 'Sort'"
       >
         <span class="min-w-0 truncate">{{ selectedOption.label }}</span>

@@ -811,7 +811,6 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
   height: 36px;
   width: 150px;
   flex: 0 0 auto;
-  font-size: 13px;
 }
 
 .gallery-icon-sm {
