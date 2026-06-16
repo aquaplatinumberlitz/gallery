@@ -192,7 +192,7 @@ test.describe("IndexStatusPanel", () => {
     await expect(statusButton).toBeVisible();
 
     await expect(statusButton).toContainText("Ready");
-    await expect(statusButton).toContainText("150/150 photos ready");
+    await expect(statusButton).toContainText("150 photos ready");
     await expect(statusButton).toContainText("Details");
 
     await statusButton.click();
