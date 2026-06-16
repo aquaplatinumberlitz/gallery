@@ -12,7 +12,7 @@ import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
 import ButtonLink from "@/components/ui/ButtonLink.vue";
 import Input from "@/components/ui/Input.vue";
-import SortDropdown from "@/components/SortDropdown.vue";
+import SortSelect from "@/components/SortSelect.vue";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -542,12 +542,7 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
           <SelectItem value="no_prompt">No prompt</SelectItem>
         </SelectContent>
       </Select>
-      <SortDropdown
-        v-model="inspectorSort"
-        trigger-style="select"
-        content-class="sort-dropdown-content"
-        aria-label="Sort metadata table"
-      />
+      <SortSelect v-model="inspectorSort" aria-label="Sort metadata table" />
     </div>
 
     <div v-if="inspectorQuery.isError.value" class="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">

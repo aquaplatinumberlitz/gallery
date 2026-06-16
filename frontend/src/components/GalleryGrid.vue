@@ -13,7 +13,7 @@ import SkeletonLoader from "./SkeletonLoader.vue";
 import Breadcrumb from "./Breadcrumb.vue";
 import EmptyState from "./EmptyState.vue";
 import TabletGalleryToolbar from "./TabletGalleryToolbar.vue";
-import SortDropdown from "./SortDropdown.vue";
+import SortSelect from "./SortSelect.vue";
 import { compareNatural } from "../composables/useNaturalSort";
 import { useColumnResize, PHOTO_GRID_LEVELS, GRID_COLUMN_MAP } from "../composables/useColumnResize";
 import { useDevice } from "../composables/useDevice";
@@ -569,12 +569,7 @@ watch(loadMoreSentinel, () => setupLoadObserver());
         <TooltipContent>Open current folder in file explorer</TooltipContent>
       </Tooltip>
 
-      <SortDropdown
-        v-model="gallerySortValue"
-        trigger-style="select"
-        trigger-class="gallery-sort-trigger"
-        aria-label="Sort gallery"
-      />
+      <SortSelect v-model="gallerySortValue" aria-label="Sort gallery" />
 
       <!-- Density Dropdown -->
       <DropdownMenu>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { SortValue } from "../types";
-import SortDropdown from "./SortDropdown.vue";
+import SortSelect from "./SortSelect.vue";
 import {
   ArrowLeft, ArrowRight, ChevronDown,
   LayoutGrid, Check,
@@ -97,9 +97,8 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
 
     <div class="tgt-spacer"></div>
 
-    <SortDropdown
+    <SortSelect
       :model-value="sortValue"
-      trigger-class="tgt-sort-trigger"
       aria-label="Sort gallery"
       @update:model-value="emit('update:sortValue', $event)"
     />
