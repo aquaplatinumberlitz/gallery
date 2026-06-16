@@ -67,6 +67,8 @@ export function useLibraryInspectorQuery(
       });
     },
     placeholderData: (previousData) => previousData,
+    staleTime: 15_000,
+    gcTime: 5 * 60_000,
   });
 
   const data = computed(() => inspectorQuery.data.value ?? EMPTY_RESPONSE);

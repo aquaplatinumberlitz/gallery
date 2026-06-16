@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { Landmark, Search, X, Settings, Menu, Sun, Moon, Monitor, SlidersHorizontal, Table2 } from 'lucide-vue-next'
 import { useRoute } from 'vue-router'
 import Button from '@/components/ui/Button.vue'
@@ -22,6 +22,11 @@ import AdvancedSearchDrawer from "@/components/search/AdvancedSearchDrawer.vue"
 import SearchFilterChips from "@/components/SearchFilterChips.vue"
 import type { FieldFilter } from "@/types"
 import { parseFieldedQuery, serializeAdvancedSearchToQuery } from "@/utils/serializeAdvancedSearchToQuery"
+import { prefetchMetadataRoute } from "@/router"
+import { useGalleryStore } from "@/stores/gallery"
+import { queryClient } from "@/query"
+import { normalizeQueryPath, queryKeys } from "@/query/keys"
+import { fetchLibraryInspector } from "@/services/api"
 
 interface Props {
   isMobile: boolean
@@ -43,10 +48,56 @@ const emit = defineEmits<{
 const { mode, resolvedTheme, setTheme } = useGalleryTheme()
 const { fieldedFilters, isActive: isFieldedSearchActive, queryString: fieldedQueryString, applyFilters, removeFilter, clearAll } = useFieldedSearch()
 const route = useRoute()
+const galleryStore = useGalleryStore()
 const isMetadataRoute = computed(() => route.path === '/metadata')
 
 const isAdvancedSearchOpen = ref(false)
 const advancedSearchInitialFilters = ref<FieldFilter[]>([])
+let metadataDataPrefetchStarted = false
+
+function requestIdle(callback: () => void) {
+  if (typeof window === "undefined") return;
+  const idleCallback = "requestIdleCallback" in window
+    ? window.requestIdleCallback
+    : (cb: IdleRequestCallback) => window.setTimeout(() => cb({ didTimeout: false, timeRemaining: () => 0 } as IdleDeadline), 800);
+  idleCallback(() => callback());
+}
+
+function prefetchMetadataData() {
+  if (metadataDataPrefetchStarted || isMetadataRoute.value) return;
+  metadataDataPrefetchStarted = true;
+
+  const state = galleryStore.metadataInspector;
+  const requestScope = state.scope;
+  const requestPath = requestScope === "current" ? normalizeQueryPath(galleryStore.currentPath || "") : "";
+  const requestLimit = 100;
+  const requestSort = state.sort;
+  const requestQuery = state.query.trim();
+
+  void queryClient.prefetchQuery({
+    queryKey: queryKeys.libraryInspector(requestQuery, requestScope, requestPath, requestLimit, requestSort),
+    queryFn: () =>
+      fetchLibraryInspector({
+        q: requestQuery,
+        scope: requestScope,
+        path: requestPath,
+        limit: requestLimit,
+        sort: requestSort,
+      }),
+    staleTime: 15_000,
+  });
+}
+
+function prefetchMetadataResources() {
+  void prefetchMetadataRoute();
+  prefetchMetadataData();
+}
+
+onMounted(() => {
+  requestIdle(() => {
+    if (!isMetadataRoute.value) void prefetchMetadataRoute();
+  });
+});
 
 function getFilterFieldKey(filter: FieldFilter) {
   return filter.field.toLowerCase()
@@ -158,6 +209,8 @@ function handleClearAll() {
           size="sm"
           :aria-current="isMetadataRoute ? 'page' : undefined"
           class="metadata-link h-8 text-xs"
+          @pointerenter="prefetchMetadataResources"
+          @focus="prefetchMetadataResources"
         >
           <Table2 class="size-4" />
           <span>Metadata</span>

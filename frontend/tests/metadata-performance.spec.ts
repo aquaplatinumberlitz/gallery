@@ -367,4 +367,30 @@ test.describe("Metadata performance", () => {
     expect(apiDurationMs).toBeGreaterThan(0);
     expect(gotFullQuery).toBe(true);
   });
+
+  test("Metadata state restores after gallery round trip", async ({ page }) => {
+    await page.goto(`${baseUrl}/metadata`, { waitUntil: "domcontentloaded" });
+    await waitForFirstRow(page);
+
+    const sortBtn = page.getByRole("combobox", { name: /sort metadata table/i });
+    await sortBtn.click();
+    await page.getByRole("option", { name: /name.*a[-–]z/i }).click();
+    await expect(sortBtn).toContainText(/Name A[-–]Z/);
+
+    const tableShell = page.locator(".metadata-table-shell");
+    await tableShell.evaluate((el) => {
+      el.scrollTop = 420;
+      el.dispatchEvent(new Event("scroll", { bubbles: true }));
+    });
+    await expect.poll(() => tableShell.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+
+    await page.getByRole("link", { name: /^gallery$/i }).click();
+    await page.waitForURL("**/");
+    await page.getByRole("link", { name: /metadata/i }).click();
+    await page.waitForURL("**/metadata");
+    await waitForFirstRow(page);
+
+    await expect(page.getByRole("combobox", { name: /sort metadata table/i })).toContainText(/Name A[-–]Z/);
+    await expect.poll(() => page.locator(".metadata-table-shell").evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+  });
 });

@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import type { FileNode, SearchScope, SortField, SortOrder } from "../types";
+import type { FileNode, SearchScope, SortField, SortOrder, SortValue } from "../types";
 import { openFolder, GalleryAPIError } from "../services/api";
 import { useToastStore } from "./toast";
 import { fetchScanOrThrow } from "../query/scan";
@@ -98,6 +98,16 @@ export const useGalleryStore = defineStore("gallery", {
       searchScope: "current" as SearchScope,
       sortField: storedSort.field as SortField,
       sortOrder: storedSort.order as SortOrder,
+      metadataInspector: {
+        query: "",
+        scope: "current" as SearchScope,
+        sort: "date_desc" as SortValue,
+        modelFilter: "all",
+        promptFilter: "all" as "all" | "has_prompt" | "no_prompt",
+        selectedPath: "",
+        scrollTop: 0,
+        scrollPath: "",
+      },
     };
   },
 

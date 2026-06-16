@@ -2,7 +2,7 @@
 
 Last reviewed: 2026-06-16
 
-Status: Phase 1 implemented; Phase 2 and Phase 3 pending.
+Status: Phase 1 and Phase 2 implemented; Phase 3 pending.
 
 This plan targets the `/metadata` navigation and `LibraryInspector.vue` interaction delay. Recent profiling showed that the default `/api/library/inspector` request is not the main source of the perceived 800ms delay on the tested local dataset. The expensive path is frontend main-thread work after the API body is already available: mounting and updating 100 rich table rows with thumbnails, popovers, dropdown menus, and long metadata cells.
 
@@ -94,6 +94,8 @@ Implementation result:
 
 ## Phase 2 - Navigation, Prefetch, and State Restore
 
+Status: implemented on 2026-06-16.
+
 Primary objective: make entering and returning to `/metadata` feel instant when data and code are already known.
 
 Scope:
@@ -137,6 +139,25 @@ Exit condition:
 
 - After one metadata visit, gallery to metadata and metadata to gallery transitions both feel cached and stable.
 - Sort/search perceived latency is dominated by actual backend response only when the backend is slow, not by remounting the whole table.
+
+Implementation result:
+
+- `/metadata` route chunk is prefetched on browser idle from the app header.
+- Metadata route chunk and the first inspector query are prefetched on metadata link hover/focus.
+- Inspector server state uses a short `staleTime` so hover/focus prefetch can be reused during navigation.
+- Inspector UI state is kept in the gallery store:
+  - query
+  - scope
+  - sort
+  - model filter
+  - prompt filter
+  - selected row
+  - table scroll offset, scoped by current path
+- Latest `metadata-performance.spec.ts` run after Phase 2:
+  - navigation: click to table ready 442ms, rendered rows 15
+  - sort: API response to update 42ms, rendered rows 15, table not cleared during load
+  - search: one debounced request, final API response to update 209ms, rendered rows 1
+  - state restore: sort and table scroll restore after metadata -> gallery -> metadata
 
 ## Phase 3 - List/Detail API Split and SQL Follow-Up
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
   createColumnHelper,
   getCoreRowModel,
@@ -69,11 +69,26 @@ const lightboxStore = useLightboxStore();
 const { copyText } = useClipboard();
 const toast = useToast();
 
-const query = ref("");
-const scope = ref<SearchScope>("current");
+const query = computed({
+  get: () => galleryStore.metadataInspector.query,
+  set: (value: string) => {
+    galleryStore.metadataInspector.query = value;
+  },
+});
+const scope = computed<SearchScope>({
+  get: () => galleryStore.metadataInspector.scope,
+  set: (value) => {
+    galleryStore.metadataInspector.scope = value;
+  },
+});
 const currentPath = computed(() => galleryStore.currentPath || "");
 const limit = ref(100);
-const inspectorSort = ref<SortValue>("date_desc");
+const inspectorSort = computed<SortValue>({
+  get: () => galleryStore.metadataInspector.sort,
+  set: (value) => {
+    galleryStore.metadataInspector.sort = value;
+  },
+});
 const sortValueToTableState = (value: SortValue): SortingState => {
   const [field, order] = value.split("_") as ["date" | "name", "asc" | "desc"];
   return [{ id: field === "name" ? "name" : "mtime", desc: order === "desc" }];
@@ -84,13 +99,29 @@ const tableStateToSortValue = (id: string, desc: boolean): SortValue | null => {
   return null;
 };
 const sorting = ref<SortingState>(sortValueToTableState(inspectorSort.value));
-const modelFilter = ref("all");
-const promptFilter = ref<"all" | "has_prompt" | "no_prompt">("all");
-const selectedPath = ref("");
+const modelFilter = computed({
+  get: () => galleryStore.metadataInspector.modelFilter,
+  set: (value: string) => {
+    galleryStore.metadataInspector.modelFilter = value;
+  },
+});
+const promptFilter = computed<"all" | "has_prompt" | "no_prompt">({
+  get: () => galleryStore.metadataInspector.promptFilter,
+  set: (value) => {
+    galleryStore.metadataInspector.promptFilter = value;
+  },
+});
+const selectedPath = computed({
+  get: () => galleryStore.metadataInspector.selectedPath,
+  set: (value: string) => {
+    galleryStore.metadataInspector.selectedPath = value;
+  },
+});
 const detailPath = ref("");
 const detailEnabled = ref(false);
 const rowMenuOpen = ref<Record<string, boolean>>({});
 const tableShellRef = ref<HTMLElement | null>(null);
+const hasRestoredScroll = ref(false);
 
 const inspectorQuery = useLibraryInspectorQuery(query, scope, currentPath, limit, inspectorSort);
 const metadataQuery = useLibraryInspectorMetadataQuery(detailPath, detailEnabled);
@@ -357,6 +388,54 @@ const virtualPaddingBottom = computed(() => {
   if (!last) return 0;
   return Math.max(0, rowVirtualizer.value.getTotalSize() - last.end);
 });
+function saveInspectorScroll() {
+  const scrollTop = tableShellRef.value?.scrollTop ?? 0;
+  galleryStore.metadataInspector.scrollTop = scrollTop;
+  galleryStore.metadataInspector.scrollPath = currentPath.value;
+}
+
+async function restoreInspectorScroll() {
+  if (hasRestoredScroll.value) return;
+  if (galleryStore.metadataInspector.scrollPath !== currentPath.value) {
+    galleryStore.metadataInspector.scrollTop = 0;
+    return;
+  }
+  const scrollTop = galleryStore.metadataInspector.scrollTop;
+  if (!scrollTop || !tableShellRef.value || visibleTableRows.value.length === 0) {
+    return;
+  }
+  hasRestoredScroll.value = true;
+  await nextTick();
+  rowVirtualizer.value.scrollToOffset(scrollTop);
+}
+
+onMounted(() => {
+  void restoreInspectorScroll();
+});
+
+onBeforeUnmount(() => {
+  saveInspectorScroll();
+});
+
+watch(
+  () => currentPath.value,
+  () => {
+    hasRestoredScroll.value = false;
+    if (galleryStore.metadataInspector.scrollPath !== currentPath.value) {
+      galleryStore.metadataInspector.scrollTop = 0;
+      galleryStore.metadataInspector.selectedPath = "";
+    }
+  }
+);
+
+watch(
+  () => visibleTableRows.value.length,
+  () => {
+    void restoreInspectorScroll();
+  },
+  { flush: "post" }
+);
+
 watch(
   [virtualRowCount, inspectorSort, query, scope, currentPath, modelFilter, promptFilter],
   () => {
@@ -580,7 +659,11 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
       Refreshing photo details. Previous results are shown until the latest snapshot arrives.
     </div>
 
-    <div ref="tableShellRef" :class="['metadata-table-shell table-shell', isInspectorDataStale && 'table-shell--rebuilding']">
+    <div
+      ref="tableShellRef"
+      :class="['metadata-table-shell table-shell', isInspectorDataStale && 'table-shell--rebuilding']"
+      @scroll.passive="saveInspectorScroll"
+    >
       <Table class="inspector-table w-full table-fixed">
         <TableHeader class="table-header bg-muted">
           <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id" class="table-header-row bg-muted hover:bg-muted">
