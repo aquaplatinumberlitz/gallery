@@ -12,6 +12,7 @@ REQUIRED_FIELDS = ("Purpose:", "Guarantees:", "Run when:")
 SCAN_PATTERNS = (
     "frontend/tests/**/*.spec.ts",
     "backend/tests/test_*.py",
+    "backend/debug/**/*.py",
     "frontend/src/debug/**/*.ts",
 )
 IGNORED_PARTS = {

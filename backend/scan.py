@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 
 from .albums import build_album_metadata
 from .config import DEFAULT_ROOT, ENABLE_WARM_INDEXED_LISTING, SCAN_PERF_LOGS_ENABLED
+from .debug.scan_perf import log_direct_scan_summary, log_warm_db_hit, log_warm_scan_summary
 from .errors import APIError, ErrorType
 from .files import is_image, is_index_excluded_path, natural_sort_key
 from .indexer import (
@@ -214,8 +215,12 @@ async def api_scan(
                 image_limit=image_limit,
             )
             warm_get_ms = _elapsed_ms(warm_get_started)
-            if warm_result is not None and SCAN_PERF_LOGS_ENABLED:
-                print(f"[SCAN PERF] warm_db hit path={target} warm_get={warm_get_ms:.0f}ms", flush=True)
+            if warm_result is not None:
+                log_warm_db_hit(
+                    enabled=SCAN_PERF_LOGS_ENABLED,
+                    target=target,
+                    warm_get_ms=warm_get_ms,
+                )
             if warm_result is None:
                 state = await run_in_threadpool(get_folder_index_state, target)
                 if state is None:
@@ -262,49 +267,32 @@ async def api_scan(
         serialize_ms = _elapsed_ms(serialize_started)
         total_ms = _elapsed_ms(request_started)
 
-        if SCAN_PERF_LOGS_ENABLED:
-            if warm_result is not None:
-                wr_total = warm_result.get("total_images", 0)
-                wr_images = warm_result.get("images", [])
-                wr_next = warm_result.get("next_cursor")
-                print(
-                    "[SCAN PERF] "
-                    f"path={target} "
-                    f"limit={image_limit if image_limit is not None else 'none'} "
-                    f"cursor={image_cursor} "
-                    f"total={total_ms:.0f}ms "
-                    f"resolve={resolve_ms:.0f}ms "
-                    f"source=warm_db "
-                    f"serialize={serialize_ms:.0f}ms "
-                    f"images_total={wr_total} "
-                    f"images_returned={len(wr_images)} "
-                    f"next_cursor={wr_next}",
-                    flush=True,
-                )
-            else:
-                print(
-                    "[SCAN PERF] "
-                    f"path={target} "
-                    f"limit={image_limit if image_limit is not None else 'none'} "
-                    f"cursor={image_cursor} "
-                    f"total={total_ms:.0f}ms "
-                    f"resolve={resolve_ms:.0f}ms "
-                    f"list={scan_perf['list_ms']:.0f}ms "
-                    f"recursive_walk={scan_perf['recursive_walk_ms']:.0f}ms "
-                    f"stat={scan_perf['stat_ms']:.0f}ms "
-                    f"image_filter={scan_perf['image_filter_ms']:.0f}ms "
-                    f"folder_filter={scan_perf['folder_filter_ms']:.0f}ms "
-                    f"metadata={scan_perf['metadata_ms']:.0f}ms "
-                    f"sort={scan_perf['sort_ms']:.0f}ms "
-                    f"pagination={pagination_ms:.0f}ms "
-                    f"serialize={serialize_ms:.0f}ms "
-                    f"entries={scan_perf['entries_scanned']} "
-                    f"folders={scan_perf['folders_found']} "
-                    f"images_total={total_images} "
-                    f"images_returned={len(paged_images)} "
-                    f"next_cursor={next_cursor}",
-                    flush=True,
-                )
+        if warm_result is not None:
+            log_warm_scan_summary(
+                enabled=SCAN_PERF_LOGS_ENABLED,
+                target=target,
+                image_limit=image_limit,
+                image_cursor=image_cursor,
+                total_ms=total_ms,
+                resolve_ms=resolve_ms,
+                serialize_ms=serialize_ms,
+                warm_result=warm_result,
+            )
+        else:
+            log_direct_scan_summary(
+                enabled=SCAN_PERF_LOGS_ENABLED,
+                target=target,
+                image_limit=image_limit,
+                image_cursor=image_cursor,
+                total_ms=total_ms,
+                resolve_ms=resolve_ms,
+                scan_perf=scan_perf,
+                pagination_ms=pagination_ms,
+                serialize_ms=serialize_ms,
+                total_images=total_images,
+                returned_images=len(paged_images),
+                next_cursor=next_cursor,
+            )
 
         return JSONResponse(content=encoded_payload)
     finally:

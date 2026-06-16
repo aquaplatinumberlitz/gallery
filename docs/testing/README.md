@@ -50,4 +50,4 @@ Playwright starts Vite through `frontend/playwright.config.ts`. Backend-backed P
 | Tailwind/token/global CSS | `cd frontend && npm run build`; `cd frontend && npx playwright test tests/tailwind-phase0.spec.ts tests/tailwind-preflight.spec.ts --project=chromium` |
 | Debug helpers or test docs | `python3 scripts/check_test_docs.py`; `cd frontend && npm run typecheck` |
 
-Before committing a new important test or debug helper, add a file header with `Purpose:`, `Guarantees:`, and `Run when:`. The checker enforces this for Playwright specs, backend test modules, and `frontend/src/debug/**/*.ts`.
+Before committing a new important test or debug helper, add a file header with `Purpose:`, `Guarantees:`, and `Run when:`. The checker enforces this for Playwright specs, backend test modules, `backend/debug/**/*.py`, and `frontend/src/debug/**/*.ts`.

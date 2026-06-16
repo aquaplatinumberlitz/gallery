@@ -4,6 +4,34 @@ Debug helpers must stay gated and off by default. Prefer these tools before addi
 
 ## Runtime Debug Flags
 
+### `SCAN_PERF_LOGS`
+
+Location: `backend/debug/scan_perf.py`, called from `backend/scan.py`
+
+Purpose: Emits `/api/scan` timing diagnostics for direct scans and warm SQLite listing hits.
+
+Enable:
+
+```bash
+SCAN_PERF_LOGS=1 python3 -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+```
+
+Disable:
+
+```bash
+SCAN_PERF_LOGS=0 python3 -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+```
+
+Output: stdout lines prefixed with `[SCAN PERF]`, including path, limit, cursor, total time, warm/direct source, serialization time, and scan phase timings.
+
+Use when:
+
+- `/api/scan` is slow for large folders.
+- Warm listing falls back to direct scan unexpectedly.
+- Pagination or serialization timing needs to be separated from filesystem scan time.
+
+Safety: Controlled by `SCAN_PERF_LOGS`. Defaults on outside production and off when `PRODUCTION=1`.
+
 ### `debug-index-rebuild`
 
 Location: `frontend/src/debug/indexRebuildDebug.ts`
