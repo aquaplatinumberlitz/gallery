@@ -24,6 +24,7 @@ from PIL import Image
 from backend.app import app
 from backend.metadata_store import (
     _connect,
+    _replace_image_resources_conn,
     index_file,
     initialize_database,
 )
@@ -172,6 +173,7 @@ def _setup_test_data() -> None:
                     fd["lora_text"], fd["vae"],
                 ),
             )
+            _replace_image_resources_conn(conn, resolved, fd["metadata_json"], fd["lora_text"], now)
         _TEST_INSERTED_PATHS.append(resolved)
 
     # scope test data
