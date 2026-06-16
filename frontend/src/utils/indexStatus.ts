@@ -64,7 +64,7 @@ const INDEX_STATUS_PRESENTATION: Record<IndexUiStatus, IndexStatusPresentation> 
   warning: {
     status: "warning",
     label: "Unavailable",
-    tone: "yellow",
+    tone: "gray",
     showPulse: false,
   },
   error: {

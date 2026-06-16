@@ -644,7 +644,7 @@ test.describe("IndexStatusPanel", () => {
     }
   });
 
-  test("collapsed Needs update popover shows X photos need update when stale > 0", async ({ page }) => {
+  test("collapsed Needs update popover shows X photos need updating when stale > 0", async ({ page }) => {
     const prev = { ...indexStatusData };
 
     try {
@@ -668,7 +668,7 @@ test.describe("IndexStatusPanel", () => {
       const popover = page.getByRole("dialog", { name: "Index Status" });
       await expect(popover).toBeVisible({ timeout: 5_000 });
 
-      await expect(popover).toContainText("5 photos need update");
+      await expect(popover).toContainText("5 photos need updating");
       await expect(popover).not.toContainText("200 / 205 photos ready");
     } finally {
       Object.assign(indexStatusData, prev);
@@ -791,6 +791,10 @@ test.describe("IndexStatusPanel", () => {
       await expect(statusButton).toBeVisible({ timeout: 10_000 });
       await expect(statusButton).toContainText("Unavailable");
       await expect(statusButton).not.toContainText("Warning");
+
+      const badge = statusButton.locator(".index-status-badge");
+      await expect(badge).toHaveClass(/index-status-badge--gray/);
+      await expect(badge).not.toHaveClass(/index-status-badge--yellow/);
     } finally {
       Object.assign(indexStatusData, prev);
     }

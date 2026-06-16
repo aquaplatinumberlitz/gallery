@@ -76,7 +76,7 @@ const compactReadySummary = computed(() => {
 
   if (statusPresentation.value.status === "stale") {
     if (staleCount > 0) {
-      return `${staleCount.toLocaleString()} photos need update`;
+      return `${staleCount.toLocaleString()} photos need updating`;
     }
     return "Photo details need update";
   }
