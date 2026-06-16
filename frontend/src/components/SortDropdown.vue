@@ -9,7 +9,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { toolbarTriggerClass } from "@/lib/toolbarTrigger";
 import type { SortValue } from "@/types";
 
 const SORT_OPTIONS: { value: SortValue; label: string }[] = [
@@ -51,15 +50,16 @@ const selectedOption = computed(() =>
         <span>{{ selectedOption.label }}</span>
         <ChevronDown class="gallery-icon-xs opacity-60" aria-hidden="true" />
       </Button>
-      <button
+      <Button
         v-else
+        variant="outline"
         type="button"
-        :class="cn(toolbarTriggerClass, 'w-[150px] flex-none max-[900px]:w-full', triggerClass)"
+        :class="cn('h-9 w-[150px] justify-between gap-2 px-3 text-sm font-normal text-foreground shadow-none flex-none max-[900px]:w-full', triggerClass)"
         :aria-label="ariaLabel || 'Sort'"
       >
-        <span class="min-w-0 truncate">{{ selectedOption.label }}</span>
+        <span class="truncate">{{ selectedOption.label }}</span>
         <ChevronDown class="h-4 w-4 shrink-0 opacity-50" aria-hidden="true" />
-      </button>
+      </Button>
     </DropdownMenuTrigger>
 
     <DropdownMenuContent align="end" :class="['w-48', contentClass]">
