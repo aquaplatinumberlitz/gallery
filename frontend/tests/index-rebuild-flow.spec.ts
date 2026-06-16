@@ -229,8 +229,9 @@ test.describe("inspector stale notice (mocked)", () => {
     await page.waitForTimeout(1000);
 
     await page.locator("#root-path").fill(stubRoot);
+    const scanResponse = page.waitForResponse((r) => r.url().includes("/api/scan"), { timeout: 15_000 });
     await page.locator("#root-path").press("Enter");
-    await page.waitForResponse((r) => r.url().includes("/api/scan"), { timeout: 10_000 });
+    await scanResponse;
     await page.waitForTimeout(1000);
 
     await page.getByRole("link", { name: "Metadata" }).click();
