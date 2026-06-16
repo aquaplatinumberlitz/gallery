@@ -196,7 +196,7 @@ Safety: User-facing setting, but off by default. It can increase bandwidth and m
 
 ### `__galleryLightboxDOMReport`
 
-Location: `frontend/src/composables/usePhotoSwipe.ts`
+Location: `frontend/src/debug/lightboxDomReport.ts`, registered from `frontend/src/composables/usePhotoSwipe.ts`
 
 Purpose: Prints a DOM report for PhotoSwipe roots, items, images, placeholders, and active slide.
 
@@ -219,7 +219,7 @@ Safety: Read-only console report. The global is attached during `usePhotoSwipe` 
 
 ### DEV lifecycle logs
 
-Location: `frontend/src/main.ts`
+Location: `frontend/src/debug/lifecycleDebug.ts`, installed from `frontend/src/main.ts` in DEV mode
 
 Purpose: Logs `pageshow`, `pagehide`, `visibilitychange`, `freeze`, and `resume` events in development builds.
 

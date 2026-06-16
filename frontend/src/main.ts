@@ -41,31 +41,7 @@ import("./debug/erudaDebug").then(({ initErudaDebug }) => initErudaDebug());
 // on iOS Safari and cause page discards when the user switches apps/tabs.
 // pagehide + visibilitychange + freeze/resume cover all lifecycle states safely.
 if (import.meta.env.DEV) {
-  window.addEventListener('pageshow', (e) => {
-    console.log('[LIFECYCLE] pageshow', {
-      persisted: e.persisted,
-      timestamp: Date.now(),
-      navType: (performance as any)?.getEntriesByType?.('navigation')?.[0]?.type
-    });
-  });
-  window.addEventListener('pagehide', (e) => {
-    console.log('[LIFECYCLE] pagehide', {
-      persisted: e.persisted,
-      timestamp: Date.now()
-    });
-  });
-  document.addEventListener('visibilitychange', () => {
-    console.log('[LIFECYCLE] visibilitychange', {
-      state: document.visibilityState,
-      timestamp: Date.now()
-    });
-  });
-  window.addEventListener('freeze', () => {
-    console.log('[LIFECYCLE] freeze', { timestamp: Date.now() });
-  });
-  window.addEventListener('resume', () => {
-    console.log('[LIFECYCLE] resume', { timestamp: Date.now() });
-  });
+  import("./debug/lifecycleDebug").then(({ installLifecycleDebug }) => installLifecycleDebug());
   // Icon debug overlay for tablet icon sizing investigation
   import('./debug/iconDebugOverlay')
     .then(({ initIconDebugOverlay }) => initIconDebugOverlay())
