@@ -1,3 +1,5 @@
+import base64
+import json
 import os
 from pathlib import Path
 from typing import Literal
@@ -115,7 +117,7 @@ async def api_library_inspector(
     scope: Literal["current", "all"] = Query("current", description="Inspect current folder recursively or all indexed files"),
     path: str | None = Query(None, description="Current folder path when scope=current"),
     limit: int = Query(200, ge=1, le=200, description="Maximum inspector rows"),
-    offset: int = Query(0, ge=0, description="Row offset for pagination"),
+    cursor: str | None = Query(None, description="Opaque pagination cursor from previous response"),
     sort: Literal["name_asc", "name_desc", "date_asc", "date_desc"] = Query("date_desc", description="Inspector row sort"),
 ):
     root_path: Path | None = None
@@ -141,8 +143,12 @@ async def api_library_inspector(
                 stale = True
         return safe, stale
 
+    def _encode_cursor(row: dict) -> str:
+        cursor_data = {"mtime": row["mtime"], "name": row["name"], "path": row["path"]}
+        return base64.urlsafe_b64encode(json.dumps(cursor_data).encode()).decode()
+
     try:
-        data = await run_in_threadpool(list_library_inspector_rows, q, scope, root_path, limit, sort, offset)
+        data = await run_in_threadpool(list_library_inspector_rows, q, scope, root_path, limit, sort, cursor)
     except Exception as exc:  # noqa: BLE001
         raise APIError(500, ErrorType.SERVER_ERROR, f"Library inspector failed: {exc}") from exc
 
@@ -160,7 +166,7 @@ async def api_library_inspector(
                 root_path,
                 overscan_limit,
                 sort,
-                offset,
+                cursor,
             )
         except Exception as exc:  # noqa: BLE001
             raise APIError(500, ErrorType.SERVER_ERROR, f"Library inspector failed: {exc}") from exc
@@ -176,8 +182,15 @@ async def api_library_inspector(
     data["rows"] = safe_rows
     data["returned"] = len(safe_rows)
     data["limit"] = limit
-    data["offset"] = offset
+    data["offset"] = 0
     data["truncated"] = query_truncated
+    if query_truncated and safe_rows:
+        data["next_cursor"] = _encode_cursor(safe_rows[-1])
+    elif query_truncated:
+        data["next_cursor"] = data.get("next_cursor")
+    else:
+        data["next_cursor"] = None
+    data["has_more"] = data["next_cursor"] is not None
     return data
 
 

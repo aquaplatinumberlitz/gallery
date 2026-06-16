@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
@@ -2386,13 +2387,72 @@ def _format_inspector_row(row: sqlite3.Row, root: Path) -> dict[str, Any]:
     }
 
 
+def _encode_inspector_cursor(row: sqlite3.Row) -> str:
+    cursor_data = {
+        "mtime": row["mtime"],
+        "name": row["name"],
+        "path": row["path"],
+    }
+    return base64.urlsafe_b64encode(json.dumps(cursor_data).encode()).decode()
+
+
+def _build_library_inspector_keyset_where(sort: str, cursor_str: str | None) -> tuple[str, dict[str, Any]]:
+    """Return SQL conditions and params for Library Inspector keyset pagination."""
+    if not cursor_str:
+        return "", {}
+
+    try:
+        cursor = json.loads(base64.urlsafe_b64decode(cursor_str.encode()))
+        cursor_mtime = cursor["mtime"]
+        cursor_name = cursor["name"]
+        cursor_path = cursor["path"]
+    except Exception:
+        return "", {}
+
+    mtime_expr = "COALESCE(m.mtime, fi.mtime)"
+    params: dict[str, Any] = {
+        "ks_mtime": cursor_mtime,
+        "ks_name": cursor_name,
+        "ks_path": cursor_path,
+    }
+
+    if sort == "date_desc":
+        cond = f"""
+            ({mtime_expr} < :ks_mtime) OR
+            ({mtime_expr} = :ks_mtime AND m.name COLLATE GALLERY_NATURAL > :ks_name) OR
+            ({mtime_expr} = :ks_mtime AND m.name COLLATE GALLERY_NATURAL = :ks_name AND m.path > :ks_path)
+        """
+    elif sort == "date_asc":
+        cond = f"""
+            ({mtime_expr} > :ks_mtime) OR
+            ({mtime_expr} = :ks_mtime AND m.name COLLATE GALLERY_NATURAL > :ks_name) OR
+            ({mtime_expr} = :ks_mtime AND m.name COLLATE GALLERY_NATURAL = :ks_name AND m.path > :ks_path)
+        """
+    elif sort == "name_asc":
+        cond = f"""
+            (m.name COLLATE GALLERY_NATURAL > :ks_name) OR
+            (m.name COLLATE GALLERY_NATURAL = :ks_name AND {mtime_expr} < :ks_mtime) OR
+            (m.name COLLATE GALLERY_NATURAL = :ks_name AND {mtime_expr} = :ks_mtime AND m.path > :ks_path)
+        """
+    elif sort == "name_desc":
+        cond = f"""
+            (m.name COLLATE GALLERY_NATURAL < :ks_name) OR
+            (m.name COLLATE GALLERY_NATURAL = :ks_name AND {mtime_expr} < :ks_mtime) OR
+            (m.name COLLATE GALLERY_NATURAL = :ks_name AND {mtime_expr} = :ks_mtime AND m.path > :ks_path)
+        """
+    else:
+        return "", {}
+
+    return f"({cond})", params
+
+
 def list_library_inspector_rows(
     query: str = "",
     scope: str = "current",
     root_path: str | Path | None = None,
     limit: int = 200,
     sort: str = "date_desc",
-    offset: int = 0,
+    cursor: str | None = None,
 ) -> dict[str, Any]:
     """Return bounded DB/index-backed rows for the read-only Library Inspector."""
     from .fielded_search_parser import build_fielded_conditions, parse_fielded_query
@@ -2403,10 +2463,10 @@ def list_library_inspector_rows(
     bounded_limit = max(1, min(limit, 1000))
     normalized_sort = sort if sort in {"name_asc", "name_desc", "date_asc", "date_desc"} else "date_desc"
     order_sql = {
-        "name_asc": "m.name COLLATE GALLERY_NATURAL ASC, COALESCE(m.mtime, fi.mtime) DESC",
-        "name_desc": "m.name COLLATE GALLERY_NATURAL DESC, COALESCE(m.mtime, fi.mtime) DESC",
-        "date_asc": "COALESCE(m.mtime, fi.mtime) ASC, m.name COLLATE GALLERY_NATURAL ASC",
-        "date_desc": "COALESCE(m.mtime, fi.mtime) DESC, m.name COLLATE GALLERY_NATURAL ASC",
+        "name_asc": "m.name COLLATE GALLERY_NATURAL ASC, COALESCE(m.mtime, fi.mtime) DESC, m.path ASC",
+        "name_desc": "m.name COLLATE GALLERY_NATURAL DESC, COALESCE(m.mtime, fi.mtime) DESC, m.path ASC",
+        "date_asc": "COALESCE(m.mtime, fi.mtime) ASC, m.name COLLATE GALLERY_NATURAL ASC, m.path ASC",
+        "date_desc": "COALESCE(m.mtime, fi.mtime) DESC, m.name COLLATE GALLERY_NATURAL ASC, m.path ASC",
     }[normalized_sort]
     root = Path(root_path).resolve() if normalized_scope == "current" and root_path else GALLERY_ROOT
     scope_cond, scope_params = _build_scope_named(normalized_scope, root, "fi")
@@ -2417,16 +2477,19 @@ def list_library_inspector_rows(
         field_params: dict[str, Any] = {}
         if trimmed:
             field_conditions, field_params = build_fielded_conditions(parsed)
+        keyset_condition, keyset_params = _build_library_inspector_keyset_where(normalized_sort, cursor)
 
         where_parts = ["fi.type = 'photo'"]
         if field_conditions:
             where_parts.extend(field_conditions)
+        if keyset_condition:
+            where_parts.append(keyset_condition)
         where_sql = " AND ".join(where_parts)
 
         params: dict[str, Any] = dict(scope_params)
         params.update(field_params)
+        params.update(keyset_params)
         params["limit"] = bounded_limit + 1
-        params["offset"] = max(0, offset)
 
         fetched_rows = list(
             conn.execute(
@@ -2434,7 +2497,7 @@ def list_library_inspector_rows(
                 SELECT
                   m.path,
                   m.name,
-                  m.mtime,
+                  COALESCE(m.mtime, fi.mtime) AS mtime,
                   m.width,
                   m.height,
                   m.model,
@@ -2462,12 +2525,13 @@ def list_library_inspector_rows(
                 WHERE {where_sql}
                 {scope_cond}
                 ORDER BY {order_sql}
-                LIMIT :limit OFFSET :offset
+                LIMIT :limit
                 """,
                 params,
             )
         )
         rows = fetched_rows[:bounded_limit]
+        next_cursor = _encode_inspector_cursor(rows[-1]) if len(fetched_rows) > bounded_limit and rows else None
 
         total_row = conn.execute(
             f"""
@@ -2485,11 +2549,13 @@ def list_library_inspector_rows(
         "scope": normalized_scope,
         "query": query,
         "limit": bounded_limit,
-        "offset": max(0, offset),
+        "offset": 0,
         "generated_at": time.time(),
         "total_indexed": int(total_row["total"] if total_row else 0),
         "returned": len(rows),
         "truncated": len(fetched_rows) > bounded_limit,
+        "next_cursor": next_cursor,
+        "has_more": next_cursor is not None,
         "sort": normalized_sort,
         "rows": _dedupe_inspector_rows(rows, root),
     }

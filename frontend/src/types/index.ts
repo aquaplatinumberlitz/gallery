@@ -239,11 +239,12 @@ export interface LibraryInspectorResponse {
   scope: SearchScope;
   query: string;
   limit: number;
-  offset: number;
   generated_at: number;
   total_indexed: number;
   returned: number;
   truncated: boolean;
+  next_cursor?: string | null;
+  has_more?: boolean;
   sort: string;
   rows: LibraryInspectorRow[];
 }

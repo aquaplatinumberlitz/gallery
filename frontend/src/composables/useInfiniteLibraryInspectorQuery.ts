@@ -9,11 +9,12 @@ const EMPTY_RESPONSE: LibraryInspectorResponse = {
   scope: "current",
   query: "",
   limit: 200,
-  offset: 0,
   generated_at: 0,
   total_indexed: 0,
   returned: 0,
   truncated: false,
+  next_cursor: null,
+  has_more: false,
   sort: "date_desc",
   rows: [],
 };
@@ -54,26 +55,21 @@ export function useInfiniteLibraryInspectorQuery(
   const requestLimit = computed(() => Math.max(1, limit.value));
   const enabled = computed(() => Boolean(requestPath.value) || scope.value === "all");
 
-  const queryResult = useInfiniteQuery<LibraryInspectorResponse, Error, { pages: LibraryInspectorResponse[]; pageParams: number[] }, ReturnType<typeof queryKeys.libraryInspector>, number>({
+  const queryResult = useInfiniteQuery<LibraryInspectorResponse, Error, { pages: LibraryInspectorResponse[]; pageParams: (string | undefined)[] }, ReturnType<typeof queryKeys.libraryInspector>, string | undefined>({
     queryKey: computed(() =>
       queryKeys.libraryInspector(debouncedQuery.value, scope.value, requestPath.value, limit.value, sort.value)
     ),
-    queryFn: ({ pageParam = 0 }) =>
+    queryFn: ({ pageParam }) =>
       fetchLibraryInspector({
         q: debouncedQuery.value,
         scope: scope.value,
         path: requestPath.value,
         limit: requestLimit.value,
         sort: sort.value,
-        offset: pageParam,
+        cursor: pageParam,
       }),
-    initialPageParam: 0,
-    getNextPageParam: (lastPage, allPages) => {
-      if (lastPage.truncated) {
-        return allPages.length * requestLimit.value;
-      }
-      return undefined;
-    },
+    initialPageParam: undefined,
+    getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
     enabled,
     staleTime: 30_000,
     gcTime: 5 * 60_000,
@@ -92,6 +88,8 @@ export function useInfiniteLibraryInspectorQuery(
       generated_at: lastPage.generated_at,
       returned: allRows.value.length,
       truncated: lastPage.truncated,
+      next_cursor: lastPage.next_cursor ?? null,
+      has_more: lastPage.has_more ?? Boolean(lastPage.next_cursor),
       rows: allRows.value,
     };
   });

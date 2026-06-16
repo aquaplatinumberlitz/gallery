@@ -264,6 +264,75 @@ def test_library_inspector_accepts_gallery_sort_contract(
     assert sorted_names("name_desc") == ["c1.png", "b10.png", "a10.png", "a2.png"]
 
 
+def test_library_inspector_cursor_paginates_all_sort_options(
+    isolated_app: TestClient,
+    isolated_gallery_root: Path,
+):
+    from .conftest import create_test_png_with_metadata
+    from backend.metadata_store import index_directory_tree
+
+    album = isolated_gallery_root / "cursor_album"
+    fixtures = [
+        ("b10.png", 1_700_000_010),
+        ("a2.png", 1_700_000_020),
+        ("a10.png", 1_700_000_030),
+        ("c1.png", 1_700_000_040),
+        ("d1.png", 1_700_000_050),
+    ]
+    for name, mtime in fixtures:
+        path = album / name
+        create_test_png_with_metadata(path, prompt=f"cursor_prompt {name}", seed=str(mtime))
+        os.utime(path, (mtime, mtime))
+
+    collected: list[Path] = []
+    index_directory_tree(isolated_gallery_root, include_metadata=True, collected_image_paths=collected)
+
+    expected = {
+        "date_desc": ["d1.png", "c1.png", "a10.png", "a2.png", "b10.png"],
+        "date_asc": ["b10.png", "a2.png", "a10.png", "c1.png", "d1.png"],
+        "name_asc": ["a2.png", "a10.png", "b10.png", "c1.png", "d1.png"],
+        "name_desc": ["d1.png", "c1.png", "b10.png", "a10.png", "a2.png"],
+    }
+
+    for sort, expected_names in expected.items():
+        cursor = None
+        names: list[str] = []
+        for page_index in range(3):
+            params = {"q": "", "scope": "all", "limit": 2, "sort": sort}
+            if cursor:
+                params["cursor"] = cursor
+            resp = isolated_app.get("/api/library/inspector", params=params)
+            assert resp.status_code == 200
+            data = resp.json()
+            names.extend(row["name"] for row in data["rows"])
+            if page_index < 2:
+                assert data["has_more"] is True
+                assert isinstance(data["next_cursor"], str)
+            cursor = data["next_cursor"]
+            if not cursor:
+                break
+
+        assert names == expected_names
+        assert len(names) == len(set(names))
+
+    cursor = None
+    fielded_names: list[str] = []
+    while True:
+        params = {"q": "prompt:cursor_prompt", "scope": "all", "limit": 2, "sort": "name_asc"}
+        if cursor:
+            params["cursor"] = cursor
+        resp = isolated_app.get("/api/library/inspector", params=params)
+        assert resp.status_code == 200
+        data = resp.json()
+        fielded_names.extend(row["name"] for row in data["rows"])
+        cursor = data["next_cursor"]
+        if not cursor:
+            assert data["has_more"] is False
+            break
+
+    assert fielded_names == expected["name_asc"]
+
+
 def test_library_inspector_excludes_app_build_assets_but_keeps_gallery_dist_folder(
     isolated_app: TestClient,
     isolated_gallery_root: Path,
