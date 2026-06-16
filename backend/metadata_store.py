@@ -2387,11 +2387,11 @@ def _format_inspector_row(row: sqlite3.Row, root: Path) -> dict[str, Any]:
     }
 
 
-def _encode_inspector_cursor(row: sqlite3.Row) -> str:
+def _encode_inspector_cursor(values: dict[str, Any] | sqlite3.Row) -> str:
     cursor_data = {
-        "mtime": row["mtime"],
-        "name": row["name"],
-        "path": row["path"],
+        "mtime": values["mtime"],
+        "name": values["name"],
+        "path": values["path"],
     }
     return base64.urlsafe_b64encode(json.dumps(cursor_data).encode()).decode()
 
@@ -2406,8 +2406,8 @@ def _build_library_inspector_keyset_where(sort: str, cursor_str: str | None) -> 
         cursor_mtime = cursor["mtime"]
         cursor_name = cursor["name"]
         cursor_path = cursor["path"]
-    except Exception:
-        return "", {}
+    except Exception as exc:
+        raise ValueError("Invalid pagination cursor") from exc
 
     mtime_expr = "COALESCE(m.mtime, fi.mtime)"
     params: dict[str, Any] = {

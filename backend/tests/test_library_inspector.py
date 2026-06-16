@@ -333,6 +333,16 @@ def test_library_inspector_cursor_paginates_all_sort_options(
     assert fielded_names == expected["name_asc"]
 
 
+def test_library_inspector_invalid_cursor_returns_bad_request(isolated_app: TestClient):
+    resp = isolated_app.get("/api/library/inspector", params={"q": "", "scope": "all", "cursor": "not-a-valid-cursor"})
+
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == {
+        "error": "bad_request",
+        "message": "Invalid pagination cursor",
+    }
+
+
 def test_library_inspector_excludes_app_build_assets_but_keeps_gallery_dist_folder(
     isolated_app: TestClient,
     isolated_gallery_root: Path,

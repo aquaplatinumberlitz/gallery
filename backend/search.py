@@ -1,5 +1,3 @@
-import base64
-import json
 import os
 from pathlib import Path
 from typing import Literal
@@ -11,6 +9,7 @@ from .config import DEFAULT_ROOT, GALLERY_ROOT
 from .errors import APIError, ErrorType
 from .fielded_search_parser import parse_fielded_query
 from .metadata_store import (
+    _encode_inspector_cursor,
     cleanup_stale_index,
     get_library_inspector_metadata,
     list_library_inspector_rows,
@@ -143,12 +142,10 @@ async def api_library_inspector(
                 stale = True
         return safe, stale
 
-    def _encode_cursor(row: dict) -> str:
-        cursor_data = {"mtime": row["mtime"], "name": row["name"], "path": row["path"]}
-        return base64.urlsafe_b64encode(json.dumps(cursor_data).encode()).decode()
-
     try:
         data = await run_in_threadpool(list_library_inspector_rows, q, scope, root_path, limit, sort, cursor)
+    except ValueError as exc:
+        raise APIError(400, ErrorType.BAD_REQUEST, "Invalid pagination cursor") from exc
     except Exception as exc:  # noqa: BLE001
         raise APIError(500, ErrorType.SERVER_ERROR, f"Library inspector failed: {exc}") from exc
 
@@ -168,6 +165,8 @@ async def api_library_inspector(
                 sort,
                 cursor,
             )
+        except ValueError as exc:
+            raise APIError(400, ErrorType.BAD_REQUEST, "Invalid pagination cursor") from exc
         except Exception as exc:  # noqa: BLE001
             raise APIError(500, ErrorType.SERVER_ERROR, f"Library inspector failed: {exc}") from exc
         overscan_safe_rows, overscan_stale_detected = _filter_safe_rows(overscan_data["rows"])
@@ -184,7 +183,7 @@ async def api_library_inspector(
     data["limit"] = limit
     data["truncated"] = query_truncated
     if query_truncated and safe_rows:
-        data["next_cursor"] = _encode_cursor(safe_rows[-1])
+        data["next_cursor"] = _encode_inspector_cursor(safe_rows[-1])
     elif query_truncated:
         data["next_cursor"] = data.get("next_cursor")
     else:

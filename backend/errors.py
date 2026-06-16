@@ -11,6 +11,7 @@ class APIError(HTTPException):
 
 
 class ErrorType:
+    BAD_REQUEST = "bad_request"       # Invalid request parameters
     NOT_FOUND = "not_found"           # Path/file doesn't exist
     NOT_DIRECTORY = "not_directory"   # Path is not a folder
     PERMISSION_DENIED = "permission"  # No access permission
