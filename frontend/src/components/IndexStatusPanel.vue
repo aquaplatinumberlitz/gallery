@@ -27,11 +27,10 @@ import { queryClient } from "@/query";
 import { normalizeQueryPath, queryKeys } from "@/query/keys";
 import { rebuildIndex, scanDirectory } from "@/services/api";
 import { markScopeRebuildStarted } from "@/utils/indexMaintenance";
-import { getLibraryInspectorQueryDebug, logIndexRebuildDebug } from "@/utils/indexRebuildDebug";
+import { getLibraryInspectorQueryDebug, logIndexRebuildDebug, isIndexRebuildDebugEnabled } from "@/utils/indexRebuildDebug";
 import { getFieldTooltip } from "@/utils/indexStatusCopy";
 import {
   getIndexStatusCounts,
-  getIndexStatusProgress,
   getIndexStatusPresentation,
   getIndexStatusProgressInfo,
 } from "@/utils/indexStatus";
@@ -60,7 +59,6 @@ const detailsProcessedTooltip = computed(() => getFieldTooltip("done"));
 const folderTooltip = computed(() => getFieldTooltip("path"));
 
 const counts = computed(() => getIndexStatusCounts(data.value));
-const progress = computed(() => getIndexStatusProgress(data.value));
 const progressInfo = computed(() => getIndexStatusProgressInfo(data.value));
 const statusPresentation = computed(() => getIndexStatusPresentation(data.value ?? null, {
   hasPath: !!props.path,
@@ -68,6 +66,7 @@ const statusPresentation = computed(() => getIndexStatusPresentation(data.value 
   isError: isError.value,
 }));
 const errorMessage = computed(() => (error.value as Error | null)?.message || "Failed to load status");
+const isDebugEnabled = computed(() => isIndexRebuildDebugEnabled());
 
 function onOpenChange(open: boolean) {
   if (open && !legacyQueryEnabled.value) {
@@ -206,28 +205,35 @@ function onRebuildCancelled() {
           <IndexStatusBadge :presentation="statusPresentation" />
         </div>
 
-        <!-- Progress bar -->
-        <div v-if="progress !== null && (data.running ?? 0) > 0" class="space-y-1">
-          <div class="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-            <div
-              class="h-full rounded-full bg-primary transition-all duration-500"
-              :style="{ width: progress + '%' }"
-            />
-          </div>
-          <span class="text-[10px] text-muted-foreground">{{ progress }}% complete</span>
-        </div>
+        <!-- Compact summary -->
+        <div class="space-y-1.5">
+          <!-- Ready / Stale state -->
+          <p v-if="statusPresentation.status === 'ready' || statusPresentation.status === 'stale'" class="text-xs text-muted-foreground">
+            {{ (data.metadata_records ?? 0).toLocaleString() }}/{{ (data.indexed_photos ?? data.metadata_records ?? 0).toLocaleString() }} photos ready
+          </p>
 
-        <!-- Summary metrics -->
-        <div class="space-y-1 text-sm">
-          <div class="flex items-center justify-between">
-            <span class="text-muted-foreground">
-              {{ (data.indexed_photos ?? 0).toLocaleString() }} photos found ·
-              {{ (data.metadata_records ?? 0).toLocaleString() }} photo details ready
-            </span>
-          </div>
-          <div v-if="(data.failed ?? 0) > 0" class="flex items-center justify-between">
-            <span class="text-destructive">{{ data.failed }} {{ data.failed === 1 ? 'failed job' : 'failed jobs' }}</span>
-          </div>
+          <!-- Updating state -->
+          <template v-else-if="statusPresentation.status === 'indexing'">
+            <p class="text-xs text-muted-foreground">
+              {{ progressInfo.indexed.toLocaleString() }} / {{ progressInfo.total !== null ? progressInfo.total.toLocaleString() : '—' }} details processed
+            </p>
+            <div v-if="progressInfo.percent !== null" class="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+              <div
+                class="h-full rounded-full bg-primary transition-all duration-500"
+                :style="{ width: `${progressInfo.percent}%` }"
+              />
+            </div>
+          </template>
+
+          <!-- Error state -->
+          <p v-else-if="statusPresentation.status === 'error'" class="text-xs text-muted-foreground">
+            {{ ((data.failed ?? 0) + (data.staged_path_failed ?? 0)).toLocaleString() }} items need attention
+          </p>
+
+          <!-- Unknown / other -->
+          <p v-else class="text-xs text-muted-foreground">
+            Index status unavailable
+          </p>
         </div>
 
         <!-- Details toggle -->
@@ -268,7 +274,10 @@ function onRebuildCancelled() {
               <TooltipTrigger as-child>
                 <div class="flex items-center justify-between text-xs">
                   <span class="text-muted-foreground cursor-default">Photo details ready</span>
-                  <span class="text-right font-medium">{{ (data.metadata_records ?? 0).toLocaleString() }}</span>
+                  <span class="text-right font-medium">
+                    {{ (data.metadata_records ?? 0).toLocaleString() }}
+                    <template v-if="statusPresentation.status === 'indexing'"> / {{ (data.indexed_photos ?? 0).toLocaleString() }}</template>
+                  </span>
                 </div>
               </TooltipTrigger>
               <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
@@ -277,7 +286,10 @@ function onRebuildCancelled() {
             </Tooltip>
             <div v-else class="flex items-center justify-between text-xs">
               <span class="text-muted-foreground">Photo details ready</span>
-              <span class="text-right font-medium">{{ (data.metadata_records ?? 0).toLocaleString() }}</span>
+              <span class="text-right font-medium">
+                {{ (data.metadata_records ?? 0).toLocaleString() }}
+                <template v-if="statusPresentation.status === 'indexing'"> / {{ (data.indexed_photos ?? 0).toLocaleString() }}</template>
+              </span>
             </div>
           </div>
 
@@ -347,15 +359,18 @@ function onRebuildCancelled() {
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-            <span class="text-muted-foreground">Workers</span>
-            <span class="text-right font-medium">{{ data.worker_count }}</span>
+          <div v-if="isDebugEnabled" class="space-y-1.5">
+            <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Debug</p>
+            <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+              <span class="text-muted-foreground">Workers</span>
+              <span class="text-right font-medium">{{ data.worker_count }}</span>
 
-            <span class="text-muted-foreground">Active jobs</span>
-            <span class="text-right font-medium">{{ counts.activeJobs }}</span>
+              <span class="text-muted-foreground">Active jobs</span>
+              <span class="text-right font-medium">{{ counts.activeJobs }}</span>
 
-            <span class="text-muted-foreground">Queue depth</span>
-            <span class="text-right font-medium">{{ counts.runtimeQueueDepth }}</span>
+              <span class="text-muted-foreground">Queue depth</span>
+              <span class="text-right font-medium">{{ counts.runtimeQueueDepth }}</span>
+            </div>
           </div>
         </div>
 

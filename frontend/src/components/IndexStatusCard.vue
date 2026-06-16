@@ -61,7 +61,7 @@ function formatCount(value: number) {
             Indexing...
           </span>
           <span v-else>
-            {{ formatCount(data?.metadata_records ?? 0) }} photos ready
+            {{ formatCount(data?.metadata_records ?? 0) }}/{{ formatCount(data?.indexed_photos ?? data?.metadata_records ?? 0) }} photos ready
           </span>
         </span>
 
