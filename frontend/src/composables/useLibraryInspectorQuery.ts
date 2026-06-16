@@ -8,7 +8,7 @@ const EMPTY_RESPONSE: LibraryInspectorResponse = {
   root: "",
   scope: "current",
   query: "",
-  limit: 200,
+  limit: 100,
   generated_at: 0,
   total_indexed: 0,
   returned: 0,

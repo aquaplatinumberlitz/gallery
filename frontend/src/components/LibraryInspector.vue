@@ -71,7 +71,7 @@ const toast = useToast();
 const query = ref("");
 const scope = ref<SearchScope>("current");
 const currentPath = computed(() => galleryStore.currentPath || "");
-const limit = ref(200);
+const limit = ref(100);
 const inspectorSort = ref<SortValue>("date_desc");
 const sortValueToTableState = (value: SortValue): SortingState => {
   const [field, order] = value.split("_") as ["date" | "name", "asc" | "desc"];
@@ -566,28 +566,31 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
 
     <div :class="['metadata-table-shell table-shell', isInspectorDataStale && 'table-shell--rebuilding']">
       <Table class="inspector-table w-full table-fixed">
-        <TableHeader class="table-header sticky top-0 z-20 bg-background">
-          <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id" class="table-header-row hover:bg-transparent">
+        <TableHeader class="table-header bg-muted">
+          <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id" class="table-header-row bg-muted hover:bg-muted">
             <TableHead
               v-for="header in headerGroup.headers"
               :key="header.id"
-              :class="['table-head', `col-${header.column.id}`]"
+              :class="['table-head sticky top-0 z-30 bg-muted', `col-${header.column.id}`]"
               :aria-sort="header.column.getIsSorted() === 'asc' ? 'ascending' : header.column.getIsSorted() === 'desc' ? 'descending' : undefined"
             >
-              <Button
+              <button
                 v-if="header.column.getCanSort()"
-                variant="ghost"
-                size="sm"
-                class="h-8 px-2 text-xs font-medium"
+                type="button"
+                class="metadata-header-control"
                 :aria-label="sortAriaLabel(header.column.id, header.column.columnDef.header)"
                 :title="sortAriaLabel(header.column.id, header.column.columnDef.header)"
                 @click="onHeaderSort(header.column.id, $event)"
               >
-                {{ header.column.columnDef.header }}{{ sortLabel(header.column.id) }}
-                <ArrowUpDown class="ml-1 size-3 opacity-45" aria-hidden="true" />
-              </Button>
-              <span v-else class="px-2 text-xs font-medium">
-                {{ header.column.columnDef.header }}
+                <span class="metadata-header-label">
+                  {{ header.column.columnDef.header }}{{ sortLabel(header.column.id) }}
+                </span>
+                <ArrowUpDown class="metadata-header-icon" aria-hidden="true" />
+              </button>
+              <span v-else class="metadata-header-control metadata-header-control--static">
+                <span class="metadata-header-label">
+                  {{ header.column.columnDef.header }}
+                </span>
               </span>
             </TableHead>
           </TableRow>
@@ -831,12 +834,14 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
 }
 
 .table-shell {
+  position: relative;
+  isolation: isolate;
   min-height: 0;
   flex: 1;
   overflow: auto;
-  border: 1px solid hsl(var(--border));
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background: hsl(var(--background));
+  background: var(--background);
 }
 
 .table-shell--rebuilding .inspector-table {
@@ -844,15 +849,17 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
 }
 
 .rebuild-notice {
-  border: 1px solid hsl(var(--border));
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: hsl(var(--muted) / 0.55);
+  background: color-mix(in srgb, var(--muted) 55%, transparent);
   padding: 10px 12px;
-  color: hsl(var(--muted-foreground));
+  color: var(--foreground);
   font-size: 13px;
 }
 
 .inspector-table {
+  border-collapse: separate;
+  border-spacing: 0;
   width: 100%;
   min-width: 1280px;
   table-layout: fixed;
@@ -860,29 +867,90 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
 }
 
 .table-header {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  background: hsl(var(--background));
+  position: relative;
+  z-index: 30;
+  background: var(--muted);
 }
 
 .table-header-row {
-  background: hsl(var(--background));
+  position: relative;
+  z-index: 30;
+  background: var(--muted);
 }
 
 .table-head {
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: 30;
   height: 38px;
-  border-bottom: 1px solid hsl(var(--border));
-  background: hsl(var(--background));
-  color: hsl(var(--muted-foreground));
+  border-bottom: 1px solid var(--border);
+  background: var(--muted);
+  background-clip: padding-box;
+  box-shadow: inset 0 -1px 0 var(--border);
+  color: var(--muted-foreground);
   text-align: left;
   vertical-align: middle;
 }
 
+.table-head::before {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: var(--muted);
+  content: "";
+}
+
+.metadata-header-control {
+  position: relative;
+  z-index: 10;
+  display: inline-flex;
+  height: 2rem;
+  align-items: center;
+  gap: 0.25rem;
+  border: 0;
+  border-radius: 0.375rem;
+  background: transparent;
+  padding: 0 0.5rem;
+  color: var(--foreground);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.25rem;
+}
+
+.metadata-header-control--static {
+  cursor: default;
+}
+
+button.metadata-header-control:hover {
+  background: var(--accent);
+}
+
+button.metadata-header-control:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px var(--ring);
+}
+
+.metadata-header-label {
+  min-width: 0;
+}
+
+.metadata-header-icon {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: 0 0 auto;
+  opacity: 0.45;
+}
+
+.table-row {
+  position: relative;
+  z-index: 0;
+}
+
 .table-cell {
+  position: relative;
+  z-index: 0;
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
@@ -932,8 +1000,8 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
   flex: 0 0 44px;
   overflow: hidden;
   border-radius: 4px;
-  border: 1px solid hsl(var(--border));
-  background: hsl(var(--muted));
+  border: 1px solid var(--border);
+  background: var(--muted);
 }
 
 .thumb-button img {
@@ -970,22 +1038,22 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
 }
 
 .file-name-trigger {
-  color: hsl(var(--foreground));
+  color: var(--foreground);
   font-weight: 500;
 }
 
 .folder-path-trigger {
-  color: hsl(var(--muted-foreground));
+  color: var(--muted-foreground);
   font-size: 12px;
 }
 
 .folder-path-trigger:hover,
 .prompt-trigger:hover {
-  color: hsl(var(--foreground));
+  color: var(--foreground);
 }
 
 .prompt-trigger {
-  color: hsl(var(--foreground));
+  color: var(--foreground);
 }
 
 .long-text-preview {
@@ -1014,11 +1082,11 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
   white-space: pre-wrap;
   word-break: break-word;
   border-radius: 6px;
-  background: hsl(var(--muted));
+  background: var(--muted);
   padding: 10px;
   font-size: 12px;
   line-height: 1.5;
-  color: hsl(var(--foreground));
+  color: var(--foreground);
 }
 
 @media (max-width: 900px) {
