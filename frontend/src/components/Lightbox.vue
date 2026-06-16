@@ -126,26 +126,20 @@ const handleKeydown = (e: KeyboardEvent) => {
   const target = e.target as HTMLElement;
   if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
 
-  // Skip arrow keys on mobile — PhotoSwipe handles swipe/keyboard navigation
-  if (isMobile.value && (e.key === "ArrowLeft" || e.key === "ArrowRight")) return;
+  // PhotoSwipe handles arrow navigation on every layout. Handling it here too
+  // advances the store a second time after PhotoSwipe emits its change event.
+  if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+    logLightboxNavDebug("lightbox-keyboard-ignored", {
+      key: e.key,
+      currentIndex: lightbox.currentIndex,
+      currentItem: lightboxItemAt(lightbox.galleryItems, lightbox.currentIndex),
+    });
+    return;
+  }
 
   switch (e.key) {
     case "Escape":
       handleClose();
-      break;
-    case "ArrowLeft":
-      logLightboxNavDebug("lightbox-keyboard-prev", {
-        beforeIndex: lightbox.currentIndex,
-        beforeItem: lightboxItemAt(lightbox.galleryItems, lightbox.currentIndex),
-      });
-      lightbox.prev();
-      break;
-    case "ArrowRight":
-      logLightboxNavDebug("lightbox-keyboard-next", {
-        beforeIndex: lightbox.currentIndex,
-        beforeItem: lightboxItemAt(lightbox.galleryItems, lightbox.currentIndex),
-      });
-      lightbox.next();
       break;
   }
 };
