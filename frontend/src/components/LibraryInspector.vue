@@ -36,6 +36,7 @@ import { queryClient } from "@/query";
 import { queryKeys } from "@/query/keys";
 import { clearScopeRebuildMarker, getScopeRebuildStartedAt } from "@/utils/indexMaintenance";
 import { logIndexRebuildDebug } from "@/debug/indexRebuildDebug";
+import { logLightboxNavDebug, summarizeLightboxItems } from "@/debug/lightboxNavDebug";
 import { hasActiveIndexWork, hasQueuedIndexWork } from "@/utils/indexStatus";
 import type {
   FileNode,
@@ -303,6 +304,17 @@ function folderLabel(row: LibraryInspectorRow) {
 function openImage(row: LibraryInspectorRow) {
   const items = visibleLightboxItems.value;
   const visibleIndex = items.findIndex((item) => item.path === row.path);
+  logLightboxNavDebug("library-inspector-open-image", {
+    clicked: { path: row.path, name: row.name },
+    visibleIndex,
+    visibleRows: visibleRows.value.length,
+    tableRows: visibleTableRows.value.length,
+    sorting: sorting.value,
+    query: query.value,
+    scope: scope.value,
+    currentPath: currentPath.value,
+    items: summarizeLightboxItems(items, visibleIndex),
+  });
   lightboxStore.open({ path: row.path, name: row.name }, items, visibleIndex);
 }
 

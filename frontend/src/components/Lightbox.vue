@@ -6,6 +6,7 @@ import { useClipboard } from "../composables/useClipboard";
 import { useDevice } from "../composables/useDevice";
 import { DESKTOP_METADATA_WIDTH } from "../constants";
 import { usePhotoMetadataQuery } from "../composables/usePhotoMetadataQuery";
+import { lightboxItemAt, logLightboxNavDebug } from "../debug/lightboxNavDebug";
 import {
   Minimize, X,
 } from "lucide-vue-next";
@@ -85,6 +86,13 @@ function handlePhotoSwipeClose() {
 
 function handlePhotoSwipeIndexChange(newIndex: number) {
   const item = lightbox.galleryItems[newIndex];
+  logLightboxNavDebug("lightbox-mobile-index-change", {
+    newIndex,
+    eventItem: lightboxItemAt(lightbox.galleryItems, newIndex),
+    beforeIndex: lightbox.currentIndex,
+    beforeItemPath: lightbox.itemPath,
+    willUpdateStore: Boolean(item && item.path !== lightbox.itemPath),
+  });
   if (item && item.path !== lightbox.itemPath) {
     // Update store to reflect PhotoSwipe's new index for metadata fetching
     lightbox.currentIndex = newIndex;
@@ -96,6 +104,13 @@ function handlePhotoSwipeIndexChange(newIndex: number) {
 // Index change handler for desktop/tablet PhotoSwipeViewer
 function handleIndexChange(newIndex: number) {
   const item = lightbox.galleryItems[newIndex];
+  logLightboxNavDebug("lightbox-index-change", {
+    newIndex,
+    eventItem: lightboxItemAt(lightbox.galleryItems, newIndex),
+    beforeIndex: lightbox.currentIndex,
+    beforeItemPath: lightbox.itemPath,
+    willUpdateStore: Boolean(item && item.path !== lightbox.itemPath),
+  });
   if (item && item.path !== lightbox.itemPath) {
     lightbox.currentIndex = newIndex;
     lightbox.itemPath = item.path;
@@ -119,9 +134,17 @@ const handleKeydown = (e: KeyboardEvent) => {
       handleClose();
       break;
     case "ArrowLeft":
+      logLightboxNavDebug("lightbox-keyboard-prev", {
+        beforeIndex: lightbox.currentIndex,
+        beforeItem: lightboxItemAt(lightbox.galleryItems, lightbox.currentIndex),
+      });
       lightbox.prev();
       break;
     case "ArrowRight":
+      logLightboxNavDebug("lightbox-keyboard-next", {
+        beforeIndex: lightbox.currentIndex,
+        beforeItem: lightboxItemAt(lightbox.galleryItems, lightbox.currentIndex),
+      });
       lightbox.next();
       break;
   }

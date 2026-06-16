@@ -6,6 +6,7 @@ import { queryClient } from "../query";
 import { queryKeys } from "../query/keys";
 import { useLightboxStore } from "../stores/lightbox";
 import { registerLightboxDOMReport } from "../debug/lightboxDomReport";
+import { logLightboxNavDebug, summarizeLightboxItems } from "../debug/lightboxNavDebug";
 import {
   buildPhotoSwipeItem,
   hasValidDimensions,
@@ -53,6 +54,7 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
   const pendingDimensions = new Map<string, Promise<LightboxDimensions | null>>();
   const originalLoadPromises = new Map<string, Promise<void>>();
   const originalLoadingPath = ref<string | null>(null);
+  let lastReportedPhotoSwipeIndex = -1;
 
   const scanDimensions = (item: FileNode): LightboxDimensions | null =>
     hasValidDimensions(item)
@@ -334,6 +336,11 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
     const runId = ++initRunId.value;
     const openingIndex = currentIndex.value;
     const openingItem = items.value[openingIndex];
+    logLightboxNavDebug("pswp-init-start", {
+      openingIndex,
+      openingItem: openingItem ? { path: openingItem.path, name: openingItem.name } : null,
+      items: summarizeLightboxItems(items.value, openingIndex),
+    });
     const openingDimensions = openingItem
       ? await resolveOpeningSlideDimensions(openingItem)
       : null;
@@ -367,6 +374,12 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
       ...photoSwipeOptions,
     });
     pswp.value = instance;
+    lastReportedPhotoSwipeIndex = instance.currIndex;
+    logLightboxNavDebug("pswp-instance-created", {
+      currIndex: instance.currIndex,
+      optionIndex: currentIndex.value,
+      dataSource: summarizeLightboxItems(dataSource, currentIndex.value),
+    });
     if (shouldExposeLightboxTestHooks) {
       (window as any).__pswp = instance;
       (window as any).__loadOriginalForCurrent = (reason: string) => {
@@ -375,6 +388,18 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
     }
 
     instance.on("change", () => {
+      const previousIndex = lastReportedPhotoSwipeIndex;
+      lastReportedPhotoSwipeIndex = instance.currIndex;
+      const itemData = getPhotoSwipeItem(instance.currIndex);
+      logLightboxNavDebug("pswp-change", {
+        previousIndex,
+        currIndex: instance.currIndex,
+        delta: previousIndex >= 0 ? instance.currIndex - previousIndex : null,
+        item: itemData ? { path: itemData.path, name: itemData.alt } : null,
+        propCurrentIndex: currentIndex.value,
+        storeCurrentIndex: lightboxStore.currentIndex,
+        storeItemPath: lightboxStore.itemPath,
+      });
       onIndexChange?.(instance.currIndex);
       resolveAndRefresh(instance.currIndex);
       maybeLoadCurrentAnimatedOriginal();
@@ -410,6 +435,11 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
     }
 
     instance.init();
+    logLightboxNavDebug("pswp-init-complete", {
+      currIndex: instance.currIndex,
+      propCurrentIndex: currentIndex.value,
+      storeCurrentIndex: lightboxStore.currentIndex,
+    });
     onAfterInit?.(instance);
     resolveAndRefresh(currentIndex.value);
     if (shouldAlwaysLoadOriginal()) {
@@ -457,6 +487,15 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
   watch(
     () => currentIndex.value,
     (index) => {
+      const pswpIndex = pswp.value?.currIndex ?? null;
+      const willGoTo = Boolean(pswp.value && pswp.value.currIndex !== index);
+      logLightboxNavDebug("pswp-watch-current-index", {
+        index,
+        pswpIndex,
+        willGoTo,
+        storeCurrentIndex: lightboxStore.currentIndex,
+        storeItemPath: lightboxStore.itemPath,
+      });
       if (pswp.value && pswp.value.currIndex !== index) {
         pswp.value.goTo(index);
       }

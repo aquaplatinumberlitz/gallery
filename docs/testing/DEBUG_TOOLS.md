@@ -68,6 +68,42 @@ Use when:
 
 Safety: Off by default. Normal UI exposes debug API traces only when this flag is enabled.
 
+### `debug-lightbox-nav`
+
+Location: `frontend/src/debug/lightboxNavDebug.ts`
+
+Purpose: Logs lightbox navigation index/path synchronization across Library Inspector, the lightbox store, `Lightbox.vue`, and PhotoSwipe.
+
+Enable:
+
+```js
+localStorage.setItem("debug-lightbox-nav", "true");
+location.reload();
+```
+
+Alternative one-session enable:
+
+```js
+window.__GALLERY_DEBUG_LIGHTBOX_NAV = true;
+```
+
+Disable:
+
+```js
+localStorage.removeItem("debug-lightbox-nav");
+location.reload();
+```
+
+Output: `console.info` lines prefixed with `[lightbox-nav-debug]`, each containing JSON with `seq`, `rel_ms`, `event`, index values, paths, and item windows around the focused image.
+
+Use when:
+
+- Library Inspector lightbox swipe skips from 1 to 3 to 5 or alternates on even indexes.
+- The visible counter and displayed PhotoSwipe image disagree.
+- Sorting/refetching inspector rows may be changing the lightbox item order while open.
+
+Safety: Off by default. It logs local paths and image names, so enable only during local debugging.
+
 ### `?debugReload=1` / `GALLERY_DEBUG_RELOAD`
 
 Location: `frontend/src/debug/reloadBlackBox.ts`, installed from `frontend/src/main.ts`.

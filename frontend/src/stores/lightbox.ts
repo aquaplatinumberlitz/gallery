@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import type { FileNode } from "../types";
 import { getPreviewUrl, getThumbnailUrl } from "../services/api";
+import { lightboxItemAt, logLightboxNavDebug, summarizeLightboxItems } from "../debug/lightboxNavDebug";
 import {
   LIGHTBOX_PREVIEW_EDGE,
   LIGHTBOX_THUMBNAIL_EDGE,
@@ -29,6 +30,13 @@ export const useLightboxStore = defineStore("lightbox", {
     open(node: FileNode | { path: string; name?: string }, items: FileNode[] = [], preferredIndex?: number) {
       const path = "path" in node ? node.path : "";
       const name = "name" in node ? node.name || "" : "";
+      const previous = {
+        isOpen: this.isOpen,
+        currentIndex: this.currentIndex,
+        itemPath: this.itemPath,
+        itemName: this.itemName,
+        galleryItems: this.galleryItems.length,
+      };
       
       this.itemPath = path;
       this.itemName = name;
@@ -41,6 +49,16 @@ export const useLightboxStore = defineStore("lightbox", {
       this.currentIndex = preferredItem?.path === path
         ? candidateIndex
         : this.galleryItems.findIndex(i => i.path === path);
+
+      logLightboxNavDebug("store-open", {
+        requested: { path, name },
+        preferredIndex,
+        candidateIndex,
+        resolvedIndex: this.currentIndex,
+        resolvedItem: lightboxItemAt(this.galleryItems, this.currentIndex),
+        previous,
+        items: summarizeLightboxItems(this.galleryItems, this.currentIndex),
+      });
 
       this.preloadNeighbors();
     },
@@ -64,20 +82,36 @@ export const useLightboxStore = defineStore("lightbox", {
 
     next() {
       if (this.currentIndex < this.galleryItems.length - 1) {
+        const beforeIndex = this.currentIndex;
+        const beforeItem = lightboxItemAt(this.galleryItems, beforeIndex);
         this.currentIndex++;
         const nextItem = this.galleryItems[this.currentIndex];
         this.itemPath = nextItem.path;
         this.itemName = nextItem.name;
+        logLightboxNavDebug("store-next", {
+          beforeIndex,
+          beforeItem,
+          afterIndex: this.currentIndex,
+          afterItem: lightboxItemAt(this.galleryItems, this.currentIndex),
+        });
         this.preloadNeighbors();
       }
     },
 
     prev() {
       if (this.currentIndex > 0) {
+        const beforeIndex = this.currentIndex;
+        const beforeItem = lightboxItemAt(this.galleryItems, beforeIndex);
         this.currentIndex--;
         const prevItem = this.galleryItems[this.currentIndex];
         this.itemPath = prevItem.path;
         this.itemName = prevItem.name;
+        logLightboxNavDebug("store-prev", {
+          beforeIndex,
+          beforeItem,
+          afterIndex: this.currentIndex,
+          afterItem: lightboxItemAt(this.galleryItems, this.currentIndex),
+        });
         this.preloadNeighbors();
       }
     },
@@ -92,6 +126,11 @@ export const useLightboxStore = defineStore("lightbox", {
     },
 
     close() {
+      logLightboxNavDebug("store-close", {
+        currentIndex: this.currentIndex,
+        currentItem: lightboxItemAt(this.galleryItems, this.currentIndex),
+        galleryItems: this.galleryItems.length,
+      });
       this.isOpen = false;
       this.itemPath = "";
       this.itemName = "";
