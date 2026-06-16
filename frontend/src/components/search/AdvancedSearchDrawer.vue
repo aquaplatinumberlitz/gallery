@@ -634,23 +634,6 @@ function applyAspectRatio(ratio: string) {
   width: 100%;
 }
 
-.field-select {
-  width: 100%;
-  height: 36px;
-  border-radius: 6px;
-  border: 1px solid var(--border, hsl(0 0% 89.8%));
-  background: transparent;
-  padding: 0 8px;
-  font-size: 14px;
-  color: var(--foreground, hsl(0 0% 3.9%));
-  outline: none;
-}
-
-.field-select:focus {
-  border-color: var(--ring, hsl(0 0% 3.9%));
-  box-shadow: 0 0 0 1px var(--ring, hsl(0 0% 3.9%));
-}
-
 .numeric-row {
   display: flex;
   gap: 4px;

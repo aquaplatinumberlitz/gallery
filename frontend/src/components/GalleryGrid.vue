@@ -1110,10 +1110,6 @@ watch(loadMoreSentinel, () => setupLoadObserver());
   color: color-mix(in srgb, var(--muted-foreground) 82%, var(--primary));
 }
 
-.search-album-path {
-  display: flex;
-}
-
 .search-scope-hint {
   margin: 10px 0 0;
   color: var(--muted-foreground);
@@ -1194,10 +1190,6 @@ watch(loadMoreSentinel, () => setupLoadObserver());
   justify-content: center;
   min-height: 300px;
   height: 100%;
-}
-
-.albums-section {
-  margin-bottom: 8px;
 }
 
 .scroller-footer {
@@ -1367,10 +1359,6 @@ watch(loadMoreSentinel, () => setupLoadObserver());
 
   .nav-group {
     display: flex;
-  }
-
-  .albums-section {
-    margin-bottom: 8px;
   }
 
   .scroller-container {

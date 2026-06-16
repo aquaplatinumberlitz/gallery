@@ -1,6 +1,5 @@
 import mimetypes
 import os
-from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse

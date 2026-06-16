@@ -439,6 +439,7 @@ function handleToggleFullscreen() {
   width: var(--gallery-icon-lg);
   height: var(--gallery-icon-lg);
 }
+
 .gallery-icon-xl {
   width: var(--gallery-icon-xl);
   height: var(--gallery-icon-xl);

@@ -1,0 +1,43 @@
+You are cleaning up dead code and dead CSS in this AI Art Gallery project. This is a production codebase — be careful and thorough.
+
+## Scope
+Scan the entire frontend src/ and backend/ directories for:
+
+1. **Unused imports** — import statements where the symbol is never referenced in the file.
+2. **Unused exports/functions** — exported or defined functions/constants/variables that are never imported or called anywhere else in the codebase.
+3. **Unused CSS classes** — CSS classes (in .vue SFCs and .scss files) that are never referenced in templates or components.
+4. **Unused components** — Vue SFC components that are no longer imported by any other component.
+5. **Dead code paths** — code branches that can never execute (e.g., conditions that are always true/false, unreachable returns).
+6. **Unused dependencies** — packages in package.json that are not imported in any source file.
+
+## Approach
+1. First, list all files that exist in frontend/src/ and backend/
+2. For each file, check imports and verify each imported symbol is actually used
+3. For each Vue component, check if it's referenced by any other component/vue-router
+4. For CSS/SCSS classes, check if they're used in any template
+5. Remove dead code, not commented-out code (unless it's clearly abandoned)
+6. Keep debug/dev tools (eruda, iconDebug overlay, etc.) — they are intentional
+
+## Important Rules
+- Only remove code that is provably unused (no references anywhere in the project)
+- Do not remove exports that are part of a public API contract
+- Do not remove test files or test utilities
+- Do not remove router definitions or route components that are lazy-loaded
+- Do not remove debug tooling (eruda, iconDebug, debug utilities)
+- Keep the toolbarTrigger.ts export even if only used in one place — it's a shared utility
+- Do not rename or restructure files, only delete dead content within files
+- For dead CSS: only remove rules/classes that match no selector in any template
+- After each removal, verify the build still passes
+
+## Validation
+After all changes:
+```
+cd frontend
+pnpm vue-tsc --noEmit
+pnpm build
+```
+And backend:
+```
+cd backend
+python -m pytest -q
+```
