@@ -24,6 +24,7 @@ defineProps<{
   isLoading?: boolean;
   isError?: boolean;
   errorMessage?: string;
+  globalWorkOutsideScope?: boolean;
   actionPending?: "rescan" | "rebuild" | null;
   actionError?: string;
 }>();
@@ -61,8 +62,17 @@ function formatCount(value: number) {
           <span v-else-if="presentation.status === 'indexing'">
             Indexing...
           </span>
+          <span v-else-if="globalWorkOutsideScope">
+            Indexer working in another folder
+          </span>
+          <span v-else-if="presentation.status === 'stale' && counts.stale > 0">
+            {{ formatCount(counts.stale) }} known photos need updating
+          </span>
+          <span v-else-if="presentation.status === 'stale' && counts.missingMetadataRecords > 0">
+            {{ formatCount(counts.missingMetadataRecords) }} photo details need updating
+          </span>
           <span v-else>
-            {{ formatCount(data?.metadata_records ?? 0) }} photos ready
+            {{ formatCount(data?.metadata_records ?? 0) }} photo details ready
           </span>
         </span>
 
@@ -85,6 +95,7 @@ function formatCount(value: number) {
         :is-loading="isLoading"
         :is-error="isError"
         :error-message="errorMessage"
+        :global-work-outside-scope="globalWorkOutsideScope"
         :action-pending="actionPending"
         :action-error="actionError"
         @rescan="emit('rescan')"

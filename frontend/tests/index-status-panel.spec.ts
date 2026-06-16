@@ -4,6 +4,7 @@
  *
  * Guarantees:
  * * index status counts and labels remain user-facing and stable
+ * * global indexer activity from another folder does not drive the primary status
  * * rebuild/rescan controls call the expected endpoints and refresh state
  *
  * Run when:
@@ -38,6 +39,7 @@ const indexStatusData = {
   total: 150,
   indexed_photos: 150,
   metadata_records: 150,
+  missing_metadata_records: 0,
   path: rootPath,
   counts: { done: 150 },
   oldest_queued_age_seconds: null,
@@ -205,7 +207,7 @@ test.describe("IndexStatusPanel", () => {
     await expect(statusButton).toBeVisible();
 
     await expect(statusButton).toContainText("Ready");
-    await expect(statusButton).toContainText("150 photos ready");
+    await expect(statusButton).toContainText("150 photo details ready");
     await expect(statusButton).toContainText("Details");
 
     await statusButton.click();
@@ -560,7 +562,7 @@ test.describe("IndexStatusPanel", () => {
 
     const popover = page.getByRole("dialog", { name: "Index Status" });
     await expect(popover).toBeVisible({ timeout: 5_000 });
-    await expect(popover).toContainText("150 photos ready");
+    await expect(popover).toContainText("150 photo details ready");
   });
 
   test("details popover does not overflow with long root path", async ({ page }) => {
@@ -604,7 +606,7 @@ test.describe("IndexStatusPanel", () => {
 
     const popover = page.getByRole("dialog", { name: "Index Status" });
     await expect(popover).toBeVisible({ timeout: 5_000 });
-    await expect(popover).toContainText("150 photos ready");
+    await expect(popover).toContainText("150 photo details ready");
   });
 
   test("collapsed Ready popover shows clean count without fraction when all records ready", async ({ page }) => {
@@ -633,8 +635,8 @@ test.describe("IndexStatusPanel", () => {
       const popover = page.getByRole("dialog", { name: "Index Status" });
       await expect(popover).toBeVisible({ timeout: 5_000 });
 
-      await expect(popover).toContainText("205 photos ready");
-      await expect(popover).not.toContainText("205 / 205 photos ready");
+      await expect(popover).toContainText("205 photo details ready");
+      await expect(popover).not.toContainText("205 / 205 photo details ready");
       await expect(popover).not.toContainText("Processing");
 
       await expect(popover.locator(".index-progress-bar")).not.toBeVisible();
@@ -643,7 +645,73 @@ test.describe("IndexStatusPanel", () => {
     }
   });
 
-  test("collapsed Needs update popover shows X photos need updating when stale > 0", async ({ page }) => {
+  test("global activity in another folder does not force current scope Updating", async ({ page }) => {
+    const prev = { ...indexStatusData };
+
+    try {
+      const globalRuntime = {
+        enabled: true,
+        worker_count: 1,
+        active_jobs: 2,
+        runtime_queue_depth: 3,
+        coalesced_duplicates: 0,
+        staged_path_queue_depth: 1,
+        staged_path_coalesced: 0,
+        staged_path_failed: 0,
+        staged_path_flushes_forced: 0,
+        staged_path_worker_count: 1,
+        active_scan_requests: 1,
+        batch_size: 100,
+        staged_path_batch_size: 50,
+        stage_max_wait_seconds: 30,
+      };
+
+      Object.assign(indexStatusData, {
+        active_jobs: 2,
+        runtime_queue_depth: 3,
+        staged_path_queue_depth: 1,
+        active_scan_requests: 1,
+        global_runtime: globalRuntime,
+        scope: {
+          ...indexStatusData,
+          active_jobs: 0,
+          runtime_queue_depth: 0,
+          staged_path_queue_depth: 0,
+          active_scan_requests: 0,
+          active_rebuilds: 0,
+          queued: 0,
+          running: 0,
+          failed: 0,
+          stale: 0,
+          last_error: null,
+          missing_metadata_records: 0,
+        },
+      });
+
+      await installStubbedGallery(page);
+      await openStubbedGallery(page, true);
+
+      const statusButton = page.getByLabel("Index Status");
+      await expect(statusButton).toContainText("Ready");
+      await expect(statusButton).toContainText("Indexer working in another folder");
+      await expect(statusButton).not.toContainText("Updating");
+
+      const badge = statusButton.locator(".index-status-badge");
+      await expect(badge).toHaveClass(/index-status-badge--green/);
+      await expect(badge).not.toHaveClass(/index-status-badge--yellow/);
+
+      await statusButton.click();
+      const popover = page.getByRole("dialog", { name: "Index Status" });
+      await expect(popover).toContainText("Indexer working in another folder");
+      await expect(popover.locator(".index-progress-bar")).not.toBeVisible();
+    } finally {
+      Object.assign(indexStatusData, prev);
+      delete (indexStatusData as Record<string, unknown>).scope;
+      delete (indexStatusData as Record<string, unknown>).global_runtime;
+    }
+  });
+
+  test("collapsed Needs update popover shows known items when stale > 0", async ({ page }) => {
     const prev = { ...indexStatusData };
 
     try {
@@ -667,8 +735,8 @@ test.describe("IndexStatusPanel", () => {
       const popover = page.getByRole("dialog", { name: "Index Status" });
       await expect(popover).toBeVisible({ timeout: 5_000 });
 
-      await expect(popover).toContainText("5 photos need updating");
-      await expect(popover).not.toContainText("200 / 205 photos ready");
+      await expect(popover).toContainText("5 known photos need updating");
+      await expect(popover).not.toContainText("200 / 205 photo details ready");
     } finally {
       Object.assign(indexStatusData, prev);
     }
@@ -799,13 +867,14 @@ test.describe("IndexStatusPanel", () => {
     }
   });
 
-  test("partial Ready (no stale, metadata < indexed) shows fraction summary", async ({ page }) => {
+  test("known missing photo details shows Needs update without claiming Ready", async ({ page }) => {
     const prev = { ...indexStatusData };
 
     try {
       Object.assign(indexStatusData, {
         indexed_photos: 205,
         metadata_records: 200,
+        missing_metadata_records: 5,
         done: 200,
         total: 205,
         stale: 0,
@@ -824,7 +893,9 @@ test.describe("IndexStatusPanel", () => {
       const popover = page.getByRole("dialog", { name: "Index Status" });
       await expect(popover).toBeVisible({ timeout: 5_000 });
 
-      await expect(popover).toContainText("200 / 205 photos ready");
+      await expect(statusButton).toContainText("Needs update");
+      await expect(popover).toContainText("5 photo details need updating");
+      await expect(popover).not.toContainText("200 / 205 photo details ready");
     } finally {
       Object.assign(indexStatusData, prev);
     }

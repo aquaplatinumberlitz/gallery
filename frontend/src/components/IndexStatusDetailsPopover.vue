@@ -25,6 +25,7 @@ defineProps<{
   isLoading?: boolean;
   isError?: boolean;
   errorMessage?: string;
+  globalWorkOutsideScope?: boolean;
   actionPending?: "rescan" | "rebuild" | null;
   actionError?: string;
 }>();
@@ -51,12 +52,15 @@ function formatUpdatedAt(value: number | null | undefined) {
 
 <template>
   <div class="index-details" aria-label="Index Status">
-    <div class="index-details__header">
-      <div>
-        <p class="index-details__eyebrow">Index</p>
+      <div class="index-details__header">
+        <div>
+          <p class="index-details__eyebrow">Index</p>
+        </div>
+        <IndexStatusBadge :presentation="presentation" />
       </div>
-      <IndexStatusBadge :presentation="presentation" />
-    </div>
+      <p v-if="globalWorkOutsideScope" class="index-details__muted" style="margin:0;font-size:12px;">
+        Indexer working in another folder
+      </p>
 
     <div v-if="isLoading" class="index-details__muted">
       Loading index status...
@@ -148,11 +152,11 @@ function formatUpdatedAt(value: number | null | undefined) {
         </div>
       </div>
 
-      <div v-if="counts.failed > 0 || counts.stagedPathFailed > 0" class="index-details__section">
+      <div v-if="counts.failed > 0" class="index-details__section">
         <p class="index-details__section-label">Issues</p>
         <div class="index-details__row">
           <span class="index-details__row-key index-details__row-key--error">Failed jobs</span>
-          <strong>{{ formatCount(counts.failed + counts.stagedPathFailed) }}</strong>
+          <strong>{{ formatCount(counts.failed) }}</strong>
         </div>
       </div>
 

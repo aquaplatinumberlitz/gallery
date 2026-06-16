@@ -274,12 +274,12 @@ test.describe("inspector stale notice (mocked)", () => {
     const notice = page.locator(".rebuild-notice");
     await expect(notice).toBeHidden({ timeout: 3_000 });
 
-    // Normal summary
+    // Normal compact summary
     const summary = page.locator(".library-inspector .text-muted-foreground").first();
     await expect(summary).toBeVisible({ timeout: 5_000 });
     const text = await summary.textContent();
     console.log(`Fresh test: summary="${text}"`);
-    expect(text).toContain("Showing");
+    expect(text).toContain("5 indexed photos");
   });
 
   test("stale data after rebuild → notice visible", async ({ page }) => {
@@ -309,13 +309,13 @@ test.describe("inspector stale notice (mocked)", () => {
     await expect(page.getByText("Rebuild?")).toBeVisible({ timeout: 5_000 });
     const confirmBtn = page.getByRole("button", { name: "Rebuild", exact: true }).last();
     await expect(confirmBtn).toBeVisible({ timeout: 3_000 });
-    await confirmBtn.click();
-
-    // Wait for rebuild POST
-    await page.waitForResponse(
-      (r) => r.url().includes("/api/index/rebuild") && r.status() === 200,
-      { timeout: 10_000 }
-    );
+    await Promise.all([
+      page.waitForResponse(
+        (r) => r.url().includes("/api/index/rebuild") && r.status() === 200,
+        { timeout: 10_000 }
+      ),
+      confirmBtn.click(),
+    ]);
 
     // After rebuild: marker is set, inspector still has generated_at=1
     // isInspectorDataStale should be true → notice visible
@@ -609,8 +609,8 @@ test.describe("metadata rebuild refresh regression", () => {
     });
 
     await page.goto(`${baseUrl}/metadata`, { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "Library Inspector" })).toBeVisible();
-    await expect(page.getByText("Showing 88 photo details")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Photo Details" })).toBeVisible();
+    await expect(page.getByText(`88 indexed photos · ${flowRoot} · Including subfolders`)).toBeVisible();
     await expect(page.getByText("old-row-001.png")).toBeVisible();
 
     await page.getByLabel("Index Status").click();
@@ -636,12 +636,12 @@ test.describe("metadata rebuild refresh regression", () => {
 
     reindexFinished = true;
 
-    await expect(page.getByText("Showing first 200 of 205 photo details")).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByText(`200 of 205 indexed photos shown · ${flowRoot} · Including subfolders`)).toBeVisible({ timeout: 8_000 });
     await expect(page.getByText("Refreshing photo details. Previous results are shown until the latest snapshot arrives.")).toBeHidden();
     await expect(page.locator(".table-shell")).not.toHaveClass(/table-shell--rebuilding/);
     await expect(page.getByText("new-row-001.png")).toBeVisible();
 
-    await expect(page.locator(".index-status-card")).toContainText("205 photos ready", { timeout: 5_000 });
+    await expect(page.locator(".index-status-card")).toContainText("205 photo details ready", { timeout: 5_000 });
 
     const inspectorRequests = requestTimeline.filter((entry) =>
       String(entry.requestUrl).startsWith("/api/library/inspector?")

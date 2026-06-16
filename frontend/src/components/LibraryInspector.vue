@@ -337,8 +337,8 @@ function formatDate(value: number | null) {
 }
 
 function formatDimensions(row: LibraryInspectorRow) {
-  if (!row.width || !row.height) return "Unknown";
-  return `${row.width} x ${row.height}`;
+  if (!row.width || !row.height) return "-";
+  return `${row.width} × ${row.height}`;
 }
 
 function modelLabel(row: LibraryInspectorRow) {
@@ -459,6 +459,18 @@ function sortAriaLabel(columnId: string, header: unknown) {
   if (state === "desc") return `${label}, sorted descending`;
   return `${label}, not sorted`;
 }
+
+function onHeaderSort(columnId: string, event: MouseEvent) {
+  table.getColumn(columnId)?.getToggleSortingHandler()?.(event);
+}
+
+function setModifiedSort(order: "asc" | "desc") {
+  sorting.value = [{ id: "mtime", desc: order === "desc" }];
+}
+
+function toggleModifiedSort() {
+  setModifiedSort(metadataSortOrder.value === "asc" ? "desc" : "asc");
+}
 </script>
 
 <template>
@@ -471,27 +483,63 @@ function sortAriaLabel(columnId: string, header: unknown) {
         </ButtonLink>
         <div class="min-w-0">
           <h2 id="library-inspector-title" class="truncate text-xl font-semibold tracking-normal">
-            Library Inspector
+            Photo Details
           </h2>
           <p class="truncate text-sm text-muted-foreground">
-            {{ inspectorSummary }}
-            <span v-if="!isInspectorDataStale && inspectorQuery.data.value.truncated">(showing first {{ inspectorQuery.data.value.limit }})</span>
-          </p>
-          <p class="truncate text-xs text-muted-foreground/70">
-            Folder: {{ inspectorQuery.data.value.root || galleryStore.currentPath || "All indexed" }} · Including subfolders
+            {{ pageSummary }}
           </p>
         </div>
       </div>
+    </div>
+
+    <div class="table-toolbar">
       <div class="inspector-search relative">
         <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           v-model="query"
           type="search"
-          class="pl-9"
-          placeholder="Search metadata, prompt:ancient door, model:sdxl, seed:123456"
-          aria-label="Search metadata"
+          class="h-9 pl-9"
+          placeholder="Search/filter metadata table... prompt:ancient door, model:sdxl, seed:123456"
+          aria-label="Search metadata table"
         />
       </div>
+      <Select v-model="modelFilter">
+        <SelectTrigger class="toolbar-select">
+          <SelectValue placeholder="Model" />
+        </SelectTrigger>
+        <SelectContent align="end">
+          <SelectItem value="all">All models</SelectItem>
+          <SelectItem v-for="model in modelOptions" :key="model" :value="model">
+            {{ model }}
+          </SelectItem>
+        </SelectContent>
+      </Select>
+      <Select v-model="promptFilter">
+        <SelectTrigger class="toolbar-select">
+          <SelectValue placeholder="Has prompt" />
+        </SelectTrigger>
+        <SelectContent align="end">
+          <SelectItem value="all">All prompts</SelectItem>
+          <SelectItem value="has_prompt">Has prompt</SelectItem>
+          <SelectItem value="no_prompt">No prompt</SelectItem>
+        </SelectContent>
+      </Select>
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <Button variant="outline" size="sm" type="button" class="sort-trigger" aria-label="Sort metadata table">
+            <ArrowUpDown class="gallery-icon-sm" aria-hidden="true" />
+            <span>Modified</span>
+            <component :is="metadataSortOrder === 'asc' ? ArrowUp : ArrowDown" class="gallery-icon-sm" aria-hidden="true" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" class="sort-dropdown-content">
+          <DropdownMenuItem class="bg-accent" @select="toggleModifiedSort">
+            <Clock class="gallery-icon-sm" aria-hidden="true" />
+            <span>Modified</span>
+            <component :is="metadataSortOrder === 'asc' ? ArrowUp : ArrowDown" class="ml-auto gallery-icon-sm" aria-hidden="true" />
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
 
     <div v-if="inspectorQuery.isError.value" class="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
@@ -503,10 +551,10 @@ function sortAriaLabel(columnId: string, header: unknown) {
     </div>
 
     <div :class="['table-shell', isInspectorDataStale && 'table-shell--rebuilding']">
-      <table class="inspector-table">
-        <thead>
-          <tr v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-            <th
+      <Table class="inspector-table">
+        <TableHeader class="table-header">
+          <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id" class="table-header-row hover:bg-transparent">
+            <TableHead
               v-for="header in headerGroup.headers"
               :key="header.id"
               :class="['table-head', `col-${header.column.id}`]"
@@ -519,64 +567,66 @@ function sortAriaLabel(columnId: string, header: unknown) {
                 class="h-8 px-2 text-xs font-medium"
                 :aria-label="sortAriaLabel(header.column.id, header.column.columnDef.header)"
                 :title="sortAriaLabel(header.column.id, header.column.columnDef.header)"
-                @click="header.column.getToggleSortingHandler()?.($event)"
+                @click="onHeaderSort(header.column.id, $event)"
               >
                 {{ header.column.columnDef.header }}{{ sortLabel(header.column.id) }}
+                <ArrowUpDown class="ml-1 size-3 opacity-45" aria-hidden="true" />
               </Button>
               <span v-else class="px-2 text-xs font-medium">
                 {{ header.column.columnDef.header }}
               </span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="inspectorQuery.isLoading.value">
-            <td colspan="8" class="p-4">
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          <TableRow v-if="inspectorQuery.isLoading.value">
+            <TableCell colspan="7" class="p-4">
               <div class="space-y-2">
                 <Skeleton v-for="idx in 8" :key="idx" class="h-10 w-full" />
               </div>
-            </td>
-          </tr>
-          <tr v-else-if="table.getRowModel().rows.length === 0">
-            <td colspan="8" class="p-8 text-center text-sm text-muted-foreground">
+            </TableCell>
+          </TableRow>
+          <TableRow v-else-if="table.getRowModel().rows.length === 0">
+            <TableCell colspan="7" class="p-8 text-center text-sm text-muted-foreground">
               {{ isInspectorDataStale ? "Refreshing metadata rows…" : "No indexed metadata rows." }}
-            </td>
-          </tr>
-          <tr
+            </TableCell>
+          </TableRow>
+          <TableRow
             v-for="row in table.getRowModel().rows"
             v-else
             :key="row.original.path"
-            :class="['table-row', selectedPath === row.original.path && 'selected']"
+            :data-state="selectedPath === row.original.path ? 'selected' : undefined"
+            class="table-row"
             @click="selectedPath = row.original.path"
           >
-            <td class="table-cell col-thumbnail">
-              <button class="thumb-button" type="button" @click.stop="openImage(row.original)">
-                <img :src="getThumbnailUrl(row.original.path, 128)" :alt="row.original.name" loading="lazy" />
-              </button>
-            </td>
-            <td class="table-cell col-name">
-              <div class="file-cell-content">
-                <button class="long-text-trigger file-name-trigger" type="button" @click.stop="openImage(row.original)">
-                  <span class="long-text-preview">{{ row.original.name }}</span>
+            <TableCell class="table-cell col-name">
+              <div class="file-cell">
+                <button class="thumb-button" type="button" @click.stop="openImage(row.original)">
+                  <img :src="getThumbnailUrl(row.original.path, 128)" :alt="row.original.name" loading="lazy" />
                 </button>
-                <Popover @update:open="(open) => open && (selectedPath = row.original.path)">
-                  <PopoverTrigger as-child>
-                    <button class="long-text-trigger folder-path-trigger" type="button" @click.stop>
-                      <span class="long-text-preview">{{ folderLabel(row.original) }}</span>
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent align="start" class="w-96">
-                    <div class="space-y-3">
-                      <p class="break-all text-sm">{{ row.original.path }}</p>
-                      <Button size="sm" variant="secondary" @click="copyText(row.original.path, 'path')">
-                        <Copy class="size-4" /> Copy full path
-                      </Button>
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                <div class="file-cell-content">
+                  <button class="long-text-trigger file-name-trigger" type="button" @click.stop="openImage(row.original)">
+                    <span class="long-text-preview">{{ row.original.name }}</span>
+                  </button>
+                  <Popover @update:open="(open) => open && (selectedPath = row.original.path)">
+                    <PopoverTrigger as-child>
+                      <button class="long-text-trigger folder-path-trigger" type="button" @click.stop>
+                        <span class="long-text-preview">{{ folderLabel(row.original) }}</span>
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" class="w-96">
+                      <div class="space-y-3">
+                        <p class="break-all text-sm">{{ row.original.path }}</p>
+                        <Button size="sm" variant="secondary" @click="copyText(row.original.path, 'path')">
+                          <Copy class="size-4" /> Copy full path
+                        </Button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
-            </td>
-            <td class="table-cell col-prompt">
+            </TableCell>
+            <TableCell class="table-cell col-prompt">
               <div class="prompt-cell">
                 <Popover v-if="row.original.has_prompt || row.original.has_negative" @update:open="(open) => openDetail(row.original.path, open)">
                   <PopoverTrigger as-child>
@@ -613,10 +663,12 @@ function sortAriaLabel(columnId: string, header: unknown) {
                 </Popover>
                 <span v-else class="block min-w-0 max-w-full truncate text-muted-foreground">No prompt metadata</span>
               </div>
-            </td>
-            <td class="table-cell col-model">
+            </TableCell>
+            <TableCell class="table-cell col-model">
               <div class="space-y-1">
-                <span class="block truncate font-medium">{{ modelLabel(row.original) }}</span>
+                <span :class="['block truncate font-medium', modelLabel(row.original) === 'Unknown' && 'text-muted-foreground']">
+                  {{ modelLabel(row.original) }}
+                </span>
                 <Popover v-if="row.original.has_lora" @update:open="(open) => openDetail(row.original.path, open)">
                   <PopoverTrigger as-child>
                     <button class="inline-flex" type="button" @click.stop>
@@ -644,8 +696,8 @@ function sortAriaLabel(columnId: string, header: unknown) {
                   </PopoverContent>
                 </Popover>
               </div>
-            </td>
-            <td class="table-cell col-seed">
+            </TableCell>
+            <TableCell class="table-cell col-seed">
               <button
                 v-if="row.original.seed"
                 class="inline-flex cursor-copy items-center gap-1 rounded-sm font-mono text-xs hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -658,10 +710,10 @@ function sortAriaLabel(columnId: string, header: unknown) {
                 <Copy class="seed-copy-icon size-3" aria-hidden="true" />
               </button>
               <span v-else class="text-muted-foreground">-</span>
-            </td>
-            <td class="table-cell col-dimensions">{{ formatDimensions(row.original) }}</td>
-            <td class="table-cell col-mtime">{{ formatDate(row.original.mtime) }}</td>
-            <td class="table-cell col-actions">
+            </TableCell>
+            <TableCell class="table-cell col-dimensions">{{ formatDimensions(row.original) }}</TableCell>
+            <TableCell class="table-cell col-mtime">{{ formatDate(row.original.mtime) }}</TableCell>
+            <TableCell class="table-cell col-actions">
               <DropdownMenu v-model:open="rowMenuOpen[row.original.path]">
                 <DropdownMenuTrigger as-child>
                   <Button variant="ghost" size="icon-sm" aria-label="Row actions" @click.stop>
@@ -692,10 +744,10 @@ function sortAriaLabel(columnId: string, header: unknown) {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+            </TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
     </div>
   </section>
 </template>
@@ -707,7 +759,7 @@ function sortAriaLabel(columnId: string, header: unknown) {
   flex: 1;
   flex-direction: column;
   overflow: hidden;
-  gap: 12px;
+  gap: 10px;
 }
 
 .inspector-header {
@@ -715,6 +767,7 @@ function sortAriaLabel(columnId: string, header: unknown) {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  padding-bottom: 2px;
 }
 
 .inspector-heading {
@@ -725,8 +778,42 @@ function sortAriaLabel(columnId: string, header: unknown) {
 }
 
 .inspector-search {
-  width: min(100%, 520px);
   min-width: 280px;
+  flex: 1 1 420px;
+}
+
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.toolbar-select {
+  height: 36px;
+  width: 150px;
+  flex: 0 0 auto;
+  font-size: 13px;
+}
+
+.sort-trigger {
+  display: inline-flex;
+  height: 36px;
+  min-width: 122px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.gallery-icon-sm {
+  height: 16px;
+  width: 16px;
+}
+
+.sort-dropdown-content {
+  min-width: 150px;
 }
 
 .table-shell {
@@ -753,17 +840,27 @@ function sortAriaLabel(columnId: string, header: unknown) {
 
 .inspector-table {
   width: 100%;
-  min-width: 1100px;
+  min-width: 1040px;
   table-layout: fixed;
-  border-collapse: collapse;
   font-size: 13px;
+}
+
+.table-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: hsl(var(--background));
+}
+
+.table-header-row {
+  background: hsl(var(--muted) / 0.55);
 }
 
 .table-head {
   position: sticky;
   top: 0;
-  z-index: 1;
-  height: 40px;
+  z-index: 2;
+  height: 38px;
   border-bottom: 1px solid hsl(var(--border));
   background: hsl(var(--muted) / 0.72);
   color: hsl(var(--muted-foreground));
@@ -771,33 +868,20 @@ function sortAriaLabel(columnId: string, header: unknown) {
   vertical-align: middle;
 }
 
-.table-row {
-  border-bottom: 1px solid hsl(var(--border));
-}
-
-.table-row:hover,
-.table-row.selected {
-  background: hsl(var(--accent) / 0.42);
-}
-
 .table-cell {
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
-  padding: 8px;
+  padding: 7px 12px;
   vertical-align: middle;
 }
 
-.col-thumbnail {
-  width: 64px;
-}
-
 .col-name {
-  width: 250px;
+  width: 300px;
 }
 
 .col-model {
-  width: 145px;
+  width: 150px;
 }
 
 .col-seed {
@@ -805,15 +889,15 @@ function sortAriaLabel(columnId: string, header: unknown) {
 }
 
 .col-dimensions {
-  width: 96px;
+  width: 110px;
 }
 
 .col-mtime {
-  width: 150px;
+  width: 160px;
 }
 
 .col-prompt {
-  width: 330px;
+  width: 360px;
 }
 
 .col-actions {
@@ -821,12 +905,20 @@ function sortAriaLabel(columnId: string, header: unknown) {
   text-align: right;
 }
 
+.file-cell {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
 .thumb-button {
   display: block;
   height: 44px;
   width: 44px;
+  flex: 0 0 44px;
   overflow: hidden;
-  border-radius: 6px;
+  border-radius: 4px;
   border: 1px solid hsl(var(--border));
   background: hsl(var(--muted));
 }
@@ -903,5 +995,23 @@ function sortAriaLabel(columnId: string, header: unknown) {
   font-size: 12px;
   line-height: 1.5;
   color: hsl(var(--foreground));
+}
+
+@media (max-width: 900px) {
+  .inspector-header,
+  .table-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .inspector-heading {
+    align-items: flex-start;
+  }
+
+  .inspector-search,
+  .toolbar-select,
+  .sort-trigger {
+    width: 100%;
+  }
 }
 </style>

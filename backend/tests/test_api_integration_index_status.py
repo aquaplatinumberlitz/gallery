@@ -4,10 +4,11 @@ Verifies the /api/index/status endpoint and runtime index status fields.
 
 Guarantees:
 * index status responses include stable progress, runtime, and error fields
+* scoped status and global runtime are exposed separately
 * endpoint remains JSON-serializable across disabled, enabled, empty, and failed-job states
 
 Run when:
-* changing metadata index status, indexer runtime counters, or failed job reporting
+* changing metadata index status, scoped/global runtime counters, or failed job reporting
 * touching IndexStatusPanel backend contracts
 """
 
@@ -35,6 +36,11 @@ class TestIndexStatus:
         # Runtime keys
         for key in ("enabled", "active_jobs", "runtime_queue_depth"):
             assert key in data
+        assert "missing_metadata_records" in data
+        assert "scope" in data
+        assert "global_runtime" in data
+        assert "active_jobs" in data["scope"]
+        assert "active_jobs" in data["global_runtime"]
 
     def test_index_status_when_indexer_disabled(self, isolated_app: TestClient):
         """Index status should work even when indexer is disabled."""
@@ -73,6 +79,51 @@ class TestIndexStatus:
         }
         for key in runtime_keys:
             assert key in data
+
+    def test_index_status_keeps_global_runtime_out_of_scoped_status(
+        self,
+        isolated_app: TestClient,
+        temp_gallery: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        album = temp_gallery / "album_a"
+
+        monkeypatch.setattr(
+            "backend.indexer.get_indexer_runtime_status",
+            lambda _target=None: {
+                "enabled": True,
+                "worker_count": 1,
+                "active_jobs": 2,
+                "runtime_queue_depth": 3,
+                "coalesced_duplicates": 0,
+                "batch_size": 100,
+                "staged_path_queue_depth": 4,
+                "staged_path_coalesced": 0,
+                "staged_path_failed": 5,
+                "staged_path_flushes_forced": 0,
+                "staged_path_worker_count": 1,
+                "staged_path_batch_size": 50,
+                "stage_max_wait_seconds": 30,
+                "active_scan_requests": 1,
+                "scoped_active_jobs": 0,
+                "scoped_runtime_queue_depth": 0,
+                "scoped_staged_path_queue_depth": 0,
+                "scoped_active_scan_requests": 0,
+                "scoped_active_rebuilds": 0,
+            },
+        )
+
+        resp = isolated_app.get("/api/index/status", params={"path": str(album)})
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["active_jobs"] == 2
+        assert data["runtime_queue_depth"] == 3
+        assert data["staged_path_failed"] == 5
+        assert data["scope"]["active_jobs"] == 0
+        assert data["scope"]["runtime_queue_depth"] == 0
+        assert data["scope"]["staged_path_queue_depth"] == 0
+        assert data["scope"]["active_scan_requests"] == 0
 
     def test_index_status_does_not_crash_with_empty_state(self, isolated_app: TestClient, temp_gallery: Path):
         """After fresh start with no index, the endpoint should not 500."""

@@ -309,26 +309,34 @@ test.describe("LibraryInspector", () => {
 
     await page.goto(`${baseUrl}/metadata`, { waitUntil: "domcontentloaded" });
 
-    await expect(page.getByRole("heading", { name: "Library Inspector" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Photo Details" })).toBeVisible();
     await expect(page.getByRole("link", { name: /Metadata/ })).toHaveAttribute("aria-current", "page");
-    await expect(page.getByText("Showing 40 photo details")).toBeVisible();
+    await expect(page.getByText(`40 indexed photos · ${rootPath} · Including subfolders`)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Museum Art Gallery" })).toBeHidden();
+    await expect(page.locator("#gallery-search")).toHaveCount(0);
+    await expect(page.getByLabel("Search metadata table")).toBeVisible();
+    await expect(page.getByRole("combobox").filter({ hasText: "All models" })).toBeVisible();
+    await expect(page.getByRole("combobox").filter({ hasText: "All prompts" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Sort metadata table" })).toContainText("Modified");
 
     const galleryLink = page.getByRole("link", { name: "Gallery" });
     await expect(galleryLink).toBeVisible();
 
     const headers = page.locator("thead th");
-    await expect(headers).toHaveCount(8);
-    await expect(headers.nth(1)).toContainText("File");
-    await expect(headers.nth(2)).toContainText("Prompt");
+    await expect(headers).toHaveCount(7);
+    await expect(headers.nth(0)).toContainText("File");
+    await expect(headers.nth(1)).toContainText("Prompt preview");
     await expect(page.locator("thead")).not.toContainText("Folder");
-    await expect(headers.nth(6)).toContainText("Modified ↓");
+    await expect(headers.nth(5)).toContainText("Modified ↓");
 
     const firstRowCells = page.locator("tbody tr").first().locator("td");
-    await expect(firstRowCells.nth(1)).toContainText("session-z");
-    await expect(firstRowCells.nth(2)).toContainText("zeta arch");
+    await expect(firstRowCells.nth(0)).toContainText("session-z");
+    await expect(firstRowCells.nth(1)).toContainText("zeta arch");
 
     await galleryLink.click();
     await expect(page).toHaveURL(`${baseUrl}/`);
+    await expect(page.getByRole("heading", { name: "Museum Art Gallery" })).toBeVisible();
+    await expect(page.locator("#gallery-search")).toBeVisible();
   });
 
   test("refetches active metadata records after rebuild index", async ({ page }) => {
@@ -340,8 +348,8 @@ test.describe("LibraryInspector", () => {
     }, rootPath);
 
     await page.goto(`${baseUrl}/metadata`, { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "Library Inspector" })).toBeVisible();
-    await expect(page.getByText("photo details", { exact: false })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Photo Details" })).toBeVisible();
+    await expect(page.getByText(`40 indexed photos · ${rootPath} · Including subfolders`)).toBeVisible();
 
     const inspectorRequestsBefore = requests.filter((request) => request.startsWith("/api/library/inspector?")).length;
     await page.getByLabel("Index Status").click();
@@ -430,7 +438,7 @@ test.describe("LibraryInspector", () => {
     await expect(page.getByText("door-detail")).toBeVisible();
     await expect(page.getByText("abc123")).toBeVisible();
 
-    await page.getByLabel("Search metadata").fill("blue forest");
+    await page.getByLabel("Search metadata table").fill("blue forest");
     await expect(page.locator("tbody tr")).toHaveCount(1);
     await expect(page.locator("tbody tr").first()).toContainText("blue-forest.png");
   });
@@ -444,7 +452,7 @@ test.describe("LibraryInspector", () => {
 
     await page.goto(`${baseUrl}/metadata`, { waitUntil: "domcontentloaded" });
 
-    await page.locator(".col-thumbnail .thumb-button").first().click();
+    await page.locator(".col-name .thumb-button").first().click();
     await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
     await expect.poll(() => photoMetadataPaths(requests).slice(-1)[0]).toBe(baseRows[0].path);
     await expect.poll(() => lightboxNavEvents.some((event) => event.event === "pswp-init-complete")).toBe(true);

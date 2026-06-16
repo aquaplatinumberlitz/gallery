@@ -10,7 +10,7 @@ export interface IndexStatusFieldCopy {
 export const INDEX_FIELD_COPY: Record<string, IndexStatusFieldCopy> = {
   metadata_records: {
     label: "Photo details ready",
-    tooltip: "Images with metadata ready for search and inspection.",
+    tooltip: "Known indexed images with metadata ready for search and inspection.",
     apiTrace: "API: metadata_records",
   },
   indexed_photos: {

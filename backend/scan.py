@@ -193,7 +193,7 @@ async def api_scan(
     image_limit: int | None = Query(None, ge=1, le=5000, description="Max images to return"),
     image_cursor: int = Query(0, ge=0, description="Cursor/offset for images"),
 ):
-    note_scan_request_started()
+    scan_tracking_target: Path | None = None
     try:
         request_started = time.perf_counter()
         resolve_started = time.perf_counter()
@@ -201,6 +201,8 @@ async def api_scan(
         resolve_ms = _elapsed_ms(resolve_started)
         if not is_path_safe(target):
             raise APIError(403, "permission", "Access denied: path outside allowed root")
+        scan_tracking_target = target
+        note_scan_request_started(scan_tracking_target)
 
         warm_result = None
         warm_fallback_reason = None
@@ -296,4 +298,5 @@ async def api_scan(
 
         return JSONResponse(content=encoded_payload)
     finally:
-        note_scan_request_finished()
+        if scan_tracking_target is not None:
+            note_scan_request_finished(scan_tracking_target)

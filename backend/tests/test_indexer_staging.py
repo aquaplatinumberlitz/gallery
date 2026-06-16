@@ -5,9 +5,10 @@ Verifies metadata indexer staging, dedupe, flush, retry, and scan-yield behavior
 Guarantees:
 * scan-time enqueueing stages paths in memory before SQLite queue writes
 * busy database and active scan conditions are retried, yielded, or marked safely
+* runtime counters can distinguish global work from current-scope work
 
 Run when:
-* changing metadata indexer queues, staging, retry policy, or worker batch processing
+* changing metadata indexer queues, staging, retry policy, scoped runtime accounting, or worker batch processing
 * touching rebuild/index tests or scan hot-path enqueue behavior
 """
 
@@ -57,10 +58,13 @@ def reset_indexer_state(monkeypatch: pytest.MonkeyPatch):
         indexer._staged_path_flushes_forced = 0
         indexer._last_path_stage_at = 0.0
         indexer._active_scan_requests = 0
+        indexer._active_scan_roots.clear()
+        indexer._active_rebuild_roots.clear()
     with indexer._worker_lock:
         indexer._queued_keys.clear()
         indexer._worker_thread = None
         indexer._active_jobs = 0
+        indexer._active_job_paths.clear()
         indexer._coalesced_duplicates = 0
 
     yield
@@ -71,6 +75,7 @@ def reset_indexer_state(monkeypatch: pytest.MonkeyPatch):
         indexer._pending_path_keys.clear()
     with indexer._worker_lock:
         indexer._queued_keys.clear()
+        indexer._active_job_paths.clear()
 
 
 def _job(path: str, *, mtime: float = 1.0, size: int = 2) -> MetadataIndexJob:
@@ -121,6 +126,35 @@ def test_stage_metadata_paths_from_scan_dedupes_in_ram():
 
     assert duplicate_result == {"staged": 0, "coalesced": 1, "skipped": 0}
     assert indexer._pending_path_queue.qsize() == 2
+
+
+def test_runtime_status_reports_scoped_activity_separately():
+    job_a = _job("/gallery/album_a/a.jpg")
+    job_b = _job("/gallery/album_b/b.jpg")
+
+    indexer._job_queue.put(job_a)
+    indexer._job_queue.put(job_b)
+    with indexer._worker_lock:
+        indexer._active_jobs = 1
+        indexer._active_job_paths[job_b.path] = 1
+    with indexer._path_stager_lock:
+        indexer._pending_path_queue.put(("/gallery/album_b/c.jpg", "/gallery/album_b"))
+        indexer._active_scan_requests = 1
+        indexer._active_scan_roots["/gallery/album_b"] = 1
+
+    album_a_status = indexer.get_indexer_runtime_status("/gallery/album_a")
+    album_b_status = indexer.get_indexer_runtime_status("/gallery/album_b")
+
+    assert album_a_status["runtime_queue_depth"] == 2
+    assert album_a_status["active_jobs"] == 1
+    assert album_a_status["active_scan_requests"] == 1
+    assert album_a_status["scoped_runtime_queue_depth"] == 1
+    assert album_a_status["scoped_active_jobs"] == 0
+    assert album_a_status["scoped_active_scan_requests"] == 0
+    assert album_b_status["scoped_runtime_queue_depth"] == 1
+    assert album_b_status["scoped_active_jobs"] == 1
+    assert album_b_status["scoped_staged_path_queue_depth"] == 1
+    assert album_b_status["scoped_active_scan_requests"] == 1
 
 
 def test_flush_staged_paths_calls_sqlite_queue_and_runtime_coalesces(monkeypatch: pytest.MonkeyPatch):

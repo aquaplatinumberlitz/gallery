@@ -34,6 +34,7 @@ import {
   getIndexStatusCounts,
   getIndexStatusPresentation,
   getIndexStatusProgressInfo,
+  hasGlobalIndexWorkOutsideScope,
 } from "@/utils/indexStatus";
 const props = withDefaults(defineProps<{
   path?: string;
@@ -61,6 +62,7 @@ const folderTooltip = computed(() => getFieldTooltip("path"));
 
 const counts = computed(() => getIndexStatusCounts(data.value));
 const progressInfo = computed(() => getIndexStatusProgressInfo(data.value));
+const globalWorkOutsideScope = computed(() => hasGlobalIndexWorkOutsideScope(data.value));
 const statusPresentation = computed(() => getIndexStatusPresentation(data.value ?? null, {
   hasPath: !!props.path,
   isLoading: isLoading.value,
@@ -72,22 +74,26 @@ const isDebugEnabled = computed(() => isIndexRebuildDebugEnabled());
 const compactReadySummary = computed(() => {
   const metadata = data.value?.metadata_records ?? 0;
   const indexed = data.value?.indexed_photos ?? 0;
-  const staleCount = data.value?.stale ?? 0;
+  const staleCount = counts.value.stale;
+  const missingDetails = counts.value.missingMetadataRecords;
 
   if (statusPresentation.value.status === "stale") {
     if (staleCount > 0) {
-      return `${staleCount.toLocaleString()} photos need updating`;
+      return `${staleCount.toLocaleString()} known photos need updating`;
     }
-    return "Photo details need updating";
+    if (missingDetails > 0) {
+      return `${missingDetails.toLocaleString()} photo details need updating`;
+    }
+    return "Known updates need attention";
   }
 
   if (metadata === indexed || indexed === 0) {
-    return `${metadata.toLocaleString()} photos ready`;
+    return `${metadata.toLocaleString()} photo details ready`;
   }
-  return `${metadata.toLocaleString()} / ${indexed.toLocaleString()} photos ready`;
+  return `${metadata.toLocaleString()} / ${indexed.toLocaleString()} photo details ready`;
 });
 
-const errorIssueCount = computed(() => (data.value?.failed ?? 0) + (data.value?.staged_path_failed ?? 0));
+const errorIssueCount = computed(() => counts.value.failed);
 
 const compactErrorSummary = computed(() => {
   if (errorIssueCount.value > 0) {
@@ -179,6 +185,7 @@ function onRebuildCancelled() {
     :is-loading="isLoading"
     :is-error="isError"
     :error-message="errorMessage"
+    :global-work-outside-scope="globalWorkOutsideScope"
     :action-pending="actionPending"
     :action-error="actionError"
     @rescan="triggerIndexAction('rescan')"
@@ -207,7 +214,7 @@ function onRebuildCancelled() {
             aria-hidden="true"
           />
         </span>
-        <Badge :variant="(data?.failed ?? 0) > 0 ? 'destructive' : statusPresentation.status === 'indexing' ? 'secondary' : 'outline'" class="px-1.5 py-0 text-[10px] leading-none group-data-[collapsible=icon]:hidden">
+        <Badge :variant="counts.failed > 0 ? 'destructive' : statusPresentation.status === 'indexing' ? 'secondary' : 'outline'" class="px-1.5 py-0 text-[10px] leading-none group-data-[collapsible=icon]:hidden">
           {{ statusPresentation.label }}
         </Badge>
       </Button>
@@ -253,6 +260,9 @@ function onRebuildCancelled() {
           <!-- Unknown / other -->
           <p v-else class="text-xs text-muted-foreground">
             Index status unavailable
+          </p>
+          <p v-if="globalWorkOutsideScope" class="text-xs text-muted-foreground">
+            Indexer working in another folder
           </p>
         </div>
 
@@ -358,11 +368,11 @@ function onRebuildCancelled() {
             </div>
           </div>
 
-          <div v-if="(data.failed ?? 0) > 0" class="space-y-1.5">
+          <div v-if="counts.failed > 0" class="space-y-1.5">
             <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Issues</p>
             <div class="flex items-center justify-between text-xs">
               <span class="text-destructive">Failed jobs</span>
-              <span class="text-right font-medium">{{ data.failed }}</span>
+              <span class="text-right font-medium">{{ counts.failed }}</span>
             </div>
           </div>
 

@@ -593,11 +593,14 @@ def get_metadata_index_status(path: str | Path | None = None) -> dict[str, Any]:
 
     now = time.time()
     oldest_queued_at = oldest_queued_row["oldest_queued_at"] if oldest_queued_row else None
+    indexed_photos = int(indexed_photos_row["total"] if indexed_photos_row else 0)
+    metadata_records = int(metadata_records_row["total"] if metadata_records_row else 0)
     return {
         "path": root,
         "total": sum(counts.values()),
-        "indexed_photos": int(indexed_photos_row["total"] if indexed_photos_row else 0),
-        "metadata_records": int(metadata_records_row["total"] if metadata_records_row else 0),
+        "indexed_photos": indexed_photos,
+        "metadata_records": metadata_records,
+        "missing_metadata_records": max(0, indexed_photos - metadata_records),
         "counts": counts,
         "queued": counts["queued"],
         "running": counts["running"],

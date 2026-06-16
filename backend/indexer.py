@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import queue
 import threading
 import time
@@ -52,6 +53,7 @@ _worker_lock = threading.RLock()
 _worker_thread: threading.Thread | None = None
 _queued_keys: set[tuple[str, float, int]] = set()
 _active_jobs = 0
+_active_job_paths: dict[str, int] = {}
 _coalesced_duplicates = 0
 
 _pending_path_queue: queue.Queue[tuple[str, str | None]] = queue.Queue()
@@ -63,6 +65,8 @@ _staged_path_failed = 0
 _staged_path_flushes_forced = 0
 _last_path_stage_at = 0.0
 _active_scan_requests = 0
+_active_scan_roots: dict[str, int] = {}
+_active_rebuild_roots: dict[str, float] = {}
 
 
 def _metric(factory: Any, name: str, documentation: str, *args: Any, **kwargs: Any) -> Any:
@@ -123,6 +127,29 @@ def _inc(metric: Any, *labels: str, amount: float = 1.0) -> None:
 def _observe(metric: Any, value: float) -> None:
     if metric is not None:
         metric.observe(value)
+
+
+def _normalized_path_text(path: str | Path | None) -> str:
+    if not path:
+        return ""
+    return str(Path(path).resolve())
+
+
+def _is_path_in_scope(path: str | Path | None, scope_root: str | Path | None) -> bool:
+    path_text = _normalized_path_text(path)
+    root_text = _normalized_path_text(scope_root)
+    if not path_text or not root_text:
+        return False
+    if path_text == root_text:
+        return True
+    if root_text == os.sep:
+        return path_text.startswith(os.sep)
+    return path_text.startswith(f"{root_text.rstrip(os.sep)}{os.sep}")
+
+
+def _queue_items(target_queue: queue.Queue) -> list[Any]:
+    with target_queue.mutex:
+        return list(target_queue.queue)
 
 
 class _SQLiteBusyRetriesExhausted(RuntimeError):
@@ -291,6 +318,8 @@ def _process_batch(jobs: list[MetadataIndexJob]) -> None:
 
     with _worker_lock:
         _active_jobs += len(jobs)
+        for job in jobs:
+            _active_job_paths[job.path] = _active_job_paths.get(job.path, 0) + 1
     _update_runtime_queue_metrics()
 
     try:
@@ -357,6 +386,11 @@ def _process_batch(jobs: list[MetadataIndexJob]) -> None:
             _active_jobs -= len(jobs)
             for job in jobs:
                 _queued_keys.discard(job.key)
+                active_count = _active_job_paths.get(job.path, 0)
+                if active_count <= 1:
+                    _active_job_paths.pop(job.path, None)
+                else:
+                    _active_job_paths[job.path] = active_count - 1
 
 
 def _enqueue_metadata_jobs_from_result(result: Any, *, start_worker: bool = True) -> dict[str, int]:
@@ -429,23 +463,33 @@ def stage_metadata_paths_from_scan(
     return {"staged": staged, "coalesced": coalesced, "skipped": skipped}
 
 
-def note_scan_request_started() -> None:
+def note_scan_request_started(root_path: str | Path | None = None) -> None:
     """Record scan hot-path activity so staged DB writes can yield."""
     global _active_scan_requests, _last_path_stage_at
     if not METADATA_INDEXER_ENABLED:
         return
+    root_text = _normalized_path_text(root_path)
     with _path_stager_lock:
         _active_scan_requests += 1
+        if root_text:
+            _active_scan_roots[root_text] = _active_scan_roots.get(root_text, 0) + 1
         _last_path_stage_at = time.monotonic()
 
 
-def note_scan_request_finished() -> None:
+def note_scan_request_finished(root_path: str | Path | None = None) -> None:
     """Record scan hot-path completion so staged DB writes can resume later."""
     global _active_scan_requests, _last_path_stage_at
     if not METADATA_INDEXER_ENABLED:
         return
+    root_text = _normalized_path_text(root_path)
     with _path_stager_lock:
         _active_scan_requests = max(0, _active_scan_requests - 1)
+        if root_text:
+            active_count = _active_scan_roots.get(root_text, 0)
+            if active_count <= 1:
+                _active_scan_roots.pop(root_text, None)
+            else:
+                _active_scan_roots[root_text] = active_count - 1
         _last_path_stage_at = time.monotonic()
 
 
@@ -567,12 +611,15 @@ def enqueue_metadata_jobs_from_scan(
     return stage_metadata_paths_from_scan(paths, root_path, start_worker=start_worker)
 
 
-def get_indexer_runtime_status() -> dict[str, Any]:
+def get_indexer_runtime_status(scope_path: str | Path | None = None) -> dict[str, Any]:
+    scope_root = _normalized_path_text(scope_path)
     with _worker_lock:
         worker_count = 1 if _worker_thread and _worker_thread.is_alive() else 0
         active_jobs = _active_jobs
         runtime_queue_depth = _job_queue.qsize()
         coalesced_duplicates = _coalesced_duplicates
+        active_job_paths = dict(_active_job_paths)
+        queued_jobs = _queue_items(_job_queue)
     with _path_stager_lock:
         staged_path_queue_depth = _pending_path_queue.qsize()
         staged_path_coalesced = _staged_path_coalesced
@@ -580,6 +627,37 @@ def get_indexer_runtime_status() -> dict[str, Any]:
         staged_path_flushes_forced = _staged_path_flushes_forced
         staged_path_worker_count = 1 if _path_stager_thread and _path_stager_thread.is_alive() else 0
         active_scan_requests = _active_scan_requests
+        active_scan_roots = dict(_active_scan_roots)
+        staged_paths = _queue_items(_pending_path_queue)
+        active_rebuild_roots = dict(_active_rebuild_roots)
+
+    scoped_active_jobs = 0
+    scoped_runtime_queue_depth = 0
+    scoped_staged_path_queue_depth = 0
+    scoped_active_scan_requests = 0
+    scoped_active_rebuilds = 0
+    if scope_root:
+        scoped_active_jobs = sum(
+            count for path, count in active_job_paths.items()
+            if _is_path_in_scope(path, scope_root)
+        )
+        scoped_runtime_queue_depth = sum(
+            1 for job in queued_jobs
+            if _is_path_in_scope(getattr(job, "path", ""), scope_root)
+        )
+        scoped_staged_path_queue_depth = sum(
+            1 for path, root_path in staged_paths
+            if _is_path_in_scope(path, scope_root) or _is_path_in_scope(root_path, scope_root)
+        )
+        scoped_active_scan_requests = sum(
+            count for root, count in active_scan_roots.items()
+            if _is_path_in_scope(root, scope_root) or _is_path_in_scope(scope_root, root)
+        )
+        scoped_active_rebuilds = sum(
+            1 for root in active_rebuild_roots
+            if _is_path_in_scope(root, scope_root) or _is_path_in_scope(scope_root, root)
+        )
+
     return {
         "enabled": METADATA_INDEXER_ENABLED,
         "worker_count": worker_count,
@@ -595,6 +673,11 @@ def get_indexer_runtime_status() -> dict[str, Any]:
         "staged_path_batch_size": METADATA_INDEXER_STAGE_BATCH_SIZE,
         "stage_max_wait_seconds": METADATA_INDEXER_STAGE_MAX_WAIT_SECONDS,
         "active_scan_requests": active_scan_requests,
+        "scoped_active_jobs": scoped_active_jobs,
+        "scoped_runtime_queue_depth": scoped_runtime_queue_depth,
+        "scoped_staged_path_queue_depth": scoped_staged_path_queue_depth,
+        "scoped_active_scan_requests": scoped_active_scan_requests,
+        "scoped_active_rebuilds": scoped_active_rebuilds,
     }
 
 
@@ -622,11 +705,29 @@ def rebuild_index_scope(root: str | Path) -> dict[str, Any]:
     }
 
 
+def _mark_rebuild_scope_started(root: str | Path, started_at: float) -> None:
+    root_text = _normalized_path_text(root)
+    if not root_text:
+        return
+    with _path_stager_lock:
+        _active_rebuild_roots[root_text] = started_at
+
+
+def _mark_rebuild_scope_finished(root: str | Path) -> None:
+    root_text = _normalized_path_text(root)
+    if not root_text:
+        return
+    with _path_stager_lock:
+        _active_rebuild_roots.pop(root_text, None)
+
+
 def _rebuild_index_scope_safely(root: str | Path) -> None:
     try:
         rebuild_index_scope(root)
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("Index rebuild failed for %s: %s", root, exc)
+    finally:
+        _mark_rebuild_scope_finished(root)
 
 
 @router.get("/api/index/status")
@@ -636,8 +737,36 @@ async def api_index_status(path: str | None = Query(None, description="Folder/ro
         raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied")
 
     status = await run_in_threadpool(get_metadata_index_status, target)
-    status.update(get_indexer_runtime_status())
-    return status
+    runtime = get_indexer_runtime_status(target)
+    global_runtime_keys = {
+        "enabled",
+        "worker_count",
+        "active_jobs",
+        "runtime_queue_depth",
+        "coalesced_duplicates",
+        "staged_path_queue_depth",
+        "staged_path_coalesced",
+        "staged_path_failed",
+        "staged_path_flushes_forced",
+        "staged_path_worker_count",
+        "active_scan_requests",
+        "batch_size",
+        "staged_path_batch_size",
+        "stage_max_wait_seconds",
+    }
+    global_runtime = {key: runtime[key] for key in global_runtime_keys}
+    scope = {
+        **status,
+        "active_jobs": runtime["scoped_active_jobs"],
+        "runtime_queue_depth": runtime["scoped_runtime_queue_depth"],
+        "staged_path_queue_depth": runtime["scoped_staged_path_queue_depth"],
+        "active_scan_requests": runtime["scoped_active_scan_requests"],
+        "active_rebuilds": runtime["scoped_active_rebuilds"],
+    }
+    response = {**status, **global_runtime}
+    response["scope"] = scope
+    response["global_runtime"] = global_runtime
+    return response
 
 
 @router.post("/api/index/rebuild")
@@ -659,6 +788,7 @@ async def api_index_rebuild(
 
     cleared = await run_in_threadpool(clear_index_records, target)
     rebuild_started_at = time.time()
+    _mark_rebuild_scope_started(target, rebuild_started_at)
     background_tasks.add_task(_rebuild_index_scope_safely, target)
 
     return {

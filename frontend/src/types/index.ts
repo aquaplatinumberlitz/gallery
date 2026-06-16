@@ -105,6 +105,7 @@ export interface IndexStatusResponse {
   total: number;
   indexed_photos: number;
   metadata_records: number;
+  missing_metadata_records?: number;
   counts: Record<string, number>;
   queued: number;
   running: number;
@@ -131,6 +132,48 @@ export interface IndexStatusResponse {
   batch_size: number;
   staged_path_batch_size: number;
   stage_max_wait_seconds: number;
+  scope?: IndexStatusScope;
+  global_runtime?: IndexStatusRuntime;
+}
+
+export interface IndexStatusRuntime {
+  enabled: boolean;
+  worker_count: number;
+  active_jobs: number;
+  runtime_queue_depth: number;
+  coalesced_duplicates: number;
+  staged_path_queue_depth: number;
+  staged_path_coalesced: number;
+  staged_path_failed: number;
+  staged_path_flushes_forced: number;
+  staged_path_worker_count: number;
+  active_scan_requests: number;
+  batch_size: number;
+  staged_path_batch_size: number;
+  stage_max_wait_seconds: number;
+}
+
+export interface IndexStatusScope {
+  path: string;
+  total: number;
+  indexed_photos: number;
+  metadata_records: number;
+  missing_metadata_records?: number;
+  counts: Record<string, number>;
+  queued: number;
+  running: number;
+  done: number;
+  failed: number;
+  stale: number;
+  skipped: number;
+  oldest_queued_age_seconds: number | null;
+  last_error: { path: string; message: string; updated_at: number } | null;
+  updated_at: number | null;
+  active_jobs: number;
+  runtime_queue_depth: number;
+  staged_path_queue_depth: number;
+  active_scan_requests: number;
+  active_rebuilds?: number;
 }
 
 export type IndexStatusState =
