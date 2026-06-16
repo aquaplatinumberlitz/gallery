@@ -2,7 +2,7 @@
 
 Last reviewed: 2026-06-16
 
-Status: proposed.
+Status: Phase 1 implemented; Phase 2 and Phase 3 pending.
 
 This plan targets the `/metadata` navigation and `LibraryInspector.vue` interaction delay. Recent profiling showed that the default `/api/library/inspector` request is not the main source of the perceived 800ms delay on the tested local dataset. The expensive path is frontend main-thread work after the API body is already available: mounting and updating 100 rich table rows with thumbnails, popovers, dropdown menus, and long metadata cells.
 
@@ -44,6 +44,8 @@ Recommended performance budget after all phases:
 
 ## Phase 1 - Virtualized Cheap Rows
 
+Status: implemented on 2026-06-16.
+
 Primary objective: reduce mount/update cost by rendering only rows in or near the viewport and by making each visible row cheap.
 
 Scope:
@@ -80,6 +82,15 @@ Risks:
 Exit condition:
 
 - The measured delay from API body-ready to first visible row is no longer the dominant part of the `/metadata` navigation.
+
+Implementation result:
+
+- `LibraryInspector.vue` uses `@tanstack/vue-virtual` to render only the visible metadata rows plus overscan.
+- Default rendered table rows dropped from the full 100-row response to about 15 DOM rows on the 1366x900 Playwright viewport.
+- Latest `metadata-performance.spec.ts` run after Phase 1:
+  - navigation: API response to first row 60ms, click to table ready 613ms, rendered rows 15
+  - sort: API response to update 25ms, rendered rows 15, table not cleared during load
+  - search: one debounced request, final API response to update 208ms, rendered rows 1
 
 ## Phase 2 - Navigation, Prefetch, and State Restore
 
@@ -230,4 +241,3 @@ Pause and re-profile before continuing if:
 - Virtualization causes row misalignment, broken keyboard focus, or incorrect action targets.
 - State restore shows rows from the wrong folder/scope.
 - Detail DTO splitting creates visible delay every time a user opens common row information.
-

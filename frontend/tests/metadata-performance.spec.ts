@@ -236,10 +236,10 @@ test.describe("Metadata performance", () => {
     const sortWallMs = clickTime.value;
 
     // Click the sort dropdown trigger
-    const sortBtn = page.getByRole("button", { name: /sort metadata table/i });
+    const sortBtn = page.getByRole("combobox", { name: /sort metadata table/i });
     await sortBtn.click();
     // Pick "Name A-Z" to toggle sort direction
-    const nameAsc = page.getByRole("menuitem", { name: /name.*a[-–]z/i });
+    const nameAsc = page.getByRole("option", { name: /name.*a[-–]z/i });
     await expect(nameAsc).toBeVisible({ timeout: 3_000 });
     await nameAsc.click();
     const clickDoneMs = timestamp();

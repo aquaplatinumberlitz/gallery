@@ -7,6 +7,7 @@ import {
   useVueTable,
   type SortingState,
 } from "@tanstack/vue-table";
+import { useVirtualizer } from "@tanstack/vue-virtual";
 import { ArrowLeft, ArrowUpDown, Copy, ExternalLink, MoreHorizontal, Search } from "lucide-vue-next";
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
@@ -89,6 +90,7 @@ const selectedPath = ref("");
 const detailPath = ref("");
 const detailEnabled = ref(false);
 const rowMenuOpen = ref<Record<string, boolean>>({});
+const tableShellRef = ref<HTMLElement | null>(null);
 
 const inspectorQuery = useLibraryInspectorQuery(query, scope, currentPath, limit, inspectorSort);
 const metadataQuery = useLibraryInspectorMetadataQuery(detailPath, detailEnabled);
@@ -337,6 +339,31 @@ const table = useVueTable({
 });
 
 const visibleTableRows = computed(() => table.getRowModel().rows);
+const METADATA_ROW_HEIGHT = 64;
+const virtualRowCount = computed(() => visibleTableRows.value.length);
+const rowVirtualizer = useVirtualizer<HTMLElement, HTMLElement>(
+  computed(() => ({
+    count: virtualRowCount.value,
+    getScrollElement: () => tableShellRef.value,
+    estimateSize: () => METADATA_ROW_HEIGHT,
+    overscan: 3,
+    getItemKey: (index: number) => visibleTableRows.value[index]?.original.path ?? index,
+  }))
+);
+const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems());
+const virtualPaddingTop = computed(() => virtualRows.value[0]?.start ?? 0);
+const virtualPaddingBottom = computed(() => {
+  const last = virtualRows.value[virtualRows.value.length - 1];
+  if (!last) return 0;
+  return Math.max(0, rowVirtualizer.value.getTotalSize() - last.end);
+});
+watch(
+  [virtualRowCount, inspectorSort, query, scope, currentPath, modelFilter, promptFilter],
+  () => {
+    rowVirtualizer.value.measure();
+  },
+  { flush: "post" }
+);
 const visibleRows = computed(() => visibleTableRows.value.map((row) => row.original));
 const visibleLightboxItems = computed<FileNode[]>(() =>
   visibleRows.value.map((row) => ({
@@ -553,7 +580,7 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
       Refreshing photo details. Previous results are shown until the latest snapshot arrives.
     </div>
 
-    <div :class="['metadata-table-shell table-shell', isInspectorDataStale && 'table-shell--rebuilding']">
+    <div ref="tableShellRef" :class="['metadata-table-shell table-shell', isInspectorDataStale && 'table-shell--rebuilding']">
       <Table class="inspector-table w-full table-fixed">
         <TableHeader class="table-header bg-muted">
           <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id" class="table-header-row bg-muted hover:bg-muted">
@@ -599,38 +626,47 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
               </div>
             </TableCell>
           </TableRow>
-          <TableRow v-else-if="table.getRowModel().rows.length === 0">
+          <TableRow v-else-if="visibleTableRows.length === 0">
             <TableCell colspan="7" class="p-8 text-center text-sm text-muted-foreground">
               {{ isInspectorDataStale ? "Refreshing metadata rows…" : "No indexed metadata rows." }}
             </TableCell>
           </TableRow>
+          <template v-else>
           <TableRow
-            v-for="row in table.getRowModel().rows"
-            v-else
-            :key="row.original.path"
-            :data-state="selectedPath === row.original.path ? 'selected' : undefined"
+            v-if="virtualPaddingTop > 0"
+            aria-hidden="true"
+            class="virtual-spacer-row"
+            :style="{ height: `${virtualPaddingTop}px` }"
+          >
+            <TableCell colspan="7" class="p-0"></TableCell>
+          </TableRow>
+          <TableRow
+            v-for="virtualRow in virtualRows"
+            :key="String(virtualRow.key)"
+            :data-state="selectedPath === visibleTableRows[virtualRow.index]?.original.path ? 'selected' : undefined"
             class="table-row"
-            @click="selectedPath = row.original.path"
+            :style="{ height: `${virtualRow.size}px` }"
+            @click="selectedPath = visibleTableRows[virtualRow.index]?.original.path || selectedPath"
           >
             <TableCell class="table-cell col-name">
               <div class="file-cell flex min-w-0 items-center gap-3">
-                <button class="thumb-button" type="button" @click.stop="openImage(row.original)">
-                  <img :src="getThumbnailUrl(row.original.path, 128)" :alt="row.original.name" loading="lazy" />
+                <button class="thumb-button" type="button" @click.stop="openImage(visibleTableRows[virtualRow.index].original)">
+                  <img :src="getThumbnailUrl(visibleTableRows[virtualRow.index].original.path, 128)" :alt="visibleTableRows[virtualRow.index].original.name" loading="lazy" />
                 </button>
                 <div class="file-cell-content min-w-0">
-                  <button class="long-text-trigger file-name-trigger" type="button" @click.stop="openImage(row.original)">
-                    <span class="long-text-preview truncate">{{ row.original.name }}</span>
+                  <button class="long-text-trigger file-name-trigger" type="button" @click.stop="openImage(visibleTableRows[virtualRow.index].original)">
+                    <span class="long-text-preview truncate">{{ visibleTableRows[virtualRow.index].original.name }}</span>
                   </button>
-                  <Popover @update:open="(open) => open && (selectedPath = row.original.path)">
+                  <Popover @update:open="(open) => open && (selectedPath = visibleTableRows[virtualRow.index].original.path)">
                     <PopoverTrigger as-child>
                       <button class="long-text-trigger folder-path-trigger" type="button" @click.stop>
-                        <span class="long-text-preview truncate">{{ folderLabel(row.original) }}</span>
+                        <span class="long-text-preview truncate">{{ folderLabel(visibleTableRows[virtualRow.index].original) }}</span>
                       </button>
                     </PopoverTrigger>
                     <PopoverContent align="start" class="w-96">
                       <div class="space-y-3">
-                        <p class="break-all text-sm">{{ row.original.path }}</p>
-                        <Button size="sm" variant="secondary" @click="copyText(row.original.path, 'path')">
+                        <p class="break-all text-sm">{{ visibleTableRows[virtualRow.index].original.path }}</p>
+                        <Button size="sm" variant="secondary" @click="copyText(visibleTableRows[virtualRow.index].original.path, 'path')">
                           <Copy class="size-4" /> Copy full path
                         </Button>
                       </div>
@@ -641,19 +677,19 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
             </TableCell>
             <TableCell class="table-cell col-prompt">
               <div class="prompt-cell min-w-0 overflow-hidden">
-                <Popover v-if="row.original.has_prompt || row.original.has_negative" @update:open="(open) => openDetail(row.original.path, open)">
+                <Popover v-if="visibleTableRows[virtualRow.index].original.has_prompt || visibleTableRows[virtualRow.index].original.has_negative" @update:open="(open) => openDetail(visibleTableRows[virtualRow.index].original.path, open)">
                   <PopoverTrigger as-child>
                     <button class="long-text-trigger prompt-trigger" type="button" @click.stop>
-                      <span class="long-text-preview truncate whitespace-nowrap">{{ row.original.prompt_preview || 'No prompt metadata' }}</span>
+                      <span class="long-text-preview truncate whitespace-nowrap">{{ visibleTableRows[virtualRow.index].original.prompt_preview || 'No prompt metadata' }}</span>
                     </button>
                   </PopoverTrigger>
                   <PopoverContent align="start" class="w-[32rem]">
-                    <div v-if="metadataQuery.isLoading.value && detailPath === row.original.path" class="space-y-2">
+                    <div v-if="metadataQuery.isLoading.value && detailPath === visibleTableRows[virtualRow.index].original.path" class="space-y-2">
                       <Skeleton class="h-4 w-2/3" />
                       <Skeleton class="h-24 w-full" />
                       <Skeleton class="h-16 w-full" />
                     </div>
-                    <div v-else-if="metadataQuery.isError.value && detailPath === row.original.path" class="space-y-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                    <div v-else-if="metadataQuery.isError.value && detailPath === visibleTableRows[virtualRow.index].original.path" class="space-y-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
                       <p class="font-medium">Unable to load metadata detail.</p>
                       <Button size="sm" variant="outline" @click="metadataQuery.refetch()">Retry</Button>
                     </div>
@@ -667,9 +703,9 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                         <p class="metadata-block">{{ metadataQuery.data.value.negative_prompt }}</p>
                       </div>
                       <div class="flex flex-wrap gap-2">
-                        <Button size="sm" variant="secondary" @click="copyDetail(row.original, 'prompt')">Copy prompt</Button>
-                        <Button size="sm" variant="secondary" @click="copyDetail(row.original, 'negative')">Copy negative</Button>
-                        <Button size="sm" variant="outline" @click="copyDetail(row.original, 'metadata')">Copy full metadata</Button>
+                        <Button size="sm" variant="secondary" @click="copyDetail(visibleTableRows[virtualRow.index].original, 'prompt')">Copy prompt</Button>
+                        <Button size="sm" variant="secondary" @click="copyDetail(visibleTableRows[virtualRow.index].original, 'negative')">Copy negative</Button>
+                        <Button size="sm" variant="outline" @click="copyDetail(visibleTableRows[virtualRow.index].original, 'metadata')">Copy full metadata</Button>
                       </div>
                     </div>
                   </PopoverContent>
@@ -679,31 +715,31 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
             </TableCell>
             <TableCell class="table-cell col-model">
               <div class="space-y-1">
-                <span :class="['block truncate font-medium', modelLabel(row.original) === 'Unknown' && 'text-muted-foreground']">
-                  {{ modelLabel(row.original) }}
+                <span :class="['block truncate font-medium', modelLabel(visibleTableRows[virtualRow.index].original) === 'Unknown' && 'text-muted-foreground']">
+                  {{ modelLabel(visibleTableRows[virtualRow.index].original) }}
                 </span>
-                <Popover v-if="row.original.has_lora" @update:open="(open) => openDetail(row.original.path, open)">
+                <Popover v-if="visibleTableRows[virtualRow.index].original.has_lora" @update:open="(open) => openDetail(visibleTableRows[virtualRow.index].original.path, open)">
                   <PopoverTrigger as-child>
                     <button class="inline-flex" type="button" @click.stop>
-                      <Badge variant="secondary">{{ row.original.lora_count > 1 ? `LoRA ${row.original.lora_count}` : 'LoRA' }}</Badge>
+                      <Badge variant="secondary">{{ visibleTableRows[virtualRow.index].original.lora_count > 1 ? `LoRA ${visibleTableRows[virtualRow.index].original.lora_count}` : 'LoRA' }}</Badge>
                     </button>
                   </PopoverTrigger>
                   <PopoverContent align="start" class="w-[28rem]">
-                    <div v-if="metadataQuery.isLoading.value && detailPath === row.original.path" class="space-y-2">
+                    <div v-if="metadataQuery.isLoading.value && detailPath === visibleTableRows[virtualRow.index].original.path" class="space-y-2">
                       <Skeleton class="h-4 w-3/4" />
                       <Skeleton class="h-20 w-full" />
                     </div>
-                    <div v-else-if="metadataQuery.isError.value && detailPath === row.original.path" class="space-y-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                    <div v-else-if="metadataQuery.isError.value && detailPath === visibleTableRows[virtualRow.index].original.path" class="space-y-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
                       <p class="font-medium">Unable to load resource detail.</p>
                       <Button size="sm" variant="outline" @click="metadataQuery.refetch()">Retry</Button>
                     </div>
                     <div v-else class="space-y-3">
                       <p class="text-sm font-medium">LoRA resources</p>
-                      <pre class="metadata-block">{{ formatResources(metadataQuery.data.value?.loras || []) || row.original.lora_preview }}</pre>
+                      <pre class="metadata-block">{{ formatResources(metadataQuery.data.value?.loras || []) || visibleTableRows[virtualRow.index].original.lora_preview }}</pre>
                       <div class="flex flex-wrap gap-2">
-                        <Button size="sm" variant="secondary" @click="copyDetail(row.original, 'loras')">Copy LoRA list</Button>
-                        <Button size="sm" variant="secondary" @click="copyDetail(row.original, 'hashes')">Copy resource hashes</Button>
-                        <Button size="sm" variant="outline" @click="copyDetail(row.original, 'metadata')">Copy full metadata</Button>
+                        <Button size="sm" variant="secondary" @click="copyDetail(visibleTableRows[virtualRow.index].original, 'loras')">Copy LoRA list</Button>
+                        <Button size="sm" variant="secondary" @click="copyDetail(visibleTableRows[virtualRow.index].original, 'hashes')">Copy resource hashes</Button>
+                        <Button size="sm" variant="outline" @click="copyDetail(visibleTableRows[virtualRow.index].original, 'metadata')">Copy full metadata</Button>
                       </div>
                     </div>
                   </PopoverContent>
@@ -712,53 +748,62 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
             </TableCell>
             <TableCell class="table-cell col-seed">
               <button
-                v-if="row.original.seed"
+                v-if="visibleTableRows[virtualRow.index].original.seed"
                 class="inline-flex cursor-copy items-center gap-1 rounded-sm font-mono text-xs hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 type="button"
-                :aria-label="`Copy seed ${row.original.seed}`"
+                :aria-label="`Copy seed ${visibleTableRows[virtualRow.index].original.seed}`"
                 title="Copy seed"
-                @click.stop="copyText(row.original.seed, 'seed')"
+                @click.stop="copyText(visibleTableRows[virtualRow.index].original.seed, 'seed')"
               >
-                <span>{{ row.original.seed }}</span>
+                <span>{{ visibleTableRows[virtualRow.index].original.seed }}</span>
                 <Copy class="seed-copy-icon size-3" aria-hidden="true" />
               </button>
               <span v-else class="text-muted-foreground">-</span>
             </TableCell>
-            <TableCell class="table-cell col-dimensions whitespace-nowrap">{{ formatDimensions(row.original) }}</TableCell>
-            <TableCell class="table-cell col-mtime whitespace-nowrap">{{ formatDate(row.original.mtime) }}</TableCell>
+            <TableCell class="table-cell col-dimensions whitespace-nowrap">{{ formatDimensions(visibleTableRows[virtualRow.index].original) }}</TableCell>
+            <TableCell class="table-cell col-mtime whitespace-nowrap">{{ formatDate(visibleTableRows[virtualRow.index].original.mtime) }}</TableCell>
             <TableCell class="table-cell col-actions">
-              <DropdownMenu v-model:open="rowMenuOpen[row.original.path]">
+              <DropdownMenu v-model:open="rowMenuOpen[visibleTableRows[virtualRow.index].original.path]">
                 <DropdownMenuTrigger as-child>
                   <Button variant="ghost" size="icon-sm" aria-label="Row actions" @click.stop>
                     <MoreHorizontal class="size-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem @click="openImage(row.original)">
+                  <DropdownMenuItem @click="openImage(visibleTableRows[virtualRow.index].original)">
                     <ExternalLink class="size-4" /> Open image
                   </DropdownMenuItem>
-                  <DropdownMenuItem @click="copyText(row.original.path, 'path')">
+                  <DropdownMenuItem @click="copyText(visibleTableRows[virtualRow.index].original.path, 'path')">
                     <Copy class="size-4" /> Copy path
                   </DropdownMenuItem>
-                  <DropdownMenuItem v-if="row.original.seed" @click="copyText(row.original.seed, 'seed')">
+                  <DropdownMenuItem v-if="visibleTableRows[virtualRow.index].original.seed" @click="copyText(visibleTableRows[virtualRow.index].original.seed, 'seed')">
                     <Copy class="size-4" /> Copy seed
                   </DropdownMenuItem>
-                  <DropdownMenuItem v-if="row.original.has_prompt" @select="(event: Event) => handleCopyDetailSelect(event, row.original, 'prompt')">
+                  <DropdownMenuItem v-if="visibleTableRows[virtualRow.index].original.has_prompt" @select="(event: Event) => handleCopyDetailSelect(event, visibleTableRows[virtualRow.index].original, 'prompt')">
                     <Copy class="size-4" /> Copy prompt
                   </DropdownMenuItem>
-                  <DropdownMenuItem v-if="row.original.has_negative" @select="(event: Event) => handleCopyDetailSelect(event, row.original, 'negative')">
+                  <DropdownMenuItem v-if="visibleTableRows[virtualRow.index].original.has_negative" @select="(event: Event) => handleCopyDetailSelect(event, visibleTableRows[virtualRow.index].original, 'negative')">
                     <Copy class="size-4" /> Copy negative
                   </DropdownMenuItem>
-                  <DropdownMenuItem v-if="row.original.has_lora" @select="(event: Event) => handleCopyDetailSelect(event, row.original, 'loras')">
+                  <DropdownMenuItem v-if="visibleTableRows[virtualRow.index].original.has_lora" @select="(event: Event) => handleCopyDetailSelect(event, visibleTableRows[virtualRow.index].original, 'loras')">
                     <Copy class="size-4" /> Copy LoRA list
                   </DropdownMenuItem>
-                  <DropdownMenuItem @select="(event: Event) => handleCopyDetailSelect(event, row.original, 'metadata')">
+                  <DropdownMenuItem @select="(event: Event) => handleCopyDetailSelect(event, visibleTableRows[virtualRow.index].original, 'metadata')">
                     <Copy class="size-4" /> Copy full metadata
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </TableCell>
           </TableRow>
+          <TableRow
+            v-if="virtualPaddingBottom > 0"
+            aria-hidden="true"
+            class="virtual-spacer-row"
+            :style="{ height: `${virtualPaddingBottom}px` }"
+          >
+            <TableCell colspan="7" class="p-0"></TableCell>
+          </TableRow>
+          </template>
         </TableBody>
       </Table>
     </div>
@@ -940,6 +985,16 @@ button.metadata-header-control:focus-visible {
 .table-row {
   position: relative;
   z-index: 0;
+  height: 64px;
+}
+
+.virtual-spacer-row {
+  pointer-events: none;
+}
+
+.virtual-spacer-row > td {
+  height: inherit;
+  border: 0;
 }
 
 .table-cell {

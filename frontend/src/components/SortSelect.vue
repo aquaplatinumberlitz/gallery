@@ -18,7 +18,7 @@ const modelValue = defineModel<SortValue>({ required: true });
 
 <template>
   <Select v-model="modelValue">
-    <SelectTrigger class="w-[150px]">
+    <SelectTrigger class="w-[150px]" :aria-label="ariaLabel">
       <SelectValue />
     </SelectTrigger>
     <SelectContent>
