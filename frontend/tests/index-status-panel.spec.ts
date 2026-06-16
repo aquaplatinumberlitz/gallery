@@ -566,28 +566,31 @@ test.describe("IndexStatusPanel", () => {
 
   test("details popover does not overflow with long root path", async ({ page }) => {
     const longRootPath = "/home/ubuntu/gallery-repo/test-images/comfyui/some/very/long/path/that/should/overflow";
-    const origPath = indexStatusData.path;
-    indexStatusData.path = longRootPath;
+    const prev = { ...indexStatusData };
 
-    await installStubbedGallery(page);
-    await openStubbedGallery(page, true);
+    try {
+      Object.assign(indexStatusData, { path: longRootPath });
 
-    indexStatusData.path = origPath;
+      await installStubbedGallery(page);
+      await openStubbedGallery(page, true);
 
-    const statusButton = page.getByLabel("Index Status");
-    await statusButton.click();
+      const statusButton = page.getByLabel("Index Status");
+      await statusButton.click();
 
-    const popover = page.getByRole("dialog", { name: "Index Status" });
-    await expect(popover).toBeVisible({ timeout: 5_000 });
-    await expect(popover).toContainText("Folder");
+      const popover = page.getByRole("dialog", { name: "Index Status" });
+      await expect(popover).toBeVisible({ timeout: 5_000 });
+      await expect(popover).toContainText("Folder");
 
-    const rootValue = popover.locator("strong[title]");
-    await expect(rootValue).toHaveAttribute("title", longRootPath);
+      const rootValue = popover.locator("strong[title]");
+      await expect(rootValue).toHaveAttribute("title", longRootPath);
 
-    const box = await popover.boundingBox();
-    expect(box).not.toBeNull();
-    expect(box!.x + box!.width).toBeLessThanOrEqual(1280);
-    expect(box!.y + box!.height).toBeLessThanOrEqual(900);
+      const box = await popover.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.x + box!.width).toBeLessThanOrEqual(1280);
+      expect(box!.y + box!.height).toBeLessThanOrEqual(900);
+    } finally {
+      Object.assign(indexStatusData, prev);
+    }
   });
 
   test("mobile viewport preserves button variant", async ({ page }) => {
@@ -607,152 +610,299 @@ test.describe("IndexStatusPanel", () => {
 
   test("collapsed Ready popover shows clean count without fraction when all records ready", async ({ page }) => {
     const prev = { ...indexStatusData };
-    Object.assign(indexStatusData, {
-      indexed_photos: 205,
-      metadata_records: 205,
-      done: 205,
-      total: 205,
-      stale: 0,
-      failed: 0,
-      staged_path_failed: 0,
-    });
 
-    await installStubbedGallery(page);
-    await openStubbedGallery(page, true);
+    try {
+      Object.assign(indexStatusData, {
+        indexed_photos: 205,
+        metadata_records: 205,
+        done: 205,
+        total: 205,
+        stale: 0,
+        failed: 0,
+        staged_path_failed: 0,
+      });
 
-    const trigger = page.locator('[data-sidebar="trigger"]');
-    await trigger.click();
-    await expect(trigger).toHaveAttribute("aria-label", "Expand sidebar");
+      await installStubbedGallery(page);
+      await openStubbedGallery(page, true);
 
-    const statusButton = page.getByLabel("Index Status");
-    await statusButton.click();
-    const popover = page.getByRole("dialog", { name: "Index Status" });
-    await expect(popover).toBeVisible({ timeout: 5_000 });
+      const trigger = page.locator('[data-sidebar="trigger"]');
+      await trigger.click();
+      await expect(trigger).toHaveAttribute("aria-label", "Expand sidebar");
 
-    await expect(popover).toContainText("205 photos ready");
-    await expect(popover).not.toContainText("205 / 205 photos ready");
-    await expect(popover).not.toContainText("Processing");
+      const statusButton = page.getByLabel("Index Status");
+      await statusButton.click();
+      const popover = page.getByRole("dialog", { name: "Index Status" });
+      await expect(popover).toBeVisible({ timeout: 5_000 });
 
-    const barInsidePopover = popover.locator(".h-1,.h-1\\.5");
-    await expect(barInsidePopover).not.toBeVisible();
+      await expect(popover).toContainText("205 photos ready");
+      await expect(popover).not.toContainText("205 / 205 photos ready");
+      await expect(popover).not.toContainText("Processing");
 
-    Object.assign(indexStatusData, prev);
+      await expect(popover.locator(".index-progress-bar")).not.toBeVisible();
+    } finally {
+      Object.assign(indexStatusData, prev);
+    }
   });
 
-  test("collapsed partial ready / needs update popover shows fraction", async ({ page }) => {
+  test("collapsed Needs update popover shows X photos need update when stale > 0", async ({ page }) => {
     const prev = { ...indexStatusData };
-    Object.assign(indexStatusData, {
-      indexed_photos: 205,
-      metadata_records: 200,
-      done: 200,
-      total: 205,
-      stale: 5,
-    });
 
-    await installStubbedGallery(page);
-    await openStubbedGallery(page, true);
+    try {
+      Object.assign(indexStatusData, {
+        indexed_photos: 205,
+        metadata_records: 200,
+        done: 200,
+        total: 205,
+        stale: 5,
+      });
 
-    const trigger = page.locator('[data-sidebar="trigger"]');
-    await trigger.click();
-    await expect(trigger).toHaveAttribute("aria-label", "Expand sidebar");
+      await installStubbedGallery(page);
+      await openStubbedGallery(page, true);
 
-    const statusButton = page.getByLabel("Index Status");
-    await statusButton.click();
-    const popover = page.getByRole("dialog", { name: "Index Status" });
-    await expect(popover).toBeVisible({ timeout: 5_000 });
+      const trigger = page.locator('[data-sidebar="trigger"]');
+      await trigger.click();
+      await expect(trigger).toHaveAttribute("aria-label", "Expand sidebar");
 
-    await expect(popover).toContainText("200 / 205 photos ready");
+      const statusButton = page.getByLabel("Index Status");
+      await statusButton.click();
+      const popover = page.getByRole("dialog", { name: "Index Status" });
+      await expect(popover).toBeVisible({ timeout: 5_000 });
 
-    Object.assign(indexStatusData, prev);
+      await expect(popover).toContainText("5 photos need update");
+      await expect(popover).not.toContainText("200 / 205 photos ready");
+    } finally {
+      Object.assign(indexStatusData, prev);
+    }
   });
 
   test("collapsed Updating popover shows compact header with one progress bar in Processing", async ({ page }) => {
     const prev = { ...indexStatusData };
-    Object.assign(indexStatusData, {
-      indexed_photos: 522,
-      metadata_records: 200,
-      done: 256,
-      total: 522,
-      queued: 50,
-      running: 1,
-      stale: 0,
-      failed: 0,
-    });
 
-    await installStubbedGallery(page);
-    await openStubbedGallery(page, true);
+    try {
+      Object.assign(indexStatusData, {
+        indexed_photos: 522,
+        metadata_records: 200,
+        done: 256,
+        total: 522,
+        queued: 50,
+        running: 1,
+        stale: 0,
+        failed: 0,
+      });
 
-    const trigger = page.locator('[data-sidebar="trigger"]');
-    await trigger.click();
-    await expect(trigger).toHaveAttribute("aria-label", "Expand sidebar");
+      await installStubbedGallery(page);
+      await openStubbedGallery(page, true);
 
-    const statusButton = page.getByLabel("Index Status");
-    await statusButton.click();
-    const popover = page.getByRole("dialog", { name: "Index Status" });
-    await expect(popover).toBeVisible({ timeout: 5_000 });
+      const trigger = page.locator('[data-sidebar="trigger"]');
+      await trigger.click();
+      await expect(trigger).toHaveAttribute("aria-label", "Expand sidebar");
 
-    await expect(popover).toContainText("Updating");
-    await expect(popover).toContainText("Updating photo details");
+      const statusButton = page.getByLabel("Index Status");
+      await statusButton.click();
+      const popover = page.getByRole("dialog", { name: "Index Status" });
+      await expect(popover).toBeVisible({ timeout: 5_000 });
 
-    await popover.getByRole("button", { name: "Details" }).click();
+      await expect(popover).toContainText("Updating");
+      await expect(popover).toContainText("Updating photo details");
 
-    await expect(popover).toContainText("Processing");
-    await expect(popover).toContainText("256 / 522 details processed");
+      await popover.getByRole("button", { name: "Details" }).click();
 
-    const barCount = await popover.locator(".h-1,.h-1\\.5").count();
-    expect(barCount).toBe(1);
+      await expect(popover).toContainText("Processing");
+      await expect(popover).toContainText("256 / 522 details processed");
 
-    Object.assign(indexStatusData, prev);
+      const barCount = await popover.locator(".index-progress-bar").count();
+      expect(barCount).toBe(1);
+    } finally {
+      Object.assign(indexStatusData, prev);
+    }
   });
 
   test("stale badge label shows Needs update not Stale", async ({ page }) => {
     const prev = { ...indexStatusData };
-    Object.assign(indexStatusData, {
-      indexed_photos: 205,
-      metadata_records: 200,
-      stale: 5,
-      done: 200,
-      total: 205,
-    });
 
-    await installStubbedGallery(page);
-    await openStubbedGallery(page, true);
+    try {
+      Object.assign(indexStatusData, {
+        indexed_photos: 205,
+        metadata_records: 200,
+        stale: 5,
+        done: 200,
+        total: 205,
+      });
 
-    const statusButton = page.getByLabel("Index Status");
-    await expect(statusButton).toBeVisible({ timeout: 10_000 });
-    await expect(statusButton).toContainText("Needs update");
-    await expect(statusButton).not.toContainText("Stale");
+      await installStubbedGallery(page);
+      await openStubbedGallery(page, true);
 
-    Object.assign(indexStatusData, prev);
+      const statusButton = page.getByLabel("Index Status");
+      await expect(statusButton).toBeVisible({ timeout: 10_000 });
+      await expect(statusButton).toContainText("Needs update");
+      await expect(statusButton).not.toContainText("Stale");
+    } finally {
+      Object.assign(indexStatusData, prev);
+    }
   });
 
   test("error state with zero issues shows Index needs attention fallback", async ({ page }) => {
     const prev = { ...indexStatusData };
-    Object.assign(indexStatusData, {
-      failed: 0,
-      staged_path_failed: 0,
-      last_error: {
-        message: "Connection refused",
-        updated_at: 1000000000,
-      },
-    });
 
-    await installStubbedGallery(page);
-    await openStubbedGallery(page, true);
+    try {
+      Object.assign(indexStatusData, {
+        failed: 0,
+        staged_path_failed: 0,
+        last_error: {
+          message: "Connection refused",
+          updated_at: 1000000000,
+        },
+      });
 
-    const trigger = page.locator('[data-sidebar="trigger"]');
-    await trigger.click();
-    await expect(trigger).toHaveAttribute("aria-label", "Expand sidebar");
+      await installStubbedGallery(page);
+      await openStubbedGallery(page, true);
 
-    const statusButton = page.getByLabel("Index Status");
-    await statusButton.click();
-    const popover = page.getByRole("dialog", { name: "Index Status" });
-    await expect(popover).toBeVisible({ timeout: 5_000 });
+      const trigger = page.locator('[data-sidebar="trigger"]');
+      await trigger.click();
+      await expect(trigger).toHaveAttribute("aria-label", "Expand sidebar");
 
-    await expect(popover).toContainText("Index needs attention");
-    await expect(popover).not.toContainText("0 items need attention");
+      const statusButton = page.getByLabel("Index Status");
+      await statusButton.click();
+      const popover = page.getByRole("dialog", { name: "Index Status" });
+      await expect(popover).toBeVisible({ timeout: 5_000 });
 
-    Object.assign(indexStatusData, prev);
+      await expect(popover).toContainText("Index needs attention");
+      await expect(popover).not.toContainText("0 items need attention");
+    } finally {
+      Object.assign(indexStatusData, prev);
+    }
+  });
+
+  test("unavailable state badge shows Unavailable not Warning", async ({ page }) => {
+    const prev = { ...indexStatusData };
+
+    try {
+      Object.assign(indexStatusData, {
+        enabled: false,
+        stale: 0,
+        failed: 0,
+        last_error: null,
+      });
+
+      await installStubbedGallery(page);
+      await openStubbedGallery(page, true);
+
+      const statusButton = page.getByLabel("Index Status");
+      await expect(statusButton).toBeVisible({ timeout: 10_000 });
+      await expect(statusButton).toContainText("Unavailable");
+      await expect(statusButton).not.toContainText("Warning");
+    } finally {
+      Object.assign(indexStatusData, prev);
+    }
+  });
+
+  test("partial Ready (no stale, metadata < indexed) shows fraction summary", async ({ page }) => {
+    const prev = { ...indexStatusData };
+
+    try {
+      Object.assign(indexStatusData, {
+        indexed_photos: 205,
+        metadata_records: 200,
+        done: 200,
+        total: 205,
+        stale: 0,
+        failed: 0,
+      });
+
+      await installStubbedGallery(page);
+      await openStubbedGallery(page, true);
+
+      const trigger = page.locator('[data-sidebar="trigger"]');
+      await trigger.click();
+      await expect(trigger).toHaveAttribute("aria-label", "Expand sidebar");
+
+      const statusButton = page.getByLabel("Index Status");
+      await statusButton.click();
+      const popover = page.getByRole("dialog", { name: "Index Status" });
+      await expect(popover).toBeVisible({ timeout: 5_000 });
+
+      await expect(popover).toContainText("200 / 205 photos ready");
+    } finally {
+      Object.assign(indexStatusData, prev);
+    }
+  });
+
+  test("collapsed Updating progress bar uses shared index-progress-bar", async ({ page }) => {
+    const prev = { ...indexStatusData };
+
+    try {
+      Object.assign(indexStatusData, {
+        indexed_photos: 522,
+        metadata_records: 200,
+        done: 256,
+        total: 522,
+        queued: 50,
+        running: 1,
+        stale: 0,
+        failed: 0,
+      });
+
+      await installStubbedGallery(page);
+      await openStubbedGallery(page, true);
+
+      const trigger = page.locator('[data-sidebar="trigger"]');
+      await trigger.click();
+      await expect(trigger).toHaveAttribute("aria-label", "Expand sidebar");
+
+      const statusButton = page.getByLabel("Index Status");
+      await statusButton.click();
+      const popover = page.getByRole("dialog", { name: "Index Status" });
+      await expect(popover).toBeVisible({ timeout: 5_000 });
+
+      await popover.getByRole("button", { name: "Details" }).click();
+      await expect(popover).toContainText("Processing");
+
+      const bar = popover.locator(".index-progress-bar");
+      await expect(bar).toBeVisible();
+      const fill = bar.locator(".index-progress-bar__fill");
+      await expect(fill).toBeVisible();
+    } finally {
+      Object.assign(indexStatusData, prev);
+    }
+  });
+
+  test("expanded card Updating progress bar uses shared index-progress-bar", async ({ page }) => {
+    const prev = { ...indexStatusData };
+
+    try {
+      Object.assign(indexStatusData, {
+        indexed_photos: 522,
+        metadata_records: 200,
+        done: 256,
+        total: 522,
+        queued: 50,
+        running: 1,
+        stale: 0,
+        failed: 0,
+      });
+
+      await installStubbedGallery(page);
+      await openStubbedGallery(page, true);
+
+      const card = page.locator(".index-status-card");
+      await expect(card).toBeVisible({ timeout: 10_000 });
+
+      const bar = card.locator(".index-progress-bar");
+      await expect(bar).toBeVisible();
+      const fill = bar.locator(".index-progress-bar__fill");
+      await expect(fill).toBeVisible();
+
+      await card.click();
+      const popover = page.getByRole("dialog", { name: "Index Status" });
+      await expect(popover).toBeVisible({ timeout: 5_000 });
+
+      const popoverBar = popover.locator(".index-progress-bar");
+      await expect(popoverBar).toBeVisible();
+      const popoverFill = popoverBar.locator(".index-progress-bar__fill");
+      await expect(popoverFill).toBeVisible();
+    } finally {
+      Object.assign(indexStatusData, prev);
+    }
   });
 
   test("debug fields are hidden by default in collapsed popover", async ({ page }) => {

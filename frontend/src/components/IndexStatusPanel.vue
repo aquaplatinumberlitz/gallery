@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button.vue";
 import Badge from "@/components/ui/Badge.vue";
 import IndexStatusBadge from "@/components/IndexStatusBadge.vue";
 import IndexStatusCard from "@/components/IndexStatusCard.vue";
+import IndexProgressBar from "@/components/IndexProgressBar.vue";
 import {
   Popover,
   PopoverContent,
@@ -71,6 +72,15 @@ const isDebugEnabled = computed(() => isIndexRebuildDebugEnabled());
 const compactReadySummary = computed(() => {
   const metadata = data.value?.metadata_records ?? 0;
   const indexed = data.value?.indexed_photos ?? 0;
+  const staleCount = data.value?.stale ?? 0;
+
+  if (statusPresentation.value.status === "stale") {
+    if (staleCount > 0) {
+      return `${staleCount.toLocaleString()} photos need update`;
+    }
+    return "Photo details need update";
+  }
+
   if (metadata === indexed || indexed === 0) {
     return `${metadata.toLocaleString()} photos ready`;
   }
@@ -320,12 +330,7 @@ function onRebuildCancelled() {
               {{ progressInfo.indexed.toLocaleString() }}<template v-if="progressInfo.total !== null"> / {{ progressInfo.total.toLocaleString() }}</template> details processed
             </p>
 
-            <div v-if="progressInfo.percent !== null" class="h-1 w-full rounded-full bg-muted overflow-hidden" aria-hidden="true">
-              <div
-                class="h-full rounded-full bg-primary transition-all duration-500"
-                :style="{ width: `${progressInfo.percent}%` }"
-              />
-            </div>
+            <IndexProgressBar v-if="progressInfo.percent !== null" :percent="progressInfo.percent" />
           </div>
 
           <div class="space-y-1.5">

@@ -2,6 +2,7 @@
 import { Database } from "lucide-vue-next";
 import IndexStatusBadge from "@/components/IndexStatusBadge.vue";
 import IndexStatusDetailsPopover from "@/components/IndexStatusDetailsPopover.vue";
+import IndexProgressBar from "@/components/IndexProgressBar.vue";
 import {
   Popover,
   PopoverContent,
@@ -65,13 +66,10 @@ function formatCount(value: number) {
           </span>
         </span>
 
-        <span
+        <IndexProgressBar
           v-if="presentation.status === 'indexing' && progress.percent !== null"
-          class="index-status-card__bar"
-          aria-hidden="true"
-        >
-          <span :style="{ width: `${progress.percent}%` }" />
-        </span>
+          :percent="progress.percent"
+        />
 
         <span class="index-status-card__details">Details</span>
       </button>
@@ -144,21 +142,6 @@ function formatCount(value: number) {
   color: var(--muted-foreground);
   font-size: 12px;
   line-height: 1.25;
-}
-
-.index-status-card__bar {
-  height: 4px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.08);
-}
-
-.index-status-card__bar > span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--gallery-warning);
-  transition: width 300ms ease;
 }
 
 .index-status-card__details {

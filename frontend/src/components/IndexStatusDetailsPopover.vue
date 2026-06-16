@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import Button from "@/components/ui/Button.vue";
 import IndexStatusBadge from "@/components/IndexStatusBadge.vue";
+import IndexProgressBar from "@/components/IndexProgressBar.vue";
 import {
   Tooltip,
   TooltipContent,
@@ -115,29 +116,19 @@ function formatUpdatedAt(value: number | null | undefined) {
 
         <Tooltip v-if="detailsProcessedTooltip" :delay-duration="800">
           <TooltipTrigger as-child>
-            <div class="index-details__row has-tooltip">
-              <span class="index-details__row-key">Details processed</span>
-              <strong>
-                {{ formatCount(progress.indexed) }}
-                <template v-if="progress.total !== null"> / {{ formatCount(progress.total) }}</template>
-              </strong>
-            </div>
+            <p class="index-details__muted has-tooltip" style="margin:0;font-size:12px;color:var(--muted-foreground);">
+              {{ formatCount(progress.indexed) }}<template v-if="progress.total !== null"> / {{ formatCount(progress.total) }}</template> details processed
+            </p>
           </TooltipTrigger>
           <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
             {{ detailsProcessedTooltip }}
           </TooltipContent>
         </Tooltip>
-        <div v-else class="index-details__row">
-          <span class="index-details__row-key">Details processed</span>
-          <strong>
-            {{ formatCount(progress.indexed) }}
-            <template v-if="progress.total !== null"> / {{ formatCount(progress.total) }}</template>
-          </strong>
-        </div>
+        <p v-else class="index-details__muted" style="margin:0;font-size:12px;">
+          {{ formatCount(progress.indexed) }}<template v-if="progress.total !== null"> / {{ formatCount(progress.total) }}</template> details processed
+        </p>
 
-        <div v-if="progress.percent !== null" class="index-details__bar" aria-hidden="true">
-          <div :style="{ width: `${progress.percent}%` }" />
-        </div>
+        <IndexProgressBar v-if="progress.percent !== null" :percent="progress.percent" />
       </div>
 
       <div class="index-details__section">
@@ -338,20 +329,6 @@ function formatUpdatedAt(value: number | null | undefined) {
 .index-details__progress-label strong {
   color: var(--foreground);
   font-weight: 600;
-}
-
-.index-details__bar {
-  height: 4px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.08);
-}
-
-.index-details__bar > div {
-  height: 100%;
-  border-radius: inherit;
-  background: var(--gallery-warning);
-  transition: width 300ms ease;
 }
 
 .index-details__last-error {
