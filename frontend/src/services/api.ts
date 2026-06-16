@@ -8,6 +8,7 @@ import type {
   MetadataResponse,
   ScanResponse,
   SearchScope,
+  SortValue,
   UnifiedSearchResponse,
 } from "../types";
 
@@ -239,7 +240,7 @@ export const unifiedSearch = async (
 };
 
 export const fetchLibraryInspector = async (
-  opts?: { q?: string; scope?: SearchScope; path?: string; limit?: number; sort?: string }
+  opts?: { q?: string; scope?: SearchScope; path?: string; limit?: number; sort?: SortValue }
 ): Promise<LibraryInspectorResponse> => {
   try {
     const requestScope = opts?.scope ?? "current";

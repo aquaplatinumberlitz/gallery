@@ -1,3 +1,5 @@
+import type { SortValue } from "@/types";
+
 export const normalizeQueryPath = (path: string | null | undefined) => {
   const normalized = (path ?? "").trim().replace(/\\/g, "/").replace(/\/+/g, "/");
   // Preserve the filesystem root path; trim trailing slashes only for non-root paths.
@@ -31,7 +33,7 @@ export const queryKeys = {
   facets: (path: string) =>
     ["facets", normalizeQueryPath(path)] as const,
 
-  libraryInspector: (query: string, scope: string, path: string, limit: number, sort: string) =>
+  libraryInspector: (query: string, scope: string, path: string, limit: number, sort: SortValue) =>
     ["library-inspector", query.trim(), scope, normalizeQueryPath(path), limit, sort] as const,
 
   libraryInspectorMetadataRoot: () =>

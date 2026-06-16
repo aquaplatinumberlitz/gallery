@@ -7,11 +7,12 @@ import {
   useVueTable,
   type SortingState,
 } from "@tanstack/vue-table";
-import { ArrowDown, ArrowLeft, ArrowUp, ArrowUpDown, Clock, Copy, ExternalLink, MoreHorizontal, Search } from "lucide-vue-next";
+import { ArrowLeft, ArrowUpDown, Copy, ExternalLink, MoreHorizontal, Search } from "lucide-vue-next";
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
 import ButtonLink from "@/components/ui/ButtonLink.vue";
 import Input from "@/components/ui/Input.vue";
+import SortDropdown from "@/components/SortDropdown.vue";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -59,8 +60,7 @@ import type {
   LibraryInspectorResource,
   LibraryInspectorRow,
   SearchScope,
-  SortField,
-  SortOrder,
+  SortValue,
 } from "@/types";
 
 const galleryStore = useGalleryStore();
@@ -72,22 +72,17 @@ const query = ref("");
 const scope = ref<SearchScope>("current");
 const currentPath = computed(() => galleryStore.currentPath || "");
 const limit = ref(200);
-const gallerySortToInspectorColumn = (field: SortField) => field === "name" ? "name" : "mtime";
-const inspectorColumnToGallerySort = (id: string): SortField | null => {
-  if (id === "name") return "name";
-  if (id === "mtime") return "date";
+const inspectorSort = ref<SortValue>("date_desc");
+const sortValueToTableState = (value: SortValue): SortingState => {
+  const [field, order] = value.split("_") as ["date" | "name", "asc" | "desc"];
+  return [{ id: field === "name" ? "name" : "mtime", desc: order === "desc" }];
+};
+const tableStateToSortValue = (id: string, desc: boolean): SortValue | null => {
+  if (id === "name") return desc ? "name_desc" : "name_asc";
+  if (id === "mtime") return desc ? "date_desc" : "date_asc";
   return null;
 };
-const gallerySortToTableState = (): SortingState => [
-  {
-    id: gallerySortToInspectorColumn(galleryStore.sortField),
-    desc: galleryStore.sortOrder === "desc",
-  },
-];
-const inspectorApiSort = computed(() =>
-  `${galleryStore.sortField === "name" ? "name" : "date"}_${galleryStore.sortOrder}`
-);
-const sorting = ref<SortingState>(gallerySortToTableState());
+const sorting = ref<SortingState>(sortValueToTableState(inspectorSort.value));
 const modelFilter = ref("all");
 const promptFilter = ref<"all" | "has_prompt" | "no_prompt">("all");
 const selectedPath = ref("");
@@ -95,7 +90,7 @@ const detailPath = ref("");
 const detailEnabled = ref(false);
 const rowMenuOpen = ref<Record<string, boolean>>({});
 
-const inspectorQuery = useLibraryInspectorQuery(query, scope, currentPath, limit, inspectorApiSort);
+const inspectorQuery = useLibraryInspectorQuery(query, scope, currentPath, limit, inspectorSort);
 const metadataQuery = useLibraryInspectorMetadataQuery(detailPath, detailEnabled);
 const rebuildStartedAt = computed(() =>
   scope.value === "current" ? getScopeRebuildStartedAt(currentPath.value) : 0
@@ -199,7 +194,7 @@ function refetchInspectorAfterRebuild(reason: string) {
       scope.value,
       currentPath.value,
       limit.value,
-      inspectorApiSort.value,
+      inspectorSort.value,
     ),
     rebuild_started_at: rebuildStartedAt.value,
     inspector_generated_at: inspectorQuery.data.value.generated_at,
@@ -301,22 +296,23 @@ const filteredRows = computed(() =>
     return true;
   })
 );
-const metadataSortOrder = computed<"asc" | "desc">(() =>
-  sorting.value[0]?.desc ? "desc" : "asc"
-);
-const metadataSortFieldLabel = computed(() =>
-  sorting.value[0]?.id === "name" ? "File" : "Modified"
-);
-const metadataSortIcon = computed(() =>
-  metadataSortFieldLabel.value === "File" ? ArrowUpDown : Clock
+watch(
+  inspectorSort,
+  (value) => {
+    const next = sortValueToTableState(value);
+    if (sorting.value[0]?.id !== next[0]?.id || sorting.value[0]?.desc !== next[0]?.desc) {
+      sorting.value = next;
+    }
+  }
 );
 
 watch(
-  () => [galleryStore.sortField, galleryStore.sortOrder] as const,
+  sorting,
   () => {
-    const next = gallerySortToTableState();
-    if (sorting.value[0]?.id !== next[0]?.id || sorting.value[0]?.desc !== next[0]?.desc) {
-      sorting.value = next;
+    const active = sorting.value[0];
+    const next = active ? tableStateToSortValue(active.id, active.desc) : null;
+    if (next && inspectorSort.value !== next) {
+      inspectorSort.value = next;
     }
   }
 );
@@ -334,13 +330,6 @@ const table = useVueTable({
   onSortingChange(updater) {
     const next = typeof updater === "function" ? updater(sorting.value) : updater;
     sorting.value = next;
-    const active = next[0];
-    const galleryField = active ? inspectorColumnToGallerySort(active.id) : null;
-    if (galleryField) {
-      const order: SortOrder = active.desc ? "desc" : "asc";
-      if (galleryStore.sortField !== galleryField) galleryStore.setSortField(galleryField);
-      if (galleryStore.sortOrder !== order) galleryStore.setSortOrder(order);
-    }
   },
   enableSortingRemoval: false,
   getCoreRowModel: getCoreRowModel(),
@@ -506,24 +495,6 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
   table.getColumn(columnId)?.getToggleSortingHandler()?.(event);
 }
 
-function setModifiedSort(order: "asc" | "desc") {
-  galleryStore.setSortField("date");
-  galleryStore.setSortOrder(order);
-}
-
-function setNameSort(order: "asc" | "desc") {
-  galleryStore.setSortField("name");
-  galleryStore.setSortOrder(order);
-}
-
-function toggleCurrentGallerySort() {
-  const active = sorting.value[0];
-  if (active?.id === "name") {
-    setNameSort(active.desc ? "asc" : "desc");
-    return;
-  }
-  setModifiedSort(metadataSortOrder.value === "asc" ? "desc" : "asc");
-}
 </script>
 
 <template>
@@ -577,42 +548,12 @@ function toggleCurrentGallerySort() {
           <SelectItem value="no_prompt">No prompt</SelectItem>
         </SelectContent>
       </Select>
-      <DropdownMenu>
-        <DropdownMenuTrigger as-child>
-          <Button variant="outline" size="sm" type="button" class="sort-trigger" aria-label="Sort metadata table">
-            <ArrowUpDown class="gallery-icon-sm" aria-hidden="true" />
-            <span>{{ metadataSortFieldLabel }}</span>
-            <component :is="metadataSortOrder === 'asc' ? ArrowUp : ArrowDown" class="gallery-icon-sm" aria-hidden="true" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" class="sort-dropdown-content">
-          <DropdownMenuItem class="bg-accent" @select="toggleCurrentGallerySort">
-            <component :is="metadataSortIcon" class="gallery-icon-sm" aria-hidden="true" />
-            <span>{{ metadataSortFieldLabel }}</span>
-            <component :is="metadataSortOrder === 'asc' ? ArrowUp : ArrowDown" class="ml-auto gallery-icon-sm" aria-hidden="true" />
-          </DropdownMenuItem>
-          <DropdownMenuItem @select="setNameSort('asc')">
-            <ArrowUpDown class="gallery-icon-sm" aria-hidden="true" />
-            <span>File</span>
-            <ArrowUp v-if="galleryStore.sortField === 'name' && galleryStore.sortOrder === 'asc'" class="ml-auto gallery-icon-sm" aria-hidden="true" />
-          </DropdownMenuItem>
-          <DropdownMenuItem @select="setNameSort('desc')">
-            <ArrowUpDown class="gallery-icon-sm" aria-hidden="true" />
-            <span>File</span>
-            <ArrowDown v-if="galleryStore.sortField === 'name' && galleryStore.sortOrder === 'desc'" class="ml-auto gallery-icon-sm" aria-hidden="true" />
-          </DropdownMenuItem>
-          <DropdownMenuItem @select="setModifiedSort('asc')">
-            <Clock class="gallery-icon-sm" aria-hidden="true" />
-            <span>Modified</span>
-            <ArrowUp v-if="galleryStore.sortField === 'date' && galleryStore.sortOrder === 'asc'" class="ml-auto gallery-icon-sm" aria-hidden="true" />
-          </DropdownMenuItem>
-          <DropdownMenuItem @select="setModifiedSort('desc')">
-            <Clock class="gallery-icon-sm" aria-hidden="true" />
-            <span>Modified</span>
-            <ArrowDown v-if="galleryStore.sortField === 'date' && galleryStore.sortOrder === 'desc'" class="ml-auto gallery-icon-sm" aria-hidden="true" />
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <SortDropdown
+        v-model="inspectorSort"
+        trigger-class="sort-trigger"
+        content-class="sort-dropdown-content"
+        aria-label="Sort metadata table"
+      />
     </div>
 
     <div v-if="inspectorQuery.isError.value" class="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
@@ -623,9 +564,9 @@ function toggleCurrentGallerySort() {
       Refreshing photo details. Previous results are shown until the latest snapshot arrives.
     </div>
 
-    <div :class="['table-shell', isInspectorDataStale && 'table-shell--rebuilding']">
-      <Table class="inspector-table">
-        <TableHeader class="table-header">
+    <div :class="['metadata-table-shell table-shell', isInspectorDataStale && 'table-shell--rebuilding']">
+      <Table class="inspector-table w-full table-fixed">
+        <TableHeader class="table-header sticky top-0 z-20 bg-background">
           <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id" class="table-header-row hover:bg-transparent">
             <TableHead
               v-for="header in headerGroup.headers"
@@ -673,18 +614,18 @@ function toggleCurrentGallerySort() {
             @click="selectedPath = row.original.path"
           >
             <TableCell class="table-cell col-name">
-              <div class="file-cell">
+              <div class="file-cell flex min-w-0 items-center gap-3">
                 <button class="thumb-button" type="button" @click.stop="openImage(row.original)">
                   <img :src="getThumbnailUrl(row.original.path, 128)" :alt="row.original.name" loading="lazy" />
                 </button>
-                <div class="file-cell-content">
+                <div class="file-cell-content min-w-0">
                   <button class="long-text-trigger file-name-trigger" type="button" @click.stop="openImage(row.original)">
-                    <span class="long-text-preview">{{ row.original.name }}</span>
+                    <span class="long-text-preview truncate">{{ row.original.name }}</span>
                   </button>
                   <Popover @update:open="(open) => open && (selectedPath = row.original.path)">
                     <PopoverTrigger as-child>
                       <button class="long-text-trigger folder-path-trigger" type="button" @click.stop>
-                        <span class="long-text-preview">{{ folderLabel(row.original) }}</span>
+                        <span class="long-text-preview truncate">{{ folderLabel(row.original) }}</span>
                       </button>
                     </PopoverTrigger>
                     <PopoverContent align="start" class="w-96">
@@ -700,11 +641,11 @@ function toggleCurrentGallerySort() {
               </div>
             </TableCell>
             <TableCell class="table-cell col-prompt">
-              <div class="prompt-cell">
+              <div class="prompt-cell min-w-0 overflow-hidden">
                 <Popover v-if="row.original.has_prompt || row.original.has_negative" @update:open="(open) => openDetail(row.original.path, open)">
                   <PopoverTrigger as-child>
                     <button class="long-text-trigger prompt-trigger" type="button" @click.stop>
-                      <span class="long-text-preview">{{ row.original.prompt_preview || 'No prompt metadata' }}</span>
+                      <span class="long-text-preview truncate whitespace-nowrap">{{ row.original.prompt_preview || 'No prompt metadata' }}</span>
                     </button>
                   </PopoverTrigger>
                   <PopoverContent align="start" class="w-[32rem]">
@@ -734,7 +675,7 @@ function toggleCurrentGallerySort() {
                     </div>
                   </PopoverContent>
                 </Popover>
-                <span v-else class="block min-w-0 max-w-full truncate text-muted-foreground">No prompt metadata</span>
+                <span v-else class="block min-w-0 max-w-full truncate whitespace-nowrap text-muted-foreground">No prompt metadata</span>
               </div>
             </TableCell>
             <TableCell class="table-cell col-model">
@@ -784,8 +725,8 @@ function toggleCurrentGallerySort() {
               </button>
               <span v-else class="text-muted-foreground">-</span>
             </TableCell>
-            <TableCell class="table-cell col-dimensions">{{ formatDimensions(row.original) }}</TableCell>
-            <TableCell class="table-cell col-mtime">{{ formatDate(row.original.mtime) }}</TableCell>
+            <TableCell class="table-cell col-dimensions whitespace-nowrap">{{ formatDimensions(row.original) }}</TableCell>
+            <TableCell class="table-cell col-mtime whitespace-nowrap">{{ formatDate(row.original.mtime) }}</TableCell>
             <TableCell class="table-cell col-actions">
               <DropdownMenu v-model:open="rowMenuOpen[row.original.path]">
                 <DropdownMenuTrigger as-child>
@@ -894,7 +835,7 @@ function toggleCurrentGallerySort() {
   flex: 1;
   overflow: auto;
   border: 1px solid hsl(var(--border));
-  border-radius: 8px;
+  border-radius: 6px;
   background: hsl(var(--background));
 }
 
@@ -913,7 +854,7 @@ function toggleCurrentGallerySort() {
 
 .inspector-table {
   width: 100%;
-  min-width: 1040px;
+  min-width: 1280px;
   table-layout: fixed;
   font-size: 13px;
 }
@@ -921,21 +862,21 @@ function toggleCurrentGallerySort() {
 .table-header {
   position: sticky;
   top: 0;
-  z-index: 2;
+  z-index: 20;
   background: hsl(var(--background));
 }
 
 .table-header-row {
-  background: hsl(var(--muted) / 0.55);
+  background: hsl(var(--background));
 }
 
 .table-head {
   position: sticky;
   top: 0;
-  z-index: 2;
+  z-index: 20;
   height: 38px;
   border-bottom: 1px solid hsl(var(--border));
-  background: hsl(var(--muted) / 0.72);
+  background: hsl(var(--background));
   color: hsl(var(--muted-foreground));
   text-align: left;
   vertical-align: middle;
@@ -950,39 +891,38 @@ function toggleCurrentGallerySort() {
 }
 
 .col-name {
-  width: 300px;
+  width: 360px;
+  max-width: 360px;
+}
+
+.col-prompt {
+  width: 390px;
+  max-width: 390px;
 }
 
 .col-model {
   width: 150px;
+  max-width: 150px;
 }
 
 .col-seed {
   width: 110px;
+  max-width: 110px;
 }
 
 .col-dimensions {
-  width: 110px;
+  width: 96px;
+  max-width: 96px;
 }
 
 .col-mtime {
   width: 160px;
-}
-
-.col-prompt {
-  width: 360px;
+  max-width: 160px;
 }
 
 .col-actions {
   width: 56px;
   text-align: right;
-}
-
-.file-cell {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 10px;
 }
 
 .thumb-button {
@@ -1013,9 +953,20 @@ function toggleCurrentGallerySort() {
 
 .file-cell-content,
 .prompt-cell {
+  width: 100%;
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
+}
+
+.col-model > div,
+.col-seed > button,
+.col-dimensions,
+.col-mtime {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .file-name-trigger {

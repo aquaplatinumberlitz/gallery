@@ -14,6 +14,7 @@ export interface FileNode {
 
 export type SortField = "name" | "date";
 export type SortOrder = "asc" | "desc";
+export type SortValue = "date_desc" | "date_asc" | "name_asc" | "name_desc";
 
 export interface SortOption {
   field: SortField;

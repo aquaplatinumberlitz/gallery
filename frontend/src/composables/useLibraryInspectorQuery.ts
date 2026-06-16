@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/vue-query";
 import { computed, onBeforeUnmount, ref, watch, type Ref } from "vue";
 import { normalizeQueryPath, queryKeys } from "@/query/keys";
 import { fetchLibraryInspector } from "@/services/api";
-import type { LibraryInspectorResponse, SearchScope } from "@/types";
+import type { LibraryInspectorResponse, SearchScope, SortValue } from "@/types";
 
 const EMPTY_RESPONSE: LibraryInspectorResponse = {
   root: "",
@@ -13,7 +13,7 @@ const EMPTY_RESPONSE: LibraryInspectorResponse = {
   total_indexed: 0,
   returned: 0,
   truncated: false,
-  sort: "mtime_desc",
+  sort: "date_desc",
   rows: [],
 };
 
@@ -22,7 +22,7 @@ export function useLibraryInspectorQuery(
   scope: Ref<SearchScope>,
   path: Ref<string>,
   limit: Ref<number>,
-  sort: Ref<string>
+  sort: Ref<SortValue>
 ) {
   const debouncedQuery = ref(query.value.trim());
   let searchTimer: number | undefined;

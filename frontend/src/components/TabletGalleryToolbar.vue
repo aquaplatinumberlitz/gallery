@@ -1,23 +1,15 @@
 <script setup lang="ts">
-import { type SortField } from "../types";
+import type { SortValue } from "../types";
+import SortDropdown from "./SortDropdown.vue";
 import {
-  ArrowLeft, ArrowRight, ArrowUpDown, ChevronDown,
-  ArrowUp, ArrowDown, LayoutGrid, Check,
-  Type, Clock
+  ArrowLeft, ArrowRight, ChevronDown,
+  LayoutGrid, Check,
 } from "lucide-vue-next";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-
-const icons: Record<string, any> = { Type, Clock };
-
-interface SortOption {
-  field: SortField;
-  label: string;
-  icon: string;
-}
 
 interface DensityOption {
   level: number;
@@ -28,11 +20,7 @@ interface DensityOption {
 interface Props {
   canGoBack: boolean;
   canGoForward: boolean;
-  currentSort: SortField;
-  sortOptions: SortOption[];
-  showSortMenu: boolean;
-  currentSortLabel: string;
-  sortOrder: "asc" | "desc";
+  sortValue: SortValue;
   sliderLevel: number;
   columnCount: number;
   densityOptions: readonly DensityOption[];
@@ -44,39 +32,13 @@ defineProps<Props>();
 const emit = defineEmits<{
   back: [];
   forward: [];
-  toggleSortMenu: [];
-  selectSort: [field: SortField];
+  "update:sortValue": [value: SortValue];
   toggleDensityMenu: [];
   selectDensity: [level: number];
 }>();
 
-const selectSort = (field: SortField) => {
-  emit("selectSort", field);
-};
-
 const selectDensity = (level: number) => {
   emit("selectDensity", level);
-};
-
-// Sort menu keyboard navigation
-const handleSortMenuKeydown = (e: KeyboardEvent) => {
-  if (e.key === "Escape") {
-    emit("toggleSortMenu");
-  } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-    e.preventDefault();
-    const menu = e.currentTarget as HTMLElement;
-    const buttons = menu.querySelectorAll("button");
-    if (buttons.length) {
-      const currentIndex = Array.from(buttons).findIndex(
-        (b) => b === document.activeElement
-      );
-      const nextIndex =
-        e.key === "ArrowDown"
-          ? (currentIndex + 1) % buttons.length
-          : (currentIndex - 1 + buttons.length) % buttons.length;
-      (buttons[nextIndex] as HTMLElement).focus();
-    }
-  }
 };
 
 // Density menu keyboard navigation
@@ -135,42 +97,12 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
 
     <div class="tgt-spacer"></div>
 
-    <!-- Sort dropdown -->
-    <div class="sort-dropdown" :class="{ open: showSortMenu }">
-      <button
-        class="tgt-trigger"
-        @click.stop="emit('toggleSortMenu')"
-        aria-haspopup="true"
-        :aria-expanded="showSortMenu"
-      >
-        <ArrowUpDown class="tgt-trigger-icon" />
-        <span class="tgt-trigger-label">{{ currentSortLabel }}</span>
-        <ChevronDown class="tgt-chevron" />
-      </button>
-      <Transition name="dropdown">
-        <div
-          v-if="showSortMenu"
-          class="sort-menu"
-          @keydown="handleSortMenuKeydown"
-        >
-          <button
-            v-for="option in sortOptions"
-            :key="option.field"
-            class="sort-option"
-            :class="{ active: currentSort === option.field }"
-            @click="selectSort(option.field)"
-          >
-            <component :is="icons[option.icon]" class="tgt-option-icon" />
-            <span>{{ option.label }}</span>
-            <component
-              v-if="currentSort === option.field"
-              :is="sortOrder === 'asc' ? ArrowUp : ArrowDown"
-              class="tgt-dir-icon"
-            />
-          </button>
-        </div>
-      </Transition>
-    </div>
+    <SortDropdown
+      :model-value="sortValue"
+      trigger-class="tgt-sort-trigger"
+      aria-label="Sort gallery"
+      @update:model-value="emit('update:sortValue', $event)"
+    />
 
     <!-- Density dropdown -->
     <div class="density-dropdown" :class="{ open: showDensityMenu }">

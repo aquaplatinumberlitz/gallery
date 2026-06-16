@@ -3,7 +3,7 @@ import { computed, inject, onBeforeUnmount, onMounted, ref, watch, type Componen
 import { useVirtualizer } from "@tanstack/vue-virtual";
 import { useGalleryStore } from "../stores/gallery";
 import { useLightboxStore } from "../stores/lightbox";
-import type { FileNode, SortField, UnifiedSearchResult } from "../types";
+import type { FileNode, SortValue, UnifiedSearchResult } from "../types";
 import AlbumCard from "./AlbumCard.vue";
 import AlbumScroller from "./AlbumScroller.vue";
 import GallerySectionHeader from "./GallerySectionHeader.vue";
@@ -13,6 +13,7 @@ import SkeletonLoader from "./SkeletonLoader.vue";
 import Breadcrumb from "./Breadcrumb.vue";
 import EmptyState from "./EmptyState.vue";
 import TabletGalleryToolbar from "./TabletGalleryToolbar.vue";
+import SortDropdown from "./SortDropdown.vue";
 import { compareNatural } from "../composables/useNaturalSort";
 import { useColumnResize, PHOTO_GRID_LEVELS, GRID_COLUMN_MAP } from "../composables/useColumnResize";
 import { useDevice } from "../composables/useDevice";
@@ -23,17 +24,16 @@ import { useUnifiedSearchQuery } from "../composables/useUnifiedSearchQuery";
 import { galleryScrollContainerRefKey } from "../injectionKeys";
 import { fuzzySearchFileNodes } from "../utils/fuzzySearch";
 import { 
-  ArrowLeft, ArrowRight, ArrowUpRight, ArrowUpDown, ChevronDown, 
-  ArrowUp, ArrowDown, LayoutGrid, Loader, TriangleAlert, X, 
+  ArrowLeft, ArrowRight, ArrowUpRight, ChevronDown,
+  LayoutGrid, Loader, TriangleAlert, X,
   ArrowDownToLine,
-  Type, Clock, Images, Folder, FolderOpen
+  Images, Folder, FolderOpen
 } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import Badge from "./ui/Badge.vue";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
@@ -43,8 +43,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-
-const _icons: Record<string, any> = { Type, Clock }
 
 const galleryStore = useGalleryStore();
 const lightboxStore = useLightboxStore();
@@ -115,37 +113,21 @@ const unifiedSearchQuery = useUnifiedSearchQuery(searchQuery, searchScope, searc
 const sortField = computed(() => galleryStore.sortField);
 const sortOrder = computed(() => galleryStore.sortOrder);
 
-const sortOptions: { field: SortField; label: string; icon: string }[] = [
-  { field: "name", label: "Name", icon: "Type" },
-  { field: "date", label: "Date modified", icon: "Clock" },
-];
-
-const currentSortLabel = computed(() => {
-  const option = sortOptions.find(o => o.field === sortField.value);
-  return option?.label || "Name";
+const gallerySortValue = computed<SortValue>({
+  get() {
+    return `${sortField.value === "name" ? "name" : "date"}_${sortOrder.value}` as SortValue;
+  },
+  set(value) {
+    const [field, order] = value.split("_") as ["date" | "name", "asc" | "desc"];
+    galleryStore.setSortField(field);
+    galleryStore.setSortOrder(order);
+  },
 });
 
-// Tablet toolbar menu state (desktop uses shadcn DropdownMenu instead)
-const showSortMenu = ref(false);
 const showDensityMenu = ref(false);
 
-const toggleSortMenu = () => {
-  showDensityMenu.value = false;
-  showSortMenu.value = !showSortMenu.value;
-};
-
 const toggleDensityMenu = () => {
-  showSortMenu.value = false;
   showDensityMenu.value = !showDensityMenu.value;
-};
-
-const selectSort = (field: SortField) => {
-  if (sortField.value === field) {
-    galleryStore.toggleSortOrder();
-  } else {
-    galleryStore.setSortField(field);
-    galleryStore.setSortOrder(field === "date" ? "desc" : "asc");
-  }
 };
 
 onMounted(() => {
@@ -587,37 +569,11 @@ watch(loadMoreSentinel, () => setupLoadObserver());
         <TooltipContent>Open current folder in file explorer</TooltipContent>
       </Tooltip>
 
-      <!-- Sort Dropdown -->
-      <DropdownMenu>
-        <DropdownMenuTrigger as-child>
-          <Button variant="outline" size="sm" type="button" class="sort-trigger">
-            <ArrowUpDown class="gallery-icon-sm" />
-            <span>{{ currentSortLabel }}</span>
-            <component
-              :is="sortOrder === 'asc' ? ArrowUp : ArrowDown"
-              class="gallery-icon-xs"
-            />
-            <ChevronDown class="gallery-icon-xs opacity-60" />
-          </Button>
-        </DropdownMenuTrigger>
-
-        <DropdownMenuContent align="end" class="w-44">
-          <DropdownMenuItem
-            v-for="option in sortOptions"
-            :key="option.field"
-            class="gap-2"
-            @select="selectSort(option.field)"
-          >
-            <component :is="_icons[option.icon]" class="gallery-icon-sm" />
-            <span class="flex-1">{{ option.label }}</span>
-            <component
-              v-if="sortField === option.field"
-              :is="sortOrder === 'asc' ? ArrowUp : ArrowDown"
-              class="gallery-icon-xs"
-            />
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <SortDropdown
+        v-model="gallerySortValue"
+        trigger-class="sort-trigger"
+        aria-label="Sort gallery"
+      />
 
       <!-- Density Dropdown -->
       <DropdownMenu>
@@ -661,19 +617,13 @@ watch(loadMoreSentinel, () => setupLoadObserver());
       v-else-if="deviceCategory === 'tablet'"
       :can-go-back="canBack"
       :can-go-forward="canForward"
-      :current-sort="sortField"
-      :sort-options="sortOptions"
-      :show-sort-menu="showSortMenu"
-      :current-sort-label="currentSortLabel"
-      :sort-order="sortOrder"
+      v-model:sort-value="gallerySortValue"
       :slider-level="sliderLevel"
       :column-count="columnCount"
       :density-options="densityOptions"
       :show-density-menu="showDensityMenu"
       @back="goBack"
       @forward="goForward"
-      @toggle-sort-menu="toggleSortMenu"
-      @select-sort="selectSort"
       @toggle-density-menu="toggleDensityMenu"
       @select-density="selectDensity"
     />

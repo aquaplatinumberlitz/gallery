@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, nextTick, onBeforeUnmount, onMounted, computed, watch } from 'vue'
-import { Menu, Search, X, ArrowLeft, ArrowUpDown, Type, Clock, ArrowUp, ArrowDown } from 'lucide-vue-next'
+import { ref, nextTick, onBeforeUnmount, computed, watch } from 'vue'
+import { Menu, Search, X, ArrowLeft } from 'lucide-vue-next'
 import { useGalleryStore } from '../stores/gallery'
-import type { SortField } from '../types'
+import SortDropdown from './SortDropdown.vue'
+import type { SortValue } from '../types'
 
 interface Props {
   isDark: boolean
@@ -78,7 +79,6 @@ function handleGlobalKeydown(e: KeyboardEvent) {
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleGlobalKeydown)
-  document.removeEventListener('click', closeSortPopover)
 })
 
 // Watch for activation to add global listener
@@ -101,52 +101,20 @@ function onScopeChange(e: Event) {
   emit('scope-change', target.value as 'current' | 'all')
 }
 
-// ── Sort popover ──
-const sortIcons: Record<string, any> = { Type, Clock }
 const galleryStore = useGalleryStore()
-
-const showSortPopover = ref(false)
 
 const sortField = computed(() => galleryStore.sortField)
 const sortOrder = computed(() => galleryStore.sortOrder)
 
-interface MobileSortOption {
-  field: SortField
-  label: string
-  icon: string
-}
-
-const mobileSortOptions: MobileSortOption[] = [
-  { field: 'name', label: 'Name', icon: 'Type' },
-  { field: 'date', label: 'Date modified', icon: 'Clock' },
-]
-
-const isActiveSort = (opt: MobileSortOption): boolean =>
-  sortField.value === opt.field
-
-function toggleSortPopover() {
-  showSortPopover.value = !showSortPopover.value
-}
-
-function selectMobileSort(opt: MobileSortOption) {
-  if (sortField.value === opt.field) {
-    galleryStore.toggleSortOrder()
-  } else {
-    galleryStore.setSortField(opt.field)
-    galleryStore.setSortOrder(opt.field === 'date' ? 'desc' : 'asc')
-  }
-  showSortPopover.value = false
-}
-
-function closeSortPopover(e: MouseEvent) {
-  const target = e.target as HTMLElement
-  if (!target.closest('.mobile-sort-dropdown')) {
-    showSortPopover.value = false
-  }
-}
-
-onMounted(() => {
-  document.addEventListener('click', closeSortPopover)
+const gallerySortValue = computed<SortValue>({
+  get() {
+    return `${sortField.value === 'name' ? 'name' : 'date'}_${sortOrder.value}` as SortValue
+  },
+  set(value) {
+    const [field, order] = value.split('_') as ['date' | 'name', 'asc' | 'desc']
+    galleryStore.setSortField(field)
+    galleryStore.setSortOrder(order)
+  },
 })
 </script>
 
@@ -221,38 +189,12 @@ onMounted(() => {
     </div>
 
     <!-- Right: sort, theme & settings (hidden in search mode) -->
-    <div v-if="!isSearchActive" class="mobile-sort-dropdown" :class="{ open: showSortPopover }">
-      <button
-        class="mh-btn mh-sort-btn"
-        @click.stop="toggleSortPopover"
-        aria-label="Sort options"
-      >
-        <ArrowUpDown />
-      </button>
-      <Transition name="sort-popover">
-        <div
-          v-if="showSortPopover"
-          ref="sortPopoverRef"
-          class="mobile-sort-popover"
-        >
-          <button
-            v-for="opt in mobileSortOptions"
-            :key="opt.field"
-            class="mobile-sort-option"
-            :class="{ active: isActiveSort(opt) }"
-            @click="selectMobileSort(opt)"
-          >
-            <component :is="sortIcons[opt.icon]" class="sort-icon" />
-            <span class="sort-label">{{ opt.label }}</span>
-            <component
-              v-if="isActiveSort(opt)"
-              :is="sortOrder === 'asc' ? ArrowUp : ArrowDown"
-              class="sort-direction"
-            />
-          </button>
-        </div>
-      </Transition>
-    </div>
+    <SortDropdown
+      v-if="!isSearchActive"
+      v-model="gallerySortValue"
+      trigger-class="mh-sort-trigger"
+      aria-label="Sort gallery"
+    />
     <button
       v-if="!isSearchActive"
       class="mh-btn"
@@ -681,119 +623,6 @@ onMounted(() => {
   .search-focus-input-icon {
     width: 14px;
     height: 14px;
-  }
-}
-
-/* ============================================================
-   Mobile Sort Popover
-   ============================================================ */
-.mobile-sort-dropdown {
-  position: relative;
-}
-
-.mh-sort-btn {
-  position: relative;
-  z-index: 1;
-}
-
-.mobile-sort-popover {
-  position: absolute;
-  bottom: auto;
-  top: calc(100% + 8px);
-  right: 0;
-  min-width: 220px;
-  background: var(--popover);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
-  padding: 6px;
-  z-index: 200;
-  overflow: hidden;
-}
-
-.mobile-sort-option {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-height: 48px;
-  padding: 10px 14px;
-  background: transparent;
-  border: none;
-  border-radius: 8px;
-  color: var(--foreground);
-  font-size: 14px;
-  font-family: var(--font-body);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  text-align: left;
-  font-weight: 500;
-}
-
-.mobile-sort-option:hover {
-  background: rgba(0, 0, 0, 0.05);
-}
-
-.mobile-sort-option:active {
-  background: rgba(0, 0, 0, 0.1);
-}
-
-.mobile-sort-option.active {
-  background: color-mix(in srgb, var(--primary) 10%, transparent);
-  color: var(--primary);
-  font-weight: 600;
-}
-
-.sort-icon {
-  width: var(--gallery-icon-sm);
-  height: var(--gallery-icon-sm);
-  flex-shrink: 0;
-}
-
-.sort-label {
-  white-space: nowrap;
-}
-
-.sort-direction {
-  width: var(--gallery-icon-xs);
-  height: var(--gallery-icon-xs);
-  margin-left: auto;
-  flex-shrink: 0;
-}
-
-/* Dark theme active option */
-:root[data-theme="dark"] .mobile-sort-option:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-:root[data-theme="dark"] .mobile-sort-option:active {
-  background: rgba(255, 255, 255, 0.14);
-}
-
-/* Sort popover animation */
-.sort-popover-enter-active,
-.sort-popover-leave-active {
-  transition: all 0.2s ease;
-  transform-origin: top right;
-}
-
-.sort-popover-enter-from,
-.sort-popover-leave-to {
-  opacity: 0;
-  transform: scale(0.92) translateY(4px);
-}
-
-/* Compact popover on small screens */
-@media (max-width: 480px) {
-  .mobile-sort-popover {
-    min-width: 180px;
-    right: -4px;
-  }
-
-  .mobile-sort-option {
-    padding: 8px 10px;
-    font-size: 13px;
-    min-height: 44px;
   }
 }
 
