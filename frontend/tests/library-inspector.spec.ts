@@ -1,3 +1,16 @@
+/**
+ * Purpose:
+ * Verifies Library Inspector search, scope, metadata detail, and stale-data behavior.
+ *
+ * Guarantees:
+ * * inspector rows reflect API responses, empty states, metadata details, and scope changes
+ * * inspector interactions do not leak internal debug fields into normal UI
+ *
+ * Run when:
+ * * changing LibraryInspector, inspector query hooks, metadata detail fetches, or row rendering
+ * * touching search scope, stale notices, or inspector cache behavior
+ */
+
 import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";

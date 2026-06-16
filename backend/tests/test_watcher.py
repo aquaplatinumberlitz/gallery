@@ -1,3 +1,16 @@
+"""
+Purpose:
+Verifies file watcher configuration, debounce handling, and metadata staging hooks.
+
+Guarantees:
+* watcher remains disabled by default and handles missing watchdog dependency safely
+* file events mark folders stale and can stage changed images for metadata indexing
+
+Run when:
+* changing watcher config, debounce behavior, image event handling, or metadata staging integration
+* touching future enablement paths for filesystem watching
+"""
+
 from __future__ import annotations
 
 import time

@@ -1,3 +1,16 @@
+"""
+Purpose:
+Verifies Library Inspector backend scope, search, detail, exclusion, and fallback contracts.
+
+Guarantees:
+* inspector queries use metadata/search semantics without changing normal search behavior
+* detail responses are DB-first and reject unindexed paths safely
+
+Run when:
+* changing library inspector endpoints, metadata detail lookup, or app-build exclusion policy
+* touching LibraryInspector.vue contracts or inspector query keys
+"""
+
 from pathlib import Path
 import json
 

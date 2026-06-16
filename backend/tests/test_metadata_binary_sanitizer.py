@@ -1,3 +1,16 @@
+"""
+Purpose:
+Verifies binary metadata sanitization before JSON storage and API serialization.
+
+Guarantees:
+* known binary PIL info fields are omitted while useful text metadata is preserved
+* indexing does not fail when image metadata contains bytes-only payloads
+
+Run when:
+* changing metadata extraction, JSON sanitization, or metadata indexer storage
+* touching support for PNG/PIL metadata fields
+"""
+
 from __future__ import annotations
 
 import json

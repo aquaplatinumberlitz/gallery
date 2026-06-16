@@ -1,3 +1,16 @@
+/**
+ * Purpose:
+ * Verifies mobile gallery layout, mobile lightbox metadata sheet, and mobile search.
+ *
+ * Guarantees:
+ * * mobile cards, header controls, and navigation buttons remain present
+ * * metadata sheet can open and close repeatedly without trapping the UI
+ *
+ * Run when:
+ * * changing mobile lightbox sheet, mobile header, bottom bar, or mobile search flows
+ * * touching responsive lightbox metadata rendering
+ */
+
 import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";

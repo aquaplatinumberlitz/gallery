@@ -1,4 +1,15 @@
-"""Integration tests for /api/scan endpoint."""
+"""
+Purpose:
+Verifies the /api/scan endpoint shape, filtering, sort order, pagination, and hot-path contracts.
+
+Guarantees:
+* folders and images return stable response fields and natural ordering
+* scan pagination and warm/cached dimension paths do not regress
+
+Run when:
+* changing scan_directory, scan endpoint response shape, pagination, or ignore policy
+* touching warm listing or cached dimension scan behavior
+"""
 
 from pathlib import Path
 

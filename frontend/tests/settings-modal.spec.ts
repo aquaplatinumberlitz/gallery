@@ -1,3 +1,16 @@
+/**
+ * Purpose:
+ * Verifies SettingsModal persistence and user-facing settings controls.
+ *
+ * Guarantees:
+ * * intro, theme, and lightbox original-loading preferences are read and written correctly
+ * * landing-page choices render without breaking gallery state
+ *
+ * Run when:
+ * * changing SettingsModal, localStorage preference keys, or landing-page settings
+ * * touching gallery-lightbox-always-load-original controls
+ */
+
 import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";

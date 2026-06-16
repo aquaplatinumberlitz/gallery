@@ -34,7 +34,7 @@ if (typeof window !== "undefined") {
 }
 
 // Eruda mobile debug console — bật lại
-import("./utils/erudaDebug").then(({ initErudaDebug }) => initErudaDebug());
+import("./debug/erudaDebug").then(({ initErudaDebug }) => initErudaDebug());
 
 // Dev logging: page lifecycle debugging
 // NOTE: Do NOT add beforeunload or unload listeners here — they block bfcache
@@ -67,7 +67,7 @@ if (import.meta.env.DEV) {
     console.log('[LIFECYCLE] resume', { timestamp: Date.now() });
   });
   // Icon debug overlay for tablet icon sizing investigation
-  import('./utils/iconDebugOverlay')
+  import('./debug/iconDebugOverlay')
     .then(({ initIconDebugOverlay }) => initIconDebugOverlay())
     .catch((error) => {
       console.warn('[IconDebug] failed to load', error);

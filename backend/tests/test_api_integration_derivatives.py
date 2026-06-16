@@ -1,4 +1,15 @@
-"""Integration tests for /api/image, /api/thumbnail, and /api/preview endpoints."""
+"""
+Purpose:
+Verifies the /api/image, /api/thumbnail, and /api/preview derivative endpoints.
+
+Guarantees:
+* original, thumbnail, and preview responses keep cache, sizing, and safety contracts
+* derivative cache keys remain separated by endpoint kind and size
+
+Run when:
+* changing image serving, thumbnail/preview generation, cache headers, or derivative cache keys
+* touching image path validation or PIL derivative behavior
+"""
 
 from io import BytesIO
 from pathlib import Path

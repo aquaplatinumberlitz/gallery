@@ -35,7 +35,7 @@ import { fetchLibraryInspectorMetadata, getThumbnailUrl } from "@/services/api";
 import { queryClient } from "@/query";
 import { queryKeys } from "@/query/keys";
 import { clearScopeRebuildMarker, getScopeRebuildStartedAt } from "@/utils/indexMaintenance";
-import { logIndexRebuildDebug } from "@/utils/indexRebuildDebug";
+import { logIndexRebuildDebug } from "@/debug/indexRebuildDebug";
 import { hasActiveIndexWork, hasQueuedIndexWork } from "@/utils/indexStatus";
 import type {
   FileNode,

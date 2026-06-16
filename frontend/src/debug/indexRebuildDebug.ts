@@ -1,3 +1,16 @@
+/**
+ * Purpose:
+ * Provides gated debug logging for index rebuild and Library Inspector cache convergence.
+ *
+ * Guarantees:
+ * * rebuild logs are off unless window.__GALLERY_DEBUG_INDEX_REBUILD or debug-index-rebuild enables them
+ * * query cache snapshots expose active, stale, fetch, and update timing for inspector queries
+ *
+ * Run when:
+ * * debugging stale Library Inspector rows or Index Status mismatches after rebuild
+ * * changing rebuild invalidation, query keys, or index status convergence behavior
+ */
+
 import type { QueryClient } from "@tanstack/vue-query";
 import { queryKeys } from "@/query/keys";
 

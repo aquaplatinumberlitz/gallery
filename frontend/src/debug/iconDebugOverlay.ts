@@ -1,3 +1,16 @@
+/**
+ * Purpose:
+ * Provides a gated overlay for inspecting mobile and tablet SVG icon sizing.
+ *
+ * Guarantees:
+ * * overlay UI is off unless DEV mode and ?iconDebug=1 are both active
+ * * collected metrics are local DOM measurements and do not call backend APIs
+ *
+ * Run when:
+ * * debugging tablet or mobile header icon sizing regressions
+ * * changing responsive icon components, toolbar layout, or debug overlay boot
+ */
+
 interface SvgMetrics {
   index: number;
   tagName: string;

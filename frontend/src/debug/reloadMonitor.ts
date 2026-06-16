@@ -1,4 +1,15 @@
 /**
+ * Purpose:
+ * Provides gated debug logging for reload and navigation lifecycle events.
+ *
+ * Guarantees:
+ * * reload monitoring is off unless ?debugReload or GALLERY_DEBUG_RELOAD enables it
+ * * the console API can report, copy, clear, and disable stored reload logs
+ *
+ * Run when:
+ * * debugging unexpected reloads after gallery, lightbox, or route changes
+ * * changing reload monitor storage keys or lifecycle instrumentation
+ *
  * Debug-only reload monitor.
  *
  * Enable: ?debugReload=1 or localStorage.setItem("GALLERY_DEBUG_RELOAD", "1") + reload

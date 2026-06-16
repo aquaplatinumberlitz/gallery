@@ -1,3 +1,16 @@
+/**
+ * Purpose:
+ * Verifies the lightbox source-loading policy from grid thumbnails through preview/original escalation.
+ *
+ * Guarantees:
+ * * normal open uses thumbnail and preview endpoints without original image fetches
+ * * zoom, fullscreen, preview failure, and neighbor preload use the expected endpoints
+ *
+ * Run when:
+ * * changing PhotoSwipe integration, lightbox source selection, or image endpoint policy
+ * * touching gallery-lightbox-always-load-original or preview fallback behavior
+ */
+
 import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";

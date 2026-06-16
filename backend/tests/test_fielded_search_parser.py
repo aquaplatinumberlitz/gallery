@@ -1,4 +1,15 @@
-"""Tests for the fielded search query parser and SQL builder."""
+"""
+Purpose:
+Verifies fielded search parsing and SQL construction for metadata-backed search.
+
+Guarantees:
+* field aliases, comparisons, quoted values, and residual terms parse consistently
+* generated SQL keeps expected filtering behavior without crashing on supported fields
+
+Run when:
+* changing fielded_search_parser, search field aliases, or metadata search SQL
+* touching advanced search UI query syntax or backend field semantics
+"""
 
 import json
 import re

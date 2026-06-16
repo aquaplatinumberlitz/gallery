@@ -1,3 +1,16 @@
+/**
+ * Purpose:
+ * Verifies Tailwind preflight does not regress existing gallery component styling.
+ *
+ * Guarantees:
+ * * buttons, cards, image grids, and app shell keep expected inherited styles
+ * * preflight-related CSS changes do not erase required layout defaults
+ *
+ * Run when:
+ * * changing Tailwind preflight, token bridge CSS, or global stylesheet order
+ * * touching base component styling shared by gallery views
+ */
+
 import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";

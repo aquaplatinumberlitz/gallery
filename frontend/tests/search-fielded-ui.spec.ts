@@ -1,3 +1,16 @@
+/**
+ * Purpose:
+ * Verifies plain and fielded search behavior in the main gallery UI.
+ *
+ * Guarantees:
+ * * query text is sent to the expected search endpoint parameters
+ * * results, clear search, no-results, and special-character queries keep the UI stable
+ *
+ * Run when:
+ * * changing search inputs, fielded query parsing UI, or search result rendering
+ * * touching query serialization or search-scope behavior
+ */
+
 import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";

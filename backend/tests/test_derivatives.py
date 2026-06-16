@@ -1,3 +1,16 @@
+"""
+Purpose:
+Verifies derivative generation helpers, oriented dimensions, and API derivative edge cases.
+
+Guarantees:
+* thumbnail and preview sizing, aspect ratio, and no-upscale behavior remain stable
+* EXIF-oriented dimensions flow through derivative, scan, metadata, and image endpoints
+
+Run when:
+* changing thumbnail generation, preview generation, EXIF handling, or dimension caching
+* touching derivative failure handling or original image serving
+"""
+
 from __future__ import annotations
 
 from io import BytesIO

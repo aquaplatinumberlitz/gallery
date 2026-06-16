@@ -1,3 +1,16 @@
+"""
+Purpose:
+Verifies metadata indexer staging, dedupe, flush, retry, and scan-yield behavior.
+
+Guarantees:
+* scan-time enqueueing stages paths in memory before SQLite queue writes
+* busy database and active scan conditions are retried, yielded, or marked safely
+
+Run when:
+* changing metadata indexer queues, staging, retry policy, or worker batch processing
+* touching rebuild/index tests or scan hot-path enqueue behavior
+"""
+
 from __future__ import annotations
 
 import queue

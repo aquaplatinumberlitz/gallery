@@ -1,3 +1,16 @@
+/**
+ * Purpose:
+ * Verifies IndexStatusPanel copy, status states, popover content, and rebuild actions.
+ *
+ * Guarantees:
+ * * index status counts and labels remain user-facing and stable
+ * * rebuild/rescan controls call the expected endpoints and refresh state
+ *
+ * Run when:
+ * * changing IndexStatusPanel, index status API fields, or rebuild controls
+ * * touching status copy, tooltips, popovers, or debug-only API traces
+ */
+
 import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";

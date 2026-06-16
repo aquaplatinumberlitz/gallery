@@ -1,3 +1,16 @@
+"""
+Purpose:
+Verifies app-level routes, health checks, and broad fielded search semantics.
+
+Guarantees:
+* core routes stay registered and unsafe paths are rejected
+* fielded, scoped, residual, and CJK search queries keep expected result semantics
+
+Run when:
+* changing FastAPI route registration, search parser integration, or metadata search behavior
+* touching field aliases, scope filtering, or semantic search fixtures
+"""
+
 import json
 import os
 import tempfile

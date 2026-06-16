@@ -1,4 +1,15 @@
 /**
+ * Purpose:
+ * Provides gated Eruda mobile console loading for browser-only debugging.
+ *
+ * Guarantees:
+ * * Eruda is loaded only after ?eruda=1 or persisted gallery-debug-eruda opt-in
+ * * ?eruda=0 clears the persisted opt-in before the dynamic import runs
+ *
+ * Run when:
+ * * debugging mobile browser state where desktop DevTools are unavailable
+ * * changing debug-console boot, query params, or localStorage debug flags
+ *
  * Eruda mobile debug console.
  * Enable via ?eruda=1 query param (persists to localStorage as 'gallery-debug-eruda').
  * Disable via ?eruda=0 (clears localStorage).

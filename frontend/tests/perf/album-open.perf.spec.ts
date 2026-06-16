@@ -1,3 +1,16 @@
+/**
+ * Purpose:
+ * Measures album open scan and thumbnail timing against configurable performance budgets.
+ *
+ * Guarantees:
+ * * album navigation records scan and thumbnail timing after the user click
+ * * JSON perf output is written for budget comparison and trend review
+ *
+ * Run when:
+ * * changing scan pagination, album navigation, thumbnail loading, or performance budgets
+ * * validating real-data album open performance before release
+ */
+
 import { fileURLToPath } from "node:url";
 import { expect, test } from "../helpers/monitorErrors";
 import { mkdirSync, writeFileSync } from "node:fs";

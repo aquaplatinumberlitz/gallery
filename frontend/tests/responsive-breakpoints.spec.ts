@@ -1,3 +1,16 @@
+/**
+ * Purpose:
+ * Verifies mobile, tablet, desktop, large desktop, and transition breakpoint layouts.
+ *
+ * Guarantees:
+ * * the expected layout shell appears at each supported viewport width
+ * * breakpoint transitions do not leave stale mobile/tablet/desktop controls visible
+ *
+ * Run when:
+ * * changing responsive breakpoints, layout components, headers, sidebars, or toolbars
+ * * touching device detection or viewport-specific CSS
+ */
+
 import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";

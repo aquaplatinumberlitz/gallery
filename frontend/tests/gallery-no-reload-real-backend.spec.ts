@@ -1,3 +1,16 @@
+/**
+ * Purpose:
+ * Verifies no-reload navigation against a real backend and real test images.
+ *
+ * Guarantees:
+ * * album browse and lightbox navigation do not cause full page reloads
+ * * initial real-backend scan is not duplicated unnecessarily
+ *
+ * Run when:
+ * * changing app boot, routing, lightbox navigation, or real backend scan wiring
+ * * investigating reloads that only reproduce with real server responses
+ */
+
 import { expect, test } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";

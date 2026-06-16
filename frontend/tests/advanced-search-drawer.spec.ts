@@ -1,3 +1,16 @@
+/**
+ * Purpose:
+ * Verifies that the advanced search drawer builds fielded search queries and renders scoped results.
+ *
+ * Guarantees:
+ * * drawer controls send the expected backend query strings
+ * * search results, empty states, and special field inputs remain usable
+ *
+ * Run when:
+ * * changing AdvancedSearchDrawer, fielded search UI, or search request serialization
+ * * touching search result rendering or gallery search state
+ */
+
 import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";

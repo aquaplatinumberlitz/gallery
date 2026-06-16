@@ -1,4 +1,15 @@
-"""Integration tests for /api/metadata, /api/search, /api/facets endpoints."""
+"""
+Purpose:
+Verifies metadata extraction, search, fielded queries, and facets API contracts.
+
+Guarantees:
+* metadata, search, and facets endpoints return stable shapes for indexed images
+* fielded search and scoped facets keep expected filtering semantics
+
+Run when:
+* changing metadata parsing, search SQL, facets aggregation, or API response shapes
+* touching Library Inspector or search backend contracts
+"""
 
 from pathlib import Path
 

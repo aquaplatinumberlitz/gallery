@@ -1,4 +1,4 @@
-import { isIndexRebuildDebugEnabled } from "@/utils/indexRebuildDebug";
+import { isIndexRebuildDebugEnabled } from "@/debug/indexRebuildDebug";
 
 export interface IndexStatusFieldCopy {
   label: string;

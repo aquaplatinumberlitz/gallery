@@ -39,7 +39,7 @@ This document records how major third-party libraries are used in the current co
 | @douxcode/vue-spring-bottom-sheet | Mobile lightbox metadata sheet | `frontend/src/components/LightboxMobileSheet.vue`, `frontend/src/styles/_lightbox-mobile.scss` | Sheet/motion engine only, non-modal inside PhotoSwipe |
 | Fuse.js | Local fuzzy filtering helper | `frontend/src/utils/fuzzySearch.ts`, `GalleryGrid.vue` | Backend `/api/search` owns active recursive search |
 | embla-carousel-vue | shadcn-style carousel primitive | `frontend/src/components/ui/carousel/` | Used by desktop album carousel through local carousel component |
-| eruda | Optional mobile browser debug console | `frontend/src/utils/erudaDebug.ts`, `frontend/src/main.ts` | Enabled by query/localStorage debug flag |
+| eruda | Optional mobile browser debug console | `frontend/src/debug/erudaDebug.ts`, `frontend/src/main.ts` | Enabled by query/localStorage debug flag |
 | Playwright | Frontend and contract tests | `frontend/tests/`, `frontend/playwright.config.ts` | Also used by perf smoke scripts |
 
 ## Backend Libraries
@@ -261,7 +261,7 @@ Embla powers the local shadcn-style carousel primitive in `frontend/src/componen
 
 ### eruda
 
-Eruda is an optional mobile debugging console. `frontend/src/utils/erudaDebug.ts` loads it dynamically when enabled by the debug query/localStorage flag. It should stay out of the normal production path.
+Eruda is an optional mobile debugging console. `frontend/src/debug/erudaDebug.ts` loads it dynamically when enabled by the debug query/localStorage flag. It should stay out of the normal production path.
 
 ## Do Not Change Casually
 

@@ -1,3 +1,16 @@
+/**
+ * Purpose:
+ * Verifies gallery revisit behavior does not refetch duplicate first-page scans.
+ *
+ * Guarantees:
+ * * cached album data survives soft revisit and browser back navigation
+ * * cursor=0 scan requests are not duplicated unnecessarily
+ *
+ * Run when:
+ * * changing TanStack query keys, gallery cache lifetime, or route revisit behavior
+ * * touching search clear/back navigation flows that return to gallery results
+ */
+
 import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";

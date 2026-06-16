@@ -27,7 +27,7 @@ import { queryClient } from "@/query";
 import { normalizeQueryPath, queryKeys } from "@/query/keys";
 import { rebuildIndex, scanDirectory } from "@/services/api";
 import { markScopeRebuildStarted } from "@/utils/indexMaintenance";
-import { getLibraryInspectorQueryDebug, logIndexRebuildDebug, isIndexRebuildDebugEnabled } from "@/utils/indexRebuildDebug";
+import { getLibraryInspectorQueryDebug, logIndexRebuildDebug, isIndexRebuildDebugEnabled } from "@/debug/indexRebuildDebug";
 import { getFieldTooltip } from "@/utils/indexStatusCopy";
 import {
   getIndexStatusCounts,

@@ -1,3 +1,16 @@
+/**
+ * Purpose:
+ * Verifies SPA gallery browsing, lightbox use, and navigation do not reload the page.
+ *
+ * Guarantees:
+ * * boot identity stays stable across album and lightbox interactions
+ * * duplicate initial scan requests are avoided during stubbed navigation flows
+ *
+ * Run when:
+ * * changing router, gallery navigation, lightbox prev/next, or boot initialization
+ * * touching query caching that controls scan request reuse
+ */
+
 import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";

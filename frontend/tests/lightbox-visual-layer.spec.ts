@@ -1,3 +1,16 @@
+/**
+ * Purpose:
+ * Verifies PhotoSwipe visual layering and EXIF-rotated portrait display behavior.
+ *
+ * Guarantees:
+ * * only one PhotoSwipe root and one visible active image exist after open/reopen
+ * * rotated portrait dimensions render without duplicate visible image layers
+ *
+ * Run when:
+ * * changing PhotoSwipeViewer, lightbox CSS layers, or EXIF dimension handling
+ * * touching close/reopen lifecycle or placeholder image behavior
+ */
+
 import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";

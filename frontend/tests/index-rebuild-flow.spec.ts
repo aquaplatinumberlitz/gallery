@@ -1,3 +1,16 @@
+/**
+ * Purpose:
+ * Verifies index rebuild request flow, stale notices, and inspector refresh convergence.
+ *
+ * Guarantees:
+ * * rebuild actions invalidate and refetch Library Inspector and Index Status data
+ * * debug-index-rebuild emits enough cache detail to diagnose stale rows
+ *
+ * Run when:
+ * * changing LibraryInspector, IndexStatusPanel, rebuildIndex, or query invalidation
+ * * touching index rebuild debug logging or stale-row UX
+ */
+
 import { expect, test } from "./helpers/monitorErrors";
 import type { Page } from "@playwright/test";
 

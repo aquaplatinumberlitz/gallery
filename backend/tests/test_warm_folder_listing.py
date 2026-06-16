@@ -1,3 +1,16 @@
+"""
+Purpose:
+Verifies warm indexed folder listing behavior and fallback contracts.
+
+Guarantees:
+* complete warm listings come from SQLite without scandir or album metadata hot-path work
+* stale, missing, disabled, and paginated cases match direct scan behavior safely
+
+Run when:
+* changing warm listing, folder index state, natural sort, pagination, or scan fallback behavior
+* touching ENABLE_WARM_INDEXED_LISTING or index_source response semantics
+"""
+
 from __future__ import annotations
 
 import os

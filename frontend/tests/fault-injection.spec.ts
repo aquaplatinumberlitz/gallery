@@ -1,3 +1,16 @@
+/**
+ * Purpose:
+ * Verifies that frontend views degrade safely when backend endpoints fail.
+ *
+ * Guarantees:
+ * * API 500s and offline states show controlled fallback UI
+ * * gallery, metadata, image, and lightbox failures do not trigger page errors
+ *
+ * Run when:
+ * * changing API error handling, toast/error UI, or lightbox fallback behavior
+ * * touching scan, search, metadata, thumbnail, preview, or image request flows
+ */
+
 import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";

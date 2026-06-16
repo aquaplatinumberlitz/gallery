@@ -1,4 +1,15 @@
 /**
+ * Purpose:
+ * Provides a persistent reload black box for diagnosing unexpected page reloads.
+ *
+ * Guarantees:
+ * * debug capture is off unless ?debugReload or GALLERY_DEBUG_RELOAD enables it
+ * * captured reload evidence persists across page reloads in localStorage
+ *
+ * Run when:
+ * * debugging browser reloads, tab discards, or mobile pull-to-refresh reports
+ * * changing early app boot, Vite/HMR handling, or reload diagnostics
+ *
  * Persistent Reload BlackBox monitor.
  *
  * Captures page lifecycle, WebSocket/HMR activity, errors, and navigation

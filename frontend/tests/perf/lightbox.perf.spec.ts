@@ -1,3 +1,16 @@
+/**
+ * Purpose:
+ * Measures lightbox open and next-image transition timing against real endpoint usage.
+ *
+ * Guarantees:
+ * * preview and thumbnail request timing is captured around lightbox interactions
+ * * full original image fetches are surfaced when they affect normal open performance
+ *
+ * Run when:
+ * * changing lightbox source loading, PhotoSwipe transitions, or preview endpoint behavior
+ * * validating real-data lightbox performance before release
+ */
+
 import { fileURLToPath } from "node:url";
 import { expect, test } from "../helpers/monitorErrors";
 import type { Page } from "@playwright/test";

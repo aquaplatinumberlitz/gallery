@@ -1,3 +1,16 @@
+/**
+ * Purpose:
+ * Verifies sidebar trigger visibility and behavior across gallery layouts.
+ *
+ * Guarantees:
+ * * sidebar controls remain discoverable and do not duplicate unexpectedly
+ * * trigger interactions preserve gallery content and route state
+ *
+ * Run when:
+ * * changing sidebar trigger components, App shell layout, or responsive navigation
+ * * touching sidebar localStorage state or root path controls
+ */
+
 import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";

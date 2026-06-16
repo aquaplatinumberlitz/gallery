@@ -1,4 +1,15 @@
-"""Integration tests for health endpoint and path safety enforcement."""
+"""
+Purpose:
+Verifies health endpoint shape and path safety enforcement across public APIs.
+
+Guarantees:
+* /api/health remains JSON and includes expected runtime fields
+* scan, image, thumbnail, preview, and metadata endpoints reject unsafe paths
+
+Run when:
+* changing health response fields, path safety checks, or gallery root resolution
+* touching public endpoint validation behavior
+"""
 
 from pathlib import Path
 

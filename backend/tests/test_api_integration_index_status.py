@@ -1,4 +1,15 @@
-"""Integration tests for /api/index/status endpoint."""
+"""
+Purpose:
+Verifies the /api/index/status endpoint and runtime index status fields.
+
+Guarantees:
+* index status responses include stable progress, runtime, and error fields
+* endpoint remains JSON-serializable across disabled, enabled, empty, and failed-job states
+
+Run when:
+* changing metadata index status, indexer runtime counters, or failed job reporting
+* touching IndexStatusPanel backend contracts
+"""
 
 from pathlib import Path
 

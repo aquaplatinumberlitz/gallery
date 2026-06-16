@@ -1,3 +1,16 @@
+"""
+Purpose:
+Verifies folder count helpers used by refresh and warm listing state.
+
+Guarantees:
+* child, folder, and image counts match filesystem contents for refresh bookkeeping
+* warm listing avoids unnecessary folder-count scans on the hot path
+
+Run when:
+* changing _scan_folder_counts, refresh folder state, or warm listing completeness checks
+* touching scheduled refresh count updates
+"""
+
 from __future__ import annotations
 
 import os

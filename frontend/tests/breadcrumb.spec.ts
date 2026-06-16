@@ -1,3 +1,16 @@
+/**
+ * Purpose:
+ * Verifies breadcrumb rendering and navigation for deep gallery paths.
+ *
+ * Guarantees:
+ * * long path segments remain accessible without breaking layout
+ * * breadcrumb clicks update the gallery path through SPA navigation
+ *
+ * Run when:
+ * * changing Breadcrumb, path routing, or gallery navigation state
+ * * touching responsive header space used by breadcrumbs
+ */
+
 import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";

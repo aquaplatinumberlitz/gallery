@@ -1,3 +1,16 @@
+"""
+Purpose:
+Verifies scheduled refresh configuration, folder refresh work limits, and safe fallbacks.
+
+Guarantees:
+* refresh stays disabled by default and respects configured roots and max work limits
+* refresh errors and SQLite busy states do not block scan or mark bad state complete
+
+Run when:
+* changing scheduled refresh config, refresh loop, folder state updates, or work throttling
+* touching warm listing freshness or background indexing interactions
+"""
+
 from __future__ import annotations
 
 import time

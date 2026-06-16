@@ -1,3 +1,16 @@
+"""
+Purpose:
+Verifies /api/scan hot-path behavior avoids expensive metadata/image reads.
+
+Guarantees:
+* cached dimensions are used without PIL opens or metadata extraction during scan
+* active scan counters are cleaned up when path resolution raises
+
+Run when:
+* changing scan hot path, cached dimension lookups, or metadata enqueueing from scan
+* touching scan exception handling or active scan counters
+"""
+
 from __future__ import annotations
 
 from pathlib import Path

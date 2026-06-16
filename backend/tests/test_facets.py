@@ -1,3 +1,16 @@
+"""
+Purpose:
+Verifies DB-backed facet aggregation, scoping, output limits, and API endpoint behavior.
+
+Guarantees:
+* facets are read from indexed metadata without filesystem scans
+* model, tool, sampler, folder, and LoRA facets respect scope and limit contracts
+
+Run when:
+* changing facets SQL, facet response shape, scope prefix handling, or LoRA extraction
+* touching Library Inspector filters or metadata search facets
+"""
+
 from __future__ import annotations
 
 import os

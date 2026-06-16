@@ -1,3 +1,16 @@
+/**
+ * Purpose:
+ * Verifies Tailwind migration phase 0 visual contracts across primary layouts.
+ *
+ * Guarantees:
+ * * desktop, mobile, tablet, theme, and preflight absence checks keep baseline styling stable
+ * * migrated utility styles do not regress gallery controls or visible content
+ *
+ * Run when:
+ * * changing Tailwind setup, token bridge CSS, or migrated layout styling
+ * * touching shadcn/Tailwind compatibility styles
+ */
+
 import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
