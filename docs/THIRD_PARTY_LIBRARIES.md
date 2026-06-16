@@ -1,6 +1,6 @@
 # Third-Party Libraries
 
-Last reviewed: 2026-06-15
+Last reviewed: 2026-06-16
 
 This document records how major third-party libraries are used in the current codebase and which integration contracts should not be changed casually.
 
@@ -24,14 +24,14 @@ This document records how major third-party libraries are used in the current co
 | Vite | Frontend build/dev server | `frontend/vite.config.ts` | Uses Vue plugin and Tailwind 4 Vite plugin |
 | Tailwind CSS 4 | Utility layer and shadcn token bridge | `frontend/src/styles/tailwind.css`, `frontend/src/styles/_shadcn-token-bridge.css`, component classes | Coexists with SCSS lightbox/layout styles |
 | SCSS / Sass | Global layout, lightbox, breakpoint styles | `frontend/src/styles/*.scss` | Keep breakpoints in sync with `useDevice.ts` |
-| shadcn-vue-style local components | Buttons, inputs, menus, sheets, sidebar, popover, tabs, tooltip, skeleton | `frontend/src/components/ui/` | Local components built on Reka UI, CVA, clsx, tailwind-merge, VueUse |
+| shadcn-vue-style local components / shadcn-vue package | Buttons, inputs, menus, sheets, sidebar, popover, tabs, tooltip, skeleton, select | `frontend/src/components/ui/` | Local components follow shadcn-vue patterns and are built on Reka UI, CVA, clsx, tailwind-merge, VueUse |
 | Reka UI | Headless primitives for local UI components | `frontend/src/components/ui/` | Dialog, sheet, dropdown, select, tooltip, popover, tabs, primitive/sidebar context |
 | class-variance-authority / clsx / tailwind-merge | Variant and class composition | `frontend/src/components/ui/Button.vue`, `Badge.vue`, `Input.vue`, `frontend/src/lib/utils.ts` | `cn()` merges Tailwind classes consistently |
 | Lucide Vue | Icons | Gallery and UI components | Both `lucide-vue-next` and `@lucide/vue` are installed; code currently imports `lucide-vue-next` |
 | @vueuse/core | Theme, v-model helpers, media queries, UI primitive helpers | `frontend/src/composables/useGalleryTheme.ts`, `frontend/src/components/ui/` | Used by shadcn-style components and theme handling |
 | @tanstack/vue-query | Server-state caching | `frontend/src/query/`, Query composables | Owns API data, stale time, retries, GC |
 | @tanstack/vue-query-devtools | Development Query inspection | `frontend/src/App.vue`, `frontend/package.json` | Dev mode only |
-| @tanstack/vue-virtual | Row-based large gallery grid | `frontend/src/components/GalleryGrid.vue` | Desktop/tablet grid virtualization |
+| @tanstack/vue-virtual | Row-based large gallery grid and Library Inspector table body | `frontend/src/components/GalleryGrid.vue`, `frontend/src/components/LibraryInspector.vue` | Desktop/tablet grid virtualization; inspector renders the visible table-row window plus overscan |
 | @tanstack/vue-form | Advanced fielded search form | `frontend/src/components/search/AdvancedSearchDrawer.vue` | Active runtime usage |
 | @tanstack/vue-table | Library Inspector data table | `frontend/src/components/LibraryInspector.vue` | Active runtime usage |
 | @tanstack/db / @tanstack/vue-db / @tanstack/query-db-collection | Beta local reactive collection foundation | `frontend/src/db/` | Runtime pilot is landing pages only |
@@ -170,6 +170,8 @@ Default client behavior: 1 minute stale time, 10 minute garbage collection, one 
 
 `@tanstack/vue-virtual` provides row-based virtualization in `GalleryGrid.vue` for desktop/tablet grids. Mobile uses native scroll behavior rather than the same virtualized grid contract.
 
+`LibraryInspector.vue` also uses `useVirtualizer` for the `/metadata` table body. The inspector still requests a bounded result set from `/api/library/inspector` and uses TanStack Table for row models/sorting, but the DOM contains only the currently visible rows plus overscan and spacer rows instead of all returned rows.
+
 ### TanStack Form
 
 `@tanstack/vue-form` is active in `AdvancedSearchDrawer.vue`. It manages the fielded-search form state and validation for numeric fields and size-format fields, then emits structured filters that serialize to backend fielded query syntax.
@@ -236,6 +238,9 @@ Local UI primitives live under `frontend/src/components/ui/` and follow shadcn-v
 - `class-variance-authority` defines component variants.
 - `clsx` and `tailwind-merge` are wrapped by `cn()` in `frontend/src/lib/utils.ts`.
 - `_shadcn-token-bridge.css` maps neutral shadcn tokens without replacing gallery brand/design tokens.
+- Select primitives live in `frontend/src/components/ui/select/` and wrap Reka Select. They are used by the `/metadata` toolbar model/prompt filters and by `SortSelect.vue` for gallery/tablet/metadata sort controls.
+- `MobileHeader.vue` still uses `SortDropdown.vue`, which is based on the dropdown-menu primitive rather than Select.
+- Shared UI focus rings should use `focus-visible` styling so pointer clicks do not show keyboard focus rings. Reka menu/select item highlight classes still use Reka's `focus:` data behavior where appropriate for roving focus.
 
 Keep standard UI component styling neutral and avoid mapping gallery-specific decorative colors into generic shadcn tokens.
 

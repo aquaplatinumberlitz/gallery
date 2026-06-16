@@ -1,13 +1,13 @@
 # Architecture
 
-Last reviewed: 2026-06-15
+Last reviewed: 2026-06-16
 
 ## Overview
 
 AI Art Gallery is a local-first image browser with a FastAPI backend and a Vue 3 frontend.
 
 - Backend: scans folders, serves original images, generates cached WebP derivatives, extracts AI generation metadata, indexes folders/photos/metadata in SQLite FTS5, and exposes read-only inspection/search APIs.
-- Frontend: uses Vue Router for the gallery and metadata inspector routes, Pinia for UI/navigation state, TanStack Query for API state, TanStack Virtual for large grids, PhotoSwipe for the lightbox, TanStack Form for advanced search, and TanStack Table for the Library Inspector.
+- Frontend: uses Vue Router for the gallery and metadata inspector routes, Pinia for UI/navigation state, TanStack Query for API state, TanStack Virtual for large grids and the Library Inspector table body, PhotoSwipe for the lightbox, TanStack Form for advanced search, and TanStack Table for the Library Inspector.
 - Startup: `start.py` creates/repairs the Python virtualenv, installs Python and npm dependencies when needed, finds free backend/frontend ports, and starts both servers.
 
 Major external library integrations are documented in [Third-Party Libraries](THIRD_PARTY_LIBRARIES.md).
@@ -90,7 +90,9 @@ Key paths:
 | `frontend/src/layouts/` | Desktop, tablet, and mobile layout shells |
 | `frontend/src/components/GalleryGrid.vue` | Main gallery renderer, album/photo sections, infinite loading, search result rendering |
 | `frontend/src/components/Lightbox.vue` | Device-dispatch lightbox orchestrator |
-| `frontend/src/components/LibraryInspector.vue` | Desktop metadata inspection table at `/metadata` |
+| `frontend/src/components/LibraryInspector.vue` | Desktop metadata inspection table at `/metadata`; TanStack Table for returned-row sorting plus TanStack Virtual for table rows |
+| `frontend/src/components/SortSelect.vue` | shadcn-vue Select sort control used by gallery desktop/tablet toolbars and the Library Inspector |
+| `frontend/src/components/SortDropdown.vue` | Dropdown-menu sort control still used by the mobile header |
 | `frontend/src/components/search/AdvancedSearchDrawer.vue` | Facet-backed fielded search form |
 | `frontend/src/components/ui/` | shadcn-vue/Reka-inspired local UI primitives |
 | `frontend/src/composables/` | Query wrappers, device detection, PhotoSwipe lifecycle, metadata helpers, theme, haptics |
@@ -180,6 +182,7 @@ Header search or AdvancedSearchDrawer
 - Fielded queries are parsed server-side, for example `prompt:"blue hair"`, `seed:12345`, `model:pony`, `steps:>25`, `width:>=1024`.
 - The Advanced Search drawer uses TanStack Form and `/api/facets` to build the same fielded query syntax.
 - `GET /api/search-metadata` remains available for older callers, but the main gallery UI uses `/api/search`.
+- Desktop/tablet gallery sorting uses `SortSelect.vue`, a local shadcn-vue Select wrapper. `MobileHeader.vue` still uses `SortDropdown.vue`.
 
 ### Library Inspector
 
@@ -188,11 +191,13 @@ Header search or AdvancedSearchDrawer
 -> LibraryInspector.vue
 -> useLibraryInspectorQuery(query, scope, currentPath, limit)
 -> GET /api/library/inspector
+-> shadcn-vue Select controls filter by model/prompt state and choose sort
 -> TanStack Table sorts returned rows client-side
+-> TanStack Virtual renders the table body rows
 -> popovers/copy actions fetch GET /api/library/inspector/metadata
 ```
 
-The inspector is read-only. It is backed by indexed SQLite metadata and opens images in the same lightbox store used by the gallery.
+The inspector is read-only. It is backed by indexed SQLite metadata and opens images in the same lightbox store used by the gallery. The table requests up to 100 rows but virtualizes the body, so the DOM only contains the visible row window plus small overscan/spacer rows rather than every returned row.
 
 ### Open Image
 
@@ -255,3 +260,4 @@ Mobile sheet contract:
 - Keep `pswp.currIndex !== index` in the PhotoSwipe index watcher to prevent feedback loops.
 - Keep Query as the owner of server/API data and Pinia as the owner of UI/navigation state.
 - Do not move scan, infinite loading, folder tree, unified search, or lightbox metadata into TanStack DB without a dedicated collection-state design.
+- Keep shadcn-vue Select controls as the metadata toolbar contract for model, prompt, and sort filters. `toolbarTrigger.ts` is a shared dropdown/button trigger class, but `SortSelect.vue` uses the local `SelectTrigger` styling directly.

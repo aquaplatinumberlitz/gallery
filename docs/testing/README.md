@@ -1,13 +1,16 @@
 # Testing Guide
 
+Last reviewed: 2026-06-16
+
 This directory documents the test and debug surface for the gallery repo. Keep it focused on what each test protects, when to run it, and which debug helper to use before changing behavior.
 
 ## Test Categories
 
 - Backend unit/integration tests: `backend/tests/test_*.py` cover FastAPI endpoint contracts, metadata parsing/search, scan behavior, indexer staging, warm listing, refresh, watcher, facets, and derivatives.
-- Frontend Playwright/contract tests: `frontend/tests/*.spec.ts` cover gallery UI contracts with stubbed API responses and selected real-backend smoke paths.
+- Frontend Playwright/contract tests: `frontend/tests/*.spec.ts` cover gallery UI contracts with stubbed API responses, selected real-backend smoke paths, UI regressions, and diagnostics.
 - Rebuild/index tests: `frontend/tests/index-rebuild-flow.spec.ts`, `frontend/tests/index-status-panel.spec.ts`, `backend/tests/test_api_integration_index_status.py`, `backend/tests/test_indexer_staging.py`, `backend/tests/test_warm_folder_listing.py`, and `backend/tests/test_scan_hot_path.py`.
 - Library Inspector tests: `frontend/tests/library-inspector.spec.ts` and `backend/tests/test_library_inspector.py`.
+- Metadata performance diagnostics: `frontend/tests/metadata-performance.spec.ts` measures `/metadata` navigation, sort, search, rendered row counts, thumbnail requests, and state restoration against a running gallery app.
 - Lightbox tests: `frontend/tests/lightbox-loading-policy.spec.ts`, `frontend/tests/lightbox-visual-layer.spec.ts`, `frontend/tests/mobile-lightbox-sheet.spec.ts`, and derivative backend tests.
 - Responsive tests: `frontend/tests/responsive-breakpoints.spec.ts`, `frontend/tests/sidebar-trigger.spec.ts`, mobile lightbox tests, and Tailwind migration/preflight tests.
 - Debug/diagnostic scripts: `frontend/src/debug/`, `scripts/debug_*`, and perf scripts under `scripts/` and `frontend/tests/perf/`.
@@ -24,6 +27,7 @@ Run from the repo root unless a command changes directory explicitly.
 | Frontend build | `cd frontend && npm run build` |
 | Frontend Playwright test | `cd frontend && npx playwright test --project=chromium` |
 | Targeted Playwright test | `cd frontend && npx playwright test tests/lightbox-loading-policy.spec.ts --project=chromium` |
+| Metadata performance diagnostic | `cd frontend && GALLERY_BASE_URL=http://localhost:5173 npx playwright test tests/metadata-performance.spec.ts --project=chromium --headed` |
 | Frontend contract subset | `bash scripts/test_frontend_contract.sh` |
 | Deterministic suite | `bash scripts/test_all.sh` |
 | Perf smoke suite | `bash scripts/test_perf_smoke.sh` |
@@ -38,11 +42,12 @@ Playwright starts Vite through `frontend/playwright.config.ts`. Backend-backed P
 
 | Change area | Run |
 | --- | --- |
-| `LibraryInspector.vue`, inspector query hooks, inspector metadata details | `cd frontend && npx playwright test tests/library-inspector.spec.ts --project=chromium`; `cd backend && python -m pytest -q tests/test_library_inspector.py` |
+| `LibraryInspector.vue`, inspector query hooks, inspector metadata details | `cd frontend && npx playwright test tests/library-inspector.spec.ts --project=chromium`; `cd backend && python -m pytest -q tests/test_library_inspector.py`; for performance diagnostics with a running app, `cd frontend && GALLERY_BASE_URL=http://localhost:5173 npx playwright test tests/metadata-performance.spec.ts --project=chromium --headed` |
 | `IndexStatusPanel.vue`, rebuild controls, index status copy | `cd frontend && npx playwright test tests/index-status-panel.spec.ts tests/index-rebuild-flow.spec.ts --project=chromium`; `cd backend && python -m pytest -q tests/test_api_integration_index_status.py tests/test_indexer_staging.py` |
 | Metadata index backend, rebuild/index queue, warm listing | `cd backend && python -m pytest -q tests/test_indexer_staging.py tests/test_warm_folder_listing.py tests/test_scan_hot_path.py tests/test_api_integration_index_status.py` |
 | `/api/scan`, ignore policy, natural sort, pagination | `cd backend && python -m pytest -q tests/test_api_integration_scan.py tests/test_scan_hot_path.py tests/test_warm_folder_listing.py`; `cd frontend && npx playwright test tests/gallery-cache-revisit.spec.ts --project=chromium` |
-| Metadata parsing/search/facets | `cd backend && python -m pytest -q tests/test_api_integration_metadata_search_facets.py tests/test_fielded_search_parser.py tests/test_facets.py tests/test_app.py`; `cd frontend && npx playwright test tests/search-fielded-ui.spec.ts tests/advanced-search-drawer.spec.ts --project=chromium` |
+| Metadata parsing/search/facets | `cd backend && python -m pytest -q tests/test_api_integration_metadata_search_facets.py tests/test_fielded_search_parser.py tests/test_facets.py tests/test_metadata_binary_sanitizer.py tests/test_app.py`; `cd frontend && npx playwright test tests/search-fielded-ui.spec.ts tests/advanced-search-drawer.spec.ts --project=chromium` |
+| Metadata toolbar Select controls or sort controls | `cd frontend && npx playwright test tests/library-inspector.spec.ts --project=chromium`; `cd frontend && npx playwright test tests/metadata-performance.spec.ts --project=chromium --headed` with a running app |
 | PhotoSwipe/lightbox source policy | `cd frontend && npx playwright test tests/lightbox-loading-policy.spec.ts tests/lightbox-visual-layer.spec.ts tests/mobile-lightbox-sheet.spec.ts --project=chromium`; `cd backend && python -m pytest -q tests/test_derivatives.py tests/test_api_integration_derivatives.py` |
 | Responsive/sidebar layout | `cd frontend && npx playwright test tests/responsive-breakpoints.spec.ts tests/sidebar-trigger.spec.ts tests/mobile-lightbox-sheet.spec.ts --project=chromium` |
 | Query keys/cache behavior | `cd frontend && npx playwright test tests/gallery-no-reload.spec.ts tests/gallery-cache-revisit.spec.ts tests/index-rebuild-flow.spec.ts --project=chromium` |

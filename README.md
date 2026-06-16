@@ -1,8 +1,8 @@
 # AI Art Gallery
 
-Last reviewed: 2026-06-15
+Last reviewed: 2026-06-16
 
-A local-first web gallery for browsing AI-generated artwork collections. It pairs a FastAPI backend for scanning, thumbnails, indexed metadata search, and read-only metadata inspection with a Vue 3 frontend that provides a responsive TanStack Virtual gallery, PhotoSwipe-based lightbox, and desktop Library Inspector.
+A local-first web gallery for browsing AI-generated artwork collections. It pairs a FastAPI backend for scanning, thumbnails, indexed metadata search, and read-only metadata inspection with a Vue 3 frontend that provides a responsive TanStack Virtual gallery, PhotoSwipe-based lightbox, and virtualized desktop Library Inspector.
 
 Designed for local/personal use. It is not intended as a hardened public deployment.
 
@@ -20,7 +20,7 @@ Designed for local/personal use. It is not intended as a hardened public deploym
 - Fielded metadata search (`prompt:`, `seed:`, `model:`, `steps:`, etc.) with a dedicated parser; warm metadata reads from SQLite without re-parsing PNG chunks
 - Warm indexed folder listing (SQLite-first, `os.stat` + SQLite only) with optional scheduled refresh and file-watcher support
 - DB-derived faceted aggregation endpoint (`/api/facets`) for tool, model, sampler, and other metadata dimensions
-- Desktop Library Inspector at `/metadata` for read-only AI photo metadata inspection with prompt/negative/LoRA search, DB-first detail popovers, copy actions, and TanStack Table returned-row sorting
+- Desktop Library Inspector at `/metadata` for read-only AI photo metadata inspection with prompt/negative/LoRA search, DB-first detail popovers, copy actions, shadcn-vue Select toolbar filters/sort, TanStack Table returned-row sorting, and TanStack Virtual table rows
 
 ## Tech Stack
 
@@ -30,7 +30,7 @@ Designed for local/personal use. It is not intended as a hardened public deploym
 | Backend Modules | metadata_store, fielded_search_parser, indexer, facets, refresh, watcher |
 | Frontend | Vue 3, TypeScript, Vite, Vue Router, Pinia |
 | Lightbox | PhotoSwipe 5 |
-| Grid | @tanstack/vue-virtual |
+| Grid/Table Virtualization | @tanstack/vue-virtual |
 | Server Cache | @tanstack/vue-query |
 | Advanced Search Form | @tanstack/vue-form |
 | Metadata Table | @tanstack/vue-table |
@@ -86,6 +86,7 @@ gallery-repo/
 ├── backend/
 │   ├── main.py
 │   ├── app.py
+│   ├── albums.py
 │   ├── config.py
 │   ├── errors.py
 │   ├── facets.py
@@ -120,6 +121,7 @@ gallery-repo/
 │       ├── test_fielded_search_parser.py
 │       ├── test_indexer_staging.py
 │       ├── test_library_inspector.py
+│       ├── test_metadata_binary_sanitizer.py
 │       ├── test_scan_folder_counts.py
 │       ├── test_scan_hot_path.py
 │       ├── test_scheduled_refresh.py
@@ -134,6 +136,7 @@ gallery-repo/
 │   │   ├── gallery-no-reload-real-backend.spec.ts
 │   │   ├── lightbox-loading-policy.spec.ts
 │   │   ├── library-inspector.spec.ts
+│   │   ├── metadata-performance.spec.ts
 │   │   ├── mobile-lightbox-sheet.spec.ts
 │   │   ├── responsive-breakpoints.spec.ts
 │   │   ├── search-fielded-ui.spec.ts
