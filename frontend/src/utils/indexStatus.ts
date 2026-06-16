@@ -51,7 +51,7 @@ const INDEX_STATUS_PRESENTATION: Record<IndexUiStatus, IndexStatusPresentation> 
   },
   indexing: {
     status: "indexing",
-    label: "Indexing",
+    label: "Updating",
     tone: "yellow",
     showPulse: true,
   },

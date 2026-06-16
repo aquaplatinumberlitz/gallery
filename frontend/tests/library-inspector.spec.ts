@@ -277,7 +277,7 @@ test.describe("LibraryInspector", () => {
 
     await expect(page.getByRole("heading", { name: "Library Inspector" })).toBeVisible();
     await expect(page.getByRole("link", { name: /Metadata/ })).toHaveAttribute("aria-current", "page");
-    await expect(page.getByText("40 returned from 40 metadata records in this scope")).toBeVisible();
+    await expect(page.getByText("Showing 40 photo details")).toBeVisible();
 
     const galleryLink = page.getByRole("link", { name: "Gallery" });
     await expect(galleryLink).toBeVisible();
@@ -307,7 +307,7 @@ test.describe("LibraryInspector", () => {
 
     await page.goto(`${baseUrl}/metadata`, { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: "Library Inspector" })).toBeVisible();
-    await expect(page.getByText("40 metadata records", { exact: false })).toBeVisible();
+    await expect(page.getByText("photo details", { exact: false })).toBeVisible();
 
     const inspectorRequestsBefore = requests.filter((request) => request.startsWith("/api/library/inspector?")).length;
     await page.getByLabel("Index Status").click();

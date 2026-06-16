@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import Button from "@/components/ui/Button.vue";
 import IndexStatusBadge from "@/components/IndexStatusBadge.vue";
 import {
@@ -6,6 +7,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { getFieldTooltip } from "@/utils/indexStatusCopy";
 import type {
   IndexStatusCounts,
   IndexStatusPresentation,
@@ -30,6 +32,11 @@ const emit = defineEmits<{
   (e: "rescan"): void;
   (e: "rebuild"): void;
 }>();
+
+const photosFoundTooltip = computed(() => getFieldTooltip("indexed_photos"));
+const photoDetailsReadyTooltip = computed(() => getFieldTooltip("metadata_records"));
+const detailsProcessedTooltip = computed(() => getFieldTooltip("done"));
+const folderTooltip = computed(() => getFieldTooltip("path"));
 
 function formatCount(value: number) {
   return value.toLocaleString();
@@ -60,64 +67,115 @@ function formatUpdatedAt(value: number | null | undefined) {
     </div>
 
     <template v-else>
-      <div class="index-details__rows">
+      <div class="index-details__section">
+        <p class="index-details__section-label">Status</p>
         <div class="index-details__row">
-          <span>Status</span>
-          <strong>{{ presentation.label }}</strong>
+          <strong class="index-details__row-key">{{ presentation.label }}</strong>
         </div>
+      </div>
 
-        <div class="index-details__row">
-          <span>Metadata records</span>
-          <strong>{{ formatCount(data?.metadata_records ?? 0) }}</strong>
-        </div>
+      <div class="index-details__section">
+        <p class="index-details__section-label">Library</p>
 
-        <div class="index-details__row">
-          <span>Indexed photos</span>
+        <Tooltip v-if="photosFoundTooltip" :delay-duration="800">
+          <TooltipTrigger as-child>
+            <div class="index-details__row has-tooltip">
+              <span class="index-details__row-key">Photos found</span>
+              <strong>{{ formatCount(data?.indexed_photos ?? 0) }}</strong>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
+            {{ photosFoundTooltip }}
+          </TooltipContent>
+        </Tooltip>
+        <div v-else class="index-details__row">
+          <span class="index-details__row-key">Photos found</span>
           <strong>{{ formatCount(data?.indexed_photos ?? 0) }}</strong>
         </div>
 
-        <div class="index-details__row">
-          <span>Done jobs</span>
-          <strong>{{ formatCount(progress.indexed) }}</strong>
+        <Tooltip v-if="photoDetailsReadyTooltip" :delay-duration="800">
+          <TooltipTrigger as-child>
+            <div class="index-details__row has-tooltip">
+              <span class="index-details__row-key">Photo details ready</span>
+              <strong>{{ formatCount(data?.metadata_records ?? 0) }}</strong>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
+            {{ photoDetailsReadyTooltip }}
+          </TooltipContent>
+        </Tooltip>
+        <div v-else class="index-details__row">
+          <span class="index-details__row-key">Photo details ready</span>
+          <strong>{{ formatCount(data?.metadata_records ?? 0) }}</strong>
+        </div>
+      </div>
+
+      <div v-if="presentation.status === 'indexing'" class="index-details__section">
+        <p class="index-details__section-label">Processing</p>
+
+        <Tooltip v-if="detailsProcessedTooltip" :delay-duration="800">
+          <TooltipTrigger as-child>
+            <div class="index-details__row has-tooltip">
+              <span class="index-details__row-key">Details processed</span>
+              <strong>
+                {{ formatCount(progress.indexed) }}
+                <template v-if="progress.total !== null"> / {{ formatCount(progress.total) }}</template>
+              </strong>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
+            {{ detailsProcessedTooltip }}
+          </TooltipContent>
+        </Tooltip>
+        <div v-else class="index-details__row">
+          <span class="index-details__row-key">Details processed</span>
+          <strong>
+            {{ formatCount(progress.indexed) }}
+            <template v-if="progress.total !== null"> / {{ formatCount(progress.total) }}</template>
+          </strong>
         </div>
 
-        <div v-if="progress.pending > 0" class="index-details__row">
-          <span>Pending</span>
-          <strong>{{ formatCount(progress.pending) }}</strong>
+        <div v-if="progress.percent !== null" class="index-details__bar" aria-hidden="true">
+          <div :style="{ width: `${progress.percent}%` }" />
         </div>
+      </div>
 
-        <div v-if="counts.failed > 0 || counts.stagedPathFailed > 0" class="index-details__row">
-          <span>Failed jobs</span>
-          <strong>{{ formatCount(counts.failed + counts.stagedPathFailed) }}</strong>
-        </div>
+      <div class="index-details__section">
+        <p class="index-details__section-label">Location</p>
 
-        <div v-if="formatUpdatedAt(data?.updated_at)" class="index-details__row">
-          <span>Last scan</span>
-          <strong>{{ formatUpdatedAt(data?.updated_at) }}</strong>
-        </div>
-
-        <div v-if="data?.path || path" class="index-details__row index-details__row--path">
-          <span>Scope</span>
+        <Tooltip v-if="folderTooltip" :delay-duration="800">
+          <TooltipTrigger as-child>
+            <div class="index-details__row index-details__row--path has-tooltip">
+              <span class="index-details__row-key">Folder</span>
+              <strong :title="data?.path || path">{{ data?.path || path }}</strong>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
+            {{ folderTooltip }}
+          </TooltipContent>
+        </Tooltip>
+        <div v-else class="index-details__row index-details__row--path">
+          <span class="index-details__row-key">Folder</span>
           <strong :title="data?.path || path">{{ data?.path || path }}</strong>
         </div>
 
-        <div v-if="data?.path || path" class="index-details__row">
-          <span>Recursive</span>
+        <div class="index-details__row">
+          <span class="index-details__row-key">Including subfolders</span>
           <strong>Yes</strong>
         </div>
       </div>
 
-      <div v-if="presentation.status === 'indexing'" class="index-details__progress">
-        <div class="index-details__progress-label">
-          <span>Progress</span>
-          <strong v-if="progress.total !== null">
-            {{ formatCount(progress.indexed) }} / {{ formatCount(progress.total) }} jobs done
-          </strong>
-          <strong v-else>Indexing...</strong>
+      <div v-if="counts.failed > 0 || counts.stagedPathFailed > 0" class="index-details__section">
+        <p class="index-details__section-label">Issues</p>
+        <div class="index-details__row">
+          <span class="index-details__row-key index-details__row-key--error">Failed jobs</span>
+          <strong>{{ formatCount(counts.failed + counts.stagedPathFailed) }}</strong>
         </div>
-        <div v-if="progress.percent !== null" class="index-details__bar" aria-hidden="true">
-          <div :style="{ width: `${progress.percent}%` }" />
-        </div>
+      </div>
+
+      <div v-if="formatUpdatedAt(data?.updated_at)" class="index-details__row">
+        <span class="index-details__row-key">Last scan</span>
+        <strong>{{ formatUpdatedAt(data?.updated_at) }}</strong>
       </div>
 
       <div v-if="data?.last_error" class="index-details__last-error">
@@ -223,6 +281,33 @@ function formatUpdatedAt(value: number | null | undefined) {
   color: var(--foreground);
   font-weight: 600;
   text-align: right;
+}
+
+.index-details__row-key {
+  color: var(--muted-foreground);
+}
+
+.index-details__row-key--error {
+  color: var(--gallery-error);
+}
+
+.index-details__section {
+  display: grid;
+  gap: 7px;
+}
+
+.index-details__section-label {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding-top: 2px;
+}
+
+.has-tooltip {
+  cursor: default;
 }
 
 .index-details__muted {

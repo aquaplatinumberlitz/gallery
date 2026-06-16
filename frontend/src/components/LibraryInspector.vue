@@ -95,8 +95,13 @@ const isInspectorDataStale = computed(() => {
   return (inspectorQuery.data.value.generated_at || 0) < startedAt;
 });
 const inspectorSummary = computed(() => {
-  if (isInspectorDataStale.value) return "Refreshing Inspector…";
-  return `${inspectorQuery.data.value.returned} returned from ${inspectorQuery.data.value.total_indexed} metadata records in this scope`;
+  if (isInspectorDataStale.value) return "Refreshing photo details\u2026";
+  const returned = inspectorQuery.data.value.returned;
+  const total = inspectorQuery.data.value.total_indexed;
+  if (returned < total) {
+    return `Showing first ${returned.toLocaleString()} of ${total.toLocaleString()} photo details`;
+  }
+  return `Showing ${returned.toLocaleString()} photo details`;
 });
 
 const REBUILD_INSPECTOR_REFETCH_MS = 1_500;
@@ -413,7 +418,7 @@ function sortAriaLabel(columnId: string, header: unknown) {
             <span v-if="!isInspectorDataStale && inspectorQuery.data.value.truncated">(showing first {{ inspectorQuery.data.value.limit }})</span>
           </p>
           <p class="truncate text-xs text-muted-foreground/70">
-            Scope: {{ inspectorQuery.data.value.root || galleryStore.currentPath || "All indexed" }} · Recursive: Yes
+            Folder: {{ inspectorQuery.data.value.root || galleryStore.currentPath || "All indexed" }} · Including subfolders
           </p>
         </div>
       </div>
@@ -434,7 +439,7 @@ function sortAriaLabel(columnId: string, header: unknown) {
     </div>
 
     <div v-if="isInspectorDataStale" class="rebuild-notice">
-      Refreshing Inspector. Previous metadata rows are shown until the latest snapshot arrives.
+      Refreshing photo details. Previous results are shown until the latest snapshot arrives.
     </div>
 
     <div :class="['table-shell', isInspectorDataStale && 'table-shell--rebuilding']">

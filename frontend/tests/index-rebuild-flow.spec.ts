@@ -265,7 +265,7 @@ test.describe("inspector stale notice (mocked)", () => {
     await expect(summary).toBeVisible({ timeout: 5_000 });
     const text = await summary.textContent();
     console.log(`Fresh test: summary="${text}"`);
-    expect(text).toContain("returned from");
+    expect(text).toContain("Showing");
   });
 
   test("stale data after rebuild → notice visible", async ({ page }) => {
@@ -311,7 +311,7 @@ test.describe("inspector stale notice (mocked)", () => {
       await notice.waitFor({ state: "visible", timeout: 5_000 });
       console.log("Stale test: notice visible after rebuild — ✅");
       const noticeText = await notice.textContent();
-      expect(noticeText).toContain("Refreshing Inspector");
+      expect(noticeText).toContain("Refreshing photo details");
     } catch {
       const exists = await notice.count();
       const visible = exists > 0 ? await notice.isVisible() : false;
@@ -596,7 +596,7 @@ test.describe("metadata rebuild refresh regression", () => {
 
     await page.goto(`${baseUrl}/metadata`, { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: "Library Inspector" })).toBeVisible();
-    await expect(page.getByText("88 returned from 88 metadata records in this scope")).toBeVisible();
+    await expect(page.getByText("Showing 88 photo details")).toBeVisible();
     await expect(page.getByText("old-row-001.png")).toBeVisible();
 
     await page.getByLabel("Index Status").click();
@@ -608,7 +608,7 @@ test.describe("metadata rebuild refresh regression", () => {
     await expect(confirmDialog).toBeVisible({ timeout: 5_000 });
     await confirmDialog.getByRole("button", { name: "Rebuild" }).click();
 
-    await expect(page.getByText("Refreshing Inspector. Previous metadata rows are shown until the latest snapshot arrives.")).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText("Refreshing photo details. Previous results are shown until the latest snapshot arrives.")).toBeVisible({ timeout: 5_000 });
     await expect(page.locator(".table-shell")).toHaveClass(/table-shell--rebuilding/);
     await expect(page.getByText("old-row-001.png")).toBeVisible();
 
@@ -622,12 +622,12 @@ test.describe("metadata rebuild refresh regression", () => {
 
     reindexFinished = true;
 
-    await expect(page.getByText("200 returned from 205 metadata records in this scope")).toBeVisible({ timeout: 8_000 });
-    await expect(page.getByText("Refreshing Inspector. Previous metadata rows are shown until the latest snapshot arrives.")).toBeHidden();
+    await expect(page.getByText("Showing first 200 of 205 photo details")).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByText("Refreshing photo details. Previous results are shown until the latest snapshot arrives.")).toBeHidden();
     await expect(page.locator(".table-shell")).not.toHaveClass(/table-shell--rebuilding/);
     await expect(page.getByText("new-row-001.png")).toBeVisible();
 
-    await expect(page.locator(".index-status-card")).toContainText("205 metadata records", { timeout: 5_000 });
+    await expect(page.locator(".index-status-card")).toContainText("205 photos ready", { timeout: 5_000 });
 
     const inspectorRequests = requestTimeline.filter((entry) =>
       String(entry.requestUrl).startsWith("/api/library/inspector?")
