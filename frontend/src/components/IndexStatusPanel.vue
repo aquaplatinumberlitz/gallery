@@ -4,6 +4,7 @@ import { Database, Loader, AlertCircle, ChevronDown, ChevronRight } from "lucide
 import { useIndexStatusQuery } from "@/composables/useIndexStatusQuery";
 import Button from "@/components/ui/Button.vue";
 import Badge from "@/components/ui/Badge.vue";
+import IndexStatusBadge from "@/components/IndexStatusBadge.vue";
 import IndexStatusCard from "@/components/IndexStatusCard.vue";
 import {
   Popover,
@@ -16,21 +17,24 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { IMAGE_PAGE_SIZE } from "@/constants";
 import { queryClient } from "@/query";
 import { normalizeQueryPath, queryKeys } from "@/query/keys";
 import { rebuildIndex, scanDirectory } from "@/services/api";
 import { markScopeRebuildStarted } from "@/utils/indexMaintenance";
 import { getLibraryInspectorQueryDebug, logIndexRebuildDebug } from "@/utils/indexRebuildDebug";
+import { getFieldTooltip } from "@/utils/indexStatusCopy";
 import {
-  getIndexStatusState,
   getIndexStatusCounts,
   getIndexStatusProgress,
   getIndexStatusPresentation,
   getIndexStatusProgressInfo,
 } from "@/utils/indexStatus";
-import type { IndexStatusState } from "@/types";
-
 const props = withDefaults(defineProps<{
   path?: string;
   variant?: "button" | "card";
@@ -50,31 +54,10 @@ const showRebuildConfirm = ref(false);
 const actionPending = ref<"rescan" | "rebuild" | null>(null);
 const actionError = ref("");
 
-const statusState = computed<IndexStatusState>(() => {
-  if (isError.value) return "unavailable";
-  if (isLoading.value) return "idle";
-  return getIndexStatusState(data.value ?? null, {
-    hasPath: !!props.path,
-    isUnavailable: false,
-  });
-});
-
-const statusLabel = computed<string>(() => {
-  const d = data.value;
-  if (!d) {
-    switch (statusState.value) {
-      case "disabled": return "Disabled";
-      case "idle": return "Idle";
-      case "unavailable": return "Unavailable";
-      default: return "Idle";
-    }
-  }
-  if ((d.failed ?? 0) > 0) return "Error";
-  if ((d.running ?? 0) > 0 || (d.active_jobs ?? 0) > 0) return "Indexing";
-  if ((d.queued ?? 0) > 0 || (d.runtime_queue_depth ?? 0) > 0) return "Queued";
-  if ((d.stale ?? 0) > 0) return "Needs update";
-  return "Idle";
-});
+const photosFoundTooltip = computed(() => getFieldTooltip("indexed_photos"));
+const photoDetailsReadyTooltip = computed(() => getFieldTooltip("metadata_records"));
+const detailsProcessedTooltip = computed(() => getFieldTooltip("done"));
+const folderTooltip = computed(() => getFieldTooltip("path"));
 
 const counts = computed(() => getIndexStatusCounts(data.value));
 const progress = computed(() => getIndexStatusProgress(data.value));
@@ -197,8 +180,8 @@ function onRebuildCancelled() {
             aria-hidden="true"
           />
         </span>
-        <Badge :variant="statusState === 'failed' || (data?.failed ?? 0) > 0 ? 'destructive' : statusState === 'active' ? 'secondary' : 'outline'" class="px-1.5 py-0 text-[10px] leading-none group-data-[collapsible=icon]:hidden">
-          {{ statusLabel }}
+        <Badge :variant="(data?.failed ?? 0) > 0 ? 'destructive' : statusPresentation.status === 'indexing' ? 'secondary' : 'outline'" class="px-1.5 py-0 text-[10px] leading-none group-data-[collapsible=icon]:hidden">
+          {{ statusPresentation.label }}
         </Badge>
       </Button>
     </PopoverTrigger>
@@ -220,7 +203,7 @@ function onRebuildCancelled() {
             <Database class="size-4 text-muted-foreground" />
             <span class="text-sm font-medium">Index</span>
           </div>
-          <Badge :variant="statusState === 'failed' || (data.failed ?? 0) > 0 ? 'destructive' : statusState === 'active' ? 'secondary' : 'outline'">{{ statusLabel }}</Badge>
+          <IndexStatusBadge :presentation="statusPresentation" />
         </div>
 
         <!-- Progress bar -->
@@ -238,18 +221,12 @@ function onRebuildCancelled() {
         <div class="space-y-1 text-sm">
           <div class="flex items-center justify-between">
             <span class="text-muted-foreground">
-              {{ (data.metadata_records ?? 0).toLocaleString() }} metadata records ·
-              {{ (data.indexed_photos ?? 0).toLocaleString() }} indexed photos
+              {{ (data.indexed_photos ?? 0).toLocaleString() }} photos found ·
+              {{ (data.metadata_records ?? 0).toLocaleString() }} photo details ready
             </span>
-          </div>
-          <div v-if="counts.done > 0" class="flex items-center justify-between">
-            <span class="text-muted-foreground">{{ counts.done.toLocaleString() }} done jobs</span>
           </div>
           <div v-if="(data.failed ?? 0) > 0" class="flex items-center justify-between">
             <span class="text-destructive">{{ data.failed }} {{ data.failed === 1 ? 'failed job' : 'failed jobs' }}</span>
-          </div>
-          <div v-if="(data.queued ?? 0) > 0" class="flex items-center justify-between">
-            <span class="text-muted-foreground">{{ data.queued }} queued</span>
           </div>
         </div>
 
@@ -266,24 +243,120 @@ function onRebuildCancelled() {
         </button>
 
         <!-- Details content -->
-        <div v-if="showDetails" class="grid grid-cols-2 gap-x-4 gap-y-2 text-xs border-t pt-2">
-          <span class="text-muted-foreground">Processing</span>
-          <span class="text-right font-medium">{{ counts.running }}</span>
+        <div v-if="showDetails" class="space-y-3 border-t pt-2">
 
-          <span class="text-muted-foreground">Queued</span>
-          <span class="text-right font-medium">{{ counts.queued }}</span>
+          <div class="space-y-1.5">
+            <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Library</p>
 
-          <span class="text-muted-foreground">Needs update</span>
-          <span class="text-right font-medium">{{ counts.stale }}</span>
+            <Tooltip v-if="photosFoundTooltip" :delay-duration="800">
+              <TooltipTrigger as-child>
+                <div class="flex items-center justify-between text-xs">
+                  <span class="text-muted-foreground cursor-default">Photos found</span>
+                  <span class="text-right font-medium">{{ (data.indexed_photos ?? 0).toLocaleString() }}</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
+                {{ photosFoundTooltip }}
+              </TooltipContent>
+            </Tooltip>
+            <div v-else class="flex items-center justify-between text-xs">
+              <span class="text-muted-foreground">Photos found</span>
+              <span class="text-right font-medium">{{ (data.indexed_photos ?? 0).toLocaleString() }}</span>
+            </div>
 
-          <span class="text-muted-foreground">Workers</span>
-          <span class="text-right font-medium">{{ data.worker_count }}</span>
+            <Tooltip v-if="photoDetailsReadyTooltip" :delay-duration="800">
+              <TooltipTrigger as-child>
+                <div class="flex items-center justify-between text-xs">
+                  <span class="text-muted-foreground cursor-default">Photo details ready</span>
+                  <span class="text-right font-medium">{{ (data.metadata_records ?? 0).toLocaleString() }}</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
+                {{ photoDetailsReadyTooltip }}
+              </TooltipContent>
+            </Tooltip>
+            <div v-else class="flex items-center justify-between text-xs">
+              <span class="text-muted-foreground">Photo details ready</span>
+              <span class="text-right font-medium">{{ (data.metadata_records ?? 0).toLocaleString() }}</span>
+            </div>
+          </div>
 
-          <span class="text-muted-foreground">Active jobs</span>
-          <span class="text-right font-medium">{{ counts.activeJobs }}</span>
+          <div v-if="statusPresentation.status === 'indexing'" class="space-y-1.5">
+            <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Processing</p>
 
-          <span class="text-muted-foreground">Queue depth</span>
-          <span class="text-right font-medium">{{ counts.runtimeQueueDepth }}</span>
+            <Tooltip v-if="detailsProcessedTooltip" :delay-duration="800">
+              <TooltipTrigger as-child>
+                <div class="flex items-center justify-between text-xs">
+                  <span class="text-muted-foreground cursor-default">Details processed</span>
+                  <span class="text-right font-medium">
+                    {{ progressInfo.indexed.toLocaleString() }}
+                    <template v-if="progressInfo.total !== null"> / {{ progressInfo.total.toLocaleString() }}</template>
+                  </span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
+                {{ detailsProcessedTooltip }}
+              </TooltipContent>
+            </Tooltip>
+            <div v-else class="flex items-center justify-between text-xs">
+              <span class="text-muted-foreground">Details processed</span>
+              <span class="text-right font-medium">
+                {{ progressInfo.indexed.toLocaleString() }}
+                <template v-if="progressInfo.total !== null"> / {{ progressInfo.total.toLocaleString() }}</template>
+              </span>
+            </div>
+
+            <div v-if="progressInfo.percent !== null" class="h-1 w-full rounded-full bg-muted overflow-hidden" aria-hidden="true">
+              <div
+                class="h-full rounded-full bg-primary transition-all duration-500"
+                :style="{ width: `${progressInfo.percent}%` }"
+              />
+            </div>
+          </div>
+
+          <div class="space-y-1.5">
+            <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Location</p>
+
+            <Tooltip v-if="folderTooltip" :delay-duration="800">
+              <TooltipTrigger as-child>
+                <div class="flex items-center justify-between text-xs">
+                  <span class="text-muted-foreground cursor-default">Folder</span>
+                  <span class="text-right font-medium truncate ml-2 max-w-[150px]" :title="data.path || path">{{ data.path || path }}</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
+                {{ folderTooltip }}
+              </TooltipContent>
+            </Tooltip>
+            <div v-else class="flex items-center justify-between text-xs">
+              <span class="text-muted-foreground">Folder</span>
+              <span class="text-right font-medium truncate ml-2 max-w-[150px]" :title="data.path || path">{{ data.path || path }}</span>
+            </div>
+
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-muted-foreground">Including subfolders</span>
+              <span class="text-right font-medium">Yes</span>
+            </div>
+          </div>
+
+          <div v-if="(data.failed ?? 0) > 0" class="space-y-1.5">
+            <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Issues</p>
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-destructive">Failed jobs</span>
+              <span class="text-right font-medium">{{ data.failed }}</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+            <span class="text-muted-foreground">Workers</span>
+            <span class="text-right font-medium">{{ data.worker_count }}</span>
+
+            <span class="text-muted-foreground">Active jobs</span>
+            <span class="text-right font-medium">{{ counts.activeJobs }}</span>
+
+            <span class="text-muted-foreground">Queue depth</span>
+            <span class="text-right font-medium">{{ counts.runtimeQueueDepth }}</span>
+          </div>
         </div>
 
         <!-- Last error -->
