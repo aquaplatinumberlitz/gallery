@@ -2549,7 +2549,6 @@ def list_library_inspector_rows(
         "scope": normalized_scope,
         "query": query,
         "limit": bounded_limit,
-        "offset": 0,
         "generated_at": time.time(),
         "total_indexed": int(total_row["total"] if total_row else 0),
         "returned": len(rows),
