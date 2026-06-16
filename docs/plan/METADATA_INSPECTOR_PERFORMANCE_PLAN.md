@@ -320,3 +320,76 @@ Pause and re-profile before continuing if:
 - Virtualization causes row misalignment, broken keyboard focus, or incorrect action targets.
 - State restore shows rows from the wrong folder/scope.
 - Detail DTO splitting creates visible delay every time a user opens common row information.
+
+## Appendix: Database Schema & Search Flow
+
+### `image_metadata` vs `image_resources`
+
+`image_metadata` and `image_resources` deliberately store related data at different shapes.
+
+`image_metadata` is one row per indexed photo. It stores the main metadata payload used for display and direct filtering:
+
+- `prompt`
+- `negative_prompt`
+- `model`
+- `sampler`
+- `seed`
+- `steps`
+- `cfg_scale`
+- `metadata_json` as the raw JSON blob
+- `lora_text`
+
+`image_resources` is many rows per photo. It flattens resource information extracted from `metadata_json` and `lora_text` into separate indexed rows. Each extracted resource can carry:
+
+- `kind`
+- `name`
+- `hash`
+- `resource_hash`
+- `weight`
+- `strength`
+
+Both tables exist because they serve different query paths. `image_metadata` keeps the original per-photo metadata intact, including the raw JSON needed for detail display and future extraction. `image_resources` is the pre-extracted search structure.
+
+Searching directly inside `metadata_json` would require parsing JSON at query time for every candidate row. That is too slow for interactive search and facets, especially as libraries grow. `image_resources` avoids that by storing the extracted resource values in normal indexed columns, so fielded search can use an `EXISTS` subquery against the flattened rows.
+
+Analogy: `image_metadata` is the book; `image_resources` is the index at the back of the book.
+
+### Gallery Search vs Library Inspector Search
+
+Gallery Search and Library Inspector Search share the same fielded-query condition builder. Queries such as `lora:add_detail`, `model:pony`, and `seed:12345` go through `build_fielded_conditions()` in `fielded_search_parser.py`. For resource-backed fields, the SQL subquery into `image_resources` via `EXISTS` is identical.
+
+The surrounding flow is different.
+
+Gallery Search (`/api/search`):
+
+- Plain text goes through `search_index()`.
+- Plain text uses FTS5 on `file_index_fts` and `image_metadata_fts`.
+- Plain text returns three sections: `albums[]`, `photos[]`, and `prompt[]`.
+- Fielded queries go through `search_index_fielded()`.
+- Fielded search uses `build_fielded_search_sql()`.
+- Fielded search builds a CTE with field conditions joined with the FTS5 filename match.
+- Fielded search returns photo and prompt sections; albums still come from residual text FTS.
+- Results return `file_index` columns (`fi.*`).
+- There is no overscan and no stale row filtering.
+- The limit defaults to 50 per section.
+
+Library Inspector Search (`/api/library/inspector`):
+
+- All requests go through `list_library_inspector_rows()`.
+- The `q` parameter always uses `parse_fielded_query()` plus `build_fielded_conditions()` for search conditions.
+- There is no separate filename FTS path; the `q` parameter is the search.
+- Results return `image_metadata`-derived columns (`m.*`) as flat `rows[]`.
+- The inspector has overscan plus stale row filtering. If the DB returns rows pointing to deleted files, it re-queries with a larger limit to fill the page.
+- Sort options include `date_asc`, `date_desc`, `name_asc`, and `name_desc`, not only `mtime DESC`.
+- The limit defaults to 200.
+
+### Data Source Table Mapping
+
+| Table | Content | Schema row count | Used by |
+|---|---|---|---|
+| `file_index` | 1 row per file/folder: path, name, type, parent_path, mtime, size, width, height | 1-to-1 | Scan, gallery browse, gallery search (photos/albums) |
+| `file_index_fts` | FTS5 index over `file_index` filename | 1-to-1 with `file_index` | Gallery search filename matching |
+| `image_metadata` | 1 row per photo: path, prompt, negative_prompt, model, sampler, seed, steps, cfg_scale, metadata_json (raw), lora_text | 1-to-1 with indexed photos | Metadata display, Library Inspector, fielded search, gallery prompt search |
+| `image_metadata_fts` | FTS5 unicode61 over prompt/negative/model/sampler/raw_metadata_text | 1-to-1 with `image_metadata` | Gallery prompt search, metadata search |
+| `image_metadata_fts_trigram` | FTS5 trigram over same fields (CJK support) | 1-to-1 with `image_metadata` | CJK/substring search |
+| `image_resources` | N rows per photo: kind, name, hash, resource_hash, weight, strength (flattened from metadata_json/loras/lora_text) | 1-to-many | Fielded search `lora:`/`resource_hash:`, LoRA facets, Library Inspector list LoRA badges |
