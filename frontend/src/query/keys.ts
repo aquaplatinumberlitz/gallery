@@ -31,8 +31,8 @@ export const queryKeys = {
   facets: (path: string) =>
     ["facets", normalizeQueryPath(path)] as const,
 
-  libraryInspector: (query: string, scope: string, path: string, limit: number) =>
-    ["library-inspector", query.trim(), scope, normalizeQueryPath(path), limit] as const,
+  libraryInspector: (query: string, scope: string, path: string, limit: number, sort: string) =>
+    ["library-inspector", query.trim(), scope, normalizeQueryPath(path), limit, sort] as const,
 
   libraryInspectorMetadataRoot: () =>
     ["library-inspector-metadata"] as const,

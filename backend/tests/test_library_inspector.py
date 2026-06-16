@@ -13,6 +13,7 @@ Run when:
 
 from pathlib import Path
 import json
+import os
 
 from fastapi.testclient import TestClient
 
@@ -153,6 +154,42 @@ def test_library_inspector_empty_query_returns_latest_rows(
     assert "raw_metadata" not in data["rows"][0]
     for key in ("prompt_preview", "has_prompt", "has_negative", "has_lora", "lora_count", "lora_preview", "metadata_detail_available"):
         assert key in data["rows"][0]
+
+
+def test_library_inspector_accepts_gallery_sort_contract(
+    isolated_app: TestClient,
+    isolated_gallery_root: Path,
+):
+    from .conftest import create_test_png_with_metadata
+    from backend.metadata_store import index_directory_tree
+
+    album = isolated_gallery_root / "sorted_album"
+    album.mkdir()
+    fixtures = [
+        ("b10.png", 1_700_000_010),
+        ("a2.png", 1_700_000_020),
+        ("a10.png", 1_700_000_030),
+        ("c1.png", 1_700_000_040),
+    ]
+    for name, mtime in fixtures:
+        path = album / name
+        create_test_png_with_metadata(path, prompt=name, seed=str(mtime))
+        os.utime(path, (mtime, mtime))
+
+    collected: list[Path] = []
+    index_directory_tree(isolated_gallery_root, include_metadata=True, collected_image_paths=collected)
+
+    def sorted_names(sort: str) -> list[str]:
+        resp = isolated_app.get("/api/library/inspector", params={"q": "", "scope": "all", "limit": 200, "sort": sort})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["sort"] == sort
+        return [row["name"] for row in data["rows"]]
+
+    assert sorted_names("date_desc") == ["c1.png", "a10.png", "a2.png", "b10.png"]
+    assert sorted_names("date_asc") == ["b10.png", "a2.png", "a10.png", "c1.png"]
+    assert sorted_names("name_asc") == ["a2.png", "a10.png", "b10.png", "c1.png"]
+    assert sorted_names("name_desc") == ["c1.png", "b10.png", "a10.png", "a2.png"]
 
 
 def test_library_inspector_excludes_app_build_assets_but_keeps_gallery_dist_folder(

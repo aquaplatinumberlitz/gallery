@@ -239,7 +239,7 @@ export const unifiedSearch = async (
 };
 
 export const fetchLibraryInspector = async (
-  opts?: { q?: string; scope?: SearchScope; path?: string; limit?: number }
+  opts?: { q?: string; scope?: SearchScope; path?: string; limit?: number; sort?: string }
 ): Promise<LibraryInspectorResponse> => {
   try {
     const requestScope = opts?.scope ?? "current";
@@ -249,6 +249,7 @@ export const fetchLibraryInspector = async (
         scope: requestScope,
         path: requestScope === "current" ? opts?.path : undefined,
         limit: opts?.limit ?? 200,
+        sort: opts?.sort ?? "date_desc",
       },
     });
     return data;

@@ -21,7 +21,8 @@ export function useLibraryInspectorQuery(
   query: Ref<string>,
   scope: Ref<SearchScope>,
   path: Ref<string>,
-  limit: Ref<number>
+  limit: Ref<number>,
+  sort: Ref<string>
 ) {
   const debouncedQuery = ref(query.value.trim());
   let searchTimer: number | undefined;
@@ -52,16 +53,17 @@ export function useLibraryInspectorQuery(
 
   const inspectorQuery = useQuery({
     queryKey: computed(() =>
-      queryKeys.libraryInspector(debouncedQuery.value, scope.value, requestPath.value, limit.value)
+      queryKeys.libraryInspector(debouncedQuery.value, scope.value, requestPath.value, limit.value, sort.value)
     ),
     queryFn: ({ queryKey }) => {
-      const [, requestQuery, requestScope, pathForRequest, requestLimit] =
+      const [, requestQuery, requestScope, pathForRequest, requestLimit, requestSort] =
         queryKey as ReturnType<typeof queryKeys.libraryInspector>;
       return fetchLibraryInspector({
         q: requestQuery,
         scope: requestScope as SearchScope,
         path: pathForRequest,
         limit: requestLimit,
+        sort: requestSort,
       });
     },
     placeholderData: (previousData) => previousData,

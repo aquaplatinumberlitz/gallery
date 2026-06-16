@@ -59,6 +59,8 @@ import type {
   LibraryInspectorResource,
   LibraryInspectorRow,
   SearchScope,
+  SortField,
+  SortOrder,
 } from "@/types";
 
 const galleryStore = useGalleryStore();
@@ -70,7 +72,22 @@ const query = ref("");
 const scope = ref<SearchScope>("current");
 const currentPath = computed(() => galleryStore.currentPath || "");
 const limit = ref(200);
-const sorting = ref<SortingState>([{ id: "mtime", desc: true }]);
+const gallerySortToInspectorColumn = (field: SortField) => field === "name" ? "name" : "mtime";
+const inspectorColumnToGallerySort = (id: string): SortField | null => {
+  if (id === "name") return "name";
+  if (id === "mtime") return "date";
+  return null;
+};
+const gallerySortToTableState = (): SortingState => [
+  {
+    id: gallerySortToInspectorColumn(galleryStore.sortField),
+    desc: galleryStore.sortOrder === "desc",
+  },
+];
+const inspectorApiSort = computed(() =>
+  `${galleryStore.sortField === "name" ? "name" : "date"}_${galleryStore.sortOrder}`
+);
+const sorting = ref<SortingState>(gallerySortToTableState());
 const modelFilter = ref("all");
 const promptFilter = ref<"all" | "has_prompt" | "no_prompt">("all");
 const selectedPath = ref("");
@@ -78,7 +95,7 @@ const detailPath = ref("");
 const detailEnabled = ref(false);
 const rowMenuOpen = ref<Record<string, boolean>>({});
 
-const inspectorQuery = useLibraryInspectorQuery(query, scope, currentPath, limit);
+const inspectorQuery = useLibraryInspectorQuery(query, scope, currentPath, limit, inspectorApiSort);
 const metadataQuery = useLibraryInspectorMetadataQuery(detailPath, detailEnabled);
 const rebuildStartedAt = computed(() =>
   scope.value === "current" ? getScopeRebuildStartedAt(currentPath.value) : 0
@@ -182,6 +199,7 @@ function refetchInspectorAfterRebuild(reason: string) {
       scope.value,
       currentPath.value,
       limit.value,
+      inspectorApiSort.value,
     ),
     rebuild_started_at: rebuildStartedAt.value,
     inspector_generated_at: inspectorQuery.data.value.generated_at,
@@ -284,7 +302,23 @@ const filteredRows = computed(() =>
   })
 );
 const metadataSortOrder = computed<"asc" | "desc">(() =>
-  sorting.value[0]?.id === "mtime" && sorting.value[0]?.desc === false ? "asc" : "desc"
+  sorting.value[0]?.desc ? "desc" : "asc"
+);
+const metadataSortFieldLabel = computed(() =>
+  sorting.value[0]?.id === "name" ? "File" : "Modified"
+);
+const metadataSortIcon = computed(() =>
+  metadataSortFieldLabel.value === "File" ? ArrowUpDown : Clock
+);
+
+watch(
+  () => [galleryStore.sortField, galleryStore.sortOrder] as const,
+  () => {
+    const next = gallerySortToTableState();
+    if (sorting.value[0]?.id !== next[0]?.id || sorting.value[0]?.desc !== next[0]?.desc) {
+      sorting.value = next;
+    }
+  }
 );
 
 const table = useVueTable({
@@ -298,7 +332,15 @@ const table = useVueTable({
     },
   },
   onSortingChange(updater) {
-    sorting.value = typeof updater === "function" ? updater(sorting.value) : updater;
+    const next = typeof updater === "function" ? updater(sorting.value) : updater;
+    sorting.value = next;
+    const active = next[0];
+    const galleryField = active ? inspectorColumnToGallerySort(active.id) : null;
+    if (galleryField) {
+      const order: SortOrder = active.desc ? "desc" : "asc";
+      if (galleryStore.sortField !== galleryField) galleryStore.setSortField(galleryField);
+      if (galleryStore.sortOrder !== order) galleryStore.setSortOrder(order);
+    }
   },
   enableSortingRemoval: false,
   getCoreRowModel: getCoreRowModel(),
@@ -465,10 +507,21 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
 }
 
 function setModifiedSort(order: "asc" | "desc") {
-  sorting.value = [{ id: "mtime", desc: order === "desc" }];
+  galleryStore.setSortField("date");
+  galleryStore.setSortOrder(order);
 }
 
-function toggleModifiedSort() {
+function setNameSort(order: "asc" | "desc") {
+  galleryStore.setSortField("name");
+  galleryStore.setSortOrder(order);
+}
+
+function toggleCurrentGallerySort() {
+  const active = sorting.value[0];
+  if (active?.id === "name") {
+    setNameSort(active.desc ? "asc" : "desc");
+    return;
+  }
   setModifiedSort(metadataSortOrder.value === "asc" ? "desc" : "asc");
 }
 </script>
@@ -528,15 +581,35 @@ function toggleModifiedSort() {
         <DropdownMenuTrigger as-child>
           <Button variant="outline" size="sm" type="button" class="sort-trigger" aria-label="Sort metadata table">
             <ArrowUpDown class="gallery-icon-sm" aria-hidden="true" />
-            <span>Modified</span>
+            <span>{{ metadataSortFieldLabel }}</span>
             <component :is="metadataSortOrder === 'asc' ? ArrowUp : ArrowDown" class="gallery-icon-sm" aria-hidden="true" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" class="sort-dropdown-content">
-          <DropdownMenuItem class="bg-accent" @select="toggleModifiedSort">
+          <DropdownMenuItem class="bg-accent" @select="toggleCurrentGallerySort">
+            <component :is="metadataSortIcon" class="gallery-icon-sm" aria-hidden="true" />
+            <span>{{ metadataSortFieldLabel }}</span>
+            <component :is="metadataSortOrder === 'asc' ? ArrowUp : ArrowDown" class="ml-auto gallery-icon-sm" aria-hidden="true" />
+          </DropdownMenuItem>
+          <DropdownMenuItem @select="setNameSort('asc')">
+            <ArrowUpDown class="gallery-icon-sm" aria-hidden="true" />
+            <span>File</span>
+            <ArrowUp v-if="galleryStore.sortField === 'name' && galleryStore.sortOrder === 'asc'" class="ml-auto gallery-icon-sm" aria-hidden="true" />
+          </DropdownMenuItem>
+          <DropdownMenuItem @select="setNameSort('desc')">
+            <ArrowUpDown class="gallery-icon-sm" aria-hidden="true" />
+            <span>File</span>
+            <ArrowDown v-if="galleryStore.sortField === 'name' && galleryStore.sortOrder === 'desc'" class="ml-auto gallery-icon-sm" aria-hidden="true" />
+          </DropdownMenuItem>
+          <DropdownMenuItem @select="setModifiedSort('asc')">
             <Clock class="gallery-icon-sm" aria-hidden="true" />
             <span>Modified</span>
-            <component :is="metadataSortOrder === 'asc' ? ArrowUp : ArrowDown" class="ml-auto gallery-icon-sm" aria-hidden="true" />
+            <ArrowUp v-if="galleryStore.sortField === 'date' && galleryStore.sortOrder === 'asc'" class="ml-auto gallery-icon-sm" aria-hidden="true" />
+          </DropdownMenuItem>
+          <DropdownMenuItem @select="setModifiedSort('desc')">
+            <Clock class="gallery-icon-sm" aria-hidden="true" />
+            <span>Modified</span>
+            <ArrowDown v-if="galleryStore.sortField === 'date' && galleryStore.sortOrder === 'desc'" class="ml-auto gallery-icon-sm" aria-hidden="true" />
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

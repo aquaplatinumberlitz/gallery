@@ -76,10 +76,39 @@ def _ensure_column(conn: sqlite3.Connection, table_name: str, column_name: str, 
         conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_sql}")
 
 
+def _natural_sort_parts(value: str) -> list[str | int]:
+    parts: list[str | int] = []
+    for part in re.split(r"(\d+)", value):
+        if part.isdigit():
+            parts.append(int(part))
+        else:
+            parts.append(part.lower())
+    return parts
+
+
+def _compare_natural_sql(left: str | None, right: str | None) -> int:
+    left_parts = _natural_sort_parts(left or "")
+    right_parts = _natural_sort_parts(right or "")
+    max_len = max(len(left_parts), len(right_parts))
+    for index in range(max_len):
+        left_part: str | int = left_parts[index] if index < len(left_parts) else ""
+        right_part: str | int = right_parts[index] if index < len(right_parts) else ""
+        if isinstance(left_part, int) and isinstance(right_part, int):
+            if left_part != right_part:
+                return -1 if left_part < right_part else 1
+        else:
+            left_text = str(left_part)
+            right_text = str(right_part)
+            if left_text != right_text:
+                return -1 if left_text < right_text else 1
+    return 0
+
+
 def _connect(*, set_journal_mode: bool = False) -> sqlite3.Connection:
     GALLERY_METADATA_DB.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(GALLERY_METADATA_DB, timeout=30)
     conn.row_factory = sqlite3.Row
+    conn.create_collation("GALLERY_NATURAL", _compare_natural_sql)
     if set_journal_mode:
         conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=5000")
@@ -2183,6 +2212,7 @@ def list_library_inspector_rows(
     scope: str = "current",
     root_path: str | Path | None = None,
     limit: int = 200,
+    sort: str = "date_desc",
 ) -> dict[str, Any]:
     """Return bounded DB/index-backed rows for the read-only Library Inspector."""
     from .fielded_search_parser import build_fielded_conditions, parse_fielded_query
@@ -2191,6 +2221,13 @@ def list_library_inspector_rows(
     trimmed = query.strip()
     normalized_scope = "current" if scope == "current" else "all"
     bounded_limit = max(1, min(limit, 1000))
+    normalized_sort = sort if sort in {"name_asc", "name_desc", "date_asc", "date_desc"} else "date_desc"
+    order_sql = {
+        "name_asc": "m.name COLLATE GALLERY_NATURAL ASC, COALESCE(m.mtime, fi.mtime) DESC",
+        "name_desc": "m.name COLLATE GALLERY_NATURAL DESC, COALESCE(m.mtime, fi.mtime) DESC",
+        "date_asc": "COALESCE(m.mtime, fi.mtime) ASC, m.name COLLATE GALLERY_NATURAL ASC",
+        "date_desc": "COALESCE(m.mtime, fi.mtime) DESC, m.name COLLATE GALLERY_NATURAL ASC",
+    }[normalized_sort]
     root = Path(root_path).resolve() if normalized_scope == "current" and root_path else GALLERY_ROOT
     scope_cond, scope_params = _build_scope_named(normalized_scope, root, "fi")
 
@@ -2223,7 +2260,7 @@ def list_library_inspector_rows(
                 JOIN file_index fi ON fi.path = m.path
                 WHERE {where_sql}
                 {scope_cond}
-                ORDER BY COALESCE(m.mtime, fi.mtime) DESC, m.name ASC
+                ORDER BY {order_sql}
                 LIMIT :limit
                 """,
                 params,
@@ -2251,7 +2288,7 @@ def list_library_inspector_rows(
         "total_indexed": int(total_row["total"] if total_row else 0),
         "returned": len(rows),
         "truncated": len(fetched_rows) > bounded_limit,
-        "sort": "mtime_desc",
+        "sort": normalized_sort,
         "rows": _dedupe_inspector_rows(rows, root),
     }
 
