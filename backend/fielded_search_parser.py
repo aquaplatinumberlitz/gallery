@@ -204,7 +204,6 @@ COLUMN_MAP: dict[str, str] = {
     "aspect_ratio": "aspect_ratio",
     "model": "model",
     "model_hash": "model_hash",
-    "lora": "lora_text",
     "clip_skip": "clip_skip",
     "hires_upscale": "hires_upscale",
     "hires_steps": "hires_steps",
@@ -329,15 +328,28 @@ def build_fielded_conditions(parsed: ParsedQuery) -> tuple[list[str], dict[str, 
             escaped = ft.value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
             pattern = f"%{escaped}%"
             conditions.append(
-                "("
-                + " OR ".join(
-                    (
-                        f"m.lora_text LIKE {next_param(pattern)} ESCAPE '\\'",
-                        f"m.raw_metadata_text LIKE {next_param(pattern)} ESCAPE '\\'",
-                        f"m.metadata_json LIKE {next_param(pattern)} ESCAPE '\\'",
-                    )
-                )
-                + ")"
+                "EXISTS ("
+                "SELECT 1 FROM image_resources ir "
+                "WHERE ir.path = m.path AND ("
+                f"ir.resource_hash LIKE {next_param(pattern)} ESCAPE '\\' OR "
+                f"ir.hash LIKE {next_param(pattern)} ESCAPE '\\'"
+                ")"
+                ")"
+            )
+            continue
+
+        if ft.field == "lora":
+            escaped = ft.value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            pattern = f"%{escaped}%"
+            conditions.append(
+                "EXISTS ("
+                "SELECT 1 FROM image_resources ir "
+                "WHERE ir.path = m.path AND ir.kind = 'lora' AND ("
+                f"ir.name LIKE {next_param(pattern)} ESCAPE '\\' OR "
+                f"ir.resource_hash LIKE {next_param(pattern)} ESCAPE '\\' OR "
+                f"ir.hash LIKE {next_param(pattern)} ESCAPE '\\'"
+                ")"
+                ")"
             )
             continue
 

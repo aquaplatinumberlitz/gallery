@@ -380,10 +380,17 @@ class TestBuildFieldedSearchSql:
     def test_resource_hash_sql_searches_resource_metadata(self):
         parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="resource_hash", value="abc123")])
         sql, params = build_fielded_search_sql(parsed, limit=10)
-        assert "m.lora_text" in sql
-        assert "m.raw_metadata_text" in sql
-        assert "m.metadata_json" in sql
+        assert "image_resources ir" in sql
+        assert "ir.resource_hash" in sql
+        assert "ir.hash" in sql
         assert "m.model_hash" not in sql
+
+    def test_lora_sql_searches_indexed_resources(self):
+        parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="lora", value="detail")])
+        sql, params = build_fielded_search_sql(parsed, limit=10)
+        assert "image_resources ir" in sql
+        assert "ir.kind = 'lora'" in sql
+        assert "ir.name" in sql
 
     # --- param / advanced SQL ---
 

@@ -156,6 +156,78 @@ def test_library_inspector_empty_query_returns_latest_rows(
         assert key in data["rows"][0]
 
 
+def test_library_inspector_indexes_lora_from_json_when_lora_text_empty(
+    isolated_app: TestClient,
+    isolated_gallery_root: Path,
+):
+    from .conftest import create_test_png_with_metadata
+    from backend.metadata_extract import ExtractedMetadata
+    from backend.metadata_store import index_directory_tree, upsert_extracted_metadata
+    import time as _time
+
+    path = isolated_gallery_root / "json_lora" / "json-lora.png"
+    create_test_png_with_metadata(path, prompt="json lora prompt", seed="10")
+    stat = path.stat()
+    metadata = {
+        "loras": [
+            {
+                "name": "json_only_lora",
+                "resource_hash": "json-lora-hash",
+                "weight": 0.7,
+            }
+        ]
+    }
+    upsert_extracted_metadata(
+        ExtractedMetadata(
+            path=str(path.resolve()),
+            name=path.name,
+            mtime=stat.st_mtime,
+            size=stat.st_size,
+            width=512,
+            height=512,
+            format="PNG",
+            mode="RGB",
+            has_alpha=0,
+            prompt="json lora prompt",
+            negative_prompt="",
+            model="model",
+            sampler="sampler",
+            seed="10",
+            steps=None,
+            cfg_scale=None,
+            raw_metadata_text="",
+            metadata_json=json.dumps(metadata, ensure_ascii=False),
+            tool="test",
+            scheduler="",
+            model_hash="",
+            lora_text="",
+            generation_time=None,
+            clip_skip=None,
+            hires_upscale=None,
+            hires_steps=None,
+            denoising_strength=None,
+            vae=None,
+            ensd=None,
+            aesthetic_score=None,
+            date="",
+            aspect_ratio="",
+            indexed_at=_time.time(),
+        )
+    )
+    index_directory_tree(isolated_gallery_root, include_metadata=False)
+
+    resp = isolated_app.get("/api/library/inspector", params={"q": "", "scope": "all", "limit": 20})
+    assert resp.status_code == 200
+    row = next(item for item in resp.json()["rows"] if item["name"] == "json-lora.png")
+    assert row["has_lora"] is True
+    assert row["lora_count"] == 1
+    assert "json_only_lora" in row["lora_preview"]
+
+    search_resp = isolated_app.get("/api/library/inspector", params={"q": "lora:json_only_lora", "scope": "all", "limit": 20})
+    assert search_resp.status_code == 200
+    assert [item["name"] for item in search_resp.json()["rows"]] == ["json-lora.png"]
+
+
 def test_library_inspector_accepts_gallery_sort_contract(
     isolated_app: TestClient,
     isolated_gallery_root: Path,

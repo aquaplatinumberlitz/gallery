@@ -317,7 +317,7 @@ test.describe("LibraryInspector", () => {
     await expect(page.getByLabel("Search metadata table")).toBeVisible();
     await expect(page.getByRole("combobox").filter({ hasText: "All models" })).toBeVisible();
     await expect(page.getByRole("combobox").filter({ hasText: "All prompts" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Sort metadata table" })).toContainText("Modified");
+    await expect(page.getByRole("combobox", { name: "Sort metadata table" })).toContainText("Date modified");
 
     const galleryLink = page.getByRole("link", { name: "Gallery" });
     await expect(galleryLink).toBeVisible();
@@ -327,7 +327,7 @@ test.describe("LibraryInspector", () => {
     await expect(headers.nth(0)).toContainText("File");
     await expect(headers.nth(1)).toContainText("Prompt preview");
     await expect(page.locator("thead")).not.toContainText("Folder");
-    await expect(headers.nth(5)).toContainText("Modified ↓");
+    await expect(headers.nth(5)).toContainText("Modified↓");
 
     const firstRowCells = page.locator("tbody tr").first().locator("td");
     await expect(firstRowCells.nth(0)).toContainText("session-z");

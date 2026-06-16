@@ -2,7 +2,7 @@
 
 Last reviewed: 2026-06-16
 
-Status: Phase 1 and Phase 2 implemented; Phase 3 pending.
+Status: all phases implemented.
 
 This plan targets the `/metadata` navigation and `LibraryInspector.vue` interaction delay. Recent profiling showed that the default `/api/library/inspector` request is not the main source of the perceived 800ms delay on the tested local dataset. The expensive path is frontend main-thread work after the API body is already available: mounting and updating 100 rich table rows with thumbnails, popovers, dropdown menus, and long metadata cells.
 
@@ -161,6 +161,8 @@ Implementation result:
 
 ## Phase 3 - List/Detail API Split and SQL Follow-Up
 
+Status: implemented on 2026-06-16.
+
 Primary objective: reduce payload and processing for large libraries after the frontend render bottleneck is fixed.
 
 Scope:
@@ -227,6 +229,62 @@ Risks:
 Exit condition:
 
 - The app can scale past the default 100-row request without reintroducing frontend long tasks or backend sort/search spikes.
+
+Implementation result:
+
+- The list/detail API boundary is preserved:
+  - `/api/library/inspector` returns bounded list rows only.
+  - `/api/library/inspector/metadata` remains the full detail endpoint for prompt, negative prompt, raw metadata, LoRA resources, and copied metadata.
+- The list SQL no longer uses `SELECT m.*`.
+- The list query now projects only list fields and SQL-derived flags/previews:
+  - path/name/folder/date/dimensions/model/tool/sampler/seed
+  - `substr(prompt, 1, 141)` as prompt preview
+  - boolean flags for prompt, negative prompt, and raw metadata availability
+  - LoRA count/preview from the indexed resource summary added in Phase 3.1
+- Full `metadata_json`, full prompt, negative prompt, and raw metadata are not hydrated into list rows.
+- No SQLite index was added in this phase because current evidence still points to frontend render as the original bottleneck, and warm backend list timing remains low on the local DB.
+- Latest verification:
+  - backend inspector tests: `12 passed`
+  - frontend inspector tests: `5 passed`
+  - metadata performance tests: `4 passed`
+  - frontend build: passed
+  - warm direct `list_library_inspector_rows("", "all", None, 100, "date_desc")`: about 23ms after DB initialization
+
+## Phase 3.1 - Indexed Resource Summary
+
+Status: implemented on 2026-06-16.
+
+Primary objective: keep LoRA/resource list/search accurate without parsing full raw metadata JSON during `/api/library/inspector`.
+
+Implementation result:
+
+- Added normalized `image_resources` storage for extracted resources.
+- Metadata upsert now replaces resource rows for the indexed image path.
+- Existing databases backfill `image_resources` during schema migration to `user_version = 2`.
+- Resource extraction uses indexed metadata inputs:
+  - `metadata_json` `loras` / `LoRA` style blocks
+  - `metadata_json` `resources` / `Resources` blocks
+  - fallback `lora_text` entries
+- Library Inspector list rows now join a grouped LoRA summary from `image_resources`:
+  - `lora_count`
+  - `lora_preview`
+  - `has_lora`
+- The previous JSON keyword heuristic is no longer needed for list LoRA badges.
+- Fielded search now uses `image_resources` for:
+  - `lora:<name-or-hash>`
+  - `resource_hash:<hash>`
+- LoRA facets now read from `image_resources`, so metadata-json-only LoRAs are visible in facet output after indexing/backfill.
+
+Edge case covered:
+
+- If `lora_text` is empty but `metadata_json` contains a LoRA entry, the list still shows the LoRA badge/count/preview and `lora:<name>` search finds the row.
+
+Latest verification:
+
+- backend inspector tests: `13 passed`
+- backend facets tests: `11 passed`
+- fielded search parser tests: `91 passed`
+- warm direct `list_library_inspector_rows("", "all", None, 100, "date_desc")`: about 24ms after DB initialization
 
 ## Phase Order Rules
 

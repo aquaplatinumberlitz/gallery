@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -172,38 +171,21 @@ def _get_metadata_availability(scope_where: str, scope_params: dict) -> list[dic
 def _get_lora_facet(scope_where: str, scope_params: dict, max_values: int) -> list[dict]:
     initialize_database()
     with _DB_LOCK, _connect() as conn:
-        rows = conn.execute(
-            f"""
-            SELECT m.lora_text
-            FROM image_metadata m
-            JOIN file_index fi ON fi.path = m.path
-            WHERE m.lora_text IS NOT NULL AND m.lora_text != '' {scope_where}
-            LIMIT 5000
-            """,
-            scope_params,
-        ).fetchall()
-
-    counter: Counter[str] = Counter()
-    for row in rows:
-        text = row["lora_text"]
-        if not text:
-            continue
-        parts = text.split(",")
-        for part in parts:
-            part = part.strip()
-            if not part:
-                continue
-            if ":" in part:
-                name = part.split(":")[0].strip()
-            else:
-                name = part
-            if name:
-                counter[name] += 1
-
-    return [
-        {"value": name, "count": count}
-        for name, count in counter.most_common(max_values)
-    ]
+        return [
+            {"value": row["name"], "count": int(row["count"])}
+            for row in conn.execute(
+                f"""
+                SELECT ir.name, count(DISTINCT ir.path) AS count
+                FROM image_resources ir
+                JOIN file_index fi ON fi.path = ir.path
+                WHERE ir.kind = 'lora' AND ir.name != '' {scope_where}
+                GROUP BY ir.name
+                ORDER BY count DESC, ir.name COLLATE NOCASE ASC
+                LIMIT :max_values
+                """,
+                {**scope_params, "max_values": max_values},
+            ).fetchall()
+        ]
 
 
 def build_facets(folder_path: str | None = None, max_values: int = FACET_DEFAULT_LIMIT) -> dict[str, Any]:
