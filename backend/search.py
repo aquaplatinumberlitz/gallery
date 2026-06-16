@@ -182,7 +182,6 @@ async def api_library_inspector(
     data["rows"] = safe_rows
     data["returned"] = len(safe_rows)
     data["limit"] = limit
-    data["offset"] = 0
     data["truncated"] = query_truncated
     if query_truncated and safe_rows:
         data["next_cursor"] = _encode_cursor(safe_rows[-1])
