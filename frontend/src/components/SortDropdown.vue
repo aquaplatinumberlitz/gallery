@@ -22,6 +22,7 @@ const props = defineProps<{
   ariaLabel?: string;
   triggerClass?: string;
   contentClass?: string;
+  triggerStyle?: "button" | "select";
 }>();
 
 const emit = defineEmits<{
@@ -37,6 +38,7 @@ const selectedOption = computed(() =>
   <DropdownMenu>
     <DropdownMenuTrigger as-child>
       <Button
+        v-if="triggerStyle !== 'select'"
         variant="outline"
         size="sm"
         type="button"
@@ -47,6 +49,18 @@ const selectedOption = computed(() =>
         <span>{{ selectedOption.label }}</span>
         <ChevronDown class="gallery-icon-xs opacity-60" aria-hidden="true" />
       </Button>
+      <button
+        v-else
+        type="button"
+        :class="[
+          'flex h-9 w-[150px] flex-none items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-start text-[13px] font-normal ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 max-[900px]:w-full',
+          triggerClass,
+        ]"
+        :aria-label="ariaLabel || 'Sort'"
+      >
+        <span class="min-w-0 truncate">{{ selectedOption.label }}</span>
+        <ChevronDown class="h-4 w-4 shrink-0 opacity-50" aria-hidden="true" />
+      </button>
     </DropdownMenuTrigger>
 
     <DropdownMenuContent align="end" :class="['w-48', contentClass]">

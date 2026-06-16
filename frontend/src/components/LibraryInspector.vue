@@ -476,12 +476,6 @@ function handleCopyDetailSelect(
   });
 }
 
-function sortLabel(columnId: string) {
-  const column = table.getColumn(columnId);
-  const state = column?.getIsSorted();
-  return state === "asc" ? " ↑" : state === "desc" ? " ↓" : "";
-}
-
 function sortAriaLabel(columnId: string, header: unknown) {
   const label = typeof header === "string" ? header : "Column";
   const column = table.getColumn(columnId);
@@ -550,7 +544,7 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
       </Select>
       <SortDropdown
         v-model="inspectorSort"
-        trigger-class="sort-trigger"
+        trigger-style="select"
         content-class="sort-dropdown-content"
         aria-label="Sort metadata table"
       />
@@ -583,9 +577,16 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                 @click="onHeaderSort(header.column.id, $event)"
               >
                 <span class="metadata-header-label">
-                  {{ header.column.columnDef.header }}{{ sortLabel(header.column.id) }}
+                  {{ header.column.columnDef.header }}
                 </span>
-                <ArrowUpDown class="metadata-header-icon" aria-hidden="true" />
+                <span
+                  v-if="header.column.getIsSorted()"
+                  class="metadata-header-sort-indicator"
+                  aria-hidden="true"
+                >
+                  {{ header.column.getIsSorted() === 'asc' ? '↑' : '↓' }}
+                </span>
+                <ArrowUpDown v-else class="metadata-header-icon" aria-hidden="true" />
               </button>
               <span v-else class="metadata-header-control metadata-header-control--static">
                 <span class="metadata-header-label">
@@ -813,17 +814,6 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
   font-size: 13px;
 }
 
-.sort-trigger {
-  display: inline-flex;
-  height: 36px;
-  min-width: 122px;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  font-size: 13px;
-}
-
 .gallery-icon-sm {
   height: 16px;
   width: 16px;
@@ -941,6 +931,16 @@ button.metadata-header-control:focus-visible {
   height: 0.75rem;
   flex: 0 0 auto;
   opacity: 0.45;
+}
+
+.metadata-header-sort-indicator {
+  display: inline-flex;
+  width: 0.75rem;
+  flex: 0 0 0.75rem;
+  justify-content: center;
+  color: var(--foreground);
+  font-size: 0.875rem;
+  line-height: 1;
 }
 
 .table-row {
@@ -1101,8 +1101,7 @@ button.metadata-header-control:focus-visible {
   }
 
   .inspector-search,
-  .toolbar-select,
-  .sort-trigger {
+  .toolbar-select {
     width: 100%;
   }
 }
