@@ -37,6 +37,7 @@ const metadataQuery = usePhotoMetadataQuery(show, metadataPath);
 const isLoading = computed(() => metadataQuery.isLoading.value);
 const meta = computed(() => metadataQuery.data.value ?? null);
 const isFullscreen = ref(false);
+let pendingArrowKeydown: { key: string; indexBefore: number; timeStamp: number } | null = null;
 
 // Bottom sheet toggle state (shared for tablet + mobile)
 const showSheet = ref(false);
@@ -118,6 +119,20 @@ function handleIndexChange(newIndex: number) {
   }
 }
 
+const handleKeydownCapture = (e: KeyboardEvent) => {
+  if (!show.value) return;
+  if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+
+  const target = e.target as HTMLElement;
+  if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+
+  pendingArrowKeydown = {
+    key: e.key,
+    indexBefore: lightbox.currentIndex,
+    timeStamp: e.timeStamp,
+  };
+};
+
 // Keyboard navigation
 const handleKeydown = (e: KeyboardEvent) => {
   if (!show.value) return;
@@ -126,14 +141,37 @@ const handleKeydown = (e: KeyboardEvent) => {
   const target = e.target as HTMLElement;
   if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
 
-  // PhotoSwipe handles arrow navigation on every layout. Handling it here too
-  // advances the store a second time after PhotoSwipe emits its change event.
   if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-    logLightboxNavDebug("lightbox-keyboard-ignored", {
+    const pending = pendingArrowKeydown;
+    pendingArrowKeydown = null;
+    const photoSwipeHandled =
+      pending !== null &&
+      pending.key === e.key &&
+      pending.timeStamp === e.timeStamp &&
+      lightbox.currentIndex !== pending.indexBefore;
+
+    if (photoSwipeHandled) {
+      logLightboxNavDebug("lightbox-keyboard-ignored", {
+        key: e.key,
+        currentIndex: lightbox.currentIndex,
+        indexBefore: pending?.indexBefore,
+        currentItem: lightboxItemAt(lightbox.galleryItems, lightbox.currentIndex),
+      });
+      return;
+    }
+
+    logLightboxNavDebug("lightbox-keyboard-fallback", {
       key: e.key,
       currentIndex: lightbox.currentIndex,
+      indexBefore: pending?.indexBefore ?? lightbox.currentIndex,
       currentItem: lightboxItemAt(lightbox.galleryItems, lightbox.currentIndex),
     });
+    e.preventDefault();
+    if (e.key === "ArrowLeft") {
+      lightbox.prev();
+    } else {
+      lightbox.next();
+    }
     return;
   }
 
@@ -166,11 +204,13 @@ function handleSheetClosed() {
 }
 
 onMounted(() => {
+  window.addEventListener("keydown", handleKeydownCapture, { capture: true });
   window.addEventListener("keydown", handleKeydown);
   document.addEventListener("fullscreenchange", handleFullscreenChange);
 });
 
 onUnmounted(() => {
+  window.removeEventListener("keydown", handleKeydownCapture, { capture: true });
   window.removeEventListener("keydown", handleKeydown);
   document.removeEventListener("fullscreenchange", handleFullscreenChange);
   focusTrap.deactivate();

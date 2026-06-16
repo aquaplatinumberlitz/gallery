@@ -126,6 +126,9 @@ export const useLightboxStore = defineStore("lightbox", {
     },
 
     close() {
+      if (!this.isOpen && this.currentIndex === -1 && !this.itemPath && this.galleryItems.length === 0) {
+        return;
+      }
       logLightboxNavDebug("store-close", {
         currentIndex: this.currentIndex,
         currentItem: lightboxItemAt(this.galleryItems, this.currentIndex),

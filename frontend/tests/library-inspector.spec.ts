@@ -41,6 +41,11 @@ type InspectorRow = {
   metadata_detail_available: boolean;
 };
 
+type LightboxNavDebugEvent = {
+  event?: string;
+  key?: string;
+};
+
 const makeRow = (name: string, folder: string, mtime: number, overrides: Partial<InspectorRow> = {}): InspectorRow => ({
   path: `${rootPath}/${folder}/${name}`,
   name,
@@ -280,6 +285,22 @@ const photoMetadataPaths = (requests: string[]) =>
     .filter((request) => request.startsWith("/api/metadata?"))
     .map((request) => new URLSearchParams(request.split("?")[1]).get("path"));
 
+function collectLightboxNavDebug(page: Page) {
+  const events: LightboxNavDebugEvent[] = [];
+  page.on("console", (message) => {
+    const text = message.text();
+    if (!text.startsWith("[lightbox-nav-debug]")) return;
+    const jsonStart = text.indexOf("{");
+    if (jsonStart < 0) return;
+    try {
+      events.push(JSON.parse(text.slice(jsonStart)) as LightboxNavDebugEvent);
+    } catch {
+      // Ignore malformed console output from unrelated browser formatting.
+    }
+  });
+  return events;
+}
+
 test.describe("LibraryInspector", () => {
   test.use({ viewport: { width: 1366, height: 900 } });
 
@@ -415,6 +436,10 @@ test.describe("LibraryInspector", () => {
   });
 
   test("opens lightbox in the current visible table order", async ({ page }) => {
+    const lightboxNavEvents = collectLightboxNavDebug(page);
+    await page.addInitScript(() => {
+      localStorage.setItem("debug-lightbox-nav", "true");
+    });
     const requests = await installStubbedInspector(page);
 
     await page.goto(`${baseUrl}/metadata`, { waitUntil: "domcontentloaded" });
@@ -422,11 +447,21 @@ test.describe("LibraryInspector", () => {
     await page.locator(".col-thumbnail .thumb-button").first().click();
     await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
     await expect.poll(() => photoMetadataPaths(requests).slice(-1)[0]).toBe(baseRows[0].path);
+    await expect.poll(() => lightboxNavEvents.some((event) => event.event === "pswp-init-complete")).toBe(true);
 
     await page.keyboard.press("ArrowRight");
     await expect.poll(() => photoMetadataPaths(requests).slice(-1)[0]).toBe(baseRows[1].path);
+    await expect(page.locator(".desktop-lightbox-counter")).toContainText(`2 / ${baseRows.length}`);
+    await page.waitForTimeout(100);
+    expect(photoMetadataPaths(requests).slice(-1)[0]).toBe(baseRows[1].path);
 
     await page.keyboard.press("ArrowRight");
     await expect.poll(() => photoMetadataPaths(requests).slice(-1)[0]).toBe(baseRows[2].path);
+    await expect(page.locator(".desktop-lightbox-counter")).toContainText(`3 / ${baseRows.length}`);
+    await page.waitForTimeout(100);
+    expect(photoMetadataPaths(requests).slice(-1)[0]).toBe(baseRows[2].path);
+
+    expect(lightboxNavEvents.some((event) => event.event === "lightbox-keyboard-next")).toBe(false);
+    expect(lightboxNavEvents.some((event) => event.event === "lightbox-keyboard-prev")).toBe(false);
   });
 });
