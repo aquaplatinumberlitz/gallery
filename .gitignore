@@ -33,3 +33,4 @@ test-results/
 
 # Hermes agent plans
 .hermes/plans/
+frontend/playwright-report/
