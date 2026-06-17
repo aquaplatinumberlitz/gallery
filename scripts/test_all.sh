@@ -8,6 +8,24 @@ echo "=========================================="
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 
+# ---- Lint / Format checks ----
+echo ""
+echo "--- Backend Ruff lint (changed files) ---"
+"$SCRIPT_DIR/lint_backend.sh"
+
+echo ""
+echo "--- Backend Ruff format check (changed files) ---"
+"$SCRIPT_DIR/format_backend_check.sh"
+
+echo ""
+echo "--- Frontend ESLint ---"
+cd "$REPO_ROOT/frontend"
+corepack pnpm run lint
+
+echo ""
+echo "--- Frontend Prettier check (changed files) ---"
+corepack pnpm run format:check
+
 # ---- Backend pytest ----
 echo ""
 echo "--- Backend pytest ---"

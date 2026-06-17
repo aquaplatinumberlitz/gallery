@@ -1,0 +1,106 @@
+# GitHub Actions CI — Lint, format, build, and test
+#
+# Runs on push/PR to main.
+# Uses changed-files-only for ruff/prettier (advisory), full-scan for ESLint.
+---
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-format:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # needed for changed-file diff against origin/main
+
+      # ---- Backend (Ruff) ----
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Backend Ruff lint (changed files)
+        run: bash scripts/lint_backend.sh
+        env:
+          RUFF_BASE: origin/main
+
+      - name: Backend Ruff format check (changed files)
+        run: bash scripts/format_backend_check.sh
+        env:
+          RUFF_BASE: origin/main
+
+      # ---- Frontend (ESLint + Prettier) ----
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Frontend ESLint
+        working-directory: frontend
+        run: pnpm lint
+
+      - name: Frontend Prettier check (changed files)
+        working-directory: frontend
+        run: pnpm format:check
+        env:
+          PRETTIER_BASE: origin/main
+
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Backend pytest
+        run: python -m pytest backend/tests/ -x -q
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Frontend build
+        working-directory: frontend
+        run: pnpm build
