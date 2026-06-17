@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:mobile": "VITE_MOBILE_NO_HMR=1 vite",
+    "lint": "eslint \"src/**/*.{ts,vue}\" \"tests/**/*.ts\" vite.config.ts playwright.config.ts --max-warnings=0",
     "typecheck": "vue-tsc --noEmit",
     "build": "vue-tsc --noEmit && vite build",
     "check:ui-tokens": "bash scripts/check_no_legacy_ui_tokens.sh",
@@ -16,16 +17,22 @@
     "perf:lightbox:headed": "playwright test tests/perf/lightbox.perf.spec.ts --project=chromium --headed"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.60.0",
     "@tailwindcss/vite": "^4.3.1",
     "@tanstack/vue-query-devtools": "^6.1.34",
     "@types/node": "^24.10.1",
     "@vitejs/plugin-vue": "^6.0.2",
     "eruda": "^3.4.3",
+    "eslint": "^10.5.0",
+    "eslint-plugin-vue": "^10.9.2",
+    "globals": "^17.6.0",
     "sass": "^1.94.2",
     "tailwindcss": "^4.3.1",
     "typescript": "~5.9.3",
+    "typescript-eslint": "^8.61.1",
     "vite": "^7.2.4",
+    "vue-eslint-parser": "^10.4.1",
     "vue-tsc": "^3.1.4"
   },
   "dependencies": {
