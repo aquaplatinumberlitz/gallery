@@ -1,7 +1,4 @@
-try:
-    from .app import app  # noqa: F401 — import availability check
-except ImportError:
-    pass
+from .app import app  # noqa: F401 — uvicorn resolves backend.main:app from this module
 
 if __name__ == "__main__":
     import os as _os

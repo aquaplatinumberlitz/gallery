@@ -162,7 +162,6 @@ def test_handles_sqlite_busy_with_safe_fallback(tmp_path: Path, monkeypatch: pyt
 
     import sqlite3
 
-
     def fail_index_tree(path, *args, **kwargs):
         raise sqlite3.OperationalError("database is locked")
 
@@ -234,7 +233,6 @@ def test_refresh_folder_error_does_not_mark_complete(tmp_path: Path, monkeypatch
     monkeypatch.setattr(refresh, "ENABLE_SCHEDULED_REFRESH", True)
     monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_ALLOW_ALL_INDEXED", True)
     monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK", 5)
-
 
     def fail_index_tree(path, *args, **kwargs):
         raise RuntimeError("indexing failed")
