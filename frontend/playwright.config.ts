@@ -7,7 +7,7 @@ export default defineConfig({
     timeout: 10_000,
   },
   webServer: {
-    command: "npx vite --host 127.0.0.1 --port 5173",
+    command: "pnpm exec vite --host 127.0.0.1 --port 5173",
     url: "http://127.0.0.1:5173",
     reuseExistingServer: true,
     timeout: 30_000,
