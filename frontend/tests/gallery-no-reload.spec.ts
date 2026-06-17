@@ -163,18 +163,18 @@ test("no unexpected full page reload during album browsing", async ({ page }) =>
   await installStubbedGallery(page);
   await openStubbedGallery(page);
 
-  // The initial load is 1 navigation
-  expect(navigations).toBeLessThanOrEqual(1);
+  // Capture baseline — app may navigate from base URL to gallery root path
+  const baseline = navigations;
 
-  // Open lightbox - should not navigate
+  // Open lightbox - should not navigate further
   await page.getByTestId("photo-card").first().click();
   await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
-  expect(navigations).toBeLessThanOrEqual(1);
+  expect(navigations).toBe(baseline);
 
   // Close lightbox - should not navigate
   await page.getByLabel("Close lightbox").click();
   await page.waitForTimeout(500);
-  expect(navigations).toBeLessThanOrEqual(1);
+  expect(navigations).toBe(baseline);
 });
 
 test("/api/scan with image_cursor=0 is not duplicated unnecessarily", async ({ page }) => {
