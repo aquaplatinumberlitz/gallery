@@ -14,12 +14,11 @@ Run when:
 import json
 
 from backend.fielded_search_parser import (
-    parse_fielded_query,
-    build_fielded_search_sql,
     FieldToken,
     ParsedQuery,
+    build_fielded_search_sql,
+    parse_fielded_query,
 )
-
 
 # ---------------------------------------------------------------------------
 # Parser tests
@@ -420,7 +419,7 @@ class TestBuildFieldedSearchSql:
     def test_param_sql_uses_bound_params_not_string_interpolation(self):
         parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="param", key="k", value="v")])
         sql, params = build_fielded_search_sql(parsed, limit=10)
-        for name, val in params.items():
+        for _name, val in params.items():
             assert isinstance(val, (str, int, float))
             if isinstance(val, str):
                 assert "'" not in val or "\\'" in val  # no raw values in SQL

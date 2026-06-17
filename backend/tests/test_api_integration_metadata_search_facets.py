@@ -220,13 +220,14 @@ def _all_image_names(data: dict) -> list[str]:
 
 def _seed_metadata_for_facets(gallery_root: Path) -> None:
     """Seed metadata store with test data so /api/facets has deterministic results."""
+    import time as _time
+
+    from backend.metadata_extract import ExtractedMetadata
     from backend.metadata_store import (
         index_directory_tree,
         update_folder_index_state,
         upsert_extracted_metadata,
     )
-    from backend.metadata_extract import ExtractedMetadata
-    import time as _time
 
     album = gallery_root / "mika_album"
     images_data = [

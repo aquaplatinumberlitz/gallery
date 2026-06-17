@@ -148,8 +148,8 @@ def isolated_gallery_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pa
 
     monkeypatch.setenv("GALLERY_ROOT", str(root))
     import backend.config as config_module
-    import backend.paths as paths_module
     import backend.metadata_store as ms_module
+    import backend.paths as paths_module
     import backend.search as search_module
 
     resolved_root = root.resolve()
@@ -190,8 +190,8 @@ def isolated_thumbnail_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     cache_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("GALLERY_THUMBNAIL_CACHE_DIR", str(cache_dir))
 
-    import backend.thumbnails as tn
     import backend.config as config_module
+    import backend.thumbnails as tn
 
     monkeypatch.setattr(config_module, "THUMBNAIL_CACHE_DIR", cache_dir)
     # Re-create disk cache and file dir under the isolated path
@@ -231,9 +231,9 @@ def isolated_app(
     disable_background_services: None,
 ):
     """Build a fresh FastAPI TestClient with all paths isolated."""
-    from backend.app import app
-
     from fastapi.testclient import TestClient
+
+    from backend.app import app
 
     return TestClient(app, raise_server_exceptions=False)
 

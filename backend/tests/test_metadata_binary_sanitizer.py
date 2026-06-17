@@ -36,7 +36,7 @@ class _FakeImage:
         "parameters": "a textual prompt\nSteps: 7, Sampler: Euler, CFG scale: 6.5, Seed: 42, Model: model-a",
     }
 
-    def __enter__(self) -> "_FakeImage":
+    def __enter__(self) -> _FakeImage:
         return self
 
     def __exit__(self, *_args: object) -> None:

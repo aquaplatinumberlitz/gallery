@@ -21,13 +21,13 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from backend.app import app
+from backend.facets import build_facets
+from backend.metadata_extract import ExtractedMetadata
 from backend.metadata_store import (
     index_directory_tree,
     update_folder_index_state,
     upsert_extracted_metadata,
 )
-from backend.facets import build_facets
-from backend.metadata_extract import ExtractedMetadata
 
 client = TestClient(app)
 
@@ -143,7 +143,7 @@ def test_facets_returns_model_tool_sampler_folder_counts_from_db(tmp_path: Path)
 
 
 def test_facets_respects_scope(tmp_path: Path):
-    album1 = _seed_metadata(tmp_path)
+    _seed_metadata(tmp_path)
     album2 = tmp_path / "other"
     album2.mkdir()
     (album2 / "test.png").write_bytes(b"fake")
@@ -225,12 +225,10 @@ def test_facets_scope_prefix_is_windows_safe():
     assert posix_params["scope_prefix"].startswith("/home/user/images/")
 
     win_where, win_params = _build_scope("C:\\Users\\user\\images")
-    sep = "\\"
     if os.sep == "/":
-        resolved = str(Path("C:\\Users\\user\\images").resolve())
-        expected_sep = os.sep
+        str(Path("C:\\Users\\user\\images").resolve())
     else:
-        expected_sep = "\\"
+        pass
     assert win_params["scope_prefix"] is not None
 
 
@@ -238,9 +236,10 @@ def test_facets_lora_facet(tmp_path: Path):
     album = tmp_path / "album"
     album.mkdir()
 
-    from backend.metadata_extract import ExtractedMetadata
-    from backend.metadata_store import upsert_extracted_metadata, index_directory_tree, update_folder_index_state
     from PIL import Image
+
+    from backend.metadata_extract import ExtractedMetadata
+    from backend.metadata_store import index_directory_tree, update_folder_index_state, upsert_extracted_metadata
 
     path = album / "img1.png"
     white = Image.new("RGB", (512, 512), (255, 255, 255))
@@ -307,9 +306,10 @@ def test_facets_empty_db_contains_lora(tmp_path: Path, monkeypatch: pytest.Monke
 
 
 def test_facets_lora_respects_output_limit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    from backend.metadata_extract import ExtractedMetadata
-    from backend.metadata_store import upsert_extracted_metadata, index_directory_tree, update_folder_index_state
     from PIL import Image
+
+    from backend.metadata_extract import ExtractedMetadata
+    from backend.metadata_store import index_directory_tree, update_folder_index_state, upsert_extracted_metadata
 
     album = tmp_path / "album"
     album.mkdir()

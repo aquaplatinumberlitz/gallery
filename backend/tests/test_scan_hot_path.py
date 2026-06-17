@@ -18,10 +18,9 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 from PIL import Image
 
+from backend import indexer, metadata_extract, metadata_store, scan
 from backend.app import app
 from backend.metadata_store import CachedDimensions
-from backend import indexer, metadata_extract, metadata_store, scan
-
 
 client = TestClient(app)
 

@@ -20,8 +20,8 @@ import pytest
 
 
 def test_refresh_imports_scan_folder_counts():
-    from backend.refresh import _refresh_folder, _run_refresh_tick
     from backend.metadata_store import _scan_folder_counts
+    from backend.refresh import _refresh_folder, _run_refresh_tick
 
     assert callable(_refresh_folder)
     assert callable(_run_refresh_tick)

@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 
 from backend import watcher
-from backend.config import ENABLE_FILE_WATCHER, WATCHER_ROOTS, WATCHER_DEBOUNCE_SECONDS
+from backend.config import ENABLE_FILE_WATCHER, WATCHER_DEBOUNCE_SECONDS, WATCHER_ROOTS
 from backend.metadata_store import get_folder_index_state, update_folder_index_state
 
 

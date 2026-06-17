@@ -18,15 +18,14 @@ from io import BytesIO
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from backend.app import app
 from backend import thumbnails
+from backend.app import app
 from backend.metadata_extract import get_oriented_dimensions
 from backend.metadata_store import (
     get_cached_dimensions_for_files,
 )
 
 from .conftest import create_exif_rotated_jpeg
-
 
 client = TestClient(app)
 
@@ -159,8 +158,8 @@ def test_thumbnail_stores_oriented_dimensions_for_exif_jpeg(tmp_path, monkeypatc
 
 
 def test_scan_returns_oriented_dimensions_for_exif_jpeg(tmp_path, monkeypatch):
-    import backend.metadata_store as ms
     import backend.config as cfg
+    import backend.metadata_store as ms
 
     monkeypatch.setattr(cfg, "GALLERY_ROOT", tmp_path)
     monkeypatch.setattr(ms, "GALLERY_METADATA_DB", tmp_path / "test_scan_dim.db")

@@ -18,6 +18,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.metadata_store import get_metadata_index_status, index_directory_tree
+
 from .conftest import create_test_image
 
 

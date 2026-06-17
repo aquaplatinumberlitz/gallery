@@ -5,11 +5,11 @@ from io import BytesIO
 from pathlib import Path
 from typing import Literal
 
-from PIL import Image, ImageOps, UnidentifiedImageError
 from diskcache import Cache
 from fastapi import APIRouter, Query, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .config import THUMBNAIL_CACHE_DIR
 from .errors import APIError, ErrorType

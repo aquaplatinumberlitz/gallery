@@ -5,16 +5,16 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import ENABLE_METRICS, ENABLE_PROFILER, PROFILE_DIR, PROFILE_ENDPOINTS
+from .facets import router as facets_router
+from .folders import router as folders_router
+from .health import router as health_router
 from .images import router as images_router
-from .thumbnails import router as thumbnails_router
+from .indexer import router as indexer_router
 from .metadata_parse import router as metadata_parse_router
 from .scan import router as scan_router
-from .folders import router as folders_router
 from .search import router as search_router
-from .health import router as health_router
-from .indexer import router as indexer_router
 from .static_files import router as static_files_router
-from .facets import router as facets_router
+from .thumbnails import router as thumbnails_router
 
 
 def _get_cors_origins() -> list[str]:
@@ -72,8 +72,8 @@ app.include_router(indexer_router)
 app.include_router(facets_router)
 app.include_router(static_files_router)
 
-from .refresh import start_refresh as _start_refresh
-from .watcher import start_watcher as _start_watcher
+from .refresh import start_refresh as _start_refresh  # noqa: E402 — intentional: starts after router setup
+from .watcher import start_watcher as _start_watcher  # noqa: E402 — intentional: starts after router setup
 
 
 @app.on_event("startup")

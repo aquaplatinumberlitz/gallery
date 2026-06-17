@@ -8,7 +8,7 @@ from fastapi import APIRouter, Query
 from fastapi.concurrency import run_in_threadpool
 
 from .errors import APIError, ErrorType
-from .metadata_store import _connect, initialize_database, _DB_LOCK
+from .metadata_store import _DB_LOCK, _connect, initialize_database
 from .paths import is_path_safe, resolve_path
 
 try:

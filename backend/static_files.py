@@ -23,7 +23,7 @@ def get_landing_pages():
 
     pages = []
     if os.path.exists(landpage_dir):
-        for root, dirs, files in os.walk(landpage_dir):
+        for root, _dirs, files in os.walk(landpage_dir):
             for file in files:
                 if file.lower().endswith(".html"):
                     public_dir = os.path.join(base_dir, "..", "frontend", "public")

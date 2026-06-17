@@ -20,12 +20,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.app import app
+from backend.files import natural_sort_key
 from backend.metadata_store import (
     get_warm_folder_listing,
-    update_folder_index_state,
     index_directory_tree,
+    update_folder_index_state,
 )
-from backend.files import natural_sort_key
 
 client = TestClient(app)
 

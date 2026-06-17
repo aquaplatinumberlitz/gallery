@@ -1,12 +1,11 @@
-import re
 import os
+import re
 from pathlib import Path
 
 from PIL import Image, UnidentifiedImageError
 
 from .config import MAX_IMAGE_FILE_BYTES, MAX_IMAGE_PIXELS
 from .errors import APIError, ErrorType
-
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff"}
 DEFAULT_INDEX_EXCLUDED_DIR_NAMES = frozenset(

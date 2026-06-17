@@ -7,9 +7,10 @@ import re
 import sqlite3
 import threading
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from .albums import build_album_metadata
 from .config import (
@@ -18,7 +19,6 @@ from .config import (
     GALLERY_ROOT,
 )
 from .files import is_image_path, is_index_excluded_path
-from .models import FileNode
 from .metadata_extract import (
     ExtractedMetadata,
     contains_cjk,
@@ -28,7 +28,7 @@ from .metadata_extract import (
     safe_text,
     sanitize_metadata_for_json,
 )
-
+from .models import FileNode
 
 SEARCH_FIELDS = ("name", "prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
 PROMPT_SEARCH_FIELDS = ("prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
@@ -1010,7 +1010,7 @@ def get_warm_folder_listing(
 
     initialize_database()
     with _DB_LOCK, _connect() as conn:
-        parent_prefix = f"{resolved.rstrip(os.sep)}{os.sep}"
+        f"{resolved.rstrip(os.sep)}{os.sep}"
 
         raw_folders = list(
             conn.execute(
@@ -2065,7 +2065,6 @@ def search_index_fielded(
     query: str, scope: str, root_path: str | Path | None = None, limit: int = 50
 ) -> dict[str, Any]:
     from .fielded_search_parser import (
-        ParsedQuery,
         build_fielded_search_sql,
         parse_fielded_query,
     )
@@ -2118,7 +2117,7 @@ def search_index_fielded(
                     root_str, root_prefix = _path_prefix(root)
                     if "WHERE" in sql:
                         sql = sql.replace(
-                            "WHERE ", f"WHERE (fi.path = :scope_root OR fi.path LIKE :scope_prefix ESCAPE '\\') AND "
+                            "WHERE ", "WHERE (fi.path = :scope_root OR fi.path LIKE :scope_prefix ESCAPE '\\') AND "
                         )
                     else:
                         sql = sql.replace(

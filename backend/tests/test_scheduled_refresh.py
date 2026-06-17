@@ -113,8 +113,8 @@ def test_does_not_block_scan(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     album.mkdir()
     (album / "test.jpg").write_text("fake")
 
-    import threading
     import queue
+    import threading
 
     events = queue.Queue()
 
@@ -162,7 +162,6 @@ def test_handles_sqlite_busy_with_safe_fallback(tmp_path: Path, monkeypatch: pyt
 
     import sqlite3
 
-    orig_index_tree = refresh.index_directory_tree
 
     def fail_index_tree(path, *args, **kwargs):
         raise sqlite3.OperationalError("database is locked")
@@ -236,7 +235,6 @@ def test_refresh_folder_error_does_not_mark_complete(tmp_path: Path, monkeypatch
     monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_ALLOW_ALL_INDEXED", True)
     monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK", 5)
 
-    orig_index_tree = refresh.index_directory_tree
 
     def fail_index_tree(path, *args, **kwargs):
         raise RuntimeError("indexing failed")

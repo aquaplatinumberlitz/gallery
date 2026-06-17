@@ -1,13 +1,12 @@
 try:
-    from .app import app
+    from .app import app  # noqa: F401 — import availability check
 except ImportError:
-    from app import app
+    pass
 
 if __name__ == "__main__":
     import os as _os
 
     import uvicorn
-
     from config import PRODUCTION
 
     port_env = _os.getenv("PORT")

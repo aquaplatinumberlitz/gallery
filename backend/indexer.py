@@ -5,8 +5,9 @@ import os
 import queue
 import threading
 import time
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Query
 from fastapi.concurrency import run_in_threadpool
@@ -576,7 +577,7 @@ def _flush_staged_paths_to_job_queue(
     for root_path, paths in grouped_paths.items():
         try:
             result = _run_sqlite_write(
-                lambda: queue_metadata_index_paths(paths, root_path),
+                lambda p=paths, r=root_path: queue_metadata_index_paths(p, r),  # noqa: B023 — bind via default arg
                 "queue staged metadata paths",
             )
         except _SQLiteBusyRetriesExhausted as exc:

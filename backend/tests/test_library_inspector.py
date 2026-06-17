@@ -11,9 +11,9 @@ Run when:
 * touching LibraryInspector.vue contracts or inspector query keys
 """
 
-from pathlib import Path
 import json
 import os
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -21,9 +21,10 @@ from .test_api_integration_metadata_search_facets import _index_gallery_images
 
 
 def _seed_mika_lora_resource_metadata(gallery_root: Path) -> None:
+    import time as _time
+
     from backend.metadata_extract import ExtractedMetadata
     from backend.metadata_store import upsert_extracted_metadata
-    import time as _time
 
     path = gallery_root / "mika_album" / "mika_portrait.png"
     stat = path.stat()
@@ -87,8 +88,9 @@ def test_library_inspector_scoped_current_returns_only_path_descendants(
     isolated_app: TestClient,
     isolated_gallery_root: Path,
 ):
-    from .conftest import create_test_png_with_metadata
     from backend.metadata_store import index_directory_tree
+
+    from .conftest import create_test_png_with_metadata
 
     album_a = isolated_gallery_root / "album_a" / "sky.png"
     album_b = isolated_gallery_root / "album_b" / "ocean.png"
@@ -168,10 +170,12 @@ def test_library_inspector_indexes_lora_from_json_when_lora_text_empty(
     isolated_app: TestClient,
     isolated_gallery_root: Path,
 ):
-    from .conftest import create_test_png_with_metadata
+    import time as _time
+
     from backend.metadata_extract import ExtractedMetadata
     from backend.metadata_store import index_directory_tree, upsert_extracted_metadata
-    import time as _time
+
+    from .conftest import create_test_png_with_metadata
 
     path = isolated_gallery_root / "json_lora" / "json-lora.png"
     create_test_png_with_metadata(path, prompt="json lora prompt", seed="10")
@@ -242,8 +246,9 @@ def test_library_inspector_accepts_gallery_sort_contract(
     isolated_app: TestClient,
     isolated_gallery_root: Path,
 ):
-    from .conftest import create_test_png_with_metadata
     from backend.metadata_store import index_directory_tree
+
+    from .conftest import create_test_png_with_metadata
 
     album = isolated_gallery_root / "sorted_album"
     album.mkdir()
@@ -278,8 +283,9 @@ def test_library_inspector_cursor_paginates_all_sort_options(
     isolated_app: TestClient,
     isolated_gallery_root: Path,
 ):
-    from .conftest import create_test_png_with_metadata
     from backend.metadata_store import index_directory_tree
+
+    from .conftest import create_test_png_with_metadata
 
     album = isolated_gallery_root / "cursor_album"
     fixtures = [
@@ -357,8 +363,9 @@ def test_library_inspector_excludes_app_build_assets_but_keeps_gallery_dist_fold
     isolated_app: TestClient,
     isolated_gallery_root: Path,
 ):
-    from .conftest import create_test_png_with_metadata
     from backend.metadata_store import _connect, index_directory_tree
+
+    from .conftest import create_test_png_with_metadata
 
     app_dist_image = isolated_gallery_root / "frontend" / "dist" / "landpage" / "asset.png"
     app_public_image = isolated_gallery_root / "frontend" / "public" / "landpage" / "asset.png"
