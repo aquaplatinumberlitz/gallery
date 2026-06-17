@@ -13,7 +13,7 @@ from .paths import is_path_safe, resolve_path
 
 try:
     from prometheus_client import Histogram
-except Exception:
+except ImportError:
     Histogram = None
 
 router = APIRouter()
@@ -31,7 +31,7 @@ if Histogram is not None:
             "gallery_facets_query_duration_seconds",
             "Time spent building facet aggregations",
         )
-    except Exception:
+    except Exception:  # noqa: BLE001
         _facets_query_duration = None
 else:
     _facets_query_duration = None
@@ -221,7 +221,7 @@ def build_facets(folder_path: str | None = None, max_values: int = FACET_DEFAULT
     if _facets_query_duration is not None:
         try:
             _facets_query_duration.observe(duration)
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
 
     return result

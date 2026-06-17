@@ -21,7 +21,7 @@ def _estimate_dict_size(d: dict) -> int:
     """Estimate memory size of a dict in bytes (rough approximation)."""
     try:
         return len(json.dumps(d, default=str).encode('utf-8'))
-    except Exception:
+    except (TypeError, ValueError):
         return sys.getsizeof(d)
 
 
@@ -44,7 +44,7 @@ def _parse_metadata_uncached(path: Path) -> dict:
     except APIError:
         raise
     except Exception as exc:  # noqa: BLE001
-        raise APIError(400, ErrorType.INVALID_FILE, f"Unable to parse metadata: {exc}")
+        raise APIError(400, ErrorType.INVALID_FILE, f"Unable to parse metadata: {exc}") from exc
 
 
 def _metadata_cache_key(path: Path) -> tuple:

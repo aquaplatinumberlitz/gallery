@@ -251,7 +251,7 @@ def build_fielded_conditions(parsed: ParsedQuery) -> tuple[list[str], dict[str, 
                 + next_param(fts_query)
                 + ")"
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             pattern = f"%{parsed.residual_text}%"
             conditions.append(
                 "("

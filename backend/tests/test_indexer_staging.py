@@ -47,6 +47,8 @@ def reset_indexer_state(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(indexer, "METADATA_INDEXER_SQLITE_BUSY_BACKOFF_SECONDS", 0)
     monkeypatch.setattr(indexer, "METADATA_INDEXER_WORKER_SLEEP_SECONDS", 0)
     monkeypatch.setattr(indexer, "METADATA_INDEXER_BATCH_SIZE", 8)
+    monkeypatch.setattr(indexer, "_pending_path_queue", queue.Queue())
+    monkeypatch.setattr(indexer, "_job_queue", queue.Queue())
 
     _drain_queue(indexer._pending_path_queue)
     _drain_queue(indexer._job_queue)

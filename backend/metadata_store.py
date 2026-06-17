@@ -809,7 +809,7 @@ def index_image(path: Path) -> bool:
             return False
         try:
             metadata = extract_metadata(path)
-        except Exception:
+        except Exception:  # noqa: BLE001
             return False
         _upsert_extracted_metadata_conn(conn, metadata)
         return True
@@ -821,7 +821,7 @@ def index_images(paths: Iterable[str | Path]) -> int:
         try:
             if index_image(Path(path_value)):
                 indexed += 1
-        except Exception:
+        except Exception:  # noqa: BLE001
             continue
     return indexed
 
@@ -951,7 +951,7 @@ def update_folder_index_state(
                 ),
             )
         return True
-    except Exception:
+    except Exception:  # noqa: BLE001
         return False
 
 
@@ -967,7 +967,7 @@ def get_folder_index_state(folder_path: str | Path) -> dict | None:
             if row is None:
                 return None
             return dict(row)
-    except Exception:
+    except Exception:  # noqa: BLE001
         return None
 
 
@@ -1497,7 +1497,7 @@ def index_files_from_scan(folders: list[Any], images: list[Any], *, scan_folder_
                 height=_path_value(item, "height", None),
             ):
                 indexed += 1
-        except Exception:
+        except Exception:  # noqa: BLE001
             continue
 
     if scan_folder_path is not None:
@@ -1509,7 +1509,7 @@ def index_files_from_scan(folders: list[Any], images: list[Any], *, scan_folder_
                 folder_count=len(folders),
                 image_count=len(images),
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
     return indexed
 
@@ -1546,7 +1546,7 @@ def index_directory_tree(
                 indexed += 1
         except OSError:
             return
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
 
         try:
@@ -2116,7 +2116,7 @@ def search_index_fielded(query: str, scope: str, root_path: str | Path | None = 
                     sql_params["scope_prefix"] = root_prefix
                 try:
                     prompt_rows = list(conn.execute(sql, sql_params))
-                except Exception:
+                except Exception:  # noqa: BLE001
                     prompt_rows = []
             else:
                 prompt_rows = []

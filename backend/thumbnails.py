@@ -33,7 +33,7 @@ DERIVATIVE_PIL_FORMATS = {
 
 try:
     from prometheus_client import Counter
-except Exception:
+except ImportError:
     Counter = None
 
 def _metric_counter(name, doc, *labels_args, **labels_kwargs):
@@ -261,13 +261,13 @@ async def _serve_derivative(
         )
     except APIError:
         raise
-    except FileNotFoundError:
+    except FileNotFoundError as exc:
         _inc(_derivative_errors_total)
-        raise APIError(404, ErrorType.NOT_FOUND, "Image file not found")
+        raise APIError(404, ErrorType.NOT_FOUND, "Image file not found") from exc
     except OSError as exc:
         _inc(_derivative_errors_total)
         raise APIError(400, ErrorType.INVALID_FILE, failure_message) from exc
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         _inc(_derivative_errors_total)
         raise APIError(500, ErrorType.SERVER_ERROR, failure_message) from exc
 

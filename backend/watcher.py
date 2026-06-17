@@ -23,7 +23,7 @@ try:
         "File watcher events by kind",
         ["kind"],
     )
-except Exception:
+except Exception:  # noqa: BLE001
     _watcher_events = None
 
 LOGGER = logging.getLogger(__name__)
@@ -45,7 +45,7 @@ def _record_event(kind: str) -> None:
     if _watcher_events is not None:
         try:
             _watcher_events.labels(kind=kind).inc()
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
 
 
@@ -64,7 +64,7 @@ class _DebouncedHandler:
                 kind = event.event_type
             elif hasattr(event, "key"):
                 kind = str(event.key)
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
 
         path_str = None
@@ -73,7 +73,7 @@ class _DebouncedHandler:
                 path_str = event.src_path
             elif hasattr(event, "path"):
                 path_str = str(event.path)
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
 
         _record_event(kind)
@@ -146,7 +146,7 @@ def _watcher_loop() -> None:
                 try:
                     mark_folder_index_incomplete(folder, last_error="watcher_marked_stale")
                     tick_count += 1
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001
                     LOGGER.warning("Watcher mark incomplete failed for %s: %s", folder, exc)
 
             ready_paths = handler.get_and_clear_debounced_image_paths()
@@ -157,7 +157,7 @@ def _watcher_loop() -> None:
                         ready_paths[:WATCHER_MAX_EVENTS_PER_TICK],
                         start_worker=True,
                     )
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001
                     LOGGER.warning("Watcher metadata staging failed: %s", exc)
     finally:
         observer.stop()

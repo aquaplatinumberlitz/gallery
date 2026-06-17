@@ -255,12 +255,12 @@ def parse_ai_text_parameters(params_text: str) -> dict[str, Any]:
 def parse_comfy(prompt_json: str, workflow_json: str | None) -> dict[str, Any]:
     try:
         data = json.loads(prompt_json)
-    except Exception:
+    except json.JSONDecodeError:
         data = None
     if data is None and workflow_json:
         try:
             data = json.loads(workflow_json)
-        except Exception:
+        except json.JSONDecodeError:
             data = None
     if not isinstance(data, dict):
         return {}
@@ -594,7 +594,7 @@ def _read_image_info(path: Path) -> tuple[int | None, int | None, str, str, int,
                 info[str(key)] = text
         try:
             exif = img.getexif()
-        except Exception:
+        except Exception:  # noqa: BLE001
             exif = None
         if exif:
             user_comment = safe_text(exif.get(37510))
@@ -772,7 +772,7 @@ def extract_metadata(path: Path) -> ExtractedMetadata:
     model_hash = safe_text(_metadata_param(result, "model_hash", "Model hash"))
     lora_list = _metadata_param(result, "Lora", "lora")
     if isinstance(lora_list, list):
-        lora_text = ", ".join(str(l) for l in lora_list)
+        lora_text = ", ".join(str(lora) for lora in lora_list)
     else:
         lora_text = safe_text(lora_list)
     generation_time = result.get("generation_time")

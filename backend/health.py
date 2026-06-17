@@ -1,17 +1,17 @@
+import subprocess
 from pathlib import Path
 
 from fastapi import APIRouter, Response
 
 
 def _get_git_commit() -> str:
-    import subprocess as _subprocess
     try:
-        return _subprocess.run(
+        return subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],
             capture_output=True, text=True, timeout=5,
             cwd=Path(__file__).parent
         ).stdout.strip()
-    except Exception:
+    except (OSError, subprocess.TimeoutExpired):
         return "unknown"
 
 

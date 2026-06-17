@@ -39,7 +39,7 @@ try:
         "Warm listing fallback reasons",
         ["reason"],
     )
-except Exception:
+except Exception:  # noqa: BLE001
     _warm_listing_hits = None
     _warm_listing_fallbacks = None
 
@@ -48,7 +48,7 @@ def _inc_warm_hit() -> None:
     if _warm_listing_hits is not None:
         try:
             _warm_listing_hits.inc()
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
 
 
@@ -56,7 +56,7 @@ def _inc_warm_fallback(reason: str) -> None:
     if _warm_listing_fallbacks is not None:
         try:
             _warm_listing_fallbacks.labels(reason=reason).inc()
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
 
 
@@ -173,8 +173,8 @@ def scan_directory(target_path: Path) -> tuple[list[FileNode], list[FileNode], d
                     height=dimensions.height if dimensions else None,
                 )
             )
-    except PermissionError:
-        raise APIError(403, ErrorType.PERMISSION_DENIED, "Permission denied")
+    except PermissionError as exc:
+        raise APIError(403, ErrorType.PERMISSION_DENIED, "Permission denied") from exc
 
     sort_started = time.perf_counter()
     folders.sort(key=lambda x: natural_sort_key(x.name))

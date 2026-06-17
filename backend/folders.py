@@ -57,8 +57,8 @@ def list_folder_children(target_path: Path) -> list[FileNode]:
                     image_count=0,
                 )
             )
-    except PermissionError:
-        raise APIError(403, ErrorType.PERMISSION_DENIED, "Permission denied")
+    except PermissionError as exc:
+        raise APIError(403, ErrorType.PERMISSION_DENIED, "Permission denied") from exc
     except OSError as exc:
         raise APIError(500, ErrorType.SERVER_ERROR, f"Unable to list folder: {exc}") from exc
 
@@ -93,5 +93,5 @@ async def api_open_folder(path: str = Query(..., description="Absolute path to f
             opener = "open" if sys.platform == "darwin" else "xdg-open"
             subprocess.Popen([opener, str(folder_path)])
         return {"message": "Opened successfully"}
-    except Exception as e:
-        raise APIError(500, ErrorType.SERVER_ERROR, f"Failed to open: {str(e)}")
+    except OSError as exc:
+        raise APIError(500, ErrorType.SERVER_ERROR, f"Failed to open: {exc}") from exc

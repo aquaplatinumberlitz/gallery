@@ -31,7 +31,7 @@ try:
 
     _refresh_runs = Counter("gallery_scheduled_refresh_runs_total", "Scheduled refresh runs")
     _refresh_folders = Counter("gallery_scheduled_refresh_folders_total", "Folders refreshed per tick")
-except Exception:
+except Exception:  # noqa: BLE001
     _refresh_runs = None
     _refresh_folders = None
 
@@ -53,7 +53,7 @@ def _refresh_folder(folder_path_str: str) -> bool:
             last_error=None,
         )
         return True
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         mark_folder_index_incomplete(folder_path_str, last_error=str(exc))
         LOGGER.warning("Scheduled refresh failed for %s: %s", folder_path_str, exc)
         return False
@@ -109,7 +109,7 @@ def _run_refresh_tick() -> None:
         try:
             if _refresh_folder(f["path"]):
                 tick_count += 1
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
 
     if _refresh_runs is not None:

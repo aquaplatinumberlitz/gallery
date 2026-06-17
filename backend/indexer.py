@@ -41,7 +41,7 @@ from .paths import is_path_safe, resolve_path
 
 try:  # prometheus-fastapi-instrumentator depends on prometheus_client.
     from prometheus_client import Counter, Gauge, Histogram
-except Exception:  # pragma: no cover - metrics are optional at import time.
+except Exception:  # noqa: BLE001  # pragma: no cover - metrics are optional at import time.
     Counter = Gauge = Histogram = None  # type: ignore[assignment]
 
 

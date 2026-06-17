@@ -69,7 +69,7 @@ def check_node_modules_os():
             print(f"   WARNING: node_modules was installed on {installed_os}, current OS is {OS_NAME}. Reinstalling...")
             shutil.rmtree(NODE_MODULES_DIR, ignore_errors=True)
             return True
-    except Exception:
+    except OSError:
         pass
     return True
 
@@ -78,7 +78,7 @@ def mark_os():
     """Write OS marker for node_modules install."""
     try:
         OS_MARK_FILE.write_text(OS_NAME)
-    except Exception:
+    except OSError:
         pass
 
 
@@ -129,7 +129,7 @@ def setup_backend():
             print("   Recreating virtual environment...")
             try:
                 shutil.rmtree(venv_path, ignore_errors=True)
-            except Exception as e:
+            except OSError as e:
                 print(f"   ERROR: Failed to delete old venv: {e}")
                 # Try to continue and let venv creation overwrite if possible
             need_create = True
@@ -167,7 +167,7 @@ def setup_backend():
         # Create/update marker file
         try:
             marker_file.write_text(str(time.time()))
-        except Exception:
+        except OSError:
             pass
 
     return python_exec
@@ -199,7 +199,7 @@ def setup_frontend():
         mark_os()
         try:
             install_marker.write_text(str(time.time()))
-        except Exception:
+        except OSError:
             pass
     else:
         print("   Frontend is ready.")
@@ -268,7 +268,7 @@ def main():
                 subprocess.call(["taskkill", "/F", "/T", "/PID", str(fe_proc.pid)])
             else:
                 fe_proc.terminate()
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
         sys.exit(0)
 
