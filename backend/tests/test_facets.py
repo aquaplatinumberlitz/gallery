@@ -22,12 +22,9 @@ from PIL import Image
 
 from backend.app import app
 from backend.metadata_store import (
-    _connect,
-    _DB_LOCK,
     index_directory_tree,
     update_folder_index_state,
     upsert_extracted_metadata,
-    initialize_database,
 )
 from backend.facets import build_facets
 from backend.metadata_extract import ExtractedMetadata

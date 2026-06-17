@@ -12,12 +12,10 @@ Run when:
 """
 
 import json
-import os
 import tempfile
 import time
 from pathlib import Path
 
-import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 

@@ -21,16 +21,11 @@ import pytest
 from backend import refresh
 from backend.config import (
     ENABLE_SCHEDULED_REFRESH,
-    SCHEDULED_REFRESH_ALLOW_ALL_INDEXED,
-    SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK,
-    SCHEDULED_REFRESH_ROOTS,
 )
 from backend.metadata_store import (
     get_folder_index_state,
-    get_folder_indexed_paths,
     index_directory_tree,
     update_folder_index_state,
-    initialize_database,
 )
 
 

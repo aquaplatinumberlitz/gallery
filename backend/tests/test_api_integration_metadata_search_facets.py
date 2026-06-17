@@ -13,10 +13,8 @@ Run when:
 
 from pathlib import Path
 
-import pytest
 from fastapi.testclient import TestClient
 
-from .conftest import create_test_png_with_metadata
 
 
 class TestMetadataEndpoint:

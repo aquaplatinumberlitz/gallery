@@ -21,7 +21,6 @@ import pytest
 from backend import watcher
 from backend.config import ENABLE_FILE_WATCHER, WATCHER_ROOTS, WATCHER_DEBOUNCE_SECONDS
 from backend.metadata_store import get_folder_index_state, update_folder_index_state
-from backend.files import is_image_path
 
 
 @pytest.fixture(autouse=True)
@@ -61,7 +60,6 @@ def test_config_parsing_works():
 def test_debounce_marks_folder_stale(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 0.01)
 
-    import threading
 
     handler = watcher._DebouncedHandler(roots=[str(tmp_path)])
 

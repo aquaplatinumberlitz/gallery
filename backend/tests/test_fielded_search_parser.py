@@ -12,9 +12,7 @@ Run when:
 """
 
 import json
-import re
 
-import pytest
 from backend.fielded_search_parser import (
     parse_fielded_query,
     build_fielded_search_sql,

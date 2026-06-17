@@ -51,10 +51,8 @@ def test_refresh_folder_uses_helper_and_updates_state(tmp_path: Path, monkeypatc
     monkeypatch.setattr("backend.refresh.SCHEDULED_REFRESH_ALLOW_ALL_INDEXED", True)
 
     from backend.metadata_store import (
-        _scan_folder_counts,
         get_folder_index_state,
         index_directory_tree,
-        update_folder_index_state,
     )
     from backend.refresh import _refresh_folder
 

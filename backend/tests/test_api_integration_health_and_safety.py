@@ -13,7 +13,6 @@ Run when:
 
 from pathlib import Path
 
-import pytest
 from fastapi.testclient import TestClient
 
 

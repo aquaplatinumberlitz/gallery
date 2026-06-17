@@ -38,8 +38,6 @@ def create_test_fixtures(folder: Path, count: int) -> None:
 
 
 def benchmark_cold_scan(folder: Path, image_limit: int) -> dict:
-    from backend.metadata_store import get_cached_dimensions_for_files
-    from backend.files import is_image
     from backend.scan import scan_directory
 
     start = time.perf_counter()
