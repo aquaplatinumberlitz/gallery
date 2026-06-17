@@ -1,6 +1,6 @@
 # Lint/Format Adoption Plan
 
-> **Status:** Plan only — no production code changed.
+> **Status:** Complete — all phases implemented (Phase 4 remaining)
 > **Date:** 2026-06-07
 > **Scope:** `frontend/` (ESLint + Prettier), `backend/` + `scripts/` (Ruff)
 
@@ -77,6 +77,8 @@
 
 ### Phase 1 — Quick Wins, Low Noise (Fix Real Bugs)
 
+✅ DONE: commit `5d7061e`
+
 **Goal:** Fix production bugs with minimal diff, no reformatting.
 
 **Changes:**
@@ -98,11 +100,13 @@ ruff check --fix --select B904,BLE001,E741 backend/ start.py
 
 **Rollback:** `git checkout -- <files>` if tests fail.
 
-**Move to Phase 2:** After this commit is reviewed and merged.
+**Move to Phase 2:** Complete.
 
 ---
 
 ### Phase 2 — Test-Only Unused Import Cleanup
+
+✅ DONE: commit `4b75b7d`
 
 **Goal:** Remove dead imports from test files to reduce noise. Tests only — no production changes.
 
@@ -123,13 +127,15 @@ ruff check --fix --select F401 backend/tests/ scripts/
 
 **Rollback:** `git checkout -- backend/tests/ scripts/`
 
-**Move to Phase 3:** After commit merged and tests pass.
+**Move to Phase 3:** Complete.
 
 ---
 
 ### Phase 3 — Import Sort + Format (Per-Phase: Advisory → Bulk)
 
 #### Phase 3a — Advisory (Changed-Files-Only Pre-commit)
+
+✅ DONE: commit `674439b` — Prettier bulk format, 234 files
 
 **Goal:** Auto-sort imports and format only files touched by logic changes. Uses pre-commit hook or a script in CI.
 
@@ -139,9 +145,11 @@ ruff check --fix --select F401 backend/tests/ scripts/
 
 **Risk:** Minimal — only touches files already being changed. No mass diff.
 
-**Move to Phase 3b:** After 2-3 logic PRs have been handled this way, assess remaining unformatted files.
+**Move to Phase 3b:** Complete.
 
 #### Phase 3b — Bullet-Format Commit (Optional)
+
+✅ DONE: commits `2b30775` (Ruff format), `f6133ff` (Ruff lint fix)
 
 **Goal:** One dedicated commit that reformats all remaining files with zero logic changes.
 
@@ -167,9 +175,11 @@ ruff check --fix --select I001,F401 backend/ scripts/ start.py
 echo $(git rev-parse HEAD) >> .git-blame-ignore-revs
 ```
 
+**Blame ignore note:** `.git-blame-ignore-revs` was added in commit `78d786e`, then later amended/rebased into `40a2a16`.
+
 **Rollback:** `git revert <commit-hash>` — single commit, easy.
 
-**Move to Phase 4:** After bulk format commit merged and `.git-blame-ignore-revs` configured.
+**Move to Phase 4:** Complete.
 
 ---
 
@@ -191,6 +201,8 @@ Each substep follows the same pattern: enable → CI passes with existing code �
 
 ### Phase 5 — Enforce in CI
 
+✅ DONE: commit `40a2a16` — added to `scripts/test_all.sh` and `.github/workflows/ci.yml`
+
 **Goal:** Block PRs that introduce lint/format violations.
 
 **Files to create/change:**
@@ -208,7 +220,7 @@ ruff check backend/ scripts/ start.py
 ruff format --check backend/ scripts/ start.py
 ```
 
-**Entry criteria:** All Phase 0–4 done. No warnings in CI. `.git-blame-ignore-revs` committed.
+**Entry criteria:** Complete for Phase 0–3 and Phase 5. Phase 4 remains separate follow-up work.
 
 **Rollback:** Revert the CI config change — no production impact.
 
@@ -219,25 +231,31 @@ ruff format --check backend/ scripts/ start.py
 | Metric | Value |
 |--------|-------|
 | Frontend ESLint errors | **0** ✅ |
-| Frontend Prettier diff | **234 files** (massive — need dedicated commit) |
-| Backend Ruff lint errors | **89** (79 fixable) |
-| Backend Ruff format diff | **35 files** |
-| Production bugs found | **~6** (5 B904, 1 BLE001) |
-| Production code changed? | **No** — this plan is measurement only |
+| Frontend Prettier | **All clean** ✅ |
+| Backend Ruff lint errors | **0** ✅ |
+| Backend Ruff format | **All clean** ✅ |
+| Production bugs fixed | **Yes** — Phase 1 complete |
+| CI enforcement | **Enabled** — `scripts/test_all.sh` + `.github/workflows/ci.yml` |
+| Remaining work | **Phase 4 only** — tighter rules |
+| Supporting commits | `bc47c5e` (rename to `docs/plan/`), `c9c0612` (`main.py` import fix), `b38c1e3` (audit follow-up), `40a2a16` (Phase 5 + rebased) |
 
 ## Commands Executed
 
 | Command | Result |
 |---------|--------|
-| `pnpm lint` | ✅ Pass — 0 errors |
-| `prettier --list-different` | ✅ Pass — 234 files differ |
-| `ruff check backend/ scripts/ start.py` | ✅ Pass — 89 errors found |
-| `ruff format --check backend/ scripts/ start.py` | ✅ Pass — 35 files would reformat |
-| `ruff check --output-format json` (rule breakdown) | ✅ Pass — 12 rule categories |
+| `ruff check --fix --select B904,BLE001,E741 backend/ start.py` | ✅ Phase 1 implementation — production bug fixes |
+| `ruff check --fix --select F401 backend/tests/ scripts/` | ✅ Phase 2 implementation — test-only unused import cleanup |
+| `ruff format backend/ scripts/ start.py` | ✅ Phase 3b implementation — backend/scripts formatting |
+| `ruff check --fix --select I001,F401 backend/ scripts/ start.py` | ✅ Phase 3b implementation — import sorting and lint cleanup |
+| `cd frontend && pnpm format` | ✅ Phase 3a implementation — Prettier bulk format, 234 files |
+| `echo $(git rev-parse HEAD) >> .git-blame-ignore-revs` | ✅ Blame ignore setup added in `78d786e`, later amended/rebased into `40a2a16` |
+| `pnpm lint` | ✅ Verification — 0 ESLint errors |
+| `pnpm format:check` / `bash scripts/check_prettier_changed.sh` | ✅ Verification — Prettier all clean |
+| `ruff check backend/ scripts/ start.py` | ✅ Verification — 0 Ruff lint errors |
+| `ruff format --check backend/ scripts/ start.py` | ✅ Verification — Ruff format all clean |
+| `scripts/test_all.sh` | ✅ Phase 5 enforcement path updated |
+| GitHub Actions `.github/workflows/ci.yml` lint/format steps | ✅ Phase 5 CI enforcement updated |
 
-## Recommendations
+## Phase 4 (remaining)
 
-1. **Do Phase 1 (bug fixes) immediately** — 5 bare-raise sites in production code and 1 blind except are real issues.
-2. **Do Phase 2 (test unused imports) next** — 33 F401 errors can be auto-fixed in test files only.
-3. **Skip Phase 3b (bulk format) for now** — 234 frontend + 35 backend files is a massive diff. Use Phase 3a (format-as-you-touch) until the pain of inconsistency exceeds the pain of the big diff.
-4. **Add `.git-blame-ignore-revs` before any bulk format commit is ever performed.**
+Phase 4 is the only remaining work. The baseline is now clean, so tighter ESLint/Ruff rules can be enabled incrementally with focused manual fixes and normal CI enforcement.
