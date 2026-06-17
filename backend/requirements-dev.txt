@@ -1,3 +1,4 @@
 -r requirements.txt
+httpx
 pytest
 ruff==0.14.8
