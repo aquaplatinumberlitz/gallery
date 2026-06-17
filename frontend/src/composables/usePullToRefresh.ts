@@ -111,7 +111,8 @@ export function usePullToRefresh(options: PullToRefreshOptions): PullToRefreshSt
     isRefreshing.value = true;
     hapticMedium();
 
-    options.onRefresh()
+    options
+      .onRefresh()
       .catch(() => {
         // Keep refresh cleanup local while allowing the caller to handle store errors.
       })

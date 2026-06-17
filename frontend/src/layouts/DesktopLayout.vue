@@ -2,12 +2,7 @@
 import GallerySidebarContent from "../components/GallerySidebarContent.vue";
 import AppHeader from "../components/AppHeader.vue";
 import { RouterView } from "vue-router";
-import {
-  SidebarProvider,
-  Sidebar,
-  SidebarInset,
-  SidebarRail,
-} from "@/components/ui/sidebar";
+import { SidebarProvider, Sidebar, SidebarInset, SidebarRail } from "@/components/ui/sidebar";
 
 defineProps<{
   theme: "light" | "dark";
@@ -27,21 +22,13 @@ const emit = defineEmits<{
   (e: "toggleTheme"): void;
   (e: "openSettings"): void;
 }>();
-
 </script>
 
 <template>
-  <SidebarProvider
-    :open="isSidebarOpen"
-    @update:open="emit('update:sidebarOpen', $event)"
-  >
+  <SidebarProvider :open="isSidebarOpen" @update:open="emit('update:sidebarOpen', $event)">
     <Sidebar side="left" variant="sidebar" collapsible="icon">
       <div class="flex h-full w-full flex-col group-data-[collapsible=icon]:items-center">
-        <GallerySidebarContent
-          :tree="tree"
-          :is-loading="isLoading"
-          :current-path="currentPath"
-        />
+        <GallerySidebarContent :tree="tree" :is-loading="isLoading" :current-path="currentPath" />
       </div>
       <SidebarRail />
     </Sidebar>
@@ -68,7 +55,6 @@ const emit = defineEmits<{
 </template>
 
 <style scoped lang="scss">
-
 .content {
   display: flex;
   flex-direction: column;

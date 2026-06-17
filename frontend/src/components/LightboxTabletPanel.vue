@@ -3,10 +3,7 @@ import { ref, computed } from "vue";
 import { loraHighlighter } from "../utils/loraHighlighter";
 import ExpandableText from "./ExpandableText.vue";
 import type { MetadataResponse } from "../types";
-import {
-  Loader, X, Calendar, Clock, Maximize,
-  Check, Copy, TriangleAlert, ChevronDown,
-} from "lucide-vue-next";
+import { Loader, X, Calendar, Clock, Maximize, Check, Copy, TriangleAlert, ChevronDown } from "lucide-vue-next";
 import {
   hasCoreParams,
   hasSecondaryParams,
@@ -43,7 +40,7 @@ function toggleExpanded() {
 
 function closeSheet() {
   sheetExpanded.value = false;
-  emit('close');
+  emit("close");
 }
 
 function onSheetTouchStart(e: TouchEvent) {
@@ -56,7 +53,9 @@ function onSheetTouchMove(e: TouchEvent) {
   if (delta < -50) sheetExpanded.value = true;
 }
 
-function onSheetTouchEnd() { /* no-op */ }
+function onSheetTouchEnd() {
+  /* no-op */
+}
 
 // Derived
 const hasGenData = computed(() => hasCoreParams(props.meta?.params));
@@ -82,13 +81,13 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
       </div>
 
       <!-- Loading state -->
-      <div v-if="props.isLoading && !props.meta" class="meta-loading" style="flex: 1; min-height: 120px;">
+      <div v-if="props.isLoading && !props.meta" class="meta-loading" style="flex: 1; min-height: 120px">
         <Loader :stroke-width="1.5" class="lucide-spin icon-nav" />
         <span>Loading info...</span>
       </div>
 
       <!-- Error state -->
-      <div v-else-if="!props.meta" class="meta-error" style="flex: 1; min-height: 120px;">
+      <div v-else-if="!props.meta" class="meta-error" style="flex: 1; min-height: 120px">
         <TriangleAlert :stroke-width="1.5" class="icon-nav" />
         <span>No metadata available</span>
       </div>
@@ -98,18 +97,20 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
         <header class="tablet-header">
           <div class="header-row">
             <h3 :title="props.imageName">{{ props.imageName }}</h3>
-            <button
-              class="tablet-close-btn"
-              @click="closeSheet"
-              title="Close"
-            >
+            <button class="tablet-close-btn" @click="closeSheet" title="Close">
               <X :stroke-width="1.5" class="icon-lg" />
             </button>
           </div>
           <div class="header-meta">
-            <span v-if="props.sizeText" class="meta-tag"><Maximize :stroke-width="1.5" class="icon-meta" /> {{ props.sizeText }}</span>
-            <span v-if="props.dateText" class="meta-tag"><Calendar :stroke-width="1.5" class="icon-meta" /> {{ props.dateText }}</span>
-            <span v-if="props.genTimeText" class="meta-tag"><Clock :stroke-width="1.5" class="icon-meta" /> {{ props.genTimeText }}</span>
+            <span v-if="props.sizeText" class="meta-tag"
+              ><Maximize :stroke-width="1.5" class="icon-meta" /> {{ props.sizeText }}</span
+            >
+            <span v-if="props.dateText" class="meta-tag"
+              ><Calendar :stroke-width="1.5" class="icon-meta" /> {{ props.dateText }}</span
+            >
+            <span v-if="props.genTimeText" class="meta-tag"
+              ><Clock :stroke-width="1.5" class="icon-meta" /> {{ props.genTimeText }}</span
+            >
             <span v-if="props.meta?.tool" class="source-badge">
               <span class="source-label">SOURCE</span>
               <span class="source-chip">{{ props.meta.tool }}</span>
@@ -132,14 +133,30 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                   title="Copy seed"
                 >
                   <span class="value">{{ props.meta.params.Seed }}</span>
-                  <Check v-if="props.copyStatus['seed']" :stroke-width="1.5" :size="14" style="color: #4ade80" class="inline-copy-icon" />
+                  <Check
+                    v-if="props.copyStatus['seed']"
+                    :stroke-width="1.5"
+                    :size="14"
+                    style="color: #4ade80"
+                    class="inline-copy-icon"
+                  />
                   <Copy v-else :stroke-width="1.5" :size="14" class="inline-copy-icon" />
                 </div>
-                <div class="param-pill" v-if="props.meta?.params?.Steps"><span class="label">Steps</span><span class="value">{{ props.meta.params.Steps }}</span></div>
-                <div class="param-pill" v-if="props.meta?.params?.CFG"><span class="label">CFG</span><span class="value">{{ props.meta.params.CFG }}</span></div>
-                <div class="param-pill" v-if="props.meta?.params?.Sampler"><span class="label">Sampler</span><span class="value">{{ props.meta.params.Sampler }}</span></div>
-                <div class="param-pill" v-if="props.meta?.params?.Scheduler"><span class="label">Scheduler</span><span class="value">{{ props.meta.params.Scheduler }}</span></div>
-                <div class="param-pill" v-if="props.meta?.params?.AspectRatio"><span class="label">Ratio</span><span class="value">{{ props.meta.params.AspectRatio }}</span></div>
+                <div class="param-pill" v-if="props.meta?.params?.Steps">
+                  <span class="label">Steps</span><span class="value">{{ props.meta.params.Steps }}</span>
+                </div>
+                <div class="param-pill" v-if="props.meta?.params?.CFG">
+                  <span class="label">CFG</span><span class="value">{{ props.meta.params.CFG }}</span>
+                </div>
+                <div class="param-pill" v-if="props.meta?.params?.Sampler">
+                  <span class="label">Sampler</span><span class="value">{{ props.meta.params.Sampler }}</span>
+                </div>
+                <div class="param-pill" v-if="props.meta?.params?.Scheduler">
+                  <span class="label">Scheduler</span><span class="value">{{ props.meta.params.Scheduler }}</span>
+                </div>
+                <div class="param-pill" v-if="props.meta?.params?.AspectRatio">
+                  <span class="label">Ratio</span><span class="value">{{ props.meta.params.AspectRatio }}</span>
+                </div>
               </div>
               <p v-else class="empty-text">{{ EMPTY_SECTION_TEXT.generation_data }}</p>
             </div>
@@ -168,10 +185,12 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                   <span class="tablet-model-name">{{ lora }}</span>
                 </div>
                 <div class="tablet-model-item" v-for="m in props.meta?.models" :key="m.name">
-                  <span class="tablet-model-type">{{ m.param || 'Model' }}</span>
+                  <span class="tablet-model-type">{{ m.param || "Model" }}</span>
                   <span class="tablet-model-name">
                     {{ m.name }}
-                    <span v-if="m.hash" class="tablet-hash" :title="'Hash: ' + m.hash">#{{ m.hash.substring(0, 8) }}</span>
+                    <span v-if="m.hash" class="tablet-hash" :title="'Hash: ' + m.hash"
+                      >#{{ m.hash.substring(0, 8) }}</span
+                    >
                   </span>
                 </div>
               </div>
@@ -215,7 +234,13 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
               >
                 <label class="tablet-label">Prompt</label>
                 <template v-if="props.meta?.prompt">
-                  <Check v-if="props.copyStatus['prompt']" :stroke-width="1.5" :size="14" style="color: #4ade80" class="inline-copy-icon" />
+                  <Check
+                    v-if="props.copyStatus['prompt']"
+                    :stroke-width="1.5"
+                    :size="14"
+                    style="color: #4ade80"
+                    class="inline-copy-icon"
+                  />
                   <Copy v-else :stroke-width="1.5" :size="14" class="inline-copy-icon" />
                 </template>
               </div>
@@ -236,7 +261,13 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
               >
                 <label class="tablet-label negative-label">Negative Prompt</label>
                 <template v-if="props.meta?.negative_prompt">
-                  <Check v-if="props.copyStatus['neg']" :stroke-width="1.5" :size="14" style="color: #4ade80" class="inline-copy-icon" />
+                  <Check
+                    v-if="props.copyStatus['neg']"
+                    :stroke-width="1.5"
+                    :size="14"
+                    style="color: #4ade80"
+                    class="inline-copy-icon"
+                  />
                   <Copy v-else :stroke-width="1.5" :size="14" class="inline-copy-icon" />
                 </template>
               </div>
@@ -255,8 +286,8 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
 </template>
 
 <style scoped lang="scss">
-@import '../styles/lightbox-shared';
-@import '../styles/lightbox-tablet';
+@import "../styles/lightbox-shared";
+@import "../styles/lightbox-tablet";
 
 /* LoRA highlighter — penetrate v-html injected spans */
 :deep(.lora-pill) {

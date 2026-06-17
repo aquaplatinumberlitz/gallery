@@ -1,36 +1,35 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed } from "vue";
 
-const props = withDefaults(defineProps<{
-  bleed?: number
-  bleedX?: number
-  bleedY?: number
-  disabled?: boolean
-}>(), {
-  bleed: 50,
-  disabled: false
-})
+const props = withDefaults(
+  defineProps<{
+    bleed?: number;
+    bleedX?: number;
+    bleedY?: number;
+    disabled?: boolean;
+  }>(),
+  {
+    bleed: 50,
+    disabled: false,
+  },
+);
 
 const containerStyle = computed(() => {
-  if (props.disabled) return {}
-  const bx = `${props.bleedX ?? props.bleed}px`
-  const by = `${props.bleedY ?? props.bleed}px`
+  if (props.disabled) return {};
+  const bx = `${props.bleedX ?? props.bleed}px`;
+  const by = `${props.bleedY ?? props.bleed}px`;
   return {
-    '--glow-bleed-x': bx,
-    '--glow-bleed-y': by,
+    "--glow-bleed-x": bx,
+    "--glow-bleed-y": by,
     padding: `${by} ${bx}`,
     margin: `calc(-1 * ${by}) calc(-1 * ${bx})`,
-    overflow: 'visible'
-  }
-})
+    overflow: "visible",
+  };
+});
 </script>
 
 <template>
-  <div
-    class="glow-container"
-    :class="{ 'glow-disabled': disabled }"
-    :style="containerStyle"
-  >
+  <div class="glow-container" :class="{ 'glow-disabled': disabled }" :style="containerStyle">
     <slot />
   </div>
 </template>

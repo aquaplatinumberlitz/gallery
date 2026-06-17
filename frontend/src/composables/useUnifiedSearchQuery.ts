@@ -10,11 +10,7 @@ const EMPTY_SEARCH_RESULTS: UnifiedSearchResults = {
   prompt: [],
 };
 
-export function useUnifiedSearchQuery(
-  query: Ref<string>,
-  scope: Ref<SearchScope>,
-  path: Ref<string>
-) {
+export function useUnifiedSearchQuery(query: Ref<string>, scope: Ref<SearchScope>, path: Ref<string>) {
   const debouncedQuery = ref("");
   let searchTimer: number | undefined;
 
@@ -39,7 +35,7 @@ export function useUnifiedSearchQuery(
         debouncedQuery.value = nextQuery;
       }, 300);
     },
-    { immediate: true }
+    { immediate: true },
   );
 
   onBeforeUnmount(() => {
@@ -53,9 +49,7 @@ export function useUnifiedSearchQuery(
       const requestQuery = debouncedQuery.value;
       const requestScope = scope.value;
       const pathForRequest = requestPath.value;
-      return requestQuery
-        ? queryKeys.search(requestQuery, requestScope, pathForRequest)
-        : [];
+      return requestQuery ? queryKeys.search(requestQuery, requestScope, pathForRequest) : [];
     }),
     queryFn: ({ queryKey }) => {
       const [, requestQuery, requestScope, pathForRequest] = queryKey as ReturnType<typeof queryKeys.search>;
@@ -70,7 +64,7 @@ export function useUnifiedSearchQuery(
   });
 
   const results = computed<UnifiedSearchResults>(() =>
-    debouncedQuery.value ? searchQuery.data.value ?? EMPTY_SEARCH_RESULTS : EMPTY_SEARCH_RESULTS
+    debouncedQuery.value ? (searchQuery.data.value ?? EMPTY_SEARCH_RESULTS) : EMPTY_SEARCH_RESULTS,
   );
 
   return {

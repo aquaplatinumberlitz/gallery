@@ -9,8 +9,7 @@ const inputVariants = cva(
   {
     variants: {
       variant: {
-        default:
-          "h-9",
+        default: "h-9",
         ghost:
           "h-full border-none bg-transparent px-2 py-0 outline-none min-w-0 text-sm text-foreground placeholder:text-muted-foreground",
       },
@@ -18,7 +17,7 @@ const inputVariants = cva(
     defaultVariants: {
       variant: "default",
     },
-  }
+  },
 );
 
 type InputVariants = VariantProps<typeof inputVariants>;

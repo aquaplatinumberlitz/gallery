@@ -15,14 +15,10 @@ import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
 const rootPath = "/gallery-fault-test";
-const imagePaths = [
-  `${rootPath}/a.png`,
-  `${rootPath}/b.png`,
-  `${rootPath}/c.png`,
-];
+const imagePaths = [`${rootPath}/a.png`, `${rootPath}/b.png`, `${rootPath}/c.png`];
 const png1x1 = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/luz4nQAAAABJRU5ErkJggg==",
-  "base64"
+  "base64",
 );
 
 // Shared scan response used by most tests unless overridden
@@ -69,7 +65,7 @@ async function installGalleryWithFaults(
     failImage?: boolean;
     failMetadata?: boolean;
     failSearch?: boolean;
-  } = {}
+  } = {},
 ) {
   const requests: ApiRequest[] = [];
   await page.route("**/api/**", async (route) => {
@@ -111,7 +107,23 @@ async function installGalleryWithFaults(
           root: rootPath,
           albums: [],
           photos: q
-            ? [{ name: "match.png", path: `${rootPath}/a.png`, type: "photo", parent_path: rootPath, relative_path: "", mtime: 1000, width: 1600, height: 1000, match_type: "filename", prompt_snippet: "", model: "", sampler: "", seed: "" }]
+            ? [
+                {
+                  name: "match.png",
+                  path: `${rootPath}/a.png`,
+                  type: "photo",
+                  parent_path: rootPath,
+                  relative_path: "",
+                  mtime: 1000,
+                  width: 1600,
+                  height: 1000,
+                  match_type: "filename",
+                  prompt_snippet: "",
+                  model: "",
+                  sampler: "",
+                  seed: "",
+                },
+              ]
             : [],
           prompt: [],
         }),
@@ -147,7 +159,11 @@ async function installGalleryWithFaults(
 
     if (url.pathname === "/api/thumbnail") {
       if (faults.failThumbnail) {
-        await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ detail: { error: "server_error", message: "Thumbnail failed" } }) });
+        await route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: { error: "server_error", message: "Thumbnail failed" } }),
+        });
         return;
       }
       await route.fulfill({ contentType: "image/png", body: png1x1 });
@@ -156,7 +172,11 @@ async function installGalleryWithFaults(
 
     if (url.pathname === "/api/preview") {
       if (faults.failPreview) {
-        await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ detail: { error: "server_error", message: "Preview failed" } }) });
+        await route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: { error: "server_error", message: "Preview failed" } }),
+        });
         return;
       }
       await route.fulfill({ contentType: "image/png", body: png1x1 });
@@ -165,7 +185,11 @@ async function installGalleryWithFaults(
 
     if (url.pathname === "/api/image") {
       if (faults.failImage) {
-        await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ detail: { error: "server_error", message: "Image failed" } }) });
+        await route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: { error: "server_error", message: "Image failed" } }),
+        });
         return;
       }
       await route.fulfill({ contentType: "image/png", body: png1x1 });

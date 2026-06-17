@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed } from "vue";
 // ── FontAwesome Pro SVG strings ──
 const FA_ICONS: Record<string, string> = {
   FolderOpen: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path fill="currentColor" d="M64 356.2L64 96L288 96L352 144L544 144L544 224L106.8 224C103.2 235.2 88.9 279.2 64 356.2zM530.3 512L64 512L141.7 272L608 272L530.3 512z"/></svg>`,
@@ -14,89 +14,92 @@ const FA_ICONS: Record<string, string> = {
   Sparkle: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path fill="currentColor" d="M480 96L512 24L544 96L616 128L544 160L512 232L480 160L408 128L480 96zM160 256L224 112L288 256L432 320L288 384L224 528L160 384L16 320L160 256zM480 408L512 480L584 512L512 544L480 616L448 544L376 512L448 480L480 408z"/></svg>`,
 };
 
-export type EmptyStateType = 
-  | 'empty-folder' 
-  | 'no-results' 
-  | 'no-images' 
-  | 'error' 
-  | 'no-path'
-  | 'not-loaded'
-  | 'loading';
+export type EmptyStateType =
+  | "empty-folder"
+  | "no-results"
+  | "no-images"
+  | "error"
+  | "no-path"
+  | "not-loaded"
+  | "loading";
 
-const props = withDefaults(defineProps<{
-  type?: EmptyStateType;
-  title?: string;
-  description?: string;
-  actionLabel?: string;
-  actionIcon?: string;
-  compact?: boolean;
-}>(), {
-  type: 'empty-folder',
-  compact: false,
-});
+const props = withDefaults(
+  defineProps<{
+    type?: EmptyStateType;
+    title?: string;
+    description?: string;
+    actionLabel?: string;
+    actionIcon?: string;
+    compact?: boolean;
+  }>(),
+  {
+    type: "empty-folder",
+    compact: false,
+  },
+);
 
 const emit = defineEmits<{
-  (e: 'action'): void;
+  (e: "action"): void;
 }>();
 
 // Default content for each type
 const defaults = computed(() => {
   switch (props.type) {
-    case 'empty-folder':
+    case "empty-folder":
       return {
-        title: 'This folder is empty',
-        description: 'No images or subfolders found here',
-        icon: 'FolderOpen',
-        color: '#a78bfa',
+        title: "This folder is empty",
+        description: "No images or subfolders found here",
+        icon: "FolderOpen",
+        color: "#a78bfa",
       };
-    case 'no-results':
+    case "no-results":
       return {
-        title: 'No results found',
-        description: 'Try adjusting your search or filters',
-        icon: 'Search',
-        color: '#60a5fa',
+        title: "No results found",
+        description: "Try adjusting your search or filters",
+        icon: "Search",
+        color: "#60a5fa",
       };
-    case 'no-images':
+    case "no-images":
       return {
-        title: 'No images here',
-        description: 'This folder only contains subfolders',
-        icon: 'Images',
-        color: '#f472b6',
+        title: "No images here",
+        description: "This folder only contains subfolders",
+        icon: "Images",
+        color: "#f472b6",
       };
-    case 'error':
+    case "error":
       return {
-        title: 'Something went wrong',
-        description: 'Unable to load content. Please try again.',
-        icon: 'TriangleAlert',
-        color: '#f87171',
+        title: "Something went wrong",
+        description: "Unable to load content. Please try again.",
+        icon: "TriangleAlert",
+        color: "#f87171",
       };
-    case 'no-path':
+    case "no-path":
       return {
-        title: 'Welcome to Gallery',
-        description: 'Enter a folder path to start browsing your images',
-        icon: 'FolderTree',
-        color: '#f2a007',
+        title: "Welcome to Gallery",
+        description: "Enter a folder path to start browsing your images",
+        icon: "FolderTree",
+        color: "#f2a007",
       };
-    case 'not-loaded':
+    case "not-loaded":
       return {
-        title: 'Gallery not loaded',
-        description: 'Click Load in the sidebar or press Enter to browse your images',
-        icon: 'FolderOpen',
-        color: '#a78bfa',
+        title: "Gallery not loaded",
+        description: "Click Load in the sidebar or press Enter to browse your images",
+        icon: "FolderOpen",
+        color: "#a78bfa",
       };
-    case 'loading':
+    case "loading":
       return {
-        title: 'Loading...',
-        description: 'Please wait while we fetch your content',
-        icon: 'Loader',
-        color: '#a78bfa',
+        title: "Loading...",
+        description: "Please wait while we fetch your content",
+        icon: "Loader",
+        color: "#a78bfa",
       };
     default:
       return {
-        title: 'Nothing here',
-        description: '',
-        icon: 'Box',
-        color: '#94a3b8',
+        title: "Nothing here",
+        description: "",
+        icon: "Box",
+        color: "#94a3b8",
       };
   }
 });
@@ -110,31 +113,27 @@ const currentIconSvg = computed(() => FA_ICONS[defaults.value.icon]);
 // Map actionIcon prop name to SVG
 const actionIconComponent = computed(() => {
   if (!props.actionIcon) return null;
-  const name = props.actionIcon === 'xmark' ? 'X' : props.actionIcon === 'arrow-left' ? 'ArrowLeft' : props.actionIcon;
+  const name = props.actionIcon === "xmark" ? "X" : props.actionIcon === "arrow-left" ? "ArrowLeft" : props.actionIcon;
   return FA_ICONS[name];
 });
 </script>
 
 <template>
-  <div 
-    class="empty-state" 
-    :class="{ compact }"
-    :style="{ '--accent-color': defaults.color }"
-  >
+  <div class="empty-state" :class="{ compact }" :style="{ '--accent-color': defaults.color }">
     <!-- Illustration -->
     <div class="illustration">
       <!-- Background decoration circles -->
       <div class="bg-circle bg-circle-1"></div>
       <div class="bg-circle bg-circle-2"></div>
       <div class="bg-circle bg-circle-3"></div>
-      
+
       <!-- Main icon container -->
       <div class="icon-container">
         <div class="icon-ring">
           <span class="fa-icon-wrap" :class="{ 'icon-spin': type === 'loading' }" v-html="currentIconSvg"></span>
         </div>
       </div>
-      
+
       <!-- Decorative elements -->
       <div class="floating-elements">
         <div class="float-dot dot-1"></div>
@@ -148,19 +147,14 @@ const actionIconComponent = computed(() => {
         </div>
       </div>
     </div>
-    
+
     <!-- Text content -->
     <div class="empty-state-content">
       <h3 class="title">{{ displayTitle }}</h3>
       <p v-if="displayDescription" class="description">{{ displayDescription }}</p>
-      
+
       <!-- Action button -->
-      <button 
-        v-if="actionLabel"
-        class="action-btn"
-        type="button"
-        @click="emit('action')"
-      >
+      <button v-if="actionLabel" class="action-btn" type="button" @click="emit('action')">
         <span class="fa-icon-wrap action-icon-fa" v-html="actionIconComponent"></span>
         <span>{{ actionLabel }}</span>
       </button>
@@ -250,7 +244,7 @@ const actionIconComponent = computed(() => {
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   border: 2px solid var(--accent-color);
-  box-shadow: 
+  box-shadow:
     0 8px 32px rgba(0, 0, 0, 0.08),
     0 0 0 8px color-mix(in srgb, var(--accent-color) 15%, transparent);
   display: flex;
@@ -297,7 +291,9 @@ const actionIconComponent = computed(() => {
 }
 
 @keyframes icon-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Floating elements */
@@ -415,12 +411,16 @@ const actionIconComponent = computed(() => {
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.15),
+    0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .action-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2), 0 2px 6px rgba(0, 0, 0, 0.12);
+  box-shadow:
+    0 6px 16px rgba(0, 0, 0, 0.2),
+    0 2px 6px rgba(0, 0, 0, 0.12);
   filter: brightness(1.1);
 }
 
@@ -446,7 +446,8 @@ const actionIconComponent = computed(() => {
 
 /* Animations */
 @keyframes pulse-slow {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1);
     opacity: 0.08;
   }
@@ -457,7 +458,8 @@ const actionIconComponent = computed(() => {
 }
 
 @keyframes float {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0);
   }
   50% {
@@ -466,7 +468,8 @@ const actionIconComponent = computed(() => {
 }
 
 @keyframes twinkle {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.6;
     transform: scale(1);
   }

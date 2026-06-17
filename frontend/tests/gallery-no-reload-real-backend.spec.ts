@@ -41,7 +41,9 @@ test.use({ viewport: { width: 1280, height: 820 } });
 
 test("navigates albums without page reload against real backend", async ({ page }) => {
   let navigations = 0;
-  page.on("framenavigated", () => { navigations++; });
+  page.on("framenavigated", () => {
+    navigations++;
+  });
 
   await setupGallery(page);
 

@@ -7,28 +7,19 @@ import Badge from "@/components/ui/Badge.vue";
 import IndexStatusBadge from "@/components/IndexStatusBadge.vue";
 import IndexStatusCard from "@/components/IndexStatusCard.vue";
 import IndexProgressBar from "@/components/IndexProgressBar.vue";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { IMAGE_PAGE_SIZE } from "@/constants";
 import { queryClient } from "@/query";
 import { normalizeQueryPath, queryKeys } from "@/query/keys";
 import { rebuildIndex, scanDirectory } from "@/services/api";
 import { markScopeRebuildStarted } from "@/utils/indexMaintenance";
-import { getLibraryInspectorQueryDebug, logIndexRebuildDebug, isIndexRebuildDebugEnabled } from "@/debug/indexRebuildDebug";
+import {
+  getLibraryInspectorQueryDebug,
+  logIndexRebuildDebug,
+  isIndexRebuildDebugEnabled,
+} from "@/debug/indexRebuildDebug";
 import { getFieldTooltip } from "@/utils/indexStatusCopy";
 import {
   getIndexStatusCounts,
@@ -36,17 +27,20 @@ import {
   getIndexStatusProgressInfo,
   hasGlobalIndexWorkOutsideScope,
 } from "@/utils/indexStatus";
-const props = withDefaults(defineProps<{
-  path?: string;
-  variant?: "button" | "card";
-}>(), {
-  path: "",
-  variant: "button",
-});
+const props = withDefaults(
+  defineProps<{
+    path?: string;
+    variant?: "button" | "card";
+  }>(),
+  {
+    path: "",
+    variant: "button",
+  },
+);
 
 const legacyQueryEnabled = ref(false);
 const pathRef = computed(() => props.path || undefined);
-const queryEnabled = computed(() => props.variant === "card" ? Boolean(pathRef.value) : legacyQueryEnabled.value);
+const queryEnabled = computed(() => (props.variant === "card" ? Boolean(pathRef.value) : legacyQueryEnabled.value));
 
 const { data, isLoading, isError, error, refetch } = useIndexStatusQuery(pathRef, queryEnabled);
 
@@ -63,11 +57,13 @@ const folderTooltip = computed(() => getFieldTooltip("path"));
 const counts = computed(() => getIndexStatusCounts(data.value));
 const progressInfo = computed(() => getIndexStatusProgressInfo(data.value));
 const globalWorkOutsideScope = computed(() => hasGlobalIndexWorkOutsideScope(data.value));
-const statusPresentation = computed(() => getIndexStatusPresentation(data.value ?? null, {
-  hasPath: !!props.path,
-  isLoading: isLoading.value,
-  isError: isError.value,
-}));
+const statusPresentation = computed(() =>
+  getIndexStatusPresentation(data.value ?? null, {
+    hasPath: !!props.path,
+    isLoading: isLoading.value,
+    isError: isError.value,
+  }),
+);
 const errorMessage = computed(() => (error.value as Error | null)?.message || "Failed to load status");
 const isDebugEnabled = computed(() => isIndexRebuildDebugEnabled());
 
@@ -205,16 +201,24 @@ function onRebuildCancelled() {
           <span
             class="absolute -bottom-0.5 -right-0.5 size-1.5 rounded-full hidden group-data-[collapsible=icon]:block"
             :class="[
-              statusPresentation.tone === 'green' ? 'bg-green-500' :
-              statusPresentation.tone === 'yellow' ? 'bg-amber-500' :
-              statusPresentation.tone === 'red' ? 'bg-red-500' :
-              'bg-gray-400',
+              statusPresentation.tone === 'green'
+                ? 'bg-green-500'
+                : statusPresentation.tone === 'yellow'
+                  ? 'bg-amber-500'
+                  : statusPresentation.tone === 'red'
+                    ? 'bg-red-500'
+                    : 'bg-gray-400',
               statusPresentation.showPulse ? 'animate-pulse' : '',
             ]"
             aria-hidden="true"
           />
         </span>
-        <Badge :variant="counts.failed > 0 ? 'destructive' : statusPresentation.status === 'indexing' ? 'secondary' : 'outline'" class="px-1.5 py-0 text-[10px] leading-none group-data-[collapsible=icon]:hidden">
+        <Badge
+          :variant="
+            counts.failed > 0 ? 'destructive' : statusPresentation.status === 'indexing' ? 'secondary' : 'outline'
+          "
+          class="px-1.5 py-0 text-[10px] leading-none group-data-[collapsible=icon]:hidden"
+        >
           {{ statusPresentation.label }}
         </Badge>
       </Button>
@@ -243,7 +247,10 @@ function onRebuildCancelled() {
         <!-- Compact summary -->
         <div class="space-y-1.5">
           <!-- Ready / Needs update state -->
-          <p v-if="statusPresentation.status === 'ready' || statusPresentation.status === 'stale'" class="text-xs text-muted-foreground">
+          <p
+            v-if="statusPresentation.status === 'ready' || statusPresentation.status === 'stale'"
+            class="text-xs text-muted-foreground"
+          >
             {{ compactReadySummary }}
           </p>
 
@@ -258,12 +265,8 @@ function onRebuildCancelled() {
           </p>
 
           <!-- Unknown / other -->
-          <p v-else class="text-xs text-muted-foreground">
-            Index status unavailable
-          </p>
-          <p v-if="globalWorkOutsideScope" class="text-xs text-muted-foreground">
-            Indexer working in another folder
-          </p>
+          <p v-else class="text-xs text-muted-foreground">Index status unavailable</p>
+          <p v-if="globalWorkOutsideScope" class="text-xs text-muted-foreground">Indexer working in another folder</p>
         </div>
 
         <!-- Details toggle -->
@@ -280,7 +283,6 @@ function onRebuildCancelled() {
 
         <!-- Details content -->
         <div v-if="showDetails" class="space-y-3 border-t pt-2">
-
           <div class="space-y-1.5">
             <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Library</p>
 
@@ -306,7 +308,9 @@ function onRebuildCancelled() {
                   <span class="text-muted-foreground cursor-default">Photo details ready</span>
                   <span class="text-right font-medium">
                     {{ (data.metadata_records ?? 0).toLocaleString() }}
-                    <template v-if="statusPresentation.status === 'indexing'"> / {{ (data.indexed_photos ?? 0).toLocaleString() }}</template>
+                    <template v-if="statusPresentation.status === 'indexing'">
+                      / {{ (data.indexed_photos ?? 0).toLocaleString() }}</template
+                    >
                   </span>
                 </div>
               </TooltipTrigger>
@@ -318,7 +322,9 @@ function onRebuildCancelled() {
               <span class="text-muted-foreground">Photo details ready</span>
               <span class="text-right font-medium">
                 {{ (data.metadata_records ?? 0).toLocaleString() }}
-                <template v-if="statusPresentation.status === 'indexing'"> / {{ (data.indexed_photos ?? 0).toLocaleString() }}</template>
+                <template v-if="statusPresentation.status === 'indexing'">
+                  / {{ (data.indexed_photos ?? 0).toLocaleString() }}</template
+                >
               </span>
             </div>
           </div>
@@ -329,7 +335,9 @@ function onRebuildCancelled() {
             <Tooltip v-if="detailsProcessedTooltip" :delay-duration="800">
               <TooltipTrigger as-child>
                 <p class="text-xs text-muted-foreground cursor-default">
-                  {{ progressInfo.indexed.toLocaleString() }}<template v-if="progressInfo.total !== null"> / {{ progressInfo.total.toLocaleString() }}</template> details processed
+                  {{ progressInfo.indexed.toLocaleString()
+                  }}<template v-if="progressInfo.total !== null"> / {{ progressInfo.total.toLocaleString() }}</template>
+                  details processed
                 </p>
               </TooltipTrigger>
               <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
@@ -337,7 +345,9 @@ function onRebuildCancelled() {
               </TooltipContent>
             </Tooltip>
             <p v-else class="text-xs text-muted-foreground">
-              {{ progressInfo.indexed.toLocaleString() }}<template v-if="progressInfo.total !== null"> / {{ progressInfo.total.toLocaleString() }}</template> details processed
+              {{ progressInfo.indexed.toLocaleString()
+              }}<template v-if="progressInfo.total !== null"> / {{ progressInfo.total.toLocaleString() }}</template>
+              details processed
             </p>
 
             <IndexProgressBar v-if="progressInfo.percent !== null" :percent="progressInfo.percent" />
@@ -350,7 +360,9 @@ function onRebuildCancelled() {
               <TooltipTrigger as-child>
                 <div class="flex items-center justify-between text-xs">
                   <span class="text-muted-foreground cursor-default">Folder</span>
-                  <span class="text-right font-medium truncate ml-2 max-w-[150px]" :title="data.path || path">{{ data.path || path }}</span>
+                  <span class="text-right font-medium truncate ml-2 max-w-[150px]" :title="data.path || path">{{
+                    data.path || path
+                  }}</span>
                 </div>
               </TooltipTrigger>
               <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
@@ -359,7 +371,9 @@ function onRebuildCancelled() {
             </Tooltip>
             <div v-else class="flex items-center justify-between text-xs">
               <span class="text-muted-foreground">Folder</span>
-              <span class="text-right font-medium truncate ml-2 max-w-[150px]" :title="data.path || path">{{ data.path || path }}</span>
+              <span class="text-right font-medium truncate ml-2 max-w-[150px]" :title="data.path || path">{{
+                data.path || path
+              }}</span>
             </div>
 
             <div class="flex items-center justify-between text-xs">
@@ -395,14 +409,14 @@ function onRebuildCancelled() {
         <div v-if="data.last_error" class="rounded-md bg-destructive/10 p-2 text-xs">
           <span class="font-medium text-destructive">Last Error:</span>
           <p class="text-muted-foreground mt-0.5">{{ data.last_error.message }}</p>
-          <p class="text-muted-foreground mt-0.5 text-[10px]">{{ new Date(data.last_error.updated_at * 1000).toLocaleString() }}</p>
+          <p class="text-muted-foreground mt-0.5 text-[10px]">
+            {{ new Date(data.last_error.updated_at * 1000).toLocaleString() }}
+          </p>
         </div>
       </div>
 
       <!-- Empty state when no data and not loading/error -->
-      <div v-else class="text-sm text-muted-foreground text-center py-2">
-        No index status available
-      </div>
+      <div v-else class="text-sm text-muted-foreground text-center py-2">No index status available</div>
     </PopoverContent>
   </Popover>
 
@@ -410,7 +424,8 @@ function onRebuildCancelled() {
     <DialogContent role="alertdialog" aria-modal="true">
       <DialogTitle>Rebuild?</DialogTitle>
       <DialogDescription>
-        Rebuild clears this folder's index and extracted metadata cache before indexing again. Source image files are not deleted.
+        Rebuild clears this folder's index and extracted metadata cache before indexing again. Source image files are
+        not deleted.
       </DialogDescription>
       <div class="flex justify-end gap-2 mt-4">
         <Button variant="outline" size="sm" @click="onRebuildCancelled">Cancel</Button>

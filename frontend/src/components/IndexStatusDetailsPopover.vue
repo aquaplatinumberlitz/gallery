@@ -3,17 +3,9 @@ import { computed } from "vue";
 import Button from "@/components/ui/Button.vue";
 import IndexStatusBadge from "@/components/IndexStatusBadge.vue";
 import IndexProgressBar from "@/components/IndexProgressBar.vue";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getFieldTooltip } from "@/utils/indexStatusCopy";
-import type {
-  IndexStatusCounts,
-  IndexStatusPresentation,
-  IndexStatusProgressInfo,
-} from "@/utils/indexStatus";
+import type { IndexStatusCounts, IndexStatusPresentation, IndexStatusProgressInfo } from "@/utils/indexStatus";
 import type { IndexStatusResponse } from "@/types";
 
 defineProps<{
@@ -52,19 +44,17 @@ function formatUpdatedAt(value: number | null | undefined) {
 
 <template>
   <div class="index-details" aria-label="Index Status">
-      <div class="index-details__header">
-        <div>
-          <p class="index-details__eyebrow">Index</p>
-        </div>
-        <IndexStatusBadge :presentation="presentation" />
+    <div class="index-details__header">
+      <div>
+        <p class="index-details__eyebrow">Index</p>
       </div>
-      <p v-if="globalWorkOutsideScope" class="index-details__muted" style="margin:0;font-size:12px;">
-        Indexer working in another folder
-      </p>
-
-    <div v-if="isLoading" class="index-details__muted">
-      Loading index status...
+      <IndexStatusBadge :presentation="presentation" />
     </div>
+    <p v-if="globalWorkOutsideScope" class="index-details__muted" style="margin: 0; font-size: 12px">
+      Indexer working in another folder
+    </p>
+
+    <div v-if="isLoading" class="index-details__muted">Loading index status...</div>
 
     <div v-else-if="isError" class="index-details__error">
       {{ errorMessage || "Failed to load status" }}
@@ -112,16 +102,22 @@ function formatUpdatedAt(value: number | null | undefined) {
 
         <Tooltip v-if="detailsProcessedTooltip" :delay-duration="800">
           <TooltipTrigger as-child>
-            <p class="index-details__muted has-tooltip" style="margin:0;font-size:12px;color:var(--muted-foreground);">
-              {{ formatCount(progress.indexed) }}<template v-if="progress.total !== null"> / {{ formatCount(progress.total) }}</template> details processed
+            <p
+              class="index-details__muted has-tooltip"
+              style="margin: 0; font-size: 12px; color: var(--muted-foreground)"
+            >
+              {{ formatCount(progress.indexed)
+              }}<template v-if="progress.total !== null"> / {{ formatCount(progress.total) }}</template> details
+              processed
             </p>
           </TooltipTrigger>
           <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
             {{ detailsProcessedTooltip }}
           </TooltipContent>
         </Tooltip>
-        <p v-else class="index-details__muted" style="margin:0;font-size:12px;">
-          {{ formatCount(progress.indexed) }}<template v-if="progress.total !== null"> / {{ formatCount(progress.total) }}</template> details processed
+        <p v-else class="index-details__muted" style="margin: 0; font-size: 12px">
+          {{ formatCount(progress.indexed)
+          }}<template v-if="progress.total !== null"> / {{ formatCount(progress.total) }}</template> details processed
         </p>
 
         <IndexProgressBar v-if="progress.percent !== null" :percent="progress.percent" />
@@ -176,43 +172,30 @@ function formatUpdatedAt(value: number | null | undefined) {
     </div>
 
     <p class="index-details__warning">
-      Warning: Rebuild clears this folder's index and extracted metadata cache before indexing again. Source image files are not deleted.
+      Warning: Rebuild clears this folder's index and extracted metadata cache before indexing again. Source image files
+      are not deleted.
     </p>
 
     <div class="index-details__actions">
       <Tooltip>
         <TooltipTrigger as-child>
           <span class="inline-flex">
-            <Button
-              variant="outline"
-              size="sm"
-              :disabled="!path || !!actionPending"
-              @click="emit('rescan')"
-            >
+            <Button variant="outline" size="sm" :disabled="!path || !!actionPending" @click="emit('rescan')">
               {{ actionPending === "rescan" ? "Rescanning..." : "Rescan" }}
             </Button>
           </span>
         </TooltipTrigger>
-        <TooltipContent>
-          Refresh this folder and queue new metadata work.
-        </TooltipContent>
+        <TooltipContent> Refresh this folder and queue new metadata work. </TooltipContent>
       </Tooltip>
       <Tooltip>
         <TooltipTrigger as-child>
           <span class="inline-flex">
-            <Button
-              variant="secondary"
-              size="sm"
-              :disabled="!path || !!actionPending"
-              @click="emit('rebuild')"
-            >
+            <Button variant="secondary" size="sm" :disabled="!path || !!actionPending" @click="emit('rebuild')">
               {{ actionPending === "rebuild" ? "Rebuilding..." : "Rebuild" }}
             </Button>
           </span>
         </TooltipTrigger>
-        <TooltipContent>
-          Clear this scope's index cache, then scan it again.
-        </TooltipContent>
+        <TooltipContent> Clear this scope's index cache, then scan it again. </TooltipContent>
       </Tooltip>
     </div>
   </div>

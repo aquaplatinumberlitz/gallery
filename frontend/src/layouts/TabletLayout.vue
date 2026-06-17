@@ -2,11 +2,7 @@
 import GallerySidebarContent from "../components/GallerySidebarContent.vue";
 import TabletHeader from "../components/TabletHeader.vue";
 import GalleryGrid from "../components/GalleryGrid.vue";
-import {
-  SidebarProvider,
-  Sidebar,
-  SidebarInset,
-} from "@/components/ui/sidebar";
+import { SidebarProvider, Sidebar, SidebarInset } from "@/components/ui/sidebar";
 
 defineProps<{
   theme: "light" | "dark";
@@ -29,18 +25,10 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <SidebarProvider
-    :open="true"
-    :open-mobile="isSidebarOpen"
-    @update:open-mobile="emit('update:sidebarOpen', $event)"
-  >
+  <SidebarProvider :open="true" :open-mobile="isSidebarOpen" @update:open-mobile="emit('update:sidebarOpen', $event)">
     <Sidebar side="left" variant="sidebar" collapsible="offcanvas">
       <div class="gallery-sidebar-surface flex h-full w-full flex-col">
-        <GallerySidebarContent
-          :tree="tree"
-          :is-loading="isLoading"
-          :current-path="currentPath"
-        />
+        <GallerySidebarContent :tree="tree" :is-loading="isLoading" :current-path="currentPath" />
       </div>
     </Sidebar>
 
@@ -57,10 +45,7 @@ const emit = defineEmits<{
       />
 
       <div class="content-body">
-        <GalleryGrid
-          :is-mobile="false"
-          :show-toolbar-breadcrumb="false"
-        />
+        <GalleryGrid :is-mobile="false" :show-toolbar-breadcrumb="false" />
       </div>
     </SidebarInset>
   </SidebarProvider>
@@ -68,7 +53,13 @@ const emit = defineEmits<{
 
 <style scoped>
 .gallery-sidebar-surface {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--foreground) 2%, transparent), color-mix(in srgb, var(--foreground) 4%, transparent)), var(--card);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--foreground) 2%, transparent),
+      color-mix(in srgb, var(--foreground) 4%, transparent)
+    ),
+    var(--card);
 }
 
 .content {

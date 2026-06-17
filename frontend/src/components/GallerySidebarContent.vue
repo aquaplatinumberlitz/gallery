@@ -22,7 +22,7 @@ defineProps<{
 
 const { isMobile, state } = useSidebar();
 const isCollapsed = computed(() => state.value === "collapsed");
-const indexStatusVariant = computed(() => isMobile.value || isCollapsed.value ? "button" : "card");
+const indexStatusVariant = computed(() => (isMobile.value || isCollapsed.value ? "button" : "card"));
 </script>
 
 <template>
@@ -34,9 +34,7 @@ const indexStatusVariant = computed(() => isMobile.value || isCollapsed.value ? 
     <SidebarGroup>
       <SidebarGroupLabel as="div" class="sidebar-title" id="folder-tree-label">
         <span>Folder Tree</span>
-        <span v-if="isLoading" class="loading-pill">
-          <Loader class="gallery-icon-md lucide-spin" /> Loading
-        </span>
+        <span v-if="isLoading" class="loading-pill"> <Loader class="gallery-icon-md lucide-spin" /> Loading </span>
       </SidebarGroupLabel>
 
       <SidebarGroupContent>
@@ -44,19 +42,15 @@ const indexStatusVariant = computed(() => isMobile.value || isCollapsed.value ? 
           <p v-if="!isLoading && !tree.length" class="empty-state group-data-[collapsible=icon]:hidden">
             Enter a root path and click Load to start.
           </p>
-          <FolderTreeItem
-            v-for="node in tree"
-            :key="node.path"
-            :node="node"
-            :active-path="currentPath"
-            :level="1"
-          />
+          <FolderTreeItem v-for="node in tree" :key="node.path" :node="node" :active-path="currentPath" :level="1" />
         </div>
       </SidebarGroupContent>
     </SidebarGroup>
   </SidebarContent>
 
-  <SidebarFooter class="border-t border-border p-2 overflow-hidden group-data-[collapsible=icon]:p-1 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center">
+  <SidebarFooter
+    class="border-t border-border p-2 overflow-hidden group-data-[collapsible=icon]:p-1 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center"
+  >
     <IndexStatusPanel :path="currentPath" :variant="indexStatusVariant" />
   </SidebarFooter>
 </template>

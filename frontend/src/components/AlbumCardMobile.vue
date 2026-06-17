@@ -16,7 +16,7 @@ defineProps<{
 </script>
 
 <template>
-  <div 
+  <div
     class="album-card-mobile"
     data-testid="album-card"
     :data-album-name="node.name"
@@ -33,7 +33,9 @@ defineProps<{
       <h3 class="album-name">{{ node.name }}</h3>
       <div class="album-meta">
         <FolderOpen class="gallery-icon-meta album-meta-icon" />
-        <span v-if="node.image_count !== undefined && node.image_count !== null">{{ node.image_count }} {{ node.image_count === 1 ? 'photo' : 'photos' }}</span>
+        <span v-if="node.image_count !== undefined && node.image_count !== null"
+          >{{ node.image_count }} {{ node.image_count === 1 ? "photo" : "photos" }}</span
+        >
       </div>
     </div>
   </div>
@@ -49,20 +51,22 @@ defineProps<{
   width: 100%;
   cursor: pointer;
   border-radius: 8px;
-  overflow: hidden;            // Outer card clips content — clean straight edge at bottom
+  overflow: hidden; // Outer card clips content — clean straight edge at bottom
   background: var(--album-frame-bg);
   border: 1px solid var(--album-frame-border);
   box-shadow: none;
-  transition: transform 160ms ease, opacity 160ms ease;
+  transition:
+    transform 160ms ease,
+    opacity 160ms ease;
 
   .album-cover {
     width: 100%;
     aspect-ratio: 1 / 1;
-    border-radius: 8px 8px 0 0;  // Only top corners rounded — bottom is straight horizontal edge
+    border-radius: 8px 8px 0 0; // Only top corners rounded — bottom is straight horizontal edge
     overflow: hidden;
-    border: none;                  // Removed border for cleaner look (Apple Photos style)
+    border: none; // Removed border for cleaner look (Apple Photos style)
     background: var(--album-frame-bg);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);  // Subtle depth (Google Photos style)
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); // Subtle depth (Google Photos style)
 
     img {
       width: 100%;
@@ -96,8 +100,8 @@ defineProps<{
       -webkit-line-clamp: 2;
       overflow: hidden;
       text-overflow: ellipsis;
-      word-break: break-word;      // Prevent long words breaking layout
-      overflow-wrap: break-word;   // Fallback for word-break
+      word-break: break-word; // Prevent long words breaking layout
+      overflow-wrap: break-word; // Fallback for word-break
     }
 
     .album-meta {
@@ -105,7 +109,7 @@ defineProps<{
       align-items: center;
       gap: 4px;
       font-family: var(--font-code);
-      font-size: 11px;             // Increased from 10px → 11px (better readability)
+      font-size: 11px; // Increased from 10px → 11px (better readability)
       color: var(--album-meta-color);
       margin: 4px 0 0;
       letter-spacing: 0.5px;
@@ -126,7 +130,9 @@ defineProps<{
       .album-cover {
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
         transform: translateY(-2px);
-        transition: transform 200ms ease, box-shadow 200ms ease;
+        transition:
+          transform 200ms ease,
+          box-shadow 200ms ease;
       }
     }
   }
@@ -135,7 +141,7 @@ defineProps<{
     box-shadow: none;
 
     .album-cover {
-      box-shadow: 0 0 8px rgba(255, 255, 255, 0.04);  // Subtle glow in dark mode
+      box-shadow: 0 0 8px rgba(255, 255, 255, 0.04); // Subtle glow in dark mode
       border: none;
     }
 

@@ -1,4 +1,4 @@
-import type { DirectiveBinding, ObjectDirective } from 'vue';
+import type { DirectiveBinding, ObjectDirective } from "vue";
 
 interface ClickOutsideElement extends HTMLElement {
   __clickOutsideHandler?: (event: MouseEvent) => void;
@@ -12,16 +12,16 @@ export const vClickOutside: ObjectDirective<ClickOutsideElement, () => void> = {
         binding.value();
       }
     };
-    
+
     // Use setTimeout to avoid immediate trigger on mount
     setTimeout(() => {
-      document.addEventListener('click', el.__clickOutsideHandler!);
+      document.addEventListener("click", el.__clickOutsideHandler!);
     }, 0);
   },
-  
+
   unmounted(el: ClickOutsideElement) {
     if (el.__clickOutsideHandler) {
-      document.removeEventListener('click', el.__clickOutsideHandler);
+      document.removeEventListener("click", el.__clickOutsideHandler);
       delete el.__clickOutsideHandler;
     }
   },

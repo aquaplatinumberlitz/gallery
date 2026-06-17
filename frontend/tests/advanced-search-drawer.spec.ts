@@ -15,14 +15,10 @@ import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
 const rootPath = "/gallery-advanced-search-test";
-const imagePaths = [
-  `${rootPath}/rain_girl.png`,
-  `${rootPath}/snow_landscape.png`,
-  `${rootPath}/portrait.png`,
-];
+const imagePaths = [`${rootPath}/rain_girl.png`, `${rootPath}/snow_landscape.png`, `${rootPath}/portrait.png`];
 const png1x1 = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/luz4nQAAAABJRU5ErkJggg==",
-  "base64"
+  "base64",
 );
 
 type ApiRequest = { pathname: string; path: string; q: string };
@@ -89,14 +85,30 @@ async function installStubbedGallery(page: Page) {
           seed: "12345",
         };
 
-        if (q.includes("rain") || q.includes("blue") || q.includes("PonyXL") || q.includes("seed") || q.includes("steps") || q.includes("cfg") || q.includes("width") || q.includes("height") || q.includes("ratio") || q.includes("size") || q.includes("prompt")) {
+        if (
+          q.includes("rain") ||
+          q.includes("blue") ||
+          q.includes("PonyXL") ||
+          q.includes("seed") ||
+          q.includes("steps") ||
+          q.includes("cfg") ||
+          q.includes("width") ||
+          q.includes("height") ||
+          q.includes("ratio") ||
+          q.includes("size") ||
+          q.includes("prompt")
+        ) {
           photos.push({ ...resultItem, match_type: "filename" });
         }
         if (q.includes("mika") || q.includes("prompt") || q.includes("blue")) {
           promptResults.push({
             ...resultItem,
             match_type: "prompt",
-            prompt_snippet: q.includes("mika") ? "mika, portrait" : q.includes("blue") ? "blue archive, masterpiece" : "test prompt",
+            prompt_snippet: q.includes("mika")
+              ? "mika, portrait"
+              : q.includes("blue")
+                ? "blue archive, masterpiece"
+                : "test prompt",
           });
         }
         if (photos.length === 0 && promptResults.length === 0) {
@@ -122,8 +134,14 @@ async function installStubbedGallery(page: Page) {
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
-          model: [{ value: "PonyXL", count: 10 }, { value: "SDXL", count: 5 }],
-          sampler: [{ value: "Euler a", count: 15 }, { value: "DPM++", count: 8 }],
+          model: [
+            { value: "PonyXL", count: 10 },
+            { value: "SDXL", count: 5 },
+          ],
+          sampler: [
+            { value: "Euler a", count: 15 },
+            { value: "DPM++", count: 8 },
+          ],
           scheduler: [{ value: "Karras", count: 20 }],
         }),
       });

@@ -5,87 +5,87 @@
 
 :root {
   /* ── Semantic ── */
-  --gallery-success:            #22c55e;
-  --gallery-success-bg:         rgba(34, 197, 94, 0.1);
-  --gallery-warning:            #f59e0b;
-  --gallery-warning-bg:         rgba(245, 158, 11, 0.1);
-  --gallery-error:              #ef4444;
-  --gallery-error-bg:           rgba(239, 68, 68, 0.1);
-  --gallery-info:               #3b82f6;
-  --gallery-info-bg:            rgba(59, 130, 246, 0.1);
+  --gallery-success: #22c55e;
+  --gallery-success-bg: rgba(34, 197, 94, 0.1);
+  --gallery-warning: #f59e0b;
+  --gallery-warning-bg: rgba(245, 158, 11, 0.1);
+  --gallery-error: #ef4444;
+  --gallery-error-bg: rgba(239, 68, 68, 0.1);
+  --gallery-info: #3b82f6;
+  --gallery-info-bg: rgba(59, 130, 246, 0.1);
 
   /* ── Radius ── */
-  --gallery-radius-sm:          4px;
-  --gallery-radius-md:          8px;
-  --gallery-radius-lg:          12px;
-  --gallery-radius-xl:          16px;
-  --gallery-radius-full:        9999px;
+  --gallery-radius-sm: 4px;
+  --gallery-radius-md: 8px;
+  --gallery-radius-lg: 12px;
+  --gallery-radius-xl: 16px;
+  --gallery-radius-full: 9999px;
 
   /* ── Shadow (modal only — NO card shadow) ── */
-  --gallery-shadow-sm:  0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.08);
-  --gallery-shadow-md:  0 2px 4px rgba(0,0,0,0.05), 0 4px 8px rgba(0,0,0,0.08);
-  --gallery-shadow-lg:  0 4px 8px rgba(0,0,0,0.06), 0 8px 16px rgba(0,0,0,0.06);
-  --gallery-shadow-xl:  0 8px 16px rgba(0,0,0,0.08), 0 16px 32px rgba(0,0,0,0.06);
+  --gallery-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.08);
+  --gallery-shadow-md: 0 2px 4px rgba(0, 0, 0, 0.05), 0 4px 8px rgba(0, 0, 0, 0.08);
+  --gallery-shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.06), 0 8px 16px rgba(0, 0, 0, 0.06);
+  --gallery-shadow-xl: 0 8px 16px rgba(0, 0, 0, 0.08), 0 16px 32px rgba(0, 0, 0, 0.06);
 
   /* ── Lightbox (always dark — giá trị giữ nguyên) ── */
-  --gallery-lightbox-overlay:         rgba(0, 0, 0, 0.95);
-  --gallery-lightbox-bg:              #000;
-  --gallery-lightbox-surface:         rgba(20, 20, 20, 0.8);
-  --gallery-lightbox-surface-solid:   #1a1a1a;
-  --gallery-lightbox-text:            #e0e0e0;
-  --gallery-lightbox-text-primary:    #fff;
-  --gallery-lightbox-text-secondary:  #999;
-  --gallery-lightbox-text-muted:      #666;
-  --gallery-lightbox-border:          rgba(255, 255, 255, 0.1);
-  --gallery-lightbox-prompt-label:    #86efac;
+  --gallery-lightbox-overlay: rgba(0, 0, 0, 0.95);
+  --gallery-lightbox-bg: #000;
+  --gallery-lightbox-surface: rgba(20, 20, 20, 0.8);
+  --gallery-lightbox-surface-solid: #1a1a1a;
+  --gallery-lightbox-text: #e0e0e0;
+  --gallery-lightbox-text-primary: #fff;
+  --gallery-lightbox-text-secondary: #999;
+  --gallery-lightbox-text-muted: #666;
+  --gallery-lightbox-border: rgba(255, 255, 255, 0.1);
+  --gallery-lightbox-prompt-label: #86efac;
   --gallery-lightbox-prompt-negative: #fca5a5;
-  --gallery-lightbox-tool-label:      #fb7185;
-  --gallery-lightbox-code-text:       #d1d5db;
+  --gallery-lightbox-tool-label: #fb7185;
+  --gallery-lightbox-code-text: #d1d5db;
 
   /* ── Timing ── */
-  --gallery-timing-fast:   80ms;
+  --gallery-timing-fast: 80ms;
   --gallery-timing-normal: 200ms;
-  --gallery-timing-slow:   400ms;
+  --gallery-timing-slow: 400ms;
 
   /* ── Typography ── */
-  --gallery-font-family:    "InterVariable", "Segoe UI", "SF Pro Display", system-ui, -apple-system, sans-serif;
-  --gallery-font-mono:      "JetBrains Mono", monospace;
-  --gallery-font-size-xs:   0.625rem;
-  --gallery-font-size-sm:   0.75rem;
+  --gallery-font-family: "InterVariable", "Segoe UI", "SF Pro Display", system-ui, -apple-system, sans-serif;
+  --gallery-font-mono: "JetBrains Mono", monospace;
+  --gallery-font-size-xs: 0.625rem;
+  --gallery-font-size-sm: 0.75rem;
   --gallery-font-size-base: 1rem;
-  --gallery-font-size-lg:   1.25rem;
-  --gallery-font-size-xl:   1.5rem;
-  --gallery-font-size-2xl:  2rem;
-  --gallery-font-size-3xl:  2.5rem;
-  --gallery-line-height:    1.5;
+  --gallery-font-size-lg: 1.25rem;
+  --gallery-font-size-xl: 1.5rem;
+  --gallery-font-size-2xl: 2rem;
+  --gallery-font-size-3xl: 2.5rem;
+  --gallery-line-height: 1.5;
   --gallery-line-height-sm: 1.25;
   --gallery-font-weight-normal: 400;
   --gallery-font-weight-medium: 500;
-  --gallery-font-weight-bold:   600;
+  --gallery-font-weight-bold: 600;
 
   /* ── Icon sizes ── */
-  --gallery-icon-xs:     12px;
-  --gallery-icon-sm:     14px;
-  --gallery-icon-md:     16px;
-  --gallery-icon-lg:     18px;
-  --gallery-icon-xl:     22px;
-  --gallery-icon-xxl:    24px;
-  --gallery-icon-meta:   11px;
+  --gallery-icon-xs: 12px;
+  --gallery-icon-sm: 14px;
+  --gallery-icon-md: 16px;
+  --gallery-icon-lg: 18px;
+  --gallery-icon-xl: 22px;
+  --gallery-icon-xxl: 24px;
+  --gallery-icon-meta: 11px;
 
-  --gallery-icon-toolbar:           var(--gallery-icon-lg);
-  --gallery-icon-tablet-toolbar:    var(--gallery-icon-xl);
-  --gallery-icon-mobile-toolbar:    var(--gallery-icon-xl);
-  --gallery-icon-nav:               var(--gallery-icon-xxl);
-  --gallery-icon-card:              var(--gallery-icon-md);
+  --gallery-icon-toolbar: var(--gallery-icon-lg);
+  --gallery-icon-tablet-toolbar: var(--gallery-icon-xl);
+  --gallery-icon-mobile-toolbar: var(--gallery-icon-xl);
+  --gallery-icon-nav: var(--gallery-icon-xxl);
+  --gallery-icon-card: var(--gallery-icon-md);
 
   /* ── Sidebar widths ── */
   --gallery-sidebar-width: 280px;
   --gallery-sidebar-mobile-width: 240px;
 
   /* ── Theme-toggle (giữ nguyên gradient) ── */
-  --gallery-toggle-gradient-light:   linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --gallery-toggle-gradient-dark:    linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-  --gallery-toggle-thumb-bg-dark:    linear-gradient(180deg, #ffd54f 0%, #ffb300 100%);
+  --gallery-toggle-gradient-light: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --gallery-toggle-gradient-dark: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  --gallery-toggle-thumb-bg-dark: linear-gradient(180deg, #ffd54f 0%, #ffb300 100%);
 
   /* ── Brand/decorative tokens (not for standard UI surfaces) ── */
   --brand-hero-text: #143d60;
@@ -114,7 +114,7 @@
   --shadow-card-level4: 0 2px 3px rgba(0, 0, 0, 0.3), 0 6px 10px 4px rgba(0, 0, 0, 0.15);
 
   /* Mobile shadow opacity baseline */
-  --shadow-opacity-mobile: 0.20;
+  --shadow-opacity-mobile: 0.2;
 
   /* Legacy glow variables */
   --glow-color: transparent;
@@ -130,10 +130,10 @@
 
 :root[data-theme="dark"] {
   /* ── Shadow (dark mode) ── */
-  --gallery-shadow-sm:  0 1px 2px rgba(0,0,0,0.30), 0 1px 3px rgba(0,0,0,0.15);
-  --gallery-shadow-md:  0 2px 4px rgba(0,0,0,0.35), 0 4px 8px rgba(0,0,0,0.15);
-  --gallery-shadow-lg:  0 4px 8px rgba(0,0,0,0.40), 0 8px 16px rgba(0,0,0,0.15);
-  --gallery-shadow-xl:  0 8px 16px rgba(0,0,0,0.45), 0 16px 32px rgba(0,0,0,0.15);
+  --gallery-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.15);
+  --gallery-shadow-md: 0 2px 4px rgba(0, 0, 0, 0.35), 0 4px 8px rgba(0, 0, 0, 0.15);
+  --gallery-shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.4), 0 8px 16px rgba(0, 0, 0, 0.15);
+  --gallery-shadow-xl: 0 8px 16px rgba(0, 0, 0, 0.45), 0 16px 32px rgba(0, 0, 0, 0.15);
 
   /* ── Brand/decorative tokens (dark mode) ── */
   --brand-hero-text: #d6a15d;
@@ -168,34 +168,24 @@
 
   /* Dark layer default shadows (giữ cho AlbumCard 3D) */
   --shadow-dark-layer-back: 0 1px 3px 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.7);
-  --shadow-dark-layer-front: 0 2px 6px 2px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.7), 0 0 12px var(--glow-color-20);
+  --shadow-dark-layer-front:
+    0 2px 6px 2px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.7), 0 0 12px var(--glow-color-20);
 
   /* Mobile shadow opacity (dark mode) */
-  --shadow-opacity-mobile: 0.50;
+  --shadow-opacity-mobile: 0.5;
 
   /* Composite glow shadows (giữ cho album-card 3D) */
   --glow-card-hover:
-    0 0 2px #fff,
-    0 0 5px #fff,
-    0 0 10px var(--glow-color-60),
-    0 0 18px var(--glow-color-50),
+    0 0 2px #fff, 0 0 5px #fff, 0 0 10px var(--glow-color-60), 0 0 18px var(--glow-color-50),
     0 0 24px var(--glow-color-35);
 
   --glow-card-hover-front:
-    0 0 2px #fff,
-    0 0 4px rgba(255, 255, 255, 0.6),
-    0 0 8px var(--glow-color-70),
-    0 0 14px var(--glow-color-50),
+    0 0 2px #fff, 0 0 4px rgba(255, 255, 255, 0.6), 0 0 8px var(--glow-color-70), 0 0 14px var(--glow-color-50),
     0 0 20px var(--glow-color-30);
 
-  --glow-card-hover-back:
-    0 0 6px var(--glow-color-40),
-    0 0 12px var(--glow-color-25);
+  --glow-card-hover-back: 0 0 6px var(--glow-color-40), 0 0 12px var(--glow-color-25);
 
-  --glow-card-active:
-    0 0 3px #fff,
-    0 0 8px var(--glow-color-50),
-    0 0 14px var(--glow-color-30);
+  --glow-card-active: 0 0 3px #fff, 0 0 8px var(--glow-color-50), 0 0 14px var(--glow-color-30);
 }
 
 /* Mobile override: glow vars */

@@ -16,13 +16,10 @@ import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
 const rootPath = "/gallery-index-status-test";
-const imagePaths = Array.from(
-  { length: 2 },
-  (_, i) => `${rootPath}/image_${i + 1}.png`
-);
+const imagePaths = Array.from({ length: 2 }, (_, i) => `${rootPath}/image_${i + 1}.png`);
 const png1x1 = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/luz4nQAAAABJRU5ErkJggg==",
-  "base64"
+  "base64",
 );
 
 const indexStatusData = {
@@ -158,12 +155,15 @@ async function installStubbedGallery(page: Page) {
 }
 
 async function openStubbedGallery(page: Page, withPath = true) {
-  await page.addInitScript((opts) => {
-    localStorage.setItem("intro_mode", "disabled");
-    if (opts) {
-      localStorage.setItem("gallery-root-path", opts);
-    }
-  }, withPath ? rootPath : "");
+  await page.addInitScript(
+    (opts) => {
+      localStorage.setItem("intro_mode", "disabled");
+      if (opts) {
+        localStorage.setItem("gallery-root-path", opts);
+      }
+    },
+    withPath ? rootPath : "",
+  );
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
@@ -178,9 +178,10 @@ test.describe("IndexStatusPanel", () => {
 
     await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 10_000 });
     expect(
-      monitoredErrors.consoleErrors.some((message) =>
-        message.includes("SidebarContext") || message.includes("Injection `Symbol(SidebarContext)` not found")
-      )
+      monitoredErrors.consoleErrors.some(
+        (message) =>
+          message.includes("SidebarContext") || message.includes("Injection `Symbol(SidebarContext)` not found"),
+      ),
     ).toBe(false);
   });
 
@@ -224,7 +225,9 @@ test.describe("IndexStatusPanel", () => {
     await expect(popover).toContainText("Yes");
     await expect(popover.getByRole("button", { name: "Rescan" })).toBeVisible();
     await expect(popover.getByRole("button", { name: "Rebuild" })).toBeVisible();
-    await expect(popover).toContainText("Rebuild clears this folder's index and extracted metadata cache before indexing again. Source image files are not deleted.");
+    await expect(popover).toContainText(
+      "Rebuild clears this folder's index and extracted metadata cache before indexing again. Source image files are not deleted.",
+    );
     await expect(popover).not.toContainText("Clear cache");
     await expect(popover).not.toContainText("Clear DB");
     await expect(popover).not.toContainText("Clear index");
@@ -271,7 +274,7 @@ test.describe("IndexStatusPanel", () => {
           route.fulfill({
             contentType: "application/json",
             body: JSON.stringify(indexStatusData),
-          })
+          }),
         );
         return;
       }
@@ -356,7 +359,9 @@ test.describe("IndexStatusPanel", () => {
     resolveStatus!(null);
     await page.waitForTimeout(500);
 
-    await expect(page.getByRole("dialog", { name: "Index Status" })).toContainText("Photo details ready", { timeout: 5_000 });
+    await expect(page.getByRole("dialog", { name: "Index Status" })).toContainText("Photo details ready", {
+      timeout: 5_000,
+    });
   });
 
   test("index status shows error state when API fails", async ({ page }) => {
@@ -364,7 +369,11 @@ test.describe("IndexStatusPanel", () => {
       const url = new URL(route.request().url());
 
       if (url.pathname === "/api/index/status") {
-        await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "Internal Server Error" }) });
+        await route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "Internal Server Error" }),
+        });
         return;
       }
 
@@ -456,10 +465,7 @@ test.describe("IndexStatusPanel", () => {
     const popover = page.getByRole("dialog", { name: "Index Status" });
     await expect(popover).toBeVisible({ timeout: 5_000 });
 
-    const scanPromise = page.waitForRequest(
-      (req) => new URL(req.url()).pathname === "/api/scan",
-      { timeout: 5_000 }
-    );
+    const scanPromise = page.waitForRequest((req) => new URL(req.url()).pathname === "/api/scan", { timeout: 5_000 });
     await popover.getByRole("button", { name: "Rescan" }).click();
     const scanReq = await scanPromise;
     expect(scanReq.method()).toBe("GET");
@@ -482,7 +488,7 @@ test.describe("IndexStatusPanel", () => {
     await expect(dialog).toBeVisible({ timeout: 5_000 });
     await expect(dialog).toContainText("Rebuild?");
     await expect(dialog).toContainText(
-      "Rebuild clears this folder's index and extracted metadata cache before indexing again. Source image files are not deleted."
+      "Rebuild clears this folder's index and extracted metadata cache before indexing again. Source image files are not deleted.",
     );
 
     await dialog.getByRole("button", { name: "Cancel" }).click();
@@ -492,10 +498,9 @@ test.describe("IndexStatusPanel", () => {
     await rebuildButton.click();
     await expect(dialog).toBeVisible({ timeout: 5_000 });
 
-    const rebuildPromise = page.waitForRequest(
-      (req) => new URL(req.url()).pathname === "/api/index/rebuild",
-      { timeout: 5_000 }
-    );
+    const rebuildPromise = page.waitForRequest((req) => new URL(req.url()).pathname === "/api/index/rebuild", {
+      timeout: 5_000,
+    });
     await dialog.getByRole("button", { name: "Rebuild" }).click();
     const rebuildReq = await rebuildPromise;
     expect(rebuildReq.method()).toBe("POST");

@@ -18,9 +18,7 @@ import { useRoute, useRouter } from "vue-router";
 const Lightbox = defineAsyncComponent(() => import("./components/Lightbox.vue"));
 const isDev = import.meta.env.DEV;
 const VueQueryDevtools = isDev
-  ? defineAsyncComponent(() =>
-      import("@tanstack/vue-query-devtools").then((m) => m.VueQueryDevtools)
-    )
+  ? defineAsyncComponent(() => import("@tanstack/vue-query-devtools").then((m) => m.VueQueryDevtools))
   : null;
 
 const { isMobile, isTablet } = useDevice();
@@ -50,7 +48,7 @@ watch(
       showIntro.value = false;
       introPreviewUrl.value = null;
     }
-  }
+  },
 );
 
 watch(
@@ -60,31 +58,33 @@ watch(
       router.replace("/");
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 const galleryStore = useGalleryStore();
 
 const { resolvedTheme, toggleTheme } = useGalleryTheme();
 
-const SIDEBAR_STATE_KEY = "gallery-sidebar-open"
+const SIDEBAR_STATE_KEY = "gallery-sidebar-open";
 
 const isSidebarOpen = ref(
   (() => {
     try {
-      const stored = localStorage.getItem(SIDEBAR_STATE_KEY)
-      return stored !== null ? stored === "true" : true
+      const stored = localStorage.getItem(SIDEBAR_STATE_KEY);
+      return stored !== null ? stored === "true" : true;
     } catch {
-      return true
+      return true;
     }
-  })()
-)
+  })(),
+);
 
 watch(isSidebarOpen, (val) => {
   try {
-    localStorage.setItem(SIDEBAR_STATE_KEY, String(val))
-  } catch { /* ignore */ }
-})
+    localStorage.setItem(SIDEBAR_STATE_KEY, String(val));
+  } catch {
+    /* ignore */
+  }
+});
 const tree = computed(() => galleryStore.sidebarTree);
 const isLoading = computed(() => galleryStore.isLoading);
 const currentPath = computed(() => galleryStore.currentPath);
@@ -107,7 +107,7 @@ provide(closeSidebarKey, closeSidebar);
 
 // Handle Escape key to close sidebar on mobile
 const handleGlobalKeydown = (e: KeyboardEvent) => {
-  if (e.key === 'Escape' && (isMobile.value || isTablet.value) && isSidebarOpen.value) {
+  if (e.key === "Escape" && (isMobile.value || isTablet.value) && isSidebarOpen.value) {
     closeSidebar();
   }
 };
@@ -118,11 +118,11 @@ onMounted(() => {
     galleryStore.setRootPath(galleryStore.rootPath);
   }
 
-  window.addEventListener('keydown', handleGlobalKeydown);
+  window.addEventListener("keydown", handleGlobalKeydown);
 });
 
 onBeforeUnmount(() => {
-  window.removeEventListener('keydown', handleGlobalKeydown);
+  window.removeEventListener("keydown", handleGlobalKeydown);
 });
 
 const canBack = computed(() => galleryStore.historyIndex > 0);
@@ -131,84 +131,75 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
 
 <template>
   <TooltipProvider :delay-duration="300" :skip-delay-duration="100">
-  <!-- Intro Screen -->
-  <IntroScreen
-    v-if="showIntro"
-    v-model:visible="showIntro"
-    :force-url="introPreviewUrl"
-    @enter="handleIntroEnter"
-  />
+    <!-- Intro Screen -->
+    <IntroScreen v-if="showIntro" v-model:visible="showIntro" :force-url="introPreviewUrl" @enter="handleIntroEnter" />
 
-  <!-- Main App Layout -->
-  <MobileLayout
-    v-else-if="isMobile"
-    :theme="resolvedTheme"
-    :is-sidebar-open="isSidebarOpen"
-    :tree="tree"
-    :is-loading="isLoading"
-    :current-path="currentPath"
-    :search-query="galleryStore.searchQuery"
-    :search-scope="galleryStore.searchScope"
-    :bars-visible="barsVisible"
-    :can-back="canBack"
-    :can-forward="canForward"
-    @update:search-query="galleryStore.setSearchQuery($event)"
-    @scope-change="galleryStore.setSearchScope($event)"
-    @update:sidebar-open="isSidebarOpen = $event"
-    @toggle-sidebar="toggleSidebar"
-    @toggle-theme="toggleTheme"
-    @back="galleryStore.goBack()"
-    @forward="galleryStore.goForward()"
-    @open-folder="galleryStore.openInExplorer()"
-  />
+    <!-- Main App Layout -->
+    <MobileLayout
+      v-else-if="isMobile"
+      :theme="resolvedTheme"
+      :is-sidebar-open="isSidebarOpen"
+      :tree="tree"
+      :is-loading="isLoading"
+      :current-path="currentPath"
+      :search-query="galleryStore.searchQuery"
+      :search-scope="galleryStore.searchScope"
+      :bars-visible="barsVisible"
+      :can-back="canBack"
+      :can-forward="canForward"
+      @update:search-query="galleryStore.setSearchQuery($event)"
+      @scope-change="galleryStore.setSearchScope($event)"
+      @update:sidebar-open="isSidebarOpen = $event"
+      @toggle-sidebar="toggleSidebar"
+      @toggle-theme="toggleTheme"
+      @back="galleryStore.goBack()"
+      @forward="galleryStore.goForward()"
+      @open-folder="galleryStore.openInExplorer()"
+    />
 
-  <TabletLayout
-    v-else-if="isTablet"
-    :theme="resolvedTheme"
-    :is-sidebar-open="isSidebarOpen"
-    :tree="tree"
-    :is-loading="isLoading"
-    :current-path="currentPath"
-    :search-query="galleryStore.searchQuery"
-    :search-scope="galleryStore.searchScope"
-    @update:search-query="galleryStore.setSearchQuery($event)"
-    @scope-change="galleryStore.setSearchScope($event)"
-    @update:sidebar-open="isSidebarOpen = $event"
-    @toggle-sidebar="toggleSidebar"
-    @toggle-theme="toggleTheme"
-    @open-settings="isSettingsOpen = true"
-  />
+    <TabletLayout
+      v-else-if="isTablet"
+      :theme="resolvedTheme"
+      :is-sidebar-open="isSidebarOpen"
+      :tree="tree"
+      :is-loading="isLoading"
+      :current-path="currentPath"
+      :search-query="galleryStore.searchQuery"
+      :search-scope="galleryStore.searchScope"
+      @update:search-query="galleryStore.setSearchQuery($event)"
+      @scope-change="galleryStore.setSearchScope($event)"
+      @update:sidebar-open="isSidebarOpen = $event"
+      @toggle-sidebar="toggleSidebar"
+      @toggle-theme="toggleTheme"
+      @open-settings="isSettingsOpen = true"
+    />
 
-  <DesktopLayout
-    v-else
-    :theme="resolvedTheme"
-    :is-sidebar-open="isSidebarOpen"
-    :tree="tree"
-    :is-loading="isLoading"
-    :current-path="currentPath"
-    :search-query="galleryStore.searchQuery"
-    :search-scope="galleryStore.searchScope"
-    @update:search-query="galleryStore.setSearchQuery($event)"
-    @scope-change="galleryStore.setSearchScope($event)"
-    @update:sidebar-open="isSidebarOpen = $event"
-    @toggle-sidebar="toggleSidebar"
-    @toggle-theme="toggleTheme"
-    @open-settings="isSettingsOpen = true"
-  />
+    <DesktopLayout
+      v-else
+      :theme="resolvedTheme"
+      :is-sidebar-open="isSidebarOpen"
+      :tree="tree"
+      :is-loading="isLoading"
+      :current-path="currentPath"
+      :search-query="galleryStore.searchQuery"
+      :search-scope="galleryStore.searchScope"
+      @update:search-query="galleryStore.setSearchQuery($event)"
+      @scope-change="galleryStore.setSearchScope($event)"
+      @update:sidebar-open="isSidebarOpen = $event"
+      @toggle-sidebar="toggleSidebar"
+      @toggle-theme="toggleTheme"
+      @open-settings="isSettingsOpen = true"
+    />
 
-  <Lightbox />
-  <ToastContainer v-if="!isMobile" />
-  <SettingsModal 
-    :is-open="isSettingsOpen" 
-    @close="isSettingsOpen = false"
-    @preview="handlePreviewIntro"
-  />
-  <component
-    :is="VueQueryDevtools"
-    v-if="isDev && VueQueryDevtools"
-    button-position="bottom-right"
-    position="bottom"
-  />
+    <Lightbox />
+    <ToastContainer v-if="!isMobile" />
+    <SettingsModal :is-open="isSettingsOpen" @close="isSettingsOpen = false" @preview="handlePreviewIntro" />
+    <component
+      :is="VueQueryDevtools"
+      v-if="isDev && VueQueryDevtools"
+      button-position="bottom-right"
+      position="bottom"
+    />
   </TooltipProvider>
 </template>
 

@@ -71,8 +71,8 @@ const handleLoad = async () => {
       closeSidebar();
     }
   } else {
-    errorMessage.value = galleryStore.errorMessage
-      || "Unable to load the root folder. Check the path or backend connection.";
+    errorMessage.value =
+      galleryStore.errorMessage || "Unable to load the root folder. Check the path or backend connection.";
   }
 };
 
@@ -92,22 +92,14 @@ watch(
     if (open) {
       handleOpen();
     }
-  }
+  },
 );
 </script>
 
 <template>
   <Teleport to="body">
-    <div
-      v-if="modelValue"
-      class="root-path-sheet-backdrop"
-      @click.self="handleCancel"
-      @keydown="handleKeydown"
-    >
-      <div
-        class="root-path-sheet"
-        @click.stop
-      >
+    <div v-if="modelValue" class="root-path-sheet-backdrop" @click.self="handleCancel" @keydown="handleKeydown">
+      <div class="root-path-sheet" @click.stop>
         <!-- Handle -->
         <div class="sheet-handle-wrapper">
           <div class="sheet-handle" />
@@ -144,7 +136,14 @@ watch(
 
         <!-- Action buttons -->
         <div class="sheet-actions">
-          <button v-if="!isPathTextareaFocused" class="action-btn" type="button" @pointerdown.prevent @click="handlePaste" title="Paste from clipboard">
+          <button
+            v-if="!isPathTextareaFocused"
+            class="action-btn"
+            type="button"
+            @pointerdown.prevent
+            @click="handlePaste"
+            title="Paste from clipboard"
+          >
             <ClipboardPaste class="icon-md" />
             <span>Paste</span>
           </button>
@@ -241,7 +240,9 @@ watch(
   white-space: pre-wrap;
   overflow-y: auto;
   box-sizing: border-box;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
 }
 
 .root-path-textarea.has-error {
@@ -329,13 +330,21 @@ watch(
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slideUp {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
 }
 
 /* Icon sizing tokens */

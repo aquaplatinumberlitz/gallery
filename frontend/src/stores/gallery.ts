@@ -50,7 +50,7 @@ async function _withError<T>(
   fn: () => Promise<T>,
   fallbackMsg: string,
   retry?: () => void,
-  options?: { noFallbackRetry?: boolean }
+  options?: { noFallbackRetry?: boolean },
 ): Promise<T | undefined> {
   const toast = useToastStore();
   try {
@@ -63,18 +63,14 @@ async function _withError<T>(
       toast.error(
         error.userMessage,
         error.suggestion,
-        error.canRetry && retry
-          ? { action: { label: 'Retry', onClick: retry } }
-          : undefined
+        error.canRetry && retry ? { action: { label: "Retry", onClick: retry } } : undefined,
       );
     } else {
       store.errorMessage = fallbackMsg;
       toast.error(
-        'Error',
+        "Error",
         fallbackMsg,
-        !options?.noFallbackRetry && retry
-          ? { action: { label: 'Retry', onClick: retry } }
-          : undefined
+        !options?.noFallbackRetry && retry ? { action: { label: "Retry", onClick: retry } } : undefined,
       );
     }
     return undefined;
@@ -155,7 +151,7 @@ export const useGalleryStore = defineStore("gallery", {
         this,
         () => fetchScanOrThrow(path),
         "Unable to load the root folder. Check the path or backend connection.",
-        () => this.setRootPath(path)
+        () => this.setRootPath(path),
       );
 
       if (!data) {
@@ -207,11 +203,7 @@ export const useGalleryStore = defineStore("gallery", {
 
     async openInExplorer() {
       if (!this.currentPath) return;
-      await _withError(
-        this,
-        () => openFolder(this.currentPath),
-        "Unable to open the folder in your operating system."
-      );
+      await _withError(this, () => openFolder(this.currentPath), "Unable to open the folder in your operating system.");
       // No success toast - Explorer window opening is feedback enough
     },
 

@@ -15,13 +15,10 @@ import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
 const rootPath = "/gallery-settings-test";
-const imagePaths = Array.from(
-  { length: 2 },
-  (_, i) => `${rootPath}/image_${i + 1}.png`
-);
+const imagePaths = Array.from({ length: 2 }, (_, i) => `${rootPath}/image_${i + 1}.png`);
 const png1x1 = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/luz4nQAAAABJRU5ErkJggg==",
-  "base64"
+  "base64",
 );
 
 async function installStubbedGallery(page: Page) {
@@ -79,11 +76,7 @@ async function installStubbedGallery(page: Page) {
     if (url.pathname === "/api/landing-pages") {
       await route.fulfill({
         contentType: "application/json",
-        body: JSON.stringify([
-          "/landpage/ancient_rome.html",
-          "/landpage/art_deco.html",
-          "/landpage/cyberpunk.html",
-        ]),
+        body: JSON.stringify(["/landpage/ancient_rome.html", "/landpage/art_deco.html", "/landpage/cyberpunk.html"]),
       });
       return;
     }
@@ -264,7 +257,10 @@ test.describe("SettingsModal", () => {
     const reopenedDialog = page.getByRole("dialog");
     await expect(reopenedDialog).toBeVisible({ timeout: 5_000 });
 
-    const checkbox = reopenedDialog.locator("section").filter({ hasText: "Viewer Images" }).locator('input[type="checkbox"]');
+    const checkbox = reopenedDialog
+      .locator("section")
+      .filter({ hasText: "Viewer Images" })
+      .locator('input[type="checkbox"]');
     const isChecked = await checkbox.isChecked();
     expect(isChecked).toBe(true);
   });

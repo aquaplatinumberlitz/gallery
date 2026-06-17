@@ -15,13 +15,10 @@ import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
 const rootPath = "/gallery-tailwind-p0-test";
-const imagePaths = Array.from(
-  { length: 4 },
-  (_, i) => `${rootPath}/image_${i + 1}.png`
-);
+const imagePaths = Array.from({ length: 4 }, (_, i) => `${rootPath}/image_${i + 1}.png`);
 const png1x1 = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/luz4nQAAAABJRU5ErkJggg==",
-  "base64"
+  "base64",
 );
 
 async function installStubbedGallery(page: Page) {
@@ -129,18 +126,14 @@ test.describe("Tailwind Phase 0 — Desktop (1440x900)", () => {
     const themeToggle = page.locator('[aria-label="Theme"]');
     await expect(themeToggle).toBeVisible();
 
-    const initialTheme = await page.evaluate(() =>
-      document.documentElement.getAttribute("data-theme")
-    );
+    const initialTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
 
     // Open dropdown, then click Dark
     await themeToggle.click();
     await page.locator('[role="menuitem"]', { hasText: "Dark" }).click();
     await page.waitForTimeout(300);
 
-    const newTheme = await page.evaluate(() =>
-      document.documentElement.getAttribute("data-theme")
-    );
+    const newTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
     expect(newTheme).toBe("dark");
 
     // Open dropdown, then click Light
@@ -148,9 +141,7 @@ test.describe("Tailwind Phase 0 — Desktop (1440x900)", () => {
     await page.locator('[role="menuitem"]', { hasText: "Light" }).click();
     await page.waitForTimeout(300);
 
-    const restoredTheme = await page.evaluate(() =>
-      document.documentElement.getAttribute("data-theme")
-    );
+    const restoredTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
     expect(restoredTheme).toBe(initialTheme);
   });
 
@@ -182,9 +173,7 @@ test.describe("Tailwind Phase 0 — Desktop (1440x900)", () => {
     await page.getByTestId("photo-card").first().click();
     await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
 
-    const closeBtn = page.locator(
-      ".pswp__button--close, [aria-label='Close'], .lightbox-close"
-    );
+    const closeBtn = page.locator(".pswp__button--close, [aria-label='Close'], .lightbox-close");
     if (await closeBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
       await closeBtn.click();
       await expect(page.getByTestId("lightbox")).not.toBeVisible({ timeout: 5_000 });
@@ -235,27 +224,19 @@ test.describe("Tailwind Phase 0 — Mobile (390x844)", () => {
   });
 
   test("2d. theme toggle visible and changes data-theme", async ({ page }) => {
-    const themeBtn = page.getByLabel("Switch to light mode").or(
-      page.getByLabel("Switch to dark mode")
-    );
+    const themeBtn = page.getByLabel("Switch to light mode").or(page.getByLabel("Switch to dark mode"));
     await expect(themeBtn).toBeVisible();
 
-    const initialTheme = await page.evaluate(() =>
-      document.documentElement.getAttribute("data-theme")
-    );
+    const initialTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
 
     await themeBtn.click();
     await page.waitForTimeout(300);
 
-    const newTheme = await page.evaluate(() =>
-      document.documentElement.getAttribute("data-theme")
-    );
+    const newTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
     expect(newTheme).toBe("dark");
 
     // Toggle back (mobile — single button click)
-    await page.getByLabel("Switch to light mode").or(
-      page.getByLabel("Switch to dark mode")
-    ).click();
+    await page.getByLabel("Switch to light mode").or(page.getByLabel("Switch to dark mode")).click();
     await page.waitForTimeout(300);
   });
 
@@ -303,9 +284,7 @@ test.describe("Tailwind Phase 0 — Tablet (768x1024)", () => {
     const searchBtn = page.getByLabel("Open search");
     await expect(searchBtn).toBeVisible();
 
-    const themeBtn = page.getByLabel("Switch to light mode").or(
-      page.getByLabel("Switch to dark mode")
-    );
+    const themeBtn = page.getByLabel("Switch to light mode").or(page.getByLabel("Switch to dark mode"));
     await expect(themeBtn).toBeVisible();
   });
 
@@ -332,17 +311,13 @@ test.describe("Tailwind Phase 0 — Theme smoke test", () => {
     await expect(themeToggle).toBeVisible();
 
     // Start in light (default for intro_mode=disabled)
-    let currentTheme = await page.evaluate(() =>
-      document.documentElement.getAttribute("data-theme")
-    );
+    let currentTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
 
     // Open dropdown, then click Dark
     await themeToggle.click();
     await page.locator('[role="menuitem"]', { hasText: "Dark" }).click();
     await page.waitForTimeout(500);
-    currentTheme = await page.evaluate(() =>
-      document.documentElement.getAttribute("data-theme")
-    );
+    currentTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
     expect(currentTheme).toBe("dark");
 
     // Verify photo cards still visible with no shift
@@ -355,9 +330,7 @@ test.describe("Tailwind Phase 0 — Theme smoke test", () => {
     await themeToggle.click();
     await page.locator('[role="menuitem"]', { hasText: "Light" }).click();
     await page.waitForTimeout(500);
-    currentTheme = await page.evaluate(() =>
-      document.documentElement.getAttribute("data-theme")
-    );
+    currentTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
     expect(currentTheme).toBe("light");
 
     // Verify photo cards still present
@@ -371,18 +344,14 @@ test.describe("Tailwind Phase 0 — Theme smoke test", () => {
     await openStubbedGallery(page);
     await dismissMobileSidebar(page);
 
-    const themeBtn = page.getByLabel("Switch to light mode").or(
-      page.getByLabel("Switch to dark mode")
-    );
+    const themeBtn = page.getByLabel("Switch to light mode").or(page.getByLabel("Switch to dark mode"));
     await expect(themeBtn).toBeVisible();
 
     // Toggle to dark
     await themeBtn.click();
     await page.waitForTimeout(500);
 
-    let currentTheme = await page.evaluate(() =>
-      document.documentElement.getAttribute("data-theme")
-    );
+    let currentTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
     expect(currentTheme).toBe("dark");
 
     // Verify cards still present
@@ -394,9 +363,7 @@ test.describe("Tailwind Phase 0 — Theme smoke test", () => {
     // Toggle back
     await page.getByLabel("Switch to light mode").click();
     await page.waitForTimeout(500);
-    currentTheme = await page.evaluate(() =>
-      document.documentElement.getAttribute("data-theme")
-    );
+    currentTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
     expect(currentTheme).toBe("light");
 
     await expect(cards.first()).toBeVisible();
@@ -417,9 +384,7 @@ test.describe("Tailwind Phase 0 — Theme smoke test", () => {
     await page.locator('[role="menuitem"]', { hasText: "Dark" }).click();
     await page.waitForTimeout(500);
 
-    const isDark = await page.evaluate(() =>
-      document.documentElement.getAttribute("data-theme") === "dark"
-    );
+    const isDark = await page.evaluate(() => document.documentElement.getAttribute("data-theme") === "dark");
     expect(isDark).toBe(true);
 
     // Toggle back to light
@@ -427,9 +392,7 @@ test.describe("Tailwind Phase 0 — Theme smoke test", () => {
     await page.locator('[role="menuitem"]', { hasText: "Light" }).click();
     await page.waitForTimeout(500);
 
-    const isLight = await page.evaluate(() =>
-      document.documentElement.getAttribute("data-theme") === "light"
-    );
+    const isLight = await page.evaluate(() => document.documentElement.getAttribute("data-theme") === "light");
     expect(isLight).toBe(true);
   });
 });

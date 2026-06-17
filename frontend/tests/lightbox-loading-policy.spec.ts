@@ -15,18 +15,14 @@ import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
 const rootPath = "/gallery-policy-test";
-const imagePaths = [
-  `${rootPath}/a.png`,
-  `${rootPath}/b.png`,
-  `${rootPath}/c.png`,
-];
+const imagePaths = [`${rootPath}/a.png`, `${rootPath}/b.png`, `${rootPath}/c.png`];
 const png1x1 = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/luz4nQAAAABJRU5ErkJggg==",
-  "base64"
+  "base64",
 );
 const svgImage = (width: number, height: number) =>
   Buffer.from(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="#456"/></svg>`
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="#456"/></svg>`,
   );
 
 type ApiRequest = {
@@ -50,13 +46,12 @@ async function installStubbedGallery(
     includeScanDimensions?: boolean;
     metadataDimensions?: { width: number; height: number } | null;
     previewNaturalSize?: { width: number; height: number };
-  } = {}
+  } = {},
 ) {
   const requests: ApiRequest[] = [];
   const includeScanDimensions = options.includeScanDimensions ?? true;
-  const metadataDimensions = options.metadataDimensions === undefined
-    ? { width: 1600, height: 1000 }
-    : options.metadataDimensions;
+  const metadataDimensions =
+    options.metadataDimensions === undefined ? { width: 1600, height: 1000 } : options.metadataDimensions;
 
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
@@ -236,12 +231,16 @@ test("cold-cache lightbox uses preview dimensions for the opening slide aspect r
   await openStubbedGallery(page, requests);
   await openLightbox(page, requests);
 
-  await expect.poll(async () => page.evaluate(() => {
-    const img = document.querySelector<HTMLImageElement>(".pswp__img[alt='image-1.png']");
-    if (!img || !img.currentSrc.includes("/api/preview")) return 0;
-    const rect = img.getBoundingClientRect();
-    return rect.height > 0 ? rect.width / rect.height : 0;
-  })).toBeCloseTo(expectedRatio, 1);
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const img = document.querySelector<HTMLImageElement>(".pswp__img[alt='image-1.png']");
+        if (!img || !img.currentSrc.includes("/api/preview")) return 0;
+        const rect = img.getBoundingClientRect();
+        return rect.height > 0 ? rect.width / rect.height : 0;
+      }),
+    )
+    .toBeCloseTo(expectedRatio, 1);
 
   const activeImage = await page.evaluate(() => {
     const img = document.querySelector<HTMLImageElement>(".pswp__img[alt='image-1.png']");

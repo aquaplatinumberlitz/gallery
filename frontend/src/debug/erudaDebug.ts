@@ -17,23 +17,23 @@
  * Guarded by import.meta.env.DEV — no-ops in production builds.
  */
 
-const STORAGE_KEY = 'gallery-debug-eruda';
+const STORAGE_KEY = "gallery-debug-eruda";
 
 function shouldEnableEruda(): boolean {
   const params = new URLSearchParams(window.location.search);
-  const erudaParam = params.get('eruda');
+  const erudaParam = params.get("eruda");
 
-  if (erudaParam === '1') {
-    localStorage.setItem(STORAGE_KEY, '1');
+  if (erudaParam === "1") {
+    localStorage.setItem(STORAGE_KEY, "1");
     return true;
   }
-  if (erudaParam === '0') {
+  if (erudaParam === "0") {
     localStorage.removeItem(STORAGE_KEY);
     return false;
   }
 
   // Fall back to localStorage
-  return localStorage.getItem(STORAGE_KEY) === '1';
+  return localStorage.getItem(STORAGE_KEY) === "1";
 }
 
 export async function initErudaDebug(): Promise<void> {
@@ -47,10 +47,10 @@ export async function initErudaDebug(): Promise<void> {
   }
 
   try {
-    const eruda = await import('eruda');
+    const eruda = await import("eruda");
     eruda.default.init();
-    console.log('[Eruda] Debug console initialized');
+    console.log("[Eruda] Debug console initialized");
   } catch (err) {
-    console.warn('[Eruda] Failed to load eruda:', err);
+    console.warn("[Eruda] Failed to load eruda:", err);
   }
 }

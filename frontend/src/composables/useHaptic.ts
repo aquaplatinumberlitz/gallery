@@ -3,7 +3,7 @@
  * Wraps navigator.vibrate() with a guard — only fires when available.
  */
 export function useHaptic() {
-  const canVibrate = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
+  const canVibrate = typeof navigator !== "undefined" && typeof navigator.vibrate === "function";
 
   function light() {
     if (canVibrate) navigator.vibrate(10);

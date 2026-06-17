@@ -1,19 +1,19 @@
 <script setup lang="ts">
-import { X } from 'lucide-vue-next'
-import Badge from '@/components/ui/Badge.vue'
-import type { FieldFilter } from '@/types'
-import { filterToDisplayString } from '@/utils/serializeAdvancedSearchToQuery'
+import { X } from "lucide-vue-next";
+import Badge from "@/components/ui/Badge.vue";
+import type { FieldFilter } from "@/types";
+import { filterToDisplayString } from "@/utils/serializeAdvancedSearchToQuery";
 
 interface Props {
-  filters: FieldFilter[]
+  filters: FieldFilter[];
 }
 
-defineProps<Props>()
+defineProps<Props>();
 
 const emit = defineEmits<{
-  remove: [index: number]
-  clearAll: []
-}>()
+  remove: [index: number];
+  clearAll: [];
+}>();
 </script>
 
 <template>

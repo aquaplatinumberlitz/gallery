@@ -4,9 +4,23 @@ import { loraHighlighter } from "../utils/loraHighlighter";
 import ExpandableText from "./ExpandableText.vue";
 import type { MetadataResponse } from "../types";
 import {
-  Loader, Maximize, Minimize, X,
-  Calendar, Clock, MessageSquareText, Check, Copy, MessageSquareOff,
-  SlidersHorizontal, ChevronDown, Sprout, BrainCircuit, Box, Puzzle, Layers,
+  Loader,
+  Maximize,
+  Minimize,
+  X,
+  Calendar,
+  Clock,
+  MessageSquareText,
+  Check,
+  Copy,
+  MessageSquareOff,
+  SlidersHorizontal,
+  ChevronDown,
+  Sprout,
+  BrainCircuit,
+  Box,
+  Puzzle,
+  Layers,
   TriangleAlert,
 } from "lucide-vue-next";
 import {
@@ -34,7 +48,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: [];
-  'toggle-fullscreen': [];
+  "toggle-fullscreen": [];
 }>();
 
 // Collapsible states
@@ -102,20 +116,21 @@ const modelCount = computed(() => {
               <Minimize v-if="props.isFullscreen" :stroke-width="1.5" class="icon-lg" />
               <Maximize v-else :stroke-width="1.5" class="icon-lg" />
             </button>
-            <button
-              class="close-btn-mini"
-              @click="emit('close')"
-              title="Close (Escape)"
-              aria-label="Close lightbox"
-            >
+            <button class="close-btn-mini" @click="emit('close')" title="Close (Escape)" aria-label="Close lightbox">
               <X :stroke-width="1.5" class="icon-lg" />
             </button>
           </div>
         </div>
         <div class="header-meta">
-          <span v-if="props.sizeText" class="meta-tag"><Maximize :stroke-width="1.5" class="icon-xs" /> {{ props.sizeText }}</span>
-          <span v-if="props.dateText" class="meta-tag"><Calendar :stroke-width="1.5" class="icon-xs" /> {{ props.dateText }}</span>
-          <span v-if="props.genTimeText" class="meta-tag"><Clock :stroke-width="1.5" class="icon-xs" /> {{ props.genTimeText }}</span>
+          <span v-if="props.sizeText" class="meta-tag"
+            ><Maximize :stroke-width="1.5" class="icon-xs" /> {{ props.sizeText }}</span
+          >
+          <span v-if="props.dateText" class="meta-tag"
+            ><Calendar :stroke-width="1.5" class="icon-xs" /> {{ props.dateText }}</span
+          >
+          <span v-if="props.genTimeText" class="meta-tag"
+            ><Clock :stroke-width="1.5" class="icon-xs" /> {{ props.genTimeText }}</span
+          >
           <span v-if="props.meta?.tool" class="source-badge">
             <span class="source-label">SOURCE</span>
             <span class="source-chip">{{ props.meta.tool }}</span>
@@ -192,7 +207,11 @@ const modelCount = computed(() => {
               <div class="param-pill" v-if="props.meta?.params?.Seed">
                 <span class="label">Seed</span>
                 <span class="value">{{ props.meta.params.Seed }}</span>
-                <button class="icon-btn" @click="props.copyText(String(props.meta.params.Seed), 'seed')" title="Copy Seed">
+                <button
+                  class="icon-btn"
+                  @click="props.copyText(String(props.meta.params.Seed), 'seed')"
+                  title="Copy Seed"
+                >
                   <Check v-if="props.copyStatus['seed']" :stroke-width="1.5" class="icon-xs" style="color: #4ade80" />
                   <Sprout v-else :stroke-width="1.5" class="icon-xs" />
                 </button>
@@ -219,7 +238,7 @@ const modelCount = computed(() => {
               </div>
             </div>
           </div>
-          <p v-else class="empty-text" style="padding: 12px;">{{ EMPTY_SECTION_TEXT.generation_data }}</p>
+          <p v-else class="empty-text" style="padding: 12px">{{ EMPTY_SECTION_TEXT.generation_data }}</p>
         </section>
 
         <!-- ========== Extra Settings (secondary) ========== -->
@@ -229,11 +248,7 @@ const modelCount = computed(() => {
           </div>
           <div class="group-content">
             <div class="params-grid">
-              <div
-                v-for="entry in extraEntries"
-                :key="entry.key"
-                class="param-pill"
-              >
+              <div v-for="entry in extraEntries" :key="entry.key" class="param-pill">
                 <span class="label">{{ entry.label }}</span>
                 <span class="value">{{ entry.value }}</span>
               </div>
@@ -282,7 +297,7 @@ const modelCount = computed(() => {
               <div class="resource-item" v-for="m in props.meta?.models" :key="m.name">
                 <Layers :stroke-width="1.5" class="icon-sm" />
                 <div class="res-info">
-                  <span class="res-type">{{ m.param || 'Model' }}</span>
+                  <span class="res-type">{{ m.param || "Model" }}</span>
                   <span class="res-name">
                     {{ m.name }}
                     <span v-if="m.hash" class="res-hash" :title="'Hash: ' + m.hash">#{{ m.hash.substring(0, 8) }}</span>
@@ -291,7 +306,7 @@ const modelCount = computed(() => {
               </div>
             </div>
           </div>
-          <p v-else class="empty-text" style="padding: 12px;">{{ EMPTY_SECTION_TEXT.model_resources }}</p>
+          <p v-else class="empty-text" style="padding: 12px">{{ EMPTY_SECTION_TEXT.model_resources }}</p>
         </section>
 
         <!-- ========== Advanced (debug) ========== -->
@@ -305,19 +320,11 @@ const modelCount = computed(() => {
           >
             <h4>Advanced</h4>
             <span class="count-pill">{{ extraParamKeys.length }}</span>
-            <ChevronDown
-              :stroke-width="1.5"
-              class="chevron-icon icon-md"
-              :class="{ 'is-collapsed': !showAdvanced }"
-            />
+            <ChevronDown :stroke-width="1.5" class="chevron-icon icon-md" :class="{ 'is-collapsed': !showAdvanced }" />
           </button>
           <div id="advanced-content" class="group-content" v-show="showAdvanced">
             <div class="params-grid">
-              <div
-                v-for="k in extraParamKeys"
-                :key="k"
-                class="param-pill"
-              >
+              <div v-for="k in extraParamKeys" :key="k" class="param-pill">
                 <span class="label">{{ k }}</span>
                 <span class="value">{{ props.meta?.params?.[k] }}</span>
               </div>
@@ -330,8 +337,8 @@ const modelCount = computed(() => {
 </template>
 
 <style scoped lang="scss">
-@import '../styles/lightbox-shared';
-@import '../styles/lightbox-desktop';
+@import "../styles/lightbox-shared";
+@import "../styles/lightbox-desktop";
 
 /* LoRA highlighter — penetrate v-html injected spans */
 :deep(.lora-pill) {

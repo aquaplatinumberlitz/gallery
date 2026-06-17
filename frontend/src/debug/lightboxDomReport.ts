@@ -56,7 +56,7 @@ export function galleryLightboxDOMReport(): void {
         y: rect.y.toFixed(1),
         w: rect.width.toFixed(1),
         h: rect.height.toFixed(1),
-      })
+      }),
     );
     console.log(
       "  computed:",
@@ -65,7 +65,7 @@ export function galleryLightboxDOMReport(): void {
         opacity: style.opacity,
         visibility: style.visibility,
         transform: style.transform.slice(0, 60),
-      })
+      }),
     );
     console.log("  parent classes:", img.parentElement?.className.slice(0, 120) ?? "none");
     console.log("  visible (heuristic):", isVisible);
@@ -80,7 +80,7 @@ export function galleryLightboxDOMReport(): void {
   });
 
   console.log("---- .pswp active-slide ----");
-  const activeSlide = document.querySelector(".pswp__item--active, [aria-selected=\"true\"]");
+  const activeSlide = document.querySelector('.pswp__item--active, [aria-selected="true"]');
   console.log("Found:", !!activeSlide, activeSlide);
 
   console.log("---- Summary ----");

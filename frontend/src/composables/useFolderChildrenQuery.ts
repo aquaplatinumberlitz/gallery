@@ -4,17 +4,12 @@ import { queryKeys, normalizeQueryPath } from "../query/keys";
 import { listFolderChildren } from "../services/api";
 import type { FileNode } from "../types";
 
-const normalizeFolderChildren = (nodes: FileNode[]): FileNode[] =>
-  nodes.filter((node) => node.type === "folder");
+const normalizeFolderChildren = (nodes: FileNode[]): FileNode[] => nodes.filter((node) => node.type === "folder");
 
 export function useFolderChildrenQuery(path: Ref<string>, enabled: Ref<boolean>) {
   const normalizedPath = computed(() => normalizeQueryPath(path.value || ""));
 
-  const queryKey = computed(() =>
-    normalizedPath.value
-      ? queryKeys.folderChildren(normalizedPath.value)
-      : []
-  );
+  const queryKey = computed(() => (normalizedPath.value ? queryKeys.folderChildren(normalizedPath.value) : []));
 
   const query = useQuery({
     queryKey,

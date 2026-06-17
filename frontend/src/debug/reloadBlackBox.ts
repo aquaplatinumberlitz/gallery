@@ -39,9 +39,9 @@ const MAX_EVENTS = 500;
 /* ── Types ─────────────────────────────────────────────────────────── */
 
 interface BBEvent {
-  t: number;            // timestamp
-  type: string;         // event type
-  detail: string;       // JSON serialized detail (limited to 500 chars)
+  t: number; // timestamp
+  type: string; // event type
+  detail: string; // JSON serialized detail (limited to 500 chars)
 }
 
 interface BootRecord {
@@ -69,9 +69,9 @@ interface GestureEvent {
   y: number;
   deltaY: number;
   deltaX: number;
-  direction: string;       // "up" | "down" | "left" | "right" | "none"
+  direction: string; // "up" | "down" | "left" | "right" | "none"
   scrollY: number;
-  nearTop: boolean;         // scrollTop <= 20
+  nearTop: boolean; // scrollTop <= 20
   pullingDownAtTop: boolean; // at or near top AND moving downward
   docScrollTop: number;
   docScrollHeight: number;
@@ -87,12 +87,12 @@ interface ScrollSnapshot {
   clientHeight: number;
   nearTop: boolean;
   nearBottom: boolean;
-  target: string;          // element id/class
+  target: string; // element id/class
 }
 
 interface PullToRefreshEvidence {
   likely: boolean;
-  confidence: string;      // "high" | "medium" | "low"
+  confidence: string; // "high" | "medium" | "low"
   reason: string;
   lastTouchMoveDeltaY: number;
   lastTouchMoveDirection: string;
@@ -136,13 +136,25 @@ interface Report {
 /* ── Storage helpers ───────────────────────────────────────────────── */
 
 function safeGet<K = string>(key: string): K | null {
-  try { return JSON.parse(localStorage.getItem(key)!) as K; } catch { return null; }
+  try {
+    return JSON.parse(localStorage.getItem(key)!) as K;
+  } catch {
+    return null;
+  }
 }
 function safeSet(key: string, val: unknown) {
-  try { localStorage.setItem(key, JSON.stringify(val)); } catch { /* quota */ }
+  try {
+    localStorage.setItem(key, JSON.stringify(val));
+  } catch {
+    /* quota */
+  }
 }
 function safeRemove(key: string) {
-  try { localStorage.removeItem(key); } catch { /* ignore */ }
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
 }
 
 /* ── Local state ───────────────────────────────────────────────────── */
@@ -159,7 +171,15 @@ let _disableHandlers: (() => void)[] = [];
 let _gestureEvents: GestureEvent[] = [];
 let _totalTouchMoves = 0;
 let _totalScrolls = 0;
-let _lastTouchMove: { t: number; x: number; y: number; deltaY: number; direction: string; nearTop: boolean; pullingDownAtTop: boolean } | null = null;
+let _lastTouchMove: {
+  t: number;
+  x: number;
+  y: number;
+  deltaY: number;
+  direction: string;
+  nearTop: boolean;
+  pullingDownAtTop: boolean;
+} | null = null;
 let _lastScrollSnapshot: ScrollSnapshot | null = null;
 let _lastGestureBeforePagehide: GestureEvent | null = null;
 let _lastScrollBeforePagehide: ScrollSnapshot | null = null;
@@ -183,8 +203,10 @@ function getStack(depth = 3): string {
   try {
     const e = new Error();
     const lines = (e.stack || "").split("\n").slice(2, 2 + depth);
-    return lines.map(l => l.trim()).join(" | ");
-  } catch { return "(stack n/a)"; }
+    return lines.map((l) => l.trim()).join(" | ");
+  } catch {
+    return "(stack n/a)";
+  }
 }
 
 /* ── Navigation type ───────────────────────────────────────────────── */
@@ -193,7 +215,9 @@ function getNavType(): string {
   try {
     const e = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
     return e.length ? e[0].type : "unknown";
-  } catch { return "unknown"; }
+  } catch {
+    return "unknown";
+  }
 }
 
 /* ── Scroll/gesture helpers ─────────────────────────────────────────── */
@@ -202,9 +226,7 @@ function getTargetSummary(el: EventTarget | null): string {
   if (!el || !(el instanceof Element)) return "(global)";
   const tag = el.tagName.toLowerCase();
   const id = el.id ? `#${el.id}` : "";
-  const cls = typeof el.className === "string"
-    ? el.className.split(/\s+/).slice(0, 2).join(".").slice(0, 40)
-    : "";
+  const cls = typeof el.className === "string" ? el.className.split(/\s+/).slice(0, 2).join(".").slice(0, 40) : "";
   return `${tag}${id}${cls ? "." + cls : ""}`;
 }
 
@@ -220,7 +242,7 @@ function getScrollSnapshot(target?: EventTarget | null): ScrollSnapshot {
     clientHeight: Math.round(clientHeight),
     nearTop: scrollY <= 20,
     nearBottom: scrollY + clientHeight >= scrollHeight - 20,
-    target: target ? getTargetSummary(target) : "document"
+    target: target ? getTargetSummary(target) : "document",
   };
 }
 
@@ -240,7 +262,7 @@ function recordGesture(gesture: GestureEvent): void {
     deltaY: gesture.deltaY,
     direction: gesture.direction,
     nearTop: gesture.nearTop,
-    pullingDownAtTop: gesture.pullingDownAtTop
+    pullingDownAtTop: gesture.pullingDownAtTop,
   };
 }
 
@@ -248,10 +270,10 @@ function recordGesture(gesture: GestureEvent): void {
 
 function detectPullToRefresh(boot: BootRecord, hasJsReload: boolean, hasHmrWS: boolean): PullToRefreshEvidence {
   const ev = _events;
-  const types = ev.map(e => e.type);
-  const errs = types.filter(t => t === "error" || t === "unhandledrejection").length;
+  const types = ev.map((e) => e.type);
+  const errs = types.filter((t) => t === "error" || t === "unhandledrejection").length;
 
-  const lastPH = _events.filter(e => e.type === "pagehide").pop();
+  const lastPH = _events.filter((e) => e.type === "pagehide").pop();
   const phPersistedFalse = lastPH ? lastPH.detail.includes('"persisted":false') : false;
 
   const lastTM = _lastTouchMove;
@@ -334,7 +356,7 @@ function detectPullToRefresh(boot: BootRecord, hasJsReload: boolean, hasHmrWS: b
     wasPullingDownBeforePagehide: _lastGestureBeforePagehide?.pullingDownAtTop ?? false,
     timeFromLastTouchMoveToPagehideMs: timeFromTouch,
     timeFromLastScrollToPagehideMs: timeFromScroll,
-    visualViewportChangedBeforePagehide: _visualViewportChangedBeforePagehide
+    visualViewportChangedBeforePagehide: _visualViewportChangedBeforePagehide,
   };
 }
 
@@ -342,27 +364,27 @@ function detectPullToRefresh(boot: BootRecord, hasJsReload: boolean, hasHmrWS: b
 
 function classify(e: BBEvent[], boot: BootRecord): string[] {
   const s: string[] = [];
-  const types = e.map(x => x.type);
-  const details = e.map(x => x.detail);
+  const types = e.map((x) => x.type);
+  const details = e.map((x) => x.detail);
 
   // JS reload
-  if (types.some(t => t.startsWith("location."))) {
+  if (types.some((t) => t.startsWith("location."))) {
     s.push("⚠️ JS RELOAD: location.reload/assign/replace was called");
   }
 
   // Errors
-  const errs = types.filter(t => t === "error" || t === "unhandledrejection").length;
+  const errs = types.filter((t) => t === "error" || t === "unhandledrejection").length;
   if (errs > 0) s.push(`⚠️ ${errs} unhandled error(s) — possible crash before reload`);
 
   // WebSocket (Vite HMR)
-  const wsCloses = e.filter(t => t.type === "websocket-close");
-  const wsHasVite = wsCloses.some(c => c.detail.includes("vite") || c.detail.includes("@vite"));
+  const wsCloses = e.filter((t) => t.type === "websocket-close");
+  const wsHasVite = wsCloses.some((c) => c.detail.includes("vite") || c.detail.includes("@vite"));
   if (wsCloses.length > 0) {
     s.push(`ℹ️ ${wsCloses.length} WebSocket close(s)${wsHasVite ? " (incl. Vite HMR)" : ""}`);
   }
 
   // pagehide without persisted
-  const pagehides = e.filter(x => x.type === "pagehide");
+  const pagehides = e.filter((x) => x.type === "pagehide");
   for (const ph of pagehides) {
     if (ph.detail.includes('"persisted":false')) {
       s.push("⚠️ pagehide(persisted=false) — page likely discarded by browser");
@@ -372,14 +394,14 @@ function classify(e: BBEvent[], boot: BootRecord): string[] {
 
   // Navigation type = reload with no JS cause
   if (boot.navType === "reload") {
-    const hasJs = types.some(t => t.startsWith("location.") || t === "websocket-close");
+    const hasJs = types.some((t) => t.startsWith("location.") || t === "websocket-close");
     if (!hasJs && errs === 0) {
       s.push("ℹ️ reload from browser-level cause (refresh button, tab discard, address bar)");
     }
   }
 
   // bfcache
-  if (types.some(t => t === "pageshow" && details.some(d => d.includes('"persisted":true')))) {
+  if (types.some((t) => t === "pageshow" && details.some((d) => d.includes('"persisted":true')))) {
     s.push("✅ bfcache restore detected (pageshow persisted=true)");
   }
 
@@ -390,14 +412,28 @@ function classify(e: BBEvent[], boot: BootRecord): string[] {
 
 function generateReport(): Report {
   const boot: BootRecord = safeGet<BootRecord>(`${STORAGE_KEY}_boot`) || {
-    ts: _bootTime, url: "", navType: "unknown", referrer: "", ua: "",
-    vw: 0, vh: 0, dpr: 1, vis: "unknown", online: true,
-    bootCount: _bootCount, sessionId: _sessionId
+    ts: _bootTime,
+    url: "",
+    navType: "unknown",
+    referrer: "",
+    ua: "",
+    vw: 0,
+    vh: 0,
+    dpr: 1,
+    vis: "unknown",
+    online: true,
+    bootCount: _bootCount,
+    sessionId: _sessionId,
   };
 
   const stats = {
-    beforeUnloadCount: 0, pageHideCount: 0, errorCount: 0, rejectionCount: 0,
-    wsOpenCount: 0, wsCloseCount: 0, locationChangeCount: 0
+    beforeUnloadCount: 0,
+    pageHideCount: 0,
+    errorCount: 0,
+    rejectionCount: 0,
+    wsOpenCount: 0,
+    wsCloseCount: 0,
+    locationChangeCount: 0,
   };
   for (const e of _events) {
     if (e.type === "beforeunload") stats.beforeUnloadCount++;
@@ -409,62 +445,73 @@ function generateReport(): Report {
     if (e.type.startsWith("location.")) stats.locationChangeCount++;
   }
 
-  const hasJsReload = _events.some(e => e.type.startsWith("location."));
-  const hasHmrWS = _events.some(e =>
-    e.type === "websocket-open" &&
-    (e.detail.includes("vite") || e.detail.includes("@vite") || e.detail.includes("/ws"))
+  const hasJsReload = _events.some((e) => e.type.startsWith("location."));
+  const hasHmrWS = _events.some(
+    (e) =>
+      e.type === "websocket-open" &&
+      (e.detail.includes("vite") || e.detail.includes("@vite") || e.detail.includes("/ws")),
   );
-  const hasPagehideBeforeReload = _events.some(e => e.type === "pagehide" && e.detail.includes('"persisted":false'));
+  const hasPagehideBeforeReload = _events.some((e) => e.type === "pagehide" && e.detail.includes('"persisted":false'));
 
   // ── Gesture analysis ──────────────────────────────────────────────
 
   const ptrEvidence = detectPullToRefresh(boot, hasJsReload, hasHmrWS);
 
   // Last 15 gesture events for report
-  const gestureTimeline = _gestureEvents.slice(-15).map(g => ({
+  const gestureTimeline = _gestureEvents.slice(-15).map((g) => ({
     rel: g.t - _bootTime,
     type: g.type,
     detail: JSON.stringify({
-      x: g.x, y: g.y, dY: g.deltaY, dir: g.direction,
-      sY: g.scrollY, nearTop: g.nearTop, pulling: g.pullingDownAtTop,
-      target: g.target
-    })
+      x: g.x,
+      y: g.y,
+      dY: g.deltaY,
+      dir: g.direction,
+      sY: g.scrollY,
+      nearTop: g.nearTop,
+      pulling: g.pullingDownAtTop,
+      target: g.target,
+    }),
   }));
 
   // Last 15 scroll/viewport events from main event log
-  const scrollEvents = _events.filter(e =>
-    e.type === "scroll" || e.type === "visualViewport" ||
-    e.type === "orientationchange" || e.type === "resize"
+  const scrollEvents = _events.filter(
+    (e) => e.type === "scroll" || e.type === "visualViewport" || e.type === "orientationchange" || e.type === "resize",
   );
-  const scrollTimeline = scrollEvents.slice(-15).map(e => ({
+  const scrollTimeline = scrollEvents.slice(-15).map((e) => ({
     rel: e.t - _bootTime,
     type: e.type,
-    detail: e.detail
+    detail: e.detail,
   }));
 
   // Last gesture/scroll before pagehide
-  const lastGestureBeforeUnload = _lastGestureBeforePagehide ? {
-    rel: _lastGestureBeforePagehide.t - _bootTime,
-    type: _lastGestureBeforePagehide.type,
-    detail: JSON.stringify({
-      x: _lastGestureBeforePagehide.x, y: _lastGestureBeforePagehide.y,
-      dY: _lastGestureBeforePagehide.deltaY, dir: _lastGestureBeforePagehide.direction,
-      sY: _lastGestureBeforePagehide.scrollY,
-      nearTop: _lastGestureBeforePagehide.nearTop,
-      pulling: _lastGestureBeforePagehide.pullingDownAtTop
-    })
-  } : null;
+  const lastGestureBeforeUnload = _lastGestureBeforePagehide
+    ? {
+        rel: _lastGestureBeforePagehide.t - _bootTime,
+        type: _lastGestureBeforePagehide.type,
+        detail: JSON.stringify({
+          x: _lastGestureBeforePagehide.x,
+          y: _lastGestureBeforePagehide.y,
+          dY: _lastGestureBeforePagehide.deltaY,
+          dir: _lastGestureBeforePagehide.direction,
+          sY: _lastGestureBeforePagehide.scrollY,
+          nearTop: _lastGestureBeforePagehide.nearTop,
+          pulling: _lastGestureBeforePagehide.pullingDownAtTop,
+        }),
+      }
+    : null;
 
-  const lastScrollBeforeUnload = _lastScrollBeforePagehide ? {
-    rel: _lastScrollBeforePagehide.scrollY, // not time-based, but state
-    type: "scroll-snapshot",
-    detail: JSON.stringify(_lastScrollBeforePagehide)
-  } : null;
+  const lastScrollBeforeUnload = _lastScrollBeforePagehide
+    ? {
+        rel: _lastScrollBeforePagehide.scrollY, // not time-based, but state
+        type: "scroll-snapshot",
+        detail: JSON.stringify(_lastScrollBeforePagehide),
+      }
+    : null;
 
-  const timeline = _events.map(e => ({
+  const timeline = _events.map((e) => ({
     rel: e.t - _bootTime,
     type: e.type,
-    detail: e.detail
+    detail: e.detail,
   }));
 
   // Last 30 events (before the last unload/pagehide if any)
@@ -475,9 +522,8 @@ function generateReport(): Report {
       break;
     }
   }
-  const lastEvents = lastUnloadIdx >= 0
-    ? _events.slice(Math.max(0, lastUnloadIdx - 29), lastUnloadIdx + 1)
-    : _events.slice(-30);
+  const lastEvents =
+    lastUnloadIdx >= 0 ? _events.slice(Math.max(0, lastUnloadIdx - 29), lastUnloadIdx + 1) : _events.slice(-30);
 
   const suspects = classify(_events, boot);
 
@@ -486,7 +532,7 @@ function generateReport(): Report {
       generatedAt: new Date().toISOString(),
       sessionId: _sessionId,
       bootCount: _bootCount,
-      currentUrl: window.location.href
+      currentUrl: window.location.href,
     },
     summary: {
       totalEvents: _events.length,
@@ -496,21 +542,21 @@ function generateReport(): Report {
       pagehideBeforeReload: hasPagehideBeforeReload,
       errors: stats.errorCount + stats.rejectionCount,
       totalTouchMoves: _totalTouchMoves,
-      totalScrolls: _totalScrolls
+      totalScrolls: _totalScrolls,
     },
     suspects,
     pullToRefresh: ptrEvidence,
     timeline,
-    lastEvents: lastEvents.map(e => ({
+    lastEvents: lastEvents.map((e) => ({
       rel: e.t - _bootTime,
       type: e.type,
-      detail: e.detail
+      detail: e.detail,
     })),
     gestureLastEvents: gestureTimeline,
     scrollLastEvents: scrollTimeline,
     lastGestureBeforeUnload,
     lastScrollBeforeUnload,
-    raw: _events.slice(-80)
+    raw: _events.slice(-80),
   };
 }
 
@@ -650,7 +696,9 @@ async function copyReport() {
       console.log("[ReloadBB] Report copied to clipboard");
       return;
     }
-  } catch { /* fall through */ }
+  } catch {
+    /* fall through */
+  }
   // Fallback: textarea (works on iOS HTTP)
   try {
     const ta = document.createElement("textarea");
@@ -713,8 +761,7 @@ function log(tag: string, msg: string) {
 
 export function installReloadBlackBoxIfEnabled(): void {
   // Check enable condition
-  const hasParam = typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).has("debugReload");
+  const hasParam = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debugReload");
   const hasStorage = safeGet<string>(STORAGE_ENABLED_KEY) === "1";
 
   if (!hasParam && !hasStorage) return;
@@ -769,9 +816,7 @@ export function installReloadBlackBoxIfEnabled(): void {
     const pe = e as PageTransitionEvent;
     // Capture synchronous state before page goes away
     _lastScrollBeforePagehide = getScrollSnapshot();
-    _lastGestureBeforePagehide = _gestureEvents.length > 0
-      ? _gestureEvents[_gestureEvents.length - 1]
-      : null;
+    _lastGestureBeforePagehide = _gestureEvents.length > 0 ? _gestureEvents[_gestureEvents.length - 1] : null;
     addEvent("pagehide", {
       persisted: pe.persisted,
       url: window.location.href,
@@ -781,16 +826,18 @@ export function installReloadBlackBoxIfEnabled(): void {
       "lastTouchMove.direction": _lastTouchMove?.direction ?? "none",
       "lastTouchMove.pullingAtTop": _lastTouchMove?.pullingDownAtTop ?? false,
       "lastTouchMove.msAgo": _lastTouchMove ? Date.now() - _lastTouchMove.t : -1,
-      totalTouchMoves: _totalTouchMoves
+      totalTouchMoves: _totalTouchMoves,
     });
   });
   on("pageshow", window, (e: Event) => {
     const pe = e as PageTransitionEvent;
     addEvent("pageshow", { persisted: pe.persisted, url: window.location.href });
   });
-  on("visibilitychange", document, () => addEvent("visibilitychange", {
-    state: document.visibilityState
-  }));
+  on("visibilitychange", document, () =>
+    addEvent("visibilitychange", {
+      state: document.visibilityState,
+    }),
+  );
   on("freeze", window, () => addEvent("freeze", {}));
   on("resume", window, () => addEvent("resume", {}));
   // NOTE: unload listener intentionally omitted — it blocks bfcache on iOS Safari
@@ -807,7 +854,7 @@ export function installReloadBlackBoxIfEnabled(): void {
       message: ee.message,
       filename: ee.filename,
       lineno: ee.lineno,
-      stack: (ee.error as Error)?.stack?.slice(0, 300) || "(no stack)"
+      stack: (ee.error as Error)?.stack?.slice(0, 300) || "(no stack)",
     });
   });
 
@@ -816,7 +863,7 @@ export function installReloadBlackBoxIfEnabled(): void {
     const reason = pe.reason;
     addEvent("unhandledrejection", {
       reason: String(reason),
-      stack: (reason instanceof Error ? reason.stack?.slice(0, 300) : undefined) || "(n/a)"
+      stack: (reason instanceof Error ? reason.stack?.slice(0, 300) : undefined) || "(n/a)",
     });
   });
 
@@ -824,9 +871,9 @@ export function installReloadBlackBoxIfEnabled(): void {
 
   try {
     const proto = Object.getPrototypeOf(window.location) as Record<string, unknown>;
-    const origReload = proto.reload as ((...a: unknown[]) => void);
-    const origAssign = proto.assign as ((...a: unknown[]) => void);
-    const origReplace = proto.replace as ((...a: unknown[]) => void);
+    const origReload = proto.reload as (...a: unknown[]) => void;
+    const origAssign = proto.assign as (...a: unknown[]) => void;
+    const origReplace = proto.replace as (...a: unknown[]) => void;
 
     if (typeof origReload === "function") {
       proto.reload = function (this: Location) {
@@ -849,7 +896,9 @@ export function installReloadBlackBoxIfEnabled(): void {
 
     // Also detect location.href set via getter/setter
     // (complex — skip for now, the prototype patches cover the main cases)
-  } catch { /* location patching failed — security restriction */ }
+  } catch {
+    /* location patching failed — security restriction */
+  }
 
   // ── Phase 6: History API ────────────────────────────────────────
 
@@ -864,12 +913,16 @@ export function installReloadBlackBoxIfEnabled(): void {
       addEvent("history.replaceState", { url: String(args[2] || ""), stack: getStack(3) });
       return origReplace(args[0] as unknown, args[1] as string, args[2] as string | null | undefined);
     };
-  } catch { /* history patching failed */ }
+  } catch {
+    /* history patching failed */
+  }
 
   // ── Phase 7: Expose global API ──────────────────────────────────
 
   (window as any).__galleryReloadBlackBox = {
-    install: () => { /* already installed */ },
+    install: () => {
+      /* already installed */
+    },
     log,
     report,
     copyReport,
@@ -881,7 +934,7 @@ export function installReloadBlackBoxIfEnabled(): void {
 
   console.log(
     `[ReloadBB] BlackBox active (boot #${_bootCount}, ${_events.length} stored events). ` +
-    `Run __galleryReloadBlackBox.report() or copyReport().`
+      `Run __galleryReloadBlackBox.report() or copyReport().`,
   );
 
   // ── Phase 8: Floating debug button ─────────────────────────────
@@ -927,12 +980,7 @@ function addFloatingUI(): void {
   // Dropdown items container (hidden by default)
   const dropdown = document.createElement("div");
   dropdown.id = "__gallery_bb_dropdown";
-  dropdown.style.cssText = [
-    "display: none",
-    "flex-direction: column",
-    "gap: 3px",
-    "pointer-events: none",
-  ].join(";");
+  dropdown.style.cssText = ["display: none", "flex-direction: column", "gap: 3px", "pointer-events: none"].join(";");
 
   const makeItem = (text: string, onClick: () => void) => {
     const btn = document.createElement("button");
@@ -1004,7 +1052,9 @@ function setupGestureTracking(): void {
       _vvInitialHeight = vv.height;
       _vvInitialWidth = vv.width;
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 
   let lastScrollTime = 0;
   let lastTouchPos: { x: number; y: number } | null = null;
@@ -1027,15 +1077,20 @@ function setupGestureTracking(): void {
     touchStartPos = { x, y };
     const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
     recordGesture({
-      t: Date.now(), type: "touchstart",
+      t: Date.now(),
+      type: "touchstart",
       target: getTargetSummary(te.target),
-      x, y, deltaY: 0, deltaX: 0, direction: "none",
+      x,
+      y,
+      deltaY: 0,
+      deltaX: 0,
+      direction: "none",
       scrollY: Math.round(scrollY),
       nearTop: scrollY <= 20,
       pullingDownAtTop: false,
       docScrollTop: Math.round(scrollY),
       docScrollHeight: Math.round(document.documentElement.scrollHeight),
-      docClientHeight: Math.round(document.documentElement.clientHeight)
+      docClientHeight: Math.round(document.documentElement.clientHeight),
     });
   });
 
@@ -1061,14 +1116,20 @@ function setupGestureTracking(): void {
     if (_totalTouchMoves % 3 === 0 || pullingDownAtTop) {
       // Only record every 3rd move to reduce noise, but always record pull-down-at-top
       recordGesture({
-        t: Date.now(), type: "touchmove",
+        t: Date.now(),
+        type: "touchmove",
         target: getTargetSummary(te.target),
-        x, y, deltaY: Math.round(deltaY), deltaX: Math.round(deltaX),
-        direction, scrollY: Math.round(scrollY),
-        nearTop, pullingDownAtTop,
+        x,
+        y,
+        deltaY: Math.round(deltaY),
+        deltaX: Math.round(deltaX),
+        direction,
+        scrollY: Math.round(scrollY),
+        nearTop,
+        pullingDownAtTop,
         docScrollTop: Math.round(scrollY),
         docScrollHeight: Math.round(document.documentElement.scrollHeight),
-        docClientHeight: Math.round(document.documentElement.clientHeight)
+        docClientHeight: Math.round(document.documentElement.clientHeight),
       });
     }
   });
@@ -1084,15 +1145,20 @@ function setupGestureTracking(): void {
     const nearTop = scrollY <= 20;
     const flickDown = totalDY > 30 && nearTop;
     recordGesture({
-      t: Date.now(), type: "touchend",
+      t: Date.now(),
+      type: "touchend",
       target: getTargetSummary(te.target),
-      x, y, deltaY: Math.round(totalDY), deltaX: 0,
+      x,
+      y,
+      deltaY: Math.round(totalDY),
+      deltaX: 0,
       direction: totalDY > 0 ? "down" : totalDY < 0 ? "up" : "none",
       scrollY: Math.round(scrollY),
-      nearTop, pullingDownAtTop: flickDown,
+      nearTop,
+      pullingDownAtTop: flickDown,
       docScrollTop: Math.round(scrollY),
       docScrollHeight: Math.round(document.documentElement.scrollHeight),
-      docClientHeight: Math.round(document.documentElement.clientHeight)
+      docClientHeight: Math.round(document.documentElement.clientHeight),
     });
     lastTouchPos = null;
     touchStartPos = null;
@@ -1100,21 +1166,26 @@ function setupGestureTracking(): void {
 
   // ── Scroll event (throttled) ───────────────────────────────────
 
-  on("scroll", document, () => {
-    const now = Date.now();
-    if (now - lastScrollTime < 100) return; // throttle to ~10fps
-    lastScrollTime = now;
-    _totalScrolls++;
-    const ss = getScrollSnapshot();
-    _lastScrollSnapshot = ss;
-    addEvent("scroll", {
-      scrollY: ss.scrollY,
-      nearTop: ss.nearTop,
-      nearBottom: ss.nearBottom,
-      scrollHeight: ss.scrollHeight,
-      clientHeight: ss.clientHeight
-    });
-  }, { passive: true, capture: true });
+  on(
+    "scroll",
+    document,
+    () => {
+      const now = Date.now();
+      if (now - lastScrollTime < 100) return; // throttle to ~10fps
+      lastScrollTime = now;
+      _totalScrolls++;
+      const ss = getScrollSnapshot();
+      _lastScrollSnapshot = ss;
+      addEvent("scroll", {
+        scrollY: ss.scrollY,
+        nearTop: ss.nearTop,
+        nearBottom: ss.nearBottom,
+        scrollHeight: ss.scrollHeight,
+        clientHeight: ss.clientHeight,
+      });
+    },
+    { passive: true, capture: true },
+  );
 
   // ── Wheel events (desktop trackpad overscroll) ─────────────────
 
@@ -1125,7 +1196,7 @@ function setupGestureTracking(): void {
       deltaX: Math.round(we.deltaX),
       deltaMode: we.deltaMode,
       target: getTargetSummary(we.target),
-      scrollY: Math.round(window.scrollY || 0)
+      scrollY: Math.round(window.scrollY || 0),
     });
   });
 
@@ -1147,7 +1218,7 @@ function setupGestureTracking(): void {
           width: Math.round(vvObj.width),
           offsetTop: Math.round(vvObj.offsetTop),
           offsetLeft: Math.round(vvObj.offsetLeft),
-          scale: vvObj.scale
+          scale: vvObj.scale,
         });
       });
       on("scroll", vv, () => {
@@ -1156,18 +1227,20 @@ function setupGestureTracking(): void {
         _visualViewportChangedBeforePagehide = true;
         addEvent("visualViewportScroll", {
           offsetTop: Math.round(vvObj.offsetTop),
-          offsetLeft: Math.round(vvObj.offsetLeft)
+          offsetLeft: Math.round(vvObj.offsetLeft),
         });
       });
     }
-  } catch { /* visualViewport not supported */ }
+  } catch {
+    /* visualViewport not supported */
+  }
 
   // ── Orientation change ─────────────────────────────────────────
 
   on("orientationchange", window, () => {
     addEvent("orientationchange", {
       orientation: window.screen?.orientation?.type || screen.orientation?.type || "unknown",
-      angle: window.screen?.orientation?.angle ?? -1
+      angle: window.screen?.orientation?.angle ?? -1,
     });
   });
 
@@ -1182,7 +1255,7 @@ function setupGestureTracking(): void {
       width: window.innerWidth,
       height: window.innerHeight,
       outerWidth: window.outerWidth,
-      outerHeight: window.outerHeight
+      outerHeight: window.outerHeight,
     });
   });
 }

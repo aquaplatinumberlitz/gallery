@@ -18,7 +18,7 @@ const rootPath = "/gallery-responsive-test";
 const imagePaths = Array.from({ length: 6 }, (_, i) => `${rootPath}/image_${i + 1}.png`);
 const png1x1 = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/luz4nQAAAABJRU5ErkJggg==",
-  "base64"
+  "base64",
 );
 
 async function installStubbedGallery(page: Page) {
@@ -53,8 +53,12 @@ async function installStubbedGallery(page: Page) {
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
-          tool: "stub", prompt: "stub prompt", negative_prompt: "",
-          params: {}, width: 1600, height: 1000,
+          tool: "stub",
+          prompt: "stub prompt",
+          negative_prompt: "",
+          params: {},
+          width: 1600,
+          height: 1000,
           name: url.searchParams.get("path")?.split("/").pop() ?? "image.png",
         }),
       });
@@ -145,7 +149,7 @@ test.describe("Tablet layout (768px)", () => {
   });
 });
 
-test.describe("Tablet layout (834px - iPad Pro 11\")", () => {
+test.describe('Tablet layout (834px - iPad Pro 11")', () => {
   test.use({ viewport: { width: 834, height: 1194 } });
 
   test("renders photo cards at iPad Pro size", async ({ page }) => {
@@ -188,8 +192,14 @@ test.describe("Desktop layout (1200px+)", () => {
     const searchInput = page.getByRole("searchbox");
     // At least one of these desktop-specific elements should be present
     const hasDesktopUI = await Promise.race([
-      sidebarToggle.isVisible().then(() => true).catch(() => false),
-      searchInput.isVisible().then(() => true).catch(() => false),
+      sidebarToggle
+        .isVisible()
+        .then(() => true)
+        .catch(() => false),
+      searchInput
+        .isVisible()
+        .then(() => true)
+        .catch(() => false),
     ]);
     expect(hasDesktopUI).toBe(true);
   });

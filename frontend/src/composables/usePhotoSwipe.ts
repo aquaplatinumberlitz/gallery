@@ -18,8 +18,7 @@ import {
 } from "../utils/lightbox";
 
 const shouldExposeLightboxTestHooks =
-  import.meta.env.MODE === "test" ||
-  import.meta.env.VITE_EXPOSE_LIGHTBOX_TEST_HOOKS === "1";
+  import.meta.env.MODE === "test" || import.meta.env.VITE_EXPOSE_LIGHTBOX_TEST_HOOKS === "1";
 
 export interface UsePhotoSwipeOptions {
   containerRef: Ref<HTMLElement | null>;
@@ -57,20 +56,16 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
   let lastReportedPhotoSwipeIndex = -1;
 
   const scanDimensions = (item: FileNode): LightboxDimensions | null =>
-    hasValidDimensions(item)
-      ? { width: item.width, height: item.height, source: "scan" }
-      : null;
+    hasValidDimensions(item) ? { width: item.width, height: item.height, source: "scan" } : null;
 
   const rememberedDimensions = (item: FileNode): LightboxDimensions | null => {
     const dimensions = lightboxStore.getRememberedDimensions(item.path);
-    return dimensions?.source === "thumbnail" ? null : dimensions ?? null;
+    return dimensions?.source === "thumbnail" ? null : (dimensions ?? null);
   };
 
   const cachedMetadataDimensions = (path: string): LightboxDimensions | null => {
     const metadata = queryClient.getQueryData<MetadataResponse>(queryKeys.metadata(path));
-    return hasValidDimensions(metadata)
-      ? { width: metadata.width, height: metadata.height, source: "metadata" }
-      : null;
+    return hasValidDimensions(metadata) ? { width: metadata.width, height: metadata.height, source: "metadata" } : null;
   };
 
   const bestKnownDimensions = (item: FileNode): LightboxDimensions | null =>
@@ -84,9 +79,7 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
       gcTime: 30 * 60_000,
     });
 
-    return hasValidDimensions(metadata)
-      ? { width: metadata.width, height: metadata.height, source: "metadata" }
-      : null;
+    return hasValidDimensions(metadata) ? { width: metadata.width, height: metadata.height, source: "metadata" } : null;
   };
 
   const loadPreviewDimensions = (path: string): Promise<LightboxDimensions | null> =>
@@ -107,12 +100,15 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
                   height: image.naturalHeight,
                   source: "preview",
                 }
-              : null
+              : null,
           );
         };
 
         if (typeof image.decode === "function") {
-          void image.decode().catch(() => undefined).then(resolveNaturalDimensions);
+          void image
+            .decode()
+            .catch(() => undefined)
+            .then(resolveNaturalDimensions);
         } else {
           resolveNaturalDimensions();
         }
@@ -219,7 +215,7 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
   function loadOriginalForIndex(
     index: number,
     reason: NonNullable<PhotoSwipeImageItem["originalLoadReason"]>,
-    options: { refresh?: boolean } = {}
+    options: { refresh?: boolean } = {},
   ): Promise<void> {
     const itemData = getPhotoSwipeItem(index);
     if (!itemData?.path) return Promise.resolve();
@@ -270,7 +266,7 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
   }
 
   function loadOriginalForCurrent(
-    reason: NonNullable<PhotoSwipeImageItem["originalLoadReason"]> = "fullscreen"
+    reason: NonNullable<PhotoSwipeImageItem["originalLoadReason"]> = "fullscreen",
   ): Promise<void> {
     const instance = pswp.value;
     if (!instance) return Promise.resolve();
@@ -341,19 +337,15 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
       openingItem: openingItem ? { path: openingItem.path, name: openingItem.name } : null,
       items: summarizeLightboxItems(items.value, openingIndex),
     });
-    const openingDimensions = openingItem
-      ? await resolveOpeningSlideDimensions(openingItem)
-      : null;
+    const openingDimensions = openingItem ? await resolveOpeningSlideDimensions(openingItem) : null;
 
     if (!containerRef.value || !isOpen.value || pswp.value || runId !== initRunId.value) return;
 
     const dataSource = items.value.map((item, index) =>
       buildPhotoSwipeItem(
         item,
-        index === openingIndex
-          ? openingDimensions ?? bestKnownDimensions(item)
-          : bestKnownDimensions(item)
-      )
+        index === openingIndex ? (openingDimensions ?? bestKnownDimensions(item)) : bestKnownDimensions(item),
+      ),
     );
     const initialItem = dataSource[currentIndex.value];
     if (initialItem?.isAnimatedAsset) {
@@ -481,7 +473,7 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
       } else {
         destroyPhotoSwipe();
       }
-    }
+    },
   );
 
   watch(
@@ -500,7 +492,7 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
         pswp.value.goTo(index);
       }
       resolveAndRefresh(index);
-    }
+    },
   );
 
   onMounted(() => {

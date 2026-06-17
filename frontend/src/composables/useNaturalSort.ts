@@ -1,5 +1,5 @@
 export function naturalSortKey(s: string): (string | number)[] {
-  return s.split(/(\d+)/).map(part => {
+  return s.split(/(\d+)/).map((part) => {
     const num = parseInt(part, 10);
     return isNaN(num) ? part.toLowerCase() : num;
   });
@@ -20,4 +20,3 @@ export function compareNatural(a: string, b: string): number {
   }
   return 0;
 }
-

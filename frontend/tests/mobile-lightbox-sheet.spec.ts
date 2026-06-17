@@ -15,20 +15,16 @@ import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
 const rootPath = "/gallery-mobile-sheet-test";
-const imagePaths = [
-  `${rootPath}/a.png`,
-  `${rootPath}/b.png`,
-  `${rootPath}/c.png`,
-];
+const imagePaths = [`${rootPath}/a.png`, `${rootPath}/b.png`, `${rootPath}/c.png`];
 const stubPng = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAYAAABw4pVUAAAACXBIWXMAAAsTAAALEwEAmpwYAAAA" +
-  "B3RJTUUH6QEJCyAjHXUYCwAAABl0RVh0Q29tbWVudABDcmVhdGVkIHdpdGggR0lNUFeBDhcAAAAS" +
-  "URBVHja7cEBDQAAAMKg909tDwcEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
-  "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
-  "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
-  "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
-  "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/BsYIAAB//8lVwA=",
-  "base64"
+    "B3RJTUUH6QEJCyAjHXUYCwAAABl0RVh0Q29tbWVudABDcmVhdGVkIHdpdGggR0lNUFeBDhcAAAAS" +
+    "URBVHja7cEBDQAAAMKg909tDwcEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/BsYIAAB//8lVwA=",
+  "base64",
 );
 
 type ApiRequest = { pathname: string; path: string };
@@ -69,8 +65,10 @@ async function installStubbedGallery(page: Page) {
         contentType: "application/json",
         body: JSON.stringify({
           tool: "A1111",
-          prompt: ("masterpiece, best quality, 1girl, long flowing hair, detailed eyes, " +
-            "intricate dress, cherry blossoms, soft lighting, depth of field").repeat(2),
+          prompt: (
+            "masterpiece, best quality, 1girl, long flowing hair, detailed eyes, " +
+            "intricate dress, cherry blossoms, soft lighting, depth of field"
+          ).repeat(2),
           negative_prompt: "low quality, blurry, bad anatomy, watermark",
           params: { Seed: "12345", Steps: "30", Sampler: "Euler a", CFG: "7.0", Model: "ponyDiffusionV6XL" },
           width: 800,
@@ -203,14 +201,28 @@ test("lightbox opens on mobile, metadata sheet opens and closes repeatedly", asy
       // Dispatch a close-like event on the document
       // Sheet handles close via a pointerdown/up sequence with distance < threshold
       // Simulate a pointerdown outside + pointerup outside (tap on lightbox background)
-      document.body.dispatchEvent(new PointerEvent("pointerdown", {
-        bubbles: true, cancelable: true, pointerId: 99,
-        clientX: 10, clientY: 10, isPrimary: true, pointerType: "mouse",
-      }));
-      document.body.dispatchEvent(new PointerEvent("pointerup", {
-        bubbles: true, cancelable: true, pointerId: 99,
-        clientX: 10, clientY: 10, isPrimary: true, pointerType: "mouse",
-      }));
+      document.body.dispatchEvent(
+        new PointerEvent("pointerdown", {
+          bubbles: true,
+          cancelable: true,
+          pointerId: 99,
+          clientX: 10,
+          clientY: 10,
+          isPrimary: true,
+          pointerType: "mouse",
+        }),
+      );
+      document.body.dispatchEvent(
+        new PointerEvent("pointerup", {
+          bubbles: true,
+          cancelable: true,
+          pointerId: 99,
+          clientX: 10,
+          clientY: 10,
+          isPrimary: true,
+          pointerType: "mouse",
+        }),
+      );
     }
   });
   await page.waitForTimeout(800);
@@ -225,14 +237,28 @@ test("lightbox opens on mobile, metadata sheet opens and closes repeatedly", asy
     await expect(page.locator("[data-vsbs-sheet]")).toBeVisible({ timeout: 10_000 });
     await expect(page.getByLabel("Copy prompt")).toBeVisible({ timeout: 5000 });
     await page.evaluate((pid) => {
-      document.body.dispatchEvent(new PointerEvent("pointerdown", {
-        bubbles: true, cancelable: true, pointerId: 100 + pid,
-        clientX: 10, clientY: 10, isPrimary: true, pointerType: "mouse",
-      }));
-      document.body.dispatchEvent(new PointerEvent("pointerup", {
-        bubbles: true, cancelable: true, pointerId: 100 + pid,
-        clientX: 10, clientY: 10, isPrimary: true, pointerType: "mouse",
-      }));
+      document.body.dispatchEvent(
+        new PointerEvent("pointerdown", {
+          bubbles: true,
+          cancelable: true,
+          pointerId: 100 + pid,
+          clientX: 10,
+          clientY: 10,
+          isPrimary: true,
+          pointerType: "mouse",
+        }),
+      );
+      document.body.dispatchEvent(
+        new PointerEvent("pointerup", {
+          bubbles: true,
+          cancelable: true,
+          pointerId: 100 + pid,
+          clientX: 10,
+          clientY: 10,
+          isPrimary: true,
+          pointerType: "mouse",
+        }),
+      );
     }, i);
     await page.waitForTimeout(500);
     await expect(page.getByLabel("Copy prompt")).not.toBeVisible({ timeout: 5000 });
@@ -258,7 +284,10 @@ test("metadata sheet can be opened via View info button on mobile", async ({ pag
   await dismissMobileSidebar(page);
 
   // Open lightbox
-  await page.getByTestId("photo-card").first().evaluate((el: HTMLElement) => el.click());
+  await page
+    .getByTestId("photo-card")
+    .first()
+    .evaluate((el: HTMLElement) => el.click());
   await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
 
   // Open metadata sheet via evaluate to bypass SVG overlay

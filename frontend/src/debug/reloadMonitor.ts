@@ -211,7 +211,9 @@ function classifySuspect(events: ReloadLogEvent[], boot: BootRecord): string[] {
         suspects.push("BAD: anchor/form caused full navigation — " + d.href || d.action);
         break;
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
   const submitEvents = events.filter((e) => e.type === "submit");
   if (submitEvents.length > 0) {
@@ -243,7 +245,9 @@ function classifySuspect(events: ReloadLogEvent[], boot: BootRecord): string[] {
         suspects.push("WARN: pagehide without persisted — possible discard");
         break;
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   // Check for wasDiscarded
@@ -253,11 +257,11 @@ function classifySuspect(events: ReloadLogEvent[], boot: BootRecord): string[] {
 
   // Check for reload navigation type with no JS cause
   if (boot.navigationType === "reload") {
-    const hasJsCause = eventTypes.some(
-      (t) => t.startsWith("location.") || t === "websocket-close"
-    );
+    const hasJsCause = eventTypes.some((t) => t.startsWith("location.") || t === "websocket-close");
     if (!hasJsCause) {
-      suspects.push("WARN: reload navigation type with no JS cause detected — user pressed refresh or browser reloaded");
+      suspects.push(
+        "WARN: reload navigation type with no JS cause detected — user pressed refresh or browser reloaded",
+      );
     }
   }
 
@@ -269,19 +273,15 @@ function classifySuspect(events: ReloadLogEvent[], boot: BootRecord): string[] {
       if (d.persisted === true) {
         suspects.push("OK: bfcache pageshow (persisted=true) — page restored from cache");
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   // Check for SPA navigation only
-  const spaNavs = events.filter(
-    (e) => e.type === "history.pushState" || e.type === "history.replaceState"
-  );
+  const spaNavs = events.filter((e) => e.type === "history.pushState" || e.type === "history.replaceState");
   const fullNavs = eventTypes.filter(
-    (t) =>
-      t.startsWith("location.") ||
-      t === "beforeunload" ||
-      t === "pagehide" ||
-      t === "unload"
+    (t) => t.startsWith("location.") || t === "beforeunload" || t === "pagehide" || t === "unload",
   );
   if (spaNavs.length > 0 && fullNavs.length === 0) {
     suspects.push("OK: SPA route pushState/replaceState only — no real reload");
@@ -444,10 +444,9 @@ export function startReloadMonitor(): void {
       const target = e.target as Element;
       if (!target) return;
       const tag = target.tagName.toLowerCase();
-      if (tag !== "a" && tag !== "button" && !target.closest("a") && !target.closest("button"))
-        return;
+      if (tag !== "a" && tag !== "button" && !target.closest("a") && !target.closest("button")) return;
 
-      const anchor = tag === "a" ? (target as HTMLAnchorElement) : target.closest("a") as HTMLAnchorElement | null;
+      const anchor = tag === "a" ? (target as HTMLAnchorElement) : (target.closest("a") as HTMLAnchorElement | null);
       const btn = tag === "button" ? target : target.closest("button");
 
       const info = getNearestElementInfo(target);
@@ -491,7 +490,7 @@ export function startReloadMonitor(): void {
         });
       }
     },
-    true // capture phase
+    true, // capture phase
   );
 
   // ── Submit capture ──────────────────────────────────────────────────
@@ -508,7 +507,7 @@ export function startReloadMonitor(): void {
         defaultPrevented: e.defaultPrevented,
       });
     },
-    true
+    true,
   );
 
   // ── Keydown capture ─────────────────────────────────────────────────
@@ -526,7 +525,7 @@ export function startReloadMonitor(): void {
         });
       }
     },
-    true
+    true,
   );
 
   // ── Touch event summaries ───────────────────────────────────────────
@@ -539,7 +538,7 @@ export function startReloadMonitor(): void {
         addEvent("touchstart-summary", { count: touchStartCount });
       }
     },
-    { passive: true, capture: true }
+    { passive: true, capture: true },
   );
 
   document.addEventListener(
@@ -550,7 +549,7 @@ export function startReloadMonitor(): void {
         addEvent("touchend-summary", { count: touchEndCount });
       }
     },
-    { passive: true, capture: true }
+    { passive: true, capture: true },
   );
 
   // ── Monkeypatch navigation APIs ─────────────────────────────────────
@@ -715,7 +714,7 @@ export function startReloadMonitor(): void {
             error: String(error),
           });
           throw error;
-        }
+        },
       );
     }
 
@@ -858,7 +857,9 @@ export function startReloadMonitor(): void {
           if (d.inFlight && Array.isArray(d.inFlight)) {
             apiInFlightBeforeUnload = Math.max(apiInFlightBeforeUnload, d.inFlight.length);
           }
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }
       if (e.type === "error") errorCount++;
       if (e.type === "unhandledrejection") rejectionCount++;
@@ -867,7 +868,9 @@ export function startReloadMonitor(): void {
         try {
           const d = JSON.parse(e.detail);
           if (d.fullNavSuspect) fullNavSuspects++;
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }
       if (e.type === "websocket-close") wsCloseCount++;
       if (e.type === "location.reload") lastReloadTimestamp = e.t;
@@ -893,7 +896,9 @@ export function startReloadMonitor(): void {
         try {
           const d = JSON.parse(e.detail);
           if (d.stack) entry.stack = d.stack;
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }
       timeline.push(entry);
     }
@@ -901,11 +906,7 @@ export function startReloadMonitor(): void {
     // Last 20 events before unload/pagehide
     let lastUnloadIdx = -1;
     for (let i = allEvents.length - 1; i >= 0; i--) {
-      if (
-        allEvents[i].type === "beforeunload" ||
-        allEvents[i].type === "pagehide" ||
-        allEvents[i].type === "unload"
-      ) {
+      if (allEvents[i].type === "beforeunload" || allEvents[i].type === "pagehide" || allEvents[i].type === "unload") {
         lastUnloadIdx = i;
         break;
       }
@@ -926,7 +927,9 @@ export function startReloadMonitor(): void {
           try {
             const d = JSON.parse(e.detail);
             if (d.stack) entry.stack = d.stack;
-          } catch { /* ignore */ }
+          } catch {
+            /* ignore */
+          }
         }
         lastEventsBeforeUnload.push(entry);
       }
@@ -940,7 +943,9 @@ export function startReloadMonitor(): void {
         if (d.inFlight && Array.isArray(d.inFlight)) {
           inFlightAtUnload.push(...d.inFlight);
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
 
     const suspects = classifySuspect(allEvents, bootRecord);
@@ -988,7 +993,9 @@ export function startReloadMonitor(): void {
     lines.push(`  Full-nav suspects:       ${s.fullNavSuspects}`);
     lines.push(`  WebSocket closes:        ${s.wsCloseCount}`);
     lines.push(`  API in flight at unload: ${s.apiInFlightBeforeUnload}`);
-    lines.push(`  Last reload timestamp:   ${s.lastReloadTimestamp ? new Date(s.lastReloadTimestamp).toISOString() : "none"}`);
+    lines.push(
+      `  Last reload timestamp:   ${s.lastReloadTimestamp ? new Date(s.lastReloadTimestamp).toISOString() : "none"}`,
+    );
     lines.push("");
     lines.push("── Suspect Analysis ───────────────────────────────────");
     if (report.suspects.length === 0) {
@@ -1105,8 +1112,7 @@ export function startReloadMonitor(): void {
     safeRemoveItem(STORAGE_KEY_SESSION);
     safeRemoveItem(STORAGE_KEY_BOOT_COUNT);
     console.log(
-      "Reload debug monitor disabled. Remove ?debugReload=1 from URL and reload. " +
-        "Or run: location.reload()"
+      "Reload debug monitor disabled. Remove ?debugReload=1 from URL and reload. " + "Or run: location.reload()",
     );
   }
 
@@ -1130,6 +1136,6 @@ export function startReloadMonitor(): void {
 
   console.log(
     `[ReloadDebug] Monitor started (boot #${bootCount}, session ${sessionId}). ` +
-      `Run __galleryReloadDebug.report() to view logs, __galleryReloadDebug.disable() to stop.`
+      `Run __galleryReloadDebug.report() to view logs, __galleryReloadDebug.disable() to stop.`,
   );
 }

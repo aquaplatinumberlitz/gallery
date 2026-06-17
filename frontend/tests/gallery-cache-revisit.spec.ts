@@ -15,14 +15,10 @@ import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
 const rootPath = "/gallery-cache-revisit-test";
-const imagePaths = [
-  `${rootPath}/a.png`,
-  `${rootPath}/b.png`,
-  `${rootPath}/c.png`,
-];
+const imagePaths = [`${rootPath}/a.png`, `${rootPath}/b.png`, `${rootPath}/c.png`];
 const png1x1 = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/luz4nQAAAABJRU5ErkJggg==",
-  "base64"
+  "base64",
 );
 
 type ApiRequest = { pathname: string; path: string; imageCursor: string };
@@ -32,9 +28,7 @@ function requestsFor(requests: ApiRequest[], pathname: string) {
 }
 
 function cursorZeroScans(requests: ApiRequest[]) {
-  return requests.filter(
-    (r) => r.pathname === "/api/scan" && r.imageCursor === "0"
-  );
+  return requests.filter((r) => r.pathname === "/api/scan" && r.imageCursor === "0");
 }
 
 async function installStubbedGallery(page: Page) {
@@ -91,8 +85,12 @@ async function installStubbedGallery(page: Page) {
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
-          tool: "stub", prompt: "stub prompt", negative_prompt: "",
-          params: {}, width: 1600, height: 1000,
+          tool: "stub",
+          prompt: "stub prompt",
+          negative_prompt: "",
+          params: {},
+          width: 1600,
+          height: 1000,
           name: req.path.split("/").pop() ?? "image.png",
         }),
       });

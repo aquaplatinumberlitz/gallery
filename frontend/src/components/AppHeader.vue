@@ -1,65 +1,70 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { Landmark, Search, X, Settings, Menu, Sun, Moon, Monitor, SlidersHorizontal, Table2 } from 'lucide-vue-next'
-import { useRoute } from 'vue-router'
-import Button from '@/components/ui/Button.vue'
-import ButtonLink from '@/components/ui/ButtonLink.vue'
-import Input from '@/components/ui/Input.vue'
+import { computed, onMounted, ref } from "vue";
+import { Landmark, Search, X, Settings, Menu, Sun, Moon, Monitor, SlidersHorizontal, Table2 } from "lucide-vue-next";
+import { useRoute } from "vue-router";
+import Button from "@/components/ui/Button.vue";
+import ButtonLink from "@/components/ui/ButtonLink.vue";
+import Input from "@/components/ui/Input.vue";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
-import { useGalleryTheme } from "@/composables/useGalleryTheme"
-import { useFieldedSearch } from "@/composables/useFieldedSearch"
-import AdvancedSearchDrawer from "@/components/search/AdvancedSearchDrawer.vue"
-import SearchFilterChips from "@/components/SearchFilterChips.vue"
-import type { FieldFilter } from "@/types"
-import { parseFieldedQuery, serializeAdvancedSearchToQuery } from "@/utils/serializeAdvancedSearchToQuery"
-import { prefetchMetadataRoute } from "@/router"
-import { useGalleryStore } from "@/stores/gallery"
-import { queryClient } from "@/query"
-import { normalizeQueryPath, queryKeys } from "@/query/keys"
-import { fetchLibraryInspector } from "@/services/api"
+} from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useGalleryTheme } from "@/composables/useGalleryTheme";
+import { useFieldedSearch } from "@/composables/useFieldedSearch";
+import AdvancedSearchDrawer from "@/components/search/AdvancedSearchDrawer.vue";
+import SearchFilterChips from "@/components/SearchFilterChips.vue";
+import type { FieldFilter } from "@/types";
+import { parseFieldedQuery, serializeAdvancedSearchToQuery } from "@/utils/serializeAdvancedSearchToQuery";
+import { prefetchMetadataRoute } from "@/router";
+import { useGalleryStore } from "@/stores/gallery";
+import { queryClient } from "@/query";
+import { normalizeQueryPath, queryKeys } from "@/query/keys";
+import { fetchLibraryInspector } from "@/services/api";
 
 interface Props {
-  isMobile: boolean
-  isSidebarOpen: boolean
-  isDark: boolean
-  searchQuery: string
-  searchScope: 'current' | 'all'
+  isMobile: boolean;
+  isSidebarOpen: boolean;
+  isDark: boolean;
+  searchQuery: string;
+  searchScope: "current" | "all";
 }
-const props = defineProps<Props>()
+const props = defineProps<Props>();
 
 const emit = defineEmits<{
-  'update:searchQuery': [value: string]
-  'scope-change': [value: 'current' | 'all']
-  'toggle-sidebar': []
-  'toggle-theme': []
-  'open-settings': []
-}>()
+  "update:searchQuery": [value: string];
+  "scope-change": [value: "current" | "all"];
+  "toggle-sidebar": [];
+  "toggle-theme": [];
+  "open-settings": [];
+}>();
 
-const { mode, resolvedTheme, setTheme } = useGalleryTheme()
-const { fieldedFilters, isActive: isFieldedSearchActive, queryString: fieldedQueryString, applyFilters, removeFilter, clearAll } = useFieldedSearch()
-const route = useRoute()
-const galleryStore = useGalleryStore()
-const isMetadataRoute = computed(() => route.path === '/metadata')
+const { mode, resolvedTheme, setTheme } = useGalleryTheme();
+const {
+  fieldedFilters,
+  isActive: isFieldedSearchActive,
+  queryString: fieldedQueryString,
+  applyFilters,
+  removeFilter,
+  clearAll,
+} = useFieldedSearch();
+const route = useRoute();
+const galleryStore = useGalleryStore();
+const isMetadataRoute = computed(() => route.path === "/metadata");
 
-const isAdvancedSearchOpen = ref(false)
-const advancedSearchInitialFilters = ref<FieldFilter[]>([])
-let metadataDataPrefetchStarted = false
+const isAdvancedSearchOpen = ref(false);
+const advancedSearchInitialFilters = ref<FieldFilter[]>([]);
+let metadataDataPrefetchStarted = false;
 
 function requestIdle(callback: () => void) {
   if (typeof window === "undefined") return;
-  const idleCallback = "requestIdleCallback" in window
-    ? window.requestIdleCallback
-    : (cb: IdleRequestCallback) => window.setTimeout(() => cb({ didTimeout: false, timeRemaining: () => 0 } as IdleDeadline), 800);
+  const idleCallback =
+    "requestIdleCallback" in window
+      ? window.requestIdleCallback
+      : (cb: IdleRequestCallback) =>
+          window.setTimeout(() => cb({ didTimeout: false, timeRemaining: () => 0 } as IdleDeadline), 800);
   idleCallback(() => callback());
 }
 
@@ -100,58 +105,58 @@ onMounted(() => {
 });
 
 function getFilterFieldKey(filter: FieldFilter) {
-  return filter.field.toLowerCase()
+  return filter.field.toLowerCase();
 }
 
 function getAdvancedSearchInitialFilters() {
-  const parsedFilters = parseFieldedQuery(props.searchQuery)
+  const parsedFilters = parseFieldedQuery(props.searchQuery);
 
   if (parsedFilters.length === 0) {
-    return [...fieldedFilters.value]
+    return [...fieldedFilters.value];
   }
 
-  const mergedByField = new Map<string, FieldFilter>()
+  const mergedByField = new Map<string, FieldFilter>();
   for (const filter of parsedFilters) {
-    mergedByField.set(getFilterFieldKey(filter), filter)
+    mergedByField.set(getFilterFieldKey(filter), filter);
   }
   for (const filter of fieldedFilters.value) {
-    mergedByField.set(getFilterFieldKey(filter), filter)
+    mergedByField.set(getFilterFieldKey(filter), filter);
   }
-  return Array.from(mergedByField.values())
+  return Array.from(mergedByField.values());
 }
 
 function openAdvancedSearch() {
-  advancedSearchInitialFilters.value = getAdvancedSearchInitialFilters()
-  isAdvancedSearchOpen.value = true
+  advancedSearchInitialFilters.value = getAdvancedSearchInitialFilters();
+  isAdvancedSearchOpen.value = true;
 }
 
 function clearSearch() {
-  clearAll()
-  emit('update:searchQuery', '')
+  clearAll();
+  emit("update:searchQuery", "");
 }
 
 function onScopeChange(e: Event) {
-  const target = e.target as HTMLSelectElement
-  emit('scope-change', target.value as 'current' | 'all')
+  const target = e.target as HTMLSelectElement;
+  emit("scope-change", target.value as "current" | "all");
 }
 
 function handleAdvancedSearchApply(filters: FieldFilter[]) {
-  applyFilters(filters)
-  emit('update:searchQuery', serializeAdvancedSearchToQuery(filters))
+  applyFilters(filters);
+  emit("update:searchQuery", serializeAdvancedSearchToQuery(filters));
 }
 
 function handleAdvancedSearchClose() {
-  isAdvancedSearchOpen.value = false
+  isAdvancedSearchOpen.value = false;
 }
 
 function handleRemoveFilter(index: number) {
-  removeFilter(index)
-  emit('update:searchQuery', fieldedQueryString.value)
+  removeFilter(index);
+  emit("update:searchQuery", fieldedQueryString.value);
 }
 
 function handleClearAll() {
-  clearAll()
-  emit('update:searchQuery', '')
+  clearAll();
+  emit("update:searchQuery", "");
 }
 </script>
 
@@ -195,7 +200,12 @@ function handleClearAll() {
       <div class="brand-text text-left">
         <p class="eyebrow">Local collections</p>
         <h1 class="brand-title">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="18" height="18" class="title-sparkle"><path fill="currentColor" d="M480 96L512 24L544 96L616 128L544 160L512 232L480 160L408 128L480 96zM160 256L224 112L288 256L432 320L288 384L224 528L160 384L16 320L160 256zM480 408L512 480L584 512L512 544L480 616L448 544L376 512L448 480L480 408z"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="18" height="18" class="title-sparkle">
+            <path
+              fill="currentColor"
+              d="M480 96L512 24L544 96L616 128L544 160L512 232L480 160L408 128L480 96zM160 256L224 112L288 256L432 320L288 384L224 528L160 384L16 320L160 256zM480 408L512 480L584 512L512 544L480 616L448 544L376 512L448 480L480 408z"
+            />
+          </svg>
           Museum Art Gallery
         </h1>
       </div>
@@ -239,13 +249,7 @@ function handleClearAll() {
         <div class="search-box">
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button
-                variant="ghost"
-                size="icon"
-                class="search-icon-btn"
-                type="button"
-                aria-label="Search"
-              >
+              <Button variant="ghost" size="icon" class="search-icon-btn" type="button" aria-label="Search">
                 <Search class="gallery-icon-toolbar" />
               </Button>
             </TooltipTrigger>
@@ -275,12 +279,7 @@ function handleClearAll() {
             </TooltipTrigger>
             <TooltipContent>Clear search</TooltipContent>
           </Tooltip>
-          <select
-            class="scope-select"
-            :value="searchScope"
-            aria-label="Search scope"
-            @change="onScopeChange"
-          >
+          <select class="scope-select" :value="searchScope" aria-label="Search scope" @change="onScopeChange">
             <option value="current">This folder</option>
             <option value="all">All indexed</option>
           </select>
@@ -301,11 +300,7 @@ function handleClearAll() {
             <TooltipContent>Advanced Search</TooltipContent>
           </Tooltip>
         </div>
-        <SearchFilterChips
-          :filters="fieldedFilters"
-          @remove="handleRemoveFilter"
-          @clear-all="handleClearAll"
-        />
+        <SearchFilterChips :filters="fieldedFilters" @remove="handleRemoveFilter" @clear-all="handleClearAll" />
       </div>
       <AdvancedSearchDrawer
         :is-open="isAdvancedSearchOpen"
@@ -353,14 +348,14 @@ h1 {
   border-radius: 50px;
   cursor: pointer;
   transition: all 0.4s cubic-bezier(0.68, -0.15, 0.265, 1.35);
-  box-shadow: 
+  box-shadow:
     inset 0 2px 4px rgba(0, 0, 0, 0.2),
     0 4px 12px rgba(102, 126, 234, 0.3);
 }
 
 .theme-toggle.is-dark {
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-  box-shadow: 
+  box-shadow:
     inset 0 2px 4px rgba(0, 0, 0, 0.4),
     0 4px 12px rgba(0, 0, 0, 0.4);
 }
@@ -388,7 +383,7 @@ h1 {
   align-items: center;
   justify-content: center;
   transition: all 0.4s cubic-bezier(0.68, -0.15, 0.265, 1.35);
-  box-shadow: 
+  box-shadow:
     0 2px 8px rgba(0, 0, 0, 0.2),
     0 1px 2px rgba(0, 0, 0, 0.1);
   z-index: 2;
@@ -397,7 +392,7 @@ h1 {
 .theme-toggle.is-dark .toggle-thumb {
   left: calc(100% - 32px);
   background: linear-gradient(180deg, #ffd54f 0%, #ffb300 100%);
-  box-shadow: 
+  box-shadow:
     0 2px 8px rgba(255, 213, 79, 0.4),
     0 0 20px rgba(255, 213, 79, 0.3);
 }
@@ -435,13 +430,13 @@ h1 {
 }
 
 .theme-toggle:hover .toggle-thumb {
-  box-shadow: 
+  box-shadow:
     0 4px 12px rgba(0, 0, 0, 0.25),
     0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
 .theme-toggle.is-dark:hover .toggle-thumb {
-  box-shadow: 
+  box-shadow:
     0 4px 16px rgba(255, 213, 79, 0.5),
     0 0 30px rgba(255, 213, 79, 0.4);
 }
@@ -520,15 +515,15 @@ h1 {
   margin-right: 15px;
   border-radius: 50%;
   margin-top: 12px; /* Push icon down to align with main title line */
-  
+
   /* Transition để hiệu ứng chuyển màu mượt mà */
   transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 
   /* --- 2. LIGHT MODE (Mặc định: Đơn sắc, Không viền, Không Glow) --- */
   color: var(--brand-hero-text);
   border: 2px solid transparent; /* Viền trong suốt (giữ chỗ) */
-  box-shadow: none;              /* Không bóng */
-  filter: none;                  /* Không phát sáng */
+  box-shadow: none; /* Không bóng */
+  filter: none; /* Không phát sáng */
 }
 
 /* Dark mode styles được chuyển xuống <style> block riêng (không scoped) ở cuối file */
@@ -537,13 +532,22 @@ h1 {
 
 /* Keyframes for hover effects only - main animation in main.scss */
 @keyframes underline-grow {
-  0% { transform: scaleX(0); }
-  100% { transform: scaleX(1); }
+  0% {
+    transform: scaleX(0);
+  }
+  100% {
+    transform: scaleX(1);
+  }
 }
 
 @keyframes subtle-float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-2px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
 }
 
 .brand-title {
@@ -554,12 +558,12 @@ h1 {
   letter-spacing: 0.08em;
   position: relative;
   display: inline-block;
-  
+
   /* Clean solid color - elegant & readable */
   color: var(--brand-hero-text);
-  
+
   /* Smooth transitions for hover effects */
-  transition: 
+  transition:
     letter-spacing 0.6s cubic-bezier(0.23, 1, 0.32, 1),
     color 0.4s ease;
 }
@@ -572,14 +576,7 @@ h1 {
   left: 0;
   width: 100%;
   height: 2px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    #c9a962 10%,
-    #d4af37 50%,
-    #c9a962 90%,
-    transparent 100%
-  );
+  background: linear-gradient(90deg, transparent 0%, #c9a962 10%, #d4af37 50%, #c9a962 90%, transparent 100%);
   transform: scaleX(0);
   transform-origin: left;
   transition: transform 0.8s cubic-bezier(0.23, 1, 0.32, 1);
@@ -694,7 +691,9 @@ h1 {
     border-radius: 10px;
     border: 1px solid rgba(0, 0, 0, 0.12);
     background: var(--card);
-    transition: border-color 0.2s, box-shadow 0.2s;
+    transition:
+      border-color 0.2s,
+      box-shadow 0.2s;
   }
 
   .search-box:hover {

@@ -1,12 +1,6 @@
 import type { IndexStatusResponse, IndexStatusRuntime, IndexStatusScope, IndexStatusState } from "@/types";
 
-export type IndexUiStatus =
-  | "unknown"
-  | "ready"
-  | "indexing"
-  | "stale"
-  | "warning"
-  | "error";
+export type IndexUiStatus = "unknown" | "ready" | "indexing" | "stale" | "warning" | "error";
 
 export interface IndexStatusPresentation {
   status: IndexUiStatus;
@@ -77,28 +71,32 @@ const INDEX_STATUS_PRESENTATION: Record<IndexUiStatus, IndexStatusPresentation> 
   },
 };
 
-function getScopedStatus(status: IndexStatusResponse | null | undefined): IndexStatusResponse | IndexStatusScope | null {
+function getScopedStatus(
+  status: IndexStatusResponse | null | undefined,
+): IndexStatusResponse | IndexStatusScope | null {
   return status?.scope ?? status ?? null;
 }
 
 function getGlobalRuntime(status: IndexStatusResponse | null | undefined): IndexStatusRuntime | null {
   if (!status) return null;
-  return status.global_runtime ?? {
-    enabled: status.enabled,
-    worker_count: status.worker_count,
-    active_jobs: status.active_jobs,
-    runtime_queue_depth: status.runtime_queue_depth,
-    coalesced_duplicates: status.coalesced_duplicates,
-    staged_path_queue_depth: status.staged_path_queue_depth,
-    staged_path_coalesced: status.staged_path_coalesced,
-    staged_path_failed: status.staged_path_failed,
-    staged_path_flushes_forced: status.staged_path_flushes_forced,
-    staged_path_worker_count: status.staged_path_worker_count,
-    active_scan_requests: status.active_scan_requests,
-    batch_size: status.batch_size,
-    staged_path_batch_size: status.staged_path_batch_size,
-    stage_max_wait_seconds: status.stage_max_wait_seconds,
-  };
+  return (
+    status.global_runtime ?? {
+      enabled: status.enabled,
+      worker_count: status.worker_count,
+      active_jobs: status.active_jobs,
+      runtime_queue_depth: status.runtime_queue_depth,
+      coalesced_duplicates: status.coalesced_duplicates,
+      staged_path_queue_depth: status.staged_path_queue_depth,
+      staged_path_coalesced: status.staged_path_coalesced,
+      staged_path_failed: status.staged_path_failed,
+      staged_path_flushes_forced: status.staged_path_flushes_forced,
+      staged_path_worker_count: status.staged_path_worker_count,
+      active_scan_requests: status.active_scan_requests,
+      batch_size: status.batch_size,
+      staged_path_batch_size: status.staged_path_batch_size,
+      stage_max_wait_seconds: status.stage_max_wait_seconds,
+    }
+  );
 }
 
 export function getIndexStatusCounts(status: IndexStatusResponse | null | undefined): IndexStatusCounts {
@@ -118,10 +116,8 @@ export function getIndexStatusCounts(status: IndexStatusResponse | null | undefi
     stagedPathFailed: 0,
     activeScanRequests: hasExplicitScope ? (scoped?.active_scan_requests ?? 0) : 0,
     activeRebuilds: hasExplicitScope ? (scopedRuntime?.active_rebuilds ?? 0) : 0,
-    missingMetadataRecords: scoped?.missing_metadata_records ?? Math.max(
-      0,
-      (scoped?.indexed_photos ?? 0) - (scoped?.metadata_records ?? 0)
-    ),
+    missingMetadataRecords:
+      scoped?.missing_metadata_records ?? Math.max(0, (scoped?.indexed_photos ?? 0) - (scoped?.metadata_records ?? 0)),
   };
 }
 
@@ -140,10 +136,8 @@ export function getGlobalIndexStatusCounts(status: IndexStatusResponse | null | 
     stagedPathFailed: runtime?.staged_path_failed ?? 0,
     activeScanRequests: runtime?.active_scan_requests ?? 0,
     activeRebuilds: 0,
-    missingMetadataRecords: status?.missing_metadata_records ?? Math.max(
-      0,
-      (status?.indexed_photos ?? 0) - (status?.metadata_records ?? 0)
-    ),
+    missingMetadataRecords:
+      status?.missing_metadata_records ?? Math.max(0, (status?.indexed_photos ?? 0) - (status?.metadata_records ?? 0)),
   };
 }
 
@@ -184,7 +178,7 @@ export function hasGlobalIndexWorkOutsideScope(status: IndexStatusResponse | nul
 
 export function getIndexUiStatus(
   status: IndexStatusResponse | null | undefined,
-  opts: { hasPath: boolean; isLoading?: boolean; isError?: boolean } = { hasPath: true }
+  opts: { hasPath: boolean; isLoading?: boolean; isError?: boolean } = { hasPath: true },
 ): IndexUiStatus {
   if (opts.isError) return "error";
   if (!opts.hasPath || opts.isLoading || !status) return "unknown";
@@ -197,14 +191,14 @@ export function getIndexUiStatus(
 
 export function getIndexStatusPresentation(
   status: IndexStatusResponse | null | undefined,
-  opts: { hasPath: boolean; isLoading?: boolean; isError?: boolean } = { hasPath: true }
+  opts: { hasPath: boolean; isLoading?: boolean; isError?: boolean } = { hasPath: true },
 ): IndexStatusPresentation {
   return INDEX_STATUS_PRESENTATION[getIndexUiStatus(status, opts)];
 }
 
 export function getIndexStatusState(
   status: IndexStatusResponse | null | undefined,
-  opts: { hasPath: boolean; isUnavailable?: boolean }
+  opts: { hasPath: boolean; isUnavailable?: boolean },
 ): IndexStatusState {
   if (!opts.hasPath) return "disabled";
   if (opts.isUnavailable) return "unavailable";
@@ -216,10 +210,7 @@ export function getIndexStatusState(
   return "idle";
 }
 
-export function getIndexStatusRefetchInterval(
-  status: IndexStatusResponse | null | undefined,
-  isUnavailable = false
-) {
+export function getIndexStatusRefetchInterval(status: IndexStatusResponse | null | undefined, isUnavailable = false) {
   if (isUnavailable || !status) return 60_000;
   if (hasActiveIndexWork(status) || hasQueuedIndexWork(status) || hasGlobalIndexWork(status)) return 2_500;
   return 60_000;
@@ -227,13 +218,7 @@ export function getIndexStatusRefetchInterval(
 
 export function getIndexStatusProgress(status: IndexStatusResponse | null | undefined) {
   const counts = getIndexStatusCounts(status);
-  const total =
-    counts.queued +
-    counts.running +
-    counts.done +
-    counts.failed +
-    counts.stale +
-    counts.skipped;
+  const total = counts.queued + counts.running + counts.done + counts.failed + counts.stale + counts.skipped;
 
   if (total <= 0) return null;
   return Math.max(0, Math.min(100, Math.round((counts.done / total) * 100)));
@@ -249,13 +234,7 @@ export function getIndexStatusProgressInfo(status: IndexStatusResponse | null | 
     counts.stagedPathQueueDepth +
     counts.activeJobs +
     counts.activeScanRequests;
-  const fallbackTotal =
-    counts.queued +
-    counts.running +
-    counts.done +
-    counts.failed +
-    counts.stale +
-    counts.skipped;
+  const fallbackTotal = counts.queued + counts.running + counts.done + counts.failed + counts.stale + counts.skipped;
   const total = (status?.total ?? 0) > 0 ? status!.total : fallbackTotal > 0 ? fallbackTotal : null;
 
   return {

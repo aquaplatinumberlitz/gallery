@@ -177,22 +177,16 @@ export interface IndexStatusScope {
   active_rebuilds?: number;
 }
 
-export type IndexStatusState =
-  | "failed"
-  | "active"
-  | "queued"
-  | "idle"
-  | "unavailable"
-  | "disabled";
+export type IndexStatusState = "failed" | "active" | "queued" | "idle" | "unavailable" | "disabled";
 
 export interface FieldFilter {
-  field: string
-  operator?: string
-  value: string
+  field: string;
+  operator?: string;
+  value: string;
 }
 
 export interface FieldedSearchParams {
-  filters: FieldFilter[]
+  filters: FieldFilter[];
 }
 
 export interface FacetEntry {

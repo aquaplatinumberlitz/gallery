@@ -11,13 +11,16 @@ import { cn } from "@/lib/utils";
 
 defineOptions({ name: "FolderTreeItem" });
 
-const props = withDefaults(defineProps<{
-  node: FileNode;
-  activePath?: string;
-  level?: number;
-}>(), {
-  level: 1,
-});
+const props = withDefaults(
+  defineProps<{
+    node: FileNode;
+    activePath?: string;
+    level?: number;
+  }>(),
+  {
+    level: 1,
+  },
+);
 
 const galleryStore = useGalleryStore();
 const { isMobile, isTablet } = useDevice();
@@ -28,7 +31,7 @@ const isOpen = computed(() => galleryStore.isFolderExpanded(props.node.path));
 const childrenQueryEnabled = computed(() => isOpen.value && !!props.node.has_children);
 const folderChildrenQuery = useFolderChildrenQuery(
   computed(() => props.node.path),
-  childrenQueryEnabled
+  childrenQueryEnabled,
 );
 const visibleChildren = computed(() => {
   if (!isOpen.value || !props.node.has_children) return [];
@@ -37,11 +40,12 @@ const visibleChildren = computed(() => {
   }
   return props.node.children ?? [];
 });
-const isLoading = computed(() =>
-  isOpen.value &&
-  !!props.node.has_children &&
-  !visibleChildren.value.length &&
-  (folderChildrenQuery.isLoading.value || folderChildrenQuery.isFetching.value)
+const isLoading = computed(
+  () =>
+    isOpen.value &&
+    !!props.node.has_children &&
+    !visibleChildren.value.length &&
+    (folderChildrenQuery.isLoading.value || folderChildrenQuery.isFetching.value),
 );
 const hasLoadError = computed(() => folderChildrenQuery.isError.value);
 const loadErrorMessage = computed(() => {
@@ -50,15 +54,9 @@ const loadErrorMessage = computed(() => {
   return userMessage || "Unable to load folder.";
 });
 
-const folderIcon = computed(() =>
-  isOpen.value
-    ? FolderOpen
-    : Folder
-);
+const folderIcon = computed(() => (isOpen.value ? FolderOpen : Folder));
 
-const arrowIcon = computed(() =>
-  isOpen.value ? ChevronDown : ChevronRight
-);
+const arrowIcon = computed(() => (isOpen.value ? ChevronDown : ChevronRight));
 
 const onToggle = () => {
   if (!props.node.has_children) return;
@@ -75,12 +73,12 @@ const onSelect = () => {
 // Keyboard navigation following WAI-ARIA TreeView pattern
 const handleKeydown = (e: KeyboardEvent) => {
   switch (e.key) {
-    case 'Enter':
-    case ' ':
+    case "Enter":
+    case " ":
       e.preventDefault();
       onSelect();
       break;
-    case 'ArrowRight':
+    case "ArrowRight":
       e.preventDefault();
       if (props.node.has_children) {
         if (!isOpen.value) {
@@ -88,7 +86,7 @@ const handleKeydown = (e: KeyboardEvent) => {
         }
       }
       break;
-    case 'ArrowLeft':
+    case "ArrowLeft":
       e.preventDefault();
       if (isOpen.value) {
         onToggle();
@@ -96,14 +94,10 @@ const handleKeydown = (e: KeyboardEvent) => {
       break;
   }
 };
-
 </script>
 
 <template>
-  <div 
-    role="tree"
-    class="tree-item block group-data-[collapsible=icon]:hidden"
-  >
+  <div role="tree" class="tree-item block group-data-[collapsible=icon]:hidden">
     <div class="tree-row-shell flex items-center gap-1.5">
       <Button
         variant="ghost"
@@ -124,7 +118,12 @@ const handleKeydown = (e: KeyboardEvent) => {
         role="treeitem"
         :aria-expanded="node.has_children ? isOpen : undefined"
         :aria-selected="isActive ? true : undefined"
-        :class="cn('tree-row min-w-0 flex-1 justify-start gap-1.5 px-1.5 py-[3px] text-[13px]', isActive && 'bg-accent text-accent-foreground')"
+        :class="
+          cn(
+            'tree-row min-w-0 flex-1 justify-start gap-1.5 px-1.5 py-[3px] text-[13px]',
+            isActive && 'bg-accent text-accent-foreground',
+          )
+        "
         @click="onSelect"
         @keydown="handleKeydown"
       >
@@ -134,8 +133,8 @@ const handleKeydown = (e: KeyboardEvent) => {
       </Button>
     </div>
 
-    <div 
-      v-if="isOpen && visibleChildren.length" 
+    <div
+      v-if="isOpen && visibleChildren.length"
       class="children ml-[18px] border-l border-dashed border-border-subtle pl-2.5"
     >
       <FolderTreeItem
@@ -147,10 +146,7 @@ const handleKeydown = (e: KeyboardEvent) => {
       />
     </div>
 
-    <div
-      v-else-if="isOpen && hasLoadError"
-      class="empty-children ml-9 text-muted-foreground text-xs py-1 pb-2"
-    >
+    <div v-else-if="isOpen && hasLoadError" class="empty-children ml-9 text-muted-foreground text-xs py-1 pb-2">
       {{ loadErrorMessage }}
     </div>
 

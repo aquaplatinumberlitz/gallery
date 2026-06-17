@@ -23,11 +23,19 @@ import { useInfiniteScanQuery } from "../composables/useInfiniteScanQuery";
 import { useUnifiedSearchQuery } from "../composables/useUnifiedSearchQuery";
 import { galleryScrollContainerRefKey } from "../injectionKeys";
 import { fuzzySearchFileNodes } from "../utils/fuzzySearch";
-import { 
-  ArrowLeft, ArrowRight, ArrowUpRight, ChevronDown,
-  LayoutGrid, Loader, TriangleAlert, X,
+import {
+  ArrowLeft,
+  ArrowRight,
+  ArrowUpRight,
+  ChevronDown,
+  LayoutGrid,
+  Loader,
+  TriangleAlert,
+  X,
   ArrowDownToLine,
-  Images, Folder, FolderOpen
+  Images,
+  Folder,
+  FolderOpen,
 } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import Badge from "./ui/Badge.vue";
@@ -38,11 +46,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const galleryStore = useGalleryStore();
 const lightboxStore = useLightboxStore();
@@ -66,17 +70,17 @@ const {
 });
 
 interface Props {
-  isMobile: boolean
-  barsVisible?: boolean
-  showToolbarBreadcrumb?: boolean
+  isMobile: boolean;
+  barsVisible?: boolean;
+  showToolbarBreadcrumb?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   barsVisible: true,
   showToolbarBreadcrumb: true,
-})
-const injectedScrollContainerRef = inject(galleryScrollContainerRefKey, null)
-const scrollParentRef = ref<HTMLElement | null>(null)
+});
+const injectedScrollContainerRef = inject(galleryScrollContainerRefKey, null);
+const scrollParentRef = ref<HTMLElement | null>(null);
 
 const resolveTemplateRefElement = (target: Element | ComponentPublicInstance | null) => {
   if (!target) return null;
@@ -145,7 +149,7 @@ const sortItems = <T extends { name: string; mtime?: number }>(items: T[]): T[] 
   const sorted = [...items];
   const field = sortField.value;
   const order = sortOrder.value;
-  
+
   sorted.sort((a, b) => {
     let cmp = 0;
     if (field === "name") {
@@ -155,7 +159,7 @@ const sortItems = <T extends { name: string; mtime?: number }>(items: T[]): T[] 
     }
     return order === "asc" ? cmp : -cmp;
   });
-  
+
   return sorted;
 };
 
@@ -163,16 +167,12 @@ const scanFolders = computed(() => infiniteScanQuery.folders.value);
 const scanImages = computed(() => infiniteScanQuery.images.value);
 
 const folders = computed(() =>
-  sortItems(
-    hasSearchQuery.value ? scanFolders.value : fuzzySearchFileNodes(scanFolders.value, searchQuery.value)
-  )
+  sortItems(hasSearchQuery.value ? scanFolders.value : fuzzySearchFileNodes(scanFolders.value, searchQuery.value)),
 );
 
 // Fuse search is client-side and only covers images currently loaded in the active scan view.
 const filenameImages = computed(() =>
-  sortItems(
-    hasSearchQuery.value ? scanImages.value : fuzzySearchFileNodes(scanImages.value, searchQuery.value)
-  )
+  sortItems(hasSearchQuery.value ? scanImages.value : fuzzySearchFileNodes(scanImages.value, searchQuery.value)),
 );
 
 const searchResultToFileNode = (result: UnifiedSearchResult): FileNode => ({
@@ -242,7 +242,12 @@ const folderPathFromRelativePath = (relativePath: string, filename: string): str
 const searchResultFolderPath = (result: UnifiedSearchResult): string => {
   const normalizedRelativePath = normalizeDisplayFolderPath(result.relative_path);
   const relativeFolderPath = folderPathFromRelativePath(result.relative_path, result.name);
-  if (relativeFolderPath || !normalizedRelativePath || normalizedRelativePath === "." || normalizedRelativePath === result.name) {
+  if (
+    relativeFolderPath ||
+    !normalizedRelativePath ||
+    normalizedRelativePath === "." ||
+    normalizedRelativePath === result.name
+  ) {
     return relativeFolderPath;
   }
   return folderPathFromRelativePath(result.parent_path, result.name);
@@ -250,7 +255,9 @@ const searchResultFolderPath = (result: UnifiedSearchResult): string => {
 
 const searchAlbums = computed(() => unifiedSearchQuery.albums.value);
 const searchPhotos = computed(() => unifiedSearchQuery.photos.value);
-const searchPhotoPathSet = computed(() => new Set(searchPhotos.value.map((result) => normalizeSearchPath(result.path))));
+const searchPhotoPathSet = computed(
+  () => new Set(searchPhotos.value.map((result) => normalizeSearchPath(result.path))),
+);
 const searchPrompt = computed(() => {
   const seen = new Set<string>();
   return unifiedSearchQuery.prompt.value.filter((result) => {
@@ -265,7 +272,7 @@ const searchAlbumNodesRef = computed(() =>
     const node = searchResultToFileNode(album);
     if (!node.cover_images || node.cover_images.length === 0) {
       const match = scanFolders.value.find(
-        (folder) => normalizeSearchPath(folder.path) === normalizeSearchPath(album.path)
+        (folder) => normalizeSearchPath(folder.path) === normalizeSearchPath(album.path),
       );
       if (match && match.cover_images && match.cover_images.length > 0) {
         node.cover_images = match.cover_images;
@@ -275,7 +282,7 @@ const searchAlbumNodesRef = computed(() =>
       }
     }
     return node;
-  })
+  }),
 );
 const searchPhotoNodes = computed(() => searchPhotos.value.map(searchResultToFileNode));
 const searchPromptNodes = computed(() => searchPrompt.value.map(searchResultToFileNode));
@@ -288,22 +295,21 @@ const allSearchImageNodes = computed(() => {
   });
 });
 
-const images = computed(() =>
-  hasSearchQuery.value ? allSearchImageNodes.value : filenameImages.value
-);
+const images = computed(() => (hasSearchQuery.value ? allSearchImageNodes.value : filenameImages.value));
 
 const isLoading = computed(() => infiniteScanQuery.isLoading.value);
 const isRefetching = computed(
-  () => infiniteScanQuery.isFetching.value && !infiniteScanQuery.isLoading.value && !infiniteScanQuery.isFetchingNextPage.value
+  () =>
+    infiniteScanQuery.isFetching.value &&
+    !infiniteScanQuery.isLoading.value &&
+    !infiniteScanQuery.isFetchingNextPage.value,
 );
 const isSearchLoading = computed(
   () => hasSearchQuery.value && (unifiedSearchQuery.isLoading.value || unifiedSearchQuery.isFetching.value),
 );
 const currentPath = computed(() => galleryStore.currentPath);
 const canBack = computed(() => galleryStore.historyIndex > 0);
-const canForward = computed(
-  () => galleryStore.historyIndex < galleryStore.history.length - 1
-);
+const canForward = computed(() => galleryStore.historyIndex < galleryStore.history.length - 1);
 const hasMoreImages = computed(() => !hasSearchQuery.value && infiniteScanQuery.hasNextPage.value);
 const hasAnyItems = computed(() => scanFolders.value.length + scanImages.value.length > 0);
 
@@ -313,29 +319,32 @@ const hasAlbums = computed(() => folders.value.length > 0);
 const hasPhotos = computed(() => images.value.length > 0);
 const hasContent = computed(() => hasAlbums.value || hasPhotos.value);
 
-const showEmptyFolder = computed(() =>
-  pathReady.value &&
-  infiniteScanQuery.isSuccess.value &&
-  !infiniteScanQuery.isPending.value &&
-  !infiniteScanQuery.isFetching.value &&
-  !hasContent.value &&
-  !hasSearchQuery.value
+const showEmptyFolder = computed(
+  () =>
+    pathReady.value &&
+    infiniteScanQuery.isSuccess.value &&
+    !infiniteScanQuery.isPending.value &&
+    !infiniteScanQuery.isFetching.value &&
+    !hasContent.value &&
+    !hasSearchQuery.value,
 );
 
 const showEmptyFolderDelayed = useDelayedBoolean(showEmptyFolder, 250);
 
 const hasNoPath = computed(() => !galleryStore.currentPath && !galleryStore.rootPath);
-const hasNotLoaded = computed(() => !galleryStore.hasEverLoaded && (!!galleryStore.currentPath || !!galleryStore.rootPath));
-const showGallerySkeleton = computed(() =>
-  !hasSearchQuery.value &&
-  (hasNotLoaded.value || (isLoading.value && !galleryStore.hasEverLoaded))
+const hasNotLoaded = computed(
+  () => !galleryStore.hasEverLoaded && (!!galleryStore.currentPath || !!galleryStore.rootPath),
 );
-const showSearchSkeleton = computed(() =>
-  hasSearchQuery.value &&
-  isSearchLoading.value &&
-  !searchAlbums.value.length &&
-  !searchPhotos.value.length &&
-  !searchPrompt.value.length
+const showGallerySkeleton = computed(
+  () => !hasSearchQuery.value && (hasNotLoaded.value || (isLoading.value && !galleryStore.hasEverLoaded)),
+);
+const showSearchSkeleton = computed(
+  () =>
+    hasSearchQuery.value &&
+    isSearchLoading.value &&
+    !searchAlbums.value.length &&
+    !searchPhotos.value.length &&
+    !searchPrompt.value.length,
 );
 const noSearchResults = computed(
   () =>
@@ -345,7 +354,7 @@ const noSearchResults = computed(
     !unifiedSearchQuery.isFetching.value &&
     searchAlbums.value.length === 0 &&
     searchPhotos.value.length === 0 &&
-    searchPrompt.value.length === 0
+    searchPrompt.value.length === 0,
 );
 const scanQueryErrorMessage = computed(() => {
   const error = infiniteScanQuery.error.value;
@@ -381,25 +390,25 @@ const openFolder = () => galleryStore.openInExplorer();
 const isLoadingMore = computed(() => infiniteScanQuery.isFetchingNextPage.value);
 
 // --- Virtual scroller state ---
-const { isTablet } = useDevice()
-const deviceCategory = computed(() => props.isMobile ? 'mobile' : isTablet.value ? 'tablet' : 'desktop')
+const { isTablet } = useDevice();
+const deviceCategory = computed(() => (props.isMobile ? "mobile" : isTablet.value ? "tablet" : "desktop"));
 const { columnCount, sliderLevel, rowHeight, setGridRef } = useColumnResize(deviceCategory);
 
 // Density dropdown options
 const densityOptions = computed(() => {
-  if (deviceCategory.value !== 'tablet') return PHOTO_GRID_LEVELS
-  const map = GRID_COLUMN_MAP.tablet
-  const seen = new Set<number>()
-  const result: Array<{ level: number; label: string; columns: number }> = []
+  if (deviceCategory.value !== "tablet") return PHOTO_GRID_LEVELS;
+  const map = GRID_COLUMN_MAP.tablet;
+  const seen = new Set<number>();
+  const result: Array<{ level: number; label: string; columns: number }> = [];
   for (let i = 0; i < PHOTO_GRID_LEVELS.length; i++) {
-    const cols = map[i]
+    const cols = map[i];
     if (!seen.has(cols)) {
-      seen.add(cols)
-      result.push({ ...PHOTO_GRID_LEVELS[i], columns: cols })
+      seen.add(cols);
+      result.push({ ...PHOTO_GRID_LEVELS[i], columns: cols });
     }
   }
-  return result
-})
+  return result;
+});
 
 const selectDensity = (level: number) => {
   sliderLevel.value = level;
@@ -410,7 +419,7 @@ const imageRows = computed(() => {
   for (let i = 0; i < images.value.length; i += columnCount.value) {
     rows.push({
       id: `row-${columnCount.value}-${i}`,
-      items: images.value.slice(i, i + columnCount.value)
+      items: images.value.slice(i, i + columnCount.value),
     });
   }
   return rows;
@@ -423,7 +432,7 @@ const rowVirtualizer = useVirtualizer<HTMLElement, HTMLElement>(
     estimateSize: () => rowHeight.value || 1,
     overscan: 5,
     getItemKey: (index: number) => imageRows.value[index]?.id ?? index,
-  }))
+  })),
 );
 
 watch(
@@ -431,7 +440,7 @@ watch(
   () => {
     rowVirtualizer.value.measure();
   },
-  { flush: "post" }
+  { flush: "post" },
 );
 
 const searchPhotoRows = computed(() => {
@@ -439,7 +448,7 @@ const searchPhotoRows = computed(() => {
   for (let i = 0; i < searchPhotos.value.length; i += columnCount.value) {
     rows.push({
       id: `photo-row-${columnCount.value}-${i}`,
-      items: searchPhotos.value.slice(i, i + columnCount.value)
+      items: searchPhotos.value.slice(i, i + columnCount.value),
     });
   }
   return rows;
@@ -450,7 +459,7 @@ const searchPromptRows = computed(() => {
   for (let i = 0; i < searchPrompt.value.length; i += columnCount.value) {
     rows.push({
       id: `prompt-row-${columnCount.value}-${i}`,
-      items: searchPrompt.value.slice(i, i + columnCount.value)
+      items: searchPrompt.value.slice(i, i + columnCount.value),
     });
   }
   return rows;
@@ -479,7 +488,7 @@ const setupLoadObserver = () => {
       root: null,
       rootMargin: "400px",
       threshold: 0,
-    }
+    },
   );
   loadObserver.observe(loadMoreSentinel.value);
 };
@@ -490,12 +499,7 @@ watch(loadMoreSentinel, () => setupLoadObserver());
 </script>
 
 <template>
-  <div 
-    class="gallery-grid"
-    @touchstart="onTouchStart"
-    @touchmove="onTouchMove"
-    @touchend="onTouchEnd"
-  >
+  <div class="gallery-grid" @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
     <!-- Pull-to-refresh indicator -->
     <div
       v-if="showPullIndicator"
@@ -509,13 +513,16 @@ watch(loadMoreSentinel, () => setupLoadObserver());
       <div v-else class="pull-arrow" :style="{ transform: `rotate(${pullProgress * 180}deg)` }">
         <ArrowDownToLine class="gallery-icon-toolbar" />
       </div>
-      <span class="pull-label">{{ isRefreshing ? 'Refreshing...' : 'Pull to refresh' }}</span>
+      <span class="pull-label">{{ isRefreshing ? "Refreshing..." : "Pull to refresh" }}</span>
     </div>
 
     <!-- ============================================================
          Desktop toolbar
          ============================================================ -->
-    <div v-if="deviceCategory === 'desktop'" class="grid-header grid grid-cols-[auto_1fr_auto_auto_auto_auto] items-center gap-3 shrink-0">
+    <div
+      v-if="deviceCategory === 'desktop'"
+      class="grid-header grid grid-cols-[auto_1fr_auto_auto_auto_auto] items-center gap-3 shrink-0"
+    >
       <div class="nav-group inline-flex items-center gap-2">
         <Tooltip>
           <TooltipTrigger as-child>
@@ -550,7 +557,12 @@ watch(loadMoreSentinel, () => setupLoadObserver());
           <TooltipContent>Forward</TooltipContent>
         </Tooltip>
       </div>
-      <Breadcrumb v-if="showToolbarBreadcrumb" class="breadcrumb-wrap" :path="currentPath" @navigate="handleOpenFolder" />
+      <Breadcrumb
+        v-if="showToolbarBreadcrumb"
+        class="breadcrumb-wrap"
+        :path="currentPath"
+        @navigate="handleOpenFolder"
+      />
 
       <Tooltip>
         <TooltipTrigger as-child>
@@ -604,9 +616,14 @@ watch(loadMoreSentinel, () => setupLoadObserver());
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Badge v-if="isLoading || isRefetching" variant="loading" :class="{ 'opacity-70': isRefetching && !isLoading }" class="loading-badge">
-        <Loader class="gallery-icon-md lucide-spin" /> 
-        <span>{{ isRefetching && !isLoading ? 'Refreshing' : 'Loading' }}</span>
+      <Badge
+        v-if="isLoading || isRefetching"
+        variant="loading"
+        :class="{ 'opacity-70': isRefetching && !isLoading }"
+        class="loading-badge"
+      >
+        <Loader class="gallery-icon-md lucide-spin" />
+        <span>{{ isRefetching && !isLoading ? "Refreshing" : "Loading" }}</span>
       </Badge>
     </div>
 
@@ -633,37 +650,21 @@ watch(loadMoreSentinel, () => setupLoadObserver());
         <TriangleAlert class="gallery-icon-md" />
         <span>{{ errorMessage }}</span>
       </div>
-      <button 
-        class="error-close" 
-        type="button" 
-        @click="galleryStore.clearError()"
-      >
+      <button class="error-close" type="button" @click="galleryStore.clearError()">
         <X class="gallery-icon-sm" />
       </button>
     </div>
 
     <div v-if="showGallerySkeleton || showSearchSkeleton" class="skeleton-container">
       <div class="skeleton-grid" :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }">
-        <SkeletonLoader
-          v-for="i in skeletonItems"
-          :key="i"
-          type="photo"
-        />
+        <SkeletonLoader v-for="i in skeletonItems" :key="i" type="photo" />
       </div>
     </div>
 
     <!-- Search results: backend indexed albums, photos, and prompt matches -->
-    <div
-      v-else-if="hasSearchQuery"
-      :ref="setScrollContainerRef"
-      class="search-results-container"
-    >
+    <div v-else-if="hasSearchQuery" :ref="setScrollContainerRef" class="search-results-container">
       <section v-if="searchAlbums.length" class="search-photo-section">
-        <GallerySectionHeader
-          title="Album suggestions"
-          :count="searchAlbums.length"
-          :badge-icon="FolderOpen"
-        />
+        <GallerySectionHeader title="Album suggestions" :count="searchAlbums.length" :badge-icon="FolderOpen" />
         <div class="search-album-grid">
           <AlbumCard
             v-for="(album, index) in searchAlbums"
@@ -675,11 +676,7 @@ watch(loadMoreSentinel, () => setupLoadObserver());
       </section>
 
       <section v-if="searchPhotos.length" class="search-photo-section">
-        <GallerySectionHeader
-          title="Photos"
-          :count="searchPhotos.length"
-          :badge-icon="Images"
-        />
+        <GallerySectionHeader title="Photos" :count="searchPhotos.length" :badge-icon="Images" />
 
         <div
           v-for="row in searchPhotoRows"
@@ -709,11 +706,7 @@ watch(loadMoreSentinel, () => setupLoadObserver());
       </section>
 
       <section v-if="searchPrompt.length" class="search-photo-section">
-        <GallerySectionHeader
-          title="Prompt"
-          :count="searchPrompt.length"
-          :badge-icon="Images"
-        />
+        <GallerySectionHeader title="Prompt" :count="searchPrompt.length" :badge-icon="Images" />
 
         <div
           v-for="row in searchPromptRows"
@@ -751,55 +744,95 @@ watch(loadMoreSentinel, () => setupLoadObserver());
           action-icon="xmark"
           @action="galleryStore.clearSearch()"
         />
-        <p v-if="showAllIndexedHint" class="search-scope-hint">
-          Try All indexed to search outside this folder.
-        </p>
+        <p v-if="showAllIndexedHint" class="search-scope-hint">Try All indexed to search outside this folder.</p>
       </div>
     </div>
 
     <!-- Has content: images or folders -->
     <template v-else-if="images.length > 0 || folders.length > 0">
       <div class="scroller-container" :ref="setGridRef">
-
-      <div
-        v-if="!props.isMobile && imageRows.length > 0"
-        :ref="setVirtualScrollContainerRef"
-        class="scroller tanstack-scroller"
-        :class="{ 'fade-slide': !isMobile }"
-      >
-        <GlowContainer v-if="folders.length" :disabled="false">
-          <AlbumScroller
-            :folders="folders"
-            @open-folder="handleOpenFolder"
-          />
-        </GlowContainer>
-
-        <GallerySectionHeader
-          v-if="images.length"
-          title="Photos"
-          :count="images.length"
-          :badge-icon="Images"
-        />
-
         <div
-          class="tanstack-virtual-spacer"
-          :style="{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }"
+          v-if="!props.isMobile && imageRows.length > 0"
+          :ref="setVirtualScrollContainerRef"
+          class="scroller tanstack-scroller"
+          :class="{ 'fade-slide': !isMobile }"
         >
+          <GlowContainer v-if="folders.length" :disabled="false">
+            <AlbumScroller :folders="folders" @open-folder="handleOpenFolder" />
+          </GlowContainer>
+
+          <GallerySectionHeader v-if="images.length" title="Photos" :count="images.length" :badge-icon="Images" />
+
           <div
-            v-for="virtualRow in rowVirtualizer.getVirtualItems()"
-            :key="String(virtualRow.key)"
-            class="virtual-row tanstack-virtual-row"
-            :style="{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              transform: `translateY(${virtualRow.start}px)`,
-              gridTemplateColumns: `repeat(${columnCount}, 1fr)`
-            }"
+            class="tanstack-virtual-spacer"
+            :style="{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }"
+          >
+            <div
+              v-for="virtualRow in rowVirtualizer.getVirtualItems()"
+              :key="String(virtualRow.key)"
+              class="virtual-row tanstack-virtual-row"
+              :style="{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: `translateY(${virtualRow.start}px)`,
+                gridTemplateColumns: `repeat(${columnCount}, 1fr)`,
+              }"
+            >
+              <PhotoCard
+                v-for="img in imageRows[virtualRow.index]?.items ?? []"
+                :key="img.path"
+                :src="img.path"
+                :name="img.name"
+                @dimensions="handlePhotoDimensions"
+                @click="handleOpenImage(img.path, img.name)"
+                @keydown.enter="handleOpenImage(img.path, img.name)"
+                @keydown.space.prevent="handleOpenImage(img.path, img.name)"
+              />
+            </div>
+          </div>
+
+          <div class="scroller-footer" :class="{ 'bars-hidden': !barsVisible }">
+            <div ref="loadMoreSentinel" class="load-more-sentinel"></div>
+            <div v-if="isLoadingMore" class="loading-more">
+              <Loader class="gallery-icon-md lucide-spin" />
+              <span>Loading more photos...</span>
+            </div>
+
+            <EmptyState
+              v-if="noSearchResults"
+              type="no-results"
+              title="No results"
+              description="Try a filename, album name, or prompt."
+              action-label="Clear search"
+              action-icon="xmark"
+              compact
+              @action="galleryStore.clearSearch()"
+            />
+          </div>
+        </div>
+
+        <!-- Mobile: native scroll (no virtual scroller) -->
+        <div
+          v-else-if="props.isMobile && imageRows.length > 0"
+          :ref="setScrollContainerRef"
+          class="scroller mobile-scroller"
+        >
+          <GlowContainer v-if="folders.length" :disabled="true">
+            <AlbumScroller :folders="folders" @open-folder="handleOpenFolder" />
+          </GlowContainer>
+
+          <GallerySectionHeader v-if="images.length" title="Photos" :count="images.length" :badge-icon="Images" />
+
+          <div
+            v-for="row in imageRows"
+            :key="row.id"
+            class="virtual-row"
+            :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }"
           >
             <PhotoCard
-              v-for="img in imageRows[virtualRow.index]?.items ?? []"
+              v-for="img in row.items"
               :key="img.path"
               :src="img.path"
               :name="img.name"
@@ -809,105 +842,43 @@ watch(loadMoreSentinel, () => setupLoadObserver());
               @keydown.space.prevent="handleOpenImage(img.path, img.name)"
             />
           </div>
-        </div>
 
-        <div class="scroller-footer" :class="{ 'bars-hidden': !barsVisible }">
-          <div ref="loadMoreSentinel" class="load-more-sentinel"></div>
-          <div v-if="isLoadingMore" class="loading-more">
-            <Loader class="gallery-icon-md lucide-spin" />
-            <span>Loading more photos...</span>
+          <div class="scroller-footer" :class="{ 'bars-hidden': !barsVisible }">
+            <div ref="loadMoreSentinel" class="load-more-sentinel"></div>
+            <div v-if="isLoadingMore" class="loading-more">
+              <Loader class="gallery-icon-md lucide-spin" />
+              <span>Loading more photos...</span>
+            </div>
+
+            <EmptyState
+              v-if="noSearchResults"
+              type="no-results"
+              title="No results"
+              description="Try a filename, album name, or prompt."
+              action-label="Clear search"
+              action-icon="xmark"
+              compact
+              @action="galleryStore.clearSearch()"
+            />
           </div>
+        </div>
 
+        <!-- Fallback: Only folders, no images -->
+        <div v-else-if="folders.length > 0" :ref="setScrollContainerRef" class="folders-only-container">
+          <GlowContainer :disabled="props.isMobile">
+            <AlbumScroller :folders="folders" @open-folder="handleOpenFolder" />
+          </GlowContainer>
+
+          <!-- Has only folders, no images -->
           <EmptyState
-            v-if="noSearchResults"
-            type="no-results"
-            title="No results"
-            description="Try a filename, album name, or prompt."
-            action-label="Clear search"
-            action-icon="xmark"
+            v-if="!images.length && !isLoading"
+            type="no-images"
+            title="No images in this folder"
+            description="This folder only contains subfolders. Browse the albums above."
             compact
-            @action="galleryStore.clearSearch()"
           />
         </div>
       </div>
-
-      <!-- Mobile: native scroll (no virtual scroller) -->
-      <div
-        v-else-if="props.isMobile && imageRows.length > 0"
-        :ref="setScrollContainerRef"
-        class="scroller mobile-scroller"
-      >
-        <GlowContainer v-if="folders.length" :disabled="true">
-          <AlbumScroller
-            :folders="folders"
-            @open-folder="handleOpenFolder"
-          />
-        </GlowContainer>
-
-        <GallerySectionHeader
-          v-if="images.length"
-          title="Photos"
-          :count="images.length"
-          :badge-icon="Images"
-        />
-
-        <div
-          v-for="row in imageRows"
-          :key="row.id"
-          class="virtual-row"
-          :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }"
-        >
-          <PhotoCard
-            v-for="img in row.items"
-            :key="img.path"
-            :src="img.path"
-            :name="img.name"
-            @dimensions="handlePhotoDimensions"
-            @click="handleOpenImage(img.path, img.name)"
-            @keydown.enter="handleOpenImage(img.path, img.name)"
-            @keydown.space.prevent="handleOpenImage(img.path, img.name)"
-          />
-        </div>
-
-        <div class="scroller-footer" :class="{ 'bars-hidden': !barsVisible }">
-          <div ref="loadMoreSentinel" class="load-more-sentinel"></div>
-          <div v-if="isLoadingMore" class="loading-more">
-            <Loader class="gallery-icon-md lucide-spin" />
-            <span>Loading more photos...</span>
-          </div>
-
-          <EmptyState
-            v-if="noSearchResults"
-            type="no-results"
-            title="No results"
-            description="Try a filename, album name, or prompt."
-            action-label="Clear search"
-            action-icon="xmark"
-            compact
-            @action="galleryStore.clearSearch()"
-          />
-        </div>
-      </div>
-
-      <!-- Fallback: Only folders, no images -->
-      <div v-else-if="folders.length > 0" :ref="setScrollContainerRef" class="folders-only-container">
-        <GlowContainer :disabled="props.isMobile">
-          <AlbumScroller
-            :folders="folders"
-            @open-folder="handleOpenFolder"
-          />
-        </GlowContainer>
-
-        <!-- Has only folders, no images -->
-        <EmptyState
-          v-if="!images.length && !isLoading"
-          type="no-images"
-          title="No images in this folder"
-          description="This folder only contains subfolders. Browse the albums above."
-          compact
-        />
-      </div>
-    </div>
     </template>
 
     <!-- Empty States (when scroller-container is not rendered) -->
@@ -930,7 +901,7 @@ watch(loadMoreSentinel, () => setupLoadObserver());
         title="Welcome to Gallery"
         description="Enter a folder path in the sidebar to start browsing your images"
       />
-      
+
       <!-- Not Loaded Yet -->
       <EmptyState
         v-else-if="hasNotLoaded"
@@ -938,7 +909,7 @@ watch(loadMoreSentinel, () => setupLoadObserver());
         title="Gallery not loaded"
         description="Click Load in the sidebar or press Enter to browse your images"
       />
-      
+
       <!-- Empty Folder -->
       <EmptyState
         v-else-if="showEmptyFolderDelayed"
@@ -950,7 +921,6 @@ watch(loadMoreSentinel, () => setupLoadObserver());
         @action="goBack"
       />
     </div>
-
   </div>
 </template>
 
@@ -1173,7 +1143,6 @@ watch(loadMoreSentinel, () => setupLoadObserver());
 .scroller::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.25);
 }
-
 
 .folders-only-container {
   padding-left: 10px;
@@ -1445,7 +1414,9 @@ watch(loadMoreSentinel, () => setupLoadObserver());
   color: var(--primary);
   font-size: 13px;
   font-weight: 500;
-  transition: transform 0.3s cubic-bezier(0.2, 0, 0, 1), opacity 0.2s ease;
+  transition:
+    transform 0.3s cubic-bezier(0.2, 0, 0, 1),
+    opacity 0.2s ease;
   will-change: transform;
   flex-shrink: 0;
 }
@@ -1477,5 +1448,4 @@ watch(loadMoreSentinel, () => setupLoadObserver());
     transition: none;
   }
 }
-
 </style>

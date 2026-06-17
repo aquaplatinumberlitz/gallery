@@ -146,8 +146,7 @@
   from {
     opacity: var(--tw-enter-opacity, 1);
     transform: translate3d(var(--tw-enter-translate-x, 0), var(--tw-enter-translate-y, 0), 0)
-                scale3d(var(--tw-enter-scale-x, 1), var(--tw-enter-scale-y, 1), 1)
-                rotate(var(--tw-enter-rotate, 0));
+      scale3d(var(--tw-enter-scale-x, 1), var(--tw-enter-scale-y, 1), 1) rotate(var(--tw-enter-rotate, 0));
   }
   to {
     opacity: 1;
@@ -163,8 +162,7 @@
   to {
     opacity: var(--tw-exit-opacity, 0);
     transform: translate3d(var(--tw-exit-translate-x, 0), var(--tw-exit-translate-y, 0), 0)
-                scale3d(var(--tw-exit-scale-x, 1), var(--tw-exit-scale-y, 1), 1)
-                rotate(var(--tw-exit-rotate, 0));
+      scale3d(var(--tw-exit-scale-x, 1), var(--tw-exit-scale-y, 1), 1) rotate(var(--tw-exit-rotate, 0));
   }
 }
 
@@ -174,25 +172,51 @@
  * ============================================ */
 
 /* Fade modifiers */
-.fade-in-0 { --tw-enter-opacity: 0; }
-.fade-out-0 { --tw-exit-opacity: 0; }
+.fade-in-0 {
+  --tw-enter-opacity: 0;
+}
+.fade-out-0 {
+  --tw-exit-opacity: 0;
+}
 
 /* Zoom modifiers */
-.zoom-in-95 { --tw-enter-scale-x: .95; --tw-enter-scale-y: .95; }
-.zoom-out-95 { --tw-exit-scale-x: .95; --tw-exit-scale-y: .95; }
+.zoom-in-95 {
+  --tw-enter-scale-x: 0.95;
+  --tw-enter-scale-y: 0.95;
+}
+.zoom-out-95 {
+  --tw-exit-scale-x: 0.95;
+  --tw-exit-scale-y: 0.95;
+}
 
 /* Slide-in modifiers (translate) */
-.slide-in-from-top-2 { --tw-enter-translate-y: -0.5rem; }
-.slide-in-from-bottom-2 { --tw-enter-translate-y: 0.5rem; }
-.slide-in-from-left-2 { --tw-enter-translate-x: -0.5rem; }
-.slide-in-from-right-2 { --tw-enter-translate-x: 0.5rem; }
+.slide-in-from-top-2 {
+  --tw-enter-translate-y: -0.5rem;
+}
+.slide-in-from-bottom-2 {
+  --tw-enter-translate-y: 0.5rem;
+}
+.slide-in-from-left-2 {
+  --tw-enter-translate-x: -0.5rem;
+}
+.slide-in-from-right-2 {
+  --tw-enter-translate-x: 0.5rem;
+}
 
 /* Slide-in with fraction (1/2 = 50%) and arbitrary values */
-.slide-in-from-left-1\/2 { --tw-enter-translate-x: -50%; }
-.slide-in-from-top-\[48\%\] { --tw-enter-translate-y: -48%; }
+.slide-in-from-left-1\/2 {
+  --tw-enter-translate-x: -50%;
+}
+.slide-in-from-top-\[48\%\] {
+  --tw-enter-translate-y: -48%;
+}
 
 /* Slide-out modifiers */
-.slide-out-to-left-1\/2 { --tw-exit-translate-x: -50%; }
-.slide-out-to-top-\[48\%\] { --tw-exit-translate-y: -48%; }
+.slide-out-to-left-1\/2 {
+  --tw-exit-translate-x: -50%;
+}
+.slide-out-to-top-\[48\%\] {
+  --tw-exit-translate-y: -48%;
+}
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));

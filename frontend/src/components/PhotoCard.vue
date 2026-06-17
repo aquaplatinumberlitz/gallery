@@ -5,7 +5,7 @@ import { Image } from "lucide-vue-next";
 
 // ── Global image load cache ──
 // Persists across virtualized mount/unmount cycles so shimmer doesn't re-appear
-const loadedImages = new Set<string>()
+const loadedImages = new Set<string>();
 
 const props = defineProps<{
   src?: string;
@@ -25,8 +25,8 @@ let hoverTimer: ReturnType<typeof setTimeout> | null = null;
 // Check if image is potentially animated based on extension
 const isAnimated = computed(() => {
   if (!props.name) return false;
-  const ext = props.name.split('.').pop()?.toLowerCase();
-  return ext === 'webp' || ext === 'gif';
+  const ext = props.name.split(".").pop()?.toLowerCase();
+  return ext === "webp" || ext === "gif";
 });
 
 const shouldPlay = ref(false);
@@ -34,11 +34,11 @@ const previewSrc = ref("");
 
 const onMouseEnter = () => {
   // Guard: skip hover animation on touch devices (prevents sticky hover state)
-  if (window.matchMedia('(hover: none)').matches) return;
+  if (window.matchMedia("(hover: none)").matches) return;
 
   isHovering.value = true;
   if (!isAnimated.value) return;
-  
+
   // Small delay to avoid loading full image on quick mouse hover
   hoverTimer = setTimeout(() => {
     shouldPlay.value = true;
@@ -100,10 +100,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div 
+  <div
     data-testid="photo-card"
-    class="photo-card" 
-    :class="{ loaded: isLoaded }" 
+    class="photo-card"
+    :class="{ loaded: isLoaded }"
     @click="emit('click')"
     @mouseenter="onMouseEnter"
     @mouseleave="onMouseLeave"
@@ -114,11 +114,11 @@ onBeforeUnmount(() => {
     <div v-if="!isLoaded && !hasError" class="shimmer-placeholder">
       <div class="shimmer-wave"></div>
     </div>
-    
+
     <!-- Static Thumbnail (Always visible initially) -->
-    <img 
-      v-if="props.src && !hasError" 
-      :src="getThumbnailUrl(props.src)" 
+    <img
+      v-if="props.src && !hasError"
+      :src="getThumbnailUrl(props.src)"
       loading="lazy"
       @load="onImageLoad"
       @error="onImageError"
@@ -128,12 +128,7 @@ onBeforeUnmount(() => {
 
     <!-- Animated Preview (Overlay on hover) -->
     <transition name="fade">
-      <img 
-        v-if="shouldPlay && previewSrc && !hasError" 
-        :src="previewSrc" 
-        class="preview-overlay"
-        alt=""
-      />
+      <img v-if="shouldPlay && previewSrc && !hasError" :src="previewSrc" class="preview-overlay" alt="" />
     </transition>
 
     <!-- Badge for animated files -->
@@ -160,8 +155,7 @@ onBeforeUnmount(() => {
   /* Facebook-inspired: no shadow */
   box-shadow: none;
   contain: content; /* Isolate layout/paint — prevents reflows during scroll */
-  transition: 
-    transform 280ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 280ms cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
 
   img {
@@ -213,7 +207,9 @@ onBeforeUnmount(() => {
 
 .thumbnail-img {
   opacity: 0;
-  transition: opacity 0.3s ease, transform 280ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition:
+    opacity 0.3s ease,
+    transform 280ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .photo-card.loaded .thumbnail-img {
@@ -292,12 +288,7 @@ onBeforeUnmount(() => {
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.5) 50%,
-    transparent 100%
-  );
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.5) 50%, transparent 100%);
   transform: translateX(-100%);
   animation: shimmer 1.5s infinite;
 }
@@ -317,11 +308,6 @@ html[data-theme="dark"] .shimmer-placeholder {
 }
 
 html[data-theme="dark"] .shimmer-wave {
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.2) 50%,
-    transparent 100%
-  );
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.2) 50%, transparent 100%);
 }
 </style>

@@ -83,9 +83,12 @@ onBeforeUnmount(() => {
   resizeObserver = null;
 });
 
-watch(() => props.folders.length, () => {
-  nextTick(() => init());
-});
+watch(
+  () => props.folders.length,
+  () => {
+    nextTick(() => init());
+  },
+);
 
 let resizeHandler: (() => void) | null = null;
 onMounted(() => {
@@ -100,10 +103,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div
-    class="album-grid-wrapper"
-    :class="{ 'has-overflow': showLeftArrow || showRightArrow }"
-  >
+  <div class="album-grid-wrapper" :class="{ 'has-overflow': showLeftArrow || showRightArrow }">
     <button
       v-show="showLeftArrow"
       class="album-scroll-btn album-scroll-btn--left"
@@ -124,11 +124,7 @@ onBeforeUnmount(() => {
     >
       <ArrowRight class="gallery-icon-nav" />
     </button>
-    <div
-      ref="gridRef"
-      class="album-grid"
-      @scroll="onGridScroll"
-    >
+    <div ref="gridRef" class="album-grid" @scroll="onGridScroll">
       <component
         :is="isMobile ? AlbumCardMobile : AlbumCardTablet"
         v-for="item in folders"
@@ -215,7 +211,13 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: opacity 0.25s, transform 0.2s, border-color 0.2s, box-shadow 0.2s, background 0.2s, color 0.2s;
+  transition:
+    opacity 0.25s,
+    transform 0.2s,
+    border-color 0.2s,
+    box-shadow 0.2s,
+    background 0.2s,
+    color 0.2s;
   pointer-events: auto;
   opacity: 1;
 }
@@ -369,7 +371,12 @@ onBeforeUnmount(() => {
     padding: 0;
     margin: 0;
   }
-  .album-grid-wrapper .album-grid { gap: 6px; }
-  .album-grid > * { min-width: 110px; max-width: 140px; }
+  .album-grid-wrapper .album-grid {
+    gap: 6px;
+  }
+  .album-grid > * {
+    min-width: 110px;
+    max-width: 140px;
+  }
 }
 </style>

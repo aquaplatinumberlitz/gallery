@@ -5,13 +5,7 @@ import vue from "eslint-plugin-vue";
 
 export default tseslint.config(
   {
-    ignores: [
-      "dist/**",
-      "node_modules/**",
-      "test-results/**",
-      "coverage/**",
-      "accessibility-report.json",
-    ],
+    ignores: ["dist/**", "node_modules/**", "test-results/**", "coverage/**", "accessibility-report.json"],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -47,12 +41,7 @@ export default tseslint.config(
     },
   },
   {
-    files: [
-      "*.config.ts",
-      "playwright.config.ts",
-      "scripts/**/*.{js,ts}",
-      "tests/**/*.{js,ts}",
-    ],
+    files: ["*.config.ts", "playwright.config.ts", "scripts/**/*.{js,ts}", "tests/**/*.{js,ts}"],
     languageOptions: {
       globals: {
         ...globals.browser,

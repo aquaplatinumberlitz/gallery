@@ -6,26 +6,21 @@ import { getIndexStatusRefetchInterval } from "../utils/indexStatus";
 
 export function useIndexStatusQuery(
   path: MaybeRefOrGetter<string | null | undefined>,
-  enabled: MaybeRefOrGetter<boolean> = true
+  enabled: MaybeRefOrGetter<boolean> = true,
 ) {
   const isDocumentHidden = ref(false);
   const normalizedPath = computed(() => normalizeQueryPath(toValue(path) || ""));
   const queryEnabled = computed(() => toValue(enabled) && normalizedPath.value.length > 0);
 
   const query = useQuery({
-    queryKey: computed(() =>
-      normalizedPath.value ? queryKeys.indexStatus(normalizedPath.value) : []
-    ),
+    queryKey: computed(() => (normalizedPath.value ? queryKeys.indexStatus(normalizedPath.value) : [])),
     queryFn: ({ queryKey }) => {
       const [, requestPath] = queryKey as ReturnType<typeof queryKeys.indexStatus>;
       return fetchIndexStatus(requestPath);
     },
     refetchInterval: (query) => {
       if (!queryEnabled.value || isDocumentHidden.value) return false;
-      return getIndexStatusRefetchInterval(
-        query.state.data,
-        query.state.status === "error"
-      );
+      return getIndexStatusRefetchInterval(query.state.data, query.state.status === "error");
     },
     staleTime: 15_000,
     retry: 0,
@@ -36,8 +31,7 @@ export function useIndexStatusQuery(
   let focusTimer: number | undefined;
 
   function updateDocumentHidden() {
-    isDocumentHidden.value =
-      typeof document !== "undefined" && document.visibilityState === "hidden";
+    isDocumentHidden.value = typeof document !== "undefined" && document.visibilityState === "hidden";
   }
 
   function debouncedFocusRefetch() {

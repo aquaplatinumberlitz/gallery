@@ -1,17 +1,20 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onUnmounted, nextTick } from "vue";
 
-const props = withDefaults(defineProps<{
-  collapsedLines: number;
-  text?: string;
-  expanded?: boolean;
-}>(), {
-  text: undefined,
-  expanded: undefined,
-});
+const props = withDefaults(
+  defineProps<{
+    collapsedLines: number;
+    text?: string;
+    expanded?: boolean;
+  }>(),
+  {
+    text: undefined,
+    expanded: undefined,
+  },
+);
 
 const emit = defineEmits<{
-  'expanded-change': [expanded: boolean];
+  "expanded-change": [expanded: boolean];
 }>();
 
 const internalExpanded = ref(props.expanded ?? false);
@@ -25,7 +28,7 @@ const isExpanded = computed({
     if (!isControlled.value) {
       internalExpanded.value = val;
     }
-    emit('expanded-change', val);
+    emit("expanded-change", val);
   },
 });
 
@@ -73,15 +76,18 @@ onUnmounted(() => {
   resizeObserver?.disconnect();
 });
 
-watch(() => props.text, () => {
-  internalExpanded.value = false;
-  if (isControlled.value) {
-    emit('expanded-change', false);
-  }
-  nextTick(() => {
-    checkOverflow();
-  });
-});
+watch(
+  () => props.text,
+  () => {
+    internalExpanded.value = false;
+    if (isControlled.value) {
+      emit("expanded-change", false);
+    }
+    nextTick(() => {
+      checkOverflow();
+    });
+  },
+);
 </script>
 
 <template>
@@ -89,29 +95,15 @@ watch(() => props.text, () => {
     class="expandable-text"
     :class="{
       'is-clamped': !isExpanded && showToggle,
-      'is-expanded': isExpanded
+      'is-expanded': isExpanded,
     }"
     :style="{ '--line-clamp': props.collapsedLines }"
   >
-    <div
-      ref="textRef"
-      class="expandable-text__content"
-      :class="{ 'is-clamped': !isExpanded }"
-    >
+    <div ref="textRef" class="expandable-text__content" :class="{ 'is-clamped': !isExpanded }">
       <slot />
     </div>
-    <span
-      v-if="showToggle && !isExpanded"
-      class="expandable-text__fade-toggle"
-    >
-      <button
-        type="button"
-        class="expandable-text__toggle"
-        :aria-expanded="false"
-        @click="toggle"
-      >
-        Show more
-      </button>
+    <span v-if="showToggle && !isExpanded" class="expandable-text__fade-toggle">
+      <button type="button" class="expandable-text__toggle" :aria-expanded="false" @click="toggle">Show more</button>
     </span>
     <button
       v-if="showToggle && isExpanded"
@@ -134,7 +126,7 @@ watch(() => props.text, () => {
   overflow-wrap: break-word;
   overflow-wrap: anywhere;
   word-break: break-word;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   color: #d1d5db;
   line-height: 1.5;
 }

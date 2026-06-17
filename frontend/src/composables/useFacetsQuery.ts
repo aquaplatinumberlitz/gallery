@@ -5,14 +5,12 @@ import { fetchFacets } from "../services/api";
 
 export function useFacetsQuery(
   path: MaybeRefOrGetter<string | null | undefined>,
-  enabled: MaybeRefOrGetter<boolean> = true
+  enabled: MaybeRefOrGetter<boolean> = true,
 ) {
   const normalizedPath = computed(() => normalizeQueryPath(toValue(path) || ""));
 
   return useQuery({
-    queryKey: computed(() =>
-      normalizedPath.value ? queryKeys.facets(normalizedPath.value) : []
-    ),
+    queryKey: computed(() => (normalizedPath.value ? queryKeys.facets(normalizedPath.value) : [])),
     queryFn: ({ queryKey }) => {
       const [, requestPath] = queryKey as ReturnType<typeof queryKeys.facets>;
       return fetchFacets(requestPath);

@@ -15,14 +15,10 @@ import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
 const rootPath = "/gallery-search-ui-test";
-const imagePaths = [
-  `${rootPath}/rain_girl.png`,
-  `${rootPath}/snow_landscape.png`,
-  `${rootPath}/portrait.png`,
-];
+const imagePaths = [`${rootPath}/rain_girl.png`, `${rootPath}/snow_landscape.png`, `${rootPath}/portrait.png`];
 const png1x1 = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/luz4nQAAAABJRU5ErkJggg==",
-  "base64"
+  "base64",
 );
 
 type ApiRequest = { pathname: string; path: string; q: string };
@@ -74,29 +70,69 @@ async function installStubbedGallery(page: Page) {
       let promptResults: any[] = [];
 
       if (q.includes("rain")) {
-        photos = [{
-          name: "rain_girl.png", path: `${rootPath}/rain_girl.png`, type: "photo",
-          parent_path: rootPath, relative_path: "", mtime: 1001, width: 1600, height: 1000,
-          match_type: "filename", prompt_snippet: "", model: "", sampler: "", seed: "",
-        }];
-        promptResults = [{
-          name: "rain_girl.png", path: `${rootPath}/rain_girl.png`, type: "photo",
-          parent_path: rootPath, relative_path: "", mtime: 1001, width: 1600, height: 1000,
-          match_type: "prompt", prompt_snippet: "masterpiece, rain", model: "TestModel", sampler: "Euler a", seed: "12345",
-        }];
+        photos = [
+          {
+            name: "rain_girl.png",
+            path: `${rootPath}/rain_girl.png`,
+            type: "photo",
+            parent_path: rootPath,
+            relative_path: "",
+            mtime: 1001,
+            width: 1600,
+            height: 1000,
+            match_type: "filename",
+            prompt_snippet: "",
+            model: "",
+            sampler: "",
+            seed: "",
+          },
+        ];
+        promptResults = [
+          {
+            name: "rain_girl.png",
+            path: `${rootPath}/rain_girl.png`,
+            type: "photo",
+            parent_path: rootPath,
+            relative_path: "",
+            mtime: 1001,
+            width: 1600,
+            height: 1000,
+            match_type: "prompt",
+            prompt_snippet: "masterpiece, rain",
+            model: "TestModel",
+            sampler: "Euler a",
+            seed: "12345",
+          },
+        ];
       } else if (q.includes("mika")) {
-        promptResults = [{
-          name: "rain_girl.png", path: `${rootPath}/rain_girl.png`, type: "photo",
-          parent_path: rootPath, relative_path: "", mtime: 1001, width: 1600, height: 1000,
-          match_type: "prompt", prompt_snippet: "mika, portrait", model: "TestModel", sampler: "Euler a", seed: "12345",
-        }];
+        promptResults = [
+          {
+            name: "rain_girl.png",
+            path: `${rootPath}/rain_girl.png`,
+            type: "photo",
+            parent_path: rootPath,
+            relative_path: "",
+            mtime: 1001,
+            width: 1600,
+            height: 1000,
+            match_type: "prompt",
+            prompt_snippet: "mika, portrait",
+            model: "TestModel",
+            sampler: "Euler a",
+            seed: "12345",
+          },
+        ];
       }
 
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
-          query: q, scope, root: rootPath,
-          albums: [], photos, prompt: promptResults,
+          query: q,
+          scope,
+          root: rootPath,
+          albums: [],
+          photos,
+          prompt: promptResults,
         }),
       });
       return;
@@ -106,8 +142,12 @@ async function installStubbedGallery(page: Page) {
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
-          tool: "A1111", prompt: "test prompt", negative_prompt: "",
-          params: {}, width: 1600, height: 1000,
+          tool: "A1111",
+          prompt: "test prompt",
+          negative_prompt: "",
+          params: {},
+          width: 1600,
+          height: 1000,
           name: req.path.split("/").pop() ?? "image.png",
         }),
       });

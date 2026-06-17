@@ -1,11 +1,11 @@
 /**
  * Focus Trap Composable for Modal Dialogs
  * Following Apple HIG & WCAG 2.1 Guidelines
- * 
+ *
  * Ensures keyboard focus stays within modal when open
  */
 
-import { type Ref } from 'vue';
+import { type Ref } from "vue";
 
 const FOCUSABLE_SELECTORS = [
   'button:not([disabled]):not([tabindex="-1"])',
@@ -15,23 +15,24 @@ const FOCUSABLE_SELECTORS = [
   'textarea:not([disabled]):not([tabindex="-1"])',
   '[tabindex]:not([tabindex="-1"])',
   '[contenteditable="true"]',
-].join(', ');
+].join(", ");
 
-export function useFocusTrap(containerRef: Ref<HTMLElement | null>, options?: {
-  initialFocus?: Ref<HTMLElement | null>;
-  returnFocus?: boolean;
-}) {
+export function useFocusTrap(
+  containerRef: Ref<HTMLElement | null>,
+  options?: {
+    initialFocus?: Ref<HTMLElement | null>;
+    returnFocus?: boolean;
+  },
+) {
   const { initialFocus, returnFocus = true } = options || {};
-  
+
   let previouslyFocusedElement: HTMLElement | null = null;
 
   const getFocusableElements = (): HTMLElement[] => {
     if (!containerRef.value) return [];
-    return Array.from(
-      containerRef.value.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTORS)
-    ).filter(el => {
+    return Array.from(containerRef.value.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTORS)).filter((el) => {
       // Additional visibility checks
-      return el.offsetParent !== null && !el.hasAttribute('inert');
+      return el.offsetParent !== null && !el.hasAttribute("inert");
     });
   };
 
@@ -46,7 +47,7 @@ export function useFocusTrap(containerRef: Ref<HTMLElement | null>, options?: {
   };
 
   const handleKeyDown = (event: KeyboardEvent) => {
-    if (event.key !== 'Tab') return;
+    if (event.key !== "Tab") return;
 
     const focusableElements = getFocusableElements();
     if (focusableElements.length === 0) {
@@ -64,7 +65,7 @@ export function useFocusTrap(containerRef: Ref<HTMLElement | null>, options?: {
         event.preventDefault();
         lastElement.focus();
       }
-    } 
+    }
     // Tab: Going forwards
     else {
       if (activeElement === lastElement || !containerRef.value?.contains(activeElement)) {
@@ -79,7 +80,7 @@ export function useFocusTrap(containerRef: Ref<HTMLElement | null>, options?: {
     previouslyFocusedElement = document.activeElement as HTMLElement;
 
     // Add event listener
-    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown);
 
     // Set initial focus
     requestAnimationFrame(() => {
@@ -98,7 +99,7 @@ export function useFocusTrap(containerRef: Ref<HTMLElement | null>, options?: {
   };
 
   const deactivate = () => {
-    document.removeEventListener('keydown', handleKeyDown);
+    document.removeEventListener("keydown", handleKeyDown);
 
     // Return focus to previously focused element
     if (returnFocus && previouslyFocusedElement) {
@@ -116,4 +117,3 @@ export function useFocusTrap(containerRef: Ref<HTMLElement | null>, options?: {
     getLastFocusable,
   };
 }
-

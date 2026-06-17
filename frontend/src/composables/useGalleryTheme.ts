@@ -1,28 +1,28 @@
-import { computed } from "vue"
-import { useColorMode } from "@vueuse/core"
+import { computed } from "vue";
+import { useColorMode } from "@vueuse/core";
 
-export type GalleryThemeMode = "light" | "dark" | "system"
-export type GalleryResolvedTheme = "light" | "dark"
+export type GalleryThemeMode = "light" | "dark" | "system";
+export type GalleryResolvedTheme = "light" | "dark";
 
 function applyWithTransition(fn: () => void) {
   if (typeof window === "undefined") {
-    fn()
-    return
+    fn();
+    return;
   }
-  const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (prefersReduced) {
-    fn()
-    return
+    fn();
+    return;
   }
   if ("startViewTransition" in document) {
-    ;(document as any).startViewTransition(fn)
-    return
+    (document as any).startViewTransition(fn);
+    return;
   }
-  window.document.documentElement.classList.add("theme-transitioning")
-  fn()
+  window.document.documentElement.classList.add("theme-transitioning");
+  fn();
   setTimeout(() => {
-    window.document.documentElement.classList.remove("theme-transitioning")
-  }, 200)
+    window.document.documentElement.classList.remove("theme-transitioning");
+  }, 200);
 }
 
 export function useGalleryTheme() {
@@ -36,47 +36,40 @@ export function useGalleryTheme() {
     storageKey: "gallery-theme",
     initialValue: "auto",
     disableTransition: false,
-  })
+  });
 
   const mode = computed<GalleryThemeMode>({
-    get: () =>
-      colorMode.store.value === "auto"
-        ? "system"
-        : (colorMode.store.value as "light" | "dark"),
+    get: () => (colorMode.store.value === "auto" ? "system" : (colorMode.store.value as "light" | "dark")),
     set: (next) => {
-      colorMode.store.value = next === "system" ? "auto" : next
+      colorMode.store.value = next === "system" ? "auto" : next;
     },
-  })
+  });
 
-  const resolvedTheme = computed<GalleryResolvedTheme>(
-    () => colorMode.state.value as GalleryResolvedTheme
-  )
+  const resolvedTheme = computed<GalleryResolvedTheme>(() => colorMode.state.value as GalleryResolvedTheme);
 
-  const systemTheme = computed<GalleryResolvedTheme>(
-    () => colorMode.system.value
-  )
+  const systemTheme = computed<GalleryResolvedTheme>(() => colorMode.system.value);
 
-  const isDark = computed(() => resolvedTheme.value === "dark")
+  const isDark = computed(() => resolvedTheme.value === "dark");
 
   function setTheme(next: GalleryThemeMode) {
     applyWithTransition(() => {
-      mode.value = next
-    })
+      mode.value = next;
+    });
   }
 
   function toggleTheme() {
     applyWithTransition(() => {
-      const next = resolvedTheme.value === "dark" ? "light" : "dark"
-      colorMode.store.value = next
-    })
+      const next = resolvedTheme.value === "dark" ? "light" : "dark";
+      colorMode.store.value = next;
+    });
   }
 
   function cycleTheme() {
-    const order: GalleryThemeMode[] = ["light", "dark", "system"]
-    const current = mode.value
-    const idx = order.indexOf(current)
-    setTheme(order[(idx + 1) % order.length])
+    const order: GalleryThemeMode[] = ["light", "dark", "system"];
+    const current = mode.value;
+    const idx = order.indexOf(current);
+    setTheme(order[(idx + 1) % order.length]);
   }
 
-  return { mode, resolvedTheme, systemTheme, isDark, setTheme, toggleTheme, cycleTheme }
+  return { mode, resolvedTheme, systemTheme, isDark, setTheme, toggleTheme, cycleTheme };
 }

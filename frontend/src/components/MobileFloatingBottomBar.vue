@@ -1,26 +1,26 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { ArrowLeft, ArrowRight, FolderOpen } from 'lucide-vue-next'
+import { computed } from "vue";
+import { ArrowLeft, ArrowRight, FolderOpen } from "lucide-vue-next";
 
 interface Props {
-  canBack: boolean
-  canForward: boolean
-  currentPath: string
-  barsVisible: boolean
+  canBack: boolean;
+  canForward: boolean;
+  currentPath: string;
+  barsVisible: boolean;
 }
 
-const props = defineProps<Props>()
+const props = defineProps<Props>();
 
 const emit = defineEmits<{
-  'back': []
-  'forward': []
-}>()
+  back: [];
+  forward: [];
+}>();
 
 const folderName = computed(() => {
-  if (!props.currentPath) return 'Albums'
-  const segments = props.currentPath.replace(/\\/g, '/').split('/').filter(Boolean)
-  return segments.length > 0 ? segments[segments.length - 1] : 'Albums'
-})
+  if (!props.currentPath) return "Albums";
+  const segments = props.currentPath.replace(/\\/g, "/").split("/").filter(Boolean);
+  return segments.length > 0 ? segments[segments.length - 1] : "Albums";
+});
 </script>
 
 <template>
@@ -28,12 +28,12 @@ const folderName = computed(() => {
     <button class="mbb-btn" :disabled="!canBack" @click="emit('back')" aria-label="Go back">
       <ArrowLeft />
     </button>
-    
+
     <div class="mbb-path">
       <FolderOpen class="path-icon" />
       <span class="path-text">{{ folderName }}</span>
     </div>
-    
+
     <button class="mbb-btn" :disabled="!canForward" @click="emit('forward')" aria-label="Go forward">
       <ArrowRight />
     </button>
@@ -62,7 +62,9 @@ const folderName = computed(() => {
   border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
   box-shadow: var(--gallery-shadow-md, 0 4px 20px rgba(0, 0, 0, 0.1));
   opacity: 1;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+  transition:
+    transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.3s ease;
 }
 
 .mobile-bottom-bar.hidden {
@@ -85,7 +87,10 @@ const folderName = computed(() => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    opacity 0.15s ease;
 }
 
 .mbb-btn svg {

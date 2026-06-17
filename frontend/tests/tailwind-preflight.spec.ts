@@ -15,13 +15,10 @@ import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
 const rootPath = "/gallery-preflight-test";
-const imagePaths = Array.from(
-  { length: 4 },
-  (_, i) => `${rootPath}/image_${i + 1}.png`
-);
+const imagePaths = Array.from({ length: 4 }, (_, i) => `${rootPath}/image_${i + 1}.png`);
 const png1x1 = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/luz4nQAAAABJRU5ErkJggg==",
-  "base64"
+  "base64",
 );
 
 async function installStubbedGallery(page: Page) {
@@ -112,7 +109,6 @@ async function openStubbedGallery(page: Page) {
 }
 
 test.describe("Tailwind Preflight Regression", () => {
-
   // =========================================================================
   // Test 1: Preflight CSS injection verification
   // =========================================================================
@@ -200,7 +196,7 @@ test.describe("Tailwind Preflight Regression", () => {
           preflightCheck.preflightPatterns.join(", ") +
           ", body margin: " +
           preflightCheck.bodyMarginZero +
-          ")"
+          ")",
       ).toBe(true);
       expect(preflightCheck.bodyMarginZero, "body margin should be 0 (Preflight reset)").toBe(true);
       expect(preflightCheck.imgDisplayBlock, "img display should be block (Preflight reset)").toBe(true);
@@ -211,7 +207,15 @@ test.describe("Tailwind Preflight Regression", () => {
       await openStubbedGallery(page);
 
       const boxSizingCheck = await page.evaluate(() => {
-        const selectors = ["header", ".photo-card", "button", "input", ".gallery-grid", ".tablet-header", ".mobile-header"];
+        const selectors = [
+          "header",
+          ".photo-card",
+          "button",
+          "input",
+          ".gallery-grid",
+          ".tablet-header",
+          ".mobile-header",
+        ];
         const results: { selector: string; found: boolean; boxSizing: string }[] = [];
 
         for (const sel of selectors) {
@@ -230,10 +234,9 @@ test.describe("Tailwind Preflight Regression", () => {
       expect(boxSizingCheck.length, "should find at least one element").toBeGreaterThan(0);
 
       for (const entry of boxSizingCheck) {
-        expect(
-          entry.boxSizing,
-          `${entry.selector} box-sizing should be border-box, got ${entry.boxSizing}`
-        ).toBe("border-box");
+        expect(entry.boxSizing, `${entry.selector} box-sizing should be border-box, got ${entry.boxSizing}`).toBe(
+          "border-box",
+        );
       }
     });
 
@@ -385,12 +388,8 @@ test.describe("Tailwind Preflight Regression", () => {
       // Check that lightbox prev/next arrows are present.
       // PhotoSwipe uses .pswp__button--arrow--prev / --next classes.
       // data-testid may not be set on all viewer variants.
-      const prevArrow = page.locator(
-        "[data-testid='lightbox-prev'], .pswp__button--arrow--prev"
-      );
-      const nextArrow = page.locator(
-        "[data-testid='lightbox-next'], .pswp__button--arrow--next"
-      );
+      const prevArrow = page.locator("[data-testid='lightbox-prev'], .pswp__button--arrow--prev");
+      const nextArrow = page.locator("[data-testid='lightbox-next'], .pswp__button--arrow--next");
       // Arrows should be in the DOM (may or may not be visible)
       const hasPrev = await prevArrow.count();
       const hasNext = await nextArrow.count();
@@ -588,35 +587,25 @@ test.describe("Tailwind Preflight Regression", () => {
     });
 
     test("4d. mobile theme toggle changes data-theme", async ({ page }) => {
-      const themeBtn = page
-        .getByLabel("Switch to light mode")
-        .or(page.getByLabel("Switch to dark mode"));
+      const themeBtn = page.getByLabel("Switch to light mode").or(page.getByLabel("Switch to dark mode"));
       await expect(themeBtn).toBeVisible();
 
-      const initialTheme = await page.evaluate(() =>
-        document.documentElement.getAttribute("data-theme")
-      );
+      const initialTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
 
       // Toggle theme
       await themeBtn.evaluate((el: HTMLElement) => el.click());
       await page.waitForTimeout(300);
 
-      const newTheme = await page.evaluate(() =>
-        document.documentElement.getAttribute("data-theme")
-      );
+      const newTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
       expect(newTheme).not.toBe(initialTheme);
       expect(["light", "dark"]).toContain(newTheme);
 
       // Toggle back
-      const themeBtn2 = page
-        .getByLabel("Switch to light mode")
-        .or(page.getByLabel("Switch to dark mode"));
+      const themeBtn2 = page.getByLabel("Switch to light mode").or(page.getByLabel("Switch to dark mode"));
       await themeBtn2.evaluate((el: HTMLElement) => el.click());
       await page.waitForTimeout(300);
 
-      const restoredTheme = await page.evaluate(() =>
-        document.documentElement.getAttribute("data-theme")
-      );
+      const restoredTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
       expect(restoredTheme).toBe(initialTheme);
     });
 
@@ -748,34 +737,24 @@ test.describe("Tailwind Preflight Regression", () => {
     });
 
     test("5d. tablet theme toggle changes data-theme", async ({ page }) => {
-      const themeBtn = page
-        .getByLabel("Switch to light mode")
-        .or(page.getByLabel("Switch to dark mode"));
+      const themeBtn = page.getByLabel("Switch to light mode").or(page.getByLabel("Switch to dark mode"));
       await expect(themeBtn).toBeVisible();
 
-      const initialTheme = await page.evaluate(() =>
-        document.documentElement.getAttribute("data-theme")
-      );
+      const initialTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
 
       await themeBtn.evaluate((el: HTMLElement) => el.click());
       await page.waitForTimeout(300);
 
-      const newTheme = await page.evaluate(() =>
-        document.documentElement.getAttribute("data-theme")
-      );
+      const newTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
       expect(newTheme).not.toBe(initialTheme);
       expect(["light", "dark"]).toContain(newTheme);
 
       // Toggle back
-      const themeBtn2 = page
-        .getByLabel("Switch to light mode")
-        .or(page.getByLabel("Switch to dark mode"));
+      const themeBtn2 = page.getByLabel("Switch to light mode").or(page.getByLabel("Switch to dark mode"));
       await themeBtn2.evaluate((el: HTMLElement) => el.click());
       await page.waitForTimeout(300);
 
-      const restoredTheme = await page.evaluate(() =>
-        document.documentElement.getAttribute("data-theme")
-      );
+      const restoredTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
       expect(restoredTheme).toBe(initialTheme);
     });
 
@@ -924,7 +903,7 @@ test.describe("Tailwind Preflight Regression", () => {
       // pswp root should be fixed or absolute
       expect(
         ["fixed", "absolute"].includes(containerStyles!.pswp.position),
-        `pswp position should be fixed/absolute, got ${containerStyles!.pswp.position}`
+        `pswp position should be fixed/absolute, got ${containerStyles!.pswp.position}`,
       ).toBe(true);
 
       // pswp box-sizing should be border-box
@@ -933,7 +912,7 @@ test.describe("Tailwind Preflight Regression", () => {
       // pswp__item should be positioned
       expect(
         ["absolute", "relative", "fixed"].includes(containerStyles!.item.position),
-        `pswp__item position should be absolute/relative/fixed, got ${containerStyles!.item.position}`
+        `pswp__item position should be absolute/relative/fixed, got ${containerStyles!.item.position}`,
       ).toBe(true);
 
       // pswp__item should have overflow: hidden (PhotoSwipe clips images)
@@ -997,7 +976,6 @@ test.describe("Tailwind Preflight Regression", () => {
   // Test 7: No console errors across viewports
   // =========================================================================
   test.describe("Cross-viewport error check with Preflight", () => {
-
     test("7a. desktop — no console errors with Preflight", async ({ page, monitoredErrors }) => {
       await page.setViewportSize({ width: 1440, height: 900 });
       await installStubbedGallery(page);

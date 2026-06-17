@@ -26,7 +26,7 @@ export type PhotoSwipeImageItem = {
 };
 
 export function hasValidDimensions(
-  dimensions: { width?: number | null; height?: number | null } | null | undefined
+  dimensions: { width?: number | null; height?: number | null } | null | undefined,
 ): dimensions is { width: number; height: number } {
   return (
     typeof dimensions?.width === "number" &&
@@ -63,7 +63,7 @@ export function isLikelyAnimatedAsset(pathOrName: string): boolean {
  */
 export function buildPhotoSwipeItem(
   item: FileNode,
-  resolvedDimensions?: LightboxDimensions | null
+  resolvedDimensions?: LightboxDimensions | null,
 ): PhotoSwipeImageItem {
   const previewSrc = getPreviewUrl(item.path, LIGHTBOX_PREVIEW_EDGE);
   const msrc = getThumbnailUrl(item.path, LIGHTBOX_THUMBNAIL_EDGE);

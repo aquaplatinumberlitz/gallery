@@ -127,5 +127,5 @@ function toggleZoom() {
 </style>
 
 <style lang="scss">
-@import '../styles/lightbox-shared';
+@import "../styles/lightbox-shared";
 </style>

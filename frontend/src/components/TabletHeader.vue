@@ -1,108 +1,104 @@
 <script setup lang="ts">
-import { ref, nextTick, onBeforeUnmount, watch, computed } from 'vue'
-import { Menu, Search, X, ArrowLeft } from 'lucide-vue-next'
-import Breadcrumb from './Breadcrumb.vue'
-import { useGalleryStore } from '../stores/gallery'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
+import { ref, nextTick, onBeforeUnmount, watch, computed } from "vue";
+import { Menu, Search, X, ArrowLeft } from "lucide-vue-next";
+import Breadcrumb from "./Breadcrumb.vue";
+import { useGalleryStore } from "../stores/gallery";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface Props {
-  isDark: boolean
-  searchQuery: string
-  searchScope: 'current' | 'all'
-  currentPath: string
+  isDark: boolean;
+  searchQuery: string;
+  searchScope: "current" | "all";
+  currentPath: string;
 }
-const props = defineProps<Props>()
+const props = defineProps<Props>();
 
 const emit = defineEmits<{
-  'toggle-sidebar': []
-  'toggle-theme': []
-  'update:searchQuery': [value: string]
-  'scope-change': [value: 'current' | 'all']
-}>()
+  "toggle-sidebar": [];
+  "toggle-theme": [];
+  "update:searchQuery": [value: string];
+  "scope-change": [value: "current" | "all"];
+}>();
 
-const galleryStore = useGalleryStore()
+const galleryStore = useGalleryStore();
 
 const handleBreadcrumbNavigate = (path: string) => {
-  galleryStore.selectFolder(path)
-}
+  galleryStore.selectFolder(path);
+};
 
 // ── Expandable search ──
-const isSearchActive = ref(false)
-const searchInputRef = ref<HTMLInputElement | null>(null)
-const searchBtnRef = ref<HTMLButtonElement | null>(null)
+const isSearchActive = ref(false);
+const searchInputRef = ref<HTMLInputElement | null>(null);
+const searchBtnRef = ref<HTMLButtonElement | null>(null);
 
-const hasQuery = computed(() => props.searchQuery.length > 0)
+const hasQuery = computed(() => props.searchQuery.length > 0);
 
 function openSearch() {
-  isSearchActive.value = true
+  isSearchActive.value = true;
   nextTick(() => {
-    searchInputRef.value?.focus()
-  })
+    searchInputRef.value?.focus();
+  });
 }
 
 function closeSearch() {
-  emit('update:searchQuery', '')
-  isSearchActive.value = false
+  emit("update:searchQuery", "");
+  isSearchActive.value = false;
   nextTick(() => {
-    searchBtnRef.value?.focus()
-  })
+    searchBtnRef.value?.focus();
+  });
 }
 
 function clearSearch() {
-  emit('update:searchQuery', '')
+  emit("update:searchQuery", "");
   nextTick(() => {
-    searchInputRef.value?.focus()
-  })
+    searchInputRef.value?.focus();
+  });
 }
 
 function handleOverlayClick() {
   if (!hasQuery.value) {
-    closeSearch()
+    closeSearch();
   } else {
-    searchInputRef.value?.blur()
+    searchInputRef.value?.blur();
   }
 }
 
 function onInputKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape') {
-    e.preventDefault()
-    closeSearch()
-  } else if (e.key === 'Enter') {
-    searchInputRef.value?.blur()
+  if (e.key === "Escape") {
+    e.preventDefault();
+    closeSearch();
+  } else if (e.key === "Enter") {
+    searchInputRef.value?.blur();
   }
 }
 
 function handleGlobalKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape' && isSearchActive.value) {
-    e.preventDefault()
-    closeSearch()
+  if (e.key === "Escape" && isSearchActive.value) {
+    e.preventDefault();
+    closeSearch();
   }
 }
 
 onBeforeUnmount(() => {
-  window.removeEventListener('keydown', handleGlobalKeydown)
-})
+  window.removeEventListener("keydown", handleGlobalKeydown);
+});
 
 watch(isSearchActive, (active) => {
   if (active) {
-    window.addEventListener('keydown', handleGlobalKeydown)
+    window.addEventListener("keydown", handleGlobalKeydown);
   } else {
-    window.removeEventListener('keydown', handleGlobalKeydown)
+    window.removeEventListener("keydown", handleGlobalKeydown);
   }
-})
+});
 
 function onSearchInput(e: Event) {
-  const target = e.target as HTMLInputElement
-  emit('update:searchQuery', target.value)
+  const target = e.target as HTMLInputElement;
+  emit("update:searchQuery", target.value);
 }
 
 function onScopeChange(e: Event) {
-  const target = e.target as HTMLSelectElement
-  emit('scope-change', target.value as 'current' | 'all')
+  const target = e.target as HTMLSelectElement;
+  emit("scope-change", target.value as "current" | "all");
 }
 </script>
 
@@ -126,12 +122,7 @@ function onScopeChange(e: Event) {
 
     <Tooltip>
       <TooltipTrigger as-child>
-        <button
-          v-show="isSearchActive"
-          class="th-btn th-back-btn"
-          @click="closeSearch"
-          aria-label="Close search"
-        >
+        <button v-show="isSearchActive" class="th-btn th-back-btn" @click="closeSearch" aria-label="Close search">
           <ArrowLeft class="th-header-icon" />
         </button>
       </TooltipTrigger>
@@ -160,20 +151,10 @@ function onScopeChange(e: Event) {
           aria-label="Search gallery"
           class="th-search-input"
         />
-        <button
-          v-if="hasQuery"
-          class="th-search-clear"
-          @click="clearSearch"
-          aria-label="Clear search"
-        >
+        <button v-if="hasQuery" class="th-search-clear" @click="clearSearch" aria-label="Clear search">
           <X />
         </button>
-        <select
-          class="th-search-scope"
-          :value="searchScope"
-          aria-label="Search scope"
-          @change="onScopeChange"
-        >
+        <select class="th-search-scope" :value="searchScope" aria-label="Search scope" @change="onScopeChange">
           <option value="current">This folder</option>
           <option value="all">All indexed</option>
         </select>
@@ -185,11 +166,7 @@ function onScopeChange(e: Event) {
       <!-- Search trigger -->
       <Tooltip>
         <TooltipTrigger as-child>
-          <button
-            class="th-btn"
-            @click="openSearch"
-            aria-label="Open search"
-          >
+          <button class="th-btn" @click="openSearch" aria-label="Open search">
             <Search class="th-header-icon" />
           </button>
         </TooltipTrigger>
@@ -204,11 +181,21 @@ function onScopeChange(e: Event) {
             @click="emit('toggle-theme')"
             :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
           >
-        <svg v-if="isDark" class="th-theme-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path fill="currentColor" d="M423.7 85.9C336.6 107.5 272 186.2 272 280C272 390.4 361.5 480 472 480C490.5 480 508.4 477.5 525.4 472.8C478.8 535.4 404.1 576 320 576C178.6 576 64 461.4 64 320C64 178.6 178.6 64 320 64C356.9 64 392 71.8 423.7 85.9z"/></svg>
-        <svg v-else class="th-theme-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path fill="currentColor" d="M340.8 43.6L396.3 136.2C477.1 115.9 525 104 539.9 100.2C536.2 115.1 524.2 163 503.9 243.8C575.4 286.6 617.7 312 630.9 319.9C617.7 327.8 575.4 353.2 503.9 396C524.2 476.8 536.2 524.7 539.9 539.6C525 535.9 477.1 523.9 396.3 503.6C353.5 575.1 328.1 617.4 320.2 630.6C312.3 617.4 286.9 575.1 244.1 503.6C163.3 523.9 115.5 535.9 100.5 539.6C104.2 524.7 116.2 476.8 136.5 396C65 353.2 22.7 327.8 9.5 319.9C22.7 312 65 286.6 136.5 243.8C116.2 163 104.3 115.2 100.5 100.2C115.4 103.9 163.3 115.9 244.1 136.2C286.9 64.7 312.3 22.4 320.2 9.2L340.8 43.5zM320.2 176C240.7 175.9 176.1 240.3 176 319.8C175.9 399.3 240.3 463.9 319.8 464C399.3 464.1 463.9 399.7 464 320.2C464.1 240.7 399.7 176.1 320.2 176zM319.8 416C266.8 415.9 223.9 372.8 224 319.8C224.1 266.8 267.2 223.9 320.2 224C373.2 224.1 416.1 267.2 416 320.2C415.9 373.2 372.8 416.1 319.8 416z"/></svg>
+            <svg v-if="isDark" class="th-theme-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+              <path
+                fill="currentColor"
+                d="M423.7 85.9C336.6 107.5 272 186.2 272 280C272 390.4 361.5 480 472 480C490.5 480 508.4 477.5 525.4 472.8C478.8 535.4 404.1 576 320 576C178.6 576 64 461.4 64 320C64 178.6 178.6 64 320 64C356.9 64 392 71.8 423.7 85.9z"
+              />
+            </svg>
+            <svg v-else class="th-theme-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+              <path
+                fill="currentColor"
+                d="M340.8 43.6L396.3 136.2C477.1 115.9 525 104 539.9 100.2C536.2 115.1 524.2 163 503.9 243.8C575.4 286.6 617.7 312 630.9 319.9C617.7 327.8 575.4 353.2 503.9 396C524.2 476.8 536.2 524.7 539.9 539.6C525 535.9 477.1 523.9 396.3 503.6C353.5 575.1 328.1 617.4 320.2 630.6C312.3 617.4 286.9 575.1 244.1 503.6C163.3 523.9 115.5 535.9 100.5 539.6C104.2 524.7 116.2 476.8 136.5 396C65 353.2 22.7 327.8 9.5 319.9C22.7 312 65 286.6 136.5 243.8C116.2 163 104.3 115.2 100.5 100.2C115.4 103.9 163.3 115.9 244.1 136.2C286.9 64.7 312.3 22.4 320.2 9.2L340.8 43.5zM320.2 176C240.7 175.9 176.1 240.3 176 319.8C175.9 399.3 240.3 463.9 319.8 464C399.3 464.1 463.9 399.7 464 320.2C464.1 240.7 399.7 176.1 320.2 176zM319.8 416C266.8 415.9 223.9 372.8 224 319.8C224.1 266.8 267.2 223.9 320.2 224C373.2 224.1 416.1 267.2 416 320.2C415.9 373.2 372.8 416.1 319.8 416z"
+              />
+            </svg>
           </button>
         </TooltipTrigger>
-        <TooltipContent>{{ isDark ? 'Switch to light mode' : 'Switch to dark mode' }}</TooltipContent>
+        <TooltipContent>{{ isDark ? "Switch to light mode" : "Switch to dark mode" }}</TooltipContent>
       </Tooltip>
     </div>
   </header>
@@ -260,7 +247,9 @@ function onScopeChange(e: Event) {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
 
 .th-btn:hover {
@@ -321,7 +310,7 @@ function onScopeChange(e: Event) {
   flex: 1;
   display: flex;
   align-items: center;
-  animation: thSearchBarIn 200ms cubic-bezier(.2, .8, .2, 1) forwards;
+  animation: thSearchBarIn 200ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
   transform-origin: right center;
 }
 
@@ -346,7 +335,7 @@ function onScopeChange(e: Event) {
   border-radius: var(--gallery-radius-full, 9999px);
   padding: 0 12px;
   height: 38px;
-  box-shadow: var(--gallery-shadow-sm, 0 1px 3px rgba(0,0,0,0.08));
+  box-shadow: var(--gallery-shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.08));
   transition:
     box-shadow 0.2s ease,
     border-color 0.2s ease;
@@ -356,7 +345,7 @@ function onScopeChange(e: Event) {
   border-color: var(--ring);
   box-shadow:
     0 0 0 1px var(--ring),
-    var(--gallery-shadow-sm, 0 1px 3px rgba(0,0,0,0.08));
+    var(--gallery-shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.08));
 }
 
 .th-search-icon {
@@ -439,7 +428,7 @@ function onScopeChange(e: Event) {
    Back button (search mode)
    ============================================================ */
 .th-back-btn {
-  animation: thBackBtnIn 200ms cubic-bezier(.2, .8, .2, 1) forwards;
+  animation: thBackBtnIn 200ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
 
 @keyframes thBackBtnIn {
@@ -485,7 +474,7 @@ function onScopeChange(e: Event) {
 /* Overlay transition */
 .th-overlay-fade-enter-active {
   transition:
-    opacity 200ms cubic-bezier(.2, .8, .2, 1),
+    opacity 200ms cubic-bezier(0.2, 0.8, 0.2, 1),
     backdrop-filter 200ms ease;
 }
 

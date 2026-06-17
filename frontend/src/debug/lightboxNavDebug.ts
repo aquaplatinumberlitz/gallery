@@ -28,10 +28,7 @@ let startedAt = 0;
 
 export function isLightboxNavDebugEnabled(): boolean {
   if (typeof window === "undefined") return false;
-  return (
-    window.__GALLERY_DEBUG_LIGHTBOX_NAV === true ||
-    window.localStorage.getItem("debug-lightbox-nav") === "true"
-  );
+  return window.__GALLERY_DEBUG_LIGHTBOX_NAV === true || window.localStorage.getItem("debug-lightbox-nav") === "true";
 }
 
 function itemLabel(item: LightboxNavDebugItem | undefined) {
@@ -42,11 +39,7 @@ function itemLabel(item: LightboxNavDebugItem | undefined) {
   };
 }
 
-export function summarizeLightboxItems(
-  items: LightboxNavDebugItem[],
-  focusIndex = -1,
-  radius = 3
-) {
+export function summarizeLightboxItems(items: LightboxNavDebugItem[], focusIndex = -1, radius = 3) {
   const imageItems = items.filter((item) => item.type === undefined || item.type === "image");
   const pathCounts = new Map<string, number>();
   for (const item of imageItems) {
@@ -57,9 +50,10 @@ export function summarizeLightboxItems(
     .map(([path, count]) => ({ path, count }));
 
   const start = focusIndex >= 0 ? Math.max(0, focusIndex - radius) : 0;
-  const end = focusIndex >= 0
-    ? Math.min(imageItems.length, focusIndex + radius + 1)
-    : Math.min(imageItems.length, radius * 2 + 1);
+  const end =
+    focusIndex >= 0
+      ? Math.min(imageItems.length, focusIndex + radius + 1)
+      : Math.min(imageItems.length, radius * 2 + 1);
 
   return {
     totalItems: items.length,
@@ -74,10 +68,7 @@ export function summarizeLightboxItems(
   };
 }
 
-export function lightboxItemAt(
-  items: LightboxNavDebugItem[],
-  index: number
-) {
+export function lightboxItemAt(items: LightboxNavDebugItem[], index: number) {
   const imageItems = items.filter((item) => item.type === "image");
   return itemLabel(imageItems[index]);
 }
@@ -95,6 +86,6 @@ export function logLightboxNavDebug(event: string, payload: Record<string, unkno
       rel_ms: now - startedAt,
       event,
       ...payload,
-    })
+    }),
   );
 }

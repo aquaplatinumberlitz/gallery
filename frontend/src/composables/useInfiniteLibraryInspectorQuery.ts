@@ -24,7 +24,7 @@ export function useInfiniteLibraryInspectorQuery(
   scope: Ref<SearchScope>,
   path: Ref<string>,
   limit: Ref<number>,
-  sort: Ref<SortValue>
+  sort: Ref<SortValue>,
 ) {
   const debouncedQuery = ref(query.value.trim());
   let searchTimer: number | undefined;
@@ -40,7 +40,7 @@ export function useInfiniteLibraryInspectorQuery(
         debouncedQuery.value = query.value.trim();
       }, 250);
     },
-    { flush: "sync" }
+    { flush: "sync" },
   );
 
   onBeforeUnmount(() => {
@@ -49,15 +49,19 @@ export function useInfiniteLibraryInspectorQuery(
     }
   });
 
-  const requestPath = computed(() =>
-    scope.value === "current" ? normalizeQueryPath(path.value || "") : ""
-  );
+  const requestPath = computed(() => (scope.value === "current" ? normalizeQueryPath(path.value || "") : ""));
   const requestLimit = computed(() => Math.max(1, limit.value));
   const enabled = computed(() => Boolean(requestPath.value) || scope.value === "all");
 
-  const queryResult = useInfiniteQuery<LibraryInspectorResponse, Error, { pages: LibraryInspectorResponse[]; pageParams: (string | undefined)[] }, ReturnType<typeof queryKeys.libraryInspector>, string | undefined>({
+  const queryResult = useInfiniteQuery<
+    LibraryInspectorResponse,
+    Error,
+    { pages: LibraryInspectorResponse[]; pageParams: (string | undefined)[] },
+    ReturnType<typeof queryKeys.libraryInspector>,
+    string | undefined
+  >({
     queryKey: computed(() =>
-      queryKeys.libraryInspector(debouncedQuery.value, scope.value, requestPath.value, limit.value, sort.value)
+      queryKeys.libraryInspector(debouncedQuery.value, scope.value, requestPath.value, limit.value, sort.value),
     ),
     queryFn: ({ pageParam }) =>
       fetchLibraryInspector({
@@ -75,9 +79,7 @@ export function useInfiniteLibraryInspectorQuery(
     gcTime: 5 * 60_000,
   });
 
-  const allRows = computed(() =>
-    queryResult.data.value?.pages.flatMap((page) => page.rows) ?? []
-  );
+  const allRows = computed(() => queryResult.data.value?.pages.flatMap((page) => page.rows) ?? []);
 
   const data = computed<LibraryInspectorResponse>(() => {
     const firstPage = queryResult.data.value?.pages[0];

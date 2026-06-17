@@ -17,12 +17,7 @@
 .tablet-backdrop {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    to bottom,
-    rgba(0,0,0,0.04) 0%,
-    rgba(0,0,0,0.12) 50%,
-    rgba(0,0,0,0.28) 100%
-  );
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.04) 0%, rgba(0, 0, 0, 0.12) 50%, rgba(0, 0, 0, 0.28) 100%);
   pointer-events: none;
 }
 
@@ -104,7 +99,9 @@
   border-radius: 4px;
   transition: color 0.2s;
 
-  &:hover { color: #fff; }
+  &:hover {
+    color: #fff;
+  }
 
   &:focus-visible {
     outline: none;
@@ -218,7 +215,7 @@
     gap: 2px;
 
     .tablet-model-name {
-      font-family: 'JetBrains Mono', monospace;
+      font-family: "JetBrains Mono", monospace;
       font-size: 12px;
       color: #e5e7eb;
     }
@@ -232,7 +229,7 @@
 }
 
 .tablet-hash {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 10px;
   color: var(--gallery-lightbox-text-muted, #999);
   background: rgba(255, 255, 255, 0.1);

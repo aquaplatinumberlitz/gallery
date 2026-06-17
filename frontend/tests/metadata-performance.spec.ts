@@ -75,8 +75,7 @@ function installMetadataTracker(page: Page, clickTimeRef: { value: number }) {
 
   const inspectorSamples = () => samples.filter((s) => s.pathname === "/api/library/inspector");
   const thumbnailSamples = () => samples.filter((s) => s.pathname === "/api/thumbnail");
-  const metadataDetailSamples = () =>
-    samples.filter((s) => s.pathname === "/api/library/inspector/metadata");
+  const metadataDetailSamples = () => samples.filter((s) => s.pathname === "/api/library/inspector/metadata");
   const indexStatusSamples = () => samples.filter((s) => s.pathname === "/api/index/status");
 
   const clear = () => {
@@ -108,10 +107,7 @@ async function waitForFirstRow(page: Page) {
  * Times out at 15 s.
  */
 async function waitForRowCount(page: Page, min: number) {
-  await expect.poll(
-    () => page.locator("tbody > tr").count(),
-    { timeout: 15_000 }
-  ).toBeGreaterThanOrEqual(min);
+  await expect.poll(() => page.locator("tbody > tr").count(), { timeout: 15_000 }).toBeGreaterThanOrEqual(min);
 }
 
 /**
@@ -163,9 +159,7 @@ test.describe("Metadata performance", () => {
     let firstInspector = tracker.inspectorSamples()[0];
     // If not yet arrived, poll briefly
     if (!firstInspector) {
-      await expect
-        .poll(() => tracker.inspectorSamples().length, { timeout: 10_000 })
-        .toBeGreaterThanOrEqual(1);
+      await expect.poll(() => tracker.inspectorSamples().length, { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
       firstInspector = tracker.inspectorSamples()[0];
     }
 
@@ -245,16 +239,11 @@ test.describe("Metadata performance", () => {
     const clickDoneMs = timestamp();
 
     // Wait for inspector API to fire
-    await expect
-      .poll(() => tracker.inspectorSamples().length, { timeout: 10_000 })
-      .toBeGreaterThanOrEqual(1);
+    await expect.poll(() => tracker.inspectorSamples().length, { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
 
     // Wait for the table rows to update (content changes indicate re-render)
     await expect
-      .poll(
-        () => page.locator("tbody tr").first().locator("td").first().textContent(),
-        { timeout: 15_000 }
-      )
+      .poll(() => page.locator("tbody tr").first().locator("td").first().textContent(), { timeout: 15_000 })
       .not.toBe(firstCellBefore);
 
     const tableUpdatedMs = timestamp() - sortWallMs;
@@ -264,9 +253,7 @@ test.describe("Metadata performance", () => {
     const apiDurationMs = apiSample?.durationMs ?? -1;
     const requestStartMs = apiSample?.startMs ?? -1;
     const apiResponseToUpdateMs =
-      requestStartMs >= 0 && apiDurationMs >= 0
-        ? tableUpdatedMs - (requestStartMs + apiDurationMs)
-        : -1;
+      requestStartMs >= 0 && apiDurationMs >= 0 ? tableUpdatedMs - (requestStartMs + apiDurationMs) : -1;
 
     const rowCount = await page.locator("tbody > tr").count();
 
@@ -322,9 +309,7 @@ test.describe("Metadata performance", () => {
     const allRequestsDuringTyping = tracker.inspectorSamples().length;
 
     // Wait for the table to stabilize (less rows = filtered results)
-    await expect
-      .poll(() => page.locator("tbody > tr").count(), { timeout: 15_000 })
-      .not.toBe(initialRowCount);
+    await expect.poll(() => page.locator("tbody > tr").count(), { timeout: 15_000 }).not.toBe(initialRowCount);
 
     const tableUpdatedMs = timestamp() - searchWallMs;
 
@@ -333,14 +318,10 @@ test.describe("Metadata performance", () => {
     const apiDurationMs = lastApi?.durationMs ?? -1;
     const requestStartMs = lastApi?.startMs ?? -1;
     const apiResponseToUpdateMs =
-      requestStartMs >= 0 && apiDurationMs >= 0
-        ? tableUpdatedMs - (requestStartMs + apiDurationMs)
-        : -1;
+      requestStartMs >= 0 && apiDurationMs >= 0 ? tableUpdatedMs - (requestStartMs + apiDurationMs) : -1;
 
     const rowCount = await page.locator("tbody > tr").count();
-    const queryInLastRequest = lastApi
-      ? new URLSearchParams(lastApi.search).get("q") ?? ""
-      : "";
+    const queryInLastRequest = lastApi ? (new URLSearchParams(lastApi.search).get("q") ?? "") : "";
 
     // Determine if backend got the full query (debounced) or intermediate
     const gotFullQuery = queryInLastRequest.trim() === searchTerm;

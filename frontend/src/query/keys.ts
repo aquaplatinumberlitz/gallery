@@ -9,36 +9,27 @@ export const normalizeQueryPath = (path: string | null | undefined) => {
 export const queryKeys = {
   landingPages: () => ["landing-pages"] as const,
 
-  scan: (path: string, imageLimit: number) =>
-    ["scan", normalizeQueryPath(path), imageLimit] as const,
+  scan: (path: string, imageLimit: number) => ["scan", normalizeQueryPath(path), imageLimit] as const,
 
-  folderChildren: (path: string) =>
-    ["folder-children", normalizeQueryPath(path)] as const,
+  folderChildren: (path: string) => ["folder-children", normalizeQueryPath(path)] as const,
 
-  scanInfinite: (path: string, imageLimit: number) =>
-    ["scan-infinite", normalizeQueryPath(path), imageLimit] as const,
+  scanInfinite: (path: string, imageLimit: number) => ["scan-infinite", normalizeQueryPath(path), imageLimit] as const,
 
   search: (query: string, scope: string, path: string) =>
     ["search", query.trim(), scope, normalizeQueryPath(path)] as const,
 
-  metadata: (path: string) =>
-    ["metadata", normalizeQueryPath(path)] as const,
+  metadata: (path: string) => ["metadata", normalizeQueryPath(path)] as const,
 
-  indexStatus: (path: string) =>
-    ["index-status", normalizeQueryPath(path)] as const,
+  indexStatus: (path: string) => ["index-status", normalizeQueryPath(path)] as const,
 
-  libraryInspectorRoot: () =>
-    ["library-inspector"] as const,
+  libraryInspectorRoot: () => ["library-inspector"] as const,
 
-  facets: (path: string) =>
-    ["facets", normalizeQueryPath(path)] as const,
+  facets: (path: string) => ["facets", normalizeQueryPath(path)] as const,
 
   libraryInspector: (query: string, scope: string, path: string, limit: number, sort: SortValue) =>
     ["library-inspector", query.trim(), scope, normalizeQueryPath(path), limit, sort] as const,
 
-  libraryInspectorMetadataRoot: () =>
-    ["library-inspector-metadata"] as const,
+  libraryInspectorMetadataRoot: () => ["library-inspector-metadata"] as const,
 
-  libraryInspectorMetadata: (path: string) =>
-    ["library-inspector-metadata", normalizeQueryPath(path)] as const,
+  libraryInspectorMetadata: (path: string) => ["library-inspector-metadata", normalizeQueryPath(path)] as const,
 };

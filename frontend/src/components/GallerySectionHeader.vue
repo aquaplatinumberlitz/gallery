@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import type { Component } from 'vue'
-import { ChevronDown } from 'lucide-vue-next'
+import type { Component } from "vue";
+import { ChevronDown } from "lucide-vue-next";
 
 defineProps<{
-  title: string
-  count?: number
-  badgeIcon?: Component
-  clickable?: boolean
-  collapsed?: boolean
-}>()
+  title: string;
+  count?: number;
+  badgeIcon?: Component;
+  clickable?: boolean;
+  collapsed?: boolean;
+}>();
 </script>
 
 <template>

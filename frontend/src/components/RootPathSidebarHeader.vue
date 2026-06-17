@@ -8,11 +8,7 @@ import { closeSidebarKey } from "../injectionKeys";
 import { useSidebar, SidebarTrigger } from "@/components/ui/sidebar";
 import Input from "@/components/ui/Input.vue";
 import Button from "@/components/ui/Button.vue";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const { isMobile } = useDevice();
 const closeSidebar = inject(closeSidebarKey, () => {});
@@ -52,18 +48,22 @@ watch(
     if (val && val !== pathInput.value) {
       pathInput.value = val;
     }
-  }
+  },
 );
 </script>
 
 <template>
-  <div class="sidebar-header relative p-4 group-data-[collapsible=icon]:p-1 bg-surface border-b border-black/5 dark:border-white/5 group-data-[collapsible=icon]:border-b-0">
+  <div
+    class="sidebar-header relative p-4 group-data-[collapsible=icon]:p-1 bg-surface border-b border-black/5 dark:border-white/5 group-data-[collapsible=icon]:border-b-0"
+  >
     <SidebarTrigger
       class="absolute top-2 right-2 z-20 size-7 group-data-[collapsible=icon]:static group-data-[collapsible=icon]:mx-auto"
     />
     <!-- MOBILE: Compact display with tappable edit -->
     <template v-if="isMobile">
-      <label class="field-label block text-[11px] font-semibold text-muted-foreground mb-2 tracking-[0.5px]">ROOT PATH</label>
+      <label class="field-label block text-[11px] font-semibold text-muted-foreground mb-2 tracking-[0.5px]"
+        >ROOT PATH</label
+      >
       <div class="mobile-root-display" @click="editOnMobile" role="button" tabindex="0" @keydown.enter="editOnMobile">
         <FolderOpen class="field-icon gallery-icon-md" />
         <span class="mobile-path-text">
@@ -83,10 +83,7 @@ watch(
         Tap to edit
       </p>
 
-      <RootPathSheet
-        v-model="showSheet"
-        :current-path="pathInput"
-      />
+      <RootPathSheet v-model="showSheet" :current-path="pathInput" />
     </template>
 
     <!-- DESKTOP: Full input with controls (unchanged) -->
@@ -223,7 +220,9 @@ watch(
     border-radius: 10px;
     border: 1px solid var(--border);
     cursor: pointer;
-    transition: border-color 0.2s, box-shadow 0.2s;
+    transition:
+      border-color 0.2s,
+      box-shadow 0.2s;
     touch-action: manipulation;
     user-select: none;
     -webkit-tap-highlight-color: transparent;

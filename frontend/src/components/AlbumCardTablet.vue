@@ -33,7 +33,11 @@ defineProps<{
       <h3 class="album-name">{{ node.name }}</h3>
       <div class="album-meta">
         <FolderOpen class="gallery-icon-meta album-meta-icon" />
-        <span>Album<span v-if="node.image_count !== undefined && node.image_count !== null"> · {{ node.image_count }} {{ node.image_count === 1 ? 'photo' : 'photos' }}</span></span>
+        <span
+          >Album<span v-if="node.image_count !== undefined && node.image_count !== null">
+            · {{ node.image_count }} {{ node.image_count === 1 ? "photo" : "photos" }}</span
+          ></span
+        >
       </div>
     </div>
   </div>
@@ -53,7 +57,9 @@ defineProps<{
   background: var(--album-frame-bg);
   border: 1px solid var(--album-frame-border);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-  transition: transform 160ms ease, box-shadow 160ms ease;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease;
 
   .album-cover {
     width: 100%;

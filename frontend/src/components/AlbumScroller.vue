@@ -64,11 +64,7 @@ const { isMobile, isTablet } = useDevice();
           :folders="folders"
           @open-folder="(path: string) => emit('open-folder', path)"
         />
-        <AlbumScrollerNative
-          v-else
-          :folders="folders"
-          @open-folder="(path: string) => emit('open-folder', path)"
-        />
+        <AlbumScrollerNative v-else :folders="folders" @open-folder="(path: string) => emit('open-folder', path)" />
       </div>
     </Transition>
   </section>

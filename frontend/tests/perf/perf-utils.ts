@@ -42,7 +42,7 @@ export function installApiNetworkTracker(page: Page, clickTimeRef: { value: numb
 
   page.on("request", (request) => {
     if (!shouldTrack(request)) return;
-    if (clickTimeRef.value <= 0) return  // ignore pre-click network
+    if (clickTimeRef.value <= 0) return; // ignore pre-click network
     const url = new URL(request.url());
     const sample: NetworkSample = {
       url: request.url(),
@@ -76,14 +76,14 @@ export function installApiNetworkTracker(page: Page, clickTimeRef: { value: numb
     imageSamples: () => samples.filter((sample) => sample.pathname === "/api/image"),
     metadataSamples: () => samples.filter((sample) => sample.pathname === "/api/metadata"),
     clear() {
-      samples.length = 0
-      byRequest.clear()
+      samples.length = 0;
+      byRequest.clear();
     },
   };
 }
 
 export function getQueryParam(search: string, name: string): string {
-  return new URLSearchParams(search).get(name) ?? ""
+  return new URLSearchParams(search).get(name) ?? "";
 }
 
 export async function waitForNetworkQuiet(page: Page, idleMs = 750, timeoutMs = 15_000) {

@@ -37,11 +37,7 @@ const getFuse = (items: FileNode[], includePath: boolean): Fuse<FileNode> => {
   return fuse;
 };
 
-export function fuzzySearchFileNodes(
-  items: FileNode[],
-  query: string,
-  options: FuzzySearchOptions = {}
-): FileNode[] {
+export function fuzzySearchFileNodes(items: FileNode[], query: string, options: FuzzySearchOptions = {}): FileNode[] {
   const trimmedQuery = query.trim();
   if (!trimmedQuery) return items;
 

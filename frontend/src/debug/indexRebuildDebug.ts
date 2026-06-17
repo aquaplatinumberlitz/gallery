@@ -22,10 +22,7 @@ declare global {
 
 export function isIndexRebuildDebugEnabled() {
   if (typeof window === "undefined") return false;
-  return (
-    window.__GALLERY_DEBUG_INDEX_REBUILD === true ||
-    window.localStorage.getItem("debug-index-rebuild") === "true"
-  );
+  return window.__GALLERY_DEBUG_INDEX_REBUILD === true || window.localStorage.getItem("debug-index-rebuild") === "true";
 }
 
 export function logIndexRebuildDebug(event: string, payload: Record<string, unknown>) {
@@ -35,7 +32,7 @@ export function logIndexRebuildDebug(event: string, payload: Record<string, unkn
     JSON.stringify({
       event,
       ...payload,
-    })
+    }),
   );
 }
 

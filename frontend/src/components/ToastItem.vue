@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue';
-import type { Toast } from '../stores/toast';
-import { CheckCircle, XCircle, TriangleAlert, Info, X } from 'lucide-vue-next';
+import { computed, ref, onMounted, onUnmounted } from "vue";
+import type { Toast } from "../stores/toast";
+import { CheckCircle, XCircle, TriangleAlert, Info, X } from "lucide-vue-next";
 
-const _icons: Record<string, any> = { CheckCircle, XCircle, TriangleAlert, Info }
+const _icons: Record<string, any> = { CheckCircle, XCircle, TriangleAlert, Info };
 
 const props = defineProps<{
   toast: Toast;
 }>();
 
 const emit = defineEmits<{
-  (e: 'dismiss'): void;
+  (e: "dismiss"): void;
 }>();
 
 // Progress bar for auto-dismiss
@@ -22,11 +22,16 @@ let pausedProgress: number = 100;
 
 const iconClass = computed(() => {
   switch (props.toast.type) {
-    case 'success': return 'CheckCircle';
-    case 'error': return 'XCircle';
-    case 'warning': return 'TriangleAlert';
-    case 'info': return 'Info';
-    default: return 'Info';
+    case "success":
+      return "CheckCircle";
+    case "error":
+      return "XCircle";
+    case "warning":
+      return "TriangleAlert";
+    case "info":
+      return "Info";
+    default:
+      return "Info";
   }
 });
 
@@ -35,18 +40,18 @@ const typeClass = computed(() => `toast--${props.toast.type}`);
 // Animate progress bar
 const animateProgress = (timestamp: number) => {
   if (!startTime) startTime = timestamp;
-  
+
   if (isPaused.value) {
     animationFrame = requestAnimationFrame(animateProgress);
     return;
   }
-  
+
   const duration = props.toast.duration || 5000;
   const elapsed = timestamp - startTime;
   const remaining = Math.max(0, pausedProgress - (elapsed / duration) * pausedProgress);
-  
+
   progress.value = remaining;
-  
+
   if (remaining > 0) {
     animationFrame = requestAnimationFrame(animateProgress);
   }
@@ -67,7 +72,7 @@ const handleAction = () => {
   if (props.toast.action?.onClick) {
     props.toast.action.onClick();
   }
-  emit('dismiss');
+  emit("dismiss");
 };
 
 onMounted(() => {
@@ -84,9 +89,12 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div 
+  <div
     role="alert"
-    :class="['toast flex items-start gap-3 py-3.5 px-4 bg-[var(--toast-bg,#fff)] rounded-xl pointer-events-auto relative overflow-hidden border-l-4 border-l-[var(--toast-accent)] shadow-[0_4px_12px_rgba(0,0,0,0.15),0_0_1px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.4),0_0_1px_rgba(0,0,0,0.2)]', typeClass]"
+    :class="[
+      'toast flex items-start gap-3 py-3.5 px-4 bg-[var(--toast-bg,#fff)] rounded-xl pointer-events-auto relative overflow-hidden border-l-4 border-l-[var(--toast-accent)] shadow-[0_4px_12px_rgba(0,0,0,0.15),0_0_1px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.4),0_0_1px_rgba(0,0,0,0.2)]',
+      typeClass,
+    ]"
     @mouseenter="pauseProgress"
     @mouseleave="resumeProgress"
     @focusin="pauseProgress"
@@ -96,47 +104,27 @@ onUnmounted(() => {
     <div class="toast__icon">
       <component :is="_icons[iconClass]" :stroke-width="1.5" class="icon-lg" />
     </div>
-    
+
     <!-- Content -->
     <div class="toast__content">
       <div class="toast__title">{{ toast.title }}</div>
-      <div 
-        v-if="toast.message && toast.html" 
-        class="toast__message"
-        v-html="toast.message"
-      ></div>
+      <div v-if="toast.message && toast.html" class="toast__message" v-html="toast.message"></div>
       <div v-else-if="toast.message" class="toast__message">{{ toast.message }}</div>
-      
+
       <!-- Action button -->
-      <button 
-        v-if="toast.action"
-        class="toast__action"
-        type="button"
-        @click="handleAction"
-      >
+      <button v-if="toast.action" class="toast__action" type="button" @click="handleAction">
         {{ toast.action.label }}
       </button>
     </div>
-    
+
     <!-- Dismiss button -->
-    <button 
-      v-if="toast.dismissible"
-      class="toast__dismiss"
-      type="button"
-      @click="emit('dismiss')"
-    >
+    <button v-if="toast.dismissible" class="toast__dismiss" type="button" @click="emit('dismiss')">
       <X class="icon-sm" />
     </button>
-    
+
     <!-- Progress bar -->
-    <div 
-      v-if="toast.duration && toast.duration > 0" 
-      class="toast__progress"
-    >
-      <div 
-        class="toast__progress-bar"
-        :style="{ width: `${progress}%` }"
-      ></div>
+    <div v-if="toast.duration && toast.duration > 0" class="toast__progress">
+      <div class="toast__progress-bar" :style="{ width: `${progress}%` }"></div>
     </div>
   </div>
 </template>

@@ -73,7 +73,7 @@
 
   .value {
     color: #fff;
-    font-family: 'JetBrains Mono', monospace;
+    font-family: "JetBrains Mono", monospace;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -89,7 +89,9 @@
     display: flex;
     font-size: 12px;
     flex-shrink: 0;
-    &:hover { color: #fff; }
+    &:hover {
+      color: #fff;
+    }
   }
 }
 
@@ -102,7 +104,7 @@
 .copy-btn {
   border-radius: 4px;
   padding: 4px 6px;
-  
+
   &:focus-visible {
     outline: none;
     box-shadow: var(--focus-ring-shadow);
@@ -218,12 +220,12 @@
   .lightbox-overlay {
     background: #000;
   }
-  
+
   .lightbox-right {
     background: #000;
     border-left: 2px solid #fff;
   }
-  
+
   .prompt-box {
     border: 2px solid #fff;
   }
@@ -286,7 +288,7 @@
     color: #93c5fd;
     padding: 2px 8px;
     border-radius: 4px;
-    font-family: 'Inter', sans-serif;
+    font-family: "Inter", sans-serif;
     white-space: nowrap;
     min-width: 0;
     overflow: hidden;
@@ -307,10 +309,15 @@
   background: rgba(0, 0, 0, 0.42);
   color: rgba(255, 255, 255, 0.94);
   border: 1px solid rgba(255, 255, 255, 0.22);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 6px 18px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  transition: transform 0.14s ease, background 0.14s ease, border-color 0.14s ease;
+  transition:
+    transform 0.14s ease,
+    background 0.14s ease,
+    border-color 0.14s ease;
 
   &:active {
     transform: scale(0.94);
@@ -336,7 +343,7 @@
     border-color: rgba(255, 255, 255, 0.42);
     box-shadow:
       0 8px 22px rgba(0, 0, 0, 0.24),
-      0 0 0 2px rgba(255, 255, 255, 0.10),
+      0 0 0 2px rgba(255, 255, 255, 0.1),
       inset 0 1px 0 rgba(255, 255, 255, 0.18);
   }
 }

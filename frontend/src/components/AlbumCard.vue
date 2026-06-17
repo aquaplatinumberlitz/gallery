@@ -10,16 +10,19 @@ const emit = defineEmits<{
   (e: "click"): void;
 }>();
 
-withDefaults(defineProps<{
-  node: FileNode;
-  compact?: boolean;
-}>(), {
-  compact: false,
-});
+withDefaults(
+  defineProps<{
+    node: FileNode;
+    compact?: boolean;
+  }>(),
+  {
+    compact: false,
+  },
+);
 </script>
 
 <template>
-  <div 
+  <div
     class="album-card"
     :class="{ 'album-card--compact': compact }"
     data-testid="album-card"
@@ -35,7 +38,9 @@ withDefaults(defineProps<{
       </div>
       <div class="album-layer album-layer-front">
         <img v-if="node.cover_images?.[0]" :src="getThumbnailUrl(node.cover_images[0])" loading="lazy" alt="" />
-        <div v-else class="placeholder flex-center"><span class="fa-placeholder-svg" v-html="placeholderSvg"></span></div>
+        <div v-else class="placeholder flex-center">
+          <span class="fa-placeholder-svg" v-html="placeholderSvg"></span>
+        </div>
       </div>
     </div>
 
@@ -43,7 +48,11 @@ withDefaults(defineProps<{
       <h3 class="album-name">{{ node.name }}</h3>
       <div class="album-meta">
         <FolderOpen class="gallery-icon-meta album-meta-icon" />
-        <span>Album<span v-if="node.image_count !== undefined && node.image_count !== null"> · {{ node.image_count }} {{ node.image_count === 1 ? 'photo' : 'photos' }}</span></span>
+        <span
+          >Album<span v-if="node.image_count !== undefined && node.image_count !== null">
+            · {{ node.image_count }} {{ node.image_count === 1 ? "photo" : "photos" }}</span
+          ></span
+        >
       </div>
     </div>
   </div>
@@ -71,8 +80,8 @@ withDefaults(defineProps<{
   border-radius: 12px;
   padding-top: 20px; // Space above for hover animation
   padding-left: 20px; // Space on left for hover animation (layers fan out left)
-  transition: 
-    transform 280ms cubic-bezier(0.4, 0, 0.2, 1), 
+  transition:
+    transform 280ms cubic-bezier(0.4, 0, 0.2, 1),
     box-shadow 280ms cubic-bezier(0.4, 0, 0.2, 1);
   background: var(--album-card-bg);
   border: var(--album-card-border);
@@ -340,9 +349,9 @@ html[data-theme="light"] .album-card,
   --album-card-bg: transparent;
   --album-card-border: none;
   --album-card-shadow: none;
-  --album-back-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 1px 3px 1px rgba(0,0,0,0.15);
-  --album-front-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 2px 6px 2px rgba(0,0,0,0.15);
-  --album-hover-shadow: 0 1px 3px rgba(0,0,0,0.3), 0 4px 8px 3px rgba(0,0,0,0.15);
-  --album-front-hover-shadow: 0 2px 3px rgba(0,0,0,0.3), 0 6px 10px 4px rgba(0,0,0,0.15);
+  --album-back-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px 1px rgba(0, 0, 0, 0.15);
+  --album-front-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 6px 2px rgba(0, 0, 0, 0.15);
+  --album-hover-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 4px 8px 3px rgba(0, 0, 0, 0.15);
+  --album-front-hover-shadow: 0 2px 3px rgba(0, 0, 0, 0.3), 0 6px 10px 4px rgba(0, 0, 0, 0.15);
 }
 </style>

@@ -1,5 +1,5 @@
-import { useToastStore } from '../stores/toast';
-import type { ToastOptions } from '../stores/toast';
+import { useToastStore } from "../stores/toast";
+import type { ToastOptions } from "../stores/toast";
 
 /**
  * Composable for easy toast notifications
@@ -70,23 +70,19 @@ export function useToast() {
         loading: string;
         success: string | ((data: T) => string);
         error: string | ((err: unknown) => string);
-      }
+      },
     ): Promise<T> => {
       const loadingId = store.info(options.loading, undefined, { duration: 0, dismissible: false });
-      
+
       try {
         const result = await promise;
         store.removeToast(loadingId);
-        const successMessage = typeof options.success === 'function' 
-          ? options.success(result) 
-          : options.success;
+        const successMessage = typeof options.success === "function" ? options.success(result) : options.success;
         store.success(successMessage);
         return result;
       } catch (err) {
         store.removeToast(loadingId);
-        const errorMessage = typeof options.error === 'function' 
-          ? options.error(err) 
-          : options.error;
+        const errorMessage = typeof options.error === "function" ? options.error(err) : options.error;
         store.error(errorMessage);
         throw err;
       }

@@ -12,9 +12,7 @@ const withScanRequestPath = (data: ScanResponse, requestPath: string): ScanRespo
 });
 
 const getCachedFirstPage = (requestPath: string): InfiniteData<ScanResponse, number> | undefined => {
-  const cached = queryClient.getQueryData<ScanResponse>(
-    queryKeys.scan(requestPath, IMAGE_PAGE_SIZE)
-  );
+  const cached = queryClient.getQueryData<ScanResponse>(queryKeys.scan(requestPath, IMAGE_PAGE_SIZE));
   if (!cached) return undefined;
 
   return {
@@ -30,9 +28,7 @@ export function useInfiniteScanQuery(path: Ref<string>) {
   const normalizedPath = computed(() => normalizeQueryPath(path.value || ""));
 
   const queryKey = computed(() =>
-    normalizedPath.value
-      ? queryKeys.scanInfinite(normalizedPath.value, IMAGE_PAGE_SIZE)
-      : []
+    normalizedPath.value ? queryKeys.scanInfinite(normalizedPath.value, IMAGE_PAGE_SIZE) : [],
   );
 
   const scanQuery = useInfiniteQuery({

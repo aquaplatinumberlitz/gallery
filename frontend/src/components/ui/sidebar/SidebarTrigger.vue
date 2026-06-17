@@ -1,23 +1,19 @@
 <script setup lang="ts">
-import type { HTMLAttributes } from "vue"
-import { ChevronLeft, ChevronRight } from "lucide-vue-next"
-import { computed } from "vue"
-import { cn } from "@/lib/utils"
-import { Button } from '@/components/ui/button'
-import { useSidebar } from "./utils"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
+import type { HTMLAttributes } from "vue";
+import { ChevronLeft, ChevronRight } from "lucide-vue-next";
+import { computed } from "vue";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { useSidebar } from "./utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const props = defineProps<{
-  class?: HTMLAttributes["class"]
-}>()
+  class?: HTMLAttributes["class"];
+}>();
 
-const { state, toggleSidebar } = useSidebar()
+const { state, toggleSidebar } = useSidebar();
 
-const label = computed(() => state.value === "expanded" ? "Collapse sidebar" : "Expand sidebar")
+const label = computed(() => (state.value === "expanded" ? "Collapse sidebar" : "Expand sidebar"));
 </script>
 
 <template>

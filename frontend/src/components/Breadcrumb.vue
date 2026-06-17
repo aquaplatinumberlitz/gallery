@@ -8,11 +8,7 @@ import BreadcrumbItem from "./ui/BreadcrumbItem.vue";
 import BreadcrumbLink from "./ui/BreadcrumbLink.vue";
 import BreadcrumbPage from "./ui/BreadcrumbPage.vue";
 import BreadcrumbSeparator from "./ui/BreadcrumbSeparator.vue";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const props = defineProps<{
   path?: string;
@@ -69,8 +65,7 @@ const maxSegments = computed(() => props.maxVisible ?? 4);
 const allSegments = computed(() => {
   const raw = props.path || "";
   const sep = separator.value;
-  const prefix =
-    raw.startsWith("\\\\") ? "\\\\" : raw.startsWith(sep) ? sep : "";
+  const prefix = raw.startsWith("\\\\") ? "\\\\" : raw.startsWith(sep) ? sep : "";
   const parts = raw.split(/[\\/]+/).filter(Boolean);
 
   const result: { name: string; fullPath: string; isLast: boolean; index: number }[] = [];
@@ -93,9 +88,7 @@ const allSegments = computed(() => {
   return result;
 });
 
-const shouldCollapse = computed(() =>
-  !isExpanded.value && allSegments.value.length > maxSegments.value
-);
+const shouldCollapse = computed(() => !isExpanded.value && allSegments.value.length > maxSegments.value);
 
 const visibleSegments = computed(() => {
   const all = allSegments.value;
@@ -201,10 +194,7 @@ const closeMenu = () => {
 
                     <div class="ellipsis-menu-divider"></div>
 
-                    <button
-                      class="ellipsis-menu-item expand-btn"
-                      @click="expandAll"
-                    >
+                    <button class="ellipsis-menu-item expand-btn" @click="expandAll">
                       <ArrowsUpFromLine class="size-3.5" />
                       <span>Show full path</span>
                     </button>
@@ -225,12 +215,7 @@ const closeMenu = () => {
 
     <Tooltip v-if="isExpanded && allSegments.length > maxSegments">
       <TooltipTrigger as-child>
-        <button
-          class="collapse-btn"
-          type="button"
-          aria-label="Collapse path"
-          @click="isExpanded = false"
-        >
+        <button class="collapse-btn" type="button" aria-label="Collapse path" @click="isExpanded = false">
           <Minimize class="size-3.5" />
         </button>
       </TooltipTrigger>
@@ -383,7 +368,9 @@ const closeMenu = () => {
 /* Dropdown Animation */
 .dropdown-enter-active,
 .dropdown-leave-active {
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
 }
 
 .dropdown-enter-from,

@@ -18,7 +18,7 @@ const rootPath = "/breadcrumb-root/alpha/beta/gamma/delta/epsilon/zeta";
 const imagePath = `${rootPath}/image_1.png`;
 const png1x1 = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/luz4nQAAAABJRU5ErkJggg==",
-  "base64"
+  "base64",
 );
 
 async function installStubbedGallery(page: Page) {
@@ -162,9 +162,8 @@ test.describe("Breadcrumb", () => {
     expect(
       monitoredErrors.consoleErrors.some(
         (message) =>
-          message.includes("getBoundingClientRect is not a function") ||
-          message.includes("Unhandled Vue error")
-      )
+          message.includes("getBoundingClientRect is not a function") || message.includes("Unhandled Vue error"),
+      ),
     ).toBe(false);
   });
 });

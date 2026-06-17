@@ -12,12 +12,7 @@ defineProps<{
     role="link"
     aria-disabled="true"
     aria-current="page"
-    :class="
-      cn(
-        'text-sm font-normal text-foreground max-w-[200px] truncate px-2 py-1',
-        $props.class,
-      )
-    "
+    :class="cn('text-sm font-normal text-foreground max-w-[200px] truncate px-2 py-1', $props.class)"
   >
     <slot />
   </span>

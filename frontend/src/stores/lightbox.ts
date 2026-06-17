@@ -2,11 +2,7 @@ import { defineStore } from "pinia";
 import type { FileNode } from "../types";
 import { getPreviewUrl, getThumbnailUrl } from "../services/api";
 import { lightboxItemAt, logLightboxNavDebug, summarizeLightboxItems } from "../debug/lightboxNavDebug";
-import {
-  LIGHTBOX_PREVIEW_EDGE,
-  LIGHTBOX_THUMBNAIL_EDGE,
-  type LightboxDimensions,
-} from "../utils/lightbox";
+import { LIGHTBOX_PREVIEW_EDGE, LIGHTBOX_THUMBNAIL_EDGE, type LightboxDimensions } from "../utils/lightbox";
 
 const preloadImage = (path: string) => {
   if (typeof Image === "undefined") return;
@@ -37,18 +33,17 @@ export const useLightboxStore = defineStore("lightbox", {
         itemName: this.itemName,
         galleryItems: this.galleryItems.length,
       };
-      
+
       this.itemPath = path;
       this.itemName = name;
       this.isOpen = true;
-      
+
       // Setup navigation
-      this.galleryItems = items.filter(i => i.type === 'image');
+      this.galleryItems = items.filter((i) => i.type === "image");
       const candidateIndex = typeof preferredIndex === "number" && preferredIndex >= 0 ? preferredIndex : -1;
       const preferredItem = candidateIndex >= 0 ? this.galleryItems[candidateIndex] : undefined;
-      this.currentIndex = preferredItem?.path === path
-        ? candidateIndex
-        : this.galleryItems.findIndex(i => i.path === path);
+      this.currentIndex =
+        preferredItem?.path === path ? candidateIndex : this.galleryItems.findIndex((i) => i.path === path);
 
       logLightboxNavDebug("store-open", {
         requested: { path, name },
@@ -117,10 +112,9 @@ export const useLightboxStore = defineStore("lightbox", {
     },
 
     preloadNeighbors() {
-      const neighbors = [
-        this.galleryItems[this.currentIndex - 1],
-        this.galleryItems[this.currentIndex + 1],
-      ].filter(Boolean) as FileNode[];
+      const neighbors = [this.galleryItems[this.currentIndex - 1], this.galleryItems[this.currentIndex + 1]].filter(
+        Boolean,
+      ) as FileNode[];
 
       neighbors.forEach((item) => preloadImage(item.path));
     },

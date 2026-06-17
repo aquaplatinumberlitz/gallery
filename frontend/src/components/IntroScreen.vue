@@ -15,8 +15,7 @@ const emit = defineEmits<{
 
 const introUrl = ref("");
 const hasIntroContent = computed(() => !!introUrl.value);
-const introFallbackMessage =
-  "Welcome to Museum Art Gallery — intro page unavailable, you can enter the gallery now.";
+const introFallbackMessage = "Welcome to Museum Art Gallery — intro page unavailable, you can enter the gallery now.";
 
 const setVisible = (value: boolean) => emit("update:visible", value);
 
@@ -119,7 +118,7 @@ watch(
       introUrl.value = url;
       setVisible(true);
     }
-  }
+  },
 );
 
 watch(
@@ -128,7 +127,7 @@ watch(
     if (visible) {
       loadIntro();
     }
-  }
+  },
 );
 
 onMounted(() => {
@@ -140,21 +139,12 @@ onMounted(() => {
 
 <template>
   <div v-if="visible" class="intro-screen">
-    <iframe
-      v-if="hasIntroContent"
-      :src="introUrl"
-      class="intro-iframe"
-      title="Intro"
-    ></iframe>
+    <iframe v-if="hasIntroContent" :src="introUrl" class="intro-iframe" title="Intro"></iframe>
     <div v-else class="intro-fallback">
       <p class="fallback-text">{{ introFallbackMessage }}</p>
     </div>
     <div class="enter-overlay">
-      <button 
-        class="enter-btn" 
-        @click="enterApp"
-        autofocus
-      >
+      <button class="enter-btn" @click="enterApp" autofocus>
         <span class="btn-text">ENTER GALLERY</span>
         <span class="btn-icon"><ArrowRight class="icon-md" /></span>
       </button>
@@ -198,19 +188,24 @@ onMounted(() => {
 }
 
 @keyframes rotate-gradient {
-  0% { --gradient-angle: 0deg; }
-  100% { --gradient-angle: 360deg; }
+  0% {
+    --gradient-angle: 0deg;
+  }
+  100% {
+    --gradient-angle: 360deg;
+  }
 }
 
 @keyframes subtle-pulse {
-  0%, 100% { 
-    box-shadow: 
+  0%,
+  100% {
+    box-shadow:
       0 4px 20px rgba(180, 150, 80, 0.15),
       0 8px 40px rgba(180, 150, 80, 0.08),
       inset 0 1px 0 rgba(255, 255, 255, 0.9);
   }
-  50% { 
-    box-shadow: 
+  50% {
+    box-shadow:
       0 6px 30px rgba(180, 150, 80, 0.25),
       0 12px 50px rgba(180, 150, 80, 0.12),
       inset 0 1px 0 rgba(255, 255, 255, 0.95);
@@ -218,14 +213,18 @@ onMounted(() => {
 }
 
 @keyframes shimmer-gold {
-  0% { background-position: -200% center; }
-  100% { background-position: 200% center; }
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
 }
 
 .enter-btn {
   pointer-events: auto;
   position: relative;
-  
+
   /* Elegant transparent/frosted glass effect for light background */
   background: linear-gradient(
     135deg,
@@ -235,10 +234,10 @@ onMounted(() => {
   );
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  
+
   /* Subtle gold border */
   border: 2px solid rgba(180, 150, 80, 0.4);
-  
+
   /* Dark text for readability on light background */
   color: #2c2c2c;
   padding: 22px 56px;
@@ -254,13 +253,13 @@ onMounted(() => {
   gap: 20px;
   transition: all 0.5s cubic-bezier(0.23, 1, 0.32, 1);
   overflow: hidden;
-  
+
   /* Elegant soft shadow */
-  box-shadow: 
+  box-shadow:
     0 4px 20px rgba(180, 150, 80, 0.15),
     0 8px 40px rgba(180, 150, 80, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  
+
   animation: subtle-pulse 4s ease-in-out infinite;
 }
 
@@ -279,11 +278,11 @@ onMounted(() => {
     #c9a962 80%,
     #e8d5a3 100%
   );
-  -webkit-mask: 
-    linear-gradient(#fff 0 0) content-box, 
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
     linear-gradient(#fff 0 0);
-  mask: 
-    linear-gradient(#fff 0 0) content-box, 
+  mask:
+    linear-gradient(#fff 0 0) content-box,
     linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
@@ -297,14 +296,7 @@ onMounted(() => {
 .btn-text {
   position: relative;
   z-index: 2;
-  background: linear-gradient(
-    90deg,
-    #1a1a1a 0%,
-    #3d3d3d 20%,
-    #8b7355 50%,
-    #3d3d3d 80%,
-    #1a1a1a 100%
-  );
+  background: linear-gradient(90deg, #1a1a1a 0%, #3d3d3d 20%, #8b7355 50%, #3d3d3d 80%, #1a1a1a 100%);
   background-size: 200% auto;
   -webkit-background-clip: text;
   background-clip: text;
@@ -329,17 +321,11 @@ onMounted(() => {
 
 /* Hover: Transform to gold filled button */
 .enter-btn:hover {
-  background: linear-gradient(
-    135deg,
-    #c9a962 0%,
-    #d4b896 30%,
-    #c9a962 70%,
-    #b8956e 100%
-  );
+  background: linear-gradient(135deg, #c9a962 0%, #d4b896 30%, #c9a962 70%, #b8956e 100%);
   border-color: #b8956e;
   color: #ffffff;
   transform: translateY(-3px);
-  box-shadow: 
+  box-shadow:
     0 8px 30px rgba(180, 150, 80, 0.35),
     0 15px 50px rgba(180, 150, 80, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.3);
@@ -351,12 +337,7 @@ onMounted(() => {
 }
 
 .enter-btn:hover .btn-text {
-  background: linear-gradient(
-    90deg,
-    #ffffff 0%,
-    #fff8e7 50%,
-    #ffffff 100%
-  );
+  background: linear-gradient(90deg, #ffffff 0%, #fff8e7 50%, #ffffff 100%);
   background-size: 200% auto;
   -webkit-background-clip: text;
   background-clip: text;
@@ -377,13 +358,7 @@ onMounted(() => {
   left: -100%;
   width: 60%;
   height: 200%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.4),
-    rgba(255, 255, 255, 0.6),
-    transparent
-  );
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.6), transparent);
   transform: skewX(-25deg);
   transition: left 0.7s ease-in-out;
   z-index: 1;
@@ -396,7 +371,7 @@ onMounted(() => {
 /* Active/Click state */
 .enter-btn:active {
   transform: translateY(-1px);
-  box-shadow: 
+  box-shadow:
     0 4px 15px rgba(180, 150, 80, 0.3),
     0 8px 30px rgba(180, 150, 80, 0.15),
     inset 0 2px 4px rgba(0, 0, 0, 0.1);

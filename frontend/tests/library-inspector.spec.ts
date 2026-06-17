@@ -17,7 +17,7 @@ const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
 const rootPath = "/gallery-library-inspector-test";
 const png1x1 = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/luz4nQAAAABJRU5ErkJggg==",
-  "base64"
+  "base64",
 );
 
 type InspectorRow = {
@@ -93,7 +93,7 @@ const baseRows: InspectorRow[] = [
     makeRow(`extra-${index.toString().padStart(2, "0")}.png`, `batch/${index % 4}`, 1769999900 - index, {
       seed: `8${index.toString().padStart(5, "0")}`,
       prompt_preview: `extra generated image ${index}, metadata prompt preview`,
-    })
+    }),
   ),
 ];
 
@@ -104,7 +104,7 @@ function rowsForQuery(query: string) {
     [row.name, row.relative_path, row.model, row.seed, row.prompt_preview]
       .join(" ")
       .toLowerCase()
-      .includes(normalized.replace(/^prompt:/, ""))
+      .includes(normalized.replace(/^prompt:/, "")),
   );
 }
 
@@ -380,7 +380,7 @@ test.describe("LibraryInspector", () => {
         promptTrigger.evaluate((element) => {
           const style = getComputedStyle(element);
           return [style.display, style.overflow, style.maxWidth];
-        })
+        }),
       )
       .toEqual(["block", "hidden", "100%"]);
     await expect
@@ -388,7 +388,7 @@ test.describe("LibraryInspector", () => {
         promptText.evaluate((element) => {
           const style = getComputedStyle(element);
           return [style.overflow, style.textOverflow, style.whiteSpace];
-        })
+        }),
       )
       .toEqual(["hidden", "ellipsis", "nowrap"]);
 

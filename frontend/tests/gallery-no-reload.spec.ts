@@ -24,7 +24,7 @@ const imagePaths = [
 ];
 const png1x1 = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/luz4nQAAAABJRU5ErkJggg==",
-  "base64"
+  "base64",
 );
 
 type ApiRequest = { pathname: string; path: string; imageCursor: string };
@@ -76,8 +76,12 @@ async function installStubbedGallery(page: Page) {
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
-          tool: "stub", prompt: "stub prompt", negative_prompt: "",
-          params: {}, width: 1600, height: 1000,
+          tool: "stub",
+          prompt: "stub prompt",
+          negative_prompt: "",
+          params: {},
+          width: 1600,
+          height: 1000,
           name: req.path.split("/").pop() ?? "image.png",
         }),
       });
@@ -120,7 +124,9 @@ test.use({ viewport: { width: 1280, height: 820 } });
 
 test("boot id does not change during album browse / lightbox / navigation", async ({ page }) => {
   const bootId = "boot-test-001";
-  await page.addInitScript((id) => { (window as any).__galleryBootId = id; }, bootId);
+  await page.addInitScript((id) => {
+    (window as any).__galleryBootId = id;
+  }, bootId);
 
   const requests = await installStubbedGallery(page);
   await openStubbedGallery(page);
@@ -150,7 +156,9 @@ test("boot id does not change during album browse / lightbox / navigation", asyn
 
 test("no unexpected full page reload during album browsing", async ({ page }) => {
   let navigations = 0;
-  page.on("framenavigated", () => { navigations++; });
+  page.on("framenavigated", () => {
+    navigations++;
+  });
 
   const requests = await installStubbedGallery(page);
   await openStubbedGallery(page);
@@ -188,7 +196,9 @@ test("/api/scan with image_cursor=0 is not duplicated unnecessarily", async ({ p
 
 test("lightbox prev/next navigate without page reload", async ({ page }) => {
   let navigations = 0;
-  page.on("framenavigated", () => { navigations++; });
+  page.on("framenavigated", () => {
+    navigations++;
+  });
 
   const requests = await installStubbedGallery(page);
   await openStubbedGallery(page);

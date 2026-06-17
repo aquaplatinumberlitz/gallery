@@ -1,15 +1,8 @@
 <script setup lang="ts">
 import type { SortValue } from "../types";
 import SortSelect from "./SortSelect.vue";
-import {
-  ArrowLeft, ArrowRight, ChevronDown,
-  LayoutGrid, Check,
-} from "lucide-vue-next";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { ArrowLeft, ArrowRight, ChevronDown, LayoutGrid, Check } from "lucide-vue-next";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface DensityOption {
   level: number;
@@ -50,9 +43,7 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
     const menu = e.currentTarget as HTMLElement;
     const buttons = menu.querySelectorAll("button");
     if (buttons.length) {
-      const currentIndex = Array.from(buttons).findIndex(
-        (b) => b === document.activeElement
-      );
+      const currentIndex = Array.from(buttons).findIndex((b) => b === document.activeElement);
       const nextIndex =
         e.key === "ArrowDown"
           ? (currentIndex + 1) % buttons.length
@@ -69,12 +60,7 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
     <div class="tgt-nav-group">
       <Tooltip>
         <TooltipTrigger as-child>
-          <button
-            class="tgt-btn"
-            :disabled="!canGoBack"
-            @click="emit('back')"
-            aria-label="Go back"
-          >
+          <button class="tgt-btn" :disabled="!canGoBack" @click="emit('back')" aria-label="Go back">
             <ArrowLeft class="tgt-nav-icon" />
           </button>
         </TooltipTrigger>
@@ -82,12 +68,7 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
       </Tooltip>
       <Tooltip>
         <TooltipTrigger as-child>
-          <button
-            class="tgt-btn"
-            :disabled="!canGoForward"
-            @click="emit('forward')"
-            aria-label="Go forward"
-          >
+          <button class="tgt-btn" :disabled="!canGoForward" @click="emit('forward')" aria-label="Go forward">
             <ArrowRight class="tgt-nav-icon" />
           </button>
         </TooltipTrigger>
@@ -116,11 +97,7 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
         <ChevronDown class="tgt-chevron" />
       </button>
       <Transition name="dropdown">
-        <div
-          v-if="showDensityMenu"
-          class="density-menu"
-          @keydown="handleDensityMenuKeydown"
-        >
+        <div v-if="showDensityMenu" class="density-menu" @keydown="handleDensityMenuKeydown">
           <button
             v-for="option in densityOptions"
             :key="option.level"
@@ -131,10 +108,7 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
             <LayoutGrid class="tgt-option-icon" />
             <span>{{ option.label }}</span>
             <span class="density-cols">{{ option.columns }} cols</span>
-            <Check
-              v-if="sliderLevel === option.level"
-              class="density-check tgt-check-icon"
-            />
+            <Check v-if="sliderLevel === option.level" class="density-check tgt-check-icon" />
           </button>
         </div>
       </Transition>
@@ -181,7 +155,10 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    transform 0.12s ease;
 }
 
 .tgt-btn:hover:not(:disabled) {

@@ -43,10 +43,10 @@ import("./debug/erudaDebug").then(({ initErudaDebug }) => initErudaDebug());
 if (import.meta.env.DEV) {
   import("./debug/lifecycleDebug").then(({ installLifecycleDebug }) => installLifecycleDebug());
   // Icon debug overlay for tablet icon sizing investigation
-  import('./debug/iconDebugOverlay')
+  import("./debug/iconDebugOverlay")
     .then(({ initIconDebugOverlay }) => initIconDebugOverlay())
     .catch((error) => {
-      console.warn('[IconDebug] failed to load', error);
+      console.warn("[IconDebug] failed to load", error);
     });
 }
 

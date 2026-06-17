@@ -8,25 +8,20 @@
     <script>
       // Prevent FOUC: apply theme before CSS renders
       (() => {
-        const key = "gallery-theme"
-        let stored = null
+        const key = "gallery-theme";
+        let stored = null;
         try {
-          stored = localStorage.getItem(key)
+          stored = localStorage.getItem(key);
         } catch (_) {
-          stored = null
+          stored = null;
         }
-        const explicit = stored === "light" || stored === "dark"
-        const auto = stored === "auto" || stored === null
-        const systemDark = window.matchMedia &&
-          window.matchMedia("(prefers-color-scheme: dark)").matches
-        const theme = explicit
-          ? stored
-          : auto && systemDark
-            ? "dark"
-            : "light"
-        document.documentElement.setAttribute("data-theme", theme)
-        document.documentElement.style.colorScheme = theme
-      })()
+        const explicit = stored === "light" || stored === "dark";
+        const auto = stored === "auto" || stored === null;
+        const systemDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const theme = explicit ? stored : auto && systemDark ? "dark" : "light";
+        document.documentElement.setAttribute("data-theme", theme);
+        document.documentElement.style.colorScheme = theme;
+      })();
     </script>
   </head>
   <body>

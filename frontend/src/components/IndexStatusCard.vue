@@ -3,16 +3,8 @@ import { Database } from "lucide-vue-next";
 import IndexStatusBadge from "@/components/IndexStatusBadge.vue";
 import IndexStatusDetailsPopover from "@/components/IndexStatusDetailsPopover.vue";
 import IndexProgressBar from "@/components/IndexProgressBar.vue";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import type {
-  IndexStatusCounts,
-  IndexStatusPresentation,
-  IndexStatusProgressInfo,
-} from "@/utils/indexStatus";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import type { IndexStatusCounts, IndexStatusPresentation, IndexStatusProgressInfo } from "@/utils/indexStatus";
 import type { IndexStatusResponse } from "@/types";
 
 defineProps<{
@@ -42,11 +34,7 @@ function formatCount(value: number) {
 <template>
   <Popover>
     <PopoverTrigger as-child>
-      <button
-        type="button"
-        class="index-status-card group-data-[collapsible=icon]:hidden"
-        aria-label="Index Status"
-      >
+      <button type="button" class="index-status-card group-data-[collapsible=icon]:hidden" aria-label="Index Status">
         <span class="index-status-card__top">
           <span class="index-status-card__title">
             <Database class="size-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
@@ -59,21 +47,15 @@ function formatCount(value: number) {
           <span v-if="presentation.status === 'indexing' && progress.total !== null">
             {{ formatCount(progress.indexed) }} / {{ formatCount(progress.total) }} details processed
           </span>
-          <span v-else-if="presentation.status === 'indexing'">
-            Indexing...
-          </span>
-          <span v-else-if="globalWorkOutsideScope">
-            Indexer working in another folder
-          </span>
+          <span v-else-if="presentation.status === 'indexing'"> Indexing... </span>
+          <span v-else-if="globalWorkOutsideScope"> Indexer working in another folder </span>
           <span v-else-if="presentation.status === 'stale' && counts.stale > 0">
             {{ formatCount(counts.stale) }} known photos need updating
           </span>
           <span v-else-if="presentation.status === 'stale' && counts.missingMetadataRecords > 0">
             {{ formatCount(counts.missingMetadataRecords) }} photo details need updating
           </span>
-          <span v-else>
-            {{ formatCount(data?.metadata_records ?? 0) }} photo details ready
-          </span>
+          <span v-else> {{ formatCount(data?.metadata_records ?? 0) }} photo details ready </span>
         </span>
 
         <IndexProgressBar

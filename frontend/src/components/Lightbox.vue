@@ -7,9 +7,7 @@ import { useDevice } from "../composables/useDevice";
 import { DESKTOP_METADATA_WIDTH } from "../constants";
 import { usePhotoMetadataQuery } from "../composables/usePhotoMetadataQuery";
 import { lightboxItemAt, logLightboxNavDebug } from "../debug/lightboxNavDebug";
-import {
-  Minimize, X,
-} from "lucide-vue-next";
+import { Minimize, X } from "lucide-vue-next";
 import LightboxDesktopPanel from "./LightboxDesktopPanel.vue";
 import LightboxTabletPanel from "./LightboxTabletPanel.vue";
 import LightboxMobileSheet from "./LightboxMobileSheet.vue";
@@ -60,9 +58,7 @@ const genTimeText = computed(() => {
 });
 
 const sidebarWidthStyle = computed(() =>
-  (isDesktop.value || isWide.value) && !isFullscreen.value
-    ? `${DESKTOP_METADATA_WIDTH}px`
-    : "0px"
+  (isDesktop.value || isWide.value) && !isFullscreen.value ? `${DESKTOP_METADATA_WIDTH}px` : "0px",
 );
 
 const desktopPaddingFn = (_viewportSize: { x: number; y: number }, _itemData: unknown, _index: number) => ({
@@ -98,7 +94,7 @@ function handlePhotoSwipeIndexChange(newIndex: number) {
     // Update store to reflect PhotoSwipe's new index for metadata fetching
     lightbox.currentIndex = newIndex;
     lightbox.itemPath = item.path;
-    lightbox.itemName = item.name || '';
+    lightbox.itemName = item.name || "";
   }
 }
 
@@ -115,7 +111,7 @@ function handleIndexChange(newIndex: number) {
   if (item && item.path !== lightbox.itemPath) {
     lightbox.currentIndex = newIndex;
     lightbox.itemPath = item.path;
-    lightbox.itemName = item.name || '';
+    lightbox.itemName = item.name || "";
   }
 }
 
@@ -139,7 +135,7 @@ const handleKeydown = (e: KeyboardEvent) => {
 
   // Ignore if focus is on an input
   const target = e.target as HTMLElement;
-  if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+  if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
 
   if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
     const pending = pendingArrowKeydown;
@@ -277,16 +273,11 @@ function handleToggleFullscreen() {
             @close="handleClose"
             @index-change="handleIndexChange"
           />
-          <div
-            v-if="lightbox.galleryItems.length > 1"
-            class="desktop-lightbox-counter"
-          >
+          <div v-if="lightbox.galleryItems.length > 1" class="desktop-lightbox-counter">
             {{ lightbox.currentIndex + 1 }} / {{ lightbox.galleryItems.length }}
           </div>
           <!-- Image counter for screen readers -->
-          <div class="sr-only">
-            Image {{ lightbox.currentIndex + 1 }} of {{ lightbox.galleryItems.length }}
-          </div>
+          <div class="sr-only">Image {{ lightbox.currentIndex + 1 }} of {{ lightbox.galleryItems.length }}</div>
           <!-- Sidebar -->
           <LightboxDesktopPanel
             v-if="!isFullscreen"
@@ -338,9 +329,7 @@ function handleToggleFullscreen() {
             @close="handleSheetClosed"
           />
           <!-- Image counter for screen readers -->
-          <div class="sr-only">
-            Image {{ lightbox.currentIndex + 1 }} of {{ lightbox.galleryItems.length }}
-          </div>
+          <div class="sr-only">Image {{ lightbox.currentIndex + 1 }} of {{ lightbox.galleryItems.length }}</div>
         </template>
 
         <!-- Mobile: PhotoSwipe (giữ nguyên) -->
@@ -355,9 +344,7 @@ function handleToggleFullscreen() {
           @toggle-metadata="toggleSheet"
         />
         <template v-if="isMobile">
-          <div class="mobile-photo-counter">
-            {{ lightbox.currentIndex + 1 }} / {{ lightbox.galleryItems.length }}
-          </div>
+          <div class="mobile-photo-counter">{{ lightbox.currentIndex + 1 }} / {{ lightbox.galleryItems.length }}</div>
           <LightboxMobileSheet
             v-if="showSheet && !isFullscreen"
             :meta="meta"
@@ -378,7 +365,7 @@ function handleToggleFullscreen() {
 // Shared styles imported for loading/error states
 // Desktop/Mobile/Tablet styles are scoped to their respective components
 // ============================================
-@import '../styles/lightbox-shared';
+@import "../styles/lightbox-shared";
 
 // === Component-unique styles (overlay, navigation, fullscreen) ===
 
@@ -444,7 +431,6 @@ function handleToggleFullscreen() {
   width: var(--gallery-icon-xl);
   height: var(--gallery-icon-xl);
 }
-
 
 /* Mobile photo counter (shown on non-desktop) */
 .mobile-photo-counter {

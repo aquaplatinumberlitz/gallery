@@ -5,7 +5,7 @@ const props = withDefaults(
   }>(),
   {
     type: "photo",
-  }
+  },
 );
 </script>
 
@@ -43,7 +43,12 @@ const props = withDefaults(
 .skeleton-block {
   width: 100%;
   border-radius: 12px;
-  background: linear-gradient(90deg, var(--gallery-placeholder-bg, rgba(0, 0, 0, 0.05)), rgba(0, 0, 0, 0.035), var(--gallery-placeholder-bg, rgba(0, 0, 0, 0.05)));
+  background: linear-gradient(
+    90deg,
+    var(--gallery-placeholder-bg, rgba(0, 0, 0, 0.05)),
+    rgba(0, 0, 0, 0.035),
+    var(--gallery-placeholder-bg, rgba(0, 0, 0, 0.05))
+  );
   overflow: hidden;
   position: relative;
 }
@@ -73,12 +78,7 @@ const props = withDefaults(
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.22) 50%,
-    transparent 100%
-  );
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.22) 50%, transparent 100%);
   transform: translateX(-100%);
   animation: shimmer 1.5s infinite;
 }
@@ -96,22 +96,12 @@ const props = withDefaults(
 @media (hover: none) {
   .shimmer-wave {
     animation: none;
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      rgba(255, 255, 255, 0.11) 50%,
-      transparent 100%
-    );
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.11) 50%, transparent 100%);
     transform: translateX(0);
   }
 
   :global(html[data-theme="dark"]) .shimmer-wave {
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      rgba(255, 255, 255, 0.06) 50%,
-      transparent 100%
-    );
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.06) 50%, transparent 100%);
   }
 }
 
@@ -121,11 +111,6 @@ const props = withDefaults(
 }
 
 :global(html[data-theme="dark"]) .shimmer-wave {
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.12) 50%,
-    transparent 100%
-  );
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.12) 50%, transparent 100%);
 }
 </style>

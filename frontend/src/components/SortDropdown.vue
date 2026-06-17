@@ -30,8 +30,8 @@ const emit = defineEmits<{
   "update:modelValue": [value: SortValue];
 }>();
 
-const selectedOption = computed(() =>
-  SORT_OPTIONS.find((option) => option.value === props.modelValue) ?? SORT_OPTIONS[0]
+const selectedOption = computed(
+  () => SORT_OPTIONS.find((option) => option.value === props.modelValue) ?? SORT_OPTIONS[0],
 );
 </script>
 
@@ -54,7 +54,12 @@ const selectedOption = computed(() =>
         v-else
         variant="outline"
         type="button"
-        :class="cn('h-9 w-[150px] justify-between gap-2 px-3 text-sm font-normal text-foreground shadow-none flex-none max-[900px]:w-full', triggerClass)"
+        :class="
+          cn(
+            'h-9 w-[150px] justify-between gap-2 px-3 text-sm font-normal text-foreground shadow-none flex-none max-[900px]:w-full',
+            triggerClass,
+          )
+        "
         :aria-label="ariaLabel || 'Sort'"
       >
         <span class="truncate">{{ selectedOption.label }}</span>

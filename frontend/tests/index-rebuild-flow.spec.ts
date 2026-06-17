@@ -34,7 +34,7 @@ test.describe("rebuild flow diagnostic", () => {
     // Navigate to /metadata
     const initialInspectorPromise = page.waitForResponse(
       (r) => r.url().includes("/api/library/inspector") && r.status() === 200,
-      { timeout: 15_000 }
+      { timeout: 15_000 },
     );
     await page.getByRole("link", { name: "Metadata" }).click();
     const initialBody = await (await initialInspectorPromise).json();
@@ -44,7 +44,7 @@ test.describe("rebuild flow diagnostic", () => {
         generated_at: initialBody.generated_at,
         total_indexed: initialBody.total_indexed,
         returned: initialBody.returned,
-      })
+      }),
     );
     await page.waitForTimeout(1000);
 
@@ -82,11 +82,8 @@ test.describe("rebuild flow diagnostic", () => {
     // Response promises
     let t0 = 0;
     const rebuildRespPromise = page.waitForResponse(
-      (r) =>
-        r.url().includes("/api/index/rebuild") &&
-        r.request().method() === "POST" &&
-        r.status() === 200,
-      { timeout: 30_000 }
+      (r) => r.url().includes("/api/index/rebuild") && r.request().method() === "POST" && r.status() === 200,
+      { timeout: 30_000 },
     );
 
     // Click Rebuild
@@ -112,7 +109,7 @@ test.describe("rebuild flow diagnostic", () => {
         rebuildResponseMs: tRebuildRespMs,
         rebuild_started_at: rebuildStartedAt,
         path: rebuildBody.path,
-      })
+      }),
     );
 
     // Wait for inspector responses to settle (~1.6s typical)
@@ -122,9 +119,7 @@ test.describe("rebuild flow diagnostic", () => {
     console.log("=== ALL INSPECTOR RESPONSES AFTER REBUILD ===");
     for (let i = 0; i < allInspectorResponses.length; i++) {
       const r = allInspectorResponses[i];
-      const sinceRebuild = rebuildStartedAt
-        ? (r.generated_at - rebuildStartedAt).toFixed(3)
-        : "N/A";
+      const sinceRebuild = rebuildStartedAt ? (r.generated_at - rebuildStartedAt).toFixed(3) : "N/A";
       console.log(
         JSON.stringify({
           idx: i,
@@ -133,7 +128,7 @@ test.describe("rebuild flow diagnostic", () => {
           delta_from_rebuild_started: `${sinceRebuild}s`,
           total_indexed: r.total_indexed,
           returned: r.returned,
-        })
+        }),
       );
     }
     console.log(`Total inspector responses: ${allInspectorResponses.length}`);
@@ -192,11 +187,19 @@ test.describe("inspector stale notice (mocked)", () => {
         await route.fulfill({
           contentType: "application/json",
           body: JSON.stringify({
-            enabled: true, path: stubRoot,
-            done: 5, running: 0, queued: 0, failed: 0, stale: 0, total: 5,
+            enabled: true,
+            path: stubRoot,
+            done: 5,
+            running: 0,
+            queued: 0,
+            failed: 0,
+            stale: 0,
+            total: 5,
             counts: { done: 5, running: 0, queued: 0, failed: 0, stale: 0 },
-            worker_count: 2, active_jobs: 0,
-            metadata_records: 5, indexed_photos: 5,
+            worker_count: 2,
+            active_jobs: 0,
+            metadata_records: 5,
+            indexed_photos: 5,
           }),
         });
         return;
@@ -228,7 +231,10 @@ test.describe("inspector stale notice (mocked)", () => {
       if (url.pathname.includes("/api/thumbnail")) {
         await route.fulfill({
           contentType: "image/png",
-          body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64"),
+          body: Buffer.from(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            "base64",
+          ),
         });
         return;
       }
@@ -253,16 +259,34 @@ test.describe("inspector stale notice (mocked)", () => {
 
   test("fresh data (no rebuild marker) → notice hidden", async ({ page }) => {
     await installStubs(page, {
-      root: stubRoot, scope: "current", query: "", limit: 200,
-      generated_at: 9999, total_indexed: 5, returned: 5, truncated: false, sort: "mtime_desc",
+      root: stubRoot,
+      scope: "current",
+      query: "",
+      limit: 200,
+      generated_at: 9999,
+      total_indexed: 5,
+      returned: 5,
+      truncated: false,
+      sort: "mtime_desc",
       rows: [
         {
-          path: `${stubRoot}/img.png`, name: "img.png", folder: stubRoot, relative_path: ".",
-          mtime: 1000000, width: 512, height: 512,
-          model: "test", tool: "test", sampler: "test", seed: "123",
+          path: `${stubRoot}/img.png`,
+          name: "img.png",
+          folder: stubRoot,
+          relative_path: ".",
+          mtime: 1000000,
+          width: 512,
+          height: 512,
+          model: "test",
+          tool: "test",
+          sampler: "test",
+          seed: "123",
           prompt_preview: "test image",
-          has_prompt: true, has_negative: false,
-          has_lora: false, lora_count: 0, lora_preview: "",
+          has_prompt: true,
+          has_negative: false,
+          has_lora: false,
+          lora_count: 0,
+          lora_preview: "",
           metadata_detail_available: true,
         },
       ],
@@ -285,8 +309,15 @@ test.describe("inspector stale notice (mocked)", () => {
   test("stale data after rebuild → notice visible", async ({ page }) => {
     // Stale inspector data: generated_at = 1
     await installStubs(page, {
-      root: stubRoot, scope: "current", query: "", limit: 200,
-      generated_at: 1, total_indexed: 5, returned: 5, truncated: false, sort: "mtime_desc",
+      root: stubRoot,
+      scope: "current",
+      query: "",
+      limit: 200,
+      generated_at: 1,
+      total_indexed: 5,
+      returned: 5,
+      truncated: false,
+      sort: "mtime_desc",
       rows: [],
     });
 
@@ -310,10 +341,7 @@ test.describe("inspector stale notice (mocked)", () => {
     const confirmBtn = page.getByRole("button", { name: "Rebuild", exact: true }).last();
     await expect(confirmBtn).toBeVisible({ timeout: 3_000 });
     await Promise.all([
-      page.waitForResponse(
-        (r) => r.url().includes("/api/index/rebuild") && r.status() === 200,
-        { timeout: 10_000 }
-      ),
+      page.waitForResponse((r) => r.url().includes("/api/index/rebuild") && r.status() === 200, { timeout: 10_000 }),
       confirmBtn.click(),
     ]);
 
@@ -347,7 +375,7 @@ test.describe("metadata rebuild refresh regression", () => {
   const finishedGeneratedAt = rebuildStartedAt + 10;
   const png1x1 = Buffer.from(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/luz4nQAAAABJRU5ErkJggg==",
-    "base64"
+    "base64",
   );
 
   function makeRows(count: number, prefix: string) {
@@ -584,7 +612,13 @@ test.describe("metadata rebuild refresh regression", () => {
       if (url.pathname === "/api/scan") {
         await route.fulfill({
           contentType: "application/json",
-          body: JSON.stringify({ folders: [], images: [], next_cursor: null, total_images: 0, index_source: "direct_scan" }),
+          body: JSON.stringify({
+            folders: [],
+            images: [],
+            next_cursor: null,
+            total_images: 0,
+            index_source: "direct_scan",
+          }),
         });
         return;
       }
@@ -622,35 +656,41 @@ test.describe("metadata rebuild refresh regression", () => {
     await expect(confirmDialog).toBeVisible({ timeout: 5_000 });
     await confirmDialog.getByRole("button", { name: "Rebuild" }).click();
 
-    await expect(page.getByText("Refreshing photo details. Previous results are shown until the latest snapshot arrives.")).toBeVisible({ timeout: 5_000 });
+    await expect(
+      page.getByText("Refreshing photo details. Previous results are shown until the latest snapshot arrives."),
+    ).toBeVisible({ timeout: 5_000 });
     await expect(page.locator(".table-shell")).toHaveClass(/table-shell--rebuilding/);
     await expect(page.getByText("old-row-001.png")).toBeVisible();
 
     await expect
-      .poll(() =>
-        requestTimeline.filter((entry) =>
-          String(entry.requestUrl).startsWith("/api/library/inspector?")
-        ).length
+      .poll(
+        () => requestTimeline.filter((entry) => String(entry.requestUrl).startsWith("/api/library/inspector?")).length,
       )
       .toBeGreaterThan(1);
 
     reindexFinished = true;
 
-    await expect(page.getByText(`200 of 205 indexed photos shown · ${flowRoot} · Including subfolders`)).toBeVisible({ timeout: 8_000 });
-    await expect(page.getByText("Refreshing photo details. Previous results are shown until the latest snapshot arrives.")).toBeHidden();
+    await expect(page.getByText(`200 of 205 indexed photos shown · ${flowRoot} · Including subfolders`)).toBeVisible({
+      timeout: 8_000,
+    });
+    await expect(
+      page.getByText("Refreshing photo details. Previous results are shown until the latest snapshot arrives."),
+    ).toBeHidden();
     await expect(page.locator(".table-shell")).not.toHaveClass(/table-shell--rebuilding/);
     await expect(page.getByText("new-row-001.png")).toBeVisible();
 
     await expect(page.locator(".index-status-card")).toContainText("205 photo details ready", { timeout: 5_000 });
 
     const inspectorRequests = requestTimeline.filter((entry) =>
-      String(entry.requestUrl).startsWith("/api/library/inspector?")
+      String(entry.requestUrl).startsWith("/api/library/inspector?"),
     );
     expect(inspectorRequests.length).toBeGreaterThan(1);
     expect(inspectorRequests.every((entry) => entry.scope === "current")).toBe(true);
     expect(inspectorRequests.every((entry) => entry.path === flowRoot)).toBe(true);
     expect(debugConsole.some((line) => line.includes("invalidate-before"))).toBe(true);
-    expect(debugConsole.some((line) => line.includes('"invalidatedLibraryInspectorQueryKey":["library-inspector"]'))).toBe(true);
+    expect(
+      debugConsole.some((line) => line.includes('"invalidatedLibraryInspectorQueryKey":["library-inspector"]')),
+    ).toBe(true);
     expect(debugConsole.some((line) => line.includes(`"current","${flowRoot}",200`))).toBe(true);
 
     console.log("=== INDEX REBUILD REQUEST TIMELINE ===");
