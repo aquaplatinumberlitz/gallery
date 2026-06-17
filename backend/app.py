@@ -1,3 +1,5 @@
+"""Configure the FastAPI application, routers, middleware, and startup hooks."""
+
 import os
 import time
 
@@ -91,6 +93,7 @@ if ENABLE_PROFILER:
 
     @app.middleware("http")
     async def profile_middleware(request: Request, call_next):
+        """Profile selected requests and write pyinstrument HTML reports to disk."""
         if request.url.path not in PROFILE_ENDPOINTS:
             return await call_next(request)
         profiler = pyinstrument.Profiler()

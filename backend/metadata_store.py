@@ -1,3 +1,5 @@
+"""Persist gallery file indexes, extracted metadata, job queues, and search queries."""
+
 from __future__ import annotations
 
 import base64
@@ -42,12 +44,16 @@ MAX_METADATA_JOB_ATTEMPTS = 3
 
 @dataclass(frozen=True)
 class CachedDimensions:
+    """Cached image dimensions keyed by path, mtime, and size."""
+
     width: int
     height: int
 
 
 @dataclass(frozen=True)
 class MetadataIndexJob:
+    """Durable metadata indexing job for one image file version."""
+
     path: str
     name: str
     parent_path: str
@@ -58,11 +64,14 @@ class MetadataIndexJob:
 
     @property
     def key(self) -> tuple[str, float, int]:
+        """Return the in-memory deduplication key for this file version."""
         return (self.path, self.mtime, self.size)
 
 
 @dataclass(frozen=True)
 class MetadataQueueResult:
+    """Summary of metadata jobs queued, coalesced, skipped, or failed."""
+
     enqueued: list[MetadataIndexJob]
     coalesced: int = 0
     skipped: int = 0
@@ -119,6 +128,7 @@ def _connect(*, set_journal_mode: bool = False) -> sqlite3.Connection:
 
 
 def initialize_database() -> None:
+    """Create or migrate the SQLite metadata database once per configured DB path."""
     global _DB_INITIALIZED, _DB_INITIALIZED_PATH
     if _DB_INITIALIZED and _DB_INITIALIZED_PATH == GALLERY_METADATA_DB:
         return
@@ -485,6 +495,7 @@ def queue_metadata_index_paths(paths: Iterable[str | Path], root_path: str | Pat
 
 
 def mark_metadata_jobs_running(jobs: Iterable[MetadataIndexJob]) -> None:
+    """Mark durable metadata jobs as running and increment their attempt counts."""
     rows = list(jobs)
     if not rows:
         return
@@ -507,6 +518,7 @@ def mark_metadata_jobs_running(jobs: Iterable[MetadataIndexJob]) -> None:
 
 
 def mark_metadata_jobs_done(jobs: Iterable[MetadataIndexJob]) -> None:
+    """Mark durable metadata jobs as successfully completed."""
     rows = list(jobs)
     if not rows:
         return
@@ -527,6 +539,7 @@ def mark_metadata_jobs_done(jobs: Iterable[MetadataIndexJob]) -> None:
 
 
 def mark_metadata_jobs_stale(jobs: Iterable[MetadataIndexJob]) -> None:
+    """Mark durable metadata jobs stale when the file version no longer matches."""
     rows = list(jobs)
     if not rows:
         return
@@ -547,6 +560,7 @@ def mark_metadata_jobs_stale(jobs: Iterable[MetadataIndexJob]) -> None:
 
 
 def mark_metadata_jobs_failed(errors: Iterable[tuple[MetadataIndexJob, str]]) -> None:
+    """Mark durable metadata jobs failed with a bounded error message."""
     rows = [(job, error[:1000]) for job, error in errors]
     if not rows:
         return
@@ -567,6 +581,7 @@ def mark_metadata_jobs_failed(errors: Iterable[tuple[MetadataIndexJob, str]]) ->
 
 
 def get_metadata_index_status(path: str | Path | None = None) -> dict[str, Any]:
+    """Return durable metadata job counts, optionally scoped to a path subtree."""
     initialize_database()
     counts = dict.fromkeys(METADATA_JOB_STATES, 0)
     where = ""
@@ -774,6 +789,7 @@ def _upsert_extracted_metadata_conn(conn: sqlite3.Connection, metadata: Extracte
 
 
 def upsert_extracted_metadata(metadata: ExtractedMetadata, *, mark_job_done: bool = False) -> bool:
+    """Persist extracted metadata and optionally complete its matching current job."""
     if is_index_excluded_path(metadata.path):
         return False
     initialize_database()
@@ -799,6 +815,7 @@ def upsert_metadata_batch(metadata_items: Iterable[ExtractedMetadata]) -> int:
 
 
 def index_image(path: Path) -> bool:
+    """Extract and persist metadata for one image when its indexed file version is stale."""
     if is_index_excluded_path(path) or not is_image_path(path):
         return False
     try:
@@ -819,6 +836,7 @@ def index_image(path: Path) -> bool:
 
 
 def index_images(paths: Iterable[str | Path]) -> int:
+    """Index metadata for multiple image paths and return the number updated."""
     indexed = 0
     for path_value in paths:
         try:
@@ -914,6 +932,7 @@ def update_folder_index_state(
     image_count: int = 0,
     last_error: str | None = None,
 ) -> bool:
+    """Upsert warm-listing state for a folder and return whether it was persisted."""
     initialize_database()
     now = time.time()
     try:
@@ -959,6 +978,7 @@ def update_folder_index_state(
 
 
 def get_folder_index_state(folder_path: str | Path) -> dict | None:
+    """Return persisted warm-listing state for a folder, or None on miss/error."""
     initialize_database()
     try:
         resolved = str(Path(folder_path).resolve())
@@ -985,6 +1005,7 @@ def get_warm_folder_listing(
     sort: str = "name",
     image_limit: int | None = None,
 ) -> dict | None:
+    """Return a folder listing from SQLite when the persisted folder state is current."""
     if not ENABLE_WARM_INDEXED_LISTING:
         return None
 
@@ -1135,6 +1156,7 @@ def get_warm_folder_listing(
 
 
 def get_folder_indexed_paths() -> list[dict]:
+    """Return persisted folder index state rows ordered by most recent update."""
     initialize_database()
     with _DB_LOCK, _connect() as conn:
         rows = conn.execute(
@@ -1144,6 +1166,7 @@ def get_folder_indexed_paths() -> list[dict]:
 
 
 def mark_folder_index_incomplete(folder_path: str | Path, last_error: str | None = None) -> bool:
+    """Mark a folder's warm-listing state incomplete after a change or refresh failure."""
     return update_folder_index_state(folder_path, complete=False, last_error=last_error)
 
 
@@ -1321,6 +1344,7 @@ def index_file(
     width: int | None,
     height: int | None,
 ) -> bool:
+    """Upsert one folder or photo row into the file index and FTS table."""
     if is_index_excluded_path(path):
         return False
     resolved_path = str(Path(path).resolve())
@@ -1476,6 +1500,7 @@ def _scan_folder_counts(folder_path: Path) -> dict:
 
 
 def index_files_from_scan(folders: list[Any], images: list[Any], *, scan_folder_path: str | Path | None = None) -> int:
+    """Persist file index rows produced by a scan response and update folder state."""
     indexed = 0
     for item in [*folders, *images]:
         raw_path = _path_value(item, "path")
@@ -1877,6 +1902,7 @@ def _count_like(conn: sqlite3.Connection, query: str) -> int:
 
 
 def search_metadata(query: str, limit: int = 100, offset: int = 0) -> dict[str, Any]:
+    """Search extracted metadata text with FTS and LIKE fallbacks."""
     initialize_database()
     trimmed = query.strip()
     limit = max(1, min(limit, 200))
@@ -1918,6 +1944,7 @@ def search_metadata(query: str, limit: int = 100, offset: int = 0) -> dict[str, 
 
 
 def search_index(query: str, scope: str, root_path: str | Path | None = None, limit: int = 50) -> dict[str, Any]:
+    """Search indexed albums, photos, and prompts using free-text query semantics."""
     initialize_database()
     trimmed = query.strip()
     normalized_scope = "all" if scope == "all" else "current"
@@ -2060,6 +2087,7 @@ def _search_fielded_photos(
 def search_index_fielded(
     query: str, scope: str, root_path: str | Path | None = None, limit: int = 50
 ) -> dict[str, Any]:
+    """Search indexed albums and photos with structured field filters."""
     from .fielded_search_parser import (
         build_fielded_search_sql,
         parse_fielded_query,

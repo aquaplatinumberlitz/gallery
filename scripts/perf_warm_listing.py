@@ -1,5 +1,4 @@
-"""
-Performance comparison: cold direct scan vs warm DB listing.
+"""Performance comparison: cold direct scan vs warm DB listing.
 
 Usage:
     python scripts/perf_warm_listing.py [--path /path/to/folder] [--images 5000]
@@ -26,6 +25,7 @@ os.environ.setdefault("ENABLE_WARM_INDEXED_LISTING", "true")
 
 
 def create_test_fixtures(folder: Path, count: int) -> None:
+    """Create simple fixture files for comparing cold and warm listing paths."""
     folder.mkdir(parents=True, exist_ok=True)
     for i in range(count):
         (folder / f"image_{i:06d}.jpg").write_text(f"fake image {i}")
@@ -38,6 +38,7 @@ def create_test_fixtures(folder: Path, count: int) -> None:
 
 
 def benchmark_cold_scan(folder: Path, image_limit: int) -> dict:
+    """Measure direct filesystem scanning and in-memory pagination."""
     from backend.scan import scan_directory
 
     start = time.perf_counter()
@@ -62,6 +63,7 @@ def benchmark_cold_scan(folder: Path, image_limit: int) -> dict:
 
 
 def benchmark_warm_listing(folder: Path, image_limit: int) -> dict | None:
+    """Measure indexed folder listing after populating folder index state."""
     from backend.metadata_store import (
         get_warm_folder_listing,
         index_directory_tree,
@@ -117,6 +119,7 @@ def benchmark_warm_listing(folder: Path, image_limit: int) -> dict | None:
 
 
 def main() -> None:
+    """Run the cold-versus-warm listing comparison from command-line arguments."""
     parser = argparse.ArgumentParser(description="Warm listing vs cold scan performance comparison")
     parser.add_argument("--path", type=str, default="/tmp/perf_warm_test", help="Path to folder with images")
     parser.add_argument("--images", type=int, default=5000, help="Number of test images to create")

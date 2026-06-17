@@ -1,3 +1,5 @@
+"""Generate and serve cached WebP thumbnail and preview derivatives."""
+
 import hashlib
 import os
 import threading
@@ -307,8 +309,8 @@ async def api_thumbnail(
     max_long_edge: int = Query(512, ge=1, le=4096, description="Max long edge for grid thumbnail"),
     max_size: int | None = Query(None, ge=1, le=4096, description="Deprecated alias for max_long_edge"),
 ):
-    """
-    Serve optimized WebP thumbnail.
+    """Serve optimized WebP thumbnail.
+
     Uses persistent disk cache backed by diskcache.
     Returns FileResponse with proper HTTP caching headers when the cache file exists.
     """
@@ -330,8 +332,8 @@ async def api_preview(
     max_long_edge: int = Query(1440, ge=1, le=4096, description="Max long edge for viewer preview"),
     max_size: int | None = Query(None, ge=1, le=4096, description="Deprecated alias for max_long_edge"),
 ):
-    """
-    Serve optimized WebP viewer preview.
+    """Serve optimized WebP viewer preview.
+
     The preview derivative is distinct from thumbnails and originals.
     """
     return await _serve_derivative(

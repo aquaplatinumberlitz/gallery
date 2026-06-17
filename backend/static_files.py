@@ -1,3 +1,5 @@
+"""Serve the production frontend shell and static assets."""
+
 import mimetypes
 import os
 
@@ -11,6 +13,7 @@ router = APIRouter()
 
 @router.get("/")
 async def read_root():
+    """Return the frontend shell in production or a development API marker."""
     if PRODUCTION:
         return FileResponse(str(FRONTEND_DIST / "index.html"), media_type="text/html")
     return {"message": "Museum Art Gallery API"}
@@ -18,6 +21,7 @@ async def read_root():
 
 @router.get("/api/landing-pages")
 def get_landing_pages():
+    """List static landing-page HTML files bundled under frontend public assets."""
     base_dir = os.path.dirname(os.path.abspath(__file__))
     landpage_dir = os.path.join(base_dir, "..", "frontend", "public", "landpage")
 
@@ -37,6 +41,7 @@ def get_landing_pages():
 
 @router.api_route("/{path:path}", methods=["GET"], include_in_schema=False)
 async def catch_all(path: str):
+    """Serve production frontend assets or fall back to the SPA entrypoint."""
     if not PRODUCTION:
         raise HTTPException(status_code=404, detail="Only available in production mode")
     if path.startswith("api/") or path.startswith("openapi") or path.startswith("docs"):

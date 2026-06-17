@@ -1,3 +1,5 @@
+"""Background metadata indexing queues, workers, metrics, and API endpoints."""
+
 from __future__ import annotations
 
 import logging
@@ -605,6 +607,7 @@ def enqueue_metadata_jobs_from_scan(
     *,
     start_worker: bool = True,
 ) -> dict[str, int]:
+    """Stage image paths from a scan response for durable metadata indexing."""
     paths: list[str] = []
     for item in images:
         raw_path = item.get("path") if isinstance(item, dict) else getattr(item, "path", None)
@@ -614,6 +617,7 @@ def enqueue_metadata_jobs_from_scan(
 
 
 def get_indexer_runtime_status(scope_path: str | Path | None = None) -> dict[str, Any]:
+    """Return in-memory indexer worker and staging queue status, optionally scoped to a path."""
     scope_root = _normalized_path_text(scope_path)
     with _worker_lock:
         worker_count = 1 if _worker_thread and _worker_thread.is_alive() else 0
@@ -735,6 +739,7 @@ def _rebuild_index_scope_safely(root: str | Path) -> None:
 
 @router.get("/api/index/status")
 async def api_index_status(path: str | None = Query(None, description="Folder/root path to scope index status")):
+    """Return persisted metadata job counts plus live indexer queue state."""
     target = resolve_path(path) if path else None
     if target is not None and not is_path_safe(target):
         raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied")
@@ -778,6 +783,7 @@ async def api_index_rebuild(
     path: str = Query(..., description="Folder/root path to rebuild"),
     confirm: bool = Query(False, description="Must be true because rebuild clears persisted index rows first"),
 ):
+    """Clear and rebuild indexed file rows for a confirmed folder scope in the background."""
     if not confirm:
         raise APIError(400, "confirmation_required", "Rebuild requires explicit confirmation")
 

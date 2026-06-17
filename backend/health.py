@@ -1,3 +1,5 @@
+"""Health and browser-noise endpoints for the backend API."""
+
 import subprocess
 from pathlib import Path
 
@@ -24,6 +26,7 @@ router = APIRouter()
 
 @router.get("/api/health")
 async def api_health():
+    """Return service health, build commit, and feature flags."""
     return {
         "status": "ok",
         "commit": GIT_COMMIT,
@@ -35,4 +38,5 @@ async def api_health():
 
 @router.get("/favicon.ico", include_in_schema=False)
 async def favicon():
+    """Return an empty favicon response to avoid noisy 404s."""
     return Response(status_code=204)

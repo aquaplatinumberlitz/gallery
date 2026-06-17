@@ -1,3 +1,5 @@
+"""Extract and normalize embedded metadata from image files."""
+
 from __future__ import annotations
 
 import json
@@ -18,6 +20,8 @@ _BINARY_IMAGE_INFO_KEYS = {"exif", "icc_profile", "profile", "thumbnail", "photo
 
 @dataclass
 class ExtractedMetadata:
+    """Normalized metadata fields persisted to SQLite for search and inspection."""
+
     path: str
     name: str
     mtime: float
@@ -66,6 +70,7 @@ def extract_loras(text: str) -> list[str]:
 
 
 def contains_cjk(query: str) -> bool:
+    """Return whether text contains CJK characters that need trigram search fallback."""
     return bool(CJK_RE.search(query))
 
 
@@ -109,6 +114,7 @@ def sanitize_metadata_for_json(value: Any, key_path: tuple[Any, ...] = ()) -> An
 
 
 def safe_text(value: Any, key_path: tuple[Any, ...] = ()) -> str:
+    """Convert metadata values to searchable text while dropping binary image blobs."""
     if value is None:
         return ""
     if isinstance(value, (bytes, bytearray, memoryview)) and any(
@@ -135,6 +141,7 @@ def _first_match(text: str, pattern: str) -> str:
 
 
 def parse_int(value: str) -> int | None:
+    """Parse an integer value, returning None for missing or invalid input."""
     try:
         return int(value)
     except (TypeError, ValueError):
@@ -142,6 +149,7 @@ def parse_int(value: str) -> int | None:
 
 
 def parse_float(value: str) -> float | None:
+    """Parse a floating-point value, returning None for missing or invalid input."""
     try:
         return float(value)
     except (TypeError, ValueError):
@@ -149,6 +157,7 @@ def parse_float(value: str) -> float | None:
 
 
 def parse_a1111_parameters(params_text: str) -> dict[str, Any]:
+    """Parse AUTOMATIC1111-style parameter text into normalized metadata fields."""
     metadata: dict[str, Any] = {
         "prompt": "",
         "negative_prompt": "",
@@ -252,6 +261,7 @@ def parse_ai_text_parameters(params_text: str) -> dict[str, Any]:
 
 
 def parse_comfy(prompt_json: str, workflow_json: str | None) -> dict[str, Any]:
+    """Parse ComfyUI prompt or workflow JSON into normalized metadata fields."""
     try:
         data = json.loads(prompt_json)
     except json.JSONDecodeError:
@@ -747,6 +757,7 @@ def extracted_metadata_to_api(metadata: ExtractedMetadata) -> dict[str, Any]:
 
 
 def extract_metadata(path: Path) -> ExtractedMetadata:
+    """Read image metadata from disk and return a normalized persistence record."""
     stat = path.stat()
     width: int | None = None
     height: int | None = None

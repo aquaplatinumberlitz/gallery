@@ -1,3 +1,5 @@
+"""Search indexed gallery files, metadata, and library inspector rows."""
+
 import os
 from pathlib import Path
 from typing import Literal
@@ -28,6 +30,7 @@ async def api_search_metadata(
     limit: int = Query(100, ge=1, le=200, description="Maximum search results"),
     offset: int = Query(0, ge=0, description="Result offset"),
 ):
+    """Search extracted image metadata and return path-safe results."""
     if not q.strip():
         return {"query": q, "total": 0, "results": []}
 
@@ -53,6 +56,7 @@ async def api_search(
     path: str | None = Query(None, description="Current folder path when scope=current"),
     limit: int = Query(50, ge=1, le=200, description="Maximum results per section"),
 ):
+    """Search albums, photos, and prompts in either current folder or all indexed files."""
     if not q.strip():
         root = resolve_path(path) if scope == "current" and path else GALLERY_ROOT
         return {"query": q, "scope": scope, "root": str(root), "albums": [], "photos": [], "prompt": []}
@@ -121,6 +125,7 @@ async def api_library_inspector(
         "date_desc", description="Inspector row sort"
     ),
 ):
+    """Return paginated library inspector rows with stale path filtering."""
     root_path: Path | None = None
     if scope == "current":
         root_path = resolve_path(path) if path else DEFAULT_ROOT
@@ -198,6 +203,7 @@ async def api_library_inspector(
 async def api_library_inspector_metadata(
     path: str = Query(..., description="Encoded image path from an indexed library row"),
 ):
+    """Return indexed metadata details for a selected library inspector image."""
     resolved = resolve_path(path)
     if not is_path_safe(resolved):
         raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied: path outside allowed root")

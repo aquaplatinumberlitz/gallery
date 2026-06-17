@@ -1,3 +1,5 @@
+"""Folder listing and local open-folder API endpoints."""
+
 import os
 import subprocess
 import sys
@@ -17,6 +19,7 @@ router = APIRouter()
 
 
 def list_folder_children(target_path: Path) -> list[FileNode]:
+    """List visible, non-excluded child folders as FileNode records."""
     if not target_path.exists():
         raise APIError(404, ErrorType.NOT_FOUND, "Folder not found")
     if not target_path.is_dir():
@@ -70,6 +73,7 @@ def list_folder_children(target_path: Path) -> list[FileNode]:
 async def api_folders(
     path: str | None = Query(None, description="Absolute path whose folder children should be listed"),
 ):
+    """Return child folders under the requested path or configured default root."""
     target = resolve_path(path) if path else DEFAULT_ROOT
     if not is_path_safe(target):
         raise APIError(403, "permission", "Access denied: path outside allowed root")
@@ -78,6 +82,7 @@ async def api_folders(
 
 @router.post("/api/open-folder")
 async def api_open_folder(path: str = Query(..., description="Absolute path to folder")):
+    """Open a folder on the host when explicitly enabled by server configuration."""
     if not OPEN_FOLDER_ENABLED:
         raise APIError(403, ErrorType.PERMISSION_DENIED, "Open folder is disabled on this server")
     folder_path = resolve_path(path)

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Measure `/api/scan` latency against a running backend and enforce a p95 budget."""
+
 from __future__ import annotations
 
 import json
@@ -12,6 +14,7 @@ from urllib.request import Request, urlopen
 
 
 def percentile(values: list[float], pct: float) -> float:
+    """Return the nearest-rank percentile for a list of duration values."""
     if not values:
         return 0.0
     ordered = sorted(values)
@@ -20,6 +23,7 @@ def percentile(values: list[float], pct: float) -> float:
 
 
 def fetch_scan(base_url: str, path: str) -> tuple[float, dict]:
+    """Request `/api/scan` once and return elapsed milliseconds plus JSON payload."""
     url = f"{base_url.rstrip('/')}/api/scan?{urlencode({'path': path})}"
     request = Request(url, headers={"Accept": "application/json"})
     started = time.perf_counter()
@@ -29,6 +33,7 @@ def fetch_scan(base_url: str, path: str) -> tuple[float, dict]:
 
 
 def main() -> int:
+    """Run repeated scan requests, print a compact JSON report, and enforce budget."""
     base_url = os.getenv("GALLERY_API_BASE_URL", "http://localhost:8000")
     scan_path = os.getenv("GALLERY_PERF_SCAN_PATH", "/home/ubuntu/gallery-repo/test mika")
     iterations = int(os.getenv("GALLERY_PERF_SCAN_ITERATIONS", "10"))

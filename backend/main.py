@@ -1,3 +1,5 @@
+"""Expose the configured FastAPI app for Uvicorn and local execution."""
+
 from .app import app as app  # explicit re-export for uvicorn target backend.main:app
 
 if __name__ == "__main__":

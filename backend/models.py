@@ -1,9 +1,13 @@
+"""Pydantic response models shared by gallery API routes."""
+
 from typing import Literal
 
 from pydantic import BaseModel
 
 
 class FileNode(BaseModel):
+    """Folder or image node returned by browsing, scanning, and search endpoints."""
+
     name: str
     path: str  # absolute path on disk
     type: Literal["folder", "image"]

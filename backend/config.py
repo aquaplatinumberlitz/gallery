@@ -1,3 +1,5 @@
+"""Read environment-backed backend configuration constants."""
+
 import os
 from pathlib import Path
 

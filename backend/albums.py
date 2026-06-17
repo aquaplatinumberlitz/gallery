@@ -1,3 +1,5 @@
+"""Build folder album metadata for scan and search responses."""
+
 from __future__ import annotations
 
 import os
@@ -8,6 +10,7 @@ from .files import is_image, is_index_excluded_path
 
 
 def has_any_children(dir_path: Path) -> bool:
+    """Return whether a directory contains any child entry, ignoring unreadable directories."""
     try:
         next(dir_path.iterdir())
         return True
@@ -29,8 +32,8 @@ def has_subfolders(dir_path: Path) -> bool:
 
 
 def first_images_in_dir(dir_path: Path, limit: int = 3) -> list[str]:
-    """
-    Get the most recently modified images in a directory.
+    """Get the most recently modified images in a directory.
+
     Returns up to `limit` images sorted by modified time (newest first).
     """
     images: list[tuple[float, str]] = []
@@ -66,8 +69,8 @@ def count_images_in_dir(dir_path: Path) -> int:
 
 
 def build_album_metadata(path: Path) -> dict[str, Any]:
-    """
-    Build cover_images, image_count, has_children, mtime for a folder/album.
+    """Build cover_images, image_count, has_children, mtime for a folder/album.
+
     Used by both scan and search to produce identical album node data.
     """
     cover_images = first_images_in_dir(path, limit=3)

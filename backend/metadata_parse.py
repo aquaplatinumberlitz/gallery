@@ -1,3 +1,5 @@
+"""Parse image metadata for the lightbox API with DB and memory caching."""
+
 import copy
 import json
 import sys
@@ -53,8 +55,8 @@ def _metadata_cache_key(path: Path) -> tuple:
 
 
 def parse_metadata(path: Path) -> dict:
-    """
-    Parse and cache image metadata.
+    """Parse and cache image metadata.
+
     Uses DB-first warm reads with LRU fallback for optimal performance.
     """
     if not path.exists() or not path.is_file():
@@ -110,6 +112,7 @@ def parse_metadata(path: Path) -> dict:
 
 @router.get("/api/metadata")
 async def api_metadata(path: str = Query(..., description="Absolute path to image file")):
+    """Return normalized metadata for one image after path and type validation."""
     file_path = resolve_path(path)
     if not is_path_safe(file_path):
         raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied")

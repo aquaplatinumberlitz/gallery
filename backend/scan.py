@@ -1,3 +1,5 @@
+"""Scan gallery folders and serve paginated folder/image listings."""
+
 import os
 import time
 from contextlib import suppress
@@ -77,6 +79,7 @@ def _elapsed_ms(start: float) -> float:
 
 
 def scan_directory(target_path: Path) -> tuple[list[FileNode], list[FileNode], dict[str, int | float | None]]:
+    """Scan one directory into folder and image nodes with timing counters."""
     perf = _new_scan_perf()
     if not target_path.exists():
         raise APIError(404, ErrorType.NOT_FOUND, "Folder not found")
@@ -190,6 +193,7 @@ async def api_scan(
     image_limit: int | None = Query(None, ge=1, le=5000, description="Max images to return"),
     image_cursor: int = Query(0, ge=0, description="Cursor/offset for images"),
 ):
+    """Return folder children and paginated images for a requested gallery path."""
     scan_tracking_target: Path | None = None
     try:
         request_started = time.perf_counter()

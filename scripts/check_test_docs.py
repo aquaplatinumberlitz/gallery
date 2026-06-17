@@ -28,14 +28,17 @@ IGNORED_PARTS = {
 
 
 def repo_root() -> Path:
+    """Return the repository root derived from this script location."""
     return Path(__file__).resolve().parents[1]
 
 
 def is_ignored(path: Path) -> bool:
+    """Return whether a relative path contains an ignored directory segment."""
     return any(part in IGNORED_PARTS for part in path.parts)
 
 
 def scanned_files(root: Path) -> list[Path]:
+    """Return sorted files that should carry standard test/debug headers."""
     files: set[Path] = set()
     for pattern in SCAN_PATTERNS:
         files.update(path for path in root.glob(pattern) if path.is_file())
@@ -43,6 +46,7 @@ def scanned_files(root: Path) -> list[Path]:
 
 
 def read_header(path: Path) -> str:
+    """Read the first part of a file using replacement for invalid UTF-8."""
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except UnicodeDecodeError:
@@ -51,11 +55,13 @@ def read_header(path: Path) -> str:
 
 
 def missing_fields(path: Path) -> list[str]:
+    """Return required header fields that are absent from a file header."""
     header = read_header(path)
     return [field for field in REQUIRED_FIELDS if field not in header]
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the test/debug header check and return a process exit code."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--list", action="store_true", help="list files that are checked")
     parser.add_argument("--verbose", action="store_true", help="print OK lines for files with headers")

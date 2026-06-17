@@ -1,3 +1,5 @@
+"""Parse fielded library search syntax and build matching SQL predicates."""
+
 from __future__ import annotations
 
 import json
@@ -49,6 +51,8 @@ def _normalize_field_name(field: str) -> str:
 
 @dataclass
 class FieldToken:
+    """A parsed `field:value` search token with optional operator and key data."""
+
     field: str
     value: str
     operator: str = "="
@@ -58,30 +62,39 @@ class FieldToken:
 
 @dataclass
 class ParsedQuery:
+    """A search query split into free text and structured field filters."""
+
     residual_text: str
     fields: list[FieldToken] = field(default_factory=list)
 
 
 @dataclass
 class ParserState:
+    """Mutable cursor over query characters while extracting field values."""
+
     buf: list[str]
     pos: int = 0
 
     def peek(self, offset: int = 0) -> str:
+        """Return the character at the current cursor plus offset, or an empty string."""
         idx = self.pos + offset
         return self.buf[idx] if 0 <= idx < len(self.buf) else ""
 
     def advance(self, n: int = 1) -> None:
+        """Move the parser cursor forward by `n` characters."""
         self.pos += n
 
     def remaining(self) -> str:
+        """Return the unconsumed query text from the current cursor."""
         return "".join(self.buf[self.pos :])
 
     def finished(self) -> bool:
+        """Return whether the cursor has consumed the full query buffer."""
         return self.pos >= len(self.buf)
 
 
 def parse_fielded_query(raw: str) -> ParsedQuery:
+    """Parse free text plus supported `field:value` filters from a search query."""
     chars = list(raw)
     fields: list[FieldToken] = []
     residual_parts: list[str] = []
@@ -392,6 +405,7 @@ def build_fielded_conditions(parsed: ParsedQuery) -> tuple[list[str], dict[str, 
 
 
 def build_fielded_search_sql(parsed: ParsedQuery, limit: int = 50, offset: int = 0) -> tuple[str, dict[str, Any]]:
+    """Build the image metadata SQL query and named parameters for parsed filters."""
     conditions, params = build_fielded_conditions(parsed)
 
     where_clause = ""

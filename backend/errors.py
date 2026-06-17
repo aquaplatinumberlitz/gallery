@@ -1,3 +1,5 @@
+"""Shared API error types for structured backend responses."""
+
 from fastapi import HTTPException
 
 
@@ -5,10 +7,13 @@ class APIError(HTTPException):
     """Custom API error with error type for frontend handling."""
 
     def __init__(self, status_code: int, error_type: str, detail: str):
+        """Create an HTTP error response with a stable frontend error type."""
         super().__init__(status_code=status_code, detail={"error": error_type, "message": detail})
 
 
 class ErrorType:
+    """String constants used in APIError payloads."""
+
     BAD_REQUEST = "bad_request"  # Invalid request parameters
     NOT_FOUND = "not_found"  # Path/file doesn't exist
     NOT_DIRECTORY = "not_directory"  # Path is not a folder

@@ -1,3 +1,5 @@
+"""Optional file watcher that marks indexed folders stale after filesystem changes."""
+
 from __future__ import annotations
 
 import logging
@@ -162,6 +164,7 @@ def _watcher_loop() -> None:
 
 
 def start_watcher() -> None:
+    """Start the file watcher worker when enabled and dependencies are available."""
     global _watcher_thread
     if not ENABLE_FILE_WATCHER:
         return
@@ -179,6 +182,7 @@ def start_watcher() -> None:
 
 
 def stop_watcher() -> None:
+    """Signal the file watcher worker to stop and clear its thread handle."""
     global _watcher_thread
     _watcher_stop.set()
     with _watcher_lock:
@@ -186,6 +190,7 @@ def stop_watcher() -> None:
 
 
 def get_watcher_status() -> dict[str, Any]:
+    """Return file watcher configuration and runtime liveness."""
     return {
         "enabled": ENABLE_FILE_WATCHER,
         "alive": bool(_watcher_thread and _watcher_thread.is_alive()),

@@ -1,3 +1,5 @@
+"""Build metadata facet aggregations for indexed gallery images."""
+
 from __future__ import annotations
 
 import os
@@ -188,6 +190,7 @@ def _get_lora_facet(scope_where: str, scope_params: dict, max_values: int) -> li
 
 
 def build_facets(folder_path: str | None = None, max_values: int = FACET_DEFAULT_LIMIT) -> dict[str, Any]:
+    """Aggregate indexed metadata values into filter facets, optionally scoped to a folder."""
     import time
 
     start = time.perf_counter()
@@ -227,6 +230,7 @@ async def api_facets(
     path: str | None = Query(None, description="Scope facets to this folder and its children"),
     max_values: int = Query(FACET_DEFAULT_LIMIT, ge=1, le=200, description="Maximum facet values per field"),
 ):
+    """Return metadata facet counts for the requested folder scope."""
     folder_path = None
     if path:
         target = resolve_path(path)

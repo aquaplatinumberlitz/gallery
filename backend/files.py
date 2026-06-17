@@ -1,3 +1,5 @@
+"""File classification and safety helpers for gallery image handling."""
+
 import os
 import re
 from pathlib import Path
@@ -60,6 +62,7 @@ def is_index_excluded_path(path: str | Path) -> bool:
 
 
 def is_image(path: Path) -> bool:
+    """Return whether a path has a supported image file extension."""
     return path.suffix.lower() in IMAGE_EXTENSIONS
 
 
@@ -67,16 +70,16 @@ is_image_path = is_image
 
 
 def natural_sort_key(s: str) -> list:
-    """
-    Split string into text and numeric chunks for natural sorting.
+    """Split string into text and numeric chunks for natural sorting.
+
     e.g. "10.png" -> [10, ".png"]
     """
     return [int(text) if text.isdigit() else text.lower() for text in re.split(r"(\d+)", s)]
 
 
 def check_image_limits(path: Path) -> None:
-    """
-    Guardrails against oversized files or decompression bombs.
+    """Guardrails against oversized files or decompression bombs.
+
     Raises APIError with user-friendly message on violation.
     """
     try:

@@ -1,3 +1,5 @@
+"""Path resolution and gallery root containment checks."""
+
 import os
 from pathlib import Path
 
@@ -5,8 +7,8 @@ from .config import GALLERY_ROOT
 
 
 def resolve_path(raw_path: str) -> Path:
-    """
-    Resolve a user-supplied path.
+    """Resolve a user-supplied path.
+
     Handles Windows extended-length paths to reduce MAX_PATH issues with deep folders.
     """
     p = Path(raw_path)
@@ -21,9 +23,9 @@ def resolve_path(raw_path: str) -> Path:
 
 
 def is_path_safe(path: Path) -> bool:
-    """
-    Check that the resolved path is under GALLERY_ROOT.
-    Resolves symlinks, blocks path traversal (.., \\0, symlink escapes).
+    r"""Check that the resolved path is under GALLERY_ROOT.
+
+    Resolves symlinks, blocks path traversal (.., \0, symlink escapes).
     """
     try:
         resolved = path.resolve()

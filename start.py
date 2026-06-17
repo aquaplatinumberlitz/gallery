@@ -1,3 +1,5 @@
+"""Bootstrap local backend and frontend development servers."""
+
 import os
 import platform
 import shutil
@@ -27,23 +29,27 @@ print(f"Detected OS: {OS_NAME.upper()}")
 
 
 def get_venv_path():
+    """Return the platform-specific backend virtual environment path."""
     venv_name = ".venv_win" if IS_WINDOWS else ".venv_linux"
     return BACKEND_DIR / venv_name
 
 
 def get_python_exec(venv_path):
+    """Return the Python executable path inside a virtual environment."""
     if IS_WINDOWS:
         return venv_path / "Scripts" / "python.exe"
     return venv_path / "bin" / "python"
 
 
 def get_pip_exec(venv_path):
+    """Return the pip executable path inside a virtual environment."""
     if IS_WINDOWS:
         return venv_path / "Scripts" / "pip.exe"
     return venv_path / "bin" / "pip"
 
 
 def run_command(command, cwd=None, shell=False):
+    """Run a setup command and exit the process on failure."""
     try:
         if shell and isinstance(command, list):
             command = " ".join(command)
@@ -82,6 +88,7 @@ def mark_os():
 
 
 def find_free_port(start_port: int) -> int:
+    """Return the first localhost port available at or above `start_port`."""
     port = start_port
     while port <= 65535:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -109,6 +116,7 @@ def check_pip_health(pip_exec):
 
 
 def setup_backend():
+    """Create or update the backend virtual environment and dependencies."""
     print("\n[1/4] Checking backend...")
     venv_path = get_venv_path()
     python_exec = get_python_exec(venv_path)
@@ -175,6 +183,7 @@ def setup_backend():
 
 
 def setup_frontend():
+    """Install frontend dependencies when node_modules is missing or stale."""
     print("\n[2/4] Checking frontend...")
 
     check_node_modules_os()  # Deletes node_modules if it was installed on a different OS
@@ -207,6 +216,7 @@ def setup_frontend():
 
 
 def start_servers(python_exec, pkg_manager):
+    """Start backend and frontend development servers on free local ports."""
     print("\n[3/4] Starting servers...")
 
     backend_port = find_free_port(BACKEND_PORT)
@@ -244,6 +254,7 @@ def start_servers(python_exec, pkg_manager):
 
 
 def main():
+    """Prepare dependencies, start both servers, and keep them running until interrupted."""
     try:
         python_exec = setup_backend()
         pkg_manager = setup_frontend()

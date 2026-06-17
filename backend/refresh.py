@@ -1,3 +1,5 @@
+"""Scheduled background refresh for persisted folder index state."""
+
 from __future__ import annotations
 
 import logging
@@ -118,6 +120,7 @@ def _run_refresh_tick() -> None:
 
 
 def start_refresh() -> None:
+    """Start the scheduled refresh worker when enabled and not already running."""
     global _refresh_thread
     if not ENABLE_SCHEDULED_REFRESH:
         return
@@ -140,6 +143,7 @@ def start_refresh() -> None:
 
 
 def stop_refresh() -> None:
+    """Signal the scheduled refresh worker to stop and clear its thread handle."""
     global _refresh_thread
     _refresh_stop.set()
     with _refresh_lock:
@@ -147,6 +151,7 @@ def stop_refresh() -> None:
 
 
 def get_refresh_status() -> dict[str, Any]:
+    """Return scheduled refresh configuration and runtime liveness."""
     return {
         "enabled": ENABLE_SCHEDULED_REFRESH,
         "alive": bool(_refresh_thread and _refresh_thread.is_alive()),

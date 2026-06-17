@@ -1,3 +1,5 @@
+"""Serve original image files after path and file-type validation."""
+
 from fastapi import APIRouter, Query
 from fastapi.responses import FileResponse
 
@@ -10,6 +12,7 @@ router = APIRouter()
 
 @router.get("/api/image")
 async def api_image(path: str = Query(..., description="Absolute path to image file")):
+    """Return an original image file with immutable cache headers."""
     file_path = resolve_path(path)
     if not is_path_safe(file_path):
         raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied")
