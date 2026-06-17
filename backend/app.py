@@ -72,8 +72,12 @@ app.include_router(indexer_router)
 app.include_router(facets_router)
 app.include_router(static_files_router)
 
-from .refresh import start_refresh as _start_refresh  # noqa: E402 — intentional: starts after router setup
-from .watcher import start_watcher as _start_watcher  # noqa: E402 — intentional: starts after router setup
+from .refresh import (  # noqa: E402 — keep startup wiring colocated with event handler below
+    start_refresh as _start_refresh,
+)
+from .watcher import (  # noqa: E402 — keep startup wiring colocated with event handler below
+    start_watcher as _start_watcher,
+)
 
 
 @app.on_event("startup")

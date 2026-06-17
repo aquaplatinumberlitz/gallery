@@ -1,4 +1,4 @@
-from .app import app  # noqa: F401 — uvicorn resolves backend.main:app from this module
+from .app import app as app  # explicit re-export for uvicorn target backend.main:app
 
 if __name__ == "__main__":
     import os as _os

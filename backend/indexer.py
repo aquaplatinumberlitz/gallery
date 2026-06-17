@@ -577,7 +577,7 @@ def _flush_staged_paths_to_job_queue(
     for root_path, paths in grouped_paths.items():
         try:
             result = _run_sqlite_write(
-                lambda p=paths, r=root_path: queue_metadata_index_paths(p, r),  # noqa: B023 — bind via default arg
+                lambda p=paths, r=root_path: queue_metadata_index_paths(p, r),
                 "queue staged metadata paths",
             )
         except _SQLiteBusyRetriesExhausted as exc:
