@@ -499,7 +499,12 @@ watch(loadMoreSentinel, () => setupLoadObserver());
 </script>
 
 <template>
-  <div class="gallery-grid" @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
+  <div
+    class="gallery-grid"
+    @touchstart="onTouchStart"
+    @touchmove="onTouchMove"
+    @touchend="onTouchEnd"
+  >
     <!-- Pull-to-refresh indicator -->
     <div
       v-if="showPullIndicator"
@@ -507,10 +512,17 @@ watch(loadMoreSentinel, () => setupLoadObserver());
       :data-pull-distance="Math.round(pullDistance)"
       :style="{ transform: pullTransform, opacity: pullOpacity }"
     >
-      <div v-if="isRefreshing" class="pull-spinner">
+      <div
+        v-if="isRefreshing"
+        class="pull-spinner"
+      >
         <Loader class="gallery-icon-toolbar lucide-spin" />
       </div>
-      <div v-else class="pull-arrow" :style="{ transform: `rotate(${pullProgress * 180}deg)` }">
+      <div
+        v-else
+        class="pull-arrow"
+        :style="{ transform: `rotate(${pullProgress * 180}deg)` }"
+      >
         <ArrowDownToLine class="gallery-icon-toolbar" />
       </div>
       <span class="pull-label">{{ isRefreshing ? "Refreshing..." : "Pull to refresh" }}</span>
@@ -581,7 +593,10 @@ watch(loadMoreSentinel, () => setupLoadObserver());
         <TooltipContent>Open current folder in file explorer</TooltipContent>
       </Tooltip>
 
-      <SortSelect v-model="gallerySortValue" aria-label="Sort gallery" />
+      <SortSelect
+        v-model="gallerySortValue"
+        aria-label="Sort gallery"
+      />
 
       <!-- Density Dropdown -->
       <DropdownMenu>
@@ -597,7 +612,10 @@ watch(loadMoreSentinel, () => setupLoadObserver());
           </Button>
         </DropdownMenuTrigger>
 
-        <DropdownMenuContent align="end" class="w-48">
+        <DropdownMenuContent
+          align="end"
+          class="w-48"
+        >
           <DropdownMenuRadioGroup
             :model-value="String(sliderLevel)"
             @update:model-value="(value: unknown) => selectDensity(Number(value))"
@@ -645,26 +663,55 @@ watch(loadMoreSentinel, () => setupLoadObserver());
       @select-density="selectDensity"
     />
 
-    <div v-if="errorMessage" role="alert" class="error-banner">
+    <div
+      v-if="errorMessage"
+      role="alert"
+      class="error-banner"
+    >
       <div class="error-text">
         <TriangleAlert class="gallery-icon-md" />
         <span>{{ errorMessage }}</span>
       </div>
-      <button class="error-close" type="button" @click="galleryStore.clearError()">
+      <button
+        class="error-close"
+        type="button"
+        @click="galleryStore.clearError()"
+      >
         <X class="gallery-icon-sm" />
       </button>
     </div>
 
-    <div v-if="showGallerySkeleton || showSearchSkeleton" class="skeleton-container">
-      <div class="skeleton-grid" :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }">
-        <SkeletonLoader v-for="i in skeletonItems" :key="i" type="photo" />
+    <div
+      v-if="showGallerySkeleton || showSearchSkeleton"
+      class="skeleton-container"
+    >
+      <div
+        class="skeleton-grid"
+        :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }"
+      >
+        <SkeletonLoader
+          v-for="i in skeletonItems"
+          :key="i"
+          type="photo"
+        />
       </div>
     </div>
 
     <!-- Search results: backend indexed albums, photos, and prompt matches -->
-    <div v-else-if="hasSearchQuery" :ref="setScrollContainerRef" class="search-results-container">
-      <section v-if="searchAlbums.length" class="search-photo-section">
-        <GallerySectionHeader title="Album suggestions" :count="searchAlbums.length" :badge-icon="FolderOpen" />
+    <div
+      v-else-if="hasSearchQuery"
+      :ref="setScrollContainerRef"
+      class="search-results-container"
+    >
+      <section
+        v-if="searchAlbums.length"
+        class="search-photo-section"
+      >
+        <GallerySectionHeader
+          title="Album suggestions"
+          :count="searchAlbums.length"
+          :badge-icon="FolderOpen"
+        />
         <div class="search-album-grid">
           <AlbumCard
             v-for="(album, index) in searchAlbums"
@@ -675,8 +722,15 @@ watch(loadMoreSentinel, () => setupLoadObserver());
         </div>
       </section>
 
-      <section v-if="searchPhotos.length" class="search-photo-section">
-        <GallerySectionHeader title="Photos" :count="searchPhotos.length" :badge-icon="Images" />
+      <section
+        v-if="searchPhotos.length"
+        class="search-photo-section"
+      >
+        <GallerySectionHeader
+          title="Photos"
+          :count="searchPhotos.length"
+          :badge-icon="Images"
+        />
 
         <div
           v-for="row in searchPhotoRows"
@@ -684,7 +738,11 @@ watch(loadMoreSentinel, () => setupLoadObserver());
           class="virtual-row"
           :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }"
         >
-          <div v-for="img in row.items" :key="img.path" class="search-result-card">
+          <div
+            v-for="img in row.items"
+            :key="img.path"
+            class="search-result-card"
+          >
             <PhotoCard
               :src="img.path"
               :name="img.name"
@@ -693,11 +751,18 @@ watch(loadMoreSentinel, () => setupLoadObserver());
               @keydown.enter="handleOpenImage(img.path, img.name)"
               @keydown.space.prevent="handleOpenImage(img.path, img.name)"
             />
-            <span class="search-result-name file-name-display" :title="img.name">
+            <span
+              class="search-result-name file-name-display"
+              :title="img.name"
+            >
               <span class="file-name-base">{{ displayFilenameParts(img.name).base }}</span>
               <span class="file-name-ext">{{ displayFilenameParts(img.name).ext }}</span>
             </span>
-            <span v-if="searchResultFolderPath(img)" class="search-result-path" :title="searchResultFolderPath(img)">
+            <span
+              v-if="searchResultFolderPath(img)"
+              class="search-result-path"
+              :title="searchResultFolderPath(img)"
+            >
               <Folder class="search-result-path-icon" />
               <span :title="searchResultFolderPath(img)">{{ searchResultFolderPath(img) }}</span>
             </span>
@@ -705,8 +770,15 @@ watch(loadMoreSentinel, () => setupLoadObserver());
         </div>
       </section>
 
-      <section v-if="searchPrompt.length" class="search-photo-section">
-        <GallerySectionHeader title="Prompt" :count="searchPrompt.length" :badge-icon="Images" />
+      <section
+        v-if="searchPrompt.length"
+        class="search-photo-section"
+      >
+        <GallerySectionHeader
+          title="Prompt"
+          :count="searchPrompt.length"
+          :badge-icon="Images"
+        />
 
         <div
           v-for="row in searchPromptRows"
@@ -714,7 +786,11 @@ watch(loadMoreSentinel, () => setupLoadObserver());
           class="virtual-row"
           :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }"
         >
-          <div v-for="img in row.items" :key="img.path" class="search-result-card">
+          <div
+            v-for="img in row.items"
+            :key="img.path"
+            class="search-result-card"
+          >
             <PhotoCard
               :src="img.path"
               :name="img.name"
@@ -723,11 +799,18 @@ watch(loadMoreSentinel, () => setupLoadObserver());
               @keydown.enter="handleOpenImage(img.path, img.name)"
               @keydown.space.prevent="handleOpenImage(img.path, img.name)"
             />
-            <span class="search-result-name file-name-display" :title="img.name">
+            <span
+              class="search-result-name file-name-display"
+              :title="img.name"
+            >
               <span class="file-name-base">{{ displayFilenameParts(img.name).base }}</span>
               <span class="file-name-ext">{{ displayFilenameParts(img.name).ext }}</span>
             </span>
-            <span v-if="searchResultFolderPath(img)" class="search-result-path" :title="searchResultFolderPath(img)">
+            <span
+              v-if="searchResultFolderPath(img)"
+              class="search-result-path"
+              :title="searchResultFolderPath(img)"
+            >
               <Folder class="search-result-path-icon" />
               <span :title="searchResultFolderPath(img)">{{ searchResultFolderPath(img) }}</span>
             </span>
@@ -735,7 +818,10 @@ watch(loadMoreSentinel, () => setupLoadObserver());
         </div>
       </section>
 
-      <div v-if="noSearchResults" class="search-empty-wrap">
+      <div
+        v-if="noSearchResults"
+        class="search-empty-wrap"
+      >
         <EmptyState
           type="no-results"
           title="No results"
@@ -744,24 +830,43 @@ watch(loadMoreSentinel, () => setupLoadObserver());
           action-icon="xmark"
           @action="galleryStore.clearSearch()"
         />
-        <p v-if="showAllIndexedHint" class="search-scope-hint">Try All indexed to search outside this folder.</p>
+        <p
+          v-if="showAllIndexedHint"
+          class="search-scope-hint"
+        >
+          Try All indexed to search outside this folder.
+        </p>
       </div>
     </div>
 
     <!-- Has content: images or folders -->
     <template v-else-if="images.length > 0 || folders.length > 0">
-      <div class="scroller-container" :ref="setGridRef">
+      <div
+        class="scroller-container"
+        :ref="setGridRef"
+      >
         <div
           v-if="!props.isMobile && imageRows.length > 0"
           :ref="setVirtualScrollContainerRef"
           class="scroller tanstack-scroller"
           :class="{ 'fade-slide': !isMobile }"
         >
-          <GlowContainer v-if="folders.length" :disabled="false">
-            <AlbumScroller :folders="folders" @open-folder="handleOpenFolder" />
+          <GlowContainer
+            v-if="folders.length"
+            :disabled="false"
+          >
+            <AlbumScroller
+              :folders="folders"
+              @open-folder="handleOpenFolder"
+            />
           </GlowContainer>
 
-          <GallerySectionHeader v-if="images.length" title="Photos" :count="images.length" :badge-icon="Images" />
+          <GallerySectionHeader
+            v-if="images.length"
+            title="Photos"
+            :count="images.length"
+            :badge-icon="Images"
+          />
 
           <div
             class="tanstack-virtual-spacer"
@@ -793,9 +898,18 @@ watch(loadMoreSentinel, () => setupLoadObserver());
             </div>
           </div>
 
-          <div class="scroller-footer" :class="{ 'bars-hidden': !barsVisible }">
-            <div ref="loadMoreSentinel" class="load-more-sentinel"></div>
-            <div v-if="isLoadingMore" class="loading-more">
+          <div
+            class="scroller-footer"
+            :class="{ 'bars-hidden': !barsVisible }"
+          >
+            <div
+              ref="loadMoreSentinel"
+              class="load-more-sentinel"
+            />
+            <div
+              v-if="isLoadingMore"
+              class="loading-more"
+            >
               <Loader class="gallery-icon-md lucide-spin" />
               <span>Loading more photos...</span>
             </div>
@@ -819,11 +933,22 @@ watch(loadMoreSentinel, () => setupLoadObserver());
           :ref="setScrollContainerRef"
           class="scroller mobile-scroller"
         >
-          <GlowContainer v-if="folders.length" :disabled="true">
-            <AlbumScroller :folders="folders" @open-folder="handleOpenFolder" />
+          <GlowContainer
+            v-if="folders.length"
+            :disabled="true"
+          >
+            <AlbumScroller
+              :folders="folders"
+              @open-folder="handleOpenFolder"
+            />
           </GlowContainer>
 
-          <GallerySectionHeader v-if="images.length" title="Photos" :count="images.length" :badge-icon="Images" />
+          <GallerySectionHeader
+            v-if="images.length"
+            title="Photos"
+            :count="images.length"
+            :badge-icon="Images"
+          />
 
           <div
             v-for="row in imageRows"
@@ -843,9 +968,18 @@ watch(loadMoreSentinel, () => setupLoadObserver());
             />
           </div>
 
-          <div class="scroller-footer" :class="{ 'bars-hidden': !barsVisible }">
-            <div ref="loadMoreSentinel" class="load-more-sentinel"></div>
-            <div v-if="isLoadingMore" class="loading-more">
+          <div
+            class="scroller-footer"
+            :class="{ 'bars-hidden': !barsVisible }"
+          >
+            <div
+              ref="loadMoreSentinel"
+              class="load-more-sentinel"
+            />
+            <div
+              v-if="isLoadingMore"
+              class="loading-more"
+            >
               <Loader class="gallery-icon-md lucide-spin" />
               <span>Loading more photos...</span>
             </div>
@@ -864,9 +998,16 @@ watch(loadMoreSentinel, () => setupLoadObserver());
         </div>
 
         <!-- Fallback: Only folders, no images -->
-        <div v-else-if="folders.length > 0" :ref="setScrollContainerRef" class="folders-only-container">
+        <div
+          v-else-if="folders.length > 0"
+          :ref="setScrollContainerRef"
+          class="folders-only-container"
+        >
           <GlowContainer :disabled="props.isMobile">
-            <AlbumScroller :folders="folders" @open-folder="handleOpenFolder" />
+            <AlbumScroller
+              :folders="folders"
+              @open-folder="handleOpenFolder"
+            />
           </GlowContainer>
 
           <!-- Has only folders, no images -->
@@ -882,7 +1023,10 @@ watch(loadMoreSentinel, () => setupLoadObserver());
     </template>
 
     <!-- Empty States (when scroller-container is not rendered) -->
-    <div v-else class="empty-state-container">
+    <div
+      v-else
+      class="empty-state-container"
+    >
       <!-- Error State -->
       <EmptyState
         v-if="errorMessage && !hasAnyItems"

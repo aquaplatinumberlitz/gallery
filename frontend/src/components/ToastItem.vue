@@ -104,29 +104,60 @@ onUnmounted(() => {
   >
     <!-- Icon -->
     <div class="toast__icon">
-      <component :is="_icons[iconClass]" :stroke-width="1.5" class="icon-lg" />
+      <component
+        :is="_icons[iconClass]"
+        :stroke-width="1.5"
+        class="icon-lg"
+      />
     </div>
 
     <!-- Content -->
     <div class="toast__content">
-      <div class="toast__title">{{ toast.title }}</div>
-      <div v-if="toast.message && toast.html" class="toast__message" v-html="toast.message"></div>
-      <div v-else-if="toast.message" class="toast__message">{{ toast.message }}</div>
+      <div class="toast__title">
+        {{ toast.title }}
+      </div>
+      <div
+        v-if="toast.message && toast.html"
+        class="toast__message"
+        v-html="toast.message"
+      />
+      <div
+        v-else-if="toast.message"
+        class="toast__message"
+      >
+        {{ toast.message }}
+      </div>
 
       <!-- Action button -->
-      <button v-if="toast.action" class="toast__action" type="button" @click="handleAction">
+      <button
+        v-if="toast.action"
+        class="toast__action"
+        type="button"
+        @click="handleAction"
+      >
         {{ toast.action.label }}
       </button>
     </div>
 
     <!-- Dismiss button -->
-    <button v-if="toast.dismissible" class="toast__dismiss" type="button" @click="emit('dismiss')">
+    <button
+      v-if="toast.dismissible"
+      class="toast__dismiss"
+      type="button"
+      @click="emit('dismiss')"
+    >
       <X class="icon-sm" />
     </button>
 
     <!-- Progress bar -->
-    <div v-if="toast.duration && toast.duration > 0" class="toast__progress">
-      <div class="toast__progress-bar" :style="{ width: `${progress}%` }"></div>
+    <div
+      v-if="toast.duration && toast.duration > 0"
+      class="toast__progress"
+    >
+      <div
+        class="toast__progress-bar"
+        :style="{ width: `${progress}%` }"
+      />
     </div>
   </div>
 </template>

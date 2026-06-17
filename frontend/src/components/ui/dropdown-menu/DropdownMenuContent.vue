@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 
 const props = withDefaults(defineProps<DropdownMenuContentProps & { class?: HTMLAttributes["class"] }>(), {
   sideOffset: 4,
+  class: undefined,
 });
 const emits = defineEmits<DropdownMenuContentEmits>();
 

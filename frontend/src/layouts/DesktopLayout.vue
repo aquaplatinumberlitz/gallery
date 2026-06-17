@@ -26,15 +26,30 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <SidebarProvider :open="isSidebarOpen" @update:open="emit('update:sidebarOpen', $event)">
-    <Sidebar side="left" variant="sidebar" collapsible="icon">
+  <SidebarProvider
+    :open="isSidebarOpen"
+    @update:open="emit('update:sidebarOpen', $event)"
+  >
+    <Sidebar
+      side="left"
+      variant="sidebar"
+      collapsible="icon"
+    >
       <div class="flex h-full w-full flex-col group-data-[collapsible=icon]:items-center">
-        <GallerySidebarContent :tree="tree" :is-loading="isLoading" :current-path="currentPath" />
+        <GallerySidebarContent
+          :tree="tree"
+          :is-loading="isLoading"
+          :current-path="currentPath"
+        />
       </div>
       <SidebarRail />
     </Sidebar>
 
-    <SidebarInset id="main-content" tabindex="-1" class="content">
+    <SidebarInset
+      id="main-content"
+      tabindex="-1"
+      class="content"
+    >
       <AppHeader
         :is-mobile="false"
         :is-sidebar-open="isSidebarOpen"

@@ -10,16 +10,22 @@ const props = withDefaults(
 </script>
 
 <template>
-  <div class="skeleton" :class="`skeleton--${props.type}`">
+  <div
+    class="skeleton"
+    :class="`skeleton--${props.type}`"
+  >
     <div class="skeleton-block">
-      <div class="shimmer-wave"></div>
+      <div class="shimmer-wave" />
     </div>
-    <div v-if="props.type === 'album'" class="skeleton-meta">
+    <div
+      v-if="props.type === 'album'"
+      class="skeleton-meta"
+    >
       <div class="skeleton-line">
-        <div class="shimmer-wave"></div>
+        <div class="shimmer-wave" />
       </div>
       <div class="skeleton-line short">
-        <div class="shimmer-wave"></div>
+        <div class="shimmer-wave" />
       </div>
     </div>
   </div>

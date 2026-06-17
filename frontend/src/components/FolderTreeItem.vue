@@ -18,6 +18,7 @@ const props = withDefaults(
     level?: number;
   }>(),
   {
+    activePath: undefined,
     level: 1,
   },
 );
@@ -97,7 +98,10 @@ const handleKeydown = (e: KeyboardEvent) => {
 </script>
 
 <template>
-  <div role="tree" class="tree-item block group-data-[collapsible=icon]:hidden">
+  <div
+    role="tree"
+    class="tree-item block group-data-[collapsible=icon]:hidden"
+  >
     <div class="tree-row-shell flex items-center gap-1.5">
       <Button
         variant="ghost"
@@ -108,7 +112,10 @@ const handleKeydown = (e: KeyboardEvent) => {
         @click.stop="onToggle"
         :aria-label="isOpen ? 'Collapse folder' : 'Expand folder'"
       >
-        <component :is="arrowIcon" class="gallery-icon-xs" />
+        <component
+          :is="arrowIcon"
+          class="gallery-icon-xs"
+        />
       </Button>
 
       <Button
@@ -127,9 +134,15 @@ const handleKeydown = (e: KeyboardEvent) => {
         @click="onSelect"
         @keydown="handleKeydown"
       >
-        <component :is="folderIcon" class="folder-icon gallery-icon-md" />
+        <component
+          :is="folderIcon"
+          class="folder-icon gallery-icon-md"
+        />
         <span class="name flex-1 min-w-0 truncate text-left">{{ node.name }}</span>
-        <Loader v-if="isLoading" class="gallery-icon-sm lucide-spin spinner" />
+        <Loader
+          v-if="isLoading"
+          class="gallery-icon-sm lucide-spin spinner"
+        />
       </Button>
     </div>
 
@@ -146,7 +159,10 @@ const handleKeydown = (e: KeyboardEvent) => {
       />
     </div>
 
-    <div v-else-if="isOpen && hasLoadError" class="empty-children ml-9 text-muted-foreground text-xs py-1 pb-2">
+    <div
+      v-else-if="isOpen && hasLoadError"
+      class="empty-children ml-9 text-muted-foreground text-xs py-1 pb-2"
+    >
       {{ loadErrorMessage }}
     </div>
 

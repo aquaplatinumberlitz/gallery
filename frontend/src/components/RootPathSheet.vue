@@ -98,8 +98,16 @@ watch(
 
 <template>
   <Teleport to="body">
-    <div v-if="modelValue" class="root-path-sheet-backdrop" @click.self="handleCancel" @keydown="handleKeydown">
-      <div class="root-path-sheet" @click.stop>
+    <div
+      v-if="modelValue"
+      class="root-path-sheet-backdrop"
+      @click.self="handleCancel"
+      @keydown="handleKeydown"
+    >
+      <div
+        class="root-path-sheet"
+        @click.stop
+      >
         <!-- Handle -->
         <div class="sheet-handle-wrapper">
           <div class="sheet-handle" />
@@ -126,10 +134,13 @@ watch(
           @focus="isPathTextareaFocused = true"
           @blur="isPathTextareaFocused = false"
           @keydown="handleKeydown"
-        ></textarea>
+        />
 
         <!-- Error message -->
-        <div v-if="errorMessage" class="sheet-error">
+        <div
+          v-if="errorMessage"
+          class="sheet-error"
+        >
           <AlertCircle class="icon-sm" />
           <span>{{ errorMessage }}</span>
         </div>
@@ -147,14 +158,29 @@ watch(
             <ClipboardPaste class="icon-md" />
             <span>Paste</span>
           </button>
-          <button class="action-btn clear-btn" type="button" @pointerdown.prevent.stop="handleClear" title="Clear path">
+          <button
+            class="action-btn clear-btn"
+            type="button"
+            @pointerdown.prevent.stop="handleClear"
+            title="Clear path"
+          >
             <X class="icon-md" />
             <span>Clear</span>
           </button>
-          <button class="action-btn cancel-btn" type="button" @click="handleCancel" title="Cancel">
+          <button
+            class="action-btn cancel-btn"
+            type="button"
+            @click="handleCancel"
+            title="Cancel"
+          >
             <span>Cancel</span>
           </button>
-          <button class="action-btn load-btn" type="button" @click="handleLoad" title="Load path">
+          <button
+            class="action-btn load-btn"
+            type="button"
+            @click="handleLoad"
+            title="Load path"
+          >
             <span>Load</span>
           </button>
         </div>

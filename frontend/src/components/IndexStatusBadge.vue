@@ -7,7 +7,10 @@ defineProps<{
 </script>
 
 <template>
-  <span class="index-status-badge" :class="`index-status-badge--${presentation.tone}`">
+  <span
+    class="index-status-badge"
+    :class="`index-status-badge--${presentation.tone}`"
+  >
     <span
       class="index-status-badge__dot"
       :class="{ 'index-status-badge__dot--pulse': presentation.showPulse }"

@@ -207,15 +207,33 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
     "
   >
     <template #header>
-      <div class="sheet-header" v-if="props.meta" data-vsbs-no-drag>
+      <div
+        class="sheet-header"
+        v-if="props.meta"
+        data-vsbs-no-drag
+      >
         <div class="sheet-tabs">
-          <button class="sheet-tab" :class="{ active: activeTab === 'prompt' }" @click="setTab('prompt')">
+          <button
+            class="sheet-tab"
+            :class="{ active: activeTab === 'prompt' }"
+            @click="setTab('prompt')"
+          >
             Prompt
           </button>
-          <button class="sheet-tab" :class="{ active: activeTab === 'params' }" @click="setTab('params')">
+          <button
+            class="sheet-tab"
+            :class="{ active: activeTab === 'params' }"
+            @click="setTab('params')"
+          >
             Params
           </button>
-          <button class="sheet-tab" :class="{ active: activeTab === 'model' }" @click="setTab('model')">Model</button>
+          <button
+            class="sheet-tab"
+            :class="{ active: activeTab === 'model' }"
+            @click="setTab('model')"
+          >
+            Model
+          </button>
         </div>
         <button
           type="button"
@@ -224,30 +242,59 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
           :aria-expanded="sheetExpanded"
           @click="toggleSheetExpanded"
         >
-          <ChevronDown v-if="isSheetVisuallyExpanded" :size="22" :stroke-width="2.25" />
-          <ChevronUp v-else :size="22" :stroke-width="2.25" />
+          <ChevronDown
+            v-if="isSheetVisuallyExpanded"
+            :size="22"
+            :stroke-width="2.25"
+          />
+          <ChevronUp
+            v-else
+            :size="22"
+            :stroke-width="2.25"
+          />
         </button>
       </div>
     </template>
 
     <div class="sheet-content-inner">
       <!-- Loading state -->
-      <div v-if="props.isLoading && !props.meta" class="meta-loading">
-        <Loader :stroke-width="1.5" class="lucide-spin gallery-icon-nav" />
+      <div
+        v-if="props.isLoading && !props.meta"
+        class="meta-loading"
+      >
+        <Loader
+          :stroke-width="1.5"
+          class="lucide-spin gallery-icon-nav"
+        />
         <span>Loading info...</span>
       </div>
 
       <!-- Error state -->
-      <div v-else-if="!props.meta" class="meta-error">
-        <TriangleAlert :size="24" :stroke-width="1.5" />
+      <div
+        v-else-if="!props.meta"
+        class="meta-error"
+      >
+        <TriangleAlert
+          :size="24"
+          :stroke-width="1.5"
+        />
         <span>No metadata available</span>
       </div>
 
       <template v-else>
         <!-- ========== Tab: Prompt ========== -->
-        <div v-show="activeTab === 'prompt'" class="sheet-tab-content">
-          <div class="meta-section" :class="{ 'is-empty': !props.meta?.prompt }">
-            <div class="section-top" :class="{ 'metadata-copyable': props.meta?.prompt }">
+        <div
+          v-show="activeTab === 'prompt'"
+          class="sheet-tab-content"
+        >
+          <div
+            class="meta-section"
+            :class="{ 'is-empty': !props.meta?.prompt }"
+          >
+            <div
+              class="section-top"
+              :class="{ 'metadata-copyable': props.meta?.prompt }"
+            >
               <label class="sheet-label">Prompt</label>
               <button
                 v-if="props.meta?.prompt"
@@ -264,10 +311,18 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                   style="color: #4ade80"
                   class="inline-copy-icon"
                 />
-                <Copy v-else :size="14" :stroke-width="1.5" class="inline-copy-icon" />
+                <Copy
+                  v-else
+                  :size="14"
+                  :stroke-width="1.5"
+                  class="inline-copy-icon"
+                />
               </button>
             </div>
-            <div v-if="props.meta?.prompt" class="sheet-text">
+            <div
+              v-if="props.meta?.prompt"
+              class="sheet-text"
+            >
               <ExpandableText
                 :key="`prompt-${textResetKey}`"
                 :collapsed-lines="5"
@@ -275,13 +330,24 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                 :expanded="promptExpanded"
                 @expanded-change="onPromptExpandedChange"
               >
-                <span v-html="loraHighlighter(props.meta.prompt)"></span>
+                <span v-html="loraHighlighter(props.meta.prompt)" />
               </ExpandableText>
             </div>
-            <p v-else class="empty-text">{{ EMPTY_SECTION_TEXT.prompt }}</p>
+            <p
+              v-else
+              class="empty-text"
+            >
+              {{ EMPTY_SECTION_TEXT.prompt }}
+            </p>
           </div>
-          <div class="meta-section" :class="{ 'is-empty': !props.meta?.negative_prompt }">
-            <div class="section-top" :class="{ 'metadata-copyable': props.meta?.negative_prompt }">
+          <div
+            class="meta-section"
+            :class="{ 'is-empty': !props.meta?.negative_prompt }"
+          >
+            <div
+              class="section-top"
+              :class="{ 'metadata-copyable': props.meta?.negative_prompt }"
+            >
               <label class="sheet-label negative-label">Negative Prompt</label>
               <button
                 v-if="props.meta?.negative_prompt"
@@ -298,10 +364,18 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                   style="color: #4ade80"
                   class="inline-copy-icon"
                 />
-                <Copy v-else :size="14" :stroke-width="1.5" class="inline-copy-icon" />
+                <Copy
+                  v-else
+                  :size="14"
+                  :stroke-width="1.5"
+                  class="inline-copy-icon"
+                />
               </button>
             </div>
-            <div v-if="props.meta?.negative_prompt" class="sheet-text">
+            <div
+              v-if="props.meta?.negative_prompt"
+              class="sheet-text"
+            >
               <ExpandableText
                 :key="`neg-prompt-${textResetKey}`"
                 :collapsed-lines="5"
@@ -309,17 +383,28 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                 :expanded="negPromptExpanded"
                 @expanded-change="onNegPromptExpandedChange"
               >
-                <span v-html="loraHighlighter(props.meta.negative_prompt)"></span>
+                <span v-html="loraHighlighter(props.meta.negative_prompt)" />
               </ExpandableText>
             </div>
-            <p v-else class="empty-text">{{ EMPTY_SECTION_TEXT.negative_prompt }}</p>
+            <p
+              v-else
+              class="empty-text"
+            >
+              {{ EMPTY_SECTION_TEXT.negative_prompt }}
+            </p>
           </div>
         </div>
 
         <!-- ========== Tab: Params ========== -->
-        <div v-show="activeTab === 'params'" class="sheet-tab-content">
+        <div
+          v-show="activeTab === 'params'"
+          class="sheet-tab-content"
+        >
           <!-- Tool label -->
-          <div class="meta-section" v-if="props.meta?.tool">
+          <div
+            class="meta-section"
+            v-if="props.meta?.tool"
+          >
             <div class="source-badge">
               <span class="source-label">SOURCE</span>
               <span class="source-chip">{{ props.meta.tool }}</span>
@@ -327,9 +412,15 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
           </div>
 
           <!-- Generation Data (core) -->
-          <div class="meta-section" :class="{ 'is-empty': !hasGenData }">
+          <div
+            class="meta-section"
+            :class="{ 'is-empty': !hasGenData }"
+          >
             <label class="sheet-label">Generation Data</label>
-            <div v-if="hasGenData" class="params-grid">
+            <div
+              v-if="hasGenData"
+              class="params-grid"
+            >
               <div
                 class="param-pill seed-row metadata-copyable"
                 v-if="props.meta?.params?.Seed"
@@ -345,32 +436,64 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                   style="color: #4ade80"
                   class="inline-copy-icon"
                 />
-                <Copy v-else :size="14" :stroke-width="1.5" class="inline-copy-icon" />
+                <Copy
+                  v-else
+                  :size="14"
+                  :stroke-width="1.5"
+                  class="inline-copy-icon"
+                />
               </div>
-              <div class="param-pill" v-if="props.meta?.params?.Steps">
+              <div
+                class="param-pill"
+                v-if="props.meta?.params?.Steps"
+              >
                 <span class="label">Steps</span><span class="value">{{ props.meta.params.Steps }}</span>
               </div>
-              <div class="param-pill" v-if="props.meta?.params?.CFG">
+              <div
+                class="param-pill"
+                v-if="props.meta?.params?.CFG"
+              >
                 <span class="label">CFG</span><span class="value">{{ props.meta.params.CFG }}</span>
               </div>
-              <div class="param-pill" v-if="props.meta?.params?.Sampler">
+              <div
+                class="param-pill"
+                v-if="props.meta?.params?.Sampler"
+              >
                 <span class="label">Sampler</span><span class="value">{{ props.meta.params.Sampler }}</span>
               </div>
-              <div class="param-pill" v-if="props.meta?.params?.Scheduler">
+              <div
+                class="param-pill"
+                v-if="props.meta?.params?.Scheduler"
+              >
                 <span class="label">Scheduler</span><span class="value">{{ props.meta.params.Scheduler }}</span>
               </div>
-              <div class="param-pill" v-if="props.meta?.params?.AspectRatio">
+              <div
+                class="param-pill"
+                v-if="props.meta?.params?.AspectRatio"
+              >
                 <span class="label">Ratio</span><span class="value">{{ props.meta.params.AspectRatio }}</span>
               </div>
             </div>
-            <p v-else class="empty-text">{{ EMPTY_SECTION_TEXT.generation_data }}</p>
+            <p
+              v-else
+              class="empty-text"
+            >
+              {{ EMPTY_SECTION_TEXT.generation_data }}
+            </p>
           </div>
 
           <!-- Extra Settings (secondary) -->
-          <div class="meta-section" v-if="hasExtraSettings">
+          <div
+            class="meta-section"
+            v-if="hasExtraSettings"
+          >
             <label class="sheet-label">Extra Settings</label>
             <div class="params-grid">
-              <div class="param-pill" v-for="entry in extraEntries" :key="entry.key">
+              <div
+                class="param-pill"
+                v-for="entry in extraEntries"
+                :key="entry.key"
+              >
                 <span class="label">{{ entry.label }}</span>
                 <span class="value">{{ entry.value }}</span>
               </div>
@@ -378,7 +501,10 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
           </div>
 
           <!-- Advanced (debug) -->
-          <div class="meta-section" v-if="hasAdv">
+          <div
+            class="meta-section"
+            v-if="hasAdv"
+          >
             <button
               type="button"
               class="accordion-header"
@@ -395,8 +521,16 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                 :class="{ 'is-collapsed': !showAdvanced }"
               />
             </button>
-            <div id="mobile-advanced-content" v-if="showAdvanced" class="params-grid">
-              <div class="param-pill" v-for="k in extraParamKeys" :key="k">
+            <div
+              id="mobile-advanced-content"
+              v-if="showAdvanced"
+              class="params-grid"
+            >
+              <div
+                class="param-pill"
+                v-for="k in extraParamKeys"
+                :key="k"
+              >
                 <span class="label">{{ k }}</span>
                 <span class="value">{{ props.meta?.params?.[k] }}</span>
               </div>
@@ -405,25 +539,64 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
         </div>
 
         <!-- ========== Tab: Model ========== -->
-        <div v-show="activeTab === 'model'" class="sheet-tab-content">
-          <div class="meta-section" :class="{ 'is-empty': !hasModels }">
-            <label v-if="props.meta?.params?.Model" class="sheet-label">Checkpoint</label>
-            <p v-if="props.meta?.params?.Model" class="sheet-text">{{ props.meta.params.Model }}</p>
+        <div
+          v-show="activeTab === 'model'"
+          class="sheet-tab-content"
+        >
+          <div
+            class="meta-section"
+            :class="{ 'is-empty': !hasModels }"
+          >
+            <label
+              v-if="props.meta?.params?.Model"
+              class="sheet-label"
+            >Checkpoint</label>
+            <p
+              v-if="props.meta?.params?.Model"
+              class="sheet-text"
+            >
+              {{ props.meta.params.Model }}
+            </p>
 
-            <label v-if="props.meta?.params?.Lora?.length" class="sheet-label" style="margin-top: 12px">LoRAs</label>
-            <p class="sheet-text" v-for="(lora, idx) in props.meta?.params?.Lora" :key="idx">{{ lora }}</p>
+            <label
+              v-if="props.meta?.params?.Lora?.length"
+              class="sheet-label"
+              style="margin-top: 12px"
+            >LoRAs</label>
+            <p
+              class="sheet-text"
+              v-for="(lora, idx) in props.meta?.params?.Lora"
+              :key="idx"
+            >
+              {{ lora }}
+            </p>
 
-            <label v-if="props.meta?.models?.length" class="sheet-label" style="margin-top: 12px">{{
+            <label
+              v-if="props.meta?.models?.length"
+              class="sheet-label"
+              style="margin-top: 12px"
+            >{{
               props.meta.models.length === 1 ? "Model" : "Models"
             }}</label>
-            <div v-for="m in props.meta?.models" :key="m.name">
+            <div
+              v-for="m in props.meta?.models"
+              :key="m.name"
+            >
               <p class="sheet-text">
                 {{ m.name }}
-                <span v-if="m.hash" class="res-hash">#{{ m.hash.substring(0, 8) }}</span>
+                <span
+                  v-if="m.hash"
+                  class="res-hash"
+                >#{{ m.hash.substring(0, 8) }}</span>
               </p>
             </div>
 
-            <p v-if="!hasModels" class="empty-text">{{ EMPTY_SECTION_TEXT.model_resources }}</p>
+            <p
+              v-if="!hasModels"
+              class="empty-text"
+            >
+              {{ EMPTY_SECTION_TEXT.model_resources }}
+            </p>
           </div>
         </div>
       </template>

@@ -119,7 +119,10 @@ const gallerySortValue = computed<SortValue>({
 </script>
 
 <template>
-  <header class="mobile-header" :class="{ hidden: !barsVisible, 'search-active': isSearchActive }">
+  <header
+    class="mobile-header"
+    :class="{ hidden: !barsVisible, 'search-active': isSearchActive }"
+  >
     <!-- Left: hamburger (hidden in search mode on mobile) / back button -->
     <button
       v-if="!isSearchActive"
@@ -130,16 +133,29 @@ const gallerySortValue = computed<SortValue>({
     >
       <Menu />
     </button>
-    <button v-else class="mh-btn search-focus-back" @click="closeSearch" aria-label="Close search">
+    <button
+      v-else
+      class="mh-btn search-focus-back"
+      @click="closeSearch"
+      aria-label="Close search"
+    >
       <ArrowLeft />
     </button>
 
     <!-- Center: search area -->
     <div class="mh-search">
-      <button v-if="!isSearchActive" class="mh-btn mh-search-btn" @click="openSearch" aria-label="Open search">
+      <button
+        v-if="!isSearchActive"
+        class="mh-btn mh-search-btn"
+        @click="openSearch"
+        aria-label="Open search"
+      >
         <Search />
       </button>
-      <div v-else class="search-focus-bar">
+      <div
+        v-else
+        class="search-focus-bar"
+      >
         <div class="search-focus-input-wrap">
           <Search class="search-focus-input-icon" />
           <input
@@ -153,13 +169,27 @@ const gallerySortValue = computed<SortValue>({
             spellcheck="false"
             aria-label="Search gallery"
             class="search-focus-input"
-          />
-          <button v-if="hasQuery" class="search-focus-clear" @click="clearSearch" aria-label="Clear search">
+          >
+          <button
+            v-if="hasQuery"
+            class="search-focus-clear"
+            @click="clearSearch"
+            aria-label="Clear search"
+          >
             <X />
           </button>
-          <select class="search-scope-chip" :value="searchScope" aria-label="Search scope" @change="onScopeChange">
-            <option value="current">This folder</option>
-            <option value="all">All indexed</option>
+          <select
+            class="search-scope-chip"
+            :value="searchScope"
+            aria-label="Search scope"
+            @change="onScopeChange"
+          >
+            <option value="current">
+              This folder
+            </option>
+            <option value="all">
+              All indexed
+            </option>
           </select>
         </div>
       </div>
@@ -178,13 +208,21 @@ const gallerySortValue = computed<SortValue>({
       @click="emit('toggle-theme')"
       :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
     >
-      <svg v-if="isDark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+      <svg
+        v-if="isDark"
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 640 640"
+      >
         <path
           fill="currentColor"
           d="M423.7 85.9C336.6 107.5 272 186.2 272 280C272 390.4 361.5 480 472 480C490.5 480 508.4 477.5 525.4 472.8C478.8 535.4 404.1 576 320 576C178.6 576 64 461.4 64 320C64 178.6 178.6 64 320 64C356.9 64 392 71.8 423.7 85.9z"
         />
       </svg>
-      <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+      <svg
+        v-else
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 640 640"
+      >
         <path
           fill="currentColor"
           d="M340.8 43.6L396.3 136.2C477.1 115.9 525 104 539.9 100.2C536.2 115.1 524.2 163 503.9 243.8C575.4 286.6 617.7 312 630.9 319.9C617.7 327.8 575.4 353.2 503.9 396C524.2 476.8 536.2 524.7 539.9 539.6C525 535.9 477.1 523.9 396.3 503.6C353.5 575.1 328.1 617.4 320.2 630.6C312.3 617.4 286.9 575.1 244.1 503.6C163.3 523.9 115.5 535.9 100.5 539.6C104.2 524.7 116.2 476.8 136.5 396C65 353.2 22.7 327.8 9.5 319.9C22.7 312 65 286.6 136.5 243.8C116.2 163 104.3 115.2 100.5 100.2C115.4 103.9 163.3 115.9 244.1 136.2C286.9 64.7 312.3 22.4 320.2 9.2L340.8 43.5zM320.2 176C240.7 175.9 176.1 240.3 176 319.8C175.9 399.3 240.3 463.9 319.8 464C399.3 464.1 463.9 399.7 464 320.2C464.1 240.7 399.7 176.1 320.2 176zM319.8 416C266.8 415.9 223.9 372.8 224 319.8C224.1 266.8 267.2 223.9 320.2 224C373.2 224.1 416.1 267.2 416 320.2C415.9 373.2 372.8 416.1 319.8 416z"
@@ -202,7 +240,7 @@ const gallerySortValue = computed<SortValue>({
       :class="{ 'search-focus-has-query': hasQuery }"
       @click="handleOverlayClick"
       @touchend.prevent="handleOverlayClick"
-    ></div>
+    />
   </Transition>
 </template>
 

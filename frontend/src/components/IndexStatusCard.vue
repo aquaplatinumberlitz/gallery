@@ -34,10 +34,17 @@ function formatCount(value: number) {
 <template>
   <Popover>
     <PopoverTrigger as-child>
-      <button type="button" class="index-status-card group-data-[collapsible=icon]:hidden" aria-label="Index Status">
+      <button
+        type="button"
+        class="index-status-card group-data-[collapsible=icon]:hidden"
+        aria-label="Index Status"
+      >
         <span class="index-status-card__top">
           <span class="index-status-card__title">
-            <Database class="size-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
+            <Database
+              class="size-3.5 text-muted-foreground shrink-0"
+              aria-hidden="true"
+            />
             <span>Index</span>
           </span>
           <IndexStatusBadge :presentation="presentation" />
@@ -67,7 +74,12 @@ function formatCount(value: number) {
       </button>
     </PopoverTrigger>
 
-    <PopoverContent class="w-80 p-4" align="end" :side-offset="8" aria-label="Index Status">
+    <PopoverContent
+      class="w-80 p-4"
+      align="end"
+      :side-offset="8"
+      aria-label="Index Status"
+    >
       <IndexStatusDetailsPopover
         :data="data"
         :counts="counts"

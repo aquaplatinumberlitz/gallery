@@ -103,7 +103,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="album-grid-wrapper" :class="{ 'has-overflow': showLeftArrow || showRightArrow }">
+  <div
+    class="album-grid-wrapper"
+    :class="{ 'has-overflow': showLeftArrow || showRightArrow }"
+  >
     <button
       v-show="showLeftArrow"
       class="album-scroll-btn album-scroll-btn--left"
@@ -124,7 +127,11 @@ onBeforeUnmount(() => {
     >
       <ArrowRight class="gallery-icon-nav" />
     </button>
-    <div ref="gridRef" class="album-grid" @scroll="onGridScroll">
+    <div
+      ref="gridRef"
+      class="album-grid"
+      @scroll="onGridScroll"
+    >
       <component
         :is="isMobile ? AlbumCardMobile : AlbumCardTablet"
         v-for="item in folders"

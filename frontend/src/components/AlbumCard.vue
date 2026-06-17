@@ -33,26 +33,44 @@ withDefaults(
   >
     <div class="album-cover-diagonal">
       <div class="album-layer album-layer-back">
-        <img v-if="node.cover_images?.[1]" :src="getThumbnailUrl(node.cover_images[1])" loading="lazy" alt="" />
-        <div v-else class="placeholder"></div>
+        <img
+          v-if="node.cover_images?.[1]"
+          :src="getThumbnailUrl(node.cover_images[1])"
+          loading="lazy"
+          alt=""
+        >
+        <div
+          v-else
+          class="placeholder"
+        />
       </div>
       <div class="album-layer album-layer-front">
-        <img v-if="node.cover_images?.[0]" :src="getThumbnailUrl(node.cover_images[0])" loading="lazy" alt="" />
-        <div v-else class="placeholder flex-center">
-          <span class="fa-placeholder-svg" v-html="placeholderSvg"></span>
+        <img
+          v-if="node.cover_images?.[0]"
+          :src="getThumbnailUrl(node.cover_images[0])"
+          loading="lazy"
+          alt=""
+        >
+        <div
+          v-else
+          class="placeholder flex-center"
+        >
+          <span
+            class="fa-placeholder-svg"
+            v-html="placeholderSvg"
+          />
         </div>
       </div>
     </div>
 
     <div class="album-info">
-      <h3 class="album-name">{{ node.name }}</h3>
+      <h3 class="album-name">
+        {{ node.name }}
+      </h3>
       <div class="album-meta">
         <FolderOpen class="gallery-icon-meta album-meta-icon" />
-        <span
-          >Album<span v-if="node.image_count !== undefined && node.image_count !== null">
-            · {{ node.image_count }} {{ node.image_count === 1 ? "photo" : "photos" }}</span
-          ></span
-        >
+        <span>Album<span v-if="node.image_count !== undefined && node.image_count !== null">
+          · {{ node.image_count }} {{ node.image_count === 1 ? "photo" : "photos" }}</span></span>
       </div>
     </div>
   </div>

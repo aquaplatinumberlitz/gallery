@@ -345,10 +345,22 @@ function applyAspectRatio(ratio: string) {
       @click.self="handleCancel"
       @keydown.escape="handleCancel"
     >
-      <div class="advanced-search-drawer" role="dialog" aria-label="Advanced Search">
+      <div
+        class="advanced-search-drawer"
+        role="dialog"
+        aria-label="Advanced Search"
+      >
         <div class="advanced-search-header">
-          <h2 class="text-base font-semibold">Advanced Search</h2>
-          <Button variant="ghost" size="icon" type="button" aria-label="Close advanced search" @click="handleCancel">
+          <h2 class="text-base font-semibold">
+            Advanced Search
+          </h2>
+          <Button
+            variant="ghost"
+            size="icon"
+            type="button"
+            aria-label="Close advanced search"
+            @click="handleCancel"
+          >
             <X class="size-4" />
           </Button>
         </div>
@@ -357,38 +369,58 @@ function applyAspectRatio(ratio: string) {
           <form @submit.prevent="form.handleSubmit()">
             <!-- Text Fields -->
             <fieldset class="field-group">
-              <legend class="field-group-label">Text Fields</legend>
+              <legend class="field-group-label">
+                Text Fields
+              </legend>
               <div class="field-grid">
-                <form.Field name="prompt" v-slot="{ field }">
-                  <label class="field-label" for="advanced-search-prompt">Prompt</label>
+                <form.Field
+                  name="prompt"
+                  v-slot="{ field }"
+                >
+                  <label
+                    class="field-label"
+                    for="advanced-search-prompt"
+                  >Prompt</label>
                   <Input
                     id="advanced-search-prompt"
-                    :modelValue="field.state.value"
-                    @update:modelValue="(v: string) => field.handleChange(v)"
+                    :model-value="field.state.value"
+                    @update:model-value="(v: string) => field.handleChange(v)"
                     placeholder="e.g. blue archive"
                     type="text"
                     variant="default"
                     class="field-input"
                   />
                 </form.Field>
-                <form.Field name="negative" v-slot="{ field }">
-                  <label class="field-label" for="advanced-search-negative">Negative Prompt</label>
+                <form.Field
+                  name="negative"
+                  v-slot="{ field }"
+                >
+                  <label
+                    class="field-label"
+                    for="advanced-search-negative"
+                  >Negative Prompt</label>
                   <Input
                     id="advanced-search-negative"
-                    :modelValue="field.state.value"
-                    @update:modelValue="(v: string) => field.handleChange(v)"
+                    :model-value="field.state.value"
+                    @update:model-value="(v: string) => field.handleChange(v)"
                     placeholder="e.g. blurry, watermark"
                     type="text"
                     variant="default"
                     class="field-input"
                   />
                 </form.Field>
-                <form.Field name="model" v-slot="{ field }">
-                  <label class="field-label" for="advanced-search-model">Model</label>
+                <form.Field
+                  name="model"
+                  v-slot="{ field }"
+                >
+                  <label
+                    class="field-label"
+                    for="advanced-search-model"
+                  >Model</label>
                   <Input
                     id="advanced-search-model"
-                    :modelValue="field.state.value"
-                    @update:modelValue="(v: string) => field.handleChange(v)"
+                    :model-value="field.state.value"
+                    @update:model-value="(v: string) => field.handleChange(v)"
                     placeholder="e.g. PonyXL"
                     type="text"
                     variant="default"
@@ -396,15 +428,25 @@ function applyAspectRatio(ratio: string) {
                     :list="'model-datalist'"
                   />
                   <datalist id="model-datalist">
-                    <option v-for="opt in facetModelOptions" :key="opt" :value="opt" />
+                    <option
+                      v-for="opt in facetModelOptions"
+                      :key="opt"
+                      :value="opt"
+                    />
                   </datalist>
                 </form.Field>
-                <form.Field name="sampler" v-slot="{ field }">
-                  <label class="field-label" for="advanced-search-sampler">Sampler</label>
+                <form.Field
+                  name="sampler"
+                  v-slot="{ field }"
+                >
+                  <label
+                    class="field-label"
+                    for="advanced-search-sampler"
+                  >Sampler</label>
                   <Input
                     id="advanced-search-sampler"
-                    :modelValue="field.state.value"
-                    @update:modelValue="(v: string) => field.handleChange(v)"
+                    :model-value="field.state.value"
+                    @update:model-value="(v: string) => field.handleChange(v)"
                     placeholder="e.g. Euler a"
                     type="text"
                     variant="default"
@@ -412,15 +454,25 @@ function applyAspectRatio(ratio: string) {
                     :list="'sampler-datalist'"
                   />
                   <datalist id="sampler-datalist">
-                    <option v-for="opt in facetSamplerOptions" :key="opt" :value="opt" />
+                    <option
+                      v-for="opt in facetSamplerOptions"
+                      :key="opt"
+                      :value="opt"
+                    />
                   </datalist>
                 </form.Field>
-                <form.Field name="scheduler" v-slot="{ field }">
-                  <label class="field-label" for="advanced-search-scheduler">Scheduler</label>
+                <form.Field
+                  name="scheduler"
+                  v-slot="{ field }"
+                >
+                  <label
+                    class="field-label"
+                    for="advanced-search-scheduler"
+                  >Scheduler</label>
                   <Input
                     id="advanced-search-scheduler"
-                    :modelValue="field.state.value"
-                    @update:modelValue="(v: string) => field.handleChange(v)"
+                    :model-value="field.state.value"
+                    @update:model-value="(v: string) => field.handleChange(v)"
                     placeholder="e.g. Karras"
                     type="text"
                     variant="default"
@@ -428,51 +480,79 @@ function applyAspectRatio(ratio: string) {
                     :list="'scheduler-datalist'"
                   />
                   <datalist id="scheduler-datalist">
-                    <option v-for="opt in facetSchedulerOptions" :key="opt" :value="opt" />
+                    <option
+                      v-for="opt in facetSchedulerOptions"
+                      :key="opt"
+                      :value="opt"
+                    />
                   </datalist>
                 </form.Field>
-                <form.Field name="lora" v-slot="{ field }">
-                  <label class="field-label" for="advanced-search-lora">LoRA</label>
+                <form.Field
+                  name="lora"
+                  v-slot="{ field }"
+                >
+                  <label
+                    class="field-label"
+                    for="advanced-search-lora"
+                  >LoRA</label>
                   <Input
                     id="advanced-search-lora"
-                    :modelValue="field.state.value"
-                    @update:modelValue="(v: string) => field.handleChange(v)"
+                    :model-value="field.state.value"
+                    @update:model-value="(v: string) => field.handleChange(v)"
                     placeholder="LoRA name"
                     type="text"
                     variant="default"
                     class="field-input"
                   />
                 </form.Field>
-                <form.Field name="vae" v-slot="{ field }">
-                  <label class="field-label" for="advanced-search-vae">VAE</label>
+                <form.Field
+                  name="vae"
+                  v-slot="{ field }"
+                >
+                  <label
+                    class="field-label"
+                    for="advanced-search-vae"
+                  >VAE</label>
                   <Input
                     id="advanced-search-vae"
-                    :modelValue="field.state.value"
-                    @update:modelValue="(v: string) => field.handleChange(v)"
+                    :model-value="field.state.value"
+                    @update:model-value="(v: string) => field.handleChange(v)"
                     placeholder="VAE name"
                     type="text"
                     variant="default"
                     class="field-input"
                   />
                 </form.Field>
-                <form.Field name="folder" v-slot="{ field }">
-                  <label class="field-label" for="advanced-search-folder">Folder</label>
+                <form.Field
+                  name="folder"
+                  v-slot="{ field }"
+                >
+                  <label
+                    class="field-label"
+                    for="advanced-search-folder"
+                  >Folder</label>
                   <Input
                     id="advanced-search-folder"
-                    :modelValue="field.state.value"
-                    @update:modelValue="(v: string) => field.handleChange(v)"
+                    :model-value="field.state.value"
+                    @update:model-value="(v: string) => field.handleChange(v)"
                     placeholder="Folder name"
                     type="text"
                     variant="default"
                     class="field-input"
                   />
                 </form.Field>
-                <form.Field name="name" v-slot="{ field }">
-                  <label class="field-label" for="advanced-search-name">Name</label>
+                <form.Field
+                  name="name"
+                  v-slot="{ field }"
+                >
+                  <label
+                    class="field-label"
+                    for="advanced-search-name"
+                  >Name</label>
                   <Input
                     id="advanced-search-name"
-                    :modelValue="field.state.value"
-                    @update:modelValue="(v: string) => field.handleChange(v)"
+                    :model-value="field.state.value"
+                    @update:model-value="(v: string) => field.handleChange(v)"
                     placeholder="File name"
                     type="text"
                     variant="default"
@@ -484,10 +564,18 @@ function applyAspectRatio(ratio: string) {
 
             <!-- Numeric Fields -->
             <fieldset class="field-group">
-              <legend class="field-group-label">Numeric Fields</legend>
+              <legend class="field-group-label">
+                Numeric Fields
+              </legend>
               <div class="field-grid">
-                <form.Field name="seed" v-slot="{ field: f }">
-                  <label class="field-label" for="advanced-search-seed">Seed</label>
+                <form.Field
+                  name="seed"
+                  v-slot="{ field: f }"
+                >
+                  <label
+                    class="field-label"
+                    for="advanced-search-seed"
+                  >Seed</label>
                   <div class="numeric-row">
                     <select
                       id="advanced-search-seed-op"
@@ -498,24 +586,39 @@ function applyAspectRatio(ratio: string) {
                         f.handleChange({ value: f.state.value.value, op: ($event.target as HTMLSelectElement).value })
                       "
                     >
-                      <option v-for="op in NUMERIC_OPS" :key="op.value" :value="op.value">{{ op.label }}</option>
+                      <option
+                        v-for="op in NUMERIC_OPS"
+                        :key="op.value"
+                        :value="op.value"
+                      >
+                        {{ op.label }}
+                      </option>
                     </select>
                     <Input
                       id="advanced-search-seed"
-                      :modelValue="f.state.value.value"
-                      @update:modelValue="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
+                      :model-value="f.state.value.value"
+                      @update:model-value="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
                       placeholder="12345"
                       type="text"
                       variant="default"
                       class="field-input numeric-input"
                     />
                   </div>
-                  <p v-if="f.state.meta.errors?.length" class="field-error">
+                  <p
+                    v-if="f.state.meta.errors?.length"
+                    class="field-error"
+                  >
                     {{ f.state.meta.errors[0] }}
                   </p>
                 </form.Field>
-                <form.Field name="steps" v-slot="{ field: f }">
-                  <label class="field-label" for="advanced-search-steps">Steps</label>
+                <form.Field
+                  name="steps"
+                  v-slot="{ field: f }"
+                >
+                  <label
+                    class="field-label"
+                    for="advanced-search-steps"
+                  >Steps</label>
                   <div class="numeric-row">
                     <select
                       id="advanced-search-steps-op"
@@ -526,24 +629,39 @@ function applyAspectRatio(ratio: string) {
                         f.handleChange({ value: f.state.value.value, op: ($event.target as HTMLSelectElement).value })
                       "
                     >
-                      <option v-for="op in NUMERIC_OPS" :key="op.value" :value="op.value">{{ op.label }}</option>
+                      <option
+                        v-for="op in NUMERIC_OPS"
+                        :key="op.value"
+                        :value="op.value"
+                      >
+                        {{ op.label }}
+                      </option>
                     </select>
                     <Input
                       id="advanced-search-steps"
-                      :modelValue="f.state.value.value"
-                      @update:modelValue="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
+                      :model-value="f.state.value.value"
+                      @update:model-value="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
                       placeholder="30"
                       type="text"
                       variant="default"
                       class="field-input numeric-input"
                     />
                   </div>
-                  <p v-if="f.state.meta.errors?.length" class="field-error">
+                  <p
+                    v-if="f.state.meta.errors?.length"
+                    class="field-error"
+                  >
                     {{ f.state.meta.errors[0] }}
                   </p>
                 </form.Field>
-                <form.Field name="cfg" v-slot="{ field: f }">
-                  <label class="field-label" for="advanced-search-cfg">CFG Scale</label>
+                <form.Field
+                  name="cfg"
+                  v-slot="{ field: f }"
+                >
+                  <label
+                    class="field-label"
+                    for="advanced-search-cfg"
+                  >CFG Scale</label>
                   <div class="numeric-row">
                     <select
                       id="advanced-search-cfg-op"
@@ -554,24 +672,39 @@ function applyAspectRatio(ratio: string) {
                         f.handleChange({ value: f.state.value.value, op: ($event.target as HTMLSelectElement).value })
                       "
                     >
-                      <option v-for="op in NUMERIC_OPS" :key="op.value" :value="op.value">{{ op.label }}</option>
+                      <option
+                        v-for="op in NUMERIC_OPS"
+                        :key="op.value"
+                        :value="op.value"
+                      >
+                        {{ op.label }}
+                      </option>
                     </select>
                     <Input
                       id="advanced-search-cfg"
-                      :modelValue="f.state.value.value"
-                      @update:modelValue="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
+                      :model-value="f.state.value.value"
+                      @update:model-value="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
                       placeholder="7.5"
                       type="text"
                       variant="default"
                       class="field-input numeric-input"
                     />
                   </div>
-                  <p v-if="f.state.meta.errors?.length" class="field-error">
+                  <p
+                    v-if="f.state.meta.errors?.length"
+                    class="field-error"
+                  >
                     {{ f.state.meta.errors[0] }}
                   </p>
                 </form.Field>
-                <form.Field name="clip_skip" v-slot="{ field: f }">
-                  <label class="field-label" for="advanced-search-clip-skip">Clip Skip</label>
+                <form.Field
+                  name="clip_skip"
+                  v-slot="{ field: f }"
+                >
+                  <label
+                    class="field-label"
+                    for="advanced-search-clip-skip"
+                  >Clip Skip</label>
                   <div class="numeric-row">
                     <select
                       id="advanced-search-clip-skip-op"
@@ -582,24 +715,39 @@ function applyAspectRatio(ratio: string) {
                         f.handleChange({ value: f.state.value.value, op: ($event.target as HTMLSelectElement).value })
                       "
                     >
-                      <option v-for="op in NUMERIC_OPS" :key="op.value" :value="op.value">{{ op.label }}</option>
+                      <option
+                        v-for="op in NUMERIC_OPS"
+                        :key="op.value"
+                        :value="op.value"
+                      >
+                        {{ op.label }}
+                      </option>
                     </select>
                     <Input
                       id="advanced-search-clip-skip"
-                      :modelValue="f.state.value.value"
-                      @update:modelValue="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
+                      :model-value="f.state.value.value"
+                      @update:model-value="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
                       placeholder="2"
                       type="text"
                       variant="default"
                       class="field-input numeric-input"
                     />
                   </div>
-                  <p v-if="f.state.meta.errors?.length" class="field-error">
+                  <p
+                    v-if="f.state.meta.errors?.length"
+                    class="field-error"
+                  >
                     {{ f.state.meta.errors[0] }}
                   </p>
                 </form.Field>
-                <form.Field name="denoising_strength" v-slot="{ field: f }">
-                  <label class="field-label" for="advanced-search-denoising-strength">Denoising Strength</label>
+                <form.Field
+                  name="denoising_strength"
+                  v-slot="{ field: f }"
+                >
+                  <label
+                    class="field-label"
+                    for="advanced-search-denoising-strength"
+                  >Denoising Strength</label>
                   <div class="numeric-row">
                     <select
                       id="advanced-search-denoising-strength-op"
@@ -610,24 +758,39 @@ function applyAspectRatio(ratio: string) {
                         f.handleChange({ value: f.state.value.value, op: ($event.target as HTMLSelectElement).value })
                       "
                     >
-                      <option v-for="op in NUMERIC_OPS" :key="op.value" :value="op.value">{{ op.label }}</option>
+                      <option
+                        v-for="op in NUMERIC_OPS"
+                        :key="op.value"
+                        :value="op.value"
+                      >
+                        {{ op.label }}
+                      </option>
                     </select>
                     <Input
                       id="advanced-search-denoising-strength"
-                      :modelValue="f.state.value.value"
-                      @update:modelValue="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
+                      :model-value="f.state.value.value"
+                      @update:model-value="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
                       placeholder="0.75"
                       type="text"
                       variant="default"
                       class="field-input numeric-input"
                     />
                   </div>
-                  <p v-if="f.state.meta.errors?.length" class="field-error">
+                  <p
+                    v-if="f.state.meta.errors?.length"
+                    class="field-error"
+                  >
                     {{ f.state.meta.errors[0] }}
                   </p>
                 </form.Field>
-                <form.Field name="hires_upscale" v-slot="{ field: f }">
-                  <label class="field-label" for="advanced-search-hires-upscale">HiRes Upscale</label>
+                <form.Field
+                  name="hires_upscale"
+                  v-slot="{ field: f }"
+                >
+                  <label
+                    class="field-label"
+                    for="advanced-search-hires-upscale"
+                  >HiRes Upscale</label>
                   <div class="numeric-row">
                     <select
                       id="advanced-search-hires-upscale-op"
@@ -638,24 +801,39 @@ function applyAspectRatio(ratio: string) {
                         f.handleChange({ value: f.state.value.value, op: ($event.target as HTMLSelectElement).value })
                       "
                     >
-                      <option v-for="op in NUMERIC_OPS" :key="op.value" :value="op.value">{{ op.label }}</option>
+                      <option
+                        v-for="op in NUMERIC_OPS"
+                        :key="op.value"
+                        :value="op.value"
+                      >
+                        {{ op.label }}
+                      </option>
                     </select>
                     <Input
                       id="advanced-search-hires-upscale"
-                      :modelValue="f.state.value.value"
-                      @update:modelValue="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
+                      :model-value="f.state.value.value"
+                      @update:model-value="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
                       placeholder="2"
                       type="text"
                       variant="default"
                       class="field-input numeric-input"
                     />
                   </div>
-                  <p v-if="f.state.meta.errors?.length" class="field-error">
+                  <p
+                    v-if="f.state.meta.errors?.length"
+                    class="field-error"
+                  >
                     {{ f.state.meta.errors[0] }}
                   </p>
                 </form.Field>
-                <form.Field name="hires_steps" v-slot="{ field: f }">
-                  <label class="field-label" for="advanced-search-hires-steps">HiRes Steps</label>
+                <form.Field
+                  name="hires_steps"
+                  v-slot="{ field: f }"
+                >
+                  <label
+                    class="field-label"
+                    for="advanced-search-hires-steps"
+                  >HiRes Steps</label>
                   <div class="numeric-row">
                     <select
                       id="advanced-search-hires-steps-op"
@@ -666,19 +844,28 @@ function applyAspectRatio(ratio: string) {
                         f.handleChange({ value: f.state.value.value, op: ($event.target as HTMLSelectElement).value })
                       "
                     >
-                      <option v-for="op in NUMERIC_OPS" :key="op.value" :value="op.value">{{ op.label }}</option>
+                      <option
+                        v-for="op in NUMERIC_OPS"
+                        :key="op.value"
+                        :value="op.value"
+                      >
+                        {{ op.label }}
+                      </option>
                     </select>
                     <Input
                       id="advanced-search-hires-steps"
-                      :modelValue="f.state.value.value"
-                      @update:modelValue="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
+                      :model-value="f.state.value.value"
+                      @update:model-value="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
                       placeholder="10"
                       type="text"
                       variant="default"
                       class="field-input numeric-input"
                     />
                   </div>
-                  <p v-if="f.state.meta.errors?.length" class="field-error">
+                  <p
+                    v-if="f.state.meta.errors?.length"
+                    class="field-error"
+                  >
                     {{ f.state.meta.errors[0] }}
                   </p>
                 </form.Field>
@@ -687,10 +874,18 @@ function applyAspectRatio(ratio: string) {
 
             <!-- Dimensions -->
             <fieldset class="field-group">
-              <legend class="field-group-label">Dimensions</legend>
+              <legend class="field-group-label">
+                Dimensions
+              </legend>
               <div class="field-grid">
-                <form.Field name="width" v-slot="{ field: f }">
-                  <label class="field-label" for="advanced-search-width">Width</label>
+                <form.Field
+                  name="width"
+                  v-slot="{ field: f }"
+                >
+                  <label
+                    class="field-label"
+                    for="advanced-search-width"
+                  >Width</label>
                   <div class="numeric-row">
                     <select
                       id="advanced-search-width-op"
@@ -701,24 +896,39 @@ function applyAspectRatio(ratio: string) {
                         f.handleChange({ value: f.state.value.value, op: ($event.target as HTMLSelectElement).value })
                       "
                     >
-                      <option v-for="op in NUMERIC_OPS" :key="op.value" :value="op.value">{{ op.label }}</option>
+                      <option
+                        v-for="op in NUMERIC_OPS"
+                        :key="op.value"
+                        :value="op.value"
+                      >
+                        {{ op.label }}
+                      </option>
                     </select>
                     <Input
                       id="advanced-search-width"
-                      :modelValue="f.state.value.value"
-                      @update:modelValue="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
+                      :model-value="f.state.value.value"
+                      @update:model-value="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
                       placeholder="1024"
                       type="text"
                       variant="default"
                       class="field-input numeric-input"
                     />
                   </div>
-                  <p v-if="f.state.meta.errors?.length" class="field-error">
+                  <p
+                    v-if="f.state.meta.errors?.length"
+                    class="field-error"
+                  >
                     {{ f.state.meta.errors[0] }}
                   </p>
                 </form.Field>
-                <form.Field name="height" v-slot="{ field: f }">
-                  <label class="field-label" for="advanced-search-height">Height</label>
+                <form.Field
+                  name="height"
+                  v-slot="{ field: f }"
+                >
+                  <label
+                    class="field-label"
+                    for="advanced-search-height"
+                  >Height</label>
                   <div class="numeric-row">
                     <select
                       id="advanced-search-height-op"
@@ -729,34 +939,52 @@ function applyAspectRatio(ratio: string) {
                         f.handleChange({ value: f.state.value.value, op: ($event.target as HTMLSelectElement).value })
                       "
                     >
-                      <option v-for="op in NUMERIC_OPS" :key="op.value" :value="op.value">{{ op.label }}</option>
+                      <option
+                        v-for="op in NUMERIC_OPS"
+                        :key="op.value"
+                        :value="op.value"
+                      >
+                        {{ op.label }}
+                      </option>
                     </select>
                     <Input
                       id="advanced-search-height"
-                      :modelValue="f.state.value.value"
-                      @update:modelValue="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
+                      :model-value="f.state.value.value"
+                      @update:model-value="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
                       placeholder="768"
                       type="text"
                       variant="default"
                       class="field-input numeric-input"
                     />
                   </div>
-                  <p v-if="f.state.meta.errors?.length" class="field-error">
+                  <p
+                    v-if="f.state.meta.errors?.length"
+                    class="field-error"
+                  >
                     {{ f.state.meta.errors[0] }}
                   </p>
                 </form.Field>
-                <form.Field name="size" v-slot="{ field }">
-                  <label class="field-label" for="advanced-search-size">Size</label>
+                <form.Field
+                  name="size"
+                  v-slot="{ field }"
+                >
+                  <label
+                    class="field-label"
+                    for="advanced-search-size"
+                  >Size</label>
                   <Input
                     id="advanced-search-size"
-                    :modelValue="field.state.value"
-                    @update:modelValue="(v: string) => field.handleChange(v)"
+                    :model-value="field.state.value"
+                    @update:model-value="(v: string) => field.handleChange(v)"
                     placeholder="e.g. 1024x768"
                     type="text"
                     variant="default"
                     class="field-input"
                   />
-                  <p v-if="field.state.meta.errors?.length" class="field-error">
+                  <p
+                    v-if="field.state.meta.errors?.length"
+                    class="field-error"
+                  >
                     {{ field.state.meta.errors[0] }}
                   </p>
                 </form.Field>
@@ -765,13 +993,21 @@ function applyAspectRatio(ratio: string) {
 
             <!-- Aspect Ratio -->
             <fieldset class="field-group">
-              <legend class="field-group-label">Aspect Ratio</legend>
-              <form.Field name="ratio" v-slot="{ field }">
-                <label class="field-label" for="advanced-search-ratio">Ratio</label>
+              <legend class="field-group-label">
+                Aspect Ratio
+              </legend>
+              <form.Field
+                name="ratio"
+                v-slot="{ field }"
+              >
+                <label
+                  class="field-label"
+                  for="advanced-search-ratio"
+                >Ratio</label>
                 <Input
                   id="advanced-search-ratio"
-                  :modelValue="field.state.value"
-                  @update:modelValue="(v: string) => field.handleChange(v)"
+                  :model-value="field.state.value"
+                  @update:model-value="(v: string) => field.handleChange(v)"
                   placeholder="e.g. 16:9"
                   type="text"
                   variant="default"
@@ -794,14 +1030,22 @@ function applyAspectRatio(ratio: string) {
 
             <!-- Date -->
             <fieldset class="field-group">
-              <legend class="field-group-label">Date</legend>
+              <legend class="field-group-label">
+                Date
+              </legend>
               <div class="field-grid">
-                <form.Field name="date" v-slot="{ field }">
-                  <label class="field-label" for="advanced-search-date">Date</label>
+                <form.Field
+                  name="date"
+                  v-slot="{ field }"
+                >
+                  <label
+                    class="field-label"
+                    for="advanced-search-date"
+                  >Date</label>
                   <Input
                     id="advanced-search-date"
-                    :modelValue="field.state.value"
-                    @update:modelValue="(v: string) => field.handleChange(v)"
+                    :model-value="field.state.value"
+                    @update:model-value="(v: string) => field.handleChange(v)"
                     placeholder="e.g. 2024-01-15"
                     type="text"
                     variant="default"
@@ -813,38 +1057,58 @@ function applyAspectRatio(ratio: string) {
 
             <!-- Generic / Power-user Fields -->
             <fieldset class="field-group">
-              <legend class="field-group-label">Generic / Power-user</legend>
+              <legend class="field-group-label">
+                Generic / Power-user
+              </legend>
               <div class="field-grid">
-                <form.Field name="param" v-slot="{ field }">
-                  <label class="field-label" for="advanced-search-param">Param</label>
+                <form.Field
+                  name="param"
+                  v-slot="{ field }"
+                >
+                  <label
+                    class="field-label"
+                    for="advanced-search-param"
+                  >Param</label>
                   <Input
                     id="advanced-search-param"
-                    :modelValue="field.state.value"
-                    @update:modelValue="(v: string) => field.handleChange(v)"
+                    :model-value="field.state.value"
+                    @update:model-value="(v: string) => field.handleChange(v)"
                     placeholder="Custom parameter value"
                     type="text"
                     variant="default"
                     class="field-input"
                   />
                 </form.Field>
-                <form.Field name="advanced" v-slot="{ field }">
-                  <label class="field-label" for="advanced-search-advanced">Advanced</label>
+                <form.Field
+                  name="advanced"
+                  v-slot="{ field }"
+                >
+                  <label
+                    class="field-label"
+                    for="advanced-search-advanced"
+                  >Advanced</label>
                   <Input
                     id="advanced-search-advanced"
-                    :modelValue="field.state.value"
-                    @update:modelValue="(v: string) => field.handleChange(v)"
+                    :model-value="field.state.value"
+                    @update:model-value="(v: string) => field.handleChange(v)"
                     placeholder="Advanced field value"
                     type="text"
                     variant="default"
                     class="field-input"
                   />
                 </form.Field>
-                <form.Field name="raw" v-slot="{ field }">
-                  <label class="field-label" for="advanced-search-raw">Raw Query</label>
+                <form.Field
+                  name="raw"
+                  v-slot="{ field }"
+                >
+                  <label
+                    class="field-label"
+                    for="advanced-search-raw"
+                  >Raw Query</label>
                   <Input
                     id="advanced-search-raw"
-                    :modelValue="field.state.value"
-                    @update:modelValue="(v: string) => field.handleChange(v)"
+                    :model-value="field.state.value"
+                    @update:model-value="(v: string) => field.handleChange(v)"
                     placeholder="e.g. model:PonyXL sampler:Euler a"
                     type="text"
                     variant="default"
@@ -856,13 +1120,30 @@ function applyAspectRatio(ratio: string) {
 
             <!-- Actions -->
             <div class="advanced-search-actions">
-              <Button type="button" variant="outline" size="sm" @click="handleReset">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                @click="handleReset"
+              >
                 <RotateCcw class="size-3.5 mr-1" />
                 Reset
               </Button>
               <div class="flex gap-2">
-                <Button type="button" variant="ghost" size="sm" @click="handleCancel"> Cancel </Button>
-                <Button type="submit" variant="default" size="sm" :disabled="!(isDirty && formState.isValid)">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  @click="handleCancel"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="default"
+                  size="sm"
+                  :disabled="!(isDirty && formState.isValid)"
+                >
                   <Search class="size-3.5 mr-1" />
                   Apply
                 </Button>

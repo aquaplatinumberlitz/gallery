@@ -9,7 +9,7 @@ export default tseslint.config(
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
-  ...vue.configs["flat/essential"],
+  ...vue.configs["flat/strongly-recommended"],
   {
     files: ["**/*.{ts,vue}"],
     languageOptions: {

@@ -13,6 +13,7 @@ const props = withDefaults(
   >(),
   {
     as: "button",
+    class: undefined,
   },
 );
 </script>

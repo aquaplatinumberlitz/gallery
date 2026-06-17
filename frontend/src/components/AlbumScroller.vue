@@ -42,7 +42,10 @@ const { isMobile, isTablet } = useDevice();
 </script>
 
 <template>
-  <section v-if="folders.length" class="album-scroller">
+  <section
+    v-if="folders.length"
+    class="album-scroller"
+  >
     <button
       class="album-toggle"
       @click="toggleCollapsed"
@@ -64,7 +67,11 @@ const { isMobile, isTablet } = useDevice();
           :folders="folders"
           @open-folder="(path: string) => emit('open-folder', path)"
         />
-        <AlbumScrollerNative v-else :folders="folders" @open-folder="(path: string) => emit('open-folder', path)" />
+        <AlbumScrollerNative
+          v-else
+          :folders="folders"
+          @open-folder="(path: string) => emit('open-folder', path)"
+        />
       </div>
     </Transition>
   </section>

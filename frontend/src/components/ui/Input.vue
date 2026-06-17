@@ -30,8 +30,10 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  class: undefined,
   type: "text",
   variant: "default",
+  modelValue: undefined,
 });
 
 const emit = defineEmits<{
@@ -54,5 +56,5 @@ defineExpose({
     :value="modelValue"
     :class="inputClasses"
     @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
-  />
+  >
 </template>

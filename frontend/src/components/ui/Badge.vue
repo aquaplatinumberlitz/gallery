@@ -29,6 +29,7 @@ interface Props {
 
 withDefaults(defineProps<Props>(), {
   variant: "default",
+  class: undefined,
 });
 </script>
 

@@ -9,7 +9,11 @@ defineProps<{
 </script>
 
 <template>
-  <li role="presentation" aria-hidden="true" :class="cn('', $props.class)">
+  <li
+    role="presentation"
+    aria-hidden="true"
+    :class="cn('', $props.class)"
+  >
     <slot>
       <ChevronRight class="size-3.5 text-muted-foreground opacity-60" />
     </slot>

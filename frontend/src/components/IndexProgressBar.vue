@@ -5,8 +5,14 @@ defineProps<{
 </script>
 
 <template>
-  <div class="index-progress-bar" aria-hidden="true">
-    <div class="index-progress-bar__fill" :style="{ width: `${percent}%` }" />
+  <div
+    class="index-progress-bar"
+    aria-hidden="true"
+  >
+    <div
+      class="index-progress-bar__fill"
+      :style="{ width: `${percent}%` }"
+    />
   </div>
 </template>
 

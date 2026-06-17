@@ -130,9 +130,17 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
 </script>
 
 <template>
-  <TooltipProvider :delay-duration="300" :skip-delay-duration="100">
+  <TooltipProvider
+    :delay-duration="300"
+    :skip-delay-duration="100"
+  >
     <!-- Intro Screen -->
-    <IntroScreen v-if="showIntro" v-model:visible="showIntro" :force-url="introPreviewUrl" @enter="handleIntroEnter" />
+    <IntroScreen
+      v-if="showIntro"
+      v-model:visible="showIntro"
+      :force-url="introPreviewUrl"
+      @enter="handleIntroEnter"
+    />
 
     <!-- Main App Layout -->
     <MobileLayout
@@ -193,7 +201,11 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
 
     <Lightbox />
     <ToastContainer v-if="!isMobile" />
-    <SettingsModal :is-open="isSettingsOpen" @close="isSettingsOpen = false" @preview="handlePreviewIntro" />
+    <SettingsModal
+      :is-open="isSettingsOpen"
+      @close="isSettingsOpen = false"
+      @preview="handlePreviewIntro"
+    />
     <component
       :is="VueQueryDevtools"
       v-if="isDev && VueQueryDevtools"

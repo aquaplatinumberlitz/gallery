@@ -134,13 +134,19 @@ const closeMenu = () => {
 </script>
 
 <template>
-  <BreadcrumbRoot v-click-outside="closeMenu" class="breadcrumb">
+  <BreadcrumbRoot
+    v-click-outside="closeMenu"
+    class="breadcrumb"
+  >
     <BreadcrumbList>
       <BreadcrumbItem>
         <Home class="size-3.5 text-primary opacity-50 shrink-0" />
       </BreadcrumbItem>
       <template v-if="allSegments.length">
-        <template v-for="seg in visibleSegments" :key="seg.fullPath">
+        <template
+          v-for="seg in visibleSegments"
+          :key="seg.fullPath"
+        >
           <BreadcrumbSeparator />
           <BreadcrumbItem>
             <BreadcrumbLink
@@ -192,9 +198,12 @@ const closeMenu = () => {
                       <span>{{ hidden.name }}</span>
                     </button>
 
-                    <div class="ellipsis-menu-divider"></div>
+                    <div class="ellipsis-menu-divider" />
 
-                    <button class="ellipsis-menu-item expand-btn" @click="expandAll">
+                    <button
+                      class="ellipsis-menu-item expand-btn"
+                      @click="expandAll"
+                    >
                       <ArrowsUpFromLine class="size-3.5" />
                       <span>Show full path</span>
                     </button>
@@ -215,7 +224,12 @@ const closeMenu = () => {
 
     <Tooltip v-if="isExpanded && allSegments.length > maxSegments">
       <TooltipTrigger as-child>
-        <button class="collapse-btn" type="button" aria-label="Collapse path" @click="isExpanded = false">
+        <button
+          class="collapse-btn"
+          type="button"
+          aria-label="Collapse path"
+          @click="isExpanded = false"
+        >
           <Minimize class="size-3.5" />
         </button>
       </TooltipTrigger>

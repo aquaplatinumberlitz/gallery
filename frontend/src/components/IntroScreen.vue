@@ -138,13 +138,30 @@ onMounted(() => {
 </script>
 
 <template>
-  <div v-if="visible" class="intro-screen">
-    <iframe v-if="hasIntroContent" :src="introUrl" class="intro-iframe" title="Intro"></iframe>
-    <div v-else class="intro-fallback">
-      <p class="fallback-text">{{ introFallbackMessage }}</p>
+  <div
+    v-if="visible"
+    class="intro-screen"
+  >
+    <iframe
+      v-if="hasIntroContent"
+      :src="introUrl"
+      class="intro-iframe"
+      title="Intro"
+    />
+    <div
+      v-else
+      class="intro-fallback"
+    >
+      <p class="fallback-text">
+        {{ introFallbackMessage }}
+      </p>
     </div>
     <div class="enter-overlay">
-      <button class="enter-btn" @click="enterApp" autofocus>
+      <button
+        class="enter-btn"
+        @click="enterApp"
+        autofocus
+      >
         <span class="btn-text">ENTER GALLERY</span>
         <span class="btn-icon"><ArrowRight class="icon-md" /></span>
       </button>

@@ -18,6 +18,7 @@ const props = withDefaults(
     open: undefined,
     openMobile: undefined,
     defaultOpenMobile: false,
+    class: undefined,
   },
 );
 

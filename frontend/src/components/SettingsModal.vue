@@ -98,23 +98,37 @@ function onOpenChange(open: boolean) {
 </script>
 
 <template>
-  <Dialog :open="isOpen" @update:open="onOpenChange">
+  <Dialog
+    :open="isOpen"
+    @update:open="onOpenChange"
+  >
     <DialogContent class="sm:max-w-[400px]">
       <DialogHeader>
-        <DialogTitle class="font-[Cinzel] tracking-wider uppercase text-base">Settings</DialogTitle>
-        <DialogDescription class="sr-only">Configure gallery intro and viewer settings</DialogDescription>
+        <DialogTitle class="font-[Cinzel] tracking-wider uppercase text-base">
+          Settings
+        </DialogTitle>
+        <DialogDescription class="sr-only">
+          Configure gallery intro and viewer settings
+        </DialogDescription>
       </DialogHeader>
 
       <div class="space-y-6">
         <section class="space-y-4">
-          <h3 class="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Intro Screen</h3>
+          <h3 class="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+            Intro Screen
+          </h3>
 
           <div class="flex flex-col gap-2">
             <label
               class="flex items-center rounded-md border px-4 py-3 cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground"
               :class="{ 'border-primary bg-accent text-accent-foreground': introMode === 'auto' }"
             >
-              <input type="radio" v-model="introMode" value="auto" class="sr-only" />
+              <input
+                type="radio"
+                v-model="introMode"
+                value="auto"
+                class="sr-only"
+              >
               <div class="flex flex-col gap-0.5">
                 <span class="text-sm font-medium">Automatic</span>
                 <span class="text-xs text-muted-foreground">Random themes, prioritizing holidays</span>
@@ -125,7 +139,12 @@ function onOpenChange(open: boolean) {
               class="flex items-center rounded-md border px-4 py-3 cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground"
               :class="{ 'border-primary bg-accent text-accent-foreground': introMode === 'disabled' }"
             >
-              <input type="radio" v-model="introMode" value="disabled" class="sr-only" />
+              <input
+                type="radio"
+                v-model="introMode"
+                value="disabled"
+                class="sr-only"
+              >
               <div class="flex flex-col gap-0.5">
                 <span class="text-sm font-medium">Disabled</span>
                 <span class="text-xs text-muted-foreground">Skip intro and enter gallery directly</span>
@@ -136,7 +155,12 @@ function onOpenChange(open: boolean) {
               class="flex items-center rounded-md border px-4 py-3 cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground"
               :class="{ 'border-primary bg-accent text-accent-foreground': introMode === 'manual' }"
             >
-              <input type="radio" v-model="introMode" value="manual" class="sr-only" />
+              <input
+                type="radio"
+                v-model="introMode"
+                value="manual"
+                class="sr-only"
+              >
               <div class="flex flex-col gap-0.5">
                 <span class="text-sm font-medium">Manual Selection</span>
                 <span class="text-xs text-muted-foreground">Always show a specific theme</span>
@@ -144,14 +168,29 @@ function onOpenChange(open: boolean) {
             </label>
           </div>
 
-          <div v-if="introMode === 'manual'" class="space-y-3 pt-3 border-t">
-            <div v-if="isLoadingThemes" class="text-sm text-muted-foreground">Loading themes...</div>
-            <div v-else class="flex flex-col gap-3">
+          <div
+            v-if="introMode === 'manual'"
+            class="space-y-3 pt-3 border-t"
+          >
+            <div
+              v-if="isLoadingThemes"
+              class="text-sm text-muted-foreground"
+            >
+              Loading themes...
+            </div>
+            <div
+              v-else
+              class="flex flex-col gap-3"
+            >
               <select
                 v-model="selectedTheme"
                 class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
               >
-                <option v-for="theme in availableThemes" :key="theme" :value="theme">
+                <option
+                  v-for="theme in availableThemes"
+                  :key="theme"
+                  :value="theme"
+                >
                   {{ formatThemeName(theme) }}
                 </option>
               </select>
@@ -166,13 +205,19 @@ function onOpenChange(open: boolean) {
         </section>
 
         <section class="space-y-4">
-          <h3 class="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Viewer Images</h3>
+          <h3 class="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+            Viewer Images
+          </h3>
 
           <label
             class="flex items-center rounded-md border px-4 py-3 cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground"
             :class="{ 'border-primary bg-accent text-accent-foreground': alwaysLoadOriginal }"
           >
-            <input type="checkbox" v-model="alwaysLoadOriginal" class="sr-only" />
+            <input
+              type="checkbox"
+              v-model="alwaysLoadOriginal"
+              class="sr-only"
+            >
             <div class="flex flex-col gap-0.5">
               <span class="text-sm font-medium">Always load original</span>
               <span class="text-xs text-muted-foreground">Use source files immediately in the viewer</span>

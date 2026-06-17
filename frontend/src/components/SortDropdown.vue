@@ -46,9 +46,15 @@ const selectedOption = computed(
         :class="triggerClass"
         :aria-label="ariaLabel || 'Sort'"
       >
-        <ArrowUpDown class="gallery-icon-sm" aria-hidden="true" />
+        <ArrowUpDown
+          class="gallery-icon-sm"
+          aria-hidden="true"
+        />
         <span>{{ selectedOption.label }}</span>
-        <ChevronDown class="gallery-icon-xs opacity-60" aria-hidden="true" />
+        <ChevronDown
+          class="gallery-icon-xs opacity-60"
+          aria-hidden="true"
+        />
       </Button>
       <Button
         v-else
@@ -63,11 +69,17 @@ const selectedOption = computed(
         :aria-label="ariaLabel || 'Sort'"
       >
         <span class="truncate">{{ selectedOption.label }}</span>
-        <ChevronDown class="h-4 w-4 shrink-0 opacity-50" aria-hidden="true" />
+        <ChevronDown
+          class="h-4 w-4 shrink-0 opacity-50"
+          aria-hidden="true"
+        />
       </Button>
     </DropdownMenuTrigger>
 
-    <DropdownMenuContent align="end" :class="['w-48', contentClass]">
+    <DropdownMenuContent
+      align="end"
+      :class="['w-48', contentClass]"
+    >
       <DropdownMenuItem
         v-for="option in SORT_OPTIONS"
         :key="option.value"

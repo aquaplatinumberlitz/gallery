@@ -99,11 +99,23 @@ watch(
     }"
     :style="{ '--line-clamp': props.collapsedLines }"
   >
-    <div ref="textRef" class="expandable-text__content" :class="{ 'is-clamped': !isExpanded }">
+    <div
+      ref="textRef"
+      class="expandable-text__content"
+      :class="{ 'is-clamped': !isExpanded }"
+    >
       <slot />
     </div>
-    <span v-if="showToggle && !isExpanded" class="expandable-text__fade-toggle">
-      <button type="button" class="expandable-text__toggle" :aria-expanded="false" @click="toggle">Show more</button>
+    <span
+      v-if="showToggle && !isExpanded"
+      class="expandable-text__fade-toggle"
+    >
+      <button
+        type="button"
+        class="expandable-text__toggle"
+        :aria-expanded="false"
+        @click="toggle"
+      >Show more</button>
     </span>
     <button
       v-if="showToggle && isExpanded"

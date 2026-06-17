@@ -11,7 +11,7 @@ const props = withDefaults(
       class?: HTMLAttributes["class"];
     }
   >(),
-  { as: "button", variant: "default", size: "default" },
+  { as: "button", variant: "default", size: "default", class: undefined },
 );
 </script>
 
