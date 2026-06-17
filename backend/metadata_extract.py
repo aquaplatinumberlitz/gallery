@@ -111,9 +111,10 @@ def sanitize_metadata_for_json(value: Any, key_path: tuple[Any, ...] = ()) -> An
 def safe_text(value: Any, key_path: tuple[Any, ...] = ()) -> str:
     if value is None:
         return ""
-    if isinstance(value, (bytes, bytearray, memoryview)):
-        if any(_key_name(key) in _BINARY_IMAGE_INFO_KEYS for key in key_path):
-            return ""
+    if isinstance(value, (bytes, bytearray, memoryview)) and any(
+        _key_name(key) in _BINARY_IMAGE_INFO_KEYS for key in key_path
+    ):
+        return ""
     if isinstance(value, bytes):
         if value.startswith(b"ASCII\x00\x00\x00"):
             value = value[8:]
@@ -565,9 +566,7 @@ def _json_text_summary(value: Any) -> str:
                     "model_name",
                     "sampler_name",
                     "seed",
-                }:
-                    visit(child)
-                elif isinstance(child, (dict, list)):
+                } or isinstance(child, (dict, list)):
                     visit(child)
         elif isinstance(obj, list):
             for child in obj:
@@ -778,10 +777,7 @@ def extract_metadata(path: Path) -> ExtractedMetadata:
     scheduler = safe_text(_metadata_param(result, "Scheduler", "scheduler"))
     model_hash = safe_text(_metadata_param(result, "model_hash", "Model hash"))
     lora_list = _metadata_param(result, "Lora", "lora")
-    if isinstance(lora_list, list):
-        lora_text = ", ".join(str(lora) for lora in lora_list)
-    else:
-        lora_text = safe_text(lora_list)
+    lora_text = ", ".join(str(lora) for lora in lora_list) if isinstance(lora_list, list) else safe_text(lora_list)
     generation_time = result.get("generation_time")
     if generation_time is not None:
         generation_time = parse_float(safe_text(generation_time))

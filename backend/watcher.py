@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -43,10 +44,8 @@ except ImportError:
 
 def _record_event(kind: str) -> None:
     if _watcher_events is not None:
-        try:
+        with suppress(Exception):
             _watcher_events.labels(kind=kind).inc()
-        except Exception:  # noqa: BLE001
-            pass
 
 
 class _DebouncedHandler:

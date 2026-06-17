@@ -15,6 +15,7 @@ import {
 import IndexStatusPanel from "@/components/IndexStatusPanel.vue";
 
 defineProps<{
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Folder tree nodes are backend-shaped recursive objects without a stable frontend DTO yet.
   tree: any[];
   isLoading: boolean;
   currentPath: string;

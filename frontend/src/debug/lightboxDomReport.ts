@@ -93,6 +93,7 @@ export function galleryLightboxDOMReport(): void {
 
 export function registerLightboxDOMReport(): void {
   if (typeof window !== "undefined") {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Debug reports are exposed as ad hoc globals for browser-console diagnostics.
     (window as any).__galleryLightboxDOMReport = galleryLightboxDOMReport;
   }
 }

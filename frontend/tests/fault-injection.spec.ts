@@ -221,7 +221,7 @@ async function openGallery(page: Page, requests?: ApiRequest[]) {
 test.use({ viewport: { width: 1280, height: 820 } });
 
 // ─── 2a: Search store throws during grid render ───
-test("search 500 shows fallback; no page error", async ({ page, monitoredErrors }) => {
+test("search 500 shows fallback; no page error", async ({ page, monitoredErrors: _monitoredErrors }) => {
   const requests = await installGalleryWithFaults(page, { failSearch: true });
   await openGallery(page);
 

@@ -7,6 +7,7 @@ import { SidebarProvider, Sidebar, SidebarInset, SidebarRail } from "@/component
 defineProps<{
   theme: "light" | "dark";
   isSidebarOpen: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Folder tree nodes are backend-shaped recursive objects without a stable frontend DTO yet.
   tree: any[];
   isLoading: boolean;
   currentPath: string;

@@ -183,7 +183,7 @@ test.describe("Tailwind Phase 0 — Desktop (1440x900)", () => {
     }
   });
 
-  test("1g. no console errors on desktop", async ({ page, monitoredErrors }) => {
+  test("1g. no console errors on desktop", async ({ monitoredErrors }) => {
     expect(monitoredErrors.consoleErrors).toEqual([]);
     expect(monitoredErrors.pageErrors).toEqual([]);
   });
@@ -227,8 +227,6 @@ test.describe("Tailwind Phase 0 — Mobile (390x844)", () => {
     const themeBtn = page.getByLabel("Switch to light mode").or(page.getByLabel("Switch to dark mode"));
     await expect(themeBtn).toBeVisible();
 
-    const initialTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
-
     await themeBtn.click();
     await page.waitForTimeout(300);
 
@@ -260,7 +258,7 @@ test.describe("Tailwind Phase 0 — Mobile (390x844)", () => {
     expect(cardBox!.height).toBeGreaterThan(0);
   });
 
-  test("2g. no console errors on mobile", async ({ page, monitoredErrors }) => {
+  test("2g. no console errors on mobile", async ({ monitoredErrors }) => {
     expect(monitoredErrors.consoleErrors).toEqual([]);
     expect(monitoredErrors.pageErrors).toEqual([]);
   });
@@ -294,7 +292,7 @@ test.describe("Tailwind Phase 0 — Tablet (768x1024)", () => {
     expect(await cards.count()).toBeGreaterThanOrEqual(1);
   });
 
-  test("3d. no console errors on tablet", async ({ page, monitoredErrors }) => {
+  test("3d. no console errors on tablet", async ({ monitoredErrors }) => {
     expect(monitoredErrors.consoleErrors).toEqual([]);
     expect(monitoredErrors.pageErrors).toEqual([]);
   });

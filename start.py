@@ -6,6 +6,7 @@ import subprocess
 import sys
 import time
 import webbrowser
+from contextlib import suppress
 from pathlib import Path
 
 # --- CONFIG ---
@@ -76,10 +77,8 @@ def check_node_modules_os():
 
 def mark_os():
     """Write OS marker for node_modules install."""
-    try:
+    with suppress(OSError):
         OS_MARK_FILE.write_text(OS_NAME)
-    except OSError:
-        pass
 
 
 def find_free_port(start_port: int) -> int:
@@ -154,10 +153,14 @@ def setup_backend():
 
     # Check if requirements.txt was modified after last install
     should_install = need_create or not marker_file.exists()
-    if not should_install and marker_file.exists() and requirements_file.exists():
-        if requirements_file.stat().st_mtime > marker_file.stat().st_mtime:
-            print("   WARNING: requirements.txt changed, updating dependencies...")
-            should_install = True
+    if (
+        not should_install
+        and marker_file.exists()
+        and requirements_file.exists()
+        and requirements_file.stat().st_mtime > marker_file.stat().st_mtime
+    ):
+        print("   WARNING: requirements.txt changed, updating dependencies...")
+        should_install = True
 
     if not should_install:
         print("   Backend dependencies already installed.")
@@ -165,10 +168,8 @@ def setup_backend():
         print("   Installing Python requirements...")
         run_command([str(pip_exec), "install", "-r", "requirements.txt"], cwd=BACKEND_DIR)
         # Create/update marker file
-        try:
+        with suppress(OSError):
             marker_file.write_text(str(time.time()))
-        except OSError:
-            pass
 
     return python_exec
 
@@ -197,10 +198,8 @@ def setup_frontend():
         print("   Installing frontend packages...")
         run_command([pkg_manager, "install"], cwd=FRONTEND_DIR, shell=True)
         mark_os()
-        try:
+        with suppress(OSError):
             install_marker.write_text(str(time.time()))
-        except OSError:
-            pass
     else:
         print("   Frontend is ready.")
 

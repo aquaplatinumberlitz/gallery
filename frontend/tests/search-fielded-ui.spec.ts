@@ -66,7 +66,9 @@ async function installStubbedGallery(page: Page) {
       const q = url.searchParams.get("q") ?? "";
       const scope = url.searchParams.get("scope") ?? "all";
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test route fixtures build heterogeneous API payloads before JSON serialization.
       let photos: any[] = [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test route fixtures build heterogeneous API payloads before JSON serialization.
       let promptResults: any[] = [];
 
       if (q.includes("rain")) {
@@ -251,7 +253,7 @@ test("seed query sends correct query string and shows results", async ({ page })
 });
 
 test("clear search restores gallery view", async ({ page }) => {
-  const requests = await installStubbedGallery(page);
+  await installStubbedGallery(page);
   await page.addInitScript((root) => {
     localStorage.setItem("intro_mode", "disabled");
     localStorage.setItem("gallery-root-path", root);
@@ -280,7 +282,7 @@ test("clear search restores gallery view", async ({ page }) => {
 });
 
 test("no-results state does not break layout", async ({ page }) => {
-  const requests = await installStubbedGallery(page);
+  await installStubbedGallery(page);
   await page.addInitScript((root) => {
     localStorage.setItem("intro_mode", "disabled");
     localStorage.setItem("gallery-root-path", root);

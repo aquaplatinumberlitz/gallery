@@ -103,14 +103,6 @@ async function waitForFirstRow(page: Page) {
 }
 
 /**
- * Resolves once the table body contains at least `min` rows.
- * Times out at 15 s.
- */
-async function waitForRowCount(page: Page, min: number) {
-  await expect.poll(() => page.locator("tbody > tr").count(), { timeout: 15_000 }).toBeGreaterThanOrEqual(min);
-}
-
-/**
  * Navigate to gallery root, skip intro if visible, and wait for the gallery
  * grid (main heading) to become visible.
  */

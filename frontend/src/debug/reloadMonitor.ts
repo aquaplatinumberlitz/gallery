@@ -291,6 +291,7 @@ function classifySuspect(events: ReloadLogEvent[], boot: BootRecord): string[] {
 }
 
 export function startReloadMonitor(): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Reload monitor debug state is exposed as an ad hoc browser global.
   if ((window as any).__galleryReloadDebug?._active) return;
 
   const sessionId = generateSessionId();
@@ -315,6 +316,7 @@ export function startReloadMonitor(): void {
     navigationType: getNavigationType(),
     navigationTiming: getNavigationTiming(),
     referrer: document.referrer,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- wasDiscarded is available in Chromium but missing from some DOM typings.
     wasDiscarded: (document as any).wasDiscarded,
     userAgent: navigator.userAgent,
     viewportWidth: window.innerWidth,
@@ -568,6 +570,7 @@ export function startReloadMonitor(): void {
   // history.pushState
   try {
     const origPushState = history.pushState.bind(history);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pushState accepts arbitrary structured-cloneable state payloads.
     history.pushState = function (state: any, title: string, url?: string | null) {
       addEvent("history.pushState", {
         url: url || "(none)",
@@ -583,6 +586,7 @@ export function startReloadMonitor(): void {
   // history.replaceState
   try {
     const origReplaceState = history.replaceState.bind(history);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- replaceState accepts arbitrary structured-cloneable state payloads.
     history.replaceState = function (state: any, title: string, url?: string | null) {
       addEvent("history.replaceState", {
         url: url || "(none)",
@@ -598,6 +602,7 @@ export function startReloadMonitor(): void {
   // window.open
   try {
     const origOpen = window.open.bind(window);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- window.open overloads are forwarded verbatim by this debug monkeypatch.
     window.open = function (...args: any[]) {
       addEvent("window.open", {
         url: String(args[0] || ""),
@@ -612,6 +617,7 @@ export function startReloadMonitor(): void {
 
   // location.reload — may throw on some browsers
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Location methods are monkeypatched dynamically for debug instrumentation.
     const loc = window.location as any;
     const origReload = loc.reload?.bind?.(loc);
     if (typeof origReload === "function") {
@@ -641,11 +647,15 @@ export function startReloadMonitor(): void {
   try {
     const locProto = Object.getPrototypeOf(window.location);
     if (locProto) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Location prototype methods are browser-specific and patched dynamically for diagnostics.
       const origAssign = (locProto as any).assign;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Location prototype methods are browser-specific and patched dynamically for diagnostics.
       const origReplace = (locProto as any).replace;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Location prototype methods are browser-specific and patched dynamically for diagnostics.
       const origReload = (locProto as any).reload;
 
       if (typeof origAssign === "function") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Location prototype methods are browser-specific and patched dynamically for diagnostics.
         (locProto as any).assign = function (url: string) {
           addEvent("location.assign", {
             url: String(url),
@@ -655,6 +665,7 @@ export function startReloadMonitor(): void {
         };
       }
       if (typeof origReplace === "function") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Location prototype methods are browser-specific and patched dynamically for diagnostics.
         (locProto as any).replace = function (url: string) {
           addEvent("location.replace", {
             url: String(url),
@@ -664,6 +675,7 @@ export function startReloadMonitor(): void {
         };
       }
       if (typeof origReload === "function") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Location prototype methods are browser-specific and patched dynamically for diagnostics.
         (locProto as any).reload = function () {
           addEvent("location.reload", {
             url: window.location.href,
@@ -731,6 +743,7 @@ export function startReloadMonitor(): void {
       private _req: InFlightRequest | null = null;
       private _galleryApi = false;
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- XMLHttpRequest.open has several overloads that this instrumentation forwards verbatim.
       open(method: string, url: string | URL, ...rest: any[]) {
         const urlStr = String(url);
         this._url = urlStr;
@@ -742,11 +755,13 @@ export function startReloadMonitor(): void {
           inFlightRequests.push(this._req);
           addEvent("xhr-start", { url: urlStr, method: this._method });
         }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Native XMLHttpRequest overloads are forwarded verbatim by this instrumentation wrapper.
         const openFn = super.open as (...args: any[]) => void;
         return openFn.apply(this, [method, url as string, ...rest]);
       }
 
       // Override event listeners to track completion
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Event listener overloads and options are forwarded verbatim by this instrumentation wrapper.
       addEventListener(type: string, listener: any, ...rest: any[]) {
         if (this._galleryApi && (type === "load" || type === "loadend" || type === "error")) {
           const origListener = listener;
@@ -775,9 +790,11 @@ export function startReloadMonitor(): void {
               ? origListener.call(self, event)
               : (origListener as EventListenerObject).handleEvent.call(self, event);
           };
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Native addEventListener overloads are forwarded verbatim by this instrumentation wrapper.
           const addEvtFn = super.addEventListener as (...args: any[]) => void;
           return addEvtFn.apply(this, [type, wrapped].concat(rest));
         }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Native addEventListener overloads are forwarded verbatim by this instrumentation wrapper.
         const addEvtFn = super.addEventListener as (...args: any[]) => void;
         return addEvtFn.apply(this, [type, listener].concat(rest));
       }
@@ -1122,6 +1139,7 @@ export function startReloadMonitor(): void {
 
   // ── Expose global API ───────────────────────────────────────────────
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Reload monitor debug controls are intentionally exposed as a browser-console global.
   (window as any).__galleryReloadDebug = {
     _active: true,
     start: () => console.log("Reload debug monitor already running"),

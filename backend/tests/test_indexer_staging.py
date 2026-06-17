@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import queue
 import sqlite3
+from contextlib import suppress
 from pathlib import Path
 
 import pytest
@@ -30,10 +31,8 @@ def _drain_queue(target: queue.Queue) -> None:
             target.get_nowait()
         except queue.Empty:
             return
-        try:
+        with suppress(ValueError):
             target.task_done()
-        except ValueError:
-            pass
 
 
 @pytest.fixture(autouse=True)

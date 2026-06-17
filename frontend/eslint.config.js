@@ -24,9 +24,9 @@ export default tseslint.config(
     rules: {
       "no-undef": "off",
       "no-unused-vars": "off",
-      "prefer-const": "off",
+      "prefer-const": "error",
       "prefer-rest-params": "off",
-      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-empty-object-type": "off",
       "@typescript-eslint/no-this-alias": "off",
       "@typescript-eslint/no-unused-vars": [
@@ -52,7 +52,6 @@ export default tseslint.config(
   {
     files: ["tests/**/*.ts"],
     rules: {
-      "@typescript-eslint/no-unused-vars": "off",
       "no-empty": "off",
       "no-useless-assignment": "off",
     },

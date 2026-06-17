@@ -212,6 +212,7 @@ const form = useForm({
         "hires_steps",
       ];
       for (const field of numericFields) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TanStack form values are keyed dynamically by generated field names in this validator.
         const v = (value as any)[field]?.value;
         if (v && isNaN(Number(v))) {
           fields[field] = "Must be a number";

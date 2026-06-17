@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -215,10 +216,8 @@ def build_facets(folder_path: str | None = None, max_values: int = FACET_DEFAULT
 
     duration = time.perf_counter() - start
     if _facets_query_duration is not None:
-        try:
+        with suppress(Exception):
             _facets_query_duration.observe(duration)
-        except Exception:  # noqa: BLE001
-            pass
 
     return result
 

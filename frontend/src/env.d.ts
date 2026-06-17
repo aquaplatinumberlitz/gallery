@@ -2,6 +2,7 @@
 
 declare module "*.vue" {
   import type { DefineComponent } from "vue";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Standard Vue SFC shim keeps component instance details opaque to module imports.
   const component: DefineComponent<{}, {}, any>;
   export default component;
 }

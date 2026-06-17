@@ -50,12 +50,14 @@ watch(ellipsisMenuOpen, async (open) => {
     window.addEventListener("scroll", updateMenuPosition, { passive: true, capture: true });
   } else {
     window.removeEventListener("resize", updateMenuPosition);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- DOM listener cleanup needs the capture-options object shape accepted by older removeEventListener typings.
     window.removeEventListener("scroll", updateMenuPosition, { capture: true } as any);
   }
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener("resize", updateMenuPosition);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- DOM listener cleanup needs the capture-options object shape accepted by older removeEventListener typings.
   window.removeEventListener("scroll", updateMenuPosition, { capture: true } as any);
 });
 

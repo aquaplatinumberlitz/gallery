@@ -187,7 +187,7 @@ test("should have exactly one pswp root and no duplicate visible imgs", async ({
 });
 
 test("should have exactly one pswp root after close and reopen", async ({ page }) => {
-  const requests = await installStubbedGallery(page);
+  await installStubbedGallery(page);
   await openStubbedGallery(page);
 
   // Open

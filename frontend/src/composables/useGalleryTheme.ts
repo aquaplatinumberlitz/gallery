@@ -15,6 +15,7 @@ function applyWithTransition(fn: () => void) {
     return;
   }
   if ("startViewTransition" in document) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- startViewTransition is browser-supported but not present in this TypeScript DOM lib version.
     (document as any).startViewTransition(fn);
     return;
   }

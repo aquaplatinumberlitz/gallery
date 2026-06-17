@@ -16,6 +16,7 @@ export function installLifecycleDebug(): void {
     console.log("[LIFECYCLE] pageshow", {
       persisted: event.persisted,
       timestamp: Date.now(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Navigation timing entries vary by browser in this debug-only logger.
       navType: (performance as any)?.getEntriesByType?.("navigation")?.[0]?.type,
     });
   });

@@ -1,5 +1,6 @@
 import os
 import time
+from contextlib import suppress
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Query
@@ -46,18 +47,14 @@ except Exception:  # noqa: BLE001
 
 def _inc_warm_hit() -> None:
     if _warm_listing_hits is not None:
-        try:
+        with suppress(Exception):
             _warm_listing_hits.inc()
-        except Exception:  # noqa: BLE001
-            pass
 
 
 def _inc_warm_fallback(reason: str) -> None:
     if _warm_listing_fallbacks is not None:
-        try:
+        with suppress(Exception):
             _warm_listing_fallbacks.labels(reason=reason).inc()
-        except Exception:  # noqa: BLE001
-            pass
 
 
 def _new_scan_perf() -> dict[str, int | float | None]:

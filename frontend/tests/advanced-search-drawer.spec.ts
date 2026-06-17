@@ -65,8 +65,10 @@ async function installStubbedGallery(page: Page) {
     if (url.pathname === "/api/search") {
       const q = url.searchParams.get("q") ?? "";
 
-      let photos: any[] = [];
-      let promptResults: any[] = [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test route fixtures build heterogeneous API payloads before JSON serialization.
+      const photos: any[] = [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test route fixtures build heterogeneous API payloads before JSON serialization.
+      const promptResults: any[] = [];
 
       if (q) {
         const resultItem = {
@@ -310,7 +312,7 @@ test.describe("AdvancedSearchDrawer", () => {
   });
 
   test("reset clears all fields and active filters", async ({ page }) => {
-    const requests = await installStubbedGallery(page);
+    await installStubbedGallery(page);
     await page.addInitScript((root) => {
       localStorage.setItem("intro_mode", "disabled");
       localStorage.setItem("gallery-root-path", root);
@@ -340,7 +342,7 @@ test.describe("AdvancedSearchDrawer", () => {
   });
 
   test("search filter chips render and remove", async ({ page }) => {
-    const requests = await installStubbedGallery(page);
+    await installStubbedGallery(page);
     await page.addInitScript((root) => {
       localStorage.setItem("intro_mode", "disabled");
       localStorage.setItem("gallery-root-path", root);

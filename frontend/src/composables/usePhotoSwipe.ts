@@ -373,8 +373,11 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
       dataSource: summarizeLightboxItems(dataSource, currentIndex.value),
     });
     if (shouldExposeLightboxTestHooks) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test hooks intentionally attach PhotoSwipe internals to window for Playwright diagnostics.
       (window as any).__pswp = instance;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test hooks intentionally attach loader controls to window for Playwright diagnostics.
       (window as any).__loadOriginalForCurrent = (reason: string) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test hook reasons are free-form strings mapped into the loader's internal reason type.
         maybeLoadOriginalForCurrent(reason as any);
       };
     }
@@ -452,9 +455,12 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
         // Already destroyed
       }
       if (shouldExposeLightboxTestHooks) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test hooks intentionally attach PhotoSwipe internals to window for Playwright diagnostics.
         if ((window as any).__pswp === pswp.value) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test hooks intentionally attach PhotoSwipe internals to window for Playwright diagnostics.
           delete (window as any).__pswp;
         }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test hooks intentionally attach loader controls to window for Playwright diagnostics.
         delete (window as any).__loadOriginalForCurrent;
       }
       pswp.value = null;

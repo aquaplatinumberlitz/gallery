@@ -195,7 +195,6 @@ test("revisit after browser back preserves gallery without duplicate scans", asy
   // Photo cards should be visible without excessive new scans
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
 
-  const scanRequests = requestsFor(requests, "/api/scan");
   const cursorZero = cursorZeroScans(requests);
 
   // On revisit, cursor=0 scans should be minimal (cached data)

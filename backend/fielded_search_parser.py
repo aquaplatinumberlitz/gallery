@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -365,10 +366,8 @@ def build_fielded_conditions(parsed: ParsedQuery) -> tuple[list[str], dict[str, 
             try:
                 numeric_value = int(ft.value)
             except ValueError:
-                try:
+                with suppress(ValueError):
                     numeric_value = float(ft.value)
-                except ValueError:
-                    pass
             if numeric_value is not None:
                 conditions.append(f"m.{col} IS NOT NULL AND m.{col} {ft.operator} {next_param(numeric_value)}")
         elif ft.field in TEXT_LIKE_FIELDS:

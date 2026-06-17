@@ -46,6 +46,7 @@ const normalizeNodes = (nodes: FileNode[]): FileNode[] =>
  * On error, checks for GalleryAPIError, sets errorMessage, shows toast, and returns undefined.
  */
 async function _withError<T>(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Pinia store helpers pass the concrete setup store instance, whose internal type is impractical here.
   store: any,
   fn: () => Promise<T>,
   fallbackMsg: string,

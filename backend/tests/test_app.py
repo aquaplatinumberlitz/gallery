@@ -14,6 +14,7 @@ Run when:
 import json
 import tempfile
 import time
+from contextlib import suppress
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -235,17 +236,13 @@ def _teardown_test_data() -> None:
             conn.execute("DELETE FROM file_index WHERE path = ?", (p,))
             conn.execute("DELETE FROM image_metadata WHERE path = ?", (p,))
     for p in _TEST_INSERTED_PATHS:
-        try:
+        with suppress(OSError):
             Path(p).unlink(missing_ok=True)
-        except OSError:
-            pass
     _TEST_INSERTED_PATHS.clear()
     # Clean up dirs
     for d in [_TEST_SEMANTIC_DIR, _TEST_SCOPE_DIR / "current", _TEST_SCOPE_DIR / "other", _TEST_SCOPE_DIR]:
-        try:
+        with suppress(OSError):
             Path(d).rmdir()
-        except OSError:
-            pass
 
 
 def setup_module(module):

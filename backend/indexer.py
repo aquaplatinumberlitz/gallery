@@ -379,9 +379,8 @@ def _process_batch(jobs: list[MetadataIndexJob]) -> None:
             except Exception as exc:  # noqa: BLE001
                 failed_jobs.extend((job, f"SQLite stale mark failed: {exc}") for job in stale_jobs)
 
-        if failed_jobs:
-            if _mark_failed_jobs_safely(failed_jobs):
-                _inc(_jobs_total_metric, "error", amount=len(failed_jobs))
+        if failed_jobs and _mark_failed_jobs_safely(failed_jobs):
+            _inc(_jobs_total_metric, "error", amount=len(failed_jobs))
 
         _observe(_job_duration_metric, time.perf_counter() - started)
     finally:

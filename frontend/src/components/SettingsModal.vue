@@ -35,6 +35,7 @@ const formatThemeName = (path: string) => {
 const loadSettings = () => {
   const savedMode = localStorage.getItem("intro_mode");
   if (savedMode && ["auto", "disabled", "manual"].includes(savedMode)) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Runtime validation above narrows the persisted string to the intro mode union.
     introMode.value = savedMode as any;
   }
 

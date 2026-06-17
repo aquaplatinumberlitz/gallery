@@ -8,6 +8,7 @@ import sqlite3
 import threading
 import time
 from collections.abc import Iterable
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -567,7 +568,7 @@ def mark_metadata_jobs_failed(errors: Iterable[tuple[MetadataIndexJob, str]]) ->
 
 def get_metadata_index_status(path: str | Path | None = None) -> dict[str, Any]:
     initialize_database()
-    counts = {state: 0 for state in METADATA_JOB_STATES}
+    counts = dict.fromkeys(METADATA_JOB_STATES, 0)
     where = ""
     params: list[Any] = []
     root = ""
@@ -1047,10 +1048,7 @@ def get_warm_folder_listing(
         raw_images.sort(key=lambda x: natural_sort_key(x["name"]))
 
         image_start = offset
-        if image_limit is not None:
-            image_end = offset + image_limit
-        else:
-            image_end = total_images
+        image_end = offset + image_limit if image_limit is not None else total_images
         paged_images = raw_images[image_start:image_end]
 
         warm_images: list[FileNode] = []
@@ -1504,7 +1502,7 @@ def index_files_from_scan(folders: list[Any], images: list[Any], *, scan_folder_
             continue
 
     if scan_folder_path is not None:
-        try:
+        with suppress(Exception):
             update_folder_index_state(
                 scan_folder_path,
                 complete=True,
@@ -1512,8 +1510,6 @@ def index_files_from_scan(folders: list[Any], images: list[Any], *, scan_folder_
                 folder_count=len(folders),
                 image_count=len(images),
             )
-        except Exception:  # noqa: BLE001
-            pass
     return indexed
 
 

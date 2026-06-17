@@ -113,6 +113,7 @@ test("lightbox opens first photo within budget", async ({ page }) => {
   // Trigger original load (simulates zoom/explicit full-res action).
   try {
     await page.evaluate(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Perf tests call an optional app test hook exposed on the browser window.
       (window as any).__loadOriginalForCurrent?.("zoom");
     });
   } catch (_) {
