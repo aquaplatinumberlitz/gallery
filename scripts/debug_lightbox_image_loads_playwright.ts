@@ -7,14 +7,14 @@
  * /api/thumbnail, /api/preview, and /api/image.
  *
  * Usage:
- *   npx playwright test scripts/debug_lightbox_image_loads_playwright.ts \
+ *   corepack pnpm exec playwright test scripts/debug_lightbox_image_loads_playwright.ts \
  *     --project=chromium
  *
  *   # Custom URL:
  *   GALLERY_BASE_URL=https://150.230.56.153 \
  *   GALLERY_DEBUG_ALBUM=my-album \
  *   GALLERY_ROOT_PATH=/path/to/images \
- *   npx playwright test scripts/debug_lightbox_image_loads_playwright.ts \
+ *   corepack pnpm exec playwright test scripts/debug_lightbox_image_loads_playwright.ts \
  *     --project=chromium
  *
  * Output:

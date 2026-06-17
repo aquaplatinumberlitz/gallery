@@ -1,0 +1,9 @@
+dist/
+node_modules/
+test-results/
+coverage/
+accessibility-report.json
+*.txt
+*.conf
+*.lock
+tests/**/*-snapshots/

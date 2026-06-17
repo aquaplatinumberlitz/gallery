@@ -18,12 +18,12 @@ python -m pytest -q "$@"
 echo ""
 echo "--- Frontend build ---"
 cd "$REPO_ROOT/frontend"
-npm run build
+corepack pnpm run build
 
 # ---- Frontend Playwright contract tests ----
 echo ""
 echo "--- Frontend Playwright contract tests ---"
-npx playwright test \
+corepack pnpm exec playwright test \
     tests/lightbox-loading-policy.spec.ts \
     tests/gallery-no-reload.spec.ts \
     tests/gallery-cache-revisit.spec.ts \

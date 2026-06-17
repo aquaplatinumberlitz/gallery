@@ -108,6 +108,9 @@ importers:
       globals:
         specifier: ^17.6.0
         version: 17.6.0
+      prettier:
+        specifier: ^3.8.4
+        version: 3.8.4
       sass:
         specifier: ^1.94.2
         version: 1.101.0

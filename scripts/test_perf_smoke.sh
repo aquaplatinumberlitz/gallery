@@ -18,11 +18,11 @@ mkdir -p "$RESULTS_DIR"
 
 echo ""
 echo ">>> Running album open perf test..."
-npx playwright test tests/perf/album-open.perf.spec.ts --project=chromium "$@"
+corepack pnpm exec playwright test tests/perf/album-open.perf.spec.ts --project=chromium "$@"
 
 echo ""
 echo ">>> Running lightbox perf tests..."
-npx playwright test tests/perf/lightbox.perf.spec.ts --project=chromium "$@"
+corepack pnpm exec playwright test tests/perf/lightbox.perf.spec.ts --project=chromium "$@"
 
 echo ""
 echo "Perf JSON results written directly to $RESULTS_DIR/"

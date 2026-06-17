@@ -14,12 +14,12 @@ cd "$REPO_ROOT/frontend"
 if [ ! -d "dist" ]; then
     echo ""
     echo ">>> Building frontend..."
-    npm run build 2>&1 | tail -5
+    corepack pnpm run build 2>&1 | tail -5
 fi
 
 echo ""
 echo ">>> Running Playwright contract tests..."
-npx playwright test \
+corepack pnpm exec playwright test \
     tests/lightbox-loading-policy.spec.ts \
     tests/gallery-no-reload.spec.ts \
     tests/gallery-cache-revisit.spec.ts \

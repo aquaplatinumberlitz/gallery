@@ -51,12 +51,20 @@ pip install -r backend/requirements.txt
 python3 -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
+Backend development tools:
+
+```bash
+pip install -r backend/requirements-dev.txt
+scripts/lint_backend.sh
+scripts/format_backend_check.sh
+```
+
 Frontend:
 
 ```bash
 cd frontend
-npm install
-VITE_API_URL=http://127.0.0.1:8000 npm run dev
+corepack pnpm install
+VITE_API_URL=http://127.0.0.1:8000 corepack pnpm run dev
 ```
 
 Open `http://localhost:5173`.
@@ -71,12 +79,25 @@ Production:
 
 ```bash
 cd frontend
-npm run build
+corepack pnpm run build
 cd ..
 PRODUCTION=1 python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
 ```
 
 In production mode the backend serves `frontend/dist/` as a static SPA with client-side routing fallback.
+
+Quality checks:
+
+```bash
+scripts/lint_backend.sh
+scripts/format_backend_check.sh
+cd frontend
+corepack pnpm run lint
+corepack pnpm run format:check
+corepack pnpm run typecheck
+```
+
+Backend Ruff checks and frontend Prettier checks run against changed files by default, using `origin/main` as the base when available. This avoids forcing a full historical reformat while still protecting new changes.
 
 ## Project Structure
 
@@ -102,6 +123,7 @@ gallery-repo/
 │   ├── models.py
 │   ├── paths.py
 │   ├── refresh.py
+│   ├── requirements-dev.txt
 │   ├── requirements.txt
 │   ├── scan.py
 │   ├── search.py
@@ -128,8 +150,11 @@ gallery-repo/
 │       ├── test_warm_folder_listing.py
 │       └── test_watcher.py
 ├── frontend/
+│   ├── eslint.config.js
 │   ├── package.json
+│   ├── pnpm-lock.yaml
 │   ├── public/landpage/
+│   ├── scripts/
 │   ├── tests/
 │   │   ├── gallery-cache-revisit.spec.ts
 │   │   ├── gallery-no-reload.spec.ts
@@ -157,6 +182,8 @@ gallery-repo/
 │       ├── styles/
 │       └── types/
 ├── scripts/
+│   ├── format_backend_check.sh
+│   ├── lint_backend.sh
 │   ├── test_all.sh
 │   ├── test_backend_api_integration.sh
 │   ├── test_frontend_contract.sh

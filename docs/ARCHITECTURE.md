@@ -1,6 +1,6 @@
 # Architecture
 
-Last reviewed: 2026-06-16
+Last reviewed: 2026-06-17
 
 ## Overview
 
@@ -8,7 +8,8 @@ AI Art Gallery is a local-first image browser with a FastAPI backend and a Vue 3
 
 - Backend: scans folders, serves original images, generates cached WebP derivatives, extracts AI generation metadata, indexes folders/photos/metadata in SQLite FTS5, and exposes read-only inspection/search APIs.
 - Frontend: uses Vue Router for the gallery and metadata inspector routes, Pinia for UI/navigation state, TanStack Query for API state, TanStack Virtual for large grids and the Library Inspector table body, PhotoSwipe for the lightbox, TanStack Form for advanced search, and TanStack Table for the Library Inspector.
-- Startup: `start.py` creates/repairs the Python virtualenv, installs Python and npm dependencies when needed, finds free backend/frontend ports, and starts both servers.
+- Startup: `start.py` creates/repairs the Python virtualenv, installs Python and pnpm frontend dependencies when needed, finds free backend/frontend ports, and starts both servers.
+- Tooling: backend quality checks use Ruff through changed-file scripts; frontend uses pnpm, ESLint, Prettier changed-file checks, `vue-tsc`, Vite, and Playwright.
 
 Major external library integrations are documented in [Third-Party Libraries](THIRD_PARTY_LIBRARIES.md).
 
@@ -189,7 +190,7 @@ Header search or AdvancedSearchDrawer
 ```text
 /metadata route
 -> LibraryInspector.vue
--> useLibraryInspectorQuery(query, scope, currentPath, limit)
+-> useInfiniteLibraryInspectorQuery(query, scope, currentPath, limit, sort)
 -> GET /api/library/inspector
 -> shadcn-vue Select controls filter by model/prompt state and choose sort
 -> TanStack Table sorts returned rows client-side
@@ -197,7 +198,7 @@ Header search or AdvancedSearchDrawer
 -> popovers/copy actions fetch GET /api/library/inspector/metadata
 ```
 
-The inspector is read-only. It is backed by indexed SQLite metadata and opens images in the same lightbox store used by the gallery. The table requests up to 100 rows but virtualizes the body, so the DOM only contains the visible row window plus small overscan/spacer rows rather than every returned row.
+The inspector is read-only. It is backed by indexed SQLite metadata and opens images in the same lightbox store used by the gallery. The table uses cursor-based infinite pagination plus body virtualization, so the DOM only contains the visible row window plus small overscan/spacer rows rather than every loaded row.
 
 ### Open Image
 

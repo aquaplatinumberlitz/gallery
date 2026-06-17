@@ -1,0 +1,13 @@
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+exclude = [
+  "backend/venv",
+  "backend/.venv_linux",
+  "frontend",
+  "test-images",
+  "test-results",
+]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "B", "UP", "I"]

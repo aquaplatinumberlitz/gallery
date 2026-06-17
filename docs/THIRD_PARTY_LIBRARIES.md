@@ -1,6 +1,6 @@
 # Third-Party Libraries
 
-Last reviewed: 2026-06-16
+Last reviewed: 2026-06-17
 
 This document records how major third-party libraries are used in the current codebase and which integration contracts should not be changed casually.
 
@@ -17,6 +17,8 @@ This document records how major third-party libraries are used in the current co
 | SQLite FTS5 | Folder/photo/metadata index and search | `backend/metadata_store.py`, `backend/search.py`, `backend/facets.py` | Uses Python stdlib `sqlite3`; no external search service |
 | prometheus-fastapi-instrumentator / prometheus-client | Optional metrics | `backend/app.py`, `backend/scan.py`, `backend/indexer.py` | Enabled by default outside production through `ENABLE_METRICS` |
 | pyinstrument | Optional endpoint profiling | `backend/app.py` | Enabled by `ENABLE_PROFILER=1`; writes HTML profiles to `backend/profiles/` |
+| Ruff | Backend lint and format checks | `pyproject.toml`, `scripts/lint_backend.sh`, `scripts/format_backend_check.sh` | Changed-file checks by default to avoid legacy full-repo noise |
+| pnpm / Corepack | Frontend package management | `frontend/package.json`, `frontend/pnpm-lock.yaml` | `packageManager` pins pnpm; do not reintroduce `package-lock.json` |
 | Vue 3 | Frontend framework | `frontend/src/main.ts`, `frontend/src/App.vue`, components/layouts | Composition API and SFCs |
 | Vue Router | `/` gallery and `/metadata` inspector routing | `frontend/src/router/index.ts`, `frontend/src/layouts/DesktopLayout.vue`, `frontend/src/App.vue` | Production fallback is served by backend static route |
 | Pinia | UI/navigation state stores | `frontend/src/stores/` | Server state belongs in TanStack Query, not Pinia |
@@ -41,6 +43,8 @@ This document records how major third-party libraries are used in the current co
 | embla-carousel-vue | shadcn-style carousel primitive | `frontend/src/components/ui/carousel/` | Used by desktop album carousel through local carousel component |
 | eruda | Optional mobile browser debug console | `frontend/src/debug/erudaDebug.ts`, `frontend/src/main.ts` | Enabled by query/localStorage debug flag |
 | Playwright | Frontend and contract tests | `frontend/tests/`, `frontend/playwright.config.ts` | Also used by perf smoke scripts |
+| ESLint | Frontend lint | `frontend/eslint.config.js`, `frontend/package.json` | Runs with `corepack pnpm run lint` |
+| Prettier | Frontend format check/write | `frontend/.prettierrc.json`, `frontend/.prettierignore`, `frontend/scripts/check_prettier_changed.sh` | `format:check` checks changed files; `format` writes scoped frontend globs |
 
 ## Backend Libraries
 
@@ -122,6 +126,53 @@ ENABLE_PROFILER=1 PROFILE_ENDPOINTS=/api/scan,/api/metadata python3 -m uvicorn b
 
 Profiles are written to `backend/profiles/`.
 
+### Ruff
+
+Ruff is the backend static quality tool. It is installed through `backend/requirements-dev.txt`, not runtime `backend/requirements.txt`.
+
+Run:
+
+```bash
+scripts/lint_backend.sh
+scripts/format_backend_check.sh
+```
+
+Both scripts collect changed Python files under `backend/`, `scripts/`, and `start.py`. They use `origin/main` as the default base when available, plus local working-tree and untracked files. Use `RUFF_BASE=<ref>` to override the comparison base. Full-repo Ruff currently reports legacy lint/format noise, so changed-file checks are the supported gate until the backend is reformatted in a dedicated cleanup.
+
+## Frontend Tooling
+
+### pnpm and Corepack
+
+Frontend dependencies are managed with pnpm. `frontend/package.json` declares `packageManager: pnpm@11.5.2`, and `frontend/pnpm-lock.yaml` is the canonical lockfile. `package-lock.json` is ignored and should not be committed.
+
+Use Corepack so contributors get the pinned pnpm version:
+
+```bash
+cd frontend
+corepack pnpm install
+corepack pnpm run build
+```
+
+`start.py` also uses pnpm for the frontend install/dev server path.
+
+### ESLint and Prettier
+
+ESLint handles frontend lint:
+
+```bash
+cd frontend
+corepack pnpm run lint
+```
+
+Prettier handles frontend formatting. The normal check is changed-file only:
+
+```bash
+cd frontend
+corepack pnpm run format:check
+```
+
+`format:check` uses `frontend/scripts/check_prettier_changed.sh`, defaults to `origin/main` as the comparison base when available, and can be overridden with `PRETTIER_BASE=<ref>`. Full-project Prettier check is intentionally not the default because existing frontend files are not yet globally formatted.
+
 ## Frontend Libraries
 
 ### Vue 3, Vue Router, and Pinia
@@ -161,7 +212,7 @@ Integration files:
 - `frontend/src/composables/usePhotoMetadataQuery.ts`
 - `frontend/src/composables/useFacetsQuery.ts`
 - `frontend/src/composables/useIndexStatusQuery.ts`
-- `frontend/src/composables/useLibraryInspectorQuery.ts`
+- `frontend/src/composables/useInfiniteLibraryInspectorQuery.ts`
 - `frontend/src/composables/useLibraryInspectorMetadataQuery.ts`
 
 Default client behavior: 1 minute stale time, 10 minute garbage collection, one retry, no refetch on window focus.

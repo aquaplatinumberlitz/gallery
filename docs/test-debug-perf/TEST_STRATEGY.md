@@ -10,6 +10,26 @@ app with real data).
 
 ## Test Tiers
 
+### Tier 0: Static Quality Gates
+
+**Backend:**
+
+- `scripts/lint_backend.sh` runs Ruff lint on changed Python files.
+- `scripts/format_backend_check.sh` runs `ruff format --check` on changed Python files.
+- Install dev tooling with `pip install -r backend/requirements-dev.txt`.
+
+Ruff is configured in `pyproject.toml` with correctness, bug-prone, import-order, and Python-upgrade rules. Both backend scripts use `origin/main` as the default base when available, then include local working-tree and untracked files. Use `RUFF_BASE=<ref>` to compare against a different base.
+
+**Frontend:**
+
+- `corepack pnpm run lint` runs ESLint on source, tests, and config files.
+- `corepack pnpm run format:check` runs Prettier on changed frontend files.
+- `corepack pnpm run typecheck` runs `vue-tsc --noEmit`.
+
+Frontend package management is pinned through `frontend/package.json` (`packageManager: pnpm@11.5.2`) and `frontend/pnpm-lock.yaml`. Do not reintroduce `package-lock.json`. Frontend Prettier changed-file checks use `origin/main` by default and can be overridden with `PRETTIER_BASE=<ref>`.
+
+---
+
 ### Tier 1: Backend Unit Tests
 
 **Location:** `backend/tests/` (existing files)
@@ -103,7 +123,7 @@ bash scripts/test_frontend_contract.sh
 ```
 Or directly:
 ```bash
-cd frontend && npm run build && npx playwright test tests/lightbox-loading-policy.spec.ts tests/gallery-no-reload.spec.ts tests/gallery-cache-revisit.spec.ts tests/mobile-lightbox-sheet.spec.ts tests/search-fielded-ui.spec.ts tests/responsive-breakpoints.spec.ts
+cd frontend && corepack pnpm run build && corepack pnpm exec playwright test tests/lightbox-loading-policy.spec.ts tests/gallery-no-reload.spec.ts tests/gallery-cache-revisit.spec.ts tests/mobile-lightbox-sheet.spec.ts tests/search-fielded-ui.spec.ts tests/responsive-breakpoints.spec.ts
 ```
 
 ---
@@ -129,7 +149,7 @@ bash scripts/test_perf_smoke.sh
 ```
 Or individually:
 ```bash
-cd frontend && npm run perf:album && npm run perf:lightbox
+cd frontend && corepack pnpm run perf:album && corepack pnpm run perf:lightbox
 ```
 
 **Requires:** Running gallery app (`GALLERY_BASE_URL`), real album data
@@ -141,9 +161,12 @@ cd frontend && npm run perf:album && npm run perf:lightbox
 
 | Script | Purpose | Requirements |
 |---|---|---|
-| `scripts/test_all.sh` | Run all deterministic tests (Tiers 1-3) | Python venv + npm |
+| `scripts/lint_backend.sh` | Ruff lint changed Python files | Backend dev requirements |
+| `scripts/format_backend_check.sh` | Ruff format check changed Python files | Backend dev requirements |
+| `frontend/scripts/check_prettier_changed.sh` | Prettier check changed frontend files | pnpm install |
+| `scripts/test_all.sh` | Run all deterministic tests (Tiers 1-3) | Python venv + pnpm |
 | `scripts/test_backend_api_integration.sh` | Backend API integration tests | Python venv |
-| `scripts/test_frontend_contract.sh` | Playwright contract tests | `npm run build` first |
+| `scripts/test_frontend_contract.sh` | Playwright contract tests | `corepack pnpm run build` first |
 | `scripts/test_perf_smoke.sh` | Perf smoke tests | Running app + real data |
 
 ---
