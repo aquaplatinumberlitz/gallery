@@ -291,8 +291,7 @@ function classifySuspect(events: ReloadLogEvent[], boot: BootRecord): string[] {
 }
 
 export function startReloadMonitor(): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Reload monitor debug state is exposed as an ad hoc browser global.
-  if ((window as any).__galleryReloadDebug?._active) return;
+  if (window.__galleryReloadDebug?._active) return;
 
   const sessionId = generateSessionId();
   safeSetItem(STORAGE_KEY_SESSION, sessionId);
@@ -316,8 +315,7 @@ export function startReloadMonitor(): void {
     navigationType: getNavigationType(),
     navigationTiming: getNavigationTiming(),
     referrer: document.referrer,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- wasDiscarded is available in Chromium but missing from some DOM typings.
-    wasDiscarded: (document as any).wasDiscarded,
+    wasDiscarded: document.wasDiscarded,
     userAgent: navigator.userAgent,
     viewportWidth: window.innerWidth,
     viewportHeight: window.innerHeight,
@@ -1139,8 +1137,7 @@ export function startReloadMonitor(): void {
 
   // ── Expose global API ───────────────────────────────────────────────
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Reload monitor debug controls are intentionally exposed as a browser-console global.
-  (window as any).__galleryReloadDebug = {
+  window.__galleryReloadDebug = {
     _active: true,
     start: () => console.log("Reload debug monitor already running"),
     stop: disable,

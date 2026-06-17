@@ -4,12 +4,12 @@ import MobileHeader from "../components/MobileHeader.vue";
 import GalleryGrid from "../components/GalleryGrid.vue";
 import MobileFloatingBottomBar from "../components/MobileFloatingBottomBar.vue";
 import { SidebarProvider, Sidebar, SidebarInset } from "@/components/ui/sidebar";
+import type { FolderTreeNode } from "@/types";
 
 defineProps<{
   theme: "light" | "dark";
   isSidebarOpen: boolean;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Folder tree nodes are backend-shaped recursive objects without a stable frontend DTO yet.
-  tree: any[];
+  tree: FolderTreeNode[];
   isLoading: boolean;
   currentPath: string;
   searchQuery: string;

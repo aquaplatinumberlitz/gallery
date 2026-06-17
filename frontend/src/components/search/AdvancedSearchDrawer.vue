@@ -46,6 +46,29 @@ interface NumField {
   op: string;
 }
 
+type NumericFieldName =
+  | "seed"
+  | "steps"
+  | "cfg"
+  | "width"
+  | "height"
+  | "clip_skip"
+  | "denoising_strength"
+  | "hires_upscale"
+  | "hires_steps";
+
+const numericFields: NumericFieldName[] = [
+  "seed",
+  "steps",
+  "cfg",
+  "width",
+  "height",
+  "clip_skip",
+  "denoising_strength",
+  "hires_upscale",
+  "hires_steps",
+];
+
 function defaultNumField(): NumField {
   return { value: "", op: "=" };
 }
@@ -200,20 +223,8 @@ const form = useForm({
     onChange: ({ value }) => {
       const fields: Record<string, string | undefined> = {};
 
-      const numericFields = [
-        "seed",
-        "steps",
-        "cfg",
-        "width",
-        "height",
-        "clip_skip",
-        "denoising_strength",
-        "hires_upscale",
-        "hires_steps",
-      ];
       for (const field of numericFields) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TanStack form values are keyed dynamically by generated field names in this validator.
-        const v = (value as any)[field]?.value;
+        const v = value[field]?.value;
         if (v && isNaN(Number(v))) {
           fields[field] = "Must be a number";
         }

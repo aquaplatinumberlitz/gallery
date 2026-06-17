@@ -13,10 +13,10 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import IndexStatusPanel from "@/components/IndexStatusPanel.vue";
+import type { FolderTreeNode } from "@/types";
 
 defineProps<{
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Folder tree nodes are backend-shaped recursive objects without a stable frontend DTO yet.
-  tree: any[];
+  tree: FolderTreeNode[];
   isLoading: boolean;
   currentPath: string;
 }>();

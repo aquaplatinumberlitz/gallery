@@ -42,8 +42,7 @@ export async function initErudaDebug(): Promise<void> {
   }
 
   // Avoid double init
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Eruda is injected as an optional global by the debug package.
-  if ((window as any).eruda) {
+  if (window.eruda) {
     return;
   }
 

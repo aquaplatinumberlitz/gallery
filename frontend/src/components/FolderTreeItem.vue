@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, inject } from "vue";
 import { useGalleryStore } from "../stores/gallery";
-import type { FileNode } from "../types";
+import type { FolderTreeNode } from "../types";
 import { ChevronDown, ChevronRight, Folder, FolderOpen, Loader } from "lucide-vue-next";
 import { useDevice } from "../composables/useDevice";
 import { useFolderChildrenQuery } from "../composables/useFolderChildrenQuery";
@@ -13,7 +13,7 @@ defineOptions({ name: "FolderTreeItem" });
 
 const props = withDefaults(
   defineProps<{
-    node: FileNode;
+    node: FolderTreeNode;
     activePath?: string;
     level?: number;
   }>(),

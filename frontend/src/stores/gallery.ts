@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import type { FileNode, SearchScope, SortField, SortOrder, SortValue } from "../types";
+import type { FileNode, FolderTreeNode, SearchScope, SortField, SortOrder, SortValue } from "../types";
 import { openFolder, GalleryAPIError } from "../services/api";
 import { useToastStore } from "./toast";
 import { fetchScanOrThrow } from "../query/scan";
@@ -32,7 +32,7 @@ const saveSort = (field: SortField, order: SortOrder) => {
   localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify({ field, order }));
 };
 
-const normalizeNodes = (nodes: FileNode[]): FileNode[] =>
+const normalizeNodes = (nodes: FolderTreeNode[]): FolderTreeNode[] =>
   nodes
     .filter((n) => n.type === "folder")
     .map((n) => ({
@@ -40,14 +40,17 @@ const normalizeNodes = (nodes: FileNode[]): FileNode[] =>
       children: undefined,
     }));
 
+interface ErrorMessageStore {
+  errorMessage: string | null;
+}
+
 /**
  * Private helper that wraps an async operation with consistent error handling.
  * On success, clears errorMessage and returns the result.
  * On error, checks for GalleryAPIError, sets errorMessage, shows toast, and returns undefined.
  */
 async function _withError<T>(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Pinia store helpers pass the concrete setup store instance, whose internal type is impractical here.
-  store: any,
+  store: ErrorMessageStore,
   fn: () => Promise<T>,
   fallbackMsg: string,
   retry?: () => void,
@@ -83,7 +86,7 @@ export const useGalleryStore = defineStore("gallery", {
     const storedSort = getStoredSort();
     return {
       rootPath: getStoredRoot(),
-      sidebarTree: [] as FileNode[],
+      sidebarTree: [] as FolderTreeNode[],
       expandedFolderPaths: {} as Record<string, boolean>,
       currentPath: "",
       isLoading: false,

@@ -13,7 +13,13 @@ const emit = defineEmits<{
   (e: "preview", url: string): void;
 }>();
 
-const introMode = ref<"auto" | "disabled" | "manual">("auto");
+const INTRO_MODES = ["auto", "disabled", "manual"] as const;
+type IntroMode = (typeof INTRO_MODES)[number];
+
+const isIntroMode = (value: string | null): value is IntroMode =>
+  value !== null && (INTRO_MODES as readonly string[]).includes(value);
+
+const introMode = ref<IntroMode>("auto");
 const selectedTheme = ref("");
 const alwaysLoadOriginal = ref(false);
 const landingPagesQuery = useLandingPagesLiveQuery();
@@ -34,9 +40,8 @@ const formatThemeName = (path: string) => {
 
 const loadSettings = () => {
   const savedMode = localStorage.getItem("intro_mode");
-  if (savedMode && ["auto", "disabled", "manual"].includes(savedMode)) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Runtime validation above narrows the persisted string to the intro mode union.
-    introMode.value = savedMode as any;
+  if (isIntroMode(savedMode)) {
+    introMode.value = savedMode;
   }
 
   const savedTheme = localStorage.getItem("intro_theme");

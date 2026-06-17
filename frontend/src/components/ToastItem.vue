@@ -3,8 +3,9 @@ import { computed, ref, onMounted, onUnmounted } from "vue";
 import type { Toast } from "../stores/toast";
 import { CheckCircle, XCircle, TriangleAlert, Info, X } from "lucide-vue-next";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Lucide Vue component exports do not share a simple local component type across all icon imports.
-const _icons: Record<string, any> = { CheckCircle, XCircle, TriangleAlert, Info };
+type ToastIcon = typeof CheckCircle;
+
+const _icons: Record<string, ToastIcon> = { CheckCircle, XCircle, TriangleAlert, Info };
 
 const props = defineProps<{
   toast: Toast;

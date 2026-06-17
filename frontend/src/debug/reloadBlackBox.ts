@@ -919,8 +919,7 @@ export function installReloadBlackBoxIfEnabled(): void {
 
   // ── Phase 7: Expose global API ──────────────────────────────────
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Reload black-box diagnostics are intentionally exposed as a browser-console global.
-  (window as any).__galleryReloadBlackBox = {
+  window.__galleryReloadBlackBox = {
     install: () => {
       /* already installed */
     },
@@ -1048,8 +1047,7 @@ function addFloatingUI(): void {
 function setupGestureTracking(): void {
   // Capture initial viewport state
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- visualViewport support differs across browser type definitions used by this debug tracer.
-    const vv = (window as any).visualViewport;
+    const vv = window.visualViewport;
     if (vv) {
       _vvInitialHeight = vv.height;
       _vvInitialWidth = vv.width;
@@ -1205,12 +1203,10 @@ function setupGestureTracking(): void {
   // ── VisualViewport ─────────────────────────────────────────────
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- visualViewport support differs across browser type definitions used by this debug tracer.
-    const vv = (window as any).visualViewport as EventTarget | null;
+    const vv = window.visualViewport;
     if (vv) {
       on("resize", vv, () => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- visualViewport support differs across browser type definitions used by this debug tracer.
-        const vvObj = (window as any).visualViewport;
+        const vvObj = window.visualViewport;
         if (!vvObj) return;
         const hChanged = Math.abs(vvObj.height - _vvInitialHeight) > 20;
         const wChanged = Math.abs(vvObj.width - _vvInitialWidth) > 20;
@@ -1226,8 +1222,7 @@ function setupGestureTracking(): void {
         });
       });
       on("scroll", vv, () => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- visualViewport support differs across browser type definitions used by this debug tracer.
-        const vvObj = (window as any).visualViewport;
+        const vvObj = window.visualViewport;
         if (!vvObj) return;
         _visualViewportChangedBeforePagehide = true;
         addEvent("visualViewportScroll", {

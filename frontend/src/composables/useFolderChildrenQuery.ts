@@ -2,9 +2,10 @@ import { useQuery } from "@tanstack/vue-query";
 import { computed, type Ref } from "vue";
 import { queryKeys, normalizeQueryPath } from "../query/keys";
 import { listFolderChildren } from "../services/api";
-import type { FileNode } from "../types";
+import type { FolderTreeNode } from "../types";
 
-const normalizeFolderChildren = (nodes: FileNode[]): FileNode[] => nodes.filter((node) => node.type === "folder");
+const normalizeFolderChildren = (nodes: FolderTreeNode[]): FolderTreeNode[] =>
+  nodes.filter((node) => node.type === "folder");
 
 export function useFolderChildrenQuery(path: Ref<string>, enabled: Ref<boolean>) {
   const normalizedPath = computed(() => normalizeQueryPath(path.value || ""));

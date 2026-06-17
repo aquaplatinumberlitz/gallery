@@ -125,37 +125,32 @@ test.use({ viewport: { width: 1280, height: 820 } });
 test("boot id does not change during album browse / lightbox / navigation", async ({ page }) => {
   const bootId = "boot-test-001";
   await page.addInitScript((id) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Playwright init scripts attach ad hoc browser globals for reload assertions.
-    (window as any).__galleryBootId = id;
+    window.__galleryBootId = id;
   }, bootId);
 
   await installStubbedGallery(page);
   await openStubbedGallery(page);
 
   // Verify boot id after initial load
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Playwright reads the ad hoc browser global set by the init script.
-  let currentId = await page.evaluate(() => (window as any).__galleryBootId);
+  let currentId = await page.evaluate(() => window.__galleryBootId);
   expect(currentId).toBe(bootId);
 
   // Open lightbox
   await page.getByTestId("photo-card").first().click();
   await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Playwright reads the ad hoc browser global set by the init script.
-  currentId = await page.evaluate(() => (window as any).__galleryBootId);
+  currentId = await page.evaluate(() => window.__galleryBootId);
   expect(currentId).toBe(bootId);
 
   // Close lightbox
   await page.getByLabel("Close lightbox").click();
   await expect(page.getByTestId("lightbox")).not.toBeVisible({ timeout: 5000 });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Playwright reads the ad hoc browser global set by the init script.
-  currentId = await page.evaluate(() => (window as any).__galleryBootId);
+  currentId = await page.evaluate(() => window.__galleryBootId);
   expect(currentId).toBe(bootId);
 
   // Scroll the grid
   await page.mouse.wheel(0, 500);
   await page.waitForTimeout(300);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Playwright reads the ad hoc browser global set by the init script.
-  currentId = await page.evaluate(() => (window as any).__galleryBootId);
+  currentId = await page.evaluate(() => window.__galleryBootId);
   expect(currentId).toBe(bootId);
 });
 

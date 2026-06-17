@@ -13,11 +13,11 @@
 
 export function installLifecycleDebug(): void {
   window.addEventListener("pageshow", (event) => {
+    const navEntry = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
     console.log("[LIFECYCLE] pageshow", {
       persisted: event.persisted,
       timestamp: Date.now(),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Navigation timing entries vary by browser in this debug-only logger.
-      navType: (performance as any)?.getEntriesByType?.("navigation")?.[0]?.type,
+      navType: navEntry?.type,
     });
   });
 

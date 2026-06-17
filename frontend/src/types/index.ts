@@ -12,6 +12,11 @@ export interface FileNode {
   height?: number | null; // Image height in pixels when available
 }
 
+export interface FolderTreeNode extends Omit<FileNode, "type" | "children"> {
+  type: "folder";
+  children?: FolderTreeNode[];
+}
+
 export type SortField = "name" | "date";
 export type SortOrder = "asc" | "desc";
 export type SortValue = "date_desc" | "date_asc" | "name_asc" | "name_desc";
@@ -58,7 +63,7 @@ export interface MetadataResponse {
 }
 
 export interface ScanResponse {
-  folders: FileNode[];
+  folders: FolderTreeNode[];
   images: FileNode[];
   next_cursor: number | null;
   total_images: number;
@@ -66,7 +71,7 @@ export interface ScanResponse {
   index_source?: "warm_db" | "direct_scan" | "mixed";
 }
 
-export type FolderChildrenResponse = FileNode[];
+export type FolderChildrenResponse = FolderTreeNode[];
 
 export type SearchScope = "current" | "all";
 
