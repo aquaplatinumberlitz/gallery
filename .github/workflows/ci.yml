@@ -137,12 +137,7 @@ jobs:
 
       - name: Run contract tests
         working-directory: frontend
-        run: pnpm exec playwright test \
-            tests/lightbox-loading-policy.spec.ts \
-            tests/gallery-no-reload.spec.ts \
-            tests/gallery-cache-revisit.spec.ts \
-            tests/search-fielded-ui.spec.ts \
-            --project=chromium --reporter=html
+        run: pnpm exec playwright test tests/lightbox-loading-policy.spec.ts tests/gallery-no-reload.spec.ts tests/gallery-cache-revisit.spec.ts tests/search-fielded-ui.spec.ts --project=chromium --reporter=html
 
       - name: Upload Playwright report on failure
         if: failure()
