@@ -178,7 +178,7 @@ test("no unexpected full page reload during album browsing", async ({ page }) =>
 });
 
 test("/api/scan with image_cursor=0 is not duplicated unnecessarily", async ({ page }) => {
-  await installStubbedGallery(page);
+  const requests = await installStubbedGallery(page);
   await openStubbedGallery(page);
 
   // Wait for initial scan requests to settle
