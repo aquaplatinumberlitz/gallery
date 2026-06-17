@@ -54,7 +54,8 @@ def count_images_in_dir(dir_path: Path) -> int:
     """Count image files directly inside a directory (non-recursive)."""
     try:
         return sum(
-            1 for entry in dir_path.iterdir()
+            1
+            for entry in dir_path.iterdir()
             if not entry.name.startswith(".")
             and not is_index_excluded_path(entry)
             and entry.is_file()

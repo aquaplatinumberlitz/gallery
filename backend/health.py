@@ -8,8 +8,10 @@ def _get_git_commit() -> str:
     try:
         return subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],
-            capture_output=True, text=True, timeout=5,
-            cwd=Path(__file__).parent
+            capture_output=True,
+            text=True,
+            timeout=5,
+            cwd=Path(__file__).parent,
         ).stdout.strip()
     except (OSError, subprocess.TimeoutExpired):
         return "unknown"

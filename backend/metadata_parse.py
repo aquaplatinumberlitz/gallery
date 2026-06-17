@@ -20,7 +20,7 @@ from .paths import is_path_safe, resolve_path
 def _estimate_dict_size(d: dict) -> int:
     """Estimate memory size of a dict in bytes (rough approximation)."""
     try:
-        return len(json.dumps(d, default=str).encode('utf-8'))
+        return len(json.dumps(d, default=str).encode("utf-8"))
     except (TypeError, ValueError):
         return sys.getsizeof(d)
 

@@ -59,7 +59,9 @@ class TestIndexStatus:
         assert isinstance(data, dict)
         assert "total" in data
 
-    def test_index_status_with_enabled_indexer(self, isolated_app: TestClient, temp_gallery: Path, monkeypatch: pytest.MonkeyPatch):
+    def test_index_status_with_enabled_indexer(
+        self, isolated_app: TestClient, temp_gallery: Path, monkeypatch: pytest.MonkeyPatch
+    ):
         """Index status should work when indexer is enabled with an empty temp gallery."""
         monkeypatch.setattr("backend.indexer.METADATA_INDEXER_ENABLED", True)
         monkeypatch.setattr("backend.config.METADATA_INDEXER_ENABLED", True)
@@ -74,8 +76,11 @@ class TestIndexStatus:
         assert resp.status_code == 200
         data = resp.json()
         runtime_keys = {
-            "worker_count", "active_jobs", "runtime_queue_depth",
-            "coalesced_duplicates", "batch_size",
+            "worker_count",
+            "active_jobs",
+            "runtime_queue_depth",
+            "coalesced_duplicates",
+            "batch_size",
         }
         for key in runtime_keys:
             assert key in data
@@ -143,9 +148,7 @@ class TestIndexStatus:
         create_test_image(image_path)
         queued = queue_metadata_index_paths([image_path], temp_gallery / "album_a")
         assert len(queued.enqueued) == 1
-        mark_metadata_jobs_failed(
-            [(queued.enqueued[0], "Object of type bytes is not JSON serializable")]
-        )
+        mark_metadata_jobs_failed([(queued.enqueued[0], "Object of type bytes is not JSON serializable")])
 
         resp = isolated_app.get("/api/index/status", params={"path": str(temp_gallery / "album_a")})
 

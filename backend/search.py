@@ -36,11 +36,7 @@ async def api_search_metadata(
     except Exception as exc:  # noqa: BLE001
         raise APIError(500, ErrorType.SERVER_ERROR, f"Metadata search failed: {exc}") from exc
 
-    safe_results = [
-        result
-        for result in data["results"]
-        if is_path_safe(resolve_path(result["path"]))
-    ]
+    safe_results = [result for result in data["results"] if is_path_safe(resolve_path(result["path"]))]
     return {
         "query": data["query"],
         "total": len(safe_results),
@@ -51,7 +47,9 @@ async def api_search_metadata(
 @router.get("/api/search")
 async def api_search(
     q: str = Query("", description="Filename, album name, prompt, or metadata text to search"),
-    scope: Literal["current", "all"] = Query("current", description="Search current folder recursively or all indexed files"),
+    scope: Literal["current", "all"] = Query(
+        "current", description="Search current folder recursively or all indexed files"
+    ),
     path: str | None = Query(None, description="Current folder path when scope=current"),
     limit: int = Query(50, ge=1, le=200, description="Maximum results per section"),
 ):
@@ -113,11 +111,15 @@ async def api_search(
 @router.get("/api/library/inspector")
 async def api_library_inspector(
     q: str = Query("", description="Free text or fielded metadata query"),
-    scope: Literal["current", "all"] = Query("current", description="Inspect current folder recursively or all indexed files"),
+    scope: Literal["current", "all"] = Query(
+        "current", description="Inspect current folder recursively or all indexed files"
+    ),
     path: str | None = Query(None, description="Current folder path when scope=current"),
     limit: int = Query(200, ge=1, le=200, description="Maximum inspector rows"),
     cursor: str | None = Query(None, description="Opaque pagination cursor from previous response"),
-    sort: Literal["name_asc", "name_desc", "date_asc", "date_desc"] = Query("date_desc", description="Inspector row sort"),
+    sort: Literal["name_asc", "name_desc", "date_asc", "date_desc"] = Query(
+        "date_desc", description="Inspector row sort"
+    ),
 ):
     root_path: Path | None = None
     if scope == "current":

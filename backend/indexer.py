@@ -270,7 +270,9 @@ def _drain_batch(first_job: MetadataIndexJob) -> list[MetadataIndexJob]:
 
 
 def _drain_additional_paths(batch: list[tuple[str, str | None]], *, limit: int | None = None) -> None:
-    batch_limit = METADATA_INDEXER_STAGE_BATCH_SIZE if limit is None else max(1, min(limit, METADATA_INDEXER_STAGE_BATCH_SIZE))
+    batch_limit = (
+        METADATA_INDEXER_STAGE_BATCH_SIZE if limit is None else max(1, min(limit, METADATA_INDEXER_STAGE_BATCH_SIZE))
+    )
     while len(batch) < batch_limit:
         try:
             batch.append(_pending_path_queue.get_nowait())
@@ -638,23 +640,24 @@ def get_indexer_runtime_status(scope_path: str | Path | None = None) -> dict[str
     scoped_active_rebuilds = 0
     if scope_root:
         scoped_active_jobs = sum(
-            count for path, count in active_job_paths.items()
-            if _is_path_in_scope(path, scope_root)
+            count for path, count in active_job_paths.items() if _is_path_in_scope(path, scope_root)
         )
         scoped_runtime_queue_depth = sum(
-            1 for job in queued_jobs
-            if _is_path_in_scope(getattr(job, "path", ""), scope_root)
+            1 for job in queued_jobs if _is_path_in_scope(getattr(job, "path", ""), scope_root)
         )
         scoped_staged_path_queue_depth = sum(
-            1 for path, root_path in staged_paths
+            1
+            for path, root_path in staged_paths
             if _is_path_in_scope(path, scope_root) or _is_path_in_scope(root_path, scope_root)
         )
         scoped_active_scan_requests = sum(
-            count for root, count in active_scan_roots.items()
+            count
+            for root, count in active_scan_roots.items()
             if _is_path_in_scope(root, scope_root) or _is_path_in_scope(scope_root, root)
         )
         scoped_active_rebuilds = sum(
-            1 for root in active_rebuild_roots
+            1
+            for root in active_rebuild_roots
             if _is_path_in_scope(root, scope_root) or _is_path_in_scope(scope_root, root)
         )
 

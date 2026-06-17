@@ -19,10 +19,4 @@ async def api_image(path: str = Query(..., description="Absolute path to image f
         raise APIError(400, ErrorType.INVALID_FILE, "Not a valid image file")
     stat = file_path.stat()
     etag = f'"{stat.st_mtime}-{stat.st_size}"'
-    return FileResponse(
-        file_path,
-        headers={
-            "Cache-Control": "public, max-age=31536000, immutable",
-            "ETag": etag
-        }
-    )
+    return FileResponse(file_path, headers={"Cache-Control": "public, max-age=31536000, immutable", "ETag": etag})

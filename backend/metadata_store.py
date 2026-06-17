@@ -134,10 +134,10 @@ def initialize_database() -> None:
 
 
 def _initialize_database_conn(conn: sqlite3.Connection) -> None:
-        current_version = conn.execute("PRAGMA user_version").fetchone()[0]
+    current_version = conn.execute("PRAGMA user_version").fetchone()[0]
 
-        conn.executescript(
-            """
+    conn.executescript(
+        """
             CREATE TABLE IF NOT EXISTS image_metadata (
               id INTEGER PRIMARY KEY,
               path TEXT NOT NULL UNIQUE,
@@ -288,44 +288,44 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
               updated_at REAL NOT NULL
             );
             """
-        )
-        _ensure_column(conn, "image_metadata", "format", "TEXT")
-        _ensure_column(conn, "image_metadata", "mode", "TEXT")
-        _ensure_column(conn, "image_metadata", "has_alpha", "INTEGER")
-        _ensure_column(conn, "image_metadata", "updated_at", "REAL")
-        _ensure_column(conn, "image_metadata", "tool", "TEXT")
-        _ensure_column(conn, "image_metadata", "scheduler", "TEXT")
-        _ensure_column(conn, "image_metadata", "model_hash", "TEXT")
-        _ensure_column(conn, "image_metadata", "lora_text", "TEXT")
-        _ensure_column(conn, "image_metadata", "generation_time", "REAL")
-        _ensure_column(conn, "image_metadata", "clip_skip", "INTEGER")
-        _ensure_column(conn, "image_metadata", "hires_upscale", "REAL")
-        _ensure_column(conn, "image_metadata", "hires_steps", "INTEGER")
-        _ensure_column(conn, "image_metadata", "denoising_strength", "REAL")
-        _ensure_column(conn, "image_metadata", "vae", "TEXT")
-        _ensure_column(conn, "image_metadata", "ensd", "INTEGER")
-        _ensure_column(conn, "image_metadata", "aesthetic_score", "REAL")
-        _ensure_column(conn, "image_metadata", "date", "TEXT")
-        _ensure_column(conn, "image_metadata", "aspect_ratio", "TEXT")
-        conn.execute(
-            """
+    )
+    _ensure_column(conn, "image_metadata", "format", "TEXT")
+    _ensure_column(conn, "image_metadata", "mode", "TEXT")
+    _ensure_column(conn, "image_metadata", "has_alpha", "INTEGER")
+    _ensure_column(conn, "image_metadata", "updated_at", "REAL")
+    _ensure_column(conn, "image_metadata", "tool", "TEXT")
+    _ensure_column(conn, "image_metadata", "scheduler", "TEXT")
+    _ensure_column(conn, "image_metadata", "model_hash", "TEXT")
+    _ensure_column(conn, "image_metadata", "lora_text", "TEXT")
+    _ensure_column(conn, "image_metadata", "generation_time", "REAL")
+    _ensure_column(conn, "image_metadata", "clip_skip", "INTEGER")
+    _ensure_column(conn, "image_metadata", "hires_upscale", "REAL")
+    _ensure_column(conn, "image_metadata", "hires_steps", "INTEGER")
+    _ensure_column(conn, "image_metadata", "denoising_strength", "REAL")
+    _ensure_column(conn, "image_metadata", "vae", "TEXT")
+    _ensure_column(conn, "image_metadata", "ensd", "INTEGER")
+    _ensure_column(conn, "image_metadata", "aesthetic_score", "REAL")
+    _ensure_column(conn, "image_metadata", "date", "TEXT")
+    _ensure_column(conn, "image_metadata", "aspect_ratio", "TEXT")
+    conn.execute(
+        """
             CREATE INDEX IF NOT EXISTS idx_image_metadata_mtime_size
               ON image_metadata(path, mtime, size)
             """
-        )
-        _ensure_column(conn, "metadata_index_jobs", "folder_path", "TEXT NOT NULL DEFAULT ''")
-        _ensure_column(conn, "metadata_index_jobs", "root_path", "TEXT NOT NULL DEFAULT ''")
+    )
+    _ensure_column(conn, "metadata_index_jobs", "folder_path", "TEXT NOT NULL DEFAULT ''")
+    _ensure_column(conn, "metadata_index_jobs", "root_path", "TEXT NOT NULL DEFAULT ''")
 
-        if current_version < 1:
-            conn.execute("UPDATE image_metadata SET width = NULL, height = NULL")
-            conn.execute("UPDATE file_index SET width = NULL, height = NULL")
-            conn.execute("PRAGMA user_version = 1")
+    if current_version < 1:
+        conn.execute("UPDATE image_metadata SET width = NULL, height = NULL")
+        conn.execute("UPDATE file_index SET width = NULL, height = NULL")
+        conn.execute("PRAGMA user_version = 1")
 
-        if current_version < 2:
-            _backfill_image_resources_conn(conn)
-            conn.execute("PRAGMA user_version = 2")
+    if current_version < 2:
+        _backfill_image_resources_conn(conn)
+        conn.execute("PRAGMA user_version = 2")
 
-        _cleanup_ignored_index_conn(conn)
+    _cleanup_ignored_index_conn(conn)
 
 
 def _current_metadata_is_complete(conn: sqlite3.Connection, path: str, mtime: float, size: int) -> bool:
@@ -595,7 +595,7 @@ def get_metadata_index_status(path: str | Path | None = None) -> dict[str, Any]:
             f"""
             SELECT path, error, updated_at
             FROM metadata_index_jobs
-            {where + (' AND' if where else 'WHERE')} state = 'failed' AND error IS NOT NULL
+            {where + (" AND" if where else "WHERE")} state = 'failed' AND error IS NOT NULL
             ORDER BY updated_at DESC
             LIMIT 1
             """,
@@ -606,7 +606,7 @@ def get_metadata_index_status(path: str | Path | None = None) -> dict[str, Any]:
             f"""
             SELECT min(queued_at) AS oldest_queued_at
             FROM metadata_index_jobs
-            {where + (' AND' if where else 'WHERE')} state = 'queued'
+            {where + (" AND" if where else "WHERE")} state = 'queued'
             """,
             params,
         ).fetchone()
@@ -624,7 +624,7 @@ def get_metadata_index_status(path: str | Path | None = None) -> dict[str, Any]:
             f"""
             SELECT count(*) AS total
             FROM file_index
-            {where + (' AND' if where else 'WHERE')} type = 'photo'
+            {where + (" AND" if where else "WHERE")} type = 'photo'
             """,
             params,
         ).fetchone()
@@ -677,7 +677,9 @@ def get_metadata_index_status(path: str | Path | None = None) -> dict[str, Any]:
 
 
 def _needs_reindex(conn: sqlite3.Connection, path: Path, mtime: float, size: int) -> bool:
-    row = conn.execute("SELECT mtime, size, metadata_json FROM image_metadata WHERE path = ?", (str(path.resolve()),)).fetchone()
+    row = conn.execute(
+        "SELECT mtime, size, metadata_json FROM image_metadata WHERE path = ?", (str(path.resolve()),)
+    ).fetchone()
     if row is None:
         return True
     return row["mtime"] != mtime or row["size"] != size or not row["metadata_json"]
@@ -1040,6 +1042,7 @@ def get_warm_folder_listing(
 
         # Sort in Python with natural_sort_key to match direct scan order
         from .files import natural_sort_key
+
         raw_folders.sort(key=lambda x: natural_sort_key(x["name"]))
         raw_images.sort(key=lambda x: natural_sort_key(x["name"]))
 
@@ -1836,7 +1839,9 @@ def _format_rows(rows: list[sqlite3.Row]) -> list[dict[str, Any]]:
     ]
 
 
-def _search_fts(conn: sqlite3.Connection, table: str, bm25_table: str, match_query: str, limit: int, offset: int) -> list[sqlite3.Row]:
+def _search_fts(
+    conn: sqlite3.Connection, table: str, bm25_table: str, match_query: str, limit: int, offset: int
+) -> list[sqlite3.Row]:
     sql = f"""
         SELECT m.*, bm25({bm25_table}) AS rank
         FROM {table}
@@ -1869,7 +1874,9 @@ def _search_like(conn: sqlite3.Connection, query: str, limit: int, offset: int) 
 def _count_like(conn: sqlite3.Connection, query: str) -> int:
     pattern = _like_pattern(query)
     where = " OR ".join(f"{field} LIKE ? ESCAPE '\\'" for field in SEARCH_FIELDS)
-    row = conn.execute(f"SELECT count(*) AS total FROM image_metadata WHERE {where}", [pattern] * len(SEARCH_FIELDS)).fetchone()
+    row = conn.execute(
+        f"SELECT count(*) AS total FROM image_metadata WHERE {where}", [pattern] * len(SEARCH_FIELDS)
+    ).fetchone()
     return int(row["total"] if row else 0)
 
 
@@ -1888,7 +1895,9 @@ def search_metadata(query: str, limit: int = 100, offset: int = 0) -> dict[str, 
             if contains_cjk(trimmed):
                 if len(trimmed) >= 3:
                     match_query = _trigram_match_query(trimmed)
-                    rows = _search_fts(conn, "image_metadata_fts_trigram", "image_metadata_fts_trigram", match_query, limit, offset)
+                    rows = _search_fts(
+                        conn, "image_metadata_fts_trigram", "image_metadata_fts_trigram", match_query, limit, offset
+                    )
                     total = _count_fts(conn, "image_metadata_fts_trigram", match_query)
                 if not rows:
                     rows = _search_like(conn, trimmed, limit, offset)
@@ -2052,7 +2061,9 @@ def _search_fielded_photos(
     return rows, root
 
 
-def search_index_fielded(query: str, scope: str, root_path: str | Path | None = None, limit: int = 50) -> dict[str, Any]:
+def search_index_fielded(
+    query: str, scope: str, root_path: str | Path | None = None, limit: int = 50
+) -> dict[str, Any]:
     from .fielded_search_parser import (
         ParsedQuery,
         build_fielded_search_sql,
@@ -2106,7 +2117,9 @@ def search_index_fielded(query: str, scope: str, root_path: str | Path | None = 
                 if normalized_scope == "current":
                     root_str, root_prefix = _path_prefix(root)
                     if "WHERE" in sql:
-                        sql = sql.replace("WHERE ", f"WHERE (fi.path = :scope_root OR fi.path LIKE :scope_prefix ESCAPE '\\') AND ")
+                        sql = sql.replace(
+                            "WHERE ", f"WHERE (fi.path = :scope_root OR fi.path LIKE :scope_prefix ESCAPE '\\') AND "
+                        )
                     else:
                         sql = sql.replace(
                             "ORDER BY",
@@ -2122,7 +2135,9 @@ def search_index_fielded(query: str, scope: str, root_path: str | Path | None = 
                 prompt_rows = []
         elif parsed.residual_text:
             # No fields, residual only — plain filename + metadata search
-            photo_rows, root = _search_file_index_fts(conn, parsed.residual_text, "photo", normalized_scope, root_path, limit)
+            photo_rows, root = _search_file_index_fts(
+                conn, parsed.residual_text, "photo", normalized_scope, root_path, limit
+            )
             prompt_rows, root = _search_prompt_rows(conn, parsed.residual_text, normalized_scope, root_path, limit)
         else:
             photo_rows = []
@@ -2182,7 +2197,9 @@ def _iter_metadata_loras(metadata: Any) -> list[dict[str, Any]]:
                     }
                 )
             elif isinstance(item, str) and item.strip():
-                loras.append({"name": item.strip(), "hash": None, "resource_hash": None, "weight": None, "strength": None})
+                loras.append(
+                    {"name": item.strip(), "hash": None, "resource_hash": None, "weight": None, "strength": None}
+                )
 
     return loras
 
@@ -2217,7 +2234,9 @@ def _iter_metadata_resources(metadata: Any) -> list[dict[str, Any]]:
     seen: set[tuple[str, str, str, str]] = set()
 
     def add_resource(kind: str, item: dict[str, Any]) -> None:
-        name = _clean_resource_text(item.get("name") or item.get("model") or item.get("resource_name") or item.get("alias"))
+        name = _clean_resource_text(
+            item.get("name") or item.get("model") or item.get("resource_name") or item.get("alias")
+        )
         resource_hash = _clean_resource_text(item.get("resource_hash") or item.get("hash") or item.get("model_hash"))
         hash_value = _clean_resource_text(item.get("hash") or item.get("model_hash") or item.get("resource_hash"))
         normalized_kind = _normalize_resource_kind(kind)
@@ -2247,7 +2266,13 @@ def _iter_metadata_resources(metadata: Any) -> list[dict[str, Any]]:
         for item in value:
             if not isinstance(item, dict):
                 continue
-            kind = item.get("type") or item.get("kind") or item.get("resource_type") or item.get("resourceType") or "resource"
+            kind = (
+                item.get("type")
+                or item.get("kind")
+                or item.get("resource_type")
+                or item.get("resourceType")
+                or "resource"
+            )
             add_resource(str(kind), item)
 
     return resources
@@ -2260,7 +2285,9 @@ def _split_lora_text(lora_text: str | None) -> list[str]:
     return [part.strip() for part in parts if part.strip()]
 
 
-def _resource_rows_from_metadata(metadata_json: str | None, lora_text: str | None, updated_at: float) -> list[dict[str, Any]]:
+def _resource_rows_from_metadata(
+    metadata_json: str | None, lora_text: str | None, updated_at: float
+) -> list[dict[str, Any]]:
     resources = _iter_metadata_resources(_safe_json_loads(metadata_json))
     seen = {
         (
@@ -2383,7 +2410,9 @@ def _format_inspector_row(row: sqlite3.Row, root: Path) -> dict[str, Any]:
         "has_lora": has_lora,
         "lora_count": lora_count,
         "lora_preview": lora_preview,
-        "metadata_detail_available": bool(row["has_metadata_json"] or row["has_prompt"] or row["has_negative"] or row["lora_count"]),
+        "metadata_detail_available": bool(
+            row["has_metadata_json"] or row["has_prompt"] or row["has_negative"] or row["lora_count"]
+        ),
     }
 
 

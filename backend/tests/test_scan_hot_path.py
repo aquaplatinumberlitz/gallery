@@ -51,10 +51,7 @@ def test_api_scan_hot_path_uses_cached_dimensions_without_parsing_or_opening_ima
     def fake_get_cached_dimensions_for_files(files):
         rows = list(files)
         assert {Path(path).name for path, _mtime, _size in rows} == {"a.jpg", "b.png"}
-        return {
-            str(Path(path).resolve()): CachedDimensions(width=320, height=240)
-            for path, _mtime, _size in rows
-        }
+        return {str(Path(path).resolve()): CachedDimensions(width=320, height=240) for path, _mtime, _size in rows}
 
     def fake_enqueue_metadata_jobs_from_scan(images, root_path):  # noqa: ANN001
         background_calls.append(("metadata", len(images)))
@@ -63,7 +60,11 @@ def test_api_scan_hot_path_uses_cached_dimensions_without_parsing_or_opening_ima
     monkeypatch.setattr(scan, "is_path_safe", lambda _path: True)
     monkeypatch.setattr(scan, "get_cached_dimensions_for_files", fake_get_cached_dimensions_for_files)
     monkeypatch.setattr(scan, "index_file", lambda *args, **kwargs: background_calls.append(("file", None)))
-    monkeypatch.setattr(scan, "index_files_from_scan", lambda _folders, images, *args, **kwargs: background_calls.append(("scan", len(images))))
+    monkeypatch.setattr(
+        scan,
+        "index_files_from_scan",
+        lambda _folders, images, *args, **kwargs: background_calls.append(("scan", len(images))),
+    )
     monkeypatch.setattr(scan, "index_directory_tree", lambda *args, **kwargs: background_calls.append(("tree", None)))
     monkeypatch.setattr(scan, "enqueue_metadata_jobs_from_scan", fake_enqueue_metadata_jobs_from_scan)
     monkeypatch.setattr(metadata_extract, "extract_metadata", fail_extract_metadata)

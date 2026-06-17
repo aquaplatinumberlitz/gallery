@@ -38,8 +38,14 @@ def _seed_metadata(tmp_path: Path) -> None:
     album.mkdir()
 
     images_data = [
-        ("img1.png", {"tool": "ComfyUI", "model": "ponyDiffusion", "sampler": "Euler a", "seed": "123", "scheduler": "normal"}),
-        ("img2.png", {"tool": "ComfyUI", "model": "ponyDiffusion", "sampler": "Euler a", "seed": "456", "scheduler": "normal"}),
+        (
+            "img1.png",
+            {"tool": "ComfyUI", "model": "ponyDiffusion", "sampler": "Euler a", "seed": "123", "scheduler": "normal"},
+        ),
+        (
+            "img2.png",
+            {"tool": "ComfyUI", "model": "ponyDiffusion", "sampler": "Euler a", "seed": "456", "scheduler": "normal"},
+        ),
         ("img3.png", {"tool": "A1111", "model": "SDXL", "sampler": "DPM++ 2M", "seed": "789", "scheduler": "karras"}),
         ("img4.png", {"tool": "SwarmUI", "model": "SDXL", "sampler": "Euler a", "seed": "", "scheduler": "normal"}),
         ("img5.jpg", {"tool": "", "model": "", "sampler": "", "seed": "", "scheduler": ""}),
@@ -97,6 +103,7 @@ def _seed_metadata(tmp_path: Path) -> None:
 
 def _scan_folder_counts(folder_path: Path) -> dict:
     import os
+
     folders = 0
     images = 0
     total = 0
@@ -186,6 +193,7 @@ def test_facets_caps_output_size(tmp_path: Path):
 
 def test_facets_handles_empty_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     import backend.metadata_store as ms
+
     test_db = tmp_path / "test_empty_facets.db"
     monkeypatch.setattr(ms, "GALLERY_METADATA_DB", test_db)
     monkeypatch.setattr(ms, "_DB_INITIALIZED", False)
@@ -244,19 +252,34 @@ def test_facets_lora_facet(tmp_path: Path):
         name="img1.png",
         mtime=stat.st_mtime,
         size=stat.st_size,
-        width=512, height=512,
-        format="PNG", mode="RGB", has_alpha=0,
-        prompt="test", negative_prompt="",
-        model="test", sampler="test", seed="",
-        steps=None, cfg_scale=None,
+        width=512,
+        height=512,
+        format="PNG",
+        mode="RGB",
+        has_alpha=0,
+        prompt="test",
+        negative_prompt="",
+        model="test",
+        sampler="test",
+        seed="",
+        steps=None,
+        cfg_scale=None,
         raw_metadata_text="",
-        metadata_json='{}',
-        tool="test", scheduler="",
-        model_hash=None, lora_text="add_detail:0.8, lineart:0.4",
+        metadata_json="{}",
+        tool="test",
+        scheduler="",
+        model_hash=None,
+        lora_text="add_detail:0.8, lineart:0.4",
         generation_time=None,
-        clip_skip=None, hires_upscale=None, hires_steps=None,
-        denoising_strength=None, vae=None, ensd=None,
-        aesthetic_score=None, date=None, aspect_ratio=None,
+        clip_skip=None,
+        hires_upscale=None,
+        hires_steps=None,
+        denoising_strength=None,
+        vae=None,
+        ensd=None,
+        aesthetic_score=None,
+        date=None,
+        aspect_ratio=None,
         indexed_at=stat.st_mtime,
     )
     upsert_extracted_metadata(ext_meta)
@@ -273,6 +296,7 @@ def test_facets_lora_facet(tmp_path: Path):
 
 def test_facets_empty_db_contains_lora(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     import backend.metadata_store as ms
+
     test_db = tmp_path / "test_facets_lora_empty.db"
     monkeypatch.setattr(ms, "GALLERY_METADATA_DB", test_db)
     monkeypatch.setattr(ms, "_DB_INITIALIZED", False)
@@ -295,21 +319,38 @@ def test_facets_lora_respects_output_limit(tmp_path: Path, monkeypatch: pytest.M
         white.save(str(path))
         stat = path.stat()
         ext_meta = ExtractedMetadata(
-            path=str(path.resolve()), name=f"img{i}.png",
-            mtime=stat.st_mtime, size=stat.st_size,
-            width=512, height=512,
-            format="PNG", mode="RGB", has_alpha=0,
-            prompt="test", negative_prompt="",
-            model="test", sampler="test", seed="",
-            steps=None, cfg_scale=None,
-            raw_metadata_text="", metadata_json='{}',
-            tool="test", scheduler="",
+            path=str(path.resolve()),
+            name=f"img{i}.png",
+            mtime=stat.st_mtime,
+            size=stat.st_size,
+            width=512,
+            height=512,
+            format="PNG",
+            mode="RGB",
+            has_alpha=0,
+            prompt="test",
+            negative_prompt="",
+            model="test",
+            sampler="test",
+            seed="",
+            steps=None,
+            cfg_scale=None,
+            raw_metadata_text="",
+            metadata_json="{}",
+            tool="test",
+            scheduler="",
             model_hash=None,
             lora_text="lora_a:1.0, lora_b:0.5" if i % 2 == 0 else "lora_c:0.8",
             generation_time=None,
-            clip_skip=None, hires_upscale=None, hires_steps=None,
-            denoising_strength=None, vae=None, ensd=None,
-            aesthetic_score=None, date=None, aspect_ratio=None,
+            clip_skip=None,
+            hires_upscale=None,
+            hires_steps=None,
+            denoising_strength=None,
+            vae=None,
+            ensd=None,
+            aesthetic_score=None,
+            date=None,
+            aspect_ratio=None,
             indexed_at=stat.st_mtime,
         )
         upsert_extracted_metadata(ext_meta)

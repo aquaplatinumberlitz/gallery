@@ -9,13 +9,15 @@ from .errors import APIError, ErrorType
 
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff"}
-DEFAULT_INDEX_EXCLUDED_DIR_NAMES = frozenset({
-    ".git",
-    "node_modules",
-    "__pycache__",
-    ".venv",
-    "venv",
-})
+DEFAULT_INDEX_EXCLUDED_DIR_NAMES = frozenset(
+    {
+        ".git",
+        "node_modules",
+        "__pycache__",
+        ".venv",
+        "venv",
+    }
+)
 DEFAULT_INDEX_EXCLUDED_SEGMENTS = (
     ("frontend", "public"),
     ("frontend", "dist"),
@@ -26,11 +28,7 @@ DEFAULT_INDEX_EXCLUDED_SEGMENTS = (
 
 
 def _configured_excluded_dir_names() -> set[str]:
-    configured = {
-        item.strip()
-        for item in os.getenv("GALLERY_INDEX_EXCLUDE_DIRS", "").split(",")
-        if item.strip()
-    }
+    configured = {item.strip() for item in os.getenv("GALLERY_INDEX_EXCLUDE_DIRS", "").split(",") if item.strip()}
     return set(DEFAULT_INDEX_EXCLUDED_DIR_NAMES) | configured
 
 
@@ -50,7 +48,7 @@ def _path_parts(path: str | Path) -> tuple[str, ...]:
 def _contains_segment(parts: tuple[str, ...], segment: tuple[str, ...]) -> bool:
     if not segment or len(segment) > len(parts):
         return False
-    return any(parts[index:index + len(segment)] == segment for index in range(len(parts) - len(segment) + 1))
+    return any(parts[index : index + len(segment)] == segment for index in range(len(parts) - len(segment) + 1))
 
 
 def is_index_excluded_path(path: str | Path) -> bool:
@@ -74,8 +72,7 @@ def natural_sort_key(s: str) -> list:
     Split string into text and numeric chunks for natural sorting.
     e.g. "10.png" -> [10, ".png"]
     """
-    return [int(text) if text.isdigit() else text.lower()
-            for text in re.split(r'(\d+)', s)]
+    return [int(text) if text.isdigit() else text.lower() for text in re.split(r"(\d+)", s)]
 
 
 def check_image_limits(path: Path) -> None:

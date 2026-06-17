@@ -16,11 +16,8 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 
-
 class TestMetadataEndpoint:
-    def test_metadata_parses_embedded_png_parameters(
-        self, isolated_app: TestClient, temp_gallery_with_metadata: Path
-    ):
+    def test_metadata_parses_embedded_png_parameters(self, isolated_app: TestClient, temp_gallery_with_metadata: Path):
         path = str(temp_gallery_with_metadata / "mika_album" / "mika_portrait.png")
         resp = isolated_app.get("/api/metadata", params={"path": path})
         assert resp.status_code == 200
@@ -28,18 +25,14 @@ class TestMetadataEndpoint:
         assert "prompt" in data
         assert "mika" in data["prompt"].lower()
 
-    def test_metadata_returns_tool_field(
-        self, isolated_app: TestClient, temp_gallery_with_metadata: Path
-    ):
+    def test_metadata_returns_tool_field(self, isolated_app: TestClient, temp_gallery_with_metadata: Path):
         path = str(temp_gallery_with_metadata / "mika_album" / "mika_portrait.png")
         resp = isolated_app.get("/api/metadata", params={"path": path})
         assert resp.status_code == 200
         data = resp.json()
         assert "tool" in data
 
-    def test_metadata_rejects_missing_file(
-        self, isolated_app: TestClient, temp_gallery_with_metadata: Path
-    ):
+    def test_metadata_rejects_missing_file(self, isolated_app: TestClient, temp_gallery_with_metadata: Path):
         resp = isolated_app.get(
             "/api/metadata",
             params={"path": str(temp_gallery_with_metadata / "none.png")},
@@ -47,9 +40,7 @@ class TestMetadataEndpoint:
         # May be 403 (out of root if resolved to /) or 404
         assert resp.status_code >= 400
 
-    def test_metadata_returns_params_dict(
-        self, isolated_app: TestClient, temp_gallery_with_metadata: Path
-    ):
+    def test_metadata_returns_params_dict(self, isolated_app: TestClient, temp_gallery_with_metadata: Path):
         path = str(temp_gallery_with_metadata / "mika_album" / "mika_portrait.png")
         resp = isolated_app.get("/api/metadata", params={"path": path})
         assert resp.status_code == 200
@@ -59,9 +50,7 @@ class TestMetadataEndpoint:
 
 
 class TestSearchPlainQuery:
-    def test_search_finds_image_by_prompt(
-        self, isolated_app: TestClient, temp_gallery_with_metadata: Path
-    ):
+    def test_search_finds_image_by_prompt(self, isolated_app: TestClient, temp_gallery_with_metadata: Path):
         _index_gallery_images(temp_gallery_with_metadata)
         resp = isolated_app.get("/api/search", params={"q": "mika", "scope": "all"})
         assert resp.status_code == 200
@@ -69,9 +58,7 @@ class TestSearchPlainQuery:
         all_names = _all_image_names(data)
         assert "mika_portrait.png" in all_names
 
-    def test_search_no_results_does_not_break(
-        self, isolated_app: TestClient, temp_gallery_with_metadata: Path
-    ):
+    def test_search_no_results_does_not_break(self, isolated_app: TestClient, temp_gallery_with_metadata: Path):
         _index_gallery_images(temp_gallery_with_metadata)
         resp = isolated_app.get("/api/search", params={"q": "zzz_nonexistent_xyz", "scope": "all"})
         assert resp.status_code == 200
@@ -79,9 +66,7 @@ class TestSearchPlainQuery:
         assert len(data["photos"]) == 0
         assert len(data["prompt"]) == 0
 
-    def test_search_empty_query_returns_empty(
-        self, isolated_app: TestClient, temp_gallery_with_metadata: Path
-    ):
+    def test_search_empty_query_returns_empty(self, isolated_app: TestClient, temp_gallery_with_metadata: Path):
         resp = isolated_app.get("/api/search", params={"q": "", "scope": "all"})
         assert resp.status_code == 200
         data = resp.json()
@@ -89,18 +74,14 @@ class TestSearchPlainQuery:
         assert data["photos"] == []
         assert data["prompt"] == []
 
-    def test_search_response_shape(
-        self, isolated_app: TestClient, temp_gallery_with_metadata: Path
-    ):
+    def test_search_response_shape(self, isolated_app: TestClient, temp_gallery_with_metadata: Path):
         resp = isolated_app.get("/api/search", params={"q": "mika", "scope": "all"})
         assert resp.status_code == 200
         data = resp.json()
         for key in ("query", "scope", "root", "albums", "photos", "prompt"):
             assert key in data
 
-    def test_search_landscape_finds_second_image(
-        self, isolated_app: TestClient, temp_gallery_with_metadata: Path
-    ):
+    def test_search_landscape_finds_second_image(self, isolated_app: TestClient, temp_gallery_with_metadata: Path):
         _index_gallery_images(temp_gallery_with_metadata)
         resp = isolated_app.get("/api/search", params={"q": "mountain", "scope": "all"})
         assert resp.status_code == 200
@@ -110,9 +91,7 @@ class TestSearchPlainQuery:
 
 
 class TestSearchFieldedQueries:
-    def test_search_prompt_field_mika(
-        self, isolated_app: TestClient, temp_gallery_with_metadata: Path
-    ):
+    def test_search_prompt_field_mika(self, isolated_app: TestClient, temp_gallery_with_metadata: Path):
         _index_gallery_images(temp_gallery_with_metadata)
         resp = isolated_app.get("/api/search", params={"q": "prompt:mika", "scope": "all"})
         assert resp.status_code == 200
@@ -120,9 +99,7 @@ class TestSearchFieldedQueries:
         names = _all_image_names(data)
         assert "mika_portrait.png" in names
 
-    def test_search_seed_field_12345(
-        self, isolated_app: TestClient, temp_gallery_with_metadata: Path
-    ):
+    def test_search_seed_field_12345(self, isolated_app: TestClient, temp_gallery_with_metadata: Path):
         _index_gallery_images(temp_gallery_with_metadata)
         resp = isolated_app.get("/api/search", params={"q": "seed:12345", "scope": "all"})
         assert resp.status_code == 200
@@ -130,9 +107,7 @@ class TestSearchFieldedQueries:
         names = _all_image_names(data)
         assert "mika_portrait.png" in names
 
-    def test_search_model_field_pony(
-        self, isolated_app: TestClient, temp_gallery_with_metadata: Path
-    ):
+    def test_search_model_field_pony(self, isolated_app: TestClient, temp_gallery_with_metadata: Path):
         _index_gallery_images(temp_gallery_with_metadata)
         resp = isolated_app.get("/api/search", params={"q": "model:pony", "scope": "all"})
         assert resp.status_code == 200
@@ -140,20 +115,14 @@ class TestSearchFieldedQueries:
         names = _all_image_names(data)
         assert "mika_portrait.png" in names
 
-    def test_fielded_search_no_results(
-        self, isolated_app: TestClient, temp_gallery_with_metadata: Path
-    ):
+    def test_fielded_search_no_results(self, isolated_app: TestClient, temp_gallery_with_metadata: Path):
         _index_gallery_images(temp_gallery_with_metadata)
-        resp = isolated_app.get(
-            "/api/search", params={"q": 'prompt:"definitely no match"', "scope": "all"}
-        )
+        resp = isolated_app.get("/api/search", params={"q": 'prompt:"definitely no match"', "scope": "all"})
         assert resp.status_code == 200
         data = resp.json()
         assert len(data["prompt"]) == 0
 
-    def test_fielded_search_does_not_500(
-        self, isolated_app: TestClient
-    ):
+    def test_fielded_search_does_not_500(self, isolated_app: TestClient):
         for q in [
             "seed:xyz",
             "model:",
@@ -164,16 +133,12 @@ class TestSearchFieldedQueries:
 
 
 class TestFacetsEndpoint:
-    def test_facets_returns_200(
-        self, isolated_app: TestClient, temp_gallery_with_metadata: Path
-    ):
+    def test_facets_returns_200(self, isolated_app: TestClient, temp_gallery_with_metadata: Path):
         _seed_metadata_for_facets(temp_gallery_with_metadata)
         resp = isolated_app.get("/api/facets", params={"path": str(temp_gallery_with_metadata / "mika_album")})
         assert resp.status_code == 200
 
-    def test_facets_has_expected_keys(
-        self, isolated_app: TestClient, temp_gallery_with_metadata: Path
-    ):
+    def test_facets_has_expected_keys(self, isolated_app: TestClient, temp_gallery_with_metadata: Path):
         _seed_metadata_for_facets(temp_gallery_with_metadata)
         resp = isolated_app.get("/api/facets", params={"path": str(temp_gallery_with_metadata / "mika_album")})
         assert resp.status_code == 200
@@ -181,9 +146,7 @@ class TestFacetsEndpoint:
         for key in ("tool", "model", "sampler", "folders", "orientation"):
             assert key in data
 
-    def test_facets_tool_counts_are_deterministic(
-        self, isolated_app: TestClient, temp_gallery_with_metadata: Path
-    ):
+    def test_facets_tool_counts_are_deterministic(self, isolated_app: TestClient, temp_gallery_with_metadata: Path):
         _seed_metadata_for_facets(temp_gallery_with_metadata)
         resp = isolated_app.get("/api/facets", params={"path": str(temp_gallery_with_metadata / "mika_album")})
         assert resp.status_code == 200
@@ -191,9 +154,7 @@ class TestFacetsEndpoint:
         tool_values = {f["value"]: f["count"] for f in data["tool"]}
         assert isinstance(tool_values, dict)
 
-    def test_facets_respects_scope(
-        self, isolated_app: TestClient, temp_gallery_with_metadata: Path
-    ):
+    def test_facets_respects_scope(self, isolated_app: TestClient, temp_gallery_with_metadata: Path):
         _seed_metadata_for_facets(temp_gallery_with_metadata)
         resp = isolated_app.get("/api/facets", params={"path": None})
         assert resp.status_code == 200
@@ -201,9 +162,7 @@ class TestFacetsEndpoint:
         assert isinstance(data, dict)
         assert "tool" in data
 
-    def test_facets_handles_nonexistent_folder(
-        self, isolated_app: TestClient, temp_gallery_with_metadata: Path
-    ):
+    def test_facets_handles_nonexistent_folder(self, isolated_app: TestClient, temp_gallery_with_metadata: Path):
         resp = isolated_app.get(
             "/api/facets",
             params={"path": str(temp_gallery_with_metadata / "nonexistent")},
@@ -211,9 +170,7 @@ class TestFacetsEndpoint:
         assert resp.status_code == 200
         assert resp.json() == {}
 
-    def test_facets_handles_empty_db(
-        self, isolated_app: TestClient, temp_gallery_with_metadata: Path
-    ):
+    def test_facets_handles_empty_db(self, isolated_app: TestClient, temp_gallery_with_metadata: Path):
         # No seeding - should handle empty gracefully
         resp = isolated_app.get("/api/facets", params={"path": None})
         assert resp.status_code == 200
@@ -237,6 +194,7 @@ class TestFacetsEndpoint:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _index_gallery_images(gallery_root: Path) -> None:
     """Index all images in the gallery so /api/search can find them by metadata.

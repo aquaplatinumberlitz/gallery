@@ -121,7 +121,7 @@ def parse_fielded_query(raw: str) -> ParsedQuery:
             op_match = COMP_OP_PATTERN.match(value)
             if op_match:
                 operator = op_match.group(1)
-                actual_value = value[op_match.end():].strip()
+                actual_value = value[op_match.end() :].strip()
 
         if actual_key is not None:
             ft = FieldToken(
@@ -184,8 +184,18 @@ def _like_value(raw_value: str) -> str:
 
 
 TEXT_LIKE_FIELDS: set[str] = {
-    "prompt", "negative", "name", "tool", "sampler", "scheduler",
-    "model", "lora", "resource_hash", "vae", "date", "generation_time",
+    "prompt",
+    "negative",
+    "name",
+    "tool",
+    "sampler",
+    "scheduler",
+    "model",
+    "lora",
+    "resource_hash",
+    "vae",
+    "date",
+    "generation_time",
 }
 
 COLUMN_MAP: dict[str, str] = {
@@ -274,21 +284,19 @@ def build_fielded_conditions(parsed: ParsedQuery) -> tuple[list[str], dict[str, 
                 if ft.value:
                     conditions.append(
                         "json_valid(m.metadata_json) AND json_extract(m.metadata_json, "
-                        + next_param(f'$.{json_path}')
+                        + next_param(f"$.{json_path}")
                         + ") = "
                         + next_param(ft.value)
                     )
                 else:
                     conditions.append(
                         "json_valid(m.metadata_json) AND json_extract(m.metadata_json, "
-                        + next_param(f'$.{json_path}')
+                        + next_param(f"$.{json_path}")
                         + ") IS NOT NULL"
                     )
             else:
                 like_val = f'%"{ft.value}%'
-                conditions.append(
-                    f"m.metadata_json LIKE {next_param(like_val)} ESCAPE '\\\\'"
-                )
+                conditions.append(f"m.metadata_json LIKE {next_param(like_val)} ESCAPE '\\\\'")
             continue
 
         if ft.field == "model_or_hash":
@@ -296,10 +304,7 @@ def build_fielded_conditions(parsed: ParsedQuery) -> tuple[list[str], dict[str, 
             # Contains search on both model and model_hash, unless exact-match chars present
             if "=" in ft.value:
                 # Exact match
-                conditions.append(
-                    f"(m.model = {next_param(ft.value)} "
-                    f"OR m.model_hash = {next_param(ft.value)})"
-                )
+                conditions.append(f"(m.model = {next_param(ft.value)} OR m.model_hash = {next_param(ft.value)})")
             else:
                 # Contains search
                 escaped = ft.value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
@@ -314,9 +319,7 @@ def build_fielded_conditions(parsed: ParsedQuery) -> tuple[list[str], dict[str, 
             if size_match:
                 w = int(size_match.group(1))
                 h = int(size_match.group(2))
-                conditions.append(
-                    f"m.width = {next_param(w)} AND m.height = {next_param(h)}"
-                )
+                conditions.append(f"m.width = {next_param(w)} AND m.height = {next_param(h)}")
             continue
 
         if ft.field == "path":

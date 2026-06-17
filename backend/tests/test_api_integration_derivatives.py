@@ -143,44 +143,54 @@ class TestPreview:
 
 
 class TestDerivativeCacheSeparation:
-    def test_thumbnail_and_preview_cache_keys_are_separated(
-        self, isolated_app: TestClient, temp_gallery: Path
-    ):
+    def test_thumbnail_and_preview_cache_keys_are_separated(self, isolated_app: TestClient, temp_gallery: Path):
         """A 512px thumbnail must not be reused as a 1440px preview, and vice versa."""
         from backend import thumbnails
 
         path = temp_gallery / "album_a" / "001.png"
 
         thumbnail_key = thumbnails._derivative_cache_key_str(
-            path, kind="thumbnail", max_long_edge=512, quality=78, format="webp",
+            path,
+            kind="thumbnail",
+            max_long_edge=512,
+            quality=78,
+            format="webp",
         )
         preview_key = thumbnails._derivative_cache_key_str(
-            path, kind="preview", max_long_edge=1440, quality=86, format="webp",
+            path,
+            kind="preview",
+            max_long_edge=1440,
+            quality=86,
+            format="webp",
         )
 
         assert thumbnail_key != preview_key
         assert "thumbnail" in thumbnail_key
         assert "preview" in preview_key
 
-    def test_same_edge_different_kind_produces_different_keys(
-        self, isolated_app: TestClient, temp_gallery: Path
-    ):
+    def test_same_edge_different_kind_produces_different_keys(self, isolated_app: TestClient, temp_gallery: Path):
         from backend import thumbnails
 
         path = temp_gallery / "album_a" / "001.png"
 
         thumbnail_key = thumbnails._derivative_cache_key_str(
-            path, kind="thumbnail", max_long_edge=512, quality=78, format="webp",
+            path,
+            kind="thumbnail",
+            max_long_edge=512,
+            quality=78,
+            format="webp",
         )
         preview_key_same_edge = thumbnails._derivative_cache_key_str(
-            path, kind="preview", max_long_edge=512, quality=78, format="webp",
+            path,
+            kind="preview",
+            max_long_edge=512,
+            quality=78,
+            format="webp",
         )
 
         assert thumbnail_key != preview_key_same_edge
 
-    def test_thumbnail_512_not_used_as_preview_1440(
-        self, isolated_app: TestClient, temp_gallery: Path
-    ):
+    def test_thumbnail_512_not_used_as_preview_1440(self, isolated_app: TestClient, temp_gallery: Path):
         """Calling thumbnail at 512 then preview at 1440 must produce different sizes."""
         path = temp_gallery / "album_a" / "001.png"
 
@@ -196,9 +206,7 @@ class TestDerivativeCacheSeparation:
 
         assert thumb_size != preview_size
 
-    def test_preview_1440_not_used_as_thumbnail_512(
-        self, isolated_app: TestClient, temp_gallery: Path
-    ):
+    def test_preview_1440_not_used_as_thumbnail_512(self, isolated_app: TestClient, temp_gallery: Path):
         """Calling preview at 1440 first then thumbnail at 512 must produce correct thumbnail size."""
         path = temp_gallery / "album_a" / "001.png"
 

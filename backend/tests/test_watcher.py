@@ -60,16 +60,19 @@ def test_config_parsing_works():
 def test_debounce_marks_folder_stale(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 0.01)
 
-
     handler = watcher._DebouncedHandler(roots=[str(tmp_path)])
 
     folder = tmp_path / "album"
     folder.mkdir()
-    update_folder_index_state(folder, complete=True, **{
-        "child_count": 1,
-        "folder_count": 0,
-        "image_count": 1,
-    })
+    update_folder_index_state(
+        folder,
+        complete=True,
+        **{
+            "child_count": 1,
+            "folder_count": 0,
+            "image_count": 1,
+        },
+    )
     assert get_folder_index_state(folder)["complete"]
 
     class FakeEvent:
@@ -155,6 +158,7 @@ def test_watcher_image_event_can_be_staged(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 0.01)
 
     from backend.watcher import _DebouncedHandler
+
     handler = _DebouncedHandler(roots=["/test"])
 
     class FakeEvent:

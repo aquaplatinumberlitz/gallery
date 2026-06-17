@@ -125,6 +125,7 @@ def main() -> None:
     args = parser.parse_args()
 
     import backend.metadata_store as ms
+
     ms.GALLERY_METADATA_DB = Path("/tmp/perf_warm_listing_test.db")
     ms._DB_INITIALIZED = False
     ms._DB_INITIALIZED_PATH = None
@@ -139,15 +140,19 @@ def main() -> None:
         print(f"Using existing folder: {folder}")
 
     cold = benchmark_cold_scan(folder, args.image_limit)
-    print(f"\nCold direct scan: {cold['duration_ms']}ms "
-          f"({cold['total_images']} images, {cold['folders']} folders, "
-          f"returned {cold['returned_images']})")
+    print(
+        f"\nCold direct scan: {cold['duration_ms']}ms "
+        f"({cold['total_images']} images, {cold['folders']} folders, "
+        f"returned {cold['returned_images']})"
+    )
 
     warm = benchmark_warm_listing(folder, args.image_limit)
     if warm is not None:
-        print(f"Warm DB listing:  {warm['duration_ms']}ms "
-              f"({warm['total_images']} images, "
-              f"returned {warm['returned_images']})")
+        print(
+            f"Warm DB listing:  {warm['duration_ms']}ms "
+            f"({warm['total_images']} images, "
+            f"returned {warm['returned_images']})"
+        )
         ratio = warm["duration_ms"] / cold["duration_ms"] * 100 if cold["duration_ms"] > 0 else 0
         print(f"Warm vs cold:     {ratio:.1f}% of cold time")
         if warm["duration_ms"] < 500:
@@ -159,6 +164,7 @@ def main() -> None:
 
     if needs_cleanup:
         import shutil
+
         shutil.rmtree(folder, ignore_errors=True)
         print(f"\nCleaned up: {folder}")
     else:

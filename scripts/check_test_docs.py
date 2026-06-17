@@ -84,8 +84,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if failures:
         print(
-            "\nStandard header required in scanned test/debug files:\n"
-            "  Purpose:\n  Guarantees:\n  Run when:",
+            "\nStandard header required in scanned test/debug files:\n  Purpose:\n  Guarantees:\n  Run when:",
             file=sys.stderr,
         )
         return 1

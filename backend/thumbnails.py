@@ -36,6 +36,7 @@ try:
 except ImportError:
     Counter = None
 
+
 def _metric_counter(name, doc, *labels_args, **labels_kwargs):
     if Counter is None:
         return None
@@ -44,11 +45,13 @@ def _metric_counter(name, doc, *labels_args, **labels_kwargs):
     except ValueError:
         return None
 
+
 def _inc(metric, *labels, amount=1.0):
     if metric is None:
         return
     target = metric.labels(*labels) if labels else metric
     target.inc(amount)
+
 
 _derivative_ready_total = _metric_counter(
     "gallery_derivative_ready_total",
@@ -293,7 +296,7 @@ async def _serve_derivative(
         headers={
             **headers,
             "Content-Length": str(len(derivative_bytes)),
-        }
+        },
     )
 
 

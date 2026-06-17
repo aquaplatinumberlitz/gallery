@@ -75,8 +75,7 @@ def _run_refresh_tick() -> None:
     roots = set(SCHEDULED_REFRESH_ROOTS)
     if not roots and not SCHEDULED_REFRESH_ALLOW_ALL_INDEXED:
         LOGGER.warning(
-            "Scheduled refresh tick skipped: no roots configured and "
-            "SCHEDULED_REFRESH_ALLOW_ALL_INDEXED is false"
+            "Scheduled refresh tick skipped: no roots configured and SCHEDULED_REFRESH_ALLOW_ALL_INDEXED is false"
         )
         return
 

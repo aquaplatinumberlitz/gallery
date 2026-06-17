@@ -132,6 +132,7 @@ def test_deleted_missing_folder_preserves_error_behavior(tmp_path: Path):
     update_folder_index_state(album, complete=True, **counts)
 
     import shutil
+
     shutil.rmtree(album)
 
     result = get_warm_folder_listing(album, offset=0, limit=10, image_limit=10)
@@ -169,7 +170,15 @@ def test_response_shape_compatible(tmp_path: Path):
 
     for img in result["images"]:
         assert set(img.model_dump()) == {
-            "name", "path", "type", "has_children", "cover_images", "mtime", "image_count", "width", "height",
+            "name",
+            "path",
+            "type",
+            "has_children",
+            "cover_images",
+            "mtime",
+            "image_count",
+            "width",
+            "height",
         }
 
 
@@ -227,6 +236,7 @@ def test_api_scan_uses_warm_listing(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     scandir_calls = []
 
     original_scandir = os.scandir
+
     def tracking_scandir(path):
         scandir_calls.append(path)
         return original_scandir(path)
@@ -244,7 +254,10 @@ def test_api_scan_uses_warm_listing(tmp_path: Path, monkeypatch: pytest.MonkeyPa
 
 
 def test_warm_path_does_not_call_build_album_metadata(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr("backend.metadata_store.build_album_metadata", lambda _: (_ for _ in ()).throw(RuntimeError("called build_album_metadata")))
+    monkeypatch.setattr(
+        "backend.metadata_store.build_album_metadata",
+        lambda _: (_ for _ in ()).throw(RuntimeError("called build_album_metadata")),
+    )
 
     album = tmp_path / "album"
     album.mkdir()
@@ -351,6 +364,7 @@ def test_warm_album_metadata_fields_have_safe_defaults(tmp_path: Path):
 
 # ---- helpers ----
 
+
 def _scan_folder_counts(folder_path: Path) -> dict:
     folders = 0
     images = 0
@@ -374,4 +388,5 @@ def _scan_folder_counts(folder_path: Path) -> dict:
 
 def _get_folder_index_state(folder_path: Path) -> dict | None:
     from backend.metadata_store import get_folder_index_state
+
     return get_folder_index_state(folder_path)

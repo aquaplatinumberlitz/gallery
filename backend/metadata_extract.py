@@ -10,7 +10,6 @@ from typing import Any
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 
-
 LORA_PATTERN = re.compile(r"<lora:([^:>]+)(?::([^>]+))?>", re.IGNORECASE)
 CJK_RE = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
 GENERIC_TEXT_KEYS = ("Description", "Comment", "UserComment", "Software", "parameters", "prompt", "workflow")
@@ -61,9 +60,9 @@ def extract_loras(text: str) -> list[str]:
     for match in LORA_PATTERN.finditer(text):
         name, weight = match.group(1), match.group(2)
         loras.append(f"{name}:{weight}" if weight else name)
-    alt_matches = re.findall(r'LoRA:\s*\[([^\]]+)\]', text)
+    alt_matches = re.findall(r"LoRA:\s*\[([^\]]+)\]", text)
     for match in alt_matches:
-        loras.extend([item.strip() for item in match.split(',') if item.strip()])
+        loras.extend([item.strip() for item in match.split(",") if item.strip()])
     return list(dict.fromkeys(loras))
 
 
@@ -558,7 +557,16 @@ def _json_text_summary(value: Any) -> str:
                 pieces.append(obj.strip())
         elif isinstance(obj, dict):
             for key, child in obj.items():
-                if key in {"text", "prompt", "negative_prompt", "ckpt_name", "model", "model_name", "sampler_name", "seed"}:
+                if key in {
+                    "text",
+                    "prompt",
+                    "negative_prompt",
+                    "ckpt_name",
+                    "model",
+                    "model_name",
+                    "sampler_name",
+                    "seed",
+                }:
                     visit(child)
                 elif isinstance(child, (dict, list)):
                     visit(child)

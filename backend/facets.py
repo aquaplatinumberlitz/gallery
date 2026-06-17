@@ -109,9 +109,7 @@ def _get_image_size_facets(scope_where: str, scope_params: dict, max_values: int
         ).fetchall()
         return {
             "orientation": [
-                {"value": r["value"], "count": int(r["count"])}
-                for r in orientation_rows
-                if r["value"] is not None
+                {"value": r["value"], "count": int(r["count"])} for r in orientation_rows if r["value"] is not None
             ],
         }
 
@@ -190,6 +188,7 @@ def _get_lora_facet(scope_where: str, scope_params: dict, max_values: int) -> li
 
 def build_facets(folder_path: str | None = None, max_values: int = FACET_DEFAULT_LIMIT) -> dict[str, Any]:
     import time
+
     start = time.perf_counter()
     scope_where, scope_params = _build_scope(folder_path)
     scope_params["limit"] = max_values
@@ -202,10 +201,7 @@ def build_facets(folder_path: str | None = None, max_values: int = FACET_DEFAULT
                 _build_facet_query(field, value_expr, max_values, scope_where, {**scope_params}),
                 {**scope_params},
             ).fetchall()
-            result[field] = [
-                {"value": r["value"], "count": int(r["count"])}
-                for r in rows
-            ]
+            result[field] = [{"value": r["value"], "count": int(r["count"])} for r in rows]
 
     result["folders"] = _get_folder_list(scope_where, scope_params, max_values)
 

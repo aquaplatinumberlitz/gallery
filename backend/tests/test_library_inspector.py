@@ -152,7 +152,15 @@ def test_library_inspector_empty_query_returns_latest_rows(
     assert "prompt" not in data["rows"][0]
     assert "negative_prompt" not in data["rows"][0]
     assert "raw_metadata" not in data["rows"][0]
-    for key in ("prompt_preview", "has_prompt", "has_negative", "has_lora", "lora_count", "lora_preview", "metadata_detail_available"):
+    for key in (
+        "prompt_preview",
+        "has_prompt",
+        "has_negative",
+        "has_lora",
+        "lora_count",
+        "lora_preview",
+        "metadata_detail_available",
+    ):
         assert key in data["rows"][0]
 
 
@@ -223,7 +231,9 @@ def test_library_inspector_indexes_lora_from_json_when_lora_text_empty(
     assert row["lora_count"] == 1
     assert "json_only_lora" in row["lora_preview"]
 
-    search_resp = isolated_app.get("/api/library/inspector", params={"q": "lora:json_only_lora", "scope": "all", "limit": 20})
+    search_resp = isolated_app.get(
+        "/api/library/inspector", params={"q": "lora:json_only_lora", "scope": "all", "limit": 20}
+    )
     assert search_resp.status_code == 200
     assert [item["name"] for item in search_resp.json()["rows"]] == ["json-lora.png"]
 
@@ -363,12 +373,8 @@ def test_library_inspector_excludes_app_build_assets_but_keeps_gallery_dist_fold
     index_directory_tree(isolated_gallery_root, include_metadata=True, collected_image_paths=collected)
 
     with _connect() as conn:
-        image_metadata_paths = {
-            row["path"] for row in conn.execute("SELECT path FROM image_metadata")
-        }
-        file_index_paths = {
-            row["path"] for row in conn.execute("SELECT path FROM file_index WHERE type = 'photo'")
-        }
+        image_metadata_paths = {row["path"] for row in conn.execute("SELECT path FROM image_metadata")}
+        file_index_paths = {row["path"] for row in conn.execute("SELECT path FROM file_index WHERE type = 'photo'")}
 
     assert str(app_dist_image.resolve()) not in image_metadata_paths
     assert str(app_dist_image.resolve()) not in file_index_paths

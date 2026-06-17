@@ -19,6 +19,7 @@ os.environ.setdefault("ENABLE_METRICS", "0")
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def create_test_png(
     path: Path,
     size: tuple[int, int] = (64, 64),
@@ -176,6 +177,7 @@ def isolated_metadata_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pat
 
     # Also patch the config module so any new imports see the right db
     import backend.config as cfg
+
     monkeypatch.setattr(cfg, "GALLERY_METADATA_DB", db_path)
 
     return db_path

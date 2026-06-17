@@ -236,7 +236,11 @@ async def api_scan(
             _inc_warm_hit()
             response_payload = warm_result
         else:
-            reason = warm_fallback_reason if warm_fallback_reason else ("disabled" if not ENABLE_WARM_INDEXED_LISTING else "error")
+            reason = (
+                warm_fallback_reason
+                if warm_fallback_reason
+                else ("disabled" if not ENABLE_WARM_INDEXED_LISTING else "error")
+            )
             _inc_warm_fallback(reason)
             folders, images, scan_perf = await run_in_threadpool(scan_directory, target)
 
@@ -251,7 +255,9 @@ async def api_scan(
             target_stat_started = time.perf_counter()
             target_mtime = target.stat().st_mtime
             scan_perf["stat_ms"] += _elapsed_ms(target_stat_started)
-            background_tasks.add_task(index_file, target, target.name or str(target), target.parent, "folder", target_mtime, None, None, None)
+            background_tasks.add_task(
+                index_file, target, target.name or str(target), target.parent, "folder", target_mtime, None, None, None
+            )
             background_tasks.add_task(index_files_from_scan, folders, images, scan_folder_path=target)
             background_tasks.add_task(index_directory_tree, target, False)
             background_tasks.add_task(enqueue_metadata_jobs_from_scan, images, target)

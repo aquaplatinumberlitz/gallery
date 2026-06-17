@@ -89,11 +89,15 @@ def test_respects_max_folders_per_tick(tmp_path: Path, monkeypatch: pytest.Monke
         f.mkdir()
         (f / f"img_{i}.jpg").write_text("fake")
         index_directory_tree(f, include_metadata=False)
-        update_folder_index_state(f, complete=True, **{
-            "child_count": 1,
-            "folder_count": 0,
-            "image_count": 1,
-        })
+        update_folder_index_state(
+            f,
+            complete=True,
+            **{
+                "child_count": 1,
+                "folder_count": 0,
+                "image_count": 1,
+            },
+        )
 
     refresh._run_refresh_tick()
     assert len(refresh_calls) == 2
@@ -122,11 +126,15 @@ def test_does_not_block_scan(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr(refresh, "_refresh_folder", slow_refresh)
     index_directory_tree(album, include_metadata=False)
-    update_folder_index_state(album, complete=True, **{
-        "child_count": 1,
-        "folder_count": 0,
-        "image_count": 1,
-    })
+    update_folder_index_state(
+        album,
+        complete=True,
+        **{
+            "child_count": 1,
+            "folder_count": 0,
+            "image_count": 1,
+        },
+    )
 
     t = threading.Thread(target=refresh._run_refresh_tick, daemon=True)
     t.start()
@@ -165,11 +173,15 @@ def test_handles_sqlite_busy_with_safe_fallback(tmp_path: Path, monkeypatch: pyt
     album.mkdir()
     (album / "test.jpg").write_text("fake")
     index_directory_tree(album, include_metadata=False)
-    update_folder_index_state(album, complete=True, **{
-        "child_count": 1,
-        "folder_count": 0,
-        "image_count": 1,
-    })
+    update_folder_index_state(
+        album,
+        complete=True,
+        **{
+            "child_count": 1,
+            "folder_count": 0,
+            "image_count": 1,
+        },
+    )
 
     refresh._run_refresh_tick()
 
@@ -197,12 +209,17 @@ def test_refresh_folder_updates_state(tmp_path: Path, monkeypatch: pytest.Monkey
 
     # Add album to folder_index_state as incomplete, then refresh should mark complete
     update_folder_index_state(
-        album, dir_mtime_ns=album.stat().st_mtime_ns,
-        complete=False, child_count=2, folder_count=1, image_count=1,
+        album,
+        dir_mtime_ns=album.stat().st_mtime_ns,
+        complete=False,
+        child_count=2,
+        folder_count=1,
+        image_count=1,
     )
 
     # Clean up stale entries from other tests so they don't exhaust the tick budget
     from backend.metadata_store import cleanup_stale_index
+
     cleanup_stale_index(None)
 
     refresh._run_refresh_tick()
@@ -308,11 +325,15 @@ def test_does_not_enqueue_unbounded_work(tmp_path: Path, monkeypatch: pytest.Mon
         f.mkdir()
         (f / f"img_{i}.jpg").write_text("fake")
         index_directory_tree(f, include_metadata=False)
-        update_folder_index_state(f, complete=True, **{
-            "child_count": 1,
-            "folder_count": 0,
-            "image_count": 1,
-        })
+        update_folder_index_state(
+            f,
+            complete=True,
+            **{
+                "child_count": 1,
+                "folder_count": 0,
+                "image_count": 1,
+            },
+        )
 
     refresh._run_refresh_tick()
     assert len(refresh_calls) == 5
@@ -320,8 +341,10 @@ def test_does_not_enqueue_unbounded_work(tmp_path: Path, monkeypatch: pytest.Mon
 
 # ---- helpers ----
 
+
 def _scan_folder_counts(folder_path: Path) -> dict:
     import os
+
     folders = 0
     images = 0
     total = 0

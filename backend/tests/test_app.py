@@ -162,13 +162,31 @@ def _setup_test_data() -> None:
                   vae=excluded.vae
                 """,
                 (
-                    resolved, fd["name"], now, 1024, fd["width"], fd["height"],
-                    "PNG", "RGB", 0,
-                    fd["prompt"], fd["negative_prompt"], fd["model"],
-                    fd["sampler"], fd["seed"], fd["steps"], fd["cfg_scale"],
-                    fd["raw_metadata_text"], fd["metadata_json"], now, now,
-                    fd["tool"], fd["scheduler"], fd["model_hash"],
-                    fd["lora_text"], fd["vae"],
+                    resolved,
+                    fd["name"],
+                    now,
+                    1024,
+                    fd["width"],
+                    fd["height"],
+                    "PNG",
+                    "RGB",
+                    0,
+                    fd["prompt"],
+                    fd["negative_prompt"],
+                    fd["model"],
+                    fd["sampler"],
+                    fd["seed"],
+                    fd["steps"],
+                    fd["cfg_scale"],
+                    fd["raw_metadata_text"],
+                    fd["metadata_json"],
+                    now,
+                    now,
+                    fd["tool"],
+                    fd["scheduler"],
+                    fd["model_hash"],
+                    fd["lora_text"],
+                    fd["vae"],
                 ),
             )
             _replace_image_resources_conn(conn, resolved, fd["metadata_json"], fd["lora_text"], now)
@@ -183,7 +201,16 @@ def _setup_test_data() -> None:
     for fpath, fname, parent in scope_files:
         _create_png(fpath)
         resolved = str(fpath.resolve())
-        index_file(path=resolved, name=fname, parent_path=str(parent.resolve()), type="photo", mtime=now, size=1024, width=64, height=64)
+        index_file(
+            path=resolved,
+            name=fname,
+            parent_path=str(parent.resolve()),
+            type="photo",
+            mtime=now,
+            size=1024,
+            width=64,
+            height=64,
+        )
         with _connect() as conn:
             conn.execute(
                 """
@@ -256,6 +283,7 @@ def test_routes_registered():
 
 def test_main_shim():
     from backend.main import app as main_app
+
     assert main_app is app
 
 
@@ -267,6 +295,7 @@ def test_main_shim():
 def test_search_index_fielded_import():
     from backend.metadata_store import search_index_fielded
     from backend.search import router as search_router
+
     assert callable(search_index_fielded)
     assert search_router is not None
 
@@ -625,9 +654,14 @@ def _insert_cjk_fixture():
 
     with _connect() as conn:
         index_file(
-            path=cjk_resolved, name="猫_雨.png",
-            parent_path=str(cjk_dir.resolve()), type="photo",
-            mtime=now, size=1024, width=64, height=64,
+            path=cjk_resolved,
+            name="猫_雨.png",
+            parent_path=str(cjk_dir.resolve()),
+            type="photo",
+            mtime=now,
+            size=1024,
+            width=64,
+            height=64,
         )
         conn.execute(
             """
@@ -640,11 +674,24 @@ def _insert_cjk_fixture():
               prompt=excluded.prompt, negative_prompt=excluded.negative_prompt
             """,
             (
-                cjk_resolved, "猫_雨.png", now, 1024, 64, 64,
-                "PNG", "RGB", 0,
+                cjk_resolved,
+                "猫_雨.png",
+                now,
+                1024,
+                64,
+                64,
+                "PNG",
+                "RGB",
+                0,
                 "masterpiece, 女の子, 雨, blue eyes",
-                "文字, watermark", "", "", "", "",
-                "", now, now,
+                "文字, watermark",
+                "",
+                "",
+                "",
+                "",
+                "",
+                now,
+                now,
             ),
         )
     _TEST_INSERTED_PATHS.append(cjk_resolved)
@@ -820,9 +867,14 @@ def test_scope_current_fielded_residual_does_not_leak_other_folder():
     scope_dir = _TEST_SCOPE_DIR.resolve()
     current_root = str(scope_dir / "current")
 
-    resp = client.get(SEARCH_BASE, params={
-        "q": "rain name:rain", "scope": "current", "path": current_root,
-    })
+    resp = client.get(
+        SEARCH_BASE,
+        params={
+            "q": "rain name:rain",
+            "scope": "current",
+            "path": current_root,
+        },
+    )
     assert resp.status_code == 200
     data = resp.json()
     photo_names = _photo_names(data)
@@ -850,10 +902,14 @@ def test_fielded_albums_are_folder_suggestions_not_field_filtered():
 
     initialize_database()
     index_file(
-        path=album_dir_path, name=album_name,
+        path=album_dir_path,
+        name=album_name,
         parent_path=str(album_dir.parent.resolve()),
         type="folder",
-        mtime=time.time(), size=0, width=0, height=0,
+        mtime=time.time(),
+        size=0,
+        width=0,
+        height=0,
     )
     _TEST_INSERTED_PATHS.append(album_dir_path)
 

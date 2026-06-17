@@ -456,7 +456,9 @@ class TestBuildFieldedSearchSql:
 
     def test_negative_field_sql_comma_and(self):
         """negative:"watermark, blurry" should AND multiple LIKE conditions."""
-        parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="negative", value="watermark, blurry", quote_char='"')])
+        parsed = ParsedQuery(
+            residual_text="", fields=[FieldToken(field="negative", value="watermark, blurry", quote_char='"')]
+        )
         sql, params = build_fielded_search_sql(parsed, limit=10)
         assert sql.count("LIKE") == 2
         assert "AND" in sql

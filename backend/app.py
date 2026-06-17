@@ -25,10 +25,12 @@ def _get_cors_origins() -> list[str]:
     if origin:
         origins.append(origin.rstrip("/"))
     if port:
-        origins.extend([
-            f"http://localhost:{port}",
-            f"http://127.0.0.1:{port}",
-        ])
+        origins.extend(
+            [
+                f"http://localhost:{port}",
+                f"http://127.0.0.1:{port}",
+            ]
+        )
 
     if not origins:
         origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
@@ -43,6 +45,7 @@ app = FastAPI(title="Museum Art Gallery API")
 
 if ENABLE_METRICS:
     from prometheus_fastapi_instrumentator import Instrumentator
+
     instrumentator = Instrumentator(
         should_group_status_codes=True,
         should_ignore_untemplated=True,

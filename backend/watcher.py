@@ -111,10 +111,7 @@ class _DebouncedHandler:
 
 def _watcher_loop() -> None:
     if not _HAS_WATCHDOG:
-        LOGGER.warning(
-            "watchdog not installed; file watcher disabled. "
-            "Install with: pip install watchdog"
-        )
+        LOGGER.warning("watchdog not installed; file watcher disabled. Install with: pip install watchdog")
         return
 
     import watchdog.events
@@ -153,6 +150,7 @@ def _watcher_loop() -> None:
             if ready_paths:
                 try:
                     from .indexer import stage_metadata_paths_from_scan
+
                     stage_metadata_paths_from_scan(
                         ready_paths[:WATCHER_MAX_EVENTS_PER_TICK],
                         start_worker=True,

@@ -32,7 +32,13 @@ class TestScanResponseShape:
         data = resp.json()
         for folder in data["folders"]:
             assert set(folder) == {
-                "name", "path", "type", "has_children", "cover_images", "mtime", "image_count",
+                "name",
+                "path",
+                "type",
+                "has_children",
+                "cover_images",
+                "mtime",
+                "image_count",
             }
             assert folder["type"] == "folder"
 
@@ -43,8 +49,15 @@ class TestScanResponseShape:
         data = resp.json()
         for img in data["images"]:
             assert set(img) == {
-                "name", "path", "type", "has_children", "cover_images", "mtime",
-                "image_count", "width", "height",
+                "name",
+                "path",
+                "type",
+                "has_children",
+                "cover_images",
+                "mtime",
+                "image_count",
+                "width",
+                "height",
             }
             assert img["type"] == "image"
 
@@ -180,11 +193,13 @@ class TestPagination:
 
 
 class TestScanHotPathContract:
-    def test_scan_hot_path_does_not_open_images(self, isolated_app: TestClient, temp_gallery: Path, monkeypatch: pytest.MonkeyPatch):
+    def test_scan_hot_path_does_not_open_images(
+        self, isolated_app: TestClient, temp_gallery: Path, monkeypatch: pytest.MonkeyPatch
+    ):
         """Scan hot path must not call PIL.Image.open."""
         from PIL import Image as PILImage
 
-        opened : list[str] = []
+        opened: list[str] = []
 
         original_open = PILImage.open
 

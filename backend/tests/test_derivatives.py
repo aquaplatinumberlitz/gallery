@@ -150,9 +150,7 @@ def test_thumbnail_stores_oriented_dimensions_for_exif_jpeg(tmp_path, monkeypatc
     assert response.status_code == 200
 
     stat = image_path.stat()
-    cached = get_cached_dimensions_for_files(
-        [(str(image_path.resolve()), stat.st_mtime, stat.st_size)]
-    )
+    cached = get_cached_dimensions_for_files([(str(image_path.resolve()), stat.st_mtime, stat.st_size)])
     key = str(image_path.resolve())
 
     assert key in cached, f"no cached dimensions found for {key}"
@@ -160,9 +158,7 @@ def test_thumbnail_stores_oriented_dimensions_for_exif_jpeg(tmp_path, monkeypatc
     assert cached[key].height == 1440, f"expected height=1440, got {cached[key].height}"
 
 
-def test_scan_returns_oriented_dimensions_for_exif_jpeg(
-    tmp_path, monkeypatch
-):
+def test_scan_returns_oriented_dimensions_for_exif_jpeg(tmp_path, monkeypatch):
     import backend.metadata_store as ms
     import backend.config as cfg
 
@@ -187,9 +183,7 @@ def test_scan_returns_oriented_dimensions_for_exif_jpeg(
     assert image["height"] == 1440, f"scan height: expected 1440, got {image['height']}"
 
 
-def test_metadata_returns_oriented_dimensions_for_exif_jpeg(
-    tmp_path, monkeypatch
-):
+def test_metadata_returns_oriented_dimensions_for_exif_jpeg(tmp_path, monkeypatch):
     import backend.metadata_store as ms
 
     monkeypatch.setattr(ms, "GALLERY_METADATA_DB", tmp_path / "test_meta_dim.db")
