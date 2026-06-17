@@ -48,7 +48,7 @@ jobs:
       - name: Install Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -82,7 +82,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install backend dependencies
-        run: pip install -r backend/requirements.txt
+        run: pip install -r backend/requirements-dev.txt
 
       - name: Backend pytest
         run: python -m pytest backend/tests/ -x -q
@@ -90,7 +90,7 @@ jobs:
       - name: Install Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -116,7 +116,7 @@ jobs:
       - name: Install Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
