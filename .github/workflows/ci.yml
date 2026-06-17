@@ -104,3 +104,50 @@ jobs:
       - name: Frontend build
         working-directory: frontend
         run: pnpm build
+
+  # ---- Playwright Contract Tests ----
+  playwright-contract:
+    name: Playwright Contract Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers (Chromium only)
+        working-directory: frontend
+        run: pnpm exec playwright install chromium
+
+      - name: Build frontend
+        working-directory: frontend
+        run: pnpm build
+
+      - name: Run contract tests
+        working-directory: frontend
+        run: pnpm exec playwright test \
+            tests/lightbox-loading-policy.spec.ts \
+            tests/gallery-no-reload.spec.ts \
+            tests/gallery-cache-revisit.spec.ts \
+            tests/search-fielded-ui.spec.ts \
+            --project=chromium --reporter=html
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-contract
+          path: frontend/playwright-report/
+          retention-days: 7
