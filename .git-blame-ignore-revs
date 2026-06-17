@@ -1,0 +1,6 @@
+# Format-only commits — no logic changes, skip in git blame
+
+# Phase 3b: Ruff format backend (35 files)
+2b30775
+# Phase 3a: Prettier bulk format (234 files)
+674439b
