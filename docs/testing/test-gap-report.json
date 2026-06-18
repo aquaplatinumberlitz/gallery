@@ -59,21 +59,28 @@
         "missing_lines": 11,
         "percent": 15.384615384615385,
         "statements": 13
+      },
+      {
+        "below_threshold": true,
+        "file": "facets.py",
+        "missing_lines": 71,
+        "percent": 28.282828282828284,
+        "statements": 99
       }
     ],
     "backend_totals": {
-      "covered_lines": 3057,
+      "covered_lines": 3190,
       "excluded_lines": 2,
-      "missing_lines": 573,
+      "missing_lines": 440,
       "num_statements": 3630,
-      "percent_covered": 84.21487603305785,
-      "percent_covered_display": "84",
-      "percent_statements_covered": 84.21487603305785,
-      "percent_statements_covered_display": "84"
+      "percent_covered": 87.87878787878788,
+      "percent_covered_display": "88",
+      "percent_statements_covered": 87.87878787878788,
+      "percent_statements_covered_display": "88"
     },
     "frontend_summary_found": false
   },
-  "generated_at": "2026-06-18T02:40:29+00:00",
+  "generated_at": "2026-06-18T08:57:07+00:00",
   "matrix": [
     {
       "backend": "OK",
