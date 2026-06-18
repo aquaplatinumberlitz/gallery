@@ -57,4 +57,19 @@ export default tseslint.config(
       "no-useless-assignment": "off",
     },
   },
+  {
+    files: ["src/**/__tests__/**/*.test.ts", "src/test/**/*.ts", "vitest.config.ts"],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+      },
+    },
+    rules: {
+      "no-empty": "off",
+      "no-useless-assignment": "off",
+      "@typescript-eslint/no-explicit-any": "off",
+      "vue/one-component-per-file": "off",
+    },
+  },
 );
