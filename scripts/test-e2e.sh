@@ -19,10 +19,18 @@ fi
 
 echo ""
 echo ">>> Running Playwright E2E tests..."
-corepack pnpm exec playwright test tests/e2e/ \
-    --project=chromium \
-    --reporter=html \
-    "$@"
+
+if [ $# -gt 0 ]; then
+    # Specific files passed as args — run only those
+    corepack pnpm exec playwright test "$@" \
+        --project=chromium \
+        --reporter=html
+else
+    # No args — run all E2E tests
+    corepack pnpm exec playwright test tests/e2e/ \
+        --project=chromium \
+        --reporter=html
+fi
 
 echo ""
 echo "=========================================="

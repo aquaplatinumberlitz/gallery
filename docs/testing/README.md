@@ -152,7 +152,7 @@ Run from the repo root unless a command changes directory explicitly.
 | Targeted Playwright test | `cd frontend && corepack pnpm exec playwright test tests/e2e/lightbox-loading-policy.spec.ts --project=chromium` |
 | Metadata performance diagnostic | `cd frontend && GALLERY_BASE_URL=http://localhost:5173 corepack pnpm exec playwright test tests/e2e/metadata-performance.spec.ts --project=chromium --headed` |
 | Metadata performance strict gate | `cd frontend && GALLERY_PERF_METADATA_STRICT=1 corepack pnpm run perf:metadata` |
-| Frontend contract subset | `bash scripts/test-e2e.sh` (or `bash scripts/test_frontend_contract.sh` for legacy) |
+| Frontend E2E tests | `bash scripts/test-e2e.sh` |
 | Lint and format checks | `bash scripts/test-lint.sh` |
 | Backend and frontend unit suite | `bash scripts/test-unit.sh` |
 | Deterministic suite | `bash test-all.sh` |
