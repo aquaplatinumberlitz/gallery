@@ -12,6 +12,8 @@ AI Art Gallery is a local-first image browser with a FastAPI backend and a Vue 3
 - Tooling: backend quality checks use Ruff through changed-file scripts; frontend uses pnpm, ESLint, Prettier changed-file checks, `vue-tsc`, Vite, and Playwright.
 
 Major external library integrations are documented in [Third-Party Libraries](THIRD_PARTY_LIBRARIES.md).
+Environment variables and parser behavior are documented in
+[Configuration](CONFIGURATION.md) and [Metadata Parsing](METADATA_PARSING.md).
 
 ## Backend
 

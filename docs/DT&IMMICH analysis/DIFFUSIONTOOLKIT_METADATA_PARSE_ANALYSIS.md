@@ -15,7 +15,7 @@ which covers the broader scan, indexing, thumbnail, and viewer pipeline.
 | Repo | Files |
 | --- | --- |
 | DiffusionToolkit at `153409c3a0e9569886e6601530365808d4ecbb0e` | [`Metadata.cs`](https://github.com/RupertAvery/DiffusionToolkit/blob/153409c3a0e9569886e6601530365808d4ecbb0e/Diffusion.Scanner/Metadata.cs), [`FileParameters.cs`](https://github.com/RupertAvery/DiffusionToolkit/blob/153409c3a0e9569886e6601530365808d4ecbb0e/Diffusion.Scanner/FileParameters.cs), [`StealthPng.cs`](https://github.com/RupertAvery/DiffusionToolkit/blob/153409c3a0e9569886e6601530365808d4ecbb0e/Diffusion.Scanner/StealthPng.cs), [`ComfyUIParser.cs`](https://github.com/RupertAvery/DiffusionToolkit/blob/153409c3a0e9569886e6601530365808d4ecbb0e/Diffusion.ComfyUI/ComfyUIParser.cs), [`SimpleWorkflowParser.cs`](https://github.com/RupertAvery/DiffusionToolkit/blob/153409c3a0e9569886e6601530365808d4ecbb0e/Diffusion.ComfyUI/SimpleWorkflowParser.cs), [`AnimatedWebPWorkflowParser.cs`](https://github.com/RupertAvery/DiffusionToolkit/blob/153409c3a0e9569886e6601530365808d4ecbb0e/Diffusion.ComfyUI/AnimatedWebPWorkflowParser.cs) |
-| gallery-repo | [`backend/metadata_parse.py`](../backend/metadata_parse.py), [`backend/metadata_extract.py`](../backend/metadata_extract.py), [`backend/metadata_store.py`](../backend/metadata_store.py), [`docs/METADATA_PARSING.md`](METADATA_PARSING.md) |
+| gallery-repo | [`backend/metadata_parse.py`](../../backend/metadata_parse.py), [`backend/metadata_extract.py`](../../backend/metadata_extract.py), [`backend/metadata_store.py`](../../backend/metadata_store.py), [`docs/METADATA_PARSING.md`](../METADATA_PARSING.md) |
 
 ## DiffusionToolkit parser shape
 

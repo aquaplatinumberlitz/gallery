@@ -1,5 +1,7 @@
 # Metadata Inspector Performance Plan
 
+> **Archived:** Implemented in commit `8eba18b`. See [Architecture](../ARCHITECTURE.md) for current state.
+
 Last reviewed: 2026-06-16
 
 Status: all phases implemented.

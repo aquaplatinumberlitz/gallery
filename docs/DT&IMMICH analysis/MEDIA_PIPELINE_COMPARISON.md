@@ -277,3 +277,27 @@ The correct near-term direction is not "become Immich" or "become DiffusionToolk
 - Immich behavior can vary by config, especially fullsize generation, watcher enablement, queue concurrency, ML enablement, and viewer original-loading preference.
 - No live benchmarks were run across the three projects. The comparisons are architecture and code-path based.
 - The 5000/100k conclusions assume warm indexed state for Immich and DiffusionToolkit, and current folder-scan behavior for gallery-repo.
+
+## Updated for current architecture
+
+Verified against the current repository on 2026-06-18:
+
+- gallery-repo no longer uses the original image as the initial PhotoSwipe
+  source. The current sequence is thumbnail placeholder → 1440px preview
+  derivative → original on zoom/fullscreen/animated/preference/fallback.
+- The comparison's proposed local metadata queue now exists. Scan-discovered
+  paths are staged outside the hot path, persisted as SQLite jobs, coalesced,
+  parsed by a bounded worker, and written in batches.
+- DB-first warm metadata reads and `/api/index/status` are implemented.
+- Warm indexed folder listing is available behind
+  `ENABLE_WARM_INDEXED_LISTING`, with direct-scan fallback for missing,
+  incomplete, or stale state.
+- Optional watcher and scheduled refresh workers exist in `backend/watcher.py`
+  and `backend/refresh.py` and are disabled by default.
+- Derivative generation is implemented in `backend/thumbnails.py`; no separate
+  `backend/derivatives.py` module exists.
+
+The external DiffusionToolkit and Immich observations remain historical audit
+findings. Statements above about gallery-repo lacking these features or
+requiring `src=/api/image` as the main lightbox source are superseded by this
+section and [Architecture](../ARCHITECTURE.md).

@@ -114,7 +114,7 @@ See [Third-Party Libraries](THIRD_PARTY_LIBRARIES.md) for VSBS and PhotoSwipe in
 - VSBS styles must be global, not scoped, because the library teleports sheet DOM outside the component scope.
 - Keep the width chain explicit for `[data-vsbs-sheet]`, `[data-vsbs-scroll]`, `[data-vsbs-content]`, `.sheet-content`, and `.expandable-text` so the sheet cannot collapse horizontally.
 - Keep the sheet background black/dark through VSBS variables and scroll/content overrides so no gray strip appears.
-- See the regression checklist in [Troubleshooting](TROUBLESHOOTING.md#mobile-lightbox-sheet-checklist) before changing this flow.
+- Review the VSBS/PhotoSwipe constraints in [Third-Party Libraries](THIRD_PARTY_LIBRARIES.md) before changing this flow.
 
 ## Empty States
 

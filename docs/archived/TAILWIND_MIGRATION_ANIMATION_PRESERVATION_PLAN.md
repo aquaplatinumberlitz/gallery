@@ -1,5 +1,7 @@
 # Tailwind Migration Plan — Animation & Visual Preservation
 
+> **Archived:** Implemented in commit `a26fe9e`. See [Architecture](../ARCHITECTURE.md) for current state.
+
 **Last reviewed:** 2026-06-15 (Phases 0-2B complete; Stone base color finalized)
 **Status:** Phase 1 ✅, Phase 1.5 ✅, Phase 2A ✅, Phase 2B ✅ — Standard UI now uses shadcn-vue Stone pixel-level defaults
 **Decision:** Hybrid Migration (see §14)

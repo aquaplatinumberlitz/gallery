@@ -2,6 +2,8 @@
 
 Research date: 2026-06-14
 
+Research conducted during Phase 3 planning.
+
 ## 1. Executive Summary
 
 PhotoPrism has the most relevant overall pattern for this gallery app because it is a web photo library with separate cards, mosaic, and list result views, lightweight search filters, visible index state, and metadata available through a details/edit surface. Lightroom is the best reference for metadata density, filtering concepts, and right-sidebar inspection, but most of its Library module is too broad for a personal read-only AI art gallery. digiKam is the clearest validation that a table-style inspector with thumbnail rows and metadata columns is useful for comparison work. Immich is less relevant for table design because its UX is primarily timeline/grid/detail oriented, but it is useful as a reference for keeping search simple while exposing richer metadata only in a detail panel.
@@ -250,3 +252,29 @@ digiKam and darktable:
 - https://docs.darktable.org/usermanual/development/en/lighttable/lighttable-modes/filemanager/
 - https://docs.darktable.org/usermanual/development/en/module-reference/utility-modules/shared/collections/
 - https://docs.darktable.org/usermanual/development/en/module-reference/utility-modules/shared/filmstrip/
+
+## 8. Adopted/Rejected Outcomes
+
+Verified against `frontend/src/components/LibraryInspector.vue` on 2026-06-18.
+The implemented component is named `LibraryInspector.vue`; historical
+`MetadataList.vue` references in this research describe the planning concept.
+
+Adopted:
+
+- A dedicated `/metadata` Library Inspector separate from the primary gallery
+  grid.
+- TanStack Table column definitions with TanStack Virtual row virtualization.
+- Read-only rows with thumbnail/file identity, prompt preview, model/tool, seed,
+  dimensions, modified time, and lazy detail/actions.
+- Search, scope, model, prompt-presence, and sort controls.
+- Indexed counts/status and detail-on-demand metadata rather than reparsing every
+  original while rendering the table.
+
+Rejected or deferred:
+
+- A grid/list toggle inside the inspector.
+- Lightroom-style multi-column metadata filter browser.
+- Inline metadata editing, batch actions, ratings, flags, tags, and destructive
+  actions.
+- User-configurable columns and multi-sort.
+- Persistent filmstrip and Immich-style people/face/OCR/location features.

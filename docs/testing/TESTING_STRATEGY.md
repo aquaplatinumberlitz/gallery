@@ -1,5 +1,7 @@
 # Testing Strategy
 
+Last verified against `.github/workflows/ci.yml` and `scripts/test-*.sh`: 2026-06-18.
+
 ## Stack
 
 - **Backend**: Python FastAPI + SQLite — test pyramid (nhiều unit, ít integration, rất ít E2E)
@@ -7,36 +9,39 @@
 
 ## Test Matrix
 
-| Layer | Tool | Environment | PR CI | Nightly | Mục tiêu |
-|-------|------|:-----------:|:-----:|:-------:|----------|
-| Static | Ruff/ESLint/vue-tsc | none | ✅ | ✅ | syntax/types |
-| Unit | pytest/Vitest | isolated | ✅ | ✅ | pure logic |
-| Component integration | Vitest | jsdom | ✅ | ✅ | component behavior |
-| API integration | pytest | SQLite/temp FS | ✅ | ✅ | backend behavior |
-| Browser integration | Playwright + mocks | Chromium | subset | full | UI workflows |
-| Full-stack E2E | Playwright + backend | real app | critical only | ✅ | system wiring |
-| Perf | scripts/Playwright | fixture/real data | ❌ | scheduled | budgets |
+| Layer | Tool | Environment | PR/push CI | Nightly | Mục tiêu |
+|-------|------|:-----------:|:----------:|:-------:|----------|
+| Static | Ruff/ESLint/Prettier | none | ✅ `lint` | N/A (not configured) | syntax/style |
+| Backend unit + API integration | pytest | SQLite/temp FS | ✅ `test:unit` | N/A (not configured) | backend behavior |
+| Frontend unit/component | Vitest | jsdom | ✅ `test:unit` | N/A (not configured) | frontend logic/behavior |
+| Frontend build/typecheck | vue-tsc/Vite | build environment | ✅ `test:unit` and `test:e2e` | N/A (not configured) | types/build |
+| Browser integration | Playwright + mocked API | Chromium | ✅ selected specs in `test:e2e` | N/A (not configured) | critical UI workflows |
+| Full-stack E2E | Playwright + backend | real app | ❌ | N/A (not configured) | system wiring |
+| Perf | scripts/Playwright | fixture/real data | ❌ | N/A (not configured) | local performance checks |
 
 ## Test Selection Policy
 
-- **PR CI**: lint + unit + component integration + browser integration (subset) + full-stack E2E (critical only)
-- **Merge/Full CI**: tất cả ở trên + full browser integration
-- **Nightly**: perf tests + WebKit smoke + full-stack E2E (full)
+- **Push/PR CI**: three jobs only: `lint`, `test:unit`, and `test:e2e`.
+- **`test:e2e` CI selection**: four Chromium contract specs: lightbox loading policy, no-reload, cache revisit, and fielded-search UI.
+- **Nightly**: N/A (not configured).
+- **WebKit smoke**: N/A.
+- **Full-stack/perf**: available through repository scripts where their prerequisites are met, but not selected by the current CI workflow.
 
 ## Coverage Baselines
 
 - **Backend**: 85% line coverage (enforced in CI)
-- **Frontend**: TBD — chờ baseline ổn định sau khi vitest + Playwright coverage merged
+- **Frontend**: coverage artifacts are generated for the selected Playwright CI specs, but no numeric frontend coverage threshold is enforced.
 
 ## Browser Matrix
 
 - **PR CI**: Chromium (fastest)
-- **Nightly**: Chromium + WebKit smoke (5-10 critical specs)
+- **Nightly**: N/A (not configured)
+- **WebKit smoke**: N/A
 
 ## Flaky Test Policy
 
-- 3 lần fail liên tiếp → tự động quarantine (skip) + tạo GitHub issue
-- Owner chịu trách nhiệm fix trong vòng 1 tuần
+- Không có automation quarantine hoặc auto-create GitHub issue trong workflow hiện tại.
+- Test flaky phải được triage; không được mô tả là tự động skip nếu chưa có workflow/config thực hiện việc đó.
 
 ## When to Use What
 

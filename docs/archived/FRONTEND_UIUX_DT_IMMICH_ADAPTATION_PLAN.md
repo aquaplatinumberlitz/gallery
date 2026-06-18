@@ -1,5 +1,7 @@
 # Frontend UI/UX Audit & Adaptation Plan after DT/Immich Phase 1-2-3
 
+> **Archived:** Implemented in commit `71894ad`. See [Architecture](../ARCHITECTURE.md) for current state.
+
 Last reviewed: 2026-06-15
 
 ## 1. Executive Summary

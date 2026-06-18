@@ -40,7 +40,7 @@ Reference commits:
 
 One requested file, `backend/services/metadata_index.py`, does not exist in this
 checkout. The actual gallery SQLite metadata and indexing layer is
-[`backend/metadata_store.py`](../backend/metadata_store.py).
+[`backend/metadata_store.py`](../../backend/metadata_store.py).
 
 ## DiffusionToolkit files inspected
 
@@ -58,17 +58,17 @@ checkout. The actual gallery SQLite metadata and indexing layer is
 
 | Area | Files |
 |---|---|
-| FastAPI composition | [`backend/main.py`](../backend/main.py), [`backend/app.py`](../backend/app.py) |
-| Scan path | [`backend/scan.py`](../backend/scan.py) |
-| Original image serving | [`backend/images.py`](../backend/images.py) |
-| Thumbnail path | [`backend/thumbnails.py`](../backend/thumbnails.py) |
-| Metadata parsing | [`backend/metadata_parse.py`](../backend/metadata_parse.py), [`backend/metadata_extract.py`](../backend/metadata_extract.py) |
-| SQLite metadata/index/search | [`backend/metadata_store.py`](../backend/metadata_store.py), [`backend/search.py`](../backend/search.py) |
-| API client/query keys | [`frontend/src/services/api.ts`](../frontend/src/services/api.ts), [`frontend/src/query/keys.ts`](../frontend/src/query/keys.ts), [`frontend/src/query/index.ts`](../frontend/src/query/index.ts) |
-| Scan/search queries | [`frontend/src/composables/useInfiniteScanQuery.ts`](../frontend/src/composables/useInfiniteScanQuery.ts), [`frontend/src/composables/useUnifiedSearchQuery.ts`](../frontend/src/composables/useUnifiedSearchQuery.ts) |
-| Grid and thumbnails | [`frontend/src/components/GalleryGrid.vue`](../frontend/src/components/GalleryGrid.vue), [`frontend/src/components/PhotoCard.vue`](../frontend/src/components/PhotoCard.vue) |
-| Lightbox and dimensions | [`frontend/src/components/Lightbox.vue`](../frontend/src/components/Lightbox.vue), [`frontend/src/components/PhotoSwipeViewer.vue`](../frontend/src/components/PhotoSwipeViewer.vue), [`frontend/src/composables/usePhotoSwipe.ts`](../frontend/src/composables/usePhotoSwipe.ts), [`frontend/src/utils/lightbox.ts`](../frontend/src/utils/lightbox.ts), [`frontend/src/stores/lightbox.ts`](../frontend/src/stores/lightbox.ts) |
-| Perf/instrumentation docs/tests | [`frontend/tests/e2e/perf/album-open.perf.spec.ts`](../frontend/tests/e2e/perf/album-open.perf.spec.ts), [`frontend/tests/e2e/perf/lightbox.perf.spec.ts`](../frontend/tests/e2e/perf/lightbox.perf.spec.ts), [`docs/ARCHITECTURE.md`](ARCHITECTURE.md), [`docs/PERFORMANCE_TESTING.md`](PERFORMANCE_TESTING.md) |
+| FastAPI composition | [`backend/main.py`](../../backend/main.py), [`backend/app.py`](../../backend/app.py) |
+| Scan path | [`backend/scan.py`](../../backend/scan.py) |
+| Original image serving | [`backend/images.py`](../../backend/images.py) |
+| Thumbnail path | [`backend/thumbnails.py`](../../backend/thumbnails.py) |
+| Metadata parsing | [`backend/metadata_parse.py`](../../backend/metadata_parse.py), [`backend/metadata_extract.py`](../../backend/metadata_extract.py) |
+| SQLite metadata/index/search | [`backend/metadata_store.py`](../../backend/metadata_store.py), [`backend/search.py`](../../backend/search.py) |
+| API client/query keys | [`frontend/src/services/api.ts`](../../frontend/src/services/api.ts), [`frontend/src/query/keys.ts`](../../frontend/src/query/keys.ts), [`frontend/src/query/index.ts`](../../frontend/src/query/index.ts) |
+| Scan/search queries | [`frontend/src/composables/useInfiniteScanQuery.ts`](../../frontend/src/composables/useInfiniteScanQuery.ts), [`frontend/src/composables/useUnifiedSearchQuery.ts`](../../frontend/src/composables/useUnifiedSearchQuery.ts) |
+| Grid and thumbnails | [`frontend/src/components/GalleryGrid.vue`](../../frontend/src/components/GalleryGrid.vue), [`frontend/src/components/PhotoCard.vue`](../../frontend/src/components/PhotoCard.vue) |
+| Lightbox and dimensions | [`frontend/src/components/Lightbox.vue`](../../frontend/src/components/Lightbox.vue), [`frontend/src/components/PhotoSwipeViewer.vue`](../../frontend/src/components/PhotoSwipeViewer.vue), [`frontend/src/composables/usePhotoSwipe.ts`](../../frontend/src/composables/usePhotoSwipe.ts), [`frontend/src/utils/lightbox.ts`](../../frontend/src/utils/lightbox.ts), [`frontend/src/stores/lightbox.ts`](../../frontend/src/stores/lightbox.ts) |
+| Perf/instrumentation docs/tests | [`frontend/tests/e2e/perf/album-open.perf.spec.ts`](../../frontend/tests/e2e/perf/album-open.perf.spec.ts), [`frontend/tests/e2e/perf/lightbox.perf.spec.ts`](../../frontend/tests/e2e/perf/lightbox.perf.spec.ts), [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md), [`docs/PERFORMANCE_TESTING.md`](../test-debug-perf/PERFORMANCE_TESTING.md) |
 
 ## DiffusionToolkit pipeline
 
@@ -267,3 +267,32 @@ a FastAPI/Vue browser app.
   maintainer confirmation.
 - Actual performance depends heavily on image size, disk speed, cache state,
   browser, device, and deployment topology.
+
+## Updated for current architecture
+
+Verified against the current repository on 2026-06-18:
+
+- The historical “missing background metadata indexer” gap is closed. `/api/scan`
+  stages discovered image paths through `backend/indexer.py`; durable jobs are
+  coalesced by file version and processed in bounded batches with batched SQLite
+  writes. `/api/index/status` reports persisted and live queue state.
+- The lightbox is now derivative-first. `frontend/src/utils/lightbox.ts` uses
+  `/api/preview` at 1440px as PhotoSwipe `src` and `/api/thumbnail` as `msrc`.
+  `frontend/src/composables/usePhotoSwipe.ts` upgrades to `/api/image` for zoom,
+  fullscreen, animated-image handling, preference, or fallback paths.
+- `backend/thumbnails.py` is the shared derivative implementation for both
+  thumbnail and preview endpoints. There is no `backend/derivatives.py` module in
+  the current tree.
+- Warm indexed folder listing is implemented behind
+  `ENABLE_WARM_INDEXED_LISTING`. A missing, incomplete, or stale folder index
+  falls back to the direct filesystem scan.
+- The optional watcher and scheduled refresh are implemented in
+  `backend/watcher.py` and `backend/refresh.py`; both are disabled by default.
+  There is no `backend/refresh_service.py` module in the current tree.
+- Metadata parsing is unified through `backend/metadata_extract.py`. Both the
+  request path and background indexer persist the same normalized
+  `ExtractedMetadata` representation.
+
+Historical diagrams, recommendations, and statements above that describe
+PhotoSwipe `src=/api/image`, no metadata queue, no warm listing, or no watcher
+represent the architecture at the audit commit, not the current implementation.

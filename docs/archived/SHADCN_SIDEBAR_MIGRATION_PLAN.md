@@ -1,8 +1,11 @@
 # shadcn-vue Sidebar Migration Plan
 
+> **Archived:** Implemented in commit `267d5df`. See [Architecture](../ARCHITECTURE.md) for current state.
+
 Date: 2026-06-14
 
-Status: plan only. Do not implement from this document without a separate implementation task.
+Original status at authoring: plan only. The migration was later implemented and this
+document is retained as historical design context.
 
 Primary sources:
 

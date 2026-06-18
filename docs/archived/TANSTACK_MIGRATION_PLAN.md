@@ -1,5 +1,7 @@
 # TanStack Migration Plan
 
+> **Archived:** Implemented in commit `0ab5b2c`. See [Architecture](../ARCHITECTURE.md) for current state.
+
 Last reviewed: 2026-06-09
 
 Status: FULLY IMPLEMENTED — all phases complete.

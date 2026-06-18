@@ -1,5 +1,7 @@
 # Gallery Repo Evolution Master Plan
 
+> **Archived:** Implemented in commit `2a569da`. See [Architecture](../ARCHITECTURE.md) for current state.
+
 Last reviewed: 2026-06-10 (updated to track actual implementation: all Phases 0-3 done, Phase 4 research-only)
 
 ## Executive Summary
@@ -39,20 +41,20 @@ changes, or behavior changes by itself.
 
 Primary inputs read:
 
-- [DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md](DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md)
-- [DIFFUSIONTOOLKIT_METADATA_PARSE_ANALYSIS.md](DIFFUSIONTOOLKIT_METADATA_PARSE_ANALYSIS.md)
-- [DIFFUSIONTOOLKIT_METADATA_SEARCH_ANALYSIS.md](DIFFUSIONTOOLKIT_METADATA_SEARCH_ANALYSIS.md)
-- [IMMICH_PIPELINE_AUDIT.md](IMMICH_PIPELINE_AUDIT.md)
-- [MEDIA_PIPELINE_COMPARISON.md](MEDIA_PIPELINE_COMPARISON.md)
-- [ARCHITECTURE.md](ARCHITECTURE.md)
-- [PERFORMANCE_TESTING.md](PERFORMANCE_TESTING.md)
-- [METADATA_PARSING.md](METADATA_PARSING.md)
+- [DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md](../DT&IMMICH%20analysis/DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md)
+- [DIFFUSIONTOOLKIT_METADATA_PARSE_ANALYSIS.md](../DT&IMMICH%20analysis/DIFFUSIONTOOLKIT_METADATA_PARSE_ANALYSIS.md)
+- [DIFFUSIONTOOLKIT_METADATA_SEARCH_ANALYSIS.md](../DT&IMMICH%20analysis/DIFFUSIONTOOLKIT_METADATA_SEARCH_ANALYSIS.md)
+- [IMMICH_PIPELINE_AUDIT.md](../DT&IMMICH%20analysis/IMMICH_PIPELINE_AUDIT.md)
+- [MEDIA_PIPELINE_COMPARISON.md](../DT&IMMICH%20analysis/MEDIA_PIPELINE_COMPARISON.md)
+- [ARCHITECTURE.md](../ARCHITECTURE.md)
+- [PERFORMANCE_TESTING.md](../test-debug-perf/PERFORMANCE_TESTING.md)
+- [METADATA_PARSING.md](../METADATA_PARSING.md)
 
 Implementation files inspected:
 
-- Backend: [scan.py](../backend/scan.py), [thumbnails.py](../backend/thumbnails.py), [images.py](../backend/images.py), [metadata_store.py](../backend/metadata_store.py), [metadata_parse.py](../backend/metadata_parse.py), [metadata_extract.py](../backend/metadata_extract.py), [search.py](../backend/search.py), [main.py](../backend/main.py), [app.py](../backend/app.py)
-- Frontend: [GalleryGrid.vue](../frontend/src/components/GalleryGrid.vue), [PhotoCard.vue](../frontend/src/components/PhotoCard.vue), [Lightbox.vue](../frontend/src/components/Lightbox.vue), [PhotoSwipeViewer.vue](../frontend/src/components/PhotoSwipeViewer.vue), [usePhotoSwipe.ts](../frontend/src/composables/usePhotoSwipe.ts), [lightbox.ts](../frontend/src/stores/lightbox.ts), [lightbox.ts](../frontend/src/utils/lightbox.ts), [api.ts](../frontend/src/services/api.ts)
-- Perf tests: [album-open.perf.spec.ts](../frontend/tests/e2e/perf/album-open.perf.spec.ts), [lightbox.perf.spec.ts](../frontend/tests/e2e/perf/lightbox.perf.spec.ts)
+- Backend: [scan.py](../../backend/scan.py), [thumbnails.py](../../backend/thumbnails.py), [images.py](../../backend/images.py), [metadata_store.py](../../backend/metadata_store.py), [metadata_parse.py](../../backend/metadata_parse.py), [metadata_extract.py](../../backend/metadata_extract.py), [search.py](../../backend/search.py), [main.py](../../backend/main.py), [app.py](../../backend/app.py)
+- Frontend: [GalleryGrid.vue](../../frontend/src/components/GalleryGrid.vue), [PhotoCard.vue](../../frontend/src/components/PhotoCard.vue), [Lightbox.vue](../../frontend/src/components/Lightbox.vue), [PhotoSwipeViewer.vue](../../frontend/src/components/PhotoSwipeViewer.vue), [usePhotoSwipe.ts](../../frontend/src/composables/usePhotoSwipe.ts), [lightbox.ts](../../frontend/src/stores/lightbox.ts), [lightbox.ts](../../frontend/src/utils/lightbox.ts), [api.ts](../../frontend/src/services/api.ts)
+- Perf tests: [album-open.perf.spec.ts](../../frontend/tests/e2e/perf/album-open.perf.spec.ts), [lightbox.perf.spec.ts](../../frontend/tests/e2e/perf/lightbox.perf.spec.ts)
 
 ## Current System Facts
 
@@ -586,9 +588,9 @@ Root cause:
 
 Evidence from current docs/code:
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) states `/api/scan` indexes folder/file rows in the background without re-indexing image metadata.
-- [backend/scan.py](../backend/scan.py) calls `background_tasks.add_task(index_directory_tree, target, False)`.
-- [metadata_store.py](../backend/metadata_store.py) can index images but does so synchronously per image when called.
+- [ARCHITECTURE.md](../ARCHITECTURE.md) states `/api/scan` indexes folder/file rows in the background without re-indexing image metadata.
+- [backend/scan.py](../../backend/scan.py) calls `background_tasks.add_task(index_directory_tree, target, False)`.
+- [metadata_store.py](../../backend/metadata_store.py) can index images but does so synchronously per image when called.
 
 Idea borrowed from DT/Immich:
 
@@ -640,8 +642,8 @@ Root cause:
 
 Evidence from current docs/code:
 
-- [backend/scan.py](../backend/scan.py) returns `total_images = len(images)` after all image rows are collected and sorted.
-- [MEDIA_PIPELINE_COMPARISON.md](MEDIA_PIPELINE_COMPARISON.md) identifies 5000+ warm folders as a case where Immich/DT-style indexed browsing wins.
+- [backend/scan.py](../../backend/scan.py) returns `total_images = len(images)` after all image rows are collected and sorted.
+- [MEDIA_PIPELINE_COMPARISON.md](../DT&IMMICH%20analysis/MEDIA_PIPELINE_COMPARISON.md) identifies 5000+ warm folders as a case where Immich/DT-style indexed browsing wins.
 
 Idea borrowed from DT/Immich:
 
@@ -690,9 +692,9 @@ Root cause:
 
 Evidence from current docs/code:
 
-- [backend/metadata_store.py](../backend/metadata_store.py) has columns `seed`, `steps`, `cfg_scale`, `model`, `sampler`, `width`, `height`.
+- [backend/metadata_store.py](../../backend/metadata_store.py) has columns `seed`, `steps`, `cfg_scale`, `model`, `sampler`, `width`, `height`.
 - `_search_prompt_rows()` searches FTS/LIKE over text fields, not structured predicates.
-- [DIFFUSIONTOOLKIT_METADATA_SEARCH_ANALYSIS.md](DIFFUSIONTOOLKIT_METADATA_SEARCH_ANALYSIS.md) proposes field parsing over current columns.
+- [DIFFUSIONTOOLKIT_METADATA_SEARCH_ANALYSIS.md](../DT&IMMICH%20analysis/DIFFUSIONTOOLKIT_METADATA_SEARCH_ANALYSIS.md) proposes field parsing over current columns.
 
 Idea borrowed from DT/Immich:
 
@@ -740,9 +742,9 @@ Root cause:
 
 Evidence from current docs/code:
 
-- [DIFFUSIONTOOLKIT_METADATA_PARSE_ANALYSIS.md](DIFFUSIONTOOLKIT_METADATA_PARSE_ANALYSIS.md) identifies parser divergence and missing Fooocus, InvokeAI, some WebP EXIF conventions, richer sidecars, and Stealth PNG.
-- [backend/metadata_parse.py](../backend/metadata_parse.py) has richer SwarmUI/ComfyUI/NovelAI/EasyDiffusion handling.
-- [backend/metadata_extract.py](../backend/metadata_extract.py) has a smaller normalized extraction path.
+- [DIFFUSIONTOOLKIT_METADATA_PARSE_ANALYSIS.md](../DT&IMMICH%20analysis/DIFFUSIONTOOLKIT_METADATA_PARSE_ANALYSIS.md) identifies parser divergence and missing Fooocus, InvokeAI, some WebP EXIF conventions, richer sidecars, and Stealth PNG.
+- [backend/metadata_parse.py](../../backend/metadata_parse.py) has richer SwarmUI/ComfyUI/NovelAI/EasyDiffusion handling.
+- [backend/metadata_extract.py](../../backend/metadata_extract.py) has a smaller normalized extraction path.
 
 Idea borrowed from DT/Immich:
 
@@ -783,8 +785,8 @@ How to test:
 
 Evidence from current docs/code:
 
-- [frontend/src/stores/lightbox.ts](../frontend/src/stores/lightbox.ts) `preloadNeighbors()` creates `Image()` objects for thumbnail URLs.
-- [frontend/src/composables/usePhotoSwipe.ts](../frontend/src/composables/usePhotoSwipe.ts) fetches metadata dimensions on demand through TanStack Query.
+- [frontend/src/stores/lightbox.ts](../../frontend/src/stores/lightbox.ts) `preloadNeighbors()` creates `Image()` objects for thumbnail URLs.
+- [frontend/src/composables/usePhotoSwipe.ts](../../frontend/src/composables/usePhotoSwipe.ts) fetches metadata dimensions on demand through TanStack Query.
 - Lightbox perf tests assert original source and transition budget.
 
 Idea borrowed from DT/Immich:
@@ -833,8 +835,8 @@ Root cause:
 
 Evidence from current docs/code:
 
-- [backend/scan.py](../backend/scan.py) schedules background tasks but exposes no status endpoint.
-- [metadata_store.py](../backend/metadata_store.py) has no job/status table.
+- [backend/scan.py](../../backend/scan.py) schedules background tasks but exposes no status endpoint.
+- [metadata_store.py](../../backend/metadata_store.py) has no job/status table.
 - Previous UI guidance warns against noisy status/toast regressions.
 
 Idea borrowed from DT/Immich:
@@ -884,7 +886,7 @@ Root cause:
 
 Evidence from current docs/code:
 
-- [metadata_store.py](../backend/metadata_store.py) opens transactions per function call.
+- [metadata_store.py](../../backend/metadata_store.py) opens transactions per function call.
 - Existing docs identify DT's batched writer as the best local pattern.
 
 Idea borrowed from DT/Immich:
@@ -934,8 +936,8 @@ Root cause:
 
 Evidence from current docs/code:
 
-- [backend/thumbnails.py](../backend/thumbnails.py) persists WebP files based on cache key.
-- No `asset_file`-like table exists in [metadata_store.py](../backend/metadata_store.py).
+- [backend/thumbnails.py](../../backend/thumbnails.py) persists WebP files based on cache key.
+- No `asset_file`-like table exists in [metadata_store.py](../../backend/metadata_store.py).
 
 Idea borrowed from Immich:
 
@@ -1032,7 +1034,7 @@ Root cause:
 Evidence from current docs/code:
 
 - `/api/scan` always calls `scan_directory()` today.
-- [IMMICH_PIPELINE_AUDIT.md](IMMICH_PIPELINE_AUDIT.md) shows Immich timeline APIs read compact DB buckets.
+- [IMMICH_PIPELINE_AUDIT.md](../DT&IMMICH%20analysis/IMMICH_PIPELINE_AUDIT.md) shows Immich timeline APIs read compact DB buckets.
 
 Idea borrowed from Immich:
 

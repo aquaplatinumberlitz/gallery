@@ -218,13 +218,13 @@ gallery-repo/
 - [Architecture](docs/ARCHITECTURE.md) - frontend/backend architecture, data flow, lightbox design
 - [Library Usage](docs/THIRD_PARTY_LIBRARIES.md) - third-party library integration notes
 - [UI/UX Guidelines](docs/UI_UX_GUIDELINES.md) - breakpoints, layout rules, mobile behavior, theme rules
-- [Test Strategy](docs/test-debug-perf/TEST_STRATEGY.md) - backend, Playwright contract, and perf tiers
+- [Test Strategy](docs/testing/TESTING_STRATEGY.md) - canonical CI, browser, coverage, and test-selection policy
 - [Performance Testing](docs/test-debug-perf/PERFORMANCE_TESTING.md) - perf budgets, test methodology, results
 - [Performance Comparison Report](docs/test-debug-perf/perf_compare_report.md) - lightbox perf comparison notes
-- [Evolution Master Plan](docs/plan/GALLERY_REPO_EVOLUTION_MASTER_PLAN_codex.md) - phased roadmap
-- [TanStack Migration Plan](docs/plan/TANSTACK_MIGRATION_PLAN.md) - incremental TanStack Query migration
-- [Shadcn Sidebar Migration Plan](docs/plan/SHADCN_SIDEBAR_MIGRATION_PLAN.md) - sidebar migration notes
-- [Tailwind Migration Plan](docs/plan/TAILWIND_MIGRATION_ANIMATION_PRESERVATION_PLAN.md) - Tailwind migration and animation preservation notes
+- [Evolution Master Plan](docs/archived/GALLERY_REPO_EVOLUTION_MASTER_PLAN_codex.md) - archived phased roadmap
+- [TanStack Migration Plan](docs/archived/TANSTACK_MIGRATION_PLAN.md) - archived TanStack Query migration
+- [Shadcn Sidebar Migration Plan](docs/archived/SHADCN_SIDEBAR_MIGRATION_PLAN.md) - archived sidebar migration notes
+- [Tailwind Migration Plan](docs/archived/TAILWIND_MIGRATION_ANIMATION_PRESERVATION_PLAN.md) - archived Tailwind migration notes
 - [Shadcn Component Audit](docs/reports/SHADCN_COMPONENT_AUDIT.md) - local UI component audit
 - [Library Inspector UX Research](docs/research/library-inspector-ux-patterns.md) - metadata inspector UX references
 - [DiffusionToolkit Pipeline Audit](<docs/DT&IMMICH analysis/DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md>) - comparison with DiffusionToolkit metadata, indexing, thumbnail, and lightbox pipeline

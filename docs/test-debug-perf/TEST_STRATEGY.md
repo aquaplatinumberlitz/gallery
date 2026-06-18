@@ -1,5 +1,11 @@
 # Test Strategy
 
+> **DEPRECATED:** Xem [docs/testing/TESTING_STRATEGY.md](../testing/TESTING_STRATEGY.md)
+
+This file is retained for historical tier details. Current CI selection, browser policy, and
+coverage gates are defined by the canonical strategy linked above and were verified on
+2026-06-18.
+
 ## Overview
 
 The gallery test suite covers backend API endpoints, frontend UI contracts, and performance
@@ -7,6 +13,20 @@ budgets. Tests are categorized into deterministic (run in CI) and smoke/perf (re
 app with real data).
 
 ---
+
+## Current CI Policy
+
+| CI job | Verified commands |
+|---|---|
+| `lint` | Backend Ruff lint/format on changed files; frontend ESLint and changed-file Prettier |
+| `test:unit` | Backend pytest with `--cov-fail-under=85`; frontend Vitest; frontend build/typecheck |
+| `test:e2e` | Four selected Playwright contract specs on Chromium; frontend coverage report artifact |
+
+- Nightly: N/A (not configured).
+- WebKit smoke: N/A.
+- Full-stack E2E and perf smoke: not selected by `.github/workflows/ci.yml`.
+- Backend coverage threshold: 85%, enforced in CI and `scripts/test-unit.sh`.
+- Frontend coverage threshold: no numeric CI threshold is configured.
 
 ## Test Tiers
 
@@ -166,9 +186,9 @@ cd frontend && corepack pnpm run perf:album && corepack pnpm run perf:lightbox
 | `frontend/scripts/check_prettier_changed.sh` | Prettier check changed frontend files | pnpm install |
 | `scripts/test-lint.sh` | Run backend and frontend lint/format checks | Backend dev requirements + pnpm |
 | `scripts/test-unit.sh` | Run backend and frontend unit tests, then build frontend | Python venv + pnpm |
-| `scripts/test-local.sh` | Run deterministic local suite (Tiers 1-3) | Python venv + pnpm |
+| `scripts/test-local.sh` | Run lint/format checks, backend/frontend unit tests, and frontend build; does not run Playwright | Python venv + pnpm |
 | `scripts/test_backend_api_integration.sh` | Backend API integration tests | Python venv |
-| `scripts/test-e2e.sh` | Playwright E2E tests (contracts + perf) | `corepack pnpm run build` first |
+| `scripts/test-e2e.sh` | Run requested Playwright files, or all `tests/e2e/`, on Chromium | Frontend dependencies; builds if `dist/` is absent |
 | `scripts/test_perf_smoke.sh` | Perf smoke tests | Running app + real data |
 
 ---

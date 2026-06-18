@@ -14,30 +14,30 @@ This is a source audit only. I did not run Immich, migrate its database, or benc
 
 gallery-repo files:
 
-- [backend/main.py](../backend/main.py)
-- [backend/app.py](../backend/app.py)
-- [backend/scan.py](../backend/scan.py)
-- [backend/thumbnails.py](../backend/thumbnails.py)
-- [backend/images.py](../backend/images.py)
-- [backend/metadata_store.py](../backend/metadata_store.py)
-- [backend/metadata_parse.py](../backend/metadata_parse.py)
-- [backend/metadata_extract.py](../backend/metadata_extract.py)
-- [backend/search.py](../backend/search.py)
-- [frontend/src/components/GalleryGrid.vue](../frontend/src/components/GalleryGrid.vue)
-- [frontend/src/components/PhotoCard.vue](../frontend/src/components/PhotoCard.vue)
-- [frontend/src/components/Lightbox.vue](../frontend/src/components/Lightbox.vue)
-- [frontend/src/components/PhotoSwipeViewer.vue](../frontend/src/components/PhotoSwipeViewer.vue)
-- [frontend/src/composables/usePhotoSwipe.ts](../frontend/src/composables/usePhotoSwipe.ts)
-- [frontend/src/utils/lightbox.ts](../frontend/src/utils/lightbox.ts)
-- [frontend/src/stores/lightbox.ts](../frontend/src/stores/lightbox.ts)
-- [frontend/src/services/api.ts](../frontend/src/services/api.ts)
-- [frontend/tests/e2e/perf/album-open.perf.spec.ts](../frontend/tests/e2e/perf/album-open.perf.spec.ts)
-- [frontend/tests/e2e/perf/lightbox.perf.spec.ts](../frontend/tests/e2e/perf/lightbox.perf.spec.ts)
-- [docs/ARCHITECTURE.md](ARCHITECTURE.md)
-- [docs/PERFORMANCE_TESTING.md](PERFORMANCE_TESTING.md)
+- [backend/main.py](../../backend/main.py)
+- [backend/app.py](../../backend/app.py)
+- [backend/scan.py](../../backend/scan.py)
+- [backend/thumbnails.py](../../backend/thumbnails.py)
+- [backend/images.py](../../backend/images.py)
+- [backend/metadata_store.py](../../backend/metadata_store.py)
+- [backend/metadata_parse.py](../../backend/metadata_parse.py)
+- [backend/metadata_extract.py](../../backend/metadata_extract.py)
+- [backend/search.py](../../backend/search.py)
+- [frontend/src/components/GalleryGrid.vue](../../frontend/src/components/GalleryGrid.vue)
+- [frontend/src/components/PhotoCard.vue](../../frontend/src/components/PhotoCard.vue)
+- [frontend/src/components/Lightbox.vue](../../frontend/src/components/Lightbox.vue)
+- [frontend/src/components/PhotoSwipeViewer.vue](../../frontend/src/components/PhotoSwipeViewer.vue)
+- [frontend/src/composables/usePhotoSwipe.ts](../../frontend/src/composables/usePhotoSwipe.ts)
+- [frontend/src/utils/lightbox.ts](../../frontend/src/utils/lightbox.ts)
+- [frontend/src/stores/lightbox.ts](../../frontend/src/stores/lightbox.ts)
+- [frontend/src/services/api.ts](../../frontend/src/services/api.ts)
+- [frontend/tests/e2e/perf/album-open.perf.spec.ts](../../frontend/tests/e2e/perf/album-open.perf.spec.ts)
+- [frontend/tests/e2e/perf/lightbox.perf.spec.ts](../../frontend/tests/e2e/perf/lightbox.perf.spec.ts)
+- [docs/ARCHITECTURE.md](../ARCHITECTURE.md)
+- [docs/PERFORMANCE_TESTING.md](../test-debug-perf/PERFORMANCE_TESTING.md)
 - [docs/DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md](DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md)
 
-Note: the requested `backend/services/metadata_index.py` does not exist in this repo. The active metadata/indexing implementation is in [backend/metadata_store.py](../backend/metadata_store.py), [backend/metadata_parse.py](../backend/metadata_parse.py), and [backend/search.py](../backend/search.py).
+Note: the requested `backend/services/metadata_index.py` does not exist in this repo. The active metadata/indexing implementation is in [backend/metadata_store.py](../../backend/metadata_store.py), [backend/metadata_parse.py](../../backend/metadata_parse.py), and [backend/search.py](../../backend/search.py).
 
 Immich files:
 
@@ -799,3 +799,30 @@ Keep gallery-repo's current hot-path contract: folder open should remain filesys
 - I inspected Immich source at one commit and did not run a live deployment to observe transient states during import.
 - Generated SDK function names show frontend API intent, but endpoint path details were inferred from SDK imports plus controller/server code.
 - Exact service-worker/browser cache behavior was not exhaustively audited; the code evidence here focuses on server endpoints, URL cache keys, and frontend cache managers.
+
+## Updated for current architecture
+
+Verified against the current repository on 2026-06-18:
+
+- gallery-repo now follows a derivative-first viewer policy similar in shape to
+  the audited Immich flow while retaining an explicit original-on-demand path.
+  PhotoSwipe starts with `/api/preview`; `/api/image` is loaded for zoom,
+  fullscreen, animated-image handling, preference, or fallback cases.
+- `backend/thumbnails.py` generates and persistently caches both 512px thumbnail
+  and 1440px preview derivatives with role-specific cache keys, mtime/size
+  invalidation, ETags, format, edge, and quality in the key.
+- The local background metadata pipeline is implemented in `backend/indexer.py`
+  and `backend/metadata_store.py`: RAM path staging, durable SQLite jobs,
+  duplicate coalescing, bounded worker batches, batched writes, and
+  `/api/index/status`.
+- `/api/metadata` is DB-first for matching path/mtime/size rows, then uses an
+  in-memory LRU and coalesced cold parsing.
+- Warm SQLite folder listing, optional filesystem watching, and optional
+  scheduled refresh are implemented. The watcher and refresh remain disabled by
+  default and do not require PostgreSQL, Redis, or BullMQ.
+- Current module names are `backend/thumbnails.py` and `backend/refresh.py`; the
+  requested `backend/derivatives.py` and `backend/refresh_service.py` files do
+  not exist.
+
+Historical roadmap and “keep original as PhotoSwipe main source” statements
+above are superseded by the verified derivative-first implementation.
