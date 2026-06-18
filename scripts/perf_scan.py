@@ -1,5 +1,16 @@
 #!/usr/bin/env python3
-"""Measure `/api/scan` latency against a running backend and enforce a p95 budget."""
+"""Measure `/api/scan` latency against a running backend and enforce a p95 budget.
+
+Purpose:
+Measure scan endpoint latency against a running backend and real or fixture album.
+
+Guarantees:
+* repeated `/api/scan` requests produce min/p50/p95/max JSON output
+* p95 and minimum returned-image budgets fail the process when exceeded
+
+Run when:
+* changing scan pagination, warm listing, cached dimensions, or scan perf budgets
+"""
 
 from __future__ import annotations
 
@@ -38,6 +49,7 @@ def main() -> int:
     scan_path = os.getenv("GALLERY_PERF_SCAN_PATH", "/home/ubuntu/gallery-repo/test mika")
     iterations = int(os.getenv("GALLERY_PERF_SCAN_ITERATIONS", "10"))
     p95_budget_ms = float(os.getenv("GALLERY_PERF_SCAN_P95_BUDGET_MS", "500"))
+    min_images = int(os.getenv("GALLERY_PERF_SCAN_MIN_IMAGES", "1"))
 
     durations: list[float] = []
     last_payload: dict = {}
@@ -58,13 +70,18 @@ def main() -> int:
         "total_images": last_payload.get("total_images"),
         "next_cursor": last_payload.get("next_cursor"),
         "budget_p95_ms": p95_budget_ms,
+        "min_images": min_images,
     }
     print(json.dumps(report, separators=(",", ":"), sort_keys=True))
 
+    failed = False
     if report["p95_ms"] > p95_budget_ms:
         print(f"scan p95 exceeded budget: {report['p95_ms']}ms > {p95_budget_ms}ms", file=sys.stderr)
-        return 1
-    return 0
+        failed = True
+    if report["image_count"] < min_images and not report["next_cursor"]:
+        print(f"scan returned too few images: {report['image_count']} < {min_images}", file=sys.stderr)
+        failed = True
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

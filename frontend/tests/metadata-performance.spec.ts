@@ -21,8 +21,47 @@
 
 import { expect, test } from "./helpers/monitorErrors";
 import type { Page, Request } from "@playwright/test";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname as pathDirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = pathDirname(__filename);
+const strictMetadataBudgets = process.env.GALLERY_PERF_METADATA_STRICT === "1";
+
+function budget(name: string, strictDefault?: number): number | null {
+  const raw = process.env[name];
+  if (raw !== undefined && raw !== "") {
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return strictMetadataBudgets && strictDefault !== undefined ? strictDefault : null;
+}
+
+function maybeExpectAtMost(value: number, limit: number | null): void {
+  if (limit !== null) {
+    expect(value).toBeLessThanOrEqual(limit);
+  }
+}
+
+function writePerfReport(filename: string, report: unknown): void {
+  const resultsDir = resolve(__dirname, "../test-results/perf");
+  mkdirSync(resultsDir, { recursive: true });
+  writeFileSync(join(resultsDir, filename), JSON.stringify(report, null, 2));
+}
+
+const metadataBudget = {
+  apiMs: budget("GALLERY_PERF_METADATA_API_BUDGET_MS", 150),
+  tableReadyMs: budget("GALLERY_PERF_METADATA_TABLE_READY_BUDGET_MS", 500),
+  responseRenderMs: budget("GALLERY_PERF_METADATA_RESPONSE_RENDER_BUDGET_MS", 200),
+  renderedRowsMax: budget("GALLERY_PERF_METADATA_RENDERED_ROWS_MAX", 25),
+  sortTotalMs: budget("GALLERY_PERF_METADATA_SORT_TOTAL_BUDGET_MS", 500),
+  sortResponseRenderMs: budget("GALLERY_PERF_METADATA_SORT_RESPONSE_RENDER_BUDGET_MS", 200),
+  searchTotalMs: budget("GALLERY_PERF_METADATA_SEARCH_TOTAL_BUDGET_MS", 900),
+  searchResponseRenderMs: budget("GALLERY_PERF_METADATA_SEARCH_RESPONSE_RENDER_BUDGET_MS", 250),
+  searchRequestsMax: budget("GALLERY_PERF_METADATA_SEARCH_REQUESTS_MAX", 3),
+};
 
 // ---------------------------------------------------------------------------
 // Network tracker for metadata-specific endpoints
@@ -187,6 +226,12 @@ test.describe("Metadata performance", () => {
         indexStatusRequests: indexStatusSamples.length,
         metadataDetailRequests: metadataDetailSamples.length,
         inspectorRequests: inspectorSamples.length,
+        budgets: {
+          apiMs: metadataBudget.apiMs,
+          tableReadyMs: metadataBudget.tableReadyMs,
+          responseRenderMs: metadataBudget.responseRenderMs,
+          renderedRowsMax: metadataBudget.renderedRowsMax,
+        },
         inspectorDetail: firstApi
           ? {
               query: new URLSearchParams(firstApi.search).get("q") ?? "",
@@ -198,11 +243,16 @@ test.describe("Metadata performance", () => {
     };
 
     console.log(JSON.stringify(report, null, 2));
+    writePerfReport("metadata-navigation-report.json", report);
 
     // Diagnostic assertions only (no budgets)
     expect(urlMs).toBeGreaterThan(0);
     expect(apiDurationMs).toBeGreaterThan(0);
     expect(rowCount).toBeGreaterThan(0);
+    maybeExpectAtMost(apiDurationMs, metadataBudget.apiMs);
+    maybeExpectAtMost(firstRowMs, metadataBudget.tableReadyMs);
+    maybeExpectAtMost(apiResponseToFirstRowMs, metadataBudget.responseRenderMs);
+    maybeExpectAtMost(rowCount, metadataBudget.renderedRowsMax);
   });
 
   test("Metadata sort timing", async ({ page }) => {
@@ -259,13 +309,24 @@ test.describe("Metadata performance", () => {
         renderedRows: rowCount,
         previousRowCount: initialRowCount,
         tableClearedDuringLoad: initialRowCount !== rowCount,
+        budgets: {
+          apiMs: metadataBudget.apiMs,
+          totalMs: metadataBudget.sortTotalMs,
+          responseRenderMs: metadataBudget.sortResponseRenderMs,
+          renderedRowsMax: metadataBudget.renderedRowsMax,
+        },
       },
     };
 
     console.log(JSON.stringify(report, null, 2));
+    writePerfReport("metadata-sort-report.json", report);
 
     expect(apiDurationMs).toBeGreaterThan(0);
     expect(rowCount).toBeGreaterThan(0);
+    maybeExpectAtMost(apiDurationMs, metadataBudget.apiMs);
+    maybeExpectAtMost(tableUpdatedMs, metadataBudget.sortTotalMs);
+    maybeExpectAtMost(apiResponseToUpdateMs, metadataBudget.sortResponseRenderMs);
+    maybeExpectAtMost(rowCount, metadataBudget.renderedRowsMax);
   });
 
   test("Metadata search timing", async ({ page }) => {
@@ -330,15 +391,28 @@ test.describe("Metadata performance", () => {
         totalMs: Math.round(tableUpdatedMs),
         renderedRows: rowCount,
         previousRowCount: initialRowCount,
+        budgets: {
+          apiMs: metadataBudget.apiMs,
+          totalMs: metadataBudget.searchTotalMs,
+          responseRenderMs: metadataBudget.searchResponseRenderMs,
+          requestsMax: metadataBudget.searchRequestsMax,
+          renderedRowsMax: metadataBudget.renderedRowsMax,
+        },
       },
     };
 
     console.log(JSON.stringify(report, null, 2));
+    writePerfReport("metadata-search-report.json", report);
 
     // Diagnostic: search should fire at most a few requests (debounced)
     // Not asserting a hard count — this is diagnostic output
     expect(apiDurationMs).toBeGreaterThan(0);
     expect(gotFullQuery).toBe(true);
+    maybeExpectAtMost(apiDurationMs, metadataBudget.apiMs);
+    maybeExpectAtMost(tableUpdatedMs, metadataBudget.searchTotalMs);
+    maybeExpectAtMost(apiResponseToUpdateMs, metadataBudget.searchResponseRenderMs);
+    maybeExpectAtMost(allRequestsDuringTyping, metadataBudget.searchRequestsMax);
+    maybeExpectAtMost(rowCount, metadataBudget.renderedRowsMax);
   });
 
   test("Metadata state restores after gallery round trip", async ({ page }) => {

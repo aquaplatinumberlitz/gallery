@@ -1,5 +1,15 @@
 """Performance comparison: cold direct scan vs warm DB listing.
 
+Purpose:
+Measure warm indexed listing latency against a deterministic or real folder.
+
+Guarantees:
+* cold direct scan and warm DB listing durations are reported together
+* warm listing exits non-zero when it exceeds the configured budget
+
+Run when:
+* changing warm listing SQL, folder index state, scan fallback behavior, or perf budgets
+
 Usage:
     python scripts/perf_warm_listing.py [--path /path/to/folder] [--images 5000]
 
@@ -12,6 +22,7 @@ Target: 5000-image warm first page: 300-500ms.
 """
 
 import argparse
+import json
 import os
 import sys
 import time
@@ -118,13 +129,20 @@ def benchmark_warm_listing(folder: Path, image_limit: int) -> dict | None:
     }
 
 
-def main() -> None:
+def main() -> int:
     """Run the cold-versus-warm listing comparison from command-line arguments."""
     parser = argparse.ArgumentParser(description="Warm listing vs cold scan performance comparison")
     parser.add_argument("--path", type=str, default="/tmp/perf_warm_test", help="Path to folder with images")
     parser.add_argument("--images", type=int, default=5000, help="Number of test images to create")
     parser.add_argument("--no-cleanup", action="store_true", help="Keep test fixtures after run")
     parser.add_argument("--image-limit", type=int, default=50, help="Images per page (default: 50)")
+    parser.add_argument("--output", default="", help="write JSON report to this path")
+    parser.add_argument(
+        "--budget-ms",
+        type=float,
+        default=float(os.getenv("GALLERY_PERF_WARM_LISTING_BUDGET_MS", "500")),
+        help="maximum allowed warm listing duration in milliseconds",
+    )
     args = parser.parse_args()
 
     import backend.metadata_store as ms
@@ -150,6 +168,7 @@ def main() -> None:
     )
 
     warm = benchmark_warm_listing(folder, args.image_limit)
+    failed = False
     if warm is not None:
         print(
             f"Warm DB listing:  {warm['duration_ms']}ms "
@@ -158,12 +177,27 @@ def main() -> None:
         )
         ratio = warm["duration_ms"] / cold["duration_ms"] * 100 if cold["duration_ms"] > 0 else 0
         print(f"Warm vs cold:     {ratio:.1f}% of cold time")
-        if warm["duration_ms"] < 500:
-            print("✅ Warm first page under 500ms target")
+        if warm["duration_ms"] <= args.budget_ms:
+            print(f"Warm first page under {args.budget_ms:.0f}ms target")
         else:
-            print("⚠️  Warm first page exceeds 500ms target")
+            print(f"Warm first page exceeds {args.budget_ms:.0f}ms target", file=sys.stderr)
+            failed = True
     else:
-        print("Warm DB listing:  FAILED (returned None)")
+        print("Warm DB listing:  FAILED (returned None)", file=sys.stderr)
+        failed = True
+
+    report = {
+        "path": str(folder),
+        "images_requested": args.images,
+        "image_limit": args.image_limit,
+        "budget_ms": args.budget_ms,
+        "cold": cold,
+        "warm": warm,
+        "verdict": "fail" if failed else "pass",
+    }
+    if args.output:
+        Path(args.output).write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(json.dumps(report, separators=(",", ":"), sort_keys=True))
 
     if needs_cleanup:
         import shutil
@@ -173,6 +207,8 @@ def main() -> None:
     else:
         print(f"\nKept: {folder}")
 
+    return 1 if failed else 0
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

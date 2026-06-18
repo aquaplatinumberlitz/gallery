@@ -1,5 +1,12 @@
 """Provide gated scan performance log emission for backend `/api/scan` diagnostics.
 
+Purpose:
+Centralize optional scan performance log lines outside the scan algorithm.
+
+Guarantees:
+* scan perf output is emitted only when the caller passes enabled=True
+* warm and direct scan summaries use a consistent field order
+
 Scan perf output is emitted only when the caller passes `enabled=True`, keeping
 diagnostic message content centralized outside the scan algorithm.
 

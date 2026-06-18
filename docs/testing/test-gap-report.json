@@ -1,0 +1,236 @@
+{
+  "catalog_alignment": {
+    "cataloged_uncollected_tests": [],
+    "missing_catalog_files": [],
+    "uncataloged_files": []
+  },
+  "commands": {
+    "backend": {
+      "command": [
+        "/home/ubuntu/gallery-repo/backend/.venv_linux/bin/python",
+        "-m",
+        "pytest",
+        "--collect-only",
+        "-q"
+      ],
+      "cwd": "backend",
+      "returncode": 0
+    },
+    "frontend": {
+      "command": [
+        "corepack",
+        "pnpm",
+        "exec",
+        "playwright",
+        "test",
+        "--list",
+        "--project=chromium"
+      ],
+      "cwd": "frontend",
+      "returncode": 0
+    }
+  },
+  "counts": {
+    "backend_test_files": 17,
+    "backend_tests": 317,
+    "catalog_entries": 45,
+    "frontend_test_files": 21,
+    "frontend_tests": 161,
+    "important_files": 45,
+    "perf_reports": 0
+  },
+  "coverage": {
+    "backend_modules_below_threshold": [
+      {
+        "below_threshold": true,
+        "file": "main.py",
+        "missing_lines": 11,
+        "percent": 15.384615384615385,
+        "statements": 13
+      },
+      {
+        "below_threshold": true,
+        "file": "folders.py",
+        "missing_lines": 49,
+        "percent": 26.865671641791046,
+        "statements": 67
+      },
+      {
+        "below_threshold": true,
+        "file": "refresh.py",
+        "missing_lines": 65,
+        "percent": 30.107526881720432,
+        "statements": 93
+      },
+      {
+        "below_threshold": true,
+        "file": "static_files.py",
+        "missing_lines": 24,
+        "percent": 33.333333333333336,
+        "statements": 36
+      },
+      {
+        "below_threshold": true,
+        "file": "metadata_extract.py",
+        "missing_lines": 290,
+        "percent": 47.17668488160292,
+        "statements": 549
+      },
+      {
+        "below_threshold": true,
+        "file": "paths.py",
+        "missing_lines": 7,
+        "percent": 61.111111111111114,
+        "statements": 18
+      },
+      {
+        "below_threshold": true,
+        "file": "watcher.py",
+        "missing_lines": 51,
+        "percent": 63.04347826086956,
+        "statements": 138
+      },
+      {
+        "below_threshold": true,
+        "file": "app.py",
+        "missing_lines": 23,
+        "percent": 65.67164179104478,
+        "statements": 67
+      },
+      {
+        "below_threshold": true,
+        "file": "albums.py",
+        "missing_lines": 17,
+        "percent": 66.66666666666667,
+        "statements": 51
+      }
+    ],
+    "backend_totals": {
+      "covered_lines": 2639,
+      "excluded_lines": 2,
+      "missing_lines": 991,
+      "num_statements": 3630,
+      "percent_covered": 72.69972451790633,
+      "percent_covered_display": "73",
+      "percent_statements_covered": 72.69972451790633,
+      "percent_statements_covered_display": "73"
+    },
+    "frontend_summary_found": false
+  },
+  "generated_at": "2026-06-18T01:13:36+00:00",
+  "matrix": [
+    {
+      "backend": "OK",
+      "feature": "Library Inspector",
+      "frontend": "OK",
+      "gaps": [],
+      "perf": "OK"
+    },
+    {
+      "backend": "OK",
+      "feature": "Index Status and rebuild flow",
+      "frontend": "OK",
+      "gaps": [],
+      "perf": "N/A"
+    },
+    {
+      "backend": "OK",
+      "feature": "Scan API and hot path",
+      "frontend": "OK",
+      "gaps": [],
+      "perf": "OK"
+    },
+    {
+      "backend": "OK",
+      "feature": "Warm listing and folder counts",
+      "frontend": "N/A",
+      "gaps": [],
+      "perf": "OK"
+    },
+    {
+      "backend": "OK",
+      "feature": "Scheduled refresh",
+      "frontend": "N/A",
+      "gaps": [],
+      "perf": "N/A"
+    },
+    {
+      "backend": "OK",
+      "feature": "File watcher",
+      "frontend": "N/A",
+      "gaps": [],
+      "perf": "N/A"
+    },
+    {
+      "backend": "OK",
+      "feature": "Metadata, fielded search, and facets",
+      "frontend": "OK",
+      "gaps": [],
+      "perf": "N/A"
+    },
+    {
+      "backend": "OK",
+      "feature": "Image derivatives and lightbox",
+      "frontend": "OK",
+      "gaps": [],
+      "perf": "OK"
+    },
+    {
+      "backend": "OK",
+      "feature": "Health and path safety",
+      "frontend": "N/A",
+      "gaps": [],
+      "perf": "N/A"
+    },
+    {
+      "backend": "N/A",
+      "feature": "SPA navigation and query cache",
+      "frontend": "OK",
+      "gaps": [],
+      "perf": "OK"
+    },
+    {
+      "backend": "N/A",
+      "feature": "Responsive layout and sidebar",
+      "frontend": "OK",
+      "gaps": [],
+      "perf": "N/A"
+    },
+    {
+      "backend": "N/A",
+      "feature": "Settings and preferences",
+      "frontend": "OK",
+      "gaps": [],
+      "perf": "N/A"
+    },
+    {
+      "backend": "N/A",
+      "feature": "Breadcrumb routing",
+      "frontend": "OK",
+      "gaps": [],
+      "perf": "N/A"
+    },
+    {
+      "backend": "N/A",
+      "feature": "Fault tolerance",
+      "frontend": "OK",
+      "gaps": [],
+      "perf": "N/A"
+    },
+    {
+      "backend": "N/A",
+      "feature": "Tailwind and global styling",
+      "frontend": "OK",
+      "gaps": [],
+      "perf": "N/A"
+    },
+    {
+      "backend": "N/A",
+      "feature": "Performance fixtures and reporting",
+      "frontend": "N/A",
+      "gaps": [],
+      "perf": "OK"
+    }
+  ],
+  "perf_reports": []
+}

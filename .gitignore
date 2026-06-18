@@ -33,6 +33,7 @@ test-results/
 
 # Coverage
 .coverage*
+coverage*.json
 coverage.xml
 coverage/
 coverage-report/

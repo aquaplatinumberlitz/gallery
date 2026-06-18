@@ -23,6 +23,9 @@ const __dirname = pathDirname(__filename);
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
 const albumName = process.env.GALLERY_PERF_ALBUM_NAME ?? "a1111";
 const albumPath = process.env.GALLERY_PERF_ALBUM_PATH ?? "";
+const rootPath =
+  process.env.GALLERY_ROOT_PATH ??
+  (albumPath ? albumPath.substring(0, albumPath.lastIndexOf("/")) : "/home/ubuntu/gallery-repo/test-images");
 const scanBudgetMs = Number(process.env.GALLERY_PERF_SCAN_BUDGET_MS ?? "500");
 const firstThumbBudgetMs = Number(process.env.GALLERY_PERF_FIRST_THUMB_BUDGET_MS ?? "1000");
 const thumbP95BudgetMs = Number(process.env.GALLERY_PERF_THUMB_P95_BUDGET_MS ?? "1200");
@@ -48,10 +51,10 @@ test("album open performance", async ({ page }) => {
   const clickTime = { value: 0 };
 
   // Set gallery root path so albums appear on page load
-  await page.addInitScript(() => {
-    localStorage.setItem("gallery-root-path", "/home/ubuntu/gallery-repo/test-images");
+  await page.addInitScript((rootForInit) => {
+    localStorage.setItem("gallery-root-path", rootForInit);
     localStorage.setItem("gallery-sort-preference", JSON.stringify({ field: "name", order: "asc" }));
-  });
+  }, rootPath);
 
   const tracker = installApiNetworkTracker(page, clickTime);
 
