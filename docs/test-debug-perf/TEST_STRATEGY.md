@@ -119,7 +119,7 @@ behavior without requiring a running backend.
 
 **Run (all contract tests):**
 ```bash
-bash scripts/test_frontend_contract.sh
+bash scripts/test-e2e.sh
 ```
 Or directly:
 ```bash
@@ -164,9 +164,9 @@ cd frontend && corepack pnpm run perf:album && corepack pnpm run perf:lightbox
 | `scripts/lint_backend.sh` | Ruff lint changed Python files | Backend dev requirements |
 | `scripts/format_backend_check.sh` | Ruff format check changed Python files | Backend dev requirements |
 | `frontend/scripts/check_prettier_changed.sh` | Prettier check changed frontend files | pnpm install |
-| `scripts/test-all.sh` | Run all deterministic tests (Tiers 1-3) | Python venv + pnpm |
+| `scripts/test-local.sh` | Run deterministic local suite (Tiers 1-3) | Python venv + pnpm |
 | `scripts/test_backend_api_integration.sh` | Backend API integration tests | Python venv |
-| `scripts/test_frontend_contract.sh` | Playwright contract tests | `corepack pnpm run build` first |
+| `scripts/test-e2e.sh` | Playwright E2E tests (contracts + perf) | `corepack pnpm run build` first |
 | `scripts/test_perf_smoke.sh` | Perf smoke tests | Running app + real data |
 
 ---

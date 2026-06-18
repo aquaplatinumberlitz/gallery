@@ -146,8 +146,7 @@ jobs:
         run: pnpm build
 
       - name: E2E / Integration Tests
-        working-directory: frontend
-        run: pnpm exec playwright test tests/e2e/lightbox-loading-policy.spec.ts tests/e2e/gallery-no-reload.spec.ts tests/e2e/gallery-cache-revisit.spec.ts tests/e2e/search-fielded-ui.spec.ts --project=chromium --reporter=html
+        run: bash scripts/test-e2e.sh tests/e2e/lightbox-loading-policy.spec.ts tests/e2e/gallery-no-reload.spec.ts tests/e2e/gallery-cache-revisit.spec.ts tests/e2e/search-fielded-ui.spec.ts
         env:
           VITE_COVERAGE: "true"
 

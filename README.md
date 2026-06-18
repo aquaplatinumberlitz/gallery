@@ -188,7 +188,7 @@ gallery-repo/
 │   ├── test-backend.sh
 │   ├── test-frontend.sh
 │   ├── test_backend_api_integration.sh
-│   ├── test_frontend_contract.sh
+│   ├── test-e2e.sh
 │   └── test_perf_smoke.sh
 └── docs/
 ```
