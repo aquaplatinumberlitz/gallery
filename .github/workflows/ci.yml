@@ -16,8 +16,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  lint-and-format:
-    name: Lint & Format
+  lint:
+    name: lint
     runs-on: ubuntu-latest
 
     steps:
@@ -69,8 +69,8 @@ jobs:
         env:
           PRETTIER_BASE: origin/main
 
-  build-and-test:
-    name: Build & Test
+  test-unit:
+    name: test:unit
     runs-on: ubuntu-latest
 
     steps:
@@ -84,8 +84,8 @@ jobs:
       - name: Install backend dependencies
         run: pip install -r backend/requirements-dev.txt
 
-      - name: Backend pytest
-        run: python -m pytest backend/tests/ -x -q --cov=backend --cov-report=term-missing --cov-report=xml
+      - name: Backend Unit & Integration Tests
+        run: python -m pytest backend/tests/ -x -q --cov=backend --cov-report=term-missing --cov-report=xml --cov-fail-under=85
 
       - name: Upload backend coverage
         uses: actions/upload-artifact@v7
@@ -107,17 +107,17 @@ jobs:
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
-      - name: Frontend unit tests (vitest)
+      - name: Frontend Unit Tests
         working-directory: frontend
         run: pnpm test:unit
 
-      - name: Frontend build
+      - name: Unit & Build
         working-directory: frontend
         run: pnpm build
 
-  # ---- Playwright Contract Tests ----
-  playwright-contract:
-    name: Playwright Contract Tests
+  # ---- E2E / Integration Tests ----
+  test-e2e:
+    name: test:e2e
     runs-on: ubuntu-latest
 
     steps:
@@ -145,9 +145,9 @@ jobs:
         working-directory: frontend
         run: pnpm build
 
-      - name: Run contract tests
+      - name: E2E / Integration Tests
         working-directory: frontend
-        run: pnpm exec playwright test tests/lightbox-loading-policy.spec.ts tests/gallery-no-reload.spec.ts tests/gallery-cache-revisit.spec.ts tests/search-fielded-ui.spec.ts --project=chromium --reporter=html
+        run: pnpm exec playwright test tests/e2e/lightbox-loading-policy.spec.ts tests/e2e/gallery-no-reload.spec.ts tests/e2e/gallery-cache-revisit.spec.ts tests/e2e/search-fielded-ui.spec.ts --project=chromium --reporter=html
         env:
           VITE_COVERAGE: "true"
 

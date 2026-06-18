@@ -9,7 +9,7 @@ from pathlib import Path
 
 REQUIRED_FIELDS = ("Purpose:", "Guarantees:", "Run when:")
 SCAN_PATTERNS = (
-    "frontend/tests/**/*.spec.ts",
+    "frontend/tests/e2e/**/*.spec.ts",
     "backend/tests/test_*.py",
     "backend/debug/**/*.py",
     "frontend/src/debug/**/*.ts",

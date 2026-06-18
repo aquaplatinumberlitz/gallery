@@ -24,10 +24,9 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-
 
 CATALOG_PATH = Path("docs/testing/TEST_CATALOG.md")
 DEFAULT_MARKDOWN_OUTPUT = Path("docs/testing/test-gap-report.md")
@@ -36,8 +35,8 @@ DEFAULT_JSON_OUTPUT = Path("docs/testing/test-gap-report.json")
 SUPPORT_TEST_FILES = {
     "backend/tests/__init__.py",
     "backend/tests/conftest.py",
-    "frontend/tests/helpers/monitorErrors.ts",
-    "frontend/tests/perf/perf-utils.ts",
+    "frontend/tests/e2e/helpers/monitorErrors.ts",
+    "frontend/tests/e2e/perf/perf-utils.ts",
     "frontend/src/test/setup.ts",
     "frontend/src/test/withSetup.ts",
 }
@@ -46,19 +45,19 @@ FEATURE_MATRIX: list[dict[str, Any]] = [
     {
         "feature": "Library Inspector",
         "backend": ["backend/tests/test_library_inspector.py"],
-        "frontend": ["frontend/tests/library-inspector.spec.ts"],
-        "perf": ["frontend/tests/metadata-performance.spec.ts", "scripts/perf_library_inspector.py"],
+        "frontend": ["frontend/tests/e2e/library-inspector.spec.ts"],
+        "perf": ["frontend/tests/e2e/metadata-performance.spec.ts", "scripts/perf_library_inspector.py"],
     },
     {
         "feature": "Index Status and rebuild flow",
         "backend": ["backend/tests/test_api_integration_index_status.py", "backend/tests/test_indexer_staging.py"],
-        "frontend": ["frontend/tests/index-status-panel.spec.ts", "frontend/tests/index-rebuild-flow.spec.ts"],
+        "frontend": ["frontend/tests/e2e/index-status-panel.spec.ts", "frontend/tests/e2e/index-rebuild-flow.spec.ts"],
         "perf": [],
     },
     {
         "feature": "Scan API and hot path",
         "backend": ["backend/tests/test_api_integration_scan.py", "backend/tests/test_scan_hot_path.py"],
-        "frontend": ["frontend/tests/gallery-cache-revisit.spec.ts"],
+        "frontend": ["frontend/tests/e2e/gallery-cache-revisit.spec.ts"],
         "perf": ["scripts/perf_scan.py"],
     },
     {
@@ -88,18 +87,21 @@ FEATURE_MATRIX: list[dict[str, Any]] = [
             "backend/tests/test_metadata_binary_sanitizer.py",
             "backend/tests/test_app.py",
         ],
-        "frontend": ["frontend/tests/search-fielded-ui.spec.ts", "frontend/tests/advanced-search-drawer.spec.ts"],
+        "frontend": [
+            "frontend/tests/e2e/search-fielded-ui.spec.ts",
+            "frontend/tests/e2e/advanced-search-drawer.spec.ts",
+        ],
         "perf": [],
     },
     {
         "feature": "Image derivatives and lightbox",
         "backend": ["backend/tests/test_derivatives.py", "backend/tests/test_api_integration_derivatives.py"],
         "frontend": [
-            "frontend/tests/lightbox-loading-policy.spec.ts",
-            "frontend/tests/lightbox-visual-layer.spec.ts",
-            "frontend/tests/mobile-lightbox-sheet.spec.ts",
+            "frontend/tests/e2e/lightbox-loading-policy.spec.ts",
+            "frontend/tests/e2e/lightbox-visual-layer.spec.ts",
+            "frontend/tests/e2e/mobile-lightbox-sheet.spec.ts",
         ],
-        "perf": ["frontend/tests/perf/lightbox.perf.spec.ts"],
+        "perf": ["frontend/tests/e2e/perf/lightbox.perf.spec.ts"],
     },
     {
         "feature": "Health and path safety",
@@ -111,44 +113,44 @@ FEATURE_MATRIX: list[dict[str, Any]] = [
         "feature": "SPA navigation and query cache",
         "backend": [],
         "frontend": [
-            "frontend/tests/gallery-no-reload.spec.ts",
-            "frontend/tests/gallery-no-reload-real-backend.spec.ts",
-            "frontend/tests/gallery-cache-revisit.spec.ts",
+            "frontend/tests/e2e/gallery-no-reload.spec.ts",
+            "frontend/tests/e2e/gallery-no-reload-real-backend.spec.ts",
+            "frontend/tests/e2e/gallery-cache-revisit.spec.ts",
         ],
-        "perf": ["frontend/tests/perf/album-open.perf.spec.ts"],
+        "perf": ["frontend/tests/e2e/perf/album-open.perf.spec.ts"],
     },
     {
         "feature": "Responsive layout and sidebar",
         "backend": [],
         "frontend": [
-            "frontend/tests/responsive-breakpoints.spec.ts",
-            "frontend/tests/sidebar-trigger.spec.ts",
-            "frontend/tests/mobile-lightbox-sheet.spec.ts",
+            "frontend/tests/e2e/responsive-breakpoints.spec.ts",
+            "frontend/tests/e2e/sidebar-trigger.spec.ts",
+            "frontend/tests/e2e/mobile-lightbox-sheet.spec.ts",
         ],
         "perf": [],
     },
     {
         "feature": "Settings and preferences",
         "backend": [],
-        "frontend": ["frontend/tests/settings-modal.spec.ts"],
+        "frontend": ["frontend/tests/e2e/settings-modal.spec.ts"],
         "perf": [],
     },
     {
         "feature": "Breadcrumb routing",
         "backend": [],
-        "frontend": ["frontend/tests/breadcrumb.spec.ts"],
+        "frontend": ["frontend/tests/e2e/breadcrumb.spec.ts"],
         "perf": [],
     },
     {
         "feature": "Fault tolerance",
         "backend": [],
-        "frontend": ["frontend/tests/fault-injection.spec.ts"],
+        "frontend": ["frontend/tests/e2e/fault-injection.spec.ts"],
         "perf": [],
     },
     {
         "feature": "Tailwind and global styling",
         "backend": [],
-        "frontend": ["frontend/tests/tailwind-phase0.spec.ts", "frontend/tests/tailwind-preflight.spec.ts"],
+        "frontend": ["frontend/tests/e2e/tailwind-phase0.spec.ts", "frontend/tests/e2e/tailwind-preflight.spec.ts"],
         "perf": [],
     },
     {
@@ -222,7 +224,7 @@ def read_catalog(root: Path) -> dict[str, dict[str, str]]:
 def important_test_files(root: Path) -> list[str]:
     patterns = [
         "backend/tests/test_*.py",
-        "frontend/tests/**/*.spec.ts",
+        "frontend/tests/e2e/**/*.spec.ts",
         "frontend/src/**/__tests__/**/*.test.ts",
         "frontend/src/test/**/*.ts",
         "scripts/perf_*.py",
@@ -277,7 +279,9 @@ VITEST_LINE_RE = re.compile(r"^(?P<path>src/[^\s].*?\.test\.ts)\s+>\s+(?P<title>
 
 def collect_frontend_tests(root: Path) -> tuple[CommandResult, list[str], set[str]]:
     frontend_dir = root / "frontend"
-    result = run_command(["corepack", "pnpm", "exec", "playwright", "test", "--list", "--project=chromium"], frontend_dir)
+    result = run_command(
+        ["corepack", "pnpm", "exec", "playwright", "test", "--list", "--project=chromium"], frontend_dir
+    )
 
     tests: list[str] = []
     files: set[str] = set()
@@ -285,7 +289,11 @@ def collect_frontend_tests(root: Path) -> tuple[CommandResult, list[str], set[st
         match = PLAYWRIGHT_LINE_RE.match(line)
         if not match:
             continue
-        path = f"frontend/tests/{match.group('path')}" if not match.group("path").startswith("tests/") else f"frontend/{match.group('path')}"
+        path = (
+            f"frontend/tests/e2e/{match.group('path')}"
+            if not match.group("path").startswith("tests/")
+            else f"frontend/{match.group('path')}"
+        )
         tests.append(f"{path}:{match.group('line')} › {match.group('title')}")
         files.add(path)
     return result, tests, files
@@ -318,7 +326,9 @@ def load_backend_coverage(path: Path) -> dict[str, Any] | None:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def backend_coverage_rows(coverage: dict[str, Any] | None, threshold: float) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+def backend_coverage_rows(
+    coverage: dict[str, Any] | None, threshold: float
+) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
     if not coverage:
         return None, []
     totals = coverage.get("totals", {})
@@ -357,7 +367,9 @@ def perf_report_files(root: Path) -> list[str]:
     return sorted(rel(path, root) for path in results_dir.glob("*.json") if path.is_file())
 
 
-def status_for_files(files: list[str], existing: set[str], collected: set[str], catalog: dict[str, dict[str, str]]) -> tuple[str, list[str]]:
+def status_for_files(
+    files: list[str], existing: set[str], collected: set[str], catalog: dict[str, dict[str, str]]
+) -> tuple[str, list[str]]:
     if not files:
         return "N/A", []
 
@@ -366,9 +378,12 @@ def status_for_files(files: list[str], existing: set[str], collected: set[str], 
         if file not in existing:
             gaps.append(f"missing file: {file}")
             continue
-        if file.startswith("backend/tests/") or file.startswith("frontend/tests/"):
-            if collected and file not in collected:
-                gaps.append(f"not collected: {file}")
+        if (
+            (file.startswith("backend/tests/") or file.startswith("frontend/tests/e2e/"))
+            and collected
+            and file not in collected
+        ):
+            gaps.append(f"not collected: {file}")
         if file not in catalog:
             gaps.append(f"not cataloged: {file}")
 
@@ -523,9 +538,7 @@ def write_markdown(
             ]
         )
         for row in low_backend_modules[:20]:
-            lines.append(
-                f"| `{row['file']}` | {row['percent']:.1f}% | {row['missing_lines']} | {row['statements']} |"
-            )
+            lines.append(f"| `{row['file']}` | {row['percent']:.1f}% | {row['missing_lines']} | {row['statements']} |")
         if not low_backend_modules:
             lines.append("| None |  |  |  |")
     else:
@@ -548,7 +561,9 @@ def write_markdown(
         )
         for metric in ("lines", "statements", "functions", "branches"):
             data = total.get(metric, {})
-            lines.append(f"| {metric} | {data.get('pct', 'unknown')} | {data.get('covered', '')} | {data.get('total', '')} |")
+            lines.append(
+                f"| {metric} | {data.get('pct', 'unknown')} | {data.get('covered', '')} | {data.get('total', '')} |"
+            )
     else:
         lines.append(
             "No frontend coverage summary found at `frontend/coverage/coverage-summary.json`. "
@@ -569,19 +584,29 @@ def write_markdown(
 
     recommendations: list[str] = []
     if matrix_gaps:
-        recommendations.append("Fix matrix gaps first because they represent expected test surfaces without a concrete file/catalog/collection proof.")
+        recommendations.append(
+            "Fix matrix gaps first because they represent expected test surfaces without a concrete file/catalog/collection proof."
+        )
     if uncataloged_files:
-        recommendations.append("Add uncataloged important files to `docs/testing/TEST_CATALOG.md` or mark them as support-only in the audit script.")
+        recommendations.append(
+            "Add uncataloged important files to `docs/testing/TEST_CATALOG.md` or mark them as support-only in the audit script."
+        )
     if low_backend_modules:
         recommendations.append(
             "Prioritize focused backend tests for the lowest-covered modules, especially modules with high missing-line counts."
         )
     if not frontend_coverage_summary:
-        recommendations.append("Fix frontend coverage artifact generation before using this report for combined repository coverage.")
+        recommendations.append(
+            "Fix frontend coverage artifact generation before using this report for combined repository coverage."
+        )
     if not perf_reports:
-        recommendations.append("Run perf smoke or metadata perf diagnostics to produce JSON reports before perf trend review.")
+        recommendations.append(
+            "Run perf smoke or metadata perf diagnostics to produce JSON reports before perf trend review."
+        )
     if not recommendations:
-        recommendations.append("No immediate matrix/catalog gaps found. Use coverage rows to decide deeper edge-case tests.")
+        recommendations.append(
+            "No immediate matrix/catalog gaps found. Use coverage rows to decide deeper edge-case tests."
+        )
 
     lines.extend(f"- {recommendation}" for recommendation in recommendations)
     lines.append("")
@@ -600,9 +625,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--skip-backend-collect", action="store_true", help="skip pytest collection")
     parser.add_argument("--skip-frontend-collect", action="store_true", help="skip Playwright collection")
     parser.add_argument("--skip-vitest-collect", action="store_true", help="skip vitest unit test collection")
-    parser.add_argument("--coverage-json", type=Path, default=Path("backend/coverage.json"), help="backend coverage JSON path")
-    parser.add_argument("--coverage-threshold", type=float, default=70.0, help="coverage percent threshold for module gaps")
-    parser.add_argument("--fail-on-gaps", action="store_true", help="return non-zero when matrix/catalog gaps are found")
+    parser.add_argument(
+        "--coverage-json", type=Path, default=Path("backend/coverage.json"), help="backend coverage JSON path"
+    )
+    parser.add_argument(
+        "--coverage-threshold", type=float, default=70.0, help="coverage percent threshold for module gaps"
+    )
+    parser.add_argument(
+        "--fail-on-gaps", action="store_true", help="return non-zero when matrix/catalog gaps are found"
+    )
     args = parser.parse_args(argv)
 
     root = repo_root()
@@ -637,9 +668,10 @@ def main(argv: list[str] | None = None) -> int:
         file
         for file in catalog_files
         if file.startswith("backend/tests/test_")
-        or (file.startswith("frontend/tests/") and file.endswith(".spec.ts"))
+        or (file.startswith("frontend/tests/e2e/") and file.endswith(".spec.ts"))
         or (file.startswith("frontend/src/") and file.endswith(".test.ts"))
     }
+
     # Flag a cataloged test file as "not collected" only when the collector
     # responsible for its suite actually ran. This prevents false positives
     # when one or more collectors are skipped via --skip-*-collect.
@@ -648,7 +680,7 @@ def main(argv: list[str] | None = None) -> int:
             if backend_result is None:
                 return True
             return file in backend_collected
-        if file.startswith("frontend/tests/") and file.endswith(".spec.ts"):
+        if file.startswith("frontend/tests/e2e/") and file.endswith(".spec.ts"):
             if frontend_result is None:
                 return True
             return file in frontend_collected
@@ -664,7 +696,7 @@ def main(argv: list[str] | None = None) -> int:
     backend_coverage_totals, backend_rows = backend_coverage_rows(backend_coverage, args.coverage_threshold)
     frontend_coverage_summary = load_frontend_coverage_summary(root)
     perf_reports = perf_report_files(root)
-    generated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    generated_at = datetime.now(UTC).isoformat(timespec="seconds")
 
     payload = {
         "generated_at": generated_at,

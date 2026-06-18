@@ -42,7 +42,7 @@ This document records how major third-party libraries are used in the current co
 | Fuse.js | Local fuzzy filtering helper | `frontend/src/utils/fuzzySearch.ts`, `GalleryGrid.vue` | Backend `/api/search` owns active recursive search |
 | embla-carousel-vue | shadcn-style carousel primitive | `frontend/src/components/ui/carousel/` | Used by desktop album carousel through local carousel component |
 | eruda | Optional mobile browser debug console | `frontend/src/debug/erudaDebug.ts`, `frontend/src/main.ts` | Enabled by query/localStorage debug flag |
-| Playwright | Frontend and contract tests | `frontend/tests/`, `frontend/playwright.config.ts` | Also used by perf smoke scripts |
+| Playwright | Frontend and contract tests | `frontend/tests/e2e/`, `frontend/playwright.config.ts` | Also used by perf smoke scripts |
 | ESLint | Frontend lint | `frontend/eslint.config.js`, `frontend/package.json` | Runs with `corepack pnpm run lint` |
 | Prettier | Frontend format check/write | `frontend/.prettierrc.json`, `frontend/.prettierignore`, `frontend/scripts/check_prettier_changed.sh` | `format:check` checks changed files; `format` writes scoped frontend globs |
 

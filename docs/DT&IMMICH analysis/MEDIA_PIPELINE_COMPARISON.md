@@ -246,7 +246,7 @@ gallery-repo evidence:
 - `backend/metadata_store.py`: SQLite metadata, dimension, file index, FTS/trigram structures.
 - `frontend/src/utils/lightbox.ts`: PhotoSwipe item `src` is `/api/image`; `msrc` is thumbnail.
 - `frontend/src/composables/usePhotoSwipe.ts`: dimension resolver order includes scan/cache/metadata/thumbnail natural dimensions.
-- `frontend/tests/perf/album-open.perf.spec.ts` and `frontend/tests/perf/lightbox.perf.spec.ts`: enforce the current hot paths.
+- `frontend/tests/e2e/perf/album-open.perf.spec.ts` and `frontend/tests/e2e/perf/lightbox.perf.spec.ts`: enforce the current hot paths.
 
 DiffusionToolkit evidence from existing audit:
 

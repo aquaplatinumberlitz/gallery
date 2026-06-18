@@ -28,7 +28,7 @@ The plan is intentionally phased so fixes are measurable and reversible. Do not 
 
 Before changing runtime behavior, preserve a repeatable baseline:
 
-- Run `frontend/tests/metadata-performance.spec.ts`.
+- Run `frontend/tests/e2e/metadata-performance.spec.ts`.
 - Record click-to-first-row-visible for gallery to metadata navigation.
 - Record API headers/body-ready timing separately from UI-ready timing.
 - Record long tasks after the `/api/library/inspector` body is ready.

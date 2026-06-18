@@ -115,6 +115,11 @@ async function installStubbedGallery(page: Page) {
       return;
     }
 
+    if (url.pathname === "/api/facets") {
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify({}) });
+      return;
+    }
+
     if (["/api/thumbnail", "/api/preview", "/api/image"].includes(url.pathname)) {
       await route.fulfill({ contentType: "image/png", body: png1x1 });
       return;
@@ -609,18 +614,10 @@ test.describe("Tailwind Preflight Regression", () => {
     });
 
     test("4c. mobile sort button is present and clickable", async ({ page }) => {
-      const sortBtn = page.getByRole("combobox", { name: "Sort gallery" });
+      const sortBtn = page.getByRole("button", { name: "Sort gallery" });
       await expect(sortBtn).toBeVisible();
-      await sortBtn.evaluate((el: HTMLElement) => el.click());
-      await page.waitForTimeout(500);
-
-      // Sort dropdown should appear
-      const sortDropdown = page.locator(".mobile-sort-dropdown, .sort-dropdown.open");
-      const isDropdownVisible = await sortDropdown.isVisible({ timeout: 3000 }).catch(() => false);
-
-      // At minimum, the sort button must be clickable without errors
-      // (dropdown may not always be visible depending on implementation)
-      expect(isDropdownVisible || (await sortBtn.isVisible())).toBe(true);
+      await sortBtn.click();
+      await expect(page.getByRole("menuitem").first()).toBeVisible();
     });
 
     test("4d. mobile theme toggle changes data-theme", async ({ page }) => {

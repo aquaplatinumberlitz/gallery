@@ -150,7 +150,7 @@ test("lightbox opens first photo within budget", async ({ page }) => {
     verdict: "pass",
   };
 
-  const resultsDir = resolve(__dirname, "../../test-results/perf");
+  const resultsDir = resolve(__dirname, "../../../test-results/perf");
   mkdirSync(resultsDir, { recursive: true });
   writeFileSync(join(resultsDir, "lightbox-open-report.json"), JSON.stringify(report, null, 2));
 
@@ -262,7 +262,7 @@ test("lightbox transitions to next image within budget", async ({ page }) => {
     verdict: "pass",
   };
 
-  const resultsDir = resolve(__dirname, "../../test-results/perf");
+  const resultsDir = resolve(__dirname, "../../../test-results/perf");
   mkdirSync(resultsDir, { recursive: true });
   writeFileSync(join(resultsDir, "lightbox-transition-report.json"), JSON.stringify(report, null, 2));
 

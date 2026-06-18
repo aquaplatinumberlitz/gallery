@@ -101,7 +101,7 @@ cd backend && pytest tests/test_api_integration_*.py -v
 
 ### Tier 3: Frontend Playwright Contract Tests
 
-**Location:** `frontend/tests/`
+**Location:** `frontend/tests/e2e/`
 
 **Existing:**
 - `lightbox-loading-policy.spec.ts` — grid thumbnails, normal lightbox, zoom/fullscreen, preview fallback (7 tests)
@@ -123,14 +123,14 @@ bash scripts/test_frontend_contract.sh
 ```
 Or directly:
 ```bash
-cd frontend && corepack pnpm run build && corepack pnpm exec playwright test tests/lightbox-loading-policy.spec.ts tests/gallery-no-reload.spec.ts tests/gallery-cache-revisit.spec.ts tests/mobile-lightbox-sheet.spec.ts tests/search-fielded-ui.spec.ts tests/responsive-breakpoints.spec.ts
+cd frontend && corepack pnpm run build && corepack pnpm exec playwright test tests/e2e/lightbox-loading-policy.spec.ts tests/e2e/gallery-no-reload.spec.ts tests/e2e/gallery-cache-revisit.spec.ts tests/e2e/mobile-lightbox-sheet.spec.ts tests/e2e/search-fielded-ui.spec.ts tests/e2e/responsive-breakpoints.spec.ts
 ```
 
 ---
 
 ### Tier 4: Perf Smoke Tests
 
-**Location:** `frontend/tests/perf/`
+**Location:** `frontend/tests/e2e/perf/`
 
 **Existing:**
 - `album-open.perf.spec.ts` — scan latency, first thumbnail visible, thumbnail P95 (1 test)
@@ -164,7 +164,7 @@ cd frontend && corepack pnpm run perf:album && corepack pnpm run perf:lightbox
 | `scripts/lint_backend.sh` | Ruff lint changed Python files | Backend dev requirements |
 | `scripts/format_backend_check.sh` | Ruff format check changed Python files | Backend dev requirements |
 | `frontend/scripts/check_prettier_changed.sh` | Prettier check changed frontend files | pnpm install |
-| `scripts/test_all.sh` | Run all deterministic tests (Tiers 1-3) | Python venv + pnpm |
+| `scripts/test-all.sh` | Run all deterministic tests (Tiers 1-3) | Python venv + pnpm |
 | `scripts/test_backend_api_integration.sh` | Backend API integration tests | Python venv |
 | `scripts/test_frontend_contract.sh` | Playwright contract tests | `corepack pnpm run build` first |
 | `scripts/test_perf_smoke.sh` | Perf smoke tests | Running app + real data |
@@ -180,7 +180,7 @@ cd frontend && corepack pnpm run perf:album && corepack pnpm run perf:lightbox
 
 2. **No-reload E2E with real backend** — `gallery-no-reload-real-backend.spec.ts` exists
    but requires a running backend with `GALLERY_ROOT=/home/ubuntu/gallery-repo/test-images`.
-   Not included in `test_all.sh` since it needs a real backend.
+   Not included in `test-all.sh` since it needs a real backend.
 
 3. **Mobile sheet gesture conflict regression** — No automated test verifies that
    PhotoSwipe swipe and VSBS scroll do not conflict on mobile. Manual testing required.

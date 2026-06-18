@@ -184,7 +184,9 @@ gallery-repo/
 ├── scripts/
 │   ├── format_backend_check.sh
 │   ├── lint_backend.sh
-│   ├── test_all.sh
+│   ├── test-all.sh
+│   ├── test-backend.sh
+│   ├── test-frontend.sh
 │   ├── test_backend_api_integration.sh
 │   ├── test_frontend_contract.sh
 │   └── test_perf_smoke.sh

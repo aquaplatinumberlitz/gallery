@@ -52,7 +52,7 @@ Implementation files inspected:
 
 - Backend: [scan.py](../backend/scan.py), [thumbnails.py](../backend/thumbnails.py), [images.py](../backend/images.py), [metadata_store.py](../backend/metadata_store.py), [metadata_parse.py](../backend/metadata_parse.py), [metadata_extract.py](../backend/metadata_extract.py), [search.py](../backend/search.py), [main.py](../backend/main.py), [app.py](../backend/app.py)
 - Frontend: [GalleryGrid.vue](../frontend/src/components/GalleryGrid.vue), [PhotoCard.vue](../frontend/src/components/PhotoCard.vue), [Lightbox.vue](../frontend/src/components/Lightbox.vue), [PhotoSwipeViewer.vue](../frontend/src/components/PhotoSwipeViewer.vue), [usePhotoSwipe.ts](../frontend/src/composables/usePhotoSwipe.ts), [lightbox.ts](../frontend/src/stores/lightbox.ts), [lightbox.ts](../frontend/src/utils/lightbox.ts), [api.ts](../frontend/src/services/api.ts)
-- Perf tests: [album-open.perf.spec.ts](../frontend/tests/perf/album-open.perf.spec.ts), [lightbox.perf.spec.ts](../frontend/tests/perf/lightbox.perf.spec.ts)
+- Perf tests: [album-open.perf.spec.ts](../frontend/tests/e2e/perf/album-open.perf.spec.ts), [lightbox.perf.spec.ts](../frontend/tests/e2e/perf/lightbox.perf.spec.ts)
 
 ## Current System Facts
 
@@ -194,7 +194,7 @@ Which previous bug/regression it prevents:
 
 Which perf test should guard it:
 
-- `frontend/tests/perf/album-open.perf.spec.ts`.
+- `frontend/tests/e2e/perf/album-open.perf.spec.ts`.
 - Add a backend guard test that monkeypatches `PIL.Image.open` and asserts `/api/scan` does not call it.
 
 ### Rule 2: `/api/scan` may only read cached dimensions/metadata if already available and validated by path + mtime + size.
@@ -346,8 +346,8 @@ Why:
 
 - `frontend/src/utils/buildPhotoSwipeItem.ts` builds `src = getPreviewUrl(item.path)`, `msrc = getThumbnailUrl(item.path)`.
 - `frontend/composables/usePhotoSwipe.ts` implements `zoomTriggerOriginal()` that swaps to `/api/image` on zoom.
-- `frontend/tests/perf/lightbox.perf.spec.ts` asserts the actual loaded image contains `/api/preview` for normal open.
-- `frontend/tests/perf/lightbox-loading-policy.spec.ts` asserts zoom triggers `/api/image`.
+- `frontend/tests/e2e/perf/lightbox.perf.spec.ts` asserts the actual loaded image contains `/api/preview` for normal open.
+- `frontend/tests/e2e/perf/lightbox-loading-policy.spec.ts` asserts zoom triggers `/api/image`.
 
 Advantage:
 
@@ -1077,7 +1077,7 @@ How to test:
 | Why this order | Locking guarantees first reduces risk in every later phase. |
 | Borrowed from | gallery-repo itself: current fast scan, lazy thumbnails, derivative-first lightbox (Phase 2A), Query/Pinia split, perf tests. |
 | Current problem solved | Prevents accidental regressions while implementing larger changes. |
-| Files likely affected | Primarily docs and tests: `docs/`, `frontend/tests/perf/`, backend tests. No behavior changes unless guard tests expose existing gaps. |
+| Files likely affected | Primarily docs and tests: `docs/`, `frontend/tests/e2e/perf/`, backend tests. No behavior changes unless guard tests expose existing gaps. |
 | Backend changes | Add or strengthen tests proving `/api/scan` does not call PIL/metadata parsing and only reads validated cached dimensions. |
 | Frontend changes | Add tests for no false empty state, no search no-results before settled fetch, no landing toast regression, and lightbox source policy. |
 | DB/schema changes | None. |

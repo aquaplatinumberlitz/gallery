@@ -31,8 +31,8 @@ gallery-repo files:
 - [frontend/src/utils/lightbox.ts](../frontend/src/utils/lightbox.ts)
 - [frontend/src/stores/lightbox.ts](../frontend/src/stores/lightbox.ts)
 - [frontend/src/services/api.ts](../frontend/src/services/api.ts)
-- [frontend/tests/perf/album-open.perf.spec.ts](../frontend/tests/perf/album-open.perf.spec.ts)
-- [frontend/tests/perf/lightbox.perf.spec.ts](../frontend/tests/perf/lightbox.perf.spec.ts)
+- [frontend/tests/e2e/perf/album-open.perf.spec.ts](../frontend/tests/e2e/perf/album-open.perf.spec.ts)
+- [frontend/tests/e2e/perf/lightbox.perf.spec.ts](../frontend/tests/e2e/perf/lightbox.perf.spec.ts)
 - [docs/ARCHITECTURE.md](ARCHITECTURE.md)
 - [docs/PERFORMANCE_TESTING.md](PERFORMANCE_TESTING.md)
 - [docs/DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md](DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md)
@@ -758,7 +758,7 @@ Perf budget: cleanup is batched and never runs in `/api/scan` hot path beyond ch
 | --- | --- | --- | --- | --- | --- |
 | Keep `/api/scan` free of metadata parsing and PIL probing. | `backend/scan.py`, docs/tests only | Preserves fast folder open. | Future features may accidentally add file opens. | Existing album-open perf test plus route-level unit/inspection. | Scan p95 must stay within current test budget. |
 | Keep scan dimensions cache-only. | `backend/scan.py`, `backend/metadata_store.py` | Avoids opening cold images for layout. | Some cold images lack dimensions until thumbnail/metadata path warms cache. | Verify scan only returns matching cached dimensions. | Batch SQLite dimension lookup only. |
-| Keep PhotoSwipe main source as `/api/image`. | `frontend/src/utils/lightbox.ts`, `frontend/tests/perf/lightbox.perf.spec.ts` | Preserves original-display guarantee. | Preview experiments could replace original by mistake. | Lightbox perf test already asserts `/api/image`. | No regression to lightbox-open/full-image budgets. |
+| Keep PhotoSwipe main source as `/api/image`. | `frontend/src/utils/lightbox.ts`, `frontend/tests/e2e/perf/lightbox.perf.spec.ts` | Preserves original-display guarantee. | Preview experiments could replace original by mistake. | Lightbox perf test already asserts `/api/image`. | No regression to lightbox-open/full-image budgets. |
 | Keep TanStack Query as owner of scan/metadata server state. | frontend query/services/components | Avoids duplicate client cache ownership. | Store/query drift. | Existing frontend tests plus manual query invalidation checks. | No extra blocking request on grid open. |
 
 ### P1 - High Value Borrow

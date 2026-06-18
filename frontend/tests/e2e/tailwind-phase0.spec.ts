@@ -260,7 +260,7 @@ test.describe("Tailwind Phase 0 — Mobile (390x844)", () => {
   });
 
   test("2c. sort visible and works", async ({ page }) => {
-    const sortBtn = page.getByRole("combobox", { name: "Sort gallery" });
+    const sortBtn = page.getByRole("button", { name: "Sort gallery" });
     await expect(sortBtn).toBeVisible();
   });
 
@@ -487,7 +487,7 @@ test.describe("Tailwind Phase 0 — Preflight absence verification", () => {
         textColor: s.getPropertyValue("--foreground").trim(),
         brandAccent: s.getPropertyValue("--brand-hero-accent").trim(),
         radiusSm: s.getPropertyValue("--gallery-radius-sm").trim(),
-        surfaceElevated: s.getPropertyValue("--gallery-surface-elevated").trim(),
+        surfaceElevated: s.getPropertyValue("--color-surface-elevated").trim(),
       };
     });
 

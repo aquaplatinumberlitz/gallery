@@ -20,12 +20,12 @@
     "test:unit:coverage": "vitest run --coverage",
     "coverage:report": "nyc report --reporter=text --reporter=html --reporter=lcov",
     "coverage": "VITE_COVERAGE=true playwright test --project=chromium && nyc report --reporter=text --reporter=html --reporter=lcov",
-    "perf:album": "playwright test tests/perf/album-open.perf.spec.ts --project=chromium",
-    "perf:album:headed": "playwright test tests/perf/album-open.perf.spec.ts --project=chromium --headed",
-    "perf:lightbox": "playwright test tests/perf/lightbox.perf.spec.ts --project=chromium",
-    "perf:lightbox:headed": "playwright test tests/perf/lightbox.perf.spec.ts --project=chromium --headed",
-    "perf:metadata": "GALLERY_PERF_METADATA=1 playwright test tests/metadata-performance.spec.ts --project=chromium",
-    "perf:metadata:strict": "GALLERY_PERF_METADATA_STRICT=1 playwright test tests/metadata-performance.spec.ts --project=chromium"
+    "perf:album": "playwright test tests/e2e/perf/album-open.perf.spec.ts --project=chromium",
+    "perf:album:headed": "playwright test tests/e2e/perf/album-open.perf.spec.ts --project=chromium --headed",
+    "perf:lightbox": "playwright test tests/e2e/perf/lightbox.perf.spec.ts --project=chromium",
+    "perf:lightbox:headed": "playwright test tests/e2e/perf/lightbox.perf.spec.ts --project=chromium --headed",
+    "perf:metadata": "GALLERY_PERF_METADATA=1 playwright test tests/e2e/metadata-performance.spec.ts --project=chromium",
+    "perf:metadata:strict": "GALLERY_PERF_METADATA_STRICT=1 playwright test tests/e2e/metadata-performance.spec.ts --project=chromium"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

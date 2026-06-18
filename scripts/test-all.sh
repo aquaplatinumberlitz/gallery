@@ -3,4 +3,5 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-exec "$SCRIPT_DIR/test-all.sh" "$@"
+"$SCRIPT_DIR/test-backend.sh" "$@"
+"$SCRIPT_DIR/test-frontend.sh"

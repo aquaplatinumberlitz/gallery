@@ -47,7 +47,7 @@ function maybeExpectAtMost(value: number, limit: number | null): void {
 }
 
 function writePerfReport(filename: string, report: unknown): void {
-  const resultsDir = resolve(__dirname, "../test-results/perf");
+  const resultsDir = resolve(__dirname, "../../test-results/perf");
   mkdirSync(resultsDir, { recursive: true });
   writeFileSync(join(resultsDir, filename), JSON.stringify(report, null, 2));
 }

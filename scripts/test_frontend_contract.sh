@@ -20,12 +20,12 @@ fi
 echo ""
 echo ">>> Running Playwright contract tests..."
 corepack pnpm exec playwright test \
-    tests/lightbox-loading-policy.spec.ts \
-    tests/gallery-no-reload.spec.ts \
-    tests/gallery-cache-revisit.spec.ts \
-    tests/mobile-lightbox-sheet.spec.ts \
-    tests/search-fielded-ui.spec.ts \
-    tests/responsive-breakpoints.spec.ts \
+    tests/e2e/lightbox-loading-policy.spec.ts \
+    tests/e2e/gallery-no-reload.spec.ts \
+    tests/e2e/gallery-cache-revisit.spec.ts \
+    tests/e2e/mobile-lightbox-sheet.spec.ts \
+    tests/e2e/search-fielded-ui.spec.ts \
+    tests/e2e/responsive-breakpoints.spec.ts \
     "$@"
 
 echo ""

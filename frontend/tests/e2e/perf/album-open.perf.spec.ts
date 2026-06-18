@@ -145,7 +145,7 @@ test("album open performance", async ({ page }) => {
         ? "pass"
         : "fail",
   };
-  const resultsDir = resolve(__dirname, "../../test-results/perf");
+  const resultsDir = resolve(__dirname, "../../../test-results/perf");
   mkdirSync(resultsDir, { recursive: true });
   writeFileSync(join(resultsDir, "album-open-report.json"), JSON.stringify(report, null, 2));
 

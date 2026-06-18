@@ -534,7 +534,7 @@ Completed via Tailwind Phase 2B Index Status refactor: `fetchIndexStatus(path)` 
 | `frontend/src/composables/useFieldedSearch.ts` | New composable | ✅ Created |
 | `frontend/src/components/AppHeader.vue` | Add Advanced Search trigger + filter chips | ✅ Updated |
 | `frontend/src/types/index.ts` | Add FieldFilter, FieldedSearchParams | ✅ Added |
-| `frontend/tests/advanced-search-drawer.spec.ts` | 8 integration tests | ✅ 8/8 pass |
+| `frontend/tests/e2e/advanced-search-drawer.spec.ts` | 8 integration tests | ✅ 8/8 pass |
 
 **Not touched in Phase 2:**
 - `MobileHeader.vue` — advanced search entry point deferred to separate spec
@@ -903,7 +903,7 @@ Do not add navigation clutter just to expose every future tool. Prefer progressi
 Phase 3 verification completed with:
 - `backend/.venv_linux/bin/python -m pytest backend/tests/test_library_inspector.py backend/tests/test_api_integration_metadata_search_facets.py::TestSearchPlainQuery::test_search_empty_query_returns_empty -q`
 - `npm run build`
-- `npx playwright test tests/library-inspector.spec.ts --project=chromium`
+- `npx playwright test tests/e2e/library-inspector.spec.ts --project=chromium`
 - Smoke check: `/api/library/inspector?scope=all&limit=1` returns 200 and `/metadata` renders without page/console errors.
 
 ---
@@ -1010,7 +1010,7 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 | SearchFilterChips render active filters | Phase 2 | Chips visible when fielded search is active; content matches filter values |
 | SearchFilterChip removal updates search | Phase 2 | Removing chip removes filter from active query |
 | Plain text search regression | Phase 2 | Existing search behavior unchanged when no fielded filters active |
-| `/metadata` route renders | Phase 3 | Implemented and covered by `frontend/tests/library-inspector.spec.ts` |
+| `/metadata` route renders | Phase 3 | Implemented and covered by `frontend/tests/e2e/library-inspector.spec.ts` |
 | Desktop Metadata button | Phase 3 | Implemented with desktop `RouterLink to="/metadata"`, `Table2`, ghost/secondary styling, and `aria-current="page"`; direct `Button as-child` was avoided due runtime crash in current Reka setup |
 | Library Inspector endpoint empty query | Phase 3 | Implemented and covered by `backend/tests/test_library_inspector.py`; `/api/search?q=` regression remains covered |
 | Library Inspector shared parser semantics | Phase 3 | Implemented by reusing Phase 2 fielded parser condition builder; backend tests cover prompt/seed and shared search regression |
@@ -1121,20 +1121,20 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 
 | File | Phase |
 |---|---|
-| `frontend/tests/index-status-chip.spec.ts` | Phase 1 |
-| `frontend/tests/index-status-panel.spec.ts` | Phase 1 |
-| `frontend/tests/facets-loading.spec.ts` | Phase 1 |
-| `frontend/tests/settings-modal-aria.spec.ts` | Phase 1 |
-| `frontend/tests/mobile-header-freeze.spec.ts` | Phase 1 |
-| `frontend/tests/tablet-header-freeze.spec.ts` | Phase 1 |
-| `frontend/tests/advanced-search-drawer.spec.ts` | Phase 2 |
-| `frontend/tests/search-filter-chips.spec.ts` | Phase 2 |
-| `frontend/tests/search-plain-regression.spec.ts` | Phase 2 |
-| `frontend/tests/metadata-route.spec.ts` | Phase 3 |
-| `frontend/tests/library-inspector.spec.ts` | Phase 3 |
-| `frontend/tests/library-inspector-metadata.spec.ts` | Phase 3 |
+| `frontend/tests/e2e/index-status-chip.spec.ts` | Phase 1 |
+| `frontend/tests/e2e/index-status-panel.spec.ts` | Phase 1 |
+| `frontend/tests/e2e/facets-loading.spec.ts` | Phase 1 |
+| `frontend/tests/e2e/settings-modal-aria.spec.ts` | Phase 1 |
+| `frontend/tests/e2e/mobile-header-freeze.spec.ts` | Phase 1 |
+| `frontend/tests/e2e/tablet-header-freeze.spec.ts` | Phase 1 |
+| `frontend/tests/e2e/advanced-search-drawer.spec.ts` | Phase 2 |
+| `frontend/tests/e2e/search-filter-chips.spec.ts` | Phase 2 |
+| `frontend/tests/e2e/search-plain-regression.spec.ts` | Phase 2 |
+| `frontend/tests/e2e/metadata-route.spec.ts` | Phase 3 |
+| `frontend/tests/e2e/library-inspector.spec.ts` | Phase 3 |
+| `frontend/tests/e2e/library-inspector-metadata.spec.ts` | Phase 3 |
 | `backend/tests/test_library_inspector.py` | Phase 3 |
-| `frontend/tests/gallery-grid-unchanged.spec.ts` | Phase 3 |
+| `frontend/tests/e2e/gallery-grid-unchanged.spec.ts` | Phase 3 |
 
 ---
 

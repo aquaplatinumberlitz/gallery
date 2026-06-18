@@ -128,11 +128,11 @@ cd "$REPO_ROOT/frontend"
 
 echo ""
 echo ">>> Running album open perf test..."
-corepack pnpm exec playwright test tests/perf/album-open.perf.spec.ts --project=chromium "$@"
+corepack pnpm exec playwright test tests/e2e/perf/album-open.perf.spec.ts --project=chromium "$@"
 
 echo ""
 echo ">>> Running lightbox perf tests..."
-corepack pnpm exec playwright test tests/perf/lightbox.perf.spec.ts --project=chromium "$@"
+corepack pnpm exec playwright test tests/e2e/perf/lightbox.perf.spec.ts --project=chromium "$@"
 
 echo ""
 echo "Perf JSON results written directly to $RESULTS_DIR/"
