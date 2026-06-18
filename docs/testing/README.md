@@ -152,9 +152,9 @@ Run from the repo root unless a command changes directory explicitly.
 | Targeted Playwright test | `cd frontend && corepack pnpm exec playwright test tests/e2e/lightbox-loading-policy.spec.ts --project=chromium` |
 | Metadata performance diagnostic | `cd frontend && GALLERY_BASE_URL=http://localhost:5173 corepack pnpm exec playwright test tests/e2e/metadata-performance.spec.ts --project=chromium --headed` |
 | Metadata performance strict gate | `cd frontend && GALLERY_PERF_METADATA_STRICT=1 corepack pnpm run perf:metadata` |
-- Frontend contract subset | `bash scripts/test-e2e.sh` (or `bash scripts/test_frontend_contract.sh` for legacy) |
-| Backend deterministic suite | `bash scripts/test-backend.sh` |
-| Frontend deterministic suite | `bash scripts/test-frontend.sh` |
+| Frontend contract subset | `bash scripts/test-e2e.sh` (or `bash scripts/test_frontend_contract.sh` for legacy) |
+| Lint and format checks | `bash scripts/test-lint.sh` |
+| Backend and frontend unit suite | `bash scripts/test-unit.sh` |
 | Deterministic suite | `bash test-all.sh` |
 | Perf fixture generation | `backend/.venv_linux/bin/python scripts/create_perf_fixture.py --clean --env-file /tmp/gallery_perf_fixture.env` |
 | Backend scan p95 perf | `GALLERY_API_BASE_URL=http://localhost:4180 GALLERY_PERF_SCAN_PATH=/path/to/album backend/.venv_linux/bin/python scripts/perf_scan.py` |

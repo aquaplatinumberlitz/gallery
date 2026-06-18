@@ -164,6 +164,8 @@ cd frontend && corepack pnpm run perf:album && corepack pnpm run perf:lightbox
 | `scripts/lint_backend.sh` | Ruff lint changed Python files | Backend dev requirements |
 | `scripts/format_backend_check.sh` | Ruff format check changed Python files | Backend dev requirements |
 | `frontend/scripts/check_prettier_changed.sh` | Prettier check changed frontend files | pnpm install |
+| `scripts/test-lint.sh` | Run backend and frontend lint/format checks | Backend dev requirements + pnpm |
+| `scripts/test-unit.sh` | Run backend and frontend unit tests, then build frontend | Python venv + pnpm |
 | `scripts/test-local.sh` | Run deterministic local suite (Tiers 1-3) | Python venv + pnpm |
 | `scripts/test_backend_api_integration.sh` | Backend API integration tests | Python venv |
 | `scripts/test-e2e.sh` | Playwright E2E tests (contracts + perf) | `corepack pnpm run build` first |

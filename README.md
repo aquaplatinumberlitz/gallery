@@ -185,8 +185,8 @@ gallery-repo/
 │   ├── format_backend_check.sh
 │   ├── lint_backend.sh
 │   ├── test-all.sh
-│   ├── test-backend.sh
-│   ├── test-frontend.sh
+│   ├── test-lint.sh
+│   ├── test-unit.sh
 │   ├── test_backend_api_integration.sh
 │   ├── test-e2e.sh
 │   └── test_perf_smoke.sh
