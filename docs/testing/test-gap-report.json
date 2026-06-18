@@ -2,54 +2,33 @@
   "catalog_alignment": {
     "cataloged_uncollected_tests": [],
     "missing_catalog_files": [],
-    "uncataloged_files": [
-      "backend/tests/test_albums.py",
-      "backend/tests/test_app_coverage.py",
-      "backend/tests/test_folders.py",
-      "backend/tests/test_metadata_extract_parsers.py",
-      "backend/tests/test_metadata_parse_coverage.py",
-      "backend/tests/test_metadata_store_coverage.py",
-      "backend/tests/test_paths.py",
-      "backend/tests/test_refresh_service.py",
-      "backend/tests/test_search_coverage.py",
-      "backend/tests/test_static_files.py",
-      "backend/tests/test_thumbnails_coverage.py"
-    ]
+    "uncataloged_files": []
   },
   "commands": {
-    "backend": {
-      "command": [
-        "/home/ubuntu/gallery-repo/backend/.venv_linux/bin/python",
-        "-m",
-        "pytest",
-        "--collect-only",
-        "-q"
-      ],
-      "cwd": "backend",
-      "returncode": 0
-    },
-    "frontend": {
+    "backend": null,
+    "frontend": null,
+    "vitest": {
       "command": [
         "corepack",
         "pnpm",
         "exec",
-        "playwright",
-        "test",
-        "--list",
-        "--project=chromium"
+        "vitest",
+        "list"
       ],
       "cwd": "frontend",
       "returncode": 0
     }
   },
   "counts": {
-    "backend_test_files": 28,
-    "backend_tests": 581,
-    "catalog_entries": 45,
-    "frontend_test_files": 21,
-    "frontend_tests": 161,
-    "important_files": 56,
-    "perf_reports": 3
+    "backend_test_files": 0,
+    "backend_tests": 0,
+    "catalog_entries": 76,
+    "frontend_test_files": 0,
+    "frontend_tests": 0,
+    "important_files": 78,
+    "perf_reports": 0,
+    "vitest_test_files": 20,
+    "vitest_tests": 391
   },
   "coverage": {
     "backend_modules_below_threshold": [
@@ -80,7 +59,7 @@
     },
     "frontend_summary_found": false
   },
-  "generated_at": "2026-06-18T08:57:07+00:00",
+  "generated_at": "2026-06-18T13:25:06+00:00",
   "matrix": [
     {
       "backend": "OK",
@@ -195,9 +174,5 @@
       "perf": "OK"
     }
   ],
-  "perf_reports": [
-    "frontend/test-results/perf/album-open-report.json",
-    "frontend/test-results/perf/lightbox-open-report.json",
-    "frontend/test-results/perf/lightbox-transition-report.json"
-  ]
+  "perf_reports": []
 }

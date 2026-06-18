@@ -46,8 +46,10 @@ export const test = base.extend<{
 
       // Stop JS coverage and save data after each test
       if (process.env.VITE_COVERAGE === "true") {
-        const coverage = await page.coverage.stopJSCoverage();
-        const istanbulCoverage = await page.evaluate(() => (window as any).__coverage__);
+        await page.coverage.stopJSCoverage();
+        const istanbulCoverage = await page.evaluate<
+          Record<string, unknown> | undefined
+        >(() => (window as unknown as { __coverage__?: Record<string, unknown> }).__coverage__);
         if (istanbulCoverage) {
           fs.mkdirSync(NYC_OUTPUT, { recursive: true });
           const filename = `coverage-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.json`;

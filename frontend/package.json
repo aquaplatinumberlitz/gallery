@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "dev:mobile": "VITE_MOBILE_NO_HMR=1 vite",
-    "lint": "eslint \"src/**/*.{ts,vue}\" vite.config.ts vitest.config.ts playwright.config.ts --max-warnings=0",
+    "lint": "eslint \"src/**/*.{ts,vue}\" vite.config.ts vitest.config.ts playwright.config.ts --ignore-pattern \"src/**/__tests__/**\" --ignore-pattern \"src/test/**\" --max-warnings=0",
     "lint:tests": "eslint \"tests/**/*.ts\" \"src/**/__tests__/**/*.test.ts\" \"src/test/**/*.ts\" --max-warnings=0",
     "format": "prettier --write \"src/**/*.{ts,vue,scss,css,json}\" \"tests/**/*.{ts,json}\" \"*.{ts,js,json,html}\"",
     "format:check": "bash scripts/check_prettier_changed.sh",

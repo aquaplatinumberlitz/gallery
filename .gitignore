@@ -42,3 +42,7 @@ coverage-report/
 # Hermes agent plans
 .hermes/plans/
 frontend/playwright-report/
+
+# Hermes agent scratch and plan files
+.hermes/scratch/
+.hermes/plans/

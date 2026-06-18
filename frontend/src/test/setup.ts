@@ -135,6 +135,8 @@ afterEach(() => {
   window.sessionStorage.clear();
   delete (window as Partial<Window> & { __GALLERY_DEBUG_INDEX_REBUILD?: boolean }).__GALLERY_DEBUG_INDEX_REBUILD;
   delete (window as Partial<Window> & { __GALLERY_DEBUG_LIGHTBOX_NAV?: boolean }).__GALLERY_DEBUG_LIGHTBOX_NAV;
+  // Clear DOM so mounted wrappers/leftover nodes from one test do not bleed into the next.
+  document.body.innerHTML = "";
   vi.restoreAllMocks();
   vi.useRealTimers();
 });

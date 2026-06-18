@@ -6,7 +6,7 @@ Identify which backend, frontend, and perf tests exist, which documented test
 files are missing, and where coverage/report artifacts show weak spots.
 
 Guarantees:
-* collects pytest and Playwright test ids without running the tests
+* collects pytest, Playwright, and vitest test ids without running the tests
 * compares important test files with docs/testing/TEST_CATALOG.md
 * writes Markdown and JSON reports for repeatable test-gap review
 
@@ -38,6 +38,8 @@ SUPPORT_TEST_FILES = {
     "backend/tests/conftest.py",
     "frontend/tests/helpers/monitorErrors.ts",
     "frontend/tests/perf/perf-utils.ts",
+    "frontend/src/test/setup.ts",
+    "frontend/src/test/withSetup.ts",
 }
 
 FEATURE_MATRIX: list[dict[str, Any]] = [
@@ -221,6 +223,8 @@ def important_test_files(root: Path) -> list[str]:
     patterns = [
         "backend/tests/test_*.py",
         "frontend/tests/**/*.spec.ts",
+        "frontend/src/**/__tests__/**/*.test.ts",
+        "frontend/src/test/**/*.ts",
         "scripts/perf_*.py",
         "scripts/create_perf_fixture.py",
         "scripts/summarize_perf_reports.py",
@@ -267,6 +271,9 @@ PLAYWRIGHT_LINE_RE = re.compile(
     r"^\s*\[[^\]]+\]\s+›\s+(?P<path>[^:]+):(?P<line>\d+):(?P<column>\d+)\s+›\s+(?P<title>.+)$"
 )
 
+# vitest list output: "<relative_path> > <describe block> > <test name>"
+VITEST_LINE_RE = re.compile(r"^(?P<path>src/[^\s].*?\.test\.ts)\s+>\s+(?P<title>.+)$")
+
 
 def collect_frontend_tests(root: Path) -> tuple[CommandResult, list[str], set[str]]:
     frontend_dir = root / "frontend"
@@ -280,6 +287,27 @@ def collect_frontend_tests(root: Path) -> tuple[CommandResult, list[str], set[st
             continue
         path = f"frontend/tests/{match.group('path')}" if not match.group("path").startswith("tests/") else f"frontend/{match.group('path')}"
         tests.append(f"{path}:{match.group('line')} › {match.group('title')}")
+        files.add(path)
+    return result, tests, files
+
+
+def collect_vitest_tests(root: Path) -> tuple[CommandResult, list[str], set[str]]:
+    """Collect vitest unit tests without running them.
+
+    Uses `vitest list` (vitest 4+) which prints one test per line in the form
+    `src/<path>.test.ts > <describe> > <test name>`.
+    """
+    frontend_dir = root / "frontend"
+    result = run_command(["corepack", "pnpm", "exec", "vitest", "list"], frontend_dir)
+
+    tests: list[str] = []
+    files: set[str] = set()
+    for line in result.stdout.splitlines():
+        match = VITEST_LINE_RE.match(line)
+        if not match:
+            continue
+        path = f"frontend/{match.group('path')}"
+        tests.append(f"{path} › {match.group('title')}")
         files.add(path)
     return result, tests, files
 
@@ -389,8 +417,10 @@ def write_markdown(
     generated_at: str,
     backend_result: CommandResult | None,
     frontend_result: CommandResult | None,
+    vitest_result: CommandResult | None,
     backend_tests: list[str],
     frontend_tests: list[str],
+    vitest_tests: list[str],
     existing_files: list[str],
     catalog: dict[str, dict[str, str]],
     matrix_rows: list[dict[str, Any]],
@@ -405,6 +435,7 @@ def write_markdown(
 ) -> None:
     backend_files = sorted({normalize_backend_test_file(test) for test in backend_tests})
     frontend_files = sorted({test.split(":", 1)[0] for test in frontend_tests})
+    vitest_files = sorted({test.split(" › ", 1)[0] for test in vitest_tests})
     matrix_gaps = [gap for row in matrix_rows for gap in row["gaps"]]
     low_backend_modules = [row for row in backend_coverage_rows_data if row["below_threshold"]]
 
@@ -418,7 +449,8 @@ def write_markdown(
         "## Summary",
         "",
         f"- Backend collected tests: {len(backend_tests)} tests in {len(backend_files)} files.",
-        f"- Frontend collected tests: {len(frontend_tests)} tests in {len(frontend_files)} files.",
+        f"- Frontend Playwright tests: {len(frontend_tests)} tests in {len(frontend_files)} files.",
+        f"- Frontend Vitest unit tests: {len(vitest_tests)} tests in {len(vitest_files)} files.",
         f"- Important test/catalog files on disk: {len(existing_files)}.",
         f"- Catalog entries: {len(catalog)}.",
         f"- Matrix gaps: {len(matrix_gaps)}.",
@@ -449,8 +481,10 @@ def write_markdown(
             "",
             f"- Backend: `{command_line(backend_result)}`",
             f"- Backend collect status: `{backend_result.returncode if backend_result else 'skipped'}`",
-            f"- Frontend: `{command_line(frontend_result)}`",
-            f"- Frontend collect status: `{frontend_result.returncode if frontend_result else 'skipped'}`",
+            f"- Frontend Playwright: `{command_line(frontend_result)}`",
+            f"- Frontend Playwright collect status: `{frontend_result.returncode if frontend_result else 'skipped'}`",
+            f"- Frontend Vitest: `{command_line(vitest_result)}`",
+            f"- Frontend Vitest collect status: `{vitest_result.returncode if vitest_result else 'skipped'}`",
             "",
             "## Feature Matrix",
             "",
@@ -472,7 +506,7 @@ def write_markdown(
             "| --- | --- |",
             f"| Catalog entries missing on disk | {markdown_list(missing_catalog_files)} |",
             f"| Important files missing from catalog | {markdown_list(uncataloged_files)} |",
-            f"| Cataloged pytest/Playwright files not collected | {markdown_list(cataloged_uncollected_tests)} |",
+            f"| Cataloged test files not collected | {markdown_list(cataloged_uncollected_tests)} |",
             "",
             "## Backend Coverage Gaps",
             "",
@@ -565,6 +599,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--backend-python", help="Python executable for backend pytest collection")
     parser.add_argument("--skip-backend-collect", action="store_true", help="skip pytest collection")
     parser.add_argument("--skip-frontend-collect", action="store_true", help="skip Playwright collection")
+    parser.add_argument("--skip-vitest-collect", action="store_true", help="skip vitest unit test collection")
     parser.add_argument("--coverage-json", type=Path, default=Path("backend/coverage.json"), help="backend coverage JSON path")
     parser.add_argument("--coverage-threshold", type=float, default=70.0, help="coverage percent threshold for module gaps")
     parser.add_argument("--fail-on-gaps", action="store_true", help="return non-zero when matrix/catalog gaps are found")
@@ -587,20 +622,43 @@ def main(argv: list[str] | None = None) -> int:
     if not args.skip_frontend_collect:
         frontend_result, frontend_tests, frontend_collected = collect_frontend_tests(root)
 
+    vitest_result: CommandResult | None = None
+    vitest_tests: list[str] = []
+    vitest_collected: set[str] = set()
+    if not args.skip_vitest_collect:
+        vitest_result, vitest_tests, vitest_collected = collect_vitest_tests(root)
+
     matrix_rows = build_matrix_rows(existing, backend_collected, frontend_collected, catalog)
     catalog_files = set(catalog)
     missing_catalog_files = sorted(file for file in catalog_files if not (root / file).exists())
     uncataloged_files = sorted(file for file in existing if file not in catalog and file not in SUPPORT_TEST_FILES)
 
-    collected_test_files = backend_collected | frontend_collected
     cataloged_test_files = {
         file
         for file in catalog_files
-        if file.startswith("backend/tests/test_") or file.startswith("frontend/tests/") and file.endswith(".spec.ts")
+        if file.startswith("backend/tests/test_")
+        or (file.startswith("frontend/tests/") and file.endswith(".spec.ts"))
+        or (file.startswith("frontend/src/") and file.endswith(".test.ts"))
     }
-    cataloged_uncollected_tests = sorted(
-        file for file in cataloged_test_files if collected_test_files and file not in collected_test_files
-    )
+    # Flag a cataloged test file as "not collected" only when the collector
+    # responsible for its suite actually ran. This prevents false positives
+    # when one or more collectors are skipped via --skip-*-collect.
+    def _was_collected(file: str) -> bool:
+        if file.startswith("backend/tests/test_"):
+            if backend_result is None:
+                return True
+            return file in backend_collected
+        if file.startswith("frontend/tests/") and file.endswith(".spec.ts"):
+            if frontend_result is None:
+                return True
+            return file in frontend_collected
+        if file.startswith("frontend/src/") and file.endswith(".test.ts"):
+            if vitest_result is None:
+                return True
+            return file in vitest_collected
+        return True
+
+    cataloged_uncollected_tests = sorted(file for file in cataloged_test_files if not _was_collected(file))
 
     backend_coverage = load_backend_coverage(root / args.coverage_json)
     backend_coverage_totals, backend_rows = backend_coverage_rows(backend_coverage, args.coverage_threshold)
@@ -625,12 +683,21 @@ def main(argv: list[str] | None = None) -> int:
                 "cwd": frontend_result.cwd,
                 "returncode": frontend_result.returncode,
             },
+            "vitest": None
+            if vitest_result is None
+            else {
+                "command": vitest_result.command,
+                "cwd": vitest_result.cwd,
+                "returncode": vitest_result.returncode,
+            },
         },
         "counts": {
             "backend_tests": len(backend_tests),
             "backend_test_files": len(backend_collected),
             "frontend_tests": len(frontend_tests),
             "frontend_test_files": len(frontend_collected),
+            "vitest_tests": len(vitest_tests),
+            "vitest_test_files": len(vitest_collected),
             "important_files": len(existing_files),
             "catalog_entries": len(catalog),
             "perf_reports": len(perf_reports),
@@ -658,8 +725,10 @@ def main(argv: list[str] | None = None) -> int:
         generated_at=generated_at,
         backend_result=backend_result,
         frontend_result=frontend_result,
+        vitest_result=vitest_result,
         backend_tests=backend_tests,
         frontend_tests=frontend_tests,
+        vitest_tests=vitest_tests,
         existing_files=existing_files,
         catalog=catalog,
         matrix_rows=matrix_rows,

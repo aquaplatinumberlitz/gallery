@@ -36,6 +36,7 @@ E2E (Playwright)                 <- pre-existing: frontend/tests/*.spec.ts
 - Global setup: `frontend/src/test/setup.ts` polyfills jsdom gaps (matchMedia, ResizeObserver, IntersectionObserver, MutationObserver) and resets `localStorage`, sessionStorage, and window debug flags between tests.
 - Composables that use lifecycle hooks are mounted through the `withSetup` helper in `frontend/src/test/withSetup.ts` so `onMounted`/`onBeforeUnmount`/`watch` run normally.
 - ESLint relaxes `no-empty`, `no-useless-assignment`, `@typescript-eslint/no-explicit-any`, and `vue/one-component-per-file` for `src/**/__tests__/**/*.test.ts` and `src/test/**/*.ts` so test scaffolding (inline components, intentional empty catches, etc.) does not trip production rules.
+- Lint policy: `pnpm lint` excludes `src/**/__tests__/**` and `src/test/**` so production rules run against production code only. `pnpm lint:tests` lints all test files (Playwright `tests/**`, vitest `src/**/__tests__/**/*.test.ts`, and helpers `src/test/**`).
 
 ### Test inventory (391 tests across 20 files)
 
@@ -82,7 +83,7 @@ Tier 3 — composables (mounted via `withSetup`, lifecycle + reactive state):
 | Watch mode for local development | `cd frontend && pnpm test:unit:watch` |
 | Run a single test file | `cd frontend && pnpm test:unit src/utils/__tests__/fuzzySearch.test.ts` |
 | Run with v8 coverage | `cd frontend && pnpm test:unit:coverage` |
-| Lint test files only | `cd frontend && pnpm exec eslint "src/**/__tests__/**/*.test.ts" "src/test/**/*.ts"` |
+| Lint test files only | `cd frontend && pnpm lint:tests` |
 
 Coverage output is written to `frontend/coverage/vitest/` (text, html, lcov, json-summary). The coverage scope is `src/**/*.{ts,vue}` minus debug, test, and app-entry files. The vitest coverage supplements (does not replace) the Playwright/Istanbul coverage under `frontend/coverage/` — merge the two lcov reports for a combined view.
 
@@ -131,6 +132,7 @@ Run from the repo root unless a command changes directory explicitly.
 | Backend lint changed files | `bash scripts/lint_backend.sh` |
 | Backend format check changed files | `bash scripts/format_backend_check.sh` |
 | Frontend lint | `cd frontend && corepack pnpm run lint` |
+| Frontend lint test files only | `cd frontend && corepack pnpm run lint:tests` |
 | Frontend format check changed files | `cd frontend && corepack pnpm run format:check` |
 | Frontend typecheck | `cd frontend && corepack pnpm run typecheck` |
 | Frontend build | `cd frontend && corepack pnpm run build` |

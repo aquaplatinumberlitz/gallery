@@ -107,6 +107,10 @@ jobs:
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
+      - name: Frontend unit tests (vitest)
+        working-directory: frontend
+        run: pnpm test:unit
+
       - name: Frontend build
         working-directory: frontend
         run: pnpm build
