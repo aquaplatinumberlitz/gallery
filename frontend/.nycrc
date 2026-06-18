@@ -1,0 +1,7 @@
+{
+  "extension": [".ts", ".vue"],
+  "include": ["src/**"],
+  "exclude": ["src/**/*.spec.ts", "src/debug/**"],
+  "reporter": ["text", "html", "lcov"],
+  "all": true
+}

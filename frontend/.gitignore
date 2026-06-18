@@ -5,3 +5,5 @@ dist/
 *.log
 icon-compare.html
 extract_svgs.cjs
+.nyc_output/
+coverage/

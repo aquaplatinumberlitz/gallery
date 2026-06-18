@@ -85,7 +85,13 @@ jobs:
         run: pip install -r backend/requirements-dev.txt
 
       - name: Backend pytest
-        run: python -m pytest backend/tests/ -x -q
+        run: python -m pytest backend/tests/ -x -q --cov=backend --cov-report=term-missing --cov-report=xml
+
+      - name: Upload backend coverage
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-backend
+          path: coverage.xml
 
       - name: Install Node
         uses: actions/setup-node@v6
@@ -138,6 +144,20 @@ jobs:
       - name: Run contract tests
         working-directory: frontend
         run: pnpm exec playwright test tests/lightbox-loading-policy.spec.ts tests/gallery-no-reload.spec.ts tests/gallery-cache-revisit.spec.ts tests/search-fielded-ui.spec.ts --project=chromium --reporter=html
+        env:
+          VITE_COVERAGE: "true"
+
+      - name: Generate coverage report
+        working-directory: frontend
+        run: pnpm coverage:report
+
+      - name: Upload frontend coverage
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-frontend
+          path: |
+            frontend/coverage/
+            frontend/.nyc_output/
 
       - name: Upload Playwright report on failure
         if: failure()

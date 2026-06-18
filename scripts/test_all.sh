@@ -30,7 +30,7 @@ corepack pnpm run format:check
 echo ""
 echo "--- Backend pytest ---"
 cd "$REPO_ROOT/backend"
-python -m pytest -q "$@"
+python -m pytest --cov=backend --cov-report=term-missing --cov-report=xml -q "$@"
 
 # ---- Frontend build ----
 echo ""

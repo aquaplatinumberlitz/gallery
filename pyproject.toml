@@ -20,3 +20,7 @@ select = ["E4", "E7", "E9", "F", "B", "UP", "I", "SIM", "C4", "D"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.coverage.run]
+source = ["backend"]
+omit = ["backend/tests/*"]

@@ -31,6 +31,13 @@ Thumbs.db
 test-images/
 test-results/
 
+# Coverage
+.coverage*
+coverage.xml
+coverage/
+coverage-report/
+.nyc_output/
+
 # Hermes agent plans
 .hermes/plans/
 frontend/playwright-report/
