@@ -21,7 +21,7 @@
     "perf:album:headed": "playwright test tests/perf/album-open.perf.spec.ts --project=chromium --headed",
     "perf:lightbox": "playwright test tests/perf/lightbox.perf.spec.ts --project=chromium",
     "perf:lightbox:headed": "playwright test tests/perf/lightbox.perf.spec.ts --project=chromium --headed",
-    "perf:metadata": "playwright test tests/metadata-performance.spec.ts --project=chromium",
+    "perf:metadata": "GALLERY_PERF_METADATA=1 playwright test tests/metadata-performance.spec.ts --project=chromium",
     "perf:metadata:strict": "GALLERY_PERF_METADATA_STRICT=1 playwright test tests/metadata-performance.spec.ts --project=chromium"
   },
   "devDependencies": {

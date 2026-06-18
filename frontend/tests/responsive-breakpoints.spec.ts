@@ -187,21 +187,9 @@ test.describe("Desktop layout (1200px+)", () => {
     await installStubbedGallery(page);
     await openStubbedGallery(page);
 
-    // Desktop should have a toggle sidebar button or a sidebar visible
-    const sidebarToggle = page.getByLabel("Toggle sidebar");
-    const searchInput = page.getByRole("searchbox");
-    // At least one of these desktop-specific elements should be present
-    const hasDesktopUI = await Promise.race([
-      sidebarToggle
-        .isVisible()
-        .then(() => true)
-        .catch(() => false),
-      searchInput
-        .isVisible()
-        .then(() => true)
-        .catch(() => false),
-    ]);
-    expect(hasDesktopUI).toBe(true);
+    await expect(page.getByRole("searchbox", { name: "Photos, albums, prompts" })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText("Folder Tree")).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole("button", { name: /toggle sidebar/i })).toBeAttached();
   });
 });
 

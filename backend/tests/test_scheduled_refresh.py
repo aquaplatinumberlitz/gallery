@@ -30,10 +30,13 @@ from backend.metadata_store import (
 
 
 @pytest.fixture(autouse=True)
-def reset_refresh_state(monkeypatch: pytest.MonkeyPatch):
+def reset_refresh_state(monkeypatch: pytest.MonkeyPatch, isolated_metadata_db: Path):
+    """Keep refresh tests off the persistent developer metadata database."""
     monkeypatch.setattr(refresh, "_refresh_thread", None)
     refresh._refresh_stop.clear()
     yield
+    refresh.stop_refresh()
+    refresh._refresh_stop.clear()
 
 
 def test_disabled_by_default():

@@ -29,6 +29,7 @@ const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = pathDirname(__filename);
 const strictMetadataBudgets = process.env.GALLERY_PERF_METADATA_STRICT === "1";
+const metadataPerfEnabled = process.env.GALLERY_PERF_METADATA === "1" || strictMetadataBudgets;
 
 function budget(name: string, strictDefault?: number): number | null {
   const raw = process.env[name];
@@ -164,6 +165,8 @@ async function openGallery(page: Page) {
 // ---------------------------------------------------------------------------
 
 test.describe("Metadata performance", () => {
+  test.skip(!metadataPerfEnabled, "Set GALLERY_PERF_METADATA=1 to run metadata performance diagnostics.");
+
   test.use({ viewport: { width: 1366, height: 900 } });
 
   test("Gallery → Metadata navigation timing", async ({ page }) => {

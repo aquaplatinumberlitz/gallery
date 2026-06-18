@@ -73,6 +73,43 @@ async function installStubbedGallery(page: Page) {
       return;
     }
 
+    if (url.pathname === "/api/index/status") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          enabled: true,
+          worker_count: 0,
+          active_jobs: 0,
+          runtime_queue_depth: 0,
+          done: imagePaths.length,
+          running: 0,
+          queued: 0,
+          failed: 0,
+          stale: 0,
+          skipped: 0,
+          total: imagePaths.length,
+          path: rootPath,
+          counts: { done: imagePaths.length },
+          oldest_queued_age_seconds: null,
+          last_error: null,
+          updated_at: 1000000000,
+          coalesced_duplicates: 0,
+          staged_path_queue_depth: 0,
+          staged_path_coalesced: 0,
+          staged_path_failed: 0,
+          staged_path_flushes_forced: 0,
+          staged_path_worker_count: 0,
+          active_scan_requests: 0,
+          batch_size: 100,
+          staged_path_batch_size: 50,
+          stage_max_wait_seconds: 30,
+          metadata_records: imagePaths.length,
+          indexed_photos: imagePaths.length,
+        }),
+      });
+      return;
+    }
+
     if (url.pathname === "/api/landing-pages") {
       await route.fulfill({ contentType: "application/json", body: JSON.stringify([]) });
       return;
@@ -572,7 +609,7 @@ test.describe("Tailwind Preflight Regression", () => {
     });
 
     test("4c. mobile sort button is present and clickable", async ({ page }) => {
-      const sortBtn = page.getByLabel("Sort options");
+      const sortBtn = page.getByRole("combobox", { name: "Sort gallery" });
       await expect(sortBtn).toBeVisible();
       await sortBtn.evaluate((el: HTMLElement) => el.click());
       await page.waitForTimeout(500);

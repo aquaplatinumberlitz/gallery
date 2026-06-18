@@ -2,7 +2,19 @@
   "catalog_alignment": {
     "cataloged_uncollected_tests": [],
     "missing_catalog_files": [],
-    "uncataloged_files": []
+    "uncataloged_files": [
+      "backend/tests/test_albums.py",
+      "backend/tests/test_app_coverage.py",
+      "backend/tests/test_folders.py",
+      "backend/tests/test_metadata_extract_parsers.py",
+      "backend/tests/test_metadata_parse_coverage.py",
+      "backend/tests/test_metadata_store_coverage.py",
+      "backend/tests/test_paths.py",
+      "backend/tests/test_refresh_service.py",
+      "backend/tests/test_search_coverage.py",
+      "backend/tests/test_static_files.py",
+      "backend/tests/test_thumbnails_coverage.py"
+    ]
   },
   "commands": {
     "backend": {
@@ -31,13 +43,13 @@
     }
   },
   "counts": {
-    "backend_test_files": 17,
-    "backend_tests": 317,
+    "backend_test_files": 28,
+    "backend_tests": 581,
     "catalog_entries": 45,
     "frontend_test_files": 21,
     "frontend_tests": 161,
-    "important_files": 45,
-    "perf_reports": 0
+    "important_files": 56,
+    "perf_reports": 3
   },
   "coverage": {
     "backend_modules_below_threshold": [
@@ -47,77 +59,21 @@
         "missing_lines": 11,
         "percent": 15.384615384615385,
         "statements": 13
-      },
-      {
-        "below_threshold": true,
-        "file": "folders.py",
-        "missing_lines": 49,
-        "percent": 26.865671641791046,
-        "statements": 67
-      },
-      {
-        "below_threshold": true,
-        "file": "refresh.py",
-        "missing_lines": 65,
-        "percent": 30.107526881720432,
-        "statements": 93
-      },
-      {
-        "below_threshold": true,
-        "file": "static_files.py",
-        "missing_lines": 24,
-        "percent": 33.333333333333336,
-        "statements": 36
-      },
-      {
-        "below_threshold": true,
-        "file": "metadata_extract.py",
-        "missing_lines": 290,
-        "percent": 47.17668488160292,
-        "statements": 549
-      },
-      {
-        "below_threshold": true,
-        "file": "paths.py",
-        "missing_lines": 7,
-        "percent": 61.111111111111114,
-        "statements": 18
-      },
-      {
-        "below_threshold": true,
-        "file": "watcher.py",
-        "missing_lines": 51,
-        "percent": 63.04347826086956,
-        "statements": 138
-      },
-      {
-        "below_threshold": true,
-        "file": "app.py",
-        "missing_lines": 23,
-        "percent": 65.67164179104478,
-        "statements": 67
-      },
-      {
-        "below_threshold": true,
-        "file": "albums.py",
-        "missing_lines": 17,
-        "percent": 66.66666666666667,
-        "statements": 51
       }
     ],
     "backend_totals": {
-      "covered_lines": 2639,
+      "covered_lines": 3057,
       "excluded_lines": 2,
-      "missing_lines": 991,
+      "missing_lines": 573,
       "num_statements": 3630,
-      "percent_covered": 72.69972451790633,
-      "percent_covered_display": "73",
-      "percent_statements_covered": 72.69972451790633,
-      "percent_statements_covered_display": "73"
+      "percent_covered": 84.21487603305785,
+      "percent_covered_display": "84",
+      "percent_statements_covered": 84.21487603305785,
+      "percent_statements_covered_display": "84"
     },
     "frontend_summary_found": false
   },
-  "generated_at": "2026-06-18T01:13:36+00:00",
+  "generated_at": "2026-06-18T02:40:29+00:00",
   "matrix": [
     {
       "backend": "OK",
@@ -232,5 +188,9 @@
       "perf": "OK"
     }
   ],
-  "perf_reports": []
+  "perf_reports": [
+    "frontend/test-results/perf/album-open-report.json",
+    "frontend/test-results/perf/lightbox-open-report.json",
+    "frontend/test-results/perf/lightbox-transition-report.json"
+  ]
 }

@@ -17,6 +17,7 @@ import time
 from contextlib import suppress
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
@@ -282,6 +283,78 @@ def test_main_shim():
     from backend.main import app as main_app
 
     assert main_app is app
+
+
+# ---------------------------------------------------------------------------
+# Cors origins tests
+# ---------------------------------------------------------------------------
+
+
+def test_get_cors_origins_frontend_origin(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("FRONTEND_ORIGIN", "https://example.com/")
+    monkeypatch.delenv("FRONTEND_PORT", raising=False)
+
+    from backend.app import _get_cors_origins
+
+    origins = _get_cors_origins()
+    assert "https://example.com" in origins
+
+
+def test_get_cors_origins_frontend_port(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("FRONTEND_ORIGIN", raising=False)
+    monkeypatch.setenv("FRONTEND_PORT", "4180")
+
+    from backend.app import _get_cors_origins
+
+    origins = _get_cors_origins()
+    assert "http://localhost:4180" in origins
+    assert "http://127.0.0.1:4180" in origins
+
+
+def test_get_cors_origins_defaults(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("FRONTEND_ORIGIN", raising=False)
+    monkeypatch.delenv("FRONTEND_PORT", raising=False)
+
+    from backend.app import _get_cors_origins
+
+    origins = _get_cors_origins()
+    assert "http://localhost:5173" in origins
+
+
+# ---------------------------------------------------------------------------
+# Startup hook
+# ---------------------------------------------------------------------------
+
+
+def test_startup_hook_calls_refresh_and_watcher(monkeypatch: pytest.MonkeyPatch):
+    import asyncio
+    import importlib
+
+    import backend.refresh as refresh_mod
+    import backend.watcher as watcher_mod
+
+    refresh_called = []
+    watcher_called = []
+
+    monkeypatch.setattr(refresh_mod, "start_refresh", lambda: refresh_called.append(1))
+    monkeypatch.setattr(watcher_mod, "start_watcher", lambda: watcher_called.append(1))
+
+    import backend.app as app_module
+
+    importlib.reload(app_module)
+    app = app_module.app
+
+    handlers = app.router.on_startup
+    assert len(handlers) >= 1
+
+    async def run_all():
+        for handler in handlers:
+            await handler()
+
+    asyncio.run(run_all())
+
+    assert len(refresh_called) == 1
+    assert len(watcher_called) == 1
 
 
 # ---------------------------------------------------------------------------

@@ -49,17 +49,17 @@ test("navigates albums without page reload against real backend", async ({ page 
 
   // Wait for albums to appear
   await expect(page.getByTestId("album-card").first()).toBeVisible({ timeout: 20_000 });
-  expect(navigations).toBeLessThanOrEqual(1);
+  navigations = 0;
 
   // Click into first album
   await page.getByTestId("album-card").first().click();
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 20_000 });
-  expect(navigations).toBeLessThanOrEqual(1);
+  expect(navigations).toBe(0);
 
   // Open lightbox
   await page.getByTestId("photo-card").first().click();
   await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 15_000 });
-  expect(navigations).toBeLessThanOrEqual(1);
+  expect(navigations).toBe(0);
 
   // Wait for preview to load (derivative-first policy)
   await page.waitForTimeout(2000);
@@ -70,7 +70,7 @@ test("navigates albums without page reload against real backend", async ({ page 
     await nextBtn.click();
     await page.waitForTimeout(500);
   }
-  expect(navigations).toBeLessThanOrEqual(1);
+  expect(navigations).toBe(0);
 
   // Close lightbox
   const closeBtn = page.locator('[data-testid="lightbox-close"], .pswp__button--close');
@@ -80,7 +80,7 @@ test("navigates albums without page reload against real backend", async ({ page 
     await page.keyboard.press("Escape");
   }
   await page.waitForTimeout(1000);
-  expect(navigations).toBeLessThanOrEqual(1);
+  expect(navigations).toBe(0);
 });
 
 test("no duplicate initial /api/scan against real backend", async ({ page }) => {

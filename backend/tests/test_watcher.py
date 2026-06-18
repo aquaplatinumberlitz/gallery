@@ -13,6 +13,7 @@ Run when:
 
 from __future__ import annotations
 
+import threading
 import time
 from pathlib import Path
 
@@ -170,3 +171,281 @@ def test_watcher_image_event_can_be_staged(monkeypatch: pytest.MonkeyPatch):
 
     ready_paths = handler.get_and_clear_debounced_image_paths()
     assert "/test/album/new_image.png" in ready_paths
+
+
+# ---------------------------------------------------------------------------
+# _DebouncedHandler.handle_event edge cases
+# ---------------------------------------------------------------------------
+
+
+def test_handle_event_uses_event_type(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 0.01)
+    handler = watcher._DebouncedHandler(roots=["/test"])
+
+    class FakeEvent:
+        src_path = "/test/file.jpg"
+        event_type = "modified"
+
+    handler.handle_event(FakeEvent())
+    time.sleep(0.02)
+    ready = handler.get_and_clear_debounced()
+    assert "/test" in ready
+
+
+def test_handle_event_falls_back_to_key(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 0.01)
+    handler = watcher._DebouncedHandler(roots=["/test"])
+
+    class FakeEvent:
+        path = "/test/file.jpg"
+        key = "created"
+
+    handler.handle_event(FakeEvent())
+    time.sleep(0.02)
+    ready = handler.get_and_clear_debounced()
+    assert "/test" in ready
+
+
+def test_handle_event_properties_raise_exceptions_silently(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 0.01)
+    handler = watcher._DebouncedHandler(roots=["/test"])
+
+    class BadEvent:
+        @property
+        def event_type(self):
+            raise RuntimeError("event_type broken")
+
+        @property
+        def src_path(self):
+            return "/test/folder/file.jpg"
+
+    handler.handle_event(BadEvent())
+    time.sleep(0.02)
+    ready = handler.get_and_clear_debounced()
+    assert "/test/folder" in ready
+
+
+def test_non_image_path_records_only_folder(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 0.01)
+    handler = watcher._DebouncedHandler(roots=["/test"])
+
+    class FakeTxtEvent:
+        src_path = "/test/readme.txt"
+        event_type = "created"
+
+    handler.handle_event(FakeTxtEvent())
+    time.sleep(0.02)
+    ready = handler.get_and_clear_debounced_image_paths()
+    assert "/test/readme.txt" not in ready
+
+
+# ---------------------------------------------------------------------------
+# Debounce cleanup
+# ---------------------------------------------------------------------------
+
+
+def test_debounce_returns_ready_folders_after_cutoff(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 2.0)
+    handler = watcher._DebouncedHandler(roots=["/test"])
+
+    handler.affected_folders["/test/old"] = time.time() - 10
+    handler.affected_folders["/test/new"] = time.time()
+
+    ready = handler.get_and_clear_debounced()
+    assert "/test/old" in ready
+    assert "/test/new" not in ready
+
+
+def test_cleanup_removes_stale_entries(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 2.0)
+    handler = watcher._DebouncedHandler(roots=["/test"])
+
+    handler.affected_folders["/test/very_old"] = time.time() - 400
+    handler._last_cleanup = time.time() - 120
+
+    handler.get_and_clear_debounced()
+    assert "/test/very_old" not in handler.affected_folders
+
+
+def test_recent_entries_preserved_after_cleanup(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 2.0)
+    handler = watcher._DebouncedHandler(roots=["/test"])
+
+    handler.affected_folders["/test/recent"] = time.time()
+    handler._last_cleanup = time.time() - 120
+
+    handler.get_and_clear_debounced()
+    assert "/test/recent" in handler.affected_folders
+
+
+# ---------------------------------------------------------------------------
+# _watcher_loop
+# ---------------------------------------------------------------------------
+
+
+def test_watcher_loop_returns_when_no_watchdog(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(watcher, "_HAS_WATCHDOG", False)
+    watcher._watcher_loop()
+
+
+def test_watcher_loop_schedules_roots_and_marks_incomplete(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    import sys
+    from types import ModuleType
+
+    class FakeObserver:
+        def __init__(self):
+            self.scheduled = []
+            self._started = False
+            self._stopped = False
+
+        def schedule(self, handler, path, recursive=False):
+            self.scheduled.append((path, recursive))
+
+        def start(self):
+            self._started = True
+
+        def stop(self):
+            self._stopped = True
+
+        def join(self):
+            pass
+
+    fake_watchdog = ModuleType("watchdog")
+    fake_events = ModuleType("watchdog.events")
+    fake_observers = ModuleType("watchdog.observers")
+
+    fake_events.FileSystemEventHandler = type("FileSystemEventHandler", (), {})
+    fake_observers.Observer = FakeObserver
+
+    fake_watchdog.events = fake_events
+    fake_watchdog.observers = fake_observers
+
+    monkeypatch.setitem(sys.modules, "watchdog", fake_watchdog)
+    monkeypatch.setitem(sys.modules, "watchdog.events", fake_events)
+    monkeypatch.setitem(sys.modules, "watchdog.observers", fake_observers)
+
+    monkeypatch.setattr(watcher, "_HAS_WATCHDOG", True)
+    monkeypatch.setattr(watcher, "WATCHER_ROOTS", [str(tmp_path)])
+    monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 0.01)
+    monkeypatch.setattr(watcher, "WATCHER_MAX_EVENTS_PER_TICK", 500)
+
+    monkeypatch.setattr(watcher, "mark_folder_index_incomplete", lambda *a, **kw: None)
+
+    def stop_soon():
+        watcher._watcher_stop.set()
+
+    t = threading.Timer(0.02, stop_soon)
+    t.start()
+
+    watcher._watcher_loop()
+
+
+def test_watcher_loop_handles_bad_resolve(monkeypatch: pytest.MonkeyPatch):
+    import sys
+    from types import ModuleType
+
+    class FakeObserver:
+        def __init__(self):
+            pass
+
+        def schedule(self, handler, path, recursive=False):
+            pass
+
+        def start(self):
+            pass
+
+        def stop(self):
+            pass
+
+        def join(self):
+            pass
+
+    fake_watchdog = ModuleType("watchdog")
+    fake_events = ModuleType("watchdog.events")
+    fake_observers = ModuleType("watchdog.observers")
+
+    fake_events.FileSystemEventHandler = type("FileSystemEventHandler", (), {})
+    fake_observers.Observer = FakeObserver
+
+    fake_watchdog.events = fake_events
+    fake_watchdog.observers = fake_observers
+
+    monkeypatch.setitem(sys.modules, "watchdog", fake_watchdog)
+    monkeypatch.setitem(sys.modules, "watchdog.events", fake_events)
+    monkeypatch.setitem(sys.modules, "watchdog.observers", fake_observers)
+
+    monkeypatch.setattr(watcher, "_HAS_WATCHDOG", True)
+    monkeypatch.setattr(watcher, "WATCHER_ROOTS", ["/nonexistent_root_xyz"])
+    monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 0.01)
+
+    def stop():
+        watcher._watcher_stop.set()
+
+    t = threading.Timer(0.01, stop)
+    t.start()
+    watcher._watcher_loop()
+
+
+# ---------------------------------------------------------------------------
+# start_watcher lifecycle
+# ---------------------------------------------------------------------------
+
+
+def test_start_watcher_disabled_noops(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(watcher, "ENABLE_FILE_WATCHER", False)
+    monkeypatch.setattr(watcher, "_watcher_thread", None)
+    watcher.start_watcher()
+    assert watcher._watcher_thread is None
+
+
+def test_start_watcher_existing_thread_noops(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(watcher, "ENABLE_FILE_WATCHER", True)
+
+    class FakeAliveThread:
+        def is_alive(self):
+            return True
+
+    monkeypatch.setattr(watcher, "_watcher_thread", FakeAliveThread())
+    watcher.start_watcher()
+    assert isinstance(watcher._watcher_thread, FakeAliveThread)
+
+
+def test_start_watcher_creates_daemon_thread(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(watcher, "ENABLE_FILE_WATCHER", True)
+    monkeypatch.setattr(watcher, "_watcher_thread", None)
+    monkeypatch.setattr(watcher, "_watcher_stop", threading.Event())
+
+    from backend import watcher as watcher_mod
+
+    threads = []
+
+    class FakeThread:
+        def __init__(self, target=None, name=None, daemon=None):
+            self.target = target
+            self.name = name
+            self.daemon = daemon
+            self.started = False
+
+        def start(self):
+            self.started = True
+            threads.append(self)
+
+    monkeypatch.setattr(threading, "Thread", FakeThread)
+    monkeypatch.setattr(watcher_mod, "_watcher_loop", lambda: None)
+
+    watcher_mod.start_watcher()
+    assert len(threads) == 1
+    assert threads[0].daemon is True
+    assert threads[0].name == "gallery-file-watcher"
+    assert threads[0].started is True
+
+
+def test_stop_watcher_sets_stop_and_clears_thread(monkeypatch: pytest.MonkeyPatch):
+    e = threading.Event()
+    monkeypatch.setattr(watcher, "_watcher_stop", e)
+    monkeypatch.setattr(watcher, "_watcher_thread", object())
+    assert not e.is_set()
+
+    watcher.stop_watcher()
+    assert e.is_set()
+    assert watcher._watcher_thread is None

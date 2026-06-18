@@ -139,7 +139,10 @@ function detailForPath(path: string) {
 
 async function installStubbedInspector(page: Page) {
   const requests: string[] = [];
-  await page.addInitScript(() => {
+  await page.addInitScript((root) => {
+    localStorage.setItem("intro_mode", "disabled");
+    localStorage.setItem("gallery-root-path", root);
+    localStorage.setItem("gallery-sidebar-open", "true");
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: {
@@ -148,7 +151,7 @@ async function installStubbedInspector(page: Page) {
         },
       },
     });
-  });
+  }, rootPath);
 
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());

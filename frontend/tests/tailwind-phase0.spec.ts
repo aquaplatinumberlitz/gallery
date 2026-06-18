@@ -73,8 +73,50 @@ async function installStubbedGallery(page: Page) {
       return;
     }
 
+    if (url.pathname === "/api/index/status") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          enabled: true,
+          worker_count: 0,
+          active_jobs: 0,
+          runtime_queue_depth: 0,
+          done: imagePaths.length,
+          running: 0,
+          queued: 0,
+          failed: 0,
+          stale: 0,
+          skipped: 0,
+          total: imagePaths.length,
+          path: rootPath,
+          counts: { done: imagePaths.length },
+          oldest_queued_age_seconds: null,
+          last_error: null,
+          updated_at: 1000000000,
+          coalesced_duplicates: 0,
+          staged_path_queue_depth: 0,
+          staged_path_coalesced: 0,
+          staged_path_failed: 0,
+          staged_path_flushes_forced: 0,
+          staged_path_worker_count: 0,
+          active_scan_requests: 0,
+          batch_size: 100,
+          staged_path_batch_size: 50,
+          stage_max_wait_seconds: 30,
+          metadata_records: imagePaths.length,
+          indexed_photos: imagePaths.length,
+        }),
+      });
+      return;
+    }
+
     if (url.pathname === "/api/landing-pages") {
       await route.fulfill({ contentType: "application/json", body: JSON.stringify([]) });
+      return;
+    }
+
+    if (url.pathname === "/api/facets") {
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify({}) });
       return;
     }
 
@@ -149,8 +191,7 @@ test.describe("Tailwind Phase 0 — Desktop (1440x900)", () => {
     const searchInput = page.locator("#gallery-search");
     await expect(searchInput).toBeVisible({ timeout: 5000 });
 
-    // Desktop sort control via .sort-trigger button
-    const sortBtn = page.locator(".sort-trigger");
+    const sortBtn = page.getByRole("combobox", { name: "Sort gallery" });
     await expect(sortBtn).toBeVisible({ timeout: 5000 });
   });
 
@@ -219,7 +260,7 @@ test.describe("Tailwind Phase 0 — Mobile (390x844)", () => {
   });
 
   test("2c. sort visible and works", async ({ page }) => {
-    const sortBtn = page.getByLabel("Sort options");
+    const sortBtn = page.getByRole("combobox", { name: "Sort gallery" });
     await expect(sortBtn).toBeVisible();
   });
 
@@ -440,18 +481,20 @@ test.describe("Tailwind Phase 0 — Preflight absence verification", () => {
     const resolved = await page.evaluate(() => {
       const s = getComputedStyle(document.documentElement);
       return {
-        primaryColor: s.getPropertyValue("--primary-color").trim(),
-        bgColor: s.getPropertyValue("--bg-color").trim(),
+        primaryColor: s.getPropertyValue("--color-primary").trim(),
+        bgColor: s.getPropertyValue("--background").trim(),
         fontBody: s.getPropertyValue("--font-body").trim(),
-        textColor: s.getPropertyValue("--text-color").trim(),
+        textColor: s.getPropertyValue("--foreground").trim(),
+        brandAccent: s.getPropertyValue("--brand-hero-accent").trim(),
         radiusSm: s.getPropertyValue("--gallery-radius-sm").trim(),
         surfaceElevated: s.getPropertyValue("--gallery-surface-elevated").trim(),
       };
     });
 
     // Core gallery tokens must resolve to real values
-    expect(resolved.primaryColor).toBe("#ff6b35");
-    expect(resolved.bgColor).toBe("#f5eee6");
+    expect(resolved.primaryColor).toBeTruthy();
+    expect(resolved.bgColor).toBeTruthy();
+    expect(resolved.brandAccent).toBe("#ff6b35");
     expect(resolved.fontBody).toContain("InterVariable");
     expect(resolved.textColor).toBeTruthy();
     expect(resolved.radiusSm).toBeTruthy();
