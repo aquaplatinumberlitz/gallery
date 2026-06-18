@@ -30,6 +30,9 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from perf_lib import budget_for  # noqa: E402
 
 os.environ.setdefault("ENABLE_METRICS", "0")
 os.environ.setdefault("ENABLE_WARM_INDEXED_LISTING", "true")
@@ -140,7 +143,9 @@ def main() -> int:
     parser.add_argument(
         "--budget-ms",
         type=float,
-        default=float(os.getenv("GALLERY_PERF_WARM_LISTING_BUDGET_MS", "500")),
+        default=float(
+            os.getenv("GALLERY_PERF_WARM_LISTING_BUDGET_MS", str(budget_for("warm_listing", "budget_ms")))
+        ),
         help="maximum allowed warm listing duration in milliseconds",
     )
     args = parser.parse_args()
@@ -191,6 +196,7 @@ def main() -> int:
         "images_requested": args.images,
         "image_limit": args.image_limit,
         "budget_ms": args.budget_ms,
+        "budget_source": "scripts/perf_budgets.toml[warm_listing].budget_ms",
         "cold": cold,
         "warm": warm,
         "verdict": "fail" if failed else "pass",

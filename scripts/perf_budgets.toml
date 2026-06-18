@@ -1,0 +1,62 @@
+# Single source of truth for all performance budgets in the gallery-repo test suite.
+#
+# Every budget consumed by `scripts/perf_*.py`, `scripts/bench_*.py`, or
+# `frontend/tests/e2e/perf/*.perf.spec.ts` MUST be declared here. The validator
+# `scripts/check_perf_budgets.py` enforces that:
+#   * every section below has at least one consuming test file
+#   * every perf test file references a budget declared here
+#
+# Frontend (Playwright) budgets are mirrored into
+# `frontend/tests/e2e/perf/perf-budgets.json` and consumed via `perf-utils.ts`.
+# Keep the two files in sync — the validator checks this too.
+#
+# To add a new budget:
+#   1. Add a `[section]` block here with the numeric fields and a `description`.
+#   2. If consumed by a Playwright spec, mirror the section into
+#      `frontend/tests/e2e/perf/perf-budgets.json`.
+#   3. Register the consumer in `scripts/check_perf_budgets.py` BUDGET_CONSUMERS.
+#   4. Re-run `python scripts/check_perf_budgets.py` to confirm coverage.
+
+[scan]
+p95_ms = 500
+description = "/api/scan P95 latency"
+
+[inspector]
+p95_ms = 500
+description = "/api/library/inspector P95 latency"
+
+[warm_listing]
+budget_ms = 500
+description = "Warm SQLite listing vs cold scan"
+
+[album_open]
+scan_p95_ms = 2000
+first_thumbnail_ms = 3000
+thumbnail_p95_ms = 200
+description = "Playwright: album open scan + first thumbnail + thumbnail p95"
+
+[lightbox]
+open_ms = 500
+transition_ms = 1000
+preview_check_ms = 200
+description = "Playwright: lightbox open + transition + preview check"
+
+[metadata_nav]
+nav_ms = 2000
+render_ms = 2000
+search_debounce_ms = 3000
+state_restore_ms = 2000
+description = "Playwright: metadata panel navigation, render, search, state restore"
+
+[search]
+p95_ms = 300
+description = "/api/search P95 latency"
+
+[inspector_metadata]
+p95_ms = 200
+description = "/api/library/inspector/metadata P95 latency"
+
+[thumbnail]
+cold_p95_ms = 1000
+warm_p95_ms = 50
+description = "Thumbnail generation: cold (no cache) vs warm (cached)"

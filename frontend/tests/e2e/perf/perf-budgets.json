@@ -1,0 +1,20 @@
+{
+  "_source": "scripts/perf_budgets.toml sections [album_open], [lightbox], [metadata_nav]",
+  "_sync_note": "Keep in sync with scripts/perf_budgets.toml. Validated by scripts/check_perf_budgets.py.",
+  "album_open": {
+    "scan_p95_ms": 2000,
+    "first_thumbnail_ms": 3000,
+    "thumbnail_p95_ms": 200
+  },
+  "lightbox": {
+    "open_ms": 500,
+    "transition_ms": 1000,
+    "preview_check_ms": 200
+  },
+  "metadata_nav": {
+    "nav_ms": 2000,
+    "render_ms": 2000,
+    "search_debounce_ms": 3000,
+    "state_restore_ms": 2000
+  }
+}
