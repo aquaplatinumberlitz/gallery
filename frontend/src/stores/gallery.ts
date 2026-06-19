@@ -42,6 +42,7 @@ const normalizeNodes = (nodes: FolderTreeNode[]): FolderTreeNode[] =>
 
 interface ErrorMessageStore {
   errorMessage: string | null;
+  errorType: string | null;
 }
 
 /**
@@ -59,11 +60,13 @@ async function _withError<T>(
   const toast = useToastStore();
   try {
     store.errorMessage = null;
+    store.errorType = null;
     return await fn();
   } catch (error: unknown) {
     console.error(fallbackMsg, error);
     if (error instanceof GalleryAPIError) {
       store.errorMessage = error.suggestion;
+      store.errorType = error.type;
       toast.error(
         error.userMessage,
         error.suggestion,
@@ -71,6 +74,7 @@ async function _withError<T>(
       );
     } else {
       store.errorMessage = fallbackMsg;
+      store.errorType = null;
       toast.error(
         "Error",
         fallbackMsg,
@@ -94,6 +98,7 @@ export const useGalleryStore = defineStore("gallery", {
       historyIndex: -1,
       hasEverLoaded: false,
       errorMessage: "" as string | null,
+      errorType: null as string | null,
       searchQuery: "",
       searchScope: "current" as SearchScope,
       sortField: storedSort.field as SortField,
@@ -114,6 +119,7 @@ export const useGalleryStore = defineStore("gallery", {
   actions: {
     clearError() {
       this.errorMessage = null;
+      this.errorType = null;
     },
 
     setSearchQuery(query: string) {
@@ -167,6 +173,7 @@ export const useGalleryStore = defineStore("gallery", {
 
       this.sidebarTree = normalizeNodes(data.folders);
       this.currentPath = path;
+      this.errorType = null;
       if (typeof window !== "undefined") {
         localStorage.setItem(STORAGE_KEY, path);
       }

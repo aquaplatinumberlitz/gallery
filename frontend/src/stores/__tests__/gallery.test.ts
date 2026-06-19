@@ -59,6 +59,7 @@ describe("useGalleryStore", () => {
       expect(store.historyIndex).toBe(-1);
       expect(store.hasEverLoaded).toBe(false);
       expect(store.errorMessage).toBe("");
+      expect(store.errorType).toBeNull();
       expect(store.searchQuery).toBe("");
       expect(store.searchScope).toBe("current");
       expect(store.sortField).toBe("name");
@@ -107,8 +108,10 @@ describe("useGalleryStore", () => {
     it("clears the current error message", () => {
       const store = useGalleryStore();
       store.errorMessage = "boom";
+      store.errorType = "not_found";
       store.clearError();
       expect(store.errorMessage).toBeNull();
+      expect(store.errorType).toBeNull();
     });
   });
 
@@ -355,6 +358,7 @@ describe("useGalleryStore", () => {
       expect(store.history).toEqual(["/root"]);
       expect(window.localStorage.getItem("gallery-root-path")).toBe("/root");
       expect(store.errorMessage).toBeNull();
+      expect(store.errorType).toBeNull();
     });
 
     it("filters out non-folder entries from the sidebar tree", async () => {
@@ -384,6 +388,7 @@ describe("useGalleryStore", () => {
       expect(store.currentPath).toBe("");
       expect(store.sidebarTree).toEqual([]);
       expect(store.errorMessage).toBe("It may have moved.");
+      expect(store.errorType).toBe("not_found");
     });
 
     it("sets errorMessage to the fallback message for non-API errors", async () => {
@@ -394,6 +399,7 @@ describe("useGalleryStore", () => {
 
       expect(result).toBe(false);
       expect(store.errorMessage).toBe("Unable to load the root folder. Check the path or backend connection.");
+      expect(store.errorType).toBeNull();
     });
 
     it("clears the previous errorMessage on a successful retry", async () => {
@@ -405,6 +411,7 @@ describe("useGalleryStore", () => {
 
       await store.setRootPath("/root");
       expect(store.errorMessage).toBeNull();
+      expect(store.errorType).toBeNull();
     });
   });
 
@@ -424,6 +431,7 @@ describe("useGalleryStore", () => {
 
       expect(openFolderMock).toHaveBeenCalledWith("/root/album");
       expect(store.errorMessage).toBeNull();
+      expect(store.errorType).toBeNull();
     });
 
     it("sets errorMessage when openFolder throws a GalleryAPIError", async () => {
@@ -436,6 +444,7 @@ describe("useGalleryStore", () => {
       await store.openInExplorer();
 
       expect(store.errorMessage).toBe("Check folder permissions.");
+      expect(store.errorType).toBe("permission");
     });
 
     it("sets the fallback errorMessage for non-API errors", async () => {
@@ -446,6 +455,7 @@ describe("useGalleryStore", () => {
       await store.openInExplorer();
 
       expect(store.errorMessage).toBe("Unable to open the folder in your operating system.");
+      expect(store.errorType).toBeNull();
     });
   });
 });

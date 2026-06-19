@@ -22,6 +22,7 @@ import { useDelayedBoolean } from "../composables/useDelayedBoolean";
 import { useInfiniteScanQuery } from "../composables/useInfiniteScanQuery";
 import { useUnifiedSearchQuery } from "../composables/useUnifiedSearchQuery";
 import { galleryScrollContainerRefKey } from "../injectionKeys";
+import type { ErrorType } from "../services/api";
 import { fuzzySearchFileNodes } from "../utils/fuzzySearch";
 import {
   ArrowLeft,
@@ -364,6 +365,64 @@ const scanQueryErrorMessage = computed(() => {
   return error instanceof Error ? error.message : "Unable to load folder.";
 });
 const errorMessage = computed(() => galleryStore.errorMessage || scanQueryErrorMessage.value);
+const scanQueryErrorType = computed(() => {
+  const type = (infiniteScanQuery.error.value as { type?: unknown } | null)?.type;
+  return typeof type === "string" ? (type as ErrorType) : null;
+});
+const errorType = computed(() => galleryStore.errorType || scanQueryErrorType.value);
+const errorActionConfig = computed(() => {
+  const clearError = () => galleryStore.clearError();
+  const retry = () => {
+    galleryStore.clearError();
+    void infiniteScanQuery.refetch();
+  };
+
+  switch (errorType.value) {
+    case "library_not_registered":
+      return {
+        title: "Library not registered",
+        label: "Register this folder",
+        icon: undefined,
+        action: clearError,
+      };
+    case "library_not_indexed":
+    case "library_discovering":
+      return {
+        title: "Library not imported yet",
+        label: "Start scan",
+        icon: undefined,
+        action: clearError,
+      };
+    case "library_offline":
+      return {
+        title: "Library is offline",
+        label: "Retry",
+        icon: "arrow-left",
+        action: retry,
+      };
+    case "not_found":
+      return {
+        title: "Folder not found",
+        label: "Clear",
+        icon: "xmark",
+        action: clearError,
+      };
+    case "not_directory":
+      return {
+        title: "Invalid path",
+        label: "Clear",
+        icon: "xmark",
+        action: clearError,
+      };
+    default:
+      return {
+        title: "Unable to load folder",
+        label: "Clear",
+        icon: "xmark",
+        action: clearError,
+      };
+  }
+});
 const showAllIndexedHint = computed(() => noSearchResults.value && galleryStore.searchScope === "current");
 
 const handleOpenFolder = (path: string) => {
@@ -887,11 +946,11 @@ watch(loadMoreSentinel, () => setupLoadObserver());
       <EmptyState
         v-if="errorMessage && !hasAnyItems"
         type="error"
-        title="Unable to load folder"
+        :title="errorActionConfig.title"
         :description="errorMessage"
-        action-label="Clear"
-        action-icon="xmark"
-        @action="galleryStore.clearError()"
+        :action-label="errorActionConfig.label"
+        :action-icon="errorActionConfig.icon"
+        @action="errorActionConfig.action()"
       />
 
       <!-- No Path Selected -->
