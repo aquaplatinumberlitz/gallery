@@ -77,7 +77,14 @@ async def api_search(
     """Search albums, photos, and prompts in either current folder or all indexed files."""
     if not q.strip():
         root = _registered_or_requested_root(path) if scope == "current" else None
-        return {"query": q, "scope": scope, "root": str(root) if root is not None else "/", "albums": [], "photos": [], "prompt": []}
+        return {
+            "query": q,
+            "scope": scope,
+            "root": str(root) if root is not None else "/",
+            "albums": [],
+            "photos": [],
+            "prompt": [],
+        }
 
     root_path: Path | None = None
     if scope == "current":
