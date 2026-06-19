@@ -188,10 +188,11 @@ export const openFolder = async (path: string): Promise<void> => {
   }
 };
 
-export const fetchMetadata = async (path: string): Promise<MetadataResponse> => {
+export const fetchMetadata = async (path: string, signal?: AbortSignal): Promise<MetadataResponse> => {
   try {
     const { data } = await api.get<MetadataResponse>("/api/metadata", {
       params: { path },
+      signal,
     });
     return data;
   } catch (error) {

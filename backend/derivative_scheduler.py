@@ -17,17 +17,11 @@ if not __package__:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     __package__ = "backend"
 
-from .config import DERIVATIVE_QUOTA_BYTES, DERIVATIVE_WORKER_COUNT, THUMBNAIL_CACHE_DIR
+from .config import DERIVATIVE_QUOTA_BYTES, DERIVATIVE_VARIANTS, DERIVATIVE_WORKER_COUNT, THUMBNAIL_CACHE_DIR
 from .errors import APIError
 from .metadata_store import _connect, initialize_database
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_VARIANTS = {
-    "thumbnail": (512, 78, "webp"),
-    "preview": (1440, 86, "webp"),
-}
-
 
 def _ensure_database() -> None:
     """Initialize only when the derivative schema is not already present."""
@@ -46,8 +40,13 @@ def _ensure_database() -> None:
 
 def derivative_variant(kind: str, max_long_edge: int, quality: int, format: str) -> str:
     """Return a stable variant name for derivative rendering settings."""
-    if DEFAULT_VARIANTS.get(kind) == (max_long_edge, quality, format):
-        return "default"
+    for variant in DERIVATIVE_VARIANTS.get(kind, []):
+        if (
+            format == "webp"
+            and variant["max_long_edge"] == max_long_edge
+            and variant["quality"] == quality
+        ):
+            return str(variant["name"])
     return f"edge-{max_long_edge}-q-{quality}-{format}"
 
 
@@ -119,13 +118,13 @@ class DerivativeScheduler:
         format: str = "webp",
     ) -> int:
         """Create or coalesce a derivative job and return its catalog ID."""
-        if kind not in DEFAULT_VARIANTS:
+        if kind not in DERIVATIVE_VARIANTS:
             raise ValueError(f"Unsupported derivative kind: {kind}")
         priority = max(0, min(priority, 3))
-        default_edge, default_quality, default_format = DEFAULT_VARIANTS[kind]
-        max_long_edge = max_long_edge or default_edge
-        quality = quality or default_quality
-        format = format or default_format
+        default_variant = DERIVATIVE_VARIANTS[kind][0]
+        max_long_edge = max_long_edge or int(default_variant["max_long_edge"])
+        quality = quality or int(default_variant["quality"])
+        format = format or "webp"
         _ensure_database()
         with _connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
@@ -279,12 +278,20 @@ class DerivativeScheduler:
             ).fetchall()
         scheduled = 0
         for asset in assets:
-            for kind in DEFAULT_VARIANTS:
-                try:
-                    self.schedule_derivative(int(asset["id"]), kind, "default", priority=3)
-                    scheduled += 1
-                except OSError:
-                    continue
+            for kind, variants in DERIVATIVE_VARIANTS.items():
+                for variant in variants:
+                    try:
+                        self.schedule_derivative(
+                            int(asset["id"]),
+                            kind,
+                            str(variant["name"]),
+                            priority=3,
+                            max_long_edge=int(variant["max_long_edge"]),
+                            quality=int(variant["quality"]),
+                        )
+                        scheduled += 1
+                    except OSError:
+                        continue
         return {"assets": len(assets), "derivatives_considered": scheduled}
 
     def library_status(self, library_id: int) -> dict[str, int | float]:
@@ -315,7 +322,7 @@ class DerivativeScheduler:
             "library_id": library_id,
             "total_assets": total_assets,
             "ready_derivatives": ready,
-            "expected_derivatives": total_assets * len(DEFAULT_VARIANTS),
+            "expected_derivatives": total_assets * sum(len(variants) for variants in DERIVATIVE_VARIANTS.values()),
             "quota_bytes": self.quota_bytes,
             "quota_used_bytes": used,
             "quota_utilization": used / self.quota_bytes if self.quota_bytes else 0.0,

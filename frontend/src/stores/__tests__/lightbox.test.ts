@@ -5,11 +5,13 @@ import type { FileNode } from "@/types";
 
 const getThumbnailUrlMock = vi.fn<(path: string, edge?: number) => string>();
 const getPreviewUrlMock = vi.fn<(path: string, edge?: number) => string>();
+const fetchMetadataMock = vi.fn();
 
 vi.mock("@/services/api", () => ({
   GalleryAPIError: class GalleryAPIError extends Error {},
   getThumbnailUrl: (...args: unknown[]) => getThumbnailUrlMock(...(args as [string, number | undefined])),
   getPreviewUrl: (...args: unknown[]) => getPreviewUrlMock(...(args as [string, number | undefined])),
+  fetchMetadata: (...args: unknown[]) => fetchMetadataMock(...args),
 }));
 
 function makeImage(overrides: Partial<FileNode> = {}): FileNode {
@@ -25,8 +27,10 @@ describe("useLightboxStore", () => {
     setActivePinia(createPinia());
     getThumbnailUrlMock.mockReset();
     getPreviewUrlMock.mockReset();
+    fetchMetadataMock.mockReset();
     getThumbnailUrlMock.mockImplementation((path) => `/thumb?path=${encodeURIComponent(path)}`);
     getPreviewUrlMock.mockImplementation((path) => `/preview?path=${encodeURIComponent(path)}`);
+    fetchMetadataMock.mockResolvedValue({ width: 800, height: 600 });
   });
 
   describe("initial state", () => {
@@ -269,6 +273,71 @@ describe("useLightboxStore", () => {
 
       expect(getThumbnailUrlMock).not.toHaveBeenCalled();
       expect(getPreviewUrlMock).not.toHaveBeenCalled();
+    });
+
+    it("cancels bundles that are no longer neighbors after rapid navigation", () => {
+      const store = useLightboxStore();
+      const items = ["/a.png", "/b.png", "/c.png", "/d.png"].map((path) => makeImage({ path }));
+      store.open(items[1]!, items);
+
+      const aSignal = fetchMetadataMock.mock.calls.find(([path]) => path === "/a.png")?.[1] as AbortSignal;
+      const cSignal = fetchMetadataMock.mock.calls.find(([path]) => path === "/c.png")?.[1] as AbortSignal;
+
+      store.next();
+
+      expect(aSignal.aborted).toBe(true);
+      expect(cSignal.aborted).toBe(true);
+      const bSignal = fetchMetadataMock.mock.calls.find(([path]) => path === "/b.png")?.[1] as AbortSignal;
+      const dSignal = fetchMetadataMock.mock.calls.find(([path]) => path === "/d.png")?.[1] as AbortSignal;
+      expect(bSignal.aborted).toBe(false);
+      expect(dSignal.aborted).toBe(false);
+    });
+
+    it("marks a neighbor ready only after preview, dimensions, and metadata resolve", async () => {
+      const images: FakeImage[] = [];
+      class FakeImage {
+        decoding = "";
+        naturalWidth = 1440;
+        naturalHeight = 960;
+        onload: (() => void) | null = null;
+        onerror: (() => void) | null = null;
+        src = "";
+
+        constructor() {
+          images.push(this);
+        }
+      }
+      vi.stubGlobal("Image", FakeImage);
+      let resolveMetadata!: (value: { width: number; height: number }) => void;
+      fetchMetadataMock.mockReturnValue(new Promise((resolve) => (resolveMetadata = resolve)));
+      const store = useLightboxStore();
+
+      // Open at index 1 so both a and c are neighbors
+      store.open(makeImage({ path: "/b.png" }), [
+        makeImage({ path: "/a.png" }),
+        makeImage({ path: "/b.png" }),
+        makeImage({ path: "/c.png" }),
+      ]);
+      expect(store.neighborReadyByPath["/a.png"]).toBe(false);
+      expect(store.neighborReadyByPath["/c.png"]).toBe(false);
+
+      // Fire onload for ALL created images iteratively — thumbnail onloads
+      // trigger preview image creation, which we also need to fire
+      for (let round = 0; round < 5; round++) {
+        for (const img of images) img.onload?.();
+        await new Promise((r) => setTimeout(r, 0));
+        await Promise.resolve();
+        await Promise.resolve();
+      }
+
+      // All images loaded but metadata not resolved yet → not ready
+      expect(store.neighborReadyByPath["/c.png"]).toBe(false);
+
+      resolveMetadata({ width: 1440, height: 960 });
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(store.neighborReadyByPath["/c.png"]).toBe(true);
+      vi.unstubAllGlobals();
     });
   });
 });

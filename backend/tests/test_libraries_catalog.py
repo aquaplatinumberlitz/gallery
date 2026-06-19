@@ -63,6 +63,23 @@ def test_scan_and_metadata_dual_write_assets(
     assert listing["index_source"] == "warm_db"
     assert listing["images"][0].path == str(image.resolve())
     assert (listing["images"][0].width, listing["images"][0].height) == (80, 60)
+    assert listing["images"][0].asset_id is not None
+    assert listing["images"][0].metadata_state == "done"
+    assert listing["images"][0].derivative_ready == {"thumbnail": False, "preview": False}
+
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute(
+            """
+            INSERT INTO asset_derivatives (
+              asset_id, kind, variant, source_mtime_ns, source_size, status, max_long_edge
+            ) VALUES (?, 'thumbnail', 'thumb_512', ?, ?, 'ready', 512)
+            """,
+            (listing["images"][0].asset_id, stat.st_mtime_ns, stat.st_size),
+        )
+
+    listing = get_asset_folder_listing(isolated_gallery_root)
+    assert listing is not None
+    assert listing["images"][0].derivative_ready == {"thumbnail": True, "preview": False}
 
     library_id = list_libraries()[0]["id"]
     progress = get_library_progress(library_id)

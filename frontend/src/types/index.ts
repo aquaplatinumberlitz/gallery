@@ -10,6 +10,9 @@ export interface FileNode {
   image_count?: number; // Number of images in folder (from backend)
   width?: number | null; // Image width in pixels when available
   height?: number | null; // Image height in pixels when available
+  asset_id?: number | null;
+  metadata_state?: string | null;
+  derivative_ready?: Record<string, boolean> | null;
 }
 
 export interface FolderTreeNode extends Omit<FileNode, "type" | "children"> {

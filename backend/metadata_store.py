@@ -759,6 +759,24 @@ def get_asset_folder_listing(
         end = offset + image_limit if image_limit is not None else total_images
         page = image_rows[offset:end]
 
+        derivative_ready_by_asset: dict[int, dict[str, bool]] = {
+            int(row["id"]): {"thumbnail": False, "preview": False} for row in page
+        }
+        if derivative_ready_by_asset:
+            placeholders = ", ".join("?" for _ in derivative_ready_by_asset)
+            derivative_rows = conn.execute(
+                f"""
+                SELECT asset_id, kind
+                FROM asset_derivatives
+                WHERE asset_id IN ({placeholders})
+                  AND kind IN ('thumbnail', 'preview') AND status = 'ready'
+                GROUP BY asset_id, kind
+                """,
+                tuple(derivative_ready_by_asset),
+            ).fetchall()
+            for derivative in derivative_rows:
+                derivative_ready_by_asset[int(derivative["asset_id"])][str(derivative["kind"])] = True
+
         folders: list[FileNode] = []
         for row in folder_rows:
             counts = conn.execute(
@@ -800,6 +818,9 @@ def get_asset_folder_listing(
                 mtime=row["mtime_ns"] or 0,
                 width=row["width"],
                 height=row["height"],
+                asset_id=row["id"],
+                metadata_state=row["metadata_state"],
+                derivative_ready=derivative_ready_by_asset[int(row["id"])],
             )
             for row in page
         ]

@@ -33,6 +33,10 @@ DERIVATIVE_QUOTA_BYTES = max(
     0,
     int(os.getenv("GALLERY_DERIVATIVE_QUOTA_BYTES", str(10 * 1024**3))),
 )
+DERIVATIVE_VARIANTS = {
+    "thumbnail": [{"name": "thumb_512", "max_long_edge": 512, "quality": 78}],
+    "preview": [{"name": "preview_1440", "max_long_edge": 1440, "quality": 86}],
+}
 
 SCAN_PERF_LOGS_ENABLED = os.getenv("SCAN_PERF_LOGS", "1" if os.getenv("PRODUCTION") != "1" else "0").lower() not in {
     "0",

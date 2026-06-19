@@ -17,3 +17,6 @@ class FileNode(BaseModel):
     image_count: int = 0  # Number of images in folder (applies to "folder" type only)
     width: int | None = None  # Image width in pixels (only for type="image")
     height: int | None = None  # Image height in pixels (only for type="image")
+    asset_id: int | None = None
+    metadata_state: str | None = None
+    derivative_ready: dict[str, bool] | None = None
