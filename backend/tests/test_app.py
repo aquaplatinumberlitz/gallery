@@ -330,12 +330,15 @@ def test_startup_hook_calls_refresh_and_watcher(monkeypatch: pytest.MonkeyPatch)
     import asyncio
     import importlib
 
+    import backend.derivative_scheduler as derivative_scheduler_mod
     import backend.refresh as refresh_mod
     import backend.watcher as watcher_mod
 
+    scheduler_called = []
     refresh_called = []
     watcher_called = []
 
+    monkeypatch.setattr(derivative_scheduler_mod.scheduler, "start", lambda: scheduler_called.append(1))
     monkeypatch.setattr(refresh_mod, "start_refresh", lambda: refresh_called.append(1))
     monkeypatch.setattr(watcher_mod, "start_watcher", lambda: watcher_called.append(1))
 
@@ -353,6 +356,7 @@ def test_startup_hook_calls_refresh_and_watcher(monkeypatch: pytest.MonkeyPatch)
 
     asyncio.run(run_all())
 
+    assert len(scheduler_called) == 1
     assert len(refresh_called) == 1
     assert len(watcher_called) == 1
 

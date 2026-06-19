@@ -58,6 +58,9 @@ class TestScanResponseShape:
                 "image_count",
                 "width",
                 "height",
+                "asset_id",
+                "metadata_state",
+                "derivative_ready",
             }
             assert img["type"] == "image"
 

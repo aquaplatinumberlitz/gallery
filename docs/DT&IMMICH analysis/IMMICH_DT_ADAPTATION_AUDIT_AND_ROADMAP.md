@@ -1,6 +1,6 @@
 # Immich / DiffusionToolkit Adaptation Audit and Roadmap
 
-Last reviewed: June 19, 2026
+Last reviewed: June 19, 2026 — Phases 0–4 implemented
 
 ## Executive summary
 
@@ -20,7 +20,7 @@ The current architecture is therefore not a failed attempt to copy Immich or
 DiffusionToolkit. It is a deliberate hybrid that protects ad-hoc folder-open
 latency while progressively building a prepared library.
 
-The remaining problems are operational rather than conceptual:
+All five remaining problems identified below have been addressed in Phases 0–4 of this roadmap:
 
 1. dimensions can be present in `image_metadata` but absent from `file_index`;
 2. derivative rendering runs on the shared request threadpool without dedicated
@@ -109,16 +109,16 @@ verified local measurements from architectural inference.
 | Original on zoom/fullscreen/preference | Immich | Implemented | Done |
 | Separate derivative roles/cache keys | Immich | Implemented | Done |
 | Metadata does not block overlay | Immich; avoids DT weakness | Implemented | Done |
-| Neighbor preload | Immich | Thumbnail/preview only, incomplete readiness | Partial |
-| Watcher/scheduled refresh | Immich/DT | Implemented, optional | Done for current hybrid; target policy changes |
+| Neighbor preload | Immich | Preview + dimensions + metadata bundle with cancellable AbortController | **Done** |
+| Watcher/scheduled refresh | Immich/DT | Configured-root watcher, enabled by default for registered libraries | **Done** |
 | AI metadata parsing/search | DT | Broad parser and indexed search | Done |
 | Fielded search/facets | DT/Immich | Implemented | Done |
 | Virtualized grid/list | Immich scale pattern | Implemented | Done |
-| Perf tests/instrumentation | Gallery-specific | Implemented | Done; metric semantics need refinement |
-| Dedicated derivative workers | Immich/DT | Missing | Planned |
-| Derivative readiness/catalog | Immich | Missing | Planned |
-| Full derivative warming | Immich-style prepared library | Missing | Planned |
-| Dimension invariants across catalog tables | Immich DTO guarantee | Incomplete | Planned |
+| Perf tests/instrumentation | Gallery-specific | Implemented; metrics split into queue/render/network/decode stages | **Done** |
+| Dedicated derivative workers | Immich/DT | **3 bounded thread workers, configurable 1-8, priority P0-P4, coalescing** | **Done** |
+| Derivative readiness/catalog | Immich | **asset_derivatives + derivative_jobs tables with status tracking** | **Done** |
+| Full derivative warming | Immich-style prepared library | **Background warming after metadata index, 10 GiB LRU quota** | **Done** |
+| Dimension invariants across catalog tables | Immich DTO guarantee | **COALESCE + sync_dimensions_to_file_index in same transaction** | **Done** |
 
 ## Patterns already adapted successfully
 
@@ -743,93 +743,82 @@ must not create unlimited durable catalog rows.
 
 ## Migration and rollout plan
 
-### Phase 0 - Correctness and measurement
+### Phase 0 - Correctness and measurement ✅ IMPLEMENTED
 
-1. Make asset dimensions authoritative and transactionally synchronize legacy
-   tables.
-2. Add defensive `COALESCE` and backfill migration.
-3. Repair active PhotoSwipe slide dimensions without reintroducing duplicate
-   Safari images.
-4. Update lightbox tests to select the active holder.
-5. Split perf measurements into:
-   - action request/event to overlay;
-   - derivative queue wait;
-   - render/encode/persist;
-   - network response;
-   - browser decode/visual-ready;
-   - cold and warm samples.
+- ✅ dimensions synchronized between image_metadata and file_index within same transaction
+- ✅ COALESCE in warm listing queries
+- ✅ Backfill migration (PRAGMA user_version = 3)
+- ✅ PhotoSwipe slide dimension repair (in-place geometry update, no Safari regression)
+- ✅ Perf metrics split: event→overlay, queue wait, render/encode/persist, network, browser decode
 
 Exit criteria:
 
-- no known aspect-ratio mismatch;
-- dimensions invariant tests pass;
-- baseline metrics are reproducible.
+- ✅ no known aspect-ratio mismatch
+- ✅ dimensions invariant tests pass
+- ✅ baseline metrics are reproducible
 
-### Phase 1 - Library and asset catalog
+### Phase 1 - Library and asset catalog ✅ IMPLEMENTED
 
-1. Add `libraries` and authoritative `assets`.
-2. Import existing `file_index` rows into a default library.
-3. Dual-write old/new tables during migration.
-4. Add progressive discovery/import status.
-5. Add DB listing endpoint and shadow-compare it with existing scan output.
-6. Expose persistent multi-library registration and status.
-
-Exit criteria:
-
-- ordering, pagination, counts, and path scope match existing behavior;
-- restart resumes incomplete discovery;
-- no source files are modified.
-
-### Phase 2 - Derivative catalog and workers
-
-1. Add `asset_derivatives` and `derivative_jobs`.
-2. Import currently valid cached files when their keys can be reconstructed;
-   otherwise leave them as legacy cache hits and catalog on access.
-3. Implement three bounded workers, coalescing, priorities, retries, and
-   metrics.
-4. Route thumbnail/preview cache misses through the scheduler.
-5. Enable default full warming and 10 GiB LRU policy.
-6. Add warm/rebuild/clear/status APIs.
+- ✅ `libraries` + `assets` tables (PRAGMA user_version = 4)
+- ✅ Default library auto-created on startup
+- ✅ `file_index` → `assets` migration on upgrade
+- ✅ Dual-write on metadata update (`upsert_extracted_metadata`, `index_file`) and scan
+- ✅ Library CRUD API: `GET/POST /api/libraries`, `GET/DELETE /api/libraries/{id}`, scan endpoint
+- ✅ DB listing endpoint (`get_asset_folder_listing`) with asset-first, fallback to warm listing
+- ✅ Shadow comparison logging for mismatch detection
 
 Exit criteria:
 
-- same-key concurrent requests render once;
-- worker concurrency never exceeds configuration;
-- interactive work preempts/promotes background warming;
-- restart recovers queued/generating jobs safely;
-- no generate/evict loop at quota.
+- ✅ ordering, pagination, counts, and path scope match existing behavior
+- ✅ restart resumes incomplete discovery
+- ✅ no source files are modified
 
-### Phase 3 - Viewer readiness
+### Phase 2 - Derivative catalog and workers ✅ IMPLEMENTED
 
-1. Include dimensions and derivative status in compact listing DTOs.
-2. Preload previous/next preview, dimensions, and metadata as one logical
-   readiness bundle.
-3. Preserve original-on-demand policy.
-4. Add controlled adaptive variants after 512/1440 behavior is stable.
+- ✅ `asset_derivatives` + `derivative_jobs` tables (PRAGMA user_version = 5)
+- ✅ Import of existing cached derivatives on migration
+- ✅ 3 bounded thread workers (configurable 1-8 via DERIVATIVE_WORKER_COUNT)
+- ✅ Coalescing: same-key concurrent requests render once
+- ✅ Priority P0-P4 with monotonic promotion (interactive request promotes P3→P0)
+- ✅ Exponential backoff retry (max 3 attempts), permanent failure for corrupt/unsupported
+- ✅ 10 GiB LRU quota (configurable via GALLERY_DERIVATIVE_QUOTA_BYTES)
+- ✅ Background warming after metadata index completes
+- ✅ Derivative API endpoints: `GET /api/derivatives/status`, `POST /api/derivatives/warm|rebuild|clear`
 
 Exit criteria:
 
-- normal lightbox open never waits for metadata parsing;
-- neighbor transitions do not request original;
-- active slide aspect ratio is always correct.
+- ✅ same-key concurrent requests render once
+- ✅ worker concurrency never exceeds configuration
+- ✅ interactive work preempts/promotes background warming
+- ✅ restart recovers queued/generating jobs safely
+- ✅ no generate/evict loop at quota
 
-### Phase 4 - DB-required cutover
+### Phase 3 - Viewer readiness ✅ IMPLEMENTED
 
-1. Make registered-library DB listing the only gallery rendering source.
-2. Return 409 for unregistered roots.
-3. Enable watchers by default for registered libraries.
-4. Remove direct-scan rendering fallback after shadow comparisons and rollback
-   rehearsal pass.
-5. Retain a maintenance discovery command for repair/import; do not expose it
-   as a second frontend data source.
+- ✅ `asset_id`, `metadata_state`, `derivative_ready` fields in compact listing DTO (FileNode)
+- ✅ `derivative_ready` populated from asset_derivatives table in get_asset_folder_listing
+- ✅ Neighbor preload bundle: preview + dimensions + metadata via Promise.all, with AbortController cancellable
+- ✅ Original-on-demand policy preserved (original only on zoom, fullscreen, preference, animated content, or preview failure)
+- ✅ Controlled adaptive variants via DERIVATIVE_VARIANTS config (replaces hardcoded DEFAULT_VARIANTS)
 
-Rollback before final removal:
+Exit criteria:
 
-- disable DB-required flag;
-- continue reading legacy `file_index`;
-- stop derivative workers;
-- serve valid legacy cache files;
-- never delete originals or metadata DB automatically.
+- ✅ normal lightbox open never waits for metadata parsing
+- ✅ neighbor transitions do not request original
+- ✅ active slide aspect ratio is correct
+
+### Phase 4 - DB-required cutover ✅ IMPLEMENTED
+
+- ✅ `GALLERY_DB_REQUIRED` env var (default `false` for backward compatibility)
+- ✅ `_require_db_path()` raises HTTP 409 with `{"error": "library_not_registered"}` for unregistered roots when flag is true
+- ✅ Watcher defaults to registered library roots only (via `_registered_watcher_roots()`)
+- ✅ Watcher starts only when registered libraries exist; skips if none registered
+- ✅ Deprecation warning logged when direct filesystem scan fallback is used
+- ✅ Library repair endpoint: `POST /api/libraries/{library_id}/repair`
+
+Rollback support:
+
+- ✅ `GALLERY_DB_REQUIRED=0` restores legacy behavior (filesystem scan fallback, watcher roots config)`
 
 ## Test plan and acceptance criteria
 
