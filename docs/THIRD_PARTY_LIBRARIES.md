@@ -107,7 +107,7 @@ Search behavior:
 
 - `/api/search` returns grouped `albums`, `photos`, and `prompt` sections.
 - `scope=current` searches the current folder recursively.
-- `scope=all` searches all indexed files under `GALLERY_ROOT`.
+- `scope=all` searches all indexed files under `PATH_SAFETY_ROOT`.
 - Fielded queries are parsed by `fielded_search_parser.py` and executed by metadata-store search helpers.
 - `/api/library/inspector` returns bounded DB-backed metadata rows; detail popovers call `/api/library/inspector/metadata`.
 - `/api/facets` derives counts from indexed DB metadata.

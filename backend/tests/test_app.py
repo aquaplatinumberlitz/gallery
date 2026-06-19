@@ -263,7 +263,7 @@ def test_health():
 
 def test_unsafe_path_rejected():
     resp = client.get("/api/metadata?path=../../etc/passwd")
-    # Returns 400 (invalid file) or 403 (path unsafe) depending on GALLERY_ROOT
+    # Returns 400 (invalid file) or 403 (path unsafe) depending on PATH_SAFETY_ROOT
     assert resp.status_code >= 400
 
 

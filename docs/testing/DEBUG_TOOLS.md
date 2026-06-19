@@ -362,7 +362,7 @@ cd frontend
 npx playwright test ../scripts/debug_lightbox_image_loads_playwright.ts --project=chromium
 ```
 
-Optional environment variables: `GALLERY_BASE_URL`, `GALLERY_ROOT_PATH`, `GALLERY_DEBUG_ALBUM`, `GALLERY_DEBUG_ALBUM_PATH`, `GALLERY_DEBUG_LIGHTBOX_WAIT_MS`, `GALLERY_DEBUG_OUTPUT`.
+Optional environment variables: `GALLERY_BASE_URL`, `PATH_SAFETY_ROOT_PATH`, `GALLERY_DEBUG_ALBUM`, `GALLERY_DEBUG_ALBUM_PATH`, `GALLERY_DEBUG_LIGHTBOX_WAIT_MS`, `GALLERY_DEBUG_OUTPUT`.
 
 Disable: No persistent state; stop the Playwright run.
 

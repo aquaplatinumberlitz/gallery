@@ -17,7 +17,7 @@ case-insensitively as false; any other provided value is true. Flags documented 
 | `PROFILE_ENDPOINTS` | comma-separated strings | `/api/scan,/api/metadata,/api/thumbnail,/api/preview` | Endpoints selected for profiling. |
 | `GALLERY_THUMBNAIL_CACHE_DIR` | path | `backend/.cache/thumbnails` | Persistent derivative cache directory. |
 | `SCAN_PERF_LOGS` | boolean-like | `1` unless `PRODUCTION=1`, then `0` | Values `0`, `false`, and `no` disable scan performance logs. |
-| `GALLERY_ROOT` | path | `/` | Resolved root boundary for gallery paths. |
+| `PATH_SAFETY_ROOT` | path | `/` | Resolved root boundary for gallery paths. |
 | `GALLERY_DB_REQUIRED` | boolean flag | false | Requires `/api/scan` paths to belong to a registered library and disables filesystem listing fallback. |
 | `GALLERY_OPEN_FOLDER` | boolean (`"true"`) | `false` | Enables the OS “open folder” operation. |
 | `GALLERY_METADATA_DB` | path | `backend/.cache/gallery_metadata.db` | SQLite metadata/index database. |

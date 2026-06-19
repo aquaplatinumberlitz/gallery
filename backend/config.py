@@ -44,9 +44,9 @@ SCAN_PERF_LOGS_ENABLED = os.getenv("SCAN_PERF_LOGS", "1" if os.getenv("PRODUCTIO
     "no",
 }
 
-GALLERY_ROOT = Path(os.getenv("GALLERY_ROOT", "/")).resolve()
-# Deprecated for catalog semantics: DEFAULT_ROOT/GALLERY_ROOT are only a path-safety boundary.
-DEFAULT_ROOT = GALLERY_ROOT
+PATH_SAFETY_ROOT = Path(os.getenv("PATH_SAFETY_ROOT", "/")).resolve()
+# Deprecated for catalog semantics: DEFAULT_ROOT/PATH_SAFETY_ROOT are only a path-safety boundary.
+DEFAULT_ROOT = PATH_SAFETY_ROOT
 GALLERY_DB_REQUIRED = _env_flag("GALLERY_DB_REQUIRED", default=False)
 
 METADATA_INDEXER_ENABLED = _env_flag("GALLERY_METADATA_INDEXER_ENABLED", default=True)

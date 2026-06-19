@@ -158,7 +158,7 @@ def main() -> int:
     album.mkdir(parents=True, exist_ok=True)
     thumbnail_cache.mkdir(parents=True, exist_ok=True)
 
-    os.environ["GALLERY_ROOT"] = str(root)
+    os.environ["PATH_SAFETY_ROOT"] = str(root)
     os.environ["GALLERY_METADATA_DB"] = str(metadata_db)
     os.environ["GALLERY_THUMBNAIL_CACHE_DIR"] = str(thumbnail_cache)
     os.environ.setdefault("ENABLE_WARM_INDEXED_LISTING", "true")
@@ -173,8 +173,8 @@ def main() -> int:
     indexed = _seed_metadata(root, album)
 
     env_values = {
-        "GALLERY_ROOT": str(root),
-        "GALLERY_ROOT_PATH": str(root),
+        "PATH_SAFETY_ROOT": str(root),
+        "PATH_SAFETY_ROOT_PATH": str(root),
         "GALLERY_METADATA_DB": str(metadata_db),
         "GALLERY_THUMBNAIL_CACHE_DIR": str(thumbnail_cache),
         "GALLERY_PERF_ALBUM_NAME": args.album_name,

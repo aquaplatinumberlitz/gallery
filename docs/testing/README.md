@@ -104,7 +104,7 @@ Use the deterministic fixture when comparing perf over time or before release:
 
 `backend/.venv_linux/bin/python scripts/create_perf_fixture.py --clean --env-file /tmp/gallery_perf_fixture.env`
 
-The generated env file contains `GALLERY_ROOT`, `GALLERY_METADATA_DB`, `GALLERY_THUMBNAIL_CACHE_DIR`, `GALLERY_PERF_ALBUM_NAME`, `GALLERY_PERF_ALBUM_PATH`, and scan/inspector defaults. Source it before starting the backend, or let the perf smoke runner do both:
+The generated env file contains `PATH_SAFETY_ROOT`, `GALLERY_METADATA_DB`, `GALLERY_THUMBNAIL_CACHE_DIR`, `GALLERY_PERF_ALBUM_NAME`, `GALLERY_PERF_ALBUM_PATH`, and scan/inspector defaults. Source it before starting the backend, or let the perf smoke runner do both:
 
 `GALLERY_PERF_USE_FIXTURE=1 GALLERY_PERF_START_BACKEND=1 ./test.sh perf-smoke`
 

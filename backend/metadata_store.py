@@ -26,7 +26,7 @@ from .albums import build_album_metadata
 from .config import (
     ENABLE_WARM_INDEXED_LISTING,
     GALLERY_METADATA_DB,
-    GALLERY_ROOT,
+    PATH_SAFETY_ROOT,
     THUMBNAIL_CACHE_DIR,
 )
 from .files import is_image_path, is_index_excluded_path
@@ -531,7 +531,7 @@ def _ensure_default_library_conn(conn: sqlite3.Connection) -> int:
     row = conn.execute("SELECT id FROM libraries ORDER BY id LIMIT 1").fetchone()
     if row is not None:
         return int(row["id"])
-    root_path = str(GALLERY_ROOT.resolve())
+    root_path = str(PATH_SAFETY_ROOT.resolve())
     cursor = conn.execute(
         "INSERT INTO libraries (root_path, name, state) VALUES (?, 'Default', 'discovering')",
         (root_path,),

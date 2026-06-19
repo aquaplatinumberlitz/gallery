@@ -27,7 +27,7 @@ const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
 const albumName = process.env.GALLERY_PERF_ALBUM_NAME ?? "a1111";
 const albumPath = process.env.GALLERY_PERF_ALBUM_PATH ?? "";
 const rootPath =
-  process.env.GALLERY_ROOT_PATH ??
+  process.env.PATH_SAFETY_ROOT_PATH ??
   (albumPath ? albumPath.substring(0, albumPath.lastIndexOf("/")) : "/home/ubuntu/gallery-repo/test-images");
 
 const SAMPLE_COUNT = Number(process.env.GALLERY_PERF_LIGHTBOX_SAMPLES ?? "5");

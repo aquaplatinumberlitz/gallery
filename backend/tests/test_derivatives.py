@@ -161,7 +161,7 @@ def test_scan_returns_oriented_dimensions_for_exif_jpeg(tmp_path, monkeypatch):
     import backend.config as cfg
     import backend.metadata_store as ms
 
-    monkeypatch.setattr(cfg, "GALLERY_ROOT", tmp_path)
+    monkeypatch.setattr(cfg, "PATH_SAFETY_ROOT", tmp_path)
     monkeypatch.setattr(ms, "GALLERY_METADATA_DB", tmp_path / "test_scan_dim.db")
     monkeypatch.setattr(ms, "_DB_INITIALIZED", False)
     monkeypatch.setattr(ms, "_DB_INITIALIZED_PATH", None)

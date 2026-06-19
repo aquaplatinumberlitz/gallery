@@ -1,9 +1,9 @@
-"""Path resolution and gallery root containment checks."""
+"""Path resolution and path safety root containment checks."""
 
 import os
 from pathlib import Path
 
-from .config import GALLERY_ROOT
+from .config import PATH_SAFETY_ROOT
 
 
 def resolve_path(raw_path: str) -> Path:
@@ -23,12 +23,12 @@ def resolve_path(raw_path: str) -> Path:
 
 
 def is_path_safe(path: Path) -> bool:
-    r"""Check that the resolved path is under GALLERY_ROOT.
+    r"""Check that the resolved path is under PATH_SAFETY_ROOT.
 
     Resolves symlinks, blocks path traversal (.., \0, symlink escapes).
     """
     try:
         resolved = path.resolve()
-        return GALLERY_ROOT in resolved.parents or resolved == GALLERY_ROOT
+        return PATH_SAFETY_ROOT in resolved.parents or resolved == PATH_SAFETY_ROOT
     except (RuntimeError, OSError):
         return False

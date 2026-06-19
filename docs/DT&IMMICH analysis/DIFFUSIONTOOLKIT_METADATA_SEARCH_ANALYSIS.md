@@ -209,7 +209,7 @@ This is a library-management feature, not a lightbox feature.
 | Raw workflow search enabled by default | Large ComfyUI workflows can make it slow and noisy. |
 | Dynamic SQL for user-supplied node property names without a whitelist/parameterized design | Node/property search must avoid SQL injection and unbounded table scans. |
 | Hamming-distance scan over all prompts as an initial feature | It is memory-heavy and less useful than exact/grouped prompt counts for this app. |
-| Absolute Windows path syntax and folder assumptions | gallery-repo must keep current `GALLERY_ROOT` path safety and current/all scope behavior. |
+| Absolute Windows path syntax and folder assumptions | gallery-repo must keep current `PATH_SAFETY_ROOT` path safety and current/all scope behavior. |
 | Prompt-first syntax requirement | DT recommends prompt text before parameters; gallery-repo can design a clearer parser that recognizes field tokens anywhere when values are quoted or unambiguous. |
 
 ## Proposed syntax for gallery-repo

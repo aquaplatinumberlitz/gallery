@@ -142,20 +142,20 @@ def create_test_png_with_metadata(
 
 @pytest.fixture
 def isolated_gallery_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Temporary GALLERY_ROOT that tests can freely populate and clean up."""
+    """Temporary PATH_SAFETY_ROOT that tests can freely populate and clean up."""
     root = tmp_path / "gallery_root"
     root.mkdir()
 
-    monkeypatch.setenv("GALLERY_ROOT", str(root))
+    monkeypatch.setenv("PATH_SAFETY_ROOT", str(root))
     import backend.config as config_module
     import backend.metadata_store as ms_module
     import backend.paths as paths_module
 
     resolved_root = root.resolve()
-    monkeypatch.setattr(config_module, "GALLERY_ROOT", resolved_root)
+    monkeypatch.setattr(config_module, "PATH_SAFETY_ROOT", resolved_root)
     monkeypatch.setattr(config_module, "DEFAULT_ROOT", resolved_root)
-    monkeypatch.setattr(paths_module, "GALLERY_ROOT", resolved_root)
-    monkeypatch.setattr(ms_module, "GALLERY_ROOT", resolved_root)
+    monkeypatch.setattr(paths_module, "PATH_SAFETY_ROOT", resolved_root)
+    monkeypatch.setattr(ms_module, "PATH_SAFETY_ROOT", resolved_root)
 
     return root
 

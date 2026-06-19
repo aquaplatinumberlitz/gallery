@@ -24,7 +24,7 @@ Các issue trong file này đều xuất phát từ việc app chuyển sang ch�
 
 ### 1. Default library `/` làm hỏng ý nghĩa "registered library"
 
-Hiện `GALLERY_ROOT` mặc định là `/`. Khi DB khởi tạo, code tự tạo library mặc định từ root này.
+Hiện `PATH_SAFETY_ROOT` mặc định là `/`. Khi DB khởi tạo, code tự tạo library mặc định từ root này.
 
 Vấn đề: `/` bao trùm gần như toàn bộ filesystem. Vì vậy gần như path nào cũng bị coi là "đã registered".
 
@@ -34,24 +34,24 @@ Hậu quả:
 - User không register được `/home/ubuntu/Pictures` vì nó overlap với library `/`.
 - DB-required mode mất ý nghĩa bảo vệ.
 
-#### ❌ Rejected: Conditional fix (`GALLERY_ROOT == "/"` thì ko tạo default)
+#### ❌ Rejected: Conditional fix (`PATH_SAFETY_ROOT == "/"` thì ko tạo default)
 
-Approach cũ trong code: kiểm tra if GALLERY_ROOT == "/" rồi conditional skip. Lý do reject:
-- Vẫn còn edge case: GALLERY_ROOT="/home" vẫn auto-tạo library từ /home → bao phủ gần hết, 409 vẫn ko fire
+Approach cũ trong code: kiểm tra if PATH_SAFETY_ROOT == "/" rồi conditional skip. Lý do reject:
+- Vẫn còn edge case: PATH_SAFETY_ROOT="/home" vẫn auto-tạo library từ /home → bao phủ gần hết, 409 vẫn ko fire
 - Logic có điều kiện → khó hiểu, khó maintain
 - Gây nhầm lẫn giữa implicit (default) và explicit (user register) library
 
-#### ✅ Final decision: Remove GALLERY_ROOT from the catalog/product model entirely
+#### ✅ Final decision: Remove PATH_SAFETY_ROOT from the catalog/product model entirely
 
-**GALLERY_ROOT must never create or imply a library.**
+**PATH_SAFETY_ROOT must never create or imply a library.**
 The only source of truth for browsable/indexed roots is explicit records in the `libraries` table.
 
 Changes required:
 
 1. **Remove implicit default library** — `_ensure_default_library_conn()` must NOT be called on every startup. Only during migration (v3→v4) for backward compat.
 2. **No fallback to auto-create** — `_upsert_asset_conn()` must NOT create a default library when none exists.
-3. **DEFAULT_ROOT deprecation** — `DEFAULT_ROOT = GALLERY_ROOT` in scan.py/folders.py/search.py should not imply a library exists.
-4. **`is_path_safe`** — Keep GALLERY_ROOT as a security boundary (path traversal guard), but do NOT use it to create libraries or imply assets exist there.
+3. **DEFAULT_ROOT deprecation** — `DEFAULT_ROOT = PATH_SAFETY_ROOT` in scan.py/folders.py/search.py should not imply a library exists.
+4. **`is_path_safe`** — Keep PATH_SAFETY_ROOT as a security boundary (path traversal guard), but do NOT use it to create libraries or imply assets exist there.
 5. **`GALLERY_DB_REQUIRED` mode** — `/api/scan` only serves paths inside explicit registered libraries.
    - Unmatched path → 409 `library_not_registered`
    - Missing path inside registered library → 404 `not_found`
@@ -64,7 +64,7 @@ Changes required:
 - DB init only creates tables, does NOT auto-create any library
 
 **Config cleanup:**
-- Deprecate `GALLERY_ROOT` in docs. It's still used for `is_path_safe` security check, but its default ("/") must not affect library semantics.
+- Deprecate `PATH_SAFETY_ROOT` in docs. It's still used for `is_path_safe` security check, but its default ("/") must not affect library semantics.
 - Remove `DEFAULT_ROOT` references where they imply auto-browsing.
 - Update `CONFIGURATION.md` and `ARCHITECTURE.md` to reflect the new model.
 
@@ -72,21 +72,21 @@ Changes required:
 
 | File | Usage | Action |
 |------|-------|--------|
-| `config.py:47-48` | GALLERY_ROOT="/", DEFAULT_ROOT | Keep GALLERY_ROOT for path safety; deprecate DEFAULT_ROOT |
+| `config.py:47-48` | PATH_SAFETY_ROOT="/", DEFAULT_ROOT | Keep PATH_SAFETY_ROOT for path safety; deprecate DEFAULT_ROOT |
 | `metadata_store.py:436` | `_ensure_default_library_conn()` on startup | Move inside migration-only block |
 | `metadata_store.py:519-532` | Function definition | Keep for migration; rename to clarify |
 | `metadata_store.py:557` | Fallback auto-create in _upsert_asset_conn | Change to return None/abort |
-| `metadata_store.py:2345,2642,2790,3213` | `else GALLERY_ROOT` in scope queries | Change to use explicit library root |
+| `metadata_store.py:2345,2642,2790,3213` | `else PATH_SAFETY_ROOT` in scope queries | Change to use explicit library root |
 | `scan.py:249` | DEFAULT_ROOT as fallback path | Use empty path → 400 or library-first |
 | `folders.py:77` | Same pattern | Same |
-| `search.py:61,66,103,131,186` | GALLERY_ROOT as scope fallback | Change to explicit library root |
+| `search.py:61,66,103,131,186` | PATH_SAFETY_ROOT as scope fallback | Change to explicit library root |
 | `scan.py:304` | `elif GALLERY_DB_REQUIRED` returns empty gallery | Add library state check instead |
 | `paths.py:32` | `is_path_safe` security boundary | Keep (security, not catalog) |
 | `test_libraries_catalog.py` | Test assumes default library | Update tests |
 | `test_db_required_scan.py` | Tests for DB-required mode | Update/add regression tests |
 | `test_paths.py` | Path safety tests | Keep (security) |
-| `test_search_coverage.py` | May assume GALLERY_ROOT | Audit and update |
-| `conftest.py:145-160` | monkeypatch GALLERY_ROOT | Keep for path safety; remove catalog assumptions |
+| `test_search_coverage.py` | May assume PATH_SAFETY_ROOT | Audit and update |
+| `conftest.py:145-160` | monkeypatch PATH_SAFETY_ROOT | Keep for path safety; remove catalog assumptions |
 
 ### 2. DB-required trả gallery rỗng cho path sai hoặc chưa indexed
 
@@ -342,11 +342,11 @@ Nói ngắn gọn: trước hết phải làm DB-required nói đúng sự thậ
 
 ## Confirmed issues
 
-### 1. Blocker: implicit default library from `GALLERY_ROOT="/"` breaks registered-library semantics
+### 1. Blocker: implicit default library from `PATH_SAFETY_ROOT="/"` breaks registered-library semantics
 
 #### What happens
 
-`GALLERY_ROOT` defaults to `/`. Database initialization always creates a default library from `GALLERY_ROOT` if no library exists.
+`PATH_SAFETY_ROOT` defaults to `/`. Database initialization always creates a default library from `PATH_SAFETY_ROOT` if no library exists.
 
 That means a fresh DB can contain an implicit library rooted at `/`.
 
@@ -365,27 +365,27 @@ An implicit `/` library turns that into: "almost everything is registered." This
 
 #### Evidence
 
-- `GALLERY_ROOT` default: `backend/config.py`
+- `PATH_SAFETY_ROOT` default: `backend/config.py`
 - Default library creation: `backend/metadata_store.py::_ensure_default_library_conn`
 - Library matching treats `/` as containing every path: `backend/metadata_store.py::_path_is_within`
 - `register_library()` rejects overlap with existing roots.
 
 #### Clean fix
 
-Do not auto-create a default library when `GALLERY_ROOT == "/"`.
+Do not auto-create a default library when `PATH_SAFETY_ROOT == "/"`.
 
 Recommended model:
 
 - Libraries table should contain explicit user/API-created libraries.
-- A legacy/default library may be created only when `GALLERY_ROOT` is a real configured gallery root, not `/`.
+- A legacy/default library may be created only when `PATH_SAFETY_ROOT` is a real configured gallery root, not `/`.
 - Add an `implicit` or `source` column only if backward compatibility requires distinguishing legacy auto-created libraries from user-registered libraries.
 - In DB-required mode, `get_library_for_path()` should only accept explicit registered libraries.
 
 #### Tests to add
 
-- With `GALLERY_ROOT="/"` and `GALLERY_DB_REQUIRED=true`, `/api/scan?path=/tmp/foo` returns `409 library_not_registered` when no explicit library exists.
-- With `GALLERY_ROOT="/"`, registering `/home/ubuntu/Pictures` is not blocked by an implicit `/` library.
-- With `GALLERY_ROOT=/some/gallery`, legacy default-library behavior still works if backward compatibility is required.
+- With `PATH_SAFETY_ROOT="/"` and `GALLERY_DB_REQUIRED=true`, `/api/scan?path=/tmp/foo` returns `409 library_not_registered` when no explicit library exists.
+- With `PATH_SAFETY_ROOT="/"`, registering `/home/ubuntu/Pictures` is not blocked by an implicit `/` library.
+- With `PATH_SAFETY_ROOT=/some/gallery`, legacy default-library behavior still works if backward compatibility is required.
 
 ---
 
@@ -865,8 +865,8 @@ This phase prevents stuck queues and stale readiness flags.
 The fix set should be considered complete when:
 
 - DB-required mode never returns empty gallery for missing, invalid, unregistered, discovering, or unindexed paths.
-- A fresh DB with `GALLERY_ROOT="/"` does not register `/` implicitly.
-- User can register a real child library when `GALLERY_ROOT="/"`.
+- A fresh DB with `PATH_SAFETY_ROOT="/"` does not register `/` implicitly.
+- User can register a real child library when `PATH_SAFETY_ROOT="/"`.
 - Deleted files disappear from DB-backed listings after rebuild/scan.
 - Offline/deleted assets do not affect folder counts, covers, derivative readiness, or warm coverage.
 - Derivative worker survives missing-source races and does not leave jobs stuck in `running`.

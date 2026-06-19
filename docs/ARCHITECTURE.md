@@ -26,7 +26,7 @@ Backend modules live flat in `backend/`.
 | `config.py` | Environment flags, cache paths, image limits, indexer tuning, production/static config |
 | `errors.py` | `APIError`, `ErrorType`, and FastAPI error shaping |
 | `models.py` | Shared Pydantic DTOs, including `FileNode` |
-| `paths.py` | `resolve_path`, `is_path_safe`, and `GALLERY_ROOT` boundary checks |
+| `paths.py` | `resolve_path`, `is_path_safe`, and `PATH_SAFETY_ROOT` boundary checks |
 | `files.py` | Image extension checks, natural sort, and image safety limits |
 | `albums.py` | Album cover/count/child-folder metadata |
 | `scan.py` | `/api/scan`, direct folder scans, optional warm SQLite listing, background index scheduling |
@@ -68,7 +68,7 @@ Backend modules live flat in `backend/`.
 
 ### Backend Behavior
 
-- `GALLERY_ROOT` bounds path safety. The default root is `/`, which is permissive for local use but all file routes still resolve and check paths.
+- `PATH_SAFETY_ROOT` bounds path safety. The default root is `/`, which is permissive for local use but all file routes still resolve and check paths.
 - `GALLERY_OPEN_FOLDER=false` disables OS folder opening by default.
 - `ENABLE_METRICS` defaults to enabled outside production and exposes `/metrics` with route-level labels.
 - `ENABLE_PROFILER=0` by default. When enabled, selected endpoints are profiled with pyinstrument and HTML reports are written to `backend/profiles/`.
@@ -181,7 +181,7 @@ Header search or AdvancedSearchDrawer
 ```
 
 - Default scope is `current`, meaning the current folder recursively.
-- `all` searches the indexed database under `GALLERY_ROOT`.
+- `all` searches the indexed database under `PATH_SAFETY_ROOT`.
 - Fielded queries are parsed server-side, for example `prompt:"blue hair"`, `seed:12345`, `model:pony`, `steps:>25`, `width:>=1024`.
 - The Advanced Search drawer uses TanStack Form and `/api/facets` to build the same fielded query syntax.
 - `GET /api/search-metadata` remains available for older callers, but the main gallery UI uses `/api/search`.

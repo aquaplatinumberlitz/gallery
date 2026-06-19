@@ -13,7 +13,7 @@
  *   # Custom URL:
  *   GALLERY_BASE_URL=https://150.230.56.153 \
  *   GALLERY_DEBUG_ALBUM=my-album \
- *   GALLERY_ROOT_PATH=/path/to/images \
+ *   PATH_SAFETY_ROOT_PATH=/path/to/images \
  *   corepack pnpm exec playwright test scripts/debug_lightbox_image_loads_playwright.ts \
  *     --project=chromium
  *
@@ -32,7 +32,7 @@ const BASE_URL = process.env.GALLERY_BASE_URL ?? "https://150.230.56.153";
 const ALBUM_NAME = process.env.GALLERY_DEBUG_ALBUM ?? "";
 const ALBUM_PATH = process.env.GALLERY_DEBUG_ALBUM_PATH ?? "";
 const ROOT_PATH =
-  process.env.GALLERY_ROOT_PATH ??
+  process.env.PATH_SAFETY_ROOT_PATH ??
   (ALBUM_PATH ? ALBUM_PATH.substring(0, ALBUM_PATH.lastIndexOf("/")) : "/home/ubuntu/gallery-repo/test-images");
 const LIGHTBOX_WAIT_MS = Number(process.env.GALLERY_DEBUG_LIGHTBOX_WAIT_MS ?? "4000");
 const OUTPUT_FILE = process.env.GALLERY_DEBUG_OUTPUT ?? resolve(process.cwd(), "debug-lightbox-image-loads.json");

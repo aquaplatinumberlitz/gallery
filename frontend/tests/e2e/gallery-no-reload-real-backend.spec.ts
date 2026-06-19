@@ -14,7 +14,7 @@
 import { expect, test } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
-const galleryRoot = process.env.GALLERY_ROOT_PATH ?? "/home/ubuntu/gallery-repo/test-images";
+const pathSafetyRoot = process.env.PATH_SAFETY_ROOT_PATH ?? "/home/ubuntu/gallery-repo/test-images";
 
 async function setupGallery(page: import("@playwright/test").Page) {
   await page.addInitScript((root) => {
@@ -23,7 +23,7 @@ async function setupGallery(page: import("@playwright/test").Page) {
     localStorage.setItem("gallery-sort-preference", JSON.stringify({ field: "name", order: "asc" }));
     localStorage.setItem("gallery-albums-collapsed", "false");
     localStorage.removeItem("gallery-lightbox-always-load-original");
-  }, galleryRoot);
+  }, pathSafetyRoot);
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
 
@@ -93,11 +93,11 @@ test("no duplicate initial /api/scan against real backend", async ({ page }) => 
   await expect(page.getByTestId("album-card").first()).toBeVisible({ timeout: 20_000 });
   await page.waitForTimeout(1500);
 
-  // Count root-level scans (no path, or path = galleryRoot)
+  // Count root-level scans (no path, or path = pathSafetyRoot)
   const rootScans = scanUrls.filter((u) => {
     const p = new URL(u).searchParams;
     const path = p.get("path");
-    return !path || path === galleryRoot || path === "/";
+    return !path || path === pathSafetyRoot || path === "/";
   });
 
   expect(rootScans.length).toBeGreaterThanOrEqual(1);

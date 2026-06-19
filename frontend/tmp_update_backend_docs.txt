@@ -27,7 +27,7 @@ Final agreed decisions to document:
 
 7. FastAPI: keep. Framework is not the problem.
 
-8. GALLERY_ROOT safety: preserve current behavior. Document production hardening note.
+8. PATH_SAFETY_ROOT safety: preserve current behavior. Document production hardening note.
 
 Required changes to docs/BACKEND_LIBRARY_REPLACEMENT_RESEARCH.md:
 
@@ -44,7 +44,7 @@ Proposed module layout for refactor plan (document only, do not implement):
 backend/
   main.py (app factory, middleware, startup)
   config.py (pydantic-settings)
-  security.py (path safety, GALLERY_ROOT containment)
+  security.py (path safety, PATH_SAFETY_ROOT containment)
   scanner.py (os.scandir, pagination, natural sort)
   thumbnails.py (Pillow rendering, cache helpers)
   metadata_parser.py (SD parsers, EXIF, sidecar)

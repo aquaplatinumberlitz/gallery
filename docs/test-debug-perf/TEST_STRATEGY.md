@@ -88,7 +88,7 @@ cd backend && pytest -q
 - `/api/index/status` with enabled/disabled indexer
 
 **Fixtures (in `backend/tests/conftest.py`):**
-- `isolated_gallery_root` — temp GALLERY_ROOT
+- `isolated_gallery_root` — temp PATH_SAFETY_ROOT
 - `isolated_metadata_db` — temp SQLite DB (GALLERY_METADATA_DB env var)
 - `isolated_thumbnail_cache` — temp diskcache directory (GALLERY_THUMBNAIL_CACHE_DIR env var)
 - `disable_background_services` — disables indexer/watcher/refresh/warm listing
