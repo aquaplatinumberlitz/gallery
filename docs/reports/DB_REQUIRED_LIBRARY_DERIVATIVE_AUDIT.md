@@ -18,6 +18,286 @@ The highest-priority fixes are:
 4. Make derivative jobs fail cleanly instead of getting stuck in `running`.
 5. Align backend semantic errors with frontend typed error handling.
 
+## Giải thích dễ hiểu bằng tiếng Việt
+
+Các issue trong file này đều xuất phát từ việc app chuyển sang chế độ "DB là nguồn dữ liệu chính", nhưng DB chưa đủ đáng tin trong một số tình huống. DB có thể tự đăng ký sai root, thiếu dữ liệu, còn dữ liệu cũ, hoặc frontend không hiểu lỗi backend trả về.
+
+### 1. Default library `/` làm hỏng ý nghĩa "registered library"
+
+Hiện `GALLERY_ROOT` mặc định là `/`. Khi DB khởi tạo, code tự tạo library mặc định từ root này.
+
+Vấn đề: `/` bao trùm gần như toàn bộ filesystem. Vì vậy gần như path nào cũng bị coi là "đã registered", ví dụ:
+
+```text
+/tmp/foo
+/home/ubuntu/Pictures
+/mnt/photos
+```
+
+Hậu quả:
+
+- `library_not_registered` gần như không bao giờ xảy ra.
+- User không register được `/home/ubuntu/Pictures` vì nó overlap với library `/`.
+- DB-required mode mất ý nghĩa bảo vệ.
+
+Fix sạch:
+
+- Không tự tạo default library nếu `GALLERY_ROOT == "/"`.
+- Trong DB-required mode, chỉ coi path là registered nếu user/API đã register rõ ràng.
+- Nếu cần backward compatibility, thêm field như `source = "implicit" | "user"` hoặc `implicit = true/false`.
+
+### 2. DB-required trả gallery rỗng cho path sai hoặc chưa indexed
+
+Hiện nếu DB-required bật và DB không có listing, backend có thể trả:
+
+```json
+{
+  "folders": [],
+  "images": [],
+  "index_source": "warm_db"
+}
+```
+
+Response này nghe như folder tồn tại nhưng rỗng. Nhưng thực tế có thể là:
+
+- path không tồn tại,
+- path là file chứ không phải folder,
+- library chưa scan,
+- library đang discovering/indexing,
+- DB chưa có dữ liệu.
+
+Hậu quả: user tưởng folder không có ảnh, trong khi thật ra app chưa index hoặc path sai.
+
+Fix sạch:
+
+- path không tồn tại -> `404 not_found`
+- path không phải folder -> `400 not_directory`
+- chưa register -> `409 library_not_registered`
+- đã register nhưng chưa index -> `409 library_not_indexed`
+- đang scan/index -> `202` hoặc `409 library_discovering`
+- thật sự folder rỗng và đã index xong -> mới trả `200` empty gallery
+
+Nguyên tắc: không được trả empty gallery trừ khi DB chứng minh folder đó đã indexed và thật sự rỗng.
+
+### 3. Ảnh đã xóa khỏi ổ đĩa nhưng vẫn hiện trong gallery
+
+Flow lỗi:
+
+1. Có ảnh `a.png`.
+2. App scan và lưu vào DB.
+3. User xóa `a.png` khỏi disk.
+4. App rebuild/scan lại.
+5. DB vẫn giữ asset cũ là active.
+6. Gallery vẫn hiện `a.png`.
+
+Nguyên nhân: rebuild hiện tại chủ yếu upsert file còn tồn tại, nhưng không reconcile file đã mất.
+
+Hậu quả:
+
+- Gallery hiện "ghost image".
+- Thumbnail/preview có thể fail vì source file không còn.
+- DB-required mode hiển thị dữ liệu sai.
+
+Fix sạch:
+
+- Quét filesystem hiện tại.
+- Upsert file còn tồn tại.
+- File trước đây có trong DB nhưng giờ không còn thì mark `offline=1` hoặc `deleted_at=now`.
+- Listing chỉ show asset active.
+
+Predicate active nên thống nhất:
+
+```sql
+deleted_at IS NULL AND offline = 0
+```
+
+### 4. Folder count / cover có thể tính cả offline asset
+
+Main listing đã filter:
+
+```sql
+deleted_at IS NULL AND offline = 0
+```
+
+Nhưng query đếm image trong folder và chọn cover image chỉ check `deleted_at IS NULL`, thiếu `offline = 0`.
+
+Hậu quả:
+
+- Folder báo có ảnh dù ảnh đã offline.
+- Cover folder có thể lấy ảnh đã mất khỏi disk.
+
+Fix sạch:
+
+- Mọi query listing/count/cover/status phải dùng cùng điều kiện active:
+
+```sql
+deleted_at IS NULL AND offline = 0
+```
+
+- Tốt hơn là gom predicate này thành helper/constant để tránh lệch logic giữa các query.
+
+### 5. Derivative worker có thể chết và để job kẹt `running`
+
+Derivative là thumbnail/preview.
+
+Flow lỗi:
+
+1. Worker claim job.
+2. DB đánh dấu job là `running`.
+3. Source image bị xóa trước khi worker xử lý.
+4. Code gọi `stat()` hoặc tính cache path và bị `FileNotFoundError`.
+5. Exception xảy ra ngoài block xử lý lỗi.
+6. Worker có thể chết, job vẫn stuck `running`.
+
+Hậu quả:
+
+- Queue kẹt.
+- Thumbnail/preview mãi không xong.
+- Request có thể wait rồi timeout.
+
+Fix sạch:
+
+- Sau khi claim job, mọi thao tác có thể lỗi phải nằm trong `try`.
+- Nếu source missing, mark job `failed` hoặc `skipped_source_missing`, ghi `last_error`, rồi cho worker tiếp tục xử lý job khác.
+- Không claim derivative job cho asset đã `offline` hoặc `deleted`.
+- Có watchdog reset/mark failed các job `running` quá lâu.
+
+### 6. `derivative_ready` có thể stale
+
+Listing hiện chỉ nhìn DB:
+
+```text
+asset_derivatives.status = "ready"
+```
+
+rồi báo thumbnail/preview đã ready.
+
+Nhưng DB row `ready` không đảm bảo:
+
+- cache file còn tồn tại,
+- source image chưa bị sửa,
+- source image chưa bị xóa,
+- derivative còn đúng version,
+- asset chưa offline.
+
+Hậu quả: frontend nghĩ thumbnail ready, nhưng khi request thật thì backend phải regenerate, fail, hoặc timeout.
+
+Fix sạch:
+
+Derivative chỉ được coi là ready nếu:
+
+- status là `ready`,
+- cache path tồn tại,
+- cache file còn tồn tại,
+- source mtime/size khớp với lúc derivative được tạo,
+- asset active: `deleted_at IS NULL AND offline = 0`.
+
+Nếu stat cache/source trên mỗi listing quá đắt, dùng background repair/sweep:
+
+- ready nhưng cache mất -> mark stale/queued,
+- source đổi -> mark stale/queued,
+- asset offline -> không count là ready.
+
+### 7. Frontend chưa hiểu các lỗi `library_*`
+
+Backend có thể trả lỗi semantic như:
+
+```text
+library_not_registered
+library_overlap
+library_offline
+```
+
+Và sau fix sẽ cần thêm:
+
+```text
+library_not_indexed
+library_discovering
+```
+
+Nhưng frontend `ErrorType` chưa khai báo các loại này. Vì vậy nó fallback thành lỗi chung:
+
+```text
+Something went wrong
+```
+
+Hậu quả: backend trả đúng lỗi, nhưng UI không hướng dẫn user làm gì.
+
+Fix sạch:
+
+Frontend thêm error types:
+
+```ts
+"library_not_registered"
+"library_not_indexed"
+"library_discovering"
+"library_overlap"
+"library_offline"
+```
+
+UI nên map thành action rõ ràng:
+
+- `library_not_registered` -> "Register this folder"
+- `library_not_indexed` -> "Start library scan"
+- `library_discovering` -> "Scan in progress"
+- `library_overlap` -> "This path overlaps another library"
+- `library_offline` -> "Library path is offline"
+
+### 8. Thumbnail/preview request có thể wait 10 giây
+
+Khi thumbnail/preview chưa ready, request có thể schedule job rồi chờ tối đa 10 giây.
+
+Với lightbox preview thì còn chấp nhận được. Nhưng với grid thumbnail, nếu mở folder lạnh có nhiều ảnh, hàng loạt request thumbnail có thể cùng bị giữ 10 giây.
+
+Hậu quả:
+
+- request worker bị giữ lâu,
+- tail latency cao,
+- UI dễ chậm,
+- server dễ nghẽn khi nhiều ảnh cold.
+
+Fix sạch:
+
+- Grid thumbnail: nếu chưa ready, schedule job rồi trả placeholder/`202` nhanh; frontend retry/refetch sau.
+- Lightbox preview: có thể wait ngắn hơn, ví dụ 1-2 giây; nếu chưa xong thì frontend hiển thị loading và poll lại.
+- Thêm metric như `derivative_queue_wait_seconds` và `derivative_request_wait_timeout_total`.
+
+### 9. `mtime_ns` naming/unit chưa nhất quán
+
+Một số chỗ lưu `stat.st_mtime` tức giây, nhưng column tên là `mtime_ns`, nghe như nanoseconds.
+
+Derivative logic lại dùng `stat.st_mtime_ns`.
+
+Hậu quả:
+
+- Dễ compare sai version source.
+- Dễ miss thay đổi file trong cùng một giây.
+- Code gây hiểu nhầm cho người maintain.
+
+Fix sạch:
+
+- Nếu column tên `mtime_ns` thì lưu thật sự `st_mtime_ns` dạng integer.
+- Hoặc nếu muốn lưu seconds thì đổi tên thành `mtime`.
+- Derivative/versioning nên dùng chung một source version:
+
+```text
+path + mtime_ns + size + variant + format + quality
+```
+
+### Thứ tự fix nên làm
+
+1. Fix default library `/`.
+2. Fix DB-required không được trả empty gallery sai.
+3. Fix asset reconciliation để xóa ghost images.
+4. Fix active asset predicate cho listing/count/cover.
+5. Fix derivative worker stuck `running`.
+6. Fix derivative readiness stale.
+7. Fix frontend error mapping.
+8. Tối ưu timeout thumbnail/preview.
+9. Cleanup `mtime_ns`.
+
+Nói ngắn gọn: trước hết phải làm DB-required nói đúng sự thật; sau đó làm asset catalog tự đồng bộ đúng với filesystem; cuối cùng harden derivative pipeline và frontend UX.
+
 ## Confirmed issues
 
 ### 1. Blocker: implicit default library from `GALLERY_ROOT="/"` breaks registered-library semantics
@@ -550,4 +830,3 @@ The fix set should be considered complete when:
 - Derivative worker survives missing-source races and does not leave jobs stuck in `running`.
 - Frontend displays actionable messages for every library semantic error.
 - Backend and frontend tests cover all of the above.
-
