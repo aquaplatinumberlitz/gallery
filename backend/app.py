@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import ENABLE_METRICS, ENABLE_PROFILER, PROFILE_DIR, PROFILE_ENDPOINTS
+from .derivative_scheduler import scheduler
 from .facets import router as facets_router
 from .folders import router as folders_router
 from .health import router as health_router
@@ -86,8 +87,14 @@ from .watcher import (  # noqa: E402 — keep startup wiring colocated with even
 
 @app.on_event("startup")
 async def _startup_background_services():
+    scheduler.start()
     _start_refresh()
     _start_watcher()
+
+
+@app.on_event("shutdown")
+async def _shutdown_background_services():
+    scheduler.stop()
 
 
 if ENABLE_PROFILER:

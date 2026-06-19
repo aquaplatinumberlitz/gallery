@@ -28,6 +28,11 @@ _thumbnail_cache_env = os.getenv("GALLERY_THUMBNAIL_CACHE_DIR")
 THUMBNAIL_CACHE_DIR = (
     Path(_thumbnail_cache_env) if _thumbnail_cache_env else Path(__file__).resolve().parent / ".cache" / "thumbnails"
 )
+DERIVATIVE_WORKER_COUNT = max(1, min(int(os.getenv("DERIVATIVE_WORKER_COUNT", "3")), 8))
+DERIVATIVE_QUOTA_BYTES = max(
+    0,
+    int(os.getenv("GALLERY_DERIVATIVE_QUOTA_BYTES", str(10 * 1024**3))),
+)
 
 SCAN_PERF_LOGS_ENABLED = os.getenv("SCAN_PERF_LOGS", "1" if os.getenv("PRODUCTION") != "1" else "0").lower() not in {
     "0",

@@ -13,6 +13,7 @@ from fastapi import APIRouter, Query, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from PIL import Image, ImageOps, UnidentifiedImageError
+from starlette.background import BackgroundTask
 
 from .config import THUMBNAIL_CACHE_DIR
 from .errors import APIError, ErrorType
@@ -103,6 +104,25 @@ def _derivative_cache_file_path(cache_key: str, format: str) -> Path:
     digest = hashlib.sha256(cache_key.encode("utf-8")).hexdigest()
     normalized_format = _normalize_derivative_format(format)
     return _thumbnail_file_dir / f"{digest}.{normalized_format}"
+
+
+def derivative_cache_path(
+    path: Path,
+    *,
+    kind: DerivativeKind,
+    max_long_edge: int,
+    quality: int,
+    format: str,
+) -> Path:
+    """Return the persisted cache path for one source derivative."""
+    cache_key = _derivative_cache_key_str(
+        path,
+        kind=kind,
+        max_long_edge=max_long_edge,
+        quality=quality,
+        format=format,
+    )
+    return _derivative_cache_file_path(cache_key, format)
 
 
 def _persist_derivative_file(cache_key: str, derivative_bytes: bytes, format: str) -> Path:
@@ -240,15 +260,29 @@ def _resolve_max_long_edge(max_long_edge: int, max_size: int | None) -> int:
 async def _serve_derivative(
     *,
     request: Request,
-    path: str,
+    path: str | None,
+    asset_id: int | None = None,
     kind: DerivativeKind,
     max_long_edge: int,
     quality: int,
     format: str,
     failure_message: str,
 ):
-    file_path = _resolve_image_request_path(path)
+    from .derivative_scheduler import derivative_variant, scheduler
+
+    explicit_asset_id = asset_id is not None
+    if explicit_asset_id:
+        asset_path = scheduler.get_asset_path(asset_id)
+        if asset_path is None:
+            raise APIError(404, ErrorType.NOT_FOUND, "Asset not found")
+        file_path = _resolve_image_request_path(str(asset_path))
+    elif path is not None:
+        file_path = _resolve_image_request_path(path)
+        asset_id = scheduler.find_asset_id(file_path)
+    else:
+        raise APIError(400, ErrorType.BAD_REQUEST, "Either path or asset_id is required")
     normalized_format = _normalize_derivative_format(format)
+    variant = derivative_variant(kind, max_long_edge, quality, normalized_format)
 
     stat = file_path.stat()
     etag = (
@@ -261,6 +295,49 @@ async def _serve_derivative(
     }
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers=headers)
+
+    if asset_id is not None and (explicit_asset_id or scheduler.is_running()):
+        ready = await run_in_threadpool(scheduler.get_ready_derivative, asset_id, kind, variant)
+        if ready is None:
+            try:
+                await run_in_threadpool(
+                    scheduler.schedule_derivative,
+                    asset_id,
+                    kind,
+                    variant,
+                    0,
+                    max_long_edge=max_long_edge,
+                    quality=quality,
+                    format=normalized_format,
+                )
+            except FileNotFoundError as exc:
+                raise APIError(404, ErrorType.NOT_FOUND, "Image file not found") from exc
+
+            def wait_for_derivative() -> dict | None:
+                deadline = time.monotonic() + 10
+                while time.monotonic() < deadline:
+                    result = scheduler.get_ready_derivative(asset_id, kind, variant)
+                    if result is not None:
+                        return result
+                    if scheduler.get_derivative_status(asset_id, kind, variant) == "failed":
+                        return None
+                    time.sleep(0.05)
+                return None
+
+            ready = await run_in_threadpool(wait_for_derivative)
+        if ready is None:
+            status = await run_in_threadpool(scheduler.get_derivative_status, asset_id, kind, variant)
+            if status == "failed":
+                raise APIError(400, ErrorType.INVALID_FILE, failure_message)
+            raise APIError(503, ErrorType.SERVER_ERROR, "Derivative generation timed out")
+        cache_path = str(ready["cache_path"])
+        scheduler.acquire_serving(cache_path)
+        return FileResponse(
+            cache_path,
+            media_type=DERIVATIVE_MEDIA_TYPES[normalized_format],
+            headers=headers,
+            background=BackgroundTask(scheduler.release_serving, cache_path),
+        )
 
     try:
         queued_at = time.perf_counter()
@@ -327,7 +404,8 @@ async def _serve_derivative(
 @router.get("/api/thumbnail")
 async def api_thumbnail(
     request: Request,
-    path: str = Query(..., description="Absolute path to image file"),
+    path: str | None = Query(None, description="Absolute path to image file"),
+    asset_id: int | None = Query(None, ge=1, description="Catalog asset ID"),
     max_long_edge: int = Query(512, ge=1, le=4096, description="Max long edge for grid thumbnail"),
     max_size: int | None = Query(None, ge=1, le=4096, description="Deprecated alias for max_long_edge"),
 ):
@@ -339,6 +417,7 @@ async def api_thumbnail(
     return await _serve_derivative(
         request=request,
         path=path,
+        asset_id=asset_id,
         kind="thumbnail",
         max_long_edge=_resolve_max_long_edge(max_long_edge, max_size),
         quality=78,
@@ -350,7 +429,8 @@ async def api_thumbnail(
 @router.get("/api/preview")
 async def api_preview(
     request: Request,
-    path: str = Query(..., description="Absolute path to image file"),
+    path: str | None = Query(None, description="Absolute path to image file"),
+    asset_id: int | None = Query(None, ge=1, description="Catalog asset ID"),
     max_long_edge: int = Query(1440, ge=1, le=4096, description="Max long edge for viewer preview"),
     max_size: int | None = Query(None, ge=1, le=4096, description="Deprecated alias for max_long_edge"),
 ):
@@ -361,6 +441,7 @@ async def api_preview(
     return await _serve_derivative(
         request=request,
         path=path,
+        asset_id=asset_id,
         kind="preview",
         max_long_edge=_resolve_max_long_edge(max_long_edge, max_size),
         quality=86,

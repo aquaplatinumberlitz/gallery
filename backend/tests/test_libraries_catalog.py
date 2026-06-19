@@ -44,7 +44,7 @@ def test_version_four_migrates_file_index_into_default_library(isolated_metadata
         row = conn.execute("SELECT * FROM assets WHERE path = ?", (str(image.resolve()),)).fetchone()
         assert row is not None
         assert (row["width"], row["height"], row["type"], row["mtime_ns"]) == (40, 30, "image", 12.5)
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 4
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 5
 
 
 def test_scan_and_metadata_dual_write_assets(

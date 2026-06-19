@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
+import logging
 import os
 import re
 import sqlite3
+import sys
 import threading
 import time
 from collections.abc import Iterable
@@ -15,11 +18,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+if not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    __package__ = "backend"
+
 from .albums import build_album_metadata
 from .config import (
     ENABLE_WARM_INDEXED_LISTING,
     GALLERY_METADATA_DB,
     GALLERY_ROOT,
+    THUMBNAIL_CACHE_DIR,
 )
 from .files import is_image_path, is_index_excluded_path
 from .metadata_extract import (
@@ -40,6 +48,7 @@ _DB_INITIALIZED = False
 _DB_INITIALIZED_PATH: Path | None = None
 METADATA_JOB_STATES = ("queued", "running", "done", "failed", "stale", "skipped")
 MAX_METADATA_JOB_ATTEMPTS = 3
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -332,6 +341,43 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
             );
             CREATE INDEX IF NOT EXISTS idx_assets_library_path ON assets(library_id, path);
             CREATE INDEX IF NOT EXISTS idx_assets_library_parent ON assets(library_id, parent_path);
+
+            CREATE TABLE IF NOT EXISTS asset_derivatives (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              asset_id INTEGER NOT NULL REFERENCES assets(id),
+              kind TEXT NOT NULL,
+              variant TEXT NOT NULL,
+              source_mtime_ns REAL NOT NULL,
+              source_size INTEGER NOT NULL,
+              format TEXT NOT NULL DEFAULT 'webp',
+              quality INTEGER NOT NULL DEFAULT 85,
+              max_long_edge INTEGER NOT NULL,
+              status TEXT NOT NULL DEFAULT 'queued',
+              cache_path TEXT,
+              byte_size INTEGER,
+              last_accessed_at REAL,
+              attempts INTEGER NOT NULL DEFAULT 0,
+              last_error TEXT,
+              created_at REAL NOT NULL DEFAULT (julianday('now')),
+              updated_at REAL NOT NULL DEFAULT (julianday('now')),
+              UNIQUE(asset_id, kind, variant, source_mtime_ns, source_size)
+            );
+            CREATE INDEX IF NOT EXISTS idx_derivatives_status ON asset_derivatives(status);
+            CREATE INDEX IF NOT EXISTS idx_derivatives_asset ON asset_derivatives(asset_id);
+
+            CREATE TABLE IF NOT EXISTS derivative_jobs (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              derivative_id INTEGER NOT NULL REFERENCES asset_derivatives(id),
+              priority INTEGER NOT NULL DEFAULT 3,
+              state TEXT NOT NULL DEFAULT 'queued',
+              attempts INTEGER NOT NULL DEFAULT 0,
+              error TEXT,
+              created_at REAL NOT NULL DEFAULT (julianday('now')),
+              updated_at REAL NOT NULL DEFAULT (julianday('now')),
+              started_at REAL,
+              completed_at REAL
+            );
+            CREATE INDEX IF NOT EXISTS idx_derivative_jobs_state ON derivative_jobs(state, priority);
             """
     )
     _ensure_column(conn, "image_metadata", "format", "TEXT")
@@ -417,7 +463,57 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
         )
         conn.execute("PRAGMA user_version = 4")
 
+    if current_version < 5:
+        _import_cached_derivatives_conn(conn)
+        conn.execute("PRAGMA user_version = 5")
+
     _cleanup_ignored_index_conn(conn)
+
+
+def _import_cached_derivatives_conn(conn: sqlite3.Connection) -> None:
+    """Best-effort import of legacy persisted derivative files."""
+    cache_dir = THUMBNAIL_CACHE_DIR / "files"
+    cache_files = {path.stem: path for path in cache_dir.iterdir() if path.is_file()} if cache_dir.is_dir() else {}
+    imported = 0
+    variants = (
+        ("thumbnail", "default", 512, 78),
+        ("preview", "default", 1440, 86),
+    )
+    for asset in conn.execute("SELECT id, path FROM assets WHERE type = 'image' AND deleted_at IS NULL"):
+        source = Path(asset["path"])
+        try:
+            stat = source.stat()
+        except OSError:
+            continue
+        for kind, variant, max_long_edge, quality in variants:
+            key = (
+                f"{kind}:v2:{source.resolve()}:{stat.st_mtime_ns}:{stat.st_size}:"
+                f"edge={max_long_edge}:fmt=webp:q={quality}"
+            )
+            cached = cache_files.get(hashlib.sha256(key.encode("utf-8")).hexdigest())
+            if cached is None:
+                continue
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO asset_derivatives (
+                  asset_id, kind, variant, source_mtime_ns, source_size, format,
+                  quality, max_long_edge, status, cache_path, byte_size, last_accessed_at
+                ) VALUES (?, ?, ?, ?, ?, 'webp', ?, ?, 'ready', ?, ?, julianday('now'))
+                """,
+                (
+                    asset["id"],
+                    kind,
+                    variant,
+                    float(stat.st_mtime_ns),
+                    stat.st_size,
+                    quality,
+                    max_long_edge,
+                    str(cached),
+                    cached.stat().st_size,
+                ),
+            )
+            imported += int(conn.execute("SELECT changes()").fetchone()[0])
+    logger.info("Imported %d of %d cached derivative files", imported, len(cache_files))
 
 
 def _ensure_default_library_conn(conn: sqlite3.Connection) -> int:
@@ -554,6 +650,15 @@ def unregister_library(library_id: int) -> bool:
     with _DB_LOCK, _connect() as conn:
         if conn.execute("SELECT 1 FROM libraries WHERE id = ?", (library_id,)).fetchone() is None:
             return False
+        conn.execute(
+            "DELETE FROM derivative_jobs WHERE derivative_id IN "
+            "(SELECT d.id FROM asset_derivatives d JOIN assets a ON a.id = d.asset_id WHERE a.library_id = ?)",
+            (library_id,),
+        )
+        conn.execute(
+            "DELETE FROM asset_derivatives WHERE asset_id IN (SELECT id FROM assets WHERE library_id = ?)",
+            (library_id,),
+        )
         conn.execute("DELETE FROM assets WHERE library_id = ?", (library_id,))
         conn.execute("DELETE FROM libraries WHERE id = ?", (library_id,))
         return True

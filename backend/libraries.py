@@ -6,6 +6,7 @@ from fastapi import APIRouter, BackgroundTasks, Query
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
+from .derivative_scheduler import scheduler
 from .errors import APIError, ErrorType
 from .indexer import rebuild_index_scope
 from .metadata_store import (
@@ -103,3 +104,42 @@ async def api_unregister_library(
     if not await run_in_threadpool(unregister_library, library_id):
         raise APIError(404, ErrorType.NOT_FOUND, "Library not found")
     return {"library_id": library_id, "unregistered": True, "source_files_deleted": False}
+
+
+@router.get("/api/derivatives/status")
+async def api_derivative_status(library_id: int = Query(..., ge=1)):
+    """Return derivative warm coverage and global quota utilization."""
+    try:
+        return await run_in_threadpool(scheduler.library_status, library_id)
+    except KeyError as exc:
+        raise APIError(404, ErrorType.NOT_FOUND, "Library not found") from exc
+
+
+@router.post("/api/derivatives/warm", status_code=202)
+async def api_warm_derivatives(library_id: int = Query(..., ge=1)):
+    """Queue default thumbnail and preview derivatives for a library."""
+    if await run_in_threadpool(get_library, library_id) is None:
+        raise APIError(404, ErrorType.NOT_FOUND, "Library not found")
+    result = await run_in_threadpool(scheduler.warm_library, library_id)
+    return {"library_id": library_id, "state": "queued", **result}
+
+
+@router.post("/api/derivatives/rebuild", status_code=202)
+async def api_rebuild_derivatives(
+    confirm: bool = Query(False, description="Must be true"),
+):
+    """Queue replacements for derivatives with changed source versions."""
+    if not confirm:
+        raise APIError(400, "confirmation_required", "Rebuild requires explicit confirmation")
+    stale = await run_in_threadpool(scheduler.rebuild_stale)
+    return {"stale_derivatives": stale, "state": "queued"}
+
+
+@router.post("/api/derivatives/clear")
+async def api_clear_derivatives(
+    confirm: bool = Query(False, description="Must be true"),
+):
+    """Clear the derivative catalog and persisted derivative files."""
+    if not confirm:
+        raise APIError(400, "confirmation_required", "Clear requires explicit confirmation")
+    return await run_in_threadpool(scheduler.clear_all)
