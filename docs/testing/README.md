@@ -1,6 +1,6 @@
 # Testing Guide
 
-Last reviewed: 2026-06-18
+Last reviewed: 2026-06-19
 
 This directory documents the test and debug surface for the gallery repo. Keep it focused on what each test protects, when to run it, and which debug helper to use before changing behavior.
 
@@ -8,10 +8,10 @@ The repository-wide layer, CI selection, browser, coverage, and flaky-test polic
 
 ## Test Selection
 
-- PR CI runs static checks, backend and frontend unit/integration tests, a Chromium browser-integration subset, and critical full-stack E2E coverage.
-- Merge/full CI adds the complete browser-integration suite.
-- Nightly runs performance tests, full-stack E2E, and a 5–10 spec WebKit smoke set.
-- Backend line coverage has an enforced 85% baseline. Frontend coverage remains informational until Vitest and Playwright coverage are merged into a stable baseline.
+- Push/PR CI runs full-codebase static checks, backend and frontend unit/integration tests, the complete Chromium functional suite split into four shards, and deterministic performance tests.
+- Functional Playwright runs without Istanbul instrumentation. Frontend coverage is produced by Vitest/V8 in the unit job.
+- Backend line coverage has an enforced 85% baseline. Frontend Vitest coverage remains informational.
+- Nightly and WebKit jobs are not currently configured.
 
 ## Test Categories
 
@@ -25,7 +25,8 @@ The repository-wide layer, CI selection, browser, coverage, and flaky-test polic
 - Responsive tests: `frontend/tests/e2e/responsive-breakpoints.spec.ts`, `frontend/tests/e2e/sidebar-trigger.spec.ts`, mobile lightbox tests, and Tailwind migration/preflight tests.
 - Performance contract tests: backend pytest hot-path tests such as `backend/tests/test_scan_hot_path.py` and `backend/tests/test_warm_folder_listing.py` prevent known slow-path regressions without relying on wall-clock timing.
 - Performance diagnostics: `frontend/tests/e2e/metadata-performance.spec.ts`, `scripts/perf_scan.py`, `scripts/perf_library_inspector.py`, and `scripts/perf_warm_listing.py` emit compact timing reports.
-- Gated performance smoke tests: `scripts/test_perf_smoke.sh` runs backend scan p95, backend Library Inspector p95, warm listing, album-open, and lightbox budgets against a running app/backend.
+- Album-open performance reports the first thumbnail iteration as cold-cache diagnostics and gates `thumbnail_p95_ms` on later warm-cache iterations.
+- Gated performance smoke tests: `./test.sh perf-smoke` runs backend scan p95, backend Library Inspector p95, warm listing, album-open, and lightbox budgets against a running app/backend.
 - Debug/diagnostic scripts: `frontend/src/debug/`, `scripts/debug_*`, perf fixture helpers, and perf scripts under `scripts/` and `frontend/tests/e2e/perf/`.
 
 ## Frontend Vitest Unit Tests
@@ -47,7 +48,7 @@ E2E (Playwright)                 <- pre-existing: frontend/tests/e2e/*.spec.ts
 - ESLint relaxes `no-empty`, `no-useless-assignment`, `@typescript-eslint/no-explicit-any`, and `vue/one-component-per-file` for `src/**/__tests__/**/*.test.ts` and `src/test/**/*.ts` so test scaffolding (inline components, intentional empty catches, etc.) does not trip production rules.
 - Lint policy: `pnpm lint` excludes `src/**/__tests__/**` and `src/test/**` so production rules run against production code only. `pnpm lint:tests` lints all test files (Playwright `tests/**`, vitest `src/**/__tests__/**/*.test.ts`, and helpers `src/test/**`).
 
-### Test inventory (391 tests across 20 files)
+### Test inventory (393 tests across 20 files)
 
 Tier 1 — pure utilities (logic-only, no mocking, fast):
 
@@ -94,7 +95,7 @@ Tier 3 — composables (mounted via `withSetup`, lifecycle + reactive state):
 | Run with v8 coverage | `cd frontend && pnpm test:unit:coverage` |
 | Lint test files only | `cd frontend && pnpm lint:tests` |
 
-Coverage output is written to `frontend/coverage/vitest/` (text, html, lcov, json-summary). The coverage scope is `src/**/*.{ts,vue}` minus debug, test, and app-entry files. The vitest coverage supplements (does not replace) the Playwright/Istanbul coverage under `frontend/coverage/` — merge the two lcov reports for a combined view.
+Coverage output is written to `frontend/coverage/vitest/` (text, html, lcov, json-summary). The coverage scope is `src/**/*.{ts,vue}` minus debug, test, and app-entry files. CI uploads this directory from the unit job. Functional Playwright does not use Istanbul instrumentation.
 
 
 ## Performance Fixtures
@@ -105,7 +106,7 @@ Use the deterministic fixture when comparing perf over time or before release:
 
 The generated env file contains `GALLERY_ROOT`, `GALLERY_METADATA_DB`, `GALLERY_THUMBNAIL_CACHE_DIR`, `GALLERY_PERF_ALBUM_NAME`, `GALLERY_PERF_ALBUM_PATH`, and scan/inspector defaults. Source it before starting the backend, or let the perf smoke runner do both:
 
-`GALLERY_PERF_USE_FIXTURE=1 GALLERY_PERF_START_BACKEND=1 bash scripts/test_perf_smoke.sh`
+`GALLERY_PERF_USE_FIXTURE=1 GALLERY_PERF_START_BACKEND=1 ./test.sh perf-smoke`
 
 Useful runner controls:
 
@@ -136,13 +137,14 @@ Run from the repo root unless a command changes directory explicitly.
 
 | Purpose | Command |
 | --- | --- |
+| Fast local gate (recommended before push) | `./test.sh fast` |
+| Full CI-equivalent suite | `./test.sh full` |
+| Show all test commands | `./test.sh help` |
 | Backend tests | `cd backend && python -m pytest -q` |
-| Backend API integration subset | `bash scripts/test_backend_api_integration.sh` |
-| Backend lint changed files | `bash scripts/lint_backend.sh` |
-| Backend format check changed files | `bash scripts/format_backend_check.sh` |
+| Backend API integration subset | `./test.sh backend-api` |
 | Frontend lint | `cd frontend && corepack pnpm run lint` |
 | Frontend lint test files only | `cd frontend && corepack pnpm run lint:tests` |
-| Frontend format check changed files | `cd frontend && corepack pnpm run format:check` |
+| Frontend format check full codebase | `cd frontend && corepack pnpm run format:check` |
 | Frontend typecheck | `cd frontend && corepack pnpm run typecheck` |
 | Frontend build | `cd frontend && corepack pnpm run build` |
 | Frontend vitest unit tests | `cd frontend && corepack pnpm run test:unit` |
@@ -152,25 +154,32 @@ Run from the repo root unless a command changes directory explicitly.
 | Targeted Playwright test | `cd frontend && corepack pnpm exec playwright test tests/e2e/lightbox-loading-policy.spec.ts --project=chromium` |
 | Metadata performance diagnostic | `cd frontend && GALLERY_BASE_URL=http://localhost:5173 corepack pnpm exec playwright test tests/e2e/metadata-performance.spec.ts --project=chromium --headed` |
 | Metadata performance strict gate | `cd frontend && GALLERY_PERF_METADATA_STRICT=1 corepack pnpm run perf:metadata` |
-| Frontend E2E tests | `bash scripts/test-e2e.sh` |
-| Lint and format checks | `bash scripts/test-lint.sh` |
-| Backend and frontend unit suite | `bash scripts/test-unit.sh` |
-| Deterministic suite | `bash test-all.sh` |
+| Managed functional E2E suite | `./test.sh e2e` |
+| Managed performance suite | `./test.sh perf` |
+| Lint and format checks | `./test.sh lint` |
+| Backend and frontend unit suite | `./test.sh unit` |
 | Perf fixture generation | `backend/.venv_linux/bin/python scripts/create_perf_fixture.py --clean --env-file /tmp/gallery_perf_fixture.env` |
 | Backend scan p95 perf | `GALLERY_API_BASE_URL=http://localhost:4180 GALLERY_PERF_SCAN_PATH=/path/to/album backend/.venv_linux/bin/python scripts/perf_scan.py` |
 | Backend inspector p95 perf | `GALLERY_API_BASE_URL=http://localhost:4180 backend/.venv_linux/bin/python scripts/perf_library_inspector.py` |
 | Warm listing local perf | `backend/.venv_linux/bin/python scripts/perf_warm_listing.py --images 5000` |
 | Perf report summary | `backend/.venv_linux/bin/python scripts/summarize_perf_reports.py --results-dir frontend/test-results/perf` |
 | Test gap audit | `python3 scripts/audit_test_matrix.py` |
-| Perf smoke suite | `GALLERY_PERF_USE_FIXTURE=1 GALLERY_PERF_START_BACKEND=1 bash scripts/test_perf_smoke.sh` |
+| Perf smoke suite | `GALLERY_PERF_USE_FIXTURE=1 GALLERY_PERF_START_BACKEND=1 ./test.sh perf-smoke` |
 | Album perf test | `cd frontend && corepack pnpm run perf:album` |
 | Lightbox perf test | `cd frontend && corepack pnpm run perf:lightbox` |
 | Test/debug header checker | `python3 scripts/check_test_docs.py` |
 | List files checked by header checker | `python3 scripts/check_test_docs.py --list` |
 
-Playwright starts Vite through `frontend/playwright.config.ts`. Backend-backed Playwright tests require a running backend and appropriate fixture paths.
+`./test.sh e2e` and `./test.sh perf` create a deterministic temporary gallery, start FastAPI and Vite on free local ports, set all required paths, and clean up afterward. Internal shell helpers live under `scripts/internal/`; developers should use `test.sh` as the stable entrypoint. Use `GALLERY_TEST_KEEP_TMP=1` to retain artifacts or `GALLERY_TEST_TMPDIR=<path>` to choose the workspace.
 
-Ruff backend lint/format checks and frontend Prettier checks are intentionally changed-file checks. They use `origin/main` as the default comparison base when it exists, plus local working-tree and untracked files. Override the backend base with `RUFF_BASE=<ref>` and the frontend Prettier base with `PRETTIER_BASE=<ref>`.
+Additional controls:
+
+- `GALLERY_TEST_SHARD=1/4` runs one functional Playwright shard locally.
+- `GALLERY_TEST_FIXTURE_IMAGES=<count>` changes fixture size.
+- `GALLERY_TEST_SKIP_BUILD=1` skips the pre-Playwright build when it already passed.
+- `PLAYWRIGHT_RETRIES=<count>` overrides retries; `./test.sh full` defaults to the CI value of `1`.
+
+Ruff, ESLint, and Prettier checks scan the full codebase locally and in CI.
 
 ## When Changing X, Run Y
 

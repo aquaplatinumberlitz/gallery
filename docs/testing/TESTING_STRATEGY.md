@@ -1,6 +1,6 @@
 # Testing Strategy
 
-Last verified against `.github/workflows/ci.yml` and `scripts/test-*.sh`: 2026-06-18.
+Last verified against `.github/workflows/ci.yml` and `test.sh`: 2026-06-19.
 
 ## Stack
 
@@ -13,24 +13,26 @@ Last verified against `.github/workflows/ci.yml` and `scripts/test-*.sh`: 2026-0
 |-------|------|:-----------:|:----------:|:-------:|----------|
 | Static | Ruff/ESLint/Prettier | none | ✅ `lint` | N/A (not configured) | syntax/style |
 | Backend unit + API integration | pytest | SQLite/temp FS | ✅ `test:unit` | N/A (not configured) | backend behavior |
-| Frontend unit/component | Vitest | jsdom | ✅ `test:unit` | N/A (not configured) | frontend logic/behavior |
-| Frontend build/typecheck | vue-tsc/Vite | build environment | ✅ `test:unit` and `test:e2e` | N/A (not configured) | types/build |
-| Browser integration | Playwright + mocked API | Chromium | ✅ selected specs in `test:e2e` | N/A (not configured) | critical UI workflows |
-| Full-stack E2E | Playwright + backend | real app | ❌ | N/A (not configured) | system wiring |
-| Perf | scripts/Playwright | fixture/real data | ❌ | N/A (not configured) | local performance checks |
+| Frontend unit/component | Vitest + V8 coverage | jsdom | ✅ `test:unit` | N/A (not configured) | frontend logic/behavior |
+| Frontend build/typecheck | vue-tsc/Vite | build environment | ✅ `test:unit` | N/A (not configured) | types/build |
+| Browser integration | Playwright | Chromium | ✅ full suite, 4 shards | N/A (not configured) | critical UI workflows |
+| Full-stack E2E | Playwright + FastAPI | deterministic temp fixture | ✅ `test:e2e` | N/A (not configured) | system wiring |
+| Perf | Playwright | deterministic temp fixture | ✅ `test:perf`, 1 worker | N/A (not configured) | performance budgets |
 
 ## Test Selection Policy
 
-- **Push/PR CI**: three jobs only: `lint`, `test:unit`, and `test:e2e`.
-- **`test:e2e` CI selection**: four Chromium contract specs: lightbox loading policy, no-reload, cache revisit, and fielded-search UI.
+- **Push/PR CI**: full-codebase `lint`, `test:unit`, four `test:e2e` shards, and `test:perf`.
+- **`test:e2e` CI selection**: every top-level `frontend/tests/e2e/*.spec.ts` functional spec. Playwright shards the suite across four parallel jobs.
+- **`test:perf` CI selection**: every spec under `frontend/tests/e2e/perf/`, with one worker and a separate deterministic fixture.
+- **Functional E2E coverage instrumentation is disabled** so browser behavior and timing are not distorted. Frontend coverage comes from Vitest/V8.
 - **Nightly**: N/A (not configured).
 - **WebKit smoke**: N/A.
-- **Full-stack/perf**: available through repository scripts where their prerequisites are met, but not selected by the current CI workflow.
+- **Local parity**: `./test.sh full` runs the same full layers sequentially; `./test.sh fast` is the fast lint/unit/build gate.
 
 ## Coverage Baselines
 
 - **Backend**: 85% line coverage (enforced in CI)
-- **Frontend**: coverage artifacts are generated for the selected Playwright CI specs, but no numeric frontend coverage threshold is enforced.
+- **Frontend**: Vitest/V8 coverage is uploaded from `test:unit`; no numeric frontend threshold is enforced yet.
 
 ## Browser Matrix
 
@@ -52,5 +54,5 @@ Last verified against `.github/workflows/ci.yml` and `scripts/test-*.sh`: 2026-0
 | Vue component rendering + interaction | Playwright (browser integration) |
 | API endpoint contract | pytest integration (SQLite + temp FS) |
 | User flow (multi-page) | Playwright E2E |
-| Performance regression | Playwright perf spec (local only) |
+| Performance regression | Playwright perf spec in `test:perf` and `./test.sh perf` |
 | Visual regression | Playwright snapshot (future) |

@@ -156,8 +156,21 @@ python scripts/bench_thumbnail.py
 
 ### Playwright Album Open Perf Test
 
+For the deterministic CI-equivalent browser perf suite, run from the repository root:
+
+```bash
+./test.sh perf
+```
+
+This command creates a temporary fixture, starts FastAPI and Vite on free ports, runs all
+`frontend/tests/e2e/perf/` specs with one worker, and cleans up. Use the lower-level commands
+below only when profiling an already-running app or custom real dataset.
+
 Measures end-to-end album open performance: scan duration, thumbnail loading.
 Runs `SAMPLE_COUNT` (default 5) iterations and reports p95 across iterations.
+The first iteration is reported as a cold-cache diagnostic. The thumbnail p95 budget is
+enforced on subsequent warm-cache iterations so derivative generation time is not mixed
+with cache-serving latency.
 
 ```bash
 # Install browser (one-time)

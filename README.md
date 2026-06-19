@@ -55,8 +55,7 @@ Backend development tools:
 
 ```bash
 pip install -r backend/requirements-dev.txt
-scripts/lint_backend.sh
-scripts/format_backend_check.sh
+./test.sh lint
 ```
 
 Frontend:
@@ -89,15 +88,17 @@ In production mode the backend serves `frontend/dist/` as a static SPA with clie
 Quality checks:
 
 ```bash
-scripts/lint_backend.sh
-scripts/format_backend_check.sh
-cd frontend
-corepack pnpm run lint
-corepack pnpm run format:check
-corepack pnpm run typecheck
+./test.sh fast
 ```
 
-Backend Ruff checks and frontend Prettier checks run against changed files by default, using `origin/main` as the base when available. This avoids forcing a full historical reformat while still protecting new changes.
+Full CI-equivalent validation, including deterministic functional E2E and performance tests:
+
+```bash
+./test.sh full
+```
+
+All Ruff, ESLint, and Prettier gates scan the full codebase.
+Run `./test.sh help` for focused commands such as `lint`, `unit`, `e2e`, and `perf`.
 
 ## Project Structure
 
@@ -182,14 +183,11 @@ gallery-repo/
 │       ├── styles/
 │       └── types/
 ├── scripts/
-│   ├── format_backend_check.sh
-│   ├── lint_backend.sh
-│   ├── test-all.sh
-│   ├── test-lint.sh
-│   ├── test-unit.sh
-│   ├── test_backend_api_integration.sh
-│   ├── test-e2e.sh
-│   └── test_perf_smoke.sh
+│   ├── internal/
+│   │   ├── perf-smoke.sh
+│   │   └── test-playwright.sh
+│   └── *.py
+├── test.sh
 └── docs/
 ```
 

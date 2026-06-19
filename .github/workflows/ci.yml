@@ -103,7 +103,13 @@ jobs:
 
       - name: Frontend Unit Tests
         working-directory: frontend
-        run: pnpm test:unit
+        run: pnpm test:unit:coverage
+
+      - name: Upload frontend unit coverage
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-frontend-unit
+          path: frontend/coverage/vitest/
 
       - name: Unit & Build
         working-directory: frontend
@@ -111,8 +117,12 @@ jobs:
 
   # ---- E2E / Integration Tests ----
   test-e2e:
-    name: test:e2e
+    name: test:e2e (${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
 
     steps:
       - uses: actions/checkout@v6
@@ -143,10 +153,6 @@ jobs:
         working-directory: frontend
         run: pnpm exec playwright install chromium --with-deps
 
-      - name: Build frontend
-        working-directory: frontend
-        run: pnpm build
-
       - name: Create deterministic gallery fixture
         run: |
           python scripts/create_perf_fixture.py \
@@ -176,31 +182,16 @@ jobs:
 
       - name: E2E / Integration Tests (all functional specs)
         working-directory: frontend
-        run: pnpm exec playwright test tests/e2e/*.spec.ts --project=chromium --reporter=html
+        run: pnpm exec playwright test tests/e2e/*.spec.ts --project=chromium --shard=${{ matrix.shard }}/4 --reporter=html
         env:
-          VITE_COVERAGE: "true"
           VITE_API_URL: http://127.0.0.1:4180
           GALLERY_ROOT_PATH: ${{ runner.temp }}/gallery-e2e-fixture
-
-      - name: Generate coverage report
-        if: always()
-        working-directory: frontend
-        run: pnpm coverage:report
-
-      - name: Upload frontend coverage
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: coverage-frontend
-          path: |
-            frontend/coverage/
-            frontend/.nyc_output/
 
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-report-contract
+          name: playwright-report-functional-${{ matrix.shard }}
           path: frontend/playwright-report/
           retention-days: 7
 
@@ -208,7 +199,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: backend-log-functional
+          name: backend-log-functional-${{ matrix.shard }}
           path: ${{ runner.temp }}/gallery-e2e-backend.log
           retention-days: 7
 

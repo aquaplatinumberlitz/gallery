@@ -17,7 +17,7 @@ This document records how major third-party libraries are used in the current co
 | SQLite FTS5 | Folder/photo/metadata index and search | `backend/metadata_store.py`, `backend/search.py`, `backend/facets.py` | Uses Python stdlib `sqlite3`; no external search service |
 | prometheus-fastapi-instrumentator / prometheus-client | Optional metrics | `backend/app.py`, `backend/scan.py`, `backend/indexer.py` | Enabled by default outside production through `ENABLE_METRICS` |
 | pyinstrument | Optional endpoint profiling | `backend/app.py` | Enabled by `ENABLE_PROFILER=1`; writes HTML profiles to `backend/profiles/` |
-| Ruff | Backend lint and format checks | `pyproject.toml`, `scripts/lint_backend.sh`, `scripts/format_backend_check.sh` | Changed-file checks by default to avoid legacy full-repo noise |
+| Ruff | Backend lint and format checks | `pyproject.toml`, `test.sh` | `./test.sh lint` scans the full Python codebase |
 | pnpm / Corepack | Frontend package management | `frontend/package.json`, `frontend/pnpm-lock.yaml` | `packageManager` pins pnpm; do not reintroduce `package-lock.json` |
 | Vue 3 | Frontend framework | `frontend/src/main.ts`, `frontend/src/App.vue`, components/layouts | Composition API and SFCs |
 | Vue Router | `/` gallery and `/metadata` inspector routing | `frontend/src/router/index.ts`, `frontend/src/layouts/DesktopLayout.vue`, `frontend/src/App.vue` | Production fallback is served by backend static route |
@@ -44,7 +44,7 @@ This document records how major third-party libraries are used in the current co
 | eruda | Optional mobile browser debug console | `frontend/src/debug/erudaDebug.ts`, `frontend/src/main.ts` | Enabled by query/localStorage debug flag |
 | Playwright | Frontend and contract tests | `frontend/tests/e2e/`, `frontend/playwright.config.ts` | Also used by perf smoke scripts |
 | ESLint | Frontend lint | `frontend/eslint.config.js`, `frontend/package.json` | Runs with `corepack pnpm run lint` |
-| Prettier | Frontend format check/write | `frontend/.prettierrc.json`, `frontend/.prettierignore`, `frontend/scripts/check_prettier_changed.sh` | `format:check` checks changed files; `format` writes scoped frontend globs |
+| Prettier | Frontend format check/write | `frontend/.prettierrc.json`, `frontend/.prettierignore`, `frontend/package.json` | `format:check` scans the full frontend formatting scope |
 
 ## Backend Libraries
 
@@ -133,11 +133,10 @@ Ruff is the backend static quality tool. It is installed through `backend/requir
 Run:
 
 ```bash
-scripts/lint_backend.sh
-scripts/format_backend_check.sh
+./test.sh lint
 ```
 
-Both scripts collect changed Python files under `backend/`, `scripts/`, and `start.py`. They use `origin/main` as the default base when available, plus local working-tree and untracked files. Use `RUFF_BASE=<ref>` to override the comparison base. Full-repo Ruff currently reports legacy lint/format noise, so changed-file checks are the supported gate until the backend is reformatted in a dedicated cleanup.
+The command runs Ruff lint and format checks across `backend/`, `scripts/`, and `start.py`, matching the full-codebase CI gate.
 
 ## Frontend Tooling
 
@@ -164,14 +163,14 @@ cd frontend
 corepack pnpm run lint
 ```
 
-Prettier handles frontend formatting. The normal check is changed-file only:
+Prettier handles frontend formatting. The normal check scans the complete configured frontend scope:
 
 ```bash
 cd frontend
 corepack pnpm run format:check
 ```
 
-`format:check` uses `frontend/scripts/check_prettier_changed.sh`, defaults to `origin/main` as the comparison base when available, and can be overridden with `PRETTIER_BASE=<ref>`. Full-project Prettier check is intentionally not the default because existing frontend files are not yet globally formatted.
+`format:check` and CI use the same globs from `frontend/package.json`. The repository is globally formatted, so there is no changed-file exception.
 
 ## Frontend Libraries
 

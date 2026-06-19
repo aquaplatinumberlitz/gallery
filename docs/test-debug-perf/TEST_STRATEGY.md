@@ -4,7 +4,7 @@
 
 This file is retained for historical tier details. Current CI selection, browser policy, and
 coverage gates are defined by the canonical strategy linked above and were verified on
-2026-06-18.
+2026-06-19.
 
 ## Overview
 
@@ -18,15 +18,16 @@ app with real data).
 
 | CI job | Verified commands |
 |---|---|
-| `lint` | Backend Ruff lint/format on changed files; frontend ESLint and changed-file Prettier |
-| `test:unit` | Backend pytest with `--cov-fail-under=85`; frontend Vitest; frontend build/typecheck |
-| `test:e2e` | Four selected Playwright contract specs on Chromium; frontend coverage report artifact |
+| `lint` | Full-codebase Ruff lint/format, ESLint source/tests, and Prettier |
+| `test:unit` | Backend pytest with `--cov-fail-under=85`; frontend Vitest/V8 coverage; frontend build/typecheck |
+| `test:e2e (1/4..4/4)` | Complete functional Playwright suite sharded across four Chromium jobs with deterministic FastAPI fixtures |
+| `test:perf` | Complete Playwright perf suite, one worker, deterministic fixture |
 
 - Nightly: N/A (not configured).
 - WebKit smoke: N/A.
-- Full-stack E2E and perf smoke: not selected by `.github/workflows/ci.yml`.
-- Backend coverage threshold: 85%, enforced in CI and `scripts/test-unit.sh`.
-- Frontend coverage threshold: no numeric CI threshold is configured.
+- Full-stack E2E and Playwright perf are selected on every push/PR.
+- Backend coverage threshold: 85%, enforced in CI and `./test.sh unit`.
+- Frontend Vitest coverage is uploaded; no numeric CI threshold is configured.
 
 ## Test Tiers
 
@@ -34,19 +35,18 @@ app with real data).
 
 **Backend:**
 
-- `scripts/lint_backend.sh` runs Ruff lint on changed Python files.
-- `scripts/format_backend_check.sh` runs `ruff format --check` on changed Python files.
+- `./test.sh lint` runs Ruff lint and `ruff format --check` on all backend/script Python files.
 - Install dev tooling with `pip install -r backend/requirements-dev.txt`.
 
-Ruff is configured in `pyproject.toml` with correctness, bug-prone, import-order, and Python-upgrade rules. Both backend scripts use `origin/main` as the default base when available, then include local working-tree and untracked files. Use `RUFF_BASE=<ref>` to compare against a different base.
+Ruff is configured in `pyproject.toml` with correctness, bug-prone, import-order, and Python-upgrade rules.
 
 **Frontend:**
 
 - `corepack pnpm run lint` runs ESLint on source, tests, and config files.
-- `corepack pnpm run format:check` runs Prettier on changed frontend files.
+- `corepack pnpm run format:check` runs Prettier across the full configured frontend scope.
 - `corepack pnpm run typecheck` runs `vue-tsc --noEmit`.
 
-Frontend package management is pinned through `frontend/package.json` (`packageManager: pnpm@11.5.2`) and `frontend/pnpm-lock.yaml`. Do not reintroduce `package-lock.json`. Frontend Prettier changed-file checks use `origin/main` by default and can be overridden with `PRETTIER_BASE=<ref>`.
+Frontend package management is pinned through `frontend/package.json` (`packageManager: pnpm@11.5.2`) and `frontend/pnpm-lock.yaml`. Do not reintroduce `package-lock.json`.
 
 ---
 
@@ -108,7 +108,7 @@ cd backend && pytest -q
 
 **Run:**
 ```bash
-bash scripts/test_backend_api_integration.sh
+./test.sh backend-api
 ```
 Or directly:
 ```bash
@@ -134,12 +134,12 @@ cd backend && pytest tests/test_api_integration_*.py -v
 - `search-fielded-ui.spec.ts` — plain search, fielded search, seed search, clear/restore, no-results, special chars (6 tests)
 - `responsive-breakpoints.spec.ts` — mobile (375), tablet (768/834), desktop (1200/1920), resize transitions (10 tests)
 
-**All Playwright tests use mocked API routes** (`page.route("**/api/**")`) for deterministic
-behavior without requiring a running backend.
+Most Playwright contract tests mock API routes; selected full-stack specs use the managed
+deterministic FastAPI fixture.
 
 **Run (all contract tests):**
 ```bash
-bash scripts/test-e2e.sh
+./test.sh e2e
 ```
 Or directly:
 ```bash
@@ -165,7 +165,7 @@ cd frontend && corepack pnpm run build && corepack pnpm exec playwright test tes
 
 **Run:**
 ```bash
-bash scripts/test_perf_smoke.sh
+./test.sh perf-smoke
 ```
 Or individually:
 ```bash
@@ -177,19 +177,19 @@ cd frontend && corepack pnpm run perf:album && corepack pnpm run perf:lightbox
 
 ---
 
-## Test Runner Scripts
+## Test Runner
 
-| Script | Purpose | Requirements |
-|---|---|---|
-| `scripts/lint_backend.sh` | Ruff lint changed Python files | Backend dev requirements |
-| `scripts/format_backend_check.sh` | Ruff format check changed Python files | Backend dev requirements |
-| `frontend/scripts/check_prettier_changed.sh` | Prettier check changed frontend files | pnpm install |
-| `scripts/test-lint.sh` | Run backend and frontend lint/format checks | Backend dev requirements + pnpm |
-| `scripts/test-unit.sh` | Run backend and frontend unit tests, then build frontend | Python venv + pnpm |
-| `scripts/test-local.sh` | Run lint/format checks, backend/frontend unit tests, and frontend build; does not run Playwright | Python venv + pnpm |
-| `scripts/test_backend_api_integration.sh` | Backend API integration tests | Python venv |
-| `scripts/test-e2e.sh` | Run requested Playwright files, or all `tests/e2e/`, on Chromium | Frontend dependencies; builds if `dist/` is absent |
-| `scripts/test_perf_smoke.sh` | Perf smoke tests | Running app + real data |
+Use `./test.sh help` as the single developer entrypoint. The primary commands are:
+
+| Command | Purpose |
+|---|---|
+| `./test.sh fast` | Full lint/format, unit coverage, and frontend build |
+| `./test.sh full` | Sequential local equivalent of all CI layers |
+| `./test.sh e2e` | Managed deterministic functional Playwright suite |
+| `./test.sh perf` | Managed deterministic Playwright perf suite |
+| `./test.sh perf-smoke` | Extended backend + browser performance diagnostics |
+
+Shell implementation details are kept under `scripts/internal/` and are not public developer commands.
 
 ---
 
@@ -200,16 +200,12 @@ cd frontend && corepack pnpm run perf:album && corepack pnpm run perf:lightbox
    WebKit. Playwright iPhone emulation approximates but does not perfectly replicate
    iOS gesture handling.
 
-2. **No-reload E2E with real backend** — `gallery-no-reload-real-backend.spec.ts` exists
-   but requires a running backend with `GALLERY_ROOT=/home/ubuntu/gallery-repo/test-images`.
-   Not included in `test-all.sh` since it needs a real backend.
-
-3. **Mobile sheet gesture conflict regression** — No automated test verifies that
+2. **Mobile sheet gesture conflict regression** — No automated test verifies that
    PhotoSwipe swipe and VSBS scroll do not conflict on mobile. Manual testing required.
 
-4. **Warm indexed folder listing end-to-end** — No integration test verifies the full
+3. **Warm indexed folder listing end-to-end** — No integration test verifies the full
    cycle: scan → index → warm listing → scan returns warm_db source.
 
-5. **Thumbnail/preview cache separation with real backend** — Current cache separation
+4. **Thumbnail/preview cache separation with real backend** — Current cache separation
    tests verify cache key logic but not actual file-based cache serving with
    If-None-Match across multiple requests.

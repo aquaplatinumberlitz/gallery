@@ -160,7 +160,7 @@ FEATURE_MATRIX: list[dict[str, Any]] = [
         "perf": [
             "scripts/create_perf_fixture.py",
             "scripts/summarize_perf_reports.py",
-            "scripts/test_perf_smoke.sh",
+            "scripts/internal/perf-smoke.sh",
         ],
     },
 ]
@@ -231,7 +231,7 @@ def important_test_files(root: Path) -> list[str]:
         "scripts/create_perf_fixture.py",
         "scripts/summarize_perf_reports.py",
         "scripts/audit_test_matrix.py",
-        "scripts/test_perf_smoke.sh",
+        "scripts/internal/perf-smoke.sh",
     ]
     files: set[str] = set()
     for pattern in patterns:

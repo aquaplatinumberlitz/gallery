@@ -1,6 +1,6 @@
 # Architecture
 
-Last reviewed: 2026-06-17
+Last reviewed: 2026-06-19
 
 ## Overview
 
@@ -9,7 +9,7 @@ AI Art Gallery is a local-first image browser with a FastAPI backend and a Vue 3
 - Backend: scans folders, serves original images, generates cached WebP derivatives, extracts AI generation metadata, indexes folders/photos/metadata in SQLite FTS5, and exposes read-only inspection/search APIs.
 - Frontend: uses Vue Router for the gallery and metadata inspector routes, Pinia for UI/navigation state, TanStack Query for API state, TanStack Virtual for large grids and the Library Inspector table body, PhotoSwipe for the lightbox, TanStack Form for advanced search, and TanStack Table for the Library Inspector.
 - Startup: `start.py` creates/repairs the Python virtualenv, installs Python and pnpm frontend dependencies when needed, finds free backend/frontend ports, and starts both servers.
-- Tooling: backend quality checks use Ruff through changed-file scripts; frontend uses pnpm, ESLint, Prettier changed-file checks, `vue-tsc`, Vite, and Playwright.
+- Tooling: Ruff, ESLint, and Prettier scan the full codebase. Vitest/V8 covers frontend units; Playwright runs sharded functional E2E and isolated performance suites against deterministic FastAPI fixtures.
 
 Major external library integrations are documented in [Third-Party Libraries](THIRD_PARTY_LIBRARIES.md).
 Environment variables and parser behavior are documented in

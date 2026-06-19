@@ -9,7 +9,8 @@ echo "  Set env: GALLERY_BASE_URL, GALLERY_PERF_ALBUM_NAME, GALLERY_PERF_ALBUM_P
 echo "  Optional: GALLERY_PERF_USE_FIXTURE=1 GALLERY_PERF_START_BACKEND=1"
 echo "=========================================="
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INTERNAL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(dirname "$INTERNAL_DIR")"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 RESULTS_DIR="$REPO_ROOT/frontend/test-results/perf"
 mkdir -p "$RESULTS_DIR"
