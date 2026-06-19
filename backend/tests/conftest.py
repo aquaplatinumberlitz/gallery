@@ -153,7 +153,6 @@ def isolated_gallery_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pa
 
     resolved_root = root.resolve()
     monkeypatch.setattr(config_module, "PATH_SAFETY_ROOT", resolved_root)
-    monkeypatch.setattr(config_module, "DEFAULT_ROOT", resolved_root)
     monkeypatch.setattr(paths_module, "PATH_SAFETY_ROOT", resolved_root)
     monkeypatch.setattr(ms_module, "PATH_SAFETY_ROOT", resolved_root)
 

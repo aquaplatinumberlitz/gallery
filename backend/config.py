@@ -1,6 +1,7 @@
 """Read environment-backed backend configuration constants."""
 
 import os
+import warnings
 from pathlib import Path
 
 from PIL import Image
@@ -44,9 +45,15 @@ SCAN_PERF_LOGS_ENABLED = os.getenv("SCAN_PERF_LOGS", "1" if os.getenv("PRODUCTIO
     "no",
 }
 
-PATH_SAFETY_ROOT = Path(os.getenv("PATH_SAFETY_ROOT", "/")).resolve()
-# Deprecated for catalog semantics: DEFAULT_ROOT/PATH_SAFETY_ROOT are only a path-safety boundary.
-DEFAULT_ROOT = PATH_SAFETY_ROOT
+_raw = os.getenv("PATH_SAFETY_ROOT") or os.getenv("GALLERY_ROOT") or "/"
+if "GALLERY_ROOT" in os.environ and "PATH_SAFETY_ROOT" not in os.environ:
+    warnings.warn(
+        "GALLERY_ROOT is deprecated. Use PATH_SAFETY_ROOT. "
+        "It is only a path-safety boundary and never creates a library.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+PATH_SAFETY_ROOT = Path(_raw).resolve()
 GALLERY_DB_REQUIRED = _env_flag("GALLERY_DB_REQUIRED", default=False)
 
 METADATA_INDEXER_ENABLED = _env_flag("GALLERY_METADATA_INDEXER_ENABLED", default=True)

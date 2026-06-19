@@ -181,7 +181,7 @@ Header search or AdvancedSearchDrawer
 ```
 
 - Default scope is `current`, meaning the current folder recursively.
-- `all` searches the indexed database under `PATH_SAFETY_ROOT`.
+- `all` searches indexed assets from explicit registered libraries.
 - Fielded queries are parsed server-side, for example `prompt:"blue hair"`, `seed:12345`, `model:pony`, `steps:>25`, `width:>=1024`.
 - The Advanced Search drawer uses TanStack Form and `/api/facets` to build the same fielded query syntax.
 - `GET /api/search-metadata` remains available for older callers, but the main gallery UI uses `/api/search`.
