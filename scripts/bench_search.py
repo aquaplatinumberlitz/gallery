@@ -55,6 +55,7 @@ def _find_inspector_metadata_path(base_url: str) -> str | None:
 
 
 def bench_search(base_url: str, query: str, iterations: int) -> dict:
+    """Benchmark the search endpoint and summarize request durations."""
     durations: list[float] = []
     last_payload: dict = {}
     for _ in range(max(1, iterations)):
@@ -80,6 +81,7 @@ def bench_search(base_url: str, query: str, iterations: int) -> dict:
 
 
 def bench_inspector_metadata(base_url: str, image_path: str | None, iterations: int) -> dict | None:
+    """Benchmark inspector metadata lookups for one indexed image."""
     if not image_path:
         return None
     durations: list[float] = []
@@ -108,12 +110,11 @@ def bench_inspector_metadata(base_url: str, image_path: str | None, iterations: 
 
 
 def main() -> int:
+    """Run search benchmarks and enforce their configured budgets."""
     base_url = os.getenv("GALLERY_API_BASE_URL", "http://localhost:8000")
     iterations = int(os.getenv("GALLERY_PERF_BENCH_SEARCH_ITERATIONS", "10"))
     query = os.getenv("GALLERY_PERF_BENCH_SEARCH_QUERY", "a")
-    search_budget = float(
-        os.getenv("GALLERY_PERF_SEARCH_P95_BUDGET_MS", str(budget_for("search", "p95_ms")))
-    )
+    search_budget = float(os.getenv("GALLERY_PERF_SEARCH_P95_BUDGET_MS", str(budget_for("search", "p95_ms"))))
     inspector_md_budget = float(
         os.getenv(
             "GALLERY_PERF_INSPECTOR_METADATA_P95_BUDGET_MS",
@@ -148,14 +149,13 @@ def main() -> int:
             file=sys.stderr,
         )
         failed = True
-    if inspector_md_result and "p95_ms" in inspector_md_result:
-        if inspector_md_result["p95_ms"] > inspector_md_budget:
-            print(
-                f"/api/library/inspector/metadata p95 exceeded budget: "
-                f"{inspector_md_result['p95_ms']}ms > {inspector_md_budget}ms",
-                file=sys.stderr,
-            )
-            failed = True
+    if inspector_md_result and "p95_ms" in inspector_md_result and inspector_md_result["p95_ms"] > inspector_md_budget:
+        print(
+            f"/api/library/inspector/metadata p95 exceeded budget: "
+            f"{inspector_md_result['p95_ms']}ms > {inspector_md_budget}ms",
+            file=sys.stderr,
+        )
+        failed = True
     return 1 if failed else 0
 
 

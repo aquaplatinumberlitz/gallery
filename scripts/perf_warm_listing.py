@@ -143,9 +143,7 @@ def main() -> int:
     parser.add_argument(
         "--budget-ms",
         type=float,
-        default=float(
-            os.getenv("GALLERY_PERF_WARM_LISTING_BUDGET_MS", str(budget_for("warm_listing", "budget_ms")))
-        ),
+        default=float(os.getenv("GALLERY_PERF_WARM_LISTING_BUDGET_MS", str(budget_for("warm_listing", "budget_ms")))),
         help="maximum allowed warm listing duration in milliseconds",
     )
     args = parser.parse_args()

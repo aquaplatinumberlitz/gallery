@@ -61,26 +61,17 @@ watch(
     />
     <!-- MOBILE: Compact display with tappable edit -->
     <template v-if="isMobile">
-      <label class="field-label block text-[11px] font-semibold text-muted-foreground mb-2 tracking-[0.5px]">ROOT PATH</label>
-      <div
-        class="mobile-root-display"
-        @click="editOnMobile"
-        role="button"
-        tabindex="0"
-        @keydown.enter="editOnMobile"
+      <label class="field-label block text-[11px] font-semibold text-muted-foreground mb-2 tracking-[0.5px]"
+        >ROOT PATH</label
       >
+      <div class="mobile-root-display" @click="editOnMobile" role="button" tabindex="0" @keydown.enter="editOnMobile">
         <FolderOpen class="field-icon gallery-icon-md" />
         <span class="mobile-path-text">
           {{ pathInput || "Not set" }}
         </span>
         <Tooltip>
           <TooltipTrigger as-child>
-            <button
-              class="mobile-edit-btn"
-              type="button"
-              @click.stop="editOnMobile"
-              aria-label="Edit root path"
-            >
+            <button class="mobile-edit-btn" type="button" @click.stop="editOnMobile" aria-label="Edit root path">
               <Edit3 class="gallery-icon-sm" />
             </button>
           </TooltipTrigger>
@@ -92,10 +83,7 @@ watch(
         Tap to edit
       </p>
 
-      <RootPathSheet
-        v-model="showSheet"
-        :current-path="pathInput"
-      />
+      <RootPathSheet v-model="showSheet" :current-path="pathInput" />
     </template>
 
     <!-- DESKTOP: Full input with controls (unchanged) -->
@@ -113,17 +101,12 @@ watch(
             <FolderOpen class="size-4" />
           </Button>
         </TooltipTrigger>
-        <TooltipContent side="right">
-          Edit Root Path
-        </TooltipContent>
+        <TooltipContent side="right"> Edit Root Path </TooltipContent>
       </Tooltip>
 
       <!-- Full desktop view, hidden in collapsed icon mode -->
       <div class="group-data-[collapsible=icon]:hidden">
-        <label
-          class="field-label"
-          for="root-path"
-        >ROOT PATH</label>
+        <label class="field-label" for="root-path">ROOT PATH</label>
 
         <div class="field-container">
           <FolderOpen class="field-icon gallery-icon-md" />

@@ -111,10 +111,7 @@ onBeforeUnmount(() => {
     @keydown.space.prevent="emit('click')"
   >
     <!-- Shimmer placeholder -->
-    <div
-      v-if="!isLoaded && !hasError"
-      class="shimmer-placeholder"
-    >
+    <div v-if="!isLoaded && !hasError" class="shimmer-placeholder">
       <div class="shimmer-wave" />
     </div>
 
@@ -127,31 +124,20 @@ onBeforeUnmount(() => {
       @error="onImageError"
       :alt="props.name || 'Gallery image'"
       class="thumbnail-img"
-    >
+    />
 
     <!-- Animated Preview (Overlay on hover) -->
     <transition name="fade">
-      <img
-        v-if="shouldPlay && previewSrc && !hasError"
-        :src="previewSrc"
-        class="preview-overlay"
-        alt=""
-      >
+      <img v-if="shouldPlay && previewSrc && !hasError" :src="previewSrc" class="preview-overlay" alt="" />
     </transition>
 
     <!-- Badge for animated files -->
-    <div
-      v-if="isAnimated && isLoaded"
-      class="type-badge"
-    >
+    <div v-if="isAnimated && isLoaded" class="type-badge">
       <span v-if="shouldPlay">PLAYING</span>
       <span v-else>GIF</span>
     </div>
 
-    <div
-      v-if="!props.src || hasError"
-      class="placeholder"
-    >
+    <div v-if="!props.src || hasError" class="placeholder">
       <Image class="gallery-icon-xl" />
       <span class="placeholder-text">{{ hasError ? "Preview unavailable" : "" }}</span>
     </div>

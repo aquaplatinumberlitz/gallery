@@ -23,11 +23,7 @@ const props = withDefaults(
 </script>
 
 <template>
-  <RouterLink
-    :to="to"
-    :replace="replace"
-    :class="cn(buttonVariants({ variant, size }), props.class)"
-  >
+  <RouterLink :to="to" :replace="replace" :class="cn(buttonVariants({ variant, size }), props.class)">
     <slot />
   </RouterLink>
 </template>

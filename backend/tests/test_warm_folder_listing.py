@@ -177,12 +177,12 @@ def test_response_shape_compatible(tmp_path: Path):
             "cover_images",
             "mtime",
             "image_count",
-                "width",
-                "height",
-                "asset_id",
-                "metadata_state",
-                "derivative_ready",
-            }
+            "width",
+            "height",
+            "asset_id",
+            "metadata_state",
+            "derivative_ready",
+        }
 
 
 def test_cold_path_unchanged_when_warm_disabled(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

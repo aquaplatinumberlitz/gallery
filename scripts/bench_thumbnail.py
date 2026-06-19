@@ -20,7 +20,6 @@ Run when:
 
 from __future__ import annotations
 
-import json
 import os
 import sys
 import time
@@ -44,10 +43,7 @@ def _list_image_files(folder: Path, limit: int) -> list[str]:
 
 
 def _fetch_thumbnail(base_url: str, image_path: str, max_long_edge: int) -> tuple[float, int]:
-    url = (
-        f"{base_url.rstrip('/')}/api/thumbnail?"
-        f"{urlencode({'path': image_path, 'max_long_edge': max_long_edge})}"
-    )
+    url = f"{base_url.rstrip('/')}/api/thumbnail?{urlencode({'path': image_path, 'max_long_edge': max_long_edge})}"
     request = Request(url, headers={"Accept": "image/webp"})
     started = time.perf_counter()
     with urlopen(request, timeout=30) as response:
@@ -56,6 +52,7 @@ def _fetch_thumbnail(base_url: str, image_path: str, max_long_edge: int) -> tupl
 
 
 def main() -> int:
+    """Run thumbnail benchmarks and enforce their configured budgets."""
     base_url = os.getenv("GALLERY_API_BASE_URL", "http://localhost:8000")
     image_folder = os.getenv(
         "GALLERY_PERF_BENCH_THUMBNAIL_FOLDER",

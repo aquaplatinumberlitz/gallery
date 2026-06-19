@@ -60,12 +60,7 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
     <div class="tgt-nav-group">
       <Tooltip>
         <TooltipTrigger as-child>
-          <button
-            class="tgt-btn"
-            :disabled="!canGoBack"
-            @click="emit('back')"
-            aria-label="Go back"
-          >
+          <button class="tgt-btn" :disabled="!canGoBack" @click="emit('back')" aria-label="Go back">
             <ArrowLeft class="tgt-nav-icon" />
           </button>
         </TooltipTrigger>
@@ -73,12 +68,7 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
       </Tooltip>
       <Tooltip>
         <TooltipTrigger as-child>
-          <button
-            class="tgt-btn"
-            :disabled="!canGoForward"
-            @click="emit('forward')"
-            aria-label="Go forward"
-          >
+          <button class="tgt-btn" :disabled="!canGoForward" @click="emit('forward')" aria-label="Go forward">
             <ArrowRight class="tgt-nav-icon" />
           </button>
         </TooltipTrigger>
@@ -95,10 +85,7 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
     />
 
     <!-- Density dropdown -->
-    <div
-      class="density-dropdown"
-      :class="{ open: showDensityMenu }"
-    >
+    <div class="density-dropdown" :class="{ open: showDensityMenu }">
       <button
         class="tgt-trigger"
         @click.stop="emit('toggleDensityMenu')"
@@ -110,11 +97,7 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
         <ChevronDown class="tgt-chevron" />
       </button>
       <Transition name="dropdown">
-        <div
-          v-if="showDensityMenu"
-          class="density-menu"
-          @keydown="handleDensityMenuKeydown"
-        >
+        <div v-if="showDensityMenu" class="density-menu" @keydown="handleDensityMenuKeydown">
           <button
             v-for="option in densityOptions"
             :key="option.level"
@@ -125,10 +108,7 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
             <LayoutGrid class="tgt-option-icon" />
             <span>{{ option.label }}</span>
             <span class="density-cols">{{ option.columns }} cols</span>
-            <Check
-              v-if="sliderLevel === option.level"
-              class="density-check tgt-check-icon"
-            />
+            <Check v-if="sliderLevel === option.level" class="density-check tgt-check-icon" />
           </button>
         </div>
       </Transition>

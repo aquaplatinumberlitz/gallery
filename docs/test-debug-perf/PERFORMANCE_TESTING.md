@@ -259,7 +259,7 @@ npm run perf:lightbox
 | Field | Default | Env Var Override | Description |
 |---------|---------|---------|-------------|
 | `open_ms` | `500` | `GALLERY_PERF_LIGHTBOX_OPEN_BUDGET_MS` | Max p95 ms for lightbox to become visible after click |
-| `preview_check_ms` | `200` | `GALLERY_PERF_LIGHTBOX_PREVIEW_BUDGET_MS` | Max p95 ms for preview image to load after click |
+| `preview_check_ms` | `200` | `GALLERY_PERF_LIGHTBOX_PREVIEW_BUDGET_MS` | Max warm-cache p95 duration of the `/api/preview` request; the initial sample is reported separately |
 | `transition_ms` | `1000` | `GALLERY_PERF_LIGHTBOX_TRANSITION_BUDGET_MS` | Max p95 ms for next preview image to load after ArrowRight |
 
 ## Known Limitations
@@ -297,5 +297,5 @@ npm run perf:lightbox
 | `GALLERY_PERF_BENCH_THUMBNAIL_COLD_P95_MS` | `[thumbnail].cold_p95_ms` (`1000`) | Cold thumbnail p95 budget |
 | `GALLERY_PERF_BENCH_THUMBNAIL_WARM_P95_MS` | `[thumbnail].warm_p95_ms` (`50`) | Warm thumbnail p95 budget |
 | `GALLERY_PERF_LIGHTBOX_OPEN_BUDGET_MS` | `[lightbox].open_ms` (`500`) | Max p95 lightbox open visible time |
-| `GALLERY_PERF_LIGHTBOX_PREVIEW_BUDGET_MS` | `[lightbox].preview_check_ms` (`200`) | Max p95 lightbox preview load time |
+| `GALLERY_PERF_LIGHTBOX_PREVIEW_BUDGET_MS` | `[lightbox].preview_check_ms` (`200`) | Max warm-cache p95 duration of the `/api/preview` request |
 | `GALLERY_PERF_LIGHTBOX_TRANSITION_BUDGET_MS` | `[lightbox].transition_ms` (`1000`) | Max p95 lightbox next-preview transition time |

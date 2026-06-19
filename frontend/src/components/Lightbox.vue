@@ -273,16 +273,11 @@ function handleToggleFullscreen() {
             @close="handleClose"
             @index-change="handleIndexChange"
           />
-          <div
-            v-if="lightbox.galleryItems.length > 1"
-            class="desktop-lightbox-counter"
-          >
+          <div v-if="lightbox.galleryItems.length > 1" class="desktop-lightbox-counter">
             {{ lightbox.currentIndex + 1 }} / {{ lightbox.galleryItems.length }}
           </div>
           <!-- Image counter for screen readers -->
-          <div class="sr-only">
-            Image {{ lightbox.currentIndex + 1 }} of {{ lightbox.galleryItems.length }}
-          </div>
+          <div class="sr-only">Image {{ lightbox.currentIndex + 1 }} of {{ lightbox.galleryItems.length }}</div>
           <!-- Sidebar -->
           <LightboxDesktopPanel
             v-if="!isFullscreen"
@@ -300,29 +295,12 @@ function handleToggleFullscreen() {
             @toggle-fullscreen="handleToggleFullscreen"
           />
           <!-- Fullscreen overlay controls -->
-          <div
-            v-if="isFullscreen"
-            class="fs-controls"
-          >
-            <button
-              class="fs-btn"
-              @click="exitFullscreen"
-              title="Exit fullscreen"
-            >
-              <Minimize
-                class="gallery-icon-xl"
-                :stroke-width="1.5"
-              />
+          <div v-if="isFullscreen" class="fs-controls">
+            <button class="fs-btn" @click="exitFullscreen" title="Exit fullscreen">
+              <Minimize class="gallery-icon-xl" :stroke-width="1.5" />
             </button>
-            <button
-              class="fs-btn"
-              @click="handleClose"
-              title="Close"
-            >
-              <X
-                class="gallery-icon-xl"
-                :stroke-width="1.5"
-              />
+            <button class="fs-btn" @click="handleClose" title="Close">
+              <X class="gallery-icon-xl" :stroke-width="1.5" />
             </button>
           </div>
         </template>
@@ -351,9 +329,7 @@ function handleToggleFullscreen() {
             @close="handleSheetClosed"
           />
           <!-- Image counter for screen readers -->
-          <div class="sr-only">
-            Image {{ lightbox.currentIndex + 1 }} of {{ lightbox.galleryItems.length }}
-          </div>
+          <div class="sr-only">Image {{ lightbox.currentIndex + 1 }} of {{ lightbox.galleryItems.length }}</div>
         </template>
 
         <!-- Mobile: PhotoSwipe (giữ nguyên) -->
@@ -368,9 +344,7 @@ function handleToggleFullscreen() {
           @toggle-metadata="toggleSheet"
         />
         <template v-if="isMobile">
-          <div class="mobile-photo-counter">
-            {{ lightbox.currentIndex + 1 }} / {{ lightbox.galleryItems.length }}
-          </div>
+          <div class="mobile-photo-counter">{{ lightbox.currentIndex + 1 }} / {{ lightbox.galleryItems.length }}</div>
           <LightboxMobileSheet
             v-if="showSheet && !isFullscreen"
             :meta="meta"

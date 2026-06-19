@@ -123,11 +123,7 @@ const actionIconComponent = computed(() => {
 </script>
 
 <template>
-  <div
-    class="empty-state"
-    :class="{ compact }"
-    :style="{ '--accent-color': defaults.color }"
-  >
+  <div class="empty-state" :class="{ compact }" :style="{ '--accent-color': defaults.color }">
     <!-- Illustration -->
     <div class="illustration">
       <!-- Background decoration circles -->
@@ -138,11 +134,7 @@ const actionIconComponent = computed(() => {
       <!-- Main icon container -->
       <div class="icon-container">
         <div class="icon-ring">
-          <span
-            class="fa-icon-wrap"
-            :class="{ 'icon-spin': type === 'loading' }"
-            v-html="currentIconSvg"
-          />
+          <span class="fa-icon-wrap" :class="{ 'icon-spin': type === 'loading' }" v-html="currentIconSvg" />
         </div>
       </div>
 
@@ -152,16 +144,10 @@ const actionIconComponent = computed(() => {
         <div class="float-dot dot-2" />
         <div class="float-dot dot-3" />
         <div class="sparkle sparkle-1">
-          <span
-            class="fa-sparkle"
-            v-html="FA_ICONS['Sparkle']"
-          />
+          <span class="fa-sparkle" v-html="FA_ICONS['Sparkle']" />
         </div>
         <div class="sparkle sparkle-2">
-          <span
-            class="fa-sparkle"
-            v-html="FA_ICONS['Sparkle']"
-          />
+          <span class="fa-sparkle" v-html="FA_ICONS['Sparkle']" />
         </div>
       </div>
     </div>
@@ -171,24 +157,13 @@ const actionIconComponent = computed(() => {
       <h3 class="title">
         {{ displayTitle }}
       </h3>
-      <p
-        v-if="displayDescription"
-        class="description"
-      >
+      <p v-if="displayDescription" class="description">
         {{ displayDescription }}
       </p>
 
       <!-- Action button -->
-      <button
-        v-if="actionLabel"
-        class="action-btn"
-        type="button"
-        @click="emit('action')"
-      >
-        <span
-          class="fa-icon-wrap action-icon-fa"
-          v-html="actionIconComponent"
-        />
+      <button v-if="actionLabel" class="action-btn" type="button" @click="emit('action')">
+        <span class="fa-icon-wrap action-icon-fa" v-html="actionIconComponent" />
         <span>{{ actionLabel }}</span>
       </button>
     </div>

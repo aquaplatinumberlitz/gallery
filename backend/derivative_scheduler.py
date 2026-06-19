@@ -23,6 +23,7 @@ from .metadata_store import _connect, initialize_database
 
 logger = logging.getLogger(__name__)
 
+
 def _ensure_database() -> None:
     """Initialize only when the derivative schema is not already present."""
     try:
@@ -41,11 +42,7 @@ def _ensure_database() -> None:
 def derivative_variant(kind: str, max_long_edge: int, quality: int, format: str) -> str:
     """Return a stable variant name for derivative rendering settings."""
     for variant in DERIVATIVE_VARIANTS.get(kind, []):
-        if (
-            format == "webp"
-            and variant["max_long_edge"] == max_long_edge
-            and variant["quality"] == quality
-        ):
+        if format == "webp" and variant["max_long_edge"] == max_long_edge and variant["quality"] == quality:
             return str(variant["name"])
     return f"edge-{max_long_edge}-q-{quality}-{format}"
 
@@ -153,7 +150,11 @@ class DerivativeScheduler:
                 (asset_id, kind, variant, source_mtime_ns, stat.st_size),
             ).fetchone()
             derivative_id = int(derivative["id"])
-            if derivative["status"] == "ready" and derivative["cache_path"] and Path(derivative["cache_path"]).is_file():
+            if (
+                derivative["status"] == "ready"
+                and derivative["cache_path"]
+                and Path(derivative["cache_path"]).is_file()
+            ):
                 return derivative_id
             job = conn.execute(
                 """
@@ -316,7 +317,9 @@ class DerivativeScheduler:
                 ).fetchone()[0]
             )
             used = int(
-                conn.execute("SELECT COALESCE(sum(byte_size), 0) FROM asset_derivatives WHERE status = 'ready'").fetchone()[0]
+                conn.execute(
+                    "SELECT COALESCE(sum(byte_size), 0) FROM asset_derivatives WHERE status = 'ready'"
+                ).fetchone()[0]
             )
         return {
             "library_id": library_id,
@@ -366,7 +369,9 @@ class DerivativeScheduler:
         """Clear derivative jobs/catalog rows and delete unserved cache files."""
         _ensure_database()
         with _connect() as conn:
-            paths = [row[0] for row in conn.execute("SELECT cache_path FROM asset_derivatives WHERE cache_path IS NOT NULL")]
+            paths = [
+                row[0] for row in conn.execute("SELECT cache_path FROM asset_derivatives WHERE cache_path IS NOT NULL")
+            ]
             catalog_entries = int(conn.execute("SELECT count(*) FROM asset_derivatives").fetchone()[0])
             conn.execute("DELETE FROM derivative_jobs")
             conn.execute("DELETE FROM asset_derivatives")
@@ -504,7 +509,9 @@ class DerivativeScheduler:
     def _enforce_quota(self) -> None:
         with _connect() as conn:
             total = int(
-                conn.execute("SELECT COALESCE(sum(byte_size), 0) FROM asset_derivatives WHERE status = 'ready'").fetchone()[0]
+                conn.execute(
+                    "SELECT COALESCE(sum(byte_size), 0) FROM asset_derivatives WHERE status = 'ready'"
+                ).fetchone()[0]
             )
             if total <= self.quota_bytes:
                 return

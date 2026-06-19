@@ -8,9 +8,10 @@ export default defineConfig({
     timeout: 10_000,
   },
   webServer: {
-    command: process.env.VITE_COVERAGE === "true"
-      ? "VITE_COVERAGE=true corepack pnpm exec vite --host 127.0.0.1 --port 5173"
-      : "corepack pnpm exec vite --host 127.0.0.1 --port 5173",
+    command:
+      process.env.VITE_COVERAGE === "true"
+        ? "VITE_COVERAGE=true corepack pnpm exec vite --host 127.0.0.1 --port 5173"
+        : "corepack pnpm exec vite --host 127.0.0.1 --port 5173",
     url: "http://127.0.0.1:5173",
     reuseExistingServer: true,
     timeout: 30_000,

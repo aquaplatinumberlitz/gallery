@@ -12,26 +12,12 @@ defineProps<{
 </script>
 
 <template>
-  <div
-    class="gallery-section-header"
-    :class="{ 'is-clickable': clickable }"
-  >
+  <div class="gallery-section-header" :class="{ 'is-clickable': clickable }">
     <h3>{{ title }}</h3>
-    <span
-      v-if="count !== undefined"
-      class="section-count-badge"
-    >
-      <component
-        :is="badgeIcon"
-        v-if="badgeIcon"
-        class="gallery-icon-md"
-      />
+    <span v-if="count !== undefined" class="section-count-badge">
+      <component :is="badgeIcon" v-if="badgeIcon" class="gallery-icon-md" />
       {{ count }}
-      <ChevronDown
-        v-if="clickable"
-        class="toggle-chevron gallery-icon-md"
-        :class="{ collapsed }"
-      />
+      <ChevronDown v-if="clickable" class="toggle-chevron gallery-icon-md" :class="{ collapsed }" />
     </span>
   </div>
 </template>

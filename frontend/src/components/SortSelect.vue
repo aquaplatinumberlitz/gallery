@@ -12,25 +12,14 @@ const modelValue = defineModel<SortValue>({ required: true });
 
 <template>
   <Select v-model="modelValue">
-    <SelectTrigger
-      class="w-[150px]"
-      :aria-label="ariaLabel"
-    >
+    <SelectTrigger class="w-[150px]" :aria-label="ariaLabel">
       <SelectValue />
     </SelectTrigger>
     <SelectContent>
-      <SelectItem value="date_desc">
-        Date modified ↓
-      </SelectItem>
-      <SelectItem value="date_asc">
-        Date modified ↑
-      </SelectItem>
-      <SelectItem value="name_asc">
-        Name A–Z
-      </SelectItem>
-      <SelectItem value="name_desc">
-        Name Z–A
-      </SelectItem>
+      <SelectItem value="date_desc"> Date modified ↓ </SelectItem>
+      <SelectItem value="date_asc"> Date modified ↑ </SelectItem>
+      <SelectItem value="name_asc"> Name A–Z </SelectItem>
+      <SelectItem value="name_desc"> Name Z–A </SelectItem>
     </SelectContent>
   </Select>
 </template>

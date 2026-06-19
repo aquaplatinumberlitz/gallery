@@ -62,7 +62,9 @@ def _checks_for_report(name: str, data: dict[str, Any]) -> list[dict]:
         checks.extend(
             [
                 _check("scan duration", scan.get("durationMs"), budgets.get("scanBudgetMs")),
-                _check("first thumbnail start", thumbnails.get("firstStartAfterClickMs"), budgets.get("firstThumbBudgetMs")),
+                _check(
+                    "first thumbnail start", thumbnails.get("firstStartAfterClickMs"), budgets.get("firstThumbBudgetMs")
+                ),
                 _check("thumbnail p95", thumbnails.get("p95Ms"), budgets.get("thumbP95BudgetMs")),
             ]
         )
@@ -71,7 +73,9 @@ def _checks_for_report(name: str, data: dict[str, Any]) -> list[dict]:
         open_report = data.get("open", {})
         checks.extend(
             [
-                _check("lightbox visible", open_report.get("lightboxVisibleAfterClickMs"), budgets.get("openVisibleMs")),
+                _check(
+                    "lightbox visible", open_report.get("lightboxVisibleAfterClickMs"), budgets.get("openVisibleMs")
+                ),
                 _check(
                     "preview loaded",
                     open_report.get("lightboxPreviewLoadedAfterClickMs"),
@@ -83,7 +87,11 @@ def _checks_for_report(name: str, data: dict[str, Any]) -> list[dict]:
         budgets = data.get("budgets", {})
         transition = data.get("transition", {})
         checks.append(
-            _check("transition preview loaded", transition.get("transitionPreviewLoadedAfterActionMs"), budgets.get("transitionMs"))
+            _check(
+                "transition preview loaded",
+                transition.get("transitionPreviewLoadedAfterActionMs"),
+                budgets.get("transitionMs"),
+            )
         )
     elif "metadataNavigation" in data:
         report = data.get("metadataNavigation", {})
@@ -92,7 +100,9 @@ def _checks_for_report(name: str, data: dict[str, Any]) -> list[dict]:
             [
                 _check("metadata API", report.get("apiDurationMs"), budgets.get("apiMs")),
                 _check("table ready", report.get("clickToTableReadyMs"), budgets.get("tableReadyMs")),
-                _check("API response to first row", report.get("apiResponseToFirstRowMs"), budgets.get("responseRenderMs")),
+                _check(
+                    "API response to first row", report.get("apiResponseToFirstRowMs"), budgets.get("responseRenderMs")
+                ),
                 _check("rendered rows", report.get("renderedRows"), budgets.get("renderedRowsMax"), "rows"),
             ]
         )
@@ -114,7 +124,9 @@ def _checks_for_report(name: str, data: dict[str, Any]) -> list[dict]:
             [
                 _check("search API", report.get("finalApiDurationMs"), budgets.get("apiMs")),
                 _check("search total", report.get("totalMs"), budgets.get("totalMs")),
-                _check("search response to update", report.get("finalResponseToUpdateMs"), budgets.get("responseRenderMs")),
+                _check(
+                    "search response to update", report.get("finalResponseToUpdateMs"), budgets.get("responseRenderMs")
+                ),
                 _check("search requests", report.get("requestsWhileTyping"), budgets.get("requestsMax"), "requests"),
                 _check("rendered rows", report.get("renderedRows"), budgets.get("renderedRowsMax"), "rows"),
             ]
@@ -127,9 +139,15 @@ def _checks_for_report(name: str, data: dict[str, Any]) -> list[dict]:
             label = "scan p95"
         checks.append(_check(label, data.get("p95_ms"), data.get("budget_p95_ms")))
         if "returned" in data:
-            checks.append(_check("returned rows", data.get("returned"), data.get("min_rows"), "rows", lower_is_better=False))
+            checks.append(
+                _check("returned rows", data.get("returned"), data.get("min_rows"), "rows", lower_is_better=False)
+            )
         if "image_count" in data:
-            checks.append(_check("returned images", data.get("image_count"), data.get("min_images"), "images", lower_is_better=False))
+            checks.append(
+                _check(
+                    "returned images", data.get("image_count"), data.get("min_images"), "images", lower_is_better=False
+                )
+            )
     elif "warm" in data:
         warm = data.get("warm") or {}
         checks.append(_check("warm listing", warm.get("duration_ms"), data.get("budget_ms")))
@@ -178,6 +196,7 @@ def _write_markdown(path: Path, summary: dict[str, Any]) -> None:
 
 
 def summarize(results_dir: Path) -> dict[str, Any]:
+    """Aggregate performance report files into one summary."""
     reports: list[dict[str, Any]] = []
     for path in sorted(results_dir.glob("*.json")):
         if path.name in {"perf-summary.json"}:
@@ -188,7 +207,9 @@ def summarize(results_dir: Path) -> dict[str, Any]:
             reports.append({"file": path.name, "status": "error", "error": str(exc), "checks": []})
             continue
         if not isinstance(data, dict):
-            reports.append({"file": path.name, "status": "error", "error": "report root is not an object", "checks": []})
+            reports.append(
+                {"file": path.name, "status": "error", "error": "report root is not an object", "checks": []}
+            )
             continue
         checks = _checks_for_report(path.name, data)
         reports.append({"file": path.name, "status": _report_status(data, checks), "checks": checks})
@@ -207,8 +228,11 @@ def summarize(results_dir: Path) -> dict[str, Any]:
 
 
 def main() -> int:
+    """Write JSON and Markdown summaries for performance reports."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--results-dir", default="frontend/test-results/perf", help="directory containing perf JSON reports")
+    parser.add_argument(
+        "--results-dir", default="frontend/test-results/perf", help="directory containing perf JSON reports"
+    )
     parser.add_argument("--output", default="", help="summary JSON output path")
     parser.add_argument("--markdown-output", default="", help="summary Markdown output path")
     parser.add_argument("--fail-on-regression", action="store_true", help="exit non-zero when any report fails")
@@ -219,9 +243,7 @@ def main() -> int:
     summary = summarize(results_dir)
 
     output = Path(args.output).resolve() if args.output else results_dir / "perf-summary.json"
-    markdown_output = (
-        Path(args.markdown_output).resolve() if args.markdown_output else results_dir / "perf-summary.md"
-    )
+    markdown_output = Path(args.markdown_output).resolve() if args.markdown_output else results_dir / "perf-summary.md"
     output.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     _write_markdown(markdown_output, summary)
 

@@ -39,7 +39,7 @@ description = "Playwright: album open scan + first thumbnail + thumbnail p95"
 open_ms = 500
 transition_ms = 1000
 preview_check_ms = 200
-description = "Playwright: lightbox open + transition + preview check"
+description = "Playwright: lightbox open + transition + warm preview request p95"
 
 [metadata_nav]
 nav_ms = 2000

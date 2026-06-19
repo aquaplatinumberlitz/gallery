@@ -43,9 +43,7 @@ export function compactStats(values: number[]) {
  * may not be polyfilled identically.
  */
 export function nowMs(): number {
-  return typeof performance !== "undefined" && typeof performance.now === "function"
-    ? performance.now()
-    : Date.now();
+  return typeof performance !== "undefined" && typeof performance.now === "function" ? performance.now() : Date.now();
 }
 
 export type BudgetSource = {
@@ -82,12 +80,8 @@ export function loadBudgets(env: NodeJS.ProcessEnv = process.env): BudgetSource 
     metadata_nav: {
       nav_ms: Number(env.GALLERY_PERF_METADATA_NAV_BUDGET_MS ?? metadataNav.nav_ms),
       render_ms: Number(env.GALLERY_PERF_METADATA_RENDER_BUDGET_MS ?? metadataNav.render_ms),
-      search_debounce_ms: Number(
-        env.GALLERY_PERF_METADATA_SEARCH_DEBOUNCE_BUDGET_MS ?? metadataNav.search_debounce_ms,
-      ),
-      state_restore_ms: Number(
-        env.GALLERY_PERF_METADATA_STATE_RESTORE_BUDGET_MS ?? metadataNav.state_restore_ms,
-      ),
+      search_debounce_ms: Number(env.GALLERY_PERF_METADATA_SEARCH_DEBOUNCE_BUDGET_MS ?? metadataNav.search_debounce_ms),
+      state_restore_ms: Number(env.GALLERY_PERF_METADATA_STATE_RESTORE_BUDGET_MS ?? metadataNav.state_restore_ms),
     },
   };
 }

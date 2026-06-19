@@ -182,10 +182,7 @@ describe("useScrollVisibility", () => {
         setup() {
           const r = useScrollVisibility(containerRef);
           barsVisible = r.barsVisible;
-          return () =>
-            h("div", { ref: containerRef, class: "container" }, [
-              h("div", { style: "height: 2000px" }),
-            ]);
+          return () => h("div", { ref: containerRef, class: "container" }, [h("div", { style: "height: 2000px" })]);
         },
       }),
       { attachTo: document.body },

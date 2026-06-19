@@ -68,9 +68,10 @@ describe("usePullToRefresh", () => {
     installScroller(0);
     let resolveRefresh: () => void = () => {};
     const onRefresh = vi.fn(
-      () => new Promise<void>((resolve) => {
-        resolveRefresh = resolve;
-      }),
+      () =>
+        new Promise<void>((resolve) => {
+          resolveRefresh = resolve;
+        }),
     );
     const { result } = setupPullToRefresh({ onRefresh });
     result.onTouchStart(makeTouchEvent(null, 100, 200));

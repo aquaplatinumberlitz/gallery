@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { INDEX_FIELD_COPY, INDEX_STATUS_LABELS, getFieldCopy, getFieldLabel, getFieldTooltip } from "../indexStatusCopy";
+import {
+  INDEX_FIELD_COPY,
+  INDEX_STATUS_LABELS,
+  getFieldCopy,
+  getFieldLabel,
+  getFieldTooltip,
+} from "../indexStatusCopy";
 
 describe("INDEX_FIELD_COPY", () => {
   it("exposes copy for the core fields used by the status panel", () => {

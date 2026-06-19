@@ -21,9 +21,10 @@ from __future__ import annotations
 import json
 import math
 import tomllib
+from collections.abc import Iterable
 from pathlib import Path
 from statistics import median
-from typing import Any, Iterable
+from typing import Any
 
 
 def load_budgets(path: str | Path | None = None) -> dict[str, dict[str, Any]]:

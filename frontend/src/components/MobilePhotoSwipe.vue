@@ -36,20 +36,14 @@ usePhotoSwipe({
 </script>
 
 <template>
-  <div
-    ref="containerRef"
-    class="mobile-photoswipe-container"
-  />
+  <div ref="containerRef" class="mobile-photoswipe-container" />
   <button
     v-if="!metadataOpen"
     class="lightbox-floating-control lightbox-floating-control--mobile"
     :aria-label="'View image info'"
     @click.stop="emit('toggleMetadata')"
   >
-    <Info
-      :size="22"
-      :stroke-width="2.2"
-    />
+    <Info :size="22" :stroke-width="2.2" />
   </button>
 </template>
 

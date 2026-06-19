@@ -161,10 +161,7 @@ function handleClearAll() {
 </script>
 
 <template>
-  <header
-    role="banner"
-    class="content-header grid grid-cols-[auto_1fr_auto] items-start gap-3 shrink-0"
-  >
+  <header role="banner" class="content-header grid grid-cols-[auto_1fr_auto] items-start gap-3 shrink-0">
     <div class="header-left flex items-center gap-3">
       <Tooltip>
         <TooltipTrigger as-child>
@@ -196,25 +193,14 @@ function handleClearAll() {
         <TooltipContent>Change Intro Page</TooltipContent>
       </Tooltip>
     </div>
-    <div
-      v-if="!isMetadataRoute"
-      class="brand-hero flex items-center justify-center gap-3 text-center"
-    >
+    <div v-if="!isMetadataRoute" class="brand-hero flex items-center justify-center gap-3 text-center">
       <div class="brand-icon flicker-effect">
         <Landmark :size="40" />
       </div>
       <div class="brand-text text-left">
-        <p class="eyebrow">
-          Local collections
-        </p>
+        <p class="eyebrow">Local collections</p>
         <h1 class="brand-title">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 640 640"
-            width="18"
-            height="18"
-            class="title-sparkle"
-          >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="18" height="18" class="title-sparkle">
             <path
               fill="currentColor"
               d="M480 96L512 24L544 96L616 128L544 160L512 232L480 160L408 128L480 96zM160 256L224 112L288 256L432 320L288 384L224 528L160 384L16 320L160 256zM480 408L512 480L584 512L512 544L480 616L448 544L376 512L448 480L480 408z"
@@ -241,57 +227,29 @@ function handleClearAll() {
         </ButtonLink>
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Theme"
-            >
-              <Sun
-                v-if="resolvedTheme === 'light'"
-                class="size-4"
-              />
-              <Moon
-                v-else
-                class="size-4"
-              />
+            <Button variant="ghost" size="icon" aria-label="Theme">
+              <Sun v-if="resolvedTheme === 'light'" class="size-4" />
+              <Moon v-else class="size-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              @click="setTheme('light')"
-              :class="{ 'bg-accent': mode === 'light' }"
-            >
+            <DropdownMenuItem @click="setTheme('light')" :class="{ 'bg-accent': mode === 'light' }">
               <Sun class="mr-2 size-4" /> Light
             </DropdownMenuItem>
-            <DropdownMenuItem
-              @click="setTheme('dark')"
-              :class="{ 'bg-accent': mode === 'dark' }"
-            >
+            <DropdownMenuItem @click="setTheme('dark')" :class="{ 'bg-accent': mode === 'dark' }">
               <Moon class="mr-2 size-4" /> Dark
             </DropdownMenuItem>
-            <DropdownMenuItem
-              @click="setTheme('system')"
-              :class="{ 'bg-accent': mode === 'system' }"
-            >
+            <DropdownMenuItem @click="setTheme('system')" :class="{ 'bg-accent': mode === 'system' }">
               <Monitor class="mr-2 size-4" /> System
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <div
-        v-if="!isMetadataRoute"
-        class="header-search-area"
-      >
+      <div v-if="!isMetadataRoute" class="header-search-area">
         <div class="search-box">
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button
-                variant="ghost"
-                size="icon"
-                class="search-icon-btn"
-                type="button"
-                aria-label="Search"
-              >
+              <Button variant="ghost" size="icon" class="search-icon-btn" type="button" aria-label="Search">
                 <Search class="gallery-icon-toolbar" />
               </Button>
             </TooltipTrigger>
@@ -321,18 +279,9 @@ function handleClearAll() {
             </TooltipTrigger>
             <TooltipContent>Clear search</TooltipContent>
           </Tooltip>
-          <select
-            class="scope-select"
-            :value="searchScope"
-            aria-label="Search scope"
-            @change="onScopeChange"
-          >
-            <option value="current">
-              This folder
-            </option>
-            <option value="all">
-              All indexed
-            </option>
+          <select class="scope-select" :value="searchScope" aria-label="Search scope" @change="onScopeChange">
+            <option value="current">This folder</option>
+            <option value="all">All indexed</option>
           </select>
           <Tooltip>
             <TooltipTrigger as-child>
@@ -351,11 +300,7 @@ function handleClearAll() {
             <TooltipContent>Advanced Search</TooltipContent>
           </Tooltip>
         </div>
-        <SearchFilterChips
-          :filters="fieldedFilters"
-          @remove="handleRemoveFilter"
-          @clear-all="handleClearAll"
-        />
+        <SearchFilterChips :filters="fieldedFilters" @remove="handleRemoveFilter" @clear-all="handleClearAll" />
       </div>
       <AdvancedSearchDrawer
         :is-open="isAdvancedSearchOpen"

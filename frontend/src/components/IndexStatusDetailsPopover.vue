@@ -43,175 +43,101 @@ function formatUpdatedAt(value: number | null | undefined) {
 </script>
 
 <template>
-  <div
-    class="index-details"
-    aria-label="Index Status"
-  >
+  <div class="index-details" aria-label="Index Status">
     <div class="index-details__header">
       <div>
-        <p class="index-details__eyebrow">
-          Index
-        </p>
+        <p class="index-details__eyebrow">Index</p>
       </div>
       <IndexStatusBadge :presentation="presentation" />
     </div>
-    <p
-      v-if="globalWorkOutsideScope"
-      class="index-details__muted"
-      style="margin: 0; font-size: 12px"
-    >
+    <p v-if="globalWorkOutsideScope" class="index-details__muted" style="margin: 0; font-size: 12px">
       Indexer working in another folder
     </p>
 
-    <div
-      v-if="isLoading"
-      class="index-details__muted"
-    >
-      Loading index status...
-    </div>
+    <div v-if="isLoading" class="index-details__muted">Loading index status...</div>
 
-    <div
-      v-else-if="isError"
-      class="index-details__error"
-    >
+    <div v-else-if="isError" class="index-details__error">
       {{ errorMessage || "Failed to load status" }}
     </div>
 
     <template v-else>
       <div class="index-details__section">
-        <p class="index-details__section-label">
-          Library
-        </p>
+        <p class="index-details__section-label">Library</p>
 
-        <Tooltip
-          v-if="photosFoundTooltip"
-          :delay-duration="800"
-        >
+        <Tooltip v-if="photosFoundTooltip" :delay-duration="800">
           <TooltipTrigger as-child>
             <div class="index-details__row has-tooltip">
               <span class="index-details__row-key">Photos found</span>
               <strong>{{ formatCount(data?.indexed_photos ?? 0) }}</strong>
             </div>
           </TooltipTrigger>
-          <TooltipContent
-            side="left"
-            align="start"
-            class="max-w-[220px] text-xs whitespace-pre-line"
-          >
+          <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
             {{ photosFoundTooltip }}
           </TooltipContent>
         </Tooltip>
-        <div
-          v-else
-          class="index-details__row"
-        >
+        <div v-else class="index-details__row">
           <span class="index-details__row-key">Photos found</span>
           <strong>{{ formatCount(data?.indexed_photos ?? 0) }}</strong>
         </div>
 
-        <Tooltip
-          v-if="photoDetailsReadyTooltip"
-          :delay-duration="800"
-        >
+        <Tooltip v-if="photoDetailsReadyTooltip" :delay-duration="800">
           <TooltipTrigger as-child>
             <div class="index-details__row has-tooltip">
               <span class="index-details__row-key">Photo details ready</span>
               <strong>{{ formatCount(data?.metadata_records ?? 0) }}</strong>
             </div>
           </TooltipTrigger>
-          <TooltipContent
-            side="left"
-            align="start"
-            class="max-w-[220px] text-xs whitespace-pre-line"
-          >
+          <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
             {{ photoDetailsReadyTooltip }}
           </TooltipContent>
         </Tooltip>
-        <div
-          v-else
-          class="index-details__row"
-        >
+        <div v-else class="index-details__row">
           <span class="index-details__row-key">Photo details ready</span>
           <strong>{{ formatCount(data?.metadata_records ?? 0) }}</strong>
         </div>
       </div>
 
-      <div
-        v-if="presentation.status === 'indexing'"
-        class="index-details__section"
-      >
-        <p class="index-details__section-label">
-          Processing
-        </p>
+      <div v-if="presentation.status === 'indexing'" class="index-details__section">
+        <p class="index-details__section-label">Processing</p>
 
-        <Tooltip
-          v-if="detailsProcessedTooltip"
-          :delay-duration="800"
-        >
+        <Tooltip v-if="detailsProcessedTooltip" :delay-duration="800">
           <TooltipTrigger as-child>
             <p
               class="index-details__muted has-tooltip"
               style="margin: 0; font-size: 12px; color: var(--muted-foreground)"
             >
               {{ formatCount(progress.indexed)
-              }}<template v-if="progress.total !== null">
-                / {{ formatCount(progress.total) }}
-              </template> details
+              }}<template v-if="progress.total !== null"> / {{ formatCount(progress.total) }} </template> details
               processed
             </p>
           </TooltipTrigger>
-          <TooltipContent
-            side="left"
-            align="start"
-            class="max-w-[220px] text-xs whitespace-pre-line"
-          >
+          <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
             {{ detailsProcessedTooltip }}
           </TooltipContent>
         </Tooltip>
-        <p
-          v-else
-          class="index-details__muted"
-          style="margin: 0; font-size: 12px"
-        >
+        <p v-else class="index-details__muted" style="margin: 0; font-size: 12px">
           {{ formatCount(progress.indexed)
-          }}<template v-if="progress.total !== null">
-            / {{ formatCount(progress.total) }}
-          </template> details processed
+          }}<template v-if="progress.total !== null"> / {{ formatCount(progress.total) }} </template> details processed
         </p>
 
-        <IndexProgressBar
-          v-if="progress.percent !== null"
-          :percent="progress.percent"
-        />
+        <IndexProgressBar v-if="progress.percent !== null" :percent="progress.percent" />
       </div>
 
       <div class="index-details__section">
-        <p class="index-details__section-label">
-          Location
-        </p>
+        <p class="index-details__section-label">Location</p>
 
-        <Tooltip
-          v-if="folderTooltip"
-          :delay-duration="800"
-        >
+        <Tooltip v-if="folderTooltip" :delay-duration="800">
           <TooltipTrigger as-child>
             <div class="index-details__row index-details__row--path has-tooltip">
               <span class="index-details__row-key">Folder</span>
               <strong :title="data?.path || path">{{ data?.path || path }}</strong>
             </div>
           </TooltipTrigger>
-          <TooltipContent
-            side="left"
-            align="start"
-            class="max-w-[220px] text-xs whitespace-pre-line"
-          >
+          <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
             {{ folderTooltip }}
           </TooltipContent>
         </Tooltip>
-        <div
-          v-else
-          class="index-details__row index-details__row--path"
-        >
+        <div v-else class="index-details__row index-details__row--path">
           <span class="index-details__row-key">Folder</span>
           <strong :title="data?.path || path">{{ data?.path || path }}</strong>
         </div>
@@ -222,40 +148,26 @@ function formatUpdatedAt(value: number | null | undefined) {
         </div>
       </div>
 
-      <div
-        v-if="counts.failed > 0"
-        class="index-details__section"
-      >
-        <p class="index-details__section-label">
-          Issues
-        </p>
+      <div v-if="counts.failed > 0" class="index-details__section">
+        <p class="index-details__section-label">Issues</p>
         <div class="index-details__row">
           <span class="index-details__row-key index-details__row-key--error">Failed jobs</span>
           <strong>{{ formatCount(counts.failed) }}</strong>
         </div>
       </div>
 
-      <div
-        v-if="formatUpdatedAt(data?.updated_at)"
-        class="index-details__row"
-      >
+      <div v-if="formatUpdatedAt(data?.updated_at)" class="index-details__row">
         <span class="index-details__row-key">Last scan</span>
         <strong>{{ formatUpdatedAt(data?.updated_at) }}</strong>
       </div>
 
-      <div
-        v-if="data?.last_error"
-        class="index-details__last-error"
-      >
+      <div v-if="data?.last_error" class="index-details__last-error">
         <strong>Last error</strong>
         <span>{{ data.last_error.message }}</span>
       </div>
     </template>
 
-    <div
-      v-if="actionError"
-      class="index-details__error"
-    >
+    <div v-if="actionError" class="index-details__error">
       {{ actionError }}
     </div>
 
@@ -268,12 +180,7 @@ function formatUpdatedAt(value: number | null | undefined) {
       <Tooltip>
         <TooltipTrigger as-child>
           <span class="inline-flex">
-            <Button
-              variant="outline"
-              size="sm"
-              :disabled="!path || !!actionPending"
-              @click="emit('rescan')"
-            >
+            <Button variant="outline" size="sm" :disabled="!path || !!actionPending" @click="emit('rescan')">
               {{ actionPending === "rescan" ? "Rescanning..." : "Rescan" }}
             </Button>
           </span>
@@ -283,12 +190,7 @@ function formatUpdatedAt(value: number | null | undefined) {
       <Tooltip>
         <TooltipTrigger as-child>
           <span class="inline-flex">
-            <Button
-              variant="secondary"
-              size="sm"
-              :disabled="!path || !!actionPending"
-              @click="emit('rebuild')"
-            >
+            <Button variant="secondary" size="sm" :disabled="!path || !!actionPending" @click="emit('rebuild')">
               {{ actionPending === "rebuild" ? "Rebuilding..." : "Rebuild" }}
             </Button>
           </span>

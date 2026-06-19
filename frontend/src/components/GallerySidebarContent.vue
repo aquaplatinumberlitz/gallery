@@ -33,33 +33,17 @@ const indexStatusVariant = computed(() => (isMobile.value || isCollapsed.value ?
 
   <SidebarContent>
     <SidebarGroup>
-      <SidebarGroupLabel
-        as="div"
-        class="sidebar-title"
-        id="folder-tree-label"
-      >
+      <SidebarGroupLabel as="div" class="sidebar-title" id="folder-tree-label">
         <span>Folder Tree</span>
-        <span
-          v-if="isLoading"
-          class="loading-pill"
-        > <Loader class="gallery-icon-md lucide-spin" /> Loading </span>
+        <span v-if="isLoading" class="loading-pill"> <Loader class="gallery-icon-md lucide-spin" /> Loading </span>
       </SidebarGroupLabel>
 
       <SidebarGroupContent>
         <div class="tree-container">
-          <p
-            v-if="!isLoading && !tree.length"
-            class="empty-state group-data-[collapsible=icon]:hidden"
-          >
+          <p v-if="!isLoading && !tree.length" class="empty-state group-data-[collapsible=icon]:hidden">
             Enter a root path and click Load to start.
           </p>
-          <FolderTreeItem
-            v-for="node in tree"
-            :key="node.path"
-            :node="node"
-            :active-path="currentPath"
-            :level="1"
-          />
+          <FolderTreeItem v-for="node in tree" :key="node.path" :node="node" :active-path="currentPath" :level="1" />
         </div>
       </SidebarGroupContent>
     </SidebarGroup>
@@ -68,10 +52,7 @@ const indexStatusVariant = computed(() => (isMobile.value || isCollapsed.value ?
   <SidebarFooter
     class="border-t border-border p-2 overflow-hidden group-data-[collapsible=icon]:p-1 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center"
   >
-    <IndexStatusPanel
-      :path="currentPath"
-      :variant="indexStatusVariant"
-    />
+    <IndexStatusPanel :path="currentPath" :variant="indexStatusVariant" />
   </SidebarFooter>
 </template>
 

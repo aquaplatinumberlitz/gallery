@@ -33,11 +33,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits);
       "
     >
       <slot />
-      <TooltipArrow
-        :width="8"
-        :height="4"
-        class="fill-primary"
-      />
+      <TooltipArrow :width="8" :height="4" class="fill-primary" />
     </TooltipContent>
   </TooltipPortal>
 </template>

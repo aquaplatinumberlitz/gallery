@@ -188,10 +188,7 @@ function onRebuildCancelled() {
     @rebuild="onRebuildRequested"
   />
 
-  <Popover
-    v-else
-    @update:open="onOpenChange"
-  >
+  <Popover v-else @update:open="onOpenChange">
     <PopoverTrigger as-child>
       <Button
         variant="outline"
@@ -226,31 +223,18 @@ function onRebuildCancelled() {
         </Badge>
       </Button>
     </PopoverTrigger>
-    <PopoverContent
-      class="w-72 p-4"
-      align="end"
-      :side-offset="8"
-    >
-      <div
-        v-if="isLoading"
-        class="flex items-center gap-2 text-sm text-muted-foreground"
-      >
+    <PopoverContent class="w-72 p-4" align="end" :side-offset="8">
+      <div v-if="isLoading" class="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader class="size-4 animate-spin" />
         Loading index status...
       </div>
 
-      <div
-        v-else-if="isError"
-        class="flex items-start gap-2 text-sm"
-      >
+      <div v-else-if="isError" class="flex items-start gap-2 text-sm">
         <AlertCircle class="size-4 text-destructive shrink-0 mt-0.5" />
         <span class="text-destructive">{{ (error as Error)?.message || "Failed to load status" }}</span>
       </div>
 
-      <div
-        v-else-if="data"
-        class="space-y-3"
-      >
+      <div v-else-if="data" class="space-y-3">
         <!-- Header row: icon + status badge -->
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
@@ -271,34 +255,18 @@ function onRebuildCancelled() {
           </p>
 
           <!-- Updating state -->
-          <p
-            v-else-if="statusPresentation.status === 'indexing'"
-            class="text-xs text-muted-foreground"
-          >
+          <p v-else-if="statusPresentation.status === 'indexing'" class="text-xs text-muted-foreground">
             Updating photo details…
           </p>
 
           <!-- Error state -->
-          <p
-            v-else-if="statusPresentation.status === 'error'"
-            class="text-xs text-muted-foreground"
-          >
+          <p v-else-if="statusPresentation.status === 'error'" class="text-xs text-muted-foreground">
             {{ compactErrorSummary }}
           </p>
 
           <!-- Unknown / other -->
-          <p
-            v-else
-            class="text-xs text-muted-foreground"
-          >
-            Index status unavailable
-          </p>
-          <p
-            v-if="globalWorkOutsideScope"
-            class="text-xs text-muted-foreground"
-          >
-            Indexer working in another folder
-          </p>
+          <p v-else class="text-xs text-muted-foreground">Index status unavailable</p>
+          <p v-if="globalWorkOutsideScope" class="text-xs text-muted-foreground">Indexer working in another folder</p>
         </div>
 
         <!-- Details toggle -->
@@ -308,100 +276,63 @@ function onRebuildCancelled() {
           :aria-expanded="showDetails"
           @click="showDetails = !showDetails"
         >
-          <ChevronRight
-            v-if="!showDetails"
-            class="size-3"
-          />
-          <ChevronDown
-            v-else
-            class="size-3"
-          />
+          <ChevronRight v-if="!showDetails" class="size-3" />
+          <ChevronDown v-else class="size-3" />
           Details
         </button>
 
         <!-- Details content -->
-        <div
-          v-if="showDetails"
-          class="space-y-3 border-t pt-2"
-        >
+        <div v-if="showDetails" class="space-y-3 border-t pt-2">
           <div class="space-y-1.5">
-            <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-              Library
-            </p>
+            <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Library</p>
 
-            <Tooltip
-              v-if="photosFoundTooltip"
-              :delay-duration="800"
-            >
+            <Tooltip v-if="photosFoundTooltip" :delay-duration="800">
               <TooltipTrigger as-child>
                 <div class="flex items-center justify-between text-xs">
                   <span class="text-muted-foreground cursor-default">Photos found</span>
                   <span class="text-right font-medium">{{ (data.indexed_photos ?? 0).toLocaleString() }}</span>
                 </div>
               </TooltipTrigger>
-              <TooltipContent
-                side="left"
-                align="start"
-                class="max-w-[220px] text-xs whitespace-pre-line"
-              >
+              <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
                 {{ photosFoundTooltip }}
               </TooltipContent>
             </Tooltip>
-            <div
-              v-else
-              class="flex items-center justify-between text-xs"
-            >
+            <div v-else class="flex items-center justify-between text-xs">
               <span class="text-muted-foreground">Photos found</span>
               <span class="text-right font-medium">{{ (data.indexed_photos ?? 0).toLocaleString() }}</span>
             </div>
 
-            <Tooltip
-              v-if="photoDetailsReadyTooltip"
-              :delay-duration="800"
-            >
+            <Tooltip v-if="photoDetailsReadyTooltip" :delay-duration="800">
               <TooltipTrigger as-child>
                 <div class="flex items-center justify-between text-xs">
                   <span class="text-muted-foreground cursor-default">Photo details ready</span>
                   <span class="text-right font-medium">
                     {{ (data.metadata_records ?? 0).toLocaleString() }}
                     <template v-if="statusPresentation.status === 'indexing'">
-                      / {{ (data.indexed_photos ?? 0).toLocaleString() }}</template>
+                      / {{ (data.indexed_photos ?? 0).toLocaleString() }}</template
+                    >
                   </span>
                 </div>
               </TooltipTrigger>
-              <TooltipContent
-                side="left"
-                align="start"
-                class="max-w-[220px] text-xs whitespace-pre-line"
-              >
+              <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
                 {{ photoDetailsReadyTooltip }}
               </TooltipContent>
             </Tooltip>
-            <div
-              v-else
-              class="flex items-center justify-between text-xs"
-            >
+            <div v-else class="flex items-center justify-between text-xs">
               <span class="text-muted-foreground">Photo details ready</span>
               <span class="text-right font-medium">
                 {{ (data.metadata_records ?? 0).toLocaleString() }}
                 <template v-if="statusPresentation.status === 'indexing'">
-                  / {{ (data.indexed_photos ?? 0).toLocaleString() }}</template>
+                  / {{ (data.indexed_photos ?? 0).toLocaleString() }}</template
+                >
               </span>
             </div>
           </div>
 
-          <div
-            v-if="statusPresentation.status === 'indexing'"
-            class="space-y-1.5"
-          >
-            <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-              Processing
-            </p>
+          <div v-if="statusPresentation.status === 'indexing'" class="space-y-1.5">
+            <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Processing</p>
 
-            <Tooltip
-              v-if="detailsProcessedTooltip"
-              :delay-duration="800"
-            >
+            <Tooltip v-if="detailsProcessedTooltip" :delay-duration="800">
               <TooltipTrigger as-child>
                 <p class="text-xs text-muted-foreground cursor-default">
                   {{ progressInfo.indexed.toLocaleString()
@@ -411,68 +342,38 @@ function onRebuildCancelled() {
                   details processed
                 </p>
               </TooltipTrigger>
-              <TooltipContent
-                side="left"
-                align="start"
-                class="max-w-[220px] text-xs whitespace-pre-line"
-              >
+              <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
                 {{ detailsProcessedTooltip }}
               </TooltipContent>
             </Tooltip>
-            <p
-              v-else
-              class="text-xs text-muted-foreground"
-            >
+            <p v-else class="text-xs text-muted-foreground">
               {{ progressInfo.indexed.toLocaleString()
-              }}<template v-if="progressInfo.total !== null">
-                / {{ progressInfo.total.toLocaleString() }}
-              </template>
+              }}<template v-if="progressInfo.total !== null"> / {{ progressInfo.total.toLocaleString() }} </template>
               details processed
             </p>
 
-            <IndexProgressBar
-              v-if="progressInfo.percent !== null"
-              :percent="progressInfo.percent"
-            />
+            <IndexProgressBar v-if="progressInfo.percent !== null" :percent="progressInfo.percent" />
           </div>
 
           <div class="space-y-1.5">
-            <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-              Location
-            </p>
+            <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Location</p>
 
-            <Tooltip
-              v-if="folderTooltip"
-              :delay-duration="800"
-            >
+            <Tooltip v-if="folderTooltip" :delay-duration="800">
               <TooltipTrigger as-child>
                 <div class="flex items-center justify-between text-xs">
                   <span class="text-muted-foreground cursor-default">Folder</span>
-                  <span
-                    class="text-right font-medium truncate ml-2 max-w-[150px]"
-                    :title="data.path || path"
-                  >{{
+                  <span class="text-right font-medium truncate ml-2 max-w-[150px]" :title="data.path || path">{{
                     data.path || path
                   }}</span>
                 </div>
               </TooltipTrigger>
-              <TooltipContent
-                side="left"
-                align="start"
-                class="max-w-[220px] text-xs whitespace-pre-line"
-              >
+              <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
                 {{ folderTooltip }}
               </TooltipContent>
             </Tooltip>
-            <div
-              v-else
-              class="flex items-center justify-between text-xs"
-            >
+            <div v-else class="flex items-center justify-between text-xs">
               <span class="text-muted-foreground">Folder</span>
-              <span
-                class="text-right font-medium truncate ml-2 max-w-[150px]"
-                :title="data.path || path"
-              >{{
+              <span class="text-right font-medium truncate ml-2 max-w-[150px]" :title="data.path || path">{{
                 data.path || path
               }}</span>
             </div>
@@ -483,26 +384,16 @@ function onRebuildCancelled() {
             </div>
           </div>
 
-          <div
-            v-if="counts.failed > 0"
-            class="space-y-1.5"
-          >
-            <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-              Issues
-            </p>
+          <div v-if="counts.failed > 0" class="space-y-1.5">
+            <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Issues</p>
             <div class="flex items-center justify-between text-xs">
               <span class="text-destructive">Failed jobs</span>
               <span class="text-right font-medium">{{ counts.failed }}</span>
             </div>
           </div>
 
-          <div
-            v-if="isDebugEnabled"
-            class="space-y-1.5"
-          >
-            <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-              Debug
-            </p>
+          <div v-if="isDebugEnabled" class="space-y-1.5">
+            <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Debug</p>
             <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
               <span class="text-muted-foreground">Workers</span>
               <span class="text-right font-medium">{{ data.worker_count }}</span>
@@ -517,10 +408,7 @@ function onRebuildCancelled() {
         </div>
 
         <!-- Last error -->
-        <div
-          v-if="data.last_error"
-          class="rounded-md bg-destructive/10 p-2 text-xs"
-        >
+        <div v-if="data.last_error" class="rounded-md bg-destructive/10 p-2 text-xs">
           <span class="font-medium text-destructive">Last Error:</span>
           <p class="text-muted-foreground mt-0.5">
             {{ data.last_error.message }}
@@ -532,40 +420,20 @@ function onRebuildCancelled() {
       </div>
 
       <!-- Empty state when no data and not loading/error -->
-      <div
-        v-else
-        class="text-sm text-muted-foreground text-center py-2"
-      >
-        No index status available
-      </div>
+      <div v-else class="text-sm text-muted-foreground text-center py-2">No index status available</div>
     </PopoverContent>
   </Popover>
 
   <Dialog v-model:open="showRebuildConfirm">
-    <DialogContent
-      role="alertdialog"
-      aria-modal="true"
-    >
+    <DialogContent role="alertdialog" aria-modal="true">
       <DialogTitle>Rebuild?</DialogTitle>
       <DialogDescription>
         Rebuild clears this folder's index and extracted metadata cache before indexing again. Source image files are
         not deleted.
       </DialogDescription>
       <div class="flex justify-end gap-2 mt-4">
-        <Button
-          variant="outline"
-          size="sm"
-          @click="onRebuildCancelled"
-        >
-          Cancel
-        </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          @click="onRebuildConfirmed"
-        >
-          Rebuild
-        </Button>
+        <Button variant="outline" size="sm" @click="onRebuildCancelled"> Cancel </Button>
+        <Button variant="secondary" size="sm" @click="onRebuildConfirmed"> Rebuild </Button>
       </div>
     </DialogContent>
   </Dialog>

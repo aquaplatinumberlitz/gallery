@@ -31,11 +31,7 @@ const containerStyle = computed(() => {
 </script>
 
 <template>
-  <div
-    class="glow-container"
-    :class="{ 'glow-disabled': disabled }"
-    :style="containerStyle"
-  >
+  <div class="glow-container" :class="{ 'glow-disabled': disabled }" :style="containerStyle">
     <slot />
   </div>
 </template>

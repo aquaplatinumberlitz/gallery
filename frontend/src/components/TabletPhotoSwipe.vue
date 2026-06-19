@@ -55,10 +55,7 @@ function toggleZoom() {
 </script>
 
 <template>
-  <div
-    ref="containerRef"
-    class="tablet-photoswipe-container"
-  />
+  <div ref="containerRef" class="tablet-photoswipe-container" />
 
   <div class="tablet-photoswipe-counter">
     {{ counter }}
@@ -70,26 +67,15 @@ function toggleZoom() {
       aria-label="Close"
       @click="emit('close')"
     >
-      <X
-        :size="22"
-        :stroke-width="2.2"
-      />
+      <X :size="22" :stroke-width="2.2" />
     </button>
     <button
       class="lightbox-floating-control lightbox-floating-control--tablet"
       :aria-label="isZoomed ? 'Zoom out' : 'Zoom in'"
       @click="toggleZoom"
     >
-      <ZoomOut
-        v-if="isZoomed"
-        :size="22"
-        :stroke-width="2.2"
-      />
-      <ZoomIn
-        v-else
-        :size="22"
-        :stroke-width="2.2"
-      />
+      <ZoomOut v-if="isZoomed" :size="22" :stroke-width="2.2" />
+      <ZoomIn v-else :size="22" :stroke-width="2.2" />
     </button>
     <button
       class="lightbox-floating-control lightbox-floating-control--tablet"
@@ -97,10 +83,7 @@ function toggleZoom() {
       :aria-label="metadataOpen ? 'Close image info' : 'View image info'"
       @click="emit('toggleMetadata')"
     >
-      <Info
-        :size="22"
-        :stroke-width="2.2"
-      />
+      <Info :size="22" :stroke-width="2.2" />
     </button>
   </div>
 </template>

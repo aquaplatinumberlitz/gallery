@@ -582,31 +582,15 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
 </script>
 
 <template>
-  <section
-    class="library-inspector"
-    aria-labelledby="library-inspector-title"
-  >
+  <section class="library-inspector" aria-labelledby="library-inspector-title">
     <div class="inspector-header">
       <div class="inspector-heading">
-        <ButtonLink
-          to="/"
-          variant="outline"
-          size="sm"
-          class="h-8 shrink-0 gap-1.5"
-        >
-          <ArrowLeft
-            class="size-4"
-            aria-hidden="true"
-          />
+        <ButtonLink to="/" variant="outline" size="sm" class="h-8 shrink-0 gap-1.5">
+          <ArrowLeft class="size-4" aria-hidden="true" />
           Gallery
         </ButtonLink>
         <div class="min-w-0">
-          <h2
-            id="library-inspector-title"
-            class="truncate text-xl font-semibold tracking-normal"
-          >
-            Photo Details
-          </h2>
+          <h2 id="library-inspector-title" class="truncate text-xl font-semibold tracking-normal">Photo Details</h2>
           <p class="truncate text-sm text-muted-foreground">
             {{ pageSummary }}
           </p>
@@ -630,14 +614,8 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
           <SelectValue placeholder="Model" />
         </SelectTrigger>
         <SelectContent align="end">
-          <SelectItem value="all">
-            All models
-          </SelectItem>
-          <SelectItem
-            v-for="model in modelOptions"
-            :key="model"
-            :value="model"
-          >
+          <SelectItem value="all"> All models </SelectItem>
+          <SelectItem v-for="model in modelOptions" :key="model" :value="model">
             {{ model }}
           </SelectItem>
         </SelectContent>
@@ -647,21 +625,12 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
           <SelectValue placeholder="Has prompt" />
         </SelectTrigger>
         <SelectContent align="end">
-          <SelectItem value="all">
-            All prompts
-          </SelectItem>
-          <SelectItem value="has_prompt">
-            Has prompt
-          </SelectItem>
-          <SelectItem value="no_prompt">
-            No prompt
-          </SelectItem>
+          <SelectItem value="all"> All prompts </SelectItem>
+          <SelectItem value="has_prompt"> Has prompt </SelectItem>
+          <SelectItem value="no_prompt"> No prompt </SelectItem>
         </SelectContent>
       </Select>
-      <SortSelect
-        v-model="inspectorSort"
-        aria-label="Sort metadata table"
-      />
+      <SortSelect v-model="inspectorSort" aria-label="Sort metadata table" />
     </div>
 
     <div
@@ -671,10 +640,7 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
       Unable to load metadata rows.
     </div>
 
-    <div
-      v-if="isInspectorDataStale"
-      class="rebuild-notice"
-    >
+    <div v-if="isInspectorDataStale" class="rebuild-notice">
       Refreshing photo details. Previous results are shown until the latest snapshot arrives.
     </div>
 
@@ -713,23 +679,12 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                 <span class="metadata-header-label">
                   {{ header.column.columnDef.header }}
                 </span>
-                <span
-                  v-if="header.column.getIsSorted()"
-                  class="metadata-header-sort-indicator"
-                  aria-hidden="true"
-                >
+                <span v-if="header.column.getIsSorted()" class="metadata-header-sort-indicator" aria-hidden="true">
                   {{ header.column.getIsSorted() === "asc" ? "↑" : "↓" }}
                 </span>
-                <ArrowUpDown
-                  v-else
-                  class="metadata-header-icon"
-                  aria-hidden="true"
-                />
+                <ArrowUpDown v-else class="metadata-header-icon" aria-hidden="true" />
               </button>
-              <span
-                v-else
-                class="metadata-header-control metadata-header-control--static"
-              >
+              <span v-else class="metadata-header-control metadata-header-control--static">
                 <span class="metadata-header-label">
                   {{ header.column.columnDef.header }}
                 </span>
@@ -739,24 +694,14 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
         </TableHeader>
         <TableBody>
           <TableRow v-if="inspectorQuery.isLoading.value">
-            <TableCell
-              colspan="7"
-              class="p-4"
-            >
+            <TableCell colspan="7" class="p-4">
               <div class="space-y-2">
-                <Skeleton
-                  v-for="idx in 8"
-                  :key="idx"
-                  class="h-10 w-full"
-                />
+                <Skeleton v-for="idx in 8" :key="idx" class="h-10 w-full" />
               </div>
             </TableCell>
           </TableRow>
           <TableRow v-else-if="visibleTableRows.length === 0">
-            <TableCell
-              colspan="7"
-              class="p-8 text-center text-sm text-muted-foreground"
-            >
+            <TableCell colspan="7" class="p-8 text-center text-sm text-muted-foreground">
               {{ isInspectorDataStale ? "Refreshing metadata rows…" : "No indexed metadata rows." }}
             </TableCell>
           </TableRow>
@@ -767,10 +712,7 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
               class="virtual-spacer-row"
               :style="{ height: `${virtualPaddingTop}px` }"
             >
-              <TableCell
-                colspan="7"
-                class="p-0"
-              />
+              <TableCell colspan="7" class="p-0" />
             </TableRow>
             <TableRow
               v-for="virtualRow in virtualRows"
@@ -791,7 +733,7 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                       :src="getThumbnailUrl(visibleTableRows[virtualRow.index].original.path, 128)"
                       :alt="visibleTableRows[virtualRow.index].original.name"
                       loading="lazy"
-                    >
+                    />
                   </button>
                   <div class="file-cell-content min-w-0">
                     <button
@@ -807,20 +749,13 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                       @update:open="(open) => open && (selectedPath = visibleTableRows[virtualRow.index].original.path)"
                     >
                       <PopoverTrigger as-child>
-                        <button
-                          class="long-text-trigger folder-path-trigger"
-                          type="button"
-                          @click.stop
-                        >
+                        <button class="long-text-trigger folder-path-trigger" type="button" @click.stop>
                           <span class="long-text-preview truncate">{{
                             folderLabel(visibleTableRows[virtualRow.index].original)
                           }}</span>
                         </button>
                       </PopoverTrigger>
-                      <PopoverContent
-                        align="start"
-                        class="w-96"
-                      >
+                      <PopoverContent align="start" class="w-96">
                         <div class="space-y-3">
                           <p class="break-all text-sm">
                             {{ visibleTableRows[virtualRow.index].original.path }}
@@ -843,29 +778,22 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                   <Popover
                     v-if="
                       visibleTableRows[virtualRow.index].original.has_prompt ||
-                        visibleTableRows[virtualRow.index].original.has_negative
+                      visibleTableRows[virtualRow.index].original.has_negative
                     "
                     @update:open="(open) => openDetail(visibleTableRows[virtualRow.index].original.path, open)"
                   >
                     <PopoverTrigger as-child>
-                      <button
-                        class="long-text-trigger prompt-trigger"
-                        type="button"
-                        @click.stop
-                      >
+                      <button class="long-text-trigger prompt-trigger" type="button" @click.stop>
                         <span class="long-text-preview truncate whitespace-nowrap">{{
                           visibleTableRows[virtualRow.index].original.prompt_preview || "No prompt metadata"
                         }}</span>
                       </button>
                     </PopoverTrigger>
-                    <PopoverContent
-                      align="start"
-                      class="w-[32rem]"
-                    >
+                    <PopoverContent align="start" class="w-[32rem]">
                       <div
                         v-if="
                           metadataQuery.isLoading.value &&
-                            detailPath === visibleTableRows[virtualRow.index].original.path
+                          detailPath === visibleTableRows[virtualRow.index].original.path
                         "
                         class="space-y-2"
                       >
@@ -879,33 +807,18 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                         "
                         class="space-y-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
                       >
-                        <p class="font-medium">
-                          Unable to load metadata detail.
-                        </p>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          @click="metadataQuery.refetch()"
-                        >
-                          Retry
-                        </Button>
+                        <p class="font-medium">Unable to load metadata detail.</p>
+                        <Button size="sm" variant="outline" @click="metadataQuery.refetch()"> Retry </Button>
                       </div>
-                      <div
-                        v-else
-                        class="space-y-4"
-                      >
+                      <div v-else class="space-y-4">
                         <div>
-                          <p class="mb-1 text-sm font-medium">
-                            Prompt
-                          </p>
+                          <p class="mb-1 text-sm font-medium">Prompt</p>
                           <p class="metadata-block">
                             {{ metadataQuery.data.value?.prompt || "No prompt metadata" }}
                           </p>
                         </div>
                         <div v-if="metadataQuery.data.value?.negative_prompt">
-                          <p class="mb-1 text-sm font-medium">
-                            Negative prompt
-                          </p>
+                          <p class="mb-1 text-sm font-medium">Negative prompt</p>
                           <p class="metadata-block">
                             {{ metadataQuery.data.value.negative_prompt }}
                           </p>
@@ -936,10 +849,9 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                       </div>
                     </PopoverContent>
                   </Popover>
-                  <span
-                    v-else
-                    class="block min-w-0 max-w-full truncate whitespace-nowrap text-muted-foreground"
-                  >No prompt metadata</span>
+                  <span v-else class="block min-w-0 max-w-full truncate whitespace-nowrap text-muted-foreground"
+                    >No prompt metadata</span
+                  >
                 </div>
               </TableCell>
               <TableCell class="table-cell col-model">
@@ -957,11 +869,7 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                     @update:open="(open) => openDetail(visibleTableRows[virtualRow.index].original.path, open)"
                   >
                     <PopoverTrigger as-child>
-                      <button
-                        class="inline-flex"
-                        type="button"
-                        @click.stop
-                      >
+                      <button class="inline-flex" type="button" @click.stop>
                         <Badge variant="secondary">
                           {{
                             visibleTableRows[virtualRow.index].original.lora_count > 1
@@ -971,14 +879,11 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                         </Badge>
                       </button>
                     </PopoverTrigger>
-                    <PopoverContent
-                      align="start"
-                      class="w-[28rem]"
-                    >
+                    <PopoverContent align="start" class="w-[28rem]">
                       <div
                         v-if="
                           metadataQuery.isLoading.value &&
-                            detailPath === visibleTableRows[virtualRow.index].original.path
+                          detailPath === visibleTableRows[virtualRow.index].original.path
                         "
                         class="space-y-2"
                       >
@@ -991,24 +896,11 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                         "
                         class="space-y-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
                       >
-                        <p class="font-medium">
-                          Unable to load resource detail.
-                        </p>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          @click="metadataQuery.refetch()"
-                        >
-                          Retry
-                        </Button>
+                        <p class="font-medium">Unable to load resource detail.</p>
+                        <Button size="sm" variant="outline" @click="metadataQuery.refetch()"> Retry </Button>
                       </div>
-                      <div
-                        v-else
-                        class="space-y-3"
-                      >
-                        <p class="text-sm font-medium">
-                          LoRA resources
-                        </p>
+                      <div v-else class="space-y-3">
+                        <p class="text-sm font-medium">LoRA resources</p>
                         <pre class="metadata-block">{{
                           formatResources(metadataQuery.data.value?.loras || []) ||
                           visibleTableRows[virtualRow.index].original.lora_preview
@@ -1051,35 +943,20 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                   @click.stop="copyText(visibleTableRows[virtualRow.index].original.seed, 'seed')"
                 >
                   <span>{{ visibleTableRows[virtualRow.index].original.seed }}</span>
-                  <Copy
-                    class="seed-copy-icon size-3"
-                    aria-hidden="true"
-                  />
+                  <Copy class="seed-copy-icon size-3" aria-hidden="true" />
                 </button>
-                <span
-                  v-else
-                  class="text-muted-foreground"
-                >-</span>
+                <span v-else class="text-muted-foreground">-</span>
               </TableCell>
               <TableCell class="table-cell col-dimensions whitespace-nowrap">
-                {{
-                  formatDimensions(visibleTableRows[virtualRow.index].original)
-                }}
+                {{ formatDimensions(visibleTableRows[virtualRow.index].original) }}
               </TableCell>
               <TableCell class="table-cell col-mtime whitespace-nowrap">
-                {{
-                  formatDate(visibleTableRows[virtualRow.index].original.mtime)
-                }}
+                {{ formatDate(visibleTableRows[virtualRow.index].original.mtime) }}
               </TableCell>
               <TableCell class="table-cell col-actions">
                 <DropdownMenu v-model:open="rowMenuOpen[visibleTableRows[virtualRow.index].original.path]">
                   <DropdownMenuTrigger as-child>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label="Row actions"
-                      @click.stop
-                    >
+                    <Button variant="ghost" size="icon-sm" aria-label="Row actions" @click.stop>
                       <MoreHorizontal class="size-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -1141,19 +1018,10 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
               class="virtual-spacer-row"
               :style="{ height: `${virtualPaddingBottom}px` }"
             >
-              <TableCell
-                colspan="7"
-                class="p-0"
-              />
+              <TableCell colspan="7" class="p-0" />
             </TableRow>
-            <TableRow
-              v-if="inspectorQuery.isFetchingNextPage.value"
-              class="load-more-row"
-            >
-              <TableCell
-                colspan="7"
-                class="px-4 py-3 text-center text-xs text-muted-foreground"
-              >
+            <TableRow v-if="inspectorQuery.isFetchingNextPage.value" class="load-more-row">
+              <TableCell colspan="7" class="px-4 py-3 text-center text-xs text-muted-foreground">
                 Loading more metadata rows...
               </TableCell>
             </TableRow>

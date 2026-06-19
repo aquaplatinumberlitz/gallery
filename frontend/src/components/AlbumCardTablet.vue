@@ -25,20 +25,9 @@ defineProps<{
     @keydown.space.prevent="emit('click')"
   >
     <div class="album-cover">
-      <img
-        v-if="node.cover_images?.[0]"
-        :src="getThumbnailUrl(node.cover_images[0])"
-        loading="lazy"
-        alt=""
-      >
-      <div
-        v-else
-        class="placeholder flex-center"
-      >
-        <span
-          class="fa-placeholder-svg"
-          v-html="placeholderSvg"
-        />
+      <img v-if="node.cover_images?.[0]" :src="getThumbnailUrl(node.cover_images[0])" loading="lazy" alt="" />
+      <div v-else class="placeholder flex-center">
+        <span class="fa-placeholder-svg" v-html="placeholderSvg" />
       </div>
     </div>
 
@@ -48,8 +37,11 @@ defineProps<{
       </h3>
       <div class="album-meta">
         <FolderOpen class="gallery-icon-meta album-meta-icon" />
-        <span>Album<span v-if="node.image_count !== undefined && node.image_count !== null">
-          · {{ node.image_count }} {{ node.image_count === 1 ? "photo" : "photos" }}</span></span>
+        <span
+          >Album<span v-if="node.image_count !== undefined && node.image_count !== null">
+            · {{ node.image_count }} {{ node.image_count === 1 ? "photo" : "photos" }}</span
+          ></span
+        >
       </div>
     </div>
   </div>

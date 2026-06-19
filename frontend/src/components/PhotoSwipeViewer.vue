@@ -53,10 +53,7 @@ defineExpose({
 </script>
 
 <template>
-  <div
-    ref="containerRef"
-    class="photoswipe-container"
-  />
+  <div ref="containerRef" class="photoswipe-container" />
 </template>
 
 <style scoped lang="scss">

@@ -540,7 +540,9 @@ describe("getIndexStatusRefetchInterval", () => {
 
 describe("getIndexStatusProgress", () => {
   it("returns null when total is zero", () => {
-    expect(getIndexStatusProgress(makeBaseStatus({ queued: 0, running: 0, done: 0, failed: 0, stale: 0, skipped: 0 }))).toBeNull();
+    expect(
+      getIndexStatusProgress(makeBaseStatus({ queued: 0, running: 0, done: 0, failed: 0, stale: 0, skipped: 0 })),
+    ).toBeNull();
   });
 
   it("returns null for null status", () => {

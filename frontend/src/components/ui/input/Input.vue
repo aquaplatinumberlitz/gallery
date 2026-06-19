@@ -37,5 +37,5 @@ defineExpose({
         props.class,
       )
     "
-  >
+  />
 </template>

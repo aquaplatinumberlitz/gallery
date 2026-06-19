@@ -56,5 +56,5 @@ defineExpose({
     :value="modelValue"
     :class="inputClasses"
     @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
-  >
+  />
 </template>

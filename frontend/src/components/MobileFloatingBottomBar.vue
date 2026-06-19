@@ -24,16 +24,8 @@ const folderName = computed(() => {
 </script>
 
 <template>
-  <nav
-    class="mobile-bottom-bar"
-    :class="{ hidden: !barsVisible }"
-  >
-    <button
-      class="mbb-btn"
-      :disabled="!canBack"
-      @click="emit('back')"
-      aria-label="Go back"
-    >
+  <nav class="mobile-bottom-bar" :class="{ hidden: !barsVisible }">
+    <button class="mbb-btn" :disabled="!canBack" @click="emit('back')" aria-label="Go back">
       <ArrowLeft />
     </button>
 
@@ -42,12 +34,7 @@ const folderName = computed(() => {
       <span class="path-text">{{ folderName }}</span>
     </div>
 
-    <button
-      class="mbb-btn"
-      :disabled="!canForward"
-      @click="emit('forward')"
-      aria-label="Go forward"
-    >
+    <button class="mbb-btn" :disabled="!canForward" @click="emit('forward')" aria-label="Go forward">
       <ArrowRight />
     </button>
   </nav>

@@ -140,7 +140,9 @@ describe("useGalleryStore", () => {
       const store = useGalleryStore();
       store.setSortField("date");
       expect(store.sortField).toBe("date");
-      expect(window.localStorage.getItem("gallery-sort-preference")).toBe(JSON.stringify({ field: "date", order: "asc" }));
+      expect(window.localStorage.getItem("gallery-sort-preference")).toBe(
+        JSON.stringify({ field: "date", order: "asc" }),
+      );
     });
 
     it("setSortOrder updates the order and persists the preference", () => {
@@ -337,9 +339,7 @@ describe("useGalleryStore", () => {
     });
 
     it("loads sidebar tree, persists root, and pushes history on success", async () => {
-      const folders: FolderTreeNode[] = [
-        { name: "album", path: "/root/album", type: "folder", children: [] },
-      ];
+      const folders: FolderTreeNode[] = [{ name: "album", path: "/root/album", type: "folder", children: [] }];
       fetchScanOrThrowMock.mockResolvedValue(makeScanResponse(folders, [makeNode()]));
       const store = useGalleryStore();
 

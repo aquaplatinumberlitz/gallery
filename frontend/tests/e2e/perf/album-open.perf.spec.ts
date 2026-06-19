@@ -17,13 +17,7 @@ import { fileURLToPath } from "node:url";
 import { expect, test } from "../helpers/monitorErrors";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve, join, dirname as pathDirname } from "node:path";
-import {
-  compactStats,
-  installApiNetworkTracker,
-  loadBudgets,
-  nowMs,
-  waitForNetworkQuiet,
-} from "./perf-utils";
+import { compactStats, installApiNetworkTracker, loadBudgets, nowMs, waitForNetworkQuiet } from "./perf-utils";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = pathDirname(__filename);
@@ -197,8 +191,6 @@ test("album open performance", async ({ page }) => {
 
   expect(maxDuplicateCursor0).toBeLessThanOrEqual(1);
   expect(scanP95).toBeLessThanOrEqual(budgets.album_open.scan_p95_ms);
-  expect(firstThumbP95 || Number.POSITIVE_INFINITY).toBeLessThanOrEqual(
-    budgets.album_open.first_thumbnail_ms,
-  );
+  expect(firstThumbP95 || Number.POSITIVE_INFINITY).toBeLessThanOrEqual(budgets.album_open.first_thumbnail_ms);
   expect(thumbP95OfP95).toBeLessThanOrEqual(budgets.album_open.thumbnail_p95_ms);
 });

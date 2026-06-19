@@ -10,10 +10,7 @@ defineProps<BreadcrumbProps>();
 </script>
 
 <template>
-  <nav
-    :class="cn('', $props.class)"
-    aria-label="breadcrumb"
-  >
+  <nav :class="cn('', $props.class)" aria-label="breadcrumb">
     <slot />
   </nav>
 </template>

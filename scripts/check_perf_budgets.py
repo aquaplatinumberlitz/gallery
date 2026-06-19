@@ -29,7 +29,6 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from perf_lib import load_budgets  # noqa: E402
 
-
 # Mapping: TOML section -> (consumer files relative to repo root, env-var names
 # that must appear in those files). Env-var names can be empty for
 # documentation-only sections whose consumers do not yet read the value via an
@@ -38,15 +37,15 @@ from perf_lib import load_budgets  # noqa: E402
 BUDGET_CONSUMERS: dict[str, tuple[list[str], list[str]]] = {
     "scan": (
         ["scripts/perf_scan.py"],
-        ["GALLERY_PERF_SCAN_P95_BUDGET_MS", "budget_for(\"scan\""],
+        ["GALLERY_PERF_SCAN_P95_BUDGET_MS", 'budget_for("scan"'],
     ),
     "inspector": (
         ["scripts/perf_library_inspector.py"],
-        ["GALLERY_PERF_INSPECTOR_P95_BUDGET_MS", "budget_for(\"inspector\""],
+        ["GALLERY_PERF_INSPECTOR_P95_BUDGET_MS", 'budget_for("inspector"'],
     ),
     "warm_listing": (
         ["scripts/perf_warm_listing.py"],
-        ["GALLERY_PERF_WARM_LISTING_BUDGET_MS", "budget_for(\"warm_listing\""],
+        ["GALLERY_PERF_WARM_LISTING_BUDGET_MS", 'budget_for("warm_listing"'],
     ),
     "album_open": (
         [
@@ -75,15 +74,15 @@ BUDGET_CONSUMERS: dict[str, tuple[list[str], list[str]]] = {
     ),
     "search": (
         ["scripts/bench_search.py"],
-        ["GALLERY_PERF_SEARCH_P95_BUDGET_MS", "budget_for(\"search\""],
+        ["GALLERY_PERF_SEARCH_P95_BUDGET_MS", 'budget_for("search"'],
     ),
     "inspector_metadata": (
         ["scripts/bench_search.py"],
-        ["GALLERY_PERF_INSPECTOR_METADATA_P95_BUDGET_MS", "budget_for(\"inspector_metadata\""],
+        ["GALLERY_PERF_INSPECTOR_METADATA_P95_BUDGET_MS", 'budget_for("inspector_metadata"'],
     ),
     "thumbnail": (
         ["scripts/bench_thumbnail.py"],
-        ["budget_for(\"thumbnail\""],
+        ['budget_for("thumbnail"'],
     ),
 }
 
@@ -116,8 +115,10 @@ def _check_consumer_files(section: str, consumers: list[str]) -> list[str]:
 
 
 def _check_env_refs(section: str, consumers: list[str], env_vars: list[str]) -> list[str]:
-    """Env vars must appear in at least ONE consumer file (e.g. the shared
-    `perf-utils.ts` that reads env overrides on behalf of the spec files)."""
+    """Check that at least one consumer references a configured environment variable.
+
+    Shared files such as `perf-utils.ts` may read overrides on behalf of specs.
+    """
     if not env_vars:
         return []
     texts = [_read(REPO_ROOT / rel) for rel in consumers]
@@ -148,8 +149,7 @@ def _check_json_mirror(toml: dict) -> list[str]:
             toml_val = toml.get(section, {}).get(field)
             if json_val != toml_val:
                 errors.append(
-                    f"perf-budgets.json[{section}].{field} = {json_val!r} "
-                    f"does not match TOML value {toml_val!r}"
+                    f"perf-budgets.json[{section}].{field} = {json_val!r} does not match TOML value {toml_val!r}"
                 )
     return errors
 
@@ -164,7 +164,7 @@ def _check_no_orphan_perf_tests(toml: dict) -> list[str]:
     # Also accept any GALLERY_PERF_*_BUDGET_MS var whose suffix matches a TOML
     # field name — useful for tests that override via env without a registry entry.
     known_budget_tokens: set[str] = set()
-    for section, fields in toml.items():
+    for _section, fields in toml.items():
         if not isinstance(fields, dict):
             continue
         for field_name in fields:
@@ -184,22 +184,19 @@ def _check_no_orphan_perf_tests(toml: dict) -> list[str]:
         # Every env var the test uses must either be registered or be override-only.
         orphan = sorted(found - known_env_vars)
         if orphan:
-            errors.append(
-                f"{path.relative_to(REPO_ROOT)} references unregistered budget env vars: {orphan}"
-            )
+            errors.append(f"{path.relative_to(REPO_ROOT)} references unregistered budget env vars: {orphan}")
     return errors
 
 
 def main() -> int:
+    """Validate the performance budget registry and its consumers."""
     toml = load_budgets(PERF_BUDGETS_TOML)
     errors: list[str] = []
 
     # 1. every TOML section has at least one consumer file that exists
     for section in toml:
         if section not in BUDGET_CONSUMERS:
-            errors.append(
-                f"TOML section '{section}' has no consumer registered in check_perf_budgets.py"
-            )
+            errors.append(f"TOML section '{section}' has no consumer registered in check_perf_budgets.py")
             continue
         consumers, env_vars = BUDGET_CONSUMERS[section]
         errors.extend(_check_consumer_files(section, consumers))
@@ -223,10 +220,7 @@ def main() -> int:
         for err in errors:
             print(f"  - {err}", file=sys.stderr)
         return 1
-    print(
-        f"perf budget coverage OK: {len(toml)} sections, "
-        f"{len(JSON_MIRROR_SECTIONS)} mirrored into perf-budgets.json"
-    )
+    print(f"perf budget coverage OK: {len(toml)} sections, {len(JSON_MIRROR_SECTIONS)} mirrored into perf-budgets.json")
     return 0
 
 

@@ -26,30 +26,14 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <SidebarProvider
-    :open="true"
-    :open-mobile="isSidebarOpen"
-    @update:open-mobile="emit('update:sidebarOpen', $event)"
-  >
-    <Sidebar
-      side="left"
-      variant="sidebar"
-      collapsible="offcanvas"
-    >
+  <SidebarProvider :open="true" :open-mobile="isSidebarOpen" @update:open-mobile="emit('update:sidebarOpen', $event)">
+    <Sidebar side="left" variant="sidebar" collapsible="offcanvas">
       <div class="gallery-sidebar-surface flex h-full w-full flex-col">
-        <GallerySidebarContent
-          :tree="tree"
-          :is-loading="isLoading"
-          :current-path="currentPath"
-        />
+        <GallerySidebarContent :tree="tree" :is-loading="isLoading" :current-path="currentPath" />
       </div>
     </Sidebar>
 
-    <SidebarInset
-      id="main-content"
-      tabindex="-1"
-      class="content"
-    >
+    <SidebarInset id="main-content" tabindex="-1" class="content">
       <TabletHeader
         :is-dark="theme === 'dark'"
         :search-query="searchQuery"
@@ -62,10 +46,7 @@ const emit = defineEmits<{
       />
 
       <div class="content-body">
-        <GalleryGrid
-          :is-mobile="false"
-          :show-toolbar-breadcrumb="false"
-        />
+        <GalleryGrid :is-mobile="false" :show-toolbar-breadcrumb="false" />
       </div>
     </SidebarInset>
   </SidebarProvider>

@@ -133,6 +133,7 @@ def _write_env_file(path: Path, values: dict[str, str]) -> None:
 
 
 def main() -> int:
+    """Create a deterministic gallery fixture for performance tests."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", default=str(DEFAULT_ROOT), help="fixture root directory")
     parser.add_argument("--album-name", default=DEFAULT_ALBUM, help="album folder name to create")

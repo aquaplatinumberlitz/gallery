@@ -776,8 +776,7 @@ def repair_library_assets(library_id: int) -> dict[str, int]:
     modified = 0
     with _DB_LOCK, _connect() as conn:
         existing = {
-            row["path"]: row
-            for row in conn.execute("SELECT * FROM assets WHERE library_id = ?", (library_id,))
+            row["path"]: row for row in conn.execute("SELECT * FROM assets WHERE library_id = ?", (library_id,))
         }
         for path, (parent_path, name, asset_type, mtime, size) in discovered.items():
             row = existing.get(path)

@@ -30,9 +30,7 @@ def main() -> int:
     """Run repeated inspector requests, print JSON, and enforce p95/min-row budgets."""
     base_url = os.getenv("GALLERY_API_BASE_URL", "http://localhost:8000")
     iterations = int(os.getenv("GALLERY_PERF_INSPECTOR_ITERATIONS", "10"))
-    p95_budget_ms = float(
-        os.getenv("GALLERY_PERF_INSPECTOR_P95_BUDGET_MS", str(budget_for("inspector", "p95_ms")))
-    )
+    p95_budget_ms = float(os.getenv("GALLERY_PERF_INSPECTOR_P95_BUDGET_MS", str(budget_for("inspector", "p95_ms"))))
     min_rows = int(os.getenv("GALLERY_PERF_INSPECTOR_MIN_ROWS", "1"))
     params = {
         "q": os.getenv("GALLERY_PERF_INSPECTOR_QUERY", ""),
