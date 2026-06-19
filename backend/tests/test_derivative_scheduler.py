@@ -9,11 +9,12 @@ import pytest
 
 from backend.config import DERIVATIVE_VARIANTS
 from backend.derivative_scheduler import DerivativeScheduler, derivative_variant
-from backend.metadata_store import get_asset_folder_listing, index_file, list_libraries
+from backend.metadata_store import get_asset_folder_listing, index_file, list_libraries, register_library
 from tests.conftest import create_test_png
 
 
 def _catalog_image(root: Path) -> tuple[Path, int]:
+    register_library(root)
     image = root / "source.png"
     create_test_png(image, size=(80, 60))
     stat = image.stat()

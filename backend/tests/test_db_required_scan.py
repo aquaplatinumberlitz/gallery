@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from backend.app import app
-from backend.metadata_store import list_libraries, unregister_library
+from backend.metadata_store import register_library
 from tests.conftest import create_test_png
 
 
@@ -14,8 +14,6 @@ def test_default_mode_allows_unregistered_direct_scan(
     isolated_gallery_root: Path,
     monkeypatch,
 ):
-    library_id = list_libraries()[0]["id"]
-    assert unregister_library(library_id)
     create_test_png(isolated_gallery_root / "direct.png")
     monkeypatch.setattr("backend.config.GALLERY_DB_REQUIRED", False)
 
@@ -31,8 +29,6 @@ def test_required_mode_rejects_unregistered_path(
     isolated_gallery_root: Path,
     monkeypatch,
 ):
-    library_id = list_libraries()[0]["id"]
-    assert unregister_library(library_id)
     monkeypatch.setattr("backend.config.GALLERY_DB_REQUIRED", True)
 
     with TestClient(app) as client:
@@ -50,7 +46,7 @@ def test_required_mode_never_falls_back_to_filesystem(
     isolated_gallery_root: Path,
     monkeypatch,
 ):
-    list_libraries()
+    register_library(isolated_gallery_root)
     create_test_png(isolated_gallery_root / "not-yet-indexed.png")
     monkeypatch.setattr("backend.config.GALLERY_DB_REQUIRED", True)
     monkeypatch.setattr(
@@ -72,4 +68,7 @@ def test_required_mode_never_falls_back_to_filesystem(
         "next_cursor": None,
         "total_images": 0,
         "index_source": "warm_db",
+        "library_state": "discovering",
+        "indexed": False,
+        "message": "Library is still being scanned",
     }

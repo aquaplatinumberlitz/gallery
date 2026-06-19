@@ -7,12 +7,12 @@ from typing import Literal
 from fastapi import APIRouter, Query
 from fastapi.concurrency import run_in_threadpool
 
-from .config import DEFAULT_ROOT, GALLERY_ROOT
 from .errors import APIError, ErrorType
 from .fielded_search_parser import parse_fielded_query
 from .metadata_store import (
     _encode_inspector_cursor,
     cleanup_stale_index,
+    get_first_library_root,
     get_library_inspector_metadata,
     list_library_inspector_rows,
     search_index,
@@ -22,6 +22,24 @@ from .metadata_store import (
 from .paths import is_path_safe, resolve_path
 
 router = APIRouter()
+
+
+def _registered_or_requested_root(path: str | None) -> Path:
+    if path:
+        return resolve_path(path)
+    root = get_first_library_root()
+    if root is None:
+        raise APIError(400, ErrorType.BAD_REQUEST, "path required")
+    return root
+
+
+def _cleanup_registered_library_roots() -> int:
+    from .metadata_store import list_libraries
+
+    removed = 0
+    for library in list_libraries():
+        removed += int(cleanup_stale_index(None, library["root_path"]) or 0)
+    return removed
 
 
 @router.get("/api/search-metadata")
@@ -58,12 +76,12 @@ async def api_search(
 ):
     """Search albums, photos, and prompts in either current folder or all indexed files."""
     if not q.strip():
-        root = resolve_path(path) if scope == "current" and path else GALLERY_ROOT
-        return {"query": q, "scope": scope, "root": str(root), "albums": [], "photos": [], "prompt": []}
+        root = _registered_or_requested_root(path) if scope == "current" else None
+        return {"query": q, "scope": scope, "root": str(root) if root is not None else "/", "albums": [], "photos": [], "prompt": []}
 
     root_path: Path | None = None
     if scope == "current":
-        root_path = resolve_path(path) if path else DEFAULT_ROOT
+        root_path = _registered_or_requested_root(path)
         if not is_path_safe(root_path):
             raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied: path outside allowed root")
         if not root_path.exists() or not root_path.is_dir():
@@ -100,7 +118,7 @@ async def api_search(
     prompt = safe_section(data["prompt"])
 
     if stale_detected:
-        await run_in_threadpool(cleanup_stale_index, None, GALLERY_ROOT)
+        await run_in_threadpool(_cleanup_registered_library_roots)
 
     return {
         "query": data["query"],
@@ -128,7 +146,7 @@ async def api_library_inspector(
     """Return paginated library inspector rows with stale path filtering."""
     root_path: Path | None = None
     if scope == "current":
-        root_path = resolve_path(path) if path else DEFAULT_ROOT
+        root_path = _registered_or_requested_root(path)
         if not is_path_safe(root_path):
             raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied: path outside allowed root")
         if not root_path.exists() or not root_path.is_dir():
@@ -183,7 +201,7 @@ async def api_library_inspector(
         stale_detected = stale_detected or overscan_stale_detected
 
     if stale_detected:
-        await run_in_threadpool(cleanup_stale_index, None, GALLERY_ROOT)
+        await run_in_threadpool(_cleanup_registered_library_roots)
 
     data["rows"] = safe_rows
     data["returned"] = len(safe_rows)

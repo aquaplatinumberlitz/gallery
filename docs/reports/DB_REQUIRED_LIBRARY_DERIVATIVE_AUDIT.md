@@ -26,13 +26,7 @@ Các issue trong file này đều xuất phát từ việc app chuyển sang ch�
 
 Hiện `GALLERY_ROOT` mặc định là `/`. Khi DB khởi tạo, code tự tạo library mặc định từ root này.
 
-Vấn đề: `/` bao trùm gần như toàn bộ filesystem. Vì vậy gần như path nào cũng bị coi là "đã registered", ví dụ:
-
-```text
-/tmp/foo
-/home/ubuntu/Pictures
-/mnt/photos
-```
+Vấn đề: `/` bao trùm gần như toàn bộ filesystem. Vì vậy gần như path nào cũng bị coi là "đã registered".
 
 Hậu quả:
 
@@ -40,11 +34,59 @@ Hậu quả:
 - User không register được `/home/ubuntu/Pictures` vì nó overlap với library `/`.
 - DB-required mode mất ý nghĩa bảo vệ.
 
-Fix sạch:
+#### ❌ Rejected: Conditional fix (`GALLERY_ROOT == "/"` thì ko tạo default)
 
-- Không tự tạo default library nếu `GALLERY_ROOT == "/"`.
-- Trong DB-required mode, chỉ coi path là registered nếu user/API đã register rõ ràng.
-- Nếu cần backward compatibility, thêm field như `source = "implicit" | "user"` hoặc `implicit = true/false`.
+Approach cũ trong code: kiểm tra if GALLERY_ROOT == "/" rồi conditional skip. Lý do reject:
+- Vẫn còn edge case: GALLERY_ROOT="/home" vẫn auto-tạo library từ /home → bao phủ gần hết, 409 vẫn ko fire
+- Logic có điều kiện → khó hiểu, khó maintain
+- Gây nhầm lẫn giữa implicit (default) và explicit (user register) library
+
+#### ✅ Final decision: Remove GALLERY_ROOT from the catalog/product model entirely
+
+**GALLERY_ROOT must never create or imply a library.**
+The only source of truth for browsable/indexed roots is explicit records in the `libraries` table.
+
+Changes required:
+
+1. **Remove implicit default library** — `_ensure_default_library_conn()` must NOT be called on every startup. Only during migration (v3→v4) for backward compat.
+2. **No fallback to auto-create** — `_upsert_asset_conn()` must NOT create a default library when none exists.
+3. **DEFAULT_ROOT deprecation** — `DEFAULT_ROOT = GALLERY_ROOT` in scan.py/folders.py/search.py should not imply a library exists.
+4. **`is_path_safe`** — Keep GALLERY_ROOT as a security boundary (path traversal guard), but do NOT use it to create libraries or imply assets exist there.
+5. **`GALLERY_DB_REQUIRED` mode** — `/api/scan` only serves paths inside explicit registered libraries.
+   - Unmatched path → 409 `library_not_registered`
+   - Missing path inside registered library → 404 `not_found`
+   - File path inside registered library → 400 `not_directory`
+   - Registered but unindexed/discovering library must NOT return empty warm_db
+
+**Startup behavior replacement:**
+- If libraries exist: open recent/first library
+- If no libraries exist: show "Add Library" empty state (frontend)
+- DB init only creates tables, does NOT auto-create any library
+
+**Config cleanup:**
+- Deprecate `GALLERY_ROOT` in docs. It's still used for `is_path_safe` security check, but its default ("/") must not affect library semantics.
+- Remove `DEFAULT_ROOT` references where they imply auto-browsing.
+- Update `CONFIGURATION.md` and `ARCHITECTURE.md` to reflect the new model.
+
+**Affected files (from code audit):**
+
+| File | Usage | Action |
+|------|-------|--------|
+| `config.py:47-48` | GALLERY_ROOT="/", DEFAULT_ROOT | Keep GALLERY_ROOT for path safety; deprecate DEFAULT_ROOT |
+| `metadata_store.py:436` | `_ensure_default_library_conn()` on startup | Move inside migration-only block |
+| `metadata_store.py:519-532` | Function definition | Keep for migration; rename to clarify |
+| `metadata_store.py:557` | Fallback auto-create in _upsert_asset_conn | Change to return None/abort |
+| `metadata_store.py:2345,2642,2790,3213` | `else GALLERY_ROOT` in scope queries | Change to use explicit library root |
+| `scan.py:249` | DEFAULT_ROOT as fallback path | Use empty path → 400 or library-first |
+| `folders.py:77` | Same pattern | Same |
+| `search.py:61,66,103,131,186` | GALLERY_ROOT as scope fallback | Change to explicit library root |
+| `scan.py:304` | `elif GALLERY_DB_REQUIRED` returns empty gallery | Add library state check instead |
+| `paths.py:32` | `is_path_safe` security boundary | Keep (security, not catalog) |
+| `test_libraries_catalog.py` | Test assumes default library | Update tests |
+| `test_db_required_scan.py` | Tests for DB-required mode | Update/add regression tests |
+| `test_paths.py` | Path safety tests | Keep (security) |
+| `test_search_coverage.py` | May assume GALLERY_ROOT | Audit and update |
+| `conftest.py:145-160` | monkeypatch GALLERY_ROOT | Keep for path safety; remove catalog assumptions |
 
 ### 2. DB-required trả gallery rỗng cho path sai hoặc chưa indexed
 

@@ -9,13 +9,24 @@ from fastapi import APIRouter, Query
 from fastapi.concurrency import run_in_threadpool
 
 from .albums import has_subfolders
-from .config import DEFAULT_ROOT, OPEN_FOLDER_ENABLED
+from .config import OPEN_FOLDER_ENABLED
 from .errors import APIError, ErrorType
 from .files import is_index_excluded_path, natural_sort_key
 from .models import FileNode
 from .paths import is_path_safe, resolve_path
 
 router = APIRouter()
+
+
+def _registered_or_requested_root(path: str | None) -> Path:
+    if path:
+        return resolve_path(path)
+    from .metadata_store import get_first_library_root
+
+    root = get_first_library_root()
+    if root is None:
+        raise APIError(400, ErrorType.BAD_REQUEST, "path required")
+    return root
 
 
 def list_folder_children(target_path: Path) -> list[FileNode]:
@@ -73,8 +84,8 @@ def list_folder_children(target_path: Path) -> list[FileNode]:
 async def api_folders(
     path: str | None = Query(None, description="Absolute path whose folder children should be listed"),
 ):
-    """Return child folders under the requested path or configured default root."""
-    target = resolve_path(path) if path else DEFAULT_ROOT
+    """Return child folders under the requested path or first registered library root."""
+    target = await run_in_threadpool(_registered_or_requested_root, path)
     if not is_path_safe(target):
         raise APIError(403, "permission", "Access denied: path outside allowed root")
     return await run_in_threadpool(list_folder_children, target)

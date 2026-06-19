@@ -109,8 +109,9 @@ def test_search_filters_stale_rows_and_triggers_cleanup(
 
     import time
 
-    from backend.metadata_store import index_file
+    from backend.metadata_store import index_file, register_library
 
+    register_library(isolated_gallery_root)
     index_file(str(image), "ghost.png", str(isolated_gallery_root), "photo", time.time(), 4, 1, 1)
 
     # Delete the file so the index row becomes stale

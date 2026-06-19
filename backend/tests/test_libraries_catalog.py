@@ -14,10 +14,20 @@ from backend.metadata_store import (
     index_file,
     initialize_database,
     list_libraries,
+    register_library,
     repair_library_assets,
     upsert_image_dimensions,
 )
 from tests.conftest import create_test_png
+
+
+def _register_library(root: Path) -> int:
+    return int(register_library(root)["id"])
+
+
+def test_no_implicit_library_on_fresh_startup(isolated_metadata_db: Path):
+    initialize_database()
+    assert list_libraries() == []
 
 
 def test_version_four_migrates_file_index_into_default_library(isolated_metadata_db: Path, tmp_path: Path):
@@ -52,6 +62,7 @@ def test_scan_and_metadata_dual_write_assets(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,
 ):
+    _register_library(isolated_gallery_root)
     image = isolated_gallery_root / "asset.png"
     create_test_png(image, size=(80, 60))
     stat = image.stat()
@@ -92,10 +103,11 @@ def test_library_api_lists_progress_and_requires_delete_confirmation(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,
 ):
+    library_id = _register_library(isolated_gallery_root)
     with TestClient(app) as client:
         libraries = client.get("/api/libraries")
         assert libraries.status_code == 200
-        default_library = libraries.json()[0]
+        default_library = next(library for library in libraries.json() if library["id"] == library_id)
         assert default_library["root_path"] == str(isolated_gallery_root.resolve())
 
         progress = client.get(f"/api/libraries/{default_library['id']}/progress")
@@ -118,9 +130,10 @@ def test_repair_reconciles_assets_without_deleting_derivatives(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,
 ):
+    library_id = _register_library(isolated_gallery_root)
     original = isolated_gallery_root / "original.png"
     create_test_png(original)
-    assert repair_library_assets(list_libraries()[0]["id"])["added"] == 2
+    assert repair_library_assets(library_id)["added"] == 2
 
     with sqlite3.connect(isolated_metadata_db) as conn:
         asset_id = conn.execute("SELECT id FROM assets WHERE path = ?", (str(original.resolve()),)).fetchone()[0]
@@ -136,7 +149,7 @@ def test_repair_reconciles_assets_without_deleting_derivatives(
     original.unlink()
     added_image = isolated_gallery_root / "added.png"
     create_test_png(added_image)
-    counts = repair_library_assets(list_libraries()[0]["id"])
+    counts = repair_library_assets(library_id)
     assert counts["added"] == 1
     assert counts["removed"] == 1
 
@@ -150,7 +163,7 @@ def test_repair_api_returns_reconciliation_counts(
     isolated_gallery_root: Path,
 ):
     create_test_png(isolated_gallery_root / "new.png")
-    library_id = list_libraries()[0]["id"]
+    library_id = _register_library(isolated_gallery_root)
     with TestClient(app) as client:
         response = client.post(f"/api/libraries/{library_id}/repair")
     assert response.status_code == 200

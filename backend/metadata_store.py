@@ -155,6 +155,9 @@ def initialize_database() -> None:
 
 def _initialize_database_conn(conn: sqlite3.Connection) -> None:
     current_version = conn.execute("PRAGMA user_version").fetchone()[0]
+    had_file_index_table = (
+        conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'file_index'").fetchone() is not None
+    )
 
     conn.executescript(
         """
@@ -433,34 +436,35 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
         )
         conn.execute("PRAGMA user_version = 3")
 
-    default_library_id = _ensure_default_library_conn(conn)
     if current_version < 4:
-        conn.execute(
-            """
-            INSERT INTO assets (
-              library_id, path, parent_path, name, type, mtime_ns, size,
-              width, height, indexed_at, metadata_state
+        if had_file_index_table:
+            default_library_id = _ensure_default_library_conn(conn)
+            conn.execute(
+                """
+                INSERT INTO assets (
+                  library_id, path, parent_path, name, type, mtime_ns, size,
+                  width, height, indexed_at, metadata_state
+                )
+                SELECT ?, fi.path, fi.parent_path, fi.name,
+                       CASE WHEN fi.type = 'photo' THEN 'image' ELSE 'folder' END,
+                       fi.mtime, fi.size, fi.width, fi.height, fi.indexed_at,
+                       CASE WHEN im.path IS NULL THEN 'pending' ELSE 'done' END
+                FROM file_index AS fi
+                LEFT JOIN image_metadata AS im ON im.path = fi.path
+                WHERE 1
+                ON CONFLICT(library_id, path) DO UPDATE SET
+                  parent_path=excluded.parent_path,
+                  name=excluded.name,
+                  type=excluded.type,
+                  mtime_ns=excluded.mtime_ns,
+                  size=excluded.size,
+                  width=COALESCE(excluded.width, assets.width),
+                  height=COALESCE(excluded.height, assets.height),
+                  indexed_at=excluded.indexed_at,
+                  metadata_state=excluded.metadata_state
+                """,
+                (default_library_id,),
             )
-            SELECT ?, fi.path, fi.parent_path, fi.name,
-                   CASE WHEN fi.type = 'photo' THEN 'image' ELSE 'folder' END,
-                   fi.mtime, fi.size, fi.width, fi.height, fi.indexed_at,
-                   CASE WHEN im.path IS NULL THEN 'pending' ELSE 'done' END
-            FROM file_index AS fi
-            LEFT JOIN image_metadata AS im ON im.path = fi.path
-            WHERE 1
-            ON CONFLICT(library_id, path) DO UPDATE SET
-              parent_path=excluded.parent_path,
-              name=excluded.name,
-              type=excluded.type,
-              mtime_ns=excluded.mtime_ns,
-              size=excluded.size,
-              width=COALESCE(excluded.width, assets.width),
-              height=COALESCE(excluded.height, assets.height),
-              indexed_at=excluded.indexed_at,
-              metadata_state=excluded.metadata_state
-            """,
-            (default_library_id,),
-        )
         conn.execute("PRAGMA user_version = 4")
 
     if current_version < 5:
@@ -554,7 +558,9 @@ def _upsert_asset_conn(
 ) -> int:
     resolved_path = str(Path(path).resolve())
     library = _find_library_for_path_conn(conn, resolved_path)
-    library_id = int(library["id"]) if library else _ensure_default_library_conn(conn)
+    if library is None:
+        return 0
+    library_id = int(library["id"])
     normalized_type = "image" if type in {"image", "photo", "file"} else "folder"
     conn.execute(
         """
@@ -625,6 +631,14 @@ def get_library_for_path(path: str | Path) -> dict[str, Any] | None:
     with _DB_LOCK, _connect() as conn:
         row = _find_library_for_path_conn(conn, path)
         return dict(row) if row else None
+
+
+def get_first_library_root() -> Path | None:
+    """Return the first registered library root, if one exists."""
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        row = conn.execute("SELECT root_path FROM libraries ORDER BY id LIMIT 1").fetchone()
+        return Path(row["root_path"]).resolve() if row else None
 
 
 def register_library(root_path: str | Path, name: str | None = None) -> dict[str, Any]:
@@ -852,7 +866,7 @@ def get_asset_folder_listing(
             """,
             (library["id"], resolved),
         ).fetchall()
-        if not rows and library["state"] == "discovering":
+        if not rows and library["state"] in {"discovering", "indexing"}:
             # Bootstrap compatibility: the first request seeds both catalogs;
             # subsequent requests for this folder are DB-backed.
             return None
@@ -2342,7 +2356,9 @@ def _path_prefix(root: Path) -> tuple[str, str]:
 
 
 def _scope_clause(scope: str, root_path: str | Path | None, alias: str = "fi") -> tuple[str, list[Any], Path]:
-    root = Path(root_path).resolve() if scope == "current" and root_path else GALLERY_ROOT
+    root = Path(root_path).resolve() if scope == "current" and root_path else None
+    if root is None:
+        return "", [], Path(os.sep)
     root_str, root_prefix = _path_prefix(root)
     return f" AND ({alias}.path = ? OR {alias}.path LIKE ? ESCAPE '\\')", [root_str, root_prefix], root
 
@@ -2639,13 +2655,24 @@ def search_index(query: str, scope: str, root_path: str | Path | None = None, li
     trimmed = query.strip()
     normalized_scope = "all" if scope == "all" else "current"
     limit = max(1, min(limit, 200))
-    root = Path(root_path).resolve() if normalized_scope == "current" and root_path else GALLERY_ROOT
+    root = Path(root_path).resolve() if normalized_scope == "current" and root_path else None
+    display_root = root if root is not None else Path(os.sep)
 
     if not trimmed:
         return {
             "query": query,
             "scope": normalized_scope,
-            "root": str(root),
+            "root": str(display_root),
+            "albums": [],
+            "photos": [],
+            "prompt": [],
+        }
+
+    if normalized_scope == "current" and root is None:
+        return {
+            "query": query,
+            "scope": normalized_scope,
+            "root": "",
             "albums": [],
             "photos": [],
             "prompt": [],
@@ -2656,13 +2683,14 @@ def search_index(query: str, scope: str, root_path: str | Path | None = None, li
         photo_rows, root = _search_file_index_fts(conn, trimmed, "photo", normalized_scope, root_path, limit)
         prompt_rows, root = _search_prompt_rows(conn, trimmed, normalized_scope, root_path, limit)
 
+    format_root = root if root is not None else Path(os.sep)
     return {
         "query": query,
         "scope": normalized_scope,
-        "root": str(root),
-        "albums": _format_file_index_rows(album_rows, root, "filename"),
-        "photos": _format_file_index_rows(photo_rows, root, "filename"),
-        "prompt": _format_prompt_rows(prompt_rows, root),
+        "root": str(format_root),
+        "albums": _format_file_index_rows(album_rows, format_root, "filename"),
+        "photos": _format_file_index_rows(photo_rows, format_root, "filename"),
+        "prompt": _format_prompt_rows(prompt_rows, format_root),
     }
 
 
@@ -2787,13 +2815,24 @@ def search_index_fielded(
     trimmed = query.strip()
     normalized_scope = "all" if scope == "all" else "current"
     limit = max(1, min(limit, 200))
-    root = Path(root_path).resolve() if normalized_scope == "current" and root_path else GALLERY_ROOT
+    root = Path(root_path).resolve() if normalized_scope == "current" and root_path else None
+    display_root = root if root is not None else Path(os.sep)
 
     if not trimmed:
         return {
             "query": query,
             "scope": normalized_scope,
-            "root": str(root),
+            "root": str(display_root),
+            "albums": [],
+            "photos": [],
+            "prompt": [],
+        }
+
+    if normalized_scope == "current" and root is None:
+        return {
+            "query": query,
+            "scope": normalized_scope,
+            "root": "",
             "albums": [],
             "photos": [],
             "prompt": [],
@@ -2856,13 +2895,14 @@ def search_index_fielded(
             photo_rows = []
             prompt_rows = []
 
+    format_root = root if root is not None else Path(os.sep)
     return {
         "query": query,
         "scope": normalized_scope,
-        "root": str(root),
-        "albums": _format_file_index_rows(album_rows, root, "filename"),
-        "photos": _format_file_index_rows(photo_rows, root, "filename"),
-        "prompt": _format_prompt_rows(prompt_rows, root),
+        "root": str(format_root),
+        "albums": _format_file_index_rows(album_rows, format_root, "filename"),
+        "photos": _format_file_index_rows(photo_rows, format_root, "filename"),
+        "prompt": _format_prompt_rows(prompt_rows, format_root),
     }
 
 
@@ -3210,7 +3250,23 @@ def list_library_inspector_rows(
         "date_asc": "COALESCE(m.mtime, fi.mtime) ASC, m.name COLLATE GALLERY_NATURAL ASC, m.path ASC",
         "date_desc": "COALESCE(m.mtime, fi.mtime) DESC, m.name COLLATE GALLERY_NATURAL ASC, m.path ASC",
     }[normalized_sort]
-    root = Path(root_path).resolve() if normalized_scope == "current" and root_path else GALLERY_ROOT
+    root = Path(root_path).resolve() if normalized_scope == "current" and root_path else None
+    if normalized_scope == "current" and root is None:
+        return {
+            "root": "",
+            "scope": normalized_scope,
+            "query": query,
+            "limit": bounded_limit,
+            "generated_at": time.time(),
+            "total_indexed": 0,
+            "returned": 0,
+            "truncated": False,
+            "next_cursor": None,
+            "has_more": False,
+            "sort": normalized_sort,
+            "rows": [],
+        }
+    display_root = root if root is not None else Path(os.sep)
     scope_cond, scope_params = _build_scope_named(normalized_scope, root, "fi")
 
     with _DB_LOCK, _connect() as conn:
@@ -3287,7 +3343,7 @@ def list_library_inspector_rows(
         ).fetchone()
 
     return {
-        "root": str(root),
+        "root": str(display_root),
         "scope": normalized_scope,
         "query": query,
         "limit": bounded_limit,
@@ -3298,7 +3354,7 @@ def list_library_inspector_rows(
         "next_cursor": next_cursor,
         "has_more": next_cursor is not None,
         "sort": normalized_sort,
-        "rows": _dedupe_inspector_rows(rows, root),
+        "rows": _dedupe_inspector_rows(rows, display_root),
     }
 
 

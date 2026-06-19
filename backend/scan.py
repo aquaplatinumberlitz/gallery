@@ -12,7 +12,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
 from .albums import build_album_metadata
-from .config import DEFAULT_ROOT, ENABLE_WARM_INDEXED_LISTING, SCAN_PERF_LOGS_ENABLED
+from .config import ENABLE_WARM_INDEXED_LISTING, SCAN_PERF_LOGS_ENABLED
 from .debug.scan_perf import log_direct_scan_summary, log_warm_db_hit, log_warm_scan_summary
 from .errors import APIError, ErrorType
 from .files import is_image, is_index_excluded_path, natural_sort_key
@@ -80,6 +80,37 @@ def _require_db_path(target: Path) -> None:
                 "message": "Register this root before browsing it",
             },
         )
+
+
+def _registered_or_requested_root(path: str | None) -> Path:
+    if path:
+        return resolve_path(path)
+    from .metadata_store import get_first_library_root
+
+    root = get_first_library_root()
+    if root is None:
+        raise APIError(400, ErrorType.BAD_REQUEST, "path required")
+    return root
+
+
+def _db_required_empty_payload(target: Path) -> dict[str, object]:
+    from .metadata_store import get_library_for_path
+
+    library = get_library_for_path(target)
+    library_state = str(library["state"]) if library else "missing"
+    message = "Library is still being scanned" if library_state in {"discovering", "indexing"} else None
+    payload: dict[str, object] = {
+        "folders": [],
+        "images": [],
+        "next_cursor": None,
+        "total_images": 0,
+        "index_source": "warm_db",
+        "library_state": library_state,
+        "indexed": library_state not in {"discovering", "indexing"},
+    }
+    if message is not None:
+        payload["message"] = message
+    return payload
 
 
 def _new_scan_perf() -> dict[str, int | float | None]:
@@ -246,7 +277,7 @@ async def api_scan(
     try:
         request_started = time.perf_counter()
         resolve_started = time.perf_counter()
-        target = resolve_path(path) if path else DEFAULT_ROOT
+        target = await run_in_threadpool(_registered_or_requested_root, path)
         resolve_ms = _elapsed_ms(resolve_started)
         _require_db_path(target)
         if not is_path_safe(target):
@@ -303,13 +334,7 @@ async def api_scan(
             response_payload = warm_result
         elif GALLERY_DB_REQUIRED:
             _inc_warm_hit()
-            response_payload = {
-                "folders": [],
-                "images": [],
-                "next_cursor": None,
-                "total_images": 0,
-                "index_source": "warm_db",
-            }
+            response_payload = await run_in_threadpool(_db_required_empty_payload, target)
             warm_result = response_payload
         else:
             reason = (
