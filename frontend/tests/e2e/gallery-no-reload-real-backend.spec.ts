@@ -14,7 +14,7 @@
 import { expect, test } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
-const galleryRoot = "/home/ubuntu/gallery-repo/test-images";
+const galleryRoot = process.env.GALLERY_ROOT_PATH ?? "/home/ubuntu/gallery-repo/test-images";
 
 async function setupGallery(page: import("@playwright/test").Page) {
   await page.addInitScript((root) => {
