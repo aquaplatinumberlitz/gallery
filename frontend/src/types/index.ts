@@ -15,6 +15,14 @@ export interface FileNode {
   derivative_ready?: Record<string, boolean> | null;
 }
 
+export type LibraryErrorCode =
+  | "library_not_registered"
+  | "library_not_indexed"
+  | "library_discovering"
+  | "library_overlap"
+  | "library_offline"
+  | "library_error";
+
 export interface FolderTreeNode extends Omit<FileNode, "type" | "children"> {
   type: "folder";
   children?: FolderTreeNode[];

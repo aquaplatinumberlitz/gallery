@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from backend.app import app
+from backend.indexer import rebuild_index_scope
 from backend.metadata_store import (
     get_asset_folder_listing,
     get_library_progress,
@@ -16,6 +17,7 @@ from backend.metadata_store import (
     list_libraries,
     register_library,
     repair_library_assets,
+    update_library_state,
     upsert_image_dimensions,
 )
 from tests.conftest import create_test_png
@@ -156,6 +158,57 @@ def test_repair_reconciles_assets_without_deleting_derivatives(
     with sqlite3.connect(isolated_metadata_db) as conn:
         assert conn.execute("SELECT offline FROM assets WHERE id = ?", (asset_id,)).fetchone()[0] == 1
         assert conn.execute("SELECT count(*) FROM asset_derivatives WHERE asset_id = ?", (asset_id,)).fetchone()[0] == 1
+
+
+def test_rebuild_reconciles_deleted_assets(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    library_id = _register_library(isolated_gallery_root)
+    update_library_state(library_id, "ready")
+    image = isolated_gallery_root / "visible.png"
+    create_test_png(image)
+
+    rebuild_index_scope(isolated_gallery_root)
+    listing = get_asset_folder_listing(isolated_gallery_root)
+    assert listing is not None
+    assert [node.path for node in listing["images"]] == [str(image.resolve())]
+
+    image.unlink()
+    rebuild_index_scope(isolated_gallery_root)
+
+    listing = get_asset_folder_listing(isolated_gallery_root)
+    assert listing is not None
+    assert listing["images"] == []
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        offline = conn.execute(
+            "SELECT offline FROM assets WHERE library_id = ? AND path = ?",
+            (library_id, str(image.resolve())),
+        ).fetchone()[0]
+    assert offline == 1
+
+
+def test_asset_folder_metadata_excludes_offline_children(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    library_id = _register_library(isolated_gallery_root)
+    album = isolated_gallery_root / "album"
+    album.mkdir()
+    visible = album / "visible.png"
+    offline = album / "offline.png"
+    create_test_png(visible)
+    create_test_png(offline)
+    assert repair_library_assets(library_id)["added"] == 4
+
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute("UPDATE assets SET offline = 1 WHERE path = ?", (str(offline.resolve()),))
+
+    listing = get_asset_folder_listing(isolated_gallery_root)
+    assert listing is not None
+    folder = listing["folders"][0]
+    assert folder.image_count == 1
+    assert folder.cover_images == [str(visible.resolve())]
 
 
 def test_repair_api_returns_reconciliation_counts(

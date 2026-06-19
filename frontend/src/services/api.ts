@@ -15,6 +15,17 @@ import type {
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
 // Error types from backend
+export const LIBRARY_ERRORS = {
+  library_not_registered: "Register this folder before browsing it",
+  library_not_indexed: "Library registered but not indexed yet. Start scan?",
+  library_discovering: "Library is currently being scanned",
+  library_overlap: "This folder overlaps with an existing library",
+  library_offline: "Library root is offline or unavailable",
+  library_error: "Library scan failed",
+} as const;
+
+export type LibraryErrorType = keyof typeof LIBRARY_ERRORS;
+
 export type ErrorType =
   | "not_found"
   | "not_directory"
@@ -23,12 +34,15 @@ export type ErrorType =
   | "timeout"
   | "server_error"
   | "confirmation_required"
-  | "network";
+  | "network"
+  | LibraryErrorType;
 
 export interface APIErrorResponse {
   error: ErrorType;
   message: string;
 }
+
+const isLibraryError = (errorType: string): errorType is LibraryErrorType => errorType in LIBRARY_ERRORS;
 
 export interface IndexRebuildResponse {
   path: string;
@@ -86,6 +100,15 @@ export class GalleryAPIError extends Error {
     }
 
     const errorType = parsed?.error || "server_error";
+
+    if (isLibraryError(errorType)) {
+      return new GalleryAPIError(
+        errorType,
+        LIBRARY_ERRORS[errorType],
+        parsed?.message || LIBRARY_ERRORS[errorType],
+        false,
+      );
+    }
 
     switch (errorType) {
       case "not_found":

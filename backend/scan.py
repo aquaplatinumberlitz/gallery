@@ -63,23 +63,28 @@ def _inc_warm_fallback(reason: str) -> None:
 
 
 def _require_db_path(target: Path) -> None:
-    """Raise 409 if GALLERY_DB_REQUIRED and the path has no registered library."""
+    """Raise a semantic error if GALLERY_DB_REQUIRED cannot serve the path from assets."""
     from .config import GALLERY_DB_REQUIRED
 
     if not GALLERY_DB_REQUIRED:
         return
     from .metadata_store import get_library_for_path
 
-    if get_library_for_path(target) is None:
-        from fastapi import HTTPException
+    library = get_library_for_path(target)
+    if library is not None:
+        library_state = str(library.get("library_state") or library.get("state") or "")
+        if library_state == "offline":
+            raise APIError(409, "library_offline", library.get("last_error") or "Library root is offline")
+        if library_state == "error":
+            raise APIError(409, "library_error", library.get("last_error") or "Library scan failed")
 
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "error": "library_not_registered",
-                "message": "Register this root before browsing it",
-            },
-        )
+    if not target.exists():
+        raise APIError(404, ErrorType.NOT_FOUND, "Folder not found")
+    if not target.is_dir():
+        raise APIError(400, ErrorType.NOT_DIRECTORY, "Path is not a folder")
+
+    if library is None:
+        raise APIError(409, "library_not_registered", "Register this root before browsing it")
 
 
 def _registered_or_requested_root(path: str | None) -> Path:
@@ -97,7 +102,7 @@ def _db_required_empty_payload(target: Path) -> dict[str, object]:
     from .metadata_store import get_library_for_path
 
     library = get_library_for_path(target)
-    library_state = str(library["state"]) if library else "missing"
+    library_state = str(library["library_state"]) if library else "missing"
     message = "Library is still being scanned" if library_state in {"discovering", "indexing"} else None
     payload: dict[str, object] = {
         "folders": [],

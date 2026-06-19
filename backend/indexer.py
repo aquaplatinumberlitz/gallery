@@ -31,6 +31,7 @@ from .metadata_extract import ExtractedMetadata, extract_metadata
 from .metadata_store import (
     MetadataIndexJob,
     clear_index_records,
+    get_library_for_path,
     get_metadata_index_status,
     index_directory_tree,
     mark_metadata_jobs_done,
@@ -38,6 +39,7 @@ from .metadata_store import (
     mark_metadata_jobs_running,
     mark_metadata_jobs_stale,
     queue_metadata_index_paths,
+    reconcile_library_assets,
     upsert_metadata_batch,
 )
 from .paths import is_path_safe, resolve_path
@@ -692,7 +694,17 @@ def rebuild_index_scope(root: str | Path) -> dict[str, Any]:
     """Rebuild non-destructively for files: recreate DB index rows for a scoped root."""
     root_path = Path(root).resolve()
     image_paths: list[Path] = []
-    indexed = index_directory_tree(root_path, include_metadata=False, collected_image_paths=image_paths)
+    asset_paths: set[str] = set()
+    indexed = index_directory_tree(
+        root_path,
+        include_metadata=False,
+        collected_image_paths=image_paths,
+        collected_asset_paths=asset_paths,
+    )
+    library = get_library_for_path(root_path)
+    reconciled = 0
+    if library is not None:
+        reconciled = reconcile_library_assets(int(library["id"]), asset_paths, scope_path=root_path)
     queued_result = queue_metadata_index_paths(image_paths, root_path)
 
     if METADATA_INDEXER_ENABLED:
@@ -708,6 +720,7 @@ def rebuild_index_scope(root: str | Path) -> dict[str, Any]:
     return {
         "path": str(root_path),
         "indexed": indexed,
+        "reconciled": reconciled,
         "metadata": metadata,
     }
 

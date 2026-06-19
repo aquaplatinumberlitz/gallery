@@ -48,7 +48,14 @@ _DB_INITIALIZED = False
 _DB_INITIALIZED_PATH: Path | None = None
 METADATA_JOB_STATES = ("queued", "running", "done", "failed", "stale", "skipped")
 MAX_METADATA_JOB_ATTEMPTS = 3
+ACTIVE_ASSET_WHERE = "deleted_at IS NULL AND offline = 0"
 logger = logging.getLogger(__name__)
+
+
+def _active_asset_where(alias: str | None = None) -> str:
+    if alias is None:
+        return ACTIVE_ASSET_WHERE
+    return f"{alias}.deleted_at IS NULL AND {alias}.offline = 0"
 
 
 @dataclass(frozen=True)
@@ -630,7 +637,11 @@ def get_library_for_path(path: str | Path) -> dict[str, Any] | None:
     initialize_database()
     with _DB_LOCK, _connect() as conn:
         row = _find_library_for_path_conn(conn, path)
-        return dict(row) if row else None
+        if row is None:
+            return None
+        library = dict(row)
+        library["library_state"] = library["state"]
+        return library
 
 
 def get_first_library_root() -> Path | None:
@@ -708,17 +719,17 @@ def get_library_progress(library_id: int) -> dict[str, Any]:
             raise KeyError(library_id)
         indexed = int(
             conn.execute(
-                """
+                f"""
                 SELECT count(*) FROM assets
-                WHERE library_id = ? AND type = 'image' AND deleted_at IS NULL AND metadata_state = 'done'
+                WHERE library_id = ? AND type = 'image' AND {_active_asset_where()} AND metadata_state = 'done'
                 """,
                 (library_id,),
             ).fetchone()[0]
         )
         estimated = int(
             conn.execute(
-                """
-                SELECT count(*) FROM assets WHERE library_id = ? AND type = 'image' AND deleted_at IS NULL
+                f"""
+                SELECT count(*) FROM assets WHERE library_id = ? AND type = 'image' AND {_active_asset_where()}
                 """,
                 (library_id,),
             ).fetchone()[0]
@@ -840,6 +851,57 @@ def repair_library_assets(library_id: int) -> dict[str, int]:
     return {"added": added, "removed": removed, "modified": modified}
 
 
+def _reconcile_assets_conn(
+    conn: sqlite3.Connection,
+    library_id: int,
+    discovered_paths: set[str],
+    *,
+    scope_path: str | Path | None = None,
+) -> int:
+    """Mark catalog rows missing from the latest discovery offline without deleting derivatives."""
+    params: list[Any] = [library_id]
+    scope_sql = ""
+    if scope_path is not None:
+        scope = str(Path(scope_path).resolve())
+        prefix = f"{scope.rstrip(os.sep)}{os.sep}"
+        scope_sql = " AND (path = ? OR path LIKE ? ESCAPE '\\')"
+        params.extend([scope, f"{_like_escape(prefix)}%"])
+
+    existing = conn.execute(
+        f"""
+        SELECT path
+        FROM assets
+        WHERE library_id = ?
+          AND {_active_asset_where()}
+          {scope_sql}
+        """,
+        params,
+    ).fetchall()
+    missing_paths = [row["path"] for row in existing if row["path"] not in discovered_paths]
+    if not missing_paths:
+        return 0
+
+    now = time.time()
+    conn.executemany(
+        "UPDATE assets SET offline = 1, indexed_at = ? WHERE library_id = ? AND path = ?",
+        ((now, library_id, path) for path in missing_paths),
+    )
+    return len(missing_paths)
+
+
+def reconcile_library_assets(
+    library_id: int,
+    discovered_paths: set[str | Path],
+    *,
+    scope_path: str | Path | None = None,
+) -> int:
+    """Reconcile active assets for a library or scoped subtree."""
+    normalized = {str(Path(path).resolve()) for path in discovered_paths}
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        return _reconcile_assets_conn(conn, library_id, normalized, scope_path=scope_path)
+
+
 def get_asset_folder_listing(
     folder_path: str | Path,
     *,
@@ -854,7 +916,7 @@ def get_asset_folder_listing(
         if library is None:
             return None
         rows = conn.execute(
-            """
+            f"""
             SELECT a.id, a.path, a.parent_path, a.name, a.type, a.mtime_ns, a.size,
                    COALESCE(a.width, im.width) AS width,
                    COALESCE(a.height, im.height) AS height,
@@ -862,7 +924,7 @@ def get_asset_folder_listing(
             FROM assets AS a
             LEFT JOIN image_metadata AS im ON im.path = a.path
             WHERE a.library_id = ? AND a.parent_path = ?
-              AND a.deleted_at IS NULL AND a.offline = 0
+              AND {_active_asset_where("a")}
             """,
             (library["id"], resolved),
         ).fetchall()
@@ -903,19 +965,20 @@ def get_asset_folder_listing(
         folders: list[FileNode] = []
         for row in folder_rows:
             counts = conn.execute(
-                """
+                f"""
                 SELECT count(*) AS children,
                        sum(CASE WHEN type = 'image' THEN 1 ELSE 0 END) AS images
-                FROM assets WHERE library_id = ? AND parent_path = ? AND deleted_at IS NULL
+                FROM assets
+                WHERE library_id = ? AND parent_path = ? AND {_active_asset_where()}
                 """,
                 (library["id"], row["path"]),
             ).fetchone()
             covers = [
                 cover["path"]
                 for cover in conn.execute(
-                    """
+                    f"""
                     SELECT path FROM assets
-                    WHERE library_id = ? AND parent_path = ? AND type = 'image' AND deleted_at IS NULL
+                    WHERE library_id = ? AND parent_path = ? AND type = 'image' AND {_active_asset_where()}
                     ORDER BY mtime_ns DESC LIMIT 3
                     """,
                     (library["id"], row["path"]),
@@ -2246,6 +2309,7 @@ def index_directory_tree(
     root: str | Path,
     include_metadata: bool = False,
     collected_image_paths: list[Path] | None = None,
+    collected_asset_paths: set[str] | None = None,
 ) -> int:
     """Recreate file_index rows under root. Optionally extract metadata or collect image paths.
 
@@ -2272,6 +2336,8 @@ def index_directory_tree(
         try:
             if index_file(folder, folder.name or str(folder), folder.parent, "folder", stat.st_mtime, None, None, None):
                 indexed += 1
+            if collected_asset_paths is not None:
+                collected_asset_paths.add(str(folder.resolve()))
         except OSError:
             return
         except Exception:  # noqa: BLE001
@@ -2293,6 +2359,8 @@ def index_directory_tree(
                     stat = entry.stat()
                     if index_file(entry, entry.name, entry.parent, "photo", stat.st_mtime, stat.st_size, None, None):
                         indexed += 1
+                    if collected_asset_paths is not None:
+                        collected_asset_paths.add(str(entry.resolve()))
                     if include_metadata:
                         local_image_paths.append(entry)
                     if collected_image_paths is not None:
