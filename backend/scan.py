@@ -1,5 +1,6 @@
 """Scan gallery folders and serve paginated folder/image listings."""
 
+import logging
 import os
 import time
 from contextlib import suppress
@@ -21,6 +22,7 @@ from .indexer import (
     note_scan_request_started,
 )
 from .metadata_store import (
+    get_asset_folder_listing,
     get_cached_dimensions_for_files,
     get_folder_index_state,
     get_warm_folder_listing,
@@ -32,6 +34,7 @@ from .models import FileNode
 from .paths import is_path_safe, resolve_path
 
 router = APIRouter()
+LOGGER = logging.getLogger(__name__)
 
 try:
     from prometheus_client import Counter
@@ -186,6 +189,31 @@ def scan_directory(target_path: Path) -> tuple[list[FileNode], list[FileNode], d
     return folders, images, perf
 
 
+def _shadow_compare_asset_listing(target: Path, db_folder_count: int, db_image_count: int) -> None:
+    """Compare catalog and filesystem counts without affecting the response path."""
+    try:
+        folder_count = 0
+        image_count = 0
+        for entry in os.scandir(target):
+            if entry.name.startswith(".") or is_index_excluded_path(entry.path):
+                continue
+            if entry.is_dir():
+                folder_count += 1
+            elif entry.is_file() and is_image(Path(entry.path)):
+                image_count += 1
+    except (OSError, PermissionError):
+        return
+    if folder_count != db_folder_count or image_count != db_image_count:
+        LOGGER.warning(
+            "Asset catalog shadow mismatch for %s: db=%s folders/%s images filesystem=%s folders/%s images",
+            target,
+            db_folder_count,
+            db_image_count,
+            folder_count,
+            image_count,
+        )
+
+
 @router.get("/api/scan")
 async def api_scan(
     background_tasks: BackgroundTasks,
@@ -205,9 +233,23 @@ async def api_scan(
         scan_tracking_target = target
         note_scan_request_started(scan_tracking_target)
 
-        warm_result = None
+        warm_get_started = time.perf_counter()
+        warm_result = await run_in_threadpool(
+            get_asset_folder_listing,
+            target,
+            offset=image_cursor,
+            image_limit=image_limit,
+        )
+        warm_get_ms = _elapsed_ms(warm_get_started)
+        if warm_result is not None:
+            background_tasks.add_task(
+                _shadow_compare_asset_listing,
+                target,
+                len(warm_result["folders"]),
+                warm_result["total_images"],
+            )
         warm_fallback_reason = None
-        if ENABLE_WARM_INDEXED_LISTING:
+        if warm_result is None and ENABLE_WARM_INDEXED_LISTING:
             warm_get_started = time.perf_counter()
             warm_result = await run_in_threadpool(
                 get_warm_folder_listing,

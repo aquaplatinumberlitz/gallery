@@ -298,6 +298,40 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
               last_error TEXT,
               updated_at REAL NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS libraries (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              root_path TEXT NOT NULL UNIQUE,
+              name TEXT NOT NULL,
+              state TEXT NOT NULL DEFAULT 'discovering',
+              watch_enabled INTEGER NOT NULL DEFAULT 1,
+              warm_enabled INTEGER NOT NULL DEFAULT 1,
+              created_at REAL NOT NULL DEFAULT (julianday('now')),
+              updated_at REAL NOT NULL DEFAULT (julianday('now')),
+              last_scan_at REAL,
+              last_error TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS assets (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              library_id INTEGER NOT NULL REFERENCES libraries(id),
+              path TEXT NOT NULL,
+              parent_path TEXT NOT NULL,
+              name TEXT NOT NULL,
+              type TEXT NOT NULL DEFAULT 'image',
+              mtime_ns REAL,
+              size INTEGER,
+              width INTEGER,
+              height INTEGER,
+              orientation INTEGER,
+              indexed_at REAL,
+              metadata_state TEXT DEFAULT 'pending',
+              offline INTEGER NOT NULL DEFAULT 0,
+              deleted_at REAL,
+              UNIQUE(library_id, path)
+            );
+            CREATE INDEX IF NOT EXISTS idx_assets_library_path ON assets(library_id, path);
+            CREATE INDEX IF NOT EXISTS idx_assets_library_parent ON assets(library_id, parent_path);
             """
     )
     _ensure_column(conn, "image_metadata", "format", "TEXT")
@@ -353,7 +387,324 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
         )
         conn.execute("PRAGMA user_version = 3")
 
+    default_library_id = _ensure_default_library_conn(conn)
+    if current_version < 4:
+        conn.execute(
+            """
+            INSERT INTO assets (
+              library_id, path, parent_path, name, type, mtime_ns, size,
+              width, height, indexed_at, metadata_state
+            )
+            SELECT ?, fi.path, fi.parent_path, fi.name,
+                   CASE WHEN fi.type = 'photo' THEN 'image' ELSE 'folder' END,
+                   fi.mtime, fi.size, fi.width, fi.height, fi.indexed_at,
+                   CASE WHEN im.path IS NULL THEN 'pending' ELSE 'done' END
+            FROM file_index AS fi
+            LEFT JOIN image_metadata AS im ON im.path = fi.path
+            WHERE 1
+            ON CONFLICT(library_id, path) DO UPDATE SET
+              parent_path=excluded.parent_path,
+              name=excluded.name,
+              type=excluded.type,
+              mtime_ns=excluded.mtime_ns,
+              size=excluded.size,
+              width=COALESCE(excluded.width, assets.width),
+              height=COALESCE(excluded.height, assets.height),
+              indexed_at=excluded.indexed_at,
+              metadata_state=excluded.metadata_state
+            """,
+            (default_library_id,),
+        )
+        conn.execute("PRAGMA user_version = 4")
+
     _cleanup_ignored_index_conn(conn)
+
+
+def _ensure_default_library_conn(conn: sqlite3.Connection) -> int:
+    row = conn.execute("SELECT id FROM libraries ORDER BY id LIMIT 1").fetchone()
+    if row is not None:
+        return int(row["id"])
+    root_path = str(GALLERY_ROOT.resolve())
+    cursor = conn.execute(
+        "INSERT INTO libraries (root_path, name, state) VALUES (?, 'Default', 'discovering')",
+        (root_path,),
+    )
+    return int(cursor.lastrowid)
+
+
+def _path_is_within(path: str, root: str) -> bool:
+    return path == root or root == os.sep or path.startswith(f"{root.rstrip(os.sep)}{os.sep}")
+
+
+def _find_library_for_path_conn(conn: sqlite3.Connection, path: str | Path) -> sqlite3.Row | None:
+    resolved = str(Path(path).resolve())
+    libraries = conn.execute("SELECT * FROM libraries ORDER BY length(root_path) DESC").fetchall()
+    return next((row for row in libraries if _path_is_within(resolved, row["root_path"])), None)
+
+
+def _upsert_asset_conn(
+    conn: sqlite3.Connection,
+    *,
+    path: str | Path,
+    name: str,
+    parent_path: str | Path,
+    type: str,
+    mtime_ns: float | None,
+    size: int | None,
+    width: int | None = None,
+    height: int | None = None,
+    orientation: int | None = None,
+    metadata_state: str | None = None,
+) -> int:
+    resolved_path = str(Path(path).resolve())
+    library = _find_library_for_path_conn(conn, resolved_path)
+    library_id = int(library["id"]) if library else _ensure_default_library_conn(conn)
+    normalized_type = "image" if type in {"image", "photo", "file"} else "folder"
+    conn.execute(
+        """
+        INSERT INTO assets (
+          library_id, path, parent_path, name, type, mtime_ns, size, width,
+          height, orientation, indexed_at, metadata_state, offline, deleted_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, 'pending'), 0, NULL)
+        ON CONFLICT(library_id, path) DO UPDATE SET
+          parent_path=excluded.parent_path,
+          name=excluded.name,
+          type=excluded.type,
+          mtime_ns=COALESCE(excluded.mtime_ns, assets.mtime_ns),
+          size=COALESCE(excluded.size, assets.size),
+          width=COALESCE(excluded.width, assets.width),
+          height=COALESCE(excluded.height, assets.height),
+          orientation=COALESCE(excluded.orientation, assets.orientation),
+          indexed_at=excluded.indexed_at,
+          metadata_state=COALESCE(?, assets.metadata_state),
+          offline=0,
+          deleted_at=NULL
+        """,
+        (
+            library_id,
+            resolved_path,
+            str(Path(parent_path).resolve()),
+            name,
+            normalized_type,
+            mtime_ns,
+            size,
+            width,
+            height,
+            orientation,
+            time.time(),
+            metadata_state,
+            metadata_state,
+        ),
+    )
+    row = conn.execute(
+        "SELECT id FROM assets WHERE library_id = ? AND path = ?",
+        (library_id, resolved_path),
+    ).fetchone()
+    return int(row["id"])
+
+
+def init_db() -> None:
+    """Backward-compatible database initialization entry point."""
+    initialize_database()
+
+
+def list_libraries() -> list[dict[str, Any]]:
+    """Return all registered libraries in stable ID order."""
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        return [dict(row) for row in conn.execute("SELECT * FROM libraries ORDER BY id")]
+
+
+def get_library(library_id: int) -> dict[str, Any] | None:
+    """Return one registered library."""
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        row = conn.execute("SELECT * FROM libraries WHERE id = ?", (library_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def get_library_for_path(path: str | Path) -> dict[str, Any] | None:
+    """Return the most-specific registered library containing path."""
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        row = _find_library_for_path_conn(conn, path)
+        return dict(row) if row else None
+
+
+def register_library(root_path: str | Path, name: str | None = None) -> dict[str, Any]:
+    """Register a canonical, non-overlapping library root."""
+    root = str(Path(root_path).resolve())
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        for existing in conn.execute("SELECT root_path FROM libraries"):
+            existing_root = existing["root_path"]
+            if _path_is_within(root, existing_root) or _path_is_within(existing_root, root):
+                raise ValueError(f"Library root overlaps registered root: {existing_root}")
+        cursor = conn.execute(
+            "INSERT INTO libraries (root_path, name, state) VALUES (?, ?, 'discovering')",
+            (root, (name or Path(root).name or root).strip()),
+        )
+        row = conn.execute("SELECT * FROM libraries WHERE id = ?", (cursor.lastrowid,)).fetchone()
+        return dict(row)
+
+
+def unregister_library(library_id: int) -> bool:
+    """Delete catalog records for a library without touching source files."""
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        if conn.execute("SELECT 1 FROM libraries WHERE id = ?", (library_id,)).fetchone() is None:
+            return False
+        conn.execute("DELETE FROM assets WHERE library_id = ?", (library_id,))
+        conn.execute("DELETE FROM libraries WHERE id = ?", (library_id,))
+        return True
+
+
+def update_library_state(
+    library_id: int,
+    state: str,
+    *,
+    last_error: str | None = None,
+    scan_completed: bool = False,
+) -> None:
+    """Persist discovery/indexing lifecycle state for a library."""
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        conn.execute(
+            """
+            UPDATE libraries
+            SET state = ?, last_error = ?, updated_at = julianday('now'),
+                last_scan_at = CASE WHEN ? THEN julianday('now') ELSE last_scan_at END
+            WHERE id = ?
+            """,
+            (state, last_error, int(scan_completed), library_id),
+        )
+
+
+def get_library_progress(library_id: int) -> dict[str, Any]:
+    """Return indexed_assets, estimated_assets, discovery_complete, library_state."""
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        library = conn.execute("SELECT state FROM libraries WHERE id = ?", (library_id,)).fetchone()
+        if library is None:
+            raise KeyError(library_id)
+        indexed = int(
+            conn.execute(
+                """
+                SELECT count(*) FROM assets
+                WHERE library_id = ? AND type = 'image' AND deleted_at IS NULL AND metadata_state = 'done'
+                """,
+                (library_id,),
+            ).fetchone()[0]
+        )
+        estimated = int(
+            conn.execute(
+                """
+                SELECT count(*) FROM assets WHERE library_id = ? AND type = 'image' AND deleted_at IS NULL
+                """,
+                (library_id,),
+            ).fetchone()[0]
+        )
+        return {
+            "indexed_assets": indexed,
+            "estimated_assets": estimated,
+            "discovery_complete": library["state"] in {"ready", "error", "offline"},
+            "library_state": library["state"],
+        }
+
+
+def get_asset_folder_listing(
+    folder_path: str | Path,
+    *,
+    offset: int = 0,
+    image_limit: int | None = None,
+) -> dict[str, Any] | None:
+    """Return direct children from the authoritative assets catalog."""
+    resolved = str(Path(folder_path).resolve())
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        library = _find_library_for_path_conn(conn, resolved)
+        if library is None:
+            return None
+        rows = conn.execute(
+            """
+            SELECT a.id, a.path, a.parent_path, a.name, a.type, a.mtime_ns, a.size,
+                   COALESCE(a.width, im.width) AS width,
+                   COALESCE(a.height, im.height) AS height,
+                   a.metadata_state
+            FROM assets AS a
+            LEFT JOIN image_metadata AS im ON im.path = a.path
+            WHERE a.library_id = ? AND a.parent_path = ?
+              AND a.deleted_at IS NULL AND a.offline = 0
+            """,
+            (library["id"], resolved),
+        ).fetchall()
+        if not rows and library["state"] == "discovering":
+            # Bootstrap compatibility: the first request seeds both catalogs;
+            # subsequent requests for this folder are DB-backed.
+            return None
+        from .files import natural_sort_key
+
+        folder_rows = sorted(
+            (row for row in rows if row["type"] == "folder"), key=lambda row: natural_sort_key(row["name"])
+        )
+        image_rows = sorted(
+            (row for row in rows if row["type"] == "image"), key=lambda row: natural_sort_key(row["name"])
+        )
+        total_images = len(image_rows)
+        end = offset + image_limit if image_limit is not None else total_images
+        page = image_rows[offset:end]
+
+        folders: list[FileNode] = []
+        for row in folder_rows:
+            counts = conn.execute(
+                """
+                SELECT count(*) AS children,
+                       sum(CASE WHEN type = 'image' THEN 1 ELSE 0 END) AS images
+                FROM assets WHERE library_id = ? AND parent_path = ? AND deleted_at IS NULL
+                """,
+                (library["id"], row["path"]),
+            ).fetchone()
+            covers = [
+                cover["path"]
+                for cover in conn.execute(
+                    """
+                    SELECT path FROM assets
+                    WHERE library_id = ? AND parent_path = ? AND type = 'image' AND deleted_at IS NULL
+                    ORDER BY mtime_ns DESC LIMIT 3
+                    """,
+                    (library["id"], row["path"]),
+                )
+            ]
+            folders.append(
+                FileNode(
+                    name=row["name"],
+                    path=row["path"],
+                    type="folder",
+                    has_children=bool(counts["children"]),
+                    cover_images=covers,
+                    mtime=row["mtime_ns"] or 0,
+                    image_count=int(counts["images"] or 0),
+                )
+            )
+        images = [
+            FileNode(
+                name=row["name"],
+                path=row["path"],
+                type="image",
+                has_children=False,
+                mtime=row["mtime_ns"] or 0,
+                width=row["width"],
+                height=row["height"],
+            )
+            for row in page
+        ]
+        return {
+            "folders": folders,
+            "images": images,
+            "next_cursor": end if end < total_images else None,
+            "total_images": total_images,
+            "index_source": "warm_db",
+        }
 
 
 def _current_metadata_is_complete(conn: sqlite3.Connection, path: str, mtime: float, size: int) -> bool:
@@ -802,6 +1153,18 @@ def _upsert_extracted_metadata_conn(conn: sqlite3.Connection, metadata: Extracte
             metadata.aspect_ratio,
         ),
     )
+    _upsert_asset_conn(
+        conn,
+        path=metadata.path,
+        name=metadata.name,
+        parent_path=Path(metadata.path).parent,
+        type="image",
+        mtime_ns=metadata.mtime,
+        size=metadata.size,
+        width=metadata.width,
+        height=metadata.height,
+        metadata_state="done",
+    )
     _sync_dimensions_to_file_index(conn, metadata.path, metadata.width, metadata.height)
     _replace_image_resources_conn(conn, metadata.path, metadata.metadata_json, metadata.lora_text, metadata.indexed_at)
 
@@ -818,6 +1181,15 @@ def _sync_dimensions_to_file_index(
     conn.execute(
         """
         UPDATE file_index
+        SET width = COALESCE(?, width),
+            height = COALESCE(?, height)
+        WHERE path = ?
+        """,
+        (width, height, str(Path(path).resolve())),
+    )
+    conn.execute(
+        """
+        UPDATE assets
         SET width = COALESCE(?, width),
             height = COALESCE(?, height)
         WHERE path = ?
@@ -1270,6 +1642,18 @@ def upsert_image_dimensions(
                 now,
             ),
         )
+        _upsert_asset_conn(
+            conn,
+            path=resolved_path,
+            name=image_path.name,
+            parent_path=image_path.parent,
+            type="image",
+            mtime_ns=stat.st_mtime,
+            size=stat.st_size,
+            width=width,
+            height=height,
+            metadata_state="done",
+        )
         _sync_dimensions_to_file_index(conn, resolved_path, width, height)
     return True
 
@@ -1363,6 +1747,18 @@ def upsert_metadata_result(path: str | Path, metadata: dict[str, Any]) -> bool:
                 now,
             ),
         )
+        _upsert_asset_conn(
+            conn,
+            path=resolved_path,
+            name=image_path.name,
+            parent_path=image_path.parent,
+            type="image",
+            mtime_ns=stat.st_mtime,
+            size=stat.st_size,
+            width=width if isinstance(width, int) else None,
+            height=height if isinstance(height, int) else None,
+            metadata_state="done",
+        )
         _sync_dimensions_to_file_index(
             conn,
             resolved_path,
@@ -1426,6 +1822,17 @@ def index_file(
                 height,
                 time.time(),
             ),
+        )
+        _upsert_asset_conn(
+            conn,
+            path=resolved_path,
+            name=name,
+            parent_path=resolved_parent,
+            type=normalized_type,
+            mtime_ns=mtime,
+            size=size,
+            width=width,
+            height=height,
         )
         conn.execute("DELETE FROM file_index_fts WHERE path = ?", (resolved_path,))
         conn.execute(
