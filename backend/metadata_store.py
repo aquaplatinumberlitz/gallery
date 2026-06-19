@@ -717,6 +717,116 @@ def get_library_progress(library_id: int) -> dict[str, Any]:
         }
 
 
+def repair_library_assets(library_id: int) -> dict[str, int]:
+    """Reconcile one library's asset rows with its filesystem without deleting derivatives."""
+    library = get_library(library_id)
+    if library is None:
+        raise KeyError(library_id)
+
+    root = Path(library["root_path"]).resolve()
+    discovered: dict[str, tuple[str, str, str, float, int | None]] = {}
+
+    def visit(path: Path, visited_inodes: set[tuple[int, int]]) -> None:
+        if is_index_excluded_path(path):
+            return
+        try:
+            stat = path.stat()
+        except OSError:
+            return
+        if path.is_dir():
+            inode = (stat.st_dev, stat.st_ino)
+            if inode in visited_inodes:
+                return
+            visited_inodes.add(inode)
+            resolved = path.resolve()
+            discovered[str(resolved)] = (
+                str(resolved.parent),
+                resolved.name or str(resolved),
+                "folder",
+                stat.st_mtime,
+                None,
+            )
+            try:
+                entries = list(path.iterdir())
+            except (OSError, PermissionError):
+                return
+            for entry in entries:
+                if entry.name.startswith(".") or is_index_excluded_path(entry):
+                    continue
+                try:
+                    if entry.is_dir() and not entry.is_symlink():
+                        visit(entry, visited_inodes)
+                    elif entry.is_file() and is_image_path(entry):
+                        file_stat = entry.stat()
+                        resolved_file = entry.resolve()
+                        discovered[str(resolved_file)] = (
+                            str(resolved_file.parent),
+                            resolved_file.name,
+                            "image",
+                            file_stat.st_mtime,
+                            file_stat.st_size,
+                        )
+                except (OSError, PermissionError):
+                    continue
+
+    visit(root, set())
+    now = time.time()
+    added = 0
+    removed = 0
+    modified = 0
+    with _DB_LOCK, _connect() as conn:
+        existing = {
+            row["path"]: row
+            for row in conn.execute("SELECT * FROM assets WHERE library_id = ?", (library_id,))
+        }
+        for path, (parent_path, name, asset_type, mtime, size) in discovered.items():
+            row = existing.get(path)
+            if row is None:
+                added += 1
+            elif (
+                row["parent_path"] != parent_path
+                or row["name"] != name
+                or row["type"] != asset_type
+                or row["mtime_ns"] != mtime
+                or row["size"] != size
+                or row["offline"]
+                or row["deleted_at"] is not None
+            ):
+                modified += 1
+            metadata_state = "pending" if row is None or row["mtime_ns"] != mtime or row["size"] != size else None
+            _upsert_asset_conn(
+                conn,
+                path=path,
+                name=name,
+                parent_path=parent_path,
+                type=asset_type,
+                mtime_ns=mtime,
+                size=size,
+                metadata_state=metadata_state,
+            )
+
+        missing_paths = [
+            path
+            for path, row in existing.items()
+            if path not in discovered and not row["offline"] and row["deleted_at"] is None
+        ]
+        if missing_paths:
+            conn.executemany(
+                "UPDATE assets SET offline = 1, indexed_at = ? WHERE library_id = ? AND path = ?",
+                ((now, library_id, path) for path in missing_paths),
+            )
+            removed = len(missing_paths)
+        conn.execute(
+            """
+            UPDATE libraries SET state = 'ready', last_error = NULL,
+                last_scan_at = julianday('now'), updated_at = julianday('now')
+            WHERE id = ?
+            """,
+            (library_id,),
+        )
+    return {"added": added, "removed": removed, "modified": modified}
+
+
 def get_asset_folder_listing(
     folder_path: str | Path,
     *,

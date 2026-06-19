@@ -14,6 +14,7 @@ from .metadata_store import (
     get_library_progress,
     list_libraries,
     register_library,
+    repair_library_assets,
     unregister_library,
     update_library_state,
 )
@@ -91,6 +92,20 @@ async def api_scan_library(library_id: int, background_tasks: BackgroundTasks):
     await run_in_threadpool(update_library_state, library_id, "discovering")
     background_tasks.add_task(_discover_library, library_id, str(root))
     return {"library_id": library_id, "state": "discovering"}
+
+
+@router.post("/api/libraries/{library_id}/repair")
+async def api_repair_library(library_id: int):
+    """Reconcile a registered library's asset catalog with its filesystem."""
+    library = await run_in_threadpool(get_library, library_id)
+    if library is None:
+        raise APIError(404, ErrorType.NOT_FOUND, "Library not found")
+    root = Path(library["root_path"])
+    if not root.exists():
+        await run_in_threadpool(update_library_state, library_id, "offline", last_error="Root path is offline")
+        raise APIError(409, "library_offline", "Library root is offline")
+    counts = await run_in_threadpool(repair_library_assets, library_id)
+    return {"library_id": library_id, **counts}
 
 
 @router.delete("/api/libraries/{library_id}")

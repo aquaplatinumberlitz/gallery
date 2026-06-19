@@ -62,6 +62,26 @@ def _inc_warm_fallback(reason: str) -> None:
             _warm_listing_fallbacks.labels(reason=reason).inc()
 
 
+def _require_db_path(target: Path) -> None:
+    """Raise 409 if GALLERY_DB_REQUIRED and the path has no registered library."""
+    from .config import GALLERY_DB_REQUIRED
+
+    if not GALLERY_DB_REQUIRED:
+        return
+    from .metadata_store import get_library_for_path
+
+    if get_library_for_path(target) is None:
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": "library_not_registered",
+                "message": "Register this root before browsing it",
+            },
+        )
+
+
 def _new_scan_perf() -> dict[str, int | float | None]:
     return {
         "list_ms": 0.0,
@@ -228,6 +248,7 @@ async def api_scan(
         resolve_started = time.perf_counter()
         target = resolve_path(path) if path else DEFAULT_ROOT
         resolve_ms = _elapsed_ms(resolve_started)
+        _require_db_path(target)
         if not is_path_safe(target):
             raise APIError(403, "permission", "Access denied: path outside allowed root")
         scan_tracking_target = target
@@ -241,7 +262,9 @@ async def api_scan(
             image_limit=image_limit,
         )
         warm_get_ms = _elapsed_ms(warm_get_started)
-        if warm_result is not None:
+        from .config import GALLERY_DB_REQUIRED
+
+        if warm_result is not None and not GALLERY_DB_REQUIRED:
             background_tasks.add_task(
                 _shadow_compare_asset_listing,
                 target,
@@ -249,7 +272,7 @@ async def api_scan(
                 warm_result["total_images"],
             )
         warm_fallback_reason = None
-        if warm_result is None and ENABLE_WARM_INDEXED_LISTING:
+        if warm_result is None and ENABLE_WARM_INDEXED_LISTING and not GALLERY_DB_REQUIRED:
             warm_get_started = time.perf_counter()
             warm_result = await run_in_threadpool(
                 get_warm_folder_listing,
@@ -278,6 +301,16 @@ async def api_scan(
         if warm_result is not None:
             _inc_warm_hit()
             response_payload = warm_result
+        elif GALLERY_DB_REQUIRED:
+            _inc_warm_hit()
+            response_payload = {
+                "folders": [],
+                "images": [],
+                "next_cursor": None,
+                "total_images": 0,
+                "index_source": "warm_db",
+            }
+            warm_result = response_payload
         else:
             reason = (
                 warm_fallback_reason
@@ -285,6 +318,10 @@ async def api_scan(
                 else ("disabled" if not ENABLE_WARM_INDEXED_LISTING else "error")
             )
             _inc_warm_fallback(reason)
+            LOGGER.warning(
+                "Direct filesystem scan used for %s — register this path as a library for DB-first browsing",
+                target,
+            )
             folders, images, scan_perf = await run_in_threadpool(scan_directory, target)
 
             pagination_started = time.perf_counter()

@@ -46,6 +46,7 @@ SCAN_PERF_LOGS_ENABLED = os.getenv("SCAN_PERF_LOGS", "1" if os.getenv("PRODUCTIO
 
 GALLERY_ROOT = Path(os.getenv("GALLERY_ROOT", "/")).resolve()
 DEFAULT_ROOT = GALLERY_ROOT
+GALLERY_DB_REQUIRED = _env_flag("GALLERY_DB_REQUIRED", default=False)
 
 METADATA_INDEXER_ENABLED = _env_flag("GALLERY_METADATA_INDEXER_ENABLED", default=True)
 METADATA_INDEXER_BATCH_SIZE = max(1, min(int(os.getenv("GALLERY_METADATA_INDEXER_BATCH_SIZE", "8")), 64))
@@ -152,9 +153,9 @@ SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK = max(
 SCHEDULED_REFRESH_ALLOW_ALL_INDEXED = _env_flag("SCHEDULED_REFRESH_ALLOW_ALL_INDEXED", default=False)
 
 # ---------------------------------------------------------------------------
-# File watcher (optional, disabled by default)
+# File watcher (enabled by default for registered libraries)
 # ---------------------------------------------------------------------------
-ENABLE_FILE_WATCHER = _env_flag("ENABLE_FILE_WATCHER", default=False)
+ENABLE_FILE_WATCHER = _env_flag("ENABLE_FILE_WATCHER", default=True)
 WATCHER_ROOTS = [p.strip() for p in os.getenv("WATCHER_ROOTS", "").split(",") if p.strip()]
 WATCHER_DEBOUNCE_SECONDS = max(0.0, float(os.getenv("WATCHER_DEBOUNCE_SECONDS", "2.0")))
 WATCHER_MAX_EVENTS_PER_TICK = max(1, int(os.getenv("WATCHER_MAX_EVENTS_PER_TICK", "500")))

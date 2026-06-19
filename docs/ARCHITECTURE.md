@@ -79,7 +79,7 @@ Backend modules live flat in `backend/`.
 - `/api/scan` stays hot-path focused: `os.scandir`, stat, natural sort, one batched dimension lookup, and no blanket metadata parsing.
 - `/api/scan` schedules background indexing work for scanned folders/images and metadata jobs. `/api/metadata`, `/api/thumbnail`, and `/api/preview` also update cached metadata/dimensions when they already open the image.
 - `ENABLE_WARM_INDEXED_LISTING=1` allows `/api/scan` to serve a warm SQLite-backed listing when the folder index is complete and fresh.
-- Scheduled refresh and file watcher are optional and disabled by default: `ENABLE_SCHEDULED_REFRESH=1`, `ENABLE_FILE_WATCHER=1`.
+- Scheduled refresh is disabled by default. The file watcher is enabled for registered library roots by default and can be disabled with `ENABLE_FILE_WATCHER=0`.
 
 ## Frontend
 

@@ -14,6 +14,7 @@ from backend.metadata_store import (
     index_file,
     initialize_database,
     list_libraries,
+    repair_library_assets,
     upsert_image_dimensions,
 )
 from tests.conftest import create_test_png
@@ -110,4 +111,49 @@ def test_library_api_lists_progress_and_requires_delete_confirmation(
         assert rejected.status_code == 400
         deleted = client.delete(f"/api/libraries/{default_library['id']}?confirm=true")
         assert deleted.status_code == 200
-        assert deleted.json()["source_files_deleted"] is False
+    assert deleted.json()["source_files_deleted"] is False
+
+
+def test_repair_reconciles_assets_without_deleting_derivatives(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    original = isolated_gallery_root / "original.png"
+    create_test_png(original)
+    assert repair_library_assets(list_libraries()[0]["id"])["added"] == 2
+
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        asset_id = conn.execute("SELECT id FROM assets WHERE path = ?", (str(original.resolve()),)).fetchone()[0]
+        conn.execute(
+            """
+            INSERT INTO asset_derivatives (
+              asset_id, kind, variant, source_mtime_ns, source_size, status, max_long_edge
+            ) VALUES (?, 'thumbnail', 'thumb_512', 1, 1, 'ready', 512)
+            """,
+            (asset_id,),
+        )
+
+    original.unlink()
+    added_image = isolated_gallery_root / "added.png"
+    create_test_png(added_image)
+    counts = repair_library_assets(list_libraries()[0]["id"])
+    assert counts["added"] == 1
+    assert counts["removed"] == 1
+
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        assert conn.execute("SELECT offline FROM assets WHERE id = ?", (asset_id,)).fetchone()[0] == 1
+        assert conn.execute("SELECT count(*) FROM asset_derivatives WHERE asset_id = ?", (asset_id,)).fetchone()[0] == 1
+
+
+def test_repair_api_returns_reconciliation_counts(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    create_test_png(isolated_gallery_root / "new.png")
+    library_id = list_libraries()[0]["id"]
+    with TestClient(app) as client:
+        response = client.post(f"/api/libraries/{library_id}/repair")
+    assert response.status_code == 200
+    assert response.json()["library_id"] == library_id
+    assert response.json()["added"] == 2
+    assert set(response.json()) == {"library_id", "added", "removed", "modified"}

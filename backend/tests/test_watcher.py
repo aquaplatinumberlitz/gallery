@@ -3,7 +3,8 @@ Purpose:
 Verifies file watcher configuration, debounce handling, and metadata staging hooks.
 
 Guarantees:
-* watcher remains disabled by default and handles missing watchdog dependency safely
+* watcher is enabled by default and handles missing watchdog dependency safely
+* only registered, watch-enabled library roots are monitored
 * file events mark folders stale and can stage changed images for metadata indexing
 
 Run when:
@@ -31,8 +32,8 @@ def reset_watcher_state(monkeypatch: pytest.MonkeyPatch):
     yield
 
 
-def test_disabled_by_default():
-    assert ENABLE_FILE_WATCHER is False
+def test_enabled_by_default():
+    assert ENABLE_FILE_WATCHER is True
 
 
 def test_app_starts_even_if_watchdog_unavailable(monkeypatch: pytest.MonkeyPatch):
@@ -46,10 +47,18 @@ def test_app_starts_even_if_watchdog_unavailable(monkeypatch: pytest.MonkeyPatch
     watcher.stop_watcher()
 
 
-def test_configured_roots_only(monkeypatch: pytest.MonkeyPatch):
+def test_configured_roots_filter_registered_libraries(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(watcher, "WATCHER_ROOTS", ["/images", "/data/photos"])
+    monkeypatch.setattr(
+        "backend.metadata_store.list_libraries",
+        lambda: [
+            {"root_path": "/images", "watch_enabled": 1},
+            {"root_path": "/data/photos", "watch_enabled": 0},
+            {"root_path": "/other", "watch_enabled": 1},
+        ],
+    )
     status = watcher.get_watcher_status()
-    assert status["roots"] == ["/images", "/data/photos"]
+    assert status["roots"] == ["/images"]
 
 
 def test_config_parsing_works():
@@ -110,8 +119,8 @@ def test_changed_image_can_be_staged_for_metadata_indexing(tmp_path: Path, monke
     assert str(folder) in ready
 
 
-def test_disabled_stub_does_not_start():
-    assert ENABLE_FILE_WATCHER is False
+def test_no_registered_libraries_does_not_start(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr("backend.metadata_store.list_libraries", lambda: [])
     watcher.start_watcher()
     status = watcher.get_watcher_status()
     assert status["alive"] is False
@@ -432,6 +441,7 @@ def test_start_watcher_creates_daemon_thread(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr(threading, "Thread", FakeThread)
     monkeypatch.setattr(watcher_mod, "_watcher_loop", lambda: None)
+    monkeypatch.setattr(watcher_mod, "_registered_watcher_roots", lambda: ["/registered"])
 
     watcher_mod.start_watcher()
     assert len(threads) == 1

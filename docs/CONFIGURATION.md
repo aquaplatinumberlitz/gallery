@@ -18,6 +18,7 @@ case-insensitively as false; any other provided value is true. Flags documented 
 | `GALLERY_THUMBNAIL_CACHE_DIR` | path | `backend/.cache/thumbnails` | Persistent derivative cache directory. |
 | `SCAN_PERF_LOGS` | boolean-like | `1` unless `PRODUCTION=1`, then `0` | Values `0`, `false`, and `no` disable scan performance logs. |
 | `GALLERY_ROOT` | path | `/` | Resolved root boundary for gallery paths. |
+| `GALLERY_DB_REQUIRED` | boolean flag | false | Requires `/api/scan` paths to belong to a registered library and disables filesystem listing fallback. |
 | `GALLERY_OPEN_FOLDER` | boolean (`"true"`) | `false` | Enables the OS “open folder” operation. |
 | `GALLERY_METADATA_DB` | path | `backend/.cache/gallery_metadata.db` | SQLite metadata/index database. |
 | `GALLERY_METADATA_INDEXER_ENABLED` | boolean flag | true | Enables metadata path staging and worker processing. |
@@ -43,8 +44,8 @@ case-insensitively as false; any other provided value is true. Flags documented 
 | `SCHEDULED_REFRESH_ROOTS` | comma-separated paths | empty | Restricts scheduled refresh to configured roots. |
 | `SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK` | integer, minimum 1 | `20` | Maximum refreshed folders per tick. |
 | `SCHEDULED_REFRESH_ALLOW_ALL_INDEXED` | boolean flag | false | Allows refresh of all indexed folders when no roots are configured. |
-| `ENABLE_FILE_WATCHER` | boolean flag | false | Starts the optional watchdog observer. |
-| `WATCHER_ROOTS` | comma-separated paths | empty | Roots watched recursively when the watcher is enabled. |
+| `ENABLE_FILE_WATCHER` | boolean flag | true | Starts the watchdog observer for registered, watch-enabled libraries. |
+| `WATCHER_ROOTS` | comma-separated paths | empty | Optionally filters the registered library roots watched recursively. |
 | `WATCHER_DEBOUNCE_SECONDS` | float, minimum 0 | `2.0` | Filesystem event debounce interval. |
 | `WATCHER_MAX_EVENTS_PER_TICK` | integer, minimum 1 | `500` | Maximum folder/image events processed per watcher tick. |
 
