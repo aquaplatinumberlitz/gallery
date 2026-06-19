@@ -15,7 +15,7 @@ import { expect, test } from "./helpers/monitorErrors";
 import type { Page } from "@playwright/test";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
-const testRoot = "/home/ubuntu/gallery-repo/test-images";
+const testRoot = process.env.GALLERY_ROOT_PATH ?? "/home/ubuntu/gallery-repo/test-images";
 const stubRoot = "/mocked-inspector-notice-test";
 
 // ════════════════════════════════════════════════════════════
@@ -155,7 +155,7 @@ test.describe("rebuild flow diagnostic", () => {
 
     expect((firstResp?.generated_at ?? 0) >= rebuildStartedAt).toBe(true);
     expect(rebuildBody.rebuild_started).toBe(true);
-    expect(rebuildBody.path).toContain("test-images");
+    expect(rebuildBody.path).toBe(testRoot);
   });
 });
 
