@@ -147,9 +147,19 @@ jobs:
         working-directory: frontend
         run: pnpm build
 
+      - name: Create deterministic gallery fixture
+        run: |
+          python scripts/create_perf_fixture.py \
+            --root "$RUNNER_TEMP/gallery-e2e-fixture" \
+            --album-name a1111 \
+            --images 30 \
+            --metadata-db "$RUNNER_TEMP/gallery-e2e.db" \
+            --thumbnail-cache "$RUNNER_TEMP/gallery-e2e-cache" \
+            --clean
+
       - name: Start backend fixture
         run: |
-          GALLERY_ROOT="$GITHUB_WORKSPACE/test-images" \
+          GALLERY_ROOT="$RUNNER_TEMP/gallery-e2e-fixture" \
           GALLERY_METADATA_DB="$RUNNER_TEMP/gallery-e2e.db" \
           GALLERY_THUMBNAIL_CACHE_DIR="$RUNNER_TEMP/gallery-e2e-cache" \
           ENABLE_METRICS=false \
@@ -170,7 +180,7 @@ jobs:
         env:
           VITE_COVERAGE: "true"
           VITE_API_URL: http://127.0.0.1:4180
-          GALLERY_ROOT_PATH: ${{ github.workspace }}/test-images
+          GALLERY_ROOT_PATH: ${{ runner.temp }}/gallery-e2e-fixture
 
       - name: Generate coverage report
         if: always()
@@ -238,9 +248,19 @@ jobs:
       - name: Validate performance budget registry
         run: python scripts/check_perf_budgets.py
 
+      - name: Create deterministic performance fixture
+        run: |
+          python scripts/create_perf_fixture.py \
+            --root "$RUNNER_TEMP/gallery-perf-fixture" \
+            --album-name a1111 \
+            --images 30 \
+            --metadata-db "$RUNNER_TEMP/gallery-perf.db" \
+            --thumbnail-cache "$RUNNER_TEMP/gallery-perf-cache" \
+            --clean
+
       - name: Start performance backend fixture
         run: |
-          GALLERY_ROOT="$GITHUB_WORKSPACE/test-images" \
+          GALLERY_ROOT="$RUNNER_TEMP/gallery-perf-fixture" \
           GALLERY_METADATA_DB="$RUNNER_TEMP/gallery-perf.db" \
           GALLERY_THUMBNAIL_CACHE_DIR="$RUNNER_TEMP/gallery-perf-cache" \
           ENABLE_METRICS=false \
@@ -260,7 +280,7 @@ jobs:
         run: pnpm exec playwright test tests/e2e/perf --project=chromium --workers=1 --reporter=html
         env:
           VITE_API_URL: http://127.0.0.1:4180
-          GALLERY_ROOT_PATH: ${{ github.workspace }}/test-images
+          GALLERY_ROOT_PATH: ${{ runner.temp }}/gallery-perf-fixture
 
       - name: Upload performance reports
         if: always()
