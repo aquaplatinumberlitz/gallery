@@ -59,8 +59,12 @@ async function navigateToAlbum(page: Page) {
 }
 
 type OpenIteration = {
-  visibleAfterClickMs: number;
-  previewLoadedAfterClickMs: number;
+  eventToOverlayMs: number;
+  derivativeQueueWaitMs: number;
+  renderEncodePersistMs: number;
+  networkResponseMs: number;
+  browserDecodeVisualReadyMs: number;
+  visualReadyAfterEventMs: number;
   previewRequestDurationMs: number;
   metadataDurationMs: number;
   usedPreviewEndpoint: boolean;
@@ -90,7 +94,7 @@ async function runOpenIteration(page: Page): Promise<OpenIteration> {
 
   const lightbox = page.getByTestId("lightbox");
   await expect(lightbox).toBeVisible({ timeout: 10000 });
-  const lightboxVisibleAfterClickMs = Math.round(nowMs() - clickTime.value);
+  const eventToOverlayMs = Math.round(nowMs() - clickTime.value);
 
   const lightboxImg = lightbox.locator(".pswp__img:not(.pswp__img--placeholder)").first();
   await expect
@@ -105,7 +109,7 @@ async function runOpenIteration(page: Page): Promise<OpenIteration> {
       { timeout: 15000 },
     )
     .toMatchObject({ complete: true });
-  const lightboxPreviewLoadedAfterClickMs = Math.round(nowMs() - clickTime.value);
+  const visualReadyAt = nowMs();
 
   const previewSamples = tracker.previewSamples();
   const imageSamples = tracker.imageSamples();
@@ -129,8 +133,21 @@ async function runOpenIteration(page: Page): Promise<OpenIteration> {
   const srcIsPreview = actualSrc?.includes("/api/preview") ?? false;
 
   return {
-    visibleAfterClickMs: lightboxVisibleAfterClickMs,
-    previewLoadedAfterClickMs: lightboxPreviewLoadedAfterClickMs,
+    eventToOverlayMs,
+    derivativeQueueWaitMs: Math.round(firstPreviewSample?.serverQueueWaitMs ?? 0),
+    renderEncodePersistMs: Math.round(firstPreviewSample?.serverRenderEncodePersistMs ?? 0),
+    networkResponseMs: Math.round(
+      Math.max(
+        0,
+        (firstPreviewSample?.durationMs ?? 0) -
+          (firstPreviewSample?.serverQueueWaitMs ?? 0) -
+          (firstPreviewSample?.serverRenderEncodePersistMs ?? 0),
+      ),
+    ),
+    browserDecodeVisualReadyMs: Math.round(
+      Math.max(0, visualReadyAt - clickTime.value - (firstPreviewSample?.endMs ?? visualReadyAt - clickTime.value)),
+    ),
+    visualReadyAfterEventMs: Math.round(visualReadyAt - clickTime.value),
     previewRequestDurationMs: Math.round(firstPreviewSample?.durationMs ?? 0),
     metadataDurationMs: metadataSamples.length
       ? Math.round(Math.min(...metadataSamples.map((s) => s.durationMs ?? 0)))
@@ -161,8 +178,8 @@ test("lightbox opens first photo within budget", async ({ page }) => {
     }
   }
 
-  const visibleDurations = iterations.map((r) => r.visibleAfterClickMs);
-  const previewLoadedDurations = iterations.map((r) => r.previewLoadedAfterClickMs);
+  const visibleDurations = iterations.map((r) => r.eventToOverlayMs);
+  const previewLoadedDurations = iterations.map((r) => r.visualReadyAfterEventMs);
 
   const visibleP95 = Math.round(compactStats(visibleDurations).p95);
   const previewLoadedP95 = Math.round(compactStats(previewLoadedDurations).p95);
@@ -177,6 +194,10 @@ test("lightbox opens first photo within budget", async ({ page }) => {
     albumPath,
     sampleCount: iterations.length,
     iterations,
+    samples: {
+      cold: iterations.slice(0, 1),
+      warm: iterations.slice(1),
+    },
     aggregate: {
       visibleP95Ms: visibleP95,
       previewLoadedP95Ms: previewLoadedP95,

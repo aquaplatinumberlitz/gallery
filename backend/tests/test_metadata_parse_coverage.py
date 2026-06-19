@@ -39,9 +39,7 @@ from backend.metadata_parse import (
     _parse_metadata_uncached,
     parse_metadata,
 )
-from backend.metadata_store import upsert_extracted_metadata
 from tests.conftest import create_test_png
-
 
 # ---------------------------------------------------------------------------
 # _estimate_dict_size fallbacks (lines 26-27)

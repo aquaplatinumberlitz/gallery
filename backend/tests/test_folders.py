@@ -29,9 +29,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.errors import APIError, ErrorType
-from backend.folders import list_folder_children, router
-from backend.models import FileNode
-
+from backend.folders import list_folder_children
 
 # ---------------------------------------------------------------------------
 # list_folder_children
@@ -110,15 +108,18 @@ class TestListFolderChildren:
                     # Make is_dir raise OSError for "broken"
                     class BrokenEntry:
                         name = "broken"
-                        path = entry.path
+
+                        def __init__(self, real_entry):
+                            self.real_entry = real_entry
+                            self.path = real_entry.path
 
                         def is_dir(self, **kw):
                             raise OSError("is_dir failed")
 
                         def stat(self, **kw):
-                            return entry.stat()
+                            return self.real_entry.stat()
 
-                    yield BrokenEntry()
+                    yield BrokenEntry(entry)
                 else:
                     yield entry
 
@@ -135,9 +136,12 @@ class TestListFolderChildren:
         def fake_scandir(path):
             for entry in original_scandir(path):
                 if entry.name == "bad_stat":
+
                     class BadStatEntry:
                         name = "bad_stat"
-                        path = entry.path
+
+                        def __init__(self, real_entry):
+                            self.path = real_entry.path
 
                         def is_dir(self, **kw):
                             return True
@@ -146,12 +150,12 @@ class TestListFolderChildren:
                             raise OSError("stat failed")
 
                         def resolve(self):
-                            return Path(entry.path).resolve()
+                            return Path(self.path).resolve()
 
                         def absolute(self):
-                            return Path(entry.path).absolute()
+                            return Path(self.path).absolute()
 
-                    yield BadStatEntry()
+                    yield BadStatEntry(entry)
                 else:
                     yield entry
 
@@ -228,14 +232,18 @@ class TestApiOpenFolderRoute:
         resp = isolated_app.post("/api/open-folder", params={"path": "/tmp"})
         assert resp.status_code == 403
 
-    def test_enabled_missing_path_returns_404(self, isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch, isolated_gallery_root: Path):
+    def test_enabled_missing_path_returns_404(
+        self, isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch, isolated_gallery_root: Path
+    ):
         monkeypatch.setattr("backend.config.OPEN_FOLDER_ENABLED", True)
         monkeypatch.setattr("backend.folders.OPEN_FOLDER_ENABLED", True)
         missing = isolated_gallery_root / "gone"
         resp = isolated_app.post("/api/open-folder", params={"path": str(missing)})
         assert resp.status_code == 404
 
-    def test_enabled_file_path_returns_400(self, isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch, isolated_gallery_root: Path):
+    def test_enabled_file_path_returns_400(
+        self, isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch, isolated_gallery_root: Path
+    ):
         monkeypatch.setattr("backend.config.OPEN_FOLDER_ENABLED", True)
         monkeypatch.setattr("backend.folders.OPEN_FOLDER_ENABLED", True)
         f = isolated_gallery_root / "file.txt"
@@ -243,7 +251,9 @@ class TestApiOpenFolderRoute:
         resp = isolated_app.post("/api/open-folder", params={"path": str(f)})
         assert resp.status_code == 400
 
-    def test_enabled_success_calls_popen(self, isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch, isolated_gallery_root: Path):
+    def test_enabled_success_calls_popen(
+        self, isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch, isolated_gallery_root: Path
+    ):
         monkeypatch.setattr("backend.config.OPEN_FOLDER_ENABLED", True)
         monkeypatch.setattr("backend.folders.OPEN_FOLDER_ENABLED", True)
 
@@ -259,7 +269,9 @@ class TestApiOpenFolderRoute:
         assert resp.json()["message"] == "Opened successfully"
         assert len(popen_calls) == 1
 
-    def test_enabled_opener_failure_returns_500(self, isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch, isolated_gallery_root: Path):
+    def test_enabled_opener_failure_returns_500(
+        self, isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch, isolated_gallery_root: Path
+    ):
         monkeypatch.setattr("backend.config.OPEN_FOLDER_ENABLED", True)
         monkeypatch.setattr("backend.folders.OPEN_FOLDER_ENABLED", True)
         monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: (_ for _ in ()).throw(OSError("failed to launch")))

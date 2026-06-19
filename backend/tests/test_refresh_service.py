@@ -37,14 +37,12 @@ import pytest
 from backend import refresh
 from backend.refresh import (
     _refresh_folder,
-    _refresh_stop,
     _refresh_thread,
     _run_refresh_tick,
     get_refresh_status,
     start_refresh,
     stop_refresh,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -300,9 +298,6 @@ class TestRunRefreshTick:
         monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_ROOTS", [])
         monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_ALLOW_ALL_INDEXED", True)
         monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK", 100)
-
-        runs_vals = []
-        folders_vals = []
 
         class FakeCounter:
             def __init__(self):

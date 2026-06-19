@@ -336,6 +336,23 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
         _backfill_image_resources_conn(conn)
         conn.execute("PRAGMA user_version = 2")
 
+    if current_version < 3:
+        conn.execute(
+            """
+            UPDATE file_index
+            SET width = COALESCE(file_index.width, dimensions.width),
+                height = COALESCE(file_index.height, dimensions.height)
+            FROM (
+              SELECT path, width, height
+              FROM image_metadata
+              WHERE width IS NOT NULL OR height IS NOT NULL
+            ) AS dimensions
+            WHERE file_index.path = dimensions.path
+              AND (file_index.width IS NULL OR file_index.height IS NULL)
+            """
+        )
+        conn.execute("PRAGMA user_version = 3")
+
     _cleanup_ignored_index_conn(conn)
 
 
@@ -785,7 +802,28 @@ def _upsert_extracted_metadata_conn(conn: sqlite3.Connection, metadata: Extracte
             metadata.aspect_ratio,
         ),
     )
+    _sync_dimensions_to_file_index(conn, metadata.path, metadata.width, metadata.height)
     _replace_image_resources_conn(conn, metadata.path, metadata.metadata_json, metadata.lora_text, metadata.indexed_at)
+
+
+def _sync_dimensions_to_file_index(
+    conn: sqlite3.Connection,
+    path: str | Path,
+    width: int | None,
+    height: int | None,
+) -> None:
+    """Fill missing file-index dimensions inside the caller's transaction."""
+    if width is None and height is None:
+        return
+    conn.execute(
+        """
+        UPDATE file_index
+        SET width = COALESCE(?, width),
+            height = COALESCE(?, height)
+        WHERE path = ?
+        """,
+        (width, height, str(Path(path).resolve())),
+    )
 
 
 def upsert_extracted_metadata(metadata: ExtractedMetadata, *, mark_job_done: bool = False) -> bool:
@@ -1054,9 +1092,12 @@ def get_warm_folder_listing(
         raw_images = list(
             conn.execute(
                 """
-                SELECT path, name, mtime, size, width, height
-                FROM file_index
-                WHERE parent_path = ? AND type = 'photo'
+                SELECT fi.path, fi.name, fi.mtime, fi.size,
+                       COALESCE(fi.width, im.width) AS width,
+                       COALESCE(fi.height, im.height) AS height
+                FROM file_index AS fi
+                LEFT JOIN image_metadata AS im ON im.path = fi.path
+                WHERE fi.parent_path = ? AND fi.type = 'photo'
                 """,
                 (resolved,),
             )
@@ -1229,6 +1270,7 @@ def upsert_image_dimensions(
                 now,
             ),
         )
+        _sync_dimensions_to_file_index(conn, resolved_path, width, height)
     return True
 
 
@@ -1320,6 +1362,12 @@ def upsert_metadata_result(path: str | Path, metadata: dict[str, Any]) -> bool:
                 now,
                 now,
             ),
+        )
+        _sync_dimensions_to_file_index(
+            conn,
+            resolved_path,
+            width if isinstance(width, int) else None,
+            height if isinstance(height, int) else None,
         )
     return True
 

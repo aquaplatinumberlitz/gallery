@@ -9,6 +9,8 @@ export type NetworkSample = {
   endMs?: number;
   durationMs?: number;
   status?: number;
+  serverQueueWaitMs?: number;
+  serverRenderEncodePersistMs?: number;
 };
 
 export function percentile(values: number[], pct: number): number {
@@ -127,6 +129,16 @@ export function installApiNetworkTracker(page: Page, clickTimeRef: { value: numb
     sample.endMs = nowMs() - clickTimeRef.value;
     sample.durationMs = sample.endMs - sample.startMs;
     sample.status = response.status();
+    const serverTiming = (await response.headerValue("server-timing")) ?? "";
+    const timingValues = Object.fromEntries(
+      serverTiming.split(",").map((entry) => {
+        const [name, ...parameters] = entry.trim().split(";");
+        const duration = parameters.find((parameter) => parameter.startsWith("dur="))?.slice(4);
+        return [name, Number(duration ?? 0)];
+      }),
+    );
+    sample.serverQueueWaitMs = timingValues.queue ?? 0;
+    sample.serverRenderEncodePersistMs = timingValues.derivative ?? 0;
   };
 
   page.on("response", (response) => {

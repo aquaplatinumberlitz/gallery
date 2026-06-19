@@ -43,7 +43,6 @@ from PIL import Image
 from backend import thumbnails
 from backend.errors import APIError
 
-
 # ---------------------------------------------------------------------------
 # Metric helpers
 # ---------------------------------------------------------------------------
@@ -119,9 +118,7 @@ def test_normalize_derivative_format_rejects_png():
 # ---------------------------------------------------------------------------
 
 
-def test_persist_derivative_file_returns_existing_path(
-    isolated_thumbnail_cache: Path, tmp_path: Path
-):
+def test_persist_derivative_file_returns_existing_path(isolated_thumbnail_cache: Path, tmp_path: Path):
     image = tmp_path / "any.png"
     image.write_bytes(b"data")
     cache_key = "test_existing_key"
@@ -135,9 +132,7 @@ def test_persist_derivative_file_returns_existing_path(
     assert derivative_path.read_bytes() == b"already-here"
 
 
-def test_persist_derivative_file_writes_new_file(
-    isolated_thumbnail_cache: Path, tmp_path: Path
-):
+def test_persist_derivative_file_writes_new_file(isolated_thumbnail_cache: Path, tmp_path: Path):
     cache_key = "test_new_key"
     derivative_path = thumbnails._derivative_cache_file_path(cache_key, "webp")
     assert not derivative_path.exists()
@@ -160,9 +155,7 @@ def test_render_derivative_impl_converts_palette_mode(tmp_path: Path):
     img.putpalette([0, 0, 0, 255, 255, 255] * 85)
     img.save(image, format="PNG")
 
-    out = thumbnails._render_derivative_impl(
-        image, max_long_edge=50, quality=80, format="webp", no_upscale=True
-    )
+    out = thumbnails._render_derivative_impl(image, max_long_edge=50, quality=80, format="webp", no_upscale=True)
     with Image.open(BytesIO(out)) as rendered:
         assert rendered.format == "WEBP"
         assert max(rendered.size) <= 50
@@ -174,9 +167,7 @@ def test_render_derivative_impl_rgba_flattens_alpha(tmp_path: Path):
     img = Image.new("RGBA", (120, 90), (10, 20, 30, 0))
     img.save(image, format="PNG")
 
-    out = thumbnails._render_derivative_impl(
-        image, max_long_edge=60, quality=80, format="webp", no_upscale=True
-    )
+    out = thumbnails._render_derivative_impl(image, max_long_edge=60, quality=80, format="webp", no_upscale=True)
     with Image.open(BytesIO(out)) as rendered:
         assert rendered.mode == "RGB"
         assert max(rendered.size) <= 60
@@ -187,9 +178,7 @@ def test_render_derivative_impl_no_upscale_false_resizes_to_target(tmp_path: Pat
     image = tmp_path / "resize_me.png"
     Image.new("RGB", (1000, 800), (40, 120, 200)).save(image, format="PNG")
 
-    out = thumbnails._render_derivative_impl(
-        image, max_long_edge=500, quality=80, format="webp", no_upscale=False
-    )
+    out = thumbnails._render_derivative_impl(image, max_long_edge=500, quality=80, format="webp", no_upscale=False)
     with Image.open(BytesIO(out)) as rendered:
         # 1000 wide source → 500 long edge
         assert rendered.size == (500, 400)
@@ -200,9 +189,7 @@ def test_render_derivative_impl_no_upscale_false_when_already_target_size(tmp_pa
     image = tmp_path / "target.png"
     Image.new("RGB", (500, 400), (40, 120, 200)).save(image, format="PNG")
 
-    out = thumbnails._render_derivative_impl(
-        image, max_long_edge=500, quality=80, format="webp", no_upscale=False
-    )
+    out = thumbnails._render_derivative_impl(image, max_long_edge=500, quality=80, format="webp", no_upscale=False)
     with Image.open(BytesIO(out)) as rendered:
         assert rendered.size == (500, 400)
 
@@ -212,9 +199,7 @@ def test_render_derivative_impl_jpeg_format(tmp_path: Path):
     image = tmp_path / "src.png"
     Image.new("RGB", (200, 150), (40, 120, 200)).save(image, format="PNG")
 
-    out = thumbnails._render_derivative_impl(
-        image, max_long_edge=100, quality=80, format="jpeg", no_upscale=True
-    )
+    out = thumbnails._render_derivative_impl(image, max_long_edge=100, quality=80, format="jpeg", no_upscale=True)
     with Image.open(BytesIO(out)) as rendered:
         assert rendered.format == "JPEG"
 
@@ -224,15 +209,11 @@ def test_render_derivative_impl_jpeg_format(tmp_path: Path):
 # ---------------------------------------------------------------------------
 
 
-def test_generate_derivative_cache_hit_returns_cached_bytes(
-    isolated_thumbnail_cache: Path, tmp_path: Path
-):
+def test_generate_derivative_cache_hit_returns_cached_bytes(isolated_thumbnail_cache: Path, tmp_path: Path):
     image = tmp_path / "cached.png"
     Image.new("RGB", (200, 150), (40, 120, 200)).save(image, format="PNG")
 
-    first = thumbnails.generate_derivative(
-        image, kind="thumbnail", max_long_edge=100, quality=80, format="webp"
-    )
+    first = thumbnails.generate_derivative(image, kind="thumbnail", max_long_edge=100, quality=80, format="webp")
     assert first
 
     # Replace the renderer with one that would raise so we know we hit the cache
@@ -244,9 +225,7 @@ def test_generate_derivative_cache_hit_returns_cached_bytes(
     original = tn._render_derivative_impl
     tn._render_derivative_impl = fail_render
     try:
-        second = thumbnails.generate_derivative(
-            image, kind="thumbnail", max_long_edge=100, quality=80, format="webp"
-        )
+        second = thumbnails.generate_derivative(image, kind="thumbnail", max_long_edge=100, quality=80, format="webp")
     finally:
         tn._render_derivative_impl = original
 
@@ -265,9 +244,7 @@ def test_generate_derivative_maps_decompression_bomb_to_api_error(
     monkeypatch.setattr(thumbnails, "_render_derivative_impl", raise_bomb)
 
     with pytest.raises(APIError) as exc_info:
-        thumbnails.generate_derivative(
-            image, kind="thumbnail", max_long_edge=100, quality=80, format="webp"
-        )
+        thumbnails.generate_derivative(image, kind="thumbnail", max_long_edge=100, quality=80, format="webp")
     assert exc_info.value.status_code == 400
 
 
@@ -285,9 +262,7 @@ def test_generate_derivative_maps_unidentified_image_to_api_error(
     monkeypatch.setattr(thumbnails, "_render_derivative_impl", raise_unidentified)
 
     with pytest.raises(APIError) as exc_info:
-        thumbnails.generate_derivative(
-            image, kind="thumbnail", max_long_edge=100, quality=80, format="webp"
-        )
+        thumbnails.generate_derivative(image, kind="thumbnail", max_long_edge=100, quality=80, format="webp")
     assert exc_info.value.status_code == 400
 
 
@@ -296,9 +271,7 @@ def test_generate_derivative_maps_unidentified_image_to_api_error(
 # ---------------------------------------------------------------------------
 
 
-def test_resolve_image_request_path_rejects_unsafe_path(
-    isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_resolve_image_request_path_rejects_unsafe_path(isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch):
     # Path outside the gallery root
     monkeypatch.setattr(thumbnails, "is_path_safe", lambda _: False)
     with pytest.raises(APIError) as exc_info:
@@ -306,18 +279,14 @@ def test_resolve_image_request_path_rejects_unsafe_path(
     assert exc_info.value.status_code == 403
 
 
-def test_resolve_image_request_path_rejects_missing_file(
-    isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_resolve_image_request_path_rejects_missing_file(isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(thumbnails, "is_path_safe", lambda _: True)
     with pytest.raises(APIError) as exc_info:
         thumbnails._resolve_image_request_path(str(isolated_gallery_root / "ghost.png"))
     assert exc_info.value.status_code == 404
 
 
-def test_resolve_image_request_path_rejects_non_image(
-    isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_resolve_image_request_path_rejects_non_image(isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch):
     text = isolated_gallery_root / "notes.txt"
     text.write_text("not an image")
     monkeypatch.setattr(thumbnails, "is_path_safe", lambda _: True)
@@ -495,17 +464,12 @@ def test_serve_derivative_falls_back_to_response_when_no_file(
     assert response.headers["Content-Length"] == str(len(fake_bytes))
 
 
-def test_serve_derivative_returns_304_on_etag_match(
-    isolated_thumbnail_cache: Path, isolated_gallery_root: Path
-):
+def test_serve_derivative_returns_304_on_etag_match(isolated_thumbnail_cache: Path, isolated_gallery_root: Path):
     image = isolated_gallery_root / "etag_match.png"
     Image.new("RGB", (10, 10), (40, 120, 200)).save(image, format="PNG")
 
     stat = image.stat()
-    etag = (
-        f'"thumbnail-{thumbnails.DERIVATIVE_CACHE_VERSION}-{stat.st_mtime_ns}-'
-        f'{stat.st_size}-100-webp-80"'
-    )
+    etag = f'"thumbnail-{thumbnails.DERIVATIVE_CACHE_VERSION}-{stat.st_mtime_ns}-{stat.st_size}-100-webp-80"'
 
     request = MagicMock()
     request.headers = {"if-none-match": etag}

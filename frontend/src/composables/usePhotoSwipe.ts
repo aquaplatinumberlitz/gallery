@@ -173,12 +173,21 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
     itemData.height = dimensions.height;
     lightboxStore.rememberDimensions(itemData.path, dimensions);
 
-    // Do not refresh the current visible slide — it can create a duplicate img
-    // on mobile Safari during the opening animation.  Non-current neighbour
-    // slides are safe to refresh.
-    if (index !== instance.currIndex) {
-      instance.refreshSlideContent(index);
+    if (index === instance.currIndex && instance.currSlide) {
+      const slide = instance.currSlide;
+      slide.data.width = dimensions.width;
+      slide.data.height = dimensions.height;
+      slide.content.width = dimensions.width;
+      slide.content.height = dimensions.height;
+      slide.width = dimensions.width;
+      slide.height = dimensions.height;
+      // Repair PhotoSwipe's active geometry in place. Replacing/refreshing the
+      // active content recreates the img and regresses duplicate images in Safari.
+      slide.resize();
+      return;
     }
+
+    instance.refreshSlideContent(index);
   }
 
   function getPhotoSwipeItem(index: number): PhotoSwipeImageItem | null {

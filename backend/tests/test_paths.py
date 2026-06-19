@@ -17,6 +17,7 @@ Run when:
 from __future__ import annotations
 
 import os
+from contextlib import suppress
 from pathlib import Path
 
 import pytest
@@ -47,10 +48,8 @@ class TestResolvePath:
 
         monkeypatch.setattr(Path, "resolve", fake_resolve)
 
-        try:
-            result = resolve_path("C:\\long\\path")
-        except OSError:
-            result = None
+        with suppress(OSError):
+            resolve_path("C:\\long\\path")
         if len(resolve_order) >= 2:
             assert "\\\\?\\\\" in resolve_order[1] or "/" in resolve_order[1]
 

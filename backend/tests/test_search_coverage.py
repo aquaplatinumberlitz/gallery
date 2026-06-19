@@ -27,14 +27,11 @@ Run when:
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
 
 from backend import search as search_module
-from backend.errors import APIError
-
 
 # ---------------------------------------------------------------------------
 # /api/search-metadata empty query
@@ -69,9 +66,7 @@ def test_search_metadata_failure_returns_500(isolated_app: TestClient, monkeypat
 # ---------------------------------------------------------------------------
 
 
-def test_search_scope_current_unsafe_path_returns_403(
-    isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch
-):
+def test_search_scope_current_unsafe_path_returns_403(isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch):
     # Force is_path_safe to False to trigger the 403 branch
     monkeypatch.setattr(search_module, "is_path_safe", lambda _: False)
     resp = isolated_app.get(
@@ -81,9 +76,7 @@ def test_search_scope_current_unsafe_path_returns_403(
     assert resp.status_code == 403
 
 
-def test_search_scope_current_missing_folder_returns_404(
-    isolated_app: TestClient, isolated_gallery_root: Path
-):
+def test_search_scope_current_missing_folder_returns_404(isolated_app: TestClient, isolated_gallery_root: Path):
     missing = isolated_gallery_root / "missing_folder"
     resp = isolated_app.get(
         "/api/search",
@@ -114,8 +107,9 @@ def test_search_filters_stale_rows_and_triggers_cleanup(
     image = isolated_gallery_root / "ghost.png"
     image.write_bytes(b"data")
 
-    from backend.metadata_store import index_file
     import time
+
+    from backend.metadata_store import index_file
 
     index_file(str(image), "ghost.png", str(isolated_gallery_root), "photo", time.time(), 4, 1, 1)
 
@@ -140,9 +134,7 @@ def test_search_filters_stale_rows_and_triggers_cleanup(
 # ---------------------------------------------------------------------------
 
 
-def test_inspector_scope_current_unsafe_path_returns_403(
-    isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch
-):
+def test_inspector_scope_current_unsafe_path_returns_403(isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(search_module, "is_path_safe", lambda _: False)
     resp = isolated_app.get(
         "/api/library/inspector",
@@ -151,9 +143,7 @@ def test_inspector_scope_current_unsafe_path_returns_403(
     assert resp.status_code == 403
 
 
-def test_inspector_scope_current_missing_folder_returns_404(
-    isolated_app: TestClient, isolated_gallery_root: Path
-):
+def test_inspector_scope_current_missing_folder_returns_404(isolated_app: TestClient, isolated_gallery_root: Path):
     missing = isolated_gallery_root / "missing_folder"
     resp = isolated_app.get(
         "/api/library/inspector",
@@ -257,9 +247,7 @@ def test_inspector_overscan_failure_returns_500(
 # ---------------------------------------------------------------------------
 
 
-def test_inspector_metadata_unsafe_path_returns_403(
-    isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch
-):
+def test_inspector_metadata_unsafe_path_returns_403(isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(search_module, "is_path_safe", lambda _: False)
     resp = isolated_app.get(
         "/api/library/inspector/metadata",
@@ -268,9 +256,7 @@ def test_inspector_metadata_unsafe_path_returns_403(
     assert resp.status_code == 403
 
 
-def test_inspector_metadata_unindexed_path_returns_404(
-    isolated_app: TestClient, isolated_gallery_root: Path
-):
+def test_inspector_metadata_unindexed_path_returns_404(isolated_app: TestClient, isolated_gallery_root: Path):
     image = isolated_gallery_root / "unindexed.png"
     image.write_bytes(b"data")
     resp = isolated_app.get(

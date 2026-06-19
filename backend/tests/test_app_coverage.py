@@ -27,9 +27,6 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.errors import APIError, ErrorType
-
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -37,8 +34,8 @@ from backend.errors import APIError, ErrorType
 
 def _reload_app_with(**config_overrides) -> object:
     """Reload backend.app with temporary config overrides and return the module."""
-    import backend.config as config_module
     import backend.app as app_module
+    import backend.config as config_module
 
     saved: dict[str, object] = {}
     for key, value in config_overrides.items():
@@ -51,8 +48,8 @@ def _reload_app_with(**config_overrides) -> object:
 
 def _restore_app(saved: dict[str, object]) -> None:
     """Restore config values and reload backend.app to the clean state."""
-    import backend.config as config_module
     import backend.app as app_module
+    import backend.config as config_module
 
     for key, value in saved.items():
         setattr(config_module, key, value)

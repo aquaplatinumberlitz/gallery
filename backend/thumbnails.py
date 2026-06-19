@@ -3,6 +3,7 @@
 import hashlib
 import os
 import threading
+import time
 from io import BytesIO
 from pathlib import Path
 from typing import Literal
@@ -179,6 +180,7 @@ def generate_derivative(
     quality: int,
     format: str,
     no_upscale: bool = True,
+    request_timing: dict[str, float] | None = None,
 ) -> bytes:
     """Generate a role-specific image derivative, cached persistently on disk."""
     check_image_limits(file_path)
@@ -193,10 +195,14 @@ def generate_derivative(
 
     cached = _thumbnail_disk_cache.get(cache_key)
     if cached is not None:
+        persist_started = time.perf_counter()
         _persist_derivative_file(cache_key, cached, normalized_format)
+        if request_timing is not None:
+            request_timing["render_encode_persist_ms"] = (time.perf_counter() - persist_started) * 1000
         return cached
 
     try:
+        render_started = time.perf_counter()
         derivative_bytes = _render_derivative_impl(
             file_path,
             max_long_edge=max_long_edge,
@@ -206,6 +212,8 @@ def generate_derivative(
         )
         _thumbnail_disk_cache.set(cache_key, derivative_bytes)
         _persist_derivative_file(cache_key, derivative_bytes, normalized_format)
+        if request_timing is not None:
+            request_timing["render_encode_persist_ms"] = (time.perf_counter() - render_started) * 1000
         _inc(_derivative_ready_total, kind)
         return derivative_bytes
     except (Image.DecompressionBombError, UnidentifiedImageError) as exc:
@@ -255,14 +263,23 @@ async def _serve_derivative(
         return Response(status_code=304, headers=headers)
 
     try:
+        queued_at = time.perf_counter()
+        request_timing: dict[str, float] = {}
+
+        def generate_for_request() -> bytes:
+            request_timing["queue_wait_ms"] = (time.perf_counter() - queued_at) * 1000
+            return generate_derivative(
+                file_path,
+                kind=kind,
+                max_long_edge=max_long_edge,
+                quality=quality,
+                format=normalized_format,
+                no_upscale=True,
+                request_timing=request_timing,
+            )
+
         derivative_bytes = await run_in_threadpool(
-            generate_derivative,
-            file_path,
-            kind=kind,
-            max_long_edge=max_long_edge,
-            quality=quality,
-            format=normalized_format,
-            no_upscale=True,
+            generate_for_request,
         )
     except APIError:
         raise
@@ -275,6 +292,11 @@ async def _serve_derivative(
     except Exception as exc:  # noqa: BLE001
         _inc(_derivative_errors_total)
         raise APIError(500, ErrorType.SERVER_ERROR, failure_message) from exc
+
+    headers["Server-Timing"] = (
+        f"queue;dur={request_timing.get('queue_wait_ms', 0):.3f}, "
+        f"derivative;dur={request_timing.get('render_encode_persist_ms', 0):.3f}"
+    )
 
     cache_key = _derivative_cache_key_str(
         file_path,

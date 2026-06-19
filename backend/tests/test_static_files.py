@@ -21,11 +21,9 @@ Run when:
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest
-from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from backend.static_files import router
@@ -59,7 +57,9 @@ class TestReadRoot:
         data = resp.json()
         assert data["message"] == "Museum Art Gallery API"
 
-    def test_production_returns_index_html(self, static_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    def test_production_returns_index_html(
+        self, static_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
         index_html = tmp_path / "index.html"
         index_html.write_text("<html><body>Hello</body></html>")
 
@@ -144,7 +144,9 @@ class TestCatchAll:
         resp = static_client.get("/docs")
         assert resp.status_code == 404
 
-    def test_production_serves_existing_static_asset(self, static_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    def test_production_serves_existing_static_asset(
+        self, static_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
         asset_path = tmp_path / "assets" / "style.css"
         asset_path.parent.mkdir(parents=True, exist_ok=True)
         asset_path.write_text("body { color: red; }")
@@ -157,7 +159,9 @@ class TestCatchAll:
         assert "color" in resp.text
         assert "text/css" in resp.headers.get("content-type", "")
 
-    def test_production_falls_back_to_index_html(self, static_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    def test_production_falls_back_to_index_html(
+        self, static_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
         index_html = tmp_path / "index.html"
         index_html.write_text("<html>SPA fallback</html>")
 
@@ -168,7 +172,9 @@ class TestCatchAll:
         assert resp.status_code == 200
         assert "SPA fallback" in resp.text
 
-    def test_production_serves_root_fallback_for_empty_path(self, static_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    def test_production_serves_root_fallback_for_empty_path(
+        self, static_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
         index_html = tmp_path / "index.html"
         index_html.write_text("<html>Root fallback</html>")
 

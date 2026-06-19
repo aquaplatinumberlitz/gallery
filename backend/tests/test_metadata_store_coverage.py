@@ -34,7 +34,6 @@ Run when:
 from __future__ import annotations
 
 import os
-import sqlite3
 import time
 from pathlib import Path
 
@@ -67,7 +66,6 @@ from backend.metadata_store import (
     upsert_metadata_result,
 )
 
-
 # ---------------------------------------------------------------------------
 # Folder index state
 # ---------------------------------------------------------------------------
@@ -78,9 +76,7 @@ def test_get_folder_indexed_paths_empty(isolated_metadata_db: Path):
     assert rows == []
 
 
-def test_get_folder_indexed_paths_returns_rows_ordered_by_updated_at(
-    isolated_metadata_db: Path, tmp_path: Path
-):
+def test_get_folder_indexed_paths_returns_rows_ordered_by_updated_at(isolated_metadata_db: Path, tmp_path: Path):
     album_a = tmp_path / "album_a"
     album_a.mkdir()
     album_b = tmp_path / "album_b"
@@ -129,9 +125,7 @@ def test_mark_folder_index_incomplete_without_error(isolated_metadata_db: Path, 
     assert state["last_error"] is None
 
 
-def test_update_folder_index_state_returns_false_when_stat_fails(
-    isolated_metadata_db: Path, tmp_path: Path
-):
+def test_update_folder_index_state_returns_false_when_stat_fails(isolated_metadata_db: Path, tmp_path: Path):
     missing = tmp_path / "does_not_exist"
     # No dir_mtime_ns supplied and stat will raise OSError
     ok = update_folder_index_state(missing, complete=True)
@@ -140,9 +134,7 @@ def test_update_folder_index_state_returns_false_when_stat_fails(
     assert get_folder_index_state(missing) is None
 
 
-def test_update_folder_index_state_with_explicit_dir_mtime_ns(
-    isolated_metadata_db: Path, tmp_path: Path
-):
+def test_update_folder_index_state_with_explicit_dir_mtime_ns(isolated_metadata_db: Path, tmp_path: Path):
     album = tmp_path / "album_explicit"
     album.mkdir()
 
@@ -163,26 +155,20 @@ def test_get_folder_index_state_returns_none_for_missing(isolated_metadata_db: P
 # ---------------------------------------------------------------------------
 
 
-def test_upsert_image_dimensions_returns_false_for_none_dimensions(
-    isolated_metadata_db: Path, tmp_path: Path
-):
+def test_upsert_image_dimensions_returns_false_for_none_dimensions(isolated_metadata_db: Path, tmp_path: Path):
     image = tmp_path / "pic.png"
     image.write_bytes(b"fake")
     assert upsert_image_dimensions(image, None, 100) is False
     assert upsert_image_dimensions(image, 100, None) is False
 
 
-def test_upsert_image_dimensions_returns_false_for_non_image(
-    isolated_metadata_db: Path, tmp_path: Path
-):
+def test_upsert_image_dimensions_returns_false_for_non_image(isolated_metadata_db: Path, tmp_path: Path):
     text = tmp_path / "notes.txt"
     text.write_text("not an image")
     assert upsert_image_dimensions(text, 100, 100) is False
 
 
-def test_upsert_image_dimensions_returns_false_for_missing_file(
-    isolated_metadata_db: Path, tmp_path: Path
-):
+def test_upsert_image_dimensions_returns_false_for_missing_file(isolated_metadata_db: Path, tmp_path: Path):
     missing = tmp_path / "missing.png"
     assert upsert_image_dimensions(missing, 100, 100) is False
 
@@ -218,9 +204,7 @@ def test_upsert_image_dimensions_inserts_and_updates(isolated_metadata_db: Path,
     assert row["has_alpha"] == 1
 
 
-def test_upsert_image_dimensions_has_alpha_none_keeps_null(
-    isolated_metadata_db: Path, tmp_path: Path
-):
+def test_upsert_image_dimensions_has_alpha_none_keeps_null(isolated_metadata_db: Path, tmp_path: Path):
     image = tmp_path / "alpha_none.png"
     image.write_bytes(b"data")
     assert upsert_image_dimensions(image, 10, 10, has_alpha=None) is True
@@ -253,24 +237,18 @@ def test_metadata_param_returns_none_when_name_missing():
     assert _metadata_param({"params": {"other": 1}}, "Model", "model") is None
 
 
-def test_upsert_metadata_result_returns_false_for_non_image(
-    isolated_metadata_db: Path, tmp_path: Path
-):
+def test_upsert_metadata_result_returns_false_for_non_image(isolated_metadata_db: Path, tmp_path: Path):
     text = tmp_path / "notes.txt"
     text.write_text("not an image")
     assert upsert_metadata_result(text, {"prompt": "hello"}) is False
 
 
-def test_upsert_metadata_result_returns_false_for_missing_file(
-    isolated_metadata_db: Path, tmp_path: Path
-):
+def test_upsert_metadata_result_returns_false_for_missing_file(isolated_metadata_db: Path, tmp_path: Path):
     missing = tmp_path / "ghost.png"
     assert upsert_metadata_result(missing, {"prompt": "hello"}) is False
 
 
-def test_upsert_metadata_result_persists_prompt_and_params(
-    isolated_metadata_db: Path, tmp_path: Path
-):
+def test_upsert_metadata_result_persists_prompt_and_params(isolated_metadata_db: Path, tmp_path: Path):
     image = tmp_path / "real.png"
     image.write_bytes(b"\x89PNG\r\n\x1a\n")
 
@@ -307,9 +285,7 @@ def test_upsert_metadata_result_persists_prompt_and_params(
     assert row["height"] == 768
 
 
-def test_upsert_metadata_result_handles_non_dict_sanitized_metadata(
-    isolated_metadata_db: Path, tmp_path: Path
-):
+def test_upsert_metadata_result_handles_non_dict_sanitized_metadata(isolated_metadata_db: Path, tmp_path: Path):
     """When sanitizer returns a non-dict, upsert_metadata_result should fall back to {}."""
     image = tmp_path / "sanitized.png"
     image.write_bytes(b"data")
@@ -500,9 +476,7 @@ def test_queue_metadata_index_paths_skips_all_excluded(tmp_path: Path):
     assert result.enqueued == []
 
 
-def test_queue_metadata_index_paths_coalesces_queued_job(
-    isolated_metadata_db: Path, tmp_path: Path
-):
+def test_queue_metadata_index_paths_coalesces_queued_job(isolated_metadata_db: Path, tmp_path: Path):
     image = tmp_path / "coalesce.png"
     image.write_bytes(b"data")
 
@@ -515,9 +489,7 @@ def test_queue_metadata_index_paths_coalesces_queued_job(
     assert second.coalesced == 1
 
 
-def test_queue_metadata_index_paths_fails_after_max_attempts(
-    isolated_metadata_db: Path, tmp_path: Path
-):
+def test_queue_metadata_index_paths_fails_after_max_attempts(isolated_metadata_db: Path, tmp_path: Path):
     image = tmp_path / "maxfail.png"
     image.write_bytes(b"data")
 
@@ -554,7 +526,6 @@ def test_scan_folder_counts_handles_unreadable_entry(tmp_path: Path, monkeypatch
     folder.mkdir()
     (folder / "img.png").write_bytes(b"data")
 
-    original_is_dir = os.DirEntry.is_dir
     calls = []
 
     class FakeEntry:
@@ -589,9 +560,7 @@ def test_scan_folder_counts_handles_unreadable_entry(tmp_path: Path, monkeypatch
 # ---------------------------------------------------------------------------
 
 
-def test_cleanup_stale_index_with_connection_removes_missing_paths(
-    isolated_metadata_db: Path, tmp_path: Path
-):
+def test_cleanup_stale_index_with_connection_removes_missing_paths(isolated_metadata_db: Path, tmp_path: Path):
     image = tmp_path / "real.png"
     image.write_bytes(b"data")
     deleted = tmp_path / "deleted.png"
@@ -611,15 +580,11 @@ def test_cleanup_stale_index_with_connection_removes_missing_paths(
     assert removed == 1
 
     with _connect() as conn:
-        rows = conn.execute(
-            "SELECT path FROM file_index WHERE path = ?", (str(deleted.resolve()),)
-        ).fetchall()
+        rows = conn.execute("SELECT path FROM file_index WHERE path = ?", (str(deleted.resolve()),)).fetchall()
     assert len(rows) == 0
 
 
-def test_cleanup_stale_index_with_external_state_opens_own_connection(
-    isolated_metadata_db: Path, tmp_path: Path
-):
+def test_cleanup_stale_index_with_external_state_opens_own_connection(isolated_metadata_db: Path, tmp_path: Path):
     image = tmp_path / "real2.png"
     image.write_bytes(b"data")
     deleted = tmp_path / "deleted2.png"
@@ -635,9 +600,7 @@ def test_cleanup_stale_index_with_external_state_opens_own_connection(
     assert removed == 1
 
 
-def test_cleanup_stale_index_removes_out_of_root_paths(
-    isolated_metadata_db: Path, tmp_path: Path
-):
+def test_cleanup_stale_index_removes_out_of_root_paths(isolated_metadata_db: Path, tmp_path: Path):
     inside = tmp_path / "inside.png"
     inside.write_bytes(b"data")
     outside_dir = tmp_path.parent / "outside_root_other"
@@ -658,9 +621,7 @@ def test_cleanup_stale_index_removes_out_of_root_paths(
             outside_dir.rmdir()
 
 
-def test_cleanup_stale_index_returns_zero_when_nothing_stale(
-    isolated_metadata_db: Path, tmp_path: Path
-):
+def test_cleanup_stale_index_returns_zero_when_nothing_stale(isolated_metadata_db: Path, tmp_path: Path):
     image = tmp_path / "fresh.png"
     image.write_bytes(b"data")
     initialize_database()
@@ -668,9 +629,7 @@ def test_cleanup_stale_index_returns_zero_when_nothing_stale(
     assert cleanup_stale_index(None, root_path=tmp_path) == 0
 
 
-def test_cleanup_ignored_index_removes_excluded_paths(
-    isolated_metadata_db: Path, tmp_path: Path
-):
+def test_cleanup_ignored_index_removes_excluded_paths(isolated_metadata_db: Path, tmp_path: Path):
     """cleanup_ignored_index removes ignored paths that were inserted directly via SQL.
 
     index_file() refuses to insert ignored paths, so we bypass it here to
@@ -705,21 +664,15 @@ def test_cleanup_ignored_index_removes_excluded_paths(
     assert removed == 1
 
     with _connect() as conn:
-        rows = conn.execute(
-            "SELECT path FROM file_index WHERE path = ?", (str(ignored.resolve()),)
-        ).fetchall()
+        rows = conn.execute("SELECT path FROM file_index WHERE path = ?", (str(ignored.resolve()),)).fetchall()
     assert len(rows) == 0
     # The non-ignored image remains
     with _connect() as conn:
-        rows = conn.execute(
-            "SELECT path FROM file_index WHERE path = ?", (str(image.resolve()),)
-        ).fetchall()
+        rows = conn.execute("SELECT path FROM file_index WHERE path = ?", (str(image.resolve()),)).fetchall()
     assert len(rows) == 1
 
 
-def test_cleanup_ignored_index_conn_returns_zero_when_nothing_ignored(
-    isolated_metadata_db: Path, tmp_path: Path
-):
+def test_cleanup_ignored_index_conn_returns_zero_when_nothing_ignored(isolated_metadata_db: Path, tmp_path: Path):
     album = tmp_path / "clean_album"
     album.mkdir()
     image = album / "ok.png"
@@ -772,9 +725,7 @@ def test_index_directory_tree_handles_unreadable_subdir(
     assert indexed >= 1
 
 
-def test_index_directory_tree_with_collected_image_paths(
-    isolated_metadata_db: Path, tmp_path: Path
-):
+def test_index_directory_tree_with_collected_image_paths(isolated_metadata_db: Path, tmp_path: Path):
     root = tmp_path / "collect_root"
     root.mkdir()
     (root / "x.png").write_bytes(b"data")

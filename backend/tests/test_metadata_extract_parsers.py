@@ -27,8 +27,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from backend.metadata_extract import (
     _api_metadata_from_sources,
     _parse_easydiffusion_metadata,
@@ -40,7 +38,6 @@ from backend.metadata_extract import (
     parse_float,
     parse_int,
 )
-
 
 # ---------------------------------------------------------------------------
 # parse_a1111_parameters
@@ -87,10 +84,7 @@ class TestParseA1111Parameters:
         assert result["steps"] is None
 
     def test_malformed_numeric_values(self):
-        text = (
-            "test prompt\nNegative prompt: bad\n"
-            "Steps: abc, Sampler: Euler, CFG scale: xyz, Seed: nan, Model: model"
-        )
+        text = "test prompt\nNegative prompt: bad\nSteps: abc, Sampler: Euler, CFG scale: xyz, Seed: nan, Model: model"
         result = parse_a1111_parameters(text)
         assert result["prompt"] == "test prompt"
         assert result["steps"] is None
@@ -192,12 +186,16 @@ class TestParseComfy:
                 {"id": 10, "type": "PrimitiveNode", "inputs": {"value": 888}},
                 {"id": 20, "type": "PrimitiveNode", "inputs": {"value": 25}},
                 {"id": 30, "type": "PrimitiveNode", "inputs": {"value": 9.5}},
-                {"id": 1, "type": "KSampler", "inputs": {
-                    "seed": [10, 0],
-                    "steps": [20, 0],
-                    "cfg": [30, 0],
-                    "sampler_name": "dpmpp",
-                }},
+                {
+                    "id": 1,
+                    "type": "KSampler",
+                    "inputs": {
+                        "seed": [10, 0],
+                        "steps": [20, 0],
+                        "cfg": [30, 0],
+                        "sampler_name": "dpmpp",
+                    },
+                },
             ]
         }
         result = parse_comfy(json.dumps(data), None)
@@ -229,7 +227,11 @@ class TestParseComfy:
                 {"id": 1, "type": "VAELoader", "inputs": {"vae_name": "vae-ft-mse.safetensors"}},
                 {"id": 2, "type": "UpscaleModelLoader", "inputs": {"model_name": "4x-UltraSharp.pth"}},
                 {"id": 3, "type": "ControlNetLoader", "inputs": {"control_net_name": "canny.safetensors"}},
-                {"id": 4, "type": "LoraLoader", "inputs": {"lora_name": "detailer.safetensors", "strength_model": 0.75}},
+                {
+                    "id": 4,
+                    "type": "LoraLoader",
+                    "inputs": {"lora_name": "detailer.safetensors", "strength_model": 0.75},
+                },
                 {"id": 5, "type": "CLIPSetLastLayer", "inputs": {"stop_at_clip_layer": -2}},
             ]
         }
@@ -507,9 +509,11 @@ class TestApiMetadataFromSources:
 
     def test_chooses_comfyui_from_prompt_workflow(self, tmp_path: Path):
         info = {
-            "prompt": json.dumps({
-                "1": {"inputs": {"text": "comfy prompt"}, "class_type": "CLIPTextEncode"},
-            }),
+            "prompt": json.dumps(
+                {
+                    "1": {"inputs": {"text": "comfy prompt"}, "class_type": "CLIPTextEncode"},
+                }
+            ),
         }
         path = tmp_path / "dummy.png"
         result, _ = _api_metadata_from_sources(path, info)
@@ -525,15 +529,17 @@ class TestApiMetadataFromSources:
 
     def test_chooses_novelai_from_parameters_json(self, tmp_path: Path):
         info = {
-            "parameters": json.dumps({
-                "Software": "NovelAI",
-                "prompt": "anime girl",
-                "steps": 28,
-                "sampler": "k_euler",
-                "seed": 555,
-                "scale": 11,
-                "model": "nai3",
-            }),
+            "parameters": json.dumps(
+                {
+                    "Software": "NovelAI",
+                    "prompt": "anime girl",
+                    "steps": 28,
+                    "sampler": "k_euler",
+                    "seed": 555,
+                    "scale": 11,
+                    "model": "nai3",
+                }
+            ),
         }
         path = tmp_path / "dummy.png"
         result, _ = _api_metadata_from_sources(path, info)
