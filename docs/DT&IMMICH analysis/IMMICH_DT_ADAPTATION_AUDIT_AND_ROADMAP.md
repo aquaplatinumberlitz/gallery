@@ -1,6 +1,6 @@
 # Immich / DiffusionToolkit Adaptation Audit and Roadmap
 
-Last reviewed: June 19, 2026 — Phases 0–4 implemented
+Last reviewed: June 19, 2026 — Phases 0–4 implemented; CI verified at `bd03061`
 
 ## Executive summary
 
@@ -20,7 +20,8 @@ The current architecture is therefore not a failed attempt to copy Immich or
 DiffusionToolkit. It is a deliberate hybrid that protects ad-hoc folder-open
 latency while progressively building a prepared library.
 
-All five remaining problems identified below have been addressed in Phases 0–4 of this roadmap:
+All five original implementation gaps identified below were addressed in
+Phases 0–4 of this roadmap:
 
 1. dimensions can be present in `image_metadata` but absent from `file_index`;
 2. derivative rendering runs on the shared request threadpool without dedicated
@@ -31,6 +32,16 @@ All five remaining problems identified below have been addressed in Phases 0–4
    are all ready before navigation;
 5. some performance tests mix browser actionability delay, animation duration,
    cold generation, and warm-cache latency into one budget.
+
+The implementation remains intentionally hybrid at rollout time:
+
+- registered libraries, asset rows, derivative jobs, readiness state, repair,
+  and registered-root watching are available now;
+- `GALLERY_DB_REQUIRED` remains disabled by default, so direct filesystem scan
+  is still the compatibility fallback until operators opt into DB-required
+  browsing;
+- capacity reservation, `deferred_capacity`, queue aging, and use of the
+  reserved P1/P2 priorities remain hardening work, not completed features.
 
 This document recommends two distinct policies:
 
@@ -52,7 +63,7 @@ single-process FastAPI/Vue/SQLite application.
 
 | Repository | Revision inspected | Date/context |
 | --- | --- | --- |
-| `gallery-repo` | `113b3a4` | Local checkout on 2026-06-19 |
+| `gallery-repo` | `bd03061` | Phases 0–4 plus CI regression fixes, 2026-06-19 |
 | Immich | [`38920fc4cac8cbdbeb35fecf930583d875d033ba`](https://github.com/immich-app/immich/tree/38920fc4cac8cbdbeb35fecf930583d875d033ba) | `v3.0.0-rc.2`, 2026-06-18 |
 | DiffusionToolkit | [`153409c3a0e9569886e6601530365808d4ecbb0e`](https://github.com/RupertAvery/DiffusionToolkit/tree/153409c3a0e9569886e6601530365808d4ecbb0e) | Current upstream HEAD at review time |
 
@@ -93,6 +104,25 @@ The upstream conclusions are based on source inspection, not a cross-project
 benchmark on identical hardware. Performance comparisons below distinguish
 verified local measurements from architectural inference.
 
+### Implementation verification
+
+The post-implementation verification at `bd03061` established:
+
+- GitHub Actions run
+  [`27803442500`](https://github.com/aquaplatinumberlitz/gallery/actions/runs/27803442500)
+  passed `lint`, `test:unit`, and `test:e2e`;
+- backend: **592 passed**, **85.90% coverage** on Python 3.11;
+- frontend unit tests: **393 passed**;
+- Playwright contract suite: **22 passed**;
+- frontend lint and production build passed.
+
+Per-commit reconstruction also showed why testing only the final pushed SHA was
+insufficient: phases 0 and 1 passed independently; phase 2 passed assertions but
+failed the 85% coverage gate; phases 3 and 4 failed the stale `FileNode` response
+shape assertion. Commit `bd03061` updated the response contract tests, added
+derivative scheduler coverage, and prevented the startup-hook test from leaking
+worker threads into later SQLite fixtures.
+
 ## Pattern status overview
 
 | Pattern | Main reference | Current gallery status | Classification |
@@ -115,7 +145,7 @@ verified local measurements from architectural inference.
 | Fielded search/facets | DT/Immich | Implemented | Done |
 | Virtualized grid/list | Immich scale pattern | Implemented | Done |
 | Perf tests/instrumentation | Gallery-specific | Implemented; metrics split into queue/render/network/decode stages | **Done** |
-| Dedicated derivative workers | Immich/DT | **3 bounded thread workers, configurable 1-8, priority P0-P4, coalescing** | **Done** |
+| Dedicated derivative workers | Immich/DT | **3 bounded thread workers, configurable 1-8, priority P0-P3, coalescing** | **Done** |
 | Derivative readiness/catalog | Immich | **asset_derivatives + derivative_jobs tables with status tracking** | **Done** |
 | Full derivative warming | Immich-style prepared library | **Background warming after metadata index, 10 GiB LRU quota** | **Done** |
 | Dimension invariants across catalog tables | Immich DTO guarantee | **COALESCE + sync_dimensions_to_file_index in same transaction** | **Done** |
@@ -162,13 +192,15 @@ Immich's managed-library prerequisite.
 - direct scans repeat filesystem work;
 - DB and filesystem result paths can have different completeness;
 - it is difficult to guarantee compact DTO fields such as dimensions;
-- this contract conflicts with the selected future full DB-first model.
+- compatibility mode cannot provide the same readiness guarantees as a fully
+  prepared registered library.
 
 #### Decision
 
-The non-blocking principle remains mandatory, but the future implementation will
-move enumeration into an import/index job. The UI will consume progressive DB
-rows instead of rendering a direct-scan response.
+The non-blocking principle remains mandatory. Registered libraries now move
+enumeration into import/index work and expose progressive DB rows. Direct scan
+remains only as the default compatibility fallback until
+`GALLERY_DB_REQUIRED` is enabled.
 
 ### 2. Durable background metadata indexing
 
@@ -200,13 +232,15 @@ The gallery uses SQLite-backed metadata jobs plus in-memory staging:
 #### Disadvantages
 
 - no distributed workers;
-- metadata and derivative work do not yet share a unified scheduler;
-- queue priority and resource isolation are less mature than Immich.
+- metadata and derivative work use separate SQLite-backed schedulers and
+  lifecycle conventions;
+- queue fairness, capacity reservation, and distributed execution remain less
+  mature than Immich.
 
 #### Decision
 
-Keep the SQLite job architecture. Extend its conventions to derivative jobs
-instead of introducing Redis.
+Keep the SQLite job architecture. Phase 2 extended its conventions to
+derivative jobs without introducing Redis.
 
 ### 3. Batched writes and progress
 
@@ -247,18 +281,22 @@ the audited viewer path can reparse metadata synchronously.
 #### Disadvantages
 
 - metadata completeness depends on indexing progress;
-- the same dimensions are currently duplicated inconsistently in two tables.
+- dimensions remain duplicated in compatibility tables and therefore require
+  the transactional synchronization and migration invariant added in phase 0.
 
 #### Decision
 
-Preserve this architecture and fix the cross-table dimension invariant.
+Preserve this architecture. Phase 0 now synchronizes dimensions in the same
+transaction, uses `COALESCE` for compatibility reads, and backfills existing
+databases.
 
 ### 5. Persistent derivatives and strong invalidation
 
 Immich catalogs generated files by asset and derivative type. DT uses a local
 thumbnail cache keyed around its desktop model.
 
-gallery-repo currently persists generated WebP files and uses a key containing:
+gallery-repo persists generated WebP files, catalogs their source version and
+readiness in `asset_derivatives`, and uses a key containing:
 
 ```text
 kind + cache version + resolved path + mtime_ns + source size
@@ -266,8 +304,8 @@ kind + cache version + resolved path + mtime_ns + source size
 ```
 
 This invalidation is well suited to mutable local files and is stronger than a
-filename/size-only cache. It should remain the derivative identity foundation
-when the full catalog is added.
+filename/size-only cache. Phase 2 retained it as the derivative identity
+foundation for the durable catalog.
 
 ### 6. Derivative-first lightbox and original-on-demand
 
@@ -301,14 +339,14 @@ PhotoSwipe receives:
 #### Disadvantages
 
 - PhotoSwipe requires dimensions before layout;
-- current lazy preview generation can still be on the user path;
-- the current slide dimension-repair workaround can leave PhotoSwipe's internal
-  slide dimensions stale.
+- an unwarmed or evicted preview can still require interactive generation;
+- DB readiness is progressive, so compatibility/direct-scan responses can have
+  unknown dimensions until indexing completes.
 
 #### Decision
 
-Keep this quality policy. Complete it with prepared derivatives, authoritative
-dimensions, and neighbor readiness.
+Keep this quality policy. Phases 0–3 added synchronized dimensions, prepared
+derivatives, catalog readiness, and cancellable neighbor preload bundles.
 
 ### 7. Metadata does not block the lightbox overlay
 
@@ -329,10 +367,9 @@ Immich supports managed-library scans and watching; DT uses
 `FileSystemWatcher`. gallery-repo implements optional watcher and scheduled
 refresh services, with path scoping and debounce controls.
 
-The current opt-in default is appropriate for the hybrid arbitrary-folder
-model. The selected target changes the policy: watchers will become enabled by
-default for explicitly registered library roots only. Watching `/`, cache
-folders, build trees, or arbitrary temporary paths remains prohibited.
+The watcher is enabled by default but resolves only registered library roots;
+it does not start when no registered roots exist. Watching `/`, cache folders,
+build trees, or arbitrary temporary paths remains prohibited.
 
 ### 9. Virtualized browsing and compact result paths
 
@@ -340,8 +377,10 @@ Immich virtualizes its timeline and loads compact bucket data near the
 viewport. gallery-repo uses TanStack Virtual for the gallery and Library
 Inspector and paginates API results.
 
-The UI virtualization is complete. The remaining backend improvement is to make
-the compact listing DTO reliably include dimensions and derivative readiness.
+The UI virtualization is complete. The compact listing DTO now includes
+`asset_id`, dimensions, `metadata_state`, and `derivative_ready`; compatibility
+direct scans return the same DTO shape with readiness fields unset when no
+catalog row exists.
 
 ### 10. Performance tests and instrumentation
 
@@ -353,9 +392,10 @@ The gallery has:
 - a centralized budget file and budget-consumer validation.
 
 This is more explicit than the evidence found in the two upstream audits.
-However, a test is useful only when its milestone has one meaning. Current
-follow-up work must separate Playwright actionability delay, animation, network,
-decode, queue wait, cold rendering, and warm cache hits.
+Phase 0 split the main timing stages so actionability delay, animation, network,
+decode, queue wait, cold rendering, and warm cache hits are no longer treated as
+one milestone. Queue-state and quota observability still need broader acceptance
+coverage before DB-required mode becomes the default.
 
 ## Why not copy the upstream architectures 100%?
 
@@ -406,57 +446,33 @@ the original code or infrastructure:
 | Library watching | chokidar/FileSystemWatcher | configured-root watcher |
 | Compact dimensions | asset DTO | authoritative assets/listing DTO |
 
-## Incomplete adaptations and verified gaps
+## Implemented gaps and residual hardening
 
 ### 1. DB-first dimensions
 
-Current metadata writes can populate `image_metadata.width/height` while
-`file_index.width/height` remains `NULL`. Warm listing reads `file_index`, so a
-fully parsed image can still reach the frontend without dimensions.
+Phase 0 fixed the verified cross-table mismatch by synchronizing dimension
+writes, using `COALESCE` in compatibility reads, backfilling old databases, and
+repairing PhotoSwipe geometry in place. Listing, metadata, and orientation tests
+cover the invariant.
 
-Consequences:
-
-- PhotoSwipe falls back to `1200x1200`;
-- the opening path may load/decode preview only to recover dimensions;
-- the data source may be repaired after PhotoSwipe has already constructed the
-  current slide;
-- the current slide can remain square even when its image is not.
-
-Required completion:
-
-1. choose one authoritative asset dimension record;
-2. update compatibility columns transactionally;
-3. use `COALESCE` during migration and corruption recovery;
-4. backfill old databases;
-5. assert listing, metadata, and viewer dimensions are identical for the same
-   source version.
+Residual hardening: `assets` should eventually be the sole authoritative DTO
+source after compatibility tables and direct-scan mode can be retired.
 
 ### 2. Derivative-first without derivative readiness
 
-The endpoint and source policy is correct, but cache misses are resolved inside
-the user request. The system does not durably answer:
+Phase 2 added `asset_derivatives` and `derivative_jobs`, source-version identity,
+durable readiness, bounded workers, same-key coalescing, interactive promotion,
+warming, rebuild/clear operations, and LRU quota enforcement. Cold generation
+and warm serving are reported separately.
 
-- whether a thumbnail/preview is queued, generating, ready, failed, or evicted;
-- which source version produced it;
-- whether a rebuild is required;
-- whether a warming job is lower priority than an interactive request;
-- whether quota prevented generation.
-
-Required completion:
-
-- persistent derivative catalog;
-- durable jobs with priority;
-- full default warming after import/index;
-- safe rebuild/clear operations;
-- separate cold-generation and warm-serving objectives.
+Residual hardening: quota enforcement currently happens after generation. The
+design for pre-generation capacity reservation and a durable
+`deferred_capacity` state is not implemented and must not be described as an
+existing guarantee.
 
 ### 3. Neighbor preload
 
-The lightbox store and PhotoSwipe both initiate neighbor image work, but the
-contract is not atomic. A transition can have preview bytes available while
-dimensions or metadata are not ready.
-
-Required neighbor bundle:
+Phase 3 made the neighbor contract explicit and cancellable:
 
 ```text
 preview derivative ready
@@ -464,12 +480,15 @@ preview derivative ready
 + metadata query cached or deterministically unavailable
 ```
 
-The original file must not be preloaded.
+The original file is not preloaded. Rapid navigation cancels or reassigns the
+bundle through `AbortController`.
 
 ### 4. Derivative worker isolation
 
-Metadata work is bounded. Derivative generation currently calls
-`generate_derivative()` through FastAPI's shared threadpool.
+Derivative rendering now runs in a dedicated scheduler with three workers by
+default and a configurable range of one to eight. Interactive HTTP misses queue
+P0 work and wait for the durable result; library warming and rebuild work use
+P3. Same-key requests coalesce onto one catalog/job identity.
 
 Local measurements from the 2026-06-18 investigation showed:
 
@@ -479,12 +498,13 @@ Local measurements from the 2026-06-18 investigation showed:
   tail latency;
 - album-open p95 was dominated by the first uncached iteration.
 
-This is a concurrency/backpressure problem, not primarily a single-image resize
-problem.
+Those measurements motivated the dedicated worker implementation. Residual
+hardening includes explicit stress tests for the configured concurrency limit,
+queue aging/fairness, and capacity reservation under a saturated quota.
 
-## Target architecture selected for this roadmap
+## Implemented architecture and rollout state
 
-The chosen product direction is:
+The implemented product direction is:
 
 - persistent multi-library registry;
 - full DB-first gallery browsing;
@@ -493,7 +513,12 @@ The chosen product direction is:
 - thumbnail and preview warming for the whole library by default;
 - configured-library watchers enabled by default;
 - global 10 GiB derivative quota with LRU regeneration;
-- controlled adaptive variants in a later phase.
+- controlled configuration-defined variants.
+
+The catalog and worker architecture is implemented. Rollout is intentionally
+incomplete: `GALLERY_DB_REQUIRED=false` remains the default for backward
+compatibility. Enabling it changes unregistered-path behavior to HTTP 409 and
+removes direct filesystem fallback from normal browsing.
 
 ### Target data flow
 
@@ -523,16 +548,16 @@ Lightbox
   -> preload previous/next preview + dimensions + metadata
 ```
 
-## Proposed data model
+## Implemented data model
 
-Names are recommendations for implementation; migrations must use
-`PRAGMA user_version` and preserve existing data.
+The phase 1/2 migrations use these tables, advance `PRAGMA user_version`, and
+preserve existing data.
 
 ### `libraries`
 
 | Column | Purpose |
 | --- | --- |
-| `id` | Stable integer or UUID library identifier |
+| `id` | Stable integer library identifier |
 | `root_path` | Unique canonical filesystem root |
 | `name` | User-facing library name |
 | `state` | `discovering`, `indexing`, `ready`, `error`, `offline` |
@@ -543,8 +568,8 @@ Names are recommendations for implementation; migrations must use
 
 ### `assets`
 
-This becomes the compact listing source of truth. Existing `file_index` can be
-migrated/renamed or retained as a compatibility view during rollout.
+This is the compact listing source for registered libraries. Existing
+`file_index` remains a compatibility store during rollout.
 
 | Column | Purpose |
 | --- | --- |
@@ -569,7 +594,7 @@ inode-based rename detection is optional and must not enter the hot path.
 | `variant` | Controlled name such as `thumb_512` |
 | `source_mtime_ns`, `source_size` | Version generated from |
 | `format`, `quality`, `max_long_edge` | Output contract |
-| `status` | `queued`, `generating`, `ready`, `failed`, `evicted`, `deferred_capacity` |
+| `status` | Current persisted states: `queued`, `running`, `ready`, `failed` |
 | `cache_path`, `byte_size` | Persisted output |
 | `last_accessed_at` | LRU accounting |
 | `attempts`, `last_error` | Recovery |
@@ -586,7 +611,7 @@ Unique key:
 | Column | Purpose |
 | --- | --- |
 | `derivative_id` | One durable job per derivative version |
-| `priority` | Interactive, neighbor, viewport, library warm |
+| `priority` | Integer `0..3`; P0 interactive, P3 warming/rebuild, P1/P2 reserved |
 | `state` | Queue lifecycle |
 | `attempts`, `error` | Retry/error |
 | queue timestamps | Metrics and recovery |
@@ -612,8 +637,10 @@ explicit confirmation flag. Source files are never deleted.
 
 ### DB-first listing
 
-`GET /api/scan` remains temporarily for compatibility, but internally resolves
-the path to a registered library and reads only SQLite.
+`GET /api/scan` resolves registered paths through SQLite. When
+`GALLERY_DB_REQUIRED=false`, an unregistered or unavailable warm listing may
+still use the compatibility filesystem scan. When the flag is true, registered
+DB browsing is required.
 
 Unregistered paths return:
 
@@ -653,9 +680,9 @@ POST /api/derivatives/clear
 Warm/rebuild/clear operations are scoped, asynchronous, observable, and require
 confirmation when they evict or replace existing files.
 
-Existing `/api/thumbnail` and `/api/preview` remain compatible with path
-parameters during migration. The preferred future form uses `asset_id` and
-controlled variant names, preventing unbounded arbitrary-size catalog growth.
+Existing `/api/thumbnail` and `/api/preview` accept both path and `asset_id`
+parameters. Cataloged requests use controlled variant names; arbitrary sizing
+remains a compatibility path and must not create unbounded durable variants.
 
 ## Worker and scheduling policy
 
@@ -678,22 +705,26 @@ promote the same durable job.
 
 ```text
 P0 interactive HTTP miss
-P1 current lightbox neighbor
-P2 first/near viewport
+P1 reserved for neighbor promotion
+P2 reserved for viewport warming
 P3 full-library warming
-P4 maintenance/rebuild
 ```
 
-Promotion is monotonic: a background job requested interactively becomes P0.
-Workers use aging so low-priority jobs cannot starve indefinitely.
+The scheduler currently clamps priority to `0..3`. Production call sites use P0
+for interactive requests and P3 for warming/rebuild. Promotion is monotonic: a
+background job requested interactively becomes P0. P1/P2 call-site policies and
+queue aging are not yet implemented.
 
 ### Failure and retry
 
 - transient IO/SQLite errors: bounded exponential retry;
 - missing/changed source: mark stale and reschedule against the new version;
 - unsupported/corrupt source: durable failed state, no hot retry loop;
-- capacity unavailable: `deferred_capacity`, retried after eviction or quota
-  change.
+- quota enforcement: evict eligible LRU derivatives after successful
+  generation.
+
+Pre-generation capacity reservation and `deferred_capacity` remain proposed
+hardening work.
 
 ## Warming and quota policy
 
@@ -717,8 +748,8 @@ their jobs.
 - catalog tracks actual derivative byte size;
 - eviction uses LRU with protection for active jobs and currently viewed assets.
 
-Full warming is a desired state, not permission to loop forever. If the desired
-derivative set cannot fit:
+Full warming is a desired state, not permission to loop forever. The following
+capacity-safe behavior remains the target rather than the current guarantee:
 
 1. evict eligible old derivatives;
 2. generate only when capacity can be reserved;
@@ -726,18 +757,17 @@ derivative set cannot fit:
 4. expose coverage and required/available bytes;
 5. retry only after capacity, policy, or source set changes.
 
-### Later controlled variants
+### Controlled variants
 
-Phase 2 may add:
+The current configured set is:
 
 ```text
-thumb_256
 thumb_512
 preview_1440
-preview_2560
 ```
 
-Variants are configuration-defined and schema-cataloged. Arbitrary
+Future configuration may add `thumb_256` or `preview_2560`. Variants are
+configuration-defined and schema-cataloged. Arbitrary
 `max_long_edge` requests may still be served transiently for compatibility but
 must not create unlimited durable catalog rows.
 
@@ -779,7 +809,7 @@ Exit criteria:
 - ✅ Import of existing cached derivatives on migration
 - ✅ 3 bounded thread workers (configurable 1-8 via DERIVATIVE_WORKER_COUNT)
 - ✅ Coalescing: same-key concurrent requests render once
-- ✅ Priority P0-P4 with monotonic promotion (interactive request promotes P3→P0)
+- ✅ Priority range P0-P3 with monotonic promotion (interactive request promotes P3→P0); P1/P2 are reserved
 - ✅ Exponential backoff retry (max 3 attempts), permanent failure for corrupt/unsupported
 - ✅ 10 GiB LRU quota (configurable via GALLERY_DERIVATIVE_QUOTA_BYTES)
 - ✅ Background warming after metadata index completes
@@ -791,7 +821,7 @@ Exit criteria:
 - ✅ worker concurrency never exceeds configuration
 - ✅ interactive work preempts/promotes background warming
 - ✅ restart recovers queued/generating jobs safely
-- ✅ no generate/evict loop at quota
+- ⚠️ post-generation LRU enforcement is implemented; pre-generation reservation and `deferred_capacity` remain open
 
 ### Phase 3 - Viewer readiness ✅ IMPLEMENTED
 
@@ -809,7 +839,7 @@ Exit criteria:
 
 ### Phase 4 - DB-required cutover ✅ IMPLEMENTED
 
-- ✅ `GALLERY_DB_REQUIRED` env var (default `false` for backward compatibility)
+- ✅ `GALLERY_DB_REQUIRED` env var (default `false` for backward-compatible rollout)
 - ✅ `_require_db_path()` raises HTTP 409 with `{"error": "library_not_registered"}` for unregistered roots when flag is true
 - ✅ Watcher defaults to registered library roots only (via `_registered_watcher_roots()`)
 - ✅ Watcher starts only when registered libraries exist; skips if none registered
@@ -818,48 +848,52 @@ Exit criteria:
 
 Rollback support:
 
-- ✅ `GALLERY_DB_REQUIRED=0` restores legacy behavior (filesystem scan fallback, watcher roots config)`
+- ✅ `GALLERY_DB_REQUIRED=0` restores filesystem scan fallback behavior
 
 ## Test plan and acceptance criteria
 
+Status below reflects the `bd03061` verification. Checked items are covered by
+the current suite; unchecked items remain release-hardening criteria.
+
 ### Database and migration
 
-- Existing v2 databases migrate idempotently.
-- Every metadata dimension update is visible in the asset/listing row in the
+- ✅ Existing v2 databases migrate idempotently.
+- ✅ Every metadata dimension update is visible in the asset/listing row in the
   same committed transaction.
-- Backfill preserves paths, metadata, resources, and FTS behavior.
-- Library registration rejects overlapping/unsafe roots according to one
+- ✅ Backfill preserves paths, metadata, resources, and FTS behavior.
+- ✅ Library registration rejects overlapping/unsafe roots according to one
   documented policy.
-- Unregister and rebuild never remove source files.
+- ✅ Unregister and rebuild never remove source files.
 
 ### Progressive DB browsing
 
-- A new library renders indexed rows progressively.
-- Result order and cursor pagination remain stable while later batches arrive.
-- Restart resumes discovery without duplicate assets.
-- Moved/deleted/offline files converge through watcher and scheduled repair.
-- Unregistered paths return the specified 409 response.
+- ✅ A new library exposes indexed rows progressively.
+- ✅ Result order and cursor pagination remain stable.
+- ✅ Restart resumes durable indexing without duplicate asset identities.
+- ✅ Moved/deleted/offline files converge through watcher and repair.
+- ✅ In DB-required mode, unregistered paths return the specified 409 response.
 
 ### Derivative scheduler
 
-- 100 concurrent requests for one key cause one render.
-- Render concurrency never exceeds 3 by default.
-- An interactive request promotes an existing P3 job to P0.
-- Different source versions never share a derivative.
-- Failed/corrupt images do not spin in retry loops.
-- Restart changes abandoned `generating` jobs to retryable queued state.
-- Quota reservation prevents oversubscription.
-- LRU eviction never removes a file currently being served or generated.
-- `deferred_capacity` work does not continuously requeue.
+- ✅ Same-key scheduling coalesces onto one active job and supports P3→P0 promotion.
+- ✅ Worker count defaults to 3 and is clamped to 1–8.
+- ✅ Different source versions never share a derivative identity.
+- ✅ Failed/corrupt images use bounded retries or durable failure.
+- ✅ Restart changes abandoned `running` jobs to queued state.
+- ✅ LRU eviction protects files currently served or generated.
+- ⬜ Add a deterministic 100-request render-once stress test.
+- ⬜ Add a deterministic active-worker concurrency stress test.
+- ⬜ Implement capacity reservation and `deferred_capacity` before claiming
+  quota oversubscription prevention.
 
 ### Viewer
 
-- Thumbnail -> preview -> original source policy is unchanged.
-- Original is not fetched during normal open or neighbor transition.
-- Dimensions match source orientation and active PhotoSwipe slide geometry.
-- Previous/next preview and metadata are canceled/reassigned on rapid direction
+- ✅ Thumbnail -> preview -> original source policy is unchanged.
+- ✅ Original is not fetched during normal open or neighbor transition.
+- ✅ Dimensions match source orientation and active PhotoSwipe slide geometry.
+- ✅ Previous/next preview and metadata are canceled/reassigned on rapid direction
   changes.
-- Safari duplicate-image regression remains covered.
+- ✅ Safari duplicate-image regression remains covered.
 
 ### Performance targets
 
@@ -882,7 +916,9 @@ warm serving budgets.
 
 ### Metrics
 
-Add bounded-label metrics for:
+Current instrumentation covers HTTP, scan/listing, cache, derivative, and
+split lightbox timing paths. Remaining queue/quota observability should use
+bounded-label metrics for:
 
 - derivative cache hit/miss by kind/variant;
 - queue depth by priority/state;
@@ -900,7 +936,7 @@ No metric may use raw paths or asset IDs as labels.
 | Risk | Mitigation |
 | --- | --- |
 | Full warming saturates CPU/disk | Three workers, low background priority, interactive promotion, configurable disable |
-| 10 GiB is insufficient | Capacity reservation, LRU, `deferred_capacity`, coverage reporting |
+| 10 GiB is insufficient | Current LRU enforcement; add capacity reservation, `deferred_capacity`, and coverage reporting before strict-cap rollout |
 | DB-required browsing worsens first use | Progressive rows and explicit import state |
 | Watcher event storms | Registered roots only, debounce, batch coalescing, scheduled reconciliation |
 | SQLite contention | Separate bounded workers, short transactions, WAL, busy retry, batch writes |
@@ -912,16 +948,21 @@ No metric may use raw paths or asset IDs as labels.
 ## Final recommendation
 
 The project should not become an Immich deployment or a DiffusionToolkit port.
-It should become a prepared local AI-image library with these guarantees:
+It now provides the core of a prepared local AI-image library with these
+guarantees:
 
 - SQLite remains the local durable control plane.
-- Registered libraries and assets become the browsing source of truth.
+- Registered libraries and assets are the DB-first browsing source when
+  DB-required mode is enabled.
 - Metadata and derivatives are background-prepared, observable, and restartable.
-- Derivative generation is bounded, coalesced, prioritized, and quota-aware.
+- Derivative generation is bounded, coalesced, prioritized, and LRU
+  quota-aware.
 - The browser receives authoritative dimensions and compact readiness state.
 - The lightbox remains preview-first and metadata-independent.
 - Source files remain external, immutable inputs unless a future feature
   explicitly introduces editing.
 
-This captures the operational discipline that currently distinguishes Immich
-and DT from gallery-repo, without importing their platform-specific cost.
+This captures the relevant operational discipline from Immich and DT without
+importing their platform-specific cost. The remaining release gate is rollout
+hardening—especially capacity reservation, queue stress coverage, and deciding
+when `GALLERY_DB_REQUIRED` can safely default to true.
