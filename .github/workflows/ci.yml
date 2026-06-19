@@ -165,7 +165,7 @@ jobs:
 
       - name: Start backend fixture
         run: |
-          GALLERY_ROOT="$RUNNER_TEMP/gallery-e2e-fixture" \
+          PATH_SAFETY_ROOT="$RUNNER_TEMP/gallery-e2e-fixture" \
           GALLERY_METADATA_DB="$RUNNER_TEMP/gallery-e2e.db" \
           GALLERY_THUMBNAIL_CACHE_DIR="$RUNNER_TEMP/gallery-e2e-cache" \
           ENABLE_METRICS=false \
@@ -185,7 +185,7 @@ jobs:
         run: pnpm exec playwright test tests/e2e/*.spec.ts --project=chromium --shard=${{ matrix.shard }}/4 --reporter=html
         env:
           VITE_API_URL: http://127.0.0.1:4180
-          GALLERY_ROOT_PATH: ${{ runner.temp }}/gallery-e2e-fixture
+          PATH_SAFETY_ROOT_PATH: ${{ runner.temp }}/gallery-e2e-fixture
 
       - name: Upload Playwright report on failure
         if: failure()
@@ -251,7 +251,7 @@ jobs:
 
       - name: Start performance backend fixture
         run: |
-          GALLERY_ROOT="$RUNNER_TEMP/gallery-perf-fixture" \
+          PATH_SAFETY_ROOT="$RUNNER_TEMP/gallery-perf-fixture" \
           GALLERY_METADATA_DB="$RUNNER_TEMP/gallery-perf.db" \
           GALLERY_THUMBNAIL_CACHE_DIR="$RUNNER_TEMP/gallery-perf-cache" \
           ENABLE_METRICS=false \
@@ -271,7 +271,7 @@ jobs:
         run: pnpm exec playwright test tests/e2e/perf --project=chromium --workers=1 --reporter=html
         env:
           VITE_API_URL: http://127.0.0.1:4180
-          GALLERY_ROOT_PATH: ${{ runner.temp }}/gallery-perf-fixture
+          PATH_SAFETY_ROOT_PATH: ${{ runner.temp }}/gallery-perf-fixture
 
       - name: Upload performance reports
         if: always()
