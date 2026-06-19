@@ -73,11 +73,13 @@ def _seed_metadata(root: Path, album: Path) -> int:
     from backend.metadata_store import (
         index_directory_tree,
         initialize_database,
+        register_library,
         update_folder_index_state,
         upsert_extracted_metadata,
     )
 
     initialize_database()
+    register_library(root)
     index_directory_tree(root, include_metadata=False)
     update_folder_index_state(root, complete=True, **_folder_counts(root))
     update_folder_index_state(album, complete=True, **_folder_counts(album))
