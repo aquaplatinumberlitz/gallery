@@ -137,7 +137,11 @@ def _elapsed_ms(start: float) -> float:
     return (time.perf_counter() - start) * 1000
 
 
-def scan_directory(target_path: Path) -> tuple[list[FileNode], list[FileNode], dict[str, int | float | None]]:
+def scan_directory(
+    target_path: Path,
+    import_root: str | Path | None = None,
+    exclusion_patterns: tuple[str, ...] | list[str] = (),
+) -> tuple[list[FileNode], list[FileNode], dict[str, int | float | None]]:
     """Scan one directory into folder and image nodes with timing counters."""
     perf = _new_scan_perf()
     if not target_path.exists():
@@ -155,7 +159,7 @@ def scan_directory(target_path: Path) -> tuple[list[FileNode], list[FileNode], d
         perf["entries_scanned"] = len(entries)
 
         for entry in entries:
-            if entry.name.startswith(".") or is_index_excluded_path(entry.path):
+            if entry.name.startswith(".") or is_index_excluded_path(entry.path, import_root, exclusion_patterns):
                 continue
 
             entry_path = Path(entry.path)
@@ -169,7 +173,7 @@ def scan_directory(target_path: Path) -> tuple[list[FileNode], list[FileNode], d
 
             if is_dir:
                 folder_filter_started = time.perf_counter()
-                meta = build_album_metadata(entry_path)
+                meta = build_album_metadata(entry_path, import_root, exclusion_patterns)
                 perf["folder_filter_ms"] += _elapsed_ms(folder_filter_started)
                 folders.append(
                     FileNode(
@@ -245,13 +249,19 @@ def scan_directory(target_path: Path) -> tuple[list[FileNode], list[FileNode], d
     return folders, images, perf
 
 
-def _shadow_compare_asset_listing(target: Path, db_folder_count: int, db_image_count: int) -> None:
+def _shadow_compare_asset_listing(
+    target: Path,
+    db_folder_count: int,
+    db_image_count: int,
+    import_root: str | Path | None = None,
+    exclusion_patterns: tuple[str, ...] | list[str] = (),
+) -> None:
     """Compare catalog and filesystem counts without affecting the response path."""
     try:
         folder_count = 0
         image_count = 0
         for entry in os.scandir(target):
-            if entry.name.startswith(".") or is_index_excluded_path(entry.path):
+            if entry.name.startswith(".") or is_index_excluded_path(entry.path, import_root, exclusion_patterns):
                 continue
             if entry.is_dir():
                 folder_count += 1
@@ -285,6 +295,13 @@ async def api_scan(
         target = await run_in_threadpool(_registered_or_requested_root, path)
         resolve_ms = _elapsed_ms(resolve_started)
         _require_db_path(target)
+        from .metadata_store import get_library_for_path
+
+        library = await run_in_threadpool(get_library_for_path, target)
+        import_root = library["matched_import_path"] if library is not None else None
+        exclusion_patterns = library["exclusion_patterns"] if library is not None else []
+        if is_index_excluded_path(target, import_root, exclusion_patterns):
+            raise APIError(404, ErrorType.NOT_FOUND, "Folder not found")
         if not is_path_safe(target):
             raise APIError(403, "permission", "Access denied: path outside allowed root")
         scan_tracking_target = target
@@ -306,6 +323,8 @@ async def api_scan(
                 target,
                 len(warm_result["folders"]),
                 warm_result["total_images"],
+                import_root,
+                exclusion_patterns,
             )
         warm_fallback_reason = None
         if warm_result is None and ENABLE_WARM_INDEXED_LISTING and not GALLERY_DB_REQUIRED:
@@ -352,7 +371,12 @@ async def api_scan(
                 "Direct filesystem scan used for %s — register this path as a library for DB-first browsing",
                 target,
             )
-            folders, images, scan_perf = await run_in_threadpool(scan_directory, target)
+            folders, images, scan_perf = await run_in_threadpool(
+                scan_directory,
+                target,
+                import_root,
+                exclusion_patterns,
+            )
 
             pagination_started = time.perf_counter()
             total_images = len(images)

@@ -331,6 +331,30 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
               last_error TEXT
             );
 
+            CREATE TABLE IF NOT EXISTS library_import_paths (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+              path TEXT NOT NULL,
+              position INTEGER NOT NULL DEFAULT 0,
+              created_at REAL NOT NULL,
+              updated_at REAL NOT NULL,
+              UNIQUE(library_id, path),
+              UNIQUE(library_id, position)
+            );
+            CREATE INDEX IF NOT EXISTS idx_library_import_paths_path
+              ON library_import_paths(path);
+
+            CREATE TABLE IF NOT EXISTS library_exclusion_patterns (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+              pattern TEXT NOT NULL,
+              position INTEGER NOT NULL DEFAULT 0,
+              created_at REAL NOT NULL,
+              updated_at REAL NOT NULL,
+              UNIQUE(library_id, pattern),
+              UNIQUE(library_id, position)
+            );
+
             CREATE TABLE IF NOT EXISTS assets (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               library_id INTEGER NOT NULL REFERENCES libraries(id),
@@ -478,6 +502,43 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
         _import_cached_derivatives_conn(conn)
         conn.execute("PRAGMA user_version = 5")
 
+    if current_version < 6:
+        unix_epoch_expression = "(value - 2440587.5) * 86400.0"
+        for column in ("created_at", "updated_at", "last_scan_at"):
+            conn.execute(
+                f"""
+                UPDATE libraries
+                SET {column} = {unix_epoch_expression.replace("value", column)}
+                WHERE {column} >= 2000000 AND {column} < 3000000
+                """
+            )
+        now = time.time()
+        conn.execute(
+            """
+            INSERT INTO library_import_paths (
+              library_id, path, position, created_at, updated_at
+            )
+            SELECT l.id, l.root_path, 0, ?, ?
+            FROM libraries AS l
+            WHERE NOT EXISTS (
+              SELECT 1 FROM library_import_paths AS lip WHERE lip.library_id = l.id
+            )
+            """,
+            (now, now),
+        )
+        missing = conn.execute(
+            """
+            SELECT count(*)
+            FROM libraries AS l
+            WHERE NOT EXISTS (
+              SELECT 1 FROM library_import_paths AS lip WHERE lip.library_id = l.id
+            )
+            """
+        ).fetchone()[0]
+        if missing:
+            raise RuntimeError("Library import-path migration left libraries without import paths")
+        conn.execute("PRAGMA user_version = 6")
+
     _cleanup_ignored_index_conn(conn)
 
 
@@ -540,13 +601,69 @@ def _ensure_default_library_conn(conn: sqlite3.Connection) -> int:
 
 
 def _path_is_within(path: str, root: str) -> bool:
-    return path == root or root == os.sep or path.startswith(f"{root.rstrip(os.sep)}{os.sep}")
+    try:
+        Path(path).resolve().relative_to(Path(root).resolve())
+        return True
+    except (OSError, RuntimeError, ValueError):
+        return False
 
 
 def _find_library_for_path_conn(conn: sqlite3.Connection, path: str | Path) -> sqlite3.Row | None:
     resolved = str(Path(path).resolve())
-    libraries = conn.execute("SELECT * FROM libraries ORDER BY length(root_path) DESC").fetchall()
-    return next((row for row in libraries if _path_is_within(resolved, row["root_path"])), None)
+    libraries = conn.execute(
+        """
+        SELECT l.*, lip.id AS matched_import_path_id,
+               lip.path AS matched_import_path, lip.position AS matched_import_path_position
+        FROM libraries AS l
+        JOIN library_import_paths AS lip ON lip.library_id = l.id
+        ORDER BY length(lip.path) DESC, l.id, lip.position, lip.id
+        """
+    ).fetchall()
+    return next((row for row in libraries if _path_is_within(resolved, row["matched_import_path"])), None)
+
+
+def _library_exclusion_patterns_conn(conn: sqlite3.Connection, library_id: int) -> list[str]:
+    return [
+        str(row["pattern"])
+        for row in conn.execute(
+            """
+            SELECT pattern FROM library_exclusion_patterns
+            WHERE library_id = ?
+            ORDER BY position, id
+            """,
+            (library_id,),
+        )
+    ]
+
+
+def _serialize_library_conn(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
+    library = dict(row)
+    library_id = int(row["id"])
+    import_paths = [
+        dict(import_path)
+        for import_path in conn.execute(
+            """
+            SELECT id, library_id, path, position, created_at, updated_at
+            FROM library_import_paths
+            WHERE library_id = ?
+            ORDER BY position, id
+            """,
+            (library_id,),
+        )
+    ]
+    library["import_paths"] = import_paths
+    library["exclusion_patterns"] = _library_exclusion_patterns_conn(conn, library_id)
+    library["root_path"] = import_paths[0]["path"] if import_paths else str(row["root_path"])
+    library["asset_count"] = int(
+        conn.execute(
+            f"""
+            SELECT count(*) FROM assets
+            WHERE library_id = ? AND type IN ('image', 'video') AND {_active_asset_where()}
+            """,
+            (library_id,),
+        ).fetchone()[0]
+    )
+    return library
 
 
 def _upsert_asset_conn(
@@ -568,6 +685,12 @@ def _upsert_asset_conn(
     if library is None:
         return 0
     library_id = int(library["id"])
+    if is_index_excluded_path(
+        resolved_path,
+        library["matched_import_path"],
+        _library_exclusion_patterns_conn(conn, library_id),
+    ):
+        return 0
     normalized_type = "image" if type in {"image", "photo", "file"} else "folder"
     conn.execute(
         """
@@ -621,7 +744,7 @@ def list_libraries() -> list[dict[str, Any]]:
     """Return all registered libraries in stable ID order."""
     initialize_database()
     with _DB_LOCK, _connect() as conn:
-        return [dict(row) for row in conn.execute("SELECT * FROM libraries ORDER BY id")]
+        return [_serialize_library_conn(conn, row) for row in conn.execute("SELECT * FROM libraries ORDER BY id")]
 
 
 def get_library(library_id: int) -> dict[str, Any] | None:
@@ -629,7 +752,7 @@ def get_library(library_id: int) -> dict[str, Any] | None:
     initialize_database()
     with _DB_LOCK, _connect() as conn:
         row = conn.execute("SELECT * FROM libraries WHERE id = ?", (library_id,)).fetchone()
-        return dict(row) if row else None
+        return _serialize_library_conn(conn, row) if row else None
 
 
 def get_library_for_path(path: str | Path) -> dict[str, Any] | None:
@@ -639,8 +762,10 @@ def get_library_for_path(path: str | Path) -> dict[str, Any] | None:
         row = _find_library_for_path_conn(conn, path)
         if row is None:
             return None
-        library = dict(row)
+        library = _serialize_library_conn(conn, row)
         library["library_state"] = library["state"]
+        library["matched_import_path_id"] = int(row["matched_import_path_id"])
+        library["matched_import_path"] = str(row["matched_import_path"])
         return library
 
 
@@ -648,25 +773,196 @@ def get_first_library_root() -> Path | None:
     """Return the first registered library root, if one exists."""
     initialize_database()
     with _DB_LOCK, _connect() as conn:
-        row = conn.execute("SELECT root_path FROM libraries ORDER BY id LIMIT 1").fetchone()
-        return Path(row["root_path"]).resolve() if row else None
+        row = conn.execute(
+            """
+            SELECT lip.path
+            FROM libraries AS l
+            JOIN library_import_paths AS lip ON lip.library_id = l.id
+            ORDER BY l.id, lip.position, lip.id
+            LIMIT 1
+            """
+        ).fetchone()
+        return Path(row["path"]).resolve() if row else None
+
+
+class LibraryOverlapError(ValueError):
+    """Raised when an import path overlaps another registered library."""
+
+
+def _assert_no_cross_library_overlap_conn(
+    conn: sqlite3.Connection,
+    import_paths: list[str],
+    *,
+    exclude_library_id: int | None = None,
+) -> None:
+    query = "SELECT library_id, path FROM library_import_paths"
+    params: tuple[Any, ...] = ()
+    if exclude_library_id is not None:
+        query += " WHERE library_id != ?"
+        params = (exclude_library_id,)
+    for existing in conn.execute(query, params):
+        existing_path = str(existing["path"])
+        for path in import_paths:
+            if _path_is_within(path, existing_path) or _path_is_within(existing_path, path):
+                raise LibraryOverlapError(f"Library import path overlaps registered path: {existing_path}")
+
+
+def _replace_library_paths_conn(
+    conn: sqlite3.Connection,
+    library_id: int,
+    import_paths: list[str],
+    *,
+    now: float,
+) -> None:
+    if not import_paths:
+        raise ValueError("At least one import path is required")
+    conn.execute("DELETE FROM library_import_paths WHERE library_id = ?", (library_id,))
+    conn.executemany(
+        """
+        INSERT INTO library_import_paths (
+          library_id, path, position, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?)
+        """,
+        ((library_id, path, position, now, now) for position, path in enumerate(import_paths)),
+    )
+    conn.execute(
+        "UPDATE libraries SET root_path = ?, updated_at = ? WHERE id = ?",
+        (import_paths[0], now, library_id),
+    )
+
+
+def _replace_library_patterns_conn(
+    conn: sqlite3.Connection,
+    library_id: int,
+    exclusion_patterns: list[str],
+    *,
+    now: float,
+) -> None:
+    conn.execute("DELETE FROM library_exclusion_patterns WHERE library_id = ?", (library_id,))
+    conn.executemany(
+        """
+        INSERT INTO library_exclusion_patterns (
+          library_id, pattern, position, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?)
+        """,
+        ((library_id, pattern, position, now, now) for position, pattern in enumerate(exclusion_patterns)),
+    )
+
+
+def _reconcile_library_configuration_conn(conn: sqlite3.Connection, library_id: int) -> None:
+    roots = [
+        str(row["path"])
+        for row in conn.execute(
+            "SELECT path FROM library_import_paths WHERE library_id = ? ORDER BY length(path) DESC, position, id",
+            (library_id,),
+        )
+    ]
+    patterns = _library_exclusion_patterns_conn(conn, library_id)
+    now = time.time()
+    updates: list[tuple[int, float, int]] = []
+    out_of_scope_paths: list[str] = []
+    for row in conn.execute(
+        "SELECT id, path, offline, deleted_at FROM assets WHERE library_id = ?",
+        (library_id,),
+    ):
+        path = str(row["path"])
+        import_root = next((root for root in roots if _path_is_within(path, root)), None)
+        in_scope = bool(
+            import_root
+            and not is_index_excluded_path(path, import_root, patterns)
+            and Path(path).exists()
+            and row["deleted_at"] is None
+        )
+        offline = 0 if in_scope else 1
+        if offline:
+            out_of_scope_paths.append(path)
+        if int(row["offline"]) != offline:
+            updates.append((offline, now, int(row["id"])))
+    if updates:
+        conn.executemany("UPDATE assets SET offline = ?, indexed_at = ? WHERE id = ?", updates)
+    if out_of_scope_paths:
+        values = ((path,) for path in out_of_scope_paths)
+        conn.executemany("DELETE FROM file_index_fts WHERE path = ?", values)
+        for table in ("file_index", "metadata_index_jobs", "folder_index_state"):
+            conn.executemany("DELETE FROM " + table + " WHERE path = ?", ((path,) for path in out_of_scope_paths))
+
+
+def create_library(
+    import_paths: list[str | Path],
+    *,
+    name: str | None = None,
+    exclusion_patterns: list[str] | None = None,
+) -> dict[str, Any]:
+    """Create one library with ordered import paths and exclusion patterns."""
+    canonical_paths = [str(Path(path).resolve()) for path in import_paths]
+    patterns = list(exclusion_patterns or [])
+    if not canonical_paths:
+        raise ValueError("At least one import path is required")
+    if len(set(canonical_paths)) != len(canonical_paths):
+        raise ValueError("Duplicate import paths are not allowed")
+    if len(set(patterns)) != len(patterns):
+        raise ValueError("Duplicate exclusion patterns are not allowed")
+    display_name = (name or Path(canonical_paths[0]).name or canonical_paths[0]).strip()
+    now = time.time()
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        _assert_no_cross_library_overlap_conn(conn, canonical_paths)
+        cursor = conn.execute(
+            """
+            INSERT INTO libraries (
+              root_path, name, state, created_at, updated_at
+            ) VALUES (?, ?, 'discovering', ?, ?)
+            """,
+            (canonical_paths[0], display_name, now, now),
+        )
+        library_id = int(cursor.lastrowid)
+        _replace_library_paths_conn(conn, library_id, canonical_paths, now=now)
+        _replace_library_patterns_conn(conn, library_id, patterns, now=now)
+        row = conn.execute("SELECT * FROM libraries WHERE id = ?", (library_id,)).fetchone()
+        return _serialize_library_conn(conn, row)
+
+
+def update_library(
+    library_id: int,
+    *,
+    name: str | None = None,
+    import_paths: list[str | Path] | None = None,
+    exclusion_patterns: list[str] | None = None,
+) -> dict[str, Any] | None:
+    """Replace supplied library fields and reconcile existing catalog scope."""
+    canonical_paths = [str(Path(path).resolve()) for path in import_paths] if import_paths is not None else None
+    patterns = list(exclusion_patterns) if exclusion_patterns is not None else None
+    if canonical_paths is not None and not canonical_paths:
+        raise ValueError("At least one import path is required")
+    if canonical_paths is not None and len(set(canonical_paths)) != len(canonical_paths):
+        raise ValueError("Duplicate import paths are not allowed")
+    if patterns is not None and len(set(patterns)) != len(patterns):
+        raise ValueError("Duplicate exclusion patterns are not allowed")
+    now = time.time()
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        row = conn.execute("SELECT * FROM libraries WHERE id = ?", (library_id,)).fetchone()
+        if row is None:
+            return None
+        if canonical_paths is not None:
+            _assert_no_cross_library_overlap_conn(conn, canonical_paths, exclude_library_id=library_id)
+            _replace_library_paths_conn(conn, library_id, canonical_paths, now=now)
+        if patterns is not None:
+            _replace_library_patterns_conn(conn, library_id, patterns, now=now)
+        if name is not None:
+            conn.execute(
+                "UPDATE libraries SET name = ?, updated_at = ? WHERE id = ?",
+                (name.strip(), now, library_id),
+            )
+        if canonical_paths is not None or patterns is not None:
+            _reconcile_library_configuration_conn(conn, library_id)
+        row = conn.execute("SELECT * FROM libraries WHERE id = ?", (library_id,)).fetchone()
+        return _serialize_library_conn(conn, row)
 
 
 def register_library(root_path: str | Path, name: str | None = None) -> dict[str, Any]:
     """Register a canonical, non-overlapping library root."""
-    root = str(Path(root_path).resolve())
-    initialize_database()
-    with _DB_LOCK, _connect() as conn:
-        for existing in conn.execute("SELECT root_path FROM libraries"):
-            existing_root = existing["root_path"]
-            if _path_is_within(root, existing_root) or _path_is_within(existing_root, root):
-                raise ValueError(f"Library root overlaps registered root: {existing_root}")
-        cursor = conn.execute(
-            "INSERT INTO libraries (root_path, name, state) VALUES (?, ?, 'discovering')",
-            (root, (name or Path(root).name or root).strip()),
-        )
-        row = conn.execute("SELECT * FROM libraries WHERE id = ?", (cursor.lastrowid,)).fetchone()
-        return dict(row)
+    return create_library([root_path], name=name)
 
 
 def unregister_library(library_id: int) -> bool:
@@ -702,11 +998,11 @@ def update_library_state(
         conn.execute(
             """
             UPDATE libraries
-            SET state = ?, last_error = ?, updated_at = julianday('now'),
-                last_scan_at = CASE WHEN ? THEN julianday('now') ELSE last_scan_at END
+            SET state = ?, last_error = ?, updated_at = ?,
+                last_scan_at = CASE WHEN ? THEN ? ELSE last_scan_at END
             WHERE id = ?
             """,
-            (state, last_error, int(scan_completed), library_id),
+            (state, last_error, time.time(), int(scan_completed), time.time(), library_id),
         )
 
 
@@ -748,11 +1044,12 @@ def repair_library_assets(library_id: int) -> dict[str, int]:
     if library is None:
         raise KeyError(library_id)
 
-    root = Path(library["root_path"]).resolve()
+    import_roots = [Path(item["path"]).resolve() for item in library["import_paths"]]
+    exclusion_patterns = list(library["exclusion_patterns"])
     discovered: dict[str, tuple[str, str, str, float, int | None]] = {}
 
-    def visit(path: Path, visited_inodes: set[tuple[int, int]]) -> None:
-        if is_index_excluded_path(path):
+    def visit(path: Path, import_root: Path, visited_inodes: set[tuple[int, int]]) -> None:
+        if is_index_excluded_path(path, import_root, exclusion_patterns):
             return
         try:
             stat = path.stat()
@@ -780,7 +1077,7 @@ def repair_library_assets(library_id: int) -> dict[str, int]:
                     continue
                 try:
                     if entry.is_dir() and not entry.is_symlink():
-                        visit(entry, visited_inodes)
+                        visit(entry, import_root, visited_inodes)
                     elif entry.is_file() and is_image_path(entry):
                         file_stat = entry.stat()
                         resolved_file = entry.resolve()
@@ -794,7 +1091,9 @@ def repair_library_assets(library_id: int) -> dict[str, int]:
                 except (OSError, PermissionError):
                     continue
 
-    visit(root, set())
+    visited_inodes: set[tuple[int, int]] = set()
+    for root in import_roots:
+        visit(root, root, visited_inodes)
     now = time.time()
     added = 0
     removed = 0
@@ -843,10 +1142,10 @@ def repair_library_assets(library_id: int) -> dict[str, int]:
         conn.execute(
             """
             UPDATE libraries SET state = 'ready', last_error = NULL,
-                last_scan_at = julianday('now'), updated_at = julianday('now')
+                last_scan_at = ?, updated_at = ?
             WHERE id = ?
             """,
-            (library_id,),
+            (now, now, library_id),
         )
     return {"added": added, "removed": removed, "modified": modified}
 
@@ -2108,6 +2407,13 @@ def index_file(
     normalized_type = _normalize_file_type(type)
     initialize_database()
     with _DB_LOCK, _connect() as conn:
+        library = _find_library_for_path_conn(conn, resolved_path)
+        if library is not None and is_index_excluded_path(
+            resolved_path,
+            library["matched_import_path"],
+            _library_exclusion_patterns_conn(conn, int(library["id"])),
+        ):
+            return False
         conn.execute(
             """
             INSERT INTO file_index (
@@ -2154,7 +2460,12 @@ def index_file(
     return True
 
 
-def _cleanup_stale_index_conn(conn: sqlite3.Connection, root_path: str | Path | None = None) -> int:
+def _cleanup_stale_index_conn(
+    conn: sqlite3.Connection,
+    root_path: str | Path | None = None,
+    *,
+    remove_outside_scope: bool = True,
+) -> int:
     root = Path(root_path).resolve() if root_path is not None else None
     candidate_paths: set[str] = set()
     for table in ("file_index", "file_index_fts", "image_metadata", "metadata_index_jobs"):
@@ -2165,7 +2476,8 @@ def _cleanup_stale_index_conn(conn: sqlite3.Connection, root_path: str | Path | 
     for path_value in candidate_paths:
         path = Path(path_value)
         if root is not None and not _is_inside_root(path, root):
-            stale_paths.append(path_value)
+            if remove_outside_scope:
+                stale_paths.append(path_value)
             continue
         if not path.exists():
             stale_paths.append(path_value)
@@ -2202,17 +2514,22 @@ def _cleanup_ignored_index_conn(conn: sqlite3.Connection, root_path: str | Path 
     return len(ignored_paths)
 
 
-def cleanup_stale_index(state: Any, root_path: str | Path | None = None) -> int:
+def cleanup_stale_index(
+    state: Any,
+    root_path: str | Path | None = None,
+    *,
+    remove_outside_scope: bool = True,
+) -> int:
     """Remove stale database rows for missing or out-of-root paths.
 
     This only deletes index records. It never deletes filesystem entries.
     """
     initialize_database()
     if isinstance(state, sqlite3.Connection):
-        return _cleanup_stale_index_conn(state, root_path)
+        return _cleanup_stale_index_conn(state, root_path, remove_outside_scope=remove_outside_scope)
 
     with _DB_LOCK, _connect() as conn:
-        return _cleanup_stale_index_conn(conn, root_path)
+        return _cleanup_stale_index_conn(conn, root_path, remove_outside_scope=remove_outside_scope)
 
 
 def cleanup_ignored_index(root_path: str | Path | None = None) -> int:
@@ -2319,10 +2636,13 @@ def index_directory_tree(
     root_path = Path(root).resolve()
     indexed = 0
     local_image_paths: list[Path] = [] if include_metadata else None  # type: ignore[assignment]
+    library = get_library_for_path(root_path)
+    import_root = library["matched_import_path"] if library is not None else None
+    exclusion_patterns = library["exclusion_patterns"] if library is not None else []
 
     def visit(folder: Path, visited_inodes: set[tuple[int, int]]) -> None:
         nonlocal indexed
-        if is_index_excluded_path(folder):
+        if is_index_excluded_path(folder, import_root, exclusion_patterns):
             return
         try:
             stat = folder.stat()
@@ -2349,7 +2669,7 @@ def index_directory_tree(
             return
 
         for entry in entries:
-            if entry.name.startswith(".") or is_index_excluded_path(entry):
+            if entry.name.startswith(".") or is_index_excluded_path(entry, import_root, exclusion_patterns):
                 continue
             try:
                 # Skip symlinked directories to avoid loops; files are still followed.

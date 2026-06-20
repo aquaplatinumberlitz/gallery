@@ -1,6 +1,9 @@
 # Architecture
 
-Last reviewed: 2026-06-19
+Last reviewed: 2026-06-20
+
+Library-management implementation progress and handoff context:
+[Codex Library Management Implementation Status](plan/CODEX_LIBRARY_MANAGEMENT_IMPLEMENTATION_STATUS.md).
 
 ## Overview
 
@@ -42,6 +45,7 @@ Backend modules live flat in `backend/`.
 | `indexer.py` | Background metadata queue, staged path batching, SQLite write batching, `/api/index/status` |
 | `refresh.py` | Optional scheduled refresh loop |
 | `watcher.py` | Optional filesystem watcher loop |
+| `libraries.py` | Registered-library CRUD/validation, multi-import-path scan, repair, and unregister flows |
 | `health.py` | `/api/health`, favicon, git commit reporting |
 | `static_files.py` | `/`, `/api/landing-pages`, and production SPA fallback |
 
@@ -64,6 +68,14 @@ Backend modules live flat in `backend/`.
 | `POST /api/open-folder` | Open a folder in the OS file explorer when enabled | `folders.py` |
 | `GET /api/health` | Return service health and commit metadata | `health.py` |
 | `GET /api/landing-pages` | List intro page HTML templates from `frontend/public/landpage/` | `static_files.py` |
+| `GET /api/libraries` | List libraries with ordered import paths and exclusions | `libraries.py` |
+| `POST /api/libraries` | Register a library using `import_paths` or legacy `root_path` | `libraries.py` |
+| `POST /api/libraries/validate` | Validate create settings without writing | `libraries.py` |
+| `PATCH/PUT /api/libraries/{id}` | Replace supplied library settings | `libraries.py` |
+| `POST /api/libraries/{id}/validate` | Validate update settings without writing | `libraries.py` |
+| `POST /api/libraries/{id}/scan` | Scan every import path in one library | `libraries.py` |
+| `POST /api/libraries/{id}/repair` | Reconcile library assets with filesystem scope | `libraries.py` |
+| `DELETE /api/libraries/{id}?confirm=true` | Unregister catalog data without deleting source files | `libraries.py` |
 | `GET /` and `GET /{path:path}` | Serve the built SPA in production mode | `static_files.py` |
 
 ### Backend Behavior
@@ -76,6 +88,7 @@ Backend modules live flat in `backend/`.
 - Derivative cache keys include kind, cache version, resolved path, mtime, size, long-edge target, format, and quality. WebP files persist under `backend/.cache/thumbnails/`.
 - The metadata DB defaults to `backend/.cache/gallery_metadata.db` and can be overridden with `GALLERY_METADATA_DB`.
 - SQLite uses WAL mode and stores both file index rows and normalized metadata rows. FTS5 tables cover folder/photo names and metadata text.
+- Registered libraries store ordered roots in `library_import_paths`; `libraries.root_path` remains a compatibility alias for the first root. Relative globstar exclusions live in `library_exclusion_patterns`.
 - `/api/scan` stays hot-path focused: `os.scandir`, stat, natural sort, one batched dimension lookup, and no blanket metadata parsing.
 - `/api/scan` schedules background indexing work for scanned folders/images and metadata jobs. `/api/metadata`, `/api/thumbnail`, and `/api/preview` also update cached metadata/dimensions when they already open the image.
 - `ENABLE_WARM_INDEXED_LISTING=1` allows `/api/scan` to serve a warm SQLite-backed listing when the folder index is complete and fresh.

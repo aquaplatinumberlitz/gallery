@@ -49,11 +49,16 @@ def _registered_watcher_roots() -> list[str]:
     from .metadata_store import list_libraries
 
     configured = {str(Path(root).resolve()) for root in WATCHER_ROOTS}
-    return [
-        str(Path(library["root_path"]).resolve())
-        for library in list_libraries()
-        if library["watch_enabled"] and (not configured or str(Path(library["root_path"]).resolve()) in configured)
-    ]
+    roots: list[str] = []
+    for library in list_libraries():
+        if not library["watch_enabled"]:
+            continue
+        import_paths = library.get("import_paths") or [{"path": library["root_path"]}]
+        for import_path in import_paths:
+            root = str(Path(import_path["path"]).resolve())
+            if not configured or root in configured:
+                roots.append(root)
+    return roots
 
 
 def _record_event(kind: str) -> None:

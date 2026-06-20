@@ -9,6 +9,7 @@ from fastapi.concurrency import run_in_threadpool
 
 from .errors import APIError, ErrorType
 from .fielded_search_parser import parse_fielded_query
+from .files import is_index_excluded_path
 from .metadata_store import (
     _encode_inspector_cursor,
     cleanup_stale_index,
@@ -33,12 +34,33 @@ def _registered_or_requested_root(path: str | None) -> Path:
     return root
 
 
+def _require_visible_registered_path(path: Path) -> None:
+    from .metadata_store import get_library_for_path
+
+    library = get_library_for_path(path)
+    if library is not None and is_index_excluded_path(
+        path,
+        library["matched_import_path"],
+        library["exclusion_patterns"],
+    ):
+        raise APIError(404, ErrorType.NOT_FOUND, "Folder not found")
+
+
 def _cleanup_registered_library_roots() -> int:
     from .metadata_store import list_libraries
 
     removed = 0
     for library in list_libraries():
-        removed += int(cleanup_stale_index(None, library["root_path"]) or 0)
+        import_paths = library.get("import_paths") or [{"path": library["root_path"]}]
+        for import_path in import_paths:
+            removed += int(
+                cleanup_stale_index(
+                    None,
+                    import_path["path"],
+                    remove_outside_scope=False,
+                )
+                or 0
+            )
     return removed
 
 
@@ -77,6 +99,8 @@ async def api_search(
     """Search albums, photos, and prompts in either current folder or all indexed files."""
     if not q.strip():
         root = _registered_or_requested_root(path) if scope == "current" else None
+        if root is not None:
+            await run_in_threadpool(_require_visible_registered_path, root)
         return {
             "query": q,
             "scope": scope,
@@ -93,6 +117,7 @@ async def api_search(
             raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied: path outside allowed root")
         if not root_path.exists() or not root_path.is_dir():
             raise APIError(404, ErrorType.NOT_FOUND, "Folder not found")
+        await run_in_threadpool(_require_visible_registered_path, root_path)
 
     try:
         parsed = parse_fielded_query(q)
@@ -158,6 +183,7 @@ async def api_library_inspector(
             raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied: path outside allowed root")
         if not root_path.exists() or not root_path.is_dir():
             raise APIError(404, ErrorType.NOT_FOUND, "Folder not found")
+        await run_in_threadpool(_require_visible_registered_path, root_path)
 
     def _filter_safe_rows(rows: list[dict]) -> tuple[list[dict], bool]:
         stale = False

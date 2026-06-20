@@ -1,6 +1,15 @@
 # Codex Library Management Implementation Plan
 
-Status: plan only, no implementation in this step.
+Status: Phases 0-1 complete; Phases 2-8 are not implemented.
+
+Current implementation/handoff status:
+[`CODEX_LIBRARY_MANAGEMENT_IMPLEMENTATION_STATUS.md`](CODEX_LIBRARY_MANAGEMENT_IMPLEMENTATION_STATUS.md).
+Developers should read the status document first to understand implemented,
+temporary, and pending behavior.
+
+Phase 0 binding contract:
+[`CODEX_LIBRARY_MANAGEMENT_PHASE_0_CONTRACT.md`](CODEX_LIBRARY_MANAGEMENT_PHASE_0_CONTRACT.md).
+Where this plan is ambiguous, the Phase 0 contract takes precedence.
 
 Goal: implement a responsive full-stack Library Import / Library Management system for registered libraries across desktop, tablet, and mobile. Immich is used as a backend workflow and UI pattern reference. Do not copy Immich source code, Svelte/SvelteKit architecture, NestJS architecture, or exact Immich API shapes.
 
@@ -58,6 +67,7 @@ interface LibraryImportPath {
   id: number;
   library_id: number;
   path: string;
+  position: number;
   created_at: number;
   updated_at: number;
 }
@@ -662,8 +672,8 @@ Important: keep folder browsing behavior unchanged for folders inside the active
 
 Update the SQLite metadata DB in `backend/metadata_store.py`:
 
-- Add `library_import_paths` with `id`, `library_id`, `path`, `created_at`, `updated_at`, and `UNIQUE(library_id, path)`.
-- Add `library_exclusion_patterns` with `id`, `library_id`, `pattern`, `created_at`, `updated_at`, and `UNIQUE(library_id, pattern)`.
+- Add `library_import_paths` with `id`, `library_id`, `path`, `position`, `created_at`, `updated_at`, `UNIQUE(library_id, path)`, and `UNIQUE(library_id, position)`.
+- Add `library_exclusion_patterns` with `id`, `library_id`, `pattern`, `position`, `created_at`, `updated_at`, `UNIQUE(library_id, pattern)`, and `UNIQUE(library_id, position)`.
 - Add `library_jobs` with `id`, `library_id`, `parent_job_id`, `type`, `state`, `progress_current`, `progress_total`, `message`, `error`, `counters_json`, `created_at`, `started_at`, `finished_at`, `updated_at`.
 - Extend `assets` with video-friendly fields: `mime_type`, `duration_ms`, `codec`, and keep `width`/`height` usable for both images and videos.
 - Backfill one `library_import_paths` row from each existing `libraries.root_path`.
@@ -735,6 +745,7 @@ export interface LibraryImportPath {
   id: number;
   library_id: number;
   path: string;
+  position: number;
   created_at: number;
   updated_at: number;
 }
@@ -814,8 +825,21 @@ export interface LibraryJob {
 }
 
 export interface LibraryValidationResult {
-  import_paths: Array<{ path: string; is_valid: boolean; message?: string }>;
-  exclusion_patterns: Array<{ pattern: string; is_valid: boolean; message?: string }>;
+  is_valid: boolean;
+  import_paths: Array<{
+    value: string;
+    normalized_value: string | null;
+    is_valid: boolean;
+    message: string | null;
+    warnings: string[];
+  }>;
+  exclusion_patterns: Array<{
+    value: string;
+    normalized_value: string | null;
+    is_valid: boolean;
+    message: string | null;
+    warnings: string[];
+  }>;
 }
 
 export interface LibraryScanResponse {
@@ -1539,17 +1563,21 @@ Compatibility risks:
 
 Deliverable: final full-stack contract and migration plan.
 
+Status: complete as of 2026-06-20. The binding endpoint, migration, state,
+timestamp, validation, job/SSE, video, and dependency decisions are recorded in
+[`CODEX_LIBRARY_MANAGEMENT_PHASE_0_CONTRACT.md`](CODEX_LIBRARY_MANAGEMENT_PHASE_0_CONTRACT.md).
+
 Steps:
 
-1. Lock endpoint shapes for create/update/validate/per-library stats/global stats/jobs/events/video.
-2. Lock SQLite migration from `root_path` to `library_import_paths`.
-3. Lock state model:
+1. [x] Lock endpoint shapes for create/update/validate/per-library stats/global stats/jobs/events/video.
+2. [x] Lock SQLite migration from `root_path` to `library_import_paths`.
+3. [x] Lock state model:
    - persisted `activeLibraryId`
    - persisted `activeImportPathId`
    - derived `activeImportRootPath`
    - in-memory `currentBrowsePath`
    - no persisted/writable raw `rootPath`
-4. Lock dependency additions:
+4. [x] Lock dependency additions:
    - backend `wcmatch`
    - runtime `ffmpeg`/`ffprobe` optional but supported
    - frontend reuses shadcn-vue/Reka, TanStack, and PhotoSwipe.
@@ -1558,14 +1586,16 @@ Steps:
 
 Deliverable: backend supports editable libraries with import paths and exclusion patterns.
 
+Status: complete as of 2026-06-20.
+
 Steps:
 
-1. Add DB migration tables/columns and backfill existing libraries.
-2. Add library serialization with `import_paths`, `exclusion_patterns`, and compatibility `root_path`.
-3. Add create/update/validate logic.
-4. Add exclusion matching through `wcmatch`.
-5. Update scan/search/folder/library lookup to use import paths.
-6. Add tests for validation, overlap, legacy compatibility, and path removal/re-add/offline behavior.
+1. [x] Add DB migration tables/columns and backfill existing libraries.
+2. [x] Add library serialization with `import_paths`, `exclusion_patterns`, and compatibility `root_path`.
+3. [x] Add create/update/validate logic.
+4. [x] Add exclusion matching through `wcmatch`.
+5. [x] Update scan/search/folder/library lookup to use import paths.
+6. [x] Add tests for validation, overlap, legacy compatibility, and path removal/re-add/offline behavior.
 
 ### Phase 2 - Backend jobs, stats, scan-all, and SSE
 

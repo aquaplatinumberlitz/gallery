@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 
 from PIL import Image, UnidentifiedImageError
+from wcmatch import glob
 
 from .config import MAX_IMAGE_FILE_BYTES, MAX_IMAGE_PIXELS
 from .errors import APIError, ErrorType
@@ -52,13 +53,43 @@ def _contains_segment(parts: tuple[str, ...], segment: tuple[str, ...]) -> bool:
     return any(parts[index : index + len(segment)] == segment for index in range(len(parts) - len(segment) + 1))
 
 
-def is_index_excluded_path(path: str | Path) -> bool:
-    """Return True for dependency/cache/app-build paths that should not enter the gallery index."""
+def _matches_library_exclusion(
+    path: str | Path,
+    import_root: str | Path,
+    exclusion_patterns: tuple[str, ...] | list[str],
+) -> bool:
+    try:
+        relative = Path(path).resolve().relative_to(Path(import_root).resolve()).as_posix()
+    except (OSError, RuntimeError, ValueError):
+        return False
+    if relative in {"", "."}:
+        return False
+    flags = glob.GLOBSTAR
+    if os.name == "nt":
+        flags |= glob.IGNORECASE
+    candidates = (relative, f"{relative.rstrip('/')}/")
+    return any(
+        glob.globmatch(candidate, pattern, flags=flags) for pattern in exclusion_patterns for candidate in candidates
+    )
+
+
+def is_index_excluded_path(
+    path: str | Path,
+    import_root: str | Path | None = None,
+    exclusion_patterns: tuple[str, ...] | list[str] = (),
+) -> bool:
+    """Return True for default or per-library paths excluded from the gallery index."""
     parts = _path_parts(path)
     excluded_names = _configured_excluded_dir_names()
     if any(part in excluded_names for part in parts):
         return True
-    return any(_contains_segment(parts, segment) for segment in _configured_excluded_segments())
+    if any(_contains_segment(parts, segment) for segment in _configured_excluded_segments()):
+        return True
+    return bool(
+        import_root is not None
+        and exclusion_patterns
+        and _matches_library_exclusion(path, import_root, exclusion_patterns)
+    )
 
 
 def is_image(path: Path) -> bool:

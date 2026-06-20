@@ -29,7 +29,11 @@ def _registered_or_requested_root(path: str | None) -> Path:
     return root
 
 
-def list_folder_children(target_path: Path) -> list[FileNode]:
+def list_folder_children(
+    target_path: Path,
+    import_root: str | Path | None = None,
+    exclusion_patterns: tuple[str, ...] | list[str] = (),
+) -> list[FileNode]:
     """List visible, non-excluded child folders as FileNode records."""
     if not target_path.exists():
         raise APIError(404, ErrorType.NOT_FOUND, "Folder not found")
@@ -39,7 +43,7 @@ def list_folder_children(target_path: Path) -> list[FileNode]:
     folders: list[FileNode] = []
     try:
         for entry in os.scandir(target_path):
-            if entry.name.startswith(".") or is_index_excluded_path(entry.path):
+            if entry.name.startswith(".") or is_index_excluded_path(entry.path, import_root, exclusion_patterns):
                 continue
 
             entry_path = Path(entry.path)
@@ -65,7 +69,7 @@ def list_folder_children(target_path: Path) -> list[FileNode]:
                     name=entry.name,
                     path=path,
                     type="folder",
-                    has_children=has_subfolders(entry_path),
+                    has_children=has_subfolders(entry_path, import_root, exclusion_patterns),
                     cover_images=[],
                     mtime=mtime,
                     image_count=0,
@@ -88,7 +92,14 @@ async def api_folders(
     target = await run_in_threadpool(_registered_or_requested_root, path)
     if not is_path_safe(target):
         raise APIError(403, "permission", "Access denied: path outside allowed root")
-    return await run_in_threadpool(list_folder_children, target)
+    from .metadata_store import get_library_for_path
+
+    library = await run_in_threadpool(get_library_for_path, target)
+    import_root = library["matched_import_path"] if library is not None else None
+    exclusion_patterns = library["exclusion_patterns"] if library is not None else []
+    if is_index_excluded_path(target, import_root, exclusion_patterns):
+        raise APIError(404, ErrorType.NOT_FOUND, "Folder not found")
+    return await run_in_threadpool(list_folder_children, target, import_root, exclusion_patterns)
 
 
 @router.post("/api/open-folder")

@@ -9,20 +9,30 @@ from typing import Any
 from .files import is_image, is_index_excluded_path
 
 
-def has_any_children(dir_path: Path) -> bool:
+def has_any_children(
+    dir_path: Path,
+    import_root: str | Path | None = None,
+    exclusion_patterns: tuple[str, ...] | list[str] = (),
+) -> bool:
     """Return whether a directory contains any child entry, ignoring unreadable directories."""
     try:
-        next(dir_path.iterdir())
-        return True
-    except (StopIteration, PermissionError):
+        return any(
+            not entry.name.startswith(".") and not is_index_excluded_path(entry, import_root, exclusion_patterns)
+            for entry in dir_path.iterdir()
+        )
+    except (PermissionError, OSError):
         return False
 
 
-def has_subfolders(dir_path: Path) -> bool:
+def has_subfolders(
+    dir_path: Path,
+    import_root: str | Path | None = None,
+    exclusion_patterns: tuple[str, ...] | list[str] = (),
+) -> bool:
     """Return True when a directory contains at least one non-hidden child directory."""
     try:
         for entry in os.scandir(dir_path):
-            if entry.name.startswith(".") or is_index_excluded_path(entry.path):
+            if entry.name.startswith(".") or is_index_excluded_path(entry.path, import_root, exclusion_patterns):
                 continue
             if entry.is_dir(follow_symlinks=False):
                 return True
@@ -31,7 +41,12 @@ def has_subfolders(dir_path: Path) -> bool:
         return False
 
 
-def first_images_in_dir(dir_path: Path, limit: int = 3) -> list[str]:
+def first_images_in_dir(
+    dir_path: Path,
+    limit: int = 3,
+    import_root: str | Path | None = None,
+    exclusion_patterns: tuple[str, ...] | list[str] = (),
+) -> list[str]:
     """Get the most recently modified images in a directory.
 
     Returns up to `limit` images sorted by modified time (newest first).
@@ -39,7 +54,7 @@ def first_images_in_dir(dir_path: Path, limit: int = 3) -> list[str]:
     images: list[tuple[float, str]] = []
     try:
         for entry in dir_path.iterdir():
-            if is_index_excluded_path(entry):
+            if is_index_excluded_path(entry, import_root, exclusion_patterns):
                 continue
             if entry.is_file() and is_image(entry):
                 try:
@@ -53,14 +68,18 @@ def first_images_in_dir(dir_path: Path, limit: int = 3) -> list[str]:
     return [path for _, path in images[:limit]]
 
 
-def count_images_in_dir(dir_path: Path) -> int:
+def count_images_in_dir(
+    dir_path: Path,
+    import_root: str | Path | None = None,
+    exclusion_patterns: tuple[str, ...] | list[str] = (),
+) -> int:
     """Count image files directly inside a directory (non-recursive)."""
     try:
         return sum(
             1
             for entry in dir_path.iterdir()
             if not entry.name.startswith(".")
-            and not is_index_excluded_path(entry)
+            and not is_index_excluded_path(entry, import_root, exclusion_patterns)
             and entry.is_file()
             and is_image(entry)
         )
@@ -68,14 +87,18 @@ def count_images_in_dir(dir_path: Path) -> int:
         return 0
 
 
-def build_album_metadata(path: Path) -> dict[str, Any]:
+def build_album_metadata(
+    path: Path,
+    import_root: str | Path | None = None,
+    exclusion_patterns: tuple[str, ...] | list[str] = (),
+) -> dict[str, Any]:
     """Build cover_images, image_count, has_children, mtime for a folder/album.
 
     Used by both scan and search to produce identical album node data.
     """
-    cover_images = first_images_in_dir(path, limit=3)
-    image_count = count_images_in_dir(path)
-    children = has_any_children(path)
+    cover_images = first_images_in_dir(path, limit=3, import_root=import_root, exclusion_patterns=exclusion_patterns)
+    image_count = count_images_in_dir(path, import_root=import_root, exclusion_patterns=exclusion_patterns)
+    children = has_any_children(path, import_root=import_root, exclusion_patterns=exclusion_patterns)
     try:
         mtime = path.stat().st_mtime
     except OSError:

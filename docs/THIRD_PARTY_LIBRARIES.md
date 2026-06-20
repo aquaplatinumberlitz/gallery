@@ -1,6 +1,6 @@
 # Third-Party Libraries
 
-Last reviewed: 2026-06-17
+Last reviewed: 2026-06-20
 
 This document records how major third-party libraries are used in the current codebase and which integration contracts should not be changed casually.
 
@@ -15,6 +15,7 @@ This document records how major third-party libraries are used in the current co
 | diskcache | Persistent derivative cache | `backend/thumbnails.py`, `backend/config.py` | Stores rendered WebP thumbnail/preview files under `backend/.cache/thumbnails/` by default |
 | cachetools | In-memory metadata response cache | `backend/metadata_parse.py` | Metadata cache only; thumbnail bytes are disk-backed |
 | SQLite FTS5 | Folder/photo/metadata index and search | `backend/metadata_store.py`, `backend/search.py`, `backend/facets.py` | Uses Python stdlib `sqlite3`; no external search service |
+| wcmatch | Per-library globstar exclusion matching | `backend/files.py`, `backend/libraries.py` | Patterns are relative to each registered import path |
 | prometheus-fastapi-instrumentator / prometheus-client | Optional metrics | `backend/app.py`, `backend/scan.py`, `backend/indexer.py` | Enabled by default outside production through `ENABLE_METRICS` |
 | pyinstrument | Optional endpoint profiling | `backend/app.py` | Enabled by `ENABLE_PROFILER=1`; writes HTML profiles to `backend/profiles/` |
 | Ruff | Backend lint and format checks | `pyproject.toml`, `test.sh` | `./test.sh lint` scans the full Python codebase |
@@ -113,6 +114,12 @@ Search behavior:
 - `/api/facets` derives counts from indexed DB metadata.
 
 Not used: Meilisearch, Typesense, Tantivy, Whoosh, sqlite-vec, MeCab, Sudachi, Kuromoji, or an external search service.
+
+### wcmatch
+
+`wcmatch` validates and evaluates per-library exclusion patterns with globstar
+semantics. Patterns are stored relative to each import path and are combined
+with the gallery's built-in dependency/cache/build exclusions.
 
 ### Metrics and Profiling
 
