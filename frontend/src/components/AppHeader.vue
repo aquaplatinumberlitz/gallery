@@ -87,7 +87,7 @@ function prefetchMetadataData() {
 
   const state = galleryStore.metadataInspector;
   const requestScope = state.scope;
-  const requestPath = requestScope === "current" ? normalizeQueryPath(galleryStore.currentPath || "") : "";
+  const requestPath = requestScope === "current" ? normalizeQueryPath(galleryStore.currentBrowsePath || "") : "";
   const requestLimit = 100;
   const requestSort = state.sort;
   const requestQuery = state.query.trim();

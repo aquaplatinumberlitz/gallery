@@ -49,10 +49,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useRouter } from "vue-router";
 
 const galleryStore = useGalleryStore();
+const router = useRouter();
 const lightboxStore = useLightboxStore();
-const activeScanPath = computed(() => galleryStore.currentPath);
+const activeScanPath = computed(() => galleryStore.currentBrowsePath);
 const infiniteScanQuery = useInfiniteScanQuery(activeScanPath);
 
 const {
@@ -309,13 +311,13 @@ const isRefetching = computed(
 const isSearchLoading = computed(
   () => hasSearchQuery.value && (unifiedSearchQuery.isLoading.value || unifiedSearchQuery.isFetching.value),
 );
-const currentPath = computed(() => galleryStore.currentPath);
+const currentPath = computed(() => galleryStore.currentBrowsePath);
 const canBack = computed(() => galleryStore.historyIndex > 0);
 const canForward = computed(() => galleryStore.historyIndex < galleryStore.history.length - 1);
 const hasMoreImages = computed(() => !hasSearchQuery.value && infiniteScanQuery.hasNextPage.value);
 const hasAnyItems = computed(() => scanFolders.value.length + scanImages.value.length > 0);
 
-const pathReady = computed(() => Boolean(infiniteScanQuery.activeFolderPath.value || galleryStore.rootPath));
+const pathReady = computed(() => Boolean(infiniteScanQuery.activeFolderPath.value || galleryStore.activeImportPathId));
 
 const hasAlbums = computed(() => folders.value.length > 0);
 const hasPhotos = computed(() => images.value.length > 0);
@@ -333,10 +335,8 @@ const showEmptyFolder = computed(
 
 const showEmptyFolderDelayed = useDelayedBoolean(showEmptyFolder, 250);
 
-const hasNoPath = computed(() => !galleryStore.currentPath && !galleryStore.rootPath);
-const hasNotLoaded = computed(
-  () => !galleryStore.hasEverLoaded && (!!galleryStore.currentPath || !!galleryStore.rootPath),
-);
+const hasNoPath = computed(() => galleryStore.activeLibraryHydrated && !galleryStore.activeImportPathId);
+const hasNotLoaded = computed(() => !galleryStore.hasEverLoaded && Boolean(galleryStore.currentBrowsePath));
 const showGallerySkeleton = computed(
   () => !hasSearchQuery.value && (hasNotLoaded.value || (isLoading.value && !galleryStore.hasEverLoaded)),
 );
@@ -382,9 +382,12 @@ const errorActionConfig = computed(() => {
     case "library_not_registered":
       return {
         title: "Library not registered",
-        label: "Register this folder",
+        label: "Manage Libraries",
         icon: undefined,
-        action: clearError,
+        action: () => {
+          clearError();
+          void router.push("/admin/libraries");
+        },
       };
     case "library_not_indexed":
     case "library_discovering":
@@ -554,6 +557,23 @@ const setupLoadObserver = () => {
 };
 
 watch(loadMoreSentinel, () => setupLoadObserver());
+
+watch(
+  () => infiniteScanQuery.folders.value,
+  (folders) => galleryStore.setSidebarTree(folders),
+  { immediate: true },
+);
+
+watch(
+  [() => infiniteScanQuery.isLoading.value, () => infiniteScanQuery.isFetching.value],
+  ([loading, fetching]) => {
+    galleryStore.isLoading = loading || fetching;
+    if (!loading && infiniteScanQuery.isSuccess.value && galleryStore.currentBrowsePath) {
+      galleryStore.hasEverLoaded = true;
+    }
+  },
+  { immediate: true },
+);
 
 // ── Album Horizontal Scroll (handled by AlbumScroller component) ──
 </script>
@@ -958,16 +978,18 @@ watch(loadMoreSentinel, () => setupLoadObserver());
       <EmptyState
         v-else-if="hasNoPath"
         type="no-path"
-        title="Welcome to Gallery"
-        description="Enter a folder path in the sidebar to start browsing your images"
+        title="No library selected"
+        description="Select a registered library, or add one to start browsing."
+        action-label="Manage Libraries"
+        @action="router.push('/admin/libraries')"
       />
 
       <!-- Not Loaded Yet -->
       <EmptyState
         v-else-if="hasNotLoaded"
         type="not-loaded"
-        title="Gallery not loaded"
-        description="Click Load in the sidebar or press Enter to browse your images"
+        title="Loading library"
+        description="Preparing the selected import path."
       />
 
       <!-- Empty Folder -->

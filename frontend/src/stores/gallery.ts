@@ -1,17 +1,88 @@
 import { defineStore } from "pinia";
-import type { FileNode, FolderTreeNode, SearchScope, SortField, SortOrder, SortValue } from "../types";
+import type {
+  FileNode,
+  FolderTreeNode,
+  LibraryImportPath,
+  RegisteredLibrary,
+  SearchScope,
+  SortField,
+  SortOrder,
+  SortValue,
+} from "../types";
 import { openFolder, GalleryAPIError } from "../services/api";
 import { useToastStore } from "./toast";
-import { fetchScanOrThrow } from "../query/scan";
 import { normalizeQueryPath } from "../query/keys";
 
-const STORAGE_KEY = "gallery-root-path";
+export const ACTIVE_LIBRARY_STORAGE_KEY = "gallery-active-library-id";
+export const ACTIVE_IMPORT_PATH_STORAGE_KEY = "gallery-active-import-path-id";
+export const LEGACY_ROOT_PATH_STORAGE_KEY = "gallery-root-path";
 const SORT_STORAGE_KEY = "gallery-sort-preference";
 
-const getStoredRoot = () => {
-  if (typeof window === "undefined") return "";
-  return localStorage.getItem(STORAGE_KEY) || "";
+const readStoredPositiveId = (key: string): number | null => {
+  if (typeof window === "undefined") return null;
+  const raw = localStorage.getItem(key);
+  if (!raw || !/^[1-9]\d*$/.test(raw)) {
+    if (raw !== null) localStorage.removeItem(key);
+    return null;
+  }
+  const id = Number(raw);
+  if (!Number.isSafeInteger(id)) {
+    localStorage.removeItem(key);
+    return null;
+  }
+  return id;
 };
+
+const orderedImportPaths = (library: RegisteredLibrary): LibraryImportPath[] =>
+  [...library.import_paths].sort((a, b) => a.position - b.position || a.id - b.id);
+
+const comparablePath = (path: string): string => {
+  const normalized = path
+    .trim()
+    .replace(/\\/g, "/")
+    .replace(/\/{2,}/g, "/");
+  if (/^[A-Za-z]:\//.test(normalized)) return normalized.replace(/\/$/, "").toLowerCase();
+  return normalized === "/" ? normalized : normalized.replace(/\/$/, "");
+};
+
+const pathContains = (root: string, candidate: string): boolean => {
+  const normalizedRoot = comparablePath(root);
+  const normalizedCandidate = comparablePath(candidate);
+  return (
+    normalizedCandidate === normalizedRoot ||
+    (normalizedRoot === "/"
+      ? normalizedCandidate.startsWith("/")
+      : normalizedCandidate.startsWith(`${normalizedRoot}/`))
+  );
+};
+
+export function findImportPathForPath(
+  libraries: RegisteredLibrary[],
+  candidatePath: string,
+): { library: RegisteredLibrary; importPath: LibraryImportPath } | null {
+  const matches = libraries.flatMap((library) =>
+    orderedImportPaths(library)
+      .filter((importPath) => pathContains(importPath.path, candidatePath))
+      .map((importPath) => ({ library, importPath })),
+  );
+  matches.sort(
+    (a, b) =>
+      comparablePath(b.importPath.path).length - comparablePath(a.importPath.path).length ||
+      a.library.id - b.library.id ||
+      a.importPath.position - b.importPath.position ||
+      a.importPath.id - b.importPath.id,
+  );
+  return matches[0] ?? null;
+}
+
+export function resolveActiveImportPath(
+  libraries: RegisteredLibrary[],
+  libraryId: number | null,
+  importPathId: number | null,
+): LibraryImportPath | null {
+  const library = libraries.find((item) => item.id === libraryId);
+  return library?.import_paths.find((item) => item.id === importPathId) ?? null;
+}
 
 const getStoredSort = (): { field: SortField; order: SortOrder } => {
   if (typeof window === "undefined") return { field: "name", order: "asc" };
@@ -89,10 +160,12 @@ export const useGalleryStore = defineStore("gallery", {
   state: () => {
     const storedSort = getStoredSort();
     return {
-      rootPath: getStoredRoot(),
+      activeLibraryId: null as number | null,
+      activeImportPathId: null as number | null,
+      activeLibraryHydrated: false,
       sidebarTree: [] as FolderTreeNode[],
       expandedFolderPaths: {} as Record<string, boolean>,
-      currentPath: "",
+      currentBrowsePath: "",
       isLoading: false,
       history: [] as string[],
       historyIndex: -1,
@@ -149,39 +222,92 @@ export const useGalleryStore = defineStore("gallery", {
       saveSort(this.sortField, this.sortOrder);
     },
 
-    async setRootPath(path: string): Promise<boolean> {
-      if (!path) {
-        this.resetRootPath();
-        return false;
-      }
-      this.isLoading = true;
-      this.rootPath = path;
+    hydrateActiveLibrary(libraries: RegisteredLibrary[]) {
+      const persistedLibraryId = readStoredPositiveId(ACTIVE_LIBRARY_STORAGE_KEY);
+      const persistedImportPathId = readStoredPositiveId(ACTIVE_IMPORT_PATH_STORAGE_KEY);
+      const persistedLibrary = libraries.find((library) => library.id === persistedLibraryId);
+      const persistedPaths = persistedLibrary ? orderedImportPaths(persistedLibrary) : [];
 
-      const data = await _withError(
-        this,
-        () => fetchScanOrThrow(path),
-        "Unable to load the root folder. Check the path or backend connection.",
-        () => this.setRootPath(path),
-      );
-
-      if (!data) {
-        this.sidebarTree = [];
-        this.currentPath = "";
-        this.isLoading = false;
-        return false;
+      if (persistedLibrary && persistedPaths.length) {
+        const importPath = persistedPaths.find((item) => item.id === persistedImportPathId) ?? persistedPaths[0];
+        this.applyActiveSelection(persistedLibrary, importPath);
+        if (typeof window !== "undefined") localStorage.removeItem(LEGACY_ROOT_PATH_STORAGE_KEY);
+        this.activeLibraryHydrated = true;
+        return;
       }
 
-      this.sidebarTree = normalizeNodes(data.folders);
-      this.currentPath = path;
-      this.errorType = null;
+      this.clearActiveLibrary();
+      const legacyPath =
+        typeof window === "undefined" ? "" : (localStorage.getItem(LEGACY_ROOT_PATH_STORAGE_KEY) ?? "").trim();
+      const legacyMatch = legacyPath ? findImportPathForPath(libraries, legacyPath) : null;
+      if (legacyMatch) {
+        this.applyActiveSelection(legacyMatch.library, legacyMatch.importPath, legacyPath);
+        if (typeof window !== "undefined") localStorage.removeItem(LEGACY_ROOT_PATH_STORAGE_KEY);
+        this.activeLibraryHydrated = true;
+        return;
+      }
+
+      if (typeof window !== "undefined") localStorage.removeItem(LEGACY_ROOT_PATH_STORAGE_KEY);
+      const eligible = libraries.filter((library) => library.import_paths.length > 0);
+      if (eligible.length === 1) {
+        this.applyActiveSelection(eligible[0], orderedImportPaths(eligible[0])[0]);
+      }
+      this.activeLibraryHydrated = true;
+    },
+
+    applyActiveSelection(library: RegisteredLibrary, importPath: LibraryImportPath, browsePath = importPath.path) {
+      this.activeLibraryId = library.id;
+      this.activeImportPathId = importPath.id;
       if (typeof window !== "undefined") {
-        localStorage.setItem(STORAGE_KEY, path);
+        localStorage.setItem(ACTIVE_LIBRARY_STORAGE_KEY, String(library.id));
+        localStorage.setItem(ACTIVE_IMPORT_PATH_STORAGE_KEY, String(importPath.id));
+        localStorage.removeItem(LEGACY_ROOT_PATH_STORAGE_KEY);
       }
-      this.pushHistory(path);
-      this.hasEverLoaded = true;
+      this.resetBrowseState(browsePath);
+    },
 
-      this.isLoading = false;
+    setActiveLibrary(library: RegisteredLibrary, importPath?: LibraryImportPath): boolean {
+      const selected = importPath ?? orderedImportPaths(library)[0];
+      if (
+        !selected ||
+        selected.library_id !== library.id ||
+        !library.import_paths.some((item) => item.id === selected.id)
+      ) {
+        return false;
+      }
+      this.applyActiveSelection(library, selected);
       return true;
+    },
+
+    setActiveImportPath(importPath: LibraryImportPath, library: RegisteredLibrary): boolean {
+      if (library.id !== this.activeLibraryId || importPath.library_id !== library.id) return false;
+      return this.setActiveLibrary(library, importPath);
+    },
+
+    clearActiveLibrary() {
+      this.activeLibraryId = null;
+      this.activeImportPathId = null;
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(ACTIVE_LIBRARY_STORAGE_KEY);
+        localStorage.removeItem(ACTIVE_IMPORT_PATH_STORAGE_KEY);
+      }
+      this.resetBrowseState();
+    },
+
+    resetBrowseState(rootPath = "") {
+      this.currentBrowsePath = rootPath;
+      this.sidebarTree = [];
+      this.expandedFolderPaths = {};
+      this.history = rootPath ? [rootPath] : [];
+      this.historyIndex = rootPath ? 0 : -1;
+      this.hasEverLoaded = false;
+      this.isLoading = false;
+      this.clearSearch();
+      this.clearError();
+    },
+
+    setSidebarTree(nodes: FolderTreeNode[]) {
+      this.sidebarTree = normalizeNodes(nodes);
     },
 
     isFolderExpanded(path: string): boolean {
@@ -207,26 +333,19 @@ export const useGalleryStore = defineStore("gallery", {
 
     selectFolder(nodeOrPath: FileNode | string) {
       const path = typeof nodeOrPath === "string" ? nodeOrPath : nodeOrPath.path;
-      this.currentPath = path;
+      this.currentBrowsePath = path;
       this.pushHistory(path);
       this.hasEverLoaded = true;
     },
 
     async openInExplorer() {
-      if (!this.currentPath) return;
-      await _withError(this, () => openFolder(this.currentPath), "Unable to open the folder in your operating system.");
+      if (!this.currentBrowsePath) return;
+      await _withError(
+        this,
+        () => openFolder(this.currentBrowsePath),
+        "Unable to open the folder in your operating system.",
+      );
       // No success toast - Explorer window opening is feedback enough
-    },
-
-    resetRootPath() {
-      this.rootPath = "";
-      this.currentPath = "";
-      this.sidebarTree = [];
-      this.expandedFolderPaths = {};
-      this.hasEverLoaded = false;
-      if (typeof window !== "undefined") {
-        localStorage.removeItem(STORAGE_KEY);
-      }
     },
 
     pushHistory(path: string) {
@@ -241,7 +360,7 @@ export const useGalleryStore = defineStore("gallery", {
       if (this.historyIndex > 0) {
         this.historyIndex -= 1;
         const path = this.history[this.historyIndex];
-        this.currentPath = path;
+        this.currentBrowsePath = path;
         this.hasEverLoaded = true;
       }
     },
@@ -250,7 +369,7 @@ export const useGalleryStore = defineStore("gallery", {
       if (this.historyIndex < this.history.length - 1) {
         this.historyIndex += 1;
         const path = this.history[this.historyIndex];
-        this.currentPath = path;
+        this.currentBrowsePath = path;
         this.hasEverLoaded = true;
       }
     },

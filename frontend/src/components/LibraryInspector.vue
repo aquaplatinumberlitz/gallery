@@ -64,7 +64,7 @@ const scope = computed<SearchScope>({
     galleryStore.metadataInspector.scope = value;
   },
 });
-const currentPath = computed(() => galleryStore.currentPath || "");
+const currentPath = computed(() => galleryStore.currentBrowsePath || "");
 const limit = ref(200);
 const inspectorSort = computed<SortValue>({
   get: () => galleryStore.metadataInspector.sort,
@@ -148,7 +148,7 @@ const inspectorSummary = computed(() => {
   return `${total.toLocaleString()} indexed photos`;
 });
 const pageSummary = computed(() => {
-  const root = inspectorQuery.data.value.root || galleryStore.currentPath || "All indexed";
+  const root = inspectorQuery.data.value.root || galleryStore.currentBrowsePath || "All indexed";
   return `${inspectorSummary.value} · ${root} · Including subfolders`;
 });
 

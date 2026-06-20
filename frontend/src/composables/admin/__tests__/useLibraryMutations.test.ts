@@ -1,6 +1,7 @@
 import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { mount } from "@vue/test-utils";
 import { defineComponent, h } from "vue";
+import { createPinia } from "pinia";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { queryKeys } from "@/query/keys";
 import {
@@ -46,7 +47,7 @@ function setup() {
         return () => h("div");
       },
     }),
-    { global: { plugins: [[VueQueryPlugin, { queryClient }]] } },
+    { global: { plugins: [createPinia(), [VueQueryPlugin, { queryClient }]] } },
   );
   return { invalidate, mutations, wrapper };
 }

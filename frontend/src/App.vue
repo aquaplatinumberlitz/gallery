@@ -14,6 +14,7 @@ import { galleryScrollContainerRefKey } from "./injectionKeys";
 import { closeSidebarKey } from "./injectionKeys";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useRoute, useRouter } from "vue-router";
+import { useLibrariesQuery } from "./composables/admin/useLibrariesQuery";
 
 const Lightbox = defineAsyncComponent(() => import("./components/Lightbox.vue"));
 const isDev = import.meta.env.DEV;
@@ -65,6 +66,17 @@ watch(
 );
 
 const galleryStore = useGalleryStore();
+const librariesQuery = useLibrariesQuery();
+
+watch(
+  () => librariesQuery.isSuccess.value,
+  (isSuccess) => {
+    if (isSuccess && !galleryStore.activeLibraryHydrated) {
+      galleryStore.hydrateActiveLibrary(librariesQuery.data.value ?? []);
+    }
+  },
+  { immediate: true },
+);
 
 const { resolvedTheme, toggleTheme } = useGalleryTheme();
 
@@ -90,7 +102,7 @@ watch(isSidebarOpen, (val) => {
 });
 const tree = computed(() => galleryStore.sidebarTree);
 const isLoading = computed(() => galleryStore.isLoading);
-const currentPath = computed(() => galleryStore.currentPath);
+const currentPath = computed(() => galleryStore.currentBrowsePath);
 
 const scrollerRef = ref<HTMLElement | null>(null);
 provide(galleryScrollContainerRefKey, scrollerRef);
@@ -116,11 +128,6 @@ const handleGlobalKeydown = (e: KeyboardEvent) => {
 };
 
 onMounted(() => {
-  // Auto-load persisted root path on app start
-  if (galleryStore.rootPath && !galleryStore.hasEverLoaded) {
-    galleryStore.setRootPath(galleryStore.rootPath);
-  }
-
   window.addEventListener("keydown", handleGlobalKeydown);
 });
 

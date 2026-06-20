@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import RootPathSidebarHeader from "@/components/RootPathSidebarHeader.vue";
+import LibrarySidebarHeader from "@/components/LibrarySidebarHeader.vue";
 import FolderTreeItem from "@/components/FolderTreeItem.vue";
 import { Loader } from "lucide-vue-next";
 import {
@@ -28,7 +28,7 @@ const indexStatusVariant = computed(() => (isMobile.value || isCollapsed.value ?
 
 <template>
   <ShadSidebarHeader class="p-0">
-    <RootPathSidebarHeader />
+    <LibrarySidebarHeader />
   </ShadSidebarHeader>
 
   <SidebarContent>
@@ -41,7 +41,7 @@ const indexStatusVariant = computed(() => (isMobile.value || isCollapsed.value ?
       <SidebarGroupContent>
         <div class="tree-container">
           <p v-if="!isLoading && !tree.length" class="empty-state group-data-[collapsible=icon]:hidden">
-            Enter a root path and click Load to start.
+            Select a registered library to start browsing.
           </p>
           <FolderTreeItem v-for="node in tree" :key="node.path" :node="node" :active-path="currentPath" :level="1" />
         </div>

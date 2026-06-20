@@ -5,7 +5,7 @@ import { X, Search, RotateCcw } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import Input from "@/components/ui/Input.vue";
 import { useFacetsQuery } from "@/composables/useFacetsQuery";
-import { useGalleryStore } from "@/stores/gallery";
+import { useActiveLibrarySelection } from "@/composables/useActiveLibrarySelection";
 import type { FieldFilter, FacetEntry } from "@/types";
 
 interface Props {
@@ -20,8 +20,8 @@ const emit = defineEmits<{
   apply: [filters: FieldFilter[]];
 }>();
 
-const galleryStore = useGalleryStore();
-const facetsQueryPath = computed(() => galleryStore.rootPath || "");
+const { activeImportRootPath } = useActiveLibrarySelection();
+const facetsQueryPath = computed(() => activeImportRootPath.value);
 const facetsQuery = useFacetsQuery(facetsQueryPath);
 
 const NUMERIC_OPS = [

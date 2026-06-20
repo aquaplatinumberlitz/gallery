@@ -1,8 +1,8 @@
 # Codex Library Management Implementation Status
 
 Last updated: 2026-06-20  
-Current milestone: Phase 5 complete
-Next milestone: Phase 6 — active library selection
+Current milestone: Phase 6 complete
+Next milestone: Phase 7 — mixed-media UI
 SQLite schema version currently implemented: `PRAGMA user_version = 8`
 
 ## Verified Git Baseline
@@ -100,7 +100,7 @@ Not implemented yet:
 | 3. Video backend | Complete | v8 migration, ffprobe indexing, /api/video streaming, /api/video/poster | Phase 4 builds on v8 |
 | 4. Frontend data layer | Complete | Library types/API, query keys/composables, mutations, SSE invalidation, status utilities | Phase 5 builds on this layer |
 | 5. Admin management UI | Complete | `/admin/libraries` + `/admin/libraries/:id` routes; `LibraryListPage`, `LibraryDetailPage`, `LibraryForm`, create/edit/delete dialogs, `LibraryStatusBadge`, `LibraryProgressBar`, `LibrarySummaryPanel`, `LibraryActionMenu`; AppHeader "Libraries" entry; desktop/tablet/mobile route render via `RouterView` | Phase 6 builds on this layer |
-| 6. Active library selection | Not started | Legacy `galleryStore.setRootPath()` bridge still active for "Use in Gallery" | Requires Phase 5 admin UI |
+| 6. Active library selection | Complete | activeLibraryId/currentBrowsePath store model, LibrarySidebarHeader, LibrarySelectorSheet, one-shot legacy migration, no {rootPath,setRootPath,resetRootPath} | Phase 7 builds on this layer |
 | 7. Mixed-media UI | Not started | Viewer remains image-only | Requires Phase 3 and Phase 4 |
 | 8. Final verification | Not started | Phase 1 backend verification only | Run after all feature phases |
 

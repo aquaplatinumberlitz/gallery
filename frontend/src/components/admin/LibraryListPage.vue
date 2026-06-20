@@ -47,9 +47,7 @@ function formatBytes(bytes?: number): string {
 }
 
 async function useInGallery(library: RegisteredLibrary) {
-  const path = library.import_paths[0]?.path;
-  if (!path) return;
-  if (await galleryStore.setRootPath(path)) await router.push("/");
+  if (galleryStore.setActiveLibrary(library)) await router.push("/");
 }
 
 async function confirmUnregister() {
@@ -60,6 +58,7 @@ async function confirmUnregister() {
 
 function created(library: RegisteredLibrary) {
   createOpen.value = false;
+  galleryStore.setActiveLibrary(library);
   void router.push({ name: "admin-library-detail", params: { id: library.id } });
 }
 </script>

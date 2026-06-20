@@ -1,461 +1,153 @@
-import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
-import { useGalleryStore } from "../gallery";
-import { GalleryAPIError } from "@/services/api";
-import type { FileNode, FolderTreeNode, ScanResponse } from "@/types";
-const fetchScanOrThrowMock = vi.fn<(path: string) => Promise<ScanResponse>>();
+import {
+  ACTIVE_IMPORT_PATH_STORAGE_KEY,
+  ACTIVE_LIBRARY_STORAGE_KEY,
+  LEGACY_ROOT_PATH_STORAGE_KEY,
+  findImportPathForPath,
+  useGalleryStore,
+} from "../gallery";
+import type { FileNode, RegisteredLibrary } from "@/types";
+
 const openFolderMock = vi.fn<(path: string) => Promise<void>>();
-
-vi.mock("@/query/scan", () => ({
-  fetchScanOrThrow: (...args: unknown[]) => fetchScanOrThrowMock(...(args as [string])),
-}));
-
 vi.mock("@/services/api", async () => {
   const actual = await vi.importActual<typeof import("@/services/api")>("@/services/api");
-  return {
-    ...actual,
-    openFolder: (...args: unknown[]) => openFolderMock(...(args as [string])),
-  };
+  return { ...actual, openFolder: (...args: unknown[]) => openFolderMock(...(args as [string])) };
 });
 
-function makeScanResponse(folders: FolderTreeNode[] = [], images: FileNode[] = []): ScanResponse {
+function library(id: number, paths: string[]): RegisteredLibrary {
   return {
-    folders,
-    images,
-    next_cursor: null,
-    total_images: images.length,
+    id,
+    name: `Library ${id}`,
+    root_path: paths[0] ?? "",
+    state: "ready",
+    watch_enabled: 1,
+    warm_enabled: 1,
+    asset_count: 0,
+    created_at: 1,
+    updated_at: 1,
+    last_scan_at: null,
+    last_error: null,
+    exclusion_patterns: [],
+    import_paths: paths.map((path, position) => ({
+      id: id * 10 + position,
+      library_id: id,
+      path,
+      position,
+      created_at: 1,
+      updated_at: 1,
+    })),
   };
 }
 
-function makeNode(overrides: Partial<FileNode> = {}): FileNode {
-  return { name: "node", path: "/node", type: "image", ...overrides };
-}
-
-function makeFolderNode(overrides: Partial<FolderTreeNode> = {}): FolderTreeNode {
-  return { name: "folder", path: "/folder", type: "folder", ...overrides };
-}
-
-describe("useGalleryStore", () => {
+describe("useGalleryStore active library selection", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    fetchScanOrThrowMock.mockReset();
+    localStorage.clear();
     openFolderMock.mockReset();
-    window.localStorage.clear();
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
+  it("starts without a writable raw root path", () => {
+    const store = useGalleryStore();
+    expect(store.activeLibraryId).toBeNull();
+    expect(store.activeImportPathId).toBeNull();
+    expect(store.currentBrowsePath).toBe("");
+    expect("rootPath" in store).toBe(false);
+    expect("setRootPath" in store).toBe(false);
   });
 
-  describe("initial state", () => {
-    it("exposes empty defaults when localStorage is empty", () => {
-      const store = useGalleryStore();
-      expect(store.rootPath).toBe("");
-      expect(store.sidebarTree).toEqual([]);
-      expect(store.expandedFolderPaths).toEqual({});
-      expect(store.currentPath).toBe("");
-      expect(store.isLoading).toBe(false);
-      expect(store.history).toEqual([]);
-      expect(store.historyIndex).toBe(-1);
-      expect(store.hasEverLoaded).toBe(false);
-      expect(store.errorMessage).toBe("");
-      expect(store.errorType).toBeNull();
-      expect(store.searchQuery).toBe("");
-      expect(store.searchScope).toBe("current");
-      expect(store.sortField).toBe("name");
-      expect(store.sortOrder).toBe("asc");
-      expect(store.metadataInspector).toEqual({
-        query: "",
-        scope: "current",
-        sort: "date_desc",
-        modelFilter: "all",
-        promptFilter: "all",
-        selectedPath: "",
-        scrollTop: 0,
-        scrollPath: "",
-      });
-    });
+  it("hydrates valid persisted IDs and removes a leftover legacy key", () => {
+    const first = library(1, ["/photos/a", "/photos/b"]);
+    localStorage.setItem(ACTIVE_LIBRARY_STORAGE_KEY, "1");
+    localStorage.setItem(ACTIVE_IMPORT_PATH_STORAGE_KEY, "11");
+    localStorage.setItem(LEGACY_ROOT_PATH_STORAGE_KEY, "/stale");
+    const store = useGalleryStore();
 
-    it("reads the stored root path from localStorage", () => {
-      window.localStorage.setItem("gallery-root-path", "/stored/root");
-      const store = useGalleryStore();
-      expect(store.rootPath).toBe("/stored/root");
-    });
+    store.hydrateActiveLibrary([first]);
 
-    it("reads the stored sort preference from localStorage", () => {
-      window.localStorage.setItem("gallery-sort-preference", JSON.stringify({ field: "date", order: "desc" }));
-      const store = useGalleryStore();
-      expect(store.sortField).toBe("date");
-      expect(store.sortOrder).toBe("desc");
-    });
-
-    it("falls back to name/asc when the stored sort preference is invalid JSON", () => {
-      window.localStorage.setItem("gallery-sort-preference", "not-json");
-      const store = useGalleryStore();
-      expect(store.sortField).toBe("name");
-      expect(store.sortOrder).toBe("asc");
-    });
-
-    it("falls back to name/asc when the stored sort preference is missing fields", () => {
-      window.localStorage.setItem("gallery-sort-preference", JSON.stringify({ field: "date" }));
-      const store = useGalleryStore();
-      expect(store.sortField).toBe("name");
-      expect(store.sortOrder).toBe("asc");
-    });
+    expect(store.activeLibraryId).toBe(1);
+    expect(store.activeImportPathId).toBe(11);
+    expect(store.currentBrowsePath).toBe("/photos/b");
+    expect(localStorage.getItem(LEGACY_ROOT_PATH_STORAGE_KEY)).toBeNull();
   });
 
-  describe("clearError", () => {
-    it("clears the current error message", () => {
-      const store = useGalleryStore();
-      store.errorMessage = "boom";
-      store.errorType = "not_found";
-      store.clearError();
-      expect(store.errorMessage).toBeNull();
-      expect(store.errorType).toBeNull();
-    });
+  it("rejects malformed persisted IDs and migrates the most specific legacy subfolder", () => {
+    const outer = library(2, ["/photos"]);
+    const inner = library(1, ["/photos/events"]);
+    localStorage.setItem(ACTIVE_LIBRARY_STORAGE_KEY, "1x");
+    localStorage.setItem(ACTIVE_IMPORT_PATH_STORAGE_KEY, "-1");
+    localStorage.setItem(LEGACY_ROOT_PATH_STORAGE_KEY, "/photos/events/wedding");
+    const store = useGalleryStore();
+
+    store.hydrateActiveLibrary([outer, inner]);
+
+    expect(store.activeLibraryId).toBe(1);
+    expect(store.activeImportPathId).toBe(10);
+    expect(store.currentBrowsePath).toBe("/photos/events/wedding");
+    expect(localStorage.getItem(ACTIVE_LIBRARY_STORAGE_KEY)).toBe("1");
+    expect(localStorage.getItem(LEGACY_ROOT_PATH_STORAGE_KEY)).toBeNull();
   });
 
-  describe("setSearchQuery / clearSearch", () => {
-    it("updates the search query", () => {
-      const store = useGalleryStore();
-      store.setSearchQuery("kittens");
-      expect(store.searchQuery).toBe("kittens");
-    });
-
-    it("clears the search query", () => {
-      const store = useGalleryStore();
-      store.setSearchQuery("kittens");
-      store.clearSearch();
-      expect(store.searchQuery).toBe("");
-    });
+  it("removes an unusable legacy key and auto-selects the only eligible library", () => {
+    localStorage.setItem(LEGACY_ROOT_PATH_STORAGE_KEY, "/missing");
+    const only = library(4, ["/only"]);
+    const store = useGalleryStore();
+    store.hydrateActiveLibrary([only]);
+    expect(store.activeLibraryId).toBe(4);
+    expect(store.currentBrowsePath).toBe("/only");
+    expect(localStorage.getItem(LEGACY_ROOT_PATH_STORAGE_KEY)).toBeNull();
   });
 
-  describe("setSearchScope", () => {
-    it("updates the search scope", () => {
-      const store = useGalleryStore();
-      store.setSearchScope("all");
-      expect(store.searchScope).toBe("all");
-    });
+  it("leaves selection empty when several libraries exist without a migration match", () => {
+    const store = useGalleryStore();
+    store.hydrateActiveLibrary([library(1, ["/one"]), library(2, ["/two"])]);
+    expect(store.activeLibraryId).toBeNull();
+    expect(store.activeLibraryHydrated).toBe(true);
   });
 
-  describe("setSortField / setSortOrder / toggleSortOrder", () => {
-    it("setSortField updates the field and persists the preference", () => {
-      const store = useGalleryStore();
-      store.setSortField("date");
-      expect(store.sortField).toBe("date");
-      expect(window.localStorage.getItem("gallery-sort-preference")).toBe(
-        JSON.stringify({ field: "date", order: "asc" }),
-      );
-    });
+  it("selection resets browse history, expansion, and search and persists only IDs", () => {
+    const selected = library(3, ["/three", "/three/other"]);
+    const store = useGalleryStore();
+    store.searchQuery = "cats";
+    store.expandedFolderPaths = { "/old": true };
+    store.history = ["/old"];
+    store.historyIndex = 0;
 
-    it("setSortOrder updates the order and persists the preference", () => {
-      const store = useGalleryStore();
-      store.setSortOrder("desc");
-      expect(store.sortOrder).toBe("desc");
-      expect(window.localStorage.getItem("gallery-sort-preference")).toBe(
-        JSON.stringify({ field: "name", order: "desc" }),
-      );
-    });
-
-    it("toggleSortOrder flips asc <-> desc and persists", () => {
-      const store = useGalleryStore();
-      expect(store.sortOrder).toBe("asc");
-      store.toggleSortOrder();
-      expect(store.sortOrder).toBe("desc");
-      expect(window.localStorage.getItem("gallery-sort-preference")).toBe(
-        JSON.stringify({ field: "name", order: "desc" }),
-      );
-      store.toggleSortOrder();
-      expect(store.sortOrder).toBe("asc");
-      expect(window.localStorage.getItem("gallery-sort-preference")).toBe(
-        JSON.stringify({ field: "name", order: "asc" }),
-      );
-    });
+    expect(store.setActiveLibrary(selected, selected.import_paths[1])).toBe(true);
+    expect(store.currentBrowsePath).toBe("/three/other");
+    expect(store.history).toEqual(["/three/other"]);
+    expect(store.expandedFolderPaths).toEqual({});
+    expect(store.searchQuery).toBe("");
+    expect(localStorage.getItem(ACTIVE_LIBRARY_STORAGE_KEY)).toBe("3");
+    expect(localStorage.getItem(ACTIVE_IMPORT_PATH_STORAGE_KEY)).toBe("31");
+    expect(localStorage.getItem(LEGACY_ROOT_PATH_STORAGE_KEY)).toBeNull();
   });
 
-  describe("isFolderExpanded / toggleFolderExpanded / setFolderExpanded / toggleFolder", () => {
-    it("isFolderExpanded normalizes the path and returns false by default", () => {
-      const store = useGalleryStore();
-      expect(store.isFolderExpanded("/root/album/")).toBe(false);
-    });
-
-    it("toggleFolderExpanded flips the expansion state for a normalized path", () => {
-      const store = useGalleryStore();
-      store.toggleFolderExpanded("/root/album/");
-      expect(store.isFolderExpanded("/root/album")).toBe(true);
-      expect(store.isFolderExpanded("/root/album/")).toBe(true);
-      store.toggleFolderExpanded("/root/album");
-      expect(store.isFolderExpanded("/root/album")).toBe(false);
-    });
-
-    it("toggleFolderExpanded ignores empty paths", () => {
-      const store = useGalleryStore();
-      store.toggleFolderExpanded("");
-      expect(store.expandedFolderPaths).toEqual({});
-    });
-
-    it("setFolderExpanded sets the explicit expansion state", () => {
-      const store = useGalleryStore();
-      store.setFolderExpanded("/root/album", true);
-      expect(store.isFolderExpanded("/root/album")).toBe(true);
-      store.setFolderExpanded("/root/album", false);
-      expect(store.isFolderExpanded("/root/album")).toBe(false);
-    });
-
-    it("setFolderExpanded ignores empty paths", () => {
-      const store = useGalleryStore();
-      store.setFolderExpanded("", true);
-      expect(store.expandedFolderPaths).toEqual({});
-    });
-
-    it("toggleFolder toggles expansion via a FileNode", () => {
-      const store = useGalleryStore();
-      const node = makeNode({ path: "/root/album", type: "folder" });
-      store.toggleFolder(node);
-      expect(store.isFolderExpanded("/root/album")).toBe(true);
-      store.toggleFolder(node);
-      expect(store.isFolderExpanded("/root/album")).toBe(false);
-    });
+  it("clears active selection without writing a raw path", () => {
+    const store = useGalleryStore();
+    store.setActiveLibrary(library(1, ["/one"]));
+    store.clearActiveLibrary();
+    expect(store.activeLibraryId).toBeNull();
+    expect(store.currentBrowsePath).toBe("");
+    expect(localStorage.getItem(ACTIVE_LIBRARY_STORAGE_KEY)).toBeNull();
+    expect(localStorage.getItem(ACTIVE_IMPORT_PATH_STORAGE_KEY)).toBeNull();
   });
 
-  describe("selectFolder", () => {
-    it("sets currentPath, pushes history, and marks hasEverLoaded when given a string", () => {
-      const store = useGalleryStore();
-      store.selectFolder("/root/album");
-      expect(store.currentPath).toBe("/root/album");
-      expect(store.history).toEqual(["/root/album"]);
-      expect(store.historyIndex).toBe(0);
-      expect(store.hasEverLoaded).toBe(true);
-    });
-
-    it("accepts a FileNode and uses its path", () => {
-      const store = useGalleryStore();
-      store.selectFolder(makeNode({ path: "/root/album", type: "folder" }));
-      expect(store.currentPath).toBe("/root/album");
-      expect(store.history).toContain("/root/album");
-    });
+  it("keeps browse navigation and explorer actions path-based", async () => {
+    const store = useGalleryStore();
+    store.setActiveLibrary(library(1, ["/one"]));
+    store.selectFolder({ name: "album", path: "/one/album", type: "folder" } as FileNode);
+    store.goBack();
+    expect(store.currentBrowsePath).toBe("/one");
+    store.goForward();
+    expect(store.currentBrowsePath).toBe("/one/album");
+    openFolderMock.mockResolvedValue();
+    await store.openInExplorer();
+    expect(openFolderMock).toHaveBeenCalledWith("/one/album");
   });
 
-  describe("pushHistory", () => {
-    it("does nothing for an empty path", () => {
-      const store = useGalleryStore();
-      store.pushHistory("");
-      expect(store.history).toEqual([]);
-      expect(store.historyIndex).toBe(-1);
-    });
-
-    it("appends a new path and advances the index", () => {
-      const store = useGalleryStore();
-      store.pushHistory("/a");
-      store.pushHistory("/b");
-      expect(store.history).toEqual(["/a", "/b"]);
-      expect(store.historyIndex).toBe(1);
-    });
-
-    it("skips duplicate entries at the current index", () => {
-      const store = useGalleryStore();
-      store.pushHistory("/a");
-      store.pushHistory("/a");
-      expect(store.history).toEqual(["/a"]);
-      expect(store.historyIndex).toBe(0);
-    });
-
-    it("truncates forward history when pushing after going back", () => {
-      const store = useGalleryStore();
-      store.pushHistory("/a");
-      store.pushHistory("/b");
-      store.pushHistory("/c");
-      store.goBack(); // index 1 (/b)
-      store.goBack(); // index 0 (/a)
-      store.pushHistory("/d");
-      expect(store.history).toEqual(["/a", "/d"]);
-      expect(store.historyIndex).toBe(1);
-    });
-  });
-
-  describe("goBack / goForward", () => {
-    it("goBack moves to the previous history entry and updates currentPath", () => {
-      const store = useGalleryStore();
-      store.pushHistory("/a");
-      store.pushHistory("/b");
-      store.goBack();
-      expect(store.historyIndex).toBe(0);
-      expect(store.currentPath).toBe("/a");
-      expect(store.hasEverLoaded).toBe(true);
-    });
-
-    it("goBack does nothing at the start of history", () => {
-      const store = useGalleryStore();
-      store.pushHistory("/a");
-      store.goBack();
-      expect(store.historyIndex).toBe(0);
-      expect(store.currentPath).toBe("");
-    });
-
-    it("goForward moves to the next history entry and updates currentPath", () => {
-      const store = useGalleryStore();
-      store.pushHistory("/a");
-      store.pushHistory("/b");
-      store.goBack();
-      store.goForward();
-      expect(store.historyIndex).toBe(1);
-      expect(store.currentPath).toBe("/b");
-    });
-
-    it("goForward does nothing at the end of history", () => {
-      const store = useGalleryStore();
-      store.pushHistory("/a");
-      store.goForward();
-      expect(store.historyIndex).toBe(0);
-    });
-  });
-
-  describe("resetRootPath", () => {
-    it("clears root-related state and removes the localStorage key", () => {
-      const store = useGalleryStore();
-      store.rootPath = "/root";
-      store.currentPath = "/root/album";
-      store.sidebarTree = [makeFolderNode()];
-      store.expandedFolderPaths = { "/root": true };
-      store.hasEverLoaded = true;
-      window.localStorage.setItem("gallery-root-path", "/root");
-
-      store.resetRootPath();
-
-      expect(store.rootPath).toBe("");
-      expect(store.currentPath).toBe("");
-      expect(store.sidebarTree).toEqual([]);
-      expect(store.expandedFolderPaths).toEqual({});
-      expect(store.hasEverLoaded).toBe(false);
-      expect(window.localStorage.getItem("gallery-root-path")).toBeNull();
-    });
-  });
-
-  describe("setRootPath", () => {
-    it("returns false and resets root state when called with an empty path", async () => {
-      const store = useGalleryStore();
-      const result = await store.setRootPath("");
-      expect(result).toBe(false);
-      expect(store.rootPath).toBe("");
-      expect(store.currentPath).toBe("");
-      expect(fetchScanOrThrowMock).not.toHaveBeenCalled();
-    });
-
-    it("loads sidebar tree, persists root, and pushes history on success", async () => {
-      const folders: FolderTreeNode[] = [{ name: "album", path: "/root/album", type: "folder", children: [] }];
-      fetchScanOrThrowMock.mockResolvedValue(makeScanResponse(folders, [makeNode()]));
-      const store = useGalleryStore();
-
-      const result = await store.setRootPath("/root");
-
-      expect(result).toBe(true);
-      expect(store.rootPath).toBe("/root");
-      expect(store.currentPath).toBe("/root");
-      // children are stripped via normalizeNodes
-      expect(store.sidebarTree).toEqual([{ name: "album", path: "/root/album", type: "folder", children: undefined }]);
-      expect(store.isLoading).toBe(false);
-      expect(store.hasEverLoaded).toBe(true);
-      expect(store.history).toEqual(["/root"]);
-      expect(window.localStorage.getItem("gallery-root-path")).toBe("/root");
-      expect(store.errorMessage).toBeNull();
-      expect(store.errorType).toBeNull();
-    });
-
-    it("filters out non-folder entries from the sidebar tree", async () => {
-      const folders: FolderTreeNode[] = [
-        { name: "album", path: "/root/album", type: "folder" },
-        { name: "photo.png", path: "/root/photo.png", type: "image" } as unknown as FolderTreeNode,
-      ];
-      fetchScanOrThrowMock.mockResolvedValue(makeScanResponse(folders, []));
-      const store = useGalleryStore();
-
-      await store.setRootPath("/root");
-
-      expect(store.sidebarTree).toHaveLength(1);
-      expect(store.sidebarTree[0].name).toBe("album");
-    });
-
-    it("sets errorMessage and shows an error toast when fetchScanOrThrow throws a GalleryAPIError", async () => {
-      const apiError = new GalleryAPIError("not_found", "Folder not found", "It may have moved.", false);
-      fetchScanOrThrowMock.mockRejectedValue(apiError);
-      const store = useGalleryStore();
-
-      const result = await store.setRootPath("/missing");
-
-      expect(result).toBe(false);
-      expect(store.isLoading).toBe(false);
-      expect(store.rootPath).toBe("/missing");
-      expect(store.currentPath).toBe("");
-      expect(store.sidebarTree).toEqual([]);
-      expect(store.errorMessage).toBe("It may have moved.");
-      expect(store.errorType).toBe("not_found");
-    });
-
-    it("sets errorMessage to the fallback message for non-API errors", async () => {
-      fetchScanOrThrowMock.mockRejectedValue(new Error("network"));
-      const store = useGalleryStore();
-
-      const result = await store.setRootPath("/missing");
-
-      expect(result).toBe(false);
-      expect(store.errorMessage).toBe("Unable to load the root folder. Check the path or backend connection.");
-      expect(store.errorType).toBeNull();
-    });
-
-    it("clears the previous errorMessage on a successful retry", async () => {
-      fetchScanOrThrowMock.mockRejectedValueOnce(new Error("network")).mockResolvedValueOnce(makeScanResponse());
-      const store = useGalleryStore();
-
-      await store.setRootPath("/root");
-      expect(store.errorMessage).toBeTruthy();
-
-      await store.setRootPath("/root");
-      expect(store.errorMessage).toBeNull();
-      expect(store.errorType).toBeNull();
-    });
-  });
-
-  describe("openInExplorer", () => {
-    it("does nothing when currentPath is empty", async () => {
-      const store = useGalleryStore();
-      await store.openInExplorer();
-      expect(openFolderMock).not.toHaveBeenCalled();
-    });
-
-    it("calls openFolder with the current path on success", async () => {
-      openFolderMock.mockResolvedValue(undefined);
-      const store = useGalleryStore();
-      store.currentPath = "/root/album";
-
-      await store.openInExplorer();
-
-      expect(openFolderMock).toHaveBeenCalledWith("/root/album");
-      expect(store.errorMessage).toBeNull();
-      expect(store.errorType).toBeNull();
-    });
-
-    it("sets errorMessage when openFolder throws a GalleryAPIError", async () => {
-      openFolderMock.mockRejectedValue(
-        new GalleryAPIError("permission", "Access denied", "Check folder permissions.", false),
-      );
-      const store = useGalleryStore();
-      store.currentPath = "/root/album";
-
-      await store.openInExplorer();
-
-      expect(store.errorMessage).toBe("Check folder permissions.");
-      expect(store.errorType).toBe("permission");
-    });
-
-    it("sets the fallback errorMessage for non-API errors", async () => {
-      openFolderMock.mockRejectedValue(new Error("os"));
-      const store = useGalleryStore();
-      store.currentPath = "/root/album";
-
-      await store.openInExplorer();
-
-      expect(store.errorMessage).toBe("Unable to open the folder in your operating system.");
-      expect(store.errorType).toBeNull();
-    });
+  it("uses deterministic tie-breaking for legacy path matches", () => {
+    const match = findImportPathForPath([library(2, ["/same"]), library(1, ["/same"])], "/same/child");
+    expect(match?.library.id).toBe(1);
   });
 });

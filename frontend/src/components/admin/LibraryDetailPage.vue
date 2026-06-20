@@ -47,9 +47,7 @@ function formatBytes(bytes?: number): string {
 }
 
 async function useInGallery() {
-  const path = library.value?.import_paths[0]?.path;
-  if (!path) return;
-  if (await galleryStore.setRootPath(path)) await router.push("/");
+  if (library.value && galleryStore.setActiveLibrary(library.value)) await router.push("/");
 }
 
 async function copyPath(path: string) {

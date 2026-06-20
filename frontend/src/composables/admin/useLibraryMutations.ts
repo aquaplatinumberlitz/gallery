@@ -13,6 +13,8 @@ import {
   validateLibraryUpdate,
 } from "@/services/api";
 import type { LibraryCreateRequest, LibraryUpdateRequest } from "@/types";
+import type { RegisteredLibrary } from "@/types";
+import { useGalleryStore } from "@/stores/gallery";
 
 interface UpdateVariables {
   id: number;
@@ -31,6 +33,7 @@ function errorMessage(error: unknown): string {
 export function useLibraryMutations() {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const galleryStore = useGalleryStore();
 
   const createMutation = useMutation({
     mutationFn: createLibrary,
@@ -46,7 +49,11 @@ export function useLibraryMutations() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: UpdateVariables) => updateLibrary(id, payload),
-    onSuccess: async (_library, { id }) => {
+    onSuccess: async (library, { id }) => {
+      if (galleryStore.activeLibraryId === id) {
+        const selectedPath = library.import_paths.find((path) => path.id === galleryStore.activeImportPathId);
+        galleryStore.setActiveLibrary(library, selectedPath);
+      }
       toast.success("Library updated");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.library(id) }),
@@ -123,6 +130,13 @@ export function useLibraryMutations() {
     mutationFn: deleteLibrary,
     onSuccess: async (_response, id) => {
       toast.success("Library unregistered");
+      if (galleryStore.activeLibraryId === id) {
+        const remaining = (queryClient.getQueryData<RegisteredLibrary[]>(queryKeys.libraries()) ?? [])
+          .filter((library) => library.id !== id && library.import_paths.length > 0)
+          .sort((a, b) => a.id - b.id);
+        if (remaining[0]) galleryStore.setActiveLibrary(remaining[0]);
+        else galleryStore.clearActiveLibrary();
+      }
       queryClient.removeQueries({ queryKey: queryKeys.library(id) });
       queryClient.removeQueries({ queryKey: queryKeys.libraryProgress(id) });
       queryClient.removeQueries({ queryKey: queryKeys.libraryStats(id) });
