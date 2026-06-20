@@ -2,7 +2,7 @@
 
 Status: plan only, no implementation in this step.
 
-Goal: implement a desktop-only Library Import / Library Management frontend for registered libraries. Immich is used only as a UI pattern reference. Do not copy Immich source code, Svelte/SvelteKit architecture, or Immich API shapes.
+Goal: implement a responsive Library Import / Library Management frontend for registered libraries across desktop, tablet, and mobile. Immich is used only as a UI pattern reference. Do not copy Immich source code, Svelte/SvelteKit architecture, or Immich API shapes.
 
 ## 1. Current Findings
 
@@ -15,7 +15,7 @@ Current registered library endpoints:
 | Method | Endpoint | Purpose | Notes |
 | --- | --- | --- | --- |
 | `GET` | `/api/libraries` | List registered libraries | Returns DB rows from `libraries`. |
-| `POST` | `/api/libraries` | Register one library root | Body: `{ root_path: string, name?: string }`. Validates path safety, existence, directory, overlap. |
+| `POST` | `/api/libraries` | Add one library root | Body: `{ root_path: string, name?: string }`. Validates path safety, existence, directory, overlap. |
 | `GET` | `/api/libraries/{library_id}` | Get one library | `library_id` is numeric. |
 | `GET` | `/api/libraries/{library_id}/progress` | Get scan/import progress | Returns indexed/estimated counts and lifecycle state. |
 | `POST` | `/api/libraries/{library_id}/scan` | Trigger background discovery/import | Returns `202` with `{ library_id, state: "discovering" }`. |
@@ -52,7 +52,7 @@ Important contract corrections versus the older adaptation plan:
 
 - There is no `/api/libraries/{id}/stats`; use `/api/libraries/{id}/progress`.
 - There is no frontend-supported `PUT/PATCH /api/libraries/{id}` yet, so v1 must not promise rename/edit unless a backend endpoint is added first.
-- There are no `import_paths` or `exclusion_patterns` fields/endpoints in the current gallery backend. V1 should register one explicit library root per library.
+- There are no `import_paths` or `exclusion_patterns` fields/endpoints in the current gallery backend. V1 should add one explicit library root per library.
 - Gallery is image-first. Do not add Immich-style video stats.
 - Delete requires `confirm=true`; the UI confirmation must map to that query param.
 
@@ -69,9 +69,21 @@ The frontend currently still stores and loads a raw root path through:
 
 - `frontend/src/stores/gallery.ts`
 - `frontend/src/components/RootPathSidebarHeader.vue`
+- `frontend/src/components/RootPathSheet.vue`
 - localStorage key `gallery-root-path`
 
-The new UX must replace arbitrary root entry with an explicit active library selection. Internally, the existing scan/folder/search APIs can continue receiving the selected library's `root_path`.
+The new UX must replace arbitrary root entry with an explicit active library selection on desktop, tablet, and mobile. Internally, the existing scan/folder/search APIs can continue receiving absolute filesystem paths, but those paths should come from the active registered library model rather than a second persisted root-path model.
+
+Recommended state model:
+
+- `activeLibraryId`: the only persisted gallery selection on every breakpoint, stored under `gallery-active-library-id`.
+- `activeLibraryRootPath`: derived from the `GET /api/libraries` result by matching `activeLibraryId`; not independently persisted and not writable as primary state.
+- `currentBrowsePath`: the absolute folder path currently being browsed inside the active library. It starts as `activeLibraryRootPath` and changes through folder navigation, breadcrumb navigation, search album selection, history, and back/forward.
+- legacy `gallery-root-path`: read once during hydration as a migration hint, then removed from localStorage after migration succeeds or after it is determined unusable. New code must never write this key.
+
+This avoids an unclean dual-state model. `activeLibraryId` owns selection identity; the library query owns the root path value; `currentBrowsePath` owns the viewer's path-scoped browsing context. No long-term frontend state should persist both `gallery-active-library-id` and `gallery-root-path` as competing sources of truth.
+
+Do not keep `galleryStore.rootPath` as primary writable state in the registered-library flow. Rename or replace it in the store with explicit library/browse names. A short-lived compatibility getter named `rootPath` is acceptable only inside the migration implementation if it is read-only, derived from `activeLibraryRootPath`, and scheduled for removal in the same feature branch; it must not write to localStorage or accept arbitrary paths.
 
 ### 1.3 Immich patterns to adapt, not copy
 
@@ -80,7 +92,7 @@ Patterns worth adapting:
 - Separate admin route area for library management.
 - List page with table, row status, row actions, loading/empty/error states.
 - Detail page with status summary, progress, registered folders/actions, and destructive confirmation.
-- Add/register dialog with validation and server error display.
+- Add Library dialog with validation and server error display.
 - Action menu per row: detail, scan, repair, delete.
 - Status badges for ready/scanning/error/offline states.
 - Confirmation dialogs for destructive actions.
@@ -94,38 +106,71 @@ Patterns to skip:
 - Immich API DTOs.
 - Import paths/exclusion pattern UI until gallery backend supports them.
 
+### 1.4 Current frontend dependency audit
+
+Current `rootPath` dependencies that need rename/adaptation:
+
+| File | Current dependency | Required adaptation |
+| --- | --- | --- |
+| `frontend/src/stores/gallery.ts` | `STORAGE_KEY = "gallery-root-path"`, `getStoredRoot()`, writable `rootPath`, `setRootPath()`, `resetRootPath()` | Replace with `ACTIVE_LIBRARY_STORAGE_KEY`, `activeLibraryId`, derived `activeLibraryRootPath`, `currentBrowsePath`, `hydrateActiveLibrary()`, `setActiveLibrary()`, and `clearActiveLibrary()`. Keep legacy root-path read/remove helper only for migration. |
+| `frontend/src/App.vue` | startup auto-load calls `galleryStore.setRootPath(galleryStore.rootPath)` | Replace with active-library hydration on every breakpoint before the first gallery scan/search flow. Remove old root-path startup writes. |
+| `frontend/src/components/RootPathSidebarHeader.vue` | input initializes from `galleryStore.rootPath`, calls `setRootPath()`/`resetRootPath()` | Rename/replace with `LibrarySidebarHeader.vue`, a registered-library selector that calls `setActiveLibrary()`. Do not keep arbitrary root-path input semantics. |
+| `frontend/src/components/RootPathSheet.vue` | mobile sheet calls `galleryStore.setRootPath()` | Rename/replace with `LibrarySelectorSheet.vue` or `LibrarySheet.vue`, using registered library selection and Add/Manage Library CTAs. Remove the arbitrary root-path textarea as primary UX. |
+| `frontend/src/components/GalleryGrid.vue` | uses `galleryStore.currentPath` for scan/search browsing, but also checks `galleryStore.rootPath` in `pathReady`, `hasNoPath`, and `hasNotLoaded` | Continue passing the active browse path to `/api/scan` and `/api/search`; rename store access to `currentBrowsePath`. Replace `rootPath` gating with `activeLibraryId`/`activeLibraryRootPath` readiness. Update empty/error copy for all breakpoints. |
+| `frontend/src/components/GallerySidebarContent.vue` | mounts `RootPathSidebarHeader.vue`; empty copy says to enter a root path | Mount `LibrarySidebarHeader.vue` where the sidebar is present. Update empty copy to registered-library language. Mobile/tablet entry points should use the library selector sheet instead of legacy root-path copy. |
+| `frontend/src/components/search/AdvancedSearchDrawer.vue` | `facetsQueryPath = galleryStore.rootPath || ""` | Use `activeLibraryRootPath` for library-wide facets, or `currentBrowsePath` if facets should scope to the current folder. Recommended v1: `activeLibraryRootPath`, because the drawer currently behaves like library-level filter assistance. |
+| `frontend/src/stores/__tests__/gallery.test.ts` | tests persisted root path, `setRootPath()`, `resetRootPath()` | Replace/add tests for active library hydration, one-shot legacy migration/removal, active library deletion, and browse path history. Remove writable root-path primary-state expectations. |
+| `frontend/tests/e2e/*.spec.ts` | many tests seed `localStorage.gallery-root-path` | Add new library-management coverage using `/api/libraries` and `gallery-active-library-id`. Tests that rely on `gallery-root-path` should cover migration only; viewer tests across all breakpoints should use registered libraries. |
+
+Current path-based render/query code that should stay library-id agnostic:
+
+| File | Why it can remain path-based |
+| --- | --- |
+| `frontend/src/composables/useInfiniteScanQuery.ts` | Accepts a path ref and calls `/api/scan?path=...`; pass `currentBrowsePath`. |
+| `frontend/src/composables/useUnifiedSearchQuery.ts` | Accepts a path ref for `scope=current`; pass `currentBrowsePath` through existing `GalleryGrid` flow. |
+| `frontend/src/composables/useFolderChildrenQuery.ts` and `FolderTreeItem.vue` | Expands folders by absolute folder path. |
+| `frontend/src/query/scan.ts` and `frontend/src/query/keys.ts` | Query cache keys are path-scoped and should remain so for viewer APIs. |
+| `frontend/src/services/api.ts` path-based viewer functions | `scanDirectory`, `listFolderChildren`, `unifiedSearch`, `fetchFacets`, `fetchIndexStatus`, `fetchMetadata`, image/thumbnail/preview URL builders all operate on absolute paths. Add library admin API functions separately. |
+| `frontend/src/components/PhotoCard.vue`, `frontend/src/stores/lightbox.ts`, `frontend/src/composables/usePhotoSwipe.ts`, `frontend/src/utils/lightbox.ts`, `frontend/src/components/Lightbox.vue` | Image display, metadata, previews, originals, and lightbox navigation use `FileNode.path`/`image.path`; no library id is needed if backend URLs still accept `path`. |
+| `frontend/src/components/LibraryInspector.vue` | Uses current path for `scope=current`; rename store access to `currentBrowsePath` only if the store field changes. |
+
+Answer to the render-layer compatibility question: yes, `GalleryGrid`, lightbox, and search can remain path-based if `/api/scan?path=...`, `/api/search?scope=current&path=...`, `/api/folders?path=...`, image URLs, thumbnail URLs, preview URLs, and metadata calls continue to accept absolute paths from `currentBrowsePath`/`image.path`. They should not receive or know about library IDs in v1.
+
 ## Entry Point Design
 
 Chosen approach: Option B, with a strict split between library selection and library management.
 
 The app has two separate entry points:
 
-- Admin/management entry point: a desktop-only `Libraries` button in `AppHeader.vue`, placed next to the existing `Metadata` button.
-- Gallery selection entry point: the existing sidebar header slot above the folder tree, currently implemented by `RootPathSidebarHeader.vue`.
+- Admin/management entry point: a responsive `Libraries` entry in `AppHeader.vue`, placed near the existing `Metadata` affordance on desktop and exposed through the compact header/navigation pattern on tablet/mobile.
+- Gallery selection entry point: the existing sidebar header slot above the folder tree, currently implemented by `RootPathSidebarHeader.vue`, renamed/replaced by `LibrarySidebarHeader.vue`; compact layouts use a library selector sheet, currently rooted in `RootPathSheet.vue`, renamed/replaced by `LibrarySelectorSheet.vue` or `LibrarySheet.vue`.
 
-The main gallery needs an in-context way to choose the registered library it is browsing. `GallerySidebarContent.vue` already mounts `RootPathSidebarHeader.vue` above the folder tree, so that slot should be reused for active library selection on desktop. This keeps the selected library, derived root path, and folder tree context together. Keep the component name initially if that reduces churn; a later rename to `LibrarySidebarHeader.vue` can happen only if the implementation diff stays manageable.
+The main gallery needs an in-context way to choose the registered library it is browsing. `GallerySidebarContent.vue` already mounts `RootPathSidebarHeader.vue` above the folder tree, so that slot should become active library selection by renaming/replacing it with `LibrarySidebarHeader.vue`. This keeps the selected library, derived root path, and folder tree context together. Compact layouts should offer the same registered-library model through `LibrarySelectorSheet.vue` or `LibrarySheet.vue`, not a separate arbitrary root-path flow.
 
-Library management is a separate workflow: register, scan, repair, inspect, and unregister libraries. Expose that workflow through the desktop header by adding `Libraries` beside `Metadata` in `AppHeader.vue`. The button routes to `/admin/libraries`, is active for `/admin/libraries` routes, and remains hidden from mobile and tablet.
+Library management is a separate workflow: add libraries, scan, repair, inspect, and unregister libraries. Expose that workflow through the header/navigation system by adding `Libraries` near `Metadata` in `AppHeader.vue`. The entry routes to `/admin/libraries`, is active for `/admin/libraries` routes, and remains available on desktop, tablet, and mobile.
 
-`RootPathSheet.vue` stays untouched for this implementation. It is coupled to the legacy arbitrary-path flow with paste, clear, textarea, and load semantics, and mobile/tablet behavior is frozen. Treat it as a compatibility surface for the frozen mobile/tablet legacy path-entry behavior. Do not turn it into a library-management drawer or a registered-library selector during this work.
+`RootPathSheet.vue` should not remain as a legacy arbitrary-path surface. Rename/replace it with `LibrarySelectorSheet.vue` or `LibrarySheet.vue`, remove the root-path textarea as primary UX, and use it for registered library selection plus Add/Manage Library actions on compact breakpoints.
 
 Selection persistence migrates from the legacy path key to the new active library id:
 
 1. Add `gallery-active-library-id` as the new persisted selection key.
 2. Fetch registered libraries during active-library hydration.
-3. If `gallery-active-library-id` exists and matches a registered library, use it.
-4. Else, if legacy `gallery-root-path` exactly matches or is inside a registered library root, select that library and persist its id.
-5. Else, if exactly one registered library exists, select it.
-6. Else, leave no active library selected and show the desktop empty state with a `Manage Libraries` link.
+3. If `gallery-active-library-id` exists and matches a registered library, use it, initialize `currentBrowsePath` to that library root, remove any leftover `gallery-root-path`, and stop.
+4. Else, read legacy `gallery-root-path` once.
+5. If the legacy path exactly matches or is inside a registered library root, select the most specific matching library, persist its id, initialize `currentBrowsePath` to the legacy path only if that path is inside the selected library, remove `gallery-root-path`, and stop.
+6. If there is no legacy match, remove `gallery-root-path` so future starts do not retry stale migration.
+7. If exactly one registered library exists, select it and initialize `currentBrowsePath` to its root.
+8. Else, leave no active library selected and show a no-library state with `Add Library` and/or `Manage Libraries` actions.
 
-Keep `galleryStore.rootPath` as derived compatibility state for existing scan, folder, and search queries. After migration, arbitrary root-path entry is no longer the authoritative desktop model.
+Do not keep a second persisted root path. Existing scan, folder, and search queries should receive `currentBrowsePath` as their `path` parameter. If a temporary `rootPath` getter exists during implementation, it must be derived from `activeLibraryRootPath`, read-only from the perspective of the registered-library flow, and not persisted.
 
 Gating logic:
 
-- New admin pages and the header `Libraries` entry are desktop-only.
-- The new active library selector is desktop-only.
-- Mobile and tablet remain visually and behaviorally unchanged for this phase.
-- `GallerySidebarContent.vue` is shared by desktop, tablet, and mobile layouts, so gate the new selector to true desktop/wide breakpoints or split the desktop sidebar header implementation from frozen tablet/mobile surfaces.
+- Admin pages and the header/navigation `Libraries` entry are available on desktop, tablet, and mobile.
+- The active library selector is available on every breakpoint.
+- Desktop/tablet sidebar surfaces should use `LibrarySidebarHeader.vue` where the sidebar is visible.
+- Mobile and any compact tablet surfaces should use `LibrarySelectorSheet.vue` or `LibrarySheet.vue`.
+- No breakpoint should keep arbitrary root-path entry as the primary gallery UX.
 
 ## 2. Product Scope
 
@@ -133,7 +178,7 @@ Gating logic:
 
 V1 will provide:
 
-1. Desktop-only admin pages:
+1. Responsive admin pages:
    - `/admin/libraries`
    - `/admin/libraries/:id`
 2. Registered library list:
@@ -144,12 +189,12 @@ V1 will provide:
    - last scan / last update
    - last error when present
    - row actions
-3. Register library dialog:
+3. Add Library dialog/sheet:
    - absolute folder path
    - optional display name
    - duplicate/overlap client warning where possible
    - server error handling
-   - optional "Register and scan" workflow
+   - optional "Add and scan" workflow
 4. Library detail page:
    - status badge
    - progress card
@@ -159,11 +204,14 @@ V1 will provide:
    - unregister action
    - last error display
 5. Main gallery active library selector:
-   - no arbitrary root path input in desktop sidebar
-   - user selects one registered library
-   - selected library root drives `galleryStore.rootPath/currentPath`
+   - no arbitrary root path input as primary UX on desktop, tablet, or mobile
+   - user selects one registered library on every breakpoint
+   - desktop/tablet sidebar selector through `LibrarySidebarHeader.vue`
+   - compact selector through `LibrarySelectorSheet.vue` or `LibrarySheet.vue`
+   - selected library root derives `activeLibraryRootPath`
+   - selected library root initializes `currentBrowsePath`
    - persisted active library id
-   - fallback/migration from legacy `gallery-root-path`
+   - one-shot fallback/migration from legacy `gallery-root-path`
 6. Loading, empty, error, and pending mutation states.
 
 ### 2.2 Explicit non-goals for V1
@@ -177,27 +225,28 @@ V1 will provide:
 - No rename/edit library UI unless a backend update endpoint is added before implementation.
 - No backend schema migration as part of this frontend task.
 - No command palette.
-- No mobile/tablet admin page.
+- No mobile/tablet arbitrary root-path legacy UX.
 
 ## 3. UX Plan
 
 ### 3.1 Admin navigation
 
-Add a desktop-only "Libraries" entry near the existing "Metadata" header button in `AppHeader.vue`.
+Add a responsive "Libraries" entry near the existing "Metadata" header button in `AppHeader.vue`.
 
 Behavior:
 
-- Visible only on desktop.
+- Visible or reachable on desktop, tablet, and mobile through the existing header/navigation pattern.
+- Desktop can use a text button beside `Metadata`; compact breakpoints can use the existing icon/menu/sheet navigation affordance if space is constrained.
 - Active when `route.path.startsWith("/admin/libraries")`.
 - Prefetch route component on pointer enter/focus, matching the metadata prefetch style if useful.
 - Keep main gallery viewer-first; do not make library management the default first screen.
 
-### 3.2 Desktop route guard
+### 3.2 Responsive route handling
 
 Extend the existing route/device handling in `App.vue`:
 
 - Admin routes should set `showIntro=false`.
-- If `isMobile || isTablet` and route starts with `/admin/libraries`, redirect to `/`.
+- Render the responsive management surface on tablet and mobile without redirecting away from `/admin/libraries`.
 - Keep `/metadata` behavior intact.
 
 Suggested helper:
@@ -215,8 +264,14 @@ Primary layout:
 - Header:
   - title: `Libraries`
   - summary: number of registered libraries
-  - primary action: `Register Library`
-- Table columns:
+  - primary action: `Add Library`
+- Desktop content:
+  - table with the columns listed below
+- Tablet/mobile content:
+  - card list with the same data and actions
+  - compact cards should prioritize name, root path, status, asset count, last scan, and actions
+  - avoid horizontal scrolling for primary fields
+- Desktop table columns:
   - Library
   - Root path
   - Status
@@ -246,7 +301,7 @@ Empty state:
 
 - Title: `No libraries registered`
 - Description: explain that libraries must be registered before browsing.
-- CTA: `Register Library`
+- CTA: `Add Library`
 
 Error state:
 
@@ -255,7 +310,8 @@ Error state:
 
 Loading state:
 
-- Table skeleton rows using existing `Skeleton`.
+- Desktop: table skeleton rows using existing `Skeleton`.
+- Tablet/mobile: card skeleton rows using existing `Skeleton`.
 
 ### 3.4 Library detail page
 
@@ -295,9 +351,15 @@ Actions:
 - `Repair`: call repair mutation, show counts in toast, invalidate relevant queries.
 - `Unregister`: open confirmation dialog.
 
-### 3.5 Register library dialog
+### 3.5 Add library dialog/sheet
 
 Component: `frontend/src/components/admin/dialogs/LibraryCreateDialog.vue`
+
+Presentation:
+
+- Desktop: dialog.
+- Tablet/mobile: bottom sheet or full-height sheet if that matches existing compact modal patterns.
+- Same validation, API calls, and success behavior on all breakpoints.
 
 Fields:
 
@@ -315,8 +377,8 @@ Client validation:
 
 Submit modes:
 
-- `Register`: `POST /api/libraries`
-- `Register and Scan`: create, then `POST /api/libraries/{id}/scan`
+- `Add Library`: `POST /api/libraries`
+- `Add and Scan`: create, then `POST /api/libraries/{id}/scan`
 
 Success behavior:
 
@@ -358,51 +420,61 @@ After success:
 
 ### 3.7 Active library selector in main viewer
 
-Implement the gallery selection side of the [Entry Point Design](#entry-point-design): replace arbitrary root path entry in the desktop sidebar with a registered-library selector, while leaving mobile/tablet behavior unchanged.
+Implement the gallery selection side of the [Entry Point Design](#entry-point-design): replace arbitrary root path entry with a registered-library selector on desktop, tablet, and mobile.
 
-Primary target: `RootPathSidebarHeader.vue`
+Primary targets:
+
+- Rename/replace `RootPathSidebarHeader.vue` with `LibrarySidebarHeader.vue`.
+- Rename/replace `RootPathSheet.vue` with `LibrarySelectorSheet.vue` or `LibrarySheet.vue`.
 
 Suggested approach:
 
-- Keep file name initially to reduce churn, but change the UI semantics from "root path input" to "active library selector".
-- Later rename to `LibrarySidebarHeader.vue` only if the diff stays manageable.
-- Gate the new selector to true desktop/wide breakpoints because `GallerySidebarContent.vue` is shared by desktop, tablet, and mobile layouts.
-- Leave `RootPathSheet.vue` untouched as the frozen mobile/tablet legacy compatibility surface.
+- Change UI semantics from "root path input" to "active library selector" everywhere.
+- Use `LibrarySidebarHeader.vue` for sidebar layouts.
+- Use `LibrarySelectorSheet.vue` or `LibrarySheet.vue` for compact layouts.
+- Remove textarea/paste/clear/load semantics tied to arbitrary root paths.
 
 UI states:
 
 - Loading libraries: skeleton or compact loading row.
 - No libraries:
-  - desktop: show `No libraries registered` and a `Manage Libraries` link.
-  - mobile/tablet: unchanged from current legacy behavior.
+  - show `No libraries registered`.
+  - show `Add Library` and/or `Manage Libraries` actions on every breakpoint.
 - Libraries available:
   - select/dropdown with library name and status
   - secondary root path display
-  - `Manage` link on desktop
+  - `Manage` link
   - optional scan status indicator
 
 Store behavior:
 
 - Add `activeLibraryId` persisted to localStorage key `gallery-active-library-id`.
-- Keep `rootPath` as the active library root path for compatibility with existing gallery queries.
+- Add `activeLibraryRootPath` as a derived getter/value from the libraries query/list.
+- Replace the primary writable browsing path name with `currentBrowsePath`.
+- Do not persist `activeLibraryRootPath` or `currentBrowsePath` as independent source-of-truth values.
+- Do not keep writable `rootPath` in the registered-library model.
 - Add actions:
   - `hydrateActiveLibrary()`
   - `setActiveLibrary(library: RegisteredLibrary)`
   - `clearActiveLibrary()`
+  - `selectBrowsePath(path: string)` or rename existing `selectFolder()` to use the clearer browse-path language if churn is manageable
 - On startup:
   1. Fetch registered libraries.
-  2. If persisted `activeLibraryId` exists and still exists, select it.
-  3. Else if legacy `gallery-root-path` matches or is inside a registered library, select that library.
-  4. Else if exactly one library exists, select it.
-  5. Else leave unselected and show empty state.
+  2. If persisted `activeLibraryId` exists and still exists, select it, initialize `currentBrowsePath` to that library root, remove any leftover `gallery-root-path`, and stop.
+  3. Else read legacy `gallery-root-path` once.
+  4. If the legacy path exactly matches or is inside a registered library, select the most specific matching library, persist the selected library id to `gallery-active-library-id`, initialize `currentBrowsePath` to the legacy folder only when it is inside the selected library, remove `gallery-root-path`, and stop.
+  5. If no legacy match exists, remove `gallery-root-path` so future starts do not retry stale migration forever.
+  6. If exactly one library exists after no persisted or legacy match, select it and initialize `currentBrowsePath` to its root.
+  7. Else leave unselected and show empty state.
 - On active library selection:
-  - set `rootPath = library.root_path`
-  - set `currentPath = library.root_path`
+  - set `activeLibraryId = library.id`
+  - let `activeLibraryRootPath` derive from `activeLibraryId` and the libraries query/list
+  - set `currentBrowsePath = library.root_path`
   - clear search
   - reset folder expansion/history
   - call existing scan flow for that root
 
-Important: keep `selectFolder()` behavior unchanged for folders inside the active library.
+Important: keep folder browsing behavior unchanged for folders inside the active library. Folder-tree selection, breadcrumb navigation, search album selection, back/forward, index status, and library inspector `scope=current` should use `currentBrowsePath`.
 
 ## 4. Frontend Architecture
 
@@ -548,6 +620,58 @@ Presentation mapping:
 
 Keep status styles aligned with existing `IndexStatusBadge` rather than inventing a new color system.
 
+### 4.6 Gallery store naming and ownership
+
+Update: `frontend/src/stores/gallery.ts`
+
+Proposed store state:
+
+```ts
+activeLibraryId: number | null;
+currentBrowsePath: string; // current folder path inside the active library
+sidebarTree: FolderTreeNode[];
+expandedFolderPaths: Record<string, boolean>;
+history: string[];
+historyIndex: number;
+hasEverLoaded: boolean;
+```
+
+Proposed derived value/getter:
+
+```ts
+activeLibraryRootPath: string; // derived from activeLibraryId + libraries query/list, not writable or persisted
+```
+
+Proposed action names:
+
+```ts
+hydrateActiveLibrary(libraries: RegisteredLibrary[]): Promise<void> | void;
+setActiveLibrary(library: RegisteredLibrary): Promise<boolean>;
+clearActiveLibrary(): void;
+selectBrowsePath(pathOrNode: FileNode | string): void;
+resetBrowseState(): void;
+```
+
+Migration helper names:
+
+```ts
+const ACTIVE_LIBRARY_STORAGE_KEY = "gallery-active-library-id";
+const LEGACY_ROOT_PATH_STORAGE_KEY = "gallery-root-path";
+readLegacyRootPathForMigration();
+clearLegacyRootPath();
+findLibraryForPath(libraries, legacyPath);
+```
+
+Rules:
+
+- Persist only `activeLibraryId`.
+- Derive `activeLibraryRootPath` from loaded registered libraries.
+- Keep `currentBrowsePath` in memory only. It is a navigation state, not a durable library selection.
+- `currentBrowsePath` may temporarily initialize from a legacy migrated subfolder path if it is inside the selected registered library.
+- Read `gallery-root-path` once for migration, then remove it after match/no-match is known. Do not write `gallery-root-path` from new code.
+- Replace `galleryStore.currentPath` references with `galleryStore.currentBrowsePath` where the implementation touches the file. If churn becomes too broad, a temporary read-only alias named `currentPath` is acceptable, but new code should use `currentBrowsePath`.
+- Avoid a writable `rootPath` alias. If an alias is needed to keep a diff small, it must be read-only, derived from `activeLibraryRootPath`, and removed before considering this feature complete.
+
 ## 5. Components And Files
 
 ### 5.1 New admin pages
@@ -580,6 +704,7 @@ Create as needed:
 - `frontend/src/components/admin/LibraryProgressBar.vue`
 - `frontend/src/components/admin/LibraryActionMenu.vue`
 - `frontend/src/components/admin/LibrarySummaryPanel.vue`
+- `frontend/src/components/admin/LibraryCardList.vue` if the responsive list page benefits from separating compact cards from the desktop table
 - `frontend/src/components/admin/dialogs/LibraryCreateDialog.vue`
 - `frontend/src/components/admin/dialogs/LibraryDeleteConfirmDialog.vue`
 
@@ -594,21 +719,34 @@ Update:
   - export optional prefetch helper
 - `frontend/src/App.vue`
   - intro suppression for admin route
-  - mobile/tablet redirect for admin route
+  - render responsive admin route on mobile/tablet
   - active library hydration
 - `frontend/src/components/AppHeader.vue`
-  - add desktop `Libraries` nav button
-- `frontend/src/components/RootPathSidebarHeader.vue`
-  - replace raw path input with active library selector
+  - add responsive `Libraries` nav entry
+- `frontend/src/components/LibrarySidebarHeader.vue`
+  - rename/replace `RootPathSidebarHeader.vue`
+  - render registered-library selector for sidebar layouts
+- `frontend/src/components/LibrarySelectorSheet.vue` or `frontend/src/components/LibrarySheet.vue`
+  - rename/replace `RootPathSheet.vue`
+  - render registered-library selector and Add/Manage Library actions for compact layouts
 - `frontend/src/components/GallerySidebarContent.vue`
-  - keep header usage stable, update desktop empty copy from "Enter a root path" to registered library language
+  - mount `LibrarySidebarHeader.vue`
+  - update empty copy from "Enter a root path" to registered library language
 - `frontend/src/stores/gallery.ts`
-  - add active library id handling
-  - migrate legacy root path behavior
-  - keep existing gallery browsing behavior stable
+  - add active library id handling as the only persisted selection
+  - add `activeLibraryRootPath` as a derived getter/value from the libraries query/list
+  - rename/adapt `currentPath` to `currentBrowsePath`
+  - migrate legacy `gallery-root-path` once, then remove it from localStorage
+  - never write `gallery-root-path`
+  - avoid writable/persisted `rootPath`
+  - keep existing folder browsing behavior stable
 - `frontend/src/components/GalleryGrid.vue`
-  - update desktop no-path/not-loaded copy to registered library language where it is part of the registered-library flow
-  - error action for `library_not_registered` should route to admin on desktop, not just clear error
+  - update no-path/not-loaded copy to registered library language
+  - use `currentBrowsePath` for scan/search context
+  - replace `rootPath` readiness checks with active-library readiness
+  - error action for `library_not_registered` should route to library management or show Add/Manage Library CTA, not just clear error
+- `frontend/src/components/search/AdvancedSearchDrawer.vue`
+  - replace `galleryStore.rootPath` with `activeLibraryRootPath` for facet queries unless product scope changes facets to current-folder scope
 
 ## 6. Routing
 
@@ -622,18 +760,18 @@ const loadLibraryDetailPage = () => import("@/components/admin/LibraryDetailPage
   path: "/admin/libraries",
   name: "admin-libraries",
   component: loadLibraryListPage,
-  meta: { desktopOnly: true },
 },
 {
   path: "/admin/libraries/:id",
   name: "admin-library-detail",
   component: loadLibraryDetailPage,
   props: (route) => ({ id: Number(route.params.id) }),
-  meta: { desktopOnly: true },
 },
 ```
 
 Keep wildcard redirect last.
+
+Tablet and mobile users get the same `/admin/libraries` route with responsive layout; the page itself owns responsive layout.
 
 Optional helper:
 
@@ -705,7 +843,7 @@ repairLibrary(id)
   invalidate libraryProgress(id)
   invalidate library(id)
   invalidate librariesRoot
-  invalidate scan/search/facets for root path if known
+  invalidate scan/search/facets for the library root path if known from the library record
   show added/removed/modified counts
 ```
 
@@ -724,12 +862,53 @@ Active library selection:
 ```text
 setActiveLibrary(library)
   activeLibraryId = library.id
-  rootPath = library.root_path
-  currentPath = library.root_path
+  persist gallery-active-library-id
+  activeLibraryRootPath is derived from activeLibraryId + libraries query/list
+  currentBrowsePath = library.root_path
   reset history to root
   clear search
-  persist active id
   fetch scan for root
+```
+
+Legacy migration:
+
+```text
+hydrateActiveLibrary(libraries)
+  persistedId = read gallery-active-library-id
+  if persistedId matches libraries:
+    set activeLibraryId
+    currentBrowsePath = matched.root_path
+    remove gallery-root-path if present
+    return
+
+  legacyPath = read gallery-root-path once
+  if legacyPath matches or is inside one or more libraries:
+    library = most specific matching library root
+    set activeLibraryId
+    persist gallery-active-library-id
+    currentBrowsePath = legacyPath if inside library.root_path else library.root_path
+    remove gallery-root-path
+    return
+
+  remove gallery-root-path if present
+  if libraries.length === 1:
+    setActiveLibrary(libraries[0])
+  else:
+    clearActiveLibrary()
+```
+
+Viewer APIs after selection:
+
+```text
+GalleryGrid
+  useInfiniteScanQuery(currentBrowsePath)
+  useUnifiedSearchQuery(searchQuery, searchScope, currentBrowsePath)
+
+FolderTreeItem
+  useFolderChildrenQuery(node.path)
+
+PhotoCard / Lightbox / metadata
+  use image.path returned by scan/search
 ```
 
 ## 8. Error Handling
@@ -759,8 +938,8 @@ Page errors:
 
 Main gallery errors:
 
-- `library_not_registered` should guide desktop users to `/admin/libraries`
-- mobile/tablet should keep existing legacy behavior for this phase and must not add admin entry points
+- `library_not_registered` should guide users to `/admin/libraries` or surface an Add/Manage Library CTA on every breakpoint.
+- Do not fall back to arbitrary root-path entry on mobile/tablet.
 
 ## 9. Testing Plan
 
@@ -773,8 +952,13 @@ Add or update tests for:
 - `gallery` store active library selection:
   - selects persisted id
   - falls back from legacy `gallery-root-path`
+  - removes `gallery-root-path` after migration success
+  - removes unusable legacy `gallery-root-path` after no library match
+  - initializes `currentBrowsePath` from a migrated subfolder only when it is inside the selected library
+  - does not persist `activeLibraryRootPath` or `currentBrowsePath`
   - clears active library when deleted
   - keeps folder navigation unchanged
+  - does not expose a writable `rootPath` in the registered-library flow
 
 ### 9.2 Component tests
 
@@ -783,6 +967,8 @@ Use focused component tests where low-friction:
 - `LibraryStatusBadge` renders expected labels.
 - `LibraryCreateDialog` validates empty/non-absolute paths and preserves input on API error.
 - `LibraryDeleteConfirmDialog` sends confirm event and states source files are not deleted.
+- `LibrarySidebarHeader` renders registered libraries and does not render arbitrary root-path input.
+- `LibrarySelectorSheet` or `LibrarySheet` renders registered libraries on compact layouts, can select a library, and does not render the legacy root-path textarea.
 
 ### 9.3 E2E tests
 
@@ -792,16 +978,19 @@ Mock `/api/**` with Playwright, similar to existing inspector tests.
 
 Scenarios:
 
-1. Desktop route renders list:
+1. Responsive route renders list:
    - loading skeleton
-   - populated table
+   - populated desktop table
+   - populated tablet/mobile card list
    - empty state
    - API error state with retry
-2. Register library:
-   - open dialog
+   - tablet/mobile viewport stays on `/admin/libraries` and renders the responsive surface
+2. Add Library flow:
+   - open dialog on desktop
+   - open sheet or compact modal on tablet/mobile
    - validation blocks empty path
    - successful create calls `/api/libraries`
-   - `Register and Scan` calls scan endpoint after create
+   - `Add and Scan` calls scan endpoint after create
 3. Detail page:
    - loads library and progress
    - scan button calls scan endpoint
@@ -813,9 +1002,15 @@ Scenarios:
    - source files not deleted copy is visible
 5. Active library:
    - selecting a library in sidebar drives `/api/scan?path={root_path}`
-   - arbitrary path input is not present on desktop
-6. Desktop-only:
-   - mobile/tablet viewport redirects `/admin/libraries` to `/`
+   - selecting a library in mobile/tablet sheet drives `/api/scan?path={root_path}`
+   - arbitrary path input or textarea is not present on desktop, tablet, or mobile
+   - persisted `gallery-active-library-id` survives reload
+   - legacy `gallery-root-path` migrates to `gallery-active-library-id` and is removed
+   - legacy subfolder path inside a registered library initializes `currentBrowsePath`
+   - no duplicate persisted source of truth remains after hydration
+6. Admin availability:
+   - mobile/tablet viewport stays on `/admin/libraries` and renders the responsive surface
+   - Add Library, Use in Gallery, Scan, Repair, and Unregister flows are available on compact layouts
 
 ### 9.4 Verification commands
 
@@ -835,6 +1030,29 @@ pnpm exec playwright test tests/e2e/gallery-no-reload.spec.ts --project=chromium
 pnpm exec playwright test tests/e2e/library-inspector.spec.ts --project=chromium
 ```
 
+### 9.5 Risks and regressions
+
+State model risks:
+
+- Accidentally keeping both `gallery-active-library-id` and `gallery-root-path` as durable selection sources would reintroduce ambiguous startup behavior. The migration must remove the legacy key.
+- A writable `rootPath` alias would let new code bypass active library selection. Avoid it, or keep any temporary alias read-only and derived.
+- Hydration can race the initial scan if `App.vue` still calls the old `setRootPath()` startup path. Startup should wait for active-library hydration before triggering the first scan on any breakpoint.
+- If `activeLibraryId` points to a deleted or unavailable library, the store must clear or choose a deterministic fallback rather than leaving stale `currentBrowsePath`.
+
+Viewer regressions:
+
+- `GalleryGrid` empty/loading states currently check both `currentPath` and `rootPath`; those checks must move to active-library readiness or the gallery may show the wrong empty state.
+- Search and scan cache keys remain path-based. Changing them to library-id-based in v1 would risk unnecessary cache churn and lightbox/search regressions.
+- `AdvancedSearchDrawer` currently uses `rootPath` for facets; choosing `activeLibraryRootPath` preserves library-level facet suggestions, while choosing `currentBrowsePath` would narrow behavior.
+- Legacy subfolder migration must choose the most specific matching library when registered roots overlap, although backend registration should generally prevent overlap.
+
+Compatibility risks:
+
+- Replacing `RootPathSheet.vue` means compact layouts need the same active-library hydration and empty states as desktop. Do not leave a hidden textarea/root-path branch behind.
+- Existing Playwright fixtures that seed `gallery-root-path` will fail after migration unless they mock `/api/libraries` and assert one-shot migration/removal.
+- Removing `gallery-root-path` too early, before libraries are fetched, could lose a valid migration hint. Read it during hydration, then remove it after match/no-match is known.
+- Responsive admin layout can regress table/card parity. Keep row actions, Add Library, scan/repair, and unregister available on both desktop and compact cards.
+
 ## 10. Implementation Phases
 
 ### Phase 0 - Contract lock and small design cleanup
@@ -846,7 +1064,13 @@ Steps:
 1. Confirm backend endpoint shapes from code/tests.
 2. Decide v1 excludes rename/import paths/exclusion patterns.
 3. Add final type names and query key names.
-4. Identify all root-path copy that must change to registered-library copy.
+4. Lock the clean state model:
+   - persisted `activeLibraryId`
+   - derived `activeLibraryRootPath`
+   - in-memory `currentBrowsePath`
+   - no persisted/writable `rootPath`
+5. Identify all root-path copy that must change to registered-library copy.
+6. Identify all `rootPath` and `currentPath` store call sites that need rename/adaptation.
 
 Risk: implementing old Immich-like import path/exclusion UI would create dead controls because backend has no API for it.
 
@@ -876,7 +1100,7 @@ Steps:
 
 ### Phase 2 - Admin routes and list page
 
-Deliverable: `/admin/libraries` works on desktop with list, empty, loading, error, and row actions.
+Deliverable: `/admin/libraries` works responsively with list, empty, loading, error, and row actions.
 
 Files:
 
@@ -891,11 +1115,12 @@ Files:
 Steps:
 
 1. Add lazy routes.
-2. Add desktop-only redirect in `App.vue`.
-3. Add `Libraries` header nav.
-4. Build list table and states.
-5. Build create dialog.
-6. Wire create, scan, repair row actions.
+2. Suppress intro on admin routes without redirecting compact breakpoints.
+3. Add responsive `Libraries` header/nav entry.
+4. Build desktop table and states.
+5. Build tablet/mobile card list and states.
+6. Build Add Library dialog/sheet.
+7. Wire create, scan, repair row actions on table and cards.
 
 ### Phase 3 - Detail page and unregister flow
 
@@ -924,20 +1149,27 @@ Deliverable: main viewer uses selected registered library instead of arbitrary r
 Files:
 
 - `frontend/src/stores/gallery.ts`
-- `frontend/src/components/RootPathSidebarHeader.vue`
+- `frontend/src/components/LibrarySidebarHeader.vue`
+- `frontend/src/components/LibrarySelectorSheet.vue` or `frontend/src/components/LibrarySheet.vue`
 - `frontend/src/components/GallerySidebarContent.vue`
 - `frontend/src/components/GalleryGrid.vue`
 - `frontend/src/App.vue`
+- `frontend/src/components/search/AdvancedSearchDrawer.vue`
 
 Steps:
 
-1. Add `activeLibraryId` state and persistence.
-2. Add `hydrateActiveLibrary()` startup action.
-3. Convert root path header to library selector.
-4. Update no-library empty copy.
-5. Update `library_not_registered` action to route users to admin on desktop.
-6. Ensure folder navigation inside selected library still works.
-7. Ensure search scope/current path behavior is unchanged after selection.
+1. Add `activeLibraryId` state and persistence under `gallery-active-library-id`.
+2. Add `activeLibraryRootPath` as a derived getter/value from the libraries query/list.
+3. Rename/adapt writable browse state from `currentPath` to `currentBrowsePath`.
+4. Add `hydrateActiveLibrary()` startup action with one-shot `gallery-root-path` migration and removal.
+5. Convert `RootPathSidebarHeader.vue` into `LibrarySidebarHeader.vue`.
+6. Convert `RootPathSheet.vue` into `LibrarySelectorSheet.vue` or `LibrarySheet.vue`.
+7. Update no-library empty copy and Add/Manage Library CTAs on all breakpoints.
+8. Update `library_not_registered` action to route users to admin or show Add/Manage Library CTA.
+9. Replace `GalleryGrid` `rootPath` gating with active-library readiness.
+10. Replace advanced-search facets path with `activeLibraryRootPath`.
+11. Ensure folder navigation inside selected library still works.
+12. Ensure search scope/current browse path behavior is unchanged after selection.
 
 ### Phase 5 - Tests and polish
 
@@ -953,23 +1185,28 @@ Steps:
    - icon-only actions have labels/tooltips
    - table actions keyboard accessible
 5. Verify dark mode with existing tokens.
-6. Verify route redirects on mobile/tablet.
+6. Verify `/admin/libraries` renders on mobile/tablet and the Add Library flow is available.
 
 ## 11. Acceptance Criteria
 
 The implementation is complete when:
 
-1. Desktop users can open `/admin/libraries`.
-2. Desktop users can register a library folder.
-3. Desktop users can scan/rescan a registered library.
-4. Desktop users can repair a registered library catalog.
-5. Desktop users can see library state, progress, and last errors.
-6. Desktop users can unregister a library with clear source-file-safe confirmation.
-7. The main gallery no longer asks for arbitrary root path entry on desktop.
-8. The main gallery loads the selected registered library root.
-9. Existing viewer-first gallery browsing remains visually and behaviorally stable.
-10. Mobile/tablet users cannot access the admin pages.
-11. Tests and typecheck pass for the touched frontend surface.
+1. Users can open `/admin/libraries` on desktop, tablet, and mobile.
+2. Desktop renders the library list as a table; tablet/mobile render a card list.
+3. Users can add a library folder on every breakpoint through the Add Library dialog/sheet.
+4. Users can scan/rescan a registered library on desktop, tablet, and mobile.
+5. Users can repair a registered library catalog on desktop, tablet, and mobile.
+6. Users can see library state, progress, and last errors on desktop, tablet, and mobile.
+7. Users can unregister a library with clear source-file-safe confirmation on desktop, tablet, and mobile.
+8. The main gallery no longer shows arbitrary root path input or textarea as primary UX on desktop, tablet, or mobile.
+9. All breakpoints can select a registered library.
+10. The no-library gallery state shows Add Library and/or Manage Libraries CTA.
+11. The main gallery loads the selected registered library root and browses folders via `currentBrowsePath`.
+12. Grid, lightbox, and search remain path-based and library-id unaware.
+13. Existing viewer-first gallery browsing remains visually and behaviorally stable.
+14. Selection persists only `gallery-active-library-id`; `gallery-root-path` is read once for migration, removed afterward, and never written again.
+15. Registered-library code does not keep writable/persisted `rootPath` as a competing source of truth.
+16. Tests and typecheck pass for the touched frontend surface.
 
 ## 12. Future Extensions
 
