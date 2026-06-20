@@ -1,8 +1,8 @@
 # Codex Library Management Implementation Status
 
-Last updated: 2026-06-20 (Phase 7 complete)  
-Current milestone: Phase 7 complete
-Next milestone: Phase 8 — final verification and polish
+Last updated: 2026-06-20 (Phase 8 complete)
+Current milestone: Phase 8 complete — full implementation verified
+Next milestone: None in the V1 implementation plan
 SQLite schema version currently implemented: `PRAGMA user_version = 8`
 
 ## Verified Git Baseline
@@ -60,7 +60,9 @@ unregister registered libraries with:
 Phase 1-3 provide the backend, Phase 4 adds the frontend library-management
 data layer, Phase 5 adds the admin management UI, Phase 6 completes the
 active-library selector (`activeLibraryId` / `currentBrowsePath`), and Phase 7
-adds mixed-media gallery UI. The admin
+adds mixed-media gallery UI. Phase 8 adds the responsive library-management
+E2E suite, fixes compact admin sidebar state, and verifies the complete V1
+surface. The admin
 can register/edit/scan/repair/unregister libraries through
 `/admin/libraries` and `/admin/libraries/:id`, and the gallery now operates
 against a registered active library instead of arbitrary root-path entry.
@@ -94,9 +96,11 @@ Implemented now:
   mixed-media gallery UI: VideoCard, VideoPlayerDialog, media rendering
     in GalleryGrid, video poster/play affordance/fallback, backend
     scan/search videos/media fields, e2e coverage
+  final verification: backend, frontend static/unit checks, targeted
+    library-management/mixed-media E2E, and viewer regressions
 
 Not implemented yet:
-  final verification and polish (Phase 8)
+  none from the V1 implementation phases
 ```
 
 ## 2. Phase Progress
@@ -110,12 +114,12 @@ Not implemented yet:
 | 4. Frontend data layer | Complete | Library types/API, query keys/composables, mutations, SSE invalidation, status utilities | Phase 5 builds on this layer |
 | 5. Admin management UI | Complete | `/admin/libraries` + `/admin/libraries/:id` routes; `LibraryListPage`, `LibraryDetailPage`, `LibraryForm`, create/edit/delete dialogs, `LibraryStatusBadge`, `LibraryProgressBar`, `LibrarySummaryPanel`, `LibraryActionMenu`; AppHeader "Libraries" entry; desktop/tablet/mobile route render via `RouterView` | Phase 6 builds on this layer |
 | 6. Active library selection | Complete | activeLibraryId/currentBrowsePath store model, LibrarySidebarHeader, LibrarySelectorSheet, one-shot legacy migration, no {rootPath,setRootPath,resetRootPath} | Phase 7 builds on this layer |
-| 7. Mixed-media UI | Complete | VideoCard, VideoPlayerDialog, mixed-media rendering in GalleryGrid, video poster/play affordance/fallback, backend videos/media fields in scan/search | Phase 8 builds on this layer |
-| 8. Final verification | Not started | Run full backend + frontend + E2E regression | Run after all feature phases |
+| 7. Mixed-media UI | Complete | VideoCard, VideoPlayerDialog, mixed-media rendering in GalleryGrid, video poster/play affordance/fallback, backend videos/media fields in scan/search | Phase 8 verification complete |
+| 8. Final verification | Complete | 630 backend tests, 392 frontend unit tests, 44 targeted E2E tests, static checks, compact-admin sidebar fix | V1 implementation complete |
 
-Overall plan completion is not “2/9 of functionality.” Phase 0 is a design
-gate, and Phase 1 is only the backend foundation. User-visible library
-management is still absent.
+All V1 implementation phases are complete. Future work should use the
+extensions in section 13 of the implementation plan as new scope rather than
+reopening a completed phase.
 
 ## 3. Phase 1 Implementation Snapshot
 
@@ -473,6 +477,70 @@ is registered or a folder is dropped in. This policy is locked by
 
 ## 5. Verification Evidence
 
+Latest Phase 8 verification:
+
+```text
+Backend full suite: 630 passed, 48 warnings
+Backend Ruff check + format check: passed
+Frontend source lint + test lint: passed
+Frontend typecheck + Prettier check + UI token check: passed
+Frontend unit suite: 26 files, 392 tests passed
+Targeted Playwright suite: 44 tests passed on Chromium
+git diff --check: passed
+```
+
+The targeted Playwright total covers:
+
+- `library-management.spec.ts` (5 tests);
+- `mixed-media-gallery.spec.ts` (1 test);
+- `active-library-selection.spec.ts` (3 tests);
+- `gallery-no-reload.spec.ts` (4 tests);
+- `library-inspector.spec.ts` (5 tests);
+- `advanced-search-drawer.spec.ts` (8 tests);
+- `search-fielded-ui.spec.ts` (6 tests);
+- `responsive-breakpoints.spec.ts` (12 tests).
+
+The E2E suite is intentionally run with one worker in this environment. A
+two-worker run concurrent with the backend suite exhausted the Vite dev server
+and produced connection-refused infrastructure failures; the isolated
+one-worker runs completed with all 44 tests passing.
+
+Phase 8 found and fixed one responsive defect: the persisted desktop sidebar
+open state could open the off-canvas sidebar over compact admin routes and
+intercept management actions. `App.vue` now closes that sidebar whenever a
+mobile/tablet library-admin route is active. The new library-management E2E
+coverage verifies responsive list/card rendering, empty/error states,
+create-and-scan, detail actions, edit, repair, unregister confirmation,
+scan-all, and use-in-gallery selection.
+
+Commands used:
+
+```bash
+backend/.venv_linux/bin/ruff check backend
+backend/.venv_linux/bin/ruff format --check backend
+GALLERY_METADATA_DB=/tmp/gallery-phase8-verification.db \
+  backend/.venv_linux/bin/python -m pytest backend/tests -q
+
+cd frontend
+corepack pnpm lint
+corepack pnpm lint:tests
+corepack pnpm typecheck
+corepack pnpm format:check
+corepack pnpm check:ui-tokens
+corepack pnpm test:unit
+corepack pnpm exec playwright test \
+  tests/e2e/library-management.spec.ts \
+  tests/e2e/mixed-media-gallery.spec.ts \
+  tests/e2e/active-library-selection.spec.ts \
+  tests/e2e/gallery-no-reload.spec.ts \
+  tests/e2e/library-inspector.spec.ts \
+  tests/e2e/advanced-search-drawer.spec.ts \
+  tests/e2e/search-fielded-ui.spec.ts \
+  tests/e2e/responsive-breakpoints.spec.ts \
+  --project=chromium --workers=1
+git diff --check
+```
+
 Latest Phase 1 verification:
 
 ```text
@@ -503,9 +571,9 @@ real cache/database contents from affecting test cleanup or stale-index scans.
 No frontend command was required for Phase 1 because frontend source code was
 not changed.
 
-## 6. Current Known Gaps and Temporary Behavior
+## 6. Resolved Gaps and Remaining Constraints
 
-These are expected incomplete areas, not hidden deliverables:
+All planned frontend gaps below are resolved:
 
 1. ~~Frontend types/API/query keys/composables for library management do not
    exist.~~ Implemented in Phase 4.
@@ -526,8 +594,10 @@ These are expected incomplete areas, not hidden deliverables:
 6. ~~Existing frontend error mapping does not yet include all new Phase 1/2/3
    typed errors.~~ `library_busy` is now mapped in `LIBRARY_ERRORS`.
 
-Do not "fix" these piecemeal outside their planned phases. Follow the
-phase boundaries unless a change is required for the next phase's contract.
+Remaining constraints are documented architecture boundaries rather than
+incomplete V1 deliverables: SSE/job coordination is single-process, native
+video support depends optionally on `ffmpeg`/`ffprobe`, and legacy Sass
+`@import` deprecation warnings remain outside library-management scope.
 
 ## 7. Phase 2 Starting Point
 
@@ -607,7 +677,7 @@ The project should currently be described as:
 > libraries with exclusion patterns and editable CRUD. Durable jobs, stats,
 > scan-all, and SSE are implemented. Video assets are indexed with ffprobe
 > metadata, streamed via HTTP Range, and served with cached ffmpeg posters.
-> The database is at v8 and Phases 0-6 are verified. The admin can register,
+> The database is at v8 and Phases 0-8 are complete and verified. The admin can register,
 > edit, scan, repair, and unregister libraries through `/admin/libraries` and
 > `/admin/libraries/:id` on desktop, tablet, and mobile. Phase 6 introduced
 > `activeLibraryId` / `currentBrowsePath`; the gallery no longer exposes
@@ -615,6 +685,6 @@ The project should currently be described as:
 > VideoCard, VideoPlayerDialog, and media rendering in GalleryGrid.
 > The viewer remains image-only on the existing PhotoSwipe path; videos open
 > in a native `<video>` player dialog backed by `/api/video`.
->
-> Do not describe the full Library Management feature as complete or
-> frontend-ready. Phase 8 — final verification and polish — remains.
+> Phase 8 added responsive library-management E2E coverage, fixed compact
+> admin sidebar state, and completed backend/frontend/E2E regression
+> verification. The V1 Library Management implementation is complete.
