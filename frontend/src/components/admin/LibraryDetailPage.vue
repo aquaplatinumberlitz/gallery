@@ -106,12 +106,13 @@ function jobProgress(current: number, total: number | null): string {
             </p>
           </div>
           <div class="flex flex-wrap gap-2">
-            <Button variant="outline" @click="useInGallery"><Images /> Use in gallery</Button
-            ><Button variant="outline" @click="editOpen = true"><Pencil /> Edit</Button
-            ><Button variant="outline" :disabled="busy" @click="scanMutation.mutate(library.id)"><Play /> Scan</Button
-            ><Button variant="outline" :disabled="busy" @click="repairMutation.mutate(library.id)">
-              <Wrench /> Repair </Button
-            ><Button variant="destructive" @click="deleteOpen = true"><Trash2 /> Unregister</Button>
+            <Button variant="outline" @click="useInGallery"> <Images /> Use in gallery </Button>
+            <Button variant="outline" @click="editOpen = true"> <Pencil /> Edit </Button>
+            <Button variant="outline" :disabled="busy" @click="scanMutation.mutate(library.id)"> <Play /> Scan </Button>
+            <Button variant="outline" :disabled="busy" @click="repairMutation.mutate(library.id)">
+              <Wrench /> Repair
+            </Button>
+            <Button variant="destructive" @click="deleteOpen = true"> <Trash2 /> Unregister </Button>
           </div>
         </header>
 
