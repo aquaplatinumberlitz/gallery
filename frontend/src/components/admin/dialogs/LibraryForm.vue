@@ -161,10 +161,9 @@ async function submit(scanAfterCreate = false) {
           :disabled="index === 0"
           aria-label="Move path up"
           @click="movePath(index, -1)"
-          >
-<ArrowUp
-        />
-</Button>
+        >
+          <ArrowUp />
+        </Button>
         <Button
           type="button"
           variant="ghost"
@@ -172,10 +171,9 @@ async function submit(scanAfterCreate = false) {
           :disabled="index === importPaths.length - 1"
           aria-label="Move path down"
           @click="movePath(index, 1)"
-          >
-<ArrowDown
-        />
-</Button>
+        >
+          <ArrowDown />
+        </Button>
         <Button
           type="button"
           variant="ghost"
@@ -183,10 +181,9 @@ async function submit(scanAfterCreate = false) {
           :disabled="importPaths.length === 1"
           aria-label="Remove path"
           @click="removePath(index)"
-          >
-<Trash2
-        />
-</Button>
+        >
+          <Trash2 />
+        </Button>
       </div>
     </fieldset>
 
@@ -204,10 +201,9 @@ async function submit(scanAfterCreate = false) {
           size="icon"
           aria-label="Remove pattern"
           @click="exclusionPatterns.splice(index, 1)"
-          >
-<Trash2
-        />
-</Button>
+        >
+          <Trash2 />
+        </Button>
       </div>
     </fieldset>
 
@@ -241,10 +237,8 @@ async function submit(scanAfterCreate = false) {
         {{ submitAndScan && pending ? "Adding…" : "Add and scan" }}
       </Button>
       <Button type="submit" :disabled="pending">
-{{
-        pending ? "Saving…" : library ? "Save changes" : "Add library"
-      }}
-</Button>
+        {{ pending ? "Saving…" : library ? "Save changes" : "Add library" }}
+      </Button>
     </div>
   </form>
 </template>

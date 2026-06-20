@@ -109,10 +109,8 @@ function jobProgress(current: number, total: number | null): string {
             <Button variant="outline" @click="useInGallery"><Images /> Use in gallery</Button
             ><Button variant="outline" @click="editOpen = true"><Pencil /> Edit</Button
             ><Button variant="outline" :disabled="busy" @click="scanMutation.mutate(library.id)"><Play /> Scan</Button
-            ><Button variant="outline" :disabled="busy" @click="repairMutation.mutate(library.id)"
-              >
-<Wrench /> Repair
-</Button
+            ><Button variant="outline" :disabled="busy" @click="repairMutation.mutate(library.id)">
+              <Wrench /> Repair </Button
             ><Button variant="destructive" @click="deleteOpen = true"><Trash2 /> Unregister</Button>
           </div>
         </header>
@@ -131,11 +129,9 @@ function jobProgress(current: number, total: number | null): string {
           <section class="rounded-md border bg-background p-5">
             <div class="flex items-center justify-between gap-3">
               <h3 class="font-semibold">Status and progress</h3>
-              <Button variant="ghost" size="icon" aria-label="Refresh progress" @click="progressQuery.refetch()"
-                >
-<RefreshCw
-              />
-</Button>
+              <Button variant="ghost" size="icon" aria-label="Refresh progress" @click="progressQuery.refetch()">
+                <RefreshCw />
+              </Button>
             </div>
             <div class="mt-5"><LibraryProgressBar :progress="progressQuery.data.value" /></div>
             <p v-if="progressQuery.data.value" class="mt-3 text-xs text-muted-foreground">
@@ -184,11 +180,9 @@ function jobProgress(current: number, total: number | null): string {
                 class="flex items-center gap-2 rounded-md border p-3"
               >
                 <span class="min-w-0 flex-1 truncate font-mono text-xs" :title="path.path">{{ path.path }}</span
-                ><Button variant="ghost" size="icon" aria-label="Copy import path" @click="copyPath(path.path)"
-                  >
-<Copy
-                />
-</Button>
+                ><Button variant="ghost" size="icon" aria-label="Copy import path" @click="copyPath(path.path)">
+                  <Copy />
+                </Button>
               </div>
             </div>
           </section>
@@ -213,11 +207,9 @@ function jobProgress(current: number, total: number | null): string {
         <section class="rounded-md border bg-background p-5">
           <div class="flex items-center justify-between">
             <h3 class="font-semibold">Recent job history</h3>
-            <Button variant="ghost" size="icon" aria-label="Refresh jobs" @click="jobsQuery.refetch()"
-              >
-<RefreshCw
-            />
-</Button>
+            <Button variant="ghost" size="icon" aria-label="Refresh jobs" @click="jobsQuery.refetch()">
+              <RefreshCw />
+            </Button>
           </div>
           <div v-if="jobsQuery.data.value?.length" class="mt-4 divide-y">
             <div

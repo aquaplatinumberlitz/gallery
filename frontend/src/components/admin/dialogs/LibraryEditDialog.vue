@@ -12,11 +12,9 @@ const emit = defineEmits<{ "update:open": [value: boolean]; updated: [library: R
     <DialogScrollContent class="max-h-[95svh] max-w-2xl overflow-y-auto">
       <DialogHeader>
         <DialogTitle>Edit {{ library?.name }}</DialogTitle>
-        <DialogDescription
-          >
-Changes to paths and exclusions reconcile the catalog without deleting source files.
-</DialogDescription
-        >
+        <DialogDescription>
+          Changes to paths and exclusions reconcile the catalog without deleting source files.
+        </DialogDescription>
       </DialogHeader>
       <LibraryForm
         v-if="library"

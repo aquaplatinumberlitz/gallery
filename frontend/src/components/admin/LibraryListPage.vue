@@ -137,22 +137,17 @@ function created(library: RegisteredLibrary) {
       <template v-else>
         <div class="hidden overflow-hidden rounded-md border lg:block">
           <Table>
-            <TableHeader
-              >
-<TableRow
-                >
-<TableHead>Library</TableHead><TableHead>Import paths</TableHead><TableHead>Status</TableHead
+            <TableHeader>
+              <TableRow>
+                <TableHead>Library</TableHead><TableHead>Import paths</TableHead><TableHead>Status</TableHead
                 ><TableHead>Assets / Stats</TableHead><TableHead>Last scan</TableHead><TableHead>Updated</TableHead
                 ><TableHead class="w-14"><span class="sr-only">Actions</span></TableHead>
-</TableRow
-              >
-</TableHeader
-            >
+              </TableRow>
+            </TableHeader>
             <TableBody>
               <TableRow v-for="library in libraries" :key="library.id">
-                <TableCell
-                  >
-<button
+                <TableCell>
+                  <button
                     class="text-left font-medium hover:underline"
                     @click="router.push(`/admin/libraries/${library.id}`)"
                   >
@@ -165,11 +160,9 @@ function created(library: RegisteredLibrary) {
                   >
                     <AlertTriangle class="size-3" /> Last scan failed
                   </div>
-</TableCell
-                >
-                <TableCell
-                  >
-<div class="max-w-72 space-y-1">
+                </TableCell>
+                <TableCell>
+                  <div class="max-w-72 space-y-1">
                     <p
                       v-for="path in library.import_paths.slice(0, 2)"
                       :key="path.id"
@@ -182,15 +175,13 @@ function created(library: RegisteredLibrary) {
                       +{{ library.import_paths.length - 2 }} paths
                     </p>
                   </div>
-</TableCell
-                >
+                </TableCell>
                 <TableCell><LibraryStatusBadge :library="library" /></TableCell>
                 <TableCell><LibrarySummaryPanel :library-id="library.id" /></TableCell>
                 <TableCell class="text-sm">{{ formatLibraryTimestamp(library.last_scan_at) }}</TableCell>
                 <TableCell class="text-sm">{{ formatLibraryTimestamp(library.updated_at) }}</TableCell>
-                <TableCell
-                  >
-<LibraryActionMenu
+                <TableCell>
+                  <LibraryActionMenu
                     :disabled="actionPending"
                     @view="router.push(`/admin/libraries/${library.id}`)"
                     @use="useInGallery(library)"
@@ -198,8 +189,8 @@ function created(library: RegisteredLibrary) {
                     @scan="scanMutation.mutate(library.id)"
                     @repair="repairMutation.mutate(library.id)"
                     @unregister="deleteLibrary = library"
-                />
-</TableCell>
+                  />
+                </TableCell>
               </TableRow>
             </TableBody>
           </Table>
