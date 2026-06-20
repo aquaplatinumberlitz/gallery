@@ -68,8 +68,8 @@ can register/edit/scan/repair/unregister libraries through
 against a registered active library instead of arbitrary root-path entry.
 The main viewer renders images on the existing PhotoSwipe flow and videos
 via a native `<video>` player dialog with poster thumbnails, play affordance,
-and fallback placeholders. The viewer remains image-only in search results
-for backward compatibility; video cards appear in browse mode.
+and fallback placeholders. Search results now include videos in a separate
+video section, while image results still use the existing PhotoSwipe path.
 
 > Note: Phase 6 replaced the legacy `galleryStore.setRootPath()` bridge with
 > an `activeLibraryId` (persisted) + `currentBrowsePath` (in-memory) model.
