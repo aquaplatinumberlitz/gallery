@@ -5,6 +5,26 @@ Current milestone: Phase 1 complete
 Next milestone: Phase 2 — backend jobs, stats, scan-all, and SSE  
 SQLite schema version currently implemented: `PRAGMA user_version = 6`
 
+## Verified Git Baseline
+
+Phase 0/1 implementation commit:
+
+```text
+e0fb89ef4479ea026848ce90b71f1eebff3c598c
+feat: implement library management phase 1
+```
+
+Future developers should compare their working branch against this commit before
+using the implementation details or verification counts in this document:
+
+```bash
+git merge-base --is-ancestor e0fb89ef4479ea026848ce90b71f1eebff3c598c HEAD
+git diff --stat e0fb89ef4479ea026848ce90b71f1eebff3c598c..HEAD
+```
+
+The commit containing this status annotation is documentation-only and comes
+immediately after the implementation baseline.
+
 This is the primary handoff document for the library-management work. Start
 here before changing code.
 
@@ -503,4 +523,3 @@ The project should currently be described as:
 
 Do not describe the full Library Management feature as complete or
 frontend-ready.
-
