@@ -1,8 +1,8 @@
 # Codex Library Management Implementation Status
 
 Last updated: 2026-06-20  
-Current milestone: Phase 4 complete
-Next milestone: Phase 5 — admin management UI
+Current milestone: Phase 5 complete
+Next milestone: Phase 6 — active library selection
 SQLite schema version currently implemented: `PRAGMA user_version = 8`
 
 ## Verified Git Baseline
@@ -57,10 +57,22 @@ unregister registered libraries with:
 - path lookup, viewer fallback, scanner, folder listing, search cleanup, and
   watcher behavior based on import paths.
 
-Phase 1-3 provide the backend, and Phase 4 adds the frontend library-management
-data layer. The visible frontend still uses the legacy arbitrary
-`gallery-root-path` state/UI. The admin UI, active-library selector, and
-mixed-media work do not exist yet.
+Phase 1-3 provide the backend, Phase 4 adds the frontend library-management
+data layer, and Phase 5 adds the admin management UI. The visible gallery
+surface still uses the legacy arbitrary `gallery-root-path` store state, but
+the admin can now register/edit/scan/repair/unregister libraries through
+`/admin/libraries` and `/admin/libraries/:id`. The active-library selector
+(`activeLibraryId` / `currentBrowsePath`) and mixed-media UI do not exist yet.
+
+> Note: Phase 5 admin UI uses a temporary legacy `galleryStore.setRootPath()`
+> bridge for the "Use in Gallery" action. Phase 6 must replace this with an
+> `activeLibraryId` (persisted) + `currentBrowsePath` (in-memory) model and
+> remove the arbitrary `gallery-root-path` UX after a one-shot migration.
+
+> Note: SSE fan-out is single-process; the subscriber registry in
+> `backend/library_events.py` enqueues to in-process `asyncio.Queue` instances
+> via `loop.call_soon_threadsafe`. Multi-process deployment would need a shared
+> pub/sub backbone (Redis pub/sub or Postgres `LISTEN/NOTIFY`).
 
 The most important boundary for the next developer:
 
@@ -70,9 +82,12 @@ Implemented now:
   SQLite v7 + library_jobs + stats + scan-all + SSE
   SQLite v8 + video metadata + streaming/posters
   frontend types + API services + query keys/composables + SSE invalidation
+  admin management UI: /admin/libraries list + /admin/libraries/:id detail
+    (LibraryListPage, LibraryDetailPage, LibraryForm, create/edit/delete
+    dialogs, status badges, progress bar, summary panel, action menu)
 
 Not implemented yet:
-  admin management UI, active-library state/UI, and mixed-media UI
+  active-library state/UI (activeLibraryId/currentBrowsePath) and mixed-media UI
 ```
 
 ## 2. Phase Progress
@@ -84,8 +99,8 @@ Not implemented yet:
 | 2. Jobs, stats, scan-all, SSE | Complete | library_jobs table, job tracking, scan-all, per-library/global stats, jobs endpoints, SSE events | Phase 3 builds on v7 |
 | 3. Video backend | Complete | v8 migration, ffprobe indexing, /api/video streaming, /api/video/poster | Phase 4 builds on v8 |
 | 4. Frontend data layer | Complete | Library types/API, query keys/composables, mutations, SSE invalidation, status utilities | Phase 5 builds on this layer |
-| 5. Admin management UI | Not started | No `/admin/libraries` routes/pages | Requires Phase 4 |
-| 6. Active library selection | Not started | Legacy root-path UI/store still active | Requires library query/data layer |
+| 5. Admin management UI | Complete | `/admin/libraries` + `/admin/libraries/:id` routes; `LibraryListPage`, `LibraryDetailPage`, `LibraryForm`, create/edit/delete dialogs, `LibraryStatusBadge`, `LibraryProgressBar`, `LibrarySummaryPanel`, `LibraryActionMenu`; AppHeader "Libraries" entry; desktop/tablet/mobile route render via `RouterView` | Phase 6 builds on this layer |
+| 6. Active library selection | Not started | Legacy `galleryStore.setRootPath()` bridge still active for "Use in Gallery" | Requires Phase 5 admin UI |
 | 7. Mixed-media UI | Not started | Viewer remains image-only | Requires Phase 3 and Phase 4 |
 | 8. Final verification | Not started | Phase 1 backend verification only | Run after all feature phases |
 
@@ -208,6 +223,19 @@ All target endpoints from Phase 2 and Phase 3 are now implemented.
 Static `/api/libraries/validate` is declared before the dynamic numeric library
 route. When adding `/api/libraries/scan-all`, keep it before
 `/api/libraries/{library_id}` as required by the contract.
+
+Admin UI routes (Phase 5):
+
+| Path | Component | Purpose |
+| --- | --- | --- |
+| `/admin/libraries` | `components/admin/LibraryListPage.vue` | List libraries, scan-all, add library, "Use in Gallery" action |
+| `/admin/libraries/:id` | `components/admin/LibraryDetailPage.vue` | Per-library stats/progress/jobs, edit/scan/repair/unregister |
+
+Both routes are lazy-loaded in `router/index.ts` and rendered via `RouterView`
+inside `DesktopLayout` / `TabletLayout` / `MobileLayout`. `AppHeader.vue`
+exposes a "Libraries" entry with hover/focus prefetch via
+`prefetchLibrariesRoute()`. `MobileLayout` hides the floating bottom bar on
+admin routes (`isAdminRoute`).
 
 ### 3.4 Create/update semantics
 
@@ -468,20 +496,26 @@ not changed.
 
 ## 6. Current Known Gaps and Temporary Behavior
 
-These are expected incomplete areas, not hidden Phase 1 deliverables:
+These are expected incomplete areas, not hidden deliverables:
 
-1. Frontend types/API/query keys/composables for library management do not
-   exist.
-2. `/admin/libraries` and `/admin/libraries/:id` do not exist.
-3. `frontend/src/stores/gallery.ts` still persists `gallery-root-path`.
+1. ~~Frontend types/API/query keys/composables for library management do not
+   exist.~~ Implemented in Phase 4.
+2. ~~`/admin/libraries` and `/admin/libraries/:id` do not exist.~~ Implemented
+   in Phase 5.
+3. `frontend/src/stores/gallery.ts` still persists `gallery-root-path`, and the
+   Phase 5 admin "Use in Gallery" action (`LibraryListPage.vue`,
+   `LibraryDetailPage.vue`) bridges through `galleryStore.setRootPath()` until
+   Phase 6 introduces `activeLibraryId` / `currentBrowsePath`.
 4. `RootPathSidebarHeader.vue` and `RootPathSheet.vue` still expose arbitrary
-    path entry.
-5. Mobile/tablet admin availability and registered-library selection are not
-    implemented.
-6. Existing frontend error mapping does not yet include all new Phase 1/2/3
-    typed errors.
+   path entry. These are scheduled for removal in Phase 6 after the
+   one-shot `gallery-root-path` → `activeLibraryId` migration.
+5. ~~Mobile/tablet admin availability and registered-library selection are not
+   implemented.~~ Admin routes now render on desktop/tablet/mobile via
+   `RouterView`; active-library selection is the Phase 6 deliverable.
+6. ~~Existing frontend error mapping does not yet include all new Phase 1/2/3
+   typed errors.~~ `library_busy` is now mapped in `LIBRARY_ERRORS`.
 
-Do not “fix” these piecemeal outside their planned phases. Follow the
+Do not "fix" these piecemeal outside their planned phases. Follow the
 phase boundaries unless a change is required for the next phase's contract.
 
 ## 7. Phase 2 Starting Point
@@ -562,8 +596,11 @@ The project should currently be described as:
 > libraries with exclusion patterns and editable CRUD. Durable jobs, stats,
 > scan-all, and SSE are implemented. Video assets are indexed with ffprobe
 > metadata, streamed via HTTP Range, and served with cached ffmpeg posters.
-> The database is at v8 and Phases 0-3 are verified. All frontend
-> library-management UI work remains to be implemented starting with Phase 5.
+> The database is at v8 and Phases 0-5 are verified. The admin can register,
+> edit, scan, repair, and unregister libraries through `/admin/libraries` and
+> `/admin/libraries/:id` on desktop, tablet, and mobile. The gallery surface
+> still uses a legacy `gallery-root-path` bridge for "Use in Gallery" until
+> Phase 6 introduces the `activeLibraryId` / `currentBrowsePath` model.
 
 Do not describe the full Library Management feature as complete or
-frontend-ready.
+frontend-ready. Active-library selection and mixed-media UI remain.

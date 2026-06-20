@@ -16,6 +16,7 @@ import type {
   LibraryValidationResult,
   MetadataResponse,
   RegisteredLibrary,
+  ScanAllLibrariesResponse,
   ScanResponse,
   SearchScope,
   SortValue,
@@ -32,6 +33,7 @@ export const LIBRARY_ERRORS = {
   library_overlap: "This folder overlaps with an existing library",
   library_offline: "Library root is offline or unavailable",
   library_error: "Library scan failed",
+  library_busy: "Library is currently busy",
 } as const;
 
 export type LibraryErrorType = keyof typeof LIBRARY_ERRORS;
@@ -513,9 +515,9 @@ export const scanLibrary = async (id: number): Promise<LibraryScanResponse> => {
   }
 };
 
-export const scanAllLibraries = async (): Promise<{ job_id: number; state: string }> => {
+export const scanAllLibraries = async (): Promise<ScanAllLibrariesResponse> => {
   try {
-    const { data } = await api.post<{ job_id: number; state: string }>("/api/libraries/scan-all");
+    const { data } = await api.post<ScanAllLibrariesResponse>("/api/libraries/scan-all");
     return data;
   } catch (error) {
     if (error instanceof AxiosError) throw GalleryAPIError.fromAxiosError(error);
@@ -546,3 +548,5 @@ export const getVideoUrl = (path: string): string => `${API_BASE}/api/video?path
 
 export const getVideoPosterUrl = (path: string): string =>
   `${API_BASE}/api/video/poster?path=${encodeURIComponent(path)}`;
+
+export const getLibraryEventsUrl = (): string => `${API_BASE}/api/events`;

@@ -41,7 +41,8 @@ export type LibraryErrorCode =
   | "library_discovering"
   | "library_overlap"
   | "library_offline"
-  | "library_error";
+  | "library_error"
+  | "library_busy";
 
 export interface FolderTreeNode extends Omit<FileNode, "type" | "children"> {
   type: "folder";
@@ -388,6 +389,13 @@ export interface LibraryScanResponse {
   library_id: number;
   job_id: number;
   state: string;
+}
+
+export interface ScanAllLibrariesResponse {
+  job_id: number;
+  state: string;
+  count: number;
+  child_job_ids: number[];
 }
 
 export interface LibraryRepairResponse {

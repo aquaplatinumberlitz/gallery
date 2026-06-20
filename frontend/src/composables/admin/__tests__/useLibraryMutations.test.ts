@@ -56,7 +56,7 @@ beforeEach(() => {
   vi.mocked(createLibrary).mockResolvedValue({ id: 3 } as Awaited<ReturnType<typeof createLibrary>>);
   vi.mocked(updateLibrary).mockResolvedValue({ id: 3 } as Awaited<ReturnType<typeof updateLibrary>>);
   vi.mocked(scanLibrary).mockResolvedValue({ library_id: 3, job_id: 8, state: "queued" });
-  vi.mocked(scanAllLibraries).mockResolvedValue({ job_id: 9, state: "queued" });
+  vi.mocked(scanAllLibraries).mockResolvedValue({ job_id: 9, state: "queued", count: 0, child_job_ids: [] });
   vi.mocked(repairLibrary).mockResolvedValue({ library_id: 3, added: 1, removed: 0, modified: 0 });
   vi.mocked(deleteLibrary).mockResolvedValue();
 });

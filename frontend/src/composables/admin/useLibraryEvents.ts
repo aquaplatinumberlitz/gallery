@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/vue-query";
 import { computed, onMounted, onUnmounted, ref, shallowRef } from "vue";
+import { getLibraryEventsUrl } from "@/services/api";
 import { queryKeys } from "@/query/keys";
 import type { LibraryJobState, LibraryState } from "@/types";
 
@@ -67,7 +68,7 @@ export function useLibraryEvents() {
     }
 
     connectionState.value = "connecting";
-    const eventSource = new EventSource("/api/events");
+    const eventSource = new EventSource(getLibraryEventsUrl());
     source.value = eventSource;
     eventSource.onopen = () => {
       connectionState.value = "connected";
