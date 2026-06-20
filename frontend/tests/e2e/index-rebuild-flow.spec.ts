@@ -17,19 +17,34 @@ import type { Page } from "@playwright/test";
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
 const testRoot = process.env.PATH_SAFETY_ROOT_PATH ?? "/home/ubuntu/gallery-repo/test-images";
 const stubRoot = "/mocked-inspector-notice-test";
+const stubLibrary = {
+  id: 1,
+  root_path: stubRoot,
+  import_paths: [{ id: 10, library_id: 1, path: stubRoot, position: 0, created_at: 1, updated_at: 1 }],
+  exclusion_patterns: [],
+  name: "Stub Library",
+  state: "ready",
+  watch_enabled: 1,
+  warm_enabled: 1,
+  asset_count: 0,
+  created_at: 1,
+  updated_at: 1,
+  last_scan_at: null,
+  last_error: null,
+};
 
 // ════════════════════════════════════════════════════════════
 // Diagnostic: rebuild → inspector latency (real backend)
 // ════════════════════════════════════════════════════════════
 test.describe("rebuild flow diagnostic", () => {
   test("measure rebuild → inspector latency", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("intro_mode", "disabled");
+      localStorage.setItem("gallery-active-library-id", "1");
+      localStorage.setItem("gallery-active-import-path-id", "10");
+    });
     await page.goto(`${baseUrl}/`, { waitUntil: "load" });
-    await page.getByText("ENTER GALLERY").click();
     await page.waitForTimeout(1500);
-
-    await page.locator("#root-path").fill(testRoot);
-    await page.locator("#root-path").press("Enter");
-    await page.waitForTimeout(5000);
 
     // Navigate to /metadata
     const initialInspectorPromise = page.waitForResponse(
@@ -168,6 +183,13 @@ test.describe("inspector stale notice (mocked)", () => {
       const url = new URL(route.request().url());
       const method = route.request().method();
 
+      if (url.pathname === "/api/libraries") {
+        await route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify([stubLibrary]),
+        });
+        return;
+      }
       if (url.pathname === "/api/scan") {
         await route.fulfill({
           contentType: "application/json",
@@ -243,14 +265,12 @@ test.describe("inspector stale notice (mocked)", () => {
   }
 
   async function navigateToMetadata(page: Page) {
+    await page.addInitScript(() => {
+      localStorage.setItem("intro_mode", "disabled");
+      localStorage.setItem("gallery-active-library-id", "1");
+      localStorage.setItem("gallery-active-import-path-id", "10");
+    });
     await page.goto(`${baseUrl}/`, { waitUntil: "load" });
-    // Intro auto-closes because landing-pages returns []
-    await page.waitForTimeout(1000);
-
-    await page.locator("#root-path").fill(stubRoot);
-    const scanResponse = page.waitForResponse((r) => r.url().includes("/api/scan"), { timeout: 15_000 });
-    await page.locator("#root-path").press("Enter");
-    await scanResponse;
     await page.waitForTimeout(1000);
 
     await page.getByRole("link", { name: "Metadata" }).click();

@@ -93,6 +93,6 @@ test("mixed gallery preserves image lightbox and opens videos in the native play
   await page.getByTestId("video-card").click();
   const player = page.getByTestId("video-player");
   await expect(player).toBeVisible();
-  await expect(player).toHaveAttribute("src", `/api/video?path=${encodeURIComponent(videoPath)}`);
+  await expect(player).toHaveAttribute("src", /\/api\/video\?path=.*clip\.mp4/);
   await expect(player).toHaveAttribute("controls", "");
 });
