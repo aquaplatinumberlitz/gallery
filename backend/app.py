@@ -15,6 +15,7 @@ from .images import router as images_router
 from .indexer import router as indexer_router
 from .libraries import router as libraries_router
 from .metadata_parse import router as metadata_parse_router
+from .metadata_store import recover_stale_jobs
 from .scan import router as scan_router
 from .search import router as search_router
 from .static_files import router as static_files_router
@@ -87,6 +88,7 @@ from .watcher import (  # noqa: E402 — keep startup wiring colocated with even
 
 @app.on_event("startup")
 async def _startup_background_services():
+    recover_stale_jobs()
     scheduler.start()
     _start_refresh()
     _start_watcher()

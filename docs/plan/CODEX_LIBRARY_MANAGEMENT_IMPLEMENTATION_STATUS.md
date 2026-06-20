@@ -1,9 +1,9 @@
 # Codex Library Management Implementation Status
 
 Last updated: 2026-06-20  
-Current milestone: Phase 1 complete  
-Next milestone: Phase 2 — backend jobs, stats, scan-all, and SSE  
-SQLite schema version currently implemented: `PRAGMA user_version = 6`
+Current milestone: Phase 2 complete  
+Next milestone: Phase 3 — backend video asset support  
+SQLite schema version currently implemented: `PRAGMA user_version = 7`
 
 ## Verified Git Baseline
 
@@ -79,7 +79,7 @@ Not implemented yet:
 | --- | --- | --- | --- |
 | 0. Contract lock | Complete | API, migration, state, jobs/SSE, video, dependency contract | Keep contract tests aligned with changes |
 | 1. Schema, validation, CRUD | Complete | SQLite v6, import paths, exclusions, CRUD/validate, multi-root lookup/scan/repair | Phase 2 builds on v6 |
-| 2. Jobs, stats, scan-all, SSE | Not started | Nothing from this phase is present | Implement SQLite v7 and job manager |
+| 2. Jobs, stats, scan-all, SSE | Complete | library_jobs table, job tracking, scan-all, per-library/global stats, jobs endpoints, SSE events | Phase 3 builds on v7 |esent | Implement SQLite v7 and job manager |
 | 3. Video backend | Not started | No video indexing/streaming/posters | Implement SQLite v8 after Phase 2 |
 | 4. Frontend data layer | Not started | No new library types/API/query composables | Requires stable Phase 2/3 backend |
 | 5. Admin management UI | Not started | No `/admin/libraries` routes/pages | Requires Phase 4 |

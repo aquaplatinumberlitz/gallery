@@ -47,6 +47,8 @@ _DB_LOCK = threading.RLock()
 _DB_INITIALIZED = False
 _DB_INITIALIZED_PATH: Path | None = None
 METADATA_JOB_STATES = ("queued", "running", "done", "failed", "stale", "skipped")
+LIBRARY_JOB_ACTIVE_STATES = ("queued", "running")
+LIBRARY_JOB_TERMINAL_STATES = ("succeeded", "failed", "cancelled")
 MAX_METADATA_JOB_ATTEMPTS = 3
 ACTIVE_ASSET_WHERE = "deleted_at IS NULL AND offline = 0"
 logger = logging.getLogger(__name__)
@@ -355,6 +357,29 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
               UNIQUE(library_id, position)
             );
 
+            CREATE TABLE IF NOT EXISTS library_jobs (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              library_id INTEGER REFERENCES libraries(id) ON DELETE SET NULL,
+              parent_job_id INTEGER REFERENCES library_jobs(id) ON DELETE SET NULL,
+              type TEXT NOT NULL,
+              state TEXT NOT NULL DEFAULT 'queued',
+              progress_current INTEGER NOT NULL DEFAULT 0,
+              progress_total INTEGER,
+              message TEXT,
+              error TEXT,
+              counters TEXT NOT NULL DEFAULT '{}',
+              created_at REAL NOT NULL,
+              updated_at REAL NOT NULL,
+              started_at REAL,
+              finished_at REAL
+            );
+            CREATE INDEX IF NOT EXISTS idx_library_jobs_library_created
+              ON library_jobs(library_id, created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_library_jobs_state
+              ON library_jobs(state, created_at);
+            CREATE INDEX IF NOT EXISTS idx_library_jobs_parent
+              ON library_jobs(parent_job_id);
+
             CREATE TABLE IF NOT EXISTS assets (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               library_id INTEGER NOT NULL REFERENCES libraries(id),
@@ -538,6 +563,9 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
         if missing:
             raise RuntimeError("Library import-path migration left libraries without import paths")
         conn.execute("PRAGMA user_version = 6")
+
+    if current_version < 7:
+        conn.execute("PRAGMA user_version = 7")
 
     _cleanup_ignored_index_conn(conn)
 
@@ -738,6 +766,240 @@ def _upsert_asset_conn(
 def init_db() -> None:
     """Backward-compatible database initialization entry point."""
     initialize_database()
+
+
+def _serialize_library_job(row: sqlite3.Row) -> dict[str, Any]:
+    """Convert a library job row to the public API shape."""
+    try:
+        counters = json.loads(row["counters"] or "{}")
+    except (TypeError, json.JSONDecodeError):
+        counters = {}
+    return {
+        "id": int(row["id"]),
+        "library_id": int(row["library_id"]) if row["library_id"] is not None else None,
+        "parent_job_id": int(row["parent_job_id"]) if row["parent_job_id"] is not None else None,
+        "type": str(row["type"]),
+        "state": str(row["state"]),
+        "progress_current": int(row["progress_current"]),
+        "progress_total": int(row["progress_total"]) if row["progress_total"] is not None else None,
+        "message": row["message"],
+        "error": row["error"],
+        "counters": counters if isinstance(counters, dict) else {},
+        "created_at": float(row["created_at"]),
+        "updated_at": float(row["updated_at"]),
+        "started_at": float(row["started_at"]) if row["started_at"] is not None else None,
+        "finished_at": float(row["finished_at"]) if row["finished_at"] is not None else None,
+    }
+
+
+def create_job(
+    job_type: str,
+    *,
+    library_id: int | None = None,
+    parent_job_id: int | None = None,
+    progress_total: int | None = None,
+    message: str | None = None,
+) -> dict[str, Any]:
+    """Create one queued library-management job."""
+    now = time.time()
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO library_jobs (
+              library_id, parent_job_id, type, state, progress_current,
+              progress_total, message, counters, created_at, updated_at
+            ) VALUES (?, ?, ?, 'queued', 0, ?, ?, '{}', ?, ?)
+            """,
+            (library_id, parent_job_id, job_type, progress_total, message, now, now),
+        )
+        row = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (cursor.lastrowid,)).fetchone()
+        return _serialize_library_job(row)
+
+
+def update_job_state(
+    job_id: int,
+    state: str,
+    *,
+    progress_current: int | None = None,
+    progress_total: int | None = None,
+    message: str | None = None,
+    error: str | None = None,
+    counters: dict[str, int] | None = None,
+) -> dict[str, Any] | None:
+    """Apply a valid lifecycle/progress update and return the updated job."""
+    allowed_states = {"queued", "running", *LIBRARY_JOB_TERMINAL_STATES}
+    if state not in allowed_states:
+        raise ValueError(f"Invalid library job state: {state}")
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        row = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (job_id,)).fetchone()
+        if row is None:
+            return None
+        current_state = str(row["state"])
+        transitions = {
+            "queued": {"queued", "running", "cancelled"},
+            "running": {"running", *LIBRARY_JOB_TERMINAL_STATES},
+            "succeeded": {"succeeded"},
+            "failed": {"failed"},
+            "cancelled": {"cancelled"},
+        }
+        if state not in transitions[current_state]:
+            raise ValueError(f"Invalid library job transition: {current_state} -> {state}")
+        current = int(row["progress_current"]) if progress_current is None else max(0, progress_current)
+        total = row["progress_total"] if progress_total is None else progress_total
+        if total is not None:
+            total = max(current, int(total))
+        now = time.time()
+        terminal = state in LIBRARY_JOB_TERMINAL_STATES
+        conn.execute(
+            """
+            UPDATE library_jobs
+            SET state = ?, progress_current = ?, progress_total = ?,
+                message = ?, error = ?, counters = ?, updated_at = ?,
+                started_at = CASE WHEN ? = 'running' THEN COALESCE(started_at, ?) ELSE started_at END,
+                finished_at = CASE WHEN ? THEN COALESCE(finished_at, ?) ELSE finished_at END
+            WHERE id = ?
+            """,
+            (
+                state,
+                current,
+                total,
+                message,
+                error,
+                json.dumps(counters if counters is not None else json.loads(row["counters"] or "{}")),
+                now,
+                state,
+                now,
+                int(terminal),
+                now,
+                job_id,
+            ),
+        )
+        updated = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (job_id,)).fetchone()
+        return _serialize_library_job(updated)
+
+
+def get_job(job_id: int) -> dict[str, Any] | None:
+    """Return one library-management job."""
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        row = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (job_id,)).fetchone()
+        return _serialize_library_job(row) if row else None
+
+
+def get_library_jobs(library_id: int, *, limit: int = 50) -> list[dict[str, Any]]:
+    """Return recent jobs for one library, newest first."""
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM library_jobs WHERE library_id = ? ORDER BY id DESC LIMIT ?",
+            (library_id, limit),
+        )
+        return [_serialize_library_job(row) for row in rows]
+
+
+def list_jobs(*, limit: int = 100) -> list[dict[str, Any]]:
+    """Return recent library-management jobs, newest first."""
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        return [
+            _serialize_library_job(row)
+            for row in conn.execute("SELECT * FROM library_jobs ORDER BY id DESC LIMIT ?", (limit,))
+        ]
+
+
+def list_active_jobs(library_id: int | None = None) -> list[dict[str, Any]]:
+    """Return queued/running jobs, optionally scoped to one library."""
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        query = "SELECT * FROM library_jobs WHERE state IN ('queued', 'running')"
+        params: tuple[Any, ...] = ()
+        if library_id is not None:
+            query += " AND library_id = ?"
+            params = (library_id,)
+        query += " ORDER BY id"
+        return [_serialize_library_job(row) for row in conn.execute(query, params)]
+
+
+def recover_stale_jobs() -> list[dict[str, Any]]:
+    """Fail jobs left running by a previous server process."""
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        job_ids = [int(row["id"]) for row in conn.execute("SELECT id FROM library_jobs WHERE state = 'running'")]
+    recovered = []
+    for job_id in job_ids:
+        job = update_job_state(
+            job_id,
+            "failed",
+            message="Interrupted by server restart",
+            error="Interrupted by server restart",
+        )
+        if job is not None:
+            recovered.append(job)
+    return recovered
+
+
+def get_library_stats(library_id: int) -> dict[str, int]:
+    """Return media counts and storage use for one registered library."""
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        if conn.execute("SELECT 1 FROM libraries WHERE id = ?", (library_id,)).fetchone() is None:
+            raise KeyError(library_id)
+        row = conn.execute(
+            """
+            SELECT
+              sum(CASE WHEN type = 'image' AND offline = 0 THEN 1 ELSE 0 END) AS photos,
+              sum(CASE WHEN type = 'video' AND offline = 0 THEN 1 ELSE 0 END) AS videos,
+              sum(CASE WHEN type IN ('image', 'video') AND offline = 0 THEN 1 ELSE 0 END) AS active_assets,
+              sum(CASE WHEN type IN ('image', 'video') AND offline = 1 THEN 1 ELSE 0 END) AS offline_assets,
+              sum(CASE WHEN type IN ('image', 'video') AND offline = 0 THEN COALESCE(size, 0) ELSE 0 END)
+                AS usage_bytes
+            FROM assets WHERE library_id = ? AND deleted_at IS NULL
+            """,
+            (library_id,),
+        ).fetchone()
+        import_path_count = int(
+            conn.execute("SELECT count(*) FROM library_import_paths WHERE library_id = ?", (library_id,)).fetchone()[0]
+        )
+        active = int(row["active_assets"] or 0)
+        return {
+            "photos": int(row["photos"] or 0),
+            "videos": int(row["videos"] or 0),
+            "total_assets": active,
+            "active_assets": active,
+            "offline_assets": int(row["offline_assets"] or 0),
+            "usage_bytes": int(row["usage_bytes"] or 0),
+            "import_path_count": import_path_count,
+        }
+
+
+def get_gallery_stats() -> dict[str, int]:
+    """Return aggregate media counts and storage use across all libraries."""
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        row = conn.execute(
+            """
+            SELECT
+              sum(CASE WHEN type = 'image' AND offline = 0 THEN 1 ELSE 0 END) AS photos,
+              sum(CASE WHEN type = 'video' AND offline = 0 THEN 1 ELSE 0 END) AS videos,
+              sum(CASE WHEN type IN ('image', 'video') AND offline = 0 THEN 1 ELSE 0 END) AS active_assets,
+              sum(CASE WHEN type IN ('image', 'video') AND offline = 1 THEN 1 ELSE 0 END) AS offline_assets,
+              sum(CASE WHEN type IN ('image', 'video') AND offline = 0 THEN COALESCE(size, 0) ELSE 0 END)
+                AS usage_bytes
+            FROM assets WHERE deleted_at IS NULL
+            """
+        ).fetchone()
+        active = int(row["active_assets"] or 0)
+        return {
+            "photos": int(row["photos"] or 0),
+            "videos": int(row["videos"] or 0),
+            "total_assets": active,
+            "active_assets": active,
+            "offline_assets": int(row["offline_assets"] or 0),
+            "usage_bytes": int(row["usage_bytes"] or 0),
+            "library_count": int(conn.execute("SELECT count(*) FROM libraries").fetchone()[0]),
+        }
 
 
 def list_libraries() -> list[dict[str, Any]]:
@@ -1007,7 +1269,7 @@ def update_library_state(
 
 
 def get_library_progress(library_id: int) -> dict[str, Any]:
-    """Return indexed_assets, estimated_assets, discovery_complete, library_state."""
+    """Return asset coverage, library state, and the newest active job."""
     initialize_database()
     with _DB_LOCK, _connect() as conn:
         library = conn.execute("SELECT state FROM libraries WHERE id = ?", (library_id,)).fetchone()
@@ -1030,11 +1292,21 @@ def get_library_progress(library_id: int) -> dict[str, Any]:
                 (library_id,),
             ).fetchone()[0]
         )
+        active_job = conn.execute(
+            """
+            SELECT id FROM library_jobs
+            WHERE library_id = ? AND state IN ('queued', 'running')
+              AND type IN ('scan', 'repair', 'reconcile')
+            ORDER BY id DESC LIMIT 1
+            """,
+            (library_id,),
+        ).fetchone()
         return {
             "indexed_assets": indexed,
             "estimated_assets": estimated,
             "discovery_complete": library["state"] in {"ready", "error", "offline"},
             "library_state": library["state"],
+            "active_job_id": int(active_job["id"]) if active_job else None,
         }
 
 

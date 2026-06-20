@@ -61,7 +61,7 @@ def test_version_four_migrates_file_index_into_default_library(isolated_metadata
         row = conn.execute("SELECT * FROM assets WHERE path = ?", (str(image.resolve()),)).fetchone()
         assert row is not None
         assert (row["width"], row["height"], row["type"], row["mtime_ns"]) == (40, 30, "image", 12.5)
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 6
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 7
 
 
 def test_version_six_backfills_import_paths_and_converts_library_timestamps(
@@ -92,7 +92,7 @@ def test_version_six_backfills_import_paths_and_converts_library_timestamps(
     assert library["import_paths"][0]["position"] == 0
     assert 1_000_000_000 < library["created_at"] < 2_000_000_000
     with sqlite3.connect(isolated_metadata_db) as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 6
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 7
         assert conn.execute("SELECT count(*) FROM library_import_paths").fetchone()[0] == 1
 
 
@@ -155,6 +155,7 @@ def test_library_api_lists_progress_and_requires_delete_confirmation(
             "estimated_assets",
             "discovery_complete",
             "library_state",
+            "active_job_id",
         }
 
         rejected = client.delete(f"/api/libraries/{default_library['id']}")
@@ -448,4 +449,4 @@ def test_repair_api_returns_reconciliation_counts(
     assert response.status_code == 200
     assert response.json()["library_id"] == library_id
     assert response.json()["added"] == 2
-    assert set(response.json()) == {"library_id", "added", "removed", "modified"}
+    assert set(response.json()) == {"library_id", "job_id", "added", "removed", "modified"}
