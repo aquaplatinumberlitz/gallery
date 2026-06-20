@@ -146,9 +146,7 @@ async def api_video_poster(path: str = Query(...)):
         with lock:
             # Re-check inside the lock so only one request runs ffmpeg per key.
             if not cached_path.exists():
-                temp_path = cached_path.with_name(
-                    f"{cached_path.stem}.tmp.{os.getpid()}.{threading.get_ident()}.webp"
-                )
+                temp_path = cached_path.with_name(f"{cached_path.stem}.tmp.{os.getpid()}.{threading.get_ident()}.webp")
                 temp_path.unlink(missing_ok=True)
                 try:
                     result = subprocess.run(

@@ -273,14 +273,20 @@ def test_generate_derivative_maps_unidentified_image_to_api_error(
 
 def test_resolve_image_request_path_rejects_unsafe_path(isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch):
     # Path outside PATH_SAFETY_ROOT — require_media_path_allowed raises 403
-    monkeypatch.setattr(thumbnails, "require_media_path_allowed", lambda *a, **kw: (_ for _ in ()).throw(APIError(403, "permission_denied", "Access denied")))
+    monkeypatch.setattr(
+        thumbnails,
+        "require_media_path_allowed",
+        lambda *a, **kw: (_ for _ in ()).throw(APIError(403, "permission_denied", "Access denied")),
+    )
     with pytest.raises(APIError) as exc_info:
         thumbnails._resolve_image_request_path("/etc/passwd")
     assert exc_info.value.status_code == 403
 
 
 def test_resolve_image_request_path_rejects_missing_file(isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(thumbnails, "require_media_path_allowed", lambda *a, **kw: Path(str(isolated_gallery_root / "ghost.png")))
+    monkeypatch.setattr(
+        thumbnails, "require_media_path_allowed", lambda *a, **kw: Path(str(isolated_gallery_root / "ghost.png"))
+    )
     with pytest.raises(APIError) as exc_info:
         thumbnails._resolve_image_request_path(str(isolated_gallery_root / "ghost.png"))
     assert exc_info.value.status_code == 404

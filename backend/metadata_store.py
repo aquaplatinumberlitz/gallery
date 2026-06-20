@@ -996,12 +996,8 @@ def recover_stale_jobs() -> list[dict[str, Any]]:
     """
     initialize_database()
     with _DB_LOCK, _connect() as conn:
-        running_ids = [
-            int(row["id"]) for row in conn.execute("SELECT id FROM library_jobs WHERE state = 'running'")
-        ]
-        queued_ids = [
-            int(row["id"]) for row in conn.execute("SELECT id FROM library_jobs WHERE state = 'queued'")
-        ]
+        running_ids = [int(row["id"]) for row in conn.execute("SELECT id FROM library_jobs WHERE state = 'running'")]
+        queued_ids = [int(row["id"]) for row in conn.execute("SELECT id FROM library_jobs WHERE state = 'queued'")]
     recovered: list[dict[str, Any]] = []
     for job_id in running_ids:
         job = update_job_state(
