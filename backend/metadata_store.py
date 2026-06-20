@@ -1706,7 +1706,11 @@ def get_asset_folder_listing(
             )
 
         images = [image_node(row) for row in page]
-        videos = [video_node(row) for row in video_rows] if offset == 0 else []
+        videos = (
+            [video_node(row) for row in video_rows]
+            if offset == 0 and media_cursor is None
+            else []
+        )
         media = (
             [image_node(row) if row["type"] == "image" else video_node(row) for row in media_page]
             if media_page is not None

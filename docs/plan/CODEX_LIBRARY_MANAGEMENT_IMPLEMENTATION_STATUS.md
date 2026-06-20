@@ -202,9 +202,8 @@ interface RegisteredLibrary {
 ```
 
 `asset_count` currently counts active image/video asset rows and excludes
-folders, offline rows, and deleted rows. Video rows are supported by the count
-expression for forward compatibility, but Phase 3 video discovery does not
-exist yet.
+folders, offline rows, and deleted rows. Video rows are included in active
+asset counts; video discovery/indexing was added in Phase 3.
 
 ### 3.3 API endpoints implemented now
 
