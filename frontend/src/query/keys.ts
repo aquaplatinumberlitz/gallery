@@ -9,6 +9,26 @@ export const normalizeQueryPath = (path: string | null | undefined) => {
 export const queryKeys = {
   landingPages: () => ["landing-pages"] as const,
 
+  librariesRoot: () => ["libraries"] as const,
+
+  libraries: () => ["libraries", "list"] as const,
+
+  library: (id: number) => ["libraries", "detail", id] as const,
+
+  libraryProgress: (id: number) => ["libraries", "progress", id] as const,
+
+  libraryStats: (id: number) => ["libraries", "stats", id] as const,
+
+  libraryJobs: (id: number) => ["libraries", "jobs", id] as const,
+
+  galleryStats: () => ["stats", "gallery"] as const,
+
+  jobsRoot: () => ["jobs"] as const,
+
+  jobs: () => ["jobs", "list"] as const,
+
+  job: (id: number) => ["jobs", id] as const,
+
   scan: (path: string, imageLimit: number) => ["scan", normalizeQueryPath(path), imageLimit] as const,
 
   folderChildren: (path: string) => ["folder-children", normalizeQueryPath(path)] as const,

@@ -259,6 +259,121 @@ export interface LibraryInspectorResponse {
   rows: LibraryInspectorRow[];
 }
 
+export type LibraryState = "queued" | "discovering" | "indexing" | "ready" | "error" | "offline";
+
+export type LibraryJobState = "queued" | "running" | "succeeded" | "failed" | "cancelled";
+
+export interface LibraryImportPath {
+  id: number;
+  library_id: number;
+  path: string;
+  position: number;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface RegisteredLibrary {
+  id: number;
+  root_path: string;
+  import_paths: LibraryImportPath[];
+  exclusion_patterns: string[];
+  name: string;
+  state: LibraryState;
+  watch_enabled: 0 | 1;
+  warm_enabled: 0 | 1;
+  asset_count: number;
+  created_at: number;
+  updated_at: number;
+  last_scan_at: number | null;
+  last_error: string | null;
+}
+
+export interface LibraryProgress {
+  indexed_assets: number;
+  estimated_assets: number;
+  discovery_complete: boolean;
+  library_state: LibraryState;
+  active_job_id?: number | null;
+}
+
+export interface LibraryCreateRequest {
+  root_path?: string;
+  import_paths?: string[];
+  exclusion_patterns?: string[];
+  name?: string;
+}
+
+export interface LibraryUpdateRequest {
+  name?: string;
+  import_paths?: string[];
+  exclusion_patterns?: string[];
+}
+
+export interface LibraryStats {
+  photos: number;
+  videos: number;
+  total_assets: number;
+  active_assets: number;
+  offline_assets: number;
+  usage_bytes: number;
+  import_path_count: number;
+}
+
+export interface GalleryStats {
+  photos: number;
+  videos: number;
+  total_assets: number;
+  active_assets: number;
+  offline_assets: number;
+  usage_bytes: number;
+  library_count: number;
+}
+
+export interface LibraryJob {
+  id: number;
+  library_id: number | null;
+  parent_job_id: number | null;
+  type: string;
+  state: LibraryJobState;
+  progress_current: number;
+  progress_total: number | null;
+  message: string | null;
+  error: string | null;
+  counters?: Record<string, number>;
+  created_at: number;
+  updated_at: number;
+  started_at: number | null;
+  finished_at: number | null;
+}
+
+export interface LibraryValidationItem {
+  value: string;
+  normalized_value: string | null;
+  is_valid: boolean;
+  message: string | null;
+  warnings: string[];
+}
+
+export interface LibraryValidationResult {
+  is_valid: boolean;
+  import_paths: LibraryValidationItem[];
+  exclusion_patterns: LibraryValidationItem[];
+}
+
+export interface LibraryScanResponse {
+  library_id: number;
+  job_id: number;
+  state: string;
+}
+
+export interface LibraryRepairResponse {
+  library_id: number;
+  job_id?: number;
+  added: number;
+  removed: number;
+  modified: number;
+}
+
 export interface LibraryInspectorResource {
   name?: string;
   hash?: string | null;

@@ -1,8 +1,8 @@
 # Codex Library Management Implementation Status
 
 Last updated: 2026-06-20  
-Current milestone: Phase 3 complete  
-Next milestone: Phase 4 — frontend data layer  
+Current milestone: Phase 4 complete
+Next milestone: Phase 5 — admin management UI
 SQLite schema version currently implemented: `PRAGMA user_version = 8`
 
 ## Verified Git Baseline
@@ -57,9 +57,10 @@ unregister registered libraries with:
 - path lookup, viewer fallback, scanner, folder listing, search cleanup, and
   watcher behavior based on import paths.
 
-Phase 1-3 are backend-only. The frontend has not been migrated and still uses the
-legacy arbitrary `gallery-root-path` state/UI. The admin UI,
-active-library selector, and mixed-media work do not exist yet.
+Phase 1-3 provide the backend, and Phase 4 adds the frontend library-management
+data layer. The visible frontend still uses the legacy arbitrary
+`gallery-root-path` state/UI. The admin UI, active-library selector, and
+mixed-media work do not exist yet.
 
 The most important boundary for the next developer:
 
@@ -68,9 +69,10 @@ Implemented now:
   SQLite v6 + multi-import-path CRUD/validation/exclusions
   SQLite v7 + library_jobs + stats + scan-all + SSE
   SQLite v8 + video metadata + streaming/posters
+  frontend types + API services + query keys/composables + SSE invalidation
 
 Not implemented yet:
-  all new frontend data/UI/state phases
+  admin management UI, active-library state/UI, and mixed-media UI
 ```
 
 ## 2. Phase Progress
@@ -81,7 +83,7 @@ Not implemented yet:
 | 1. Schema, validation, CRUD | Complete | SQLite v6, import paths, exclusions, CRUD/validate, multi-root lookup/scan/repair | Phase 2 builds on v6 |
 | 2. Jobs, stats, scan-all, SSE | Complete | library_jobs table, job tracking, scan-all, per-library/global stats, jobs endpoints, SSE events | Phase 3 builds on v7 |
 | 3. Video backend | Complete | v8 migration, ffprobe indexing, /api/video streaming, /api/video/poster | Phase 4 builds on v8 |
-| 4. Frontend data layer | Not started | No new library types/API/query composables | Requires stable Phase 2/3 backend |
+| 4. Frontend data layer | Complete | Library types/API, query keys/composables, mutations, SSE invalidation, status utilities | Phase 5 builds on this layer |
 | 5. Admin management UI | Not started | No `/admin/libraries` routes/pages | Requires Phase 4 |
 | 6. Active library selection | Not started | Legacy root-path UI/store still active | Requires library query/data layer |
 | 7. Mixed-media UI | Not started | Viewer remains image-only | Requires Phase 3 and Phase 4 |
@@ -513,7 +515,7 @@ The project should currently be described as:
 > scan-all, and SSE are implemented. Video assets are indexed with ffprobe
 > metadata, streamed via HTTP Range, and served with cached ffmpeg posters.
 > The database is at v8 and Phases 0-3 are verified. All frontend
-> library-management work remains to be implemented starting with Phase 4.
+> library-management UI work remains to be implemented starting with Phase 5.
 
 Do not describe the full Library Management feature as complete or
 frontend-ready.
