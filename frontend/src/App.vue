@@ -93,6 +93,16 @@ const isSidebarOpen = ref(
   })(),
 );
 
+watch(
+  [isAdminLibraryRoute, isMobile, isTablet],
+  ([isAdminRoute, mobile, tablet]) => {
+    if (isAdminRoute && (mobile || tablet)) {
+      isSidebarOpen.value = false;
+    }
+  },
+  { immediate: true },
+);
+
 watch(isSidebarOpen, (val) => {
   try {
     localStorage.setItem(SIDEBAR_STATE_KEY, String(val));
