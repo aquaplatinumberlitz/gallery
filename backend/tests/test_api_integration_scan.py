@@ -23,7 +23,17 @@ class TestScanResponseShape:
         resp = isolated_app.get("/api/scan", params={"path": str(album)})
         assert resp.status_code == 200
         data = resp.json()
-        assert set(data) == {"folders", "images", "next_cursor", "total_images", "index_source"}
+        assert set(data) == {
+            "folders",
+            "images",
+            "videos",
+            "media",
+            "next_cursor",
+            "total_images",
+            "total_videos",
+            "total_assets",
+            "index_source",
+        }
 
     def test_folders_have_correct_shape(self, isolated_app: TestClient, temp_gallery: Path):
         album = temp_gallery / "album_a"

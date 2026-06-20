@@ -10,6 +10,8 @@ import AlbumScroller from "./AlbumScroller.vue";
 import GallerySectionHeader from "./GallerySectionHeader.vue";
 import GlowContainer from "./GlowContainer.vue";
 import PhotoCard from "./PhotoCard.vue";
+import VideoCard from "./VideoCard.vue";
+import VideoPlayerDialog from "./VideoPlayerDialog.vue";
 import SkeletonLoader from "./SkeletonLoader.vue";
 import Breadcrumb from "./Breadcrumb.vue";
 import EmptyState from "./EmptyState.vue";
@@ -36,6 +38,7 @@ import {
   X,
   ArrowDownToLine,
   Images,
+  Clapperboard,
   Folder,
   FolderOpen,
 } from "lucide-vue-next";
@@ -169,6 +172,7 @@ const sortItems = <T extends { name: string; mtime?: number }>(items: T[]): T[] 
 
 const scanFolders = computed(() => infiniteScanQuery.folders.value);
 const scanImages = computed(() => infiniteScanQuery.images.value);
+const scanMedia = computed(() => infiniteScanQuery.media.value);
 
 const folders = computed(() =>
   sortItems(hasSearchQuery.value ? scanFolders.value : fuzzySearchFileNodes(scanFolders.value, searchQuery.value)),
@@ -177,6 +181,9 @@ const folders = computed(() =>
 // Fuse search is client-side and only covers images currently loaded in the active scan view.
 const filenameImages = computed(() =>
   sortItems(hasSearchQuery.value ? scanImages.value : fuzzySearchFileNodes(scanImages.value, searchQuery.value)),
+);
+const filenameMedia = computed(() =>
+  sortItems(hasSearchQuery.value ? scanMedia.value : fuzzySearchFileNodes(scanMedia.value, searchQuery.value)),
 );
 
 const searchResultToFileNode = (result: UnifiedSearchResult): FileNode => ({
@@ -189,6 +196,9 @@ const searchResultToFileNode = (result: UnifiedSearchResult): FileNode => ({
   mtime: result.mtime,
   width: result.width ?? undefined,
   height: result.height ?? undefined,
+  duration_ms: result.duration_ms,
+  mime_type: result.mime_type,
+  poster_ready: result.poster_ready,
 });
 
 const normalizeSearchPath = (path: string): string =>
@@ -259,6 +269,7 @@ const searchResultFolderPath = (result: UnifiedSearchResult): string => {
 
 const searchAlbums = computed(() => unifiedSearchQuery.albums.value);
 const searchPhotos = computed(() => unifiedSearchQuery.photos.value);
+const searchVideos = computed(() => unifiedSearchQuery.videos.value);
 const searchPhotoPathSet = computed(
   () => new Set(searchPhotos.value.map((result) => normalizeSearchPath(result.path))),
 );
@@ -289,6 +300,7 @@ const searchAlbumNodesRef = computed(() =>
   }),
 );
 const searchPhotoNodes = computed(() => searchPhotos.value.map(searchResultToFileNode));
+const searchVideoNodes = computed(() => searchVideos.value.map(searchResultToFileNode));
 const searchPromptNodes = computed(() => searchPrompt.value.map(searchResultToFileNode));
 const allSearchImageNodes = computed(() => {
   const seen = new Set<string>();
@@ -300,6 +312,9 @@ const allSearchImageNodes = computed(() => {
 });
 
 const images = computed(() => (hasSearchQuery.value ? allSearchImageNodes.value : filenameImages.value));
+const media = computed(() =>
+  hasSearchQuery.value ? [...allSearchImageNodes.value, ...searchVideoNodes.value] : filenameMedia.value,
+);
 
 const isLoading = computed(() => infiniteScanQuery.isLoading.value);
 const isRefetching = computed(
@@ -315,13 +330,13 @@ const currentPath = computed(() => galleryStore.currentBrowsePath);
 const canBack = computed(() => galleryStore.historyIndex > 0);
 const canForward = computed(() => galleryStore.historyIndex < galleryStore.history.length - 1);
 const hasMoreImages = computed(() => !hasSearchQuery.value && infiniteScanQuery.hasNextPage.value);
-const hasAnyItems = computed(() => scanFolders.value.length + scanImages.value.length > 0);
+const hasAnyItems = computed(() => scanFolders.value.length + scanMedia.value.length > 0);
 
 const pathReady = computed(() => Boolean(infiniteScanQuery.activeFolderPath.value || galleryStore.activeImportPathId));
 
 const hasAlbums = computed(() => folders.value.length > 0);
-const hasPhotos = computed(() => images.value.length > 0);
-const hasContent = computed(() => hasAlbums.value || hasPhotos.value);
+const hasMedia = computed(() => media.value.length > 0);
+const hasContent = computed(() => hasAlbums.value || hasMedia.value);
 
 const showEmptyFolder = computed(
   () =>
@@ -346,6 +361,7 @@ const showSearchSkeleton = computed(
     isSearchLoading.value &&
     !searchAlbums.value.length &&
     !searchPhotos.value.length &&
+    !searchVideos.value.length &&
     !searchPrompt.value.length,
 );
 const noSearchResults = computed(
@@ -356,6 +372,7 @@ const noSearchResults = computed(
     !unifiedSearchQuery.isFetching.value &&
     searchAlbums.value.length === 0 &&
     searchPhotos.value.length === 0 &&
+    searchVideos.value.length === 0 &&
     searchPrompt.value.length === 0,
 );
 const scanQueryErrorMessage = computed(() => {
@@ -439,6 +456,21 @@ const handleOpenImage = (path: string, name: string) => {
   lightboxStore.open({ path, name }, images.value);
 };
 
+const selectedVideo = ref<FileNode | null>(null);
+const videoPlayerOpen = ref(false);
+const handleOpenVideo = (video: FileNode) => {
+  selectedVideo.value = video;
+  videoPlayerOpen.value = true;
+};
+
+const handleOpenMedia = (item: FileNode) => {
+  if (item.type === "video") {
+    handleOpenVideo(item);
+    return;
+  }
+  handleOpenImage(item.path, item.name);
+};
+
 const handlePhotoDimensions = (dimensions: { path: string; width: number; height: number }) => {
   lightboxStore.rememberDimensions(dimensions.path, {
     width: dimensions.width,
@@ -477,12 +509,12 @@ const selectDensity = (level: number) => {
   sliderLevel.value = level;
 };
 
-const imageRows = computed(() => {
-  const rows: { id: string; items: typeof images.value }[] = [];
-  for (let i = 0; i < images.value.length; i += columnCount.value) {
+const mediaRows = computed(() => {
+  const rows: { id: string; items: typeof media.value }[] = [];
+  for (let i = 0; i < media.value.length; i += columnCount.value) {
     rows.push({
       id: `row-${columnCount.value}-${i}`,
-      items: images.value.slice(i, i + columnCount.value),
+      items: media.value.slice(i, i + columnCount.value),
     });
   }
   return rows;
@@ -490,16 +522,16 @@ const imageRows = computed(() => {
 
 const rowVirtualizer = useVirtualizer<HTMLElement, HTMLElement>(
   computed(() => ({
-    count: imageRows.value.length,
+    count: mediaRows.value.length,
     getScrollElement: () => scrollParentRef.value,
     estimateSize: () => rowHeight.value || 1,
     overscan: 5,
-    getItemKey: (index: number) => imageRows.value[index]?.id ?? index,
+    getItemKey: (index: number) => mediaRows.value[index]?.id ?? index,
   })),
 );
 
 watch(
-  [rowHeight, columnCount, () => imageRows.value.length],
+  [rowHeight, columnCount, () => mediaRows.value.length],
   () => {
     rowVirtualizer.value.measure();
   },
@@ -523,6 +555,17 @@ const searchPromptRows = computed(() => {
     rows.push({
       id: `prompt-row-${columnCount.value}-${i}`,
       items: searchPrompt.value.slice(i, i + columnCount.value),
+    });
+  }
+  return rows;
+});
+
+const searchVideoRows = computed(() => {
+  const rows: { id: string; items: typeof searchVideoNodes.value }[] = [];
+  for (let i = 0; i < searchVideoNodes.value.length; i += columnCount.value) {
+    rows.push({
+      id: `video-row-${columnCount.value}-${i}`,
+      items: searchVideoNodes.value.slice(i, i + columnCount.value),
     });
   }
   return rows;
@@ -785,6 +828,30 @@ watch(
         </div>
       </section>
 
+      <section v-if="searchVideos.length" class="search-photo-section">
+        <GallerySectionHeader title="Videos" :count="searchVideos.length" :badge-icon="Clapperboard" />
+
+        <div
+          v-for="row in searchVideoRows"
+          :key="row.id"
+          class="virtual-row"
+          :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }"
+        >
+          <div v-for="video in row.items" :key="video.path" class="search-result-card">
+            <VideoCard
+              :src="video.path"
+              :name="video.name"
+              :duration-ms="video.duration_ms"
+              @click="handleOpenVideo(video)"
+            />
+            <span class="search-result-name file-name-display" :title="video.name">
+              <span class="file-name-base">{{ displayFilenameParts(video.name).base }}</span>
+              <span class="file-name-ext">{{ displayFilenameParts(video.name).ext }}</span>
+            </span>
+          </div>
+        </div>
+      </section>
+
       <section v-if="searchPrompt.length" class="search-photo-section">
         <GallerySectionHeader title="Prompt" :count="searchPrompt.length" :badge-icon="Images" />
 
@@ -828,11 +895,11 @@ watch(
       </div>
     </div>
 
-    <!-- Has content: images or folders -->
-    <template v-else-if="images.length > 0 || folders.length > 0">
+    <!-- Has content: mixed media or folders -->
+    <template v-else-if="media.length > 0 || folders.length > 0">
       <div class="scroller-container" :ref="setGridRef">
         <div
-          v-if="!props.isMobile && imageRows.length > 0"
+          v-if="!props.isMobile && mediaRows.length > 0"
           :ref="setVirtualScrollContainerRef"
           class="scroller tanstack-scroller"
           :class="{ 'fade-slide': !isMobile }"
@@ -841,7 +908,7 @@ watch(
             <AlbumScroller :folders="folders" @open-folder="handleOpenFolder" />
           </GlowContainer>
 
-          <GallerySectionHeader v-if="images.length" title="Photos" :count="images.length" :badge-icon="Images" />
+          <GallerySectionHeader v-if="media.length" title="Media" :count="media.length" :badge-icon="Images" />
 
           <div
             class="tanstack-virtual-spacer"
@@ -860,16 +927,22 @@ watch(
                 gridTemplateColumns: `repeat(${columnCount}, 1fr)`,
               }"
             >
-              <PhotoCard
-                v-for="img in imageRows[virtualRow.index]?.items ?? []"
-                :key="img.path"
-                :src="img.path"
-                :name="img.name"
-                @dimensions="handlePhotoDimensions"
-                @click="handleOpenImage(img.path, img.name)"
-                @keydown.enter="handleOpenImage(img.path, img.name)"
-                @keydown.space.prevent="handleOpenImage(img.path, img.name)"
-              />
+              <template v-for="item in mediaRows[virtualRow.index]?.items ?? []" :key="item.path">
+                <VideoCard
+                  v-if="item.type === 'video'"
+                  :src="item.path"
+                  :name="item.name"
+                  :duration-ms="item.duration_ms"
+                  @click="handleOpenVideo(item)"
+                />
+                <PhotoCard
+                  v-else
+                  :src="item.path"
+                  :name="item.name"
+                  @dimensions="handlePhotoDimensions"
+                  @click="handleOpenMedia(item)"
+                />
+              </template>
             </div>
           </div>
 
@@ -877,7 +950,7 @@ watch(
             <div ref="loadMoreSentinel" class="load-more-sentinel" />
             <div v-if="isLoadingMore" class="loading-more">
               <Loader class="gallery-icon-md lucide-spin" />
-              <span>Loading more photos...</span>
+              <span>Loading more media...</span>
             </div>
 
             <EmptyState
@@ -895,7 +968,7 @@ watch(
 
         <!-- Mobile: native scroll (no virtual scroller) -->
         <div
-          v-else-if="props.isMobile && imageRows.length > 0"
+          v-else-if="props.isMobile && mediaRows.length > 0"
           :ref="setScrollContainerRef"
           class="scroller mobile-scroller"
         >
@@ -903,31 +976,37 @@ watch(
             <AlbumScroller :folders="folders" @open-folder="handleOpenFolder" />
           </GlowContainer>
 
-          <GallerySectionHeader v-if="images.length" title="Photos" :count="images.length" :badge-icon="Images" />
+          <GallerySectionHeader v-if="media.length" title="Media" :count="media.length" :badge-icon="Images" />
 
           <div
-            v-for="row in imageRows"
+            v-for="row in mediaRows"
             :key="row.id"
             class="virtual-row"
             :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }"
           >
-            <PhotoCard
-              v-for="img in row.items"
-              :key="img.path"
-              :src="img.path"
-              :name="img.name"
-              @dimensions="handlePhotoDimensions"
-              @click="handleOpenImage(img.path, img.name)"
-              @keydown.enter="handleOpenImage(img.path, img.name)"
-              @keydown.space.prevent="handleOpenImage(img.path, img.name)"
-            />
+            <template v-for="item in row.items" :key="item.path">
+              <VideoCard
+                v-if="item.type === 'video'"
+                :src="item.path"
+                :name="item.name"
+                :duration-ms="item.duration_ms"
+                @click="handleOpenVideo(item)"
+              />
+              <PhotoCard
+                v-else
+                :src="item.path"
+                :name="item.name"
+                @dimensions="handlePhotoDimensions"
+                @click="handleOpenMedia(item)"
+              />
+            </template>
           </div>
 
           <div class="scroller-footer" :class="{ 'bars-hidden': !barsVisible }">
             <div ref="loadMoreSentinel" class="load-more-sentinel" />
             <div v-if="isLoadingMore" class="loading-more">
               <Loader class="gallery-icon-md lucide-spin" />
-              <span>Loading more photos...</span>
+              <span>Loading more media...</span>
             </div>
 
             <EmptyState
@@ -943,17 +1022,17 @@ watch(
           </div>
         </div>
 
-        <!-- Fallback: Only folders, no images -->
+        <!-- Fallback: Only folders, no media -->
         <div v-else-if="folders.length > 0" :ref="setScrollContainerRef" class="folders-only-container">
           <GlowContainer :disabled="props.isMobile">
             <AlbumScroller :folders="folders" @open-folder="handleOpenFolder" />
           </GlowContainer>
 
-          <!-- Has only folders, no images -->
+          <!-- Has only folders, no media -->
           <EmptyState
-            v-if="!images.length && !isLoading"
+            v-if="!media.length && !isLoading"
             type="no-images"
-            title="No images in this folder"
+            title="No media in this folder"
             description="This folder only contains subfolders. Browse the albums above."
             compact
           />
@@ -997,12 +1076,14 @@ watch(
         v-else-if="showEmptyFolderDelayed"
         type="empty-folder"
         title="This folder is empty"
-        description="No images or subfolders found in this location"
+        description="No images, videos, or subfolders found in this location"
         action-label="Go Back"
         action-icon="arrow-left"
         @action="goBack"
       />
     </div>
+
+    <VideoPlayerDialog v-model:open="videoPlayerOpen" :video="selectedVideo" />
   </div>
 </template>
 

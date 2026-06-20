@@ -59,7 +59,20 @@ export function useInfiniteScanQuery(path: Ref<string>) {
   const firstPage = computed(() => pages.value[0]);
   const folders = computed(() => firstPage.value?.folders ?? []);
   const images = computed(() => pages.value.flatMap((page) => page.images));
+  const videos = computed(() => pages.value.flatMap((page) => page.videos ?? []));
+  const media = computed(() => {
+    const seen = new Set<string>();
+    return pages.value
+      .flatMap((page) => page.media ?? [...page.images, ...(page.videos ?? [])])
+      .filter((item) => {
+        if (seen.has(item.path)) return false;
+        seen.add(item.path);
+        return true;
+      });
+  });
   const totalImages = computed(() => firstPage.value?.total_images ?? 0);
+  const totalVideos = computed(() => firstPage.value?.total_videos ?? videos.value.length);
+  const totalAssets = computed(() => firstPage.value?.total_assets ?? totalImages.value + totalVideos.value);
   const nextCursor = computed(() => {
     if (!pages.value.length) return null;
     return pages.value[pages.value.length - 1]?.next_cursor ?? null;
@@ -72,7 +85,11 @@ export function useInfiniteScanQuery(path: Ref<string>) {
     activeFolderPath,
     folders,
     images,
+    videos,
+    media,
     totalImages,
+    totalVideos,
+    totalAssets,
     nextCursor,
   };
 }

@@ -15,7 +15,7 @@ from .albums import build_album_metadata
 from .config import ENABLE_WARM_INDEXED_LISTING, SCAN_PERF_LOGS_ENABLED
 from .debug.scan_perf import log_direct_scan_summary, log_warm_db_hit, log_warm_scan_summary
 from .errors import APIError, ErrorType
-from .files import is_image, is_index_excluded_path, natural_sort_key
+from .files import is_image, is_index_excluded_path, is_video_path, natural_sort_key
 from .indexer import (
     enqueue_metadata_jobs_from_scan,
     note_scan_request_finished,
@@ -156,8 +156,12 @@ def _db_required_empty_payload(target: Path) -> dict[str, object]:
     payload: dict[str, object] = {
         "folders": [],
         "images": [],
+        "videos": [],
+        "media": [],
         "next_cursor": None,
         "total_images": 0,
+        "total_videos": 0,
+        "total_assets": 0,
         "index_source": "warm_db",
         "library_state": library_state,
         "indexed": library_state not in {"discovering", "indexing"},
@@ -190,8 +194,8 @@ def scan_directory(
     target_path: Path,
     import_root: str | Path | None = None,
     exclusion_patterns: tuple[str, ...] | list[str] = (),
-) -> tuple[list[FileNode], list[FileNode], dict[str, int | float | None]]:
-    """Scan one directory into folder and image nodes with timing counters."""
+) -> tuple[list[FileNode], list[FileNode], list[FileNode], dict[str, int | float | None]]:
+    """Scan one directory into folder and mixed-media nodes with timing counters."""
     perf = _new_scan_perf()
     if not target_path.exists():
         raise APIError(404, ErrorType.NOT_FOUND, "Folder not found")
@@ -200,6 +204,7 @@ def scan_directory(
 
     folders: list[FileNode] = []
     images: list[FileNode] = []
+    videos: list[FileNode] = []
     image_entries: list[tuple[str, str, float, int]] = []
     try:
         list_started = time.perf_counter()
@@ -243,6 +248,7 @@ def scan_directory(
             except OSError:
                 is_file = False
             is_image_file = is_file and is_image(entry_path)
+            is_video_file = is_file and is_video_path(entry_path)
             perf["image_filter_ms"] += _elapsed_ms(image_filter_started)
 
             if is_image_file:
@@ -262,6 +268,28 @@ def scan_directory(
                 except OSError:
                     resolved_path = str(entry_path.absolute())
                 image_entries.append((entry.name, resolved_path, mtime, size))
+            elif is_video_file:
+                try:
+                    stat_started = time.perf_counter()
+                    stat = entry.stat()
+                    mtime = stat.st_mtime
+                except OSError:
+                    mtime = 0
+                finally:
+                    perf["stat_ms"] += _elapsed_ms(stat_started)
+                try:
+                    resolved_path = str(entry_path.resolve())
+                except OSError:
+                    resolved_path = str(entry_path.absolute())
+                videos.append(
+                    FileNode(
+                        name=entry.name,
+                        path=resolved_path,
+                        type="video",
+                        has_children=False,
+                        mtime=mtime,
+                    )
+                )
             else:
                 continue
 
@@ -291,11 +319,12 @@ def scan_directory(
     sort_started = time.perf_counter()
     folders.sort(key=lambda x: natural_sort_key(x.name))
     images.sort(key=lambda x: natural_sort_key(x.name))
+    videos.sort(key=lambda x: natural_sort_key(x.name))
     perf["sort_ms"] = _elapsed_ms(sort_started)
     perf["folders_found"] = len(folders)
     perf["images_found"] = len(images)
 
-    return folders, images, perf
+    return folders, images, videos, perf
 
 
 def _shadow_compare_asset_listing(
@@ -420,7 +449,7 @@ async def api_scan(
                 "Direct filesystem scan used for %s — register this path as a library for DB-first browsing",
                 target,
             )
-            folders, images, scan_perf = await run_in_threadpool(
+            folders, images, videos, scan_perf = await run_in_threadpool(
                 scan_directory,
                 target,
                 import_root,
@@ -441,15 +470,22 @@ async def api_scan(
             background_tasks.add_task(
                 index_file, target, target.name or str(target), target.parent, "folder", target_mtime, None, None, None
             )
-            background_tasks.add_task(index_files_from_scan, folders, images, scan_folder_path=target)
+            background_tasks.add_task(index_files_from_scan, folders, [*images, *videos], scan_folder_path=target)
             background_tasks.add_task(index_directory_tree, target, False)
             background_tasks.add_task(enqueue_metadata_jobs_from_scan, images, target)
 
             response_payload = {
                 "folders": folders,
                 "images": paged_images,
+                "videos": videos if image_cursor == 0 else [],
+                "media": sorted(
+                    [*paged_images, *(videos if image_cursor == 0 else [])],
+                    key=lambda node: natural_sort_key(node.name),
+                ),
                 "next_cursor": next_cursor,
                 "total_images": total_images,
+                "total_videos": len(videos),
+                "total_assets": total_images + len(videos),
                 "index_source": "direct_scan",
             }
 

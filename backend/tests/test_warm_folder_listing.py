@@ -166,7 +166,17 @@ def test_response_shape_compatible(tmp_path: Path):
 
     result = get_warm_folder_listing(album, offset=0, limit=10, image_limit=10)
     assert result is not None
-    assert set(result) == {"folders", "images", "next_cursor", "total_images", "index_source"}
+    assert set(result) == {
+        "folders",
+        "images",
+        "videos",
+        "media",
+        "next_cursor",
+        "total_images",
+        "total_videos",
+        "total_assets",
+        "index_source",
+    }
 
     for img in result["images"]:
         assert set(img.model_dump()) == {

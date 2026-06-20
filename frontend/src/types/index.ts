@@ -33,6 +33,9 @@ export interface FileNode {
   asset_id?: number | null;
   metadata_state?: string | null;
   derivative_ready?: Record<string, boolean> | null;
+  duration_ms?: number | null;
+  mime_type?: string | null;
+  poster_ready?: boolean;
 }
 
 export type LibraryErrorCode =
@@ -97,8 +100,12 @@ export interface MetadataResponse {
 export interface ScanResponse {
   folders: FolderTreeNode[];
   images: FileNode[];
+  videos?: FileNode[];
+  media?: FileNode[];
   next_cursor: number | null;
   total_images: number;
+  total_videos?: number;
+  total_assets?: number;
   request_path?: string;
   index_source?: "warm_db" | "direct_scan" | "mixed";
 }
@@ -127,11 +134,15 @@ export interface UnifiedSearchResult {
   sampler: string;
   seed: string;
   prompt_snippet: string;
+  duration_ms?: number | null;
+  mime_type?: string | null;
+  poster_ready?: boolean;
 }
 
 export interface UnifiedSearchResults {
   albums: UnifiedSearchResult[];
   photos: UnifiedSearchResult[];
+  videos?: UnifiedSearchResult[];
   prompt: UnifiedSearchResult[];
 }
 

@@ -6,11 +6,11 @@ from pydantic import BaseModel
 
 
 class FileNode(BaseModel):
-    """Folder or image node returned by browsing, scanning, and search endpoints."""
+    """Folder or media node returned by browsing, scanning, and search endpoints."""
 
     name: str
     path: str  # absolute path on disk
-    type: Literal["folder", "image"]
+    type: Literal["folder", "image", "video"]
     has_children: bool
     cover_images: list[str] = []
     mtime: float = 0  # Modified time (Unix timestamp)
@@ -20,3 +20,11 @@ class FileNode(BaseModel):
     asset_id: int | None = None
     metadata_state: str | None = None
     derivative_ready: dict[str, bool] | None = None
+
+
+class VideoFileNode(FileNode):
+    """Video node with playback metadata unavailable on image/folder nodes."""
+
+    duration_ms: int | None = None
+    mime_type: str | None = None
+    poster_ready: bool | None = None

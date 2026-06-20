@@ -1,8 +1,8 @@
 # Codex Library Management Implementation Status
 
-Last updated: 2026-06-20 (Phase 6 audit fix)  
-Current milestone: Phase 6 complete
-Next milestone: Phase 7 — mixed-media UI
+Last updated: 2026-06-20 (Phase 7 complete)  
+Current milestone: Phase 7 complete
+Next milestone: Phase 8 — final verification and polish
 SQLite schema version currently implemented: `PRAGMA user_version = 8`
 
 ## Verified Git Baseline
@@ -58,12 +58,16 @@ unregister registered libraries with:
   watcher behavior based on import paths.
 
 Phase 1-3 provide the backend, Phase 4 adds the frontend library-management
-data layer, Phase 5 adds the admin management UI, and Phase 6 completes the
-active-library selector (`activeLibraryId` / `currentBrowsePath`). The admin
+data layer, Phase 5 adds the admin management UI, Phase 6 completes the
+active-library selector (`activeLibraryId` / `currentBrowsePath`), and Phase 7
+adds mixed-media gallery UI. The admin
 can register/edit/scan/repair/unregister libraries through
 `/admin/libraries` and `/admin/libraries/:id`, and the gallery now operates
 against a registered active library instead of arbitrary root-path entry.
-The mixed-media UI is not started yet.
+The main viewer renders images on the existing PhotoSwipe flow and videos
+via a native `<video>` player dialog with poster thumbnails, play affordance,
+and fallback placeholders. The viewer remains image-only in search results
+for backward compatibility; video cards appear in browse mode.
 
 > Note: Phase 6 replaced the legacy `galleryStore.setRootPath()` bridge with
 > an `activeLibraryId` (persisted) + `currentBrowsePath` (in-memory) model.
@@ -86,9 +90,13 @@ Implemented now:
   admin management UI: /admin/libraries list + /admin/libraries/:id detail
     (LibraryListPage, LibraryDetailPage, LibraryForm, create/edit/delete
     dialogs, status badges, progress bar, summary panel, action menu)
+  active-library selection + one-shot legacy migration
+  mixed-media gallery UI: VideoCard, VideoPlayerDialog, media rendering
+    in GalleryGrid, video poster/play affordance/fallback, backend
+    scan/search videos/media fields, e2e coverage
 
 Not implemented yet:
-  mixed-media UI only (active-library state/UI completed in Phase 6)
+  final verification and polish (Phase 8)
 ```
 
 ## 2. Phase Progress
@@ -102,8 +110,8 @@ Not implemented yet:
 | 4. Frontend data layer | Complete | Library types/API, query keys/composables, mutations, SSE invalidation, status utilities | Phase 5 builds on this layer |
 | 5. Admin management UI | Complete | `/admin/libraries` + `/admin/libraries/:id` routes; `LibraryListPage`, `LibraryDetailPage`, `LibraryForm`, create/edit/delete dialogs, `LibraryStatusBadge`, `LibraryProgressBar`, `LibrarySummaryPanel`, `LibraryActionMenu`; AppHeader "Libraries" entry; desktop/tablet/mobile route render via `RouterView` | Phase 6 builds on this layer |
 | 6. Active library selection | Complete | activeLibraryId/currentBrowsePath store model, LibrarySidebarHeader, LibrarySelectorSheet, one-shot legacy migration, no {rootPath,setRootPath,resetRootPath} | Phase 7 builds on this layer |
-| 7. Mixed-media UI | Not started | Viewer remains image-only | Requires Phase 3 and Phase 4 |
-| 8. Final verification | Not started | Phase 1 backend verification only | Run after all feature phases |
+| 7. Mixed-media UI | Complete | VideoCard, VideoPlayerDialog, mixed-media rendering in GalleryGrid, video poster/play affordance/fallback, backend videos/media fields in scan/search | Phase 8 builds on this layer |
+| 8. Final verification | Not started | Run full backend + frontend + E2E regression | Run after all feature phases |
 
 Overall plan completion is not “2/9 of functionality.” Phase 0 is a design
 gate, and Phase 1 is only the backend foundation. User-visible library
@@ -603,8 +611,10 @@ The project should currently be described as:
 > edit, scan, repair, and unregister libraries through `/admin/libraries` and
 > `/admin/libraries/:id` on desktop, tablet, and mobile. Phase 6 introduced
 > `activeLibraryId` / `currentBrowsePath`; the gallery no longer exposes
-> arbitrary root-path entry. The viewer remains image-only until Phase 7
-> mixed-media UI.
-
-Do not describe the full Library Management feature as complete or
-frontend-ready. Mixed-media UI remains.
+> arbitrary root-path entry. Phase 7 added mixed-media gallery UI:
+> VideoCard, VideoPlayerDialog, and media rendering in GalleryGrid.
+> The viewer remains image-only on the existing PhotoSwipe path; videos open
+> in a native `<video>` player dialog backed by `/api/video`.
+>
+> Do not describe the full Library Management feature as complete or
+> frontend-ready. Phase 8 — final verification and polish — remains.

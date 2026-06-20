@@ -48,6 +48,30 @@ async function installStubbedGallery(page: Page) {
     };
     requests.push(req);
 
+    if (url.pathname === "/api/libraries") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify([
+          {
+            id: 1,
+            root_path: rootPath,
+            import_paths: [{ id: 10, library_id: 1, path: rootPath, position: 0, created_at: 1, updated_at: 1 }],
+            exclusion_patterns: [],
+            name: "No reload library",
+            state: "ready",
+            watch_enabled: 1,
+            warm_enabled: 1,
+            asset_count: imagePaths.length,
+            created_at: 1,
+            updated_at: 1,
+            last_scan_at: 1,
+            last_error: null,
+          },
+        ]),
+      });
+      return;
+    }
+
     if (url.pathname === "/api/scan") {
       await route.fulfill({
         contentType: "application/json",
@@ -109,12 +133,13 @@ async function installStubbedGallery(page: Page) {
 }
 
 async function openStubbedGallery(page: Page) {
-  await page.addInitScript((root) => {
+  await page.addInitScript(() => {
     localStorage.setItem("intro_mode", "disabled");
-    localStorage.setItem("gallery-root-path", root);
+    localStorage.setItem("gallery-active-library-id", "1");
+    localStorage.setItem("gallery-active-import-path-id", "10");
     localStorage.setItem("gallery-sort-preference", JSON.stringify({ field: "name", order: "asc" }));
     localStorage.removeItem("gallery-lightbox-always-load-original");
-  }, rootPath);
+  });
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });

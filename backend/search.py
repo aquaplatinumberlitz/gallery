@@ -107,6 +107,7 @@ async def api_search(
             "root": str(root) if root is not None else "/",
             "albums": [],
             "photos": [],
+            "videos": [],
             "prompt": [],
         }
 
@@ -147,6 +148,7 @@ async def api_search(
 
     albums = safe_section(data["albums"])
     photos = safe_section(data["photos"])
+    videos = safe_section(data.get("videos", []))
     prompt = safe_section(data["prompt"])
 
     if stale_detected:
@@ -158,6 +160,7 @@ async def api_search(
         "root": data["root"],
         "albums": albums,
         "photos": photos,
+        "videos": videos,
         "prompt": prompt,
     }
 

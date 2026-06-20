@@ -24,9 +24,7 @@ const png1x1 = Buffer.from(
 const stubLibrary = {
   id: 1,
   root_path: rootPath,
-  import_paths: [
-    { id: 10, library_id: 1, path: rootPath, position: 0, created_at: 1, updated_at: 1 },
-  ],
+  import_paths: [{ id: 10, library_id: 1, path: rootPath, position: 0, created_at: 1, updated_at: 1 }],
   exclusion_patterns: [],
   name: "Sidebar Trigger Test",
   state: "ready",

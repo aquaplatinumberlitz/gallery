@@ -7,6 +7,7 @@ import type { SearchScope, UnifiedSearchResults } from "../types";
 const EMPTY_SEARCH_RESULTS: UnifiedSearchResults = {
   albums: [],
   photos: [],
+  videos: [],
   prompt: [],
 };
 
@@ -73,6 +74,7 @@ export function useUnifiedSearchQuery(query: Ref<string>, scope: Ref<SearchScope
     results,
     albums: computed(() => results.value.albums),
     photos: computed(() => results.value.photos),
+    videos: computed(() => results.value.videos ?? []),
     prompt: computed(() => results.value.prompt),
   };
 }

@@ -135,8 +135,12 @@ def test_required_mode_never_falls_back_to_filesystem(
     assert response.json() == {
         "folders": [],
         "images": [],
+        "videos": [],
+        "media": [],
         "next_cursor": None,
         "total_images": 0,
+        "total_videos": 0,
+        "total_assets": 0,
         "index_source": "warm_db",
         "library_state": "discovering",
         "indexed": False,

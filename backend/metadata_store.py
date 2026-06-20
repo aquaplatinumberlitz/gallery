@@ -41,7 +41,7 @@ from .metadata_extract import (
     safe_text,
     sanitize_metadata_for_json,
 )
-from .models import FileNode
+from .models import FileNode, VideoFileNode
 
 SEARCH_FIELDS = ("name", "prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
 PROMPT_SEARCH_FIELDS = ("prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
@@ -1593,7 +1593,7 @@ def get_asset_folder_listing(
             SELECT a.id, a.path, a.parent_path, a.name, a.type, a.mtime_ns, a.size,
                    COALESCE(a.width, im.width) AS width,
                    COALESCE(a.height, im.height) AS height,
-                   a.metadata_state
+                   a.metadata_state, a.duration_ms, a.mime_type
             FROM assets AS a
             LEFT JOIN image_metadata AS im ON im.path = a.path
             WHERE a.library_id = ? AND a.parent_path = ?
@@ -1612,6 +1612,9 @@ def get_asset_folder_listing(
         )
         image_rows = sorted(
             (row for row in rows if row["type"] == "image"), key=lambda row: natural_sort_key(row["name"])
+        )
+        video_rows = sorted(
+            (row for row in rows if row["type"] == "video"), key=lambda row: natural_sort_key(row["name"])
         )
         total_images = len(image_rows)
         end = offset + image_limit if image_limit is not None else total_images
@@ -1683,11 +1686,35 @@ def get_asset_folder_listing(
             )
             for row in page
         ]
+        videos = (
+            [
+                VideoFileNode(
+                    name=row["name"],
+                    path=row["path"],
+                    type="video",
+                    has_children=False,
+                    mtime=row["mtime_ns"] or 0,
+                    width=row["width"],
+                    height=row["height"],
+                    asset_id=row["id"],
+                    duration_ms=row["duration_ms"],
+                    mime_type=row["mime_type"],
+                )
+                for row in video_rows
+            ]
+            if offset == 0
+            else []
+        )
+        media = sorted([*images, *videos], key=lambda node: natural_sort_key(node.name))
         return {
             "folders": folders,
             "images": images,
+            "videos": videos,
+            "media": media,
             "next_cursor": end if end < total_images else None,
             "total_images": total_images,
+            "total_videos": len(video_rows),
+            "total_assets": total_images + len(video_rows),
             "index_source": "warm_db",
         }
 
@@ -2459,12 +2486,25 @@ def get_warm_folder_listing(
                 (resolved,),
             )
         )
+        raw_videos = list(
+            conn.execute(
+                """
+                SELECT fi.path, fi.name, fi.mtime, fi.width, fi.height,
+                       a.duration_ms, a.mime_type
+                FROM file_index AS fi
+                LEFT JOIN assets AS a ON a.path = fi.path
+                WHERE fi.parent_path = ? AND fi.type = 'video'
+                """,
+                (resolved,),
+            )
+        )
 
         # Sort in Python with natural_sort_key to match direct scan order
         from .files import natural_sort_key
 
         raw_folders.sort(key=lambda x: natural_sort_key(x["name"]))
         raw_images.sort(key=lambda x: natural_sort_key(x["name"]))
+        raw_videos.sort(key=lambda x: natural_sort_key(x["name"]))
 
         image_start = offset
         image_end = offset + image_limit if image_limit is not None else total_images
@@ -2484,6 +2524,26 @@ def get_warm_folder_listing(
                     height=img["height"],
                 )
             )
+
+        warm_videos = (
+            [
+                VideoFileNode(
+                    name=video["name"],
+                    path=video["path"],
+                    type="video",
+                    has_children=False,
+                    cover_images=[],
+                    mtime=video["mtime"] or 0,
+                    width=video["width"],
+                    height=video["height"],
+                    duration_ms=video["duration_ms"],
+                    mime_type=video["mime_type"],
+                )
+                for video in raw_videos
+            ]
+            if offset == 0
+            else []
+        )
 
         # Build DB-derived folder metadata — no filesystem access
         child_paths = [f["path"] for f in raw_folders]
@@ -2547,8 +2607,12 @@ def get_warm_folder_listing(
     return {
         "folders": warm_folders,
         "images": warm_images,
+        "videos": warm_videos,
+        "media": sorted([*warm_images, *warm_videos], key=lambda node: natural_sort_key(node.name)),
         "next_cursor": next_cursor,
         "total_images": total_images,
+        "total_videos": len(raw_videos),
+        "total_assets": total_images + len(raw_videos),
         "index_source": "warm_db",
     }
 
@@ -2967,10 +3031,10 @@ def _scan_folder_counts(folder_path: Path) -> dict:
     return {"child_count": total, "folder_count": folders, "image_count": images}
 
 
-def index_files_from_scan(folders: list[Any], images: list[Any], *, scan_folder_path: str | Path | None = None) -> int:
+def index_files_from_scan(folders: list[Any], media: list[Any], *, scan_folder_path: str | Path | None = None) -> int:
     """Persist file index rows produced by a scan response and update folder state."""
     indexed = 0
-    for item in [*folders, *images]:
+    for item in [*folders, *media]:
         raw_path = _path_value(item, "path")
         if not raw_path:
             continue
@@ -2995,13 +3059,14 @@ def index_files_from_scan(folders: list[Any], images: list[Any], *, scan_folder_
             continue
 
     if scan_folder_path is not None:
+        image_count = sum(1 for item in media if _normalize_file_type(_path_value(item, "type", "image")) == "image")
         with suppress(Exception):
             update_folder_index_state(
                 scan_folder_path,
                 complete=True,
-                child_count=len(folders) + len(images),
+                child_count=len(folders) + len(media),
                 folder_count=len(folders),
-                image_count=len(images),
+                image_count=image_count,
             )
     return indexed
 
@@ -3494,6 +3559,7 @@ def search_index(query: str, scope: str, root_path: str | Path | None = None, li
             "root": str(display_root),
             "albums": [],
             "photos": [],
+            "videos": [],
             "prompt": [],
         }
 
@@ -3504,12 +3570,14 @@ def search_index(query: str, scope: str, root_path: str | Path | None = None, li
             "root": "",
             "albums": [],
             "photos": [],
+            "videos": [],
             "prompt": [],
         }
 
     with _DB_LOCK, _connect() as conn:
         album_rows, root = _search_file_index_fts(conn, trimmed, "folder", normalized_scope, root_path, limit)
         photo_rows, root = _search_file_index_fts(conn, trimmed, "photo", normalized_scope, root_path, limit)
+        video_rows, root = _search_file_index_fts(conn, trimmed, "video", normalized_scope, root_path, limit)
         prompt_rows, root = _search_prompt_rows(conn, trimmed, normalized_scope, root_path, limit)
 
     format_root = root if root is not None else Path(os.sep)
@@ -3519,6 +3587,7 @@ def search_index(query: str, scope: str, root_path: str | Path | None = None, li
         "root": str(format_root),
         "albums": _format_file_index_rows(album_rows, format_root, "filename"),
         "photos": _format_file_index_rows(photo_rows, format_root, "filename"),
+        "videos": _format_file_index_rows(video_rows, format_root, "filename"),
         "prompt": _format_prompt_rows(prompt_rows, format_root),
     }
 
@@ -3654,6 +3723,7 @@ def search_index_fielded(
             "root": str(display_root),
             "albums": [],
             "photos": [],
+            "videos": [],
             "prompt": [],
         }
 
@@ -3664,6 +3734,7 @@ def search_index_fielded(
             "root": "",
             "albums": [],
             "photos": [],
+            "videos": [],
             "prompt": [],
         }
 
@@ -3679,6 +3750,8 @@ def search_index_fielded(
     album_query = parsed.residual_text if parsed.residual_text else ""
 
     with _DB_LOCK, _connect() as conn:
+        video_query = parsed.residual_text if parsed.residual_text else trimmed
+        video_rows, root = _search_file_index_fts(conn, video_query, "video", normalized_scope, root_path, limit)
         if album_query:
             album_rows, root = _search_file_index_fts(conn, album_query, "folder", normalized_scope, root_path, limit)
         else:
@@ -3731,6 +3804,7 @@ def search_index_fielded(
         "root": str(format_root),
         "albums": _format_file_index_rows(album_rows, format_root, "filename"),
         "photos": _format_file_index_rows(photo_rows, format_root, "filename"),
+        "videos": _format_file_index_rows(video_rows, format_root, "filename"),
         "prompt": _format_prompt_rows(prompt_rows, format_root),
     }
 

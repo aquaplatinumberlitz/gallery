@@ -77,11 +77,24 @@ def test_api_scan_hot_path_uses_cached_dimensions_without_parsing_or_opening_ima
 
     assert response.status_code == 200
     data = response.json()
-    assert set(data) == {"folders", "images", "next_cursor", "total_images", "index_source"}
+    assert set(data) == {
+        "folders",
+        "images",
+        "videos",
+        "media",
+        "next_cursor",
+        "total_images",
+        "total_videos",
+        "total_assets",
+        "index_source",
+    }
     assert data["total_images"] == 2
     assert data["next_cursor"] == 1
     assert len(data["folders"]) == 1
     assert len(data["images"]) == 1
+    assert data["videos"] == []
+    assert data["total_videos"] == 0
+    assert data["total_assets"] == 2
     assert data["images"][0]["name"] == "a.jpg"
     assert data["images"][0]["width"] == 320
     assert data["images"][0]["height"] == 240
