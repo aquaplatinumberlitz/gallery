@@ -5,6 +5,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from backend.app import app
@@ -47,18 +48,20 @@ def test_job_state_transitions_and_failure(isolated_metadata_db: Path, isolated_
     assert failure["error"] == "broken"
 
 
-def test_recover_stale_running_jobs_only(isolated_metadata_db: Path, isolated_gallery_root: Path):
+def test_recover_stale_running_and_queued_jobs(isolated_metadata_db: Path, isolated_gallery_root: Path):
     library_id = int(register_library(isolated_gallery_root)["id"])
     running = create_job("scan", library_id=library_id)
     queued = create_job("scan", library_id=library_id)
     update_job_state(running["id"], "running")
 
     recovered = recover_stale_jobs()
+    recovered_by_id = {job["id"]: job for job in recovered}
 
-    assert [job["id"] for job in recovered] == [running["id"]]
+    assert set(recovered_by_id) == {running["id"], queued["id"]}
     assert get_job(running["id"])["state"] == "failed"
     assert get_job(running["id"])["error"] == "Interrupted by server restart"
-    assert get_job(queued["id"])["state"] == "queued"
+    assert get_job(queued["id"])["state"] == "cancelled"
+    assert get_job(queued["id"])["error"] == "Cancelled by server restart"
 
 
 def test_scan_all_creates_parent_and_linked_children(
@@ -154,3 +157,41 @@ def test_sse_event_shape_and_frame(isolated_metadata_db: Path, isolated_gallery_
     assert frame.startswith(f"event: job.updated\nid: {job['id']}\ndata: {{")
     assert '"type":"job.updated"' in frame
     assert frame.endswith("\n\n")
+
+
+def test_scan_progress_reports_active_job_id(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """POST scan -> GET progress -> active_job_id is set while the job is active."""
+    create_test_png(isolated_gallery_root / "image.png")
+    library_id = int(register_library(isolated_gallery_root)["id"])
+
+    monkeypatch.setattr("backend.libraries._discover_library", lambda *args, **kwargs: None)
+
+    with TestClient(app) as client:
+        scan = client.post(f"/api/libraries/{library_id}/scan")
+        assert scan.status_code == 202
+        job_id = scan.json()["job_id"]
+
+        progress = client.get(f"/api/libraries/{library_id}/progress")
+
+    assert progress.status_code == 200
+    assert progress.json()["active_job_id"] == job_id
+
+
+def test_scan_all_with_zero_libraries(isolated_metadata_db: Path, isolated_gallery_root: Path):
+    """POST /api/libraries/scan-all succeeds with no registered libraries."""
+    with TestClient(app) as client:
+        response = client.post("/api/libraries/scan-all")
+        assert response.status_code == 202
+        body = response.json()
+        assert body["count"] == 0
+        assert body["child_job_ids"] == []
+
+        parent = client.get(f"/api/jobs/{body['job_id']}").json()
+
+    assert parent["type"] == "scan_all"
+    assert parent["state"] == "succeeded"
+    assert parent["counters"] == {"total": 0, "succeeded": 0, "failed": 0, "coalesced": 0}

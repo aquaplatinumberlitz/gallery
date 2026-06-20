@@ -945,18 +945,79 @@ def list_active_jobs(library_id: int | None = None) -> list[dict[str, Any]]:
         return [_serialize_library_job(row) for row in conn.execute(query, params)]
 
 
-def recover_stale_jobs() -> list[dict[str, Any]]:
-    """Fail jobs left running by a previous server process."""
+def create_or_get_active_scan_job(
+    library_id: int,
+    *,
+    parent_job_id: int | None = None,
+) -> tuple[dict[str, Any], bool]:
+    """Atomically return an existing active scan job or create a queued one.
+
+    The check for an existing active scan job and the insert of a new queued
+    job happen inside a single ``_DB_LOCK`` critical section, eliminating the
+    TOCTOU race that existed when ``_queue_scan`` performed the lookup and the
+    insert as separate calls. Returns ``(job, created)`` where ``created`` is
+    ``True`` when a new job was inserted and ``False`` when an existing active
+    scan job was reused.
+    """
+    now = time.time()
     initialize_database()
     with _DB_LOCK, _connect() as conn:
-        job_ids = [int(row["id"]) for row in conn.execute("SELECT id FROM library_jobs WHERE state = 'running'")]
-    recovered = []
-    for job_id in job_ids:
+        existing = conn.execute(
+            """
+            SELECT * FROM library_jobs
+            WHERE library_id = ? AND type = 'scan'
+              AND state IN ('queued', 'running')
+            ORDER BY id LIMIT 1
+            """,
+            (library_id,),
+        ).fetchone()
+        if existing is not None:
+            return _serialize_library_job(existing), False
+        cursor = conn.execute(
+            """
+            INSERT INTO library_jobs (
+              library_id, parent_job_id, type, state, progress_current,
+              progress_total, message, counters, created_at, updated_at
+            ) VALUES (?, ?, 'scan', 'queued', 0, NULL, 'Scan queued', '{}', ?, ?)
+            """,
+            (library_id, parent_job_id, now, now),
+        )
+        row = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (cursor.lastrowid,)).fetchone()
+        return _serialize_library_job(row), True
+
+
+def recover_stale_jobs() -> list[dict[str, Any]]:
+    """Fail jobs left running or queued by a previous server process.
+
+    Running jobs are transitioned to ``failed`` with an interrupted-by-restart
+    message. Queued jobs are transitioned to ``cancelled`` because no worker
+    has picked them up yet and re-running them automatically could duplicate
+    work that the user already retried manually.
+    """
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        running_ids = [
+            int(row["id"]) for row in conn.execute("SELECT id FROM library_jobs WHERE state = 'running'")
+        ]
+        queued_ids = [
+            int(row["id"]) for row in conn.execute("SELECT id FROM library_jobs WHERE state = 'queued'")
+        ]
+    recovered: list[dict[str, Any]] = []
+    for job_id in running_ids:
         job = update_job_state(
             job_id,
             "failed",
             message="Interrupted by server restart",
             error="Interrupted by server restart",
+        )
+        if job is not None:
+            recovered.append(job)
+    for job_id in queued_ids:
+        job = update_job_state(
+            job_id,
+            "cancelled",
+            message="Cancelled by server restart",
+            error="Cancelled by server restart",
         )
         if job is not None:
             recovered.append(job)
@@ -1052,6 +1113,28 @@ def get_library_for_path(path: str | Path) -> dict[str, Any] | None:
         library["matched_import_path_id"] = int(row["matched_import_path_id"])
         library["matched_import_path"] = str(row["matched_import_path"])
         return library
+
+
+def get_asset_state_for_path(path: str | Path) -> dict[str, Any] | None:
+    """Return the indexed asset row state (type, offline, deleted_at) for a path.
+
+    Returns None when the path has not been cataloged. Used by the media-path
+    authorization helper to reject requests for assets marked offline/deleted.
+    """
+    initialize_database()
+    resolved = str(Path(path).resolve())
+    with _DB_LOCK, _connect() as conn:
+        row = conn.execute(
+            "SELECT type, offline, deleted_at FROM assets WHERE path = ? LIMIT 1",
+            (resolved,),
+        ).fetchone()
+    if row is None:
+        return None
+    return {
+        "type": str(row["type"]),
+        "offline": int(row["offline"]) == 1,
+        "deleted_at": None if row["deleted_at"] is None else float(row["deleted_at"]),
+    }
 
 
 def get_first_library_root() -> Path | None:

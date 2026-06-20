@@ -2,4 +2,5 @@
 httpx
 pytest
 pytest-cov
+pytest-timeout
 ruff==0.14.8

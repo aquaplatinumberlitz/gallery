@@ -272,15 +272,15 @@ def test_generate_derivative_maps_unidentified_image_to_api_error(
 
 
 def test_resolve_image_request_path_rejects_unsafe_path(isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch):
-    # Path outside the gallery root
-    monkeypatch.setattr(thumbnails, "is_path_safe", lambda _: False)
+    # Path outside PATH_SAFETY_ROOT — require_media_path_allowed raises 403
+    monkeypatch.setattr(thumbnails, "require_media_path_allowed", lambda *a, **kw: (_ for _ in ()).throw(APIError(403, "permission_denied", "Access denied")))
     with pytest.raises(APIError) as exc_info:
         thumbnails._resolve_image_request_path("/etc/passwd")
     assert exc_info.value.status_code == 403
 
 
 def test_resolve_image_request_path_rejects_missing_file(isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(thumbnails, "is_path_safe", lambda _: True)
+    monkeypatch.setattr(thumbnails, "require_media_path_allowed", lambda *a, **kw: Path(str(isolated_gallery_root / "ghost.png")))
     with pytest.raises(APIError) as exc_info:
         thumbnails._resolve_image_request_path(str(isolated_gallery_root / "ghost.png"))
     assert exc_info.value.status_code == 404
@@ -289,7 +289,7 @@ def test_resolve_image_request_path_rejects_missing_file(isolated_gallery_root: 
 def test_resolve_image_request_path_rejects_non_image(isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch):
     text = isolated_gallery_root / "notes.txt"
     text.write_text("not an image")
-    monkeypatch.setattr(thumbnails, "is_path_safe", lambda _: True)
+    monkeypatch.setattr(thumbnails, "require_media_path_allowed", lambda *a, **kw: Path(str(text)))
     with pytest.raises(APIError) as exc_info:
         thumbnails._resolve_image_request_path(str(text))
     assert exc_info.value.status_code == 400
@@ -300,7 +300,7 @@ def test_resolve_image_request_path_returns_path_for_valid_image(
 ):
     image = isolated_gallery_root / "valid.png"
     Image.new("RGB", (10, 10), (40, 120, 200)).save(image, format="PNG")
-    monkeypatch.setattr(thumbnails, "is_path_safe", lambda _: True)
+    monkeypatch.setattr(thumbnails, "require_media_path_allowed", lambda *a, **kw: Path(str(image)))
     result = thumbnails._resolve_image_request_path(str(image))
     assert result == image
 

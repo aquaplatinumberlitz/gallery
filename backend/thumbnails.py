@@ -19,7 +19,7 @@ from .config import THUMBNAIL_CACHE_DIR
 from .errors import APIError, ErrorType
 from .files import check_image_limits, is_image
 from .metadata_store import upsert_image_dimensions
-from .paths import is_path_safe, resolve_path
+from .scan import require_media_path_allowed
 
 _thumbnail_disk_cache = Cache(str(THUMBNAIL_CACHE_DIR), size_limit=2 * 1024 * 1024 * 1024)
 _thumbnail_file_dir = THUMBNAIL_CACHE_DIR / "files"
@@ -243,9 +243,7 @@ def generate_derivative(
 
 
 def _resolve_image_request_path(path: str) -> Path:
-    file_path = resolve_path(path)
-    if not is_path_safe(file_path):
-        raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied")
+    file_path = require_media_path_allowed(path, "image")
     if not file_path.exists() or not file_path.is_file():
         raise APIError(404, ErrorType.NOT_FOUND, "Image file not found")
     if not is_image(file_path):

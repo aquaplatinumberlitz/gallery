@@ -19,6 +19,7 @@ from .metadata_store import (
     LibraryOverlapError,
     create_job,
     create_library,
+    create_or_get_active_scan_job,
     get_gallery_stats,
     get_job,
     get_library,
@@ -269,12 +270,10 @@ def _active_library_job(library_id: int, *job_types: str) -> dict[str, Any] | No
 
 
 def _queue_scan(library_id: int, *, parent_job_id: int | None = None) -> tuple[dict[str, Any], bool]:
-    active = _active_library_job(library_id, "scan")
-    if active is not None:
-        return active, False
-    job = create_job("scan", library_id=library_id, parent_job_id=parent_job_id, message="Scan queued")
-    _emit_job(job)
-    return job, True
+    job, created = create_or_get_active_scan_job(library_id, parent_job_id=parent_job_id)
+    if created:
+        _emit_job(job)
+    return job, created
 
 
 def _discover_library(job_id: int, library_id: int, import_paths: list[str]) -> bool:

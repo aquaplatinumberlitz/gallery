@@ -57,19 +57,19 @@ unregister registered libraries with:
 - path lookup, viewer fallback, scanner, folder listing, search cleanup, and
   watcher behavior based on import paths.
 
-Phase 1 is backend-only. The frontend has not been migrated and still uses the
-legacy arbitrary `gallery-root-path` state/UI. The final jobs, stats, SSE,
-video, admin UI, active-library selector, and mixed-media work do not exist yet.
+Phase 1-3 are backend-only. The frontend has not been migrated and still uses the
+legacy arbitrary `gallery-root-path` state/UI. The admin UI,
+active-library selector, and mixed-media work do not exist yet.
 
 The most important boundary for the next developer:
 
 ```text
 Implemented now:
   SQLite v6 + multi-import-path CRUD/validation/exclusions
+  SQLite v7 + library_jobs + stats + scan-all + SSE
+  SQLite v8 + video metadata + streaming/posters
 
 Not implemented yet:
-  SQLite v7 jobs + stats + scan-all + SSE
-  SQLite v8 video metadata + streaming/posters
   all new frontend data/UI/state phases
 ```
 
@@ -79,8 +79,8 @@ Not implemented yet:
 | --- | --- | --- | --- |
 | 0. Contract lock | Complete | API, migration, state, jobs/SSE, video, dependency contract | Keep contract tests aligned with changes |
 | 1. Schema, validation, CRUD | Complete | SQLite v6, import paths, exclusions, CRUD/validate, multi-root lookup/scan/repair | Phase 2 builds on v6 |
-| 2. Jobs, stats, scan-all, SSE | Complete | library_jobs table, job tracking, scan-all, per-library/global stats, jobs endpoints, SSE events | Phase 3 builds on v7 |esent | Implement SQLite v7 and job manager |
-| 3. Video backend | Complete | v8 migration, ffprobe metadata, /api/video Range streaming, /api/video/poster ffmpeg caching, 7 new tests | Phase 4 builds on stable endpoints |
+| 2. Jobs, stats, scan-all, SSE | Complete | library_jobs table, job tracking, scan-all, per-library/global stats, jobs endpoints, SSE events | Phase 3 builds on v7 |
+| 3. Video backend | Complete | v8 migration, ffprobe indexing, /api/video streaming, /api/video/poster | Phase 4 builds on v8 |
 | 4. Frontend data layer | Not started | No new library types/API/query composables | Requires stable Phase 2/3 backend |
 | 5. Admin management UI | Not started | No `/admin/libraries` routes/pages | Requires Phase 4 |
 | 6. Active library selection | Not started | Legacy root-path UI/store still active | Requires library query/data layer |
@@ -187,22 +187,21 @@ exist yet.
 | `PATCH` | `/api/libraries/{id}` | Implemented with replacement semantics |
 | `PUT` | `/api/libraries/{id}` | Implemented as PATCH-compatible alias |
 | `POST` | `/api/libraries/{id}/validate` | Implemented; excludes current library from overlap checks |
-| `GET` | `/api/libraries/{id}/progress` | Existing implementation retained; not yet job-aware |
-| `POST` | `/api/libraries/{id}/scan` | Multi-import-path support added; still old BackgroundTasks flow |
-| `POST` | `/api/libraries/{id}/repair` | Multi-import-path/exclusion support added; still synchronous |
+| `GET` | `/api/libraries/{id}/progress` | Implemented; returns `active_job_id` |
+| `POST` | `/api/libraries/{id}/scan` | Implemented; job-tracked lifecycle |
+| `POST` | `/api/libraries/{id}/repair` | Implemented; job-recorded synchronous operation |
 | `DELETE` | `/api/libraries/{id}?confirm=true` | Existing source-file-safe behavior retained |
+| `GET` | `/api/libraries/{id}/stats` | Implemented with per-library counts |
+| `GET` | `/api/libraries/{id}/jobs` | Implemented |
+| `POST` | `/api/libraries/scan-all` | Implemented; parent/child job flow |
+| `GET` | `/api/stats` | Implemented with global gallery counts |
+| `GET` | `/api/jobs` | Implemented |
+| `GET` | `/api/jobs/{id}` | Implemented |
+| `GET` | `/api/events` | Implemented; SSE stream with keep-alive |
+| `GET` | `/api/video` | Implemented; HTTP Range streaming |
+| `GET` | `/api/video/poster` | Implemented; ffmpeg WebP caching |
 
-The following target endpoints are not implemented:
-
-- `GET /api/libraries/{id}/stats`
-- `GET /api/libraries/{id}/jobs`
-- `POST /api/libraries/scan-all`
-- `GET /api/stats`
-- `GET /api/jobs`
-- `GET /api/jobs/{id}`
-- `GET /api/events`
-- `GET /api/video`
-- `GET /api/video/poster`
+All target endpoints from Phase 2 and Phase 3 are now implemented.
 
 Static `/api/libraries/validate` is declared before the dynamic numeric library
 route. When adding `/api/libraries/scan-all`, keep it before
@@ -310,43 +309,32 @@ When scope is re-added or exclusions are relaxed:
 This distinction matters: asset-backed browse state may recover immediately,
 while legacy search-index coverage converges after the next scan.
 
-### 3.8 Scan and repair behavior during the Phase 1/2 boundary
+### 3.8 Scan and repair behavior
 
 Scan currently:
-
 - verifies every import path is an available directory;
-- sets library state to `discovering`;
-- uses FastAPI `BackgroundTasks`;
+- queues a `library_jobs` row and returns a `job_id` (202 Accepted);
+- uses FastAPI `BackgroundTasks` for the async scan runner;
 - rebuilds each import path sequentially;
-- sets state to `ready` or `error`;
-- returns the legacy shape:
+- updates job progress counters per import path;
+- sets job state to `succeeded` or `failed`;
+- emits SSE events on job transitions.
 
-```json
-{ "library_id": 1, "state": "discovering" }
-```
-
-It does not return `job_id`, queue work in SQLite, coalesce duplicate requests,
-or emit SSE. Phase 2 replaces this lifecycle.
+The job system uses a single-process in-memory runner (`BackgroundTasks`)
+with SQLite-tracked state. There is a known non-atomic window between
+`list_active_jobs` and `create_job` that can allow duplicate scan jobs under
+concurrent requests. This is acceptable for V1; a follow-up could introduce
+`create_or_get_active_scan_job` under a single `_DB_LOCK` critical section.
 
 Repair currently:
+- is a job-recorded synchronous operation;
+- creates a job row, runs `repair_library_assets`, then sets succeeded/failed;
+- returns the result in the same HTTP response (no polling needed);
+- returns a `job_id` for audit-trail reference.
 
-- is synchronous;
-- traverses every import path;
-- deduplicates traversal by visited directory inode and asset path;
-- applies default and per-library exclusions;
-- returns `added`, `removed`, and `modified`;
-- records no job row and returns no `job_id`.
-
-`GET /api/libraries/{id}/progress` still returns only:
-
-```text
-indexed_assets
-estimated_assets
-discovery_complete
-library_state
-```
-
-`active_job_id` is a Phase 2 addition.
+`GET /api/libraries/{id}/progress` returns:
+- `active_job_id` — the current queued/running job id, or null
+- `indexed_assets`, `estimated_assets`, `discovery_complete`, `library_state`
 
 ## 4. Files Changed and Ownership
 

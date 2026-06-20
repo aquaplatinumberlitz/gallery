@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import sqlite3
 import subprocess
 from pathlib import Path
@@ -10,12 +11,14 @@ import pytest
 
 from backend.metadata_store import get_library_stats, index_directory_tree, register_library
 
+_FFMPEG = shutil.which("ffmpeg")
+
 
 def _create_test_video(path: Path) -> None:
     """Create a short valid MP4 without relying on checked-in binary fixtures."""
     subprocess.run(
         [
-            "/usr/bin/ffmpeg",
+            _FFMPEG,
             "-y",
             "-f",
             "lavfi",
@@ -35,6 +38,8 @@ def _create_test_video(path: Path) -> None:
 
 @pytest.fixture
 def video_file(isolated_gallery_root: Path) -> Path:
+    if not _FFMPEG:
+        pytest.skip("ffmpeg not found")
     path = isolated_gallery_root / "sample.mp4"
     _create_test_video(path)
     return path

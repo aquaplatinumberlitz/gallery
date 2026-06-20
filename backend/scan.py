@@ -87,6 +87,55 @@ def _require_db_path(target: Path) -> None:
         raise APIError(409, "library_not_registered", "Register this root before browsing it")
 
 
+def require_media_path_allowed(path: str | Path, expected_type: str | None = None) -> Path:
+    """Authorize a media file path for serving under the current security model.
+
+    When GALLERY_DB_REQUIRED is true, the path must belong to an explicit
+    registered library (the catalog/security boundary), the owning library
+    must not be offline/error, and any indexed asset row for that path must be
+    active (not offline, not deleted). When DB-required mode is off, this
+    falls back to the PATH_SAFETY_ROOT containment check via is_path_safe().
+
+    `expected_type` ("image" or "video"), when supplied and the asset is
+    indexed, is used to validate that the cataloged asset type matches the
+    endpoint's intent. File-extension checks remain the caller's
+    responsibility.
+
+    Returns the resolved, authorized Path.
+    """
+    from .config import GALLERY_DB_REQUIRED
+
+    file_path = resolve_path(path)
+    if not GALLERY_DB_REQUIRED:
+        if not is_path_safe(file_path):
+            raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied")
+        return file_path
+
+    from .metadata_store import get_asset_state_for_path, get_library_for_path
+
+    library = get_library_for_path(file_path)
+    if library is not None:
+        library_state = str(library.get("library_state") or library.get("state") or "")
+        if library_state == "offline":
+            raise APIError(409, "library_offline", library.get("last_error") or "Library root is offline")
+        if library_state == "error":
+            raise APIError(409, "library_error", library.get("last_error") or "Library scan failed")
+
+    if library is None:
+        raise APIError(409, "library_not_registered", "Register this root before serving this asset")
+
+    asset_state = get_asset_state_for_path(file_path)
+    if asset_state is not None:
+        if asset_state["offline"]:
+            raise APIError(409, "asset_offline", "Asset is marked offline")
+        if asset_state["deleted_at"] is not None:
+            raise APIError(409, "asset_deleted", "Asset has been removed from the catalog")
+        if expected_type is not None and asset_state["type"] != expected_type:
+            raise APIError(400, ErrorType.INVALID_FILE, f"Not a valid {expected_type} file")
+
+    return file_path
+
+
 def _registered_or_requested_root(path: str | None) -> Path:
     if path:
         return resolve_path(path)
