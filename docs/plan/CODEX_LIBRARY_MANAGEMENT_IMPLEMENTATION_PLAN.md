@@ -106,7 +106,32 @@ Patterns to skip:
 - Immich API DTOs.
 - Import paths/exclusion pattern UI until gallery backend supports them.
 
-### 1.4 Current frontend dependency audit
+### 1.4 Frontend library and style reuse policy
+
+Prefer existing, maintained frontend libraries over custom implementation for generic UI and data behavior. Custom code should mostly be app-specific glue: backend contract mapping, state ownership, library selection rules, copy, layout composition, and small presentation utilities.
+
+Use the current gallery design system and shadcn-vue-style primitives as the visual baseline:
+
+- Do not copy Immich CSS, exact spacing, color choices, component internals, or page structure.
+- Adapt Immich only at the workflow/pattern level: admin list, detail page, action menu, status badge, add dialog, and destructive confirmation.
+- Use existing `frontend/src/components/ui/*` primitives before creating new local primitives.
+- If a needed generic primitive exists in shadcn-vue/Reka UI and is not already present locally, add/adapt the shadcn-vue primitive in the local `components/ui` style instead of hand-rolling accessibility, keyboard behavior, focus management, or overlay behavior.
+- Keep styling aligned with the existing shadcn token bridge, `bg-card`, `border`, `rounded-md`, muted/destructive/default tokens, and existing gallery spacing conventions.
+- Use `lucide-vue-next`/existing icons for actions; icon-only actions need accessible labels/tooltips.
+
+Use the installed TanStack and viewer libraries where they fit:
+
+- TanStack Query: server state, progress polling, mutations, cache invalidation, and route/page data loading.
+- TanStack Table: admin tables when column definitions, sorting, row models, or action/state composition would otherwise be hand-written.
+- TanStack Form: Add Library and confirmation/form-style interactions when validation/submission state would otherwise become bespoke component state.
+- TanStack Virtual: large or potentially large scrollable lists/tables; do not hand-roll virtualization.
+- TanStack DB: only for local reactive collection use cases with complete scoped datasets and stable row keys. Do not move one-off library detail/progress calls into DB.
+- PhotoSwipe: keep image/lightbox behavior on PhotoSwipe; do not introduce a custom lightbox implementation for this feature.
+- Existing bottom-sheet/dialog/select/dropdown implementations should be reused for responsive dialogs and compact library selection.
+
+Do not add a dependency just because it exists. Add or scaffold one only when it replaces meaningful generic behavior, improves accessibility/state correctness, or matches an existing local pattern. For this feature, the repo already has the expected stack (`shadcn-vue`, `reka-ui`, PhotoSwipe, and TanStack Query/Table/Form/Virtual/DB), so the default should be reuse before new code.
+
+### 1.5 Current frontend dependency audit
 
 Current `rootPath` dependencies that need rename/adaptation:
 
@@ -694,7 +719,17 @@ These pages should use existing primitives:
 - `Tooltip`
 - `Separator`
 
-There is no existing shadcn `Card` primitive. Use simple local `div` panels with `border`, `bg-card`, and `rounded-md`, or add a card primitive only if the diff remains small and consistent.
+Library/component reuse rules:
+
+- Use existing shadcn-vue local wrappers from `frontend/src/components/ui/*` first.
+- If a needed shadcn-vue/Reka primitive is missing locally, add the local wrapper in the same style as the existing UI components instead of hand-rolling generic behavior.
+- Use TanStack Query composables for all library admin server state and mutations.
+- Use TanStack Table for the desktop admin table if the table needs reusable column definitions, row action state, sorting, or structured row models. A plain shadcn `Table` wrapper is acceptable only for static markup with no table state.
+- Use TanStack Form for the Add Library dialog/sheet if validation, submit modes, touched/dirty state, pending state, and server errors would otherwise become bespoke form state.
+- Use the existing bottom-sheet/dialog primitives for responsive Add Library and compact selector surfaces.
+- Do not build a new lightbox; keep viewer/lightbox behavior on the existing PhotoSwipe integration.
+
+There is no existing shadcn `Card` primitive. Use simple local `div` panels with `border`, `bg-card`, and `rounded-md`, or add a shadcn-vue-style card primitive only if the diff remains small and consistent.
 
 ### 5.2 New admin shared components
 
@@ -1069,8 +1104,13 @@ Steps:
    - derived `activeLibraryRootPath`
    - in-memory `currentBrowsePath`
    - no persisted/writable `rootPath`
-5. Identify all root-path copy that must change to registered-library copy.
-6. Identify all `rootPath` and `currentPath` store call sites that need rename/adaptation.
+5. Lock the library reuse/style policy:
+   - shadcn-vue/Reka primitives for accessible generic UI
+   - TanStack Query/Table/Form/Virtual where they replace generic data/table/form/virtual behavior
+   - PhotoSwipe for lightbox behavior
+   - custom code only for gallery-specific composition and backend contract glue
+6. Identify all root-path copy that must change to registered-library copy.
+7. Identify all `rootPath` and `currentPath` store call sites that need rename/adaptation.
 
 Risk: implementing old Immich-like import path/exclusion UI would create dead controls because backend has no API for it.
 
@@ -1206,7 +1246,8 @@ The implementation is complete when:
 13. Existing viewer-first gallery browsing remains visually and behaviorally stable.
 14. Selection persists only `gallery-active-library-id`; `gallery-root-path` is read once for migration, removed afterward, and never written again.
 15. Registered-library code does not keep writable/persisted `rootPath` as a competing source of truth.
-16. Tests and typecheck pass for the touched frontend surface.
+16. Generic UI/data behavior uses existing shadcn-vue/Reka, PhotoSwipe, and TanStack libraries where available instead of bespoke implementations.
+17. Tests and typecheck pass for the touched frontend surface.
 
 ## 12. Future Extensions
 
