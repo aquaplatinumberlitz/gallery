@@ -77,7 +77,6 @@ export function useLibraryEvents() {
       connectionState.value = "reconnecting";
       lastError.value = event;
     };
-    eventSource.onmessage = handleMessage;
     for (const eventType of EVENT_TYPES) eventSource.addEventListener(eventType, handleMessage as EventListener);
   }
 

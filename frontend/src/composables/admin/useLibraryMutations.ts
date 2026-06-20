@@ -36,7 +36,10 @@ export function useLibraryMutations() {
     mutationFn: createLibrary,
     onSuccess: async () => {
       toast.success("Library created");
-      await queryClient.invalidateQueries({ queryKey: queryKeys.librariesRoot() });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.librariesRoot() }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.galleryStats() }),
+      ]);
     },
     onError: (error) => toast.error("Could not create library", errorMessage(error)),
   });
@@ -48,6 +51,9 @@ export function useLibraryMutations() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.library(id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.libraries() }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.libraryStats(id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.libraryProgress(id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.galleryStats() }),
       ]);
     },
     onError: (error) => toast.error("Could not update library", errorMessage(error)),
@@ -68,9 +74,13 @@ export function useLibraryMutations() {
     onSuccess: async (_response, id) => {
       toast.success("Library scan queued");
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.library(id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.libraries() }),
         queryClient.invalidateQueries({ queryKey: queryKeys.libraryProgress(id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.libraryStats(id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.libraryJobs(id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.jobsRoot() }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.galleryStats() }),
       ]);
     },
     onError: (error) => toast.error("Could not scan library", errorMessage(error)),
@@ -80,19 +90,30 @@ export function useLibraryMutations() {
     mutationFn: scanAllLibraries,
     onSuccess: async () => {
       toast.success("Library scans queued");
-      await queryClient.invalidateQueries({ queryKey: queryKeys.jobsRoot() });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.librariesRoot() }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.galleryStats() }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.jobsRoot() }),
+      ]);
     },
     onError: (error) => toast.error("Could not scan libraries", errorMessage(error)),
   });
 
   const repairMutation = useMutation({
     mutationFn: repairLibrary,
-    onSuccess: async (_response, id) => {
-      toast.success("Library repaired");
+    onSuccess: async (response, id) => {
+      toast.success(
+        "Library repaired",
+        `${response.added} added, ${response.removed} removed, ${response.modified} modified`,
+      );
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.library(id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.libraries() }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.libraryProgress(id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.libraryStats(id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.libraryJobs(id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.jobsRoot() }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.galleryStats() }),
       ]);
     },
     onError: (error) => toast.error("Could not repair library", errorMessage(error)),
@@ -100,9 +121,17 @@ export function useLibraryMutations() {
 
   const unregisterMutation = useMutation({
     mutationFn: deleteLibrary,
-    onSuccess: async () => {
+    onSuccess: async (_response, id) => {
       toast.success("Library unregistered");
-      await queryClient.invalidateQueries({ queryKey: queryKeys.librariesRoot() });
+      queryClient.removeQueries({ queryKey: queryKeys.library(id) });
+      queryClient.removeQueries({ queryKey: queryKeys.libraryProgress(id) });
+      queryClient.removeQueries({ queryKey: queryKeys.libraryStats(id) });
+      queryClient.removeQueries({ queryKey: queryKeys.libraryJobs(id) });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.librariesRoot() }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.galleryStats() }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.jobsRoot() }),
+      ]);
     },
     onError: (error) => toast.error("Could not unregister library", errorMessage(error)),
   });

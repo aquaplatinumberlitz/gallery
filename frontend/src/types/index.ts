@@ -1,7 +1,27 @@
+/**
+ * Canonical asset-type vocabulary on the frontend.
+ *
+ * The backend `assets` table normalizes every write to one of these values
+ * (`backend/metadata_store.py` `_normalize_file_type` / `_upsert_asset_conn`),
+ * and the v6->v7 migration back-fills legacy `photo` rows to `image`. The
+ * scan/folder/stats endpoints all surface `AssetType` values.
+ *
+ * `LegacySearchAssetType` below is a separate, wider union kept for the
+ * unified-search response shape, where `_format_prompt_rows` in
+ * `backend/metadata_store.py` still emits the legacy string `"photo"` and the
+ * `file_index`-backed search can in principle still surface a stale `'file'`
+ * row from older catalogs. Consumers should normalize via
+ * `normalizeAssetType()` from `@/utils/assetType` before comparing against
+ * `AssetType`. Do not introduce new emit sites for `"photo"` or `"file"`.
+ */
+export type AssetType = "folder" | "image" | "video";
+
+export type LegacySearchAssetType = AssetType | "photo" | "file";
+
 export interface FileNode {
   name: string;
   path: string;
-  type: "folder" | "image";
+  type: AssetType;
   has_children?: boolean;
   children?: FileNode[];
   isOpen?: boolean;
@@ -89,7 +109,11 @@ export type SearchScope = "current" | "all";
 export interface UnifiedSearchResult {
   name: string;
   path: string;
-  type: "folder" | "photo" | "file";
+  // Width is `LegacySearchAssetType` (not `AssetType`) because the unified
+  // search response is backed by the legacy `file_index` table and
+  // `_format_prompt_rows`, which can still emit the un-normalized strings
+  // "photo" / "file". See `AssetType` doc above and `normalizeAssetType()`.
+  type: LegacySearchAssetType;
   parent_path: string;
   relative_path: string;
   mtime: number;

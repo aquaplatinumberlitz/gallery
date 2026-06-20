@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import GallerySidebarContent from "../components/GallerySidebarContent.vue";
 import TabletHeader from "../components/TabletHeader.vue";
-import GalleryGrid from "../components/GalleryGrid.vue";
+import { RouterView } from "vue-router";
 import { SidebarProvider, Sidebar, SidebarInset } from "@/components/ui/sidebar";
 import type { FolderTreeNode } from "@/types";
 
@@ -13,6 +13,7 @@ defineProps<{
   currentPath: string;
   searchQuery: string;
   searchScope: "current" | "all";
+  isAdminRoute: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -46,7 +47,7 @@ const emit = defineEmits<{
       />
 
       <div class="content-body">
-        <GalleryGrid :is-mobile="false" :show-toolbar-breadcrumb="false" />
+        <RouterView />
       </div>
     </SidebarInset>
   </SidebarProvider>

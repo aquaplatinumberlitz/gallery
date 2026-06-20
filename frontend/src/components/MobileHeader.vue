@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, nextTick, onBeforeUnmount, computed, watch } from "vue";
-import { Menu, Search, X, ArrowLeft } from "lucide-vue-next";
+import { Menu, Search, X, ArrowLeft, Library } from "lucide-vue-next";
+import { RouterLink } from "vue-router";
 import { useGalleryStore } from "../stores/gallery";
 import SortDropdown from "./SortDropdown.vue";
 import type { SortValue } from "../types";
@@ -10,6 +11,7 @@ interface Props {
   searchQuery: string;
   searchScope: "current" | "all";
   barsVisible: boolean;
+  isAdminRoute?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -136,7 +138,15 @@ const gallerySortValue = computed<SortValue>({
 
     <!-- Center: search area -->
     <div class="mh-search">
-      <button v-if="!isSearchActive" class="mh-btn mh-search-btn" @click="openSearch" aria-label="Open search">
+      <RouterLink v-if="isAdminRoute" to="/" class="mh-btn mh-search-btn" aria-label="Back to gallery">
+        <ArrowLeft />
+      </RouterLink>
+      <button
+        v-if="!isSearchActive && !isAdminRoute"
+        class="mh-btn mh-search-btn"
+        @click="openSearch"
+        aria-label="Open search"
+      >
         <Search />
       </button>
       <div v-else class="search-focus-bar">
@@ -165,9 +175,13 @@ const gallerySortValue = computed<SortValue>({
       </div>
     </div>
 
+    <RouterLink v-if="!isSearchActive && !isAdminRoute" to="/admin/libraries" class="mh-btn" aria-label="Libraries">
+      <Library />
+    </RouterLink>
+
     <!-- Right: sort, theme & settings (hidden in search mode) -->
     <SortDropdown
-      v-if="!isSearchActive"
+      v-if="!isSearchActive && !isAdminRoute"
       v-model="gallerySortValue"
       trigger-class="mh-sort-trigger"
       aria-label="Sort gallery"

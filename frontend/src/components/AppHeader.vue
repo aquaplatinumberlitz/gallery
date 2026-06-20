@@ -1,6 +1,18 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { Landmark, Search, X, Settings, Menu, Sun, Moon, Monitor, SlidersHorizontal, Table2 } from "lucide-vue-next";
+import {
+  Landmark,
+  Search,
+  X,
+  Settings,
+  Menu,
+  Sun,
+  Moon,
+  Monitor,
+  SlidersHorizontal,
+  Table2,
+  Library,
+} from "lucide-vue-next";
 import { useRoute } from "vue-router";
 import Button from "@/components/ui/Button.vue";
 import ButtonLink from "@/components/ui/ButtonLink.vue";
@@ -18,7 +30,7 @@ import AdvancedSearchDrawer from "@/components/search/AdvancedSearchDrawer.vue";
 import SearchFilterChips from "@/components/SearchFilterChips.vue";
 import type { FieldFilter } from "@/types";
 import { parseFieldedQuery, serializeAdvancedSearchToQuery } from "@/utils/serializeAdvancedSearchToQuery";
-import { prefetchMetadataRoute } from "@/router";
+import { prefetchLibrariesRoute, prefetchMetadataRoute } from "@/router";
 import { useGalleryStore } from "@/stores/gallery";
 import { queryClient } from "@/query";
 import { normalizeQueryPath, queryKeys } from "@/query/keys";
@@ -53,6 +65,7 @@ const {
 const route = useRoute();
 const galleryStore = useGalleryStore();
 const isMetadataRoute = computed(() => route.path === "/metadata");
+const isLibrariesRoute = computed(() => route.path.startsWith("/admin/libraries"));
 
 const isAdvancedSearchOpen = ref(false);
 const advancedSearchInitialFilters = ref<FieldFilter[]>([]);
@@ -193,7 +206,10 @@ function handleClearAll() {
         <TooltipContent>Change Intro Page</TooltipContent>
       </Tooltip>
     </div>
-    <div v-if="!isMetadataRoute" class="brand-hero flex items-center justify-center gap-3 text-center">
+    <div
+      v-if="!isMetadataRoute && !isLibrariesRoute"
+      class="brand-hero flex items-center justify-center gap-3 text-center"
+    >
       <div class="brand-icon flicker-effect">
         <Landmark :size="40" />
       </div>
@@ -212,6 +228,18 @@ function handleClearAll() {
     </div>
     <div class="header-actions flex flex-col items-end gap-2">
       <div class="flex items-center gap-2">
+        <ButtonLink
+          to="/admin/libraries"
+          :variant="isLibrariesRoute ? 'secondary' : 'ghost'"
+          size="sm"
+          :aria-current="isLibrariesRoute ? 'page' : undefined"
+          class="h-8 text-xs"
+          @pointerenter="prefetchLibrariesRoute"
+          @focus="prefetchLibrariesRoute"
+        >
+          <Library class="size-4" />
+          <span>Libraries</span>
+        </ButtonLink>
         <ButtonLink
           v-if="!isMobile"
           to="/metadata"
@@ -245,7 +273,7 @@ function handleClearAll() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <div v-if="!isMetadataRoute" class="header-search-area">
+      <div v-if="!isMetadataRoute && !isLibrariesRoute" class="header-search-area">
         <div class="search-box">
           <Tooltip>
             <TooltipTrigger as-child>

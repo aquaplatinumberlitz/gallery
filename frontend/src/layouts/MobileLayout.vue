@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import GallerySidebarContent from "../components/GallerySidebarContent.vue";
 import MobileHeader from "../components/MobileHeader.vue";
-import GalleryGrid from "../components/GalleryGrid.vue";
+import { RouterView } from "vue-router";
 import MobileFloatingBottomBar from "../components/MobileFloatingBottomBar.vue";
 import { SidebarProvider, Sidebar, SidebarInset } from "@/components/ui/sidebar";
 import type { FolderTreeNode } from "@/types";
@@ -17,6 +17,7 @@ defineProps<{
   barsVisible: boolean;
   canBack: boolean;
   canForward: boolean;
+  isAdminRoute: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -44,7 +45,8 @@ const emit = defineEmits<{
         :is-dark="theme === 'dark'"
         :search-query="searchQuery"
         :search-scope="searchScope"
-        :bars-visible="barsVisible"
+        :bars-visible="isAdminRoute || barsVisible"
+        :is-admin-route="isAdminRoute"
         @update:search-query="emit('update:searchQuery', $event)"
         @scope-change="emit('scope-change', $event)"
         @toggle-sidebar="emit('toggleSidebar')"
@@ -52,10 +54,11 @@ const emit = defineEmits<{
       />
 
       <div class="content-body">
-        <GalleryGrid :is-mobile="true" :bars-visible="barsVisible" />
+        <RouterView />
       </div>
 
       <MobileFloatingBottomBar
+        v-if="!isAdminRoute"
         :can-back="canBack"
         :can-forward="canForward"
         :current-path="currentPath"

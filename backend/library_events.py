@@ -14,6 +14,11 @@ _subscribers: dict[int, tuple[asyncio.AbstractEventLoop, asyncio.Queue[dict[str,
 _subscriber_lock = threading.Lock()
 _next_subscriber_id = 0
 
+# Seconds to wait for an event before yielding a keep-alive comment frame.
+# Exposed as a module constant so tests can shorten it without patching
+# asyncio.wait_for globally.
+KEEPALIVE_TIMEOUT_SECONDS: float = 15.0
+
 
 def event_payload(event_type: str, job: dict[str, Any]) -> dict[str, Any]:
     """Build the stable V1 SSE payload from a serialized job."""
@@ -64,7 +69,7 @@ async def event_stream(request: Request) -> AsyncIterator[str]:
     try:
         while not await request.is_disconnected():
             try:
-                payload = await asyncio.wait_for(queue.get(), timeout=15)
+                payload = await asyncio.wait_for(queue.get(), timeout=KEEPALIVE_TIMEOUT_SECONDS)
                 yield format_sse(payload)
             except TimeoutError:
                 yield ": keep-alive\n\n"

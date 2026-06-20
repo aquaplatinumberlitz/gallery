@@ -69,7 +69,8 @@ describe("useLibraryMutations invalidation", () => {
     await mutations.unregisterMutation.mutateAsync(3);
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.librariesRoot() });
-    expect(invalidate).toHaveBeenCalledTimes(2);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.galleryStats() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.jobsRoot() });
     wrapper.unmount();
   });
 

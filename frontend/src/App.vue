@@ -24,9 +24,12 @@ const VueQueryDevtools = isDev
 const { isMobile, isTablet } = useDevice();
 const route = useRoute();
 const router = useRouter();
+const isAdminLibraryRoute = computed(() => route.path.startsWith("/admin/libraries"));
 
 // --- INTRO PAGE LOGIC ---
-const showIntro = ref(!isMobile.value && !isTablet.value && route.path !== "/metadata");
+const showIntro = ref(
+  !isMobile.value && !isTablet.value && route.path !== "/metadata" && !route.path.startsWith("/admin/libraries"),
+);
 const introPreviewUrl = ref<string | null>(null);
 const isSettingsOpen = ref(false);
 const handleIntroEnter = () => {
@@ -44,7 +47,7 @@ const handlePreviewIntro = (url: string) => {
 watch(
   () => route.path,
   (path) => {
-    if (path === "/metadata") {
+    if (path === "/metadata" || path.startsWith("/admin/libraries")) {
       showIntro.value = false;
       introPreviewUrl.value = null;
     }
@@ -147,6 +150,7 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
       :bars-visible="barsVisible"
       :can-back="canBack"
       :can-forward="canForward"
+      :is-admin-route="isAdminLibraryRoute"
       @update:search-query="galleryStore.setSearchQuery($event)"
       @scope-change="galleryStore.setSearchScope($event)"
       @update:sidebar-open="isSidebarOpen = $event"
@@ -166,6 +170,7 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
       :current-path="currentPath"
       :search-query="galleryStore.searchQuery"
       :search-scope="galleryStore.searchScope"
+      :is-admin-route="isAdminLibraryRoute"
       @update:search-query="galleryStore.setSearchQuery($event)"
       @scope-change="galleryStore.setSearchScope($event)"
       @update:sidebar-open="isSidebarOpen = $event"

@@ -323,10 +323,27 @@ Scan currently:
 - emits SSE events on job transitions.
 
 The job system uses a single-process in-memory runner (`BackgroundTasks`)
-with SQLite-tracked state. There is a known non-atomic window between
-`list_active_jobs` and `create_job` that can allow duplicate scan jobs under
-concurrent requests. This is acceptable for V1; a follow-up could introduce
-`create_or_get_active_scan_job` under a single `_DB_LOCK` critical section.
+with SQLite-tracked state. Duplicate scan coalescing is now atomic: the
+existing-active-scan check and the queued-job insert run inside a single
+`_DB_LOCK` critical section in `create_or_get_active_scan_job`
+(`backend/metadata_store.py`), so concurrent `POST /api/libraries/{id}/scan`
+requests within one process reuse the same job row instead of producing
+duplicates.
+
+**Multi-process caveat (job coalescing and SSE fan-out):** `_DB_LOCK`
+(`backend/metadata_store.py`) is a process-local `threading.RLock`, and the
+SSE subscriber registry `_subscribers` (`backend/library_events.py`) is a
+process-local dict whose `publish()` enqueues to in-process `asyncio.Queue`
+instances via `loop.call_soon_threadsafe`. Deployment is currently
+single-process (`README.md` runs `python3 -m uvicorn backend.main:app`
+without `--workers`), so the atomicity and fan-out guarantees hold. Under a
+multi-worker deployment (e.g. `uvicorn --workers N`) these guarantees would
+not hold across worker processes: a scan queued in worker A would not be
+visible to `create_or_get_active_scan_job` in worker B, and an SSE client
+pinned to worker B would not receive events published in worker A. If
+multi-process deployment is ever needed, move both surfaces to a shared
+backbone (DB-level unique constraint / transaction for coalescing; Redis
+pub/sub or Postgres `LISTEN/NOTIFY` for SSE fan-out).
 
 Repair currently:
 - is a job-recorded synchronous operation;
@@ -337,6 +354,37 @@ Repair currently:
 `GET /api/libraries/{id}/progress` returns:
 - `active_job_id` — the current queued/running job id, or null
 - `indexed_assets`, `estimated_assets`, `discovery_complete`, `library_state`
+
+### 3.9 Media authorization and DB_REQUIRED policy
+
+`require_media_path_allowed` (`backend/scan.py`) is the single authorization
+gate for `/api/image`, `/api/video`, `/api/thumbnail`, and `/api/preview`.
+Under `GALLERY_DB_REQUIRED=false` it falls back to `is_path_safe`
+(`PATH_SAFETY_ROOT` containment) and returns the resolved path. Under
+`GALLERY_DB_REQUIRED=true` it enforces:
+
+- the path must resolve inside a registered library (the library boundary is
+  the security boundary); otherwise `409 library_not_registered`;
+- the owning library must not be in `offline` or `error` state; otherwise
+  `409 library_offline` / `library_error`;
+- if an `assets` row exists for the path, it must not be `offline` and must
+  not have a non-null `deleted_at`; otherwise `409 asset_offline` /
+  `asset_deleted`;
+- if an `assets` row exists and the caller passed `expected_type`
+  (`"image"` / `"video"`), the cataloged `type` must match; otherwise
+  `400 invalid_file`.
+
+**Option A policy — asset row is optional within a registered library:**
+when `GALLERY_DB_REQUIRED=true`, a file inside a registered, non-offline
+library that has not yet been indexed (no `assets` row, e.g. a file added
+moments ago and not yet scanned) is still servable. The checks above are
+nested under `if asset_state is not None:`, so a missing asset row does not
+trigger `asset_offline` / `asset_deleted` / type mismatch. The library
+boundary — not the presence of an indexed asset row — is the security
+boundary. This avoids forcing freshly-added assets to 404 until a scan
+completes, which would make the viewer unusable immediately after a library
+is registered or a folder is dropped in. This policy is locked by
+`backend/tests/test_db_required_media.py`.
 
 ## 4. Files Changed and Ownership
 

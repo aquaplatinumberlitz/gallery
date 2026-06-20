@@ -4,6 +4,7 @@ import { useVirtualizer } from "@tanstack/vue-virtual";
 import { useGalleryStore } from "../stores/gallery";
 import { useLightboxStore } from "../stores/lightbox";
 import type { FileNode, SortValue, UnifiedSearchResult } from "../types";
+import { normalizeAssetType } from "../utils/assetType";
 import AlbumCard from "./AlbumCard.vue";
 import AlbumScroller from "./AlbumScroller.vue";
 import GallerySectionHeader from "./GallerySectionHeader.vue";
@@ -179,7 +180,7 @@ const filenameImages = computed(() =>
 const searchResultToFileNode = (result: UnifiedSearchResult): FileNode => ({
   name: result.name,
   path: result.path,
-  type: result.type === "folder" ? "folder" : "image",
+  type: normalizeAssetType(result.type),
   has_children: false,
   cover_images: result.cover_images || [],
   image_count: result.image_count || 0,
