@@ -1580,6 +1580,7 @@ def get_asset_folder_listing(
     *,
     offset: int = 0,
     image_limit: int | None = None,
+    media_cursor: int | None = None,
 ) -> dict[str, Any] | None:
     """Return direct children from the authoritative assets catalog."""
     resolved = str(Path(folder_path).resolve())
@@ -1619,9 +1620,13 @@ def get_asset_folder_listing(
         total_images = len(image_rows)
         end = offset + image_limit if image_limit is not None else total_images
         page = image_rows[offset:end]
+        media_rows = sorted([*image_rows, *video_rows], key=lambda row: natural_sort_key(row["name"]))
+        media_end = (media_cursor or 0) + image_limit if image_limit is not None else len(media_rows)
+        media_page = media_rows[(media_cursor or 0) : media_end] if media_cursor is not None else None
 
         derivative_ready_by_asset: dict[int, dict[str, bool]] = {
-            int(row["id"]): {"thumbnail": False, "preview": False} for row in page
+            int(row["id"]): {"thumbnail": False, "preview": False}
+            for row in [*page, *(row for row in (media_page or []) if row["type"] == "image")]
         }
         if derivative_ready_by_asset:
             placeholders = ", ".join("?" for _ in derivative_ready_by_asset)
@@ -1671,8 +1676,9 @@ def get_asset_folder_listing(
                     image_count=int(counts["images"] or 0),
                 )
             )
-        images = [
-            FileNode(
+
+        def image_node(row: sqlite3.Row) -> FileNode:
+            return FileNode(
                 name=row["name"],
                 path=row["path"],
                 type="image",
@@ -1684,29 +1690,29 @@ def get_asset_folder_listing(
                 metadata_state=row["metadata_state"],
                 derivative_ready=derivative_ready_by_asset[int(row["id"])],
             )
-            for row in page
-        ]
-        videos = (
-            [
-                VideoFileNode(
-                    name=row["name"],
-                    path=row["path"],
-                    type="video",
-                    has_children=False,
-                    mtime=row["mtime_ns"] or 0,
-                    width=row["width"],
-                    height=row["height"],
-                    asset_id=row["id"],
-                    duration_ms=row["duration_ms"],
-                    mime_type=row["mime_type"],
-                )
-                for row in video_rows
-            ]
-            if offset == 0
-            else []
+
+        def video_node(row: sqlite3.Row) -> VideoFileNode:
+            return VideoFileNode(
+                name=row["name"],
+                path=row["path"],
+                type="video",
+                has_children=False,
+                mtime=row["mtime_ns"] or 0,
+                width=row["width"],
+                height=row["height"],
+                asset_id=row["id"],
+                duration_ms=row["duration_ms"],
+                mime_type=row["mime_type"],
+            )
+
+        images = [image_node(row) for row in page]
+        videos = [video_node(row) for row in video_rows] if offset == 0 else []
+        media = (
+            [image_node(row) if row["type"] == "image" else video_node(row) for row in media_page]
+            if media_page is not None
+            else sorted([*images, *videos], key=lambda node: natural_sort_key(node.name))
         )
-        media = sorted([*images, *videos], key=lambda node: natural_sort_key(node.name))
-        return {
+        result = {
             "folders": folders,
             "images": images,
             "videos": videos,
@@ -1717,6 +1723,9 @@ def get_asset_folder_listing(
             "total_assets": total_images + len(video_rows),
             "index_source": "warm_db",
         }
+        if media_cursor is not None:
+            result["next_media_cursor"] = media_end if media_end < len(media_rows) else None
+        return result
 
 
 def _current_metadata_is_complete(conn: sqlite3.Connection, path: str, mtime: float, size: int) -> bool:
@@ -2426,6 +2435,7 @@ def get_warm_folder_listing(
     limit: int | None = None,
     sort: str = "name",
     image_limit: int | None = None,
+    media_cursor: int | None = None,
 ) -> dict | None:
     """Return a folder listing from SQLite when the persisted folder state is current."""
     if not ENABLE_WARM_INDEXED_LISTING:
@@ -2509,6 +2519,9 @@ def get_warm_folder_listing(
         image_start = offset
         image_end = offset + image_limit if image_limit is not None else total_images
         paged_images = raw_images[image_start:image_end]
+        raw_media = sorted([*raw_images, *raw_videos], key=lambda row: natural_sort_key(row["name"]))
+        media_end = (media_cursor or 0) + image_limit if image_limit is not None else len(raw_media)
+        media_page = raw_media[(media_cursor or 0) : media_end] if media_cursor is not None else None
 
         warm_images: list[FileNode] = []
         for img in paged_images:
@@ -2543,6 +2556,37 @@ def get_warm_folder_listing(
             ]
             if offset == 0
             else []
+        )
+        image_paths = {item["path"] for item in raw_images}
+        warm_media = (
+            [
+                FileNode(
+                    name=item["name"],
+                    path=item["path"],
+                    type="image",
+                    has_children=False,
+                    cover_images=[],
+                    mtime=item["mtime"] or 0,
+                    width=item["width"],
+                    height=item["height"],
+                )
+                if item["path"] in image_paths
+                else VideoFileNode(
+                    name=item["name"],
+                    path=item["path"],
+                    type="video",
+                    has_children=False,
+                    cover_images=[],
+                    mtime=item["mtime"] or 0,
+                    width=item["width"],
+                    height=item["height"],
+                    duration_ms=item["duration_ms"],
+                    mime_type=item["mime_type"],
+                )
+                for item in media_page
+            ]
+            if media_page is not None
+            else sorted([*warm_images, *warm_videos], key=lambda node: natural_sort_key(node.name))
         )
 
         # Build DB-derived folder metadata — no filesystem access
@@ -2604,17 +2648,20 @@ def get_warm_folder_listing(
 
     next_cursor = image_end if image_end < total_images else None
 
-    return {
+    result = {
         "folders": warm_folders,
         "images": warm_images,
         "videos": warm_videos,
-        "media": sorted([*warm_images, *warm_videos], key=lambda node: natural_sort_key(node.name)),
+        "media": warm_media,
         "next_cursor": next_cursor,
         "total_images": total_images,
         "total_videos": len(raw_videos),
         "total_assets": total_images + len(raw_videos),
         "index_source": "warm_db",
     }
+    if media_cursor is not None:
+        result["next_media_cursor"] = media_end if media_end < len(raw_media) else None
+    return result
 
 
 def get_folder_indexed_paths() -> list[dict]:

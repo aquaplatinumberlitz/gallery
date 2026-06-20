@@ -188,13 +188,14 @@ const api = axios.create({
 
 export const scanDirectory = async (
   path?: string,
-  opts?: { imageLimit?: number; imageCursor?: number },
+  opts?: { imageLimit?: number; imageCursor?: number; mediaCursor?: number },
 ): Promise<ScanResponse> => {
   try {
     const params: Record<string, string | number> = {};
     if (path) params.path = path;
     if (opts?.imageLimit) params.image_limit = opts.imageLimit;
     if (typeof opts?.imageCursor === "number") params.image_cursor = opts.imageCursor;
+    if (typeof opts?.mediaCursor === "number") params.media_cursor = opts.mediaCursor;
 
     const { data } = await api.get<ScanResponse>("/api/scan", { params });
     return data;

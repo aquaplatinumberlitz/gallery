@@ -16,15 +16,38 @@ import { expect, test } from "./helpers/monitorErrors";
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
 const pathSafetyRoot = process.env.PATH_SAFETY_ROOT_PATH ?? "/home/ubuntu/gallery-repo/test-images";
 
+interface LibrarySelection {
+  id: number;
+  import_paths: { id: number; path: string }[];
+}
+
+const pathContains = (root: string, candidate: string) =>
+  candidate === root || candidate.startsWith(`${root.replace(/\/$/, "")}/`);
+
 async function setupGallery(page: import("@playwright/test").Page) {
-  await page.addInitScript(() => {
-    localStorage.setItem("intro_mode", "disabled");
-    localStorage.setItem("gallery-active-library-id", "1");
-    localStorage.setItem("gallery-active-import-path-id", "10");
-    localStorage.setItem("gallery-sort-preference", JSON.stringify({ field: "name", order: "asc" }));
-    localStorage.setItem("gallery-albums-collapsed", "false");
-    localStorage.removeItem("gallery-lightbox-always-load-original");
-  });
+  const response = await page.request.get(`${baseUrl}/api/libraries`);
+  expect(response.ok()).toBe(true);
+  const libraries = (await response.json()) as LibrarySelection[];
+  const matchingLibrary = libraries.find((library) =>
+    library.import_paths.some((importPath) => pathContains(importPath.path, pathSafetyRoot)),
+  );
+  const activeLibrary = matchingLibrary ?? libraries[0];
+  const activeImportPath =
+    activeLibrary?.import_paths.find((importPath) => pathContains(importPath.path, pathSafetyRoot)) ??
+    activeLibrary?.import_paths[0];
+  if (!activeLibrary || !activeImportPath) throw new Error("Real-backend E2E requires a registered import path");
+
+  await page.addInitScript(
+    ({ libraryId, importPathId }) => {
+      localStorage.setItem("intro_mode", "disabled");
+      localStorage.setItem("gallery-active-library-id", String(libraryId));
+      localStorage.setItem("gallery-active-import-path-id", String(importPathId));
+      localStorage.setItem("gallery-sort-preference", JSON.stringify({ field: "name", order: "asc" }));
+      localStorage.setItem("gallery-albums-collapsed", "false");
+      localStorage.removeItem("gallery-lightbox-always-load-original");
+    },
+    { libraryId: activeLibrary.id, importPathId: activeImportPath.id },
+  );
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
 

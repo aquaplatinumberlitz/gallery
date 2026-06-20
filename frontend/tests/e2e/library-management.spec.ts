@@ -148,7 +148,15 @@ async function mockLibraryApi(page: Page, options: MockOptions = {}): Promise<Mo
       return;
     }
     if (url.pathname === "/api/libraries/scan-all" && method === "POST") {
-      await route.fulfill({ status: 202, json: { job_id: 40, state: "queued" } });
+      await route.fulfill({
+        status: 202,
+        json: {
+          job_id: 40,
+          state: "queued",
+          count: state.libraries.length,
+          child_job_ids: state.libraries.map((_, index) => 41 + index),
+        },
+      });
       return;
     }
 

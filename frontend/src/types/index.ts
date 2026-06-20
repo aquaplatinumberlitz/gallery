@@ -102,6 +102,7 @@ export interface ScanResponse {
   videos?: FileNode[];
   media?: FileNode[];
   next_cursor: number | null;
+  next_media_cursor?: number | null;
   total_images: number;
   total_videos?: number;
   total_assets?: number;

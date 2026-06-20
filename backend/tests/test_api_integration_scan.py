@@ -204,6 +204,61 @@ class TestPagination:
         assert data["total_images"] == 7
         assert len(data["images"]) == 3
 
+    def test_media_cursor_pages_naturally_sorted_image_video_union(
+        self, isolated_app: TestClient, isolated_gallery_root: Path
+    ):
+        from .conftest import create_test_png
+
+        album = isolated_gallery_root / "media_cursor_test"
+        album.mkdir()
+        for name in ["asset1.png", "asset3.png", "asset5.png"]:
+            create_test_png(album / name, size=(64, 64))
+        for name in ["asset2.mp4", "asset4.mp4"]:
+            (album / name).write_bytes(b"video")
+
+        first = isolated_app.get(
+            "/api/scan",
+            params={"path": str(album), "image_limit": 2, "media_cursor": 0},
+        )
+        second = isolated_app.get(
+            "/api/scan",
+            params={"path": str(album), "image_limit": 2, "media_cursor": first.json()["next_media_cursor"]},
+        )
+        third = isolated_app.get(
+            "/api/scan",
+            params={"path": str(album), "image_limit": 2, "media_cursor": second.json()["next_media_cursor"]},
+        )
+
+        assert [item["name"] for item in first.json()["media"]] == ["asset1.png", "asset2.mp4"]
+        assert [item["name"] for item in second.json()["media"]] == ["asset3.png", "asset4.mp4"]
+        assert [item["name"] for item in third.json()["media"]] == ["asset5.png"]
+        assert first.json()["next_media_cursor"] == 2
+        assert second.json()["next_media_cursor"] == 4
+        assert third.json()["next_media_cursor"] is None
+
+    def test_image_cursor_retains_legacy_video_behavior(self, isolated_app: TestClient, isolated_gallery_root: Path):
+        from .conftest import create_test_png
+
+        album = isolated_gallery_root / "legacy_cursor_test"
+        album.mkdir()
+        for name in ["asset1.png", "asset3.png"]:
+            create_test_png(album / name, size=(64, 64))
+        (album / "asset2.mp4").write_bytes(b"video")
+
+        first = isolated_app.get(
+            "/api/scan",
+            params={"path": str(album), "image_limit": 1, "image_cursor": 0},
+        ).json()
+        second = isolated_app.get(
+            "/api/scan",
+            params={"path": str(album), "image_limit": 1, "image_cursor": 1},
+        ).json()
+
+        assert [item["name"] for item in first["images"]] == ["asset1.png"]
+        assert [item["name"] for item in first["videos"]] == ["asset2.mp4"]
+        assert [item["name"] for item in second["images"]] == ["asset3.png"]
+        assert second["videos"] == []
+
 
 class TestScanHotPathContract:
     def test_scan_hot_path_does_not_open_images(

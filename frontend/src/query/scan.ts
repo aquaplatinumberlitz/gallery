@@ -22,7 +22,10 @@ export async function fetchScanOrThrow(path: string): Promise<ScanResponse> {
   return queryClient.fetchQuery({
     queryKey: queryKeys.scan(normalized, IMAGE_PAGE_SIZE),
     queryFn: async () =>
-      withScanRequestPath(await scanDirectory(normalized, { imageLimit: IMAGE_PAGE_SIZE, imageCursor: 0 }), normalized),
+      withScanRequestPath(
+        await scanDirectory(normalized, { imageLimit: IMAGE_PAGE_SIZE, imageCursor: 0, mediaCursor: 0 }),
+        normalized,
+      ),
     staleTime: 60_000,
   });
 }
