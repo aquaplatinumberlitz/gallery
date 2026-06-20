@@ -21,6 +21,22 @@ const png1x1 = Buffer.from(
   "base64",
 );
 
+const stubLibrary = {
+  id: 1,
+  root_path: rootPath,
+  import_paths: [{ id: 10, library_id: 1, path: rootPath, position: 0, created_at: 1, updated_at: 1 }],
+  exclusion_patterns: [],
+  name: "Test Library",
+  state: "ready",
+  watch_enabled: 1,
+  warm_enabled: 1,
+  asset_count: 0,
+  created_at: 1,
+  updated_at: 1,
+  last_scan_at: null,
+  last_error: null,
+};
+
 // Shared scan response used by most tests unless overridden
 const scanResponse = {
   folders: [],
@@ -72,6 +88,14 @@ async function installGalleryWithFaults(
     const url = new URL(route.request().url());
     const req: ApiRequest = { pathname: url.pathname, path: url.searchParams.get("path") ?? "" };
     requests.push(req);
+
+    if (url.pathname === "/api/libraries") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify([stubLibrary]),
+      });
+      return;
+    }
 
     if (url.pathname === "/api/scan") {
       if (faults.failScan) {
@@ -202,12 +226,13 @@ async function installGalleryWithFaults(
 }
 
 async function openGallery(page: Page, requests?: ApiRequest[]) {
-  await page.addInitScript((root) => {
+  await page.addInitScript(() => {
     localStorage.setItem("intro_mode", "disabled");
-    localStorage.setItem("gallery-root-path", root);
+    localStorage.setItem("gallery-active-library-id", "1");
+    localStorage.setItem("gallery-active-import-path-id", "10");
     localStorage.setItem("gallery-sort-preference", JSON.stringify({ field: "name", order: "asc" }));
     localStorage.removeItem("gallery-lightbox-always-load-original");
-  }, rootPath);
+  });
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
@@ -351,11 +376,12 @@ test("thumbnail 500 shows placeholder in grid; no page error", async ({ page }) 
 test("scan 500 shows error message; no page error", async ({ page }) => {
   const requests = await installGalleryWithFaults(page, { failScan: true });
 
-  await page.addInitScript((root) => {
+  await page.addInitScript(() => {
     localStorage.setItem("intro_mode", "disabled");
-    localStorage.setItem("gallery-root-path", root);
+    localStorage.setItem("gallery-active-library-id", "1");
+    localStorage.setItem("gallery-active-import-path-id", "10");
     localStorage.setItem("gallery-sort-preference", JSON.stringify({ field: "name", order: "asc" }));
-  }, rootPath);
+  });
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(1000);

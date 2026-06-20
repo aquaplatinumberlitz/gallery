@@ -21,9 +21,33 @@ const png1x1 = Buffer.from(
   "base64",
 );
 
+const stubLibrary = {
+  id: 1,
+  root_path: rootPath,
+  import_paths: [{ id: 10, library_id: 1, path: rootPath, position: 0, created_at: 1, updated_at: 1 }],
+  exclusion_patterns: [],
+  name: "Test Library",
+  state: "ready",
+  watch_enabled: 1,
+  warm_enabled: 1,
+  asset_count: 0,
+  created_at: 1,
+  updated_at: 1,
+  last_scan_at: null,
+  last_error: null,
+};
+
 async function installStubbedGallery(page: Page) {
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
+
+    if (url.pathname === "/api/libraries") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify([stubLibrary]),
+      });
+      return;
+    }
 
     if (url.pathname === "/api/scan") {
       await route.fulfill({
@@ -133,10 +157,11 @@ async function installStubbedGallery(page: Page) {
 }
 
 async function openStubbedGallery(page: Page) {
-  await page.addInitScript((root) => {
+  await page.addInitScript(() => {
     localStorage.setItem("intro_mode", "disabled");
-    localStorage.setItem("gallery-root-path", root);
-  }, rootPath);
+    localStorage.setItem("gallery-active-library-id", "1");
+    localStorage.setItem("gallery-active-import-path-id", "10");
+  });
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });

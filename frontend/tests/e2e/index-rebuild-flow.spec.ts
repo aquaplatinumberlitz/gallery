@@ -449,16 +449,41 @@ test.describe("metadata rebuild refresh regression", () => {
       }
     });
 
-    await page.addInitScript((root) => {
+    await page.addInitScript(() => {
       localStorage.setItem("intro_mode", "disabled");
-      localStorage.setItem("gallery-root-path", root);
+      localStorage.setItem("gallery-active-library-id", "1");
+      localStorage.setItem("gallery-active-import-path-id", "10");
       localStorage.setItem("gallery-sidebar-open", "true");
       localStorage.setItem("debug-index-rebuild", "true");
-    }, flowRoot);
+    });
 
     await page.route("**/api/**", async (route) => {
       const url = new URL(route.request().url());
       const method = route.request().method();
+
+      if (url.pathname === "/api/libraries") {
+        await route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify([
+            {
+              id: 1,
+              root_path: flowRoot,
+              import_paths: [{ id: 10, library_id: 1, path: flowRoot, position: 0, created_at: 1, updated_at: 1 }],
+              exclusion_patterns: [],
+              name: "Test Library",
+              state: "ready",
+              watch_enabled: 1,
+              warm_enabled: 1,
+              asset_count: 0,
+              created_at: 1,
+              updated_at: 1,
+              last_scan_at: null,
+              last_error: null,
+            },
+          ]),
+        });
+        return;
+      }
 
       if (url.pathname === "/api/library/inspector") {
         const body = reindexFinished

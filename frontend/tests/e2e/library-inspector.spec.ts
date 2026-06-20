@@ -20,6 +20,22 @@ const png1x1 = Buffer.from(
   "base64",
 );
 
+const stubLibrary = {
+  id: 1,
+  root_path: rootPath,
+  import_paths: [{ id: 10, library_id: 1, path: rootPath, position: 0, created_at: 1, updated_at: 1 }],
+  exclusion_patterns: [],
+  name: "Test Library",
+  state: "ready",
+  watch_enabled: 1,
+  warm_enabled: 1,
+  asset_count: 0,
+  created_at: 1,
+  updated_at: 1,
+  last_scan_at: null,
+  last_error: null,
+};
+
 type InspectorRow = {
   path: string;
   name: string;
@@ -139,9 +155,10 @@ function detailForPath(path: string) {
 
 async function installStubbedInspector(page: Page) {
   const requests: string[] = [];
-  await page.addInitScript((root) => {
+  await page.addInitScript(() => {
     localStorage.setItem("intro_mode", "disabled");
-    localStorage.setItem("gallery-root-path", root);
+    localStorage.setItem("gallery-active-library-id", "1");
+    localStorage.setItem("gallery-active-import-path-id", "10");
     localStorage.setItem("gallery-sidebar-open", "true");
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
@@ -151,11 +168,19 @@ async function installStubbedInspector(page: Page) {
         },
       },
     });
-  }, rootPath);
+  });
 
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
     requests.push(`${url.pathname}?${url.searchParams.toString()}`);
+
+    if (url.pathname === "/api/libraries") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify([stubLibrary]),
+      });
+      return;
+    }
 
     if (url.pathname === "/api/library/inspector") {
       const requestNumber = requests.filter((request) => request.startsWith("/api/library/inspector?")).length - 1;
@@ -344,11 +369,12 @@ test.describe("LibraryInspector", () => {
 
   test("refetches active metadata records after rebuild index", async ({ page }) => {
     const requests = await installStubbedInspector(page);
-    await page.addInitScript((root) => {
+    await page.addInitScript(() => {
       localStorage.setItem("intro_mode", "disabled");
-      localStorage.setItem("gallery-root-path", root);
+      localStorage.setItem("gallery-active-library-id", "1");
+      localStorage.setItem("gallery-active-import-path-id", "10");
       localStorage.setItem("gallery-sidebar-open", "true");
-    }, rootPath);
+    });
 
     await page.goto(`${baseUrl}/metadata`, { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: "Photo Details" })).toBeVisible();

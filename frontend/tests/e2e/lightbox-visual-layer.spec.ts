@@ -32,6 +32,22 @@ function requestsFor(requests: ApiRequest[], pathname: string) {
   return requests.filter((request) => request.pathname === pathname);
 }
 
+const stubLibrary = {
+  id: 1,
+  root_path: rootPath,
+  import_paths: [{ id: 10, library_id: 1, path: rootPath, position: 0, created_at: 1, updated_at: 1 }],
+  exclusion_patterns: [],
+  name: "Test Library",
+  state: "ready",
+  watch_enabled: 1,
+  warm_enabled: 1,
+  asset_count: 0,
+  created_at: 1,
+  updated_at: 1,
+  last_scan_at: null,
+  last_error: null,
+};
+
 async function installStubbedGallery(page: Page) {
   const requests: ApiRequest[] = [];
 
@@ -42,6 +58,14 @@ async function installStubbedGallery(page: Page) {
       path: url.searchParams.get("path") ?? "",
     };
     requests.push(request);
+
+    if (url.pathname === "/api/libraries") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify([stubLibrary]),
+      });
+      return;
+    }
 
     if (url.pathname === "/api/scan") {
       await route.fulfill({
@@ -108,12 +132,13 @@ async function installStubbedGallery(page: Page) {
 }
 
 async function openStubbedGallery(page: Page) {
-  await page.addInitScript((rootForInit) => {
+  await page.addInitScript(() => {
     localStorage.setItem("intro_mode", "disabled");
-    localStorage.setItem("gallery-root-path", rootForInit);
+    localStorage.setItem("gallery-active-library-id", "1");
+    localStorage.setItem("gallery-active-import-path-id", "10");
     localStorage.setItem("gallery-sort-preference", JSON.stringify({ field: "name", order: "asc" }));
     localStorage.removeItem("gallery-lightbox-always-load-original");
-  }, rootPath);
+  });
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
@@ -218,6 +243,22 @@ test.describe("EXIF-rotated portrait JPEG", () => {
   test("should render portrait aspect ratio for EXIF-rotated iPhone JPEG without duplicate imgs", async ({ page }) => {
     const requests: ApiRequest[] = [];
 
+    const exifStubLibrary = {
+      id: 1,
+      root_path: exifRoot,
+      import_paths: [{ id: 10, library_id: 1, path: exifRoot, position: 0, created_at: 1, updated_at: 1 }],
+      exclusion_patterns: [],
+      name: "Test Library",
+      state: "ready",
+      watch_enabled: 1,
+      warm_enabled: 1,
+      asset_count: 0,
+      created_at: 1,
+      updated_at: 1,
+      last_scan_at: null,
+      last_error: null,
+    };
+
     await page.route("**/api/**", async (route) => {
       const url = new URL(route.request().url());
       const request: ApiRequest = {
@@ -225,6 +266,14 @@ test.describe("EXIF-rotated portrait JPEG", () => {
         path: url.searchParams.get("path") ?? "",
       };
       requests.push(request);
+
+      if (url.pathname === "/api/libraries") {
+        await route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify([exifStubLibrary]),
+        });
+        return;
+      }
 
       if (url.pathname === "/api/scan") {
         await route.fulfill({
@@ -315,12 +364,13 @@ test.describe("EXIF-rotated portrait JPEG", () => {
       await route.fulfill({ status: 404, contentType: "application/json", body: "{}" });
     });
 
-    await page.addInitScript((rootForInit) => {
+    await page.addInitScript(() => {
       localStorage.setItem("intro_mode", "disabled");
-      localStorage.setItem("gallery-root-path", rootForInit);
+      localStorage.setItem("gallery-active-library-id", "1");
+      localStorage.setItem("gallery-active-import-path-id", "10");
       localStorage.setItem("gallery-sort-preference", JSON.stringify({ field: "name", order: "asc" }));
       localStorage.removeItem("gallery-lightbox-always-load-original");
-    }, exifRoot);
+    });
 
     await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });

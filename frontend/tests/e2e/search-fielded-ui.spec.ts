@@ -21,6 +21,22 @@ const png1x1 = Buffer.from(
   "base64",
 );
 
+const stubLibrary = {
+  id: 1,
+  root_path: rootPath,
+  import_paths: [{ id: 10, library_id: 1, path: rootPath, position: 0, created_at: 1, updated_at: 1 }],
+  exclusion_patterns: [],
+  name: "Test Library",
+  state: "ready",
+  watch_enabled: 1,
+  warm_enabled: 1,
+  asset_count: 0,
+  created_at: 1,
+  updated_at: 1,
+  last_scan_at: null,
+  last_error: null,
+};
+
 type ApiRequest = { pathname: string; path: string; q: string };
 
 function requestsFor(requests: ApiRequest[], pathname: string) {
@@ -37,6 +53,14 @@ async function installStubbedGallery(page: Page) {
       q: url.searchParams.get("q") ?? "",
     };
     requests.push(req);
+
+    if (url.pathname === "/api/libraries") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify([stubLibrary]),
+      });
+      return;
+    }
 
     if (url.pathname === "/api/scan") {
       await route.fulfill({
@@ -180,10 +204,11 @@ test.use({ viewport: { width: 1280, height: 820 } });
 
 test("plain search finds results and shows them in UI", async ({ page }) => {
   const requests = await installStubbedGallery(page);
-  await page.addInitScript((root) => {
+  await page.addInitScript(() => {
     localStorage.setItem("intro_mode", "disabled");
-    localStorage.setItem("gallery-root-path", root);
-  }, rootPath);
+    localStorage.setItem("gallery-active-library-id", "1");
+    localStorage.setItem("gallery-active-import-path-id", "10");
+  });
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
@@ -211,10 +236,11 @@ test("plain search finds results and shows them in UI", async ({ page }) => {
 
 test("fielded search prompt:mika sends correct query and shows results", async ({ page }) => {
   const requests = await installStubbedGallery(page);
-  await page.addInitScript((root) => {
+  await page.addInitScript(() => {
     localStorage.setItem("intro_mode", "disabled");
-    localStorage.setItem("gallery-root-path", root);
-  }, rootPath);
+    localStorage.setItem("gallery-active-library-id", "1");
+    localStorage.setItem("gallery-active-import-path-id", "10");
+  });
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
@@ -235,10 +261,11 @@ test("fielded search prompt:mika sends correct query and shows results", async (
 
 test("seed query sends correct query string and shows results", async ({ page }) => {
   const requests = await installStubbedGallery(page);
-  await page.addInitScript((root) => {
+  await page.addInitScript(() => {
     localStorage.setItem("intro_mode", "disabled");
-    localStorage.setItem("gallery-root-path", root);
-  }, rootPath);
+    localStorage.setItem("gallery-active-library-id", "1");
+    localStorage.setItem("gallery-active-import-path-id", "10");
+  });
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
@@ -254,10 +281,11 @@ test("seed query sends correct query string and shows results", async ({ page })
 
 test("clear search restores gallery view", async ({ page }) => {
   await installStubbedGallery(page);
-  await page.addInitScript((root) => {
+  await page.addInitScript(() => {
     localStorage.setItem("intro_mode", "disabled");
-    localStorage.setItem("gallery-root-path", root);
-  }, rootPath);
+    localStorage.setItem("gallery-active-library-id", "1");
+    localStorage.setItem("gallery-active-import-path-id", "10");
+  });
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
@@ -283,10 +311,11 @@ test("clear search restores gallery view", async ({ page }) => {
 
 test("no-results state does not break layout", async ({ page }) => {
   await installStubbedGallery(page);
-  await page.addInitScript((root) => {
+  await page.addInitScript(() => {
     localStorage.setItem("intro_mode", "disabled");
-    localStorage.setItem("gallery-root-path", root);
-  }, rootPath);
+    localStorage.setItem("gallery-active-library-id", "1");
+    localStorage.setItem("gallery-active-import-path-id", "10");
+  });
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
@@ -310,10 +339,11 @@ test("no-results state does not break layout", async ({ page }) => {
 
 test("search query with special characters does not crash", async ({ page }) => {
   const requests = await installStubbedGallery(page);
-  await page.addInitScript((root) => {
+  await page.addInitScript(() => {
     localStorage.setItem("intro_mode", "disabled");
-    localStorage.setItem("gallery-root-path", root);
-  }, rootPath);
+    localStorage.setItem("gallery-active-library-id", "1");
+    localStorage.setItem("gallery-active-import-path-id", "10");
+  });
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });

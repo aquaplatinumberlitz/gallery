@@ -25,6 +25,22 @@ const svgImage = (width: number, height: number) =>
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="#456"/></svg>`,
   );
 
+const stubLibrary = {
+  id: 1,
+  root_path: rootPath,
+  import_paths: [{ id: 10, library_id: 1, path: rootPath, position: 0, created_at: 1, updated_at: 1 }],
+  exclusion_patterns: [],
+  name: "Test Library",
+  state: "ready",
+  watch_enabled: 1,
+  warm_enabled: 1,
+  asset_count: 0,
+  created_at: 1,
+  updated_at: 1,
+  last_scan_at: null,
+  last_error: null,
+};
+
 type ApiRequest = {
   pathname: string;
   path: string;
@@ -61,6 +77,14 @@ async function installStubbedGallery(
       maxLongEdge: url.searchParams.get("max_long_edge") ?? "",
     };
     requests.push(request);
+
+    if (url.pathname === "/api/libraries") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify([stubLibrary]),
+      });
+      return;
+    }
 
     if (url.pathname === "/api/scan") {
       await route.fulfill({
@@ -151,12 +175,13 @@ async function installStubbedGallery(
 }
 
 async function openStubbedGallery(page: Page, requests: ApiRequest[]) {
-  await page.addInitScript((rootForInit) => {
+  await page.addInitScript(() => {
     localStorage.setItem("intro_mode", "disabled");
-    localStorage.setItem("gallery-root-path", rootForInit);
+    localStorage.setItem("gallery-active-library-id", "1");
+    localStorage.setItem("gallery-active-import-path-id", "10");
     localStorage.setItem("gallery-sort-preference", JSON.stringify({ field: "name", order: "asc" }));
     localStorage.removeItem("gallery-lightbox-always-load-original");
-  }, rootPath);
+  });
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });

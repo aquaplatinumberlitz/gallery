@@ -22,6 +22,22 @@ const png1x1 = Buffer.from(
   "base64",
 );
 
+const stubLibrary = {
+  id: 1,
+  root_path: rootPath,
+  import_paths: [{ id: 10, library_id: 1, path: rootPath, position: 0, created_at: 1, updated_at: 1 }],
+  exclusion_patterns: [],
+  name: "Test Library",
+  state: "ready",
+  watch_enabled: 1,
+  warm_enabled: 1,
+  asset_count: 0,
+  created_at: 1,
+  updated_at: 1,
+  last_scan_at: null,
+  last_error: null,
+};
+
 const indexStatusData = {
   enabled: true,
   worker_count: 2,
@@ -57,6 +73,14 @@ const indexStatusData = {
 async function installStubbedGallery(page: Page) {
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
+
+    if (url.pathname === "/api/libraries") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify([stubLibrary]),
+      });
+      return;
+    }
 
     if (url.pathname === "/api/scan") {
       await route.fulfill({
@@ -159,10 +183,11 @@ async function openStubbedGallery(page: Page, withPath = true) {
     (opts) => {
       localStorage.setItem("intro_mode", "disabled");
       if (opts) {
-        localStorage.setItem("gallery-root-path", opts);
+        localStorage.setItem("gallery-active-library-id", "1");
+        localStorage.setItem("gallery-active-import-path-id", "10");
       }
     },
-    withPath ? rootPath : "",
+    withPath ? "1" : "",
   );
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
@@ -187,6 +212,12 @@ test.describe("IndexStatusPanel", () => {
 
   test("shows Unknown status when no root path is set", async ({ page }) => {
     await installStubbedGallery(page);
+    // Override /api/libraries to return empty so no library is auto-selected,
+    // leaving status as Unknown. Registered after installStubbedGallery so it
+    // takes precedence (Playwright tries last-registered routes first).
+    await page.route("**/api/libraries**", async (route) => {
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify([]) });
+    });
 
     await page.addInitScript(() => {
       localStorage.setItem("intro_mode", "disabled");
@@ -268,6 +299,14 @@ test.describe("IndexStatusPanel", () => {
 
     await page.route("**/api/**", async (route) => {
       const url = new URL(route.request().url());
+
+      if (url.pathname === "/api/libraries") {
+        await route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify([stubLibrary]),
+        });
+        return;
+      }
 
       if (url.pathname === "/api/index/status") {
         await statusPromise.then(() =>
@@ -367,6 +406,14 @@ test.describe("IndexStatusPanel", () => {
   test("index status shows error state when API fails", async ({ page }) => {
     await page.route("**/api/**", async (route) => {
       const url = new URL(route.request().url());
+
+      if (url.pathname === "/api/libraries") {
+        await route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify([stubLibrary]),
+        });
+        return;
+      }
 
       if (url.pathname === "/api/index/status") {
         await route.fulfill({

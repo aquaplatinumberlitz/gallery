@@ -17,13 +17,14 @@ const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
 const pathSafetyRoot = process.env.PATH_SAFETY_ROOT_PATH ?? "/home/ubuntu/gallery-repo/test-images";
 
 async function setupGallery(page: import("@playwright/test").Page) {
-  await page.addInitScript((root) => {
+  await page.addInitScript(() => {
     localStorage.setItem("intro_mode", "disabled");
-    localStorage.setItem("gallery-root-path", root);
+    localStorage.setItem("gallery-active-library-id", "1");
+    localStorage.setItem("gallery-active-import-path-id", "10");
     localStorage.setItem("gallery-sort-preference", JSON.stringify({ field: "name", order: "asc" }));
     localStorage.setItem("gallery-albums-collapsed", "false");
     localStorage.removeItem("gallery-lightbox-always-load-original");
-  }, pathSafetyRoot);
+  });
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
 

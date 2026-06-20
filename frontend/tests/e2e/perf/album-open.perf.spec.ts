@@ -25,9 +25,6 @@ const __dirname = pathDirname(__filename);
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
 const albumName = process.env.GALLERY_PERF_ALBUM_NAME ?? "a1111";
 const albumPath = process.env.GALLERY_PERF_ALBUM_PATH ?? "";
-const rootPath =
-  process.env.PATH_SAFETY_ROOT_PATH ??
-  (albumPath ? albumPath.substring(0, albumPath.lastIndexOf("/")) : "/home/ubuntu/gallery-repo/test-images");
 
 const SAMPLE_COUNT = Number(process.env.GALLERY_PERF_ALBUM_SAMPLES ?? "5");
 const budgets = loadBudgets();
@@ -67,10 +64,11 @@ type IterationResult = {
 async function runOneIteration(page: import("@playwright/test").Page): Promise<IterationResult> {
   const clickTime = { value: 0 };
 
-  await page.addInitScript((rootForInit: string) => {
-    localStorage.setItem("gallery-root-path", rootForInit);
+  await page.addInitScript(() => {
+    localStorage.setItem("gallery-active-library-id", "1");
+    localStorage.setItem("gallery-active-import-path-id", "10");
     localStorage.setItem("gallery-sort-preference", JSON.stringify({ field: "name", order: "asc" }));
-  }, rootPath);
+  });
 
   const tracker = installApiNetworkTracker(page, clickTime);
 

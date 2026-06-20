@@ -21,6 +21,22 @@ const png1x1 = Buffer.from(
   "base64",
 );
 
+const stubLibrary = {
+  id: 1,
+  root_path: rootPath,
+  import_paths: [{ id: 10, library_id: 1, path: rootPath, position: 0, created_at: 1, updated_at: 1 }],
+  exclusion_patterns: [],
+  name: "Test Library",
+  state: "ready",
+  watch_enabled: 1,
+  warm_enabled: 1,
+  asset_count: 0,
+  created_at: 1,
+  updated_at: 1,
+  last_scan_at: null,
+  last_error: null,
+};
+
 type ApiRequest = { pathname: string; path: string; q: string };
 
 function requestsFor(requests: ApiRequest[], pathname: string) {
@@ -37,6 +53,14 @@ async function installStubbedGallery(page: Page) {
       q: url.searchParams.get("q") ?? "",
     };
     requests.push(req);
+
+    if (url.pathname === "/api/libraries") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify([stubLibrary]),
+      });
+      return;
+    }
 
     if (url.pathname === "/api/scan") {
       await route.fulfill({
@@ -196,10 +220,11 @@ test.describe("AdvancedSearchDrawer", () => {
 
   test("drawer opens with all field groups visible", async ({ page }) => {
     await installStubbedGallery(page);
-    await page.addInitScript((root) => {
+    await page.addInitScript(() => {
       localStorage.setItem("intro_mode", "disabled");
-      localStorage.setItem("gallery-root-path", root);
-    }, rootPath);
+      localStorage.setItem("gallery-active-library-id", "1");
+      localStorage.setItem("gallery-active-import-path-id", "10");
+    });
 
     await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
@@ -248,10 +273,11 @@ test.describe("AdvancedSearchDrawer", () => {
 
   test("apply fielded search via drawer", async ({ page }) => {
     const requests = await installStubbedGallery(page);
-    await page.addInitScript((root) => {
+    await page.addInitScript(() => {
       localStorage.setItem("intro_mode", "disabled");
-      localStorage.setItem("gallery-root-path", root);
-    }, rootPath);
+      localStorage.setItem("gallery-active-library-id", "1");
+      localStorage.setItem("gallery-active-import-path-id", "10");
+    });
 
     await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
@@ -278,10 +304,11 @@ test.describe("AdvancedSearchDrawer", () => {
 
   test("cancel restores previous state", async ({ page }) => {
     const requests = await installStubbedGallery(page);
-    await page.addInitScript((root) => {
+    await page.addInitScript(() => {
       localStorage.setItem("intro_mode", "disabled");
-      localStorage.setItem("gallery-root-path", root);
-    }, rootPath);
+      localStorage.setItem("gallery-active-library-id", "1");
+      localStorage.setItem("gallery-active-import-path-id", "10");
+    });
 
     await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
@@ -313,10 +340,11 @@ test.describe("AdvancedSearchDrawer", () => {
 
   test("reset clears all fields and active filters", async ({ page }) => {
     await installStubbedGallery(page);
-    await page.addInitScript((root) => {
+    await page.addInitScript(() => {
       localStorage.setItem("intro_mode", "disabled");
-      localStorage.setItem("gallery-root-path", root);
-    }, rootPath);
+      localStorage.setItem("gallery-active-library-id", "1");
+      localStorage.setItem("gallery-active-import-path-id", "10");
+    });
 
     await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
@@ -343,10 +371,11 @@ test.describe("AdvancedSearchDrawer", () => {
 
   test("search filter chips render and remove", async ({ page }) => {
     await installStubbedGallery(page);
-    await page.addInitScript((root) => {
+    await page.addInitScript(() => {
       localStorage.setItem("intro_mode", "disabled");
-      localStorage.setItem("gallery-root-path", root);
-    }, rootPath);
+      localStorage.setItem("gallery-active-library-id", "1");
+      localStorage.setItem("gallery-active-import-path-id", "10");
+    });
 
     await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
@@ -381,10 +410,11 @@ test.describe("AdvancedSearchDrawer", () => {
 
   test("numeric fields accept valid numbers", async ({ page }) => {
     const requests = await installStubbedGallery(page);
-    await page.addInitScript((root) => {
+    await page.addInitScript(() => {
       localStorage.setItem("intro_mode", "disabled");
-      localStorage.setItem("gallery-root-path", root);
-    }, rootPath);
+      localStorage.setItem("gallery-active-library-id", "1");
+      localStorage.setItem("gallery-active-import-path-id", "10");
+    });
 
     await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
@@ -414,10 +444,11 @@ test.describe("AdvancedSearchDrawer", () => {
 
   test("aspect ratio preset and size field", async ({ page }) => {
     const requests = await installStubbedGallery(page);
-    await page.addInitScript((root) => {
+    await page.addInitScript(() => {
       localStorage.setItem("intro_mode", "disabled");
-      localStorage.setItem("gallery-root-path", root);
-    }, rootPath);
+      localStorage.setItem("gallery-active-library-id", "1");
+      localStorage.setItem("gallery-active-import-path-id", "10");
+    });
 
     await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
@@ -450,10 +481,11 @@ test.describe("AdvancedSearchDrawer", () => {
 
   test("plain text search regression", async ({ page }) => {
     const requests = await installStubbedGallery(page);
-    await page.addInitScript((root) => {
+    await page.addInitScript(() => {
       localStorage.setItem("intro_mode", "disabled");
-      localStorage.setItem("gallery-root-path", root);
-    }, rootPath);
+      localStorage.setItem("gallery-active-library-id", "1");
+      localStorage.setItem("gallery-active-import-path-id", "10");
+    });
 
     await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
