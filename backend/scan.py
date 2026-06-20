@@ -30,7 +30,7 @@ from .metadata_store import (
     index_file,
     index_files_from_scan,
 )
-from .models import FileNode
+from .models import FileNode, VideoFileNode
 from .paths import is_path_safe, resolve_path
 
 router = APIRouter()
@@ -282,12 +282,14 @@ def scan_directory(
                 except OSError:
                     resolved_path = str(entry_path.absolute())
                 videos.append(
-                    FileNode(
+                    VideoFileNode(
                         name=entry.name,
                         path=resolved_path,
                         type="video",
                         has_children=False,
                         mtime=mtime,
+                        duration_ms=None,
+                        mime_type=None,
                     )
                 )
             else:

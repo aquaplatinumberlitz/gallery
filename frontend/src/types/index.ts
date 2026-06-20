@@ -35,7 +35,6 @@ export interface FileNode {
   derivative_ready?: Record<string, boolean> | null;
   duration_ms?: number | null;
   mime_type?: string | null;
-  poster_ready?: boolean;
 }
 
 export type LibraryErrorCode =
@@ -136,7 +135,6 @@ export interface UnifiedSearchResult {
   prompt_snippet: string;
   duration_ms?: number | null;
   mime_type?: string | null;
-  poster_ready?: boolean;
 }
 
 export interface UnifiedSearchResults {

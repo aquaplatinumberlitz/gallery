@@ -198,7 +198,6 @@ const searchResultToFileNode = (result: UnifiedSearchResult): FileNode => ({
   height: result.height ?? undefined,
   duration_ms: result.duration_ms,
   mime_type: result.mime_type,
-  poster_ready: result.poster_ready,
 });
 
 const normalizeSearchPath = (path: string): string =>

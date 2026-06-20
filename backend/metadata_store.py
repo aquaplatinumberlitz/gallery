@@ -3271,6 +3271,8 @@ def _format_file_index_rows(rows: list[sqlite3.Row], root: Path, match_type: str
             "mtime": row["mtime"],
             "width": row["width"],
             "height": row["height"],
+            "duration_ms": _optional_row_value(row, "duration_ms"),
+            "mime_type": _optional_row_value(row, "mime_type"),
         }
         if row["type"] == "folder":
             resolved_path = Path(row["path"]).resolve()
@@ -3294,6 +3296,13 @@ def _format_file_index_rows(rows: list[sqlite3.Row], root: Path, match_type: str
     return results
 
 
+def _optional_row_value(row: sqlite3.Row, key: str) -> Any:
+    try:
+        return row[key]
+    except IndexError:
+        return None
+
+
 def _search_file_index_fts(
     conn: sqlite3.Connection,
     query: str,
@@ -3310,7 +3319,13 @@ def _search_file_index_fts(
         rows = list(
             conn.execute(
                 f"""
-                SELECT fi.*
+                SELECT fi.*,
+                       (SELECT a.duration_ms FROM assets a
+                        WHERE a.path = fi.path AND a.duration_ms IS NOT NULL
+                        LIMIT 1) AS duration_ms,
+                       (SELECT a.mime_type FROM assets a
+                        WHERE a.path = fi.path AND a.mime_type IS NOT NULL
+                        LIMIT 1) AS mime_type
                 FROM file_index_fts fts
                 JOIN file_index fi ON fi.path = fts.path
                 WHERE fts MATCH ? AND {type_sql} {scope_sql}
@@ -3330,7 +3345,13 @@ def _search_file_index_fts(
     rows = list(
         conn.execute(
             f"""
-            SELECT fi.*
+            SELECT fi.*,
+                   (SELECT a.duration_ms FROM assets a
+                    WHERE a.path = fi.path AND a.duration_ms IS NOT NULL
+                    LIMIT 1) AS duration_ms,
+                   (SELECT a.mime_type FROM assets a
+                    WHERE a.path = fi.path AND a.mime_type IS NOT NULL
+                    LIMIT 1) AS mime_type
             FROM file_index fi
             WHERE fi.name LIKE ? ESCAPE '\\' AND {type_sql} {scope_sql}
             ORDER BY fi.mtime DESC, fi.name ASC

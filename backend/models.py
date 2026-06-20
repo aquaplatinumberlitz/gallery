@@ -27,4 +27,3 @@ class VideoFileNode(FileNode):
 
     duration_ms: int | None = None
     mime_type: str | None = None
-    poster_ready: bool | None = None
