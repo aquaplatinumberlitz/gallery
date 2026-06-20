@@ -1,6 +1,6 @@
 # Codex Library Management Implementation Status
 
-Last updated: 2026-06-20  
+Last updated: 2026-06-20 (Phase 6 audit fix)  
 Current milestone: Phase 6 complete
 Next milestone: Phase 7 — mixed-media UI
 SQLite schema version currently implemented: `PRAGMA user_version = 8`
@@ -58,16 +58,17 @@ unregister registered libraries with:
   watcher behavior based on import paths.
 
 Phase 1-3 provide the backend, Phase 4 adds the frontend library-management
-data layer, and Phase 5 adds the admin management UI. The visible gallery
-surface still uses the legacy arbitrary `gallery-root-path` store state, but
-the admin can now register/edit/scan/repair/unregister libraries through
-`/admin/libraries` and `/admin/libraries/:id`. The active-library selector
-(`activeLibraryId` / `currentBrowsePath`) and mixed-media UI do not exist yet.
+data layer, Phase 5 adds the admin management UI, and Phase 6 completes the
+active-library selector (`activeLibraryId` / `currentBrowsePath`). The admin
+can register/edit/scan/repair/unregister libraries through
+`/admin/libraries` and `/admin/libraries/:id`, and the gallery now operates
+against a registered active library instead of arbitrary root-path entry.
+The mixed-media UI is not started yet.
 
-> Note: Phase 5 admin UI uses a temporary legacy `galleryStore.setRootPath()`
-> bridge for the "Use in Gallery" action. Phase 6 must replace this with an
-> `activeLibraryId` (persisted) + `currentBrowsePath` (in-memory) model and
-> remove the arbitrary `gallery-root-path` UX after a one-shot migration.
+> Note: Phase 6 replaced the legacy `galleryStore.setRootPath()` bridge with
+> an `activeLibraryId` (persisted) + `currentBrowsePath` (in-memory) model.
+> `RootPathSidebarHeader.vue` and `RootPathSheet.vue` were deleted. The
+> one-shot `gallery-root-path` → `activeLibraryId` migration is complete.
 
 > Note: SSE fan-out is single-process; the subscriber registry in
 > `backend/library_events.py` enqueues to in-process `asyncio.Queue` instances
@@ -87,7 +88,7 @@ Implemented now:
     dialogs, status badges, progress bar, summary panel, action menu)
 
 Not implemented yet:
-  active-library state/UI (activeLibraryId/currentBrowsePath) and mixed-media UI
+  mixed-media UI only (active-library state/UI completed in Phase 6)
 ```
 
 ## 2. Phase Progress
@@ -502,13 +503,15 @@ These are expected incomplete areas, not hidden deliverables:
    exist.~~ Implemented in Phase 4.
 2. ~~`/admin/libraries` and `/admin/libraries/:id` do not exist.~~ Implemented
    in Phase 5.
-3. `frontend/src/stores/gallery.ts` still persists `gallery-root-path`, and the
+3. ~~`frontend/src/stores/gallery.ts` still persists `gallery-root-path`, and the
    Phase 5 admin "Use in Gallery" action (`LibraryListPage.vue`,
    `LibraryDetailPage.vue`) bridges through `galleryStore.setRootPath()` until
-   Phase 6 introduces `activeLibraryId` / `currentBrowsePath`.
-4. `RootPathSidebarHeader.vue` and `RootPathSheet.vue` still expose arbitrary
+   Phase 6 introduces `activeLibraryId` / `currentBrowsePath`.~~ Resolved in
+   Phase 6.
+4. ~~`RootPathSidebarHeader.vue` and `RootPathSheet.vue` still expose arbitrary
    path entry. These are scheduled for removal in Phase 6 after the
-   one-shot `gallery-root-path` → `activeLibraryId` migration.
+   one-shot `gallery-root-path` → `activeLibraryId` migration.~~
+   `RootPathSidebarHeader.vue` and `RootPathSheet.vue` were deleted in Phase 6.
 5. ~~Mobile/tablet admin availability and registered-library selection are not
    implemented.~~ Admin routes now render on desktop/tablet/mobile via
    `RouterView`; active-library selection is the Phase 6 deliverable.
@@ -596,11 +599,12 @@ The project should currently be described as:
 > libraries with exclusion patterns and editable CRUD. Durable jobs, stats,
 > scan-all, and SSE are implemented. Video assets are indexed with ffprobe
 > metadata, streamed via HTTP Range, and served with cached ffmpeg posters.
-> The database is at v8 and Phases 0-5 are verified. The admin can register,
+> The database is at v8 and Phases 0-6 are verified. The admin can register,
 > edit, scan, repair, and unregister libraries through `/admin/libraries` and
-> `/admin/libraries/:id` on desktop, tablet, and mobile. The gallery surface
-> still uses a legacy `gallery-root-path` bridge for "Use in Gallery" until
-> Phase 6 introduces the `activeLibraryId` / `currentBrowsePath` model.
+> `/admin/libraries/:id` on desktop, tablet, and mobile. Phase 6 introduced
+> `activeLibraryId` / `currentBrowsePath`; the gallery no longer exposes
+> arbitrary root-path entry. The viewer remains image-only until Phase 7
+> mixed-media UI.
 
 Do not describe the full Library Management feature as complete or
-frontend-ready. Active-library selection and mixed-media UI remain.
+frontend-ready. Mixed-media UI remains.
