@@ -1593,43 +1593,71 @@ Steps:
 5. Add `/api/video/poster` with cached `ffmpeg` poster generation and graceful fallback errors.
 6. Add tests for video indexing, stats, streaming, poster cache, and missing tool fallback.
 
-### Phase 4 - Frontend data layer and admin management
+### Phase 4 - Frontend data layer
 
-Deliverable: frontend can use the expanded backend contract.
+Deliverable: frontend can call and cache the expanded backend contract without rendering the full admin UI yet.
 
 Steps:
 
 1. Add expanded types, API functions, query keys, and composables.
 2. Add SSE integration through `EventSource`.
-3. Build responsive list/detail pages with stats, import paths, exclusion patterns, jobs, create/edit, scan, scan-all, repair, and unregister.
-4. Use TanStack Query/Table/Form where it replaces generic state/table/form behavior.
-5. Keep Immich only as workflow inspiration; style stays shadcn-vue/gallery-native.
+3. Add mutation helpers for create, update, validate, scan, scan-all, repair, unregister, and cache invalidation.
+4. Add unit tests for API mapping, query keys, progress polling conditions, SSE event handling, and mutation invalidation.
+5. Keep the data layer UI-agnostic so admin pages and the main viewer can share the same contract.
 
-### Phase 5 - Active library/import path selection and mixed-media gallery
+### Phase 5 - Frontend admin management UI
 
-Deliverable: main viewer uses registered library/import-path selection and supports images plus videos.
+Deliverable: responsive admin pages can manage libraries through the expanded backend contract.
+
+Steps:
+
+1. Add `/admin/libraries` list page with global stats, queue status, row/card actions, loading, empty, and error states.
+2. Add `/admin/libraries/:id` detail page with per-library stats, progress, import paths, exclusion patterns, job history, and last error.
+3. Add create/edit dialogs or sheets for name, import paths, exclusion patterns, validation, and server errors.
+4. Add unregister confirmation that sends `confirm=true` and clearly states source files are not deleted.
+5. Wire scan, scan-all, repair, use-in-gallery, and unregister actions on desktop/tablet/mobile.
+6. Use TanStack Query/Table/Form where it replaces generic state/table/form behavior.
+7. Keep Immich only as workflow inspiration; style stays shadcn-vue/gallery-native.
+
+### Phase 6 - Active library/import path selection
+
+Deliverable: main viewer uses registered library/import-path selection instead of arbitrary root-path entry.
 
 Steps:
 
 1. Migrate store to `activeLibraryId`, `activeImportPathId`, `activeImportRootPath`, and `currentBrowsePath`.
-2. Migrate legacy `gallery-root-path` once and remove it.
-3. Replace root-path UI with library/import-path selectors on every breakpoint.
-4. Update scan/search/list rendering to preserve existing image behavior and add video cards.
-5. Keep images on PhotoSwipe.
-6. Add native video player surface for video assets.
-7. Update empty/error states and `library_not_registered` actions.
+2. Migrate legacy `gallery-root-path` once and remove it after match/no-match is known.
+3. Replace `RootPathSidebarHeader.vue` with `LibrarySidebarHeader.vue` for sidebar layouts.
+4. Replace `RootPathSheet.vue` with `LibrarySelectorSheet.vue` or `LibrarySheet.vue` for compact layouts.
+5. Reset browse path/history/search when the active library or active import path changes.
+6. Update empty/error states and `library_not_registered` actions to Add/Manage Library CTAs.
+7. Add focused tests for store hydration, legacy migration, selector rendering, and no writable root-path primary state.
 
-### Phase 6 - Tests and polish
+### Phase 7 - Mixed-media gallery UI
+
+Deliverable: the main viewer preserves existing image behavior while adding video cards and native playback.
+
+Steps:
+
+1. Update scan/search/list rendering to consume backward-compatible `images` plus new `videos`/`media` fields.
+2. Keep images on the existing PhotoSwipe path.
+3. Add video card rendering with poster endpoint, play affordance, and fallback placeholder.
+4. Add native video player dialog/sheet backed by `/api/video`.
+5. Update mixed-media empty/loading/error behavior without changing path-based scan/search cache keys.
+6. Add component/E2E coverage for image PhotoSwipe preservation and video playback entry.
+
+### Phase 8 - Final verification and polish
 
 Deliverable: verified full-stack implementation.
 
 Steps:
 
-1. Add backend unit/integration tests for schema, CRUD, validation, jobs, per-library/global stats, SSE, and video.
-2. Add frontend unit/component tests for data layer, store migration, selectors, dialogs, stats/jobs, and video cards.
-3. Add Playwright `library-management.spec.ts` coverage for desktop/tablet/mobile.
-4. Add mixed-media E2E coverage for image PhotoSwipe and video playback entry.
-5. Run backend tests, frontend lint/typecheck/unit tests, and targeted Playwright tests.
+1. Run backend unit/integration tests for schema, CRUD, validation, jobs, per-library/global stats, SSE, and video.
+2. Run frontend lint, typecheck, unit, and component tests for data layer, store migration, selectors, dialogs, stats/jobs, and video cards.
+3. Run Playwright `library-management.spec.ts` coverage for desktop/tablet/mobile.
+4. Run mixed-media E2E coverage for image PhotoSwipe and video playback entry.
+5. Run broader viewer regression tests when touched: gallery no-reload, library inspector, search/facets, and responsive breakpoints.
+6. Fix accessibility, dark-mode, responsive layout, and stale-cache polish found by verification.
 
 ## 12. Acceptance Criteria
 
