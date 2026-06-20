@@ -11,6 +11,7 @@ from .config import MAX_IMAGE_FILE_BYTES, MAX_IMAGE_PIXELS
 from .errors import APIError, ErrorType
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff"}
+VIDEO_EXTENSIONS = {".mp4", ".m4v", ".mov", ".webm", ".mkv", ".avi"}
 DEFAULT_INDEX_EXCLUDED_DIR_NAMES = frozenset(
     {
         ".git",
@@ -98,6 +99,25 @@ def is_image(path: Path) -> bool:
 
 
 is_image_path = is_image
+
+
+def is_video_path(path: Path) -> bool:
+    """Return whether a path has a supported video file extension."""
+    return path.suffix.lower() in VIDEO_EXTENSIONS
+
+
+def is_asset_path(path: Path) -> bool:
+    """Return whether a path is a supported gallery asset."""
+    return is_image_path(path) or is_video_path(path)
+
+
+def asset_type_for_path(path: Path) -> str | None:
+    """Return the catalog asset type for a supported path."""
+    if is_video_path(path):
+        return "video"
+    if is_image_path(path):
+        return "image"
+    return None
 
 
 def natural_sort_key(s: str) -> list:

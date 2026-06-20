@@ -75,7 +75,7 @@ def _get_folder_list(scope_where: str, scope_params: dict, max_folders: int) -> 
             f"""
             SELECT fi.parent_path AS value, count(*) AS count
             FROM file_index fi
-            WHERE fi.type = 'photo' {scope_where}
+            WHERE fi.type IN ('image', 'photo') {scope_where}
             GROUP BY fi.parent_path
             ORDER BY count DESC, fi.parent_path ASC
             LIMIT :limit
@@ -133,7 +133,7 @@ def _get_seed_availability(scope_where: str, scope_params: dict) -> list[dict]:
             f"""
             SELECT count(*) AS total
             FROM file_index fi
-            WHERE fi.type = 'photo' {scope_where}
+            WHERE fi.type IN ('image', 'photo') {scope_where}
             """,
             scope_params,
         ).fetchone()["total"]
@@ -159,7 +159,7 @@ def _get_metadata_availability(scope_where: str, scope_params: dict) -> list[dic
             f"""
             SELECT count(*) AS total
             FROM file_index fi
-            WHERE fi.type = 'photo' {scope_where}
+            WHERE fi.type IN ('image', 'photo') {scope_where}
             """,
             scope_params,
         ).fetchone()["total"]

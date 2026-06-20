@@ -381,7 +381,7 @@ def test_library_inspector_excludes_app_build_assets_but_keeps_gallery_dist_fold
 
     with _connect() as conn:
         image_metadata_paths = {row["path"] for row in conn.execute("SELECT path FROM image_metadata")}
-        file_index_paths = {row["path"] for row in conn.execute("SELECT path FROM file_index WHERE type = 'photo'")}
+        file_index_paths = {row["path"] for row in conn.execute("SELECT path FROM file_index WHERE type = 'image'")}
 
     assert str(app_dist_image.resolve()) not in image_metadata_paths
     assert str(app_dist_image.resolve()) not in file_index_paths

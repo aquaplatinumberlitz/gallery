@@ -1,9 +1,9 @@
 # Codex Library Management Implementation Status
 
 Last updated: 2026-06-20  
-Current milestone: Phase 2 complete  
-Next milestone: Phase 3 — backend video asset support  
-SQLite schema version currently implemented: `PRAGMA user_version = 7`
+Current milestone: Phase 3 complete  
+Next milestone: Phase 4 — frontend data layer  
+SQLite schema version currently implemented: `PRAGMA user_version = 8`
 
 ## Verified Git Baseline
 
@@ -80,7 +80,7 @@ Not implemented yet:
 | 0. Contract lock | Complete | API, migration, state, jobs/SSE, video, dependency contract | Keep contract tests aligned with changes |
 | 1. Schema, validation, CRUD | Complete | SQLite v6, import paths, exclusions, CRUD/validate, multi-root lookup/scan/repair | Phase 2 builds on v6 |
 | 2. Jobs, stats, scan-all, SSE | Complete | library_jobs table, job tracking, scan-all, per-library/global stats, jobs endpoints, SSE events | Phase 3 builds on v7 |esent | Implement SQLite v7 and job manager |
-| 3. Video backend | Not started | No video indexing/streaming/posters | Implement SQLite v8 after Phase 2 |
+| 3. Video backend | Complete | v8 migration, ffprobe metadata, /api/video Range streaming, /api/video/poster ffmpeg caching, 7 new tests | Phase 4 builds on stable endpoints |
 | 4. Frontend data layer | Not started | No new library types/API/query composables | Requires stable Phase 2/3 backend |
 | 5. Admin management UI | Not started | No `/admin/libraries` routes/pages | Requires Phase 4 |
 | 6. Active library selection | Not started | Legacy root-path UI/store still active | Requires library query/data layer |
@@ -432,26 +432,18 @@ not changed.
 
 These are expected incomplete areas, not hidden Phase 1 deliverables:
 
-1. No durable library job table or runner exists.
-2. Scan uses FastAPI in-process `BackgroundTasks`, not the final queue.
-3. Repair is synchronous and has no job history.
-4. No stats endpoints exist.
-5. No scan-all endpoint exists.
-6. No SSE event stream exists.
-7. No startup stale-job recovery exists.
-8. No video detection, metadata, stream, or poster support exists.
-9. Frontend types/API/query keys/composables for library management do not
+1. Frontend types/API/query keys/composables for library management do not
    exist.
-10. `/admin/libraries` and `/admin/libraries/:id` do not exist.
-11. `frontend/src/stores/gallery.ts` still persists `gallery-root-path`.
-12. `RootPathSidebarHeader.vue` and `RootPathSheet.vue` still expose arbitrary
+2. `/admin/libraries` and `/admin/libraries/:id` do not exist.
+3. `frontend/src/stores/gallery.ts` still persists `gallery-root-path`.
+4. `RootPathSidebarHeader.vue` and `RootPathSheet.vue` still expose arbitrary
     path entry.
-13. Mobile/tablet admin availability and registered-library selection are not
+5. Mobile/tablet admin availability and registered-library selection are not
     implemented.
-14. Existing frontend error mapping does not yet include all new Phase 1/2
+6. Existing frontend error mapping does not yet include all new Phase 1/2/3
     typed errors.
 
-Do not “fix” these piecemeal inside unrelated Phase 2 backend work. Follow the
+Do not “fix” these piecemeal outside their planned phases. Follow the
 phase boundaries unless a change is required for the next phase's contract.
 
 ## 7. Phase 2 Starting Point
@@ -511,15 +503,29 @@ Recommended implementation order:
 - polling recovery when no SSE event is received;
 - full existing backend suite.
 
+### Minimum Phase 3 tests
+
+- v7 to v8 migration and idempotent reopen;
+- video indexing with `type = 'video'`, ffprobe metadata (duration, codec, dimensions);
+- `/api/video` full response (200);
+- `/api/video` byte range (206 + Content-Range);
+- `/api/video` unsatisfiable range (416);
+- `/api/video` rejection of non-video file (400);
+- `/api/video/poster` ffmpeg generation (200 + WebP);
+- `/api/video/poster` missing ffmpeg fallback (503);
+- video asset counting in per-library stats (photos vs videos);
+- full existing backend suite.
+
 ## 8. Definition of “Current Progress”
 
 The project should currently be described as:
 
 > Backend library registration has been migrated to ordered multi-import-path
-> libraries with exclusion patterns and editable CRUD. The database is at v6
-> and Phase 1 is verified. Durable jobs, stats, scan-all, SSE, video, and all
-> frontend library-management work remain to be implemented, starting with
-> Phase 2.
+> libraries with exclusion patterns and editable CRUD. Durable jobs, stats,
+> scan-all, and SSE are implemented. Video assets are indexed with ffprobe
+> metadata, streamed via HTTP Range, and served with cached ffmpeg posters.
+> The database is at v8 and Phases 0-3 are verified. All frontend
+> library-management work remains to be implemented starting with Phase 4.
 
 Do not describe the full Library Management feature as complete or
 frontend-ready.

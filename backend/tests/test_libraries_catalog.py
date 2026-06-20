@@ -42,6 +42,9 @@ def test_version_four_migrates_file_index_into_default_library(isolated_metadata
     create_test_png(image, size=(40, 30))
     with sqlite3.connect(isolated_metadata_db) as conn:
         conn.execute("DELETE FROM assets")
+        conn.execute("ALTER TABLE assets DROP COLUMN mime_type")
+        conn.execute("ALTER TABLE assets DROP COLUMN duration_ms")
+        conn.execute("ALTER TABLE assets DROP COLUMN codec")
         conn.execute(
             """
             INSERT INTO file_index (path, name, parent_path, type, mtime, size, width, height, indexed_at)
@@ -61,7 +64,7 @@ def test_version_four_migrates_file_index_into_default_library(isolated_metadata
         row = conn.execute("SELECT * FROM assets WHERE path = ?", (str(image.resolve()),)).fetchone()
         assert row is not None
         assert (row["width"], row["height"], row["type"], row["mtime_ns"]) == (40, 30, "image", 12.5)
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 7
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 8
 
 
 def test_version_six_backfills_import_paths_and_converts_library_timestamps(
@@ -71,6 +74,9 @@ def test_version_six_backfills_import_paths_and_converts_library_timestamps(
     initialize_database()
     root = str(isolated_gallery_root.resolve())
     with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute("ALTER TABLE assets DROP COLUMN mime_type")
+        conn.execute("ALTER TABLE assets DROP COLUMN duration_ms")
+        conn.execute("ALTER TABLE assets DROP COLUMN codec")
         conn.execute("DELETE FROM library_import_paths")
         conn.execute(
             """
@@ -92,7 +98,7 @@ def test_version_six_backfills_import_paths_and_converts_library_timestamps(
     assert library["import_paths"][0]["position"] == 0
     assert 1_000_000_000 < library["created_at"] < 2_000_000_000
     with sqlite3.connect(isolated_metadata_db) as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 7
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 8
         assert conn.execute("SELECT count(*) FROM library_import_paths").fetchone()[0] == 1
 
 

@@ -20,6 +20,7 @@ from .scan import router as scan_router
 from .search import router as search_router
 from .static_files import router as static_files_router
 from .thumbnails import router as thumbnails_router
+from .video import router as video_router
 
 
 def _get_cors_origins() -> list[str]:
@@ -68,6 +69,7 @@ app.add_middleware(
 
 app.include_router(images_router)
 app.include_router(thumbnails_router)
+app.include_router(video_router)
 app.include_router(metadata_parse_router)
 app.include_router(scan_router)
 app.include_router(folders_router)

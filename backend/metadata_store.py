@@ -6,9 +6,11 @@ import base64
 import hashlib
 import json
 import logging
+import mimetypes
 import os
 import re
 import sqlite3
+import subprocess
 import sys
 import threading
 import time
@@ -29,7 +31,7 @@ from .config import (
     PATH_SAFETY_ROOT,
     THUMBNAIL_CACHE_DIR,
 )
-from .files import is_image_path, is_index_excluded_path
+from .files import asset_type_for_path, is_asset_path, is_image_path, is_index_excluded_path
 from .metadata_extract import (
     ExtractedMetadata,
     contains_cjk,
@@ -566,6 +568,17 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
 
     if current_version < 7:
         conn.execute("PRAGMA user_version = 7")
+        current_version = 7
+
+    if current_version == 7:
+        conn.executescript(
+            """
+            ALTER TABLE assets ADD COLUMN mime_type TEXT;
+            ALTER TABLE assets ADD COLUMN duration_ms INTEGER;
+            ALTER TABLE assets ADD COLUMN codec TEXT;
+            PRAGMA user_version = 8;
+            """
+        )
 
     _cleanup_ignored_index_conn(conn)
 
@@ -707,6 +720,9 @@ def _upsert_asset_conn(
     height: int | None = None,
     orientation: int | None = None,
     metadata_state: str | None = None,
+    mime_type: str | None = None,
+    duration_ms: int | None = None,
+    codec: str | None = None,
 ) -> int:
     resolved_path = str(Path(path).resolve())
     library = _find_library_for_path_conn(conn, resolved_path)
@@ -719,13 +735,14 @@ def _upsert_asset_conn(
         _library_exclusion_patterns_conn(conn, library_id),
     ):
         return 0
-    normalized_type = "image" if type in {"image", "photo", "file"} else "folder"
+    normalized_type = "image" if type in {"image", "photo", "file"} else "video" if type == "video" else "folder"
     conn.execute(
         """
         INSERT INTO assets (
           library_id, path, parent_path, name, type, mtime_ns, size, width,
-          height, orientation, indexed_at, metadata_state, offline, deleted_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, 'pending'), 0, NULL)
+          height, orientation, indexed_at, metadata_state, offline, deleted_at,
+          mime_type, duration_ms, codec
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, 'pending'), 0, NULL, ?, ?, ?)
         ON CONFLICT(library_id, path) DO UPDATE SET
           parent_path=excluded.parent_path,
           name=excluded.name,
@@ -737,6 +754,9 @@ def _upsert_asset_conn(
           orientation=COALESCE(excluded.orientation, assets.orientation),
           indexed_at=excluded.indexed_at,
           metadata_state=COALESCE(?, assets.metadata_state),
+          mime_type=COALESCE(excluded.mime_type, assets.mime_type),
+          duration_ms=COALESCE(excluded.duration_ms, assets.duration_ms),
+          codec=COALESCE(excluded.codec, assets.codec),
           offline=0,
           deleted_at=NULL
         """,
@@ -753,6 +773,9 @@ def _upsert_asset_conn(
             orientation,
             time.time(),
             metadata_state,
+            mime_type,
+            duration_ms,
+            codec,
             metadata_state,
         ),
     )
@@ -1891,7 +1914,7 @@ def get_metadata_index_status(path: str | Path | None = None) -> dict[str, Any]:
             f"""
             SELECT count(*) AS total
             FROM file_index
-            {where + (" AND" if where else "WHERE")} type = 'photo'
+            {where + (" AND" if where else "WHERE")} type IN ('image', 'photo')
             """,
             params,
         ).fetchone()
@@ -1908,7 +1931,7 @@ def get_metadata_index_status(path: str | Path | None = None) -> dict[str, Any]:
             SELECT count(*) AS total
             FROM image_metadata m
             JOIN file_index fi ON fi.path = m.path
-            WHERE fi.type = 'photo'
+            WHERE fi.type IN ('image', 'photo')
             {metadata_scope}
             """,
             metadata_params,
@@ -2339,7 +2362,7 @@ def get_warm_folder_listing(
         )
 
         total_images_row = conn.execute(
-            "SELECT count(*) AS total FROM file_index WHERE parent_path = ? AND type = 'photo'",
+            "SELECT count(*) AS total FROM file_index WHERE parent_path = ? AND type IN ('image', 'photo')",
             (resolved,),
         ).fetchone()
         total_images = int(total_images_row["total"])
@@ -2352,7 +2375,7 @@ def get_warm_folder_listing(
                        COALESCE(fi.height, im.height) AS height
                 FROM file_index AS fi
                 LEFT JOIN image_metadata AS im ON im.path = fi.path
-                WHERE fi.parent_path = ? AND fi.type = 'photo'
+                WHERE fi.parent_path = ? AND fi.type IN ('image', 'photo')
                 """,
                 (resolved,),
             )
@@ -2393,7 +2416,7 @@ def get_warm_folder_listing(
                 f"""
                 SELECT parent_path, path
                 FROM file_index
-                WHERE parent_path IN ({placeholders}) AND type = 'photo'
+                WHERE parent_path IN ({placeholders}) AND type IN ('image', 'photo')
                 ORDER BY mtime DESC
                 """,
                 child_paths,
@@ -2410,7 +2433,7 @@ def get_warm_folder_listing(
                 SELECT parent_path,
                        count(*) AS total,
                        sum(CASE WHEN type = 'folder' THEN 1 ELSE 0 END) AS subfolder_count,
-                       sum(CASE WHEN type = 'photo' THEN 1 ELSE 0 END) AS photo_count
+                       sum(CASE WHEN type IN ('image', 'photo') THEN 1 ELSE 0 END) AS photo_count
                 FROM file_index
                 WHERE parent_path IN ({placeholders})
                 GROUP BY parent_path
@@ -2658,7 +2681,11 @@ def _path_value(item: Any, key: str, default: Any = None) -> Any:
 
 
 def _normalize_file_type(type_value: str) -> str:
-    return "photo" if type_value in {"image", "photo", "file"} else "folder"
+    if type_value in {"image", "photo", "file"}:
+        return "image"
+    if type_value == "video":
+        return "video"
+    return "folder"
 
 
 def index_file(
@@ -2670,8 +2697,11 @@ def index_file(
     size: int | None,
     width: int | None,
     height: int | None,
+    mime_type: str | None = None,
+    duration_ms: int | None = None,
+    codec: str | None = None,
 ) -> bool:
-    """Upsert one folder or photo row into the file index and FTS table."""
+    """Upsert one folder or media row into the file index and asset catalog."""
     if is_index_excluded_path(path):
         return False
     resolved_path = str(Path(path).resolve())
@@ -2723,6 +2753,9 @@ def index_file(
             size=size,
             width=width,
             height=height,
+            mime_type=mime_type,
+            duration_ms=duration_ms,
+            codec=codec,
         )
         conn.execute("DELETE FROM file_index_fts WHERE path = ?", (resolved_path,))
         conn.execute(
@@ -2947,15 +2980,70 @@ def index_directory_tree(
                 # Skip symlinked directories to avoid loops; files are still followed.
                 if entry.is_dir() and not entry.is_symlink():
                     visit(entry, visited_inodes)
-                elif entry.is_file() and is_image_path(entry):
+                elif entry.is_file() and is_asset_path(entry):
                     stat = entry.stat()
-                    if index_file(entry, entry.name, entry.parent, "photo", stat.st_mtime, stat.st_size, None, None):
+                    asset_type = asset_type_for_path(entry)
+                    width = None
+                    height = None
+                    duration_ms = None
+                    codec = None
+                    mime_type = mimetypes.guess_type(entry.name)[0]
+                    if asset_type == "video":
+                        try:
+                            result = subprocess.run(
+                                [
+                                    "ffprobe",
+                                    "-v",
+                                    "quiet",
+                                    "-print_format",
+                                    "json",
+                                    "-show_format",
+                                    "-show_streams",
+                                    str(entry),
+                                ],
+                                capture_output=True,
+                                text=True,
+                                timeout=5,
+                                check=False,
+                            )
+                            if result.returncode == 0:
+                                probe = json.loads(result.stdout)
+                                duration = probe.get("format", {}).get("duration")
+                                if duration is not None:
+                                    duration_ms = int(float(duration) * 1000)
+                                video_stream = next(
+                                    (
+                                        stream
+                                        for stream in probe.get("streams", [])
+                                        if stream.get("codec_type") == "video"
+                                    ),
+                                    None,
+                                )
+                                if video_stream is not None:
+                                    codec = video_stream.get("codec_name")
+                                    width = parse_int(video_stream.get("width"))
+                                    height = parse_int(video_stream.get("height"))
+                        except (OSError, subprocess.SubprocessError, TypeError, ValueError, json.JSONDecodeError):
+                            logger.debug("Could not probe video metadata for %s", entry, exc_info=True)
+                    if index_file(
+                        entry,
+                        entry.name,
+                        entry.parent,
+                        asset_type or "folder",
+                        stat.st_mtime,
+                        stat.st_size,
+                        width,
+                        height,
+                        mime_type=mime_type,
+                        duration_ms=duration_ms,
+                        codec=codec,
+                    ):
                         indexed += 1
                     if collected_asset_paths is not None:
                         collected_asset_paths.add(str(entry.resolve()))
-                    if include_metadata:
+                    if include_metadata and asset_type == "image":
                         local_image_paths.append(entry)
-                    if collected_image_paths is not None:
+                    if collected_image_paths is not None and asset_type == "image":
                         collected_image_paths.append(entry)
             except (OSError, PermissionError):
                 continue
@@ -3071,6 +3159,8 @@ def _search_file_index_fts(
     limit: int,
 ) -> tuple[list[sqlite3.Row], Path]:
     scope_sql, scope_params, root = _scope_clause(scope, root_path, "fi")
+    type_sql = "fi.type IN ('image', 'photo')" if file_type in {"image", "photo"} else "fi.type = ?"
+    type_params = [] if file_type in {"image", "photo"} else [file_type]
     try:
         match_query = _unicode_match_query(query)
         rows = list(
@@ -3079,11 +3169,11 @@ def _search_file_index_fts(
                 SELECT fi.*
                 FROM file_index_fts fts
                 JOIN file_index fi ON fi.path = fts.path
-                WHERE fts MATCH ? AND fi.type = ? {scope_sql}
+                WHERE fts MATCH ? AND {type_sql} {scope_sql}
                 ORDER BY bm25(file_index_fts) ASC, fi.mtime DESC, fi.name ASC
                 LIMIT ?
                 """,
-                [match_query, file_type, *scope_params, limit],
+                [match_query, *type_params, *scope_params, limit],
             )
         )
     except sqlite3.OperationalError:
@@ -3098,11 +3188,11 @@ def _search_file_index_fts(
             f"""
             SELECT fi.*
             FROM file_index fi
-            WHERE fi.name LIKE ? ESCAPE '\\' AND fi.type = ? {scope_sql}
+            WHERE fi.name LIKE ? ESCAPE '\\' AND {type_sql} {scope_sql}
             ORDER BY fi.mtime DESC, fi.name ASC
             LIMIT ?
             """,
-            [pattern, file_type, *scope_params, limit],
+            [pattern, *type_params, *scope_params, limit],
         )
     )
     return rows, root
@@ -3428,7 +3518,7 @@ def _search_fielded_photos(
             JOIN file_index fi ON fi.path = fts.path
             JOIN field_paths fp ON fp.path = fi.path
             WHERE fts MATCH :fts_query
-              AND fi.type = 'photo'
+              AND fi.type IN ('image', 'photo')
               {scope_cond}
             ORDER BY bm25(file_index_fts), fi.mtime DESC, fi.name ASC
             LIMIT :limit
@@ -3453,7 +3543,7 @@ def _search_fielded_photos(
         FROM file_index fi
         JOIN field_paths fp ON fp.path = fi.path
         WHERE fi.name LIKE :like_pattern ESCAPE '\\'
-          AND fi.type = 'photo'
+          AND fi.type IN ('image', 'photo')
           {scope_cond}
         ORDER BY fi.mtime DESC, fi.name ASC
         LIMIT :limit
@@ -3937,7 +4027,7 @@ def list_library_inspector_rows(
             field_conditions, field_params = build_fielded_conditions(parsed)
         keyset_condition, keyset_params = _build_library_inspector_keyset_where(normalized_sort, cursor)
 
-        where_parts = ["fi.type = 'photo'"]
+        where_parts = ["fi.type IN ('image', 'photo')"]
         if field_conditions:
             where_parts.extend(field_conditions)
         if keyset_condition:
@@ -3996,7 +4086,7 @@ def list_library_inspector_rows(
             SELECT count(*) AS total
             FROM image_metadata m
             JOIN file_index fi ON fi.path = m.path
-            WHERE fi.type = 'photo'
+            WHERE fi.type IN ('image', 'photo')
             {scope_cond}
             """,
             scope_params,
@@ -4044,7 +4134,7 @@ def get_library_inspector_metadata(path: str | Path) -> dict[str, Any] | None:
               COALESCE(fi.height, m.height) AS indexed_height
             FROM image_metadata m
             JOIN file_index fi ON fi.path = m.path
-            WHERE m.path = ? AND fi.type = 'photo'
+            WHERE m.path = ? AND fi.type IN ('image', 'photo')
             """,
             (resolved,),
         ).fetchone()
