@@ -87,9 +87,9 @@ function selectImportPath(value: unknown) {
           :model-value="importPathValue"
           @update:model-value="selectImportPath"
         >
-          <SelectTrigger aria-label="Active import path"
-            ><SelectValue placeholder="Select an import path"
-          /></SelectTrigger>
+          <SelectTrigger aria-label="Active import path">
+            <SelectValue placeholder="Select an import path" />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem v-for="path in activeLibrary.import_paths" :key="path.id" :value="String(path.id)">
               {{ path.path }}
