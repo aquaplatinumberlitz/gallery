@@ -65,7 +65,7 @@ def test_video_indexing_and_library_stats(
         assert row["duration_ms"] == pytest.approx(2000, abs=100)
         assert row["codec"] == "mpeg4"
         assert (row["width"], row["height"]) == (32, 24)
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 8
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 9
 
     stats = get_library_stats(library_id)
     assert stats["photos"] == 1

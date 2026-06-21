@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+import time
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -27,6 +28,212 @@ from backend.metadata_store import (
 from tests.conftest import create_test_png
 
 
+def _create_v8_catalog_fixture(db_path: Path, root: Path) -> None:
+    root.mkdir(parents=True, exist_ok=True)
+    image = root / "legacy.png"
+    create_test_png(image, size=(40, 30))
+    stat = image.stat()
+    now = time.time()
+    with sqlite3.connect(db_path) as conn:
+        conn.executescript(
+            """
+            PRAGMA foreign_keys=ON;
+            CREATE TABLE image_metadata (
+              id INTEGER PRIMARY KEY,
+              path TEXT NOT NULL UNIQUE,
+              name TEXT NOT NULL,
+              mtime REAL,
+              size INTEGER,
+              width INTEGER,
+              height INTEGER,
+              metadata_json TEXT,
+              updated_at REAL,
+              indexed_at REAL
+            );
+            CREATE TABLE file_index (
+              path TEXT PRIMARY KEY,
+              name TEXT NOT NULL,
+              parent_path TEXT NOT NULL,
+              type TEXT NOT NULL,
+              mtime REAL,
+              size INTEGER,
+              width INTEGER,
+              height INTEGER,
+              indexed_at REAL
+            );
+            CREATE VIRTUAL TABLE file_index_fts USING fts5(
+              name, path UNINDEXED, type UNINDEXED, parent_path UNINDEXED, tokenize='unicode61'
+            );
+            CREATE TABLE metadata_index_jobs (
+              path TEXT PRIMARY KEY,
+              name TEXT NOT NULL,
+              parent_path TEXT NOT NULL,
+              folder_path TEXT NOT NULL,
+              root_path TEXT NOT NULL,
+              mtime REAL NOT NULL,
+              size INTEGER NOT NULL,
+              state TEXT NOT NULL,
+              attempts INTEGER NOT NULL DEFAULT 0,
+              error TEXT,
+              queued_at REAL,
+              started_at REAL,
+              finished_at REAL,
+              updated_at REAL NOT NULL
+            );
+            CREATE TABLE folder_index_state (
+              path TEXT PRIMARY KEY,
+              dir_mtime_ns INTEGER NOT NULL,
+              indexed_at REAL NOT NULL,
+              complete INTEGER NOT NULL DEFAULT 0,
+              child_count INTEGER NOT NULL DEFAULT 0,
+              folder_count INTEGER NOT NULL DEFAULT 0,
+              image_count INTEGER NOT NULL DEFAULT 0,
+              last_error TEXT,
+              updated_at REAL NOT NULL
+            );
+            CREATE TABLE libraries (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              root_path TEXT NOT NULL UNIQUE,
+              name TEXT NOT NULL,
+              state TEXT NOT NULL DEFAULT 'discovering',
+              watch_enabled INTEGER NOT NULL DEFAULT 1,
+              warm_enabled INTEGER NOT NULL DEFAULT 1,
+              created_at REAL NOT NULL,
+              updated_at REAL NOT NULL,
+              last_scan_at REAL,
+              last_error TEXT
+            );
+            CREATE TABLE library_import_paths (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+              path TEXT NOT NULL,
+              position INTEGER NOT NULL DEFAULT 0,
+              created_at REAL NOT NULL,
+              updated_at REAL NOT NULL,
+              UNIQUE(library_id, path),
+              UNIQUE(library_id, position)
+            );
+            CREATE TABLE library_exclusion_patterns (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+              pattern TEXT NOT NULL,
+              position INTEGER NOT NULL DEFAULT 0,
+              created_at REAL NOT NULL,
+              updated_at REAL NOT NULL,
+              UNIQUE(library_id, pattern),
+              UNIQUE(library_id, position)
+            );
+            CREATE TABLE library_jobs (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              library_id INTEGER REFERENCES libraries(id) ON DELETE SET NULL,
+              parent_job_id INTEGER REFERENCES library_jobs(id) ON DELETE SET NULL,
+              type TEXT NOT NULL,
+              state TEXT NOT NULL DEFAULT 'queued',
+              progress_current INTEGER NOT NULL DEFAULT 0,
+              progress_total INTEGER,
+              message TEXT,
+              error TEXT,
+              counters TEXT NOT NULL DEFAULT '{}',
+              created_at REAL NOT NULL,
+              updated_at REAL NOT NULL,
+              started_at REAL,
+              finished_at REAL
+            );
+            CREATE TABLE assets (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              library_id INTEGER NOT NULL REFERENCES libraries(id),
+              path TEXT NOT NULL,
+              parent_path TEXT NOT NULL,
+              name TEXT NOT NULL,
+              type TEXT NOT NULL DEFAULT 'image',
+              mtime_ns REAL,
+              size INTEGER,
+              width INTEGER,
+              height INTEGER,
+              orientation INTEGER,
+              indexed_at REAL,
+              metadata_state TEXT DEFAULT 'pending',
+              offline INTEGER NOT NULL DEFAULT 0,
+              deleted_at REAL,
+              mime_type TEXT,
+              duration_ms INTEGER,
+              codec TEXT,
+              UNIQUE(library_id, path)
+            );
+            CREATE TABLE asset_derivatives (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              asset_id INTEGER NOT NULL REFERENCES assets(id),
+              kind TEXT NOT NULL,
+              variant TEXT NOT NULL,
+              source_mtime_ns REAL NOT NULL,
+              source_size INTEGER NOT NULL,
+              format TEXT NOT NULL DEFAULT 'webp',
+              quality INTEGER NOT NULL DEFAULT 85,
+              max_long_edge INTEGER NOT NULL,
+              status TEXT NOT NULL DEFAULT 'queued',
+              cache_path TEXT,
+              byte_size INTEGER,
+              last_accessed_at REAL,
+              attempts INTEGER NOT NULL DEFAULT 0,
+              last_error TEXT,
+              created_at REAL NOT NULL,
+              updated_at REAL NOT NULL,
+              UNIQUE(asset_id, kind, variant, source_mtime_ns, source_size)
+            );
+            CREATE TABLE derivative_jobs (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              derivative_id INTEGER NOT NULL REFERENCES asset_derivatives(id),
+              priority INTEGER NOT NULL DEFAULT 3,
+              state TEXT NOT NULL DEFAULT 'queued',
+              attempts INTEGER NOT NULL DEFAULT 0,
+              error TEXT,
+              created_at REAL NOT NULL,
+              updated_at REAL NOT NULL,
+              started_at REAL,
+              completed_at REAL
+            );
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO libraries (root_path, name, state, created_at, updated_at)
+            VALUES (?, 'Legacy', 'ready', ?, ?)
+            """,
+            (str(root.resolve()), now, now),
+        )
+        library_id = int(conn.execute("SELECT id FROM libraries").fetchone()[0])
+        conn.execute(
+            """
+            INSERT INTO library_import_paths (library_id, path, position, created_at, updated_at)
+            VALUES (?, ?, 0, ?, ?)
+            """,
+            (library_id, str(root.resolve()), now, now),
+        )
+        conn.execute(
+            """
+            INSERT INTO file_index (path, name, parent_path, type, mtime, size, width, height, indexed_at)
+            VALUES (?, ?, ?, 'image', ?, ?, 40, 30, ?)
+            """,
+            (str(image.resolve()), image.name, str(root.resolve()), stat.st_mtime, stat.st_size, now),
+        )
+        conn.execute(
+            """
+            INSERT INTO assets (
+              library_id, path, parent_path, name, type, mtime_ns, size, width, height, indexed_at, metadata_state
+            ) VALUES (?, ?, ?, ?, 'image', ?, ?, 40, 30, ?, 'pending')
+            """,
+            (library_id, str(image.resolve()), str(root.resolve()), image.name, stat.st_mtime, stat.st_size, now),
+        )
+        conn.execute(
+            """
+            INSERT INTO library_jobs (library_id, type, state, counters, created_at, updated_at)
+            VALUES (?, 'repair', 'queued', '{}', ?, ?)
+            """,
+            (library_id, now, now),
+        )
+        conn.execute("PRAGMA user_version = 8")
+
+
 def _register_library(root: Path) -> int:
     return int(register_library(root)["id"])
 
@@ -34,72 +241,217 @@ def _register_library(root: Path) -> int:
 def test_no_implicit_library_on_fresh_startup(isolated_metadata_db: Path):
     initialize_database()
     assert list_libraries() == []
-
-
-def test_version_four_migrates_file_index_into_default_library(isolated_metadata_db: Path, tmp_path: Path):
-    initialize_database()
-    image = tmp_path / "legacy.png"
-    create_test_png(image, size=(40, 30))
     with sqlite3.connect(isolated_metadata_db) as conn:
-        conn.execute("DELETE FROM assets")
-        conn.execute("ALTER TABLE assets DROP COLUMN mime_type")
-        conn.execute("ALTER TABLE assets DROP COLUMN duration_ms")
-        conn.execute("ALTER TABLE assets DROP COLUMN codec")
-        conn.execute(
-            """
-            INSERT INTO file_index (path, name, parent_path, type, mtime, size, width, height, indexed_at)
-            VALUES (?, ?, ?, 'photo', 12.5, 99, 40, 30, 13.0)
-            """,
-            (str(image.resolve()), image.name, str(image.parent.resolve())),
-        )
-        conn.execute("PRAGMA user_version = 3")
-
-    import backend.metadata_store as metadata_store
-
-    metadata_store._DB_INITIALIZED = False
-    initialize_database()
-
-    with sqlite3.connect(isolated_metadata_db) as conn:
-        conn.row_factory = sqlite3.Row
-        row = conn.execute("SELECT * FROM assets WHERE path = ?", (str(image.resolve()),)).fetchone()
-        assert row is not None
-        assert (row["width"], row["height"], row["type"], row["mtime_ns"]) == (40, 30, "image", 12.5)
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 8
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 9
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(libraries)")}
+        assert "root_path" not in columns
 
 
-def test_version_six_backfills_import_paths_and_converts_library_timestamps(
+def test_v8_to_v9_migration_backs_up_removes_root_path_and_adds_catalog_schema(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,
 ):
-    initialize_database()
-    root = str(isolated_gallery_root.resolve())
-    with sqlite3.connect(isolated_metadata_db) as conn:
-        conn.execute("ALTER TABLE assets DROP COLUMN mime_type")
-        conn.execute("ALTER TABLE assets DROP COLUMN duration_ms")
-        conn.execute("ALTER TABLE assets DROP COLUMN codec")
-        conn.execute("DELETE FROM library_import_paths")
-        conn.execute(
-            """
-            INSERT INTO libraries (
-              root_path, name, state, created_at, updated_at, last_scan_at
-            ) VALUES (?, 'Legacy', 'ready', 2460000.5, 2460001.5, 2460002.5)
-            """,
-            (root,),
-        )
-        conn.execute("PRAGMA user_version = 5")
+    _create_v8_catalog_fixture(isolated_metadata_db, isolated_gallery_root)
 
     import backend.metadata_store as metadata_store
 
     metadata_store._DB_INITIALIZED = False
     initialize_database()
-    library = list_libraries()[0]
-    assert library["root_path"] == root
-    assert library["import_paths"][0]["path"] == root
-    assert library["import_paths"][0]["position"] == 0
-    assert 1_000_000_000 < library["created_at"] < 2_000_000_000
+
+    backups = list(isolated_metadata_db.parent.glob(f"{isolated_metadata_db.stem}.v8-backup-*"))
+    assert len(backups) == 1
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.row_factory = sqlite3.Row
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 9
+        library_columns = {row["name"] for row in conn.execute("PRAGMA table_info(libraries)")}
+        assert "root_path" not in library_columns
+        job_columns = {row["name"] for row in conn.execute("PRAGMA table_info(library_jobs)")}
+        assert {"scope_path", "trigger", "priority", "metadata_queued_assets"} <= job_columns
+        file_columns = {row["name"] for row in conn.execute("PRAGMA table_info(file_index)")}
+        assert {"library_id", "mtime_ns", "last_seen_scan_job_id"} <= file_columns
+        asset_columns = {row["name"] for row in conn.execute("PRAGMA table_info(assets)")}
+        assert "last_seen_scan_job_id" in asset_columns
+        assert conn.execute("SELECT 1 FROM catalog_rebuild_entries").fetchone() is None
+        job = conn.execute("SELECT state, error FROM library_jobs WHERE type = 'repair'").fetchone()
+        assert job["state"] == "cancelled"
+        assert job["error"] == "Closed by catalog v9 migration"
+        file_index = conn.execute("SELECT library_id FROM file_index").fetchone()
+        assert file_index["library_id"] is not None
+
+
+def test_v9_migration_preflight_failure_leaves_v8_database_unmutated(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    _create_v8_catalog_fixture(isolated_metadata_db, isolated_gallery_root)
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute("DELETE FROM library_import_paths")
+
+    import backend.metadata_store as metadata_store
+
+    metadata_store._DB_INITIALIZED = False
+    try:
+        initialize_database()
+    except RuntimeError as exc:
+        assert "libraries without import paths" in str(exc)
+    else:  # pragma: no cover - assertion clarity
+        raise AssertionError("Expected v9 preflight to fail")
+
+    assert not list(isolated_metadata_db.parent.glob(f"{isolated_metadata_db.stem}.v8-backup-*"))
     with sqlite3.connect(isolated_metadata_db) as conn:
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 8
-        assert conn.execute("SELECT count(*) FROM library_import_paths").fetchone()[0] == 1
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(libraries)")}
+        assert "root_path" in columns
+
+
+def test_v9_migration_rejects_overlapping_import_paths_before_backup(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    _create_v8_catalog_fixture(isolated_metadata_db, isolated_gallery_root)
+    nested = isolated_gallery_root / "nested"
+    nested.mkdir()
+    now = time.time()
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute(
+            """
+            INSERT INTO libraries (root_path, name, state, created_at, updated_at)
+            VALUES (?, 'Nested', 'ready', ?, ?)
+            """,
+            (str(nested.resolve()), now, now),
+        )
+        nested_library_id = int(conn.execute("SELECT max(id) FROM libraries").fetchone()[0])
+        conn.execute(
+            """
+            INSERT INTO library_import_paths (library_id, path, position, created_at, updated_at)
+            VALUES (?, ?, 0, ?, ?)
+            """,
+            (nested_library_id, str(nested.resolve()), now, now),
+        )
+
+    import backend.metadata_store as metadata_store
+
+    metadata_store._DB_INITIALIZED = False
+    try:
+        initialize_database()
+    except RuntimeError as exc:
+        assert "overlapping import paths" in str(exc)
+    else:  # pragma: no cover - assertion clarity
+        raise AssertionError("Expected v9 preflight to reject overlapping import paths")
+
+    assert not list(isolated_metadata_db.parent.glob(f"{isolated_metadata_db.stem}.v8-backup-*"))
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 8
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(libraries)")}
+        assert "root_path" in columns
+
+
+def test_v9_migration_rejects_unowned_catalog_rows_before_backup(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+    tmp_path: Path,
+):
+    _create_v8_catalog_fixture(isolated_metadata_db, isolated_gallery_root)
+    outside = tmp_path / "outside.png"
+    create_test_png(outside)
+    now = time.time()
+    stat = outside.stat()
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute(
+            """
+            INSERT INTO file_index (path, name, parent_path, type, mtime, size, width, height, indexed_at)
+            VALUES (?, ?, ?, 'image', ?, ?, 40, 30, ?)
+            """,
+            (str(outside.resolve()), outside.name, str(outside.parent.resolve()), stat.st_mtime, stat.st_size, now),
+        )
+
+    import backend.metadata_store as metadata_store
+
+    metadata_store._DB_INITIALIZED = False
+    try:
+        initialize_database()
+    except RuntimeError as exc:
+        assert "file_index row" in str(exc)
+        assert "maps to 0 libraries" in str(exc)
+    else:  # pragma: no cover - assertion clarity
+        raise AssertionError("Expected v9 preflight to reject unowned catalog rows")
+
+    assert not list(isolated_metadata_db.parent.glob(f"{isolated_metadata_db.stem}.v8-backup-*"))
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 8
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(libraries)")}
+        assert "root_path" in columns
+
+
+def test_v9_migration_backup_failure_leaves_v8_database_unmutated(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    _create_v8_catalog_fixture(isolated_metadata_db, isolated_gallery_root)
+
+    import backend.metadata_store as metadata_store
+
+    original = metadata_store._backup_database_before_v9
+
+    def fail_backup(conn):  # noqa: ANN001
+        raise RuntimeError("forced backup failure")
+
+    metadata_store._DB_INITIALIZED = False
+    metadata_store._backup_database_before_v9 = fail_backup
+    try:
+        try:
+            initialize_database()
+        except RuntimeError as exc:
+            assert "forced backup failure" in str(exc)
+        else:  # pragma: no cover - assertion clarity
+            raise AssertionError("Expected backup failure")
+    finally:
+        metadata_store._backup_database_before_v9 = original
+
+    assert not list(isolated_metadata_db.parent.glob(f"{isolated_metadata_db.stem}.v8-backup-*"))
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 8
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(libraries)")}
+        assert "root_path" in columns
+
+
+def test_v9_migration_rolls_back_after_schema_error_and_can_retry(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    _create_v8_catalog_fixture(isolated_metadata_db, isolated_gallery_root)
+
+    import backend.metadata_store as metadata_store
+
+    original = metadata_store._rebuild_libraries_without_root_path
+
+    def fail_rebuild(conn):  # noqa: ANN001
+        original(conn)
+        raise RuntimeError("forced migration failure")
+
+    metadata_store._DB_INITIALIZED = False
+    metadata_store._rebuild_libraries_without_root_path = fail_rebuild
+    try:
+        try:
+            initialize_database()
+        except RuntimeError as exc:
+            assert "forced migration failure" in str(exc)
+        else:  # pragma: no cover - assertion clarity
+            raise AssertionError("Expected forced migration failure")
+    finally:
+        metadata_store._rebuild_libraries_without_root_path = original
+
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 8
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(libraries)")}
+        assert "root_path" in columns
+
+    metadata_store._DB_INITIALIZED = False
+    initialize_database()
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 9
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(libraries)")}
+        assert "root_path" not in columns
 
 
 def test_scan_and_metadata_dual_write_assets(

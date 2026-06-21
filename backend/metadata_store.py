@@ -14,9 +14,11 @@ import subprocess
 import sys
 import threading
 import time
+import unicodedata
 from collections.abc import Iterable
 from contextlib import suppress
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -53,6 +55,7 @@ LIBRARY_JOB_ACTIVE_STATES = ("queued", "running")
 LIBRARY_JOB_TERMINAL_STATES = ("succeeded", "failed", "cancelled")
 MAX_METADATA_JOB_ATTEMPTS = 3
 ACTIVE_ASSET_WHERE = "deleted_at IS NULL AND offline = 0"
+CATALOG_SCHEMA_VERSION = 9
 logger = logging.getLogger(__name__)
 
 
@@ -107,6 +110,54 @@ def _ensure_column(conn: sqlite3.Connection, table_name: str, column_name: str, 
         conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_sql}")
 
 
+def _table_exists(conn: sqlite3.Connection, table_name: str) -> bool:
+    return (
+        conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+            (table_name,),
+        ).fetchone()
+        is not None
+    )
+
+
+def _database_has_application_tables(conn: sqlite3.Connection) -> bool:
+    return (
+        conn.execute(
+            """
+            SELECT 1 FROM sqlite_master
+            WHERE type IN ('table', 'virtual table') AND name NOT LIKE 'sqlite_%'
+            LIMIT 1
+            """
+        ).fetchone()
+        is not None
+    )
+
+
+def canonicalize_catalog_path(path: str | Path) -> str:
+    """Return a stable lexical catalog path without requiring the path to exist."""
+    text = unicodedata.normalize("NFC", str(path)).replace("\\", os.sep)
+    normalized = os.path.normpath(text)
+    if os.name == "nt":
+        drive, tail = os.path.splitdrive(normalized)
+        normalized = drive.lower() + tail
+    return normalized.rstrip(os.sep) if normalized != os.sep else normalized
+
+
+def catalog_path_contains(root: str | Path, candidate: str | Path) -> bool:
+    """Return whether candidate is root or a descendant using path components."""
+    root_text = canonicalize_catalog_path(root)
+    candidate_text = canonicalize_catalog_path(candidate)
+    if candidate_text == root_text:
+        return True
+    root_parts = Path(root_text).parts
+    candidate_parts = Path(candidate_text).parts
+    return len(candidate_parts) > len(root_parts) and candidate_parts[: len(root_parts)] == root_parts
+
+
+def _catalog_paths_overlap(left: str | Path, right: str | Path) -> bool:
+    return catalog_path_contains(left, right) or catalog_path_contains(right, left)
+
+
 def _natural_sort_parts(value: str) -> list[str | int]:
     parts: list[str | int] = []
     for part in re.split(r"(\d+)", value):
@@ -147,6 +198,271 @@ def _connect(*, set_journal_mode: bool = False) -> sqlite3.Connection:
     return conn
 
 
+def _v9_backup_path() -> Path:
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    return GALLERY_METADATA_DB.with_name(
+        f"{GALLERY_METADATA_DB.stem}.v8-backup-{timestamp}{GALLERY_METADATA_DB.suffix}"
+    )
+
+
+def _backup_database_before_v9(conn: sqlite3.Connection) -> Path:
+    conn.execute("PRAGMA wal_checkpoint(FULL)")
+    backup_path = _v9_backup_path()
+    suffix = 1
+    while backup_path.exists():
+        backup_path = backup_path.with_name(
+            f"{GALLERY_METADATA_DB.stem}.v8-backup-"
+            f"{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}-{suffix}{GALLERY_METADATA_DB.suffix}"
+        )
+        suffix += 1
+    backup_path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(backup_path) as backup_conn:
+        conn.backup(backup_conn)
+    return backup_path
+
+
+def _v9_import_paths(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return conn.execute(
+        """
+        SELECT lip.library_id, lip.path, l.name AS library_name
+        FROM library_import_paths AS lip
+        JOIN libraries AS l ON l.id = lip.library_id
+        ORDER BY lip.library_id, lip.position, lip.id
+        """
+    ).fetchall()
+
+
+def _format_path_conflict(left: sqlite3.Row, right: sqlite3.Row) -> str:
+    return (
+        f"library {left['library_id']} ({left['path']}) conflicts with library {right['library_id']} ({right['path']})"
+    )
+
+
+def _validate_v9_preflight(conn: sqlite3.Connection) -> None:
+    version = int(conn.execute("PRAGMA user_version").fetchone()[0])
+    if version != 8:
+        raise RuntimeError(f"Catalog v9 migration requires an existing v8 database, found v{version}")
+
+    missing_import_paths = conn.execute(
+        """
+        SELECT l.id, l.name
+        FROM libraries AS l
+        WHERE NOT EXISTS (
+          SELECT 1 FROM library_import_paths AS lip WHERE lip.library_id = l.id
+        )
+        ORDER BY l.id
+        """
+    ).fetchall()
+    if missing_import_paths:
+        ids = ", ".join(f"{row['id']}:{row['name']}" for row in missing_import_paths)
+        raise RuntimeError(f"Catalog v9 migration preflight failed: libraries without import paths: {ids}")
+
+    import_paths = _v9_import_paths(conn)
+    for index, left in enumerate(import_paths):
+        left_path = canonicalize_catalog_path(left["path"])
+        for right in import_paths[index + 1 :]:
+            right_path = canonicalize_catalog_path(right["path"])
+            if _catalog_paths_overlap(left_path, right_path):
+                raise RuntimeError(
+                    "Catalog v9 migration preflight failed: overlapping import paths: "
+                    f"{_format_path_conflict(left, right)}"
+                )
+            try:
+                left_resolved = canonicalize_catalog_path(Path(left["path"]).resolve())
+                right_resolved = canonicalize_catalog_path(Path(right["path"]).resolve())
+            except (OSError, RuntimeError):
+                continue
+            if _catalog_paths_overlap(left_resolved, right_resolved):
+                raise RuntimeError(
+                    "Catalog v9 migration preflight failed: resolved import path aliases: "
+                    f"{_format_path_conflict(left, right)}"
+                )
+
+    ownership_paths = [(int(row["library_id"]), canonicalize_catalog_path(row["path"])) for row in import_paths]
+
+    def assigned_libraries(path: str) -> list[int]:
+        canonical = canonicalize_catalog_path(path)
+        return [library_id for library_id, root in ownership_paths if catalog_path_contains(root, canonical)]
+
+    for table_name in ("assets", "file_index"):
+        if not _table_exists(conn, table_name):
+            continue
+        for row in conn.execute(f"SELECT path FROM {table_name} WHERE path IS NOT NULL"):
+            owners = assigned_libraries(str(row["path"]))
+            if len(owners) != 1:
+                raise RuntimeError(
+                    "Catalog v9 migration preflight failed: "
+                    f"{table_name} row {row['path']} maps to {len(owners)} libraries"
+                )
+
+    if _table_exists(conn, "assets") and "library_id" in _table_columns(conn, "assets"):
+        for row in conn.execute("SELECT library_id, path FROM assets WHERE path IS NOT NULL"):
+            owners = assigned_libraries(str(row["path"]))
+            if owners and owners[0] != int(row["library_id"]):
+                raise RuntimeError(
+                    "Catalog v9 migration preflight failed: "
+                    f"asset {row['path']} belongs to library {owners[0]}, not {row['library_id']}"
+                )
+
+
+def _rebuild_libraries_without_root_path(conn: sqlite3.Connection) -> None:
+    if "root_path" not in _table_columns(conn, "libraries"):
+        return
+    conn.execute(
+        """
+        CREATE TABLE libraries_v9 (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          state TEXT NOT NULL DEFAULT 'discovering',
+          watch_enabled INTEGER NOT NULL DEFAULT 1,
+          warm_enabled INTEGER NOT NULL DEFAULT 1,
+          created_at REAL NOT NULL DEFAULT (julianday('now')),
+          updated_at REAL NOT NULL DEFAULT (julianday('now')),
+          last_scan_at REAL,
+          last_error TEXT
+        )
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO libraries_v9 (
+          id, name, state, watch_enabled, warm_enabled,
+          created_at, updated_at, last_scan_at, last_error
+        )
+        SELECT id, name, state, watch_enabled, warm_enabled,
+               created_at, updated_at, last_scan_at, last_error
+        FROM libraries
+        ORDER BY id
+        """
+    )
+    conn.execute("DROP TABLE libraries")
+    conn.execute("ALTER TABLE libraries_v9 RENAME TO libraries")
+
+
+def _ensure_v9_catalog_schema(conn: sqlite3.Connection) -> None:
+    _ensure_column(conn, "library_jobs", "scope_path", "TEXT")
+    _ensure_column(conn, "library_jobs", "trigger", "TEXT NOT NULL DEFAULT 'manual'")
+    _ensure_column(conn, "library_jobs", "priority", "INTEGER NOT NULL DEFAULT 50")
+    _ensure_column(conn, "library_jobs", "discovered_assets", "INTEGER NOT NULL DEFAULT 0")
+    _ensure_column(conn, "library_jobs", "created_assets", "INTEGER NOT NULL DEFAULT 0")
+    _ensure_column(conn, "library_jobs", "updated_assets", "INTEGER NOT NULL DEFAULT 0")
+    _ensure_column(conn, "library_jobs", "offline_assets", "INTEGER NOT NULL DEFAULT 0")
+    _ensure_column(conn, "library_jobs", "metadata_queued_assets", "INTEGER NOT NULL DEFAULT 0")
+    _ensure_column(conn, "file_index", "library_id", "INTEGER REFERENCES libraries(id) ON DELETE SET NULL")
+    _ensure_column(conn, "file_index", "mtime_ns", "INTEGER")
+    _ensure_column(conn, "file_index", "last_seen_scan_job_id", "INTEGER")
+    _ensure_column(conn, "assets", "mime_type", "TEXT")
+    _ensure_column(conn, "assets", "duration_ms", "INTEGER")
+    _ensure_column(conn, "assets", "codec", "TEXT")
+    _ensure_column(conn, "assets", "last_seen_scan_job_id", "INTEGER")
+    _ensure_column(conn, "metadata_index_jobs", "mtime_ns", "INTEGER")
+    _ensure_column(conn, "image_metadata", "mtime_ns", "INTEGER")
+    statements = [
+        """
+        CREATE INDEX IF NOT EXISTS idx_library_jobs_catalog_pick
+          ON library_jobs(library_id, type, state, scope_path)
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_library_jobs_state_priority_created
+          ON library_jobs(state, priority DESC, created_at)
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_assets_reconcile_scan
+          ON assets(library_id, parent_path, last_seen_scan_job_id)
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_assets_library_seen
+          ON assets(library_id, last_seen_scan_job_id)
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_file_index_library_parent_seen
+          ON file_index(library_id, parent_path, last_seen_scan_job_id)
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS catalog_rebuild_entries (
+          job_id INTEGER NOT NULL REFERENCES library_jobs(id) ON DELETE CASCADE,
+          library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+          path TEXT NOT NULL,
+          parent_path TEXT NOT NULL,
+          name TEXT NOT NULL,
+          type TEXT NOT NULL,
+          mtime_ns INTEGER,
+          size INTEGER,
+          width INTEGER,
+          height INTEGER,
+          mime_type TEXT,
+          duration_ms INTEGER,
+          codec TEXT,
+          created_at REAL NOT NULL,
+          PRIMARY KEY(job_id, path)
+        )
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_catalog_rebuild_entries_library_job
+          ON catalog_rebuild_entries(library_id, job_id)
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_catalog_rebuild_entries_parent
+          ON catalog_rebuild_entries(library_id, parent_path)
+        """,
+    ]
+    for statement in statements:
+        conn.execute(statement)
+
+
+def _populate_v9_file_index_library_ids(conn: sqlite3.Connection) -> None:
+    import_paths = [(int(row["library_id"]), canonicalize_catalog_path(row["path"])) for row in _v9_import_paths(conn)]
+    rows = conn.execute("SELECT path FROM file_index WHERE library_id IS NULL").fetchall()
+    updates = []
+    for row in rows:
+        owners = [
+            library_id
+            for library_id, root_path in import_paths
+            if catalog_path_contains(root_path, canonicalize_catalog_path(row["path"]))
+        ]
+        if len(owners) == 1:
+            updates.append((owners[0], row["path"]))
+    if updates:
+        conn.executemany("UPDATE file_index SET library_id = ? WHERE path = ?", updates)
+
+
+def _migrate_v8_to_v9(conn: sqlite3.Connection) -> None:
+    _validate_v9_preflight(conn)
+    backup_path = _backup_database_before_v9(conn)
+    logger.info("Created catalog v8 backup before v9 migration: %s", backup_path)
+
+    conn.execute("PRAGMA foreign_keys=OFF")
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        _ensure_v9_catalog_schema(conn)
+        _populate_v9_file_index_library_ids(conn)
+        now = time.time()
+        conn.execute(
+            """
+            UPDATE library_jobs
+            SET state = CASE WHEN state = 'running' THEN 'failed' ELSE 'cancelled' END,
+                message = COALESCE(message, 'Closed by catalog v9 migration'),
+                error = 'Closed by catalog v9 migration',
+                updated_at = ?,
+                finished_at = COALESCE(finished_at, ?)
+            WHERE type IN ('repair', 'scan_all') AND state IN ('queued', 'running')
+            """,
+            (now, now),
+        )
+        _rebuild_libraries_without_root_path(conn)
+        if "root_path" in _table_columns(conn, "libraries"):
+            raise RuntimeError("Catalog v9 migration failed to remove libraries.root_path")
+        conn.execute(f"PRAGMA user_version = {CATALOG_SCHEMA_VERSION}")
+        if int(conn.execute("PRAGMA user_version").fetchone()[0]) != CATALOG_SCHEMA_VERSION:
+            raise RuntimeError("Catalog v9 migration failed to advance schema version")
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+    finally:
+        conn.execute("PRAGMA foreign_keys=ON")
+
+
 def initialize_database() -> None:
     """Create or migrate the SQLite metadata database once per configured DB path."""
     global _DB_INITIALIZED, _DB_INITIALIZED_PATH
@@ -166,6 +482,21 @@ def initialize_database() -> None:
 
 def _initialize_database_conn(conn: sqlite3.Connection) -> None:
     current_version = conn.execute("PRAGMA user_version").fetchone()[0]
+    has_application_tables = _database_has_application_tables(conn)
+    if current_version == 8:
+        _migrate_v8_to_v9(conn)
+        current_version = CATALOG_SCHEMA_VERSION
+    elif current_version == 0 and has_application_tables:
+        raise RuntimeError(
+            "Catalog database has application tables but no schema version; "
+            f"restore or migrate it to v8 before v{CATALOG_SCHEMA_VERSION}"
+        )
+    elif current_version not in (0, CATALOG_SCHEMA_VERSION):
+        raise RuntimeError(
+            "Catalog database must be a fresh database or an existing v8 database "
+            f"to migrate to v{CATALOG_SCHEMA_VERSION}; found v{current_version}"
+        )
+
     had_file_index_table = (
         conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'file_index'").fetchone() is not None
     )
@@ -177,6 +508,7 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
               path TEXT NOT NULL UNIQUE,
               name TEXT NOT NULL,
               mtime REAL,
+              mtime_ns INTEGER,
               size INTEGER,
               width INTEGER,
               height INTEGER,
@@ -244,15 +576,20 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
               parent_path TEXT NOT NULL,
               type TEXT NOT NULL,
               mtime REAL,
+              mtime_ns INTEGER,
               size INTEGER,
               width INTEGER,
               height INTEGER,
-              indexed_at REAL
+              indexed_at REAL,
+              library_id INTEGER REFERENCES libraries(id) ON DELETE SET NULL,
+              last_seen_scan_job_id INTEGER
             );
 
             CREATE INDEX IF NOT EXISTS idx_file_index_parent_path ON file_index(parent_path);
             CREATE INDEX IF NOT EXISTS idx_file_index_type ON file_index(type);
             CREATE INDEX IF NOT EXISTS idx_file_index_name ON file_index(name);
+            CREATE INDEX IF NOT EXISTS idx_file_index_library_parent_seen
+              ON file_index(library_id, parent_path, last_seen_scan_job_id);
 
             CREATE VIRTUAL TABLE IF NOT EXISTS file_index_fts USING fts5(
               name,
@@ -269,6 +606,7 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
               folder_path TEXT NOT NULL,
               root_path TEXT NOT NULL,
               mtime REAL NOT NULL,
+              mtime_ns INTEGER,
               size INTEGER NOT NULL,
               state TEXT NOT NULL,
               attempts INTEGER NOT NULL DEFAULT 0,
@@ -324,7 +662,6 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
 
             CREATE TABLE IF NOT EXISTS libraries (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
-              root_path TEXT NOT NULL UNIQUE,
               name TEXT NOT NULL,
               state TEXT NOT NULL DEFAULT 'discovering',
               watch_enabled INTEGER NOT NULL DEFAULT 1,
@@ -365,11 +702,19 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
               parent_job_id INTEGER REFERENCES library_jobs(id) ON DELETE SET NULL,
               type TEXT NOT NULL,
               state TEXT NOT NULL DEFAULT 'queued',
+              scope_path TEXT,
+              trigger TEXT NOT NULL DEFAULT 'manual',
+              priority INTEGER NOT NULL DEFAULT 50,
               progress_current INTEGER NOT NULL DEFAULT 0,
               progress_total INTEGER,
               message TEXT,
               error TEXT,
               counters TEXT NOT NULL DEFAULT '{}',
+              discovered_assets INTEGER NOT NULL DEFAULT 0,
+              created_assets INTEGER NOT NULL DEFAULT 0,
+              updated_assets INTEGER NOT NULL DEFAULT 0,
+              offline_assets INTEGER NOT NULL DEFAULT 0,
+              metadata_queued_assets INTEGER NOT NULL DEFAULT 0,
               created_at REAL NOT NULL,
               updated_at REAL NOT NULL,
               started_at REAL,
@@ -379,6 +724,10 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
               ON library_jobs(library_id, created_at DESC);
             CREATE INDEX IF NOT EXISTS idx_library_jobs_state
               ON library_jobs(state, created_at);
+            CREATE INDEX IF NOT EXISTS idx_library_jobs_catalog_pick
+              ON library_jobs(library_id, type, state, scope_path);
+            CREATE INDEX IF NOT EXISTS idx_library_jobs_state_priority_created
+              ON library_jobs(state, priority DESC, created_at);
             CREATE INDEX IF NOT EXISTS idx_library_jobs_parent
               ON library_jobs(parent_job_id);
 
@@ -398,10 +747,18 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
               metadata_state TEXT DEFAULT 'pending',
               offline INTEGER NOT NULL DEFAULT 0,
               deleted_at REAL,
+              mime_type TEXT,
+              duration_ms INTEGER,
+              codec TEXT,
+              last_seen_scan_job_id INTEGER,
               UNIQUE(library_id, path)
             );
             CREATE INDEX IF NOT EXISTS idx_assets_library_path ON assets(library_id, path);
             CREATE INDEX IF NOT EXISTS idx_assets_library_parent ON assets(library_id, parent_path);
+            CREATE INDEX IF NOT EXISTS idx_assets_reconcile_scan
+              ON assets(library_id, parent_path, last_seen_scan_job_id);
+            CREATE INDEX IF NOT EXISTS idx_assets_library_seen
+              ON assets(library_id, last_seen_scan_job_id);
 
             CREATE TABLE IF NOT EXISTS asset_derivatives (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -439,6 +796,28 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
               completed_at REAL
             );
             CREATE INDEX IF NOT EXISTS idx_derivative_jobs_state ON derivative_jobs(state, priority);
+
+            CREATE TABLE IF NOT EXISTS catalog_rebuild_entries (
+              job_id INTEGER NOT NULL REFERENCES library_jobs(id) ON DELETE CASCADE,
+              library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+              path TEXT NOT NULL,
+              parent_path TEXT NOT NULL,
+              name TEXT NOT NULL,
+              type TEXT NOT NULL,
+              mtime_ns INTEGER,
+              size INTEGER,
+              width INTEGER,
+              height INTEGER,
+              mime_type TEXT,
+              duration_ms INTEGER,
+              codec TEXT,
+              created_at REAL NOT NULL,
+              PRIMARY KEY(job_id, path)
+            );
+            CREATE INDEX IF NOT EXISTS idx_catalog_rebuild_entries_library_job
+              ON catalog_rebuild_entries(library_id, job_id);
+            CREATE INDEX IF NOT EXISTS idx_catalog_rebuild_entries_parent
+              ON catalog_rebuild_entries(library_id, parent_path);
             """
     )
     _ensure_column(conn, "image_metadata", "format", "TEXT")
@@ -467,6 +846,16 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
     )
     _ensure_column(conn, "metadata_index_jobs", "folder_path", "TEXT NOT NULL DEFAULT ''")
     _ensure_column(conn, "metadata_index_jobs", "root_path", "TEXT NOT NULL DEFAULT ''")
+    _ensure_v9_catalog_schema(conn)
+
+    if not has_application_tables and current_version == 0:
+        conn.execute(f"PRAGMA user_version = {CATALOG_SCHEMA_VERSION}")
+        _cleanup_ignored_index_conn(conn)
+        return
+
+    if current_version == CATALOG_SCHEMA_VERSION:
+        _cleanup_ignored_index_conn(conn)
+        return
 
     if current_version < 1:
         conn.execute("UPDATE image_metadata SET width = NULL, height = NULL")
@@ -634,19 +1023,21 @@ def _ensure_default_library_conn(conn: sqlite3.Connection) -> int:
     if row is not None:
         return int(row["id"])
     root_path = str(PATH_SAFETY_ROOT.resolve())
-    cursor = conn.execute(
-        "INSERT INTO libraries (root_path, name, state) VALUES (?, 'Default', 'discovering')",
-        (root_path,),
+    cursor = conn.execute("INSERT INTO libraries (name, state) VALUES ('Default', 'discovering')")
+    library_id = int(cursor.lastrowid)
+    now = time.time()
+    conn.execute(
+        """
+        INSERT INTO library_import_paths (library_id, path, position, created_at, updated_at)
+        VALUES (?, ?, 0, ?, ?)
+        """,
+        (library_id, root_path, now, now),
     )
-    return int(cursor.lastrowid)
+    return library_id
 
 
 def _path_is_within(path: str, root: str) -> bool:
-    try:
-        Path(path).resolve().relative_to(Path(root).resolve())
-        return True
-    except (OSError, RuntimeError, ValueError):
-        return False
+    return catalog_path_contains(root, path)
 
 
 def _find_library_for_path_conn(conn: sqlite3.Connection, path: str | Path) -> sqlite3.Row | None:
@@ -694,7 +1085,10 @@ def _serialize_library_conn(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[
     ]
     library["import_paths"] = import_paths
     library["exclusion_patterns"] = _library_exclusion_patterns_conn(conn, library_id)
-    library["root_path"] = import_paths[0]["path"] if import_paths else str(row["root_path"])
+    row_keys = set(row.keys())
+    library["root_path"] = (
+        import_paths[0]["path"] if import_paths else str(row["root_path"]) if "root_path" in row_keys else ""
+    )
     library["asset_count"] = int(
         conn.execute(
             f"""
@@ -803,11 +1197,19 @@ def _serialize_library_job(row: sqlite3.Row) -> dict[str, Any]:
         "parent_job_id": int(row["parent_job_id"]) if row["parent_job_id"] is not None else None,
         "type": str(row["type"]),
         "state": str(row["state"]),
+        "scope_path": row["scope_path"],
+        "trigger": str(row["trigger"]),
+        "priority": int(row["priority"]),
         "progress_current": int(row["progress_current"]),
         "progress_total": int(row["progress_total"]) if row["progress_total"] is not None else None,
         "message": row["message"],
         "error": row["error"],
         "counters": counters if isinstance(counters, dict) else {},
+        "discovered_assets": int(row["discovered_assets"]),
+        "created_assets": int(row["created_assets"]),
+        "updated_assets": int(row["updated_assets"]),
+        "offline_assets": int(row["offline_assets"]),
+        "metadata_queued_assets": int(row["metadata_queued_assets"]),
         "created_at": float(row["created_at"]),
         "updated_at": float(row["updated_at"]),
         "started_at": float(row["started_at"]) if row["started_at"] is not None else None,
@@ -820,6 +1222,9 @@ def create_job(
     *,
     library_id: int | None = None,
     parent_job_id: int | None = None,
+    scope_path: str | Path | None = None,
+    trigger: str = "manual",
+    priority: int = 50,
     progress_total: int | None = None,
     message: str | None = None,
 ) -> dict[str, Any]:
@@ -830,11 +1235,22 @@ def create_job(
         cursor = conn.execute(
             """
             INSERT INTO library_jobs (
-              library_id, parent_job_id, type, state, progress_current,
+              library_id, parent_job_id, type, state, scope_path, trigger, priority, progress_current,
               progress_total, message, counters, created_at, updated_at
-            ) VALUES (?, ?, ?, 'queued', 0, ?, ?, '{}', ?, ?)
+            ) VALUES (?, ?, ?, 'queued', ?, ?, ?, 0, ?, ?, '{}', ?, ?)
             """,
-            (library_id, parent_job_id, job_type, progress_total, message, now, now),
+            (
+                library_id,
+                parent_job_id,
+                job_type,
+                canonicalize_catalog_path(scope_path) if scope_path is not None else None,
+                trigger,
+                priority,
+                progress_total,
+                message,
+                now,
+                now,
+            ),
         )
         row = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (cursor.lastrowid,)).fetchone()
         return _serialize_library_job(row)
@@ -1189,10 +1605,7 @@ def _replace_library_paths_conn(
         """,
         ((library_id, path, position, now, now) for position, path in enumerate(import_paths)),
     )
-    conn.execute(
-        "UPDATE libraries SET root_path = ?, updated_at = ? WHERE id = ?",
-        (import_paths[0], now, library_id),
-    )
+    conn.execute("UPDATE libraries SET updated_at = ? WHERE id = ?", (now, library_id))
 
 
 def _replace_library_patterns_conn(
@@ -1274,10 +1687,10 @@ def create_library(
         cursor = conn.execute(
             """
             INSERT INTO libraries (
-              root_path, name, state, created_at, updated_at
-            ) VALUES (?, ?, 'discovering', ?, ?)
+              name, state, created_at, updated_at
+            ) VALUES (?, 'discovering', ?, ?)
             """,
-            (canonical_paths[0], display_name, now, now),
+            (display_name, now, now),
         )
         library_id = int(cursor.lastrowid)
         _replace_library_paths_conn(conn, library_id, canonical_paths, now=now)
@@ -2838,26 +3251,33 @@ def index_file(
     initialize_database()
     with _DB_LOCK, _connect() as conn:
         library = _find_library_for_path_conn(conn, resolved_path)
+        library_id = int(library["id"]) if library is not None else None
         if library is not None and is_index_excluded_path(
             resolved_path,
             library["matched_import_path"],
             _library_exclusion_patterns_conn(conn, int(library["id"])),
         ):
             return False
+        mtime_ns = None
+        with suppress(OSError):
+            mtime_ns = Path(resolved_path).stat().st_mtime_ns
         conn.execute(
             """
             INSERT INTO file_index (
-              path, name, parent_path, type, mtime, size, width, height, indexed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+              path, name, parent_path, type, mtime, mtime_ns, size, width,
+              height, indexed_at, library_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(path) DO UPDATE SET
               name=excluded.name,
               parent_path=excluded.parent_path,
               type=excluded.type,
               mtime=excluded.mtime,
+              mtime_ns=excluded.mtime_ns,
               size=excluded.size,
               width=excluded.width,
               height=excluded.height,
-              indexed_at=excluded.indexed_at
+              indexed_at=excluded.indexed_at,
+              library_id=excluded.library_id
             """,
             (
                 resolved_path,
@@ -2865,10 +3285,12 @@ def index_file(
                 resolved_parent,
                 normalized_type,
                 mtime,
+                mtime_ns,
                 size,
                 width,
                 height,
                 time.time(),
+                library_id,
             ),
         )
         _upsert_asset_conn(
