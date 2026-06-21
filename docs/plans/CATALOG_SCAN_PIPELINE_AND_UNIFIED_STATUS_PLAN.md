@@ -1,6 +1,7 @@
 # Catalog Scan Pipeline and Unified Status Plan
 
-Status: Active — audit revision 2 approved; Phase 1 complete; Phase 2 next
+Status: Active — audit revision 2 approved; Phase 1 and Phase 2 complete;
+Phase 3 next
 
 Created: 2026-06-21
 
@@ -22,6 +23,29 @@ Phase 1 completion note, 2026-06-21:
   Rollup annotation, eval, and chunk-size warnings remain non-blocking.
 - No Phase 2 migration, job schema, catalog pipeline, API hard-cut, browse, or
   frontend data-ownership behavior is implemented by Phase 1.
+
+Phase 2 completion note, 2026-06-21:
+
+- Implemented the v8→v9 catalog schema migration with exact-version preflight,
+  SQLite backup before mutation, transactional schema changes, `root_path`
+  column removal, catalog job scope/trigger/priority/counter fields,
+  `file_index` library ownership and scan-generation fields, asset
+  scan-generation fields, metadata `mtime_ns` columns, rebuild staging table,
+  and reconciliation/job-selection indexes.
+- Added shared lexical catalog path containment helpers and wired fresh
+  databases to initialize directly at schema v9.
+- Added migration coverage for clean v8 upgrade, missing import paths,
+  overlapping import paths, unowned catalog rows, backup failure, transactional
+  rollback, and retry after aborted migration.
+- Latest pushed Phase 2 implementation commit before this plan update:
+  `0e7242b feat: add catalog schema v9 migration`.
+- Verification run: `./test.sh fast` passed on 2026-06-21 with 652 backend
+  tests, backend coverage 85.13%, 396 frontend unit tests, frontend typecheck,
+  and production build passing. Existing FastAPI lifecycle, Sass import,
+  Rollup annotation, eval, and chunk-size warnings remain non-blocking.
+- No Phase 3 Catalog Scan Service, one-library writer lock, trigger routing,
+  rebuild activation, status endpoint, browse API, frontend migration, or API
+  hard-cut behavior is implemented by Phase 2.
 
 ## 1. Objective
 
