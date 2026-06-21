@@ -5,6 +5,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+from backend.catalog import service as catalog_service
 from backend.library_events import event_payload, format_sse
 from backend.metadata_store import (
     create_job,
@@ -36,7 +37,7 @@ def test_job_state_transitions_and_failure(isolated_metadata_db: Path, isolated_
     assert complete["finished_at"] is not None
     assert complete["counters"] == {"indexed": 2}
 
-    failed = create_job("repair", library_id=library_id)
+    failed = create_job("rebuild", library_id=library_id)
     update_job_state(failed["id"], "running")
     failure = update_job_state(failed["id"], "failed", error="broken")
     assert failure is not None
@@ -96,8 +97,9 @@ def test_stats_and_job_history_endpoints(isolated_metadata_db: Path, isolated_ga
     create_test_png(isolated_gallery_root / "offline.png", size=(30, 10))
     library_id = int(register_library(isolated_gallery_root)["id"])
 
-    repair = isolated_app.post(f"/api/libraries/{library_id}/repair")
-    assert repair.status_code == 200
+    scan = isolated_app.post(f"/api/libraries/{library_id}/scan")
+    assert scan.status_code == 202
+    catalog_service.run_once()
     with sqlite3.connect(isolated_metadata_db) as conn:
         conn.execute(
             "UPDATE assets SET offline = 1 WHERE path = ?",
@@ -107,7 +109,7 @@ def test_stats_and_job_history_endpoints(isolated_metadata_db: Path, isolated_ga
     gallery_stats = isolated_app.get("/api/stats")
     library_jobs = isolated_app.get(f"/api/libraries/{library_id}/jobs")
     all_jobs = isolated_app.get("/api/jobs")
-    job = isolated_app.get(f"/api/jobs/{repair.json()['job_id']}")
+    job = isolated_app.get(f"/api/jobs/{scan.json()['job_id']}")
 
     assert library_stats.status_code == 200
     assert library_stats.json() == {
@@ -128,8 +130,8 @@ def test_stats_and_job_history_endpoints(isolated_metadata_db: Path, isolated_ga
         "usage_bytes": (isolated_gallery_root / "active.png").stat().st_size,
         "library_count": 1,
     }
-    assert library_jobs.json()[0]["type"] == "repair"
-    assert all_jobs.json()[0]["id"] == repair.json()["job_id"]
+    assert library_jobs.json()[0]["type"] == "scan"
+    assert all_jobs.json()[0]["id"] == scan.json()["job_id"]
     assert job.json()["state"] == "succeeded"
 
 

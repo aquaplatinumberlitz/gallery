@@ -6,9 +6,19 @@ from fastapi import HTTPException
 class APIError(HTTPException):
     """Custom API error with error type for frontend handling."""
 
-    def __init__(self, status_code: int, error_type: str, detail: str):
+    def __init__(
+        self,
+        status_code: int,
+        error_type: str,
+        detail: str,
+        *,
+        extra: dict | None = None,
+    ):
         """Create an HTTP error response with a stable frontend error type."""
-        super().__init__(status_code=status_code, detail={"error": error_type, "message": detail})
+        payload: dict = {"error": error_type, "message": detail}
+        if extra:
+            payload.update(extra)
+        super().__init__(status_code=status_code, detail=payload)
 
 
 class ErrorType:

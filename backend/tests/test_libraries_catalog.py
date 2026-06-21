@@ -9,10 +9,12 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from backend.app import app
+from backend.catalog import service as catalog_service
 from backend.indexer import rebuild_index_scope
 from backend.metadata_store import (
     get_asset_folder_listing,
     get_first_library_root,
+    get_job,
     get_library,
     get_library_for_path,
     get_library_progress,
@@ -20,13 +22,21 @@ from backend.metadata_store import (
     initialize_database,
     list_libraries,
     register_library,
-    repair_library_assets,
     update_job_state,
     update_library,
     update_library_state,
     upsert_image_dimensions,
 )
 from tests.conftest import create_test_png
+
+
+def _run_scan(library_id: int) -> dict:
+    """Queue and execute one manual catalog scan synchronously, returning the finished job."""
+    job, _created = catalog_service.queue_scan(library_id, trigger="manual")
+    catalog_service.run_once()
+    finished = get_job(int(job["id"]))
+    assert finished is not None
+    return finished
 
 
 def _create_v8_catalog_fixture(db_path: Path, root: Path) -> None:
@@ -664,7 +674,8 @@ def test_library_update_marks_removed_or_excluded_assets_offline_and_reactivates
     library = register_library(first)
     updated = update_library(int(library["id"]), import_paths=[first, second])
     assert updated is not None
-    assert repair_library_assets(int(library["id"]))["added"] == 5
+    finished = _run_scan(int(library["id"]))
+    assert finished["counters"]["indexed"] >= 5
 
     updated = update_library(
         int(library["id"]),
@@ -687,7 +698,7 @@ def test_library_update_marks_removed_or_excluded_assets_offline_and_reactivates
         assert conn.execute("SELECT offline FROM assets WHERE path = ?", (str(excluded.resolve()),)).fetchone()[0] == 0
 
 
-def test_repair_applies_exclusion_patterns_across_import_paths(
+def test_scan_applies_exclusion_patterns_across_import_paths(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,
 ):
@@ -706,7 +717,7 @@ def test_repair_applies_exclusion_patterns_across_import_paths(
         exclusion_patterns=["**/vendor-cache/**"],
     )
 
-    repair_library_assets(int(library["id"]))
+    _run_scan(int(library["id"]))
     with sqlite3.connect(isolated_metadata_db) as conn:
         assert conn.execute("SELECT count(*) FROM assets WHERE path = ?", (str(included.resolve()),)).fetchone()[0] == 1
         assert conn.execute("SELECT count(*) FROM assets WHERE path = ?", (str(excluded.resolve()),)).fetchone()[0] == 0
@@ -748,14 +759,15 @@ def test_scan_and_folder_endpoints_apply_library_exclusion_patterns(
         )
 
 
-def test_repair_reconciles_assets_without_deleting_derivatives(
+def test_scan_reconciles_assets_without_deleting_derivatives(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,
 ):
     library_id = _register_library(isolated_gallery_root)
     original = isolated_gallery_root / "original.png"
     create_test_png(original)
-    assert repair_library_assets(library_id)["added"] == 2
+    first = _run_scan(library_id)
+    assert first["counters"]["indexed"] >= 2
 
     with sqlite3.connect(isolated_metadata_db) as conn:
         asset_id = conn.execute("SELECT id FROM assets WHERE path = ?", (str(original.resolve()),)).fetchone()[0]
@@ -771,9 +783,9 @@ def test_repair_reconciles_assets_without_deleting_derivatives(
     original.unlink()
     added_image = isolated_gallery_root / "added.png"
     create_test_png(added_image)
-    counts = repair_library_assets(library_id)
-    assert counts["added"] == 1
-    assert counts["removed"] == 1
+    second = _run_scan(library_id)
+    assert second["counters"]["indexed"] >= 1
+    assert second["counters"]["reconciled"] >= 1
 
     with sqlite3.connect(isolated_metadata_db) as conn:
         assert conn.execute("SELECT offline FROM assets WHERE id = ?", (asset_id,)).fetchone()[0] == 1
@@ -819,7 +831,8 @@ def test_asset_folder_metadata_excludes_offline_children(
     offline = album / "offline.png"
     create_test_png(visible)
     create_test_png(offline)
-    assert repair_library_assets(library_id)["added"] == 4
+    finished = _run_scan(library_id)
+    assert finished["counters"]["indexed"] >= 4
 
     with sqlite3.connect(isolated_metadata_db) as conn:
         conn.execute("UPDATE assets SET offline = 1 WHERE path = ?", (str(offline.resolve()),))
@@ -831,15 +844,52 @@ def test_asset_folder_metadata_excludes_offline_children(
     assert folder.cover_images == [str(visible.resolve())]
 
 
-def test_repair_api_returns_reconciliation_counts(
+def test_rebuild_api_returns_job_envelope(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,
 ):
     create_test_png(isolated_gallery_root / "new.png")
     library_id = _register_library(isolated_gallery_root)
     with TestClient(app) as client:
-        response = client.post(f"/api/libraries/{library_id}/repair")
-    assert response.status_code == 200
-    assert response.json()["library_id"] == library_id
-    assert response.json()["added"] == 2
-    assert set(response.json()) == {"library_id", "job_id", "added", "removed", "modified"}
+        response = client.post(
+            f"/api/libraries/{library_id}/rebuild",
+            json={"confirm": True},
+        )
+    assert response.status_code == 202
+    body = response.json()
+    assert body["library_id"] == library_id
+    assert body["operation"] == "rebuild"
+    assert body["trigger"] == "manual"
+    assert body["state"] == "queued"
+    assert body["coalesced"] is False
+
+
+def test_rebuild_api_requires_confirmation(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    library_id = _register_library(isolated_gallery_root)
+    with TestClient(app) as client:
+        response = client.post(
+            f"/api/libraries/{library_id}/rebuild",
+            json={"confirm": False},
+        )
+    assert response.status_code == 400
+    assert response.json()["detail"]["error"] == "confirmation_required"
+
+
+def test_rebuild_api_rejects_out_of_library_scope(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+    tmp_path: Path,
+):
+    outside = tmp_path / "truly_outside"
+    outside.mkdir()
+    library_id = _register_library(isolated_gallery_root)
+    with TestClient(app) as client:
+        response = client.post(
+            f"/api/libraries/{library_id}/rebuild",
+            json={"confirm": True, "scope_path": str(outside)},
+        )
+    assert response.status_code == 400
+    assert response.json()["detail"]["error"] == "bad_request"

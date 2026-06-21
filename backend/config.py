@@ -155,6 +155,10 @@ GALLERY_CATALOG_JOB_MAX_QUEUE_WAIT_SECONDS = max(
     0,
     int(os.getenv("GALLERY_CATALOG_JOB_MAX_QUEUE_WAIT_SECONDS", "600")),
 )
+GALLERY_CATALOG_WRITE_BATCH_SIZE = max(
+    1,
+    int(os.getenv("GALLERY_CATALOG_WRITE_BATCH_SIZE", "500")),
+)
 
 # ---------------------------------------------------------------------------
 # Scheduled catalog reconciliation

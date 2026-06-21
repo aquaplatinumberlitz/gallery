@@ -11,14 +11,18 @@ from ..config import GALLERY_CATALOG_JOB_MAX_QUEUE_WAIT_SECONDS, GALLERY_CATALOG
 from ..indexer import rebuild_index_scope
 from ..library_events import event_payload, publish
 from ..metadata_store import (
+    activate_rebuild_staging,
     catalog_path_contains,
     claim_next_catalog_job,
     create_or_coalesce_catalog_job,
+    delete_rebuild_staging,
     enqueue_startup_catalog_scans,
+    enumerate_to_rebuild_staging,
     get_job,
     get_library,
     get_library_for_path,
     list_libraries,
+    queue_metadata_index_paths,
     update_job_state,
     update_library_state,
 )
@@ -83,6 +87,29 @@ def queue_scan(
         priority=TRIGGER_PRIORITIES[trigger],
         parent_job_id=parent_job_id,
         message=f"{trigger.capitalize()} scan queued",
+    )
+    _emit_job(job)
+    notify_workers()
+    return job, created
+
+
+def queue_rebuild(
+    library_id: int,
+    *,
+    scope_path: str | Path | None = None,
+) -> tuple[dict[str, Any], bool]:
+    """Create a durable rebuild job, cancelling queued scans it covers.
+
+    Raises ``CatalogJobConflict`` when catalog work is already running or
+    another rebuild is queued/running for a covering scope.
+    """
+    job, created = create_or_coalesce_catalog_job(
+        library_id,
+        operation="rebuild",
+        trigger="manual",
+        scope_path=scope_path,
+        priority=TRIGGER_PRIORITIES["manual"],
+        message="Rebuild queued",
     )
     _emit_job(job)
     notify_workers()
@@ -210,6 +237,98 @@ def execute_scan_job(job: dict[str, Any]) -> bool:
         return False
 
 
+def execute_rebuild_job(job: dict[str, Any]) -> bool:
+    """Run one claimed rebuild job through staging and atomic activation.
+
+    Enumeration writes only to ``catalog_rebuild_entries`` so browse keeps
+    serving the canonical generation. On success, one short activation
+    transaction merges staged rows, reconciles missing rows, resets affected
+    metadata state, and removes staging data. On failure the canonical
+    generation is untouched and orphaned staging rows are cleaned up.
+    """
+    job_id = int(job["id"])
+    library_id = int(job["library_id"])
+    try:
+        library_id, scan_paths = _scan_paths_for_job(job)
+        online_paths = [p for p in scan_paths if Path(p).is_dir()]
+        offline_paths = [p for p in scan_paths if not Path(p).is_dir()]
+        if not online_paths:
+            update_library_state(library_id, "offline", last_error="All import paths are offline")
+            _transition_job(job_id, "failed", message="Rebuild failed", error="All rebuild paths are offline")
+            return False
+        if offline_paths:
+            update_library_state(library_id, "degraded", last_error=f"{len(offline_paths)} import path(s) offline")
+        else:
+            update_library_state(library_id, "indexing")
+        counters = {
+            "discovered": 0,
+            "folders": 0,
+            "assets": 0,
+            "created": 0,
+            "updated": 0,
+            "offline": 0,
+            "metadata_reset": 0,
+            "metadata_queued": 0,
+            "failed": 0,
+        }
+        _transition_job(
+            job_id,
+            "running",
+            progress_current=0,
+            progress_total=len(online_paths),
+            message="Rebuild enumerating",
+            counters=counters,
+        )
+        discovery, asset_paths = enumerate_to_rebuild_staging(job_id, library_id, online_paths)
+        counters["discovered"] = int(discovery["discovered"])
+        counters["folders"] = int(discovery["folders"])
+        counters["assets"] = int(discovery["assets"])
+        _transition_job(
+            job_id,
+            "running",
+            progress_current=len(online_paths),
+            progress_total=len(online_paths),
+            message="Rebuild activating",
+            counters=counters,
+        )
+        activation = activate_rebuild_staging(job_id, library_id, job.get("scope_path"))
+        counters["created"] = int(activation["created"])
+        counters["updated"] = int(activation["updated"])
+        counters["offline"] = int(activation["offline"])
+        counters["metadata_reset"] = int(activation["metadata_reset"])
+        queued_result = queue_metadata_index_paths(asset_paths, online_paths[0] if online_paths else None)
+        counters["metadata_queued"] = int(len(queued_result.enqueued))
+        counters["failed"] = int(queued_result.failed)
+        scan_completed = job.get("scope_path") is None
+        if offline_paths:
+            update_library_state(library_id, "degraded", scan_completed=scan_completed)
+            success_message = "Rebuild completed with offline paths"
+        elif scan_completed:
+            update_library_state(library_id, "ready", scan_completed=True)
+            success_message = "Rebuild completed"
+        else:
+            update_library_state(library_id, "indexing", scan_completed=False)
+            success_message = "Rebuild completed"
+        _transition_job(
+            job_id,
+            "succeeded",
+            progress_current=len(online_paths),
+            progress_total=len(online_paths),
+            message=success_message,
+            counters=counters,
+        )
+        return True
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.exception("Catalog rebuild job %s failed: %s", job_id, exc)
+        try:
+            delete_rebuild_staging(job_id)
+        except Exception:  # noqa: BLE001
+            LOGGER.exception("Failed to clean staging rows for rebuild job %s", job_id)
+        update_library_state(library_id, "error", last_error=str(exc), scan_completed=job.get("scope_path") is None)
+        _transition_job(job_id, "failed", message="Rebuild failed; previous catalog remains active", error=str(exc))
+        return False
+
+
 def run_once() -> bool:
     """Claim and execute one queued catalog job. Returns True when work ran."""
     job = claim_next_catalog_job(max_queue_wait_seconds=GALLERY_CATALOG_JOB_MAX_QUEUE_WAIT_SECONDS)
@@ -218,6 +337,8 @@ def run_once() -> bool:
     _emit_job(job)
     if job["type"] == "scan":
         execute_scan_job(job)
+    elif job["type"] == "rebuild":
+        execute_rebuild_job(job)
     else:
         _transition_job(int(job["id"]), "failed", message="Unsupported catalog operation", error="Unsupported")
     return True

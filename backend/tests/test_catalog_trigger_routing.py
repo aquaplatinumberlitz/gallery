@@ -19,7 +19,7 @@ import pytest
 
 from backend.catalog import service as catalog_service
 from backend.metadata_store import (
-    create_job,
+    CatalogJobConflict,
     create_library,
     get_job,
     list_active_jobs,
@@ -175,16 +175,147 @@ def test_run_once_returns_false_when_no_catalog_job(isolated_metadata_db: Path):
     assert catalog_service.run_once() is False
 
 
-def test_run_once_fails_unsupported_rebuild_job(isolated_metadata_db: Path, isolated_gallery_root: Path):
+def test_run_once_executes_rebuild_job_through_catalog_pipeline(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    create_test_png(isolated_gallery_root / "image.png")
     library_id = int(register_library(isolated_gallery_root)["id"])
-    job = create_job("rebuild", library_id=library_id, trigger="manual", priority=100)
+    scan, _ = catalog_service.queue_scan(library_id, trigger="manual")
+    assert catalog_service.run_once() is True
+    finished_scan = get_job(scan["id"])
+    assert finished_scan["state"] == "succeeded"
+
+    create_test_png(isolated_gallery_root / "added.png")
+    rebuild, _ = catalog_service.queue_rebuild(library_id)
+    assert catalog_service.run_once() is True
+
+    finished = get_job(rebuild["id"])
+    assert finished is not None
+    assert finished["state"] == "succeeded"
+    assert finished["counters"]["discovered"] >= 2
+    assert finished["counters"]["assets"] >= 2
+
+
+def test_rebuild_writes_to_staging_then_activates(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    import sqlite3
+
+    create_test_png(isolated_gallery_root / "image.png")
+    library_id = int(register_library(isolated_gallery_root)["id"])
+    rebuild, _ = catalog_service.queue_rebuild(library_id)
 
     assert catalog_service.run_once() is True
 
-    finished = get_job(job["id"])
-    assert finished is not None
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        staging = conn.execute("SELECT count(*) FROM catalog_rebuild_entries").fetchone()[0]
+        assert staging == 0
+    finished = get_job(rebuild["id"])
+    assert finished["state"] == "succeeded"
+
+
+def test_rebuild_marks_missing_assets_offline(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    import sqlite3
+
+    image = isolated_gallery_root / "image.png"
+    create_test_png(image)
+    library_id = int(register_library(isolated_gallery_root)["id"])
+    catalog_service.queue_scan(library_id, trigger="manual")
+    assert catalog_service.run_once() is True
+
+    image.unlink()
+    rebuild, _ = catalog_service.queue_rebuild(library_id)
+    assert catalog_service.run_once() is True
+
+    finished = get_job(rebuild["id"])
+    assert finished["state"] == "succeeded"
+    assert finished["counters"]["offline"] >= 1
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        offline = conn.execute(
+            "SELECT offline FROM assets WHERE library_id = ? AND path = ?",
+            (library_id, str(image.resolve())),
+        ).fetchone()[0]
+    assert offline == 1
+
+
+def test_rebuild_preserves_canonical_on_failure(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    import sqlite3
+
+    create_test_png(isolated_gallery_root / "image.png")
+    library_id = int(register_library(isolated_gallery_root)["id"])
+    catalog_service.queue_scan(library_id, trigger="manual")
+    assert catalog_service.run_once() is True
+
+    rebuild, _ = catalog_service.queue_rebuild(library_id)
+    import backend.catalog.service as svc
+
+    original = svc.enumerate_to_rebuild_staging
+    svc.enumerate_to_rebuild_staging = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom"))
+    try:
+        assert catalog_service.run_once() is True
+    finally:
+        svc.enumerate_to_rebuild_staging = original
+
+    finished = get_job(rebuild["id"])
     assert finished["state"] == "failed"
-    assert finished["error"] == "Unsupported"
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        staging = conn.execute("SELECT count(*) FROM catalog_rebuild_entries").fetchone()[0]
+        assert staging == 0
+        assets = conn.execute(
+            "SELECT count(*) FROM assets WHERE library_id = ? AND offline = 0",
+            (library_id,),
+        ).fetchone()[0]
+    assert assets >= 1
+
+
+def test_manual_scan_while_rebuild_queued_returns_409(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    library_id = int(register_library(isolated_gallery_root)["id"])
+    rebuild, _ = catalog_service.queue_rebuild(library_id)
+    assert rebuild["state"] == "queued"
+
+    with pytest.raises(CatalogJobConflict):
+        catalog_service.queue_scan(library_id, trigger="manual")
+
+
+def test_manual_rebuild_cancels_queued_scans(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    library_id = int(register_library(isolated_gallery_root)["id"])
+    scan, scan_created = catalog_service.queue_scan(library_id, trigger="manual")
+    assert scan_created is True
+    assert scan["state"] == "queued"
+
+    rebuild, rebuild_created = catalog_service.queue_rebuild(library_id)
+    assert rebuild_created is True
+
+    cancelled_scan = get_job(scan["id"])
+    assert cancelled_scan["state"] == "cancelled"
+    assert rebuild["state"] == "queued"
+
+
+def test_manual_rebuild_while_scan_running_returns_409(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    library_id = int(register_library(isolated_gallery_root)["id"])
+    scan, _ = catalog_service.queue_scan(library_id, trigger="manual")
+    scan = update_job_state(scan["id"], "running")
+    assert scan["state"] == "running"
+
+    with pytest.raises(CatalogJobConflict):
+        catalog_service.queue_rebuild(library_id)
 
 
 def test_run_once_marks_offline_scan_path_failed(isolated_metadata_db: Path, isolated_gallery_root: Path):

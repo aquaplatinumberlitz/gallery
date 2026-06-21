@@ -29,6 +29,7 @@ if not __package__:
 from .albums import build_album_metadata
 from .config import (
     ENABLE_WARM_INDEXED_LISTING,
+    GALLERY_CATALOG_WRITE_BATCH_SIZE,
     GALLERY_METADATA_DB,
     PATH_SAFETY_ROOT,
     THUMBNAIL_CACHE_DIR,
@@ -1272,6 +1273,15 @@ def _serialize_catalog_enqueue_result(job: sqlite3.Row, created: bool) -> tuple[
     return _serialize_library_job(job), created
 
 
+class CatalogJobConflict(Exception):
+    """Raised when a catalog request conflicts with already-active catalog work."""
+
+    def __init__(self, active_job: dict[str, Any]) -> None:
+        """Store the conflicting active job for API-layer 409 rendering."""
+        self.active_job = active_job
+        super().__init__("Catalog work is already active for this library.")
+
+
 def create_or_coalesce_catalog_job(
     library_id: int,
     *,
@@ -1282,7 +1292,15 @@ def create_or_coalesce_catalog_job(
     parent_job_id: int | None = None,
     message: str | None = None,
 ) -> tuple[dict[str, Any], bool]:
-    """Create or coalesce one durable catalog job under the v9 trigger rules."""
+    """Create or coalesce one durable catalog job under the v9 trigger rules.
+
+    Rebuild conflict rules (plan §5.3):
+    - manual rebuild returns 409 when any catalog work is already running or
+      another rebuild is queued/running for a covering scope;
+    - manual rebuild cancels queued non-rebuild scans it covers;
+    - manual scan requested while rebuild is queued/running returns 409;
+    - automated scans during rebuild defer as a queued follow-up.
+    """
     if operation not in {"scan", "rebuild"}:
         raise ValueError(f"Unsupported catalog operation: {operation}")
     requested_scope = canonicalize_catalog_path(scope_path) if scope_path is not None else None
@@ -1294,61 +1312,83 @@ def create_or_coalesce_catalog_job(
             active_rows = conn.execute(
                 """
                 SELECT * FROM library_jobs
-                WHERE library_id = ? AND type = ?
+                WHERE library_id = ? AND type IN ('scan', 'rebuild')
                   AND state IN ('queued', 'running')
                 ORDER BY CASE state WHEN 'queued' THEN 0 ELSE 1 END, priority DESC, created_at, id
                 """,
-                (library_id, operation),
+                (library_id,),
             ).fetchall()
-            for row in active_rows:
-                if _job_scope_covers(row["scope_path"], requested_scope):
-                    if row["state"] == "running" and trigger == "watcher":
-                        continue
-                    if row["state"] == "queued" and priority > int(row["priority"]):
-                        conn.execute(
-                            """
-                            UPDATE library_jobs
-                            SET priority = ?, trigger = ?, updated_at = ?
-                            WHERE id = ?
-                            """,
-                            (priority, trigger, now, int(row["id"])),
-                        )
-                        row = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (int(row["id"]),)).fetchone()
-                    conn.execute("COMMIT")
-                    return _serialize_catalog_enqueue_result(row, False)
 
-            for row in active_rows:
-                if (
-                    row["state"] == "queued"
-                    and priority >= int(row["priority"])
-                    and _job_scope_covers(requested_scope, row["scope_path"])
-                ):
-                    conn.execute(
-                        """
-                        UPDATE library_jobs
-                        SET state = 'cancelled',
-                            message = COALESCE(message, 'Superseded by broader catalog job'),
-                            error = 'Superseded by broader catalog job',
-                            updated_at = ?,
-                            finished_at = COALESCE(finished_at, ?)
-                        WHERE id = ?
-                        """,
-                        (now, now, int(row["id"])),
-                    )
+            def _cancel_job(job_id: int, reason: str = "Superseded by broader catalog job") -> None:
+                conn.execute(
+                    """
+                    UPDATE library_jobs
+                    SET state = 'cancelled',
+                        message = COALESCE(message, ?),
+                        error = ?,
+                        updated_at = ?,
+                        finished_at = COALESCE(finished_at, ?)
+                    WHERE id = ?
+                    """,
+                    (reason, reason, now, now, job_id),
+                )
 
-            from .library_events import event_payload, publish
+            def _emit_cancelled(job_id: int) -> None:
+                from .library_events import event_payload, publish
 
-            cancelled_ids = [
-                int(row["id"])
-                for row in active_rows
-                if row["state"] == "queued"
-                and priority >= int(row["priority"])
-                and _job_scope_covers(requested_scope, row["scope_path"])
-            ]
-            for cancelled_id in cancelled_ids:
-                cancelled = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (cancelled_id,)).fetchone()
-                if cancelled:
+                cancelled = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (job_id,)).fetchone()
+                if cancelled is not None:
                     publish(event_payload("job.cancelled", _serialize_library_job(cancelled)))
+
+            if operation == "rebuild":
+                for row in active_rows:
+                    if row["state"] == "running":
+                        raise CatalogJobConflict(_serialize_library_job(row))
+                for row in active_rows:
+                    if row["type"] == "rebuild" and _job_scope_covers(row["scope_path"], requested_scope):
+                        raise CatalogJobConflict(_serialize_library_job(row))
+                for row in active_rows:
+                    if (
+                        row["type"] == "scan"
+                        and row["state"] == "queued"
+                        and _job_scope_covers(requested_scope, row["scope_path"])
+                    ):
+                        _cancel_job(int(row["id"]), "Superseded by rebuild")
+                        _emit_cancelled(int(row["id"]))
+            else:
+                active_rebuilds = [row for row in active_rows if row["type"] == "rebuild"]
+                if active_rebuilds:
+                    if trigger == "manual":
+                        raise CatalogJobConflict(_serialize_library_job(active_rebuilds[0]))
+                else:
+                    scan_rows = [row for row in active_rows if row["type"] == "scan"]
+                    for row in scan_rows:
+                        if _job_scope_covers(row["scope_path"], requested_scope):
+                            if row["state"] == "running" and trigger == "watcher":
+                                continue
+                            if row["state"] == "queued" and priority > int(row["priority"]):
+                                conn.execute(
+                                    """
+                                    UPDATE library_jobs
+                                    SET priority = ?, trigger = ?, updated_at = ?
+                                    WHERE id = ?
+                                    """,
+                                    (priority, trigger, now, int(row["id"])),
+                                )
+                                row = conn.execute(
+                                    "SELECT * FROM library_jobs WHERE id = ?", (int(row["id"]),)
+                                ).fetchone()
+                            conn.execute("COMMIT")
+                            return _serialize_catalog_enqueue_result(row, False)
+
+                    for row in scan_rows:
+                        if (
+                            row["state"] == "queued"
+                            and priority >= int(row["priority"])
+                            and _job_scope_covers(requested_scope, row["scope_path"])
+                        ):
+                            _cancel_job(int(row["id"]))
+                            _emit_cancelled(int(row["id"]))
 
             cursor = conn.execute(
                 """
@@ -1993,7 +2033,7 @@ def get_library_progress(library_id: int) -> dict[str, Any]:
             """
             SELECT id FROM library_jobs
             WHERE library_id = ? AND state IN ('queued', 'running')
-              AND type IN ('scan', 'repair', 'reconcile')
+              AND type IN ('scan', 'rebuild', 'reconcile')
             ORDER BY id DESC LIMIT 1
             """,
             (library_id,),
@@ -2007,116 +2047,316 @@ def get_library_progress(library_id: int) -> dict[str, Any]:
         }
 
 
-def repair_library_assets(library_id: int) -> dict[str, int]:
-    """Reconcile one library's asset rows with its filesystem without deleting derivatives."""
+def enumerate_to_rebuild_staging(
+    job_id: int,
+    library_id: int,
+    scope_paths: list[str | Path],
+) -> tuple[dict[str, int], list[str]]:
+    """Walk scope_paths and write discovered entries to catalog_rebuild_entries.
+
+    Browse continues serving the canonical generation while enumeration runs.
+    Filesystem enumeration never occurs inside a SQLite write transaction;
+    staging rows are flushed in bounded batches. Returns counters plus the
+    list of supported asset paths (for later metadata queueing).
+    """
     library = get_library(library_id)
     if library is None:
         raise KeyError(library_id)
-
-    import_roots = [Path(item["path"]).resolve() for item in library["import_paths"]]
     exclusion_patterns = list(library["exclusion_patterns"])
-    discovered: dict[str, tuple[str, str, str, float, int | None]] = {}
+    import_roots = [str(Path(item["path"]).resolve()) for item in library["import_paths"]]
 
-    def visit(path: Path, import_root: Path, visited_inodes: set[tuple[int, int]]) -> None:
-        if is_index_excluded_path(path, import_root, exclusion_patterns):
+    discovered = 0
+    folders = 0
+    assets = 0
+    asset_paths: list[str] = []
+    batch: list[tuple[Any, ...]] = []
+
+    def flush() -> None:
+        nonlocal batch
+        if not batch:
+            return
+        rows = batch
+        batch = []
+        initialize_database()
+        with _DB_LOCK, _connect() as conn:
+            conn.executemany(
+                """
+                INSERT INTO catalog_rebuild_entries (
+                  job_id, library_id, path, parent_path, name, type,
+                  mtime_ns, size, width, height, mime_type, duration_ms,
+                  codec, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(job_id, path) DO UPDATE SET
+                  parent_path=excluded.parent_path,
+                  name=excluded.name,
+                  type=excluded.type,
+                  mtime_ns=excluded.mtime_ns,
+                  size=excluded.size,
+                  width=excluded.width,
+                  height=excluded.height,
+                  mime_type=excluded.mime_type,
+                  duration_ms=excluded.duration_ms,
+                  codec=excluded.codec
+                """,
+                rows,
+            )
+
+    def stage_entry(
+        *,
+        path: Path,
+        entry_type: str,
+        mtime_ns: int | None,
+        size: int | None,
+        width: int | None = None,
+        height: int | None = None,
+        mime_type: str | None = None,
+        duration_ms: int | None = None,
+        codec: str | None = None,
+    ) -> None:
+        nonlocal discovered, folders, assets
+        resolved = path.resolve()
+        resolved_text = str(resolved)
+        batch.append(
+            (
+                job_id,
+                library_id,
+                resolved_text,
+                str(resolved.parent),
+                resolved.name or resolved_text,
+                entry_type,
+                mtime_ns,
+                size,
+                width,
+                height,
+                mime_type,
+                duration_ms,
+                codec,
+                time.time(),
+            )
+        )
+        discovered += 1
+        if entry_type == "folder":
+            folders += 1
+        else:
+            assets += 1
+            asset_paths.append(resolved_text)
+        if len(batch) >= GALLERY_CATALOG_WRITE_BATCH_SIZE:
+            flush()
+
+    def visit(folder: Path, import_root: str, visited_inodes: set[tuple[int, int]]) -> None:
+        if is_index_excluded_path(folder, import_root, exclusion_patterns):
             return
         try:
-            stat = path.stat()
+            stat = folder.stat()
         except OSError:
             return
-        if path.is_dir():
+        if folder.is_dir():
             inode = (stat.st_dev, stat.st_ino)
             if inode in visited_inodes:
                 return
             visited_inodes.add(inode)
-            resolved = path.resolve()
-            discovered[str(resolved)] = (
-                str(resolved.parent),
-                resolved.name or str(resolved),
-                "folder",
-                stat.st_mtime,
-                None,
-            )
+            stage_entry(path=folder, entry_type="folder", mtime_ns=stat.st_mtime_ns, size=None)
             try:
-                entries = list(path.iterdir())
+                entries = list(folder.iterdir())
             except (OSError, PermissionError):
                 return
             for entry in entries:
-                if entry.name.startswith(".") or is_index_excluded_path(entry):
+                if entry.name.startswith(".") or is_index_excluded_path(entry, import_root, exclusion_patterns):
                     continue
                 try:
                     if entry.is_dir() and not entry.is_symlink():
                         visit(entry, import_root, visited_inodes)
-                    elif entry.is_file() and is_image_path(entry):
+                    elif entry.is_file() and is_asset_path(entry):
                         file_stat = entry.stat()
-                        resolved_file = entry.resolve()
-                        discovered[str(resolved_file)] = (
-                            str(resolved_file.parent),
-                            resolved_file.name,
-                            "image",
-                            file_stat.st_mtime,
-                            file_stat.st_size,
+                        asset_type = asset_type_for_path(entry) or "image"
+                        mime_type = mimetypes.guess_type(entry.name)[0]
+                        stage_entry(
+                            path=entry,
+                            entry_type=asset_type,
+                            mtime_ns=file_stat.st_mtime_ns,
+                            size=file_stat.st_size,
+                            mime_type=mime_type,
                         )
                 except (OSError, PermissionError):
                     continue
 
-    visited_inodes: set[tuple[int, int]] = set()
-    for root in import_roots:
-        visit(root, root, visited_inodes)
-    now = time.time()
-    added = 0
-    removed = 0
-    modified = 0
-    with _DB_LOCK, _connect() as conn:
-        existing = {
-            row["path"]: row for row in conn.execute("SELECT * FROM assets WHERE library_id = ?", (library_id,))
-        }
-        for path, (parent_path, name, asset_type, mtime, size) in discovered.items():
-            row = existing.get(path)
-            if row is None:
-                added += 1
-            elif (
-                row["parent_path"] != parent_path
-                or row["name"] != name
-                or row["type"] != asset_type
-                or row["mtime_ns"] != mtime
-                or row["size"] != size
-                or row["offline"]
-                or row["deleted_at"] is not None
-            ):
-                modified += 1
-            metadata_state = "pending" if row is None or row["mtime_ns"] != mtime or row["size"] != size else None
-            _upsert_asset_conn(
-                conn,
-                path=path,
-                name=name,
-                parent_path=parent_path,
-                type=asset_type,
-                mtime_ns=mtime,
-                size=size,
-                metadata_state=metadata_state,
-            )
+    for scope in scope_paths:
+        scope_path = Path(scope).resolve()
+        import_root = next((root for root in import_roots if catalog_path_contains(root, scope_path)), None)
+        if import_root is None:
+            continue
+        visit(scope_path, import_root, set())
+    flush()
+    return (
+        {"discovered": discovered, "folders": folders, "assets": assets},
+        asset_paths,
+    )
 
-        missing_paths = [
-            path
-            for path, row in existing.items()
-            if path not in discovered and not row["offline"] and row["deleted_at"] is None
-        ]
-        if missing_paths:
-            conn.executemany(
-                "UPDATE assets SET offline = 1, indexed_at = ? WHERE library_id = ? AND path = ?",
-                ((now, library_id, path) for path in missing_paths),
-            )
-            removed = len(missing_paths)
-        conn.execute(
-            """
-            UPDATE libraries SET state = 'ready', last_error = NULL,
-                last_scan_at = ?, updated_at = ?
-            WHERE id = ?
-            """,
-            (now, now, library_id),
-        )
-    return {"added": added, "removed": removed, "modified": modified}
+
+def activate_rebuild_staging(
+    job_id: int,
+    library_id: int,
+    scope_path: str | Path | None,
+) -> dict[str, int]:
+    """Merge staged rebuild rows into the canonical catalog in one short transaction.
+
+    Idempotent merge: staged rows upsert into file_index and assets, missing
+    rows in scope are marked offline, changed assets reset metadata_state to
+    pending, last_seen_scan_job_id is updated, and staging rows for this job
+    are deleted only after commit. Failed activation rolls back, leaving the
+    canonical generation and staging rows untouched.
+    """
+    initialize_database()
+    now = time.time()
+    scope_text = canonicalize_catalog_path(scope_path) if scope_path is not None else None
+    with _DB_LOCK, _connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            staged = conn.execute(
+                """
+                SELECT path, parent_path, name, type, mtime_ns, size, mime_type,
+                       duration_ms, codec
+                FROM catalog_rebuild_entries
+                WHERE job_id = ? AND library_id = ?
+                """,
+                (job_id, library_id),
+            ).fetchall()
+            staged_paths = {row["path"] for row in staged}
+            created = 0
+            updated = 0
+            metadata_reset = 0
+            for row in staged:
+                existing = conn.execute(
+                    "SELECT mtime_ns, size, metadata_state FROM assets WHERE library_id = ? AND path = ?",
+                    (library_id, row["path"]),
+                ).fetchone()
+                normalized_type = (
+                    "image"
+                    if row["type"] in {"image", "photo", "file"}
+                    else "video"
+                    if row["type"] == "video"
+                    else "folder"
+                )
+                metadata_state = None
+                if existing is None:
+                    created += 1
+                    metadata_state = "pending"
+                else:
+                    updated += 1
+                    if existing["mtime_ns"] != row["mtime_ns"] or existing["size"] != row["size"]:
+                        metadata_state = "pending"
+                        metadata_reset += 1
+                conn.execute(
+                    """
+                    INSERT INTO file_index (
+                      path, name, parent_path, type, mtime, mtime_ns, size,
+                      indexed_at, library_id, last_seen_scan_job_id
+                    ) VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)
+                    ON CONFLICT(path) DO UPDATE SET
+                      name=excluded.name,
+                      parent_path=excluded.parent_path,
+                      type=excluded.type,
+                      mtime_ns=excluded.mtime_ns,
+                      size=excluded.size,
+                      indexed_at=excluded.indexed_at,
+                      library_id=excluded.library_id,
+                      last_seen_scan_job_id=excluded.last_seen_scan_job_id
+                    """,
+                    (
+                        row["path"],
+                        row["name"],
+                        row["parent_path"],
+                        normalized_type,
+                        row["mtime_ns"],
+                        row["size"],
+                        now,
+                        library_id,
+                        job_id,
+                    ),
+                )
+                conn.execute(
+                    """
+                    INSERT INTO assets (
+                      library_id, path, parent_path, name, type, mtime_ns, size,
+                      width, height, indexed_at, metadata_state, offline, deleted_at,
+                      mime_type, duration_ms, codec, last_seen_scan_job_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, 0, NULL, ?, ?, ?, ?)
+                    ON CONFLICT(library_id, path) DO UPDATE SET
+                      parent_path=excluded.parent_path,
+                      name=excluded.name,
+                      type=excluded.type,
+                      mtime_ns=excluded.mtime_ns,
+                      size=excluded.size,
+                      indexed_at=excluded.indexed_at,
+                      metadata_state=COALESCE(excluded.metadata_state, assets.metadata_state),
+                      mime_type=COALESCE(excluded.mime_type, assets.mime_type),
+                      duration_ms=COALESCE(excluded.duration_ms, assets.duration_ms),
+                      codec=COALESCE(excluded.codec, assets.codec),
+                      offline=0,
+                      deleted_at=NULL,
+                      last_seen_scan_job_id=excluded.last_seen_scan_job_id
+                    """,
+                    (
+                        library_id,
+                        row["path"],
+                        row["parent_path"],
+                        row["name"],
+                        normalized_type,
+                        row["mtime_ns"],
+                        row["size"],
+                        now,
+                        metadata_state,
+                        row["mime_type"],
+                        row["duration_ms"],
+                        row["codec"],
+                        job_id,
+                    ),
+                )
+                conn.execute("DELETE FROM file_index_fts WHERE path = ?", (row["path"],))
+                conn.execute(
+                    "INSERT INTO file_index_fts(name, path, type, parent_path) VALUES (?, ?, ?, ?)",
+                    (row["name"], row["path"], normalized_type, row["parent_path"]),
+                )
+
+            scope_sql = ""
+            params: list[Any] = [library_id]
+            if scope_text is not None:
+                prefix = f"{scope_text.rstrip(os.sep)}{os.sep}"
+                scope_sql = " AND (path = ? OR path LIKE ? ESCAPE '\\')"
+                params.extend([scope_text, f"{_like_escape(prefix)}%"])
+            in_scope = conn.execute(
+                f"""
+                SELECT path FROM assets
+                WHERE library_id = ? AND offline = 0 AND deleted_at IS NULL
+                  {scope_sql}
+                """,
+                params,
+            ).fetchall()
+            missing = [row["path"] for row in in_scope if row["path"] not in staged_paths]
+            if missing:
+                conn.executemany(
+                    "UPDATE assets SET offline = 1, indexed_at = ? WHERE library_id = ? AND path = ?",
+                    ((now, library_id, path) for path in missing),
+                )
+            conn.execute("DELETE FROM catalog_rebuild_entries WHERE job_id = ?", (job_id,))
+            conn.execute("COMMIT")
+            return {
+                "discovered": len(staged),
+                "created": created,
+                "updated": updated,
+                "offline": len(missing),
+                "metadata_reset": metadata_reset,
+            }
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
+
+
+def delete_rebuild_staging(job_id: int) -> None:
+    """Remove orphaned rebuild staging rows for a failed/cancelled job."""
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        conn.execute("DELETE FROM catalog_rebuild_entries WHERE job_id = ?", (job_id,))
 
 
 def _reconcile_assets_conn(

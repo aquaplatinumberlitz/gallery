@@ -15,6 +15,7 @@ from .derivative_scheduler import scheduler
 from .errors import APIError, ErrorType
 from .library_events import event_payload, event_stream, publish
 from .metadata_store import (
+    CatalogJobConflict,
     LibraryOverlapError,
     create_job,
     create_library,
@@ -27,7 +28,6 @@ from .metadata_store import (
     list_active_jobs,
     list_jobs,
     list_libraries,
-    repair_library_assets,
     unregister_library,
     update_job_state,
     update_library,
@@ -65,6 +65,15 @@ class LibraryScanRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     scope_path: str | None = None
+
+
+class LibraryRebuildRequest(BaseModel):
+    """Confirmed manual catalog rebuild request."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    scope_path: str | None = None
+    confirm: bool = False
 
 
 def _trim_value(value: str) -> str:
@@ -448,9 +457,9 @@ async def _api_update_library(library_id: int, payload: LibraryUpdate):
     if library is None:
         raise APIError(404, ErrorType.NOT_FOUND, "Library not found")
     if {"import_paths", "exclusion_patterns"} & payload.model_fields_set:
-        active = await run_in_threadpool(_active_library_job, library_id, "scan", "repair")
+        active = await run_in_threadpool(_active_library_job, library_id, "scan", "rebuild")
         if active is not None:
-            raise APIError(409, "library_busy", "Library scan or repair is active")
+            raise APIError(409, "library_busy", "Library scan or rebuild is active")
     normalized_paths: list[str] | None = None
     normalized_patterns: list[str] | None = None
     if payload.import_paths is not None or payload.exclusion_patterns is not None:
@@ -545,12 +554,30 @@ async def api_scan_library(library_id: int, payload: LibraryScanRequest | None =
     if any(not Path(path).is_dir() for path in scan_paths):
         await run_in_threadpool(update_library_state, library_id, "offline", last_error="Root path is offline")
         raise APIError(409, "library_offline", "One or more library import paths are offline")
-    job, created = await run_in_threadpool(
-        catalog_service.queue_scan,
-        library_id,
-        trigger="manual",
-        scope_path=scope_path,
-    )
+    try:
+        job, created = await run_in_threadpool(
+            catalog_service.queue_scan,
+            library_id,
+            trigger="manual",
+            scope_path=scope_path,
+        )
+    except CatalogJobConflict as exc:
+        active = exc.active_job
+        raise APIError(
+            409,
+            "library_busy",
+            "Catalog work is already active for this library.",
+            extra={
+                "requested_operation": "scan",
+                "active_job": {
+                    "job_id": active["id"],
+                    "operation": active["type"],
+                    "trigger": active["trigger"],
+                    "state": active["state"],
+                    "scope_path": active["scope_path"],
+                },
+            },
+        ) from exc
     if created:
         await run_in_threadpool(update_library_state, library_id, "discovering")
     return {
@@ -564,42 +591,64 @@ async def api_scan_library(library_id: int, payload: LibraryScanRequest | None =
     }
 
 
-@router.post("/api/libraries/{library_id}/repair")
-async def api_repair_library(library_id: int):
-    """Reconcile a registered library's asset catalog with its filesystem."""
+@router.post("/api/libraries/{library_id}/rebuild", status_code=202)
+async def api_rebuild_library(library_id: int, payload: LibraryRebuildRequest | None = None):
+    """Queue a confirmed catalog rebuild that re-stages and atomically activates a scope."""
     library = await run_in_threadpool(get_library, library_id)
     if library is None:
         raise APIError(404, ErrorType.NOT_FOUND, "Library not found")
-    if any(not Path(item["path"]).is_dir() for item in library["import_paths"]):
-        await run_in_threadpool(update_library_state, library_id, "offline", last_error="Root path is offline")
-        raise APIError(409, "library_offline", "One or more library import paths are offline")
-    active = await run_in_threadpool(_active_library_job, library_id, "scan", "repair")
-    if active is not None:
-        raise APIError(409, "library_busy", "Library scan or repair is active")
-    job = await run_in_threadpool(create_job, "repair", library_id=library_id, message="Repair queued")
-    _emit_job(job)
-    await run_in_threadpool(_set_job_state, int(job["id"]), "running", message="Repairing library")
+    confirm = payload.confirm if payload is not None else False
+    if not confirm:
+        raise APIError(400, "confirmation_required", "Rebuild requires explicit confirmation")
+    scope_path = payload.scope_path if payload is not None else None
+    import_paths = [str(Path(item["path"]).resolve()) for item in library["import_paths"]]
+    if scope_path is not None:
+        resolved_scope = str(Path(scope_path).resolve())
+        if not any(
+            Path(resolved_scope) == Path(root) or Path(root) in Path(resolved_scope).parents for root in import_paths
+        ):
+            raise APIError(400, ErrorType.BAD_REQUEST, "Rebuild scope is outside this library")
+        if not Path(resolved_scope).is_dir():
+            raise APIError(404, ErrorType.NOT_FOUND, "Rebuild scope path not found")
+    else:
+        resolved_scope = None
+        if any(not Path(path).is_dir() for path in import_paths):
+            await run_in_threadpool(update_library_state, library_id, "offline", last_error="Root path is offline")
+            raise APIError(409, "library_offline", "One or more library import paths are offline")
     try:
-        counts = await run_in_threadpool(repair_library_assets, library_id)
-    except Exception as exc:
-        await run_in_threadpool(
-            _set_job_state,
-            int(job["id"]),
-            "failed",
-            message="Repair failed",
-            error=str(exc),
+        job, created = await run_in_threadpool(
+            catalog_service.queue_rebuild,
+            library_id,
+            scope_path=resolved_scope,
         )
-        raise
-    await run_in_threadpool(
-        _set_job_state,
-        int(job["id"]),
-        "succeeded",
-        progress_current=1,
-        progress_total=1,
-        message="Repair completed",
-        counters=counts,
-    )
-    return {"library_id": library_id, "job_id": job["id"], **counts}
+    except CatalogJobConflict as exc:
+        active = exc.active_job
+        raise APIError(
+            409,
+            "library_busy",
+            "Catalog work is already active for this library.",
+            extra={
+                "requested_operation": "rebuild",
+                "active_job": {
+                    "job_id": active["id"],
+                    "operation": active["type"],
+                    "trigger": active["trigger"],
+                    "state": active["state"],
+                    "scope_path": active["scope_path"],
+                },
+            },
+        ) from exc
+    if created:
+        await run_in_threadpool(update_library_state, library_id, "discovering")
+    return {
+        "job_id": job["id"],
+        "library_id": library_id,
+        "scope_path": job["scope_path"],
+        "operation": job["type"],
+        "trigger": job["trigger"],
+        "state": job["state"],
+        "coalesced": not created,
+    }
 
 
 @router.delete("/api/libraries/{library_id}")
@@ -610,9 +659,9 @@ async def api_unregister_library(
     """Unregister a library and delete only its catalog rows."""
     if not confirm:
         raise APIError(400, "confirmation_required", "Unregister requires explicit confirmation")
-    active = await run_in_threadpool(_active_library_job, library_id, "scan", "repair")
+    active = await run_in_threadpool(_active_library_job, library_id, "scan", "rebuild")
     if active is not None:
-        raise APIError(409, "library_busy", "Library scan or repair is active")
+        raise APIError(409, "library_busy", "Library scan or rebuild is active")
     if not await run_in_threadpool(unregister_library, library_id):
         raise APIError(404, ErrorType.NOT_FOUND, "Library not found")
     return {"library_id": library_id, "unregistered": True, "source_files_deleted": False}
