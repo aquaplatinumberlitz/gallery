@@ -1,5 +1,9 @@
 # Debug Tools
 
+Status: Maintained
+
+Last reviewed: 2026-06-19
+
 Debug helpers must stay gated and off by default. Prefer these tools before adding new console logging, and remove temporary investigation code once the diagnosis is complete.
 
 ## Runtime Debug Flags

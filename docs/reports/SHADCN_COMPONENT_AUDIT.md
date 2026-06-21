@@ -1,5 +1,7 @@
 # shadcn-vue Component Audit — 2026-06-14
 
+Status: Audit snapshot; verify findings against current components before implementation.
+
 Audit scope: `frontend/src/components/ui/`
 
 This report records the findings from the shadcn-vue component audit completed on 2026-06-14. The comparison target is the official shadcn-vue component implementation for each audited component.

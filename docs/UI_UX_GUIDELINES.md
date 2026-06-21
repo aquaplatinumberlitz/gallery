@@ -1,5 +1,7 @@
 # UI/UX Guidelines
 
+Status: Maintained
+
 Last reviewed: 2026-06-07
 
 ## Breakpoints

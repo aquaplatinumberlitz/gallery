@@ -1,9 +1,11 @@
 # Architecture
 
+Status: Maintained
+
 Last reviewed: 2026-06-21
 
-Library-management implementation progress and handoff context:
-[Codex Library Management Implementation Status](plan/CODEX_LIBRARY_MANAGEMENT_IMPLEMENTATION_STATUS.md).
+Historical Library Management V1 handoff context is retained in the
+[archived implementation status](archived/CODEX_LIBRARY_MANAGEMENT_IMPLEMENTATION_STATUS.md).
 
 ## Overview
 

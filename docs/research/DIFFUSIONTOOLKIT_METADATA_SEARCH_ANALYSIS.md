@@ -1,5 +1,8 @@
 # DiffusionToolkit Metadata Search Analysis
 
+> **Status:** Research snapshot. Upstream findings are retained for reference;
+> use [Architecture](../ARCHITECTURE.md) for the current gallery implementation.
+
 Last reviewed: 2026-06-09
 
 ## Purpose

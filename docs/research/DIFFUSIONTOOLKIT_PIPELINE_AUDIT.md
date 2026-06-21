@@ -1,5 +1,9 @@
 # DiffusionToolkit Pipeline Audit
 
+> **Status:** Research snapshot. Statements about gallery-repo describe the
+> reviewed revision and may be historical; use [Architecture](../ARCHITECTURE.md)
+> for current behavior.
+
 Last reviewed: 2026-06-09
 
 ## Executive summary
@@ -68,7 +72,7 @@ checkout. The actual gallery SQLite metadata and indexing layer is
 | Scan/search queries             | [`frontend/src/composables/useInfiniteScanQuery.ts`](../../frontend/src/composables/useInfiniteScanQuery.ts), [`frontend/src/composables/useUnifiedSearchQuery.ts`](../../frontend/src/composables/useUnifiedSearchQuery.ts)                                                                                                                                                                                                                     |
 | Grid and thumbnails             | [`frontend/src/components/GalleryGrid.vue`](../../frontend/src/components/GalleryGrid.vue), [`frontend/src/components/PhotoCard.vue`](../../frontend/src/components/PhotoCard.vue)                                                                                                                                                                                                                                                               |
 | Lightbox and dimensions         | [`frontend/src/components/Lightbox.vue`](../../frontend/src/components/Lightbox.vue), [`frontend/src/components/PhotoSwipeViewer.vue`](../../frontend/src/components/PhotoSwipeViewer.vue), [`frontend/src/composables/usePhotoSwipe.ts`](../../frontend/src/composables/usePhotoSwipe.ts), [`frontend/src/utils/lightbox.ts`](../../frontend/src/utils/lightbox.ts), [`frontend/src/stores/lightbox.ts`](../../frontend/src/stores/lightbox.ts) |
-| Perf/instrumentation docs/tests | [`frontend/tests/e2e/perf/album-open.perf.spec.ts`](../../frontend/tests/e2e/perf/album-open.perf.spec.ts), [`frontend/tests/e2e/perf/lightbox.perf.spec.ts`](../../frontend/tests/e2e/perf/lightbox.perf.spec.ts), [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md), [`docs/PERFORMANCE_TESTING.md`](../test-debug-perf/PERFORMANCE_TESTING.md)                                                                                                     |
+| Perf/instrumentation docs/tests | [`frontend/tests/e2e/perf/album-open.perf.spec.ts`](../../frontend/tests/e2e/perf/album-open.perf.spec.ts), [`frontend/tests/e2e/perf/lightbox.perf.spec.ts`](../../frontend/tests/e2e/perf/lightbox.perf.spec.ts), [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md), [`docs/testing/PERFORMANCE_TESTING.md`](../testing/PERFORMANCE_TESTING.md)                                                                                                     |
 
 ## DiffusionToolkit pipeline
 

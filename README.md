@@ -226,23 +226,9 @@ gallery-repo/
 
 ## Documentation
 
-- [Architecture](docs/ARCHITECTURE.md) - frontend/backend architecture, data flow, lightbox design
-- [Library Usage](docs/THIRD_PARTY_LIBRARIES.md) - third-party library integration notes
-- [UI/UX Guidelines](docs/UI_UX_GUIDELINES.md) - breakpoints, layout rules, mobile behavior, theme rules
-- [Test Strategy](docs/testing/TESTING_STRATEGY.md) - canonical CI, browser, coverage, and test-selection policy
-- [Performance Testing](docs/test-debug-perf/PERFORMANCE_TESTING.md) - perf budgets, test methodology, results
-- [Performance Comparison Report](docs/test-debug-perf/perf_compare_report.md) - lightbox perf comparison notes
-- [Evolution Master Plan](docs/archived/GALLERY_REPO_EVOLUTION_MASTER_PLAN_codex.md) - archived phased roadmap
-- [TanStack Migration Plan](docs/archived/TANSTACK_MIGRATION_PLAN.md) - archived TanStack Query migration
-- [Shadcn Sidebar Migration Plan](docs/archived/SHADCN_SIDEBAR_MIGRATION_PLAN.md) - archived sidebar migration notes
-- [Tailwind Migration Plan](docs/archived/TAILWIND_MIGRATION_ANIMATION_PRESERVATION_PLAN.md) - archived Tailwind migration notes
-- [Shadcn Component Audit](docs/reports/SHADCN_COMPONENT_AUDIT.md) - local UI component audit
-- [Library Inspector UX Research](docs/research/library-inspector-ux-patterns.md) - metadata inspector UX references
-- [DiffusionToolkit Pipeline Audit](<docs/DT&IMMICH analysis/DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md>) - comparison with DiffusionToolkit metadata, indexing, thumbnail, and lightbox pipeline
-- [DiffusionToolkit Metadata Parse Analysis](<docs/DT&IMMICH analysis/DIFFUSIONTOOLKIT_METADATA_PARSE_ANALYSIS.md>) - parser-specific lessons and proposed metadata parser improvements
-- [DiffusionToolkit Metadata Search Analysis](<docs/DT&IMMICH analysis/DIFFUSIONTOOLKIT_METADATA_SEARCH_ANALYSIS.md>) - search-query lessons and fielded metadata search backlog
-- [Immich Pipeline Audit](<docs/DT&IMMICH analysis/IMMICH_PIPELINE_AUDIT.md>) - comparison with Immich pipeline
-- [Media Pipeline Comparison](<docs/DT&IMMICH analysis/MEDIA_PIPELINE_COMPARISON.md>) - gallery-repo vs DiffusionToolkit vs Immich pipeline comparison
+- [Documentation Index](docs/README.md) - maintained references, testing, research, reports, plans, and archived context
+- [Architecture](docs/ARCHITECTURE.md) - frontend/backend boundaries, data flow, and runtime contracts
+- [Testing Guide](docs/testing/README.md) - test selection, performance testing, catalog, and debug tools
 - [TanStack Guide](frontend/src/lib/tanstack/README.md) - TanStack Query, Virtual, Form, and Table usage
 
 ## License

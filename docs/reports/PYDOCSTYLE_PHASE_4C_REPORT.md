@@ -1,6 +1,7 @@
 # Phase 4c — Pydocstyle Audit Report
 
-> **Status:** Measurement only. No D rules enabled in `pyproject.toml`. No code changed.
+> **Status:** Measurement snapshot. No D rules were enabled in `pyproject.toml`
+> and no runtime code was changed by this audit.
 
 ---
 

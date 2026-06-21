@@ -94,11 +94,11 @@ DiffusionToolkit:
 
 Local supporting documents:
 
-- [Immich Media Pipeline Audit](IMMICH_PIPELINE_AUDIT.md)
-- [DiffusionToolkit Pipeline Audit](DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md)
-- [Media Pipeline Comparison](MEDIA_PIPELINE_COMPARISON.md)
+- [Immich Media Pipeline Audit](../research/IMMICH_PIPELINE_AUDIT.md)
+- [DiffusionToolkit Pipeline Audit](../research/DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md)
+- [Media Pipeline Comparison](../research/MEDIA_PIPELINE_COMPARISON.md)
 - [Architecture](../ARCHITECTURE.md)
-- [Performance Testing](../test-debug-perf/PERFORMANCE_TESTING.md)
+- [Performance Testing](../testing/PERFORMANCE_TESTING.md)
 
 The upstream conclusions are based on source inspection, not a cross-project
 benchmark on identical hardware. Performance comparisons below distinguish

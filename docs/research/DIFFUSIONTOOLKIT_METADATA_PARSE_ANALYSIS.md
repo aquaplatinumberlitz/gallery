@@ -1,5 +1,9 @@
 # DiffusionToolkit Metadata Parse Analysis
 
+> **Status:** Research snapshot. Upstream findings are retained for reference;
+> use [Architecture](../ARCHITECTURE.md) and [Metadata Parsing](../METADATA_PARSING.md)
+> for the current gallery implementation.
+
 Last reviewed: 2026-06-09
 
 ## Purpose

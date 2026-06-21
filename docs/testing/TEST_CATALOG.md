@@ -1,5 +1,9 @@
 # Test Catalog
 
+Status: Maintained catalog
+
+Last reviewed: 2026-06-19
+
 Catalog entries summarize the regression or contract each important test file protects. File-level headers in the tests provide the same purpose fields close to the code.
 
 | File                                                                  | Type                          | Purpose                                                                                                                                                                                                                                                                                         | Guarantees                                                                                                                                                                                                                            | Run when                                                                                                          | Related feature               |

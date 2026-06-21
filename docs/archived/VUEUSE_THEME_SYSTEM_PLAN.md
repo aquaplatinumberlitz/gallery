@@ -1,12 +1,20 @@
 # VueUse Theme System Cleanup Plan
 
-**Status:** Planning only
+> **Archived:** Implemented in commit `97f0506` on 2026-06-14. The current
+> implementation uses `useGalleryTheme()` over VueUse `useColorMode`, supports
+> Light/Dark/System, applies `data-theme` before CSS loads, and exposes the
+> desktop theme menu through `AppHeader.vue`. This document is historical
+> design context, not an active plan or current source of truth.
+
+**Status:** Implemented and archived
 **Created:** 2026-06-14
-**Source-of-truth companion doc:** `docs/plan/TAILWIND_MIGRATION_ANIMATION_PRESERVATION_PLAN.md`
+**Companion historical doc:** [Tailwind Migration and Animation Preservation Plan](TAILWIND_MIGRATION_ANIMATION_PRESERVATION_PLAN.md)
 
-This plan audits the current gallery theme implementation and proposes a practical migration to VueUse for cleaner Light / Dark / System theme management.
+This plan audited the previous gallery theme implementation and proposed the
+VueUse migration that was subsequently implemented.
 
-No runtime code, package files, CSS, components, tokens, or tests are changed by this document.
+The original planning commit changed documentation only. Runtime code, CSS,
+components, tokens, and tests were changed by the later implementation commit.
 
 ---
 
@@ -706,9 +714,13 @@ Accessibility:
 
 ## 10. Migration Steps
 
+The migration described below was implemented in commit `97f0506`, with
+additional composable unit coverage added later. The steps are retained as a
+historical implementation record and are not pending work.
+
 ### Phase 0: Planning
 
-Status: this document.
+Status: completed by this historical document.
 
 ### Phase 1: Centralize state without UI redesign
 

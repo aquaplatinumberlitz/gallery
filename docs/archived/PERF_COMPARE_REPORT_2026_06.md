@@ -1,5 +1,9 @@
 # Perf Comparison: `evolve/metadata-indexer` vs `main`
 
+> **Archived:** Historical performance snapshot from 2026-06-10. Current
+> budgets and methodology are documented in
+> [Performance Testing](../testing/PERFORMANCE_TESTING.md).
+
 > Latest validation: 2026-06-10
 > Device: VPS (Linux)
 > Frontend: Vite dev (`127.0.0.1:5174`)

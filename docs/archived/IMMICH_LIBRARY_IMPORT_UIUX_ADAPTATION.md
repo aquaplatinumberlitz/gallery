@@ -1,8 +1,15 @@
 # Immich Library Management UI/UX Adaptation Plan
 
+> **Archived:** Superseded by the completed responsive Library Management V1
+> implementation. The statement below that no frontend existed describes the
+> planning baseline, not the current product. See
+> [Architecture](../ARCHITECTURE.md) for current behavior.
+
 > **Goal:** Adapt Immich's library management interface into our gallery app as a Desktop-only admin panel for managing library registrations, scanning, folders, and exclusion patterns.
 >
-> **Status:** Backend API already exists — `GET/POST /api/libraries`, `GET /api/libraries/{id}`, `POST /api/libraries/{id}/scan`, `POST /api/libraries/{id}/repair`, `DELETE /api/libraries/{id}`, `POST /api/index/rebuild`. No frontend exists yet.
+> **Historical baseline:** At authoring time the backend API existed, but the
+> frontend had not yet been implemented. The responsive frontend was completed
+> later as part of Library Management V1.
 
 ---
 

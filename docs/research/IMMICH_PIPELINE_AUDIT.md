@@ -1,5 +1,9 @@
 # Immich Media Pipeline Audit
 
+> **Status:** Research snapshot. Statements about gallery-repo describe the
+> reviewed revision and may be historical; use [Architecture](../ARCHITECTURE.md)
+> for current behavior.
+
 Date: 2026-06-09
 
 References inspected:
@@ -34,7 +38,7 @@ gallery-repo files:
 - [frontend/tests/e2e/perf/album-open.perf.spec.ts](../../frontend/tests/e2e/perf/album-open.perf.spec.ts)
 - [frontend/tests/e2e/perf/lightbox.perf.spec.ts](../../frontend/tests/e2e/perf/lightbox.perf.spec.ts)
 - [docs/ARCHITECTURE.md](../ARCHITECTURE.md)
-- [docs/PERFORMANCE_TESTING.md](../test-debug-perf/PERFORMANCE_TESTING.md)
+- [docs/testing/PERFORMANCE_TESTING.md](../testing/PERFORMANCE_TESTING.md)
 - [docs/DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md](DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md)
 
 Note: the requested `backend/services/metadata_index.py` does not exist in this repo. The active metadata/indexing implementation is in [backend/metadata_store.py](../../backend/metadata_store.py), [backend/metadata_parse.py](../../backend/metadata_parse.py), and [backend/search.py](../../backend/search.py).

@@ -1,5 +1,9 @@
 # Codex Library Management Implementation Status
 
+> **Archived:** Final Phase 8 handoff snapshot. Library Management V1 was
+> completed and verified on 2026-06-20; use
+> [Architecture](../ARCHITECTURE.md) for the maintained system description.
+
 Last updated: 2026-06-20 (Phase 8 complete)
 Current milestone: Phase 8 complete — full implementation verified
 Next milestone: None in the V1 implementation plan

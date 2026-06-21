@@ -1,5 +1,7 @@
 # Configuration
 
+Status: Maintained
+
 Last verified against `backend/config.py`, `frontend/.env`, `frontend/vite.config.ts`,
 and frontend environment reads: 2026-06-18.
 

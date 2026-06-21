@@ -1,5 +1,7 @@
 # DB-required, library, and derivative audit
 
+Status: Audit snapshot; verify findings against current code before implementation.
+
 Date: 2026-06-19
 
 Scope: audit of the DB-required/library/asset-catalog/derivative changes introduced across the Phase 0-4 commit set, plus follow-up findings from a second GPT review.

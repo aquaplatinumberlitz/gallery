@@ -1,5 +1,7 @@
 # Third-Party Libraries
 
+Status: Maintained
+
 Last reviewed: 2026-06-21
 
 This document records how major third-party libraries are used in the current codebase and which integration contracts should not be changed casually.

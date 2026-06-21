@@ -1,8 +1,14 @@
 # Desktop AlbumScroller shadcn-vue Carousel Refactor Plan
 
+> **Archived:** Implemented in commit `f6144ea` on 2026-06-14. The current
+> implementation keeps `AlbumScroller.vue` as the responsive wrapper, uses
+> `AlbumCarouselDesktop.vue` with shadcn-vue Carousel/Embla on desktop, and
+> retains `AlbumScrollerNative.vue` for mobile and tablet. This document is
+> historical design context, not an active plan or current source of truth.
+
 Date: 2026-06-14
 
-Status: plan only. Do not implement from this document without a separate implementation task.
+Status: implemented and archived.
 
 Primary sources:
 
@@ -641,9 +647,13 @@ Implementation should delete or isolate desktop-only `.album-scroll-btn` styles 
 
 ## Implementation Phases
 
+The runtime migration described below was implemented in commit `f6144ea`.
+The original phase wording is retained to record the design and rollout plan;
+none of these phases should be treated as pending work.
+
 ### Phase A: Audit and Plan Only
 
-Current task.
+Historical planning phase, completed in commit `0f9f5ba`.
 
 Deliver:
 
@@ -788,7 +798,7 @@ Check:
 - no horizontal page overflow
 - edge fades if retained or intentionally removed on desktop
 
-## Acceptance Criteria for Future Implementation
+## Implementation Acceptance Criteria
 
 Future implementation is successful only if:
 

@@ -41,13 +41,13 @@ changes, or behavior changes by itself.
 
 Primary inputs read:
 
-- [DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md](../DT&IMMICH%20analysis/DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md)
-- [DIFFUSIONTOOLKIT_METADATA_PARSE_ANALYSIS.md](../DT&IMMICH%20analysis/DIFFUSIONTOOLKIT_METADATA_PARSE_ANALYSIS.md)
-- [DIFFUSIONTOOLKIT_METADATA_SEARCH_ANALYSIS.md](../DT&IMMICH%20analysis/DIFFUSIONTOOLKIT_METADATA_SEARCH_ANALYSIS.md)
-- [IMMICH_PIPELINE_AUDIT.md](../DT&IMMICH%20analysis/IMMICH_PIPELINE_AUDIT.md)
-- [MEDIA_PIPELINE_COMPARISON.md](../DT&IMMICH%20analysis/MEDIA_PIPELINE_COMPARISON.md)
+- [DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md](../research/DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md)
+- [DIFFUSIONTOOLKIT_METADATA_PARSE_ANALYSIS.md](../research/DIFFUSIONTOOLKIT_METADATA_PARSE_ANALYSIS.md)
+- [DIFFUSIONTOOLKIT_METADATA_SEARCH_ANALYSIS.md](../research/DIFFUSIONTOOLKIT_METADATA_SEARCH_ANALYSIS.md)
+- [IMMICH_PIPELINE_AUDIT.md](../research/IMMICH_PIPELINE_AUDIT.md)
+- [MEDIA_PIPELINE_COMPARISON.md](../research/MEDIA_PIPELINE_COMPARISON.md)
 - [ARCHITECTURE.md](../ARCHITECTURE.md)
-- [PERFORMANCE_TESTING.md](../test-debug-perf/PERFORMANCE_TESTING.md)
+- [PERFORMANCE_TESTING.md](../testing/PERFORMANCE_TESTING.md)
 - [METADATA_PARSING.md](../METADATA_PARSING.md)
 
 Implementation files inspected:
@@ -643,7 +643,7 @@ Root cause:
 Evidence from current docs/code:
 
 - [backend/scan.py](../../backend/scan.py) returns `total_images = len(images)` after all image rows are collected and sorted.
-- [MEDIA_PIPELINE_COMPARISON.md](../DT&IMMICH%20analysis/MEDIA_PIPELINE_COMPARISON.md) identifies 5000+ warm folders as a case where Immich/DT-style indexed browsing wins.
+- [MEDIA_PIPELINE_COMPARISON.md](../research/MEDIA_PIPELINE_COMPARISON.md) identifies 5000+ warm folders as a case where Immich/DT-style indexed browsing wins.
 
 Idea borrowed from DT/Immich:
 
@@ -694,7 +694,7 @@ Evidence from current docs/code:
 
 - [backend/metadata_store.py](../../backend/metadata_store.py) has columns `seed`, `steps`, `cfg_scale`, `model`, `sampler`, `width`, `height`.
 - `_search_prompt_rows()` searches FTS/LIKE over text fields, not structured predicates.
-- [DIFFUSIONTOOLKIT_METADATA_SEARCH_ANALYSIS.md](../DT&IMMICH%20analysis/DIFFUSIONTOOLKIT_METADATA_SEARCH_ANALYSIS.md) proposes field parsing over current columns.
+- [DIFFUSIONTOOLKIT_METADATA_SEARCH_ANALYSIS.md](../research/DIFFUSIONTOOLKIT_METADATA_SEARCH_ANALYSIS.md) proposes field parsing over current columns.
 
 Idea borrowed from DT/Immich:
 
@@ -742,7 +742,7 @@ Root cause:
 
 Evidence from current docs/code:
 
-- [DIFFUSIONTOOLKIT_METADATA_PARSE_ANALYSIS.md](../DT&IMMICH%20analysis/DIFFUSIONTOOLKIT_METADATA_PARSE_ANALYSIS.md) identifies parser divergence and missing Fooocus, InvokeAI, some WebP EXIF conventions, richer sidecars, and Stealth PNG.
+- [DIFFUSIONTOOLKIT_METADATA_PARSE_ANALYSIS.md](../research/DIFFUSIONTOOLKIT_METADATA_PARSE_ANALYSIS.md) identifies parser divergence and missing Fooocus, InvokeAI, some WebP EXIF conventions, richer sidecars, and Stealth PNG.
 - [backend/metadata_parse.py](../../backend/metadata_parse.py) has richer SwarmUI/ComfyUI/NovelAI/EasyDiffusion handling.
 - [backend/metadata_extract.py](../../backend/metadata_extract.py) has a smaller normalized extraction path.
 
@@ -1034,7 +1034,7 @@ Root cause:
 Evidence from current docs/code:
 
 - `/api/scan` always calls `scan_directory()` today.
-- [IMMICH_PIPELINE_AUDIT.md](../DT&IMMICH%20analysis/IMMICH_PIPELINE_AUDIT.md) shows Immich timeline APIs read compact DB buckets.
+- [IMMICH_PIPELINE_AUDIT.md](../research/IMMICH_PIPELINE_AUDIT.md) shows Immich timeline APIs read compact DB buckets.
 
 Idea borrowed from Immich:
 

@@ -1,6 +1,11 @@
 # Codex Library Management Phase 0 Contract Lock
 
-Status: complete  
+> **Archived:** Historical binding contract for the completed Library
+> Management V1 implementation. The schema baseline and phase language below
+> describe the rollout; use [Architecture](../ARCHITECTURE.md) for current state.
+
+Status: implemented and archived
+
 Locked: 2026-06-20  
 Implementation baseline: SQLite `user_version = 5`
 

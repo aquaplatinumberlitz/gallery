@@ -1,6 +1,10 @@
 # Phase 2A — Desktop UI Integration with shadcn-vue
 
-**Status:** ✅ COMPLETED — 7ac7ec9
+> **Archived:** Implemented in commit `7ac7ec9`. This document is retained as
+> historical migration context; use [Architecture](../ARCHITECTURE.md) and
+> [UI/UX Guidelines](../UI_UX_GUIDELINES.md) for current behavior.
+
+**Status:** Implemented and archived
 
 **Goal:** Migrate 6 desktop UI areas from hand-rolled HTML/CSS to shadcn-vue components.
 

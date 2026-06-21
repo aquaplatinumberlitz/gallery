@@ -1,6 +1,8 @@
 # Lint/Format Adoption Plan
 
-> **Status:** Complete — all phases implemented (Phase 4 remaining)
+> **Archived:** Complete. Lint/format adoption and the planned rule-tightening
+> work were implemented. This document is retained as rollout history; current
+> enforcement lives in repository configuration, `test.sh`, and CI.
 > **Date:** 2026-06-07
 > **Scope:** `frontend/` (ESLint + Prettier), `backend/` + `scripts/` (Ruff)
 
@@ -267,6 +269,6 @@ ruff format --check backend/ scripts/ start.py
 | `scripts/test_all.sh`                                            | ✅ Phase 5 enforcement path updated                                            |
 | GitHub Actions `.github/workflows/ci.yml` lint/format steps      | ✅ Phase 5 CI enforcement updated                                              |
 
-## Phase 4 (remaining)
+## Phase 4 (completed)
 
-Phase 4 is the only remaining work. The baseline is now clean, so tighter ESLint/Ruff rules can be enabled incrementally with focused manual fixes and normal CI enforcement.
+Phase 4 was completed after the baseline cleanup through focused ESLint/Vue rule-tightening commits. Current enabled rules and enforcement are defined by the checked-in lint configuration and CI rather than this historical plan.

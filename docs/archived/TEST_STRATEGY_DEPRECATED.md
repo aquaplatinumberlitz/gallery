@@ -1,6 +1,8 @@
 # Test Strategy
 
-> **DEPRECATED:** Xem [docs/testing/TESTING_STRATEGY.md](../testing/TESTING_STRATEGY.md)
+> **Archived:** Deprecated in favor of
+> [Testing Strategy](../testing/TESTING_STRATEGY.md). This document is retained
+> for historical tier details and is not a current source of truth.
 
 This file is retained for historical tier details. Current CI selection, browser policy, and
 coverage gates are defined by the canonical strategy linked above and were verified on

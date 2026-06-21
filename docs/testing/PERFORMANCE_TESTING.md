@@ -1,5 +1,9 @@
 # Performance Testing
 
+Status: Maintained
+
+Last reviewed: 2026-06-21
+
 This document describes how to measure and profile Gallery API performance.
 
 ## Perf budgets — single source of truth

@@ -1,10 +1,15 @@
 # Testing Guide
 
+Status: Maintained
+
 Last reviewed: 2026-06-19
 
 This directory documents the test and debug surface for the gallery repo. Keep it focused on what each test protects, when to run it, and which debug helper to use before changing behavior.
 
 The repository-wide layer, CI selection, browser, coverage, and flaky-test policies are defined in [TESTING_STRATEGY.md](TESTING_STRATEGY.md).
+Performance budgets and profiling workflows are documented in
+[PERFORMANCE_TESTING.md](PERFORMANCE_TESTING.md), and runtime diagnostics are
+documented in [DEBUG_TOOLS.md](DEBUG_TOOLS.md).
 
 ## Test Selection
 

@@ -1,3 +1,9 @@
+# Backend Library Replacement Task Notes
+
+> **Archived:** Historical task input retained for context. This is not an
+> active plan or a current source of truth. See
+> [Architecture](../ARCHITECTURE.md) for the implemented backend structure.
+
 Task: Update backend library replacement research docs based on final project decisions, and propose a separate backend refactor plan for review.
 
 Repo: /home/ubuntu/gallery-repo

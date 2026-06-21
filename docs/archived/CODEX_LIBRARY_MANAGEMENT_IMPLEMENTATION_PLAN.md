@@ -1,6 +1,10 @@
 # Codex Library Management Implementation Plan
 
-Status: Phases 0-8 complete and verified as of 2026-06-20.
+> **Archived:** Phases 0-8 were completed and verified as of 2026-06-20.
+> See [Architecture](../ARCHITECTURE.md) for current behavior. This document is
+> retained as the historical implementation design.
+
+Status: implemented and archived.
 
 Current implementation/handoff status:
 [`CODEX_LIBRARY_MANAGEMENT_IMPLEMENTATION_STATUS.md`](CODEX_LIBRARY_MANAGEMENT_IMPLEMENTATION_STATUS.md).

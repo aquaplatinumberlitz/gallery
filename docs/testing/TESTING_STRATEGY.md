@@ -1,5 +1,7 @@
 # Testing Strategy
 
+Status: Maintained
+
 Last verified against `.github/workflows/ci.yml` and `test.sh`: 2026-06-19.
 
 ## Stack

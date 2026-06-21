@@ -1,5 +1,8 @@
 # Library Inspector UX Pattern Research
 
+> **Status:** Research snapshot. Product decisions adopted from this research
+> are documented in [Architecture](../ARCHITECTURE.md) and the current UI code.
+
 Research date: 2026-06-14
 
 Research conducted during Phase 3 planning.
