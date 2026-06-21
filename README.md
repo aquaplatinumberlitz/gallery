@@ -195,7 +195,7 @@ gallery-repo/
 
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
-| `GET` | `/api/scan?path=...&image_limit=...&image_cursor=...` | Scan a folder and return albums plus paginated images |
+| `GET` | `/api/scan?path=...&limit=...&media_cursor=...` | Scan a folder and return mixed-media (images+videos) with cursor pagination |
 | `GET` | `/api/folders?path=...` | Return direct child folders for sidebar expansion |
 | `GET` | `/api/image?path=...` | Serve an original image |
 | `GET` | `/api/thumbnail?path=...` | Serve a cached WebP thumbnail (max 512px) |
