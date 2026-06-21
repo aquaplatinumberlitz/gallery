@@ -1623,9 +1623,7 @@ def get_asset_folder_listing(
         media_page = media_rows[media_start:media_end]
 
         derivative_ready_by_asset: dict[int, dict[str, bool]] = {
-            int(row["id"]): {"thumbnail": False, "preview": False}
-            for row in media_page
-            if row["type"] == "image"
+            int(row["id"]): {"thumbnail": False, "preview": False} for row in media_page if row["type"] == "image"
         }
         if derivative_ready_by_asset:
             placeholders = ", ".join("?" for _ in derivative_ready_by_asset)
@@ -2509,31 +2507,31 @@ def get_warm_folder_listing(
         media_page = raw_media[media_start:media_end]
         image_paths = {item["path"] for item in raw_images}
         warm_media = [
-                FileNode(
-                    name=item["name"],
-                    path=item["path"],
-                    type="image",
-                    has_children=False,
-                    cover_images=[],
-                    mtime=item["mtime"] or 0,
-                    width=item["width"],
-                    height=item["height"],
-                )
-                if item["path"] in image_paths
-                else VideoFileNode(
-                    name=item["name"],
-                    path=item["path"],
-                    type="video",
-                    has_children=False,
-                    cover_images=[],
-                    mtime=item["mtime"] or 0,
-                    width=item["width"],
-                    height=item["height"],
-                    duration_ms=item["duration_ms"],
-                    mime_type=item["mime_type"],
-                )
-                for item in media_page
-            ]
+            FileNode(
+                name=item["name"],
+                path=item["path"],
+                type="image",
+                has_children=False,
+                cover_images=[],
+                mtime=item["mtime"] or 0,
+                width=item["width"],
+                height=item["height"],
+            )
+            if item["path"] in image_paths
+            else VideoFileNode(
+                name=item["name"],
+                path=item["path"],
+                type="video",
+                has_children=False,
+                cover_images=[],
+                mtime=item["mtime"] or 0,
+                width=item["width"],
+                height=item["height"],
+                duration_ms=item["duration_ms"],
+                mime_type=item["mime_type"],
+            )
+            for item in media_page
+        ]
 
         # Build DB-derived folder metadata — no filesystem access
         child_paths = [f["path"] for f in raw_folders]

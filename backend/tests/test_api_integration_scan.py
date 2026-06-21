@@ -202,9 +202,7 @@ class TestPagination:
         assert data["total_images"] == 7
         assert len(data["media"]) == 3
 
-    def test_media_invariant_no_gaps(
-        self, isolated_app: TestClient, isolated_gallery_root: Path
-    ):
+    def test_media_invariant_no_gaps(self, isolated_app: TestClient, isolated_gallery_root: Path):
         from .conftest import create_test_png
 
         album = isolated_gallery_root / "media_cursor_test"
