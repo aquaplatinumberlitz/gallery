@@ -1,6 +1,6 @@
 # Unified Scan and Metadata Status Contract Plan
 
-Status: Proposed
+Status: Proposed (reviewed 2026-06-21 — see §7 for audit findings and revisions)
 
 Created: 2026-06-21
 
@@ -113,18 +113,21 @@ interface UnifiedStatusResponse {
 
 ### Data rules
 
-- `metadata.total_assets` is the count of active image assets in the scope.
+- `metadata.total_assets` is the count of active **image and video** assets in the scope.
 - `ready_assets` requires an `image_metadata` row whose path, mtime, and size
   match the current asset.
 - `failed_assets` counts failed metadata jobs for the current file version.
-- `pending_assets = total_assets - ready_assets - failed_assets`.
-- Queued, running, and stale counts are breakdowns of work that is not ready.
+- `not_ready_assets = total_assets - ready_assets - failed_assets`. This is the
+  total of assets that are neither ready nor failed; it is NOT displayed directly
+  on its own.
+- `queued_assets`, `running_assets`, `stale_assets` are breakdowns of
+  `not_ready_assets`. A fourth sub-field `idle_pending_assets` fills the
+  remainder:
+  `idle_pending_assets = not_ready_assets - queued_assets - running_assets - stale_assets`.
+- **UI must never render `not_ready_assets + queued + running + stale` in one
+  view — that would double-count.**
 - Progress is `ready_assets / total_assets`. A scanned scope with no images is
   100%; an unscanned scope reports `null`.
-- `last_scan_at` is the completion time of the latest successful scan or
-  rebuild that covers the whole requested scope.
-- `last_index_at` is the latest successful write time of current metadata. It
-  never uses failed or queued job timestamps.
 - Rebuild counts as a scan because it traverses the filesystem again.
 
 ### Summary-state precedence
@@ -133,23 +136,72 @@ Derive `summary_state` centrally in this order:
 
 1. Scope cannot be resolved: `unknown`.
 2. The entire scope is unavailable: `offline`.
-3. The latest covering scan failed: `error`.
-4. The scope has never been scanned: `needs_scan`.
-5. Scan work is queued or running: `scanning`.
-6. Metadata work is queued or running: `indexing`.
+3. Scan, scope_scan, or rebuild work is queued or running: `scanning`.
+4. Metadata work is queued or running: `indexing`.
+5. The latest covering scan failed: `error`.
+6. The scope has never been scanned: `needs_scan`.
 7. Pending or stale work remains without an active worker: `needs_update`.
 8. Every metadata asset failed and none is usable: `error`.
 9. Metadata is settled but failures exist, or availability is degraded:
    `ready_with_issues`.
 10. Scan and metadata are complete without issues: `ready`.
 
+**Why rules 3-5 are ordered this way:** Active scan/rebuild always takes
+priority over a historical failure. If a scan failed and the user clicked
+Rescan, the badge must switch to `scanning`, not stay stuck at `error`. The
+`error` state for a failed covering scan is only shown when no newer active
+work exists.
+
 `issue_count` is the sum of unavailable import paths, one issue for a failed
 covering scan, and current-version metadata failures. Pending and stale work
 change the state to `needs_update` but do not increase the issue count.
 
+### Timestamp rules
+
+- All public timestamps in the contract are **Unix epoch milliseconds UTC**
+  (JavaScript `Date.now()` compatible).
+- `latest_issue` is selected as the issue with the greatest `updated_at`.
+  Tie-break order: `scan` > `availability` > `metadata` (scan issues reported
+  before metadata issues for the same timestamp).
+- `last_scan_at` is the completion time of the latest successful scan or
+  rebuild that covers the whole requested scope.
+- `last_index_at` is the latest successful write time of current metadata. It
+  never uses failed or queued job timestamps.
+- Rebuild counts as a scan because it traverses the filesystem again.
+
 ## 3. Backend and persistence
 
-### Shared status builder
+### Metadata disabled behavior
+
+When the metadata feature is disabled (e.g., `GALLERY_METADATA_ENABLED=false`):
+
+- `scan.state` is unaffected — scanning still runs.
+- `metadata.state = "disabled"`.
+- `metadata.total_assets`, `ready_assets`, and progress fields are set to
+  `null` (not rendered in UI).
+- `summary_state` derivation treats metadata as always-complete — a scanned
+  scope with disabled metadata can reach `ready`.
+- **UI must show a secondary indicator** next to the status badge when
+  metadata is disabled: `File scan ready, metadata disabled`.
+
+### Scope and path canonicalization
+
+- `total_assets` covers **both image and video assets** in the scope. The field
+  name is unchanged but the semantics include video files.
+- Path canonicalization rules applied by the status builder:
+  - Normalize trailing slashes (strip).
+  - Resolve `.` and `..` components.
+  - Normalize backslashes to forward slashes on Windows.
+  - Drive letter case is lowered on Windows (`C:\` → `c:/`).
+  - Case sensitivity follows the host filesystem (case-insensitive on Windows
+    and macOS APFS by default).
+  - Symlinks and junctions are **not** resolved — the user-configured import
+    path is the canonical identity.
+  - UNC paths (`\\server\share`) are kept as-is.
+  - Unicode NFC normalization is applied for cross-platform path comparisons.
+  - An offline path cannot be canonicalized; its raw import path is used.
+- The DB index `(library_id, type, state, scope_path)` must handle the
+  canonical form.
 
 - Add one status service used by both endpoints. Routers and frontend code must
   not independently derive semantic states.
@@ -174,6 +226,11 @@ Increase SQLite `user_version` from 7 to 8:
 - Include `scope_path` in job responses and SSE payloads.
 - Recover interrupted `scope_scan` and `rebuild` jobs through the existing
   stale-job recovery mechanism.
+- **Migration rollback:** The migration runs inside a transaction. On failure,
+  `user_version` is not incremented and the DB atomically reverts. For manual
+  rollback after a successful migration, restore from backup or run a schema
+  downgrade script that drops the added column and index, then sets
+  `user_version = 7`.
 
 Operation semantics:
 
@@ -192,13 +249,52 @@ an ancestor of that path. Scanning a child does not update the parent's
   `{job_id, library_id, scope_path, operation, state}`.
 - Convert `/api/index/rebuild` to a persisted background job returning the same
   response shape; keep `confirm=true` mandatory.
+- **Idempotency:** If an equivalent active job already exists for the same scope
+  (same library + same operation + same scope_path + same or narrower path),
+  return 202 with the existing `job_id`. If a conflicting wider/narrower job
+  exists for the same library, return 409 `library_busy`.
 - Rescan traverses and queues metadata without deleting valid records.
-- Rebuild clears scoped index/metadata records, traverses, then queues metadata.
+- Rebuild marks current index/metadata records as **stale/rebuilding first**,
+  then traverses. Only delete old records after the new scan succeeds.
+  - **Crash recovery:** If the process crashes after marking stale but before
+    the new scan completes, stale records remain visible with an `error` state
+    and the status derivation includes them in `issue_count`. A follow-up
+    rebuild reuses the stale marker.
+  - Acceptance test: Crash during rebuild after marking stale does not leave
+    status permanently `ready` or inconsistent.
 - Emit queued, running, succeeded, and failed SSE events for both actions.
+  - **SSE event payload contract:**
+    ```ts
+    interface StatusInvalidationEvent {
+      contract_version: 1;
+      event: "job_queued" | "job_running" | "job_succeeded" | "job_failed";
+      job_id: number;
+      library_id: number | null;
+      scope_path: string | null;
+      operation: "scan" | "scope_scan" | "rebuild" | "repair";
+      updated_at: number; // Unix epoch ms
+    }
+    ```
+- **409 response schema:**
+  ```json
+  {
+    "error": "library_busy",
+    "active_job_id": 123,
+    "operation": "rebuild",
+    "scope_path": "/photos/anime",
+    "message": "A rebuild is already running for this library."
+  }
+  ```
 - Permit one active scan, repair, scope-scan, or rebuild operation per library.
   A conflicting request returns `409 library_busy`.
 - For safe unregistered paths, persist a job with `library_id=NULL` and detect
-  conflicts by overlapping scope paths.
+  conflicts by overlapping scope paths — treat the path itself as the conflict
+  key (after canonicalization) when `library_id` is null.
+- **Job creation transaction:** Creating the job row, setting affected
+  `assets.metadata_state = pending`, and enqueuing the async worker must happen
+  in a single transaction or with recoverable outbox semantics. If the process
+  crashes after the DB write but before enqueue, the stale-job recovery
+  mechanism catches it.
 - Queueing or clearing metadata sets affected `assets.metadata_state` to
   `pending`; successful extraction returns it to `done`.
 
@@ -214,6 +310,10 @@ an ancestor of that path. Scanning a child does not update the parent's
   60 seconds when stable.
 - Invalidate the status root for relevant SSE events and all Scan, Rescan,
   Rebuild, and Repair mutations.
+- **Frontend schema guard:** If a status response has an unknown
+  `contract_version` or is missing required fields, show a banner
+  `App updated, please reload` instead of rendering a broken UI. This protects
+  against old tabs hitting a deployed backend.
 - Remove frontend derivation from `RegisteredLibrary.state`, legacy
   `LibraryProgress`, and legacy index runtime fields.
 - Keep `RegisteredLibrary.state` in the library record for backend
@@ -241,6 +341,11 @@ Admin and sidebar must not keep separate status-precedence tables.
 
 - Build badges from unified status rather than `library.state`.
 - Show metadata progress as `ready_assets / total_assets`.
+- **Admin list N+1 guard:** The admin libraries page displays all libraries in a
+  table. Calling the per-library status endpoint for each library would create
+  N+1 network requests. Either (a) add a batch endpoint
+  `GET /api/libraries/status` returning status for all libraries, or (b) embed a
+  `unified_status_summary` field directly in the library list API response.
 - Replace the list's `Updated` column with `Last index`; keep configuration
   `Updated` on the detail page.
 - Show Availability, File scan, Metadata, issue breakdown, Last scan, and Last
@@ -332,3 +437,46 @@ Admin and sidebar must not keep separate status-precedence tables.
 - Run status/index performance smoke checks.
 - Deploy frontend and backend atomically; old frontend clients are not supported
   against the new response shape.
+
+---
+
+## 7. Review findings and revisions
+
+> Reviewed 2026-06-21. Two independent audits (OpenCode CLI, GPT) informed the
+> revisions in this section. All changes above in §1–§6 have already been applied.
+
+### P0 — Incorporated (must fix before implementation)
+
+| # | Finding | Source | Resolution |
+|---|---------|--------|------------|
+| 1 | `pending_assets` caused double-count — frontend could sum `pending + queued + running + stale` | GPT | Replaced with `not_ready_assets` + explicit `idle_pending_assets` breakdown + UI guard against double-count (§2 Data rules) |
+| 2 | Summary-state precedence left `error` blocking retry — failed scan ranked before active scan work | GPT | Reordered: active scan/rebuild jobs (`scanning`) now beat historical failure (`error`). Documented rationale. (§2 Summary-state precedence) |
+| 3 | `metadata.disabled` state undefined — no rule for what `summary_state` or progress shows when metadata is off | Both | Added explicit disabled behavior: scan remains unaffected, progress fields `null`, `summary_state` can reach `ready` with secondary indicator. (§3 Metadata disabled behavior) |
+| 4 | Path canonicalization underspecified — only said "path-component containment, never raw string prefix" | GPT | Added full rules: trailing slash, `.` and `..`, backslash normalization, drive letter case, filesystem case-sensitivity, symlinks/junctions preserved, UNC paths, Unicode NFC, offline-path fallback. (§3 Scope and path canonicalization) |
+| 5 | `total_assets` only mentioned images — videos excluded | OpenCode | Changed to "active **image and video** assets in the scope" (§2 Data rules) |
+| 6 | Rebuild destructive — clear then recreate; crash after clear loses data | GPT | Changed to mark-stale-first, delete-after-success pattern. Added crash recovery spec and acceptance test. (§3 Scoped actions) |
+
+### P1 — Incorporated (should fix to avoid production bugs)
+
+| # | Finding | Source | Resolution |
+|---|---------|--------|------------|
+| 7 | Migration v7→v8 no rollback strategy | OpenCode | Added transactional rollback and manual schema-downgrade procedure. (§3 Database migration) |
+| 8 | `library_id=NULL` conflict detection underspecified | OpenCode | Clarified: path itself is conflict key (canonicalized) when `library_id` is null. (§3 Scoped actions) |
+| 9 | Rescan/Rebuild idempotency missing | GPT | Added: equivalent active job → 202 with existing `job_id`; conflicting wider/narrower → 409. (§3 Scoped actions) |
+| 10 | 409 `library_busy` response schema undefined | GPT | Added full JSON schema with `active_job_id`, `operation`, `scope_path`, `message`. (§3 Scoped actions) |
+| 11 | Job creation not transactional — crash-risk between DB write and enqueue | GPT | Added: single transaction or recoverable outbox; stale-job recovery catches partial writes. (§3 Scoped actions) |
+| 12 | SSE event payload contract undefined | GPT | Added `StatusInvalidationEvent` interface with `contract_version`, `event`, `job_id`, `library_id`, `scope_path`, `operation`, `updated_at`. (§3 Scoped actions) |
+| 13 | Timestamp unit ambiguous — `number` could be seconds or ms | GPT | All public timestamps are **Unix epoch ms UTC**. (§2 Timestamp rules) |
+| 14 | Admin list N+1 — 50 libraries = 50 HTTP calls | GPT | Added guard: batch endpoint or embed summary in list API. (§4 Admin libraries) |
+| 15 | `latest_issue` selection rule undefined | GPT | Added: greatest `updated_at`; tie-break `scan > availability > metadata`. (§2 Timestamp rules) |
+| 16 | No frontend schema guard for breaking API change | GPT | Added: check `contract_version` + required fields → show "App updated, please reload" banner. (§4 Query ownership) |
+
+### P2 — Noted (nice to have, non-blocking)
+
+| # | Finding | Source | Note |
+|---|---------|--------|------|
+| 17 | Example JSON responses would help frontend implementation | GPT | Add during implementation when building contract tests. |
+| 18 | Summary-state matrix for test mapping | GPT | Add alongside acceptance criteria — useful for integration test parameterization. |
+| 19 | `repair` operation UI behavior unclear — no badge change, but buttons disabled | GPT | Active repair does not change `summary_state` unless it queues scan or metadata work. UI may show secondary text "Repairing catalog". |
+| 20 | `mtime_ns` preferred over `mtime` for cross-filesystem precision | GPT | Future improvement — not required for initial implementation. `mtime + size` is sufficient. |
+| 21 | Polling gap without optimistic update | OpenCode | Present plan uses SSE invalidate + 2.5s poll, acceptable for MVP. Optimistic update can be added later. |
