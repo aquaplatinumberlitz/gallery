@@ -59,10 +59,6 @@ def derive_summary_state(facts: PrecedenceFacts) -> SummaryState:
         return "error"
     if facts["metadata_pending_without_active_work"]:
         return "needs_update"
-    if (
-        facts["later_scan_failure"]
-        or facts["current_metadata_failures"] > 0
-        or facts["availability"] == "degraded"
-    ):
+    if facts["later_scan_failure"] or facts["current_metadata_failures"] > 0 or facts["availability"] == "degraded":
         return "ready_with_issues"
     return "ready"

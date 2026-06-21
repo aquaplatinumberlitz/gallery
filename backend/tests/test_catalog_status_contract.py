@@ -177,9 +177,7 @@ def test_empty_scanned_scope_has_complete_progress() -> None:
 
 def test_indexing_with_issues_preserves_indexing_summary() -> None:
     document = _load_fixture("unified_status_v1.json")
-    status = next(
-        item["status"] for item in document["fixtures"] if item["name"] == "scan_complete_metadata_indexing"
-    )
+    status = next(item["status"] for item in document["fixtures"] if item["name"] == "scan_complete_metadata_indexing")
 
     assert status["summary_state"] == "indexing"
     assert status["issue_count"] > 0
