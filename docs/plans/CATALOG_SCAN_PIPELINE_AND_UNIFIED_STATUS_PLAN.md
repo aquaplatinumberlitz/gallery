@@ -1,6 +1,6 @@
 # Catalog Scan Pipeline and Unified Status Plan
 
-Status: Active — audit revision 2 approved; Phase 1 complete
+Status: Active — audit revision 2 approved; Phase 1 complete; Phase 2 next
 
 Created: 2026-06-21
 
@@ -8,6 +8,20 @@ Last revised: 2026-06-21
 
 Implementation status:
 [`CATALOG_SCAN_PIPELINE_AND_UNIFIED_STATUS_IMPLEMENTATION_STATUS.md`](CATALOG_SCAN_PIPELINE_AND_UNIFIED_STATUS_IMPLEMENTATION_STATUS.md)
+
+Phase 1 completion note, 2026-06-21:
+
+- Implemented the required shared contract fixtures, schema fixture,
+  backend/frontend status contract types, shared precedence implementations, and
+  backend/frontend tests for the contract-v1 summary precedence rules.
+- Latest pushed Phase 1 implementation/format commit before this plan update:
+  `38563d4 style: format catalog status phase 1`.
+- Verification run: `./test.sh fast` passed on 2026-06-21 with 648 backend
+  tests, backend coverage 86.25%, 396 frontend unit tests, frontend typecheck,
+  and production build passing. Existing FastAPI lifecycle, Sass import,
+  Rollup annotation, eval, and chunk-size warnings remain non-blocking.
+- No Phase 2 migration, job schema, catalog pipeline, API hard-cut, browse, or
+  frontend data-ownership behavior is implemented by Phase 1.
 
 ## 1. Objective
 
