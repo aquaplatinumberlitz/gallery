@@ -215,10 +215,30 @@ def _scope_sql(alias: str, scope_path: str | None) -> tuple[str, list[Any]]:
         return "", []
     path_expr = f"{alias}.path" if alias else "path"
     prefix = f"{scope_path.rstrip(os.sep)}{os.sep}"
-    return f" AND ({path_expr} = ? OR {path_expr} LIKE ? ESCAPE '\\')", [
-        scope_path,
-        f"{_like_escape(prefix)}%",
-    ]
+    return (
+        f" AND ({path_expr} = ? OR ({path_expr} LIKE ? ESCAPE '\\' COLLATE BINARY AND substr({path_expr}, 1, ?) = ?))",
+        [
+            scope_path,
+            f"{_like_escape(prefix)}%",
+            len(prefix),
+            prefix,
+        ],
+    )
+
+
+def _latest_metadata_jobs_sql() -> str:
+    return """
+        SELECT path, mtime_ns, size, state, error, updated_at
+        FROM (
+          SELECT mij.path, mij.mtime_ns, mij.size, mij.state, mij.error, mij.updated_at,
+                 row_number() OVER (
+                   PARTITION BY mij.path, mij.mtime_ns, mij.size
+                   ORDER BY mij.updated_at DESC, mij.rowid DESC
+                 ) AS latest_rank
+          FROM metadata_index_jobs AS mij
+        )
+        WHERE latest_rank = 1
+    """
 
 
 def _progress_percent(current: int | None, total: int | None, state: ScanState) -> float | None:
@@ -475,8 +495,8 @@ def _metadata_counts_for_scope(conn: Any, library_id: int, scope_path: str | Non
                   OR COALESCE(mij.state, '') = 'failed'
                 THEN 1 ELSE 0 END) AS failed
         FROM assets AS a
-        LEFT JOIN metadata_index_jobs AS mij
-          ON mij.path = a.path AND mij.size = a.size
+        LEFT JOIN ({_latest_metadata_jobs_sql()}) AS mij
+          ON mij.path = a.path AND mij.size = a.size AND mij.mtime_ns = a.mtime_ns
         WHERE a.library_id = ?
           AND a.type IN ('image', 'video')
           AND a.deleted_at IS NULL
@@ -522,8 +542,8 @@ def _batch_metadata_counts(conn: Any, library_ids: list[int]) -> dict[int, dict[
                   OR COALESCE(mij.state, '') = 'failed'
                 THEN 1 ELSE 0 END) AS failed
         FROM assets AS a
-        LEFT JOIN metadata_index_jobs AS mij
-          ON mij.path = a.path AND mij.size = a.size
+        LEFT JOIN ({_latest_metadata_jobs_sql()}) AS mij
+          ON mij.path = a.path AND mij.size = a.size AND mij.mtime_ns = a.mtime_ns
         WHERE a.library_id IN ({placeholders})
           AND a.type IN ('image', 'video')
           AND a.deleted_at IS NULL
@@ -553,7 +573,7 @@ def _last_index_at_for_scope(conn: Any, library_id: int, scope_path: str | None)
         SELECT max(COALESCE(im.indexed_at, im.updated_at)) AS last_index_at
         FROM assets AS a
         JOIN image_metadata AS im
-          ON im.path = a.path AND im.size = a.size
+          ON im.path = a.path AND im.size = a.size AND im.mtime_ns = a.mtime_ns
         WHERE a.library_id = ?
           AND a.type IN ('image', 'video')
           AND a.deleted_at IS NULL
@@ -575,7 +595,7 @@ def _batch_last_index_at(conn: Any, library_ids: list[int]) -> dict[int, int | N
         SELECT a.library_id, max(COALESCE(im.indexed_at, im.updated_at)) AS last_index_at
         FROM assets AS a
         JOIN image_metadata AS im
-          ON im.path = a.path AND im.size = a.size
+          ON im.path = a.path AND im.size = a.size AND im.mtime_ns = a.mtime_ns
         WHERE a.library_id IN ({placeholders})
           AND a.type IN ('image', 'video')
           AND a.deleted_at IS NULL
@@ -597,8 +617,8 @@ def _latest_metadata_issue_for_scope(conn: Any, library_id: int, scope_path: str
         f"""
         SELECT a.path, mij.error, mij.updated_at
         FROM assets AS a
-        JOIN metadata_index_jobs AS mij
-          ON mij.path = a.path AND mij.size = a.size
+        JOIN ({_latest_metadata_jobs_sql()}) AS mij
+          ON mij.path = a.path AND mij.size = a.size AND mij.mtime_ns = a.mtime_ns
         WHERE a.library_id = ?
           AND a.type IN ('image', 'video')
           AND a.deleted_at IS NULL
@@ -628,8 +648,8 @@ def _batch_metadata_issues(conn: Any, library_ids: list[int]) -> dict[int, Issue
         f"""
         SELECT a.library_id, a.path, mij.error, mij.updated_at
         FROM assets AS a
-        JOIN metadata_index_jobs AS mij
-          ON mij.path = a.path AND mij.size = a.size
+        JOIN ({_latest_metadata_jobs_sql()}) AS mij
+          ON mij.path = a.path AND mij.size = a.size AND mij.mtime_ns = a.mtime_ns
         WHERE a.library_id IN ({placeholders})
           AND a.type IN ('image', 'video')
           AND a.deleted_at IS NULL

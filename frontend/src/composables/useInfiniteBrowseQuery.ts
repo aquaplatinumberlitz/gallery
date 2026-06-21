@@ -14,8 +14,11 @@ const withBrowseRequestPath = (data: BrowseResponse, requestPath: string | null)
 const getCachedFirstPage = (
   libraryId: number,
   requestPath: string | null,
+  includeOffline: boolean,
 ): InfiniteData<BrowseResponse, number> | undefined => {
-  const cached = queryClient.getQueryData<BrowseResponse>(queryKeys.browse(libraryId, requestPath, IMAGE_PAGE_SIZE));
+  const cached = queryClient.getQueryData<BrowseResponse>(
+    queryKeys.browse(libraryId, requestPath, IMAGE_PAGE_SIZE, includeOffline),
+  );
   if (!cached) return undefined;
 
   return {
@@ -24,18 +27,27 @@ const getCachedFirstPage = (
   };
 };
 
-const getCachedFirstPageUpdatedAt = (libraryId: number, requestPath: string | null) =>
-  queryClient.getQueryState(queryKeys.browse(libraryId, requestPath, IMAGE_PAGE_SIZE))?.dataUpdatedAt;
+const getCachedFirstPageUpdatedAt = (libraryId: number, requestPath: string | null, includeOffline: boolean) =>
+  queryClient.getQueryState(queryKeys.browse(libraryId, requestPath, IMAGE_PAGE_SIZE, includeOffline))?.dataUpdatedAt;
 
 export function useInfiniteBrowseQuery(
   libraryId: Ref<number | null | undefined>,
   path: Ref<string | null | undefined>,
+  includeOffline?: Ref<boolean>,
 ) {
   const normalizedPath = computed(() => normalizeBrowsePath(path.value));
   const activeLibraryId = computed(() => libraryId.value ?? null);
+  const activeIncludeOffline = computed(() => includeOffline?.value ?? false);
 
   const queryKey = computed(() =>
-    activeLibraryId.value ? queryKeys.browseInfinite(activeLibraryId.value, normalizedPath.value, IMAGE_PAGE_SIZE) : [],
+    activeLibraryId.value
+      ? queryKeys.browseInfinite(
+          activeLibraryId.value,
+          normalizedPath.value,
+          IMAGE_PAGE_SIZE,
+          activeIncludeOffline.value,
+        )
+      : [],
   );
 
   const browseQuery = useInfiniteQuery({
@@ -44,19 +56,21 @@ export function useInfiniteBrowseQuery(
     initialPageParam: 0,
     initialData: () => {
       if (!activeLibraryId.value) return undefined;
-      return getCachedFirstPage(activeLibraryId.value, normalizedPath.value);
+      return getCachedFirstPage(activeLibraryId.value, normalizedPath.value, activeIncludeOffline.value);
     },
     initialDataUpdatedAt: () => {
       if (!activeLibraryId.value) return undefined;
-      return getCachedFirstPageUpdatedAt(activeLibraryId.value, normalizedPath.value);
+      return getCachedFirstPageUpdatedAt(activeLibraryId.value, normalizedPath.value, activeIncludeOffline.value);
     },
     staleTime: 60_000,
     queryFn: async ({ queryKey, pageParam }) => {
       const requestLibraryId = queryKey[1] as number;
       const requestPath = queryKey[2] as string | null;
+      const requestIncludeOffline = queryKey[4] as boolean;
       const result = await browseDirectory(requestLibraryId, requestPath, {
         limit: IMAGE_PAGE_SIZE,
         cursor: pageParam,
+        includeOffline: requestIncludeOffline,
       });
       return withBrowseRequestPath(result, requestPath);
     },

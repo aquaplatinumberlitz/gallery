@@ -122,6 +122,30 @@ describe("library API", () => {
     });
   });
 
+  it("passes include_offline when browsing diagnostics", async () => {
+    const response = {
+      folders: [],
+      media: [],
+      next_media_cursor: null,
+      total_images: 0,
+      total_videos: 0,
+      total_assets: 0,
+      index_source: "catalog",
+      library_id: 4,
+      path: "/photos",
+      request_path: "/photos",
+    };
+    mockApi.get.mockResolvedValueOnce({ data: response });
+
+    await expect(browseDirectory(4, "/photos", { includeOffline: true })).resolves.toEqual({
+      ...response,
+      next_cursor: null,
+    });
+    expect(mockApi.get).toHaveBeenCalledWith("/api/browse", {
+      params: { library_id: 4, path: "/photos", include_offline: true },
+    });
+  });
+
   it("browses the virtual library root without a path", async () => {
     const response = {
       folders: [],

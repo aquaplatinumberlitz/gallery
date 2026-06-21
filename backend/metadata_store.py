@@ -2491,6 +2491,59 @@ def _browse_folder_counts_conn(
     return bool(counts["children"]), int(counts["images"] or 0), covers
 
 
+def _browse_folder_counts_batch_conn(
+    conn: sqlite3.Connection,
+    library_id: int,
+    folder_paths: list[str],
+    *,
+    include_offline: bool,
+) -> dict[str, tuple[bool, int, list[str]]]:
+    if not folder_paths:
+        return {}
+    visibility_sql = _browse_visibility_sql(None, include_offline=include_offline)
+    placeholders = ", ".join("?" for _ in folder_paths)
+    counts = {folder_path: (False, 0, []) for folder_path in folder_paths}
+    count_rows = conn.execute(
+        f"""
+        SELECT parent_path,
+               count(*) AS children,
+               sum(CASE WHEN type IN ('image', 'photo') THEN 1 ELSE 0 END) AS images
+        FROM assets
+        WHERE library_id = ? AND parent_path IN ({placeholders}) AND {visibility_sql}
+        GROUP BY parent_path
+        """,
+        (library_id, *folder_paths),
+    ).fetchall()
+    for row in count_rows:
+        counts[str(row["parent_path"])] = (bool(row["children"]), int(row["images"] or 0), [])
+
+    cover_rows = conn.execute(
+        f"""
+        SELECT parent_path, path
+        FROM (
+          SELECT parent_path, path,
+                 row_number() OVER (PARTITION BY parent_path ORDER BY mtime_ns DESC, path ASC) AS cover_rank
+          FROM assets
+          WHERE library_id = ?
+            AND parent_path IN ({placeholders})
+            AND type IN ('image', 'photo')
+            AND {visibility_sql}
+        )
+        WHERE cover_rank <= 3
+        ORDER BY parent_path, cover_rank
+        """,
+        (library_id, *folder_paths),
+    ).fetchall()
+    covers: dict[str, list[str]] = {folder_path: [] for folder_path in folder_paths}
+    for row in cover_rows:
+        covers.setdefault(str(row["parent_path"]), []).append(str(row["path"]))
+
+    return {
+        folder_path: (has_children, image_count, covers.get(folder_path, []))
+        for folder_path, (has_children, image_count, _) in counts.items()
+    }
+
+
 def _catalog_browse_virtual_root_conn(
     conn: sqlite3.Connection,
     library: sqlite3.Row,
@@ -2503,17 +2556,18 @@ def _catalog_browse_virtual_root_conn(
         leaf = Path(str(row["path"])).name or str(row["path"])
         leaf_counts[leaf] = leaf_counts.get(leaf, 0) + 1
     duplicate_leaf_names = {leaf for leaf, count in leaf_counts.items() if count > 1}
-    availability = _browse_availability_from_library_state(str(library["state"]))
+    root_paths = [canonicalize_catalog_path(row["path"]) for row in import_paths]
+    folder_counts = _browse_folder_counts_batch_conn(
+        conn,
+        int(library["id"]),
+        root_paths,
+        include_offline=include_offline,
+    )
     folders: list[dict[str, Any]] = []
-    for row in import_paths:
-        root_path = canonicalize_catalog_path(row["path"])
-        has_children, image_count, cover_images = _browse_folder_counts_conn(
-            conn,
-            int(library["id"]),
-            root_path,
-            include_offline=include_offline,
-        )
+    for root_path in root_paths:
+        has_children, image_count, cover_images = folder_counts.get(root_path, (False, 0, []))
         display_label = _browse_import_root_name(root_path, duplicate_leaf_names)
+        availability = "available" if Path(root_path).is_dir() else "unavailable"
         folders.append(
             {
                 "name": display_label,
@@ -2560,7 +2614,8 @@ def _catalog_browse_path_conn(
                COALESCE(a.height, im.height) AS height,
                a.metadata_state, a.duration_ms, a.mime_type
         FROM assets AS a
-        LEFT JOIN image_metadata AS im ON im.path = a.path
+        LEFT JOIN image_metadata AS im
+          ON im.path = a.path AND im.mtime_ns = a.mtime_ns AND im.size = a.size
         WHERE a.library_id = ? AND a.parent_path = ?
           AND {visibility_sql}
         """,
@@ -2597,13 +2652,14 @@ def _catalog_browse_path_conn(
             derivative_ready_by_asset[int(derivative["asset_id"])][str(derivative["kind"])] = True
 
     folders: list[FileNode] = []
+    folder_counts = _browse_folder_counts_batch_conn(
+        conn,
+        int(library["id"]),
+        [str(row["path"]) for row in folder_rows],
+        include_offline=include_offline,
+    )
     for row in folder_rows:
-        has_children, image_count, cover_images = _browse_folder_counts_conn(
-            conn,
-            int(library["id"]),
-            str(row["path"]),
-            include_offline=include_offline,
-        )
+        has_children, image_count, cover_images = folder_counts.get(str(row["path"]), (False, 0, []))
         folders.append(
             FileNode(
                 name=row["name"],
@@ -2714,7 +2770,8 @@ def get_asset_folder_listing(
                    COALESCE(a.height, im.height) AS height,
                    a.metadata_state, a.duration_ms, a.mime_type
             FROM assets AS a
-            LEFT JOIN image_metadata AS im ON im.path = a.path
+            LEFT JOIN image_metadata AS im
+              ON im.path = a.path AND im.mtime_ns = a.mtime_ns AND im.size = a.size
             WHERE a.library_id = ? AND a.parent_path = ?
               AND {_active_asset_where("a")}
             """,
