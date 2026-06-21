@@ -6,6 +6,7 @@ import time
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
+from .browse import router as browse_router
 from .catalog import service as catalog_service
 from .config import (
     ENABLE_METRICS,
@@ -84,6 +85,7 @@ app.include_router(thumbnails_router)
 app.include_router(video_router)
 app.include_router(metadata_parse_router)
 app.include_router(scan_router)
+app.include_router(browse_router)
 app.include_router(folders_router)
 app.include_router(search_router)
 app.include_router(health_router)

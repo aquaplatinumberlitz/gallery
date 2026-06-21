@@ -17,6 +17,8 @@
 export type AssetType = "folder" | "image" | "video";
 
 export type LegacySearchAssetType = AssetType | "photo" | "file";
+export type BrowseAvailabilityState = "unknown" | "available" | "degraded" | "unavailable";
+export type BrowseEntryKind = "import_root";
 
 export interface FileNode {
   name: string;
@@ -35,6 +37,9 @@ export interface FileNode {
   derivative_ready?: Record<string, boolean> | null;
   duration_ms?: number | null;
   mime_type?: string | null;
+  entry_kind?: BrowseEntryKind;
+  display_label?: string;
+  availability?: BrowseAvailabilityState;
 }
 
 export type LibraryErrorCode =
@@ -100,11 +105,19 @@ export interface ScanResponse {
   folders: FolderTreeNode[];
   media: FileNode[];
   next_media_cursor: number | null;
+  next_cursor?: number | null;
   total_images: number;
   total_videos: number;
   total_assets: number;
-  request_path?: string;
-  index_source?: "warm_db" | "direct_scan" | "mixed";
+  request_path?: string | null;
+  index_source?: "warm_db" | "direct_scan" | "mixed" | "catalog";
+}
+
+export interface BrowseResponse extends ScanResponse {
+  library_id: number;
+  path: string | null;
+  request_path: string | null;
+  index_source: "catalog";
 }
 
 export type FolderChildrenResponse = FolderTreeNode[];

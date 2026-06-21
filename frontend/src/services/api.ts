@@ -1,5 +1,6 @@
 import axios, { AxiosError } from "axios";
 import type {
+  BrowseResponse,
   FacetsResponse,
   FolderChildrenResponse,
   IndexStatusResponse,
@@ -198,6 +199,32 @@ export const scanDirectory = async (
 
     const { data } = await api.get<ScanResponse>("/api/scan", { params });
     return { ...data, next_media_cursor: data.next_media_cursor ?? null };
+  } catch (error) {
+    if (error instanceof AxiosError) {
+      throw GalleryAPIError.fromAxiosError(error);
+    }
+    throw error;
+  }
+};
+
+export const browseDirectory = async (
+  libraryId: number,
+  path?: string | null,
+  opts?: { limit?: number; cursor?: number; includeOffline?: boolean },
+): Promise<BrowseResponse> => {
+  try {
+    const params: Record<string, string | number | boolean> = { library_id: libraryId };
+    if (path) params.path = path;
+    if (opts?.limit) params.limit = opts.limit;
+    if (typeof opts?.cursor === "number") params.cursor = opts.cursor;
+    if (typeof opts?.includeOffline === "boolean") params.include_offline = opts.includeOffline;
+
+    const { data } = await api.get<BrowseResponse>("/api/browse", { params });
+    return {
+      ...data,
+      next_media_cursor: data.next_media_cursor ?? data.next_cursor ?? null,
+      next_cursor: data.next_cursor ?? data.next_media_cursor ?? null,
+    };
   } catch (error) {
     if (error instanceof AxiosError) {
       throw GalleryAPIError.fromAxiosError(error);

@@ -6,6 +6,11 @@ export const normalizeQueryPath = (path: string | null | undefined) => {
   return normalized === "/" ? normalized : normalized.replace(/\/$/, "");
 };
 
+export const normalizeBrowsePath = (path: string | null | undefined) => {
+  const normalized = normalizeQueryPath(path);
+  return normalized || null;
+};
+
 export const queryKeys = {
   landingPages: () => ["landing-pages"] as const,
 
@@ -31,9 +36,19 @@ export const queryKeys = {
 
   scan: (path: string, limit: number) => ["scan", normalizeQueryPath(path), limit] as const,
 
+  browseRoot: (libraryId: number) => ["browse", libraryId] as const,
+
+  browse: (libraryId: number, path: string | null | undefined, limit: number, includeOffline = false) =>
+    ["browse", libraryId, normalizeBrowsePath(path), limit, includeOffline] as const,
+
   folderChildren: (path: string) => ["folder-children", normalizeQueryPath(path)] as const,
 
   scanInfinite: (path: string, limit: number) => ["scan-infinite", normalizeQueryPath(path), limit] as const,
+
+  browseInfiniteRoot: (libraryId: number) => ["browse-infinite", libraryId] as const,
+
+  browseInfinite: (libraryId: number, path: string | null | undefined, limit: number, includeOffline = false) =>
+    ["browse-infinite", libraryId, normalizeBrowsePath(path), limit, includeOffline] as const,
 
   search: (query: string, scope: string, path: string) =>
     ["search", query.trim(), scope, normalizeQueryPath(path)] as const,

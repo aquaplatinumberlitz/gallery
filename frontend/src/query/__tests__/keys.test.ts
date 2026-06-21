@@ -17,4 +17,12 @@ describe("library management query keys", () => {
     expect(queryKeys.jobs()).toEqual(["jobs", "list"]);
     expect(queryKeys.job(11)).toEqual(["jobs", 11]);
   });
+
+  it("builds catalog browse keys", () => {
+    expect(queryKeys.browseRoot(7)).toEqual(["browse", 7]);
+    expect(queryKeys.browse(7, "/photos/", 100)).toEqual(["browse", 7, "/photos", 100, false]);
+    expect(queryKeys.browse(7, null, 100)).toEqual(["browse", 7, null, 100, false]);
+    expect(queryKeys.browseInfiniteRoot(7)).toEqual(["browse-infinite", 7]);
+    expect(queryKeys.browseInfinite(7, "/photos", 100, true)).toEqual(["browse-infinite", 7, "/photos", 100, true]);
+  });
 });

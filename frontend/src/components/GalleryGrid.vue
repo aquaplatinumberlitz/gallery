@@ -22,7 +22,7 @@ import { useColumnResize, PHOTO_GRID_LEVELS, GRID_COLUMN_MAP } from "../composab
 import { useDevice } from "../composables/useDevice";
 import { usePullToRefresh } from "../composables/usePullToRefresh";
 import { useDelayedBoolean } from "../composables/useDelayedBoolean";
-import { useInfiniteScanQuery } from "../composables/useInfiniteScanQuery";
+import { useInfiniteBrowseQuery } from "../composables/useInfiniteBrowseQuery";
 import { useUnifiedSearchQuery } from "../composables/useUnifiedSearchQuery";
 import { galleryScrollContainerRefKey } from "../injectionKeys";
 import type { ErrorType } from "../services/api";
@@ -57,8 +57,9 @@ import { useRouter } from "vue-router";
 const galleryStore = useGalleryStore();
 const router = useRouter();
 const lightboxStore = useLightboxStore();
-const activeScanPath = computed(() => galleryStore.currentBrowsePath);
-const infiniteScanQuery = useInfiniteScanQuery(activeScanPath);
+const activeLibraryId = computed(() => galleryStore.activeLibraryId);
+const activeBrowsePath = computed(() => galleryStore.currentBrowsePath || null);
+const infiniteBrowseQuery = useInfiniteBrowseQuery(activeLibraryId, activeBrowsePath);
 
 const {
   pullDistance,
@@ -72,7 +73,7 @@ const {
   onTouchEnd,
 } = usePullToRefresh({
   onRefresh: async () => {
-    await infiniteScanQuery.refetch();
+    await infiniteBrowseQuery.refetch();
   },
 });
 
@@ -119,7 +120,7 @@ const searchQuery = computed(() => galleryStore.searchQuery);
 const trimmedSearchQuery = computed(() => searchQuery.value.trim());
 const hasSearchQuery = computed(() => trimmedSearchQuery.value.length > 0);
 const searchScope = computed(() => galleryStore.searchScope);
-const searchContextPath = computed(() => infiniteScanQuery.activeFolderPath.value);
+const searchContextPath = computed(() => infiniteBrowseQuery.activeFolderPath.value);
 const unifiedSearchQuery = useUnifiedSearchQuery(searchQuery, searchScope, searchContextPath);
 const sortField = computed(() => galleryStore.sortField);
 const sortOrder = computed(() => galleryStore.sortOrder);
@@ -170,8 +171,8 @@ const sortItems = <T extends { name: string; mtime?: number }>(items: T[]): T[] 
   return sorted;
 };
 
-const scanFolders = computed(() => infiniteScanQuery.folders.value);
-const scanMedia = computed(() => infiniteScanQuery.media.value);
+const scanFolders = computed(() => infiniteBrowseQuery.folders.value);
+const scanMedia = computed(() => infiniteBrowseQuery.media.value);
 const scanImages = computed(() => scanMedia.value.filter((item) => item.type === "image"));
 
 const folders = computed(() =>
@@ -315,12 +316,12 @@ const media = computed(() =>
   hasSearchQuery.value ? [...allSearchImageNodes.value, ...searchVideoNodes.value] : filenameMedia.value,
 );
 
-const isLoading = computed(() => infiniteScanQuery.isLoading.value);
+const isLoading = computed(() => infiniteBrowseQuery.isLoading.value);
 const isRefetching = computed(
   () =>
-    infiniteScanQuery.isFetching.value &&
-    !infiniteScanQuery.isLoading.value &&
-    !infiniteScanQuery.isFetchingNextPage.value,
+    infiniteBrowseQuery.isFetching.value &&
+    !infiniteBrowseQuery.isLoading.value &&
+    !infiniteBrowseQuery.isFetchingNextPage.value,
 );
 const isSearchLoading = computed(
   () => hasSearchQuery.value && (unifiedSearchQuery.isLoading.value || unifiedSearchQuery.isFetching.value),
@@ -328,10 +329,14 @@ const isSearchLoading = computed(
 const currentPath = computed(() => galleryStore.currentBrowsePath);
 const canBack = computed(() => galleryStore.historyIndex > 0);
 const canForward = computed(() => galleryStore.historyIndex < galleryStore.history.length - 1);
-const hasMoreImages = computed(() => !hasSearchQuery.value && infiniteScanQuery.hasNextPage.value);
+const hasMoreImages = computed(() => !hasSearchQuery.value && infiniteBrowseQuery.hasNextPage.value);
 const hasAnyItems = computed(() => scanFolders.value.length + scanMedia.value.length > 0);
 
-const pathReady = computed(() => Boolean(infiniteScanQuery.activeFolderPath.value || galleryStore.activeImportPathId));
+const pathReady = computed(() =>
+  Boolean(
+    infiniteBrowseQuery.activeFolderPath.value || galleryStore.activeImportPathId || galleryStore.activeLibraryId,
+  ),
+);
 
 const hasAlbums = computed(() => folders.value.length > 0);
 const hasMedia = computed(() => media.value.length > 0);
@@ -340,9 +345,9 @@ const hasContent = computed(() => hasAlbums.value || hasMedia.value);
 const showEmptyFolder = computed(
   () =>
     pathReady.value &&
-    infiniteScanQuery.isSuccess.value &&
-    !infiniteScanQuery.isPending.value &&
-    !infiniteScanQuery.isFetching.value &&
+    infiniteBrowseQuery.isSuccess.value &&
+    !infiniteBrowseQuery.isPending.value &&
+    !infiniteBrowseQuery.isFetching.value &&
     !hasContent.value &&
     !hasSearchQuery.value,
 );
@@ -375,7 +380,7 @@ const noSearchResults = computed(
     searchPrompt.value.length === 0,
 );
 const scanQueryErrorMessage = computed(() => {
-  const error = infiniteScanQuery.error.value;
+  const error = infiniteBrowseQuery.error.value;
   if (!error) return "";
   const suggestion = (error as { suggestion?: string }).suggestion;
   if (suggestion) return suggestion;
@@ -383,7 +388,7 @@ const scanQueryErrorMessage = computed(() => {
 });
 const errorMessage = computed(() => galleryStore.errorMessage || scanQueryErrorMessage.value);
 const scanQueryErrorType = computed(() => {
-  const type = (infiniteScanQuery.error.value as { type?: unknown } | null)?.type;
+  const type = (infiniteBrowseQuery.error.value as { type?: unknown } | null)?.type;
   return typeof type === "string" ? (type as ErrorType) : null;
 });
 const errorType = computed(() => galleryStore.errorType || scanQueryErrorType.value);
@@ -391,7 +396,7 @@ const errorActionConfig = computed(() => {
   const clearError = () => galleryStore.clearError();
   const retry = () => {
     galleryStore.clearError();
-    void infiniteScanQuery.refetch();
+    void infiniteBrowseQuery.refetch();
   };
 
   switch (errorType.value) {
@@ -481,7 +486,7 @@ const handlePhotoDimensions = (dimensions: { path: string; width: number; height
 const goBack = () => galleryStore.goBack();
 const goForward = () => galleryStore.goForward();
 const openFolder = () => galleryStore.openInExplorer();
-const isLoadingMore = computed(() => infiniteScanQuery.isFetchingNextPage.value);
+const isLoadingMore = computed(() => infiniteBrowseQuery.isFetchingNextPage.value);
 
 // --- Virtual scroller state ---
 const { isTablet } = useDevice();
@@ -584,9 +589,9 @@ const setupLoadObserver = () => {
   if (!loadMoreSentinel.value) return;
   loadObserver = new IntersectionObserver(
     (entries) => {
-      if (!hasMoreImages.value || isLoadingMore.value || infiniteScanQuery.isFetching.value) return;
+      if (!hasMoreImages.value || isLoadingMore.value || infiniteBrowseQuery.isFetching.value) return;
       if (entries.some((e) => e.isIntersecting)) {
-        infiniteScanQuery.fetchNextPage();
+        infiniteBrowseQuery.fetchNextPage();
       }
     },
     {
@@ -601,16 +606,20 @@ const setupLoadObserver = () => {
 watch(loadMoreSentinel, () => setupLoadObserver());
 
 watch(
-  () => infiniteScanQuery.folders.value,
+  () => infiniteBrowseQuery.folders.value,
   (folders) => galleryStore.setSidebarTree(folders),
   { immediate: true },
 );
 
 watch(
-  [() => infiniteScanQuery.isLoading.value, () => infiniteScanQuery.isFetching.value],
+  [() => infiniteBrowseQuery.isLoading.value, () => infiniteBrowseQuery.isFetching.value],
   ([loading, fetching]) => {
     galleryStore.isLoading = loading || fetching;
-    if (!loading && infiniteScanQuery.isSuccess.value && galleryStore.currentBrowsePath) {
+    if (
+      !loading &&
+      infiniteBrowseQuery.isSuccess.value &&
+      (galleryStore.currentBrowsePath || galleryStore.activeLibraryId)
+    ) {
       galleryStore.hasEverLoaded = true;
     }
   },

@@ -22,7 +22,15 @@ vi.mock("axios", async () => {
   };
 });
 
-import { createLibrary, deleteLibrary, fetchLibraries, GalleryAPIError, LIBRARY_ERRORS, scanLibrary } from "../api";
+import {
+  browseDirectory,
+  createLibrary,
+  deleteLibrary,
+  fetchLibraries,
+  GalleryAPIError,
+  LIBRARY_ERRORS,
+  scanLibrary,
+} from "../api";
 
 const library = {
   id: 4,
@@ -88,6 +96,54 @@ describe("library API", () => {
 
     await expect(scanLibrary(4)).resolves.toEqual(response);
     expect(mockApi.post).toHaveBeenCalledWith("/api/libraries/4/scan");
+  });
+
+  it("browses catalog rows for a library path", async () => {
+    const response = {
+      folders: [],
+      media: [],
+      next_media_cursor: null,
+      total_images: 0,
+      total_videos: 0,
+      total_assets: 0,
+      index_source: "catalog",
+      library_id: 4,
+      path: "/photos",
+      request_path: "/photos",
+    };
+    mockApi.get.mockResolvedValueOnce({ data: response });
+
+    await expect(browseDirectory(4, "/photos", { limit: 100, cursor: 0 })).resolves.toEqual({
+      ...response,
+      next_cursor: null,
+    });
+    expect(mockApi.get).toHaveBeenCalledWith("/api/browse", {
+      params: { library_id: 4, path: "/photos", limit: 100, cursor: 0 },
+    });
+  });
+
+  it("browses the virtual library root without a path", async () => {
+    const response = {
+      folders: [],
+      media: [],
+      next_cursor: null,
+      total_images: 0,
+      total_videos: 0,
+      total_assets: 0,
+      index_source: "catalog",
+      library_id: 4,
+      path: null,
+      request_path: null,
+    };
+    mockApi.get.mockResolvedValueOnce({ data: response });
+
+    await expect(browseDirectory(4, null)).resolves.toEqual({
+      ...response,
+      next_media_cursor: null,
+    });
+    expect(mockApi.get).toHaveBeenCalledWith("/api/browse", {
+      params: { library_id: 4 },
+    });
   });
 
   it("confirms library deletion", async () => {

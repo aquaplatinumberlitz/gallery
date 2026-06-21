@@ -45,6 +45,8 @@ export function useLibraryEvents() {
         queryClient.invalidateQueries({ queryKey: queryKeys.libraryProgress(payload.library_id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.libraryStats(payload.library_id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.libraryJobs(payload.library_id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.browseRoot(payload.library_id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.browseInfiniteRoot(payload.library_id) }),
       );
     }
     await Promise.all(invalidations);
