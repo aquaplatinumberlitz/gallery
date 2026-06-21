@@ -10,7 +10,7 @@ plans.
 Current plans:
 
 - [Catalog Scan Pipeline and Unified Status](CATALOG_SCAN_PIPELINE_AND_UNIFIED_STATUS_PLAN.md)
-  — proposed, awaiting approval; no implementation started.
+  — proposed audit revision 2, awaiting approval; no implementation started.
 
 When a plan is completed or superseded, update its status and move it to
 [`../archived/`](../archived/README.md). Do not leave completed work here.
