@@ -11,12 +11,14 @@ from starlette.responses import StreamingResponse
 from wcmatch import glob
 
 from .catalog import service as catalog_service
+from .catalog.status_builder import CatalogStatusScopeError, build_catalog_status, build_library_status_batch
 from .derivative_scheduler import scheduler
 from .errors import APIError, ErrorType
 from .library_events import event_payload, event_stream, publish
 from .metadata_store import (
     CatalogJobConflict,
     LibraryOverlapError,
+    catalog_path_contains,
     create_job,
     create_library,
     get_gallery_stats,
@@ -291,6 +293,12 @@ async def api_list_libraries():
     return await run_in_threadpool(list_libraries)
 
 
+@router.get("/api/libraries/status")
+async def api_library_status_batch():
+    """Return one unified status per library for admin list rendering."""
+    return await run_in_threadpool(build_library_status_batch)
+
+
 @router.post("/api/libraries", status_code=201)
 async def api_register_library(payload: LibraryCreate):
     """Register one library with ordered import paths and exclusions."""
@@ -346,6 +354,24 @@ async def api_scan_all_libraries():
     )
     _emit_job(parent)
     children: list[tuple[int, bool]] = []
+    if not libraries:
+        await run_in_threadpool(
+            _set_job_state,
+            int(parent["id"]),
+            "running",
+            progress_current=0,
+            progress_total=0,
+            message="No libraries to scan",
+        )
+        await run_in_threadpool(
+            _set_job_state,
+            int(parent["id"]),
+            "succeeded",
+            progress_current=0,
+            progress_total=0,
+            message="No libraries to scan",
+        )
+        return {"job_id": parent["id"], "state": "succeeded", "child_job_ids": [], "count": 0}
     for library in libraries:
         library_id = int(library["id"])
         job, created = await run_in_threadpool(_queue_scan, library_id, parent_job_id=parent["id"])
@@ -521,6 +547,17 @@ async def api_library_progress(library_id: int):
         raise APIError(404, ErrorType.NOT_FOUND, "Library not found") from exc
 
 
+@router.get("/api/libraries/{library_id}/status")
+async def api_library_status(library_id: int, scope_path: str | None = Query(None)):
+    """Return contract-v1 unified catalog status for a library or scoped path."""
+    try:
+        return await run_in_threadpool(build_catalog_status, library_id, scope_path)
+    except KeyError as exc:
+        raise APIError(404, ErrorType.NOT_FOUND, "Library not found") from exc
+    except CatalogStatusScopeError as exc:
+        raise APIError(400, ErrorType.BAD_REQUEST, str(exc)) from exc
+
+
 @router.get("/api/libraries/{library_id}/stats")
 async def api_library_stats(library_id: int):
     """Return aggregate media statistics for one library."""
@@ -547,13 +584,15 @@ async def api_scan_library(library_id: int, payload: LibraryScanRequest | None =
     scope_path = payload.scope_path if payload is not None else None
     import_paths = [str(Path(item["path"]).resolve()) for item in library["import_paths"]]
     scan_paths = [str(Path(scope_path).resolve())] if scope_path is not None else import_paths
-    if scope_path is not None and not any(
-        Path(scan_paths[0]) == Path(root) or Path(root) in Path(scan_paths[0]).parents for root in import_paths
-    ):
+    if scope_path is not None and not any(catalog_path_contains(root, scan_paths[0]) for root in import_paths):
         raise APIError(400, ErrorType.BAD_REQUEST, "Scan scope is outside this library")
-    if any(not Path(path).is_dir() for path in scan_paths):
-        await run_in_threadpool(update_library_state, library_id, "offline", last_error="Root path is offline")
-        raise APIError(409, "library_offline", "One or more library import paths are offline")
+    if scope_path is not None:
+        if not Path(scan_paths[0]).is_dir():
+            await run_in_threadpool(update_library_state, library_id, "offline", last_error="Scope path is offline")
+            raise APIError(409, "library_offline", "Scan scope path is offline")
+    elif not any(Path(path).is_dir() for path in import_paths):
+        await run_in_threadpool(update_library_state, library_id, "offline", last_error="All import paths are offline")
+        raise APIError(409, "library_offline", "All library import paths are offline")
     try:
         job, created = await run_in_threadpool(
             catalog_service.queue_scan,
@@ -604,17 +643,19 @@ async def api_rebuild_library(library_id: int, payload: LibraryRebuildRequest | 
     import_paths = [str(Path(item["path"]).resolve()) for item in library["import_paths"]]
     if scope_path is not None:
         resolved_scope = str(Path(scope_path).resolve())
-        if not any(
-            Path(resolved_scope) == Path(root) or Path(root) in Path(resolved_scope).parents for root in import_paths
-        ):
+        if not any(catalog_path_contains(root, resolved_scope) for root in import_paths):
             raise APIError(400, ErrorType.BAD_REQUEST, "Rebuild scope is outside this library")
-        if not Path(resolved_scope).is_dir():
-            raise APIError(404, ErrorType.NOT_FOUND, "Rebuild scope path not found")
     else:
         resolved_scope = None
-        if any(not Path(path).is_dir() for path in import_paths):
-            await run_in_threadpool(update_library_state, library_id, "offline", last_error="Root path is offline")
-            raise APIError(409, "library_offline", "One or more library import paths are offline")
+    if resolved_scope is not None:
+        if not Path(resolved_scope).is_dir():
+            await run_in_threadpool(
+                update_library_state, library_id, "offline", last_error="Rebuild scope path is offline"
+            )
+            raise APIError(409, "library_offline", "Rebuild scope path is offline")
+    elif not any(Path(path).is_dir() for path in import_paths):
+        await run_in_threadpool(update_library_state, library_id, "offline", last_error="All import paths are offline")
+        raise APIError(409, "library_offline", "All library import paths are offline")
     try:
         job, created = await run_in_threadpool(
             catalog_service.queue_rebuild,

@@ -187,5 +187,5 @@ def test_scan_all_with_zero_libraries(isolated_metadata_db: Path, isolated_galle
     parent = isolated_app.get(f"/api/jobs/{body['job_id']}").json()
 
     assert parent["type"] == "scan_all"
-    assert parent["state"] == "running"
-    assert parent["counters"] == {"total": 0, "succeeded": 0, "failed": 0, "coalesced": 0}
+    assert parent["state"] == "succeeded"
+    assert parent["message"] == "No libraries to scan"

@@ -893,3 +893,131 @@ def test_rebuild_api_rejects_out_of_library_scope(
         )
     assert response.status_code == 400
     assert response.json()["detail"]["error"] == "bad_request"
+
+
+def test_manual_scan_partial_offline_returns_202(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    first = isolated_gallery_root / "first"
+    second = isolated_gallery_root / "second"
+    offline = isolated_gallery_root / "offline"
+    first.mkdir()
+    second.mkdir()
+    offline.mkdir()
+    create_test_png(first / "a.png")
+    create_test_png(second / "b.png")
+    library_id = _register_library(first)
+    update_library(library_id, import_paths=[first, second, offline])
+    offline.rmdir()
+
+    with TestClient(app) as client:
+        response = client.post(f"/api/libraries/{library_id}/scan")
+
+    assert response.status_code == 202
+    body = response.json()
+    assert body["operation"] == "scan"
+    assert body["state"] == "queued"
+    stored = get_library(library_id)
+    assert stored is not None
+    assert stored["state"] != "offline"
+
+
+def test_rebuild_partial_offline_returns_202(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    first = isolated_gallery_root / "first"
+    second = isolated_gallery_root / "second"
+    offline = isolated_gallery_root / "offline"
+    first.mkdir()
+    second.mkdir()
+    offline.mkdir()
+    create_test_png(first / "a.png")
+    create_test_png(second / "b.png")
+    library_id = _register_library(first)
+    update_library(library_id, import_paths=[first, second, offline])
+    offline.rmdir()
+
+    with TestClient(app) as client:
+        response = client.post(
+            f"/api/libraries/{library_id}/rebuild",
+            json={"confirm": True},
+        )
+
+    assert response.status_code == 202
+    body = response.json()
+    assert body["operation"] == "rebuild"
+    assert body["state"] == "queued"
+    stored = get_library(library_id)
+    assert stored is not None
+    assert stored["state"] != "offline"
+
+
+def test_degraded_scan(isolated_metadata_db: Path, isolated_gallery_root: Path):
+    """Scanning with some offline import paths transitions to degraded and never scans offline paths."""
+    first = isolated_gallery_root / "first"
+    second = isolated_gallery_root / "second"
+    offline = isolated_gallery_root / "offline"
+    first.mkdir()
+    second.mkdir()
+    offline.mkdir()
+    create_test_png(first / "a.png")
+    create_test_png(second / "b.png")
+    create_test_png(offline / "c.png")
+    library_id = _register_library(first)
+    update_library(library_id, import_paths=[first, second, offline])
+    (offline / "c.png").unlink()
+    offline.rmdir()
+
+    finished = _run_scan(library_id)
+    assert finished["state"] == "succeeded"
+    assert finished["message"] == "Scan completed with offline paths"
+    assert finished["progress_total"] == 2
+    stored = get_library(library_id)
+    assert stored is not None
+    assert stored["state"] == "degraded"
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        assert (
+            conn.execute(
+                "SELECT count(*) FROM assets WHERE path = ?",
+                (str((isolated_gallery_root / "offline" / "c.png").resolve()),),
+            ).fetchone()[0]
+            == 0
+        )
+
+
+def test_degraded_rebuild(isolated_metadata_db: Path, isolated_gallery_root: Path):
+    """Rebuilding with some offline import paths transitions to degraded and never scans offline paths."""
+    first = isolated_gallery_root / "first"
+    second = isolated_gallery_root / "second"
+    offline = isolated_gallery_root / "offline"
+    first.mkdir()
+    second.mkdir()
+    offline.mkdir()
+    create_test_png(first / "a.png")
+    create_test_png(second / "b.png")
+    create_test_png(offline / "c.png")
+    library_id = _register_library(first)
+    update_library(library_id, import_paths=[first, second, offline])
+    (offline / "c.png").unlink()
+    offline.rmdir()
+
+    rebuild, _created = catalog_service.queue_rebuild(library_id)
+    catalog_service.run_once()
+    finished = get_job(int(rebuild["id"]))
+    assert finished is not None
+    assert finished["state"] == "succeeded"
+    assert finished["message"] == "Rebuild completed with offline paths"
+    assert finished["progress_total"] == 2
+    stored = get_library(library_id)
+    assert stored is not None
+    assert stored["state"] == "degraded"
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        assert (
+            conn.execute(
+                "SELECT count(*) FROM assets WHERE path = ?",
+                (str((isolated_gallery_root / "offline" / "c.png").resolve()),),
+            ).fetchone()[0]
+            == 0
+        )

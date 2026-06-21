@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import threading
+from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -193,11 +194,11 @@ def execute_scan_job(job: dict[str, Any]) -> bool:
             job_id,
             "running",
             progress_current=0,
-            progress_total=len(scan_paths),
+            progress_total=len(online_paths),
             message="Scanning library",
             counters=counters,
         )
-        for index, scan_path in enumerate(scan_paths, start=1):
+        for index, scan_path in enumerate(online_paths, start=1):
             result = rebuild_index_scope(scan_path)
             counters["indexed"] += int(result.get("indexed", 0))
             counters["reconciled"] += int(result.get("reconciled", 0))
@@ -207,8 +208,8 @@ def execute_scan_job(job: dict[str, Any]) -> bool:
                 job_id,
                 "running",
                 progress_current=index,
-                progress_total=len(scan_paths),
-                message=f"Scanned {index} of {len(scan_paths)} scan scopes",
+                progress_total=len(online_paths),
+                message=f"Scanned {index} of {len(online_paths)} scan scopes",
                 counters=counters,
             )
         scan_completed = job.get("scope_path") is None
@@ -224,8 +225,8 @@ def execute_scan_job(job: dict[str, Any]) -> bool:
         _transition_job(
             job_id,
             "succeeded",
-            progress_current=len(scan_paths),
-            progress_total=len(scan_paths),
+            progress_current=len(online_paths),
+            progress_total=len(online_paths),
             message=success_message,
             counters=counters,
         )
@@ -296,9 +297,22 @@ def execute_rebuild_job(job: dict[str, Any]) -> bool:
         counters["updated"] = int(activation["updated"])
         counters["offline"] = int(activation["offline"])
         counters["metadata_reset"] = int(activation["metadata_reset"])
-        queued_result = queue_metadata_index_paths(asset_paths, online_paths[0] if online_paths else None)
-        counters["metadata_queued"] = int(len(queued_result.enqueued))
-        counters["failed"] = int(queued_result.failed)
+        enqueued_total = 0
+        failed_total = 0
+        if online_paths:
+            by_root: dict[str, list[str]] = defaultdict(list)
+            for asset_path in asset_paths:
+                matched_root = next(
+                    (root for root in online_paths if catalog_path_contains(root, asset_path)),
+                    online_paths[0],
+                )
+                by_root[matched_root].append(asset_path)
+            for root, scoped_paths in by_root.items():
+                result = queue_metadata_index_paths(scoped_paths, root)
+                enqueued_total += len(result.enqueued)
+                failed_total += result.failed
+        counters["metadata_queued"] = enqueued_total
+        counters["failed"] = failed_total
         scan_completed = job.get("scope_path") is None
         if offline_paths:
             update_library_state(library_id, "degraded", scan_completed=scan_completed)

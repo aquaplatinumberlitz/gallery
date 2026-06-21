@@ -342,3 +342,22 @@ def test_runtime_status_and_worker_lifecycle(isolated_metadata_db: Path):
         catalog_service.stop()
 
     assert catalog_service.runtime_status()["alive_workers"] == 0
+
+
+def test_scan_all_zero_libraries_parent_succeeds(isolated_metadata_db: Path):
+    from fastapi.testclient import TestClient
+
+    from backend.app import app
+
+    with TestClient(app) as client:
+        response = client.post("/api/libraries/scan-all")
+
+    assert response.status_code == 202
+    body = response.json()
+    assert body["state"] == "succeeded"
+    assert body["child_job_ids"] == []
+    assert body["count"] == 0
+    job = get_job(int(body["job_id"]))
+    assert job is not None
+    assert job["state"] == "succeeded"
+    assert job["message"] == "No libraries to scan"
