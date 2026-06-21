@@ -2,32 +2,33 @@
 
 Last updated: 2026-06-21
 
-Current milestone: Phase 5 complete
+Current milestone: Phase 6 complete
 
-Next milestone: Phase 6 — shared status builder, scoped status endpoint, and
-admin batch status endpoint
+Next milestone: Phase 7 — read-only `/api/browse` and gallery query migration
 
 SQLite schema version currently implemented: `PRAGMA user_version = 9`
 
 ## Verified Git Baseline
 
-Phase 5 implementation commit:
+Phase 6 implementation commit:
 
 ```text
-f70dd8d feat: implement catalog rebuild staging and atomic activation
+79811c8 feat: add catalog unified status endpoints
 ```
 
-Latest local verification before the Phase 5 implementation commit:
+Latest verification before the Phase 6 implementation commit:
 
 ```text
+./test.sh fast passed
 backend ruff check and ruff format --check passed
-664 backend tests passed; backend coverage 85.23%
+674 backend tests passed; backend coverage 85.50%
+frontend ESLint and Prettier checks passed
 396 frontend unit tests passed
 frontend typecheck and production build passed
-frontend ESLint and Prettier checks passed
 ```
 
-Existing FastAPI lifecycle deprecation warnings remain non-blocking.
+Existing FastAPI lifecycle deprecation, Sass import, Rollup annotation, eval,
+and chunk-size warnings remain non-blocking.
 
 ## Phase Progress
 
@@ -38,8 +39,52 @@ Existing FastAPI lifecycle deprecation warnings remain non-blocking.
 | 3. Durable Catalog Scan Service and one-library writer lock | Complete | Durable catalog coordinator/worker claiming queued scan/rebuild rows by priority/FIFO, enforcing one running catalog writer per library, preserving queued jobs across restart recovery, and executing scan jobs through the existing discovery/reconciliation pipeline |
 | 4. Route triggers through the Catalog Scan Service | Complete | Library creation atomically queues an initial scan job and returns initial_scan_job_id; manual scan, Scan All child jobs, watcher events, startup catch-up, and scheduled reconciliation all submit/coalesce durable catalog scan jobs with documented trigger priorities; watcher and scheduled reconciliation no longer write catalog data directly |
 | 5. Rebuild staging/atomic activation and repair removal | Complete | Rebuild enumeration writes to catalog_rebuild_entries staging in bounded batches; one short activation transaction merges staged rows, reconciles missing rows, resets affected metadata state, and removes staging data; POST /api/libraries/{id}/rebuild with confirm=true; rebuild conflict rules from plan §5.3; standalone repair_library_assets function and POST /api/libraries/{id}/repair endpoint removed |
-| 6. Shared status builder and status endpoints | Not started | Next milestone |
+| 6. Shared status builder and status endpoints | Complete | Contract-v1 status builder backed by grouped catalog/metadata/runtime facts; `GET /api/libraries/{id}/status` with optional `scope_path`; `GET /api/libraries/status` admin batch endpoint; global runtime envelope; schema/endpoint coverage for initial queued scan, batch envelope, scoped prefix isolation, out-of-library scope rejection, degraded availability, and Scan All zero-library terminal behavior |
 | 7–10. Browse, frontend migration, old-route hard cut, docs | Not started | Follow the master plan sequence |
+
+## Phase 6 Delivered
+
+Unified status builder (`backend/catalog/status_builder.py`):
+
+- Builds contract-v1 `UnifiedStatus` envelopes from persisted libraries,
+  import paths, catalog jobs, active assets, metadata jobs, metadata records,
+  watcher health, scheduled reconciliation, catalog worker state, and metadata
+  worker runtime.
+- Applies the shared contract precedence function to the same normalized facts
+  used by the Phase 1 fixture tests.
+- Supports library-wide and path-scoped status with component-aware path
+  containment; similar path prefixes do not leak sibling data.
+- Computes availability, scan/rebuild state, metadata state and progress,
+  issue counts/latest issue, `last_scan_at`, `last_index_at`, and one
+  `global_runtime` object per envelope.
+- Batch library status uses grouped SQL queries for library/import-path/job,
+  asset/metadata-count, last-index, and metadata-issue data instead of issuing
+  one status request per row.
+
+API surface (`backend/libraries.py`):
+
+- Added `GET /api/libraries/{id}/status` with optional `scope_path`.
+- Added `GET /api/libraries/status` for admin batch status.
+- Status scopes outside the registered library return the standard
+  `bad_request` envelope.
+
+Related catalog availability behavior:
+
+- Whole-library scan/rebuild now proceeds when at least one import path is
+  online, skips offline roots, records degraded library state, and exposes
+  degraded availability through unified status.
+- Scan All with zero libraries now completes the parent job immediately as
+  `succeeded` with message `No libraries to scan`.
+
+Phase 6 coverage added (`backend/tests/`):
+
+- contract schema validation for single and batch status envelopes;
+- initial queued scan status and metadata queued semantics;
+- admin batch status route shape and route ordering;
+- scoped status descendant counts without sibling prefix leakage;
+- out-of-library status scope rejection;
+- degraded availability after a successful covering scan;
+- zero-library Scan All parent terminal state.
 
 ## Phase 5 Delivered
 
@@ -112,6 +157,6 @@ Legacy repair tests were replaced with equivalent scan/rebuild coverage.
 
 ## Working Tree Note
 
-At handoff, `frontend/src/lib/tanstack/README.md` has an unrelated pre-existing
-user modification. It was intentionally excluded from the Phase 1 and status
-commits.
+At Phase 6 handoff, `.codex_phase7.txt`, `.fix_gpt_audit.txt`, and
+`_codex_prompt.txt` remain untracked local note/prompt files. They were
+intentionally excluded from the Phase 6 commits.
