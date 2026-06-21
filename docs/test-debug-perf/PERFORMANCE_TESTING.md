@@ -119,7 +119,7 @@ Output (compact JSON):
 ```json
 {"url":"http://localhost:8000/api/scan","path":"...","iterations":10,
  "min_ms":12.34,"p50_ms":13.56,"p95_ms":15.78,"max_ms":18.90,
- "image_count":50,"folder_count":0,"total_images":50,"next_cursor":null,
+ "image_count":50,"folder_count":0,"total_images":50,"next_media_cursor":null,
  "budget_p95_ms":500,"budget_source":"scripts/perf_budgets.toml[scan].p95_ms"}
 ```
 

@@ -73,7 +73,7 @@ async function installStubbedGallery(page: Page) {
         headers: { "Cache-Control": "no-store" },
         body: JSON.stringify({
           folders: [],
-          images: imagePaths.map((path, index) => ({
+          media: imagePaths.map((path, index) => ({
             name: `image-${index + 1}.png`,
             path,
             type: "image",
@@ -81,8 +81,10 @@ async function installStubbedGallery(page: Page) {
             width: 1600,
             height: 1000,
           })),
-          next_cursor: null,
+          next_media_cursor: null,
           total_images: imagePaths.length,
+          total_videos: 0,
+          total_assets: imagePaths.length,
         }),
       });
       return;
@@ -281,7 +283,7 @@ test.describe("EXIF-rotated portrait JPEG", () => {
           headers: { "Cache-Control": "no-store" },
           body: JSON.stringify({
             folders: [],
-            images: [
+            media: [
               {
                 name: "iphone-photo.jpg",
                 path: exifImagePaths[0],
@@ -299,8 +301,10 @@ test.describe("EXIF-rotated portrait JPEG", () => {
                 height: 1000,
               },
             ],
-            next_cursor: null,
+            next_media_cursor: null,
             total_images: exifImagePaths.length,
+            total_videos: 0,
+            total_assets: exifImagePaths.length,
           }),
         });
         return;

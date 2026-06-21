@@ -54,7 +54,7 @@ async function installStubbedGallery(page: Page) {
         contentType: "application/json",
         body: JSON.stringify({
           folders: [],
-          images: [
+          media: [
             {
               name: "image_1.png",
               path: imagePath,
@@ -67,8 +67,10 @@ async function installStubbedGallery(page: Page) {
               height: 1000,
             },
           ],
-          next_cursor: null,
+          next_media_cursor: null,
           total_images: 1,
+          total_videos: 0,
+          total_assets: 1,
           index_source: "direct_scan",
         }),
       });

@@ -147,7 +147,7 @@ def _registered_or_requested_root(path: str | None) -> Path:
     return root
 
 
-def _db_required_empty_payload(target: Path, media_cursor: int | None = None) -> dict[str, object]:
+def _db_required_empty_payload(target: Path) -> dict[str, object]:
     from .metadata_store import get_library_for_path
 
     library = get_library_for_path(target)
@@ -155,10 +155,8 @@ def _db_required_empty_payload(target: Path, media_cursor: int | None = None) ->
     message = "Library is still being scanned" if library_state in {"discovering", "indexing"} else None
     payload: dict[str, object] = {
         "folders": [],
-        "images": [],
-        "videos": [],
         "media": [],
-        "next_cursor": None,
+        "next_media_cursor": None,
         "total_images": 0,
         "total_videos": 0,
         "total_assets": 0,
@@ -168,8 +166,6 @@ def _db_required_empty_payload(target: Path, media_cursor: int | None = None) ->
     }
     if message is not None:
         payload["message"] = message
-    if media_cursor is not None:
-        payload["next_media_cursor"] = None
     return payload
 
 
@@ -366,11 +362,11 @@ def _shadow_compare_asset_listing(
 async def api_scan(
     background_tasks: BackgroundTasks,
     path: str | None = Query(None, description="Absolute path to scan"),
-    image_limit: int | None = Query(None, ge=1, le=5000, description="Max images to return"),
-    image_cursor: int = Query(0, ge=0, description="Cursor/offset for images"),
+    limit: int | None = Query(None, ge=1, le=5000, description="Max media items to return"),
+    image_cursor: int = Query(0, ge=0, description="Deprecated; accepted but ignored"),  # noqa: ARG001
     media_cursor: int | None = Query(None, ge=0, description="Cursor/offset for mixed media"),
 ):
-    """Return folder children and paginated images for a requested gallery path."""
+    """Return folder children and media paginated by ``media_cursor``."""
     scan_tracking_target: Path | None = None
     try:
         request_started = time.perf_counter()
@@ -394,8 +390,7 @@ async def api_scan(
         warm_result = await run_in_threadpool(
             get_asset_folder_listing,
             target,
-            offset=image_cursor,
-            image_limit=image_limit,
+            limit=limit,
             media_cursor=media_cursor,
         )
         warm_get_ms = _elapsed_ms(warm_get_started)
@@ -416,10 +411,8 @@ async def api_scan(
             warm_result = await run_in_threadpool(
                 get_warm_folder_listing,
                 target,
-                offset=image_cursor,
-                limit=image_limit,
+                limit=limit,
                 sort="name",
-                image_limit=image_limit,
                 media_cursor=media_cursor,
             )
             warm_get_ms = _elapsed_ms(warm_get_started)
@@ -443,7 +436,7 @@ async def api_scan(
             response_payload = warm_result
         elif GALLERY_DB_REQUIRED:
             _inc_warm_hit()
-            response_payload = await run_in_threadpool(_db_required_empty_payload, target, media_cursor)
+            response_payload = await run_in_threadpool(_db_required_empty_payload, target)
             warm_result = response_payload
         else:
             reason = (
@@ -465,13 +458,10 @@ async def api_scan(
 
             pagination_started = time.perf_counter()
             total_images = len(images)
-            start = image_cursor
-            end = image_cursor + image_limit if image_limit else total_images
-            paged_images = images[start:end]
-            next_cursor = end if end < total_images else None
             sorted_media = sorted([*images, *videos], key=lambda node: natural_sort_key(node.name))
-            media_end = (media_cursor or 0) + image_limit if image_limit else len(sorted_media)
-            paged_media = sorted_media[(media_cursor or 0) : media_end] if media_cursor is not None else None
+            media_start = media_cursor or 0
+            media_end = media_start + limit if limit else len(sorted_media)
+            paged_media = sorted_media[media_start:media_end]
             pagination_ms = _elapsed_ms(pagination_started)
 
             target_stat_started = time.perf_counter()
@@ -486,22 +476,13 @@ async def api_scan(
 
             response_payload = {
                 "folders": folders,
-                "images": paged_images,
-                "videos": videos if image_cursor == 0 else [],
-                "media": paged_media
-                if paged_media is not None
-                else sorted(
-                    [*paged_images, *(videos if image_cursor == 0 else [])],
-                    key=lambda node: natural_sort_key(node.name),
-                ),
-                "next_cursor": next_cursor,
+                "media": paged_media,
+                "next_media_cursor": media_end if media_end < len(sorted_media) else None,
                 "total_images": total_images,
                 "total_videos": len(videos),
                 "total_assets": total_images + len(videos),
                 "index_source": "direct_scan",
             }
-            if media_cursor is not None:
-                response_payload["next_media_cursor"] = media_end if media_end < len(sorted_media) else None
 
         serialize_started = time.perf_counter()
         encoded_payload = jsonable_encoder(response_payload)
@@ -512,8 +493,8 @@ async def api_scan(
             log_warm_scan_summary(
                 enabled=SCAN_PERF_LOGS_ENABLED,
                 target=target,
-                image_limit=image_limit,
-                image_cursor=image_cursor,
+                limit=limit,
+                media_cursor=media_cursor or 0,
                 total_ms=total_ms,
                 resolve_ms=resolve_ms,
                 serialize_ms=serialize_ms,
@@ -523,16 +504,16 @@ async def api_scan(
             log_direct_scan_summary(
                 enabled=SCAN_PERF_LOGS_ENABLED,
                 target=target,
-                image_limit=image_limit,
-                image_cursor=image_cursor,
+                limit=limit,
+                media_cursor=media_cursor or 0,
                 total_ms=total_ms,
                 resolve_ms=resolve_ms,
                 scan_perf=scan_perf,
                 pagination_ms=pagination_ms,
                 serialize_ms=serialize_ms,
-                total_images=total_images,
-                returned_images=len(paged_images),
-                next_cursor=next_cursor,
+                total_assets=len(sorted_media),
+                returned_assets=len(paged_media),
+                next_media_cursor=response_payload["next_media_cursor"],
             )
 
         return JSONResponse(content=encoded_payload)

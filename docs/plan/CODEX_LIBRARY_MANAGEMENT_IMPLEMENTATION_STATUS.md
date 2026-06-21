@@ -71,6 +71,13 @@ via a native `<video>` player dialog with poster thumbnails, play affordance,
 and fallback placeholders. Search results now include videos in a separate
 video section, while image results still use the existing PhotoSwipe path.
 
+V1.1/V2 API cleanup is complete. `GET /api/scan` now exposes one canonical
+mixed-media collection (`media`) with `next_media_cursor`, `total_images`,
+`total_videos`, and `total_assets`. The legacy `images`, `videos`, and
+`next_cursor` response fields were removed; pagination uses `limit` and
+`media_cursor`. The deprecated `image_cursor` query parameter remains accepted
+and ignored so older callers do not fail request validation.
+
 > Note: Phase 6 replaced the legacy `galleryStore.setRootPath()` bridge with
 > an `activeLibraryId` (persisted) + `currentBrowsePath` (in-memory) model.
 > `RootPathSidebarHeader.vue` and `RootPathSheet.vue` were deleted. The
@@ -94,8 +101,8 @@ Implemented now:
     dialogs, status badges, progress bar, summary panel, action menu)
   active-library selection + one-shot legacy migration
   mixed-media gallery UI: VideoCard, VideoPlayerDialog, media rendering
-    in GalleryGrid, video poster/play affordance/fallback, backend
-    scan/search videos/media fields, e2e coverage
+    in GalleryGrid, video poster/play affordance/fallback, canonical backend
+    scan media/next_media_cursor fields, search video results, e2e coverage
   final verification: backend, frontend static/unit checks, targeted
     library-management/mixed-media E2E, and viewer regressions
 
@@ -114,7 +121,7 @@ Not implemented yet:
 | 4. Frontend data layer | Complete | Library types/API, query keys/composables, mutations, SSE invalidation, status utilities | Phase 5 builds on this layer |
 | 5. Admin management UI | Complete | `/admin/libraries` + `/admin/libraries/:id` routes; `LibraryListPage`, `LibraryDetailPage`, `LibraryForm`, create/edit/delete dialogs, `LibraryStatusBadge`, `LibraryProgressBar`, `LibrarySummaryPanel`, `LibraryActionMenu`; AppHeader "Libraries" entry; desktop/tablet/mobile route render via `RouterView` | Phase 6 builds on this layer |
 | 6. Active library selection | Complete | activeLibraryId/currentBrowsePath store model, LibrarySidebarHeader, LibrarySelectorSheet, one-shot legacy migration, no {rootPath,setRootPath,resetRootPath} | Phase 7 builds on this layer |
-| 7. Mixed-media UI | Complete | VideoCard, VideoPlayerDialog, mixed-media rendering in GalleryGrid, video poster/play affordance/fallback, backend videos/media fields in scan/search | Phase 8 verification complete |
+| 7. Mixed-media UI | Complete | VideoCard, VideoPlayerDialog, mixed-media rendering in GalleryGrid, video poster/play affordance/fallback, canonical scan `media` pagination, search video results | Phase 8 verification complete |
 | 8. Final verification | Complete | 630 backend tests, 392 frontend unit tests, 44 targeted E2E tests, static checks, compact-admin sidebar fix | V1 implementation complete |
 
 All V1 implementation phases are complete. Future work should use the

@@ -37,14 +37,14 @@ const stubLibrary = {
   last_error: null,
 };
 
-type ApiRequest = { pathname: string; path: string; imageCursor: string };
+type ApiRequest = { pathname: string; path: string; mediaCursor: string };
 
 function requestsFor(requests: ApiRequest[], pathname: string) {
   return requests.filter((r) => r.pathname === pathname);
 }
 
 function cursorZeroScans(requests: ApiRequest[]) {
-  return requests.filter((r) => r.pathname === "/api/scan" && r.imageCursor === "0");
+  return requests.filter((r) => r.pathname === "/api/scan" && r.mediaCursor === "0");
 }
 
 async function installStubbedGallery(page: Page) {
@@ -54,7 +54,7 @@ async function installStubbedGallery(page: Page) {
     const req: ApiRequest = {
       pathname: url.pathname,
       path: url.searchParams.get("path") ?? "",
-      imageCursor: url.searchParams.get("image_cursor") ?? "0",
+      mediaCursor: url.searchParams.get("media_cursor") ?? "0",
     };
     requests.push(req);
 
@@ -71,7 +71,7 @@ async function installStubbedGallery(page: Page) {
         contentType: "application/json",
         body: JSON.stringify({
           folders: [],
-          images: imagePaths.map((path, i) => ({
+          media: imagePaths.map((path, i) => ({
             name: `image-${i + 1}.png`,
             path,
             type: "image",
@@ -82,8 +82,10 @@ async function installStubbedGallery(page: Page) {
             width: 1600,
             height: 1000,
           })),
-          next_cursor: null,
+          next_media_cursor: null,
           total_images: imagePaths.length,
+          total_videos: 0,
+          total_assets: imagePaths.length,
           index_source: "direct_scan",
         }),
       });

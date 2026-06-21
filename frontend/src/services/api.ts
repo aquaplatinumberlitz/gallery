@@ -188,17 +188,16 @@ const api = axios.create({
 
 export const scanDirectory = async (
   path?: string,
-  opts?: { imageLimit?: number; imageCursor?: number; mediaCursor?: number },
+  opts?: { limit?: number; mediaCursor?: number },
 ): Promise<ScanResponse> => {
   try {
     const params: Record<string, string | number> = {};
     if (path) params.path = path;
-    if (opts?.imageLimit) params.image_limit = opts.imageLimit;
-    if (typeof opts?.imageCursor === "number") params.image_cursor = opts.imageCursor;
+    if (opts?.limit) params.limit = opts.limit;
     if (typeof opts?.mediaCursor === "number") params.media_cursor = opts.mediaCursor;
 
     const { data } = await api.get<ScanResponse>("/api/scan", { params });
-    return data;
+    return { ...data, next_media_cursor: data.next_media_cursor ?? null };
   } catch (error) {
     if (error instanceof AxiosError) {
       throw GalleryAPIError.fromAxiosError(error);

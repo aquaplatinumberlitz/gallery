@@ -47,47 +47,24 @@ export function useInfiniteScanQuery(path: Ref<string>) {
     queryFn: async ({ queryKey, pageParam }) => {
       const requestPath = queryKey[1] as string;
       const result = await scanDirectory(requestPath, {
-        imageLimit: IMAGE_PAGE_SIZE,
-        imageCursor: 0,
+        limit: IMAGE_PAGE_SIZE,
         mediaCursor: pageParam,
       });
       return withScanRequestPath(result, requestPath);
     },
-    getNextPageParam: (lastPage) =>
-      "next_media_cursor" in lastPage ? (lastPage.next_media_cursor ?? undefined) : (lastPage.next_cursor ?? undefined),
+    getNextPageParam: (lastPage) => lastPage.next_media_cursor ?? undefined,
   });
 
   const pages = computed(() => scanQuery.data.value?.pages ?? []);
   const firstPage = computed(() => pages.value[0]);
   const folders = computed(() => firstPage.value?.folders ?? []);
-  const media = computed(() => {
-    const seen = new Set<string>();
-    return pages.value
-      .flatMap((page) => page.media ?? [...page.images, ...(page.videos ?? [])])
-      .filter((item) => {
-        if (seen.has(item.path)) return false;
-        seen.add(item.path);
-        return true;
-      });
-  });
-  const usesMediaPagination = computed(() => pages.value.some((page) => "next_media_cursor" in page));
-  const images = computed(() =>
-    usesMediaPagination.value
-      ? media.value.filter((item) => item.type === "image")
-      : pages.value.flatMap((page) => page.images),
-  );
-  const videos = computed(() =>
-    usesMediaPagination.value
-      ? media.value.filter((item) => item.type === "video")
-      : pages.value.flatMap((page) => page.videos ?? []),
-  );
+  const media = computed(() => pages.value.flatMap((page) => page.media));
   const totalImages = computed(() => firstPage.value?.total_images ?? 0);
-  const totalVideos = computed(() => firstPage.value?.total_videos ?? videos.value.length);
-  const totalAssets = computed(() => firstPage.value?.total_assets ?? totalImages.value + totalVideos.value);
-  const nextCursor = computed(() => {
+  const totalVideos = computed(() => firstPage.value?.total_videos ?? 0);
+  const totalAssets = computed(() => firstPage.value?.total_assets ?? 0);
+  const nextMediaCursor = computed(() => {
     if (!pages.value.length) return null;
-    const lastPage = pages.value[pages.value.length - 1];
-    return "next_media_cursor" in lastPage ? (lastPage.next_media_cursor ?? null) : (lastPage.next_cursor ?? null);
+    return pages.value[pages.value.length - 1].next_media_cursor;
   });
   const activeFolderPath = computed(() => firstPage.value?.request_path || normalizedPath.value);
 
@@ -96,12 +73,10 @@ export function useInfiniteScanQuery(path: Ref<string>) {
     scanPath: normalizedPath,
     activeFolderPath,
     folders,
-    images,
-    videos,
     media,
     totalImages,
     totalVideos,
     totalAssets,
-    nextCursor,
+    nextMediaCursor,
   };
 }

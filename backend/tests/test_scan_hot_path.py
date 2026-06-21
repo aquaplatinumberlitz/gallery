@@ -72,32 +72,29 @@ def test_api_scan_hot_path_uses_cached_dimensions_without_parsing_or_opening_ima
 
     response = client.get(
         "/api/scan",
-        params={"path": str(album), "image_limit": 1, "image_cursor": 0},
+        params={"path": str(album), "limit": 1, "image_cursor": 0},
     )
 
     assert response.status_code == 200
     data = response.json()
     assert set(data) == {
         "folders",
-        "images",
-        "videos",
         "media",
-        "next_cursor",
+        "next_media_cursor",
         "total_images",
         "total_videos",
         "total_assets",
         "index_source",
     }
     assert data["total_images"] == 2
-    assert data["next_cursor"] == 1
+    assert data["next_media_cursor"] == 1
     assert len(data["folders"]) == 1
-    assert len(data["images"]) == 1
-    assert data["videos"] == []
+    assert len(data["media"]) == 1
     assert data["total_videos"] == 0
     assert data["total_assets"] == 2
-    assert data["images"][0]["name"] == "a.jpg"
-    assert data["images"][0]["width"] == 320
-    assert data["images"][0]["height"] == 240
+    assert data["media"][0]["name"] == "a.jpg"
+    assert data["media"][0]["width"] == 320
+    assert data["media"][0]["height"] == 240
     assert ("metadata", 2) in background_calls
 
 

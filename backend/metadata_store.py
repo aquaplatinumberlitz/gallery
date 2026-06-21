@@ -1578,8 +1578,7 @@ def reconcile_library_assets(
 def get_asset_folder_listing(
     folder_path: str | Path,
     *,
-    offset: int = 0,
-    image_limit: int | None = None,
+    limit: int | None = None,
     media_cursor: int | None = None,
 ) -> dict[str, Any] | None:
     """Return direct children from the authoritative assets catalog."""
@@ -1618,15 +1617,15 @@ def get_asset_folder_listing(
             (row for row in rows if row["type"] == "video"), key=lambda row: natural_sort_key(row["name"])
         )
         total_images = len(image_rows)
-        end = offset + image_limit if image_limit is not None else total_images
-        page = image_rows[offset:end]
         media_rows = sorted([*image_rows, *video_rows], key=lambda row: natural_sort_key(row["name"]))
-        media_end = (media_cursor or 0) + image_limit if image_limit is not None else len(media_rows)
-        media_page = media_rows[(media_cursor or 0) : media_end] if media_cursor is not None else None
+        media_start = media_cursor or 0
+        media_end = media_start + limit if limit is not None else len(media_rows)
+        media_page = media_rows[media_start:media_end]
 
         derivative_ready_by_asset: dict[int, dict[str, bool]] = {
             int(row["id"]): {"thumbnail": False, "preview": False}
-            for row in [*page, *(row for row in (media_page or []) if row["type"] == "image")]
+            for row in media_page
+            if row["type"] == "image"
         }
         if derivative_ready_by_asset:
             placeholders = ", ".join("?" for _ in derivative_ready_by_asset)
@@ -1705,30 +1704,16 @@ def get_asset_folder_listing(
                 mime_type=row["mime_type"],
             )
 
-        images = [image_node(row) for row in page]
-        videos = (
-            [video_node(row) for row in video_rows]
-            if offset == 0 and media_cursor is None
-            else []
-        )
-        media = (
-            [image_node(row) if row["type"] == "image" else video_node(row) for row in media_page]
-            if media_page is not None
-            else sorted([*images, *videos], key=lambda node: natural_sort_key(node.name))
-        )
+        media = [image_node(row) if row["type"] == "image" else video_node(row) for row in media_page]
         result = {
             "folders": folders,
-            "images": images,
-            "videos": videos,
             "media": media,
-            "next_cursor": end if end < total_images else None,
+            "next_media_cursor": media_end if media_end < len(media_rows) else None,
             "total_images": total_images,
             "total_videos": len(video_rows),
             "total_assets": total_images + len(video_rows),
             "index_source": "warm_db",
         }
-        if media_cursor is not None:
-            result["next_media_cursor"] = media_end if media_end < len(media_rows) else None
         return result
 
 
@@ -2435,10 +2420,8 @@ def get_folder_index_state(folder_path: str | Path) -> dict | None:
 def get_warm_folder_listing(
     folder_path: str | Path,
     *,
-    offset: int = 0,
     limit: int | None = None,
     sort: str = "name",
-    image_limit: int | None = None,
     media_cursor: int | None = None,
 ) -> dict | None:
     """Return a folder listing from SQLite when the persisted folder state is current."""
@@ -2520,50 +2503,12 @@ def get_warm_folder_listing(
         raw_images.sort(key=lambda x: natural_sort_key(x["name"]))
         raw_videos.sort(key=lambda x: natural_sort_key(x["name"]))
 
-        image_start = offset
-        image_end = offset + image_limit if image_limit is not None else total_images
-        paged_images = raw_images[image_start:image_end]
         raw_media = sorted([*raw_images, *raw_videos], key=lambda row: natural_sort_key(row["name"]))
-        media_end = (media_cursor or 0) + image_limit if image_limit is not None else len(raw_media)
-        media_page = raw_media[(media_cursor or 0) : media_end] if media_cursor is not None else None
-
-        warm_images: list[FileNode] = []
-        for img in paged_images:
-            warm_images.append(
-                FileNode(
-                    name=img["name"],
-                    path=img["path"],
-                    type="image",
-                    has_children=False,
-                    cover_images=[],
-                    mtime=img["mtime"] or 0,
-                    width=img["width"],
-                    height=img["height"],
-                )
-            )
-
-        warm_videos = (
-            [
-                VideoFileNode(
-                    name=video["name"],
-                    path=video["path"],
-                    type="video",
-                    has_children=False,
-                    cover_images=[],
-                    mtime=video["mtime"] or 0,
-                    width=video["width"],
-                    height=video["height"],
-                    duration_ms=video["duration_ms"],
-                    mime_type=video["mime_type"],
-                )
-                for video in raw_videos
-            ]
-            if offset == 0
-            else []
-        )
+        media_start = media_cursor or 0
+        media_end = media_start + limit if limit is not None else len(raw_media)
+        media_page = raw_media[media_start:media_end]
         image_paths = {item["path"] for item in raw_images}
-        warm_media = (
-            [
+        warm_media = [
                 FileNode(
                     name=item["name"],
                     path=item["path"],
@@ -2589,9 +2534,6 @@ def get_warm_folder_listing(
                 )
                 for item in media_page
             ]
-            if media_page is not None
-            else sorted([*warm_images, *warm_videos], key=lambda node: natural_sort_key(node.name))
-        )
 
         # Build DB-derived folder metadata — no filesystem access
         child_paths = [f["path"] for f in raw_folders]
@@ -2650,21 +2592,15 @@ def get_warm_folder_listing(
                 )
             )
 
-    next_cursor = image_end if image_end < total_images else None
-
     result = {
         "folders": warm_folders,
-        "images": warm_images,
-        "videos": warm_videos,
         "media": warm_media,
-        "next_cursor": next_cursor,
+        "next_media_cursor": media_end if media_end < len(raw_media) else None,
         "total_images": total_images,
         "total_videos": len(raw_videos),
         "total_assets": total_images + len(raw_videos),
         "index_source": "warm_db",
     }
-    if media_cursor is not None:
-        result["next_media_cursor"] = media_end if media_end < len(raw_media) else None
     return result
 
 

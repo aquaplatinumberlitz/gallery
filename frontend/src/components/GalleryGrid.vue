@@ -171,8 +171,8 @@ const sortItems = <T extends { name: string; mtime?: number }>(items: T[]): T[] 
 };
 
 const scanFolders = computed(() => infiniteScanQuery.folders.value);
-const scanImages = computed(() => infiniteScanQuery.images.value);
 const scanMedia = computed(() => infiniteScanQuery.media.value);
+const scanImages = computed(() => scanMedia.value.filter((item) => item.type === "image"));
 
 const folders = computed(() =>
   sortItems(hasSearchQuery.value ? scanFolders.value : fuzzySearchFileNodes(scanFolders.value, searchQuery.value)),

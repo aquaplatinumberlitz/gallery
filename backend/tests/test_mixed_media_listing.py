@@ -1,4 +1,4 @@
-"""Mixed-media browse and search response compatibility coverage."""
+"""Mixed-media browse and search response coverage."""
 
 from pathlib import Path
 
@@ -6,7 +6,7 @@ from backend.metadata_store import get_asset_folder_listing, index_file, registe
 from tests.conftest import create_test_png
 
 
-def test_asset_listing_keeps_images_and_adds_videos_and_media(
+def test_asset_listing_returns_canonical_mixed_media(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,
 ):
@@ -35,11 +35,10 @@ def test_asset_listing_keeps_images_and_adds_videos_and_media(
 
     listing = get_asset_folder_listing(isolated_gallery_root)
     assert listing is not None
-    assert [node.name for node in listing["images"]] == ["photo.png"]
-    assert [node.name for node in listing["videos"]] == ["clip.mp4"]
     assert [node.name for node in listing["media"]] == ["clip.mp4", "photo.png"]
-    assert listing["videos"][0].duration_ms == 65_000
-    assert listing["videos"][0].mime_type == "video/mp4"
+    assert listing["media"][0].duration_ms == 65_000
+    assert listing["media"][0].mime_type == "video/mp4"
+    assert listing["next_media_cursor"] is None
     assert listing["total_images"] == 1
     assert listing["total_videos"] == 1
     assert listing["total_assets"] == 2

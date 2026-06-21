@@ -124,7 +124,7 @@ async function triggerIndexAction(action: "rescan" | "rebuild") {
         activeLibraryInspectorQueries: getLibraryInspectorQueryDebug(queryClient),
       });
     } else {
-      await scanDirectory(requestPath, { imageLimit: 1, imageCursor: 0 });
+      await scanDirectory(requestPath, { limit: 1 });
     }
     const libraryInspectorKey = queryKeys.libraryInspectorRoot();
     logIndexRebuildDebug("invalidate-before", {

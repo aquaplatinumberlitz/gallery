@@ -208,9 +208,11 @@ async function installStubbedInspector(page: Page) {
         contentType: "application/json",
         body: JSON.stringify({
           folders: [],
-          images: [],
-          next_cursor: null,
+          media: [],
+          next_media_cursor: null,
           total_images: 0,
+          total_videos: 0,
+          total_assets: 0,
           index_source: "direct_scan",
         }),
       });

@@ -32,8 +32,8 @@ def log_warm_scan_summary(
     *,
     enabled: bool,
     target: Path,
-    image_limit: int | None,
-    image_cursor: int,
+    limit: int | None,
+    media_cursor: int,
     total_ms: float,
     resolve_ms: float,
     serialize_ms: float,
@@ -43,21 +43,21 @@ def log_warm_scan_summary(
     if not enabled:
         return
 
-    wr_total = warm_result.get("total_images", 0)
-    wr_images = warm_result.get("images", [])
-    wr_next = warm_result.get("next_cursor")
+    wr_total = warm_result.get("total_assets", 0)
+    wr_media = warm_result.get("media", [])
+    wr_next = warm_result.get("next_media_cursor")
     print(
         "[SCAN PERF] "
         f"path={target} "
-        f"limit={image_limit if image_limit is not None else 'none'} "
-        f"cursor={image_cursor} "
+        f"limit={limit if limit is not None else 'none'} "
+        f"cursor={media_cursor} "
         f"total={total_ms:.0f}ms "
         f"resolve={resolve_ms:.0f}ms "
         f"source=warm_db "
         f"serialize={serialize_ms:.0f}ms "
-        f"images_total={wr_total} "
-        f"images_returned={len(wr_images)} "
-        f"next_cursor={wr_next}",
+        f"assets_total={wr_total} "
+        f"assets_returned={len(wr_media)} "
+        f"next_media_cursor={wr_next}",
         flush=True,
     )
 
@@ -66,16 +66,16 @@ def log_direct_scan_summary(
     *,
     enabled: bool,
     target: Path,
-    image_limit: int | None,
-    image_cursor: int,
+    limit: int | None,
+    media_cursor: int,
     total_ms: float,
     resolve_ms: float,
     scan_perf: dict[str, int | float | None],
     pagination_ms: float,
     serialize_ms: float,
-    total_images: int,
-    returned_images: int,
-    next_cursor: int | None,
+    total_assets: int,
+    returned_assets: int,
+    next_media_cursor: int | None,
 ) -> None:
     """Print the timing summary for a direct filesystem scan."""
     if not enabled:
@@ -84,8 +84,8 @@ def log_direct_scan_summary(
     print(
         "[SCAN PERF] "
         f"path={target} "
-        f"limit={image_limit if image_limit is not None else 'none'} "
-        f"cursor={image_cursor} "
+        f"limit={limit if limit is not None else 'none'} "
+        f"cursor={media_cursor} "
         f"total={total_ms:.0f}ms "
         f"resolve={resolve_ms:.0f}ms "
         f"list={scan_perf['list_ms']:.0f}ms "
@@ -99,8 +99,8 @@ def log_direct_scan_summary(
         f"serialize={serialize_ms:.0f}ms "
         f"entries={scan_perf['entries_scanned']} "
         f"folders={scan_perf['folders_found']} "
-        f"images_total={total_images} "
-        f"images_returned={returned_images} "
-        f"next_cursor={next_cursor}",
+        f"assets_total={total_assets} "
+        f"assets_returned={returned_assets} "
+        f"next_media_cursor={next_media_cursor}",
         flush=True,
     )

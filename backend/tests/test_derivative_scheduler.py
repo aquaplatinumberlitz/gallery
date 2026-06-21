@@ -21,7 +21,7 @@ def _catalog_image(root: Path) -> tuple[Path, int]:
     assert index_file(image, image.name, image.parent, "photo", stat.st_mtime, stat.st_size, 80, 60)
     listing = get_asset_folder_listing(root)
     assert listing is not None
-    return image, listing["images"][0].asset_id
+    return image, listing["media"][0].asset_id
 
 
 def test_schedule_coalesces_jobs_and_reports_library_status(

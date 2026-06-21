@@ -48,10 +48,10 @@ def test_warm_complete_folder_returns_from_sqlite(tmp_path: Path):
     counts = _scan_folder_counts(album)
     update_folder_index_state(album, complete=True, **counts)
 
-    result = get_warm_folder_listing(album, offset=0, limit=10, image_limit=10)
+    result = get_warm_folder_listing(album, limit=10, media_cursor=0)
     assert result is not None
     assert result["total_images"] == 5
-    assert len(result["images"]) == 5
+    assert len(result["media"]) == 5
     assert len(result["folders"]) == 1
     assert result["index_source"] == "warm_db"
 
@@ -72,7 +72,7 @@ def test_warm_path_does_not_call_scandir(tmp_path: Path, monkeypatch: pytest.Mon
     index_directory_tree(album, include_metadata=False)
     update_folder_index_state(album, complete=True, child_count=1, folder_count=0, image_count=1)
 
-    result = get_warm_folder_listing(album, offset=0, limit=10, image_limit=10)
+    result = get_warm_folder_listing(album, limit=10, media_cursor=0)
     assert result is not None
     assert result["total_images"] == 1
     assert len(scandir_calls) == 0
@@ -83,7 +83,7 @@ def test_missing_folder_index_state_falls_back(tmp_path: Path):
     album.mkdir()
     (album / "test.jpg").write_text("fake")
 
-    result = get_warm_folder_listing(album, offset=0, limit=10, image_limit=10)
+    result = get_warm_folder_listing(album, limit=10, media_cursor=0)
     assert result is None
 
 
@@ -96,7 +96,7 @@ def test_incomplete_folder_falls_back(tmp_path: Path):
     counts = _scan_folder_counts(album)
     update_folder_index_state(album, complete=False, **counts)
 
-    result = get_warm_folder_listing(album, offset=0, limit=10, image_limit=10)
+    result = get_warm_folder_listing(album, limit=10, media_cursor=0)
     assert result is None
 
 
@@ -118,7 +118,7 @@ def test_stale_dir_mtime_ns_falls_back(tmp_path: Path):
         **counts,
     )
 
-    result = get_warm_folder_listing(album, offset=0, limit=10, image_limit=10)
+    result = get_warm_folder_listing(album, limit=10, media_cursor=0)
     assert result is None
 
 
@@ -135,7 +135,7 @@ def test_deleted_missing_folder_preserves_error_behavior(tmp_path: Path):
 
     shutil.rmtree(album)
 
-    result = get_warm_folder_listing(album, offset=0, limit=10, image_limit=10)
+    result = get_warm_folder_listing(album, limit=10, media_cursor=0)
     assert result is None
 
 
@@ -149,9 +149,9 @@ def test_sort_order_matches_direct_scan(tmp_path: Path):
     counts = _scan_folder_counts(album)
     update_folder_index_state(album, complete=True, **counts)
 
-    result = get_warm_folder_listing(album, offset=0, limit=10, image_limit=10)
+    result = get_warm_folder_listing(album, limit=10, media_cursor=0)
     assert result is not None
-    names = [img.name for img in result["images"]]
+    names = [img.name for img in result["media"]]
     assert names == sorted(names)
 
 
@@ -164,21 +164,19 @@ def test_response_shape_compatible(tmp_path: Path):
     counts = _scan_folder_counts(album)
     update_folder_index_state(album, complete=True, **counts)
 
-    result = get_warm_folder_listing(album, offset=0, limit=10, image_limit=10)
+    result = get_warm_folder_listing(album, limit=10, media_cursor=0)
     assert result is not None
     assert set(result) == {
         "folders",
-        "images",
-        "videos",
         "media",
-        "next_cursor",
+        "next_media_cursor",
         "total_images",
         "total_videos",
         "total_assets",
         "index_source",
     }
 
-    for img in result["images"]:
+    for img in result["media"]:
         assert set(img.model_dump()) == {
             "name",
             "path",
@@ -206,7 +204,7 @@ def test_cold_path_unchanged_when_warm_disabled(tmp_path: Path, monkeypatch: pyt
 
     response = client.get(
         "/api/scan",
-        params={"path": str(album), "image_limit": 10, "image_cursor": 0},
+        params={"path": str(album), "limit": 10, "image_cursor": 0},
     )
     assert response.status_code == 200
     data = response.json()
@@ -224,15 +222,15 @@ def test_pagination_matches_direct_scan(tmp_path: Path):
     counts = _scan_folder_counts(album)
     update_folder_index_state(album, complete=True, **counts)
 
-    page1 = get_warm_folder_listing(album, offset=0, limit=10, image_limit=10)
+    page1 = get_warm_folder_listing(album, limit=10, media_cursor=0)
     assert page1 is not None
-    assert len(page1["images"]) == 10
-    assert page1["next_cursor"] == 10
+    assert len(page1["media"]) == 10
+    assert page1["next_media_cursor"] == 10
 
-    page2 = get_warm_folder_listing(album, offset=10, limit=10, image_limit=10)
+    page2 = get_warm_folder_listing(album, limit=10, media_cursor=10)
     assert page2 is not None
-    assert len(page2["images"]) == 10
-    assert page2["next_cursor"] is None
+    assert len(page2["media"]) == 10
+    assert page2["next_media_cursor"] is None
 
 
 def test_api_scan_uses_warm_listing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -258,7 +256,7 @@ def test_api_scan_uses_warm_listing(tmp_path: Path, monkeypatch: pytest.MonkeyPa
 
     response = client.get(
         "/api/scan",
-        params={"path": str(album), "image_limit": 10, "image_cursor": 0},
+        params={"path": str(album), "limit": 10, "image_cursor": 0},
     )
     assert response.status_code == 200
     data = response.json()
@@ -284,10 +282,10 @@ def test_warm_path_does_not_call_build_album_metadata(tmp_path: Path, monkeypatc
     counts_sub = _scan_folder_counts(sub)
     update_folder_index_state(sub, complete=True, **counts_sub)
 
-    result = get_warm_folder_listing(album, offset=0, limit=10, image_limit=10)
+    result = get_warm_folder_listing(album, limit=10, media_cursor=0)
     assert result is not None
     assert len(result["folders"]) == 1
-    assert len(result["images"]) == 1
+    assert len(result["media"]) == 1
     assert result["index_source"] == "warm_db"
 
 
@@ -313,7 +311,7 @@ def test_warm_path_does_not_scandir_child_folders(tmp_path: Path, monkeypatch: p
 
     monkeypatch.setattr(os, "scandir", fail_scandir)
 
-    result = get_warm_folder_listing(album, offset=0, limit=10, image_limit=10)
+    result = get_warm_folder_listing(album, limit=10, media_cursor=0)
     assert result is not None
     assert len(scandir_calls) == 0
 
@@ -327,9 +325,9 @@ def test_warm_sort_order_matches_natural_sort_direct_scan(tmp_path: Path):
     index_directory_tree(album, include_metadata=False)
     update_folder_index_state(album, complete=True, child_count=4, folder_count=0, image_count=4)
 
-    result = get_warm_folder_listing(album, offset=0, limit=10, image_limit=10)
+    result = get_warm_folder_listing(album, limit=10, media_cursor=0)
     assert result is not None
-    names = [img.name for img in result["images"]]
+    names = [img.name for img in result["media"]]
     expected = sorted(names, key=natural_sort_key)
     assert names == expected
     assert names == ["image1.png", "image2.png", "image10.png", "image20.png"]
@@ -349,7 +347,7 @@ def test_warm_folder_sort_order_matches_natural_sort(tmp_path: Path):
         if sub.is_dir():
             update_folder_index_state(sub, complete=True, child_count=1, folder_count=0, image_count=1)
 
-    result = get_warm_folder_listing(album, offset=0, limit=10, image_limit=10)
+    result = get_warm_folder_listing(album, limit=10, media_cursor=0)
     assert result is not None
     names = [f.name for f in result["folders"]]
     expected = sorted(names, key=natural_sort_key)
@@ -367,7 +365,7 @@ def test_warm_album_metadata_fields_have_safe_defaults(tmp_path: Path):
     index_directory_tree(album, include_metadata=False)
     update_folder_index_state(album, complete=True, child_count=2, folder_count=1, image_count=1)
 
-    result = get_warm_folder_listing(album, offset=0, limit=10, image_limit=10)
+    result = get_warm_folder_listing(album, limit=10, media_cursor=0)
     assert result is not None
     for f in result["folders"]:
         assert f.has_children is not None

@@ -252,7 +252,14 @@ async function mockLibraryApi(page: Page, options: MockOptions = {}): Promise<Mo
     }
     if (url.pathname === "/api/scan") {
       await route.fulfill({
-        json: { folders: [], images: [], videos: [], media: [], next_cursor: null, total_images: 0, total_videos: 0 },
+        json: {
+          folders: [],
+          media: [],
+          next_media_cursor: null,
+          total_images: 0,
+          total_videos: 0,
+          total_assets: 0,
+        },
       });
       return;
     }

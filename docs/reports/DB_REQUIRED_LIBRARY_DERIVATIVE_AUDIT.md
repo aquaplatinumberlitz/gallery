@@ -398,9 +398,11 @@ When `GALLERY_DB_REQUIRED=true`, `api_scan()` calls `get_asset_folder_listing()`
 ```json
 {
   "folders": [],
-  "images": [],
-  "next_cursor": null,
+  "media": [],
+  "next_media_cursor": null,
   "total_images": 0,
+  "total_videos": 0,
+  "total_assets": 0,
   "index_source": "warm_db"
 }
 ```

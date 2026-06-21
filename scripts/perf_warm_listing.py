@@ -34,6 +34,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from perf_lib import budget_for  # noqa: E402
 
+from backend.files import natural_sort_key  # noqa: E402
+
 os.environ.setdefault("ENABLE_METRICS", "0")
 os.environ.setdefault("ENABLE_WARM_INDEXED_LISTING", "true")
 
@@ -56,18 +58,19 @@ def benchmark_cold_scan(folder: Path, image_limit: int) -> dict:
     from backend.scan import scan_directory
 
     start = time.perf_counter()
-    folders, images, perf = scan_directory(folder)
+    folders, images, videos, perf = scan_directory(folder)
     scan_ms = (time.perf_counter() - start) * 1000
 
     total_images = len(images)
     start_idx = 0
     end_idx = start_idx + image_limit if image_limit else total_images
-    paged = images[start_idx:end_idx]
+    media = sorted([*images, *videos], key=lambda node: natural_sort_key(node.name))
+    paged = media[start_idx:end_idx]
 
     return {
         "method": "cold_direct_scan",
         "total_images": total_images,
-        "returned_images": len(paged),
+        "returned_assets": len(paged),
         "folders": len(folders),
         "duration_ms": round(scan_ms, 2),
         "list_ms": round(perf["list_ms"], 2),
@@ -113,10 +116,9 @@ def benchmark_warm_listing(folder: Path, image_limit: int) -> dict | None:
     start = time.perf_counter()
     result = get_warm_folder_listing(
         folder,
-        offset=0,
         limit=image_limit,
         sort="name",
-        image_limit=image_limit,
+        media_cursor=0,
     )
     warm_ms = (time.perf_counter() - start) * 1000
 
@@ -126,7 +128,7 @@ def benchmark_warm_listing(folder: Path, image_limit: int) -> dict | None:
     return {
         "method": "warm_db_listing",
         "total_images": result["total_images"],
-        "returned_images": len(result["images"]),
+        "returned_assets": len(result["media"]),
         "duration_ms": round(warm_ms, 2),
         "index_source": result.get("index_source", "warm_db"),
     }

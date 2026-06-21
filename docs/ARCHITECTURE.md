@@ -178,7 +178,7 @@ Folder expansion state is UI state. Query-owned `FileNode` results should not be
 IntersectionObserver sees load-more sentinel
 -> guard hasNextPage and fetch-in-progress flags
 -> fetchNextPage()
--> GET /api/scan?image_cursor=...
+-> GET /api/scan?media_cursor=...
 -> TanStack Query appends page
 -> grid rows recompute
 ```

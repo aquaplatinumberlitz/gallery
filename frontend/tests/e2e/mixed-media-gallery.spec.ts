@@ -49,10 +49,8 @@ async function mockMixedGallery(page: Page) {
       await route.fulfill({
         json: {
           folders: [],
-          images: [image],
-          videos: [video],
           media: [image, video],
-          next_cursor: null,
+          next_media_cursor: null,
           total_images: 1,
           total_videos: 1,
           total_assets: 2,

@@ -103,7 +103,7 @@ def test_warm_path_does_not_call_scan_folder_counts(tmp_path: Path, monkeypatch:
 
     monkeypatch.setattr("backend.metadata_store._scan_folder_counts", raiser)
 
-    result = get_warm_folder_listing(album, offset=0, limit=10, image_limit=10)
+    result = get_warm_folder_listing(album, limit=10, media_cursor=0)
     assert result is not None
     assert result["index_source"] == "warm_db"
     assert len(called) == 0

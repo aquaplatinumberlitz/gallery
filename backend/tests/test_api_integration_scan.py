@@ -3,7 +3,7 @@ Purpose:
 Verifies the /api/scan endpoint shape, filtering, sort order, pagination, and hot-path contracts.
 
 Guarantees:
-* folders and images return stable response fields and natural ordering
+* folders and media return stable response fields and natural ordering
 * scan pagination and warm/cached dimension paths do not regress
 
 Run when:
@@ -25,10 +25,8 @@ class TestScanResponseShape:
         data = resp.json()
         assert set(data) == {
             "folders",
-            "images",
-            "videos",
             "media",
-            "next_cursor",
+            "next_media_cursor",
             "total_images",
             "total_videos",
             "total_assets",
@@ -57,7 +55,7 @@ class TestScanResponseShape:
         resp = isolated_app.get("/api/scan", params={"path": str(album)})
         assert resp.status_code == 200
         data = resp.json()
-        for img in data["images"]:
+        for img in data["media"]:
             assert set(img) == {
                 "name",
                 "path",
@@ -81,7 +79,7 @@ class TestScanFiltering:
         resp = isolated_app.get("/api/scan", params={"path": str(album)})
         assert resp.status_code == 200
         data = resp.json()
-        names = [img["name"] for img in data["images"]]
+        names = [img["name"] for img in data["media"]]
         assert ".hidden.png" not in names
 
     def test_skips_non_image_files(self, isolated_app: TestClient, temp_gallery: Path):
@@ -89,7 +87,7 @@ class TestScanFiltering:
         resp = isolated_app.get("/api/scan", params={"path": str(album)})
         assert resp.status_code == 200
         data = resp.json()
-        names = [img["name"] for img in data["images"]]
+        names = [img["name"] for img in data["media"]]
         assert "note.txt" not in names
 
     def test_counts_images_correctly(self, isolated_app: TestClient, temp_gallery: Path):
@@ -99,7 +97,7 @@ class TestScanFiltering:
         data = resp.json()
         # 3 images: 001.png, 002.jpg, 010.png (hidden and .txt skipped)
         assert data["total_images"] == 3
-        assert len(data["images"]) == 3
+        assert len(data["media"]) == 3
 
     def test_counts_folders_correctly(self, isolated_app: TestClient, temp_gallery: Path):
         resp = isolated_app.get("/api/scan", params={"path": str(temp_gallery)})
@@ -115,7 +113,7 @@ class TestNaturalSortOrder:
         resp = isolated_app.get("/api/scan", params={"path": str(album)})
         assert resp.status_code == 200
         data = resp.json()
-        names = [img["name"] for img in data["images"]]
+        names = [img["name"] for img in data["media"]]
         assert names == ["001.png", "002.jpg", "010.png"]
 
     def test_natural_sort_numeric_groups(self, isolated_app: TestClient, isolated_gallery_root: Path):
@@ -129,12 +127,12 @@ class TestNaturalSortOrder:
         resp = isolated_app.get("/api/scan", params={"path": str(album)})
         assert resp.status_code == 200
         data = resp.json()
-        names = [img["name"] for img in data["images"]]
+        names = [img["name"] for img in data["media"]]
         assert names == ["image1.png", "image2.png", "image10.png", "image20.png"]
 
 
 class TestPagination:
-    def test_image_limit_respected(self, isolated_app: TestClient, isolated_gallery_root: Path):
+    def test_limit_respected(self, isolated_app: TestClient, isolated_gallery_root: Path):
         from .conftest import create_test_png
 
         album = isolated_gallery_root / "pagination_test"
@@ -144,15 +142,15 @@ class TestPagination:
 
         resp = isolated_app.get(
             "/api/scan",
-            params={"path": str(album), "image_limit": 2, "image_cursor": 0},
+            params={"path": str(album), "limit": 2, "image_cursor": 0},
         )
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data["images"]) == 2
+        assert len(data["media"]) == 2
         assert data["total_images"] == 5
-        assert data["next_cursor"] == 2
+        assert data["next_media_cursor"] == 2
 
-    def test_image_cursor_respected(self, isolated_app: TestClient, isolated_gallery_root: Path):
+    def test_image_cursor_is_ignored(self, isolated_app: TestClient, isolated_gallery_root: Path):
         from .conftest import create_test_png
 
         album = isolated_gallery_root / "cursor_test"
@@ -162,15 +160,15 @@ class TestPagination:
 
         resp = isolated_app.get(
             "/api/scan",
-            params={"path": str(album), "image_limit": 2, "image_cursor": 2},
+            params={"path": str(album), "limit": 2, "image_cursor": 2},
         )
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data["images"]) == 2
-        names = [img["name"] for img in data["images"]]
-        assert names[0] == "002.png"
+        assert len(data["media"]) == 2
+        names = [img["name"] for img in data["media"]]
+        assert names == ["000.png", "001.png"]
 
-    def test_next_cursor_none_at_end(self, isolated_app: TestClient, isolated_gallery_root: Path):
+    def test_next_media_cursor_none_at_end(self, isolated_app: TestClient, isolated_gallery_root: Path):
         from .conftest import create_test_png
 
         album = isolated_gallery_root / "cursor_end_test"
@@ -180,11 +178,11 @@ class TestPagination:
 
         resp = isolated_app.get(
             "/api/scan",
-            params={"path": str(album), "image_limit": 5, "image_cursor": 0},
+            params={"path": str(album), "limit": 5, "image_cursor": 0},
         )
         assert resp.status_code == 200
         data = resp.json()
-        assert data["next_cursor"] is None
+        assert data["next_media_cursor"] is None
         assert data["total_images"] == 3
 
     def test_total_images_accurate(self, isolated_app: TestClient, isolated_gallery_root: Path):
@@ -197,14 +195,14 @@ class TestPagination:
 
         resp = isolated_app.get(
             "/api/scan",
-            params={"path": str(album), "image_limit": 3, "image_cursor": 0},
+            params={"path": str(album), "limit": 3, "image_cursor": 0},
         )
         assert resp.status_code == 200
         data = resp.json()
         assert data["total_images"] == 7
-        assert len(data["images"]) == 3
+        assert len(data["media"]) == 3
 
-    def test_media_cursor_pages_naturally_sorted_image_video_union(
+    def test_media_invariant_no_gaps(
         self, isolated_app: TestClient, isolated_gallery_root: Path
     ):
         from .conftest import create_test_png
@@ -218,15 +216,15 @@ class TestPagination:
 
         first = isolated_app.get(
             "/api/scan",
-            params={"path": str(album), "image_limit": 2, "media_cursor": 0},
+            params={"path": str(album), "limit": 2, "media_cursor": 0},
         )
         second = isolated_app.get(
             "/api/scan",
-            params={"path": str(album), "image_limit": 2, "media_cursor": first.json()["next_media_cursor"]},
+            params={"path": str(album), "limit": 2, "media_cursor": first.json()["next_media_cursor"]},
         )
         third = isolated_app.get(
             "/api/scan",
-            params={"path": str(album), "image_limit": 2, "media_cursor": second.json()["next_media_cursor"]},
+            params={"path": str(album), "limit": 2, "media_cursor": second.json()["next_media_cursor"]},
         )
 
         assert [item["name"] for item in first.json()["media"]] == ["asset1.png", "asset2.mp4"]
@@ -235,29 +233,6 @@ class TestPagination:
         assert first.json()["next_media_cursor"] == 2
         assert second.json()["next_media_cursor"] == 4
         assert third.json()["next_media_cursor"] is None
-
-    def test_image_cursor_retains_legacy_video_behavior(self, isolated_app: TestClient, isolated_gallery_root: Path):
-        from .conftest import create_test_png
-
-        album = isolated_gallery_root / "legacy_cursor_test"
-        album.mkdir()
-        for name in ["asset1.png", "asset3.png"]:
-            create_test_png(album / name, size=(64, 64))
-        (album / "asset2.mp4").write_bytes(b"video")
-
-        first = isolated_app.get(
-            "/api/scan",
-            params={"path": str(album), "image_limit": 1, "image_cursor": 0},
-        ).json()
-        second = isolated_app.get(
-            "/api/scan",
-            params={"path": str(album), "image_limit": 1, "image_cursor": 1},
-        ).json()
-
-        assert [item["name"] for item in first["images"]] == ["asset1.png"]
-        assert [item["name"] for item in first["videos"]] == ["asset2.mp4"]
-        assert [item["name"] for item in second["images"]] == ["asset3.png"]
-        assert second["videos"] == []
 
 
 class TestScanHotPathContract:

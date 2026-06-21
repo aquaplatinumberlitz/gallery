@@ -117,11 +117,11 @@ def test_scan_and_metadata_dual_write_assets(
     listing = get_asset_folder_listing(isolated_gallery_root)
     assert listing is not None
     assert listing["index_source"] == "warm_db"
-    assert listing["images"][0].path == str(image.resolve())
-    assert (listing["images"][0].width, listing["images"][0].height) == (80, 60)
-    assert listing["images"][0].asset_id is not None
-    assert listing["images"][0].metadata_state == "done"
-    assert listing["images"][0].derivative_ready == {"thumbnail": False, "preview": False}
+    assert listing["media"][0].path == str(image.resolve())
+    assert (listing["media"][0].width, listing["media"][0].height) == (80, 60)
+    assert listing["media"][0].asset_id is not None
+    assert listing["media"][0].metadata_state == "done"
+    assert listing["media"][0].derivative_ready == {"thumbnail": False, "preview": False}
 
     with sqlite3.connect(isolated_metadata_db) as conn:
         conn.execute(
@@ -130,12 +130,12 @@ def test_scan_and_metadata_dual_write_assets(
               asset_id, kind, variant, source_mtime_ns, source_size, status, max_long_edge
             ) VALUES (?, 'thumbnail', 'thumb_512', ?, ?, 'ready', 512)
             """,
-            (listing["images"][0].asset_id, stat.st_mtime_ns, stat.st_size),
+            (listing["media"][0].asset_id, stat.st_mtime_ns, stat.st_size),
         )
 
     listing = get_asset_folder_listing(isolated_gallery_root)
     assert listing is not None
-    assert listing["images"][0].derivative_ready == {"thumbnail": True, "preview": False}
+    assert listing["media"][0].derivative_ready == {"thumbnail": True, "preview": False}
 
     library_id = list_libraries()[0]["id"]
     progress = get_library_progress(library_id)
@@ -405,14 +405,14 @@ def test_rebuild_reconciles_deleted_assets(
     rebuild_index_scope(isolated_gallery_root)
     listing = get_asset_folder_listing(isolated_gallery_root)
     assert listing is not None
-    assert [node.path for node in listing["images"]] == [str(image.resolve())]
+    assert [node.path for node in listing["media"]] == [str(image.resolve())]
 
     image.unlink()
     rebuild_index_scope(isolated_gallery_root)
 
     listing = get_asset_folder_listing(isolated_gallery_root)
     assert listing is not None
-    assert listing["images"] == []
+    assert listing["media"] == []
     with sqlite3.connect(isolated_metadata_db) as conn:
         offline = conn.execute(
             "SELECT offline FROM assets WHERE library_id = ? AND path = ?",

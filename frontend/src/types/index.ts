@@ -98,14 +98,11 @@ export interface MetadataResponse {
 
 export interface ScanResponse {
   folders: FolderTreeNode[];
-  images: FileNode[];
-  videos?: FileNode[];
-  media?: FileNode[];
-  next_cursor: number | null;
-  next_media_cursor?: number | null;
+  media: FileNode[];
+  next_media_cursor: number | null;
   total_images: number;
-  total_videos?: number;
-  total_assets?: number;
+  total_videos: number;
+  total_assets: number;
   request_path?: string;
   index_source?: "warm_db" | "direct_scan" | "mixed";
 }

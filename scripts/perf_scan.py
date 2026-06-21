@@ -61,10 +61,10 @@ def main() -> int:
         "p50_ms": stats["p50_ms"],
         "p95_ms": stats["p95_ms"],
         "max_ms": stats["max_ms"],
-        "image_count": len(last_payload.get("images", [])),
+        "image_count": sum(item.get("type") == "image" for item in last_payload.get("media", [])),
         "folder_count": len(last_payload.get("folders", [])),
         "total_images": last_payload.get("total_images"),
-        "next_cursor": last_payload.get("next_cursor"),
+        "next_media_cursor": last_payload.get("next_media_cursor"),
         "budget_p95_ms": p95_budget_ms,
         "min_images": min_images,
         "budget_source": "scripts/perf_budgets.toml[scan].p95_ms",
@@ -75,7 +75,7 @@ def main() -> int:
     if report["p95_ms"] > p95_budget_ms:
         print(f"scan p95 exceeded budget: {report['p95_ms']}ms > {p95_budget_ms}ms", file=sys.stderr)
         failed = True
-    if report["image_count"] < min_images and not report["next_cursor"]:
+    if report["image_count"] < min_images and not report["next_media_cursor"]:
         print(f"scan returned too few images: {report['image_count']} < {min_images}", file=sys.stderr)
         failed = True
     return 1 if failed else 0

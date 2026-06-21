@@ -177,7 +177,7 @@ def test_scan_returns_oriented_dimensions_for_exif_jpeg(tmp_path, monkeypatch):
     assert scan_resp.status_code == 200
     data = scan_resp.json()
     assert data["total_images"] == 1
-    image = data["images"][0]
+    image = data["media"][0]
     assert image["width"] == 1080, f"scan width: expected 1080, got {image['width']}"
     assert image["height"] == 1440, f"scan height: expected 1440, got {image['height']}"
 

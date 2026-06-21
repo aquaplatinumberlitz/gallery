@@ -29,11 +29,11 @@ export const queryKeys = {
 
   job: (id: number) => ["jobs", id] as const,
 
-  scan: (path: string, imageLimit: number) => ["scan", normalizeQueryPath(path), imageLimit] as const,
+  scan: (path: string, limit: number) => ["scan", normalizeQueryPath(path), limit] as const,
 
   folderChildren: (path: string) => ["folder-children", normalizeQueryPath(path)] as const,
 
-  scanInfinite: (path: string, imageLimit: number) => ["scan-infinite", normalizeQueryPath(path), imageLimit] as const,
+  scanInfinite: (path: string, limit: number) => ["scan-infinite", normalizeQueryPath(path), limit] as const,
 
   search: (query: string, scope: string, path: string) =>
     ["search", query.trim(), scope, normalizeQueryPath(path)] as const,

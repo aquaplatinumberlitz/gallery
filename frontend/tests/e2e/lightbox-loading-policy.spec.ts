@@ -92,7 +92,7 @@ async function installStubbedGallery(
         headers: { "Cache-Control": "no-store" },
         body: JSON.stringify({
           folders: [],
-          images: imagePaths.map((path, index) => ({
+          media: imagePaths.map((path, index) => ({
             name: `image-${index + 1}.png`,
             path,
             type: "image",
@@ -100,8 +100,10 @@ async function installStubbedGallery(
             width: includeScanDimensions ? 1600 : null,
             height: includeScanDimensions ? 1000 : null,
           })),
-          next_cursor: null,
+          next_media_cursor: null,
           total_images: imagePaths.length,
+          total_videos: 0,
+          total_assets: imagePaths.length,
         }),
       });
       return;
