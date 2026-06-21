@@ -144,12 +144,16 @@ def execute_scan_job(job: dict[str, Any]) -> bool:
     library_id = int(job["library_id"])
     try:
         library_id, scan_paths = _scan_paths_for_job(job)
-        if any(not Path(path).is_dir() for path in scan_paths):
-            update_library_state(library_id, "offline", last_error="One or more library import paths are offline")
-            _transition_job(job_id, "failed", message="Scan failed", error="One or more scan paths are offline")
+        online_paths = [p for p in scan_paths if Path(p).is_dir()]
+        offline_paths = [p for p in scan_paths if not Path(p).is_dir()]
+        if not online_paths:
+            update_library_state(library_id, "offline", last_error="All import paths are offline")
+            _transition_job(job_id, "failed", message="Scan failed", error="All scan paths are offline")
             return False
-
-        update_library_state(library_id, "indexing")
+        if offline_paths:
+            update_library_state(library_id, "degraded", last_error=f"{len(offline_paths)} import path(s) offline")
+        else:
+            update_library_state(library_id, "indexing")
         counters = {
             "indexed": 0,
             "reconciled": 0,
@@ -180,13 +184,22 @@ def execute_scan_job(job: dict[str, Any]) -> bool:
                 message=f"Scanned {index} of {len(scan_paths)} scan scopes",
                 counters=counters,
             )
-        update_library_state(library_id, "ready", scan_completed=job.get("scope_path") is None)
+        scan_completed = job.get("scope_path") is None
+        if offline_paths:
+            update_library_state(library_id, "degraded", scan_completed=scan_completed)
+            success_message = "Scan completed with offline paths"
+        elif scan_completed:
+            update_library_state(library_id, "ready", scan_completed=True)
+            success_message = "Scan completed"
+        else:
+            update_library_state(library_id, "indexing", scan_completed=False)
+            success_message = "Scan completed"
         _transition_job(
             job_id,
             "succeeded",
             progress_current=len(scan_paths),
             progress_total=len(scan_paths),
-            message="Scan completed",
+            message=success_message,
             counters=counters,
         )
         return True

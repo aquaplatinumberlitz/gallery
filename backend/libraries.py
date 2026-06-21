@@ -359,15 +359,15 @@ async def api_scan_all_libraries():
     await run_in_threadpool(
         _set_job_state,
         int(parent["id"]),
-        "succeeded",
+        "running",
         progress_current=len(children),
         progress_total=len(children),
-        message="Scan all queued",
+        message="Queueing library scans",
         counters=counters,
     )
     return {
         "job_id": parent["id"],
-        "state": "succeeded",
+        "state": "running",
         "child_job_ids": [child[0] for child in children],
         "count": len(children),
     }

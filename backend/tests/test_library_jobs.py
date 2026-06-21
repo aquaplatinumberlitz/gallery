@@ -83,7 +83,7 @@ def test_scan_all_creates_parent_and_linked_children(
     children = [isolated_app.get(f"/api/jobs/{job_id}").json() for job_id in body["child_job_ids"]]
 
     assert parent["type"] == "scan_all"
-    assert parent["state"] == "succeeded"
+    assert parent["state"] == "running"
     assert parent["counters"] == {"total": 2, "succeeded": 0, "failed": 0, "coalesced": 0}
     assert {job["library_id"] for job in children} == {first_id, second_id}
     assert all(job["parent_job_id"] == parent["id"] for job in children)
@@ -185,5 +185,5 @@ def test_scan_all_with_zero_libraries(isolated_metadata_db: Path, isolated_galle
     parent = isolated_app.get(f"/api/jobs/{body['job_id']}").json()
 
     assert parent["type"] == "scan_all"
-    assert parent["state"] == "succeeded"
+    assert parent["state"] == "running"
     assert parent["counters"] == {"total": 0, "succeeded": 0, "failed": 0, "coalesced": 0}

@@ -198,7 +198,7 @@ def test_run_once_marks_offline_scan_path_failed(isolated_metadata_db: Path, iso
     finished = get_job(job["id"])
     assert finished is not None
     assert finished["state"] == "failed"
-    assert finished["error"] == "One or more scan paths are offline"
+    assert finished["error"] == "All scan paths are offline"
 
 
 def test_runtime_status_and_worker_lifecycle(isolated_metadata_db: Path):

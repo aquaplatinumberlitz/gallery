@@ -1318,7 +1318,11 @@ def create_or_coalesce_catalog_job(
                     return _serialize_catalog_enqueue_result(row, False)
 
             for row in active_rows:
-                if row["state"] == "queued" and _job_scope_covers(requested_scope, row["scope_path"]):
+                if (
+                    row["state"] == "queued"
+                    and priority >= int(row["priority"])
+                    and _job_scope_covers(requested_scope, row["scope_path"])
+                ):
                     conn.execute(
                         """
                         UPDATE library_jobs
@@ -1331,6 +1335,20 @@ def create_or_coalesce_catalog_job(
                         """,
                         (now, now, int(row["id"])),
                     )
+
+            from .library_events import event_payload, publish
+
+            cancelled_ids = [
+                int(row["id"])
+                for row in active_rows
+                if row["state"] == "queued"
+                and priority >= int(row["priority"])
+                and _job_scope_covers(requested_scope, row["scope_path"])
+            ]
+            for cancelled_id in cancelled_ids:
+                cancelled = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (cancelled_id,)).fetchone()
+                if cancelled:
+                    publish(event_payload("job.cancelled", _serialize_library_job(cancelled)))
 
             cursor = conn.execute(
                 """
