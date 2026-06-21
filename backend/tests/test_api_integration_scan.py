@@ -26,6 +26,29 @@ class TestScanResponseShape:
         assert resp.status_code == 422
         assert "unknown_param" in resp.text
 
+    def test_api_scan_rejects_legacy_image_cursor(self, isolated_app: TestClient, isolated_gallery_root: Path):
+        resp = isolated_app.get(
+            "/api/scan",
+            params={"path": str(isolated_gallery_root), "image_cursor": "100"},
+        )
+        assert resp.status_code == 422
+        assert "image_cursor" in resp.text
+
+    def test_api_scan_rejects_typo_param(self, isolated_app: TestClient, isolated_gallery_root: Path):
+        resp = isolated_app.get(
+            "/api/scan",
+            params={"path": str(isolated_gallery_root), "media_curser": "100"},
+        )
+        assert resp.status_code == 422
+        assert "media_curser" in resp.text
+
+    def test_api_scan_canonical_params_ok(self, isolated_app: TestClient, isolated_gallery_root: Path):
+        resp = isolated_app.get(
+            "/api/scan",
+            params={"path": str(isolated_gallery_root), "limit": "50", "media_cursor": "0"},
+        )
+        assert resp.status_code == 200
+
     def test_scan_returns_expected_keys(self, isolated_app: TestClient, temp_gallery: Path):
         album = temp_gallery / "album_a"
         resp = isolated_app.get("/api/scan", params={"path": str(album)})
