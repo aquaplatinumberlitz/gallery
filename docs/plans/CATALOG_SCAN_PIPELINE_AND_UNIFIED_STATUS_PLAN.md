@@ -1,7 +1,7 @@
 # Catalog Scan Pipeline and Unified Status Plan
 
-Status: Active — audit revision 2 approved; Phase 1 and Phase 2 complete;
-Phase 3 next
+Status: Active — audit revision 2 approved; Phase 1 through Phase 4 complete;
+Phase 5 next
 
 Created: 2026-06-21
 
@@ -46,6 +46,35 @@ Phase 2 completion note, 2026-06-21:
 - No Phase 3 Catalog Scan Service, one-library writer lock, trigger routing,
   rebuild activation, status endpoint, browse API, frontend migration, or API
   hard-cut behavior is implemented by Phase 2.
+
+Phase 4 completion note, 2026-06-21:
+
+- Implemented the durable catalog coordinator/worker needed to route Phase 4
+  triggers through one catalog execution path. The worker claims queued
+  scan/rebuild rows by priority/FIFO, enforces one running catalog writer per
+  library, preserves queued jobs across restart recovery, and executes scan
+  jobs through the existing discovery/reconciliation pipeline.
+- Library creation now atomically queues an `initial` scan job and returns
+  `initial_scan_job_id`. Manual scan, Scan All child jobs, watcher events,
+  startup catch-up, and scheduled reconciliation all submit/coalesce durable
+  catalog `scan` jobs with the documented trigger priorities.
+- The watcher no longer marks folder-index rows stale or stages metadata
+  directly. Scheduled reconciliation no longer performs filesystem/index work
+  in the scheduler thread; it only queues scheduled catalog scans.
+- Added Phase 4 coverage for initial, manual, watcher, startup, scheduled,
+  scan-all orchestration, queued-job restart preservation, and worker
+  `run_once` execution. Updated legacy refresh/watcher tests to assert catalog
+  trigger routing instead of direct folder refresh/metadata staging.
+- Latest pushed Phase 4 implementation commit before this plan update:
+  `30c48ec feat: route catalog scan triggers`.
+- Latest local verification before this plan update: backend ruff check/format
+  passed for `backend`, and
+  `backend/venv/bin/python -m pytest backend/tests/ -q --cov=backend --cov-report=term-missing --cov-report=xml --cov-fail-under=85`
+  passed on 2026-06-21 with 656 backend tests and 85.38% backend coverage.
+  Existing FastAPI lifecycle deprecation warnings remain non-blocking.
+- Rebuild staging/atomic activation, independent repair removal, unified status
+  endpoints, read-only browse, frontend migration, old-route hard cut, and
+  final documentation/config cleanup remain future phases.
 
 ## 1. Objective
 
