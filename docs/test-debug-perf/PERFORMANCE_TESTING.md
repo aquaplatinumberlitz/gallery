@@ -7,14 +7,14 @@ This document describes how to measure and profile Gallery API performance.
 Every perf budget in the repo lives in **`scripts/perf_budgets.toml`**. That file
 is the canonical source for all numeric budgets consumed by:
 
-* `scripts/perf_scan.py` — `[scan]`
-* `scripts/perf_library_inspector.py` — `[inspector]`
-* `scripts/perf_warm_listing.py` — `[warm_listing]`
-* `scripts/bench_search.py` — `[search]` + `[inspector_metadata]`
-* `scripts/bench_thumbnail.py` — `[thumbnail]`
-* `frontend/tests/e2e/perf/album-open.perf.spec.ts` — `[album_open]`
-* `frontend/tests/e2e/perf/lightbox.perf.spec.ts` — `[lightbox]`
-* `frontend/tests/e2e/metadata-performance.spec.ts` (documented) — `[metadata_nav]`
+- `scripts/perf_scan.py` — `[scan]`
+- `scripts/perf_library_inspector.py` — `[inspector]`
+- `scripts/perf_warm_listing.py` — `[warm_listing]`
+- `scripts/bench_search.py` — `[search]` + `[inspector_metadata]`
+- `scripts/bench_thumbnail.py` — `[thumbnail]`
+- `frontend/tests/e2e/perf/album-open.perf.spec.ts` — `[album_open]`
+- `frontend/tests/e2e/perf/lightbox.perf.spec.ts` — `[lightbox]`
+- `frontend/tests/e2e/metadata-performance.spec.ts` (documented) — `[metadata_nav]`
 
 The Playwright specs read their budgets from
 `frontend/tests/e2e/perf/perf-budgets.json`, which mirrors the relevant TOML
@@ -41,11 +41,11 @@ python scripts/check_perf_budgets.py
 
 The validator checks that:
 
-* every TOML section has at least one registered consumer file
-* every consumer file actually exists
-* the env-var overrides for each section appear in at least one consumer
-* `perf-budgets.json` is in sync with the TOML for the mirrored sections
-* perf specs only reference registered budget env vars
+- every TOML section has at least one registered consumer file
+- every consumer file actually exists
+- the env-var overrides for each section appear in at least one consumer
+- `perf-budgets.json` is in sync with the TOML for the mirrored sections
+- perf specs only reference registered budget env vars
 
 ### Overriding a budget locally
 
@@ -70,11 +70,13 @@ curl http://localhost:8000/metrics
 ```
 
 Metrics include:
+
 - `http_request_duration_seconds` (latency histogram)
 - `http_request_count_total` (request count by method/status/route)
 - Route-level labels only — no per-path cardinality
 
 Disable in production:
+
 ```bash
 ENABLE_METRICS=0
 ```
@@ -116,11 +118,23 @@ python scripts/perf_scan.py
 ```
 
 Output (compact JSON):
+
 ```json
-{"url":"http://localhost:8000/api/scan","path":"...","iterations":10,
- "min_ms":12.34,"p50_ms":13.56,"p95_ms":15.78,"max_ms":18.90,
- "image_count":50,"folder_count":0,"total_images":50,"next_media_cursor":null,
- "budget_p95_ms":500,"budget_source":"scripts/perf_budgets.toml[scan].p95_ms"}
+{
+  "url": "http://localhost:8000/api/scan",
+  "path": "...",
+  "iterations": 10,
+  "min_ms": 12.34,
+  "p50_ms": 13.56,
+  "p95_ms": 15.78,
+  "max_ms": 18.9,
+  "image_count": 50,
+  "folder_count": 0,
+  "total_images": 50,
+  "next_media_cursor": null,
+  "budget_p95_ms": 500,
+  "budget_source": "scripts/perf_budgets.toml[scan].p95_ms"
+}
 ```
 
 Exit code 1 if p95 exceeds budget.
@@ -189,7 +203,7 @@ npm run perf:album:headed
 
 1. Opens the app at `GALLERY_BASE_URL`.
 2. Waits for the target album card to be visible.
-3. **Clears the network tracker** and sets `clickTime` — this ensures *only* network activity caused by the album click is measured.
+3. **Clears the network tracker** and sets `clickTime` — this ensures _only_ network activity caused by the album click is measured.
 4. Clicks the album card.
 5. Collects all `/api/scan` and `/api/thumbnail` requests.
 6. Filters samples by album path when `GALLERY_PERF_ALBUM_PATH` is set (prevents root `/api/scan` or unrelated thumbnails from polluting results).
@@ -202,6 +216,7 @@ npm run perf:album:headed
 **Timing uses `performance.now()`** (monotonic, sub-millisecond) everywhere, never `Date.now()`, so NTP or manual clock adjustments cannot corrupt measurements.
 
 Config via env vars (override defaults from `perf-budgets.json[album_open]`):
+
 ```bash
 GALLERY_BASE_URL=https://150.230.56.153 \
 GALLERY_PERF_ALBUM_NAME="test mika" \
@@ -214,12 +229,14 @@ npm run perf:album
 ```
 
 Test measures (per iteration + p95 across iterations):
+
 - scan duration (ms)
 - first thumbnail start after click (ms)
 - thumbnail p50/p95/max latency (ms)
 - duplicate `/api/scan` cursor=0 count
 
 Fail budgets (from `[album_open]`):
+
 - scan p95 > `scan_p95_ms` (default 2000ms)
 - first thumbnail start p95 > `first_thumbnail_ms` (default 3000ms)
 - thumbnail p95-of-p95 > `thumbnail_p95_ms` (default 200ms)
@@ -239,6 +256,7 @@ npm run perf:lightbox:headed
 ### How the tests work
 
 **Test 1: lightbox opens first photo (5 iterations, p95)**
+
 1. Navigates to album and waits for photo cards.
 2. Clears the network tracker and sets clickTime.
 3. Clicks the first photo card.
@@ -249,6 +267,7 @@ npm run perf:lightbox:headed
 8. Checks display dimensions are reasonable (>300px in both axes) on the representative sample.
 
 **Test 2: lightbox transitions to next image (5 iterations, p95)**
+
 1. Opens the lightbox on the first photo (reuses setup).
 2. Clears the tracker, presses ArrowRight.
 3. Measures time until the image `src` changes (next photo starts loading).
@@ -257,6 +276,7 @@ npm run perf:lightbox:headed
 6. Verifies transition navigation does not request `/api/image` on every iteration.
 
 ### Config via env vars (override defaults from `perf-budgets.json[lightbox]`)
+
 ```bash
 GALLERY_BASE_URL=http://localhost:5173 \
 GALLERY_PERF_ALBUM_NAME="test mika" \
@@ -269,11 +289,12 @@ npm run perf:lightbox
 ```
 
 ### Budgets (from `scripts/perf_budgets.toml[lightbox]`)
-| Field | Default | Env Var Override | Description |
-|---------|---------|---------|-------------|
-| `open_ms` | `500` | `GALLERY_PERF_LIGHTBOX_OPEN_BUDGET_MS` | Max p95 ms for lightbox to become visible after click |
-| `preview_check_ms` | `200` | `GALLERY_PERF_LIGHTBOX_PREVIEW_BUDGET_MS` | Max warm-cache p95 duration of the `/api/preview` request; the initial sample is reported separately |
-| `transition_ms` | `1000` | `GALLERY_PERF_LIGHTBOX_TRANSITION_BUDGET_MS` | Max p95 ms for next preview image to load after ArrowRight |
+
+| Field              | Default | Env Var Override                             | Description                                                                                          |
+| ------------------ | ------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `open_ms`          | `500`   | `GALLERY_PERF_LIGHTBOX_OPEN_BUDGET_MS`       | Max p95 ms for lightbox to become visible after click                                                |
+| `preview_check_ms` | `200`   | `GALLERY_PERF_LIGHTBOX_PREVIEW_BUDGET_MS`    | Max warm-cache p95 duration of the `/api/preview` request; the initial sample is reported separately |
+| `transition_ms`    | `1000`  | `GALLERY_PERF_LIGHTBOX_TRANSITION_BUDGET_MS` | Max p95 ms for next preview image to load after ArrowRight                                           |
 
 ## Known Limitations
 
@@ -285,30 +306,30 @@ npm run perf:lightbox
 
 ## Env Var Reference (override-only — defaults live in `scripts/perf_budgets.toml`)
 
-| Env Var | TOML default | Description |
-|---------|---------|-------------|
-| `ENABLE_METRICS` | `1` (dev), `0` (prod) | Enable Prometheus metrics at `/metrics` |
-| `ENABLE_PROFILER` | `0` | Enable pyinstrument profiling |
-| `PROFILE_ENDPOINTS` | `/api/scan,/api/metadata,/api/thumbnail,/api/preview` | Comma-separated endpoints to profile |
-| `GALLERY_METADATA_DB` | `backend/.cache/gallery_metadata.db` | Path to SQLite metadata cache DB |
-| `SCAN_PERF_LOGS` | `1` (dev), `0` (prod) | Enable verbose scan performance log output |
-| `GALLERY_BASE_URL` | `http://localhost:5173` | Frontend URL for Playwright tests |
-| `GALLERY_API_BASE_URL` | `http://localhost:8000` | Backend API URL for perf scripts |
-| `GALLERY_PERF_ALBUM_NAME` | `test mika` | Album name for Playwright test |
-| `GALLERY_PERF_ALBUM_PATH` | `""` | Album path to filter scan/thumbnail samples; prevents root-scan pollution |
-| `GALLERY_PERF_ALBUM_SAMPLES` | `5` | Iterations for album-open perf spec (p95 aggregation) |
-| `GALLERY_PERF_LIGHTBOX_SAMPLES` | `5` | Iterations for lightbox perf specs (p95 aggregation) |
-| `GALLERY_PERF_SCAN_BUDGET_MS` | `[album_open].scan_p95_ms` (`2000`) | Max acceptable album-open scan p95 |
-| `GALLERY_PERF_FIRST_THUMB_BUDGET_MS` | `[album_open].first_thumbnail_ms` (`3000`) | Max acceptable first-thumbnail-start p95 |
-| `GALLERY_PERF_THUMB_P95_BUDGET_MS` | `[album_open].thumbnail_p95_ms` (`200`) | Max acceptable thumbnail p95-of-p95 |
-| `GALLERY_PERF_SCAN_ITERATIONS` | `10` | Iterations for `perf_scan.py` |
-| `GALLERY_PERF_SCAN_P95_BUDGET_MS` | `[scan].p95_ms` (`500`) | p95 budget for `perf_scan.py` |
-| `GALLERY_PERF_INSPECTOR_P95_BUDGET_MS` | `[inspector].p95_ms` (`500`) | p95 budget for `perf_library_inspector.py` |
-| `GALLERY_PERF_WARM_LISTING_BUDGET_MS` | `[warm_listing].budget_ms` (`500`) | Warm listing budget |
-| `GALLERY_PERF_SEARCH_P95_BUDGET_MS` | `[search].p95_ms` (`300`) | p95 budget for `/api/search` in `bench_search.py` |
-| `GALLERY_PERF_INSPECTOR_METADATA_P95_BUDGET_MS` | `[inspector_metadata].p95_ms` (`200`) | p95 budget for `/api/library/inspector/metadata` |
-| `GALLERY_PERF_BENCH_THUMBNAIL_COLD_P95_MS` | `[thumbnail].cold_p95_ms` (`1000`) | Cold thumbnail p95 budget |
-| `GALLERY_PERF_BENCH_THUMBNAIL_WARM_P95_MS` | `[thumbnail].warm_p95_ms` (`50`) | Warm thumbnail p95 budget |
-| `GALLERY_PERF_LIGHTBOX_OPEN_BUDGET_MS` | `[lightbox].open_ms` (`500`) | Max p95 lightbox open visible time |
-| `GALLERY_PERF_LIGHTBOX_PREVIEW_BUDGET_MS` | `[lightbox].preview_check_ms` (`200`) | Max warm-cache p95 duration of the `/api/preview` request |
-| `GALLERY_PERF_LIGHTBOX_TRANSITION_BUDGET_MS` | `[lightbox].transition_ms` (`1000`) | Max p95 lightbox next-preview transition time |
+| Env Var                                         | TOML default                                          | Description                                                               |
+| ----------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------- |
+| `ENABLE_METRICS`                                | `1` (dev), `0` (prod)                                 | Enable Prometheus metrics at `/metrics`                                   |
+| `ENABLE_PROFILER`                               | `0`                                                   | Enable pyinstrument profiling                                             |
+| `PROFILE_ENDPOINTS`                             | `/api/scan,/api/metadata,/api/thumbnail,/api/preview` | Comma-separated endpoints to profile                                      |
+| `GALLERY_METADATA_DB`                           | `backend/.cache/gallery_metadata.db`                  | Path to SQLite metadata cache DB                                          |
+| `SCAN_PERF_LOGS`                                | `1` (dev), `0` (prod)                                 | Enable verbose scan performance log output                                |
+| `GALLERY_BASE_URL`                              | `http://localhost:5173`                               | Frontend URL for Playwright tests                                         |
+| `GALLERY_API_BASE_URL`                          | `http://localhost:8000`                               | Backend API URL for perf scripts                                          |
+| `GALLERY_PERF_ALBUM_NAME`                       | `test mika`                                           | Album name for Playwright test                                            |
+| `GALLERY_PERF_ALBUM_PATH`                       | `""`                                                  | Album path to filter scan/thumbnail samples; prevents root-scan pollution |
+| `GALLERY_PERF_ALBUM_SAMPLES`                    | `5`                                                   | Iterations for album-open perf spec (p95 aggregation)                     |
+| `GALLERY_PERF_LIGHTBOX_SAMPLES`                 | `5`                                                   | Iterations for lightbox perf specs (p95 aggregation)                      |
+| `GALLERY_PERF_SCAN_BUDGET_MS`                   | `[album_open].scan_p95_ms` (`2000`)                   | Max acceptable album-open scan p95                                        |
+| `GALLERY_PERF_FIRST_THUMB_BUDGET_MS`            | `[album_open].first_thumbnail_ms` (`3000`)            | Max acceptable first-thumbnail-start p95                                  |
+| `GALLERY_PERF_THUMB_P95_BUDGET_MS`              | `[album_open].thumbnail_p95_ms` (`200`)               | Max acceptable thumbnail p95-of-p95                                       |
+| `GALLERY_PERF_SCAN_ITERATIONS`                  | `10`                                                  | Iterations for `perf_scan.py`                                             |
+| `GALLERY_PERF_SCAN_P95_BUDGET_MS`               | `[scan].p95_ms` (`500`)                               | p95 budget for `perf_scan.py`                                             |
+| `GALLERY_PERF_INSPECTOR_P95_BUDGET_MS`          | `[inspector].p95_ms` (`500`)                          | p95 budget for `perf_library_inspector.py`                                |
+| `GALLERY_PERF_WARM_LISTING_BUDGET_MS`           | `[warm_listing].budget_ms` (`500`)                    | Warm listing budget                                                       |
+| `GALLERY_PERF_SEARCH_P95_BUDGET_MS`             | `[search].p95_ms` (`300`)                             | p95 budget for `/api/search` in `bench_search.py`                         |
+| `GALLERY_PERF_INSPECTOR_METADATA_P95_BUDGET_MS` | `[inspector_metadata].p95_ms` (`200`)                 | p95 budget for `/api/library/inspector/metadata`                          |
+| `GALLERY_PERF_BENCH_THUMBNAIL_COLD_P95_MS`      | `[thumbnail].cold_p95_ms` (`1000`)                    | Cold thumbnail p95 budget                                                 |
+| `GALLERY_PERF_BENCH_THUMBNAIL_WARM_P95_MS`      | `[thumbnail].warm_p95_ms` (`50`)                      | Warm thumbnail p95 budget                                                 |
+| `GALLERY_PERF_LIGHTBOX_OPEN_BUDGET_MS`          | `[lightbox].open_ms` (`500`)                          | Max p95 lightbox open visible time                                        |
+| `GALLERY_PERF_LIGHTBOX_PREVIEW_BUDGET_MS`       | `[lightbox].preview_check_ms` (`200`)                 | Max warm-cache p95 duration of the `/api/preview` request                 |
+| `GALLERY_PERF_LIGHTBOX_TRANSITION_BUDGET_MS`    | `[lightbox].transition_ms` (`1000`)                   | Max p95 lightbox next-preview transition time                             |

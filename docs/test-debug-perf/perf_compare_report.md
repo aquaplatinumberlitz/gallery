@@ -11,13 +11,13 @@ Note: After the Phase 2a derivative-first lightbox refactor, the current lightbo
 
 ## 1. Backend Scan Perf (`scripts/perf_scan.py`, 10 iterations)
 
-| Metric | main (ms) | evolve before Option 2 (ms) | evolve after Option 2 + hardening (ms) | Verdict |
-|--------|-----------|------------------------------|-----------------------------------------|---------|
-| min    | 23.8      | 40.08                        | 30.08                                   | pass |
-| p50    | 125.55    | 145.62                       | 51.19                                   | faster than main |
-| p95    | 394.48    | 3,014.55                     | 71.50                                   | resolved |
-| max    | 394.48    | 3,014.55                     | 71.50                                   | resolved |
-| Budget | PASS      | FAIL (p95 > 500ms)           | PASS (p95 <= 500ms)                     | pass |
+| Metric | main (ms) | evolve before Option 2 (ms) | evolve after Option 2 + hardening (ms) | Verdict          |
+| ------ | --------- | --------------------------- | -------------------------------------- | ---------------- |
+| min    | 23.8      | 40.08                       | 30.08                                  | pass             |
+| p50    | 125.55    | 145.62                      | 51.19                                  | faster than main |
+| p95    | 394.48    | 3,014.55                    | 71.50                                  | resolved         |
+| max    | 394.48    | 3,014.55                    | 71.50                                  | resolved         |
+| Budget | PASS      | FAIL (p95 > 500ms)          | PASS (p95 <= 500ms)                    | pass             |
 
 The pre-hardening evolve branch had a severe `/api/scan` tail-latency regression: p95 reached 3,014ms. The root cause was SQLite lock contention from metadata indexing and repeated DB initialization work overlapping the scan hot path.
 
@@ -25,52 +25,52 @@ After Option 2 plus hardening, scan p95 is back under budget and below the main 
 
 ## 2. Frontend Playwright - Album Open Perf
 
-| Metric | main (ms) | evolve after hardening (ms) | Delta vs main | Verdict |
-|--------|-----------|------------------------------|---------------|---------|
-| Scan start after click | 131 | 65 | -66 | faster |
-| Scan duration | 137 | 287 | +150 | within 500ms budget |
-| Scan end after click | 268 | 352 | +84 | within budget |
-| Thumb first start | 316 | 364 | +48 | within budget |
-| Thumb last end | 1,371 | 673 | -698 | faster |
-| Thumb p50 | 505 | 199 | -306 | faster |
-| Thumb p95 | 1,042 | 296 | -746 | faster |
-| Thumb max | 1,048 | 298 | -750 | faster |
-| Verdict | PASS | PASS | - | improvement |
+| Metric                 | main (ms) | evolve after hardening (ms) | Delta vs main | Verdict             |
+| ---------------------- | --------- | --------------------------- | ------------- | ------------------- |
+| Scan start after click | 131       | 65                          | -66           | faster              |
+| Scan duration          | 137       | 287                         | +150          | within 500ms budget |
+| Scan end after click   | 268       | 352                         | +84           | within budget       |
+| Thumb first start      | 316       | 364                         | +48           | within budget       |
+| Thumb last end         | 1,371     | 673                         | -698          | faster              |
+| Thumb p50              | 505       | 199                         | -306          | faster              |
+| Thumb p95              | 1,042     | 296                         | -746          | faster              |
+| Thumb max              | 1,048     | 298                         | -750          | faster              |
+| Verdict                | PASS      | PASS                        | -             | improvement         |
 
 ## 3. Frontend Playwright - Lightbox Open (derivative-first: preview 1440)
 
-| Metric | main (ms) | evolve after hardening (ms) | Delta vs main | Verdict |
-|--------|-----------|------------------------------|---------------|---------|
-| Lightbox visible | 687 | 165 | -522 | faster |
-| Preview loaded | 1,666 | 1,011 | -655 | faster |
-| Preview request start | 549 | 131 | -418 | faster |
-| Preview request duration | 411 | 21 | -390 | faster |
-| Metadata duration | 350 | 276 | -74 | faster |
-| Used preview endpoint? | yes | yes | same | pass |
-| Verdict | PASS | PASS | - | improvement |
+| Metric                   | main (ms) | evolve after hardening (ms) | Delta vs main | Verdict     |
+| ------------------------ | --------- | --------------------------- | ------------- | ----------- |
+| Lightbox visible         | 687       | 165                         | -522          | faster      |
+| Preview loaded           | 1,666     | 1,011                       | -655          | faster      |
+| Preview request start    | 549       | 131                         | -418          | faster      |
+| Preview request duration | 411       | 21                          | -390          | faster      |
+| Metadata duration        | 350       | 276                         | -74           | faster      |
+| Used preview endpoint?   | yes       | yes                         | same          | pass        |
+| Verdict                  | PASS      | PASS                        | -             | improvement |
 
 Note: "main" branch values reflect the pre-derivative-first path where the lightbox loaded the original `/api/image` directly. The "evolve" branch values measure the `/api/preview` (1440) derivative-first path. Both branches pass, but the evolve branch is significantly faster because it loads a resized preview instead of the full original image on lightbox open.
 
 ## 4. Frontend Playwright - Lightbox Transition (next/prev: preview 1440 only)
 
-| Metric | main (ms) | evolve after hardening (ms) | Delta vs main | Verdict |
-|--------|-----------|------------------------------|---------------|---------|
-| Next visible | 28 | 23 | -5 | faster |
-| Next preview loaded | 92 | 58 | -34 | faster |
-| Verdict | PASS | PASS | - | improvement |
+| Metric              | main (ms) | evolve after hardening (ms) | Delta vs main | Verdict     |
+| ------------------- | --------- | --------------------------- | ------------- | ----------- |
+| Next visible        | 28        | 23                          | -5            | faster      |
+| Next preview loaded | 92        | 58                          | -34           | faster      |
+| Verdict             | PASS      | PASS                        | -             | improvement |
 
 Note: Transition preloads thumbnail + preview only. `/api/image` is not requested during normal next/prev navigation.
 
 ## 5. Overall Scorecard
 
-| Area | Verdict | Notes |
-|------|---------|-------|
-| Backend scan p95 | PASS | 71.50ms, below the 500ms budget and main baseline |
-| Backend scan p50 | PASS | 51.19ms, faster than main |
-| Frontend album open | PASS | Thumbnail p95 improved from 1,042ms to 296ms |
-| Lightbox open | PASS | Visible at 165ms, preview loaded at 1,011ms |
-| Lightbox transition | PASS | Next preview loaded at 58ms |
-| Playwright tests | PASS | 3/3 passed |
+| Area                | Verdict | Notes                                             |
+| ------------------- | ------- | ------------------------------------------------- |
+| Backend scan p95    | PASS    | 71.50ms, below the 500ms budget and main baseline |
+| Backend scan p50    | PASS    | 51.19ms, faster than main                         |
+| Frontend album open | PASS    | Thumbnail p95 improved from 1,042ms to 296ms      |
+| Lightbox open       | PASS    | Visible at 165ms, preview loaded at 1,011ms       |
+| Lightbox transition | PASS    | Next preview loaded at 58ms                       |
+| Playwright tests    | PASS    | 3/3 passed                                        |
 
 ## 6. Conclusion
 
@@ -80,11 +80,11 @@ Branch `evolve/metadata-indexer` can merge if no new blocker appears in review.
 
 ## 7. Known Risks
 
-| Risk | Status |
-|------|--------|
-| Path stager and metadata worker are daemon threads with no explicit shutdown condition | Acceptable for the app process; can be revisited if graceful worker shutdown becomes a requirement |
-| SQLite busy retry/backoff is capped | After retries are exhausted, jobs are marked failed with a clear SQLite busy message where possible |
-| Forced staging flush during continuous scans can still create a small spike | Bounded by max-wait plus a small batch limit; latest scan p95 remains well under budget |
+| Risk                                                                                   | Status                                                                                              |
+| -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Path stager and metadata worker are daemon threads with no explicit shutdown condition | Acceptable for the app process; can be revisited if graceful worker shutdown becomes a requirement  |
+| SQLite busy retry/backoff is capped                                                    | After retries are exhausted, jobs are marked failed with a clear SQLite busy message where possible |
+| Forced staging flush during continuous scans can still create a small spike            | Bounded by max-wait plus a small batch limit; latest scan p95 remains well under budget             |
 
 ## 8. Raw Data
 

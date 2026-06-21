@@ -13,10 +13,10 @@ FastAPI/Vue search pipeline.
 
 ## Sources inspected
 
-| Repo | Files |
-| --- | --- |
+| Repo                                                           | Files                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | DiffusionToolkit at `153409c3a0e9569886e6601530365808d4ecbb0e` | [`QueryBuilder.cs`](https://github.com/RupertAvery/DiffusionToolkit/blob/153409c3a0e9569886e6601530365808d4ecbb0e/Diffusion.Database/QueryBuilder.cs), [`QueryCombiner.cs`](https://github.com/RupertAvery/DiffusionToolkit/blob/153409c3a0e9569886e6601530365808d4ecbb0e/Diffusion.Database/QueryCombiner.cs), [`ComfyUIQueryBuilder.cs`](https://github.com/RupertAvery/DiffusionToolkit/blob/153409c3a0e9569886e6601530365808d4ecbb0e/Diffusion.Database/ComfyUIQueryBuilder.cs), [`DataStore.Search.cs`](https://github.com/RupertAvery/DiffusionToolkit/blob/153409c3a0e9569886e6601530365808d4ecbb0e/Diffusion.Database/DataStore.Search.cs), [`DataStore.cs`](https://github.com/RupertAvery/DiffusionToolkit/blob/153409c3a0e9569886e6601530365808d4ecbb0e/Diffusion.Database/DataStore.cs), [`Models/Image.cs`](https://github.com/RupertAvery/DiffusionToolkit/blob/153409c3a0e9569886e6601530365808d4ecbb0e/Diffusion.Database/Models/Image.cs), [`Models/Node.cs`](https://github.com/RupertAvery/DiffusionToolkit/blob/153409c3a0e9569886e6601530365808d4ecbb0e/Diffusion.Database/Models/Node.cs), [`Models/NodeProperty.cs`](https://github.com/RupertAvery/DiffusionToolkit/blob/153409c3a0e9569886e6601530365808d4ecbb0e/Diffusion.Database/Models/NodeProperty.cs), [`CSVParser.cs`](https://github.com/RupertAvery/DiffusionToolkit/blob/153409c3a0e9569886e6601530365808d4ecbb0e/Diffusion.Database/CSVParser.cs), [`Tips.md`](https://github.com/RupertAvery/DiffusionToolkit/blob/153409c3a0e9569886e6601530365808d4ecbb0e/Diffusion.Toolkit/Tips.md) |
-| gallery-repo | [`backend/search.py`](../../backend/search.py), [`backend/metadata_store.py`](../../backend/metadata_store.py), [`frontend/src/composables/useUnifiedSearchQuery.ts`](../../frontend/src/composables/useUnifiedSearchQuery.ts), [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md) |
+| gallery-repo                                                   | [`backend/search.py`](../../backend/search.py), [`backend/metadata_store.py`](../../backend/metadata_store.py), [`frontend/src/composables/useUnifiedSearchQuery.ts`](../../frontend/src/composables/useUnifiedSearchQuery.ts), [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
 ## Current gallery-repo search
 
@@ -94,23 +94,23 @@ query.
 
 Recognized token families include:
 
-| Token family | Behavior |
-| --- | --- |
-| `seed:` | Exact seed, numeric range, or wildcard prefix pattern. |
-| `steps:` | One or more step counts, OR-ed. |
-| `sampler:` | Matches known sampler names, including multi-word names. |
-| `cfg:`, `cfg_scale:`, `cfg scale:` | Numeric CFG equality, with pipe-separated OR values. |
-| `size:` | Exact dimensions, wildcard width/height, orientation, or aspect ratio. |
-| `model_hash:`, `model hash:` | Case-insensitive hash equality, with OR values. |
-| `model:` | Model name search, plus hash lookup when DT has model cache data. |
-| `model_or_hash:` | Exact model name or hash branch. |
-| `negative prompt:`, `negative_prompt:`, `negative:` | Negative prompt text search. |
-| `aesthetic_score:` | Numeric comparison with `=`, `<`, `>`, `<=`, `>=`, or `<>`. |
-| `hypernet:` and `hypernet strength:` | Hypernetwork name and strength filters. |
-| `path:`, `folder:`, `album:` | Location and album predicates. |
-| `date:` | Created-date predicates. |
-| `type:` | Image/video filter. |
-| `favorite:`, `rating:`, `delete:`, `nsfw:`, `nometa:` | DT-specific user metadata filters. |
+| Token family                                          | Behavior                                                               |
+| ----------------------------------------------------- | ---------------------------------------------------------------------- |
+| `seed:`                                               | Exact seed, numeric range, or wildcard prefix pattern.                 |
+| `steps:`                                              | One or more step counts, OR-ed.                                        |
+| `sampler:`                                            | Matches known sampler names, including multi-word names.               |
+| `cfg:`, `cfg_scale:`, `cfg scale:`                    | Numeric CFG equality, with pipe-separated OR values.                   |
+| `size:`                                               | Exact dimensions, wildcard width/height, orientation, or aspect ratio. |
+| `model_hash:`, `model hash:`                          | Case-insensitive hash equality, with OR values.                        |
+| `model:`                                              | Model name search, plus hash lookup when DT has model cache data.      |
+| `model_or_hash:`                                      | Exact model name or hash branch.                                       |
+| `negative prompt:`, `negative_prompt:`, `negative:`   | Negative prompt text search.                                           |
+| `aesthetic_score:`                                    | Numeric comparison with `=`, `<`, `>`, `<=`, `>=`, or `<>`.            |
+| `hypernet:` and `hypernet strength:`                  | Hypernetwork name and strength filters.                                |
+| `path:`, `folder:`, `album:`                          | Location and album predicates.                                         |
+| `date:`                                               | Created-date predicates.                                               |
+| `type:`                                               | Image/video filter.                                                    |
+| `favorite:`, `rating:`, `delete:`, `nsfw:`, `nometa:` | DT-specific user metadata filters.                                     |
 
 Prompt text uses `CSVParser.Parse()`: comma-separated tokens are AND-ed, and
 quoted text preserves commas as one token.
@@ -187,30 +187,30 @@ This is a library-management feature, not a lightbox feature.
 
 ## What gallery-repo should borrow
 
-| Priority | Idea | gallery-repo application | Acceptance criteria |
-| --- | --- | --- | --- |
-| P1 | Split query into residual text plus structured facets | Parse supported metadata tokens, remove them from the text query, keep the remaining text in current FTS search. | `cat seed:123 steps:20` searches prompt text for `cat` and filters metadata rows by seed and steps. |
-| P1 | Keep FTS as the default prompt engine | Use current `image_metadata_fts` and trigram FTS for residual text; add SQL predicates only for structured fields. | Existing text search relevance and CJK behavior remain unchanged for plain queries. |
-| P1 | Fielded filters over existing columns | Support `seed:`, `steps:`, `cfg:`, `sampler:`, `model:`, `negative:` and `size:` using current `image_metadata` fields. | Exact/range/wildcard fixtures pass; scoped `current` search still works. |
-| P1 | Quoted/comma token helper | Add a small tested tokenizer for field values and prompt phrases. | `model:"Realistic Vision"` and prompt text with commas parse predictably. |
-| P1 | Query parser tests | Add backend tests for plain text, CJK text, field filters, malformed filters, scope filtering, and fallback behavior. | Parser and SQL builder tests run without image fixtures where possible. |
-| P2 | Model hash and richer columns | Add `model_hash`, `tool`, `scheduler`, and maybe `lora_text` columns after parser unification. | Field filters can query data that is currently only present inside `metadata_json`. |
-| P2 | Prompt usage endpoint | Add a dedicated endpoint for grouped prompt/negative prompt counts, separate from gallery search. | It returns prompt, usage count, and sample image path with pagination. |
-| P2 | Optional raw workflow search | Add explicit `raw:` or settings-gated raw metadata search, never default. | Raw workflow search is opt-in and bounded by limit/scope. |
-| P2 | ComfyUI node/property index | Store compact node property rows or a flattened searchable node summary after parser unification. | `node:`/`property:` filters work for ComfyUI samples without bloating normal responses. |
-| P3 | Saved searches | Store recent/saved search strings client-side or in a local backend table. | Users can rerun complex metadata queries without retyping them. |
+| Priority | Idea                                                  | gallery-repo application                                                                                                | Acceptance criteria                                                                                 |
+| -------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| P1       | Split query into residual text plus structured facets | Parse supported metadata tokens, remove them from the text query, keep the remaining text in current FTS search.        | `cat seed:123 steps:20` searches prompt text for `cat` and filters metadata rows by seed and steps. |
+| P1       | Keep FTS as the default prompt engine                 | Use current `image_metadata_fts` and trigram FTS for residual text; add SQL predicates only for structured fields.      | Existing text search relevance and CJK behavior remain unchanged for plain queries.                 |
+| P1       | Fielded filters over existing columns                 | Support `seed:`, `steps:`, `cfg:`, `sampler:`, `model:`, `negative:` and `size:` using current `image_metadata` fields. | Exact/range/wildcard fixtures pass; scoped `current` search still works.                            |
+| P1       | Quoted/comma token helper                             | Add a small tested tokenizer for field values and prompt phrases.                                                       | `model:"Realistic Vision"` and prompt text with commas parse predictably.                           |
+| P1       | Query parser tests                                    | Add backend tests for plain text, CJK text, field filters, malformed filters, scope filtering, and fallback behavior.   | Parser and SQL builder tests run without image fixtures where possible.                             |
+| P2       | Model hash and richer columns                         | Add `model_hash`, `tool`, `scheduler`, and maybe `lora_text` columns after parser unification.                          | Field filters can query data that is currently only present inside `metadata_json`.                 |
+| P2       | Prompt usage endpoint                                 | Add a dedicated endpoint for grouped prompt/negative prompt counts, separate from gallery search.                       | It returns prompt, usage count, and sample image path with pagination.                              |
+| P2       | Optional raw workflow search                          | Add explicit `raw:` or settings-gated raw metadata search, never default.                                               | Raw workflow search is opt-in and bounded by limit/scope.                                           |
+| P2       | ComfyUI node/property index                           | Store compact node property rows or a flattened searchable node summary after parser unification.                       | `node:`/`property:` filters work for ComfyUI samples without bloating normal responses.             |
+| P3       | Saved searches                                        | Store recent/saved search strings client-side or in a local backend table.                                              | Users can rerun complex metadata queries without retyping them.                                     |
 
 ## Things not to copy
 
-| DT behavior | Why not copy directly |
-| --- | --- |
-| Prompt text search through `%LIKE%` as the primary path | gallery-repo already has FTS5 relevance, CJK trigram support, and better fallback behavior. |
-| UI-owned filters such as favorite/rating/delete/NSFW before those concepts exist in gallery-repo | They would add schema and UX scope unrelated to metadata search. |
-| Raw workflow search enabled by default | Large ComfyUI workflows can make it slow and noisy. |
-| Dynamic SQL for user-supplied node property names without a whitelist/parameterized design | Node/property search must avoid SQL injection and unbounded table scans. |
-| Hamming-distance scan over all prompts as an initial feature | It is memory-heavy and less useful than exact/grouped prompt counts for this app. |
-| Absolute Windows path syntax and folder assumptions | gallery-repo must keep current `PATH_SAFETY_ROOT` path safety and current/all scope behavior. |
-| Prompt-first syntax requirement | DT recommends prompt text before parameters; gallery-repo can design a clearer parser that recognizes field tokens anywhere when values are quoted or unambiguous. |
+| DT behavior                                                                                      | Why not copy directly                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Prompt text search through `%LIKE%` as the primary path                                          | gallery-repo already has FTS5 relevance, CJK trigram support, and better fallback behavior.                                                                        |
+| UI-owned filters such as favorite/rating/delete/NSFW before those concepts exist in gallery-repo | They would add schema and UX scope unrelated to metadata search.                                                                                                   |
+| Raw workflow search enabled by default                                                           | Large ComfyUI workflows can make it slow and noisy.                                                                                                                |
+| Dynamic SQL for user-supplied node property names without a whitelist/parameterized design       | Node/property search must avoid SQL injection and unbounded table scans.                                                                                           |
+| Hamming-distance scan over all prompts as an initial feature                                     | It is memory-heavy and less useful than exact/grouped prompt counts for this app.                                                                                  |
+| Absolute Windows path syntax and folder assumptions                                              | gallery-repo must keep current `PATH_SAFETY_ROOT` path safety and current/all scope behavior.                                                                      |
+| Prompt-first syntax requirement                                                                  | DT recommends prompt text before parameters; gallery-repo can design a clearer parser that recognizes field tokens anywhere when values are quoted or unambiguous. |
 
 ## Proposed syntax for gallery-repo
 
@@ -222,15 +222,15 @@ portrait rain seed:123 steps:30 cfg:7 sampler:"Euler a" model:"realistic*" negat
 
 Initial fields:
 
-| Field | Behavior |
-| --- | --- |
-| `seed:` | Exact string match; `*` wildcard maps to `LIKE`; numeric range can come later. |
-| `steps:` | Integer equality; pipe-separated OR values can come later. |
-| `cfg:` | Float equality initially; comparison operators can come later. |
-| `sampler:` | Case-insensitive exact or wildcard match. |
-| `model:` | Case-insensitive exact or wildcard match over `model`. |
-| `negative:` | FTS/LIKE against negative prompt only. |
-| `size:` | `WIDTHxHEIGHT`, `WIDTHx?`, `?xHEIGHT`, `portrait`, `landscape`, or `square`. |
+| Field       | Behavior                                                                       |
+| ----------- | ------------------------------------------------------------------------------ |
+| `seed:`     | Exact string match; `*` wildcard maps to `LIKE`; numeric range can come later. |
+| `steps:`    | Integer equality; pipe-separated OR values can come later.                     |
+| `cfg:`      | Float equality initially; comparison operators can come later.                 |
+| `sampler:`  | Case-insensitive exact or wildcard match.                                      |
+| `model:`    | Case-insensitive exact or wildcard match over `model`.                         |
+| `negative:` | FTS/LIKE against negative prompt only.                                         |
+| `size:`     | `WIDTHxHEIGHT`, `WIDTHx?`, `?xHEIGHT`, `portrait`, `landscape`, or `square`.   |
 
 Parsing rule:
 
@@ -244,15 +244,15 @@ Parsing rule:
 
 ## Suggested implementation tasks
 
-| Task | Files likely affected | Risk | Test plan |
-| --- | --- | --- | --- |
-| Add metadata query parser | New backend parser module, `backend/metadata_store.py`, `backend/search.py` | Medium | Unit tests for tokenization, quoted values, malformed filters, plain text compatibility. |
-| Add SQL predicate builder | `backend/metadata_store.py` | Medium | SQL builder tests with in-memory SQLite fixtures. |
-| Integrate facets into `/api/search` prompt section | `backend/metadata_store.py`, maybe response types only if exposing parsed filters | Medium | Existing search tests plus scope/current folder tests. |
-| Keep `/api/search-metadata` compatible | `backend/metadata_store.py` | Low | Legacy endpoint still returns old shape for plain queries. |
-| Add prompt usage endpoint | New route or `search.py` | Low-medium | Group-by tests and pagination tests. |
-| Add richer metadata columns | `backend/metadata_parse.py`, `backend/metadata_extract.py`, `backend/metadata_store.py` | Medium | Parser fixtures and migration/backfill tests. |
-| Add ComfyUI node/property search | Parser/index schema plus search builder | High | ComfyUI fixture tests and performance checks. |
+| Task                                               | Files likely affected                                                                   | Risk       | Test plan                                                                                |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------- |
+| Add metadata query parser                          | New backend parser module, `backend/metadata_store.py`, `backend/search.py`             | Medium     | Unit tests for tokenization, quoted values, malformed filters, plain text compatibility. |
+| Add SQL predicate builder                          | `backend/metadata_store.py`                                                             | Medium     | SQL builder tests with in-memory SQLite fixtures.                                        |
+| Integrate facets into `/api/search` prompt section | `backend/metadata_store.py`, maybe response types only if exposing parsed filters       | Medium     | Existing search tests plus scope/current folder tests.                                   |
+| Keep `/api/search-metadata` compatible             | `backend/metadata_store.py`                                                             | Low        | Legacy endpoint still returns old shape for plain queries.                               |
+| Add prompt usage endpoint                          | New route or `search.py`                                                                | Low-medium | Group-by tests and pagination tests.                                                     |
+| Add richer metadata columns                        | `backend/metadata_parse.py`, `backend/metadata_extract.py`, `backend/metadata_store.py` | Medium     | Parser fixtures and migration/backfill tests.                                            |
+| Add ComfyUI node/property search                   | Parser/index schema plus search builder                                                 | High       | ComfyUI fixture tests and performance checks.                                            |
 
 ## Recommended order
 

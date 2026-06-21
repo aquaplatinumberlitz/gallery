@@ -79,20 +79,20 @@ or change the current gallery state model.
 
 Locked error codes:
 
-| Code | HTTP status | Use |
-| --- | --- | --- |
-| `bad_request` | 400 | Invalid payload, empty replacement list, malformed pattern, invalid Range |
-| `confirmation_required` | 400 | Unregister called without `confirm=true` |
-| `permission` | 403 | Outside `PATH_SAFETY_ROOT` or unreadable |
-| `not_found` | 404 | Library, job, path, or source file not found |
-| `not_directory` | 400 | Import path exists but is not a directory |
-| `invalid_file` | 400 | Unsupported or invalid media |
-| `library_overlap` | 409 | Import path overlaps another registered library |
-| `library_offline` | 409 | Required import path is unavailable |
-| `library_busy` | 409 | Operation cannot safely run beside an active job |
-| `video_tool_unavailable` | 503 | Poster generation requires unavailable `ffmpeg` |
-| `video_poster_failed` | 422 | `ffmpeg` could not produce a poster |
-| `server_error` | 500 | Unexpected backend failure |
+| Code                     | HTTP status | Use                                                                       |
+| ------------------------ | ----------- | ------------------------------------------------------------------------- |
+| `bad_request`            | 400         | Invalid payload, empty replacement list, malformed pattern, invalid Range |
+| `confirmation_required`  | 400         | Unregister called without `confirm=true`                                  |
+| `permission`             | 403         | Outside `PATH_SAFETY_ROOT` or unreadable                                  |
+| `not_found`              | 404         | Library, job, path, or source file not found                              |
+| `not_directory`          | 400         | Import path exists but is not a directory                                 |
+| `invalid_file`           | 400         | Unsupported or invalid media                                              |
+| `library_overlap`        | 409         | Import path overlaps another registered library                           |
+| `library_offline`        | 409         | Required import path is unavailable                                       |
+| `library_busy`           | 409         | Operation cannot safely run beside an active job                          |
+| `video_tool_unavailable` | 503         | Poster generation requires unavailable `ffmpeg`                           |
+| `video_poster_failed`    | 422         | `ffmpeg` could not produce a poster                                       |
+| `server_error`           | 500         | Unexpected backend failure                                                |
 
 Pydantic's normal `422` response remains valid for structurally malformed JSON.
 Domain validation uses the typed errors above.
@@ -227,26 +227,26 @@ validation response.
 
 ### 3.4 Endpoint table
 
-| Method | Endpoint | Success | Locked behavior |
-| --- | --- | --- | --- |
-| `GET` | `/api/libraries` | `200 RegisteredLibrary[]` | Ordered by library ID |
-| `POST` | `/api/libraries` | `201 RegisteredLibrary` | Atomic library/path/pattern create |
-| `POST` | `/api/libraries/validate` | `200 LibraryValidationResult` | No writes |
-| `GET` | `/api/libraries/{id}` | `200 RegisteredLibrary` | `404` if absent |
-| `PATCH` | `/api/libraries/{id}` | `200 RegisteredLibrary` | Canonical update method |
-| `PUT` | `/api/libraries/{id}` | `200 RegisteredLibrary` | Exact alias of PATCH semantics |
-| `POST` | `/api/libraries/{id}/validate` | `200 LibraryValidationResult` | Excludes current library from cross-library overlap |
-| `GET` | `/api/libraries/{id}/progress` | `200 LibraryProgress` | Polling source of truth |
-| `GET` | `/api/libraries/{id}/stats` | `200 LibraryStats` | Aggregate asset stats |
-| `GET` | `/api/libraries/{id}/jobs` | `200 LibraryJob[]` | Newest first, default limit 50, max 200 |
-| `POST` | `/api/libraries/{id}/scan` | `202 LibraryScanResponse` | Queue/coalesce scan |
-| `POST` | `/api/libraries/scan-all` | `202 ScanAllResponse` | Parent plus per-library children |
-| `POST` | `/api/libraries/{id}/repair` | `200 LibraryRepairResponse` | Synchronous V1 operation recorded as a job |
-| `DELETE` | `/api/libraries/{id}?confirm=true` | `200` confirmation object | Never deletes source files |
-| `GET` | `/api/stats` | `200 GalleryStats` | All registered libraries |
-| `GET` | `/api/jobs` | `200 LibraryJob[]` | Newest first, default limit 100, max 500 |
-| `GET` | `/api/jobs/{id}` | `200 LibraryJob` | `404` if absent |
-| `GET` | `/api/events` | `200 text/event-stream` | Best-effort events |
+| Method   | Endpoint                           | Success                       | Locked behavior                                     |
+| -------- | ---------------------------------- | ----------------------------- | --------------------------------------------------- |
+| `GET`    | `/api/libraries`                   | `200 RegisteredLibrary[]`     | Ordered by library ID                               |
+| `POST`   | `/api/libraries`                   | `201 RegisteredLibrary`       | Atomic library/path/pattern create                  |
+| `POST`   | `/api/libraries/validate`          | `200 LibraryValidationResult` | No writes                                           |
+| `GET`    | `/api/libraries/{id}`              | `200 RegisteredLibrary`       | `404` if absent                                     |
+| `PATCH`  | `/api/libraries/{id}`              | `200 RegisteredLibrary`       | Canonical update method                             |
+| `PUT`    | `/api/libraries/{id}`              | `200 RegisteredLibrary`       | Exact alias of PATCH semantics                      |
+| `POST`   | `/api/libraries/{id}/validate`     | `200 LibraryValidationResult` | Excludes current library from cross-library overlap |
+| `GET`    | `/api/libraries/{id}/progress`     | `200 LibraryProgress`         | Polling source of truth                             |
+| `GET`    | `/api/libraries/{id}/stats`        | `200 LibraryStats`            | Aggregate asset stats                               |
+| `GET`    | `/api/libraries/{id}/jobs`         | `200 LibraryJob[]`            | Newest first, default limit 50, max 200             |
+| `POST`   | `/api/libraries/{id}/scan`         | `202 LibraryScanResponse`     | Queue/coalesce scan                                 |
+| `POST`   | `/api/libraries/scan-all`          | `202 ScanAllResponse`         | Parent plus per-library children                    |
+| `POST`   | `/api/libraries/{id}/repair`       | `200 LibraryRepairResponse`   | Synchronous V1 operation recorded as a job          |
+| `DELETE` | `/api/libraries/{id}?confirm=true` | `200` confirmation object     | Never deletes source files                          |
+| `GET`    | `/api/stats`                       | `200 GalleryStats`            | All registered libraries                            |
+| `GET`    | `/api/jobs`                        | `200 LibraryJob[]`            | Newest first, default limit 100, max 500            |
+| `GET`    | `/api/jobs/{id}`                   | `200 LibraryJob`              | `404` if absent                                     |
+| `GET`    | `/api/events`                      | `200 text/event-stream`       | Best-effort events                                  |
 
 List endpoints may add cursor pagination later, but V1 query/response shapes are
 plain bounded arrays.
@@ -670,8 +670,8 @@ Selecting a library/import path:
 - starts the existing scan query for the import root.
 
 No writable `rootPath` action/getter is part of the completed feature. A
-temporary compatibility getter, if required during one intermediate commit,
-must be read-only and removed by Phase 6 completion.
+temporary compatibility getter existed during migration but was removed in
+Phase 6.
 
 ### 8.3 Query behavior
 
@@ -686,12 +686,12 @@ must be read-only and removed by Phase 6 completion.
 
 Approved additions/usage:
 
-| Dependency | Decision |
-| --- | --- |
-| `wcmatch` | Add to `backend/requirements.txt` in Phase 1 for globstar exclusion matching |
-| `ffmpeg` / `ffprobe` | Optional system executables; no automatic install |
-| Frontend packages | No additions; reuse installed shadcn-vue/Reka, TanStack, PhotoSwipe, and Lucide packages |
-| Queue/transport | No Redis, BullMQ, Celery, Socket.IO, or WebSocket dependency |
+| Dependency           | Decision                                                                                 |
+| -------------------- | ---------------------------------------------------------------------------------------- |
+| `wcmatch`            | Add to `backend/requirements.txt` in Phase 1 for globstar exclusion matching             |
+| `ffmpeg` / `ffprobe` | Optional system executables; no automatic install                                        |
+| Frontend packages    | No additions; reuse installed shadcn-vue/Reka, TanStack, PhotoSwipe, and Lucide packages |
+| Queue/transport      | No Redis, BullMQ, Celery, Socket.IO, or WebSocket dependency                             |
 
 The concrete `wcmatch` version constraint is selected and locked in
 `backend/requirements.txt` when Phase 1 updates the resolved runtime dependency

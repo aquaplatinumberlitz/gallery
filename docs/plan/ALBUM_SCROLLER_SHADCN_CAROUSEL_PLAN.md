@@ -493,7 +493,7 @@ const carouselOpts = {
   containScroll: "trimSnaps",
   dragFree: false,
   skipSnaps: false,
-}
+};
 ```
 
 Tradeoffs:

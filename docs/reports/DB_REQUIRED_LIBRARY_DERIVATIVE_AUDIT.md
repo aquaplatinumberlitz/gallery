@@ -37,6 +37,7 @@ Hậu quả:
 #### ❌ Rejected: Conditional fix (`PATH_SAFETY_ROOT == "/"` thì ko tạo default)
 
 Approach cũ trong code: kiểm tra if PATH_SAFETY_ROOT == "/" rồi conditional skip. Lý do reject:
+
 - Vẫn còn edge case: PATH_SAFETY_ROOT="/home" vẫn auto-tạo library từ /home → bao phủ gần hết, 409 vẫn ko fire
 - Logic có điều kiện → khó hiểu, khó maintain
 - Gây nhầm lẫn giữa implicit (default) và explicit (user register) library
@@ -59,34 +60,36 @@ Changes required:
    - Registered but unindexed/discovering library must NOT return empty warm_db
 
 **Startup behavior replacement:**
+
 - If libraries exist: open recent/first library
 - If no libraries exist: show "Add Library" empty state (frontend)
 - DB init only creates tables, does NOT auto-create any library
 
 **Config cleanup:**
+
 - Deprecate `PATH_SAFETY_ROOT` in docs. It's still used for `is_path_safe` security check, but its default ("/") must not affect library semantics.
 - Remove `PATH_SAFETY_ROOT` references where they imply auto-browsing.
 - Update `CONFIGURATION.md` and `ARCHITECTURE.md` to reflect the new model.
 
 **Affected files (from code audit):**
 
-| File | Usage | Action |
-|------|-------|--------|
-| `config.py:47-48` | PATH_SAFETY_ROOT="/" | Keep PATH_SAFETY_ROOT for path safety only |
-| `metadata_store.py:436` | `_ensure_default_library_conn()` on startup | Move inside migration-only block |
-| `metadata_store.py:519-532` | Function definition | Keep for migration; rename to clarify |
-| `metadata_store.py:557` | Fallback auto-create in _upsert_asset_conn | Change to return None/abort |
-| `metadata_store.py:2345,2642,2790,3213` | `else PATH_SAFETY_ROOT` in scope queries | Change to use explicit library root |
-| `scan.py:249` | PATH_SAFETY_ROOT as fallback path | Use empty path → 400 or library-first |
-| `folders.py:77` | Same pattern | Same |
-| `search.py:61,66,103,131,186` | PATH_SAFETY_ROOT as scope fallback | Change to explicit library root |
-| `scan.py:304` | `elif GALLERY_DB_REQUIRED` returns empty gallery | Add library state check instead |
-| `paths.py:32` | `is_path_safe` security boundary | Keep (security, not catalog) |
-| `test_libraries_catalog.py` | Test assumes default library | Update tests |
-| `test_db_required_scan.py` | Tests for DB-required mode | Update/add regression tests |
-| `test_paths.py` | Path safety tests | Keep (security) |
-| `test_search_coverage.py` | May assume PATH_SAFETY_ROOT | Audit and update |
-| `conftest.py:145-160` | monkeypatch PATH_SAFETY_ROOT | Keep for path safety; remove catalog assumptions |
+| File                                    | Usage                                            | Action                                           |
+| --------------------------------------- | ------------------------------------------------ | ------------------------------------------------ |
+| `config.py:47-48`                       | PATH_SAFETY_ROOT="/"                             | Keep PATH_SAFETY_ROOT for path safety only       |
+| `metadata_store.py:436`                 | `_ensure_default_library_conn()` on startup      | Move inside migration-only block                 |
+| `metadata_store.py:519-532`             | Function definition                              | Keep for migration; rename to clarify            |
+| `metadata_store.py:557`                 | Fallback auto-create in \_upsert_asset_conn      | Change to return None/abort                      |
+| `metadata_store.py:2345,2642,2790,3213` | `else PATH_SAFETY_ROOT` in scope queries         | Change to use explicit library root              |
+| `scan.py:249`                           | PATH_SAFETY_ROOT as fallback path                | Use empty path → 400 or library-first            |
+| `folders.py:77`                         | Same pattern                                     | Same                                             |
+| `search.py:61,66,103,131,186`           | PATH_SAFETY_ROOT as scope fallback               | Change to explicit library root                  |
+| `scan.py:304`                           | `elif GALLERY_DB_REQUIRED` returns empty gallery | Add library state check instead                  |
+| `paths.py:32`                           | `is_path_safe` security boundary                 | Keep (security, not catalog)                     |
+| `test_libraries_catalog.py`             | Test assumes default library                     | Update tests                                     |
+| `test_db_required_scan.py`              | Tests for DB-required mode                       | Update/add regression tests                      |
+| `test_paths.py`                         | Path safety tests                                | Keep (security)                                  |
+| `test_search_coverage.py`               | May assume PATH_SAFETY_ROOT                      | Audit and update                                 |
+| `conftest.py:145-160`                   | monkeypatch PATH_SAFETY_ROOT                     | Keep for path safety; remove catalog assumptions |
 
 ### 2. DB-required trả gallery rỗng cho path sai hoặc chưa indexed
 
@@ -270,11 +273,11 @@ Fix sạch:
 Frontend thêm error types:
 
 ```ts
-"library_not_registered"
-"library_not_indexed"
-"library_discovering"
-"library_overlap"
-"library_offline"
+"library_not_registered";
+"library_not_indexed";
+"library_discovering";
+"library_overlap";
+"library_offline";
 ```
 
 UI nên map thành action rõ ràng:
@@ -722,8 +725,8 @@ type ErrorType =
   | "library_not_indexed"
   | "library_discovering"
   | "library_overlap"
-  | "library_offline"
-  // existing values...
+  | "library_offline";
+// existing values...
 ```
 
 Recommended UI actions:

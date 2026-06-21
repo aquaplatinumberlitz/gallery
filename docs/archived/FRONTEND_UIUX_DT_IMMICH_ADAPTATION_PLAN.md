@@ -21,17 +21,18 @@ Terminology note: backend Phase 3 and frontend Phase 3 are related but not ident
 
 The backend has a rich set of capabilities that are either completely invisible or severely underutilized in the frontend:
 
-| Missing UX | Backend Capability Exists? | Frontend Status |
-|---|---|---|
-| Index status visibility | Yes (`/api/index/status`, `indexer.py:599`) | Desktop API wrapper/query/UI complete after Tailwind Phase 2B refactor |
-| Faceted search/advanced search | Yes (`/api/facets`, `facets.py:248`; fielded parser with 30+ fields) | Phase 2 complete for desktop Advanced Search; Library Inspector reuses the same fielded syntax rather than creating a parallel filter UI |
-| Watcher/refresh status | Yes (`get_watcher_status()`, `get_refresh_status()` exist) | No HTTP endpoints wired; no frontend exposure possible |
-| Library Inspector | Complete for MVP — indexed metadata plus read-only inspector list/detail endpoints | Phase 3 MVP implemented: `/metadata`, `LibraryInspector`, `/api/library/inspector`, `/api/library/inspector/metadata`, TanStack Query, and TanStack Table |
-| TanStack Vue Form for advanced search/settings | Installed (v1.33.0) | Used for Phase 2 Advanced Search; future settings/editing workflows remain separate |
+| Missing UX                                     | Backend Capability Exists?                                                         | Frontend Status                                                                                                                                           |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Index status visibility                        | Yes (`/api/index/status`, `indexer.py:599`)                                        | Desktop API wrapper/query/UI complete after Tailwind Phase 2B refactor                                                                                    |
+| Faceted search/advanced search                 | Yes (`/api/facets`, `facets.py:248`; fielded parser with 30+ fields)               | Phase 2 complete for desktop Advanced Search; Library Inspector reuses the same fielded syntax rather than creating a parallel filter UI                  |
+| Watcher/refresh status                         | Yes (`get_watcher_status()`, `get_refresh_status()` exist)                         | No HTTP endpoints wired; no frontend exposure possible                                                                                                    |
+| Library Inspector                              | Complete for MVP — indexed metadata plus read-only inspector list/detail endpoints | Phase 3 MVP implemented: `/metadata`, `LibraryInspector`, `/api/library/inspector`, `/api/library/inspector/metadata`, TanStack Query, and TanStack Table |
+| TanStack Vue Form for advanced search/settings | Installed (v1.33.0)                                                                | Used for Phase 2 Advanced Search; future settings/editing workflows remain separate                                                                       |
 
 ### Why a frontend control/visibility layer is needed
 
 DT/Immich-style background jobs (indexing, watcher, search caching) require user-visible status and progress. Without it:
+
 - Users cannot tell if indexing is running, complete, or failed.
 - The powerful fielded search parser is now exposed through Phase 2 Advanced Search and must also be reused by Phase 3 Library Inspector.
 - Facets data is computed on the backend and belongs to the Phase 2 advanced-search UX, not the Phase 3 inspector MVP.
@@ -65,11 +66,11 @@ Mobile and tablet Library Inspector layouts are deferred unless a separate mobil
 
 ### Cross-Plan Status Map
 
-| FRONTEND plan scope | TAILWIND plan status |
-|---|---|
-| FRONTEND Phase 1A/1B | Superseded by TAILWIND Phase 2B (Index Status) |
-| FRONTEND Phase 1C (SettingsModal, Dialog) | Superseded by TAILWIND Phase 1.5 + 2B |
-| FRONTEND Phase 1D (SearchFilterChips, Badge) | Superseded by TAILWIND Phase 2B |
+| FRONTEND plan scope                                | TAILWIND plan status                                                                                    |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| FRONTEND Phase 1A/1B                               | Superseded by TAILWIND Phase 2B (Index Status)                                                          |
+| FRONTEND Phase 1C (SettingsModal, Dialog)          | Superseded by TAILWIND Phase 1.5 + 2B                                                                   |
+| FRONTEND Phase 1D (SearchFilterChips, Badge)       | Superseded by TAILWIND Phase 2B                                                                         |
 | FRONTEND Phase 2 (AdvancedSearchDrawer, facets UI) | Complete for desktop; Library Inspector reuses its fielded-search semantics and does not rebuild facets |
 
 ### Desktop Theme Note
@@ -81,6 +82,7 @@ Desktop theme selection now uses the `useGalleryTheme()` composable with a shadc
 ### Mobile/Tablet Guardrail
 
 During completed Phase 1, these files and behaviors were intentionally out of scope. Keep the same constraint for Phase 3 Library Inspector unless a separate responsive design is approved:
+
 - frontend/src/components/MobileHeader.vue
 - frontend/src/components/TabletHeader.vue
 - frontend/src/layouts/MobileLayout.vue
@@ -96,6 +98,7 @@ During completed Phase 1, these files and behaviors were intentionally out of sc
 - mobile/tablet sheet behavior
 
 Phase 3 Library Inspector must not opportunistically:
+
 - add IndexStatusChip to mobile header
 - add IndexStatusChip to tablet header
 - reorder mobile/tablet buttons
@@ -105,6 +108,7 @@ Phase 3 Library Inspector must not opportunistically:
 - change mobile/tablet theme toggle behavior
 
 Any mobile/tablet change requires:
+
 1. a separate design spec
 2. explicit approval
 3. real iPhone Safari test
@@ -115,21 +119,21 @@ Any mobile/tablet change requires:
 
 ## 2. Current Backend Capabilities vs Frontend UX Coverage
 
-| Capability | Backend Status | Frontend API Wrapper | Frontend UI | Gap | Priority |
-|---|---|---|---|---|---|
-| Background metadata indexing | Complete (`indexer.py`, 607 lines) | Complete — `fetchIndexStatus(path)` | Complete — desktop `IndexStatusChip`/`IndexStatusPanel` | Desktop visibility complete after Tailwind Phase 2B refactor; mobile/tablet remains frozen | Complete for desktop Phase 1 |
-| Index status (`/api/index/status`) | Complete (`indexer.py:599`) | Complete | Complete — desktop AppHeader chip + popover panel | Mobile/tablet intentionally excluded | Complete for desktop Phase 1 |
-| Facets (`/api/facets`) | Complete (`facets.py:248`, 8 facet types) | Complete — `fetchFacets(path)` | Complete for desktop Phase 2 — facets/filter UI belongs to Advanced Search | No Phase 3 Library Inspector gap. Do not rebuild facets or filter chips inside the inspector MVP. | Complete for desktop Phase 2 |
-| Fielded search parser | Complete (`fielded_search_parser.py`, 30+ field types) | Complete for Phase 2 Advanced Search query serialization/search requests | Complete for desktop Phase 2 — `AdvancedSearchDrawer` and active filter chips expose fielded search | Phase 3 must reuse this parser/query-builder semantics for `/api/library/inspector`, not create a second parser. | Complete for desktop Phase 2; reused in Phase 3 |
-| Warm indexed folder listing | Complete (`scan.py` returns `index_source`) | Partial — `scanDirectory()` does not distinguish source | **Missing** — no visual indicator of warm vs direct scan source | Low priority (transparent optimization) | P3 |
-| Library Inspector listing/detail | Complete for MVP — `GET /api/library/inspector` and `GET /api/library/inspector/metadata?path=...` read indexed DB rows | Complete — `fetchLibraryInspector()` and `fetchLibraryInspectorMetadata()` | Complete — desktop `/metadata` renders `LibraryInspector` | No MVP gap. Future scale work may add server-side sorting, cursors, or virtualization if needed. | Complete for Phase 3 MVP |
-| Watcher | Watcher module implemented (`watcher.py:191`); HTTP route missing | **Missing** — no HTTP route for watcher status | Deferred — no watcher controls in Library Inspector MVP | Future status panel work only; not a Phase 3 Library Inspector prerequisite | Future |
-| Scheduled refresh | Refresh module implemented (`refresh.py:150`); HTTP route missing | **Missing** — no HTTP route for refresh status | Deferred — no refresh controls in Library Inspector MVP | Future status panel work only; not a Phase 3 Library Inspector prerequisite | Future |
-| Metadata extraction | Complete (`metadata_extract.py`, 5+ tools) | Complete — `fetchMetadata()` exists (`api.ts:179`) | **Complete** — lightbox panels display metadata well | No gap | N/A |
-| `/api/health` | Complete (`health.py:23`) | **Missing** — no `fetchHealth()` | **Missing** — not displayed in UI | Low priority; backend status is adequate | P3 |
-| `/api/search-metadata` (legacy) | Complete (`search.py:17`) | Not used — unified search replaced it | Not needed | No gap | N/A |
-| Duplicate/broken image handling | **Missing** — no duplicate detection endpoint | **Missing** | **Missing** | Backend prerequisite | Future |
-| Audit/diagnostics endpoint | **Missing** — no unified `/api/diagnostics` | **Missing** | **Missing** | Backend prerequisite | Future |
+| Capability                         | Backend Status                                                                                                          | Frontend API Wrapper                                                       | Frontend UI                                                                                         | Gap                                                                                                              | Priority                                        |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| Background metadata indexing       | Complete (`indexer.py`, 607 lines)                                                                                      | Complete — `fetchIndexStatus(path)`                                        | Complete — desktop `IndexStatusChip`/`IndexStatusPanel`                                             | Desktop visibility complete after Tailwind Phase 2B refactor; mobile/tablet remains frozen                       | Complete for desktop Phase 1                    |
+| Index status (`/api/index/status`) | Complete (`indexer.py:599`)                                                                                             | Complete                                                                   | Complete — desktop AppHeader chip + popover panel                                                   | Mobile/tablet intentionally excluded                                                                             | Complete for desktop Phase 1                    |
+| Facets (`/api/facets`)             | Complete (`facets.py:248`, 8 facet types)                                                                               | Complete — `fetchFacets(path)`                                             | Complete for desktop Phase 2 — facets/filter UI belongs to Advanced Search                          | No Phase 3 Library Inspector gap. Do not rebuild facets or filter chips inside the inspector MVP.                | Complete for desktop Phase 2                    |
+| Fielded search parser              | Complete (`fielded_search_parser.py`, 30+ field types)                                                                  | Complete for Phase 2 Advanced Search query serialization/search requests   | Complete for desktop Phase 2 — `AdvancedSearchDrawer` and active filter chips expose fielded search | Phase 3 must reuse this parser/query-builder semantics for `/api/library/inspector`, not create a second parser. | Complete for desktop Phase 2; reused in Phase 3 |
+| Warm indexed folder listing        | Complete (`scan.py` returns `index_source`)                                                                             | Partial — `scanDirectory()` does not distinguish source                    | **Missing** — no visual indicator of warm vs direct scan source                                     | Low priority (transparent optimization)                                                                          | P3                                              |
+| Library Inspector listing/detail   | Complete for MVP — `GET /api/library/inspector` and `GET /api/library/inspector/metadata?path=...` read indexed DB rows | Complete — `fetchLibraryInspector()` and `fetchLibraryInspectorMetadata()` | Complete — desktop `/metadata` renders `LibraryInspector`                                           | No MVP gap. Future scale work may add server-side sorting, cursors, or virtualization if needed.                 | Complete for Phase 3 MVP                        |
+| Watcher                            | Watcher module implemented (`watcher.py:191`); HTTP route missing                                                       | **Missing** — no HTTP route for watcher status                             | Deferred — no watcher controls in Library Inspector MVP                                             | Future status panel work only; not a Phase 3 Library Inspector prerequisite                                      | Future                                          |
+| Scheduled refresh                  | Refresh module implemented (`refresh.py:150`); HTTP route missing                                                       | **Missing** — no HTTP route for refresh status                             | Deferred — no refresh controls in Library Inspector MVP                                             | Future status panel work only; not a Phase 3 Library Inspector prerequisite                                      | Future                                          |
+| Metadata extraction                | Complete (`metadata_extract.py`, 5+ tools)                                                                              | Complete — `fetchMetadata()` exists (`api.ts:179`)                         | **Complete** — lightbox panels display metadata well                                                | No gap                                                                                                           | N/A                                             |
+| `/api/health`                      | Complete (`health.py:23`)                                                                                               | **Missing** — no `fetchHealth()`                                           | **Missing** — not displayed in UI                                                                   | Low priority; backend status is adequate                                                                         | P3                                              |
+| `/api/search-metadata` (legacy)    | Complete (`search.py:17`)                                                                                               | Not used — unified search replaced it                                      | Not needed                                                                                          | No gap                                                                                                           | N/A                                             |
+| Duplicate/broken image handling    | **Missing** — no duplicate detection endpoint                                                                           | **Missing**                                                                | **Missing**                                                                                         | Backend prerequisite                                                                                             | Future                                          |
+| Audit/diagnostics endpoint         | **Missing** — no unified `/api/diagnostics`                                                                             | **Missing**                                                                | **Missing**                                                                                         | Backend prerequisite                                                                                             | Future                                          |
 
 ### Deferred Gap: Watcher/Refresh Status Endpoints
 
@@ -141,14 +145,14 @@ Any mobile/tablet change requires:
 
 Purpose: Make it clear what backend endpoints and frontend types/composables must exist before UI implementation. Frontend should not invent a new payload shape when an existing backend contract already exists.
 
-| Endpoint | Frontend Type | API Wrapper | Query/Composable | Notes |
-|---|---|---|---|---|
-| `/api/index/status` | `IndexStatusResponse` | `fetchIndexStatus()` | `useIndexStatusQuery()` | Backend complete at `indexer.py:599` |
-| `/api/facets` | `FacetsResponse` | `fetchFacets()` | `useFacetsQuery()` | Backend complete at `facets.py:248` |
-| `/api/search` | Existing `unifiedSearch()` contract | `unifiedSearch()` | Existing query composable | Current contract: `q`, `scope`, `path`, `limit`. Fielded search is parsed server-side from the `q` string. Advanced Search should serialize form state into backend-compatible `q`. |
-| `/api/library/inspector` | `LibraryInspectorResponse`, `LibraryInspectorRow` | `fetchLibraryInspector()` | `useLibraryInspectorQuery()` | **New Phase 3 list endpoint.** Empty `q` returns latest indexed metadata rows; optional `q` supports free text plus shared Phase 2 fielded syntax (`prompt:`, `negative:`, `model:`, `sampler:`, `seed:`, `date:`, `folder:`, `lora:`, `resource:`, `resource_hash:`). This endpoint must not change `/api/search?q=` empty-query behavior. |
-| `/api/library/inspector/metadata` | `LibraryInspectorMetadataResponse` | `fetchLibraryInspectorMetadata(path)` | `useLibraryInspectorMetadataQuery(path, enabled)` | **New Phase 3 detail endpoint.** Frontend must URL-encode `path`; backend must validate it belongs to the configured gallery root/indexed library. Reads prompt/negative/LoRA/resource detail from indexed DB metadata by `path`; must not synchronously parse original image files during Popover open. |
-| `/api/scan` | `ScanResponse` (include `index_source?: "warm_db" \| "direct_scan" \| "mixed"`) | `scanDirectory()` | Existing scan composable | Backend returns `index_source`; frontend type must reflect it. |
+| Endpoint                          | Frontend Type                                                                   | API Wrapper                           | Query/Composable                                  | Notes                                                                                                                                                                                                                                                                                                                                       |
+| --------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/api/index/status`               | `IndexStatusResponse`                                                           | `fetchIndexStatus()`                  | `useIndexStatusQuery()`                           | Backend complete at `indexer.py:599`                                                                                                                                                                                                                                                                                                        |
+| `/api/facets`                     | `FacetsResponse`                                                                | `fetchFacets()`                       | `useFacetsQuery()`                                | Backend complete at `facets.py:248`                                                                                                                                                                                                                                                                                                         |
+| `/api/search`                     | Existing `unifiedSearch()` contract                                             | `unifiedSearch()`                     | Existing query composable                         | Current contract: `q`, `scope`, `path`, `limit`. Fielded search is parsed server-side from the `q` string. Advanced Search should serialize form state into backend-compatible `q`.                                                                                                                                                         |
+| `/api/library/inspector`          | `LibraryInspectorResponse`, `LibraryInspectorRow`                               | `fetchLibraryInspector()`             | `useLibraryInspectorQuery()`                      | **New Phase 3 list endpoint.** Empty `q` returns latest indexed metadata rows; optional `q` supports free text plus shared Phase 2 fielded syntax (`prompt:`, `negative:`, `model:`, `sampler:`, `seed:`, `date:`, `folder:`, `lora:`, `resource:`, `resource_hash:`). This endpoint must not change `/api/search?q=` empty-query behavior. |
+| `/api/library/inspector/metadata` | `LibraryInspectorMetadataResponse`                                              | `fetchLibraryInspectorMetadata(path)` | `useLibraryInspectorMetadataQuery(path, enabled)` | **New Phase 3 detail endpoint.** Frontend must URL-encode `path`; backend must validate it belongs to the configured gallery root/indexed library. Reads prompt/negative/LoRA/resource detail from indexed DB metadata by `path`; must not synchronously parse original image files during Popover open.                                    |
+| `/api/scan`                       | `ScanResponse` (include `index_source?: "warm_db" \| "direct_scan" \| "mixed"`) | `scanDirectory()`                     | Existing scan composable                          | Backend returns `index_source`; frontend type must reflect it.                                                                                                                                                                                                                                                                              |
 
 Frontend should not invent a new payload shape when an existing backend contract already exists.
 
@@ -156,34 +160,34 @@ Frontend should not invent a new payload shape when an existing backend contract
 
 ## 4. Current Frontend Component Audit
 
-| Component | Current Role | Problems/Gaps | shadcn-vue Pattern to Learn | Recommendation | Phase 1 Constraint |
-|---|---|---|---|---|---|
-| **AppHeader + Search** (`AppHeader.vue`) | Desktop header with brand, theme toggle, search box + scope selector | Search is single text input; no fielded search, no facet chips, no advanced search trigger. Scope selector is a native `<select>`. | Command palette (search suggestions), Popover (scope/field selector), Badge (fielded search chips) | **Phase 1: allowed** — Add IndexStatusChip and desktop panel/popover. Must not affect mobile/tablet. Keep native `<select>` for scope in Phase 1. | Add IndexStatusChip only. No mobile/tablet impact. |
-| **MobileHeader** (`MobileHeader.vue`) | Mobile top bar with expandable search, sort popover, theme toggle | Same search limitations as desktop. Search overlay has no fielded mode. | Command (mobile search palette), Sheet (advanced search drawer on mobile) | **Phase 1: frozen** — No changes. No IndexStatusChip. No status panel. No button reorder. | Frozen. No changes. |
-| **TabletHeader** (`TabletHeader.vue`) | Tablet top bar | Scope selector, theme toggle, search. | — | **Phase 1: frozen** — No changes. No IndexStatusChip. No status panel. No layout changes. | Frozen. No changes. |
-| **SettingsModal** (`SettingsModal.vue`) | Application settings: intro screen mode, theme selection, original-image toggle | Now uses shadcn Dialog component (migrated in Tailwind Phase 1.5/2B). No tabs yet; flat auto-save settings remain correct. | Dialog is complete for current scope; Tabs/Form remain future-only if settings grow. | **Superseded by Tailwind Phase 1.5/2B** — shadcn Dialog migration complete. Keep current auto-save behavior (watcher/localStorage). | No mobile behavior changes. |
-| **RootPathSheet** (`RootPathSheet.vue`) | Bottom sheet for editing root folder path on mobile | No loading state during path load. Missing ARIA dialog roles. Paste button hides when textarea focused (discoverability). | Sheet (Header/Description/Footer pattern) | **Phase 1: NOT in Phase 1. Deferred to future Mobile/Tablet Spec.** | Not in Phase 1. Deferred to future Mobile/Tablet Spec. |
-| **Lightbox + Metadata Panel** (`Lightbox.vue`, `LightboxDesktopPanel.vue`, `LightboxMobileSheet.vue`, `LightboxTabletPanel.vue`) | Device-adaptive image viewer with metadata display | Desktop panel lacks `role="complementary"`. Mobile sheet tabs lack `role="tablist"`/`role="tab"`/`aria-selected`. Metadata display itself is well-built with sections, copy buttons, LoRA highlighting. | Tabs (mobile metadata tabs ARIA roles), Sheet (mobile panel structure) | **Keep as-is with light accessibility fixes**. Metadata panels are mature and should not be rewritten. Add ARIA roles for tabs and complementary landmark. | Lightbox behavior frozen for mobile/tablet. |
-| **Toast** (`ToastContainer.vue`, `ToastItem.vue`) | Fixed-position toast notifications with TransitionGroup | No `role="alert"` or `aria-live` for screen reader announcements. No toast queue overflow beyond capping at 3. | Toast/Sonner pattern (position, stacking, dismiss) | **Keep as-is**. Toast system is mature and styled per gallery theme. Add `role="alert"` to ToastItem. | Desktop-safe ARIA only. |
-| **GalleryGrid** (`GalleryGrid.vue`) | Primary content display: virtualized photo grid, infinite scroll, search results, toolbar | Search results rendering is adequate. No filter chips for active fielded search. Sort/density triggers lack `aria-haspopup`/`aria-expanded` (except density). Error banner lacks `role="alert"`. No `aria-live` for search results. | Data Table toolbar pattern (for sort/density/filter controls), Badge/Alert (error states) | **Phase 1: frozen for behavior/layout/virtualization/image loading** — Do NOT use TanStack Table. `role="alert"` on error banner is desktop-safe only if it does not change mobile behavior. | Frozen for behavior/layout/virtualization/image loading. |
-| **FolderTreeItem** (`FolderTreeItem.vue`) | Recursive folder tree with keyboard navigation | Missing proper TreeView ARIA roles (`role="tree"`, `role="treeitem"`, `aria-expanded`, `aria-selected`). | TreeView widget pattern from WAI-ARIA | **Refactor ARIA**: Add TreeView roles. Keep existing keyboard navigation. | Desktop-safe ARIA only. |
-| **EmptyState** (`EmptyState.vue`) | Generic empty/error/loading state with 7 types | SVGs lack `role="img"`/`aria-label`. Loading type lacks `aria-busy`. | N/A (custom component) | **Keep as-is**. Light accessibility improvements only. | Desktop-safe ARIA only. |
-| **Future: IndexStatusChip** | Does not exist | — | Badge + Popover pattern | **Phase 1: desktop-only** — Must not be imported by MobileHeader or TabletHeader. | Desktop-only. No mobile/tablet import. |
-| **Future: IndexStatusPanel** | Does not exist | — | Popover/Sheet pattern for details | **Phase 1: desktop-only** — Must not open as mobile sheet in Phase 1. | Desktop-only. No mobile sheet. |
-| **Future: AdvancedSearchDrawer** | Does not exist | — | Sheet (mobile) / Side Sheet (desktop), Form (TanStack), Command palette | **Add new component**. See Phase 2. | Phase 2. |
-| **Future: SearchFilterChips** | Does not exist | — | Badge (removable chips) | **Add new component**. See Phase 2. | Phase 2. |
-| **Future: LibraryInspector** | Does not exist | — | TanStack Table + shadcn table/popover/dropdown patterns | **Add desktop-only `/metadata` route with read-only metadata inspection table** backed by `/api/library/inspector` and detail-on-demand metadata endpoint. See Phase 3. | Phase 3. |
+| Component                                                                                                                        | Current Role                                                                              | Problems/Gaps                                                                                                                                                                                                                       | shadcn-vue Pattern to Learn                                                                        | Recommendation                                                                                                                                                                               | Phase 1 Constraint                                       |
+| -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| **AppHeader + Search** (`AppHeader.vue`)                                                                                         | Desktop header with brand, theme toggle, search box + scope selector                      | Search is single text input; no fielded search, no facet chips, no advanced search trigger. Scope selector is a native `<select>`.                                                                                                  | Command palette (search suggestions), Popover (scope/field selector), Badge (fielded search chips) | **Phase 1: allowed** — Add IndexStatusChip and desktop panel/popover. Must not affect mobile/tablet. Keep native `<select>` for scope in Phase 1.                                            | Add IndexStatusChip only. No mobile/tablet impact.       |
+| **MobileHeader** (`MobileHeader.vue`)                                                                                            | Mobile top bar with expandable search, sort popover, theme toggle                         | Same search limitations as desktop. Search overlay has no fielded mode.                                                                                                                                                             | Command (mobile search palette), Sheet (advanced search drawer on mobile)                          | **Phase 1: frozen** — No changes. No IndexStatusChip. No status panel. No button reorder.                                                                                                    | Frozen. No changes.                                      |
+| **TabletHeader** (`TabletHeader.vue`)                                                                                            | Tablet top bar                                                                            | Scope selector, theme toggle, search.                                                                                                                                                                                               | —                                                                                                  | **Phase 1: frozen** — No changes. No IndexStatusChip. No status panel. No layout changes.                                                                                                    | Frozen. No changes.                                      |
+| **SettingsModal** (`SettingsModal.vue`)                                                                                          | Application settings: intro screen mode, theme selection, original-image toggle           | Now uses shadcn Dialog component (migrated in Tailwind Phase 1.5/2B). No tabs yet; flat auto-save settings remain correct.                                                                                                          | Dialog is complete for current scope; Tabs/Form remain future-only if settings grow.               | **Superseded by Tailwind Phase 1.5/2B** — shadcn Dialog migration complete. Keep current auto-save behavior (watcher/localStorage).                                                          | No mobile behavior changes.                              |
+| **RootPathSheet** (`RootPathSheet.vue`)                                                                                          | Bottom sheet for editing root folder path on mobile                                       | No loading state during path load. Missing ARIA dialog roles. Paste button hides when textarea focused (discoverability).                                                                                                           | Sheet (Header/Description/Footer pattern)                                                          | **Phase 1: NOT in Phase 1. Deferred to future Mobile/Tablet Spec.**                                                                                                                          | Not in Phase 1. Deferred to future Mobile/Tablet Spec.   |
+| **Lightbox + Metadata Panel** (`Lightbox.vue`, `LightboxDesktopPanel.vue`, `LightboxMobileSheet.vue`, `LightboxTabletPanel.vue`) | Device-adaptive image viewer with metadata display                                        | Desktop panel lacks `role="complementary"`. Mobile sheet tabs lack `role="tablist"`/`role="tab"`/`aria-selected`. Metadata display itself is well-built with sections, copy buttons, LoRA highlighting.                             | Tabs (mobile metadata tabs ARIA roles), Sheet (mobile panel structure)                             | **Keep as-is with light accessibility fixes**. Metadata panels are mature and should not be rewritten. Add ARIA roles for tabs and complementary landmark.                                   | Lightbox behavior frozen for mobile/tablet.              |
+| **Toast** (`ToastContainer.vue`, `ToastItem.vue`)                                                                                | Fixed-position toast notifications with TransitionGroup                                   | No `role="alert"` or `aria-live` for screen reader announcements. No toast queue overflow beyond capping at 3.                                                                                                                      | Toast/Sonner pattern (position, stacking, dismiss)                                                 | **Keep as-is**. Toast system is mature and styled per gallery theme. Add `role="alert"` to ToastItem.                                                                                        | Desktop-safe ARIA only.                                  |
+| **GalleryGrid** (`GalleryGrid.vue`)                                                                                              | Primary content display: virtualized photo grid, infinite scroll, search results, toolbar | Search results rendering is adequate. No filter chips for active fielded search. Sort/density triggers lack `aria-haspopup`/`aria-expanded` (except density). Error banner lacks `role="alert"`. No `aria-live` for search results. | Data Table toolbar pattern (for sort/density/filter controls), Badge/Alert (error states)          | **Phase 1: frozen for behavior/layout/virtualization/image loading** — Do NOT use TanStack Table. `role="alert"` on error banner is desktop-safe only if it does not change mobile behavior. | Frozen for behavior/layout/virtualization/image loading. |
+| **FolderTreeItem** (`FolderTreeItem.vue`)                                                                                        | Recursive folder tree with keyboard navigation                                            | Missing proper TreeView ARIA roles (`role="tree"`, `role="treeitem"`, `aria-expanded`, `aria-selected`).                                                                                                                            | TreeView widget pattern from WAI-ARIA                                                              | **Refactor ARIA**: Add TreeView roles. Keep existing keyboard navigation.                                                                                                                    | Desktop-safe ARIA only.                                  |
+| **EmptyState** (`EmptyState.vue`)                                                                                                | Generic empty/error/loading state with 7 types                                            | SVGs lack `role="img"`/`aria-label`. Loading type lacks `aria-busy`.                                                                                                                                                                | N/A (custom component)                                                                             | **Keep as-is**. Light accessibility improvements only.                                                                                                                                       | Desktop-safe ARIA only.                                  |
+| **Future: IndexStatusChip**                                                                                                      | Does not exist                                                                            | —                                                                                                                                                                                                                                   | Badge + Popover pattern                                                                            | **Phase 1: desktop-only** — Must not be imported by MobileHeader or TabletHeader.                                                                                                            | Desktop-only. No mobile/tablet import.                   |
+| **Future: IndexStatusPanel**                                                                                                     | Does not exist                                                                            | —                                                                                                                                                                                                                                   | Popover/Sheet pattern for details                                                                  | **Phase 1: desktop-only** — Must not open as mobile sheet in Phase 1.                                                                                                                        | Desktop-only. No mobile sheet.                           |
+| **Future: AdvancedSearchDrawer**                                                                                                 | Does not exist                                                                            | —                                                                                                                                                                                                                                   | Sheet (mobile) / Side Sheet (desktop), Form (TanStack), Command palette                            | **Add new component**. See Phase 2.                                                                                                                                                          | Phase 2.                                                 |
+| **Future: SearchFilterChips**                                                                                                    | Does not exist                                                                            | —                                                                                                                                                                                                                                   | Badge (removable chips)                                                                            | **Add new component**. See Phase 2.                                                                                                                                                          | Phase 2.                                                 |
+| **Future: LibraryInspector**                                                                                                     | Does not exist                                                                            | —                                                                                                                                                                                                                                   | TanStack Table + shadcn table/popover/dropdown patterns                                            | **Add desktop-only `/metadata` route with read-only metadata inspection table** backed by `/api/library/inspector` and detail-on-demand metadata endpoint. See Phase 3.                      | Phase 3.                                                 |
 
 ---
 
 ## 5. TanStack Vue Form Decision Matrix
 
-| Candidate | Use Form? | Why | Why Not | Phase |
-|---|---|---|---|---|
-| **AdvancedSearchDrawer** | **YES** | Complex form with multiple field types (text, number, select, boolean), field validation (numeric ranges, valid dimensions), dirty state tracking, Apply/Cancel/Reset behavior. Backend already supports 30+ fielded search predicates. | — | Phase 2 |
-| **SettingsModal** (current scope) | **NO** | Only 3 options (intro mode, theme, alwaysLoadOriginal). All auto-save via watcher to localStorage. No complex validation. Apply/Cancel/Reset would be incompatible UX with the auto-save watcher model. | Form overhead is not justified for current content. Footer should use Done/Close, not Apply/Cancel. Revisit only if settings expand into staged, validated configuration. | Not now |
-| **RootPathSheet** | **NO** | Single text field with path validation. Simple v-model with inline validation message is sufficient. | TanStack Form would add overhead without clear value. No dirty/save complexity. | Never |
-| **Simple Search Input** | **NO** | Single text field with debounce. No validation needed beyond non-empty check. Dirty/Action/Cancel would harm the instant-search UX. | TanStack Form's state management would interfere with debounced instant search and clear UX. | Never |
+| Candidate                         | Use Form? | Why                                                                                                                                                                                                                                     | Why Not                                                                                                                                                                   | Phase   |
+| --------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| **AdvancedSearchDrawer**          | **YES**   | Complex form with multiple field types (text, number, select, boolean), field validation (numeric ranges, valid dimensions), dirty state tracking, Apply/Cancel/Reset behavior. Backend already supports 30+ fielded search predicates. | —                                                                                                                                                                         | Phase 2 |
+| **SettingsModal** (current scope) | **NO**    | Only 3 options (intro mode, theme, alwaysLoadOriginal). All auto-save via watcher to localStorage. No complex validation. Apply/Cancel/Reset would be incompatible UX with the auto-save watcher model.                                 | Form overhead is not justified for current content. Footer should use Done/Close, not Apply/Cancel. Revisit only if settings expand into staged, validated configuration. | Not now |
+| **RootPathSheet**                 | **NO**    | Single text field with path validation. Simple v-model with inline validation message is sufficient.                                                                                                                                    | TanStack Form would add overhead without clear value. No dirty/save complexity.                                                                                           | Never   |
+| **Simple Search Input**           | **NO**    | Single text field with debounce. No validation needed beyond non-empty check. Dirty/Action/Cancel would harm the instant-search UX.                                                                                                     | TanStack Form's state management would interfere with debounced instant search and clear UX.                                                                              | Never   |
 
 ### Mandatory Conclusions
 
@@ -196,13 +200,13 @@ Frontend should not invent a new payload shape when an existing backend contract
 
 ## 6. TanStack Vue Table Decision Matrix
 
-| Candidate | Use Table? | Why | Why Not | Phase |
-|---|---|---|---|---|
-| **LibraryInspector** | **YES** | Phase 3 is a bounded metadata inspection table. TanStack Table should own column definitions, sorting state, row model, bounded rows, and clean shadcn-compatible cell rendering. | Do not turn this into a full admin/data-management surface: no row selection, batch actions, column customization, or server-side pagination in MVP. Client-side sorting only sorts returned rows. | Phase 3 |
-| **Future paginated metadata table** | **YES (conditional)** | If the backend later exposes cursor/pagination and server-side sorting, TanStack Table can extend the same table architecture. | Backend pagination/cursors and server-side sorting are not MVP. | Future (backend prerequisite) |
-| **Future diagnostics/audit tables** | **YES (conditional)** | Row-level index errors, metadata parse errors, duplicate candidates, and broken-image scan results would be structured table data if the backend exposes them. | Current backend does not expose row-level diagnostics, per-job errors, duplicate data, or broken-image data. | Future (backend prerequisite) |
-| **Facets Table** | **NO** | Facets are better rendered as chips/tokens with counts, not as a table. A table would waste space on what is essentially a filter UI. | Use Badge/Popover pattern for facets, not TanStack Table. | Never |
-| **Main GalleryGrid** | **NO (hard rule)** | GalleryGrid is a visual photo browsing experience using TanStack Virtual and CSS Grid. It shows image thumbnails, not tabular data. | TanStack Table would replace thumbnails with text rows, destroy the visual browsing experience, and conflict with virtual scrolling architecture. | Never |
+| Candidate                           | Use Table?            | Why                                                                                                                                                                               | Why Not                                                                                                                                                                                            | Phase                         |
+| ----------------------------------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| **LibraryInspector**                | **YES**               | Phase 3 is a bounded metadata inspection table. TanStack Table should own column definitions, sorting state, row model, bounded rows, and clean shadcn-compatible cell rendering. | Do not turn this into a full admin/data-management surface: no row selection, batch actions, column customization, or server-side pagination in MVP. Client-side sorting only sorts returned rows. | Phase 3                       |
+| **Future paginated metadata table** | **YES (conditional)** | If the backend later exposes cursor/pagination and server-side sorting, TanStack Table can extend the same table architecture.                                                    | Backend pagination/cursors and server-side sorting are not MVP.                                                                                                                                    | Future (backend prerequisite) |
+| **Future diagnostics/audit tables** | **YES (conditional)** | Row-level index errors, metadata parse errors, duplicate candidates, and broken-image scan results would be structured table data if the backend exposes them.                    | Current backend does not expose row-level diagnostics, per-job errors, duplicate data, or broken-image data.                                                                                       | Future (backend prerequisite) |
+| **Facets Table**                    | **NO**                | Facets are better rendered as chips/tokens with counts, not as a table. A table would waste space on what is essentially a filter UI.                                             | Use Badge/Popover pattern for facets, not TanStack Table.                                                                                                                                          | Never                         |
+| **Main GalleryGrid**                | **NO (hard rule)**    | GalleryGrid is a visual photo browsing experience using TanStack Virtual and CSS Grid. It shows image thumbnails, not tabular data.                                               | TanStack Table would replace thumbnails with text rows, destroy the visual browsing experience, and conflict with virtual scrolling architecture.                                                  | Never                         |
 
 ### Mandatory Conclusions
 
@@ -214,19 +218,19 @@ Frontend should not invent a new payload shape when an existing backend contract
 
 ## 7. shadcn-vue Pattern Mapping
 
-| shadcn-vue Pattern | Gallery Use Case | Adaptation Approach |
-|---|---|---|
-| **Command** | Search suggestions, quick command palette (e.g., "Go to folder...", "Search by model...") | Adapt the keyboard-navigable list + filter pattern. Standard UI chrome uses shadcn-vue Stone defaults. Bind to existing search store and folder navigation. |
-| **Dialog** | Desktop SettingsModal, Index Status detail view | SettingsModal now uses the shadcn Dialog component (migrated in Tailwind Phase 1.5/2B). A search filter panel with form fields (Advanced Search on desktop) should use a Side Sheet, not a Dialog per MD3. |
+| shadcn-vue Pattern | Gallery Use Case                                                                                                           | Adaptation Approach                                                                                                                                                                                                                                                                                                           |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Command**        | Search suggestions, quick command palette (e.g., "Go to folder...", "Search by model...")                                  | Adapt the keyboard-navigable list + filter pattern. Standard UI chrome uses shadcn-vue Stone defaults. Bind to existing search store and folder navigation.                                                                                                                                                                   |
+| **Dialog**         | Desktop SettingsModal, Index Status detail view                                                                            | SettingsModal now uses the shadcn Dialog component (migrated in Tailwind Phase 1.5/2B). A search filter panel with form fields (Advanced Search on desktop) should use a Side Sheet, not a Dialog per MD3.                                                                                                                    |
 | **Drawer / Sheet** | Mobile Settings (sheet), Advanced Search (mobile: bottom sheet; desktop: side sheet), Index Status (mobile), RootPathSheet | Existing `RootPathSheet` already has sheet-like behavior. Standardize the Header/Description/Footer pattern. Use existing VSBS for metadata sheet; do not replace it. New sheets (advanced search, index panel) should follow the same structure. **Future-only. All mobile/tablet Drawer/Sheet uses excluded from Phase 1.** |
-| **Popover** | Index status details, long path reveal/copy, prompt/negative detail, LoRA/resource detail | Use Popover for interactive long metadata previews. Do not put copy buttons or long metadata in Tooltip. Prompt/LoRA popovers fetch detail on demand via TanStack Query and must be DB-first/index-first. |
-| **DropdownMenu** | Search scope, sort options, density grid options, toolbar actions menu, LibraryInspector row actions | Use DropdownMenu for row actions: open image, copy path, copy seed, copy prompt/negative, copy LoRA list/resource hashes, copy full metadata. Avoid many repeated icon buttons in every row. |
-| **Data Table** | Phase 3 LibraryInspector; future backend-backed metadata/diagnostics tables | LibraryInspector should use TanStack Table with shadcn-compatible table chrome: neutral borders, muted text, hover/focus states, Skeleton loading, empty/error states. Do not use gallery warm/premium card styling for the metadata table. |
-| **Form** | AdvancedSearchDrawer, future batch editor, expanded SettingsModal | TanStack Form with shadcn-vue Stone form controls: field label, description, error message, Apply/Cancel/Reset buttons. Use Stone border/focus/input defaults for standard form chrome. |
-| **Badge** | Index status (idle/active/queued/failed/disabled), facet chips, fielded search filter chips, error counts | Use shadcn-vue Stone Badge defaults for standard chips. Removable badge pattern for filter chips (x button to clear). State colors should be semantic and minimal, not brand warm colors. |
-| **Alert** | Indexing errors, scan errors, metadata parse warnings | Existing error banner in GalleryGrid and toast system already cover this. Enhance with Alert pattern: icon + title + description + dismiss. Keep gallery toast styling. |
-| **Tabs** | Settings sections (General / Indexing / Watcher), admin panel sections, mobile metadata tabs (ARIA already needed) | Existing mobile metadata tabs need `role="tablist"`/`role="tab"`/`aria-selected`. SettingsModal should add Tabs if indexing/watcher config is added. Use shadcn-vue Stone defaults for standard tab chrome. |
-| **Toast / Sonner** | Existing toast system | Keep current toast implementation. It already handles positioning, stacking, dismiss, and types. Add `role="alert"` to ToastItem for accessibility. |
+| **Popover**        | Index status details, long path reveal/copy, prompt/negative detail, LoRA/resource detail                                  | Use Popover for interactive long metadata previews. Do not put copy buttons or long metadata in Tooltip. Prompt/LoRA popovers fetch detail on demand via TanStack Query and must be DB-first/index-first.                                                                                                                     |
+| **DropdownMenu**   | Search scope, sort options, density grid options, toolbar actions menu, LibraryInspector row actions                       | Use DropdownMenu for row actions: open image, copy path, copy seed, copy prompt/negative, copy LoRA list/resource hashes, copy full metadata. Avoid many repeated icon buttons in every row.                                                                                                                                  |
+| **Data Table**     | Phase 3 LibraryInspector; future backend-backed metadata/diagnostics tables                                                | LibraryInspector should use TanStack Table with shadcn-compatible table chrome: neutral borders, muted text, hover/focus states, Skeleton loading, empty/error states. Do not use gallery warm/premium card styling for the metadata table.                                                                                   |
+| **Form**           | AdvancedSearchDrawer, future batch editor, expanded SettingsModal                                                          | TanStack Form with shadcn-vue Stone form controls: field label, description, error message, Apply/Cancel/Reset buttons. Use Stone border/focus/input defaults for standard form chrome.                                                                                                                                       |
+| **Badge**          | Index status (idle/active/queued/failed/disabled), facet chips, fielded search filter chips, error counts                  | Use shadcn-vue Stone Badge defaults for standard chips. Removable badge pattern for filter chips (x button to clear). State colors should be semantic and minimal, not brand warm colors.                                                                                                                                     |
+| **Alert**          | Indexing errors, scan errors, metadata parse warnings                                                                      | Existing error banner in GalleryGrid and toast system already cover this. Enhance with Alert pattern: icon + title + description + dismiss. Keep gallery toast styling.                                                                                                                                                       |
+| **Tabs**           | Settings sections (General / Indexing / Watcher), admin panel sections, mobile metadata tabs (ARIA already needed)         | Existing mobile metadata tabs need `role="tablist"`/`role="tab"`/`aria-selected`. SettingsModal should add Tabs if indexing/watcher config is added. Use shadcn-vue Stone defaults for standard tab chrome.                                                                                                                   |
+| **Toast / Sonner** | Existing toast system                                                                                                      | Keep current toast implementation. It already handles positioning, stacking, dismiss, and types. Add `role="alert"` to ToastItem for accessibility.                                                                                                                                                                           |
 
 ### Key Principle
 
@@ -249,6 +253,7 @@ shadcn-vue is now approved for selective adoption of desktop primitive UI compon
 **Why:** The previous attempt proved that wiring new status UI into mobile/tablet headers is too risky without a dedicated mobile/tablet design. Phase 1 is desktop-only. Mobile and tablet layouts are frozen.
 
 **Allowed in Phase 1:**
+
 - Desktop AppHeader index status visibility
 - Desktop-only IndexStatusChip
 - Desktop-only IndexStatusPanel / Popover
@@ -259,6 +264,7 @@ shadcn-vue is now approved for selective adoption of desktop primitive UI compon
 - Data-layer only facets wrapper, with no visible mobile/tablet UI
 
 **Not allowed in Phase 1:**
+
 - No MobileHeader changes
 - No TabletHeader changes
 - No mobile/tablet status chip
@@ -268,12 +274,14 @@ shadcn-vue is now approved for selective adoption of desktop primitive UI compon
 - No search/sort/theme/sidebar mobile changes
 
 **shadcn-vue adaptation in Phase 1 means:**
+
 - Badge-like desktop status chip
 - Popover/Dialog-like desktop detail panel
 - Header/Body/Footer structure
 - ARIA/focus behavior where safe
 
 **It does not mean:**
+
 - shadcn rewrite
 - Tailwind adoption
 - mobile/tablet sheet adoption
@@ -304,6 +312,7 @@ This is a preflight checklist, not a fourth implementation phase.
 Completed via Tailwind Phase 2B Index Status refactor: status/facets data layer is path-scoped and desktop-only consumers remain isolated from mobile/tablet headers.
 
 Rules:
+
 - no mobile/tablet consumption
 - no visible mobile/tablet UI
 - no global behavior changes
@@ -400,24 +409,25 @@ Completed via Tailwind Phase 2B Index Status refactor: `fetchIndexStatus(path)` 
 
 #### Files Affected (Phase 1)
 
-| File | Change | Phase 1 Constraint |
-|---|---|---|
-| `frontend/src/services/api.ts` | Add `fetchIndexStatus()`, `fetchFacets()` | Data-layer only |
-| `frontend/src/query/keys.ts` | Add `indexStatus(path)`, `facets(path)` keys | Data-layer only |
-| `frontend/src/composables/useIndexStatusQuery.ts` | New composable | Data-layer only |
-| `frontend/src/composables/useFacetsQuery.ts` | New composable | Data-layer only, no visible UI in Phase 1 |
-| `frontend/src/components/IndexStatusChip.vue` | New component | Desktop-only |
-| `frontend/src/components/IndexStatusPanel.vue` | New component | Desktop-only |
-| `frontend/src/components/SettingsModal.vue` | shadcn Dialog migration complete | Desktop-safe only |
-| `frontend/src/components/RootPathSheet.vue` | Deferred to future Mobile/Tablet Spec | Not in Phase 1 |
-| `frontend/src/components/AppHeader.vue` | Add IndexStatusChip | Desktop-only. Must not affect mobile/tablet. |
-| `frontend/src/components/ToastItem.vue` | Add `role="alert"` | Desktop-safe only |
-| `frontend/src/components/GalleryGrid.vue` | Add `role="alert"` to error banner | Frozen for behavior/layout/virtualization |
-| `frontend/src/components/FolderTreeItem.vue` | Add TreeView ARIA roles | Desktop-safe only |
-| `frontend/src/components/LightboxMobileSheet.vue` | Deferred to future Mobile/Tablet Spec | Not in Phase 1 |
-| `frontend/src/types/index.ts` | Add `IndexStatus`, `FacetsResponse`, `FacetEntry` types | Data-layer only |
+| File                                              | Change                                                  | Phase 1 Constraint                           |
+| ------------------------------------------------- | ------------------------------------------------------- | -------------------------------------------- |
+| `frontend/src/services/api.ts`                    | Add `fetchIndexStatus()`, `fetchFacets()`               | Data-layer only                              |
+| `frontend/src/query/keys.ts`                      | Add `indexStatus(path)`, `facets(path)` keys            | Data-layer only                              |
+| `frontend/src/composables/useIndexStatusQuery.ts` | New composable                                          | Data-layer only                              |
+| `frontend/src/composables/useFacetsQuery.ts`      | New composable                                          | Data-layer only, no visible UI in Phase 1    |
+| `frontend/src/components/IndexStatusChip.vue`     | New component                                           | Desktop-only                                 |
+| `frontend/src/components/IndexStatusPanel.vue`    | New component                                           | Desktop-only                                 |
+| `frontend/src/components/SettingsModal.vue`       | shadcn Dialog migration complete                        | Desktop-safe only                            |
+| `frontend/src/components/RootPathSheet.vue`       | Deferred to future Mobile/Tablet Spec                   | Not in Phase 1                               |
+| `frontend/src/components/AppHeader.vue`           | Add IndexStatusChip                                     | Desktop-only. Must not affect mobile/tablet. |
+| `frontend/src/components/ToastItem.vue`           | Add `role="alert"`                                      | Desktop-safe only                            |
+| `frontend/src/components/GalleryGrid.vue`         | Add `role="alert"` to error banner                      | Frozen for behavior/layout/virtualization    |
+| `frontend/src/components/FolderTreeItem.vue`      | Add TreeView ARIA roles                                 | Desktop-safe only                            |
+| `frontend/src/components/LightboxMobileSheet.vue` | Deferred to future Mobile/Tablet Spec                   | Not in Phase 1                               |
+| `frontend/src/types/index.ts`                     | Add `IndexStatus`, `FacetsResponse`, `FacetEntry` types | Data-layer only                              |
 
 **Not touched in Phase 1:**
+
 - `MobileHeader.vue` — frozen
 - `TabletHeader.vue` — frozen
 - `MobileLayout.vue` — frozen
@@ -433,6 +443,7 @@ Completed via Tailwind Phase 2B Index Status refactor: `fetchIndexStatus(path)` 
 #### Phase 1 Acceptance Criteria
 
 **Desktop:**
+
 - AppHeader layout remains stable
 - IndexStatusChip appears only on desktop
 - IndexStatusPanel opens/closes correctly
@@ -441,6 +452,7 @@ Completed via Tailwind Phase 2B Index Status refactor: `fetchIndexStatus(path)` 
 - SettingsModal behavior unchanged except safe ARIA/structure
 
 **Mobile (freeze verification):**
+
 - MobileHeader unchanged from pre-Phase-1 baseline
 - Hamburger visible and working
 - Search visible and working
@@ -450,11 +462,13 @@ Completed via Tailwind Phase 2B Index Status refactor: `fetchIndexStatus(path)` 
 - No new mobile header CSS
 
 **Tablet (freeze verification):**
+
 - TabletHeader unchanged from pre-Phase-1 baseline
 - No IndexStatusChip in TabletHeader
 - No tablet header layout changes
 
 **Gallery:**
+
 - GalleryGrid behavior unchanged
 - Virtualization unchanged
 - Image loading unchanged
@@ -528,17 +542,18 @@ Completed via Tailwind Phase 2B Index Status refactor: `fetchIndexStatus(path)` 
 
 #### Files Affected (Phase 2)
 
-| File | Change | Status |
-|---|---|---|
-| `frontend/src/utils/serializeAdvancedSearchToQuery.ts` | New utility (serialize form → q string) | ✅ Created |
-| `frontend/src/components/search/AdvancedSearchDrawer.vue` | New component (TanStack Form) | ✅ Created + fixed |
-| `frontend/src/components/SearchFilterChips.vue` | Updated to use FieldFilter[] | ✅ Updated |
-| `frontend/src/composables/useFieldedSearch.ts` | New composable | ✅ Created |
-| `frontend/src/components/AppHeader.vue` | Add Advanced Search trigger + filter chips | ✅ Updated |
-| `frontend/src/types/index.ts` | Add FieldFilter, FieldedSearchParams | ✅ Added |
-| `frontend/tests/e2e/advanced-search-drawer.spec.ts` | 8 integration tests | ✅ 8/8 pass |
+| File                                                      | Change                                     | Status             |
+| --------------------------------------------------------- | ------------------------------------------ | ------------------ |
+| `frontend/src/utils/serializeAdvancedSearchToQuery.ts`    | New utility (serialize form → q string)    | ✅ Created         |
+| `frontend/src/components/search/AdvancedSearchDrawer.vue` | New component (TanStack Form)              | ✅ Created + fixed |
+| `frontend/src/components/SearchFilterChips.vue`           | Updated to use FieldFilter[]               | ✅ Updated         |
+| `frontend/src/composables/useFieldedSearch.ts`            | New composable                             | ✅ Created         |
+| `frontend/src/components/AppHeader.vue`                   | Add Advanced Search trigger + filter chips | ✅ Updated         |
+| `frontend/src/types/index.ts`                             | Add FieldFilter, FieldedSearchParams       | ✅ Added           |
+| `frontend/tests/e2e/advanced-search-drawer.spec.ts`       | 8 integration tests                        | ✅ 8/8 pass        |
 
 **Not touched in Phase 2:**
+
 - `MobileHeader.vue` — advanced search entry point deferred to separate spec
 - `TabletHeader.vue` — advanced search entry point deferred to separate spec
 
@@ -706,19 +721,19 @@ Completed via Tailwind Phase 2B Index Status refactor: `fetchIndexStatus(path)` 
 
 #### Files Affected (Phase 3)
 
-| File | Change |
-|---|---|
-| `backend/metadata_store.py` | Add DB-backed inspector list/detail query helpers that reuse shared fielded-search SQL/parser building blocks where possible |
-| `backend/search.py` | Add `GET /api/library/inspector` and `GET /api/library/inspector/metadata` |
-| `frontend/src/router/index.ts` | New minimal Vue Router setup for `/` and `/metadata` |
-| `frontend/src/main.ts` / `frontend/src/App.vue` | Install/render router while preserving existing app shell behavior |
-| `frontend/src/components/LibraryInspector.vue` | New desktop read-only metadata inspector table |
-| `frontend/src/composables/useLibraryInspectorQuery.ts` | TanStack Query wrapper for `/api/library/inspector` |
-| `frontend/src/composables/useLibraryInspectorMetadataQuery.ts` | TanStack Query wrapper for detail metadata endpoint |
-| `frontend/src/services/api.ts` | Add `fetchLibraryInspector()` and `fetchLibraryInspectorMetadata()` |
-| `frontend/src/query/keys.ts` | Add `libraryInspector` and `libraryInspectorMetadata` keys |
-| `frontend/src/types/index.ts` | Add `LibraryInspectorRow`, `LibraryInspectorResponse`, and `LibraryInspectorMetadataResponse` |
-| `frontend/src/components/AppHeader.vue` | Add desktop-only `Metadata` RouterLink button using `Table2` |
+| File                                                           | Change                                                                                                                       |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `backend/metadata_store.py`                                    | Add DB-backed inspector list/detail query helpers that reuse shared fielded-search SQL/parser building blocks where possible |
+| `backend/search.py`                                            | Add `GET /api/library/inspector` and `GET /api/library/inspector/metadata`                                                   |
+| `frontend/src/router/index.ts`                                 | New minimal Vue Router setup for `/` and `/metadata`                                                                         |
+| `frontend/src/main.ts` / `frontend/src/App.vue`                | Install/render router while preserving existing app shell behavior                                                           |
+| `frontend/src/components/LibraryInspector.vue`                 | New desktop read-only metadata inspector table                                                                               |
+| `frontend/src/composables/useLibraryInspectorQuery.ts`         | TanStack Query wrapper for `/api/library/inspector`                                                                          |
+| `frontend/src/composables/useLibraryInspectorMetadataQuery.ts` | TanStack Query wrapper for detail metadata endpoint                                                                          |
+| `frontend/src/services/api.ts`                                 | Add `fetchLibraryInspector()` and `fetchLibraryInspectorMetadata()`                                                          |
+| `frontend/src/query/keys.ts`                                   | Add `libraryInspector` and `libraryInspectorMetadata` keys                                                                   |
+| `frontend/src/types/index.ts`                                  | Add `LibraryInspectorRow`, `LibraryInspectorResponse`, and `LibraryInspectorMetadataResponse`                                |
+| `frontend/src/components/AppHeader.vue`                        | Add desktop-only `Metadata` RouterLink button using `Table2`                                                                 |
 
 #### Risk Assessment (Phase 3)
 
@@ -755,13 +770,14 @@ Purpose: Define deterministic UI state mapping for `IndexStatusChip` and `IndexS
 Use this priority order:
 
 ```ts
-failed = failed > 0 || staged_path_failed > 0 || Boolean(last_error)
-active = running > 0 || active_jobs > 0 || active_scan_requests > 0
-queued = queued > 0 || runtime_queue_depth > 0 || staged_path_queue_depth > 0
-idle = !failed && !active && !queued
+failed = failed > 0 || staged_path_failed > 0 || Boolean(last_error);
+active = running > 0 || active_jobs > 0 || active_scan_requests > 0;
+queued = queued > 0 || runtime_queue_depth > 0 || staged_path_queue_depth > 0;
+idle = !failed && !active && !queued;
 ```
 
 State priority:
+
 1. **failed** — error affordance, visible chip, opens panel
 2. **active** — "Indexing…" state, visible chip
 3. **queued** — visible chip, queue count if available
@@ -770,6 +786,7 @@ State priority:
 6. **unavailable** (API error/backend unreachable) — visible muted/error chip, distinct from disabled
 
 UI behavior:
+
 - **failed**: visible chip, error affordance, opens panel
 - **active**: visible chip, "Indexing…" state
 - **queued**: visible chip, queue count if available
@@ -785,6 +802,7 @@ Indexing status should be quiet but discoverable. Active/error states should be 
 Purpose: Avoid both noisy UI and wasteful polling.
 
 Recommended policy:
+
 - **active/queued** (work moving): refetch every 2-3 seconds
 - **failed-only** (no active/queued work): slow-poll every 60 seconds or manual refresh only
 - **unavailable/error** with no data: slow-poll every 60 seconds, do not fast-poll forever
@@ -803,6 +821,7 @@ Polling policy should be implemented with TanStack Query options, not ad-hoc tim
 Purpose: Make mobile/tablet behavior explicit without forcing one rigid layout.
 
 ### Mobile
+
 - Advanced Search should open as bottom sheet or fullscreen sheet.
 - No body scroll bleed.
 - No Safari viewport jump.
@@ -811,11 +830,13 @@ Purpose: Make mobile/tablet behavior explicit without forcing one rigid layout.
 - Backdrop, Escape-equivalent, close, and cancel behaviors must be predictable.
 
 ### Tablet
+
 - Advanced Search may be side drawer, large sheet, or centered dialog depending on fit.
 - Panels must not awkwardly cover the primary grid.
 - Tablet should not be accidentally forced into cramped phone layout.
 
 ### Desktop
+
 - Dialog/popover/drawer can be used depending on content size.
 - Keyboard navigation and focus return should work.
 - Index status panel should not obscure primary controls.
@@ -825,12 +846,14 @@ Responsive behavior should follow the app's existing gallery-first layout and av
 ### MD3 Surface Elevation & Motion Tokens
 
 Reference levels for new surfaces (use existing gallery `--gallery-*` drop-shadow tokens, not raw MD3 values):
+
 - **Side Sheet / Bottom Sheet**: Level 1 (subtle shadow, aligned with existing sheet behavior)
 - **Dialog** (SettingsModal, confirmations): Level 3 (more prominent)
 - **Popover** (index status details, field help): Level 4 (close to trigger element)
 - **DropdownMenu**: Level 2 (intermediate between sheet and dialog)
 
 Motion tokens for consistent animation language:
+
 - **Sheet entry/exit**: `250ms ease-out` (slide from right for desktop side sheet; mobile sheet deferred to future spec)
 - **Chip/Popover transitions**: `150ms ease` (badge state changes, popover show/hide)
 - **Pulse animation** (active index state): Keep existing CSS pulse keyframes
@@ -842,14 +865,14 @@ Motion tokens for consistent animation language:
 
 Purpose: Every planned component should have a clear way for users to open it.
 
-| Component | Opens From |
-|---|---|
-| `IndexStatusPanel` | `IndexStatusChip` (click) — desktop only in Phase 1 |
-| `AdvancedSearchDrawer` | Search filter button or command/search affordance |
-| `SearchFilterChips` | Appears near the search bar/results context after filters are applied |
-| `LibraryInspector` | Desktop-only `Metadata` route link in `AppHeader.vue`, implemented with `RouterLink to="/metadata"` + `Table2`; active state uses secondary styling and `aria-current="page"` |
-| `FacetsPanel` | Inside Advanced Search only for MVP; Library Inspector facet UI is deferred |
-| Future diagnostics dashboards | Future diagnostics area, not from the main gallery grid |
+| Component                     | Opens From                                                                                                                                                                    |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `IndexStatusPanel`            | `IndexStatusChip` (click) — desktop only in Phase 1                                                                                                                           |
+| `AdvancedSearchDrawer`        | Search filter button or command/search affordance                                                                                                                             |
+| `SearchFilterChips`           | Appears near the search bar/results context after filters are applied                                                                                                         |
+| `LibraryInspector`            | Desktop-only `Metadata` route link in `AppHeader.vue`, implemented with `RouterLink to="/metadata"` + `Table2`; active state uses secondary styling and `aria-current="page"` |
+| `FacetsPanel`                 | Inside Advanced Search only for MVP; Library Inspector facet UI is deferred                                                                                                   |
+| Future diagnostics dashboards | Future diagnostics area, not from the main gallery grid                                                                                                                       |
 
 Do not add navigation clutter just to expose every future tool. Prefer progressive disclosure.
 
@@ -903,6 +926,7 @@ Do not add navigation clutter just to expose every future tool. Prefer progressi
 - [x] LibraryInspector tests pass.
 
 Phase 3 verification completed with:
+
 - `backend/.venv_linux/bin/python -m pytest backend/tests/test_library_inspector.py backend/tests/test_api_integration_metadata_search_facets.py::TestSearchPlainQuery::test_search_empty_query_returns_empty -q`
 - `npm run build`
 - `npx playwright test tests/e2e/library-inspector.spec.ts --project=chromium`
@@ -916,20 +940,20 @@ Purpose: Separate the Phase 3 Library Inspector MVP from future features that re
 
 Phase 3 adds bounded read-only `/api/library/inspector` and DB-first `/api/library/inspector/metadata` endpoints. The backend still does NOT expose row-level diagnostics, per-job errors, duplicate/broken-image data, pagination cursors, or inspector server-side sorting beyond default `mtime_desc`.
 
-| Possible Future Endpoint | Deferred Feature | Why It Is Not Phase 3 MVP |
-|---|---|---|
-| Dedicated paginated metadata listing endpoint | Server-side metadata browsing at library scale | MVP uses bounded `/api/library/inspector` results with no pagination controls |
-| Inspector server-side sort params | Server-side sort over full indexed library | MVP supports client-side single-sort over returned rows only |
-| Inspector cursor/infinite browsing | Large-result browsing | MVP renders 100-200 bounded rows and defers TanStack Virtual |
-| `/api/index/errors` | Index error table | Current `/api/index/status` returns counts and summary state, not per-job rows |
-| `/api/metadata/errors` | Metadata parse error table | No endpoint exposes row-level metadata parse failures |
-| `/api/diagnostics` | Diagnostics dashboard | No unified diagnostics endpoint exists |
-| `/api/audit/duplicates` | Duplicate finder | No backend duplicate detection exists |
-| `/api/audit/broken-images` | Broken image scanner | No backend broken-image scan exists |
-| `/api/watcher/status` | Watcher status panel | No HTTP route wired for watcher status (`watcher.py:191`) |
-| `/api/refresh/status` | Refresh status panel | No HTTP route wired for refresh status (`refresh.py:150`) |
-| `/api/photos/user-metadata` | Editable metadata | Phase 3 is read-only |
-| `/api/photos/batch-metadata` | Batch metadata editing | Phase 3 has no row selection or batch operations |
+| Possible Future Endpoint                      | Deferred Feature                               | Why It Is Not Phase 3 MVP                                                      |
+| --------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------ |
+| Dedicated paginated metadata listing endpoint | Server-side metadata browsing at library scale | MVP uses bounded `/api/library/inspector` results with no pagination controls  |
+| Inspector server-side sort params             | Server-side sort over full indexed library     | MVP supports client-side single-sort over returned rows only                   |
+| Inspector cursor/infinite browsing            | Large-result browsing                          | MVP renders 100-200 bounded rows and defers TanStack Virtual                   |
+| `/api/index/errors`                           | Index error table                              | Current `/api/index/status` returns counts and summary state, not per-job rows |
+| `/api/metadata/errors`                        | Metadata parse error table                     | No endpoint exposes row-level metadata parse failures                          |
+| `/api/diagnostics`                            | Diagnostics dashboard                          | No unified diagnostics endpoint exists                                         |
+| `/api/audit/duplicates`                       | Duplicate finder                               | No backend duplicate detection exists                                          |
+| `/api/audit/broken-images`                    | Broken image scanner                           | No backend broken-image scan exists                                            |
+| `/api/watcher/status`                         | Watcher status panel                           | No HTTP route wired for watcher status (`watcher.py:191`)                      |
+| `/api/refresh/status`                         | Refresh status panel                           | No HTTP route wired for refresh status (`refresh.py:150`)                      |
+| `/api/photos/user-metadata`                   | Editable metadata                              | Phase 3 is read-only                                                           |
+| `/api/photos/batch-metadata`                  | Batch metadata editing                         | Phase 3 has no row selection or batch operations                               |
 
 ---
 
@@ -937,19 +961,19 @@ Phase 3 adds bounded read-only `/api/library/inspector` and DB-first `/api/libra
 
 ### Risks
 
-| Risk | Phase | Mitigation |
-|---|---|---|
-| IndexStatusChip becomes noisy or distracting | Phase 1 | Use muted idle state (compact muted chip/icon), not auto-hide. Pulse-only when active. Never block interaction, no toasts. Test `no-toast-spam` assertion. |
-| TanStack Form serialization doesn't match backend parser | Phase 2 | Build serializer tests first. Validate against known-good query examples from `fielded_search_parser.py` tests. |
-| Library Inspector result set is too small for large libraries | Phase 3 | MVP fetches up to 200 rows through `/api/library/inspector`. Add pagination and server-side sorting later if users need larger library-wide inspection. |
-| Users mistake returned-row sorting for full-library sorting | Phase 3 | Label/result copy and docs must state client-side sorting applies only to returned rows. Full-library sort requires future server-side sort plus pagination/cursors. |
-| Library Inspector duplicates fielded search parser logic | Phase 3 | Reuse Phase 2 parser/query builder where possible. Add tests for shared prompt/negative/model/sampler/seed/date/folder/LoRA/resource semantics. |
-| Prompt/LoRA Popovers trigger expensive file parsing | Phase 3 | Detail endpoint must be DB-first/index-first. If indexed metadata is missing, return unavailable / needs-index instead of parsing originals in the UI path. |
-| Long prompt/path/LoRA text stretches the table | Phase 3 | Enforce truncation at cell wrapper, trigger/button, and inner text span. Add visual checks for no bleed into adjacent columns. |
-| Over-engineering settings with TanStack Form too early | Phase 1/Future | Keep current v-model approach for SettingsModal in Phase 1. Only introduce TanStack Form when staged settings and backend configuration endpoints exist. |
-| Breaking plain text search when adding Advanced Search | Phase 2 | Keep plain search input completely separate. AdvancedSearchDrawer is opt-in. Plain search regression tests guard this. |
-| Accessibility regression from new components | All Phases | Add ARIA roles in Phase 1 accessibility fixes. New components follow the established patterns. Test with `role` assertions. |
-| bfcache/lifecycle regressions on iOS Safari | All Phases | Keep global TanStack Query `refetchOnWindowFocus: false`. Index status may use a local, debounced refetch-on-focus/pageshow/visibilitychange if needed, but must not re-enable noisy global refetches. No `beforeunload`/`unload` listeners. Test mobile sheet behavior. |
+| Risk                                                          | Phase          | Mitigation                                                                                                                                                                                                                                                               |
+| ------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| IndexStatusChip becomes noisy or distracting                  | Phase 1        | Use muted idle state (compact muted chip/icon), not auto-hide. Pulse-only when active. Never block interaction, no toasts. Test `no-toast-spam` assertion.                                                                                                               |
+| TanStack Form serialization doesn't match backend parser      | Phase 2        | Build serializer tests first. Validate against known-good query examples from `fielded_search_parser.py` tests.                                                                                                                                                          |
+| Library Inspector result set is too small for large libraries | Phase 3        | MVP fetches up to 200 rows through `/api/library/inspector`. Add pagination and server-side sorting later if users need larger library-wide inspection.                                                                                                                  |
+| Users mistake returned-row sorting for full-library sorting   | Phase 3        | Label/result copy and docs must state client-side sorting applies only to returned rows. Full-library sort requires future server-side sort plus pagination/cursors.                                                                                                     |
+| Library Inspector duplicates fielded search parser logic      | Phase 3        | Reuse Phase 2 parser/query builder where possible. Add tests for shared prompt/negative/model/sampler/seed/date/folder/LoRA/resource semantics.                                                                                                                          |
+| Prompt/LoRA Popovers trigger expensive file parsing           | Phase 3        | Detail endpoint must be DB-first/index-first. If indexed metadata is missing, return unavailable / needs-index instead of parsing originals in the UI path.                                                                                                              |
+| Long prompt/path/LoRA text stretches the table                | Phase 3        | Enforce truncation at cell wrapper, trigger/button, and inner text span. Add visual checks for no bleed into adjacent columns.                                                                                                                                           |
+| Over-engineering settings with TanStack Form too early        | Phase 1/Future | Keep current v-model approach for SettingsModal in Phase 1. Only introduce TanStack Form when staged settings and backend configuration endpoints exist.                                                                                                                 |
+| Breaking plain text search when adding Advanced Search        | Phase 2        | Keep plain search input completely separate. AdvancedSearchDrawer is opt-in. Plain search regression tests guard this.                                                                                                                                                   |
+| Accessibility regression from new components                  | All Phases     | Add ARIA roles in Phase 1 accessibility fixes. New components follow the established patterns. Test with `role` assertions.                                                                                                                                              |
+| bfcache/lifecycle regressions on iOS Safari                   | All Phases     | Keep global TanStack Query `refetchOnWindowFocus: false`. Index status may use a local, debounced refetch-on-focus/pageshow/visibilitychange if needed, but must not re-enable noisy global refetches. No `beforeunload`/`unload` listeners. Test mobile sheet behavior. |
 
 **Lesson from failed Phase 1 attempt:** Mobile/tablet headers are high-risk surfaces. Even small status chips can break real iPhone Safari layout and touch behavior. Playwright/Chromium viewport tests are not enough to prove iPhone Safari safety.
 
@@ -975,6 +999,7 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 ### Required Regression Tests (Phase 1)
 
 **Desktop tests:**
+
 - Desktop index chip visible
 - Panel opens/closes
 - Unavailable state visible on API failure
@@ -982,6 +1007,7 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 - Active/queued fast-polls
 
 **Mobile freeze tests (pre- and post-Phase 1, must pass identically):**
+
 - Hamburger visible
 - Hamburger click works
 - Search button visible
@@ -991,74 +1017,75 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 - No IndexStatusChip in MobileHeader
 
 **Tablet freeze tests:**
+
 - Tablet header renders baseline actions
 - No IndexStatusChip in TabletHeader
 
 ### Unit/Component Tests
 
-| Test | Phase | Assertion |
-|---|---|---|
-| IndexStatusChip renders each state (failed/active/queued/idle/unavailable/disabled) | Phase 1 | Correct badge text, color, and icon per state. disabled = hidden allowed; unavailable = visible required. |
-| IndexStatusChip shows muted idle state when up-to-date (does not fully auto-hide) | Phase 1 | Chip visible with muted styling when idle and a folder context exists; hidden only when no folder/status available |
-| IndexStatusChip click opens IndexStatusPanel | Phase 1 | Panel visibility toggled |
-| IndexStatusPanel shows correct counts from API response | Phase 1 | Counts match mock `fetchIndexStatus()` response |
-| No toast spam from index status updates | Phase 1 | Toast store queue length unchanged during index status polling |
-| Facets data-layer loading and error states | Phase 1 | `fetchFacets()` resolves with correct shape; query key and composable handle loading/error |
-| SettingsModal has ARIA dialog roles | Phase 1 | `role="dialog"`, `aria-modal="true"`, `aria-labelledby` present |
-| AdvancedSearchDrawer form renders all field groups | Phase 2 | Text, numeric, select, and size/ratio field groups visible |
-| TanStack Form validation: invalid number shows error | Phase 2 | Error message displayed for non-numeric seed input |
-| Apply/Cancel/Reset behavior | Phase 2 | Apply triggers search; Cancel restores previous; Reset clears all fields |
-| Field serialization matches backend parser format | Phase 2 | Serialized output matches expected `fielded_search_parser.py` format |
-| SearchFilterChips render active filters | Phase 2 | Chips visible when fielded search is active; content matches filter values |
-| SearchFilterChip removal updates search | Phase 2 | Removing chip removes filter from active query |
-| Plain text search regression | Phase 2 | Existing search behavior unchanged when no fielded filters active |
-| `/metadata` route renders | Phase 3 | Implemented and covered by `frontend/tests/e2e/library-inspector.spec.ts` |
-| Desktop Metadata button | Phase 3 | Implemented with desktop `RouterLink to="/metadata"`, `Table2`, ghost/secondary styling, and `aria-current="page"`; direct `Button as-child` was avoided due runtime crash in current Reka setup |
-| Library Inspector endpoint empty query | Phase 3 | Implemented and covered by `backend/tests/test_library_inspector.py`; `/api/search?q=` regression remains covered |
-| Library Inspector shared parser semantics | Phase 3 | Implemented by reusing Phase 2 fielded parser condition builder; backend tests cover prompt/seed and shared search regression |
-| Library Inspector list response is lightweight | Phase 3 | Implemented and covered by backend tests: list rows omit full prompt/negative/raw metadata and include preview/flags/LoRA summary |
-| Library Inspector detail endpoint DB-first | Phase 3 | Implemented and covered by backend tests; detail reads indexed DB rows and returns 404 for unindexed metadata |
-| LibraryInspector renders columns and data | Phase 3 | Implemented and covered by mocked Playwright test for thumbnail, filename, model/LoRA, seed, dimensions, mtime, prompt, and actions |
-| LibraryInspector sorting by returned rows | Phase 3 | Implemented with TanStack Table client-side sorting over returned rows; prompt sort is not enabled |
-| LibraryInspector query input | Phase 3 | Implemented as one `q` input through `useLibraryInspectorQuery`; no facets/filter UI added |
-| Prompt and path truncation | Phase 3 | Implemented with wrapper/trigger/inner overflow locks and covered by Playwright class checks |
-| Prompt Popover detail-on-demand | Phase 3 | Implemented and covered by Playwright detail fetch/assertions |
-| LoRA Popover detail-on-demand | Phase 3 | Implemented with detail fetch and copy actions; row rendering covered by Playwright |
-| LibraryInspector row actions | Phase 3 | Safe row DropdownMenu actions work: open image, copy path, copy seed, copy prompt/negative, copy full metadata |
-| LibraryInspector excludes admin controls | Phase 3 | No row selection, select-all checkbox, batch toolbar, column visibility toggle, facets, density control, audit dashboard, watcher/refresh controls, or destructive actions |
-| GalleryGrid unchanged | Phase 3 | Existing GalleryGrid tests pass without modification |
+| Test                                                                                | Phase   | Assertion                                                                                                                                                                                        |
+| ----------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| IndexStatusChip renders each state (failed/active/queued/idle/unavailable/disabled) | Phase 1 | Correct badge text, color, and icon per state. disabled = hidden allowed; unavailable = visible required.                                                                                        |
+| IndexStatusChip shows muted idle state when up-to-date (does not fully auto-hide)   | Phase 1 | Chip visible with muted styling when idle and a folder context exists; hidden only when no folder/status available                                                                               |
+| IndexStatusChip click opens IndexStatusPanel                                        | Phase 1 | Panel visibility toggled                                                                                                                                                                         |
+| IndexStatusPanel shows correct counts from API response                             | Phase 1 | Counts match mock `fetchIndexStatus()` response                                                                                                                                                  |
+| No toast spam from index status updates                                             | Phase 1 | Toast store queue length unchanged during index status polling                                                                                                                                   |
+| Facets data-layer loading and error states                                          | Phase 1 | `fetchFacets()` resolves with correct shape; query key and composable handle loading/error                                                                                                       |
+| SettingsModal has ARIA dialog roles                                                 | Phase 1 | `role="dialog"`, `aria-modal="true"`, `aria-labelledby` present                                                                                                                                  |
+| AdvancedSearchDrawer form renders all field groups                                  | Phase 2 | Text, numeric, select, and size/ratio field groups visible                                                                                                                                       |
+| TanStack Form validation: invalid number shows error                                | Phase 2 | Error message displayed for non-numeric seed input                                                                                                                                               |
+| Apply/Cancel/Reset behavior                                                         | Phase 2 | Apply triggers search; Cancel restores previous; Reset clears all fields                                                                                                                         |
+| Field serialization matches backend parser format                                   | Phase 2 | Serialized output matches expected `fielded_search_parser.py` format                                                                                                                             |
+| SearchFilterChips render active filters                                             | Phase 2 | Chips visible when fielded search is active; content matches filter values                                                                                                                       |
+| SearchFilterChip removal updates search                                             | Phase 2 | Removing chip removes filter from active query                                                                                                                                                   |
+| Plain text search regression                                                        | Phase 2 | Existing search behavior unchanged when no fielded filters active                                                                                                                                |
+| `/metadata` route renders                                                           | Phase 3 | Implemented and covered by `frontend/tests/e2e/library-inspector.spec.ts`                                                                                                                        |
+| Desktop Metadata button                                                             | Phase 3 | Implemented with desktop `RouterLink to="/metadata"`, `Table2`, ghost/secondary styling, and `aria-current="page"`; direct `Button as-child` was avoided due runtime crash in current Reka setup |
+| Library Inspector endpoint empty query                                              | Phase 3 | Implemented and covered by `backend/tests/test_library_inspector.py`; `/api/search?q=` regression remains covered                                                                                |
+| Library Inspector shared parser semantics                                           | Phase 3 | Implemented by reusing Phase 2 fielded parser condition builder; backend tests cover prompt/seed and shared search regression                                                                    |
+| Library Inspector list response is lightweight                                      | Phase 3 | Implemented and covered by backend tests: list rows omit full prompt/negative/raw metadata and include preview/flags/LoRA summary                                                                |
+| Library Inspector detail endpoint DB-first                                          | Phase 3 | Implemented and covered by backend tests; detail reads indexed DB rows and returns 404 for unindexed metadata                                                                                    |
+| LibraryInspector renders columns and data                                           | Phase 3 | Implemented and covered by mocked Playwright test for thumbnail, filename, model/LoRA, seed, dimensions, mtime, prompt, and actions                                                              |
+| LibraryInspector sorting by returned rows                                           | Phase 3 | Implemented with TanStack Table client-side sorting over returned rows; prompt sort is not enabled                                                                                               |
+| LibraryInspector query input                                                        | Phase 3 | Implemented as one `q` input through `useLibraryInspectorQuery`; no facets/filter UI added                                                                                                       |
+| Prompt and path truncation                                                          | Phase 3 | Implemented with wrapper/trigger/inner overflow locks and covered by Playwright class checks                                                                                                     |
+| Prompt Popover detail-on-demand                                                     | Phase 3 | Implemented and covered by Playwright detail fetch/assertions                                                                                                                                    |
+| LoRA Popover detail-on-demand                                                       | Phase 3 | Implemented with detail fetch and copy actions; row rendering covered by Playwright                                                                                                              |
+| LibraryInspector row actions                                                        | Phase 3 | Safe row DropdownMenu actions work: open image, copy path, copy seed, copy prompt/negative, copy full metadata                                                                                   |
+| LibraryInspector excludes admin controls                                            | Phase 3 | No row selection, select-all checkbox, batch toolbar, column visibility toggle, facets, density control, audit dashboard, watcher/refresh controls, or destructive actions                       |
+| GalleryGrid unchanged                                                               | Phase 3 | Existing GalleryGrid tests pass without modification                                                                                                                                             |
 
 ### Integration/E2E Tests
 
-| Test | Phase | Description |
-|---|---|---|
-| Desktop AdvancedSearchDrawer opens/closes | Phase 2 | Slide-over panel behavior on desktop breakpoint |
-| Full search flow: plain → advanced → filter chip removal → plain | Phase 2 | End-to-end search state transitions |
-| LibraryInspector → lightbox round-trip | Phase 3 | Click thumbnail or Open action opens lightbox using current visible rows; close returns to `/metadata` |
+| Test                                                             | Phase   | Description                                                                                            |
+| ---------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------ |
+| Desktop AdvancedSearchDrawer opens/closes                        | Phase 2 | Slide-over panel behavior on desktop breakpoint                                                        |
+| Full search flow: plain → advanced → filter chip removal → plain | Phase 2 | End-to-end search state transitions                                                                    |
+| LibraryInspector → lightbox round-trip                           | Phase 3 | Click thumbnail or Open action opens lightbox using current visible rows; close returns to `/metadata` |
 
 ### Performance Tests
 
-| Test | Phase | Assertion |
-|---|---|---|
-| Album-open perf unchanged | All | Scan p95, first thumbnail, thumbnail p95 within existing budgets |
-| Lightbox perf unchanged | All | Visible time, preview loaded time within existing budgets |
-| LibraryInspector render time with 200 rows | Phase 3 | Initial render under 500ms |
+| Test                                       | Phase   | Assertion                                                        |
+| ------------------------------------------ | ------- | ---------------------------------------------------------------- |
+| Album-open perf unchanged                  | All     | Scan p95, first thumbnail, thumbnail p95 within existing budgets |
+| Lightbox perf unchanged                    | All     | Visible time, preview loaded time within existing budgets        |
+| LibraryInspector render time with 200 rows | Phase 3 | Initial render under 500ms                                       |
 
 ### Accessibility Tests
 
-| Test | Phase | Assertion |
-|---|---|---|
-| SettingsModal dialog roles present | Phase 1 | `role="dialog"`, `aria-modal`, `aria-labelledby` |
-| ToastItem `role="alert"` present | Phase 1 | Screen reader announces new toasts |
-| LightboxMobileSheet tab roles | Future | `role="tablist"`, `role="tab"`, `aria-selected` — deferred to future Mobile/Tablet Spec |
-| AppHeader `role="banner"` landmark | Phase 1C | `role="banner"` present on desktop header |
-| GalleryGrid error banner `role="alert"` | Phase 1C | `role="alert"` present on error banner |
-| Native search scope `<select>` preserved | Phase 1C | Scope select unchanged from pre-Phase-1 baseline |
-| Polling frequency not excessive | Phase 1B | Fast-poll only when active/queued work exists; failed-only slow-polls |
-| FolderTreeItem TreeView roles | Phase 1 | `role="tree"`, `role="treeitem"`, `aria-expanded` |
-| Form field labels linked to inputs | Phase 2 | Each input has `aria-labelledby` or `<label>` association |
-| LibraryInspector sortable headers accessible via keyboard | Phase 3 | Enter/Space on sortable header triggers sort |
-| LibraryInspector Popover/Dropdown accessibility | Phase 3 | Prompt/path/LoRA Popover triggers and row DropdownMenu items are keyboard reachable with visible focus |
+| Test                                                      | Phase    | Assertion                                                                                              |
+| --------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------ |
+| SettingsModal dialog roles present                        | Phase 1  | `role="dialog"`, `aria-modal`, `aria-labelledby`                                                       |
+| ToastItem `role="alert"` present                          | Phase 1  | Screen reader announces new toasts                                                                     |
+| LightboxMobileSheet tab roles                             | Future   | `role="tablist"`, `role="tab"`, `aria-selected` — deferred to future Mobile/Tablet Spec                |
+| AppHeader `role="banner"` landmark                        | Phase 1C | `role="banner"` present on desktop header                                                              |
+| GalleryGrid error banner `role="alert"`                   | Phase 1C | `role="alert"` present on error banner                                                                 |
+| Native search scope `<select>` preserved                  | Phase 1C | Scope select unchanged from pre-Phase-1 baseline                                                       |
+| Polling frequency not excessive                           | Phase 1B | Fast-poll only when active/queued work exists; failed-only slow-polls                                  |
+| FolderTreeItem TreeView roles                             | Phase 1  | `role="tree"`, `role="treeitem"`, `aria-expanded`                                                      |
+| Form field labels linked to inputs                        | Phase 2  | Each input has `aria-labelledby` or `<label>` association                                              |
+| LibraryInspector sortable headers accessible via keyboard | Phase 3  | Enter/Space on sortable header triggers sort                                                           |
+| LibraryInspector Popover/Dropdown accessibility           | Phase 3  | Prompt/path/LoRA Popover triggers and row DropdownMenu items are keyboard reachable with visible focus |
 
 ---
 
@@ -1066,77 +1093,77 @@ Therefore, Phase 1 is desktop-only. Real-device Safari testing is mandatory befo
 
 ### New Files
 
-| File | Phase | Description |
-|---|---|---|
-| `frontend/src/composables/useIndexStatusQuery.ts` | Phase 1A | TanStack Query wrapper for `/api/index/status` |
-| `frontend/src/composables/useFacetsQuery.ts` | Phase 1A | TanStack Query wrapper for `/api/facets` |
-| `frontend/src/components/IndexStatusChip.vue` | Phase 1B | Compact status badge (failed/active/queued/idle/disabled) — desktop-only |
-| `frontend/src/components/IndexStatusPanel.vue` | Phase 1B | Detailed popover with job counts — desktop-only |
-| `frontend/src/utils/serializeAdvancedSearchToQuery.ts` | Phase 2 | Serializer: TanStack Form state → q string |
-| `frontend/src/components/search/AdvancedSearchDrawer.vue` | Phase 2 | TanStack Form search builder |
-| `frontend/src/components/SearchFilterChips.vue` | Phase 2 | Removable active filter chips |
-| `frontend/src/components/search/SearchCommandPalette.vue` | Phase 2 | Quick command/search palette (optional) |
-| `frontend/src/router/index.ts` | Phase 3 | Minimal Vue Router setup for `/` and `/metadata` |
-| `frontend/src/components/LibraryInspector.vue` | Phase 3 | Desktop read-only Library Inspector using TanStack Table |
-| `frontend/src/composables/useLibraryInspectorQuery.ts` | Phase 3 | TanStack Query wrapper for `/api/library/inspector` |
-| `frontend/src/composables/useLibraryInspectorMetadataQuery.ts` | Phase 3 | TanStack Query wrapper for `/api/library/inspector/metadata` |
+| File                                                           | Phase    | Description                                                              |
+| -------------------------------------------------------------- | -------- | ------------------------------------------------------------------------ |
+| `frontend/src/composables/useIndexStatusQuery.ts`              | Phase 1A | TanStack Query wrapper for `/api/index/status`                           |
+| `frontend/src/composables/useFacetsQuery.ts`                   | Phase 1A | TanStack Query wrapper for `/api/facets`                                 |
+| `frontend/src/components/IndexStatusChip.vue`                  | Phase 1B | Compact status badge (failed/active/queued/idle/disabled) — desktop-only |
+| `frontend/src/components/IndexStatusPanel.vue`                 | Phase 1B | Detailed popover with job counts — desktop-only                          |
+| `frontend/src/utils/serializeAdvancedSearchToQuery.ts`         | Phase 2  | Serializer: TanStack Form state → q string                               |
+| `frontend/src/components/search/AdvancedSearchDrawer.vue`      | Phase 2  | TanStack Form search builder                                             |
+| `frontend/src/components/SearchFilterChips.vue`                | Phase 2  | Removable active filter chips                                            |
+| `frontend/src/components/search/SearchCommandPalette.vue`      | Phase 2  | Quick command/search palette (optional)                                  |
+| `frontend/src/router/index.ts`                                 | Phase 3  | Minimal Vue Router setup for `/` and `/metadata`                         |
+| `frontend/src/components/LibraryInspector.vue`                 | Phase 3  | Desktop read-only Library Inspector using TanStack Table                 |
+| `frontend/src/composables/useLibraryInspectorQuery.ts`         | Phase 3  | TanStack Query wrapper for `/api/library/inspector`                      |
+| `frontend/src/composables/useLibraryInspectorMetadataQuery.ts` | Phase 3  | TanStack Query wrapper for `/api/library/inspector/metadata`             |
 
 ### Modified Files
 
-| File | Phase | Description | Constraint |
-|---|---|---|---|
-| `frontend/src/services/api.ts` | Phase 1A | Add `fetchIndexStatus()`, `fetchFacets()` | Data-layer only |
-| `frontend/src/query/keys.ts` | Phase 1A | Add `indexStatus`, `facets` keys | Data-layer only |
-| `backend/metadata_store.py` | Phase 3 | Add DB-backed inspector list/detail helpers over `file_index` + `image_metadata`, reusing shared fielded-search parser/query builder where possible | Read-only |
-| `backend/search.py` | Phase 3 | Add `GET /api/library/inspector` and `GET /api/library/inspector/metadata` | Read-only |
-| `frontend/package.json` | Phase 3 | Add `vue-router` if not already installed when implementing the required `/metadata` route | Routing dependency only |
-| `frontend/src/main.ts` | Phase 3 | Install Vue Router alongside Pinia and Vue Query | App shell only |
-| `frontend/src/App.vue` | Phase 3 | Render router-compatible shell while preserving existing gallery behavior | Must not change mobile/tablet runtime |
-| `frontend/src/services/api.ts` | Phase 3 | Add `fetchLibraryInspector()` and `fetchLibraryInspectorMetadata()` | Data-layer only |
-| `frontend/src/query/keys.ts` | Phase 3 | Add `libraryInspector` and `libraryInspectorMetadata` keys | Data-layer only |
-| `frontend/src/types/index.ts` | Phase 1A | Add index status, facets types | Data-layer only |
-| `frontend/src/types/index.ts` | Phase 2 | Add fielded search types | Data-layer only |
-| `frontend/src/types/index.ts` | Phase 3 | Add `LibraryInspectorRow`, `LibraryInspectorResponse`, and `LibraryInspectorMetadataResponse` types | Data-layer only |
-| `frontend/src/components/AppHeader.vue` | Phase 1B | IndexStatusChip (desktop-only) | Must not affect mobile/tablet |
-| `frontend/src/components/AppHeader.vue` | Phase 2 | AdvancedSearch trigger, SearchFilterChips (desktop) | Desktop-only |
-| `frontend/src/components/AppHeader.vue` | Phase 3 | Desktop-only `Metadata` RouterLink using `Table2`, active/inactive shadcn button styling, and `aria-current="page"` | Desktop-only |
-| `frontend/src/components/GalleryGrid.vue` | Phase 1C | `role="alert"` on error banner (desktop-safe only) | Frozen for behavior/layout/virtualization |
-| `frontend/src/components/GalleryGrid.vue` | Phase 2 | SearchFilterChips integration | Frozen for behavior/layout/virtualization |
-| `frontend/src/components/SettingsModal.vue` | Phase 1C | Header/Body/Footer structure, ARIA roles | Desktop-safe only. No mobile behavior changes. |
-| `frontend/src/components/SettingsModal.vue` | Future | Tabs + TanStack Form only if staged backend configuration is added | Not Phase 3 MVP |
-| `frontend/src/components/RootPathSheet.vue` | Future Mobile/Tablet Spec | Structure refactor, loading state, ARIA | Deferred to future Mobile/Tablet Spec |
-| `frontend/src/components/ToastItem.vue` | Phase 1C | `role="alert"` | Desktop-safe only |
-| `frontend/src/components/FolderTreeItem.vue` | Phase 1C | TreeView ARIA roles | Desktop-safe only |
-| `frontend/src/components/LightboxMobileSheet.vue` | Future Mobile/Tablet Spec | Tab ARIA roles | Deferred to future Mobile/Tablet Spec |
-| `frontend/src/layouts/DesktopLayout.vue` | Phase 3 | Hosts existing gallery route content; GalleryGrid remains default visual browsing surface | Desktop-only |
+| File                                              | Phase                     | Description                                                                                                                                         | Constraint                                     |
+| ------------------------------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `frontend/src/services/api.ts`                    | Phase 1A                  | Add `fetchIndexStatus()`, `fetchFacets()`                                                                                                           | Data-layer only                                |
+| `frontend/src/query/keys.ts`                      | Phase 1A                  | Add `indexStatus`, `facets` keys                                                                                                                    | Data-layer only                                |
+| `backend/metadata_store.py`                       | Phase 3                   | Add DB-backed inspector list/detail helpers over `file_index` + `image_metadata`, reusing shared fielded-search parser/query builder where possible | Read-only                                      |
+| `backend/search.py`                               | Phase 3                   | Add `GET /api/library/inspector` and `GET /api/library/inspector/metadata`                                                                          | Read-only                                      |
+| `frontend/package.json`                           | Phase 3                   | Add `vue-router` if not already installed when implementing the required `/metadata` route                                                          | Routing dependency only                        |
+| `frontend/src/main.ts`                            | Phase 3                   | Install Vue Router alongside Pinia and Vue Query                                                                                                    | App shell only                                 |
+| `frontend/src/App.vue`                            | Phase 3                   | Render router-compatible shell while preserving existing gallery behavior                                                                           | Must not change mobile/tablet runtime          |
+| `frontend/src/services/api.ts`                    | Phase 3                   | Add `fetchLibraryInspector()` and `fetchLibraryInspectorMetadata()`                                                                                 | Data-layer only                                |
+| `frontend/src/query/keys.ts`                      | Phase 3                   | Add `libraryInspector` and `libraryInspectorMetadata` keys                                                                                          | Data-layer only                                |
+| `frontend/src/types/index.ts`                     | Phase 1A                  | Add index status, facets types                                                                                                                      | Data-layer only                                |
+| `frontend/src/types/index.ts`                     | Phase 2                   | Add fielded search types                                                                                                                            | Data-layer only                                |
+| `frontend/src/types/index.ts`                     | Phase 3                   | Add `LibraryInspectorRow`, `LibraryInspectorResponse`, and `LibraryInspectorMetadataResponse` types                                                 | Data-layer only                                |
+| `frontend/src/components/AppHeader.vue`           | Phase 1B                  | IndexStatusChip (desktop-only)                                                                                                                      | Must not affect mobile/tablet                  |
+| `frontend/src/components/AppHeader.vue`           | Phase 2                   | AdvancedSearch trigger, SearchFilterChips (desktop)                                                                                                 | Desktop-only                                   |
+| `frontend/src/components/AppHeader.vue`           | Phase 3                   | Desktop-only `Metadata` RouterLink using `Table2`, active/inactive shadcn button styling, and `aria-current="page"`                                 | Desktop-only                                   |
+| `frontend/src/components/GalleryGrid.vue`         | Phase 1C                  | `role="alert"` on error banner (desktop-safe only)                                                                                                  | Frozen for behavior/layout/virtualization      |
+| `frontend/src/components/GalleryGrid.vue`         | Phase 2                   | SearchFilterChips integration                                                                                                                       | Frozen for behavior/layout/virtualization      |
+| `frontend/src/components/SettingsModal.vue`       | Phase 1C                  | Header/Body/Footer structure, ARIA roles                                                                                                            | Desktop-safe only. No mobile behavior changes. |
+| `frontend/src/components/SettingsModal.vue`       | Future                    | Tabs + TanStack Form only if staged backend configuration is added                                                                                  | Not Phase 3 MVP                                |
+| `frontend/src/components/RootPathSheet.vue`       | Future Mobile/Tablet Spec | Structure refactor, loading state, ARIA                                                                                                             | Deferred to future Mobile/Tablet Spec          |
+| `frontend/src/components/ToastItem.vue`           | Phase 1C                  | `role="alert"`                                                                                                                                      | Desktop-safe only                              |
+| `frontend/src/components/FolderTreeItem.vue`      | Phase 1C                  | TreeView ARIA roles                                                                                                                                 | Desktop-safe only                              |
+| `frontend/src/components/LightboxMobileSheet.vue` | Future Mobile/Tablet Spec | Tab ARIA roles                                                                                                                                      | Deferred to future Mobile/Tablet Spec          |
+| `frontend/src/layouts/DesktopLayout.vue`          | Phase 3                   | Hosts existing gallery route content; GalleryGrid remains default visual browsing surface                                                           | Desktop-only                                   |
 
 ### Files Frozen in Phase 1
 
-| File | Status |
-|---|---|
+| File                                       | Status              |
+| ------------------------------------------ | ------------------- |
 | `frontend/src/components/MobileHeader.vue` | Frozen — no changes |
 | `frontend/src/components/TabletHeader.vue` | Frozen — no changes |
-| `frontend/src/layouts/MobileLayout.vue` | Frozen — no changes |
-| `frontend/src/layouts/TabletLayout.vue` | Frozen — no changes |
+| `frontend/src/layouts/MobileLayout.vue`    | Frozen — no changes |
+| `frontend/src/layouts/TabletLayout.vue`    | Frozen — no changes |
 
 ### Test Files Expected
 
-| File | Phase |
-|---|---|
-| `frontend/tests/e2e/index-status-chip.spec.ts` | Phase 1 |
-| `frontend/tests/e2e/index-status-panel.spec.ts` | Phase 1 |
-| `frontend/tests/e2e/facets-loading.spec.ts` | Phase 1 |
-| `frontend/tests/e2e/settings-modal-aria.spec.ts` | Phase 1 |
-| `frontend/tests/e2e/mobile-header-freeze.spec.ts` | Phase 1 |
-| `frontend/tests/e2e/tablet-header-freeze.spec.ts` | Phase 1 |
-| `frontend/tests/e2e/advanced-search-drawer.spec.ts` | Phase 2 |
-| `frontend/tests/e2e/search-filter-chips.spec.ts` | Phase 2 |
-| `frontend/tests/e2e/search-plain-regression.spec.ts` | Phase 2 |
-| `frontend/tests/e2e/metadata-route.spec.ts` | Phase 3 |
-| `frontend/tests/e2e/library-inspector.spec.ts` | Phase 3 |
+| File                                                    | Phase   |
+| ------------------------------------------------------- | ------- |
+| `frontend/tests/e2e/index-status-chip.spec.ts`          | Phase 1 |
+| `frontend/tests/e2e/index-status-panel.spec.ts`         | Phase 1 |
+| `frontend/tests/e2e/facets-loading.spec.ts`             | Phase 1 |
+| `frontend/tests/e2e/settings-modal-aria.spec.ts`        | Phase 1 |
+| `frontend/tests/e2e/mobile-header-freeze.spec.ts`       | Phase 1 |
+| `frontend/tests/e2e/tablet-header-freeze.spec.ts`       | Phase 1 |
+| `frontend/tests/e2e/advanced-search-drawer.spec.ts`     | Phase 2 |
+| `frontend/tests/e2e/search-filter-chips.spec.ts`        | Phase 2 |
+| `frontend/tests/e2e/search-plain-regression.spec.ts`    | Phase 2 |
+| `frontend/tests/e2e/metadata-route.spec.ts`             | Phase 3 |
+| `frontend/tests/e2e/library-inspector.spec.ts`          | Phase 3 |
 | `frontend/tests/e2e/library-inspector-metadata.spec.ts` | Phase 3 |
-| `backend/tests/test_library_inspector.py` | Phase 3 |
-| `frontend/tests/e2e/gallery-grid-unchanged.spec.ts` | Phase 3 |
+| `backend/tests/test_library_inspector.py`               | Phase 3 |
+| `frontend/tests/e2e/gallery-grid-unchanged.spec.ts`     | Phase 3 |
 
 ---
 

@@ -1,13 +1,13 @@
 # Architecture
 
-Last reviewed: 2026-06-20
+Last reviewed: 2026-06-21
 
 Library-management implementation progress and handoff context:
 [Codex Library Management Implementation Status](plan/CODEX_LIBRARY_MANAGEMENT_IMPLEMENTATION_STATUS.md).
 
 ## Overview
 
-AI Art Gallery is a local-first image browser with a FastAPI backend and a Vue 3 frontend.
+AI Art Gallery is a local-first mixed-media browser with a FastAPI backend and a Vue 3 frontend.
 
 - Backend: scans folders, serves original images, generates cached WebP derivatives, extracts AI generation metadata, indexes folders/photos/metadata in SQLite FTS5, and exposes read-only inspection/search APIs.
 - Frontend: uses Vue Router for the gallery and metadata inspector routes, Pinia for UI/navigation state, TanStack Query for API state, TanStack Virtual for large grids and the Library Inspector table body, PhotoSwipe for the lightbox, TanStack Form for advanced search, and TanStack Table for the Library Inspector.
@@ -22,61 +22,65 @@ Environment variables and parser behavior are documented in
 
 Backend modules live flat in `backend/`.
 
-| File | Purpose |
-|------|---------|
-| `app.py` | FastAPI app creation, CORS, optional Prometheus metrics, optional pyinstrument middleware, router composition, startup background services |
-| `main.py` | Import-compatible `app` shim and uvicorn fallback block |
-| `config.py` | Environment flags, cache paths, image limits, indexer tuning, production/static config |
-| `errors.py` | `APIError`, `ErrorType`, and FastAPI error shaping |
-| `models.py` | Shared Pydantic DTOs, including `FileNode` |
-| `paths.py` | `resolve_path`, `is_path_safe`, and `PATH_SAFETY_ROOT` boundary checks |
-| `files.py` | Image extension checks, natural sort, and image safety limits |
-| `albums.py` | Album cover/count/child-folder metadata |
-| `scan.py` | `/api/scan`, direct folder scans, optional warm SQLite listing, background index scheduling |
-| `folders.py` | `/api/folders` folder-tree endpoint and `/api/open-folder` OS explorer hook |
-| `images.py` | `/api/image` original file serving |
-| `thumbnails.py` | `/api/thumbnail`, `/api/preview`, WebP derivative generation, persistent disk cache |
-| `metadata_extract.py` | Raw metadata extraction/parsing helpers for A1111, SwarmUI, ComfyUI, NovelAI, EasyDiffusion, and generic EXIF/text fields |
-| `metadata_parse.py` | `/api/metadata`, in-memory metadata cache, response shaping |
-| `metadata_store.py` | SQLite schema, FTS5 search, folder/photo index, metadata rows, facets, Library Inspector data access |
-| `fielded_search_parser.py` | Parser for `prompt:`, `seed:`, `model:`, numeric operators, quoted values, and related fielded search syntax |
-| `search.py` | `/api/search`, `/api/search-metadata`, `/api/library/inspector`, `/api/library/inspector/metadata` |
-| `facets.py` | `/api/facets` aggregation over indexed metadata |
-| `indexer.py` | Background metadata queue, staged path batching, SQLite write batching, `/api/index/status` |
-| `refresh.py` | Optional scheduled refresh loop |
-| `watcher.py` | Optional filesystem watcher loop |
-| `libraries.py` | Registered-library CRUD/validation, multi-import-path scan, repair, and unregister flows |
-| `health.py` | `/api/health`, favicon, git commit reporting |
-| `static_files.py` | `/`, `/api/landing-pages`, and production SPA fallback |
+| File                       | Purpose                                                                                                                                    |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `app.py`                   | FastAPI app creation, CORS, optional Prometheus metrics, optional pyinstrument middleware, router composition, startup background services |
+| `main.py`                  | Import-compatible `app` shim and uvicorn fallback block                                                                                    |
+| `config.py`                | Environment flags, cache paths, image limits, indexer tuning, production/static config                                                     |
+| `errors.py`                | `APIError`, `ErrorType`, and FastAPI error shaping                                                                                         |
+| `models.py`                | Shared Pydantic DTOs, including `FileNode`                                                                                                 |
+| `paths.py`                 | `resolve_path`, `is_path_safe`, and `PATH_SAFETY_ROOT` boundary checks                                                                     |
+| `files.py`                 | Image/video classification, exclusion checks, natural sort, and image safety limits                                                        |
+| `albums.py`                | Album cover/count/child-folder metadata                                                                                                    |
+| `scan.py`                  | `/api/scan`, direct folder scans, optional warm SQLite listing, background index scheduling                                                |
+| `folders.py`               | `/api/folders` folder-tree endpoint and `/api/open-folder` OS explorer hook                                                                |
+| `images.py`                | `/api/image` original file serving                                                                                                         |
+| `thumbnails.py`            | `/api/thumbnail`, `/api/preview`, WebP derivative generation, persistent disk cache                                                        |
+| `metadata_extract.py`      | Raw metadata extraction/parsing helpers for A1111, SwarmUI, ComfyUI, NovelAI, EasyDiffusion, and generic EXIF/text fields                  |
+| `metadata_parse.py`        | `/api/metadata`, in-memory metadata cache, response shaping                                                                                |
+| `metadata_store.py`        | SQLite schema, FTS5 search, folder/photo index, metadata rows, facets, Library Inspector data access                                       |
+| `fielded_search_parser.py` | Parser for `prompt:`, `seed:`, `model:`, numeric operators, quoted values, and related fielded search syntax                               |
+| `search.py`                | `/api/search`, `/api/search-metadata`, `/api/library/inspector`, `/api/library/inspector/metadata`                                         |
+| `facets.py`                | `/api/facets` aggregation over indexed metadata                                                                                            |
+| `indexer.py`               | Background metadata queue, staged path batching, SQLite write batching, `/api/index/status`                                                |
+| `refresh.py`               | Optional scheduled refresh loop                                                                                                            |
+| `watcher.py`               | Optional filesystem watcher loop                                                                                                           |
+| `libraries.py`             | Registered-library CRUD/validation, multi-import-path scan, repair, and unregister flows                                                   |
+| `library_events.py`        | Best-effort single-process SSE fan-out for library/job progress                                                                            |
+| `video.py`                 | Range-capable original video streaming and cached poster generation                                                                        |
+| `health.py`                | `/api/health`, favicon, git commit reporting                                                                                               |
+| `static_files.py`          | `/`, `/api/landing-pages`, and production SPA fallback                                                                                     |
 
 ### Route Reference
 
-| Endpoint | Purpose | Module |
-|----------|---------|--------|
-| `GET /api/scan` | Return folder albums and paginated image rows for a directory | `scan.py` |
-| `GET /api/folders` | Return direct non-hidden child folders for sidebar expansion | `folders.py` |
-| `GET /api/image` | Serve an original image file | `images.py` |
-| `GET /api/thumbnail` | Serve a cached WebP thumbnail, default max long edge 512px | `thumbnails.py` |
-| `GET /api/preview` | Serve a cached WebP preview, default max long edge 1440px | `thumbnails.py` |
-| `GET /api/metadata` | Extract and normalize AI generation metadata for one image | `metadata_parse.py` |
-| `GET /api/search` | Unified album/photo/prompt search, including fielded metadata queries | `search.py` |
-| `GET /api/search-metadata` | Legacy metadata-only search endpoint | `search.py` |
-| `GET /api/library/inspector` | Bounded read-only rows for the desktop metadata inspector | `search.py` |
-| `GET /api/library/inspector/metadata` | DB-first full metadata detail for one inspector row | `search.py` |
-| `GET /api/facets` | DB-derived model/tool/sampler/etc. aggregation counts | `facets.py` |
-| `GET /api/index/status` | Metadata indexer queue/runtime status | `indexer.py` |
-| `POST /api/open-folder` | Open a folder in the OS file explorer when enabled | `folders.py` |
-| `GET /api/health` | Return service health and commit metadata | `health.py` |
-| `GET /api/landing-pages` | List intro page HTML templates from `frontend/public/landpage/` | `static_files.py` |
-| `GET /api/libraries` | List libraries with ordered import paths and exclusions | `libraries.py` |
-| `POST /api/libraries` | Register a library using `import_paths` or legacy `root_path` | `libraries.py` |
-| `POST /api/libraries/validate` | Validate create settings without writing | `libraries.py` |
-| `PATCH/PUT /api/libraries/{id}` | Replace supplied library settings | `libraries.py` |
-| `POST /api/libraries/{id}/validate` | Validate update settings without writing | `libraries.py` |
-| `POST /api/libraries/{id}/scan` | Scan every import path in one library | `libraries.py` |
-| `POST /api/libraries/{id}/repair` | Reconcile library assets with filesystem scope | `libraries.py` |
-| `DELETE /api/libraries/{id}?confirm=true` | Unregister catalog data without deleting source files | `libraries.py` |
-| `GET /` and `GET /{path:path}` | Serve the built SPA in production mode | `static_files.py` |
+| Endpoint                                  | Purpose                                                               | Module              |
+| ----------------------------------------- | --------------------------------------------------------------------- | ------------------- |
+| `GET /api/scan`                           | Return folders and paginated mixed-media rows for a directory         | `scan.py`           |
+| `GET /api/folders`                        | Return direct non-hidden child folders for sidebar expansion          | `folders.py`        |
+| `GET /api/image`                          | Serve an original image file                                          | `images.py`         |
+| `GET /api/thumbnail`                      | Serve a cached WebP thumbnail, default max long edge 512px            | `thumbnails.py`     |
+| `GET /api/preview`                        | Serve a cached WebP preview, default max long edge 1440px             | `thumbnails.py`     |
+| `GET /api/video`                          | Stream an original video with HTTP Range support                      | `video.py`          |
+| `GET /api/video/poster`                   | Serve a cached WebP poster generated with ffmpeg                      | `video.py`          |
+| `GET /api/metadata`                       | Extract and normalize AI generation metadata for one image            | `metadata_parse.py` |
+| `GET /api/search`                         | Unified album/photo/prompt search, including fielded metadata queries | `search.py`         |
+| `GET /api/search-metadata`                | Legacy metadata-only search endpoint                                  | `search.py`         |
+| `GET /api/library/inspector`              | Bounded read-only rows for the desktop metadata inspector             | `search.py`         |
+| `GET /api/library/inspector/metadata`     | DB-first full metadata detail for one inspector row                   | `search.py`         |
+| `GET /api/facets`                         | DB-derived model/tool/sampler/etc. aggregation counts                 | `facets.py`         |
+| `GET /api/index/status`                   | Metadata indexer queue/runtime status                                 | `indexer.py`        |
+| `POST /api/open-folder`                   | Open a folder in the OS file explorer when enabled                    | `folders.py`        |
+| `GET /api/health`                         | Return service health and commit metadata                             | `health.py`         |
+| `GET /api/landing-pages`                  | List intro page HTML templates from `frontend/public/landpage/`       | `static_files.py`   |
+| `GET /api/libraries`                      | List libraries with ordered import paths and exclusions               | `libraries.py`      |
+| `POST /api/libraries`                     | Register a library using `import_paths` or legacy `root_path`         | `libraries.py`      |
+| `POST /api/libraries/validate`            | Validate create settings without writing                              | `libraries.py`      |
+| `PATCH/PUT /api/libraries/{id}`           | Replace supplied library settings                                     | `libraries.py`      |
+| `POST /api/libraries/{id}/validate`       | Validate update settings without writing                              | `libraries.py`      |
+| `POST /api/libraries/{id}/scan`           | Scan every import path in one library                                 | `libraries.py`      |
+| `POST /api/libraries/{id}/repair`         | Reconcile library assets with filesystem scope                        | `libraries.py`      |
+| `DELETE /api/libraries/{id}?confirm=true` | Unregister catalog data without deleting source files                 | `libraries.py`      |
+| `GET /` and `GET /{path:path}`            | Serve the built SPA in production mode                                | `static_files.py`   |
 
 ### Backend Behavior
 
@@ -90,6 +94,7 @@ Backend modules live flat in `backend/`.
 - SQLite uses WAL mode and stores both file index rows and normalized metadata rows. FTS5 tables cover folder/photo names and metadata text.
 - Registered libraries store ordered roots in `library_import_paths`; `libraries.root_path` remains a compatibility alias for the first root. Relative globstar exclusions live in `library_exclusion_patterns`.
 - `/api/scan` stays hot-path focused: `os.scandir`, stat, natural sort, one batched dimension lookup, and no blanket metadata parsing.
+- `/api/scan` accepts only `path`, `limit`, and `media_cursor`; unknown query parameters return `422`. Its canonical response fields are `folders`, `media`, `next_media_cursor`, `total_images`, `total_videos`, `total_assets`, and `index_source`.
 - `/api/scan` schedules background indexing work for scanned folders/images and metadata jobs. `/api/metadata`, `/api/thumbnail`, and `/api/preview` also update cached metadata/dimensions when they already open the image.
 - `ENABLE_WARM_INDEXED_LISTING=1` allows `/api/scan` to serve a warm SQLite-backed listing when the folder index is complete and fresh.
 - Scheduled refresh is disabled by default. The file watcher is enabled for registered library roots by default and can be disabled with `ENABLE_FILE_WATCHER=0`.
@@ -98,43 +103,43 @@ Backend modules live flat in `backend/`.
 
 Key paths:
 
-| Path | Role |
-|------|------|
-| `frontend/src/main.ts` | Vue entry, global styles, Pinia, Vue Router, TanStack Query installation, dev debug utilities |
-| `frontend/src/router/index.ts` | Routes: `/` gallery, `/metadata` Library Inspector, fallback redirect |
-| `frontend/src/App.vue` | Root shell, layout dispatch, lightbox/settings/toast mounting, Query Devtools in dev |
-| `frontend/src/layouts/` | Desktop, tablet, and mobile layout shells |
-| `frontend/src/components/GalleryGrid.vue` | Main gallery renderer, album/photo sections, infinite loading, search result rendering |
-| `frontend/src/components/Lightbox.vue` | Device-dispatch lightbox orchestrator |
-| `frontend/src/components/LibraryInspector.vue` | Desktop metadata inspection table at `/metadata`; TanStack Table for returned-row sorting plus TanStack Virtual for table rows |
-| `frontend/src/components/SortSelect.vue` | shadcn-vue Select sort control used by gallery desktop/tablet toolbars and the Library Inspector |
-| `frontend/src/components/SortDropdown.vue` | Dropdown-menu sort control still used by the mobile header |
-| `frontend/src/components/search/AdvancedSearchDrawer.vue` | Facet-backed fielded search form |
-| `frontend/src/components/ui/` | shadcn-vue/Reka-inspired local UI primitives |
-| `frontend/src/composables/` | Query wrappers, device detection, PhotoSwipe lifecycle, metadata helpers, theme, haptics |
-| `frontend/src/query/` | TanStack Query client, normalized query keys, scan prefetch helpers |
-| `frontend/src/db/` | TanStack DB beta foundation and landing-pages pilot collection |
-| `frontend/src/stores/` | Pinia stores for gallery UI/navigation, lightbox, and toasts |
-| `frontend/src/services/api.ts` | Axios client, endpoint wrappers, URL helpers, API error mapping |
-| `frontend/src/styles/` | Tailwind 4 entry, shadcn token bridge, SCSS tokens, breakpoints, lightbox styles |
+| Path                                                      | Role                                                                                                                           |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `frontend/src/main.ts`                                    | Vue entry, global styles, Pinia, Vue Router, TanStack Query installation, dev debug utilities                                  |
+| `frontend/src/router/index.ts`                            | Routes: `/` gallery, `/metadata` Library Inspector, fallback redirect                                                          |
+| `frontend/src/App.vue`                                    | Root shell, layout dispatch, lightbox/settings/toast mounting, Query Devtools in dev                                           |
+| `frontend/src/layouts/`                                   | Desktop, tablet, and mobile layout shells                                                                                      |
+| `frontend/src/components/GalleryGrid.vue`                 | Main gallery renderer, album/photo sections, infinite loading, search result rendering                                         |
+| `frontend/src/components/Lightbox.vue`                    | Device-dispatch lightbox orchestrator                                                                                          |
+| `frontend/src/components/LibraryInspector.vue`            | Desktop metadata inspection table at `/metadata`; TanStack Table for returned-row sorting plus TanStack Virtual for table rows |
+| `frontend/src/components/SortSelect.vue`                  | shadcn-vue Select sort control used by gallery desktop/tablet toolbars and the Library Inspector                               |
+| `frontend/src/components/SortDropdown.vue`                | Dropdown-menu sort control still used by the mobile header                                                                     |
+| `frontend/src/components/search/AdvancedSearchDrawer.vue` | Facet-backed fielded search form                                                                                               |
+| `frontend/src/components/ui/`                             | shadcn-vue/Reka-inspired local UI primitives                                                                                   |
+| `frontend/src/composables/`                               | Query wrappers, device detection, PhotoSwipe lifecycle, metadata helpers, theme, haptics                                       |
+| `frontend/src/query/`                                     | TanStack Query client, normalized query keys, scan prefetch helpers                                                            |
+| `frontend/src/db/`                                        | TanStack DB beta foundation and landing-pages pilot collection                                                                 |
+| `frontend/src/stores/`                                    | Pinia stores for gallery UI/navigation, lightbox, and toasts                                                                   |
+| `frontend/src/services/api.ts`                            | Axios client, endpoint wrappers, URL helpers, API error mapping                                                                |
+| `frontend/src/styles/`                                    | Tailwind 4 entry, shadcn token bridge, SCSS tokens, breakpoints, lightbox styles                                               |
 
 ### State Ownership
 
-| Layer | Responsibilities |
-|-------|------------------|
-| TanStack Query | `/api/scan`, `/api/folders`, `/api/search`, `/api/metadata`, `/api/facets`, `/api/index/status`, Library Inspector rows/details, landing page fetches |
-| TanStack DB | Beta local reactive collection foundation; currently only the landing-pages collection is a runtime pilot |
-| Pinia gallery store | Root/current path, selected path, history, expanded folders, search text/scope, sort, loaded flags, settings UI state |
-| Pinia lightbox store | Open image, current index, visible item list, navigation |
-| Pinia toast store | Toast queue and auto-dismiss state |
+| Layer                | Responsibilities                                                                                                                                      |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TanStack Query       | `/api/scan`, `/api/folders`, `/api/search`, `/api/metadata`, `/api/facets`, `/api/index/status`, Library Inspector rows/details, landing page fetches |
+| TanStack DB          | Beta local reactive collection foundation; currently only the landing-pages collection is a runtime pilot                                             |
+| Pinia gallery store  | Root/current path, selected path, history, expanded folders, search text/scope, sort, loaded flags, settings UI state                                 |
+| Pinia lightbox store | Open image, current index, visible item list, navigation                                                                                              |
+| Pinia toast store    | Toast queue and auto-dismiss state                                                                                                                    |
 
 Query keys are centralized in `frontend/src/query/keys.ts`. Paths are normalized by trimming, converting backslashes to forward slashes, collapsing duplicate slashes, and removing a trailing slash except for `/`.
 
 Core keys:
 
 ```text
-["scan", normalizedPath, imageLimit]
-["scan-infinite", normalizedPath, imageLimit]
+["scan", normalizedPath, limit]
+["scan-infinite", normalizedPath, limit]
 ["folder-children", normalizedPath]
 ["search", query, scope, normalizedPath]
 ["metadata", normalizedPath]
@@ -155,7 +160,7 @@ Folder selection
 -> useInfiniteScanQuery(path)
 -> GET /api/scan
 -> TanStack Query stores pages under ["scan-infinite", normalizedPath, IMAGE_PAGE_SIZE]
--> GalleryGrid renders albums and image rows
+-> GalleryGrid renders folders and mixed-media rows
 ```
 
 First uncached folder loads can show a skeleton. Cached revisits render immediately and show only subtle refresh state while Query refetches in the background.
@@ -256,15 +261,15 @@ Mobile sheet contract:
 `App.vue` selects the layout from `useDevice()`:
 
 ```vue
-<MobileLayout  v-if="isMobile"  />
-<TabletLayout  v-else-if="isTablet" />
+<MobileLayout v-if="isMobile" />
+<TabletLayout v-else-if="isTablet" />
 <DesktopLayout v-else />
 ```
 
-| Device | Layout | Sidebar | Grid |
-|--------|--------|---------|------|
-| Mobile `<768px` | `MobileLayout.vue` | Overlay/mobile shell | Native scroll |
-| Tablet `768-1199px` | `TabletLayout.vue` | Drawer/sidebar shell | TanStack Virtual row grid |
+| Device                  | Layout              | Sidebar                        | Grid                      |
+| ----------------------- | ------------------- | ------------------------------ | ------------------------- |
+| Mobile `<768px`         | `MobileLayout.vue`  | Overlay/mobile shell           | Native scroll             |
+| Tablet `768-1199px`     | `TabletLayout.vue`  | Drawer/sidebar shell           | TanStack Virtual row grid |
 | Desktop/Wide `>=1200px` | `DesktopLayout.vue` | Persistent/collapsible sidebar | TanStack Virtual row grid |
 
 ## Fragile Contracts

@@ -6,6 +6,7 @@ Context:
 docs/BACKEND_LIBRARY_REPLACEMENT_RESEARCH.md exists from previous research. After review, final decisions were made. Update the doc to reflect them.
 
 Important:
+
 - This is docs/planning only.
 - Do NOT refactor backend code.
 - Do NOT install dependencies.
@@ -42,29 +43,30 @@ Required changes to docs/BACKEND_LIBRARY_REPLACEMENT_RESEARCH.md:
 Proposed module layout for refactor plan (document only, do not implement):
 
 backend/
-  main.py (app factory, middleware, startup)
-  config.py (pydantic-settings)
-  security.py (path safety, PATH_SAFETY_ROOT containment)
-  scanner.py (os.scandir, pagination, natural sort)
-  thumbnails.py (Pillow rendering, cache helpers)
-  metadata_parser.py (SD parsers, EXIF, sidecar)
-  cache.py (cachetools wrappers, in-flight dedup)
-  routers/
-    __init__.py
-    scan.py
-    image.py
-    thumbnail.py
-    metadata.py
-    open_folder.py
-    static.py
-  tests/
-    test_security.py
-    test_scanner.py
-    test_metadata_parser.py
-    test_thumbnails.py
-    test_sort.py
+main.py (app factory, middleware, startup)
+config.py (pydantic-settings)
+security.py (path safety, PATH_SAFETY_ROOT containment)
+scanner.py (os.scandir, pagination, natural sort)
+thumbnails.py (Pillow rendering, cache helpers)
+metadata_parser.py (SD parsers, EXIF, sidecar)
+cache.py (cachetools wrappers, in-flight dedup)
+routers/
+**init**.py
+scan.py
+image.py
+thumbnail.py
+metadata.py
+open_folder.py
+static.py
+tests/
+test_security.py
+test_scanner.py
+test_metadata_parser.py
+test_thumbnails.py
+test_sort.py
 
 Migration steps (document only):
+
 1. Extract config.py with pydantic-settings, keep same env names.
 2. Extract security.py, move is_path_safe, resolve_path.
 3. Extract cache.py, move cache objects/locks.
@@ -80,6 +82,7 @@ Risk areas: metadata parser internal structure, cache lock ordering, import cycl
 Do NOT implement this plan now. Only document it.
 
 Verification:
+
 - Docs-only diff expected.
 - No backend code changes.
 - No new dependencies.

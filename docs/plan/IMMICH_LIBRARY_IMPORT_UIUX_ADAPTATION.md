@@ -10,23 +10,23 @@
 
 Immich implements library management as a **SvelteKit route group** under `/admin/library-management/` with:
 
-| Route | File | Purpose |
-|---|---|---|
-| `/admin/library-management` | `(list)/+page.svelte` + `(list)/+layout.svelte` | **Library List** — table of all libraries with stats (photos, videos, size), owner, actions per row |
-| `(list)/+layout.ts` | Data loader — fetches `getAllLibraries()`, `getLibraryStatistics()`, owner info | |
-| `/admin/library-management/new` | `(list)/new/+page.svelte` | **New Library** — modal-style form (page, not actual modal) with owner picker |
-| `/admin/library-management/[id]` | `[id]/+layout.svelte` | **Library Detail** — stat cards (photos/videos/usage), **Import Paths** card, **Exclusion Patterns** card |
-| `[id]/+layout.ts` | Data loader — fetches `getLibrary({id})` + `getLibraryStatistics({id})` | |
-| `/admin/library-management/[id]/edit` | `[id]/edit/+page.svelte` | **Edit Library** — rename-only modal-style form |
+| Route                                 | File                                                                            | Purpose                                                                                                   |
+| ------------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `/admin/library-management`           | `(list)/+page.svelte` + `(list)/+layout.svelte`                                 | **Library List** — table of all libraries with stats (photos, videos, size), owner, actions per row       |
+| `(list)/+layout.ts`                   | Data loader — fetches `getAllLibraries()`, `getLibraryStatistics()`, owner info |                                                                                                           |
+| `/admin/library-management/new`       | `(list)/new/+page.svelte`                                                       | **New Library** — modal-style form (page, not actual modal) with owner picker                             |
+| `/admin/library-management/[id]`      | `[id]/+layout.svelte`                                                           | **Library Detail** — stat cards (photos/videos/usage), **Import Paths** card, **Exclusion Patterns** card |
+| `[id]/+layout.ts`                     | Data loader — fetches `getLibrary({id})` + `getLibraryStatistics({id})`         |                                                                                                           |
+| `/admin/library-management/[id]/edit` | `[id]/edit/+page.svelte`                                                        | **Edit Library** — rename-only modal-style form                                                           |
 
 ### Modal Components (opened via `action` items on cards):
 
-| Modal | File | Purpose |
-|---|---|---|
-| `LibraryFolderAddModal` | `.../LibraryFolderAddModal.svelte` | Add an import path (single text input) |
-| `LibraryFolderEditModal` | `.../LibraryFolderEditModal.svelte` | Edit an existing import path |
-| `LibraryExclusionPatternAddModal` | `.../LibraryExclusionPatternAddModal.svelte` | Add a glob exclusion pattern |
-| `LibraryExclusionPatternEditModal` | `.../LibraryExclusionPatternEditModal.svelte` | Edit an exclusion pattern |
+| Modal                              | File                                          | Purpose                                |
+| ---------------------------------- | --------------------------------------------- | -------------------------------------- |
+| `LibraryFolderAddModal`            | `.../LibraryFolderAddModal.svelte`            | Add an import path (single text input) |
+| `LibraryFolderEditModal`           | `.../LibraryFolderEditModal.svelte`           | Edit an existing import path           |
+| `LibraryExclusionPatternAddModal`  | `.../LibraryExclusionPatternAddModal.svelte`  | Add a glob exclusion pattern           |
+| `LibraryExclusionPatternEditModal` | `.../LibraryExclusionPatternEditModal.svelte` | Edit an exclusion pattern              |
 
 ### Key UI Patterns Used:
 
@@ -47,6 +47,7 @@ Immich implements library management as a **SvelteKit route group** under `/admi
 ### 2.1 Layout Architecture
 
 **Immich Pattern (SvelteKit route groups):**
+
 ```
 ( list )/  ← route group (no URL segment)
   +layout.svelte  ← list page shell with table + slot for children
@@ -109,9 +110,9 @@ Immich uses `ActionItem` objects with icon + title + onAction + keyboard shortcu
 ```ts
 const Edit: ActionItem = {
   icon: mdiPencilOutline,
-  title: $t('edit'),
+  title: $t("edit"),
   onAction: () => goto(Route.editLibrary(library)),
-  shortcuts: { key: 'r' },
+  shortcuts: { key: "r" },
 };
 ```
 
@@ -139,7 +140,7 @@ Immich checks for duplicate folders/patterns **client-side** before calling the 
 
 ```ts
 if (library.importPaths.includes(folder)) {
-  toastManager.danger($t('errors.library_folder_already_exists'));
+  toastManager.danger($t("errors.library_folder_already_exists"));
   return false;
 }
 ```
@@ -209,41 +210,41 @@ Immich loads stats via a separate promise and renders skeletons. Since our TanSt
 
 #### Pages (Vue Router views):
 
-| Component | Path | Purpose |
-|---|---|---|
-| `LibraryListPage.vue` | `@/components/admin/LibraryListPage.vue` | Library list with table |
+| Component               | Path                                       | Purpose                                                  |
+| ----------------------- | ------------------------------------------ | -------------------------------------------------------- |
+| `LibraryListPage.vue`   | `@/components/admin/LibraryListPage.vue`   | Library list with table                                  |
 | `LibraryDetailPage.vue` | `@/components/admin/LibraryDetailPage.vue` | Library detail with stats + folders + exclusion patterns |
 
 #### Shared Components:
 
-| Component | Path | Purpose |
-|---|---|---|
-| `LibraryStatCard.vue` | `@/components/admin/LibraryStatCard.vue` | Single stat card (icon + label + value) |
-| `LibraryImportPathsCard.vue` | `@/components/admin/LibraryImportPathsCard.vue` | Card showing import paths list with edit/delete |
+| Component                          | Path                                                  | Purpose                                          |
+| ---------------------------------- | ----------------------------------------------------- | ------------------------------------------------ |
+| `LibraryStatCard.vue`              | `@/components/admin/LibraryStatCard.vue`              | Single stat card (icon + label + value)          |
+| `LibraryImportPathsCard.vue`       | `@/components/admin/LibraryImportPathsCard.vue`       | Card showing import paths list with edit/delete  |
 | `LibraryExclusionPatternsCard.vue` | `@/components/admin/LibraryExclusionPatternsCard.vue` | Card showing exclusion patterns with edit/delete |
 
 #### Dialogs / Modals:
 
-| Component | Path | Purpose |
-|---|---|---|
-| `LibraryCreateDialog.vue` | `@/components/admin/dialogs/LibraryCreateDialog.vue` | Create library dialog (path input + optional name) |
-| `LibraryEditDialog.vue` | `@/components/admin/dialogs/LibraryEditDialog.vue` | Edit library name dialog |
-| `LibraryFolderAddDialog.vue` | `@/components/admin/dialogs/LibraryFolderAddDialog.vue` | Add import path dialog |
-| `LibraryFolderEditDialog.vue` | `@/components/admin/dialogs/LibraryFolderEditDialog.vue` | Edit import path dialog |
-| `LibraryExclusionPatternAddDialog.vue` | `@/components/admin/dialogs/LibraryExclusionPatternAddDialog.vue` | Add exclusion pattern dialog |
-| `LibraryExclusionPatternEditDialog.vue` | `@/components/admin/dialogs/LibraryExclusionPatternEditDialog.vue` | Edit exclusion pattern dialog |
-| `LibraryDeleteConfirmDialog.vue` | `@/components/admin/dialogs/LibraryDeleteConfirmDialog.vue` | Confirm delete (with asset warning) |
+| Component                               | Path                                                               | Purpose                                            |
+| --------------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------- |
+| `LibraryCreateDialog.vue`               | `@/components/admin/dialogs/LibraryCreateDialog.vue`               | Create library dialog (path input + optional name) |
+| `LibraryEditDialog.vue`                 | `@/components/admin/dialogs/LibraryEditDialog.vue`                 | Edit library name dialog                           |
+| `LibraryFolderAddDialog.vue`            | `@/components/admin/dialogs/LibraryFolderAddDialog.vue`            | Add import path dialog                             |
+| `LibraryFolderEditDialog.vue`           | `@/components/admin/dialogs/LibraryFolderEditDialog.vue`           | Edit import path dialog                            |
+| `LibraryExclusionPatternAddDialog.vue`  | `@/components/admin/dialogs/LibraryExclusionPatternAddDialog.vue`  | Add exclusion pattern dialog                       |
+| `LibraryExclusionPatternEditDialog.vue` | `@/components/admin/dialogs/LibraryExclusionPatternEditDialog.vue` | Edit exclusion pattern dialog                      |
+| `LibraryDeleteConfirmDialog.vue`        | `@/components/admin/dialogs/LibraryDeleteConfirmDialog.vue`        | Confirm delete (with asset warning)                |
 
 #### Composables:
 
-| Composable | Path | Purpose |
-|---|---|---|
-| `useLibrariesQuery.ts` | `@/composables/admin/useLibrariesQuery.ts` | TanStack Query for library list |
-| `useLibraryQuery.ts` | `@/composables/admin/useLibraryQuery.ts` | TanStack Query for single library |
-| `useLibraryStatsQuery.ts` | `@/composables/admin/useLibraryStatsQuery.ts` | TanStack Query for library stats |
-| `useLibraryMutations.ts` | `@/composables/admin/useLibraryMutations.ts` | All library mutations (create, update, delete, scan, repair) |
-| `useLibraryFolderMutations.ts` | `@/composables/admin/useLibraryFolderMutations.ts` | Import path mutations |
-| `useLibraryExclusionMutations.ts` | `@/composables/admin/useLibraryExclusionMutations.ts` | Exclusion pattern mutations |
+| Composable                        | Path                                                  | Purpose                                                      |
+| --------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------ |
+| `useLibrariesQuery.ts`            | `@/composables/admin/useLibrariesQuery.ts`            | TanStack Query for library list                              |
+| `useLibraryQuery.ts`              | `@/composables/admin/useLibraryQuery.ts`              | TanStack Query for single library                            |
+| `useLibraryStatsQuery.ts`         | `@/composables/admin/useLibraryStatsQuery.ts`         | TanStack Query for library stats                             |
+| `useLibraryMutations.ts`          | `@/composables/admin/useLibraryMutations.ts`          | All library mutations (create, update, delete, scan, repair) |
+| `useLibraryFolderMutations.ts`    | `@/composables/admin/useLibraryFolderMutations.ts`    | Import path mutations                                        |
+| `useLibraryExclusionMutations.ts` | `@/composables/admin/useLibraryExclusionMutations.ts` | Exclusion pattern mutations                                  |
 
 ### 4.2 API Service Functions to Add
 
@@ -299,23 +300,24 @@ libraryStats: (id: string) => ['libraries', id, 'stats'] as const,
 Add to `@/router/index.ts`:
 
 ```ts
-const LibraryListPage = () => import('@/components/admin/LibraryListPage.vue');
-const LibraryDetailPage = () => import('@/components/admin/LibraryDetailPage.vue');
+const LibraryListPage = () => import("@/components/admin/LibraryListPage.vue");
+const LibraryDetailPage = () =>
+  import("@/components/admin/LibraryDetailPage.vue");
 
 routes: [
   // ... existing routes
   {
-    path: '/admin/libraries',
-    name: 'libraries',
+    path: "/admin/libraries",
+    name: "libraries",
     component: LibraryListPage,
   },
   {
-    path: '/admin/libraries/:id',
-    name: 'library-detail',
+    path: "/admin/libraries/:id",
+    name: "library-detail",
     component: LibraryDetailPage,
     props: true,
   },
-]
+];
 ```
 
 The `/metadata` route already exists and redirects mobile/tablet users. Add the same redirect guard for `/admin/libraries/*` routes.
@@ -531,10 +533,10 @@ Dialogs (opened on demand, not nested in router):
 
 ## 7. Route Design
 
-| Path | Name | Component | Purpose |
-|---|---|---|---|
-| `/admin/libraries` | `libraries` | `LibraryListPage.vue` | View all registered libraries |
-| `/admin/libraries/:id` | `library-detail` | `LibraryDetailPage.vue` | View/edit a single library |
+| Path                   | Name             | Component               | Purpose                       |
+| ---------------------- | ---------------- | ----------------------- | ----------------------------- |
+| `/admin/libraries`     | `libraries`      | `LibraryListPage.vue`   | View all registered libraries |
+| `/admin/libraries/:id` | `library-detail` | `LibraryDetailPage.vue` | View/edit a single library    |
 
 **Route guard:** Both routes redirect to `/` when `isMobile || isTablet` (matching the existing `/metadata` guard in `App.vue`).
 
@@ -552,9 +554,9 @@ export const queryKeys = {
   // ... existing keys
 
   // Library management
-  libraries: () => ['libraries'] as const,
-  library: (id: string) => ['libraries', id] as const,
-  libraryStats: (id: string) => ['libraries', id, 'stats'] as const,
+  libraries: () => ["libraries"] as const,
+  library: (id: string) => ["libraries", id] as const,
+  libraryStats: (id: string) => ["libraries", id, "stats"] as const,
 };
 ```
 
@@ -566,10 +568,11 @@ export function useLibraryMutations() {
   const queryClient = useQueryClient();
 
   const createLibrary = useMutation({
-    mutationFn: (dto: { root_path: string; name?: string }) => api.createLibrary(dto),
+    mutationFn: (dto: { root_path: string; name?: string }) =>
+      api.createLibrary(dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.libraries() });
-      toast.success('Library created');
+      toast.success("Library created");
     },
     onError: (error: GalleryAPIError) => {
       toast.error(error.userMessage);
@@ -580,9 +583,11 @@ export function useLibraryMutations() {
     mutationFn: ({ id, ...dto }: { id: string } & Partial<UpdateLibraryDto>) =>
       api.updateLibrary(id, dto),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.library(variables.id) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.library(variables.id),
+      });
       queryClient.invalidateQueries({ queryKey: queryKeys.libraries() });
-      toast.success('Library updated');
+      toast.success("Library updated");
     },
     onError: (error: GalleryAPIError) => {
       toast.error(error.userMessage);
@@ -593,7 +598,7 @@ export function useLibraryMutations() {
     mutationFn: (id: string) => api.deleteLibrary(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.libraries() });
-      toast.success('Library deleted');
+      toast.success("Library deleted");
     },
   });
 
@@ -601,7 +606,7 @@ export function useLibraryMutations() {
     mutationFn: (id: string) => api.scanLibrary(id),
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.libraryStats(id) });
-      toast.info('Library scan started');
+      toast.info("Library scan started");
     },
   });
 
@@ -622,7 +627,7 @@ export function useLibraryStatsQuery(id: string) {
     // Poll every 3s while scanning, stop when complete/error
     refetchInterval: (query) => {
       const status = query.state.data?.status;
-      if (status === 'scanning' || status === 'idle' || !status) return 3000;
+      if (status === "scanning" || status === "idle" || !status) return 3000;
       return false; // completed or error — stop polling
     },
     staleTime: 0, // Always refetch while polling

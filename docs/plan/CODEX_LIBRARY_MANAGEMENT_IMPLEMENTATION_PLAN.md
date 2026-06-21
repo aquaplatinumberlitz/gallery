@@ -1,11 +1,13 @@
 # Codex Library Management Implementation Plan
 
-Status: Phases 0-1 complete; Phases 2-8 are not implemented.
+Status: Phases 0-8 complete and verified as of 2026-06-20.
 
 Current implementation/handoff status:
 [`CODEX_LIBRARY_MANAGEMENT_IMPLEMENTATION_STATUS.md`](CODEX_LIBRARY_MANAGEMENT_IMPLEMENTATION_STATUS.md).
-Developers should read the status document first to understand implemented,
-temporary, and pending behavior.
+Developers should read the status document first for the implemented behavior,
+verification evidence, and remaining architecture constraints. This plan is a
+retrospective design record; imperative steps below describe what was
+implemented, not pending work.
 
 Phase 0 binding contract:
 [`CODEX_LIBRARY_MANAGEMENT_PHASE_0_CONTRACT.md`](CODEX_LIBRARY_MANAGEMENT_PHASE_0_CONTRACT.md).
@@ -19,49 +21,60 @@ Goal: implement a responsive full-stack Library Import / Library Management syst
 
 The implementation must target the gallery backend that exists in this repo, not Immich.
 
-Current registered library endpoints before this plan is implemented:
+Registered library endpoints at the pre-plan baseline:
 
-| Method | Endpoint | Purpose | Notes |
-| --- | --- | --- | --- |
-| `GET` | `/api/libraries` | List registered libraries | Returns DB rows from `libraries`. |
-| `POST` | `/api/libraries` | Add one library root | Body: `{ root_path: string, name?: string }`. Validates path safety, existence, directory, overlap. |
-| `GET` | `/api/libraries/{library_id}` | Get one library | `library_id` is numeric. |
-| `GET` | `/api/libraries/{library_id}/progress` | Get scan/import progress | Returns indexed/estimated counts and lifecycle state. |
-| `POST` | `/api/libraries/{library_id}/scan` | Trigger background discovery/import | Returns `202` with `{ library_id, state: "discovering" }`. |
-| `POST` | `/api/libraries/{library_id}/repair` | Reconcile catalog with filesystem | Returns `{ library_id, added, removed, modified }`. |
-| `DELETE` | `/api/libraries/{library_id}?confirm=true` | Unregister library | Deletes catalog rows only. Source files are not deleted. |
+| Method   | Endpoint                                   | Purpose                             | Notes                                                                                               |
+| -------- | ------------------------------------------ | ----------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `GET`    | `/api/libraries`                           | List registered libraries           | Returns DB rows from `libraries`.                                                                   |
+| `POST`   | `/api/libraries`                           | Add one library root                | Body: `{ root_path: string, name?: string }`. Validates path safety, existence, directory, overlap. |
+| `GET`    | `/api/libraries/{library_id}`              | Get one library                     | `library_id` is numeric.                                                                            |
+| `GET`    | `/api/libraries/{library_id}/progress`     | Get scan/import progress            | Returns indexed/estimated counts and lifecycle state.                                               |
+| `POST`   | `/api/libraries/{library_id}/scan`         | Trigger background discovery/import | Returns `202` with `{ library_id, state: "discovering" }`.                                          |
+| `POST`   | `/api/libraries/{library_id}/repair`       | Reconcile catalog with filesystem   | Returns `{ library_id, added, removed, modified }`.                                                 |
+| `DELETE` | `/api/libraries/{library_id}?confirm=true` | Unregister library                  | Deletes catalog rows only. Source files are not deleted.                                            |
 
 Target V1 registered library endpoints after adapting Immich backend patterns:
 
-| Method | Endpoint | Purpose | Notes |
-| --- | --- | --- | --- |
-| `GET` | `/api/libraries` | List registered libraries | Include import paths, exclusion patterns, aggregate asset count/status summary. |
-| `POST` | `/api/libraries` | Add one library | Body supports `name`, `import_paths`, `exclusion_patterns`; legacy `root_path` is accepted as shorthand for one import path. |
-| `POST` | `/api/libraries/validate` | Validate new library settings | Validate create payload before the library exists. |
-| `GET` | `/api/libraries/{library_id}` | Get one library | Numeric gallery library id. |
-| `PATCH` | `/api/libraries/{library_id}` | Rename/edit library | Canonical update endpoint for `name`, `import_paths`, and `exclusion_patterns`. |
-| `PUT` | `/api/libraries/{library_id}` | Rename/edit library alias | Optional alias to `PATCH` for client compatibility. |
-| `POST` | `/api/libraries/{library_id}/validate` | Validate library update settings | Validate update payload against an existing library. |
-| `GET` | `/api/libraries/{library_id}/progress` | Get scan/import progress | Polling fallback for SSE. |
-| `GET` | `/api/libraries/{library_id}/stats` | Get aggregate library stats | Photos, videos, total assets, active/offline assets, bytes, import-path count. |
-| `GET` | `/api/libraries/{library_id}/jobs` | Get recent library job history | Scan, repair, poster, and reconcile job rows for detail UI. |
-| `POST` | `/api/libraries/{library_id}/scan` | Queue library scan | Queue discover/import and reconcile phases. |
-| `POST` | `/api/libraries/scan-all` | Queue scan for every library | Local single-user admin action. |
-| `POST` | `/api/libraries/{library_id}/repair` | Reconcile catalog with filesystem | Track as job/history even if implementation stays synchronous initially. |
-| `DELETE` | `/api/libraries/{library_id}?confirm=true` | Unregister library | Deletes catalog rows only. Source files are not deleted. |
-| `GET` | `/api/stats` | Get aggregate gallery stats | Photos, videos, total assets, active/offline assets, bytes, and library count across all libraries. |
-| `GET` | `/api/jobs` | List job/queue status | Lightweight Gallery queue, not Immich/BullMQ. |
-| `GET` | `/api/jobs/{job_id}` | Get one job | Includes counters, state, timestamps, and error. |
-| `GET` | `/api/events` | SSE stream | Emits `job.updated`, `library.progress`, `job.completed`, and `job.failed`. |
-| `GET` | `/api/video` | Serve original video | Native browser playback with HTTP Range support. |
-| `GET` | `/api/video/poster` | Serve cached video poster | Generated by `ffmpeg`, cached like image derivatives. |
+| Method   | Endpoint                                   | Purpose                           | Notes                                                                                                                        |
+| -------- | ------------------------------------------ | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `GET`    | `/api/libraries`                           | List registered libraries         | Include import paths, exclusion patterns, aggregate asset count/status summary.                                              |
+| `POST`   | `/api/libraries`                           | Add one library                   | Body supports `name`, `import_paths`, `exclusion_patterns`; legacy `root_path` is accepted as shorthand for one import path. |
+| `POST`   | `/api/libraries/validate`                  | Validate new library settings     | Validate create payload before the library exists.                                                                           |
+| `GET`    | `/api/libraries/{library_id}`              | Get one library                   | Numeric gallery library id.                                                                                                  |
+| `PATCH`  | `/api/libraries/{library_id}`              | Rename/edit library               | Canonical update endpoint for `name`, `import_paths`, and `exclusion_patterns`.                                              |
+| `PUT`    | `/api/libraries/{library_id}`              | Rename/edit library alias         | Optional alias to `PATCH` for client compatibility.                                                                          |
+| `POST`   | `/api/libraries/{library_id}/validate`     | Validate library update settings  | Validate update payload against an existing library.                                                                         |
+| `GET`    | `/api/libraries/{library_id}/progress`     | Get scan/import progress          | Polling fallback for SSE.                                                                                                    |
+| `GET`    | `/api/libraries/{library_id}/stats`        | Get aggregate library stats       | Photos, videos, total assets, active/offline assets, bytes, import-path count.                                               |
+| `GET`    | `/api/libraries/{library_id}/jobs`         | Get recent library job history    | Scan, repair, poster, and reconcile job rows for detail UI.                                                                  |
+| `POST`   | `/api/libraries/{library_id}/scan`         | Queue library scan                | Queue discover/import and reconcile phases.                                                                                  |
+| `POST`   | `/api/libraries/scan-all`                  | Queue scan for every library      | Local single-user admin action.                                                                                              |
+| `POST`   | `/api/libraries/{library_id}/repair`       | Reconcile catalog with filesystem | Track as job/history even if implementation stays synchronous initially.                                                     |
+| `DELETE` | `/api/libraries/{library_id}?confirm=true` | Unregister library                | Deletes catalog rows only. Source files are not deleted.                                                                     |
+| `GET`    | `/api/stats`                               | Get aggregate gallery stats       | Photos, videos, total assets, active/offline assets, bytes, and library count across all libraries.                          |
+| `GET`    | `/api/jobs`                                | List job/queue status             | Lightweight Gallery queue, not Immich/BullMQ.                                                                                |
+| `GET`    | `/api/jobs/{job_id}`                       | Get one job                       | Includes counters, state, timestamps, and error.                                                                             |
+| `GET`    | `/api/events`                              | SSE stream                        | Emits `job.updated`, `library.progress`, `job.completed`, and `job.failed`.                                                  |
+| `GET`    | `/api/video`                               | Serve original video              | Native browser playback with HTTP Range support.                                                                             |
+| `GET`    | `/api/video/poster`                        | Serve cached video poster         | Generated by `ffmpeg`, cached like image derivatives.                                                                        |
 
 Target response shape:
 
 ```ts
-type LibraryState = "queued" | "discovering" | "indexing" | "ready" | "error" | "offline";
+type LibraryState =
+  | "queued"
+  | "discovering"
+  | "indexing"
+  | "ready"
+  | "error"
+  | "offline";
 type LibraryAssetType = "image" | "video";
-type LibraryJobState = "queued" | "running" | "succeeded" | "failed" | "cancelled";
+type LibraryJobState =
+  | "queued"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "cancelled";
 
 interface LibraryImportPath {
   id: number;
@@ -165,14 +178,11 @@ Current viewer APIs already support explicit registered libraries:
 
 Target V1 fallback: no-path viewer calls should fall back to the first registered library's first import path. New frontend code should still pass `currentBrowsePath` explicitly so the fallback is only a defensive backend behavior.
 
-The frontend currently still stores and loads a raw root path through:
-
-- `frontend/src/stores/gallery.ts`
-- `frontend/src/components/RootPathSidebarHeader.vue`
-- `frontend/src/components/RootPathSheet.vue`
-- localStorage key `gallery-root-path`
-
-The new UX must replace arbitrary root entry with an explicit active library selection on desktop, tablet, and mobile. Internally, the existing scan/folder/search APIs can continue receiving absolute filesystem paths, but those paths should come from the active registered library model rather than a second persisted root-path model.
+The pre-plan frontend stored and loaded an arbitrary path independently from
+registered-library selection. The completed UX uses explicit active library
+selection through `LibrarySidebarHeader.vue` and `LibrarySelectorSheet.vue` on
+all breakpoints. Scan/folder/search APIs still receive absolute filesystem
+paths, but those paths now come from the active registered library model.
 
 Recommended state model:
 
@@ -184,7 +194,9 @@ Recommended state model:
 
 This avoids an unclean dual-state model. `activeLibraryId` and `activeImportPathId` own registered selection identity; the library query owns import root path values; `currentBrowsePath` owns the viewer's path-scoped browsing context. No long-term frontend state should persist both registered selection IDs and `gallery-root-path` as competing sources of truth.
 
-Do not keep `galleryStore.rootPath` as primary writable state in the registered-library flow. Rename or replace it in the store with explicit library/import-path/browse names. A short-lived compatibility getter named `rootPath` is acceptable only inside the migration implementation if it is read-only, derived from `activeImportRootPath`, and scheduled for removal in the same feature branch; it must not write to localStorage or accept arbitrary paths.
+The completed store has no writable arbitrary-path alias. It uses explicit
+library/import-path/browse names and retains only the one-shot legacy
+localStorage migration described below.
 
 ### 1.3 Immich patterns to adapt, not copy
 
@@ -245,31 +257,31 @@ Do not add a dependency just because it exists. Add or scaffold one only when it
 
 ### 1.5 Current frontend dependency audit
 
-Current `rootPath` dependencies that need rename/adaptation:
+Pre-plan arbitrary-path dependencies and their completed adaptations:
 
-| File | Current dependency | Required adaptation |
-| --- | --- | --- |
-| `frontend/src/stores/gallery.ts` | `STORAGE_KEY = "gallery-root-path"`, `getStoredRoot()`, writable `rootPath`, `setRootPath()`, `resetRootPath()` | Replace with `ACTIVE_LIBRARY_STORAGE_KEY`, `ACTIVE_IMPORT_PATH_STORAGE_KEY`, `activeLibraryId`, `activeImportPathId`, derived `activeImportRootPath`, `currentBrowsePath`, `hydrateActiveLibrary()`, `setActiveLibrary()`, `setActiveImportPath()`, and `clearActiveLibrary()`. Keep legacy root-path read/remove helper only for migration. |
-| `frontend/src/App.vue` | startup auto-load calls `galleryStore.setRootPath(galleryStore.rootPath)` | Replace with active-library hydration on every breakpoint before the first gallery scan/search flow. Remove old root-path startup writes. |
-| `frontend/src/components/RootPathSidebarHeader.vue` | input initializes from `galleryStore.rootPath`, calls `setRootPath()`/`resetRootPath()` | Rename/replace with `LibrarySidebarHeader.vue`, a registered-library selector that calls `setActiveLibrary()`. Do not keep arbitrary root-path input semantics. |
-| `frontend/src/components/RootPathSheet.vue` | mobile sheet calls `galleryStore.setRootPath()` | Rename/replace with `LibrarySelectorSheet.vue` or `LibrarySheet.vue`, using registered library selection and Add/Manage Library CTAs. Remove the arbitrary root-path textarea as primary UX. |
-| `frontend/src/components/GalleryGrid.vue` | uses `galleryStore.currentPath` for scan/search browsing, but also checks `galleryStore.rootPath` in `pathReady`, `hasNoPath`, and `hasNotLoaded` | Continue passing the active browse path to `/api/scan` and `/api/search`; rename store access to `currentBrowsePath`. Replace `rootPath` gating with `activeLibraryId`/`activeImportPathId`/`activeImportRootPath` readiness. Update empty/error copy for all breakpoints. |
-| `frontend/src/components/GallerySidebarContent.vue` | mounts `RootPathSidebarHeader.vue`; empty copy says to enter a root path | Mount `LibrarySidebarHeader.vue` where the sidebar is present. Update empty copy to registered-library language. Mobile/tablet entry points should use the library selector sheet instead of legacy root-path copy. |
-| `frontend/src/components/search/AdvancedSearchDrawer.vue` | `facetsQueryPath = galleryStore.rootPath || ""` | Use `activeImportRootPath` for selected-import-path facets, or `currentBrowsePath` if facets should scope to the current folder. Recommended V1: `activeImportRootPath`, because the drawer currently behaves like selected root-level filter assistance. |
-| `frontend/src/stores/__tests__/gallery.test.ts` | tests persisted root path, `setRootPath()`, `resetRootPath()` | Replace/add tests for active library hydration, one-shot legacy migration/removal, active library deletion, and browse path history. Remove writable root-path primary-state expectations. |
-| `frontend/tests/e2e/*.spec.ts` | many tests seed `localStorage.gallery-root-path` | Add new library-management coverage using `/api/libraries` and `gallery-active-library-id`. Tests that rely on `gallery-root-path` should cover migration only; viewer tests across all breakpoints should use registered libraries. |
+| File                                                      | Current dependency                                    | Required adaptation                                                                                                                                                                                                                                                 |
+| --------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `frontend/src/stores/gallery.ts`                          | Independently persisted arbitrary path                | Uses `activeLibraryId`, `activeImportPathId`, derived `activeImportRootPath`, `currentBrowsePath`, `hydrateActiveLibrary()`, `setActiveLibrary()`, `setActiveImportPath()`, and `clearActiveLibrary()`; the old localStorage key is read/remove-only for migration. |
+| `frontend/src/App.vue`                                    | Startup loaded the independently persisted path       | Hydrates active-library state on every breakpoint before the first gallery scan/search flow.                                                                                                                                                                        |
+| `frontend/src/components/LibrarySidebarHeader.vue`        | Replaced the arbitrary-path sidebar input             | Selects a registered library through `setActiveLibrary()`.                                                                                                                                                                                                          |
+| `frontend/src/components/LibrarySelectorSheet.vue`        | Replaced the arbitrary-path compact sheet             | Provides registered-library selection and Add/Manage Library actions.                                                                                                                                                                                               |
+| `frontend/src/components/GalleryGrid.vue`                 | Previously gated readiness on arbitrary-path state    | Uses `currentBrowsePath` and active-library/import-path readiness for scan/search and empty states.                                                                                                                                                                 |
+| `frontend/src/components/GallerySidebarContent.vue`       | Previously mounted arbitrary-path controls            | Mounts `LibrarySidebarHeader.vue` and uses registered-library empty-state copy.                                                                                                                                                                                     |
+| `frontend/src/components/search/AdvancedSearchDrawer.vue` | Previously scoped facets through arbitrary-path state | Uses `activeImportRootPath` for selected-import-path facets.                                                                                                                                                                                                        |
+| `frontend/src/stores/__tests__/gallery.test.ts`           | Previously tested writable arbitrary-path lifecycle   | Tests active-library hydration, one-shot migration/removal, deletion cleanup, and browse-path history.                                                                                                                                                              |
+| `frontend/tests/e2e/*.spec.ts`                            | many tests seed `localStorage.gallery-root-path`      | Add new library-management coverage using `/api/libraries` and `gallery-active-library-id`. Tests that rely on `gallery-root-path` should cover migration only; viewer tests across all breakpoints should use registered libraries.                                |
 
 Current path-based render/query code that should stay library-id agnostic:
 
-| File | Why it can remain path-based |
-| --- | --- |
-| `frontend/src/composables/useInfiniteScanQuery.ts` | Accepts a path ref and calls `/api/scan?path=...`; pass `currentBrowsePath`. |
-| `frontend/src/composables/useUnifiedSearchQuery.ts` | Accepts a path ref for `scope=current`; pass `currentBrowsePath` through existing `GalleryGrid` flow. |
-| `frontend/src/composables/useFolderChildrenQuery.ts` and `FolderTreeItem.vue` | Expands folders by absolute folder path. |
-| `frontend/src/query/scan.ts` and `frontend/src/query/keys.ts` | Query cache keys are path-scoped and should remain so for viewer APIs. |
-| `frontend/src/services/api.ts` path-based viewer functions | `scanDirectory`, `listFolderChildren`, `unifiedSearch`, `fetchFacets`, `fetchIndexStatus`, `fetchMetadata`, image/thumbnail/preview URL builders all operate on absolute paths. Add library admin API functions separately. |
-| `frontend/src/components/PhotoCard.vue`, `frontend/src/stores/lightbox.ts`, `frontend/src/composables/usePhotoSwipe.ts`, `frontend/src/utils/lightbox.ts`, `frontend/src/components/Lightbox.vue` | Image display, metadata, previews, originals, and lightbox navigation use `FileNode.path`/`image.path`; no library id is needed if backend URLs still accept `path`. |
-| `frontend/src/components/LibraryInspector.vue` | Uses current path for `scope=current`; rename store access to `currentBrowsePath` only if the store field changes. |
+| File                                                                                                                                                                                              | Why it can remain path-based                                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `frontend/src/composables/useInfiniteScanQuery.ts`                                                                                                                                                | Accepts a path ref and calls `/api/scan?path=...`; pass `currentBrowsePath`.                                                                                                                                                |
+| `frontend/src/composables/useUnifiedSearchQuery.ts`                                                                                                                                               | Accepts a path ref for `scope=current`; pass `currentBrowsePath` through existing `GalleryGrid` flow.                                                                                                                       |
+| `frontend/src/composables/useFolderChildrenQuery.ts` and `FolderTreeItem.vue`                                                                                                                     | Expands folders by absolute folder path.                                                                                                                                                                                    |
+| `frontend/src/query/scan.ts` and `frontend/src/query/keys.ts`                                                                                                                                     | Query cache keys are path-scoped and should remain so for viewer APIs.                                                                                                                                                      |
+| `frontend/src/services/api.ts` path-based viewer functions                                                                                                                                        | `scanDirectory`, `listFolderChildren`, `unifiedSearch`, `fetchFacets`, `fetchIndexStatus`, `fetchMetadata`, image/thumbnail/preview URL builders all operate on absolute paths. Add library admin API functions separately. |
+| `frontend/src/components/PhotoCard.vue`, `frontend/src/stores/lightbox.ts`, `frontend/src/composables/usePhotoSwipe.ts`, `frontend/src/utils/lightbox.ts`, `frontend/src/components/Lightbox.vue` | Image display, metadata, previews, originals, and lightbox navigation use `FileNode.path`/`image.path`; no library id is needed if backend URLs still accept `path`.                                                        |
+| `frontend/src/components/LibraryInspector.vue`                                                                                                                                                    | Uses current path for `scope=current`; rename store access to `currentBrowsePath` only if the store field changes.                                                                                                          |
 
 Answer to the render-layer compatibility question: yes, `GalleryGrid`, lightbox, and search can remain path-based if `/api/scan?path=...`, `/api/search?scope=current&path=...`, `/api/folders?path=...`, image URLs, thumbnail URLs, preview URLs, and metadata calls continue to accept absolute paths from `currentBrowsePath`/`image.path`. They should not receive or know about library IDs in v1.
 
@@ -280,13 +292,13 @@ Chosen approach: Option B, with a strict split between library selection and lib
 The app has two separate entry points:
 
 - Admin/management entry point: a responsive `Libraries` entry in `AppHeader.vue`, placed near the existing `Metadata` affordance on desktop and exposed through the compact header/navigation pattern on tablet/mobile.
-- Gallery selection entry point: the existing sidebar header slot above the folder tree, currently implemented by `RootPathSidebarHeader.vue`, renamed/replaced by `LibrarySidebarHeader.vue`; compact layouts use a library selector sheet, currently rooted in `RootPathSheet.vue`, renamed/replaced by `LibrarySelectorSheet.vue` or `LibrarySheet.vue`.
+- Gallery selection entry point: `LibrarySidebarHeader.vue` in the sidebar slot above the folder tree; compact layouts use `LibrarySelectorSheet.vue`.
 
-The main gallery needs an in-context way to choose the registered library and import path it is browsing. `GallerySidebarContent.vue` already mounts `RootPathSidebarHeader.vue` above the folder tree, so that slot should become active library/import-path selection by renaming/replacing it with `LibrarySidebarHeader.vue`. This keeps the selected library, derived import root path, and folder tree context together. Compact layouts should offer the same registered-library model through `LibrarySelectorSheet.vue` or `LibrarySheet.vue`, not a separate arbitrary root-path flow.
+The main gallery provides in-context registered-library and import-path selection. `GallerySidebarContent.vue` mounts `LibrarySidebarHeader.vue` above the folder tree, keeping the selected library, derived import root path, and folder tree context together. Compact layouts expose the same model through `LibrarySelectorSheet.vue`.
 
 Library management is a separate workflow: add libraries, scan, repair, inspect, and unregister libraries. Expose that workflow through the header/navigation system by adding `Libraries` near `Metadata` in `AppHeader.vue`. The entry routes to `/admin/libraries`, is active for `/admin/libraries` routes, and remains available on desktop, tablet, and mobile.
 
-`RootPathSheet.vue` should not remain as a legacy arbitrary-path surface. Rename/replace it with `LibrarySelectorSheet.vue` or `LibrarySheet.vue`, remove the root-path textarea as primary UX, and use it for registered library selection plus Add/Manage Library actions on compact breakpoints.
+`LibrarySelectorSheet.vue` provides registered-library selection plus Add/Manage Library actions on compact breakpoints; there is no arbitrary-path textarea.
 
 Selection persistence migrates from the legacy path key to registered library/import-path ids:
 
@@ -300,7 +312,7 @@ Selection persistence migrates from the legacy path key to registered library/im
 8. If exactly one registered library with at least one import path exists, select it and initialize `currentBrowsePath` to its first import path root.
 9. Else, leave no active library/import path selected and show a no-library state with `Add Library` and/or `Manage Libraries` actions.
 
-Do not keep a second persisted root path. Existing scan, folder, and search queries should receive `currentBrowsePath` as their `path` parameter. If a temporary `rootPath` getter exists during implementation, it must be derived from `activeImportRootPath`, read-only from the perspective of the registered-library flow, and not persisted.
+There is no second persisted browse path. Scan, folder, and search queries receive `currentBrowsePath` as their `path` parameter; `activeImportRootPath` is derived and read-only.
 
 Gating logic:
 
@@ -374,7 +386,7 @@ V1 will provide:
    - existing image cards and PhotoSwipe remain unchanged for images
    - video cards use cached poster thumbnails and a play affordance
    - videos open a native video player surface backed by `/api/video`
-   - scan/search responses remain backward-compatible for existing `images` consumers while adding video/mixed-media fields
+   - scan responses use the canonical `media` collection and `next_media_cursor`; search keeps separate photo/video result sections
 9. Loading, empty, error, and pending mutation states.
 
 ### 2.2 Explicit non-goals for V1
@@ -415,7 +427,9 @@ Extend the existing route/device handling in `App.vue`:
 Suggested helper:
 
 ```ts
-const isAdminLibraryRoute = computed(() => route.path.startsWith("/admin/libraries"));
+const isAdminLibraryRoute = computed(() =>
+  route.path.startsWith("/admin/libraries"),
+);
 ```
 
 ### 3.3 Library list page
@@ -609,8 +623,8 @@ Implement the gallery selection side of the [Entry Point Design](#entry-point-de
 
 Primary targets:
 
-- Rename/replace `RootPathSidebarHeader.vue` with `LibrarySidebarHeader.vue`.
-- Rename/replace `RootPathSheet.vue` with `LibrarySelectorSheet.vue` or `LibrarySheet.vue`.
+- Use `LibrarySidebarHeader.vue` for sidebar layouts.
+- Use `LibrarySelectorSheet.vue` for compact layouts.
 
 Suggested approach:
 
@@ -638,7 +652,7 @@ Store behavior:
 - Add `activeImportRootPath` as a derived getter/value from the libraries query/list.
 - Replace the primary writable browsing path name with `currentBrowsePath`.
 - Do not persist `activeImportRootPath` or `currentBrowsePath` as independent source-of-truth values.
-- Do not keep writable `rootPath` in the registered-library model.
+- Do not keep a writable arbitrary-path alias in the registered-library model.
 - Add actions:
   - `hydrateActiveLibrary()`
   - `setActiveLibrary(library: RegisteredLibrary, importPath?: LibraryImportPath)`
@@ -738,8 +752,21 @@ Update: `frontend/src/types/index.ts`
 Add:
 
 ```ts
-export type LibraryState = "queued" | "discovering" | "indexing" | "ready" | "error" | "offline" | string;
-export type LibraryJobState = "queued" | "running" | "succeeded" | "failed" | "cancelled" | string;
+export type LibraryState =
+  | "queued"
+  | "discovering"
+  | "indexing"
+  | "ready"
+  | "error"
+  | "offline"
+  | string;
+export type LibraryJobState =
+  | "queued"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "cancelled"
+  | string;
 
 export interface LibraryImportPath {
   id: number;
@@ -1010,15 +1037,15 @@ Functions:
 
 Presentation mapping:
 
-| Backend state | Label | Badge variant | Meaning |
-| --- | --- | --- | --- |
-| `queued` | Queued | secondary | Waiting for the local job runner. |
-| `ready` | Ready | default/outline green-toned class if local class is needed | Imported and usable. |
-| `discovering` | Discovering | loading/secondary | Scan has started. |
-| `indexing` | Indexing | loading/secondary | Metadata/import work in progress. |
-| `offline` | Offline | destructive | One or more import paths are unavailable. |
-| `error` | Error | destructive | Last scan failed. |
-| unknown | Unknown | outline | Forward-compatible fallback. |
+| Backend state | Label       | Badge variant                                              | Meaning                                   |
+| ------------- | ----------- | ---------------------------------------------------------- | ----------------------------------------- |
+| `queued`      | Queued      | secondary                                                  | Waiting for the local job runner.         |
+| `ready`       | Ready       | default/outline green-toned class if local class is needed | Imported and usable.                      |
+| `discovering` | Discovering | loading/secondary                                          | Scan has started.                         |
+| `indexing`    | Indexing    | loading/secondary                                          | Metadata/import work in progress.         |
+| `offline`     | Offline     | destructive                                                | One or more import paths are unavailable. |
+| `error`       | Error       | destructive                                                | Last scan failed.                         |
+| unknown       | Unknown     | outline                                                    | Forward-compatible fallback.              |
 
 Keep status styles aligned with existing `IndexStatusBadge` rather than inventing a new color system.
 
@@ -1075,7 +1102,7 @@ Rules:
 - `currentBrowsePath` may temporarily initialize from a legacy migrated subfolder path if it is inside the selected registered import path.
 - Read `gallery-root-path` once for migration, then remove it after match/no-match is known. Do not write `gallery-root-path` from new code.
 - Replace `galleryStore.currentPath` references with `galleryStore.currentBrowsePath` where the implementation touches the file. If churn becomes too broad, a temporary read-only alias named `currentPath` is acceptable, but new code should use `currentBrowsePath`.
-- Avoid a writable `rootPath` alias. If an alias is needed to keep a diff small, it must be read-only, derived from `activeImportRootPath`, and removed before considering this feature complete.
+- The completed store has no writable arbitrary-path alias; `activeImportRootPath` is derived.
 
 ## 6. Components And Files
 
@@ -1140,10 +1167,10 @@ Update:
 - `frontend/src/components/AppHeader.vue`
   - add responsive `Libraries` nav entry
 - `frontend/src/components/LibrarySidebarHeader.vue`
-  - rename/replace `RootPathSidebarHeader.vue`
+  - use `LibrarySidebarHeader.vue`
   - render registered-library selector for sidebar layouts
 - `frontend/src/components/LibrarySelectorSheet.vue` or `frontend/src/components/LibrarySheet.vue`
-  - rename/replace `RootPathSheet.vue`
+  - use `LibrarySelectorSheet.vue`
   - render registered-library selector and Add/Manage Library actions for compact layouts
 - `frontend/src/components/GallerySidebarContent.vue`
   - mount `LibrarySidebarHeader.vue`
@@ -1154,16 +1181,16 @@ Update:
   - rename/adapt `currentPath` to `currentBrowsePath`
   - migrate legacy `gallery-root-path` once, then remove it from localStorage
   - never write `gallery-root-path`
-  - avoid writable/persisted `rootPath`
+  - avoid writable/persisted arbitrary-path state
   - keep existing folder browsing behavior stable
 - `frontend/src/components/GalleryGrid.vue`
   - update no-path/not-loaded copy to registered library language
   - use `currentBrowsePath` for scan/search context
-  - replace `rootPath` readiness checks with active-library readiness
+  - use active-library readiness checks
   - render mixed image/video assets without breaking existing image grid behavior
   - error action for `library_not_registered` should route to library management or show Add/Manage Library CTA, not just clear error
 - `frontend/src/components/search/AdvancedSearchDrawer.vue`
-  - replace `galleryStore.rootPath` with `activeImportRootPath` for facet queries unless product scope changes facets to current-folder scope
+  - use `activeImportRootPath` for facet queries unless product scope changes facets to current-folder scope
 - `frontend/src/components/VideoCard.vue` and/or local mixed-media card update
   - use cached poster endpoint
   - show play affordance and fallback placeholder
@@ -1443,7 +1470,7 @@ Add or update tests for:
   - does not persist `activeImportRootPath` or `currentBrowsePath`
   - clears active library when deleted
   - keeps folder navigation unchanged
-  - does not expose a writable `rootPath` in the registered-library flow
+  - does not expose writable arbitrary-path state in the registered-library flow
 
 ### 10.2 Component tests
 
@@ -1537,20 +1564,20 @@ pnpm exec playwright test tests/e2e/library-inspector.spec.ts --project=chromium
 State model risks:
 
 - Accidentally keeping both `gallery-active-library-id` and `gallery-root-path` as durable selection sources would reintroduce ambiguous startup behavior. The migration must remove the legacy key.
-- A writable `rootPath` alias would let new code bypass active library selection. Avoid it, or keep any temporary alias read-only and derived.
-- Hydration can race the initial scan if `App.vue` still calls the old `setRootPath()` startup path. Startup should wait for active-library hydration before triggering the first scan on any breakpoint.
+- Writable arbitrary-path state would let new code bypass active library selection; the completed store intentionally omits it.
+- Startup waits for active-library hydration before triggering the first scan on every breakpoint.
 - If `activeLibraryId` points to a deleted or unavailable library, the store must clear or choose a deterministic fallback rather than leaving stale `currentBrowsePath`.
 
 Viewer regressions:
 
-- `GalleryGrid` empty/loading states currently check both `currentPath` and `rootPath`; those checks must move to active-library readiness or the gallery may show the wrong empty state.
+- `GalleryGrid` empty/loading states use active-library readiness and `currentBrowsePath`.
 - Search and scan cache keys remain path-based. Changing them to library-id-based in v1 would risk unnecessary cache churn and lightbox/search regressions.
-- `AdvancedSearchDrawer` currently uses `rootPath` for facets; choosing `activeImportRootPath` preserves selected-import-root facet suggestions, while choosing `currentBrowsePath` would narrow behavior.
+- `AdvancedSearchDrawer` uses `activeImportRootPath` for selected-import-root facet suggestions; `currentBrowsePath` would narrow behavior to the current folder.
 - Legacy subfolder migration must choose the most specific matching library when registered roots overlap, although backend registration should generally prevent overlap.
 
 Compatibility risks:
 
-- Replacing `RootPathSheet.vue` means compact layouts need the same active-library hydration and empty states as desktop. Do not leave a hidden textarea/root-path branch behind.
+- Compact layouts use the same active-library hydration and empty states as desktop, with no hidden arbitrary-path branch.
 - Existing Playwright fixtures that seed `gallery-root-path` will fail after migration unless they mock `/api/libraries` and assert one-shot migration/removal.
 - Removing `gallery-root-path` too early, before libraries are fetched, could lose a valid migration hint. Read it during hydration, then remove it after match/no-match is known.
 - Responsive admin layout can regress table/card parity. Keep row actions, Add Library, scan/repair, and unregister available on both desktop and compact cards.
@@ -1574,7 +1601,7 @@ Steps:
    - persisted `activeImportPathId`
    - derived `activeImportRootPath`
    - in-memory `currentBrowsePath`
-   - no persisted/writable raw `rootPath`
+   - no persisted/writable arbitrary-path state
 4. [x] Lock dependency additions:
    - backend `wcmatch`
    - runtime `ffmpeg`/`ffprobe` optional but supported
@@ -1655,8 +1682,8 @@ Steps:
 
 1. Migrate store to `activeLibraryId`, `activeImportPathId`, `activeImportRootPath`, and `currentBrowsePath`.
 2. Migrate legacy `gallery-root-path` once and remove it after match/no-match is known.
-3. Replace `RootPathSidebarHeader.vue` with `LibrarySidebarHeader.vue` for sidebar layouts.
-4. Replace `RootPathSheet.vue` with `LibrarySelectorSheet.vue` or `LibrarySheet.vue` for compact layouts.
+3. Use `LibrarySidebarHeader.vue` for sidebar layouts.
+4. Use `LibrarySelectorSheet.vue` for compact layouts.
 5. Reset browse path/history/search when the active library or active import path changes.
 6. Update empty/error states and `library_not_registered` actions to Add/Manage Library CTAs.
 7. Add focused tests for store hydration, legacy migration, selector rendering, and no writable root-path primary state.
@@ -1667,7 +1694,7 @@ Deliverable: the main viewer preserves existing image behavior while adding vide
 
 Steps:
 
-1. Update scan/search/list rendering to consume backward-compatible `images` plus new `videos`/`media` fields.
+1. Update scan/list rendering to consume canonical `media` and `next_media_cursor` fields, and render the separate video section returned by search.
 2. Keep images on the existing PhotoSwipe path.
 3. Add video card rendering with poster endpoint, play affordance, and fallback placeholder.
 4. Add native video player dialog/sheet backed by `/api/video`.
@@ -1710,7 +1737,7 @@ The implementation is complete when:
 17. Images remain on the existing PhotoSwipe flow; videos use the native video player flow.
 18. Existing viewer-first image browsing remains visually and behaviorally stable.
 19. Selection persists only `gallery-active-library-id` and `gallery-active-import-path-id`; `gallery-root-path` is read once for migration, removed afterward, and never written again.
-20. Registered-library code does not keep writable/persisted `rootPath` as a competing source of truth.
+20. Registered-library code does not keep writable/persisted arbitrary-path state as a competing source of truth.
 21. Generic UI/data behavior uses existing shadcn-vue/Reka, PhotoSwipe, and TanStack libraries where available instead of bespoke implementations.
 22. Backend tests, frontend lint/typecheck/unit tests, and targeted E2E tests pass for the touched surface.
 

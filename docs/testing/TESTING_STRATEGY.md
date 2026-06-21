@@ -9,15 +9,15 @@ Last verified against `.github/workflows/ci.yml` and `test.sh`: 2026-06-19.
 
 ## Test Matrix
 
-| Layer | Tool | Environment | PR/push CI | Nightly | Mục tiêu |
-|-------|------|:-----------:|:----------:|:-------:|----------|
-| Static | Ruff/ESLint/Prettier | none | ✅ `lint` | N/A (not configured) | syntax/style |
-| Backend unit + API integration | pytest | SQLite/temp FS | ✅ `test:unit` | N/A (not configured) | backend behavior |
-| Frontend unit/component | Vitest + V8 coverage | jsdom | ✅ `test:unit` | N/A (not configured) | frontend logic/behavior |
-| Frontend build/typecheck | vue-tsc/Vite | build environment | ✅ `test:unit` | N/A (not configured) | types/build |
-| Browser integration | Playwright | Chromium | ✅ full suite, 4 shards | N/A (not configured) | critical UI workflows |
-| Full-stack E2E | Playwright + FastAPI | deterministic temp fixture | ✅ `test:e2e` | N/A (not configured) | system wiring |
-| Perf | Playwright | deterministic temp fixture | ✅ `test:perf`, 1 worker | N/A (not configured) | performance budgets |
+| Layer                          | Tool                 |        Environment         |        PR/push CI        |       Nightly        | Mục tiêu                |
+| ------------------------------ | -------------------- | :------------------------: | :----------------------: | :------------------: | ----------------------- |
+| Static                         | Ruff/ESLint/Prettier |            none            |        ✅ `lint`         | N/A (not configured) | syntax/style            |
+| Backend unit + API integration | pytest               |       SQLite/temp FS       |      ✅ `test:unit`      | N/A (not configured) | backend behavior        |
+| Frontend unit/component        | Vitest + V8 coverage |           jsdom            |      ✅ `test:unit`      | N/A (not configured) | frontend logic/behavior |
+| Frontend build/typecheck       | vue-tsc/Vite         |     build environment      |      ✅ `test:unit`      | N/A (not configured) | types/build             |
+| Browser integration            | Playwright           |          Chromium          | ✅ full suite, 4 shards  | N/A (not configured) | critical UI workflows   |
+| Full-stack E2E                 | Playwright + FastAPI | deterministic temp fixture |      ✅ `test:e2e`       | N/A (not configured) | system wiring           |
+| Perf                           | Playwright           | deterministic temp fixture | ✅ `test:perf`, 1 worker | N/A (not configured) | performance budgets     |
 
 ## Test Selection Policy
 
@@ -47,12 +47,12 @@ Last verified against `.github/workflows/ci.yml` and `test.sh`: 2026-06-19.
 
 ## When to Use What
 
-| Bạn muốn test | Dùng |
-|---------------|------|
-| Pure function logic | Vitest unit (frontend) / pytest unit (backend) |
-| Store / composable behavior | Vitest (jsdom) |
-| Vue component rendering + interaction | Playwright (browser integration) |
-| API endpoint contract | pytest integration (SQLite + temp FS) |
-| User flow (multi-page) | Playwright E2E |
-| Performance regression | Playwright perf spec in `test:perf` and `./test.sh perf` |
-| Visual regression | Playwright snapshot (future) |
+| Bạn muốn test                         | Dùng                                                     |
+| ------------------------------------- | -------------------------------------------------------- |
+| Pure function logic                   | Vitest unit (frontend) / pytest unit (backend)           |
+| Store / composable behavior           | Vitest (jsdom)                                           |
+| Vue component rendering + interaction | Playwright (browser integration)                         |
+| API endpoint contract                 | pytest integration (SQLite + temp FS)                    |
+| User flow (multi-page)                | Playwright E2E                                           |
+| Performance regression                | Playwright perf spec in `test:perf` and `./test.sh perf` |
+| Visual regression                     | Playwright snapshot (future)                             |

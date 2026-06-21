@@ -16,12 +16,12 @@ app with real data).
 
 ## Current CI Policy
 
-| CI job | Verified commands |
-|---|---|
-| `lint` | Full-codebase Ruff lint/format, ESLint source/tests, and Prettier |
-| `test:unit` | Backend pytest with `--cov-fail-under=85`; frontend Vitest/V8 coverage; frontend build/typecheck |
+| CI job                | Verified commands                                                                                          |
+| --------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `lint`                | Full-codebase Ruff lint/format, ESLint source/tests, and Prettier                                          |
+| `test:unit`           | Backend pytest with `--cov-fail-under=85`; frontend Vitest/V8 coverage; frontend build/typecheck           |
 | `test:e2e (1/4..4/4)` | Complete functional Playwright suite sharded across four Chromium jobs with deterministic FastAPI fixtures |
-| `test:perf` | Complete Playwright perf suite, one worker, deterministic fixture |
+| `test:perf`           | Complete Playwright perf suite, one worker, deterministic fixture                                          |
 
 - Nightly: N/A (not configured).
 - WebKit smoke: N/A.
@@ -55,6 +55,7 @@ Frontend package management is pinned through `frontend/package.json` (`packageM
 **Location:** `backend/tests/` (existing files)
 
 **What they test:**
+
 - Hot path contracts (scan must not open images)
 - Derivative generation (thumbnail/preview size, cache key separation)
 - Folder count scanning
@@ -65,6 +66,7 @@ Frontend package management is pinned through `frontend/package.json` (`packageM
 - Fielded search parser
 
 **Run:**
+
 ```bash
 cd backend && pytest -q
 ```
@@ -78,6 +80,7 @@ cd backend && pytest -q
 **Location:** `backend/tests/test_api_integration_*.py`
 
 **What they test:**
+
 - Health endpoint and path safety enforcement
 - `/api/scan` response shape, filtering, natural sort, pagination
 - `/api/image`, `/api/thumbnail`, `/api/preview` with cache header/ETag/304
@@ -88,6 +91,7 @@ cd backend && pytest -q
 - `/api/index/status` with enabled/disabled indexer
 
 **Fixtures (in `backend/tests/conftest.py`):**
+
 - `isolated_gallery_root` — temp PATH_SAFETY_ROOT
 - `isolated_metadata_db` — temp SQLite DB (GALLERY_METADATA_DB env var)
 - `isolated_thumbnail_cache` — temp diskcache directory (GALLERY_THUMBNAIL_CACHE_DIR env var)
@@ -97,20 +101,25 @@ cd backend && pytest -q
 - `temp_gallery_with_metadata` — test PNGs with embedded AI metadata
 
 **Test image helpers (in `backend/tests/conftest.py`):**
+
 - `create_test_png(path)` — writes actual PNG bytes via PIL, asserts format
 - `create_test_jpeg(path)` — writes actual JPEG bytes via PIL, asserts format
 - `create_test_image(path)` — auto-detects format from extension; falls back to PNG for .webp (no WebP encoder in Pillow 12.0.0)
 - `create_test_png_with_metadata(path, ...)` — writes PNG with A1111-style tEXt parameters chunk
 
 **Testability patches made to backend/config.py:**
+
 - `GALLERY_THUMBNAIL_CACHE_DIR` env var → `THUMBNAIL_CACHE_DIR`
 - `GALLERY_METADATA_DB` env var → `GALLERY_METADATA_DB`
 
 **Run:**
+
 ```bash
 ./test.sh backend-api
 ```
+
 Or directly:
+
 ```bash
 cd backend && pytest tests/test_api_integration_*.py -v
 ```
@@ -124,9 +133,11 @@ cd backend && pytest tests/test_api_integration_*.py -v
 **Location:** `frontend/tests/e2e/`
 
 **Existing:**
+
 - `lightbox-loading-policy.spec.ts` — grid thumbnails, normal lightbox, zoom/fullscreen, preview fallback (7 tests)
 
 **New:**
+
 - `gallery-no-reload.spec.ts` — boot ID persistence, no full page reload, cursor-zero scan tracking (4 tests)
 - `gallery-no-reload-real-backend.spec.ts` — no-reload E2E against real backend (requires running app) (2 tests)
 - `gallery-cache-revisit.spec.ts` — soft navigation revisit, no duplicate cursor-zero scans (3 tests)
@@ -138,10 +149,13 @@ Most Playwright contract tests mock API routes; selected full-stack specs use th
 deterministic FastAPI fixture.
 
 **Run (all contract tests):**
+
 ```bash
 ./test.sh e2e
 ```
+
 Or directly:
+
 ```bash
 cd frontend && corepack pnpm run build && corepack pnpm exec playwright test tests/e2e/lightbox-loading-policy.spec.ts tests/e2e/gallery-no-reload.spec.ts tests/e2e/gallery-cache-revisit.spec.ts tests/e2e/mobile-lightbox-sheet.spec.ts tests/e2e/search-fielded-ui.spec.ts tests/e2e/responsive-breakpoints.spec.ts
 ```
@@ -153,10 +167,12 @@ cd frontend && corepack pnpm run build && corepack pnpm exec playwright test tes
 **Location:** `frontend/tests/e2e/perf/`
 
 **Existing:**
+
 - `album-open.perf.spec.ts` — scan latency, first thumbnail visible, thumbnail P95 (1 test)
 - `lightbox.perf.spec.ts` — lightbox open budget, transition budget, preview vs original checks (2 tests)
 
 **Perf fail conditions:**
+
 - Duplicate initial `/api/scan` (cursor=0 count > 1)
 - Normal lightbox open loads `/api/image` instead of `/api/preview`
 - `/api/preview` does not load at all
@@ -164,10 +180,13 @@ cd frontend && corepack pnpm run build && corepack pnpm exec playwright test tes
 - Transition loads original instead of preview
 
 **Run:**
+
 ```bash
 ./test.sh perf-smoke
 ```
+
 Or individually:
+
 ```bash
 cd frontend && corepack pnpm run perf:album && corepack pnpm run perf:lightbox
 ```
@@ -181,13 +200,13 @@ cd frontend && corepack pnpm run perf:album && corepack pnpm run perf:lightbox
 
 Use `./test.sh help` as the single developer entrypoint. The primary commands are:
 
-| Command | Purpose |
-|---|---|
-| `./test.sh fast` | Full lint/format, unit coverage, and frontend build |
-| `./test.sh full` | Sequential local equivalent of all CI layers |
-| `./test.sh e2e` | Managed deterministic functional Playwright suite |
-| `./test.sh perf` | Managed deterministic Playwright perf suite |
-| `./test.sh perf-smoke` | Extended backend + browser performance diagnostics |
+| Command                | Purpose                                             |
+| ---------------------- | --------------------------------------------------- |
+| `./test.sh fast`       | Full lint/format, unit coverage, and frontend build |
+| `./test.sh full`       | Sequential local equivalent of all CI layers        |
+| `./test.sh e2e`        | Managed deterministic functional Playwright suite   |
+| `./test.sh perf`       | Managed deterministic Playwright perf suite         |
+| `./test.sh perf-smoke` | Extended backend + browser performance diagnostics  |
 
 Shell implementation details are kept under `scripts/internal/` and are not public developer commands.
 

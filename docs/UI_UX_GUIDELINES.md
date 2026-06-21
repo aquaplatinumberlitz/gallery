@@ -6,19 +6,19 @@ Last reviewed: 2026-06-07
 
 Breakpoint behavior is defined in three places and must stay synchronized:
 
-| Source | Scope |
-|--------|-------|
-| `frontend/src/composables/useDevice.ts` | JavaScript device detection |
-| `frontend/src/styles/_breakpoints.scss` | SCSS media query mixins |
-| `frontend/src/composables/useColumnResize.ts` | Grid density by device |
+| Source                                        | Scope                       |
+| --------------------------------------------- | --------------------------- |
+| `frontend/src/composables/useDevice.ts`       | JavaScript device detection |
+| `frontend/src/styles/_breakpoints.scss`       | SCSS media query mixins     |
+| `frontend/src/composables/useColumnResize.ts` | Grid density by device      |
 
-| Category | Width | Layout | Default grid |
-|----------|-------|--------|--------------|
-| Compact | `<480px` | Mobile | 2 columns |
-| Mobile | `480-767px` | Mobile | 2 columns |
-| Tablet | `768-1199px` | Tablet | 4 columns |
-| Desktop | `1200-1439px` | Desktop | 6 columns |
-| Wide | `>=1440px` | Desktop | 6 columns |
+| Category | Width         | Layout  | Default grid |
+| -------- | ------------- | ------- | ------------ |
+| Compact  | `<480px`      | Mobile  | 2 columns    |
+| Mobile   | `480-767px`   | Mobile  | 2 columns    |
+| Tablet   | `768-1199px`  | Tablet  | 4 columns    |
+| Desktop  | `1200-1439px` | Desktop | 6 columns    |
+| Wide     | `>=1440px`    | Desktop | 6 columns    |
 
 JS `<768` and SCSS `max-width: 767px` are intentionally equivalent at integer viewport widths.
 
@@ -51,9 +51,9 @@ Mobile:
 ```typescript
 GRID_COLUMN_MAP = {
   desktop: [8, 7, 6, 5, 4],
-  tablet:  [5, 5, 4, 3, 3],
-  mobile:  [3, 3, 2, 2, 2],
-}
+  tablet: [5, 5, 4, 3, 3],
+  mobile: [3, 3, 2, 2, 2],
+};
 ```
 
 - Default level is 3.
@@ -120,14 +120,14 @@ See [Third-Party Libraries](THIRD_PARTY_LIBRARIES.md) for VSBS and PhotoSwipe in
 
 The gallery distinguishes:
 
-| State | Condition |
-|-------|-----------|
-| No path selected | `!rootPath` |
-| Not loaded yet | `rootPath && !hasEverLoaded` |
-| Loading | `isLoading` |
-| Empty folder | loaded with no folders and no images |
-| Folders only | loaded with folders and no images |
-| Has images | loaded with images |
+| State            | Condition                            |
+| ---------------- | ------------------------------------ |
+| No path selected | `!rootPath`                          |
+| Not loaded yet   | `rootPath && !hasEverLoaded`         |
+| Loading          | `isLoading`                          |
+| Empty folder     | loaded with no folders and no images |
+| Folders only     | loaded with folders and no images    |
+| Has images       | loaded with images                   |
 
 The `hasEverLoaded` guard prevents a false "empty" state before the first successful scan.
 

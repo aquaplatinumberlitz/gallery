@@ -256,27 +256,27 @@ Recommendation: create a gallery-specific `GallerySidebarEdgeTrigger.vue` for de
 
 ## Current vs Target Comparison
 
-| Area | Current | shadcn target | Notes |
-| --- | --- | --- | --- |
-| Sidebar shell | Three custom `<aside>` implementations | `SidebarProvider` + `Sidebar` | Desktop first, overlay second. |
-| Desktop layout | CSS Grid `280px 1fr` / `0 1fr` | shadcn width spacer + fixed sidebar + `SidebarInset` | Use `collapsible="offcanvas"` to preserve 0px collapsed width. |
-| Tablet layout | Custom fixed overlay, 280px, inert/pointer-events | shadcn Sheet-backed sidebar with customized breakpoint | Generated `max-width: 768px` is not enough; gallery needs `<1200px`. |
-| Mobile layout | Custom fixed overlay, 240px, compact max 300px | shadcn Sheet-backed sidebar with customized width variable | Preserve `240px` default and compact `min(300px, 100vw)` behavior. |
-| State owner | `App.vue` single `isSidebarOpen` | Keep `App.vue` as source of truth; bind provider state | Add controlled mobile state support or a bridge for `openMobile`. |
-| Close on folder select | `closeSidebarKey` injection | Keep injection | Required by `FolderTreeItem` and `SidebarHeader`. |
-| Escape close | App global handler for mobile/tablet | Sheet handles Escape; keep handler until verified | Avoid removing current handler before overlay migration is validated. |
-| Backdrop | Custom div, tablet transition, mobile blur | Sheet overlay | Match z-index and blur intentionally if keeping visual parity. |
-| Desktop edge toggle | Fixed 24x48 pill at sidebar edge | Custom component using `useSidebar` | `SidebarTrigger` and `SidebarRail` are not visual matches. |
-| Root path header | Custom `SidebarHeader.vue` | Wrap with shadcn `SidebarHeader` | Alias names to avoid confusion with shadcn primitive. |
-| Folder tree | Custom recursive `FolderTreeItem` | Keep custom inside `SidebarGroupContent` | Do not force into `SidebarMenu` in phase 1. |
-| Loading pill | Custom span | Keep custom, optionally use `Badge` later | Low risk to keep as-is. |
-| Empty state | Custom paragraph | Keep custom | Could later use shadcn Empty if installed. |
-| Background | Custom gradient over `--surface-color` | Scoped gallery surface class inside shadcn shell | Do not globally remap neutral shadcn sidebar tokens unless design changes. |
-| Width variables | Hardcoded CSS widths | `--sidebar-width` and mobile width constants | Generated defaults are 256px desktop and 288px mobile; must customize. |
-| Breakpoints | `useDevice`: mobile `<768`, tablet `<1200`, desktop `>=1200` | Generated provider: mobile `<=768` | Must align with gallery breakpoint model. |
-| Persistence | Sidebar open state not meaningfully persisted | Generated cookie persistence | Disable or ignore cookie when using controlled `open`; document behavior. |
-| Keyboard shortcut | Escape only | Generated `cmd/ctrl+b` toggle | Treat as behavior change; add a prop or remove if not wanted. |
-| Tooltip timing | App-level `TooltipProvider` delay 300ms | SidebarProvider nests zero-delay TooltipProvider | Align or remove nested provider to avoid tooltip timing changes. |
+| Area                   | Current                                                      | shadcn target                                              | Notes                                                                      |
+| ---------------------- | ------------------------------------------------------------ | ---------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Sidebar shell          | Three custom `<aside>` implementations                       | `SidebarProvider` + `Sidebar`                              | Desktop first, overlay second.                                             |
+| Desktop layout         | CSS Grid `280px 1fr` / `0 1fr`                               | shadcn width spacer + fixed sidebar + `SidebarInset`       | Use `collapsible="offcanvas"` to preserve 0px collapsed width.             |
+| Tablet layout          | Custom fixed overlay, 280px, inert/pointer-events            | shadcn Sheet-backed sidebar with customized breakpoint     | Generated `max-width: 768px` is not enough; gallery needs `<1200px`.       |
+| Mobile layout          | Custom fixed overlay, 240px, compact max 300px               | shadcn Sheet-backed sidebar with customized width variable | Preserve `240px` default and compact `min(300px, 100vw)` behavior.         |
+| State owner            | `App.vue` single `isSidebarOpen`                             | Keep `App.vue` as source of truth; bind provider state     | Add controlled mobile state support or a bridge for `openMobile`.          |
+| Close on folder select | `closeSidebarKey` injection                                  | Keep injection                                             | Required by `FolderTreeItem` and `SidebarHeader`.                          |
+| Escape close           | App global handler for mobile/tablet                         | Sheet handles Escape; keep handler until verified          | Avoid removing current handler before overlay migration is validated.      |
+| Backdrop               | Custom div, tablet transition, mobile blur                   | Sheet overlay                                              | Match z-index and blur intentionally if keeping visual parity.             |
+| Desktop edge toggle    | Fixed 24x48 pill at sidebar edge                             | Custom component using `useSidebar`                        | `SidebarTrigger` and `SidebarRail` are not visual matches.                 |
+| Root path header       | Custom `SidebarHeader.vue`                                   | Wrap with shadcn `SidebarHeader`                           | Alias names to avoid confusion with shadcn primitive.                      |
+| Folder tree            | Custom recursive `FolderTreeItem`                            | Keep custom inside `SidebarGroupContent`                   | Do not force into `SidebarMenu` in phase 1.                                |
+| Loading pill           | Custom span                                                  | Keep custom, optionally use `Badge` later                  | Low risk to keep as-is.                                                    |
+| Empty state            | Custom paragraph                                             | Keep custom                                                | Could later use shadcn Empty if installed.                                 |
+| Background             | Custom gradient over `--surface-color`                       | Scoped gallery surface class inside shadcn shell           | Do not globally remap neutral shadcn sidebar tokens unless design changes. |
+| Width variables        | Hardcoded CSS widths                                         | `--sidebar-width` and mobile width constants               | Generated defaults are 256px desktop and 288px mobile; must customize.     |
+| Breakpoints            | `useDevice`: mobile `<768`, tablet `<1200`, desktop `>=1200` | Generated provider: mobile `<=768`                         | Must align with gallery breakpoint model.                                  |
+| Persistence            | Sidebar open state not meaningfully persisted                | Generated cookie persistence                               | Disable or ignore cookie when using controlled `open`; document behavior.  |
+| Keyboard shortcut      | Escape only                                                  | Generated `cmd/ctrl+b` toggle                              | Treat as behavior change; add a prop or remove if not wanted.              |
+| Tooltip timing         | App-level `TooltipProvider` delay 300ms                      | SidebarProvider nests zero-delay TooltipProvider           | Align or remove nested provider to avoid tooltip timing changes.           |
 
 ## Target Architecture
 
@@ -300,13 +300,13 @@ GallerySidebarContent
 Keep imports explicit to avoid the app component and shadcn primitive sharing the same local name:
 
 ```ts
-import RootPathSidebarHeader from "@/components/SidebarHeader.vue"
+import RootPathSidebarHeader from "@/components/SidebarHeader.vue";
 import {
   SidebarHeader as ShadSidebarHeader,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
-} from "@/components/ui/sidebar"
+} from "@/components/ui/sidebar";
 ```
 
 Optional cleanup: rename the app component from `SidebarHeader.vue` to `RootPathSidebarHeader.vue` in a later mechanical pass. This is not required for the migration but would reduce ambiguity.
@@ -380,8 +380,9 @@ Recommended width variables:
 Generated constants can then use:
 
 ```ts
-export const SIDEBAR_WIDTH = "var(--gallery-sidebar-width, 280px)"
-export const SIDEBAR_WIDTH_MOBILE = "var(--gallery-sidebar-mobile-width, 240px)"
+export const SIDEBAR_WIDTH = "var(--gallery-sidebar-width, 280px)";
+export const SIDEBAR_WIDTH_MOBILE =
+  "var(--gallery-sidebar-mobile-width, 240px)";
 ```
 
 This preserves shadcn's `--sidebar-width` mechanism while keeping gallery dimensions.
@@ -597,7 +598,7 @@ Provider changes:
 - Replace generated `useMediaQuery("(max-width: 768px)")` with a gallery overlay query matching layout selection:
 
   ```ts
-  export const SIDEBAR_OVERLAY_MEDIA = "(max-width: 1199px)"
+  export const SIDEBAR_OVERLAY_MEDIA = "(max-width: 1199px)";
   ```
 
 - Add controlled mobile state support:
@@ -816,7 +817,9 @@ Mitigation:
 Current sidebars use:
 
 ```css
-background: linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.04)), var(--surface-color);
+background:
+  linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.04)),
+  var(--surface-color);
 ```
 
 shadcn uses `bg-sidebar`, backed by neutral sidebar tokens.
@@ -882,23 +885,23 @@ Mitigation:
 
 ## Risks and Mitigations
 
-| Risk | Impact | Mitigation |
-| --- | --- | --- |
-| Generated imports do not match existing UI file conventions | Build failure or duplicate components | Audit generated files immediately; normalize imports to local conventions. |
-| `bg-sidebar` classes have no Tailwind v4 color mapping | Sidebar renders without expected colors | Add `--color-sidebar*` mappings in `tailwind.css` before layout migration. |
-| Tablet accidentally gets desktop sidebar behavior | Major UX regression | Customize provider overlay breakpoint to `<1200px`; test 768, 900, and 1199 widths. |
-| `openMobile` is not controlled by `App.vue` | Backdrop/Escape/folder select desync | Add controlled mobile state support or bridge provider state explicitly. |
-| Desktop fixed sidebar changes content sizing | Header/grid layout shifts | Use `SidebarInset`, keep content classes, verify 280px and collapsed 0px states. |
-| Edge trigger no longer tracks sidebar | Obvious visual regression | Base trigger position on `--sidebar-width` and shadcn state. |
-| Sheet overlay z-index conflicts with mobile header, bottom bar, lightbox, or RootPathSheet | Controls hidden or unusable | Audit z-index stack; test overlay plus RootPathSheet and lightbox. |
-| Focus behavior regresses after removing `inert` | Accessibility regression | Keep custom tablet until Sheet branch is proven; keyboard-test closed/open states. |
-| shadcn cookie persistence changes initial open state | Unexpected startup behavior | Keep `App.vue` controlled state; remove or ignore cookie writes. |
-| `cmd/ctrl+b` conflicts with browser/app expectations | Unexpected keyboard behavior | Disable by default or add explicit opt-in prop. |
-| Nested TooltipProvider changes tooltip delay | Subtle UX inconsistency | Remove nested provider or align delay with app provider. |
-| Compact mobile width differs from current | Usability/visual regression | Use CSS variable/media query; verify computed width at 390px and 479px. |
-| Gradient background is lost | Visual regression | Preserve scoped gallery surface wrapper. |
-| Folder tree active/hover states clash with sidebar tokens | Readability regression | Keep current `FolderTreeItem` button classes; test light/dark. |
-| Generated Sheet dependency introduces new overlay styles | Broader modal style interactions | Inspect generated `sheet` files and compare with existing `dialog` implementation. |
+| Risk                                                                                       | Impact                                  | Mitigation                                                                          |
+| ------------------------------------------------------------------------------------------ | --------------------------------------- | ----------------------------------------------------------------------------------- |
+| Generated imports do not match existing UI file conventions                                | Build failure or duplicate components   | Audit generated files immediately; normalize imports to local conventions.          |
+| `bg-sidebar` classes have no Tailwind v4 color mapping                                     | Sidebar renders without expected colors | Add `--color-sidebar*` mappings in `tailwind.css` before layout migration.          |
+| Tablet accidentally gets desktop sidebar behavior                                          | Major UX regression                     | Customize provider overlay breakpoint to `<1200px`; test 768, 900, and 1199 widths. |
+| `openMobile` is not controlled by `App.vue`                                                | Backdrop/Escape/folder select desync    | Add controlled mobile state support or bridge provider state explicitly.            |
+| Desktop fixed sidebar changes content sizing                                               | Header/grid layout shifts               | Use `SidebarInset`, keep content classes, verify 280px and collapsed 0px states.    |
+| Edge trigger no longer tracks sidebar                                                      | Obvious visual regression               | Base trigger position on `--sidebar-width` and shadcn state.                        |
+| Sheet overlay z-index conflicts with mobile header, bottom bar, lightbox, or RootPathSheet | Controls hidden or unusable             | Audit z-index stack; test overlay plus RootPathSheet and lightbox.                  |
+| Focus behavior regresses after removing `inert`                                            | Accessibility regression                | Keep custom tablet until Sheet branch is proven; keyboard-test closed/open states.  |
+| shadcn cookie persistence changes initial open state                                       | Unexpected startup behavior             | Keep `App.vue` controlled state; remove or ignore cookie writes.                    |
+| `cmd/ctrl+b` conflicts with browser/app expectations                                       | Unexpected keyboard behavior            | Disable by default or add explicit opt-in prop.                                     |
+| Nested TooltipProvider changes tooltip delay                                               | Subtle UX inconsistency                 | Remove nested provider or align delay with app provider.                            |
+| Compact mobile width differs from current                                                  | Usability/visual regression             | Use CSS variable/media query; verify computed width at 390px and 479px.             |
+| Gradient background is lost                                                                | Visual regression                       | Preserve scoped gallery surface wrapper.                                            |
+| Folder tree active/hover states clash with sidebar tokens                                  | Readability regression                  | Keep current `FolderTreeItem` button classes; test light/dark.                      |
+| Generated Sheet dependency introduces new overlay styles                                   | Broader modal style interactions        | Inspect generated `sheet` files and compare with existing `dialog` implementation.  |
 
 ## Open Questions
 

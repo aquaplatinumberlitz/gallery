@@ -12,10 +12,10 @@ which covers the broader scan, indexing, thumbnail, and viewer pipeline.
 
 ## Sources inspected
 
-| Repo | Files |
-| --- | --- |
+| Repo                                                           | Files                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | DiffusionToolkit at `153409c3a0e9569886e6601530365808d4ecbb0e` | [`Metadata.cs`](https://github.com/RupertAvery/DiffusionToolkit/blob/153409c3a0e9569886e6601530365808d4ecbb0e/Diffusion.Scanner/Metadata.cs), [`FileParameters.cs`](https://github.com/RupertAvery/DiffusionToolkit/blob/153409c3a0e9569886e6601530365808d4ecbb0e/Diffusion.Scanner/FileParameters.cs), [`StealthPng.cs`](https://github.com/RupertAvery/DiffusionToolkit/blob/153409c3a0e9569886e6601530365808d4ecbb0e/Diffusion.Scanner/StealthPng.cs), [`ComfyUIParser.cs`](https://github.com/RupertAvery/DiffusionToolkit/blob/153409c3a0e9569886e6601530365808d4ecbb0e/Diffusion.ComfyUI/ComfyUIParser.cs), [`SimpleWorkflowParser.cs`](https://github.com/RupertAvery/DiffusionToolkit/blob/153409c3a0e9569886e6601530365808d4ecbb0e/Diffusion.ComfyUI/SimpleWorkflowParser.cs), [`AnimatedWebPWorkflowParser.cs`](https://github.com/RupertAvery/DiffusionToolkit/blob/153409c3a0e9569886e6601530365808d4ecbb0e/Diffusion.ComfyUI/AnimatedWebPWorkflowParser.cs) |
-| gallery-repo | [`backend/metadata_parse.py`](../../backend/metadata_parse.py), [`backend/metadata_extract.py`](../../backend/metadata_extract.py), [`backend/metadata_store.py`](../../backend/metadata_store.py), [`docs/METADATA_PARSING.md`](../METADATA_PARSING.md) |
+| gallery-repo                                                   | [`backend/metadata_parse.py`](../../backend/metadata_parse.py), [`backend/metadata_extract.py`](../../backend/metadata_extract.py), [`backend/metadata_store.py`](../../backend/metadata_store.py), [`docs/METADATA_PARSING.md`](../METADATA_PARSING.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 ## DiffusionToolkit parser shape
 
@@ -41,35 +41,35 @@ workflow ID, ComfyUI nodes, hash, type, and error flags.
 
 ## Source and format matrix
 
-| Container/source | DT detection | DT parser |
-| --- | --- | --- |
-| PNG `tEXt` `parameters:` | JSON containing `sui_image_params` | SwarmUI |
-| PNG `tEXt` `parameters:` | JSON that parses as RuinedFooocus/Fooocus | RuinedFooocus/Fooocus |
-| PNG `tEXt` `parameters:` | Other text or JSON fallback | A1111 |
-| PNG `tEXt` `Comment:` | Any PNG text directory has `Software: NovelAI` | NovelAI |
-| PNG `tEXt` `Comment:` | Otherwise | FooocusMRE |
-| PNG `tEXt` `Software: NovelAI` | Exact software tag | NovelAI |
-| PNG `tEXt` `Dream:` | InvokeAI legacy command string | InvokeAI |
-| PNG `tEXt` `sd-metadata:` | InvokeAI JSON wrapper | InvokeAI new |
-| PNG `tEXt` `invokeai_metadata:` | InvokeAI JSON | InvokeAI 2 |
-| PNG `tEXt` `prompt:` | JSON payload | ComfyUI |
-| PNG `tEXt` `prompt:` | Non-JSON payload | EasyDiffusion |
-| PNG `tEXt` `Score:` or `aesthetic_score:` | Numeric score | Adds aesthetic score |
-| PNG `iTXt` `parameters:` | Textual data | A1111 |
-| PNG EXIF SubIFD `User Comment` | User comment text | A1111 |
-| JPEG EXIF SubIFD `User Comment` | Contains `sui_image_params` | SwarmUI |
-| JPEG EXIF IFD0 `Software` + `Makernote` | Fooocus software, makernote `fooocus` or `a1111` | Fooocus or A1111 |
-| JPEG EXIF IFD0 `User Comment` | JSON starting with `{"prompt":` | ComfyUI |
-| JPEG fallback | EXIF/metadata directories | A1111 |
-| WebP EXIF IFD0 `Make` | `workflow:` JSON | ComfyUI workflow |
-| WebP EXIF IFD0 `Model` | `prompt:` JSON | ComfyUI prompt data |
-| WebP EXIF SubIFD `User Comment` | JSON starting with `{"prompt":` | ComfyUI |
-| WebP fallback | EXIF/metadata directories | A1111 |
-| WebM comment | `Comment` tag | ComfyUI |
-| MP4 metadata comment | QuickTime metadata `Comment` | ComfyUI |
-| Exact sidecar | Same image basename with `.txt` | A1111 or Stable Diffusion text |
-| Directory sidecar fallback | Cached directory `.txt` whose basename is a prefix match | A1111 or Stable Diffusion text |
-| Stealth PNG | Alpha/RGB least-significant-bit payload, optional gzip | A1111 |
+| Container/source                          | DT detection                                             | DT parser                      |
+| ----------------------------------------- | -------------------------------------------------------- | ------------------------------ |
+| PNG `tEXt` `parameters:`                  | JSON containing `sui_image_params`                       | SwarmUI                        |
+| PNG `tEXt` `parameters:`                  | JSON that parses as RuinedFooocus/Fooocus                | RuinedFooocus/Fooocus          |
+| PNG `tEXt` `parameters:`                  | Other text or JSON fallback                              | A1111                          |
+| PNG `tEXt` `Comment:`                     | Any PNG text directory has `Software: NovelAI`           | NovelAI                        |
+| PNG `tEXt` `Comment:`                     | Otherwise                                                | FooocusMRE                     |
+| PNG `tEXt` `Software: NovelAI`            | Exact software tag                                       | NovelAI                        |
+| PNG `tEXt` `Dream:`                       | InvokeAI legacy command string                           | InvokeAI                       |
+| PNG `tEXt` `sd-metadata:`                 | InvokeAI JSON wrapper                                    | InvokeAI new                   |
+| PNG `tEXt` `invokeai_metadata:`           | InvokeAI JSON                                            | InvokeAI 2                     |
+| PNG `tEXt` `prompt:`                      | JSON payload                                             | ComfyUI                        |
+| PNG `tEXt` `prompt:`                      | Non-JSON payload                                         | EasyDiffusion                  |
+| PNG `tEXt` `Score:` or `aesthetic_score:` | Numeric score                                            | Adds aesthetic score           |
+| PNG `iTXt` `parameters:`                  | Textual data                                             | A1111                          |
+| PNG EXIF SubIFD `User Comment`            | User comment text                                        | A1111                          |
+| JPEG EXIF SubIFD `User Comment`           | Contains `sui_image_params`                              | SwarmUI                        |
+| JPEG EXIF IFD0 `Software` + `Makernote`   | Fooocus software, makernote `fooocus` or `a1111`         | Fooocus or A1111               |
+| JPEG EXIF IFD0 `User Comment`             | JSON starting with `{"prompt":`                          | ComfyUI                        |
+| JPEG fallback                             | EXIF/metadata directories                                | A1111                          |
+| WebP EXIF IFD0 `Make`                     | `workflow:` JSON                                         | ComfyUI workflow               |
+| WebP EXIF IFD0 `Model`                    | `prompt:` JSON                                           | ComfyUI prompt data            |
+| WebP EXIF SubIFD `User Comment`           | JSON starting with `{"prompt":`                          | ComfyUI                        |
+| WebP fallback                             | EXIF/metadata directories                                | A1111                          |
+| WebM comment                              | `Comment` tag                                            | ComfyUI                        |
+| MP4 metadata comment                      | QuickTime metadata `Comment`                             | ComfyUI                        |
+| Exact sidecar                             | Same image basename with `.txt`                          | A1111 or Stable Diffusion text |
+| Directory sidecar fallback                | Cached directory `.txt` whose basename is a prefix match | A1111 or Stable Diffusion text |
+| Stealth PNG                               | Alpha/RGB least-significant-bit payload, optional gzip   | A1111                          |
 
 ## Format parser notes
 
@@ -179,28 +179,28 @@ otherwise hard to see from the UI.
 
 ## Ideas worth applying
 
-| Priority | Idea | Application in gallery-repo | Acceptance criteria |
-| --- | --- | --- | --- |
-| P1 | One normalized parser core | Introduce a shared parser module used by both `/api/metadata` and SQLite indexing. Keep API shaping in `metadata_parse.py` and file/index shaping in `metadata_extract.py`. | Same fixture produces equivalent prompt, negative prompt, model, sampler, seed, steps, CFG, dimensions, raw text, and JSON in API and index paths. |
-| P1 | Source candidate pipeline | Separate "read metadata candidates from file" from "parse generator format". Candidates should include PNG text, EXIF UserComment, WebP EXIF conventions where supported, and sidecar text. | Each parse result records `tool`, `source`, and `confidence` internally; frontend response remains backward-compatible. |
-| P1 | Preserve raw workflow/json | Keep raw workflow or generator JSON for ComfyUI, SwarmUI, NovelAI, EasyDiffusion, and future Fooocus/InvokeAI adapters. | `metadata_json` stores the original structured payload or normalized payload without losing raw workflow text. |
-| P1 | Parser fixtures | Add tests for existing supported formats before widening coverage. | Golden tests cover happy path, malformed JSON, missing optional fields, exact sidecar, and EXIF UserComment. |
-| P2 | WebP ComfyUI EXIF support | Add candidate extraction for `workflow:` and `prompt:` WebP EXIF fields if Pillow exposes them reliably. | WebP fixture populates workflow JSON and ComfyUI params without changing `/api/scan`. |
-| P2 | Fooocus and InvokeAI adapters | Add small `try_parse_fooocus*()` and `try_parse_invokeai*()` adapters based on DT's field mappings. | Fixtures populate prompt, negative prompt, seed, steps, CFG, sampler, model, dimensions. |
-| P2 | Safer sidecar fallback | Add unique-prefix sidecar matching only when exact sidecar is absent and exactly one candidate matches. | Ambiguous matches are ignored and logged/debuggable; exact sidecar still wins. |
-| P2 | ComfyUI node summaries | Store a compact node/input summary for search and debugging, separate from lightbox prompt fields. | Search can match relevant node scalar values without bloating the API response. |
-| P3 | Stealth PNG fallback | Support only in explicit/background indexing, not the lightbox hot path. | Stealth scan is bounded, cancellable, and never blocks `/api/scan` or initial lightbox open. |
+| Priority | Idea                          | Application in gallery-repo                                                                                                                                                                 | Acceptance criteria                                                                                                                                |
+| -------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1       | One normalized parser core    | Introduce a shared parser module used by both `/api/metadata` and SQLite indexing. Keep API shaping in `metadata_parse.py` and file/index shaping in `metadata_extract.py`.                 | Same fixture produces equivalent prompt, negative prompt, model, sampler, seed, steps, CFG, dimensions, raw text, and JSON in API and index paths. |
+| P1       | Source candidate pipeline     | Separate "read metadata candidates from file" from "parse generator format". Candidates should include PNG text, EXIF UserComment, WebP EXIF conventions where supported, and sidecar text. | Each parse result records `tool`, `source`, and `confidence` internally; frontend response remains backward-compatible.                            |
+| P1       | Preserve raw workflow/json    | Keep raw workflow or generator JSON for ComfyUI, SwarmUI, NovelAI, EasyDiffusion, and future Fooocus/InvokeAI adapters.                                                                     | `metadata_json` stores the original structured payload or normalized payload without losing raw workflow text.                                     |
+| P1       | Parser fixtures               | Add tests for existing supported formats before widening coverage.                                                                                                                          | Golden tests cover happy path, malformed JSON, missing optional fields, exact sidecar, and EXIF UserComment.                                       |
+| P2       | WebP ComfyUI EXIF support     | Add candidate extraction for `workflow:` and `prompt:` WebP EXIF fields if Pillow exposes them reliably.                                                                                    | WebP fixture populates workflow JSON and ComfyUI params without changing `/api/scan`.                                                              |
+| P2       | Fooocus and InvokeAI adapters | Add small `try_parse_fooocus*()` and `try_parse_invokeai*()` adapters based on DT's field mappings.                                                                                         | Fixtures populate prompt, negative prompt, seed, steps, CFG, sampler, model, dimensions.                                                           |
+| P2       | Safer sidecar fallback        | Add unique-prefix sidecar matching only when exact sidecar is absent and exactly one candidate matches.                                                                                     | Ambiguous matches are ignored and logged/debuggable; exact sidecar still wins.                                                                     |
+| P2       | ComfyUI node summaries        | Store a compact node/input summary for search and debugging, separate from lightbox prompt fields.                                                                                          | Search can match relevant node scalar values without bloating the API response.                                                                    |
+| P3       | Stealth PNG fallback          | Support only in explicit/background indexing, not the lightbox hot path.                                                                                                                    | Stealth scan is bounded, cancellable, and never blocks `/api/scan` or initial lightbox open.                                                       |
 
 ## Things not to copy
 
-| DT behavior | Why not copy |
-| --- | --- |
-| Read and hash the whole file before parsing | gallery-repo already invalidates cache by path, mtime, and size. Full reads hurt large images and cold folders. |
-| Synchronous parse in viewer selection | The current lightbox opens first and lets metadata resolve asynchronously. Keep that behavior. |
-| Stealth PNG pixel scan in normal metadata request | It can require scanning image pixels and should not be part of common UI latency. |
-| Blind prefix sidecar matching | It can attach the wrong metadata in folders with similar filenames. |
-| ComfyUI node indexing as the only ComfyUI parse result | The lightbox needs human-readable prompt/negative prompt/params. Node summaries should be additive. |
-| Desktop-only file watcher assumptions | gallery-repo is local-first web software; watcher support should remain optional. |
+| DT behavior                                            | Why not copy                                                                                                    |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| Read and hash the whole file before parsing            | gallery-repo already invalidates cache by path, mtime, and size. Full reads hurt large images and cold folders. |
+| Synchronous parse in viewer selection                  | The current lightbox opens first and lets metadata resolve asynchronously. Keep that behavior.                  |
+| Stealth PNG pixel scan in normal metadata request      | It can require scanning image pixels and should not be part of common UI latency.                               |
+| Blind prefix sidecar matching                          | It can attach the wrong metadata in folders with similar filenames.                                             |
+| ComfyUI node indexing as the only ComfyUI parse result | The lightbox needs human-readable prompt/negative prompt/params. Node summaries should be additive.             |
+| Desktop-only file watcher assumptions                  | gallery-repo is local-first web software; watcher support should remain optional.                               |
 
 ## Recommended implementation sequence
 

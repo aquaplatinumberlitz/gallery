@@ -15,47 +15,47 @@ ruff check --select D backend/tests/ --output-format json
 
 ### Full Results (`backend/` + `scripts/` + `start.py`)
 
-| Metric | Value |
-|--------|-------|
-| **Total D errors** | **455** |
+| Metric               | Value     |
+| -------------------- | --------- |
+| **Total D errors**   | **455**   |
 | Fixable with `--fix` | 35 (7.7%) |
 
 ### Breakdown by Rule
 
-| Rule | Count | Description | Verdict |
-|------|-------|-------------|---------|
-| `D103` | 191 | Missing function docstring | ❌ Too noisy for mid-stage |
-| `D102` | 147 | Missing method docstring | ❌ Too noisy for mid-stage |
-| `D212` | 28 | Multi-line docstring style | ❌ Style-only |
-| `D101` | 27 | Missing class docstring | ⚠️  Maybe enable for public classes |
-| `D205` | 27 | Blank line after docstring summary | ❌ Style-only |
-| `D100` | 26 | Missing module docstring | ⚠️  Maybe enable for public modules |
-| `D403` | 4 | First word capitalization | ❌ Trivial |
-| `D104` | 1 | Missing docstring in package `__init__` | ⚠️  Low noise |
-| `D107` | 1 | Missing `__init__` docstring | ⚠️  Low noise |
-| `D301` | 1 | Use `r"""` for raw docstring | ❌ Trivial |
-| `D400` | 1 | Docstring ends with period | ❌ Style-only |
-| `D415` | 1 | Docstring first line ends with period | ❌ Style-only |
+| Rule   | Count | Description                             | Verdict                            |
+| ------ | ----- | --------------------------------------- | ---------------------------------- |
+| `D103` | 191   | Missing function docstring              | ❌ Too noisy for mid-stage         |
+| `D102` | 147   | Missing method docstring                | ❌ Too noisy for mid-stage         |
+| `D212` | 28    | Multi-line docstring style              | ❌ Style-only                      |
+| `D101` | 27    | Missing class docstring                 | ⚠️ Maybe enable for public classes |
+| `D205` | 27    | Blank line after docstring summary      | ❌ Style-only                      |
+| `D100` | 26    | Missing module docstring                | ⚠️ Maybe enable for public modules |
+| `D403` | 4     | First word capitalization               | ❌ Trivial                         |
+| `D104` | 1     | Missing docstring in package `__init__` | ⚠️ Low noise                       |
+| `D107` | 1     | Missing `__init__` docstring            | ⚠️ Low noise                       |
+| `D301` | 1     | Use `r"""` for raw docstring            | ❌ Trivial                         |
+| `D400` | 1     | Docstring ends with period              | ❌ Style-only                      |
+| `D415` | 1     | Docstring first line ends with period   | ❌ Style-only                      |
 
 ### Top 15 Noisiest Files
 
-| File | Errors | Type |
-|------|--------|------|
-| `backend/tests/test_fielded_search_parser.py` | 77 | Test |
-| `backend/tests/test_api_integration_metadata_search_facets.py` | 27 | Test |
-| `backend/metadata_store.py` | 24 | **Production** |
-| `backend/tests/test_api_integration_derivatives.py` | 22 | Test |
-| `backend/tests/test_api_integration_scan.py` | 20 | Test |
-| `backend/tests/test_warm_folder_listing.py` | 19 | Test |
-| `backend/tests/test_library_inspector.py` | 17 | Test |
-| `backend/tests/test_derivatives.py` | 15 | Test |
-| `backend/tests/test_scheduled_refresh.py` | 15 | Test |
-| `backend/tests/test_api_integration_health_and_safety.py` | 14 | Test |
-| `backend/tests/test_app.py` | 13 | Test |
-| `backend/tests/test_facets.py` | 13 | Test |
-| `backend/tests/test_watcher.py` | 13 | Test |
-| `backend/tests/test_api_integration_index_status.py` | 12 | Test |
-| `backend/tests/test_indexer_staging.py` | 12 | Test |
+| File                                                           | Errors | Type           |
+| -------------------------------------------------------------- | ------ | -------------- |
+| `backend/tests/test_fielded_search_parser.py`                  | 77     | Test           |
+| `backend/tests/test_api_integration_metadata_search_facets.py` | 27     | Test           |
+| `backend/metadata_store.py`                                    | 24     | **Production** |
+| `backend/tests/test_api_integration_derivatives.py`            | 22     | Test           |
+| `backend/tests/test_api_integration_scan.py`                   | 20     | Test           |
+| `backend/tests/test_warm_folder_listing.py`                    | 19     | Test           |
+| `backend/tests/test_library_inspector.py`                      | 17     | Test           |
+| `backend/tests/test_derivatives.py`                            | 15     | Test           |
+| `backend/tests/test_scheduled_refresh.py`                      | 15     | Test           |
+| `backend/tests/test_api_integration_health_and_safety.py`      | 14     | Test           |
+| `backend/tests/test_app.py`                                    | 13     | Test           |
+| `backend/tests/test_facets.py`                                 | 13     | Test           |
+| `backend/tests/test_watcher.py`                                | 13     | Test           |
+| `backend/tests/test_api_integration_index_status.py`           | 12     | Test           |
+| `backend/tests/test_indexer_staging.py`                        | 12     | Test           |
 
 **Test files** account for **~90%** of all D errors.
 
@@ -81,11 +81,11 @@ Test function names are often self-documenting (e.g. `test_search_returns_200_fo
 
 Without tests, the most impactful rules are:
 
-| File | Issue | Worth fixing? |
-|------|-------|---------------|
-| `app.py` | Missing module docstring | ⚠️  Low — one-liner `"""FastAPI application entry point."""` |
-| `config.py` | Missing module docstring | ⚠️  Low — one-liner `"""Application configuration and constants."""` |
-| `app.py` | `profile_middleware` | ⚠️  Medium — a 1-line description would help |
+| File        | Issue                    | Worth fixing?                                                       |
+| ----------- | ------------------------ | ------------------------------------------------------------------- |
+| `app.py`    | Missing module docstring | ⚠️ Low — one-liner `"""FastAPI application entry point."""`         |
+| `config.py` | Missing module docstring | ⚠️ Low — one-liner `"""Application configuration and constants."""` |
+| `app.py`    | `profile_middleware`     | ⚠️ Medium — a 1-line description would help                         |
 
 ### 4. Recommended minimal subset (if any)
 
@@ -108,7 +108,7 @@ But even this is not recommended for mid-stage.
 
 ### Do
 
-- Add module-level docstrings *opportunistically* when working on a file (no dedicated pass)
+- Add module-level docstrings _opportunistically_ when working on a file (no dedicated pass)
 - Add class/function docstrings for complex public APIs when the purpose is non-obvious
 - Use `# noqa: D100` / `# noqa: D103` for functions where the name is self-documenting
 
@@ -130,14 +130,14 @@ But even this is not recommended for mid-stage.
 
 ## Summary
 
-| Item | Value |
-|------|-------|
-| Total D errors | 455 |
-| Test file noise | ~410 (90%) |
-| Production noise | ~45 (10%) |
-| Fixable | 35 (7.7%) |
-| Enable D now? | **No** |
-| Code changed | **No** — measurement only |
+| Item             | Value                     |
+| ---------------- | ------------------------- |
+| Total D errors   | 455                       |
+| Test file noise  | ~410 (90%)                |
+| Production noise | ~45 (10%)                 |
+| Fixable          | 35 (7.7%)                 |
+| Enable D now?    | **No**                    |
+| Code changed     | **No** — measurement only |
 
 ## Appendix: Test-only noise example
 

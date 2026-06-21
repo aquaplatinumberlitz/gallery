@@ -194,21 +194,21 @@ Row actions and entry points:
 
 ## 6. Comparison: Our Plan vs Industry Patterns
 
-| Feature | Phase 3 Plan | Lightroom | PhotoPrism | Immich | Recommendation |
-| --- | --- | --- | --- | --- | --- |
-| Primary browsing | Existing `GalleryGrid` | Library Grid | Mosaic/cards/search results | Timeline/grid | Keep grid primary |
-| Metadata list/table | Planned lightweight list | No core spreadsheet list; grid cell metadata instead | Has list view for results | Not a main concept | Build a dedicated utility table |
-| Thumbnail in rows | Planned | Grid thumbnails with overlays | List/cards include previews | Timeline thumbnails | Use 48-56 px stable thumbnails |
-| Core metadata columns | Name, folder, model, sampler, seed, dimensions, modified | Camera/IPTC/EXIF oriented | Title/time/location/camera/files | Date/location/camera/tags | Use AI-art-specific columns |
-| Sorting | Header click | Sort controls in Library | Search/order controls | Timeline/search ordering | Single-sort headers, default modified desc |
-| Global search | Planned | Text filter | Main search input with structured filters | Search page with advanced filters | P0 global search |
-| Faceted filtering | Not MVP | Metadata column browser with counts | Advanced filters/facets | Advanced metadata filters | P1 model/sampler/folder only |
-| Metadata detail panel | Optional | Right Metadata panel | Details/edit panels | Asset detail info | Reuse existing detail view first |
-| Index status/count | Planned lightweight count | Catalog/source counts | Library/index counts and progress | Library scan/job concepts | Show indexed and visible counts |
-| Grid/list toggle | Skip MVP | Grid/Loupe/Compare/Survey, not table toggle | Cards/mosaic/list toggle | Grid-first | Skip toggle; separate view is enough |
-| Column customization | Skip MVP | Configurable grid labels and metadata presets | View choices, not table column config | Not central | Defer |
-| Editing/batch actions | Skip | Extensive metadata/edit workflows | Edit, organize, review/archive | Tags, albums, metadata features | Keep read-only |
-| Filmstrip | Skip | Persistent bottom filmstrip | Not central | Not central | Skip |
+| Feature               | Phase 3 Plan                                             | Lightroom                                            | PhotoPrism                                | Immich                            | Recommendation                             |
+| --------------------- | -------------------------------------------------------- | ---------------------------------------------------- | ----------------------------------------- | --------------------------------- | ------------------------------------------ |
+| Primary browsing      | Existing `GalleryGrid`                                   | Library Grid                                         | Mosaic/cards/search results               | Timeline/grid                     | Keep grid primary                          |
+| Metadata list/table   | Planned lightweight list                                 | No core spreadsheet list; grid cell metadata instead | Has list view for results                 | Not a main concept                | Build a dedicated utility table            |
+| Thumbnail in rows     | Planned                                                  | Grid thumbnails with overlays                        | List/cards include previews               | Timeline thumbnails               | Use 48-56 px stable thumbnails             |
+| Core metadata columns | Name, folder, model, sampler, seed, dimensions, modified | Camera/IPTC/EXIF oriented                            | Title/time/location/camera/files          | Date/location/camera/tags         | Use AI-art-specific columns                |
+| Sorting               | Header click                                             | Sort controls in Library                             | Search/order controls                     | Timeline/search ordering          | Single-sort headers, default modified desc |
+| Global search         | Planned                                                  | Text filter                                          | Main search input with structured filters | Search page with advanced filters | P0 global search                           |
+| Faceted filtering     | Not MVP                                                  | Metadata column browser with counts                  | Advanced filters/facets                   | Advanced metadata filters         | P1 model/sampler/folder only               |
+| Metadata detail panel | Optional                                                 | Right Metadata panel                                 | Details/edit panels                       | Asset detail info                 | Reuse existing detail view first           |
+| Index status/count    | Planned lightweight count                                | Catalog/source counts                                | Library/index counts and progress         | Library scan/job concepts         | Show indexed and visible counts            |
+| Grid/list toggle      | Skip MVP                                                 | Grid/Loupe/Compare/Survey, not table toggle          | Cards/mosaic/list toggle                  | Grid-first                        | Skip toggle; separate view is enough       |
+| Column customization  | Skip MVP                                                 | Configurable grid labels and metadata presets        | View choices, not table column config     | Not central                       | Defer                                      |
+| Editing/batch actions | Skip                                                     | Extensive metadata/edit workflows                    | Edit, organize, review/archive            | Tags, albums, metadata features   | Keep read-only                             |
+| Filmstrip             | Skip                                                     | Persistent bottom filmstrip                          | Not central                               | Not central                       | Skip                                       |
 
 ## 7. Appendix: URLs Referenced
 

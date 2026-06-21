@@ -1,15 +1,17 @@
 # AI Art Gallery
 
-Last reviewed: 2026-06-16
+Last reviewed: 2026-06-21
 
-A local-first web gallery for browsing AI-generated artwork collections. It pairs a FastAPI backend for scanning, thumbnails, indexed metadata search, and read-only metadata inspection with a Vue 3 frontend that provides a responsive TanStack Virtual gallery, PhotoSwipe-based lightbox, and virtualized desktop Library Inspector.
+A local-first web gallery for browsing AI-generated image and video collections. It pairs a FastAPI backend for registered-library management, mixed-media scanning, image derivatives, video streaming/posters, indexed metadata search, and read-only metadata inspection with a Vue 3 frontend that provides a responsive TanStack Virtual gallery, PhotoSwipe-based image lightbox, native video player, and virtualized desktop Library Inspector.
 
 Designed for local/personal use. It is not intended as a hardened public deployment.
 
 ## Features
 
 - Responsive desktop, tablet, and mobile layouts
-- TanStack Virtual-scrolled image grid for large folders
+- Registered libraries with multiple import paths, exclusion patterns, scan/repair jobs, and responsive management UI
+- TanStack Virtual-scrolled mixed-media grid for large folders
+- Native video playback with HTTP Range streaming and cached WebP posters
 - PhotoSwipe 5 lightbox with device-specific metadata panels
 - Derivative-first lightbox — 1440px WebP preview as the main PhotoSwipe source; original `/api/image` only on zoom, fullscreen, download, or animated images
 - AI metadata parsing for A1111, SwarmUI, ComfyUI, NovelAI, and EasyDiffusion
@@ -24,21 +26,21 @@ Designed for local/personal use. It is not intended as a hardened public deploym
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|------------|
-| Backend | FastAPI, Uvicorn, Pydantic, Pillow, diskcache, cachetools, SQLite FTS5 |
-| Backend Modules | metadata_store, fielded_search_parser, indexer, facets, refresh, watcher |
-| Frontend | Vue 3, TypeScript, Vite, Vue Router, Pinia |
-| Lightbox | PhotoSwipe 5 |
-| Grid/Table Virtualization | @tanstack/vue-virtual |
-| Server Cache | @tanstack/vue-query |
-| Advanced Search Form | @tanstack/vue-form |
-| Metadata Table | @tanstack/vue-table |
-| Local Reactive DB | @tanstack/vue-db, @tanstack/query-db-collection |
-| UI Components | Local shadcn-vue-style components, Reka UI, CVA, clsx, tailwind-merge |
-| Styling | Tailwind CSS 4, SCSS, CSS custom properties |
-| HTTP Client | Axios |
-| Icons | lucide-vue-next |
+| Layer                     | Technology                                                               |
+| ------------------------- | ------------------------------------------------------------------------ |
+| Backend                   | FastAPI, Uvicorn, Pydantic, Pillow, diskcache, cachetools, SQLite FTS5   |
+| Backend Modules           | metadata_store, fielded_search_parser, indexer, facets, refresh, watcher |
+| Frontend                  | Vue 3, TypeScript, Vite, Vue Router, Pinia                               |
+| Lightbox                  | PhotoSwipe 5                                                             |
+| Grid/Table Virtualization | @tanstack/vue-virtual                                                    |
+| Server Cache              | @tanstack/vue-query                                                      |
+| Advanced Search Form      | @tanstack/vue-form                                                       |
+| Metadata Table            | @tanstack/vue-table                                                      |
+| Local Reactive DB         | @tanstack/vue-db, @tanstack/query-db-collection                          |
+| UI Components             | Local shadcn-vue-style components, Reka UI, CVA, clsx, tailwind-merge    |
+| Styling                   | Tailwind CSS 4, SCSS, CSS custom properties                              |
+| HTTP Client               | Axios                                                                    |
+| Icons                     | lucide-vue-next                                                          |
 
 ## Quick Start
 
@@ -118,6 +120,8 @@ gallery-repo/
 │   ├── health.py
 │   ├── images.py
 │   ├── indexer.py
+│   ├── libraries.py
+│   ├── library_events.py
 │   ├── metadata_extract.py
 │   ├── metadata_parse.py
 │   ├── metadata_store.py
@@ -130,6 +134,7 @@ gallery-repo/
 │   ├── search.py
 │   ├── static_files.py
 │   ├── thumbnails.py
+│   ├── video.py
 │   ├── watcher.py
 │   └── tests/
 │       ├── conftest.py
@@ -193,23 +198,31 @@ gallery-repo/
 
 ## API Summary
 
-| Method | Endpoint | Purpose |
-|--------|----------|---------|
-| `GET` | `/api/scan?path=...&limit=...&media_cursor=...` | Scan a folder and return mixed-media (images+videos) with cursor pagination |
-| `GET` | `/api/folders?path=...` | Return direct child folders for sidebar expansion |
-| `GET` | `/api/image?path=...` | Serve an original image |
-| `GET` | `/api/thumbnail?path=...` | Serve a cached WebP thumbnail (max 512px) |
-| `GET` | `/api/preview?path=...` | Serve a cached WebP preview (max 1440px) |
-| `GET` | `/api/metadata?path=...` | Parse AI generation metadata |
-| `GET` | `/api/search` | Unified photo/album/prompt search |
-| `GET` | `/api/search-metadata` | Legacy metadata text search (prompt/model/filename) |
-| `GET` | `/api/library/inspector` | Bounded read-only metadata inspection rows; empty `q` returns latest indexed metadata |
-| `GET` | `/api/library/inspector/metadata?path=...` | DB-first full prompt/negative/LoRA/resource metadata detail for inspector popovers/copy actions |
-| `GET` | `/api/facets` | Faceted aggregation counts (tool, model, sampler, etc.) |
-| `GET` | `/api/index/status` | Metadata indexer queue/runtime status |
-| `POST` | `/api/open-folder` | Open a folder in the OS file explorer when enabled |
-| `GET` | `/api/health` | Health check |
-| `GET` | `/api/landing-pages` | List intro page templates |
+| Method                 | Endpoint                                        | Purpose                                                                                         |
+| ---------------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `GET`                  | `/api/scan?path=...&limit=...&media_cursor=...` | Scan a folder and return mixed-media (images+videos) with cursor pagination                     |
+| `GET`                  | `/api/folders?path=...`                         | Return direct child folders for sidebar expansion                                               |
+| `GET`                  | `/api/image?path=...`                           | Serve an original image                                                                         |
+| `GET`                  | `/api/thumbnail?path=...`                       | Serve a cached WebP thumbnail (max 512px)                                                       |
+| `GET`                  | `/api/preview?path=...`                         | Serve a cached WebP preview (max 1440px)                                                        |
+| `GET`                  | `/api/video?path=...`                           | Stream an original video with HTTP Range support                                                |
+| `GET`                  | `/api/video/poster?path=...`                    | Serve a cached WebP video poster                                                                |
+| `GET`                  | `/api/metadata?path=...`                        | Parse AI generation metadata                                                                    |
+| `GET`                  | `/api/search`                                   | Unified photo/album/prompt search                                                               |
+| `GET`                  | `/api/search-metadata`                          | Legacy metadata text search (prompt/model/filename)                                             |
+| `GET`                  | `/api/library/inspector`                        | Bounded read-only metadata inspection rows; empty `q` returns latest indexed metadata           |
+| `GET`                  | `/api/library/inspector/metadata?path=...`      | DB-first full prompt/negative/LoRA/resource metadata detail for inspector popovers/copy actions |
+| `GET`                  | `/api/facets`                                   | Faceted aggregation counts (tool, model, sampler, etc.)                                         |
+| `GET`                  | `/api/index/status`                             | Metadata indexer queue/runtime status                                                           |
+| `POST`                 | `/api/open-folder`                              | Open a folder in the OS file explorer when enabled                                              |
+| `GET`                  | `/api/health`                                   | Health check                                                                                    |
+| `GET`                  | `/api/landing-pages`                            | List intro page templates                                                                       |
+| `GET/POST`             | `/api/libraries`                                | List or register libraries                                                                      |
+| `GET/PATCH/PUT/DELETE` | `/api/libraries/{id}`                           | Read, update, or unregister a library                                                           |
+
+`GET /api/scan` accepts only `path`, `limit`, and `media_cursor`. It returns
+`folders`, `media`, `next_media_cursor`, `total_images`, `total_videos`,
+`total_assets`, and `index_source`. Undeclared query parameters return `422`.
 
 ## Documentation
 

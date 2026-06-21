@@ -31,27 +31,27 @@
 
 **Key token values (implemented in `_shadcn-token-bridge.css` — exact shadcn-vue Stone base):**
 
-| Token | Light (oklch) | Dark (oklch) | Notes |
-|---|---|---|---|
-| `--background` | `oklch(1 0 0)` | `oklch(0.147 0 0)` | Stone background |
-| `--foreground` | `oklch(0.147 0 0)` | `oklch(0.985 0 0)` | Stone foreground |
-| `--card` | `oklch(1 0 0)` | `oklch(0.147 0 0)` | Stone card (dark matches background) |
-| `--card-foreground` | `oklch(0.147 0 0)` | `oklch(0.985 0 0)` | Stone card foreground |
-| `--popover` | `oklch(1 0 0)` | `oklch(0.147 0 0)` | Stone popover (dark matches background) |
-| `--popover-foreground` | `oklch(0.147 0 0)` | `oklch(0.985 0 0)` | Stone popover foreground |
-| `--primary` | `oklch(0.216 0.006 56.043)` | `oklch(0.985 0 0)` | Stone primary — subtle warm tint |
-| `--primary-foreground` | `oklch(0.985 0.001 106.423)` | `oklch(0.216 0.006 56.043)` | Stone primary foreground |
-| `--secondary` | `oklch(0.97 0.001 106.424)` | `oklch(0.268 0.007 34.298)` | Stone secondary surface |
-| `--secondary-foreground` | `oklch(0.216 0.006 56.043)` | `oklch(0.985 0 0)` | Stone secondary foreground |
-| `--muted` | `oklch(0.97 0.001 106.424)` | `oklch(0.268 0.007 34.298)` | Stone muted surface |
-| `--muted-foreground` | `oklch(0.553 0.013 58.048)` | `oklch(0.709 0.01 56.259)` | Stone muted foreground |
-| `--accent` | `oklch(0.97 0.001 106.424)` | `oklch(0.268 0.007 34.298)` | Stone neutral hover surface — NOT orange/warm |
-| `--accent-foreground` | `oklch(0.216 0.006 56.043)` | `oklch(0.985 0 0)` | Stone accent foreground |
-| `--destructive` | `oklch(0.577 0.245 27.325)` | `oklch(0.704 0.191 22.216)` | shadcn default destructive |
-| `--border` | `oklch(0.923 0.003 48.717)` | `oklch(1 0 0 / 10%)` | Stone neutral border |
-| `--input` | `oklch(0.923 0.003 48.717)` | `oklch(1 0 0 / 15%)` | Stone neutral input border |
-| `--ring` | `oklch(0.709 0.01 56.259)` | `oklch(0.553 0.013 58.048)` | Stone neutral focus ring — NOT orange glow |
-| `--radius` | `0.625rem` | `0.625rem` | Standard shadcn radius |
+| Token                    | Light (oklch)                | Dark (oklch)                | Notes                                         |
+| ------------------------ | ---------------------------- | --------------------------- | --------------------------------------------- |
+| `--background`           | `oklch(1 0 0)`               | `oklch(0.147 0 0)`          | Stone background                              |
+| `--foreground`           | `oklch(0.147 0 0)`           | `oklch(0.985 0 0)`          | Stone foreground                              |
+| `--card`                 | `oklch(1 0 0)`               | `oklch(0.147 0 0)`          | Stone card (dark matches background)          |
+| `--card-foreground`      | `oklch(0.147 0 0)`           | `oklch(0.985 0 0)`          | Stone card foreground                         |
+| `--popover`              | `oklch(1 0 0)`               | `oklch(0.147 0 0)`          | Stone popover (dark matches background)       |
+| `--popover-foreground`   | `oklch(0.147 0 0)`           | `oklch(0.985 0 0)`          | Stone popover foreground                      |
+| `--primary`              | `oklch(0.216 0.006 56.043)`  | `oklch(0.985 0 0)`          | Stone primary — subtle warm tint              |
+| `--primary-foreground`   | `oklch(0.985 0.001 106.423)` | `oklch(0.216 0.006 56.043)` | Stone primary foreground                      |
+| `--secondary`            | `oklch(0.97 0.001 106.424)`  | `oklch(0.268 0.007 34.298)` | Stone secondary surface                       |
+| `--secondary-foreground` | `oklch(0.216 0.006 56.043)`  | `oklch(0.985 0 0)`          | Stone secondary foreground                    |
+| `--muted`                | `oklch(0.97 0.001 106.424)`  | `oklch(0.268 0.007 34.298)` | Stone muted surface                           |
+| `--muted-foreground`     | `oklch(0.553 0.013 58.048)`  | `oklch(0.709 0.01 56.259)`  | Stone muted foreground                        |
+| `--accent`               | `oklch(0.97 0.001 106.424)`  | `oklch(0.268 0.007 34.298)` | Stone neutral hover surface — NOT orange/warm |
+| `--accent-foreground`    | `oklch(0.216 0.006 56.043)`  | `oklch(0.985 0 0)`          | Stone accent foreground                       |
+| `--destructive`          | `oklch(0.577 0.245 27.325)`  | `oklch(0.704 0.191 22.216)` | shadcn default destructive                    |
+| `--border`               | `oklch(0.923 0.003 48.717)`  | `oklch(1 0 0 / 10%)`        | Stone neutral border                          |
+| `--input`                | `oklch(0.923 0.003 48.717)`  | `oklch(1 0 0 / 15%)`        | Stone neutral input border                    |
+| `--ring`                 | `oklch(0.709 0.01 56.259)`   | `oklch(0.553 0.013 58.048)` | Stone neutral focus ring — NOT orange glow    |
+| `--radius`               | `0.625rem`                   | `0.625rem`                  | Standard shadcn radius                        |
 
 **Tailwind `@theme inline` token policy (2026-06-15):**
 
@@ -67,6 +67,7 @@ Brand hero continues to use `--title-color`, `--neon-color`, `--primary-color` f
 This document presents a detailed migration plan for adopting Tailwind CSS in the gallery frontend, with the non-negotiable requirement that 100% of current animations, transitions, hover effects, layout polish, premium album/card styling, mobile quirks, and gallery-specific visual effects are preserved.
 
 **The repo currently uses:**
+
 - SCSS modules (7 files, ~1,700 lines)
 - CSS custom properties in `tokens.css` (258 lines, 90+ design tokens)
 - Scoped `<style>` blocks in 35 Vue SFCs
@@ -86,6 +87,7 @@ This document presents a detailed migration plan for adopting Tailwind CSS in th
 **Target version: Tailwind v4.**
 
 When implementation begins:
+
 - Vite integration through the `@tailwindcss/vite` plugin
 - CSS-first configuration via `@import "tailwindcss"` and `@theme` blocks
 - Semantic tokens defined through Tailwind v4 theme/CSS token approach
@@ -107,6 +109,7 @@ The following patterns are Tailwind v3 conventions and should NOT be used unless
 - `corePlugins: { preflight: false }`
 
 Preferred Tailwind v4 direction:
+
 - Use Tailwind v4 CSS-first setup with `@import "tailwindcss"`
 - Import only the layers needed during early migration: theme layer, utilities layer
 - Preflight/base layer was tested as a separate spike after initial foundation (completed — Preflight now enabled permanently after passing 25/25 `tailwind-preflight.spec.ts` tests on PC, iPad, iPhone)
@@ -117,19 +120,19 @@ Preferred Tailwind v4 direction:
 
 ### 2.1 File Inventory
 
-| File | Type | Lines | Role |
-|---|---|---|---|
-| `frontend/src/styles/tokens.css` | CSS | 258 | Semantic design tokens (90+ vars), warm-latte/premium theme, light/dark |
-| `frontend/src/styles/main.scss` | SCSS | 472 | Global styles, brand animations, base resets, a11y, responsive base |
-| `frontend/src/styles/_breakpoints.scss` | SCSS | 17 | Breakpoint mixins (compact, mobile, tablet, desktop, wide) |
-| `frontend/src/styles/_mobile-overrides.scss` | SCSS | 103 | Touch hover fixes, safe-area, iOS Safari background anchor fixes |
-| `frontend/src/styles/_lightbox-shared.scss` | SCSS | 352 | PhotoSwipe overrides, accordion, focus rings, badges, floating controls |
-| `frontend/src/styles/_lightbox-desktop.scss` | SCSS | 252 | Desktop metadata panel (sidebar, prompt boxes, params grid) |
-| `frontend/src/styles/_lightbox-mobile.scss` | SCSS | 272 | Mobile bottom sheet (tabs, copy buttons, compact) |
-| `frontend/src/styles/_lightbox-tablet.scss` | SCSS | 269 | Tablet bottom sheet (2-column grid, iPad-specific) |
-| `frontend/src/assets/fonts.css` | CSS | 31 | Google Fonts CDN imports (Inter, JetBrains Mono, Cinzel) |
-| `frontend/src/App.vue` | Vue | 2 style lines | Layout moved to layout components |
-| 35 Vue SFCs | Vue | ~6,500 | Scoped component styles |
+| File                                         | Type | Lines         | Role                                                                    |
+| -------------------------------------------- | ---- | ------------- | ----------------------------------------------------------------------- |
+| `frontend/src/styles/tokens.css`             | CSS  | 258           | Semantic design tokens (90+ vars), warm-latte/premium theme, light/dark |
+| `frontend/src/styles/main.scss`              | SCSS | 472           | Global styles, brand animations, base resets, a11y, responsive base     |
+| `frontend/src/styles/_breakpoints.scss`      | SCSS | 17            | Breakpoint mixins (compact, mobile, tablet, desktop, wide)              |
+| `frontend/src/styles/_mobile-overrides.scss` | SCSS | 103           | Touch hover fixes, safe-area, iOS Safari background anchor fixes        |
+| `frontend/src/styles/_lightbox-shared.scss`  | SCSS | 352           | PhotoSwipe overrides, accordion, focus rings, badges, floating controls |
+| `frontend/src/styles/_lightbox-desktop.scss` | SCSS | 252           | Desktop metadata panel (sidebar, prompt boxes, params grid)             |
+| `frontend/src/styles/_lightbox-mobile.scss`  | SCSS | 272           | Mobile bottom sheet (tabs, copy buttons, compact)                       |
+| `frontend/src/styles/_lightbox-tablet.scss`  | SCSS | 269           | Tablet bottom sheet (2-column grid, iPad-specific)                      |
+| `frontend/src/assets/fonts.css`              | CSS  | 31            | Google Fonts CDN imports (Inter, JetBrains Mono, Cinzel)                |
+| `frontend/src/App.vue`                       | Vue  | 2 style lines | Layout moved to layout components                                       |
+| 35 Vue SFCs                                  | Vue  | ~6,500        | Scoped component styles                                                 |
 
 ### 2.2 Style Loading Order
 
@@ -153,37 +156,38 @@ Preferred Tailwind v4 direction:
 
 ### 3.1 `@keyframes` Registry (25 definitions found)
 
-| # | Name | File | Trigger | CSS Properties | Duration/Easing | Device | Risk | Migration Decision |
-|---|---|---|---|---|---|---|---|---|
-| 1 | `iconFlicker` | `styles/main.scss:9` | Dark mode brand-icon | `box-shadow`, `filter: drop-shadow` | 1.5s infinite alternate | Desktop | **High** | Keep in SCSS |
-| 2 | `dark-title-shimmer` | `styles/main.scss:54` | Dark mode brand-title | `background-position` | 4s linear infinite | Desktop | **High** | Keep in SCSS |
-| 3 | `dark-title-glow` | `styles/main.scss:59` | Dark mode brand-title | `filter: drop-shadow` (3 layers) | 3s ease-in-out infinite | Desktop | **High** | Keep in SCSS |
-| 4 | `dark-underline-pulse` | `styles/main.scss:74` | Dark mode brand-title `::after` | `opacity`, `box-shadow` | 3s ease-in-out infinite | Desktop | **High** | Keep in SCSS |
-| 5 | `lucide-spin` | `styles/main.scss:419` | Global (any lucide icon) | `transform: rotate(360deg)` | 1.5s linear infinite | All | Low | **Custom Tailwind utility:** `animate-[spin_1.5s_linear_infinite]`. Default Tailwind `animate-spin` is 1s linear infinite, which differs from the existing CSS (1.5s). A custom duration utility preserves visual parity. |
-| 6 | `shimmer` | `PhotoCard.vue:306` | Photo card loading | `transform: translateX` | 1.5s infinite | All | Medium | Keep in SCSS (complex gradient + dark mode override) |
-| 7 | `shimmer` | `SkeletonLoader.vue:86` | Skeleton placeholder | `transform: translateX` | 1.5s infinite | All | Medium | Keep in SCSS (touch-device disable logic) |
-| 8 | `searchBarExpand` | `MobileHeader.vue:408` | Mobile search focus | `opacity`, `transform: scaleX` | 200ms cubic-bezier | Mobile | **High** | Keep in SCSS — do not touch mobile |
-| 9 | `backBtnIn` | `MobileHeader.vue:552` | Mobile search back button | `opacity`, `transform: translateX` | 200ms cubic-bezier | Mobile | **High** | Keep in SCSS — do not touch mobile |
-| 10 | `thSearchBarIn` | `TabletHeader.vue:307` | Tablet search focus | `opacity`, `transform: scaleX` | 200ms cubic-bezier | Tablet | **High** | Keep in SCSS — do not touch tablet |
-| 11 | `thBackBtnIn` | `TabletHeader.vue:424` | Tablet search back button | `opacity`, `transform: translateX` | 200ms cubic-bezier | Tablet | **High** | Keep in SCSS — do not touch tablet |
-| 12 | `fadeSlideIn` | `GalleryGrid.vue:1245` | Non-mobile scroller mount | `opacity`, `transform: translateY` | 260ms ease | Desktop/Tablet | Low | Keep in SCSS (scoped to GalleryGrid) |
-| 13 | `fadeIn` | `RootPathSheet.vue:346` | Sheet open | `opacity` | 0.2s ease | Mobile | Medium | Keep in SCSS — do not touch sheet |
-| 14 | `slideUp` | `RootPathSheet.vue:351` | Sheet open | `transform: translateY` | 0.3s cubic-bezier | Mobile | Medium | Keep in SCSS — do not touch sheet |
-| 15 | `fadeIn` | `SettingsModal.vue:404` | Modal open | `opacity` | 0.2s ease | Desktop | Low | Tailwind `@layer` possible |
-| 16 | `slideUp` | `SettingsModal.vue:409` | Modal open | `transform: translateY`, `opacity` | 0.3s cubic-bezier | Desktop | Low | Tailwind `@layer` possible |
-| 17 | `underline-grow` | `AppHeader.vue:420` | Brand title hover | `transform: scaleX` | Unused? | Desktop | Low | Remove (unused) or keep |
-| 18 | `subtle-float` | `AppHeader.vue:425` | Brand title hover | `transform: translateY` | Unused? | Desktop | Low | Remove (unused) or keep |
-| 19 | `icon-spin` | `EmptyState.vue` | Loading empty state | `transform: rotate` | 2s linear infinite | All | Low | Tailwind equivalent possible |
-| 20 | `pulse-slow` | `EmptyState.vue` | Empty state | `opacity` | 3s ease-in-out infinite | All | Low | Tailwind equivalent possible |
-| 21 | `float` | `EmptyState.vue` | Empty state decorative | `transform: translateY` | 3s ease-in-out infinite | All | Low | Keep in SCSS |
-| 22 | `twinkle` | `EmptyState.vue` | Empty state decorative | `opacity` | 2s ease-in-out infinite | All | Low | Keep in SCSS |
-| 23 | `rotate-gradient` | `IntroScreen.vue` | Intro screen background | `transform: rotate` | 20s linear infinite | Desktop | Low | Keep in SCSS |
-| 24 | `subtle-pulse` | `IntroScreen.vue` | Intro screen UI | `opacity` | 2s ease-in-out infinite | Desktop | Low | Keep in SCSS |
-| 25 | `shimmer-gold` | `IntroScreen.vue` | Intro screen CTA | `background-position` | 2s linear infinite | Desktop | Low | Keep in SCSS |
+| #   | Name                   | File                    | Trigger                         | CSS Properties                      | Duration/Easing         | Device         | Risk     | Migration Decision                                                                                                                                                                                                        |
+| --- | ---------------------- | ----------------------- | ------------------------------- | ----------------------------------- | ----------------------- | -------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `iconFlicker`          | `styles/main.scss:9`    | Dark mode brand-icon            | `box-shadow`, `filter: drop-shadow` | 1.5s infinite alternate | Desktop        | **High** | Keep in SCSS                                                                                                                                                                                                              |
+| 2   | `dark-title-shimmer`   | `styles/main.scss:54`   | Dark mode brand-title           | `background-position`               | 4s linear infinite      | Desktop        | **High** | Keep in SCSS                                                                                                                                                                                                              |
+| 3   | `dark-title-glow`      | `styles/main.scss:59`   | Dark mode brand-title           | `filter: drop-shadow` (3 layers)    | 3s ease-in-out infinite | Desktop        | **High** | Keep in SCSS                                                                                                                                                                                                              |
+| 4   | `dark-underline-pulse` | `styles/main.scss:74`   | Dark mode brand-title `::after` | `opacity`, `box-shadow`             | 3s ease-in-out infinite | Desktop        | **High** | Keep in SCSS                                                                                                                                                                                                              |
+| 5   | `lucide-spin`          | `styles/main.scss:419`  | Global (any lucide icon)        | `transform: rotate(360deg)`         | 1.5s linear infinite    | All            | Low      | **Custom Tailwind utility:** `animate-[spin_1.5s_linear_infinite]`. Default Tailwind `animate-spin` is 1s linear infinite, which differs from the existing CSS (1.5s). A custom duration utility preserves visual parity. |
+| 6   | `shimmer`              | `PhotoCard.vue:306`     | Photo card loading              | `transform: translateX`             | 1.5s infinite           | All            | Medium   | Keep in SCSS (complex gradient + dark mode override)                                                                                                                                                                      |
+| 7   | `shimmer`              | `SkeletonLoader.vue:86` | Skeleton placeholder            | `transform: translateX`             | 1.5s infinite           | All            | Medium   | Keep in SCSS (touch-device disable logic)                                                                                                                                                                                 |
+| 8   | `searchBarExpand`      | `MobileHeader.vue:408`  | Mobile search focus             | `opacity`, `transform: scaleX`      | 200ms cubic-bezier      | Mobile         | **High** | Keep in SCSS — do not touch mobile                                                                                                                                                                                        |
+| 9   | `backBtnIn`            | `MobileHeader.vue:552`  | Mobile search back button       | `opacity`, `transform: translateX`  | 200ms cubic-bezier      | Mobile         | **High** | Keep in SCSS — do not touch mobile                                                                                                                                                                                        |
+| 10  | `thSearchBarIn`        | `TabletHeader.vue:307`  | Tablet search focus             | `opacity`, `transform: scaleX`      | 200ms cubic-bezier      | Tablet         | **High** | Keep in SCSS — do not touch tablet                                                                                                                                                                                        |
+| 11  | `thBackBtnIn`          | `TabletHeader.vue:424`  | Tablet search back button       | `opacity`, `transform: translateX`  | 200ms cubic-bezier      | Tablet         | **High** | Keep in SCSS — do not touch tablet                                                                                                                                                                                        |
+| 12  | `fadeSlideIn`          | `GalleryGrid.vue:1245`  | Non-mobile scroller mount       | `opacity`, `transform: translateY`  | 260ms ease              | Desktop/Tablet | Low      | Keep in SCSS (scoped to GalleryGrid)                                                                                                                                                                                      |
+| 13  | `fadeIn`               | `RootPathSheet.vue:346` | Sheet open                      | `opacity`                           | 0.2s ease               | Mobile         | Medium   | Keep in SCSS — do not touch sheet                                                                                                                                                                                         |
+| 14  | `slideUp`              | `RootPathSheet.vue:351` | Sheet open                      | `transform: translateY`             | 0.3s cubic-bezier       | Mobile         | Medium   | Keep in SCSS — do not touch sheet                                                                                                                                                                                         |
+| 15  | `fadeIn`               | `SettingsModal.vue:404` | Modal open                      | `opacity`                           | 0.2s ease               | Desktop        | Low      | Tailwind `@layer` possible                                                                                                                                                                                                |
+| 16  | `slideUp`              | `SettingsModal.vue:409` | Modal open                      | `transform: translateY`, `opacity`  | 0.3s cubic-bezier       | Desktop        | Low      | Tailwind `@layer` possible                                                                                                                                                                                                |
+| 17  | `underline-grow`       | `AppHeader.vue:420`     | Brand title hover               | `transform: scaleX`                 | Unused?                 | Desktop        | Low      | Remove (unused) or keep                                                                                                                                                                                                   |
+| 18  | `subtle-float`         | `AppHeader.vue:425`     | Brand title hover               | `transform: translateY`             | Unused?                 | Desktop        | Low      | Remove (unused) or keep                                                                                                                                                                                                   |
+| 19  | `icon-spin`            | `EmptyState.vue`        | Loading empty state             | `transform: rotate`                 | 2s linear infinite      | All            | Low      | Tailwind equivalent possible                                                                                                                                                                                              |
+| 20  | `pulse-slow`           | `EmptyState.vue`        | Empty state                     | `opacity`                           | 3s ease-in-out infinite | All            | Low      | Tailwind equivalent possible                                                                                                                                                                                              |
+| 21  | `float`                | `EmptyState.vue`        | Empty state decorative          | `transform: translateY`             | 3s ease-in-out infinite | All            | Low      | Keep in SCSS                                                                                                                                                                                                              |
+| 22  | `twinkle`              | `EmptyState.vue`        | Empty state decorative          | `opacity`                           | 2s ease-in-out infinite | All            | Low      | Keep in SCSS                                                                                                                                                                                                              |
+| 23  | `rotate-gradient`      | `IntroScreen.vue`       | Intro screen background         | `transform: rotate`                 | 20s linear infinite     | Desktop        | Low      | Keep in SCSS                                                                                                                                                                                                              |
+| 24  | `subtle-pulse`         | `IntroScreen.vue`       | Intro screen UI                 | `opacity`                           | 2s ease-in-out infinite | Desktop        | Low      | Keep in SCSS                                                                                                                                                                                                              |
+| 25  | `shimmer-gold`         | `IntroScreen.vue`       | Intro screen CTA                | `background-position`               | 2s linear infinite      | Desktop        | Low      | Keep in SCSS                                                                                                                                                                                                              |
 
 ### 3.2 Transition Inventory (129 declarations)
 
 **Categories and count:**
+
 - Theme transitions (color, background-color): ~30 uses
 - Transform transitions (hover lift, scale): ~35 uses
 - Opacity transitions (fade, loading states): ~20 uses
@@ -194,26 +198,27 @@ Preferred Tailwind v4 direction:
 
 ### 3.3 Backdrop-Filter Uses (20+ occurrences)
 
-| Location | Value | Device |
-|---|---|---|
-| Mobile header background | `blur(12px)` | Mobile |
-| Mobile search overlay | `blur(4px)` | Mobile |
-| Desktop lightbox sidebar | `blur(20px)` | Desktop |
-| Lightbox mobile photo counter | `blur(8px)` | All |
-| Lightbox desktop counter | `blur(8px)` | Desktop |
-| Lightbox floating controls | `blur(8px)` | All |
-| Settings modal backdrop | `blur(4px)` | Desktop |
-| Root path sheet backdrop | `blur(2px)` | Mobile |
-| Mobile sidebar backdrop | `blur(2px)` | Mobile |
-| Photo card type badge | `blur(4px)` | All |
-| Tablet/search header background | `blur(12px)` | Tablet |
-| Tablet search overlay | `blur(4px)` | Tablet |
+| Location                        | Value        | Device  |
+| ------------------------------- | ------------ | ------- |
+| Mobile header background        | `blur(12px)` | Mobile  |
+| Mobile search overlay           | `blur(4px)`  | Mobile  |
+| Desktop lightbox sidebar        | `blur(20px)` | Desktop |
+| Lightbox mobile photo counter   | `blur(8px)`  | All     |
+| Lightbox desktop counter        | `blur(8px)`  | Desktop |
+| Lightbox floating controls      | `blur(8px)`  | All     |
+| Settings modal backdrop         | `blur(4px)`  | Desktop |
+| Root path sheet backdrop        | `blur(2px)`  | Mobile  |
+| Mobile sidebar backdrop         | `blur(2px)`  | Mobile  |
+| Photo card type badge           | `blur(4px)`  | All     |
+| Tablet/search header background | `blur(12px)` | Tablet  |
+| Tablet search overlay           | `blur(4px)`  | Tablet  |
 
 All `backdrop-filter` uses must include `-webkit-backdrop-filter` prefix for Safari compatibility.
 
 ### 3.4 color-mix() Uses (20+ occurrences)
 
 Used extensively for semi-transparent theme-aware backgrounds:
+
 - `var(--surface-color) 85%, transparent` (mobile/tablet headers)
 - `var(--text-color) 8%, transparent` (button hover states)
 - `var(--primary-color) 10%, transparent` (active option backgrounds)
@@ -224,12 +229,12 @@ Used extensively for semi-transparent theme-aware backgrounds:
 
 ### 3.5 Third-Party Library Override Zones
 
-| Library | Override Files | Risk |
-|---|---|---|
-| **PhotoSwipe 5** | `_lightbox-shared.scss:10-24`, `Lightbox.vue:438-458` | **High** — PhotoSwipe CSS classes (`.pswp__*`) must be overridden exactly as-is |
-| **vue-spring-bottom-sheet** | `LightboxMobileSheet.vue:398-489` | **High** — VSBS uses `[data-vsbs-*]` attribute selectors with custom properties |
-| **@tanstack/vue-virtual** | `GalleryGrid.vue` (inline styles for virtual items) | Medium — position calculations must not be affected |
-| **Lucide icons** | Various (size/color via CSS vars and inline styles) | Low — sizing already uses `--gallery-icon-*` tokens |
+| Library                     | Override Files                                        | Risk                                                                            |
+| --------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------- |
+| **PhotoSwipe 5**            | `_lightbox-shared.scss:10-24`, `Lightbox.vue:438-458` | **High** — PhotoSwipe CSS classes (`.pswp__*`) must be overridden exactly as-is |
+| **vue-spring-bottom-sheet** | `LightboxMobileSheet.vue:398-489`                     | **High** — VSBS uses `[data-vsbs-*]` attribute selectors with custom properties |
+| **@tanstack/vue-virtual**   | `GalleryGrid.vue` (inline styles for virtual items)   | Medium — position calculations must not be affected                             |
+| **Lucide icons**            | Various (size/color via CSS vars and inline styles)   | Low — sizing already uses `--gallery-icon-*` tokens                             |
 
 ---
 
@@ -239,27 +244,27 @@ Used extensively for semi-transparent theme-aware backgrounds:
 
 These are simple, non-animated layout/spacing/sizing properties that Tailwind handles natively:
 
-| Category | Current Approach | Tailwind Equivalent |
-|---|---|---|
-| **display** properties (`flex`, `grid`, `inline-flex`) | Custom classes | `flex`, `grid`, `inline-flex` |
-| **flex-direction** | `flex-direction: column` | `flex-col` |
-| **align-items** | `align-items: center` | `items-center` |
-| **justify-content** | `justify-content: space-between` | `justify-between` |
-| **gap** | `gap: 8px` | `gap-2` (if configured) |
-| **padding** | `padding: 16px` | `p-4` |
-| **margin** | `margin-top: 12px` | `mt-3` |
-| **font-size** (simple, non-responsive) | `font-size: 14px` | `text-sm` |
-| **font-weight** | `font-weight: 600` | `font-semibold` |
-| **border-radius** | `border-radius: 8px` | `rounded-[8px]` for exact legacy parity; `rounded-md` for shadcn primitives |
-| **border** (basic 1px solid) | `border: 1px solid ...` | `border` + `border-color-*` |
-| **overflow** | `overflow: hidden` | `overflow-hidden` |
-| **width/height** (fixed) | `width: 38px; height: 38px` | `w-[38px] h-[38px]` or token |
-| **position** | `position: relative` | `relative` |
-| **z-index** | `z-index: 80` | `z-80` (if configured) |
-| **cursor** | `cursor: pointer` | `cursor-pointer` |
-| **white-space** | `white-space: nowrap` | `whitespace-nowrap` |
-| **text-align** | `text-align: center` | `text-center` |
-| **min-width: 0** | Used extensively for flex truncation | `min-w-0` |
+| Category                                               | Current Approach                     | Tailwind Equivalent                                                         |
+| ------------------------------------------------------ | ------------------------------------ | --------------------------------------------------------------------------- |
+| **display** properties (`flex`, `grid`, `inline-flex`) | Custom classes                       | `flex`, `grid`, `inline-flex`                                               |
+| **flex-direction**                                     | `flex-direction: column`             | `flex-col`                                                                  |
+| **align-items**                                        | `align-items: center`                | `items-center`                                                              |
+| **justify-content**                                    | `justify-content: space-between`     | `justify-between`                                                           |
+| **gap**                                                | `gap: 8px`                           | `gap-2` (if configured)                                                     |
+| **padding**                                            | `padding: 16px`                      | `p-4`                                                                       |
+| **margin**                                             | `margin-top: 12px`                   | `mt-3`                                                                      |
+| **font-size** (simple, non-responsive)                 | `font-size: 14px`                    | `text-sm`                                                                   |
+| **font-weight**                                        | `font-weight: 600`                   | `font-semibold`                                                             |
+| **border-radius**                                      | `border-radius: 8px`                 | `rounded-[8px]` for exact legacy parity; `rounded-md` for shadcn primitives |
+| **border** (basic 1px solid)                           | `border: 1px solid ...`              | `border` + `border-color-*`                                                 |
+| **overflow**                                           | `overflow: hidden`                   | `overflow-hidden`                                                           |
+| **width/height** (fixed)                               | `width: 38px; height: 38px`          | `w-[38px] h-[38px]` or token                                                |
+| **position**                                           | `position: relative`                 | `relative`                                                                  |
+| **z-index**                                            | `z-index: 80`                        | `z-80` (if configured)                                                      |
+| **cursor**                                             | `cursor: pointer`                    | `cursor-pointer`                                                            |
+| **white-space**                                        | `white-space: nowrap`                | `whitespace-nowrap`                                                         |
+| **text-align**                                         | `text-align: center`                 | `text-center`                                                               |
+| **min-width: 0**                                       | Used extensively for flex truncation | `min-w-0`                                                                   |
 
 **Risk: Low.** These are straightforward 1:1 mappings. No visual change expected.
 
@@ -269,18 +274,19 @@ These are repeated patterns across **desktop** components that benefit from a co
 
 **Allowed early candidates (desktop only):**
 
-| Pattern | Current Locations | Tailwind Approach | Scope Notes |
-|---|---|---|---|
-| **Icon button** | Desktop AppHeader `.nav-btn`, `.hamburger-btn`, `.settings-btn` | `@layer components { .btn-icon { ... } }` combining 8-10 utilities | desktop AppHeader button/icon-button variants only. MobileHeader and TabletHeader are excluded. |
-| **Navigation button** | GalleryGrid nav buttons (desktop) | Component class | desktop-only |
-| **Badge/Chip/Status pill** | Desktop toast badges, loading badge, desktop status indicators | shadcn-vue Stone defaults for standard Badge/Chip primitives | desktop Badge/Chip primitives |
-| **Input shell/pill** | Desktop search box layout only | Component class for the pill-shaped input wrapper | desktop search/input only. mobile/tablet search excluded. |
-| **Dropdown menu** (sort, density) | GalleryGrid sort/density dropdowns (desktop) | Component class with transition | desktop toolbar pieces only |
-| **Modal shell** (backdrop + content + header/body/footer) | SettingsModal (desktop) | Component class pattern | SettingsModal desktop-safe only. RootPathSheet excluded. |
-| **Toast shell** | ToastItem (desktop) | Component class with variants (success/error/warning/info) | desktop Toast shell only if behavior is unchanged |
-| **Dialog/Sheet overlay** | Desktop Dialog/Popover only | Shared overlay component class | desktop Dialog/Popover only. mobile Sheet and RootPathSheet excluded. |
+| Pattern                                                   | Current Locations                                               | Tailwind Approach                                                  | Scope Notes                                                                                     |
+| --------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| **Icon button**                                           | Desktop AppHeader `.nav-btn`, `.hamburger-btn`, `.settings-btn` | `@layer components { .btn-icon { ... } }` combining 8-10 utilities | desktop AppHeader button/icon-button variants only. MobileHeader and TabletHeader are excluded. |
+| **Navigation button**                                     | GalleryGrid nav buttons (desktop)                               | Component class                                                    | desktop-only                                                                                    |
+| **Badge/Chip/Status pill**                                | Desktop toast badges, loading badge, desktop status indicators  | shadcn-vue Stone defaults for standard Badge/Chip primitives       | desktop Badge/Chip primitives                                                                   |
+| **Input shell/pill**                                      | Desktop search box layout only                                  | Component class for the pill-shaped input wrapper                  | desktop search/input only. mobile/tablet search excluded.                                       |
+| **Dropdown menu** (sort, density)                         | GalleryGrid sort/density dropdowns (desktop)                    | Component class with transition                                    | desktop toolbar pieces only                                                                     |
+| **Modal shell** (backdrop + content + header/body/footer) | SettingsModal (desktop)                                         | Component class pattern                                            | SettingsModal desktop-safe only. RootPathSheet excluded.                                        |
+| **Toast shell**                                           | ToastItem (desktop)                                             | Component class with variants (success/error/warning/info)         | desktop Toast shell only if behavior is unchanged                                               |
+| **Dialog/Sheet overlay**                                  | Desktop Dialog/Popover only                                     | Shared overlay component class                                     | desktop Dialog/Popover only. mobile Sheet and RootPathSheet excluded.                           |
 
 **Explicitly excluded from Group B during early migration:**
+
 - MobileHeader
 - TabletHeader
 - MobileLayout
@@ -299,42 +305,43 @@ These are repeated patterns across **desktop** components that benefit from a co
 
 These cannot be safely migrated to Tailwind utilities or components:
 
-| Category | Examples | Reason |
-|---|---|---|
-| **Complex keyframe animations** | `iconFlicker`, `dark-title-shimmer`, `dark-title-glow` | Tailwind's `@keyframes` support is limited; these use multi-layer `filter: drop-shadow()` and complex gradient compositions |
-| **PhotoSwipe overrides** | `.pswp__button--arrow--next`, `.pswp__top-bar` | Third-party CSS class names; must override as-is |
-| **vue-spring-bottom-sheet overrides** | `[data-vsbs-sheet]`, `[data-vsbs-backdrop]`, `[data-vsbs-scroll]` | Third-party attribute selectors; must override as-is |
-| **`color-mix(in srgb, ...)` rules** | 20+ occurrences | Tailwind has no `color-mix` utility; cannot be replaced by `bg-*` or opacity |
-| **`backdrop-filter` with specific blur values** | Mobile headers, lightbox panels | Tailwind's `backdrop-blur-*` may work but must also output `-webkit-backdrop-filter` |
-| **iOS Safari safe-area fixes** | `env(safe-area-inset-top)`, `env(safe-area-inset-bottom)` | Tailwind's `safe` prefix is limited; mobile headers need exact pixel behavior |
-| **Album card 3D perspective transforms** | `perspective: 1000px`, `transform-style: preserve-3d`, `translateZ()` | Tailwind has no 3D transform utilities |
-| **Album card dark mode neon glow composites** | `--glow-card-hover`, `--glow-card-hover-front` with 4-5 box-shadow layers | Beyond Tailwind's shadow scale |
-| **Brand title gradient text** | `background-clip: text`, `-webkit-text-fill-color: transparent`, `filter: drop-shadow()` (multi-layer) | Tailwind's gradient text utilities cannot replicate the multi-layer drop-shadow |
-| **Custom scrollbar styling** | 38 occurrences of `::-webkit-scrollbar` | Tailwind has no scrollbar utility; needs SCSS |
-| **Touch device hover disables** | `@media (hover: none)` resetting hover states | Critical for avoiding sticky hover on iOS |
-| **Reduced motion overrides** | `@media (prefers-reduced-motion: reduce)` | System-level a11y; must remain |
-| **High contrast mode** | `@media (prefers-contrast: high)` | System-level a11y; must remain |
-| **Theme toggle track/thumb animation** | Multi-step `cubic-bezier` with gradient backgrounds | Complex multi-element orchestration |
+| Category                                        | Examples                                                                                               | Reason                                                                                                                      |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| **Complex keyframe animations**                 | `iconFlicker`, `dark-title-shimmer`, `dark-title-glow`                                                 | Tailwind's `@keyframes` support is limited; these use multi-layer `filter: drop-shadow()` and complex gradient compositions |
+| **PhotoSwipe overrides**                        | `.pswp__button--arrow--next`, `.pswp__top-bar`                                                         | Third-party CSS class names; must override as-is                                                                            |
+| **vue-spring-bottom-sheet overrides**           | `[data-vsbs-sheet]`, `[data-vsbs-backdrop]`, `[data-vsbs-scroll]`                                      | Third-party attribute selectors; must override as-is                                                                        |
+| **`color-mix(in srgb, ...)` rules**             | 20+ occurrences                                                                                        | Tailwind has no `color-mix` utility; cannot be replaced by `bg-*` or opacity                                                |
+| **`backdrop-filter` with specific blur values** | Mobile headers, lightbox panels                                                                        | Tailwind's `backdrop-blur-*` may work but must also output `-webkit-backdrop-filter`                                        |
+| **iOS Safari safe-area fixes**                  | `env(safe-area-inset-top)`, `env(safe-area-inset-bottom)`                                              | Tailwind's `safe` prefix is limited; mobile headers need exact pixel behavior                                               |
+| **Album card 3D perspective transforms**        | `perspective: 1000px`, `transform-style: preserve-3d`, `translateZ()`                                  | Tailwind has no 3D transform utilities                                                                                      |
+| **Album card dark mode neon glow composites**   | `--glow-card-hover`, `--glow-card-hover-front` with 4-5 box-shadow layers                              | Beyond Tailwind's shadow scale                                                                                              |
+| **Brand title gradient text**                   | `background-clip: text`, `-webkit-text-fill-color: transparent`, `filter: drop-shadow()` (multi-layer) | Tailwind's gradient text utilities cannot replicate the multi-layer drop-shadow                                             |
+| **Custom scrollbar styling**                    | 38 occurrences of `::-webkit-scrollbar`                                                                | Tailwind has no scrollbar utility; needs SCSS                                                                               |
+| **Touch device hover disables**                 | `@media (hover: none)` resetting hover states                                                          | Critical for avoiding sticky hover on iOS                                                                                   |
+| **Reduced motion overrides**                    | `@media (prefers-reduced-motion: reduce)`                                                              | System-level a11y; must remain                                                                                              |
+| **High contrast mode**                          | `@media (prefers-contrast: high)`                                                                      | System-level a11y; must remain                                                                                              |
+| **Theme toggle track/thumb animation**          | Multi-step `cubic-bezier` with gradient backgrounds                                                    | Complex multi-element orchestration                                                                                         |
 
 ### 4.4 Group D — Do Not Touch During Initial Tailwind Migration
 
 These files and their behaviors are **frozen** during phases 0-2. Any change to these requires a separate mobile/tablet design spec, real iPhone/iPad testing, and explicit approval.
 
-| File | Reason Frozen |
-|---|---|
-| **`MobileHeader.vue`** | Previous Phase 1 attempt showed real iPhone Safari regressions when mobile header was touched. Complex search expand/collapse animation, backdrop-filter, safe-area, overlay management. |
-| **`TabletHeader.vue`** | Same risk profile as MobileHeader. Search expand animation, breadcrumb integration, overlay. |
-| **`MobileLayout.vue`** | Sidebar behavior, backdrop, padding transitions tied to header/bottom bar visibility. |
-| **`TabletLayout.vue`** | Sidebar overlay behavior, backdrop transition, tablet-specific grid. |
-| **`LightboxMobileSheet.vue`** | vue-spring-bottom-sheet integration, 200+ lines of VSBS CSS overrides with `[data-vsbs-*]` selectors, mobile tabs, copy interactions. |
-| **`RootPathSheet.vue`** | Mobile bottom sheet with paste, iOS textarea focus quirks, safe-area awareness. |
-| **`MobileFloatingBottomBar.vue`** | Fixed bottom nav tied to `safe-area-inset-bottom`, scroll visibility sync. |
-| **`MobilePhotoSwipe.vue`** | PhotoSwipe + safe-area positioning, mobile gesture handling. |
-| **`TabletPhotoSwipe.vue`** | Tablet-specific PhotoSwipe integration. |
-| **`AlbumCardMobile.vue`** | Mobile-specific card styling with compact layout, mobile hover overrides. |
-| **`AlbumCardTablet.vue`** | Tablet-specific card styling. |
+| File                              | Reason Frozen                                                                                                                                                                            |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`MobileHeader.vue`**            | Previous Phase 1 attempt showed real iPhone Safari regressions when mobile header was touched. Complex search expand/collapse animation, backdrop-filter, safe-area, overlay management. |
+| **`TabletHeader.vue`**            | Same risk profile as MobileHeader. Search expand animation, breadcrumb integration, overlay.                                                                                             |
+| **`MobileLayout.vue`**            | Sidebar behavior, backdrop, padding transitions tied to header/bottom bar visibility.                                                                                                    |
+| **`TabletLayout.vue`**            | Sidebar overlay behavior, backdrop transition, tablet-specific grid.                                                                                                                     |
+| **`LightboxMobileSheet.vue`**     | vue-spring-bottom-sheet integration, 200+ lines of VSBS CSS overrides with `[data-vsbs-*]` selectors, mobile tabs, copy interactions.                                                    |
+| **`RootPathSheet.vue`**           | Mobile bottom sheet with paste, iOS textarea focus quirks, safe-area awareness.                                                                                                          |
+| **`MobileFloatingBottomBar.vue`** | Fixed bottom nav tied to `safe-area-inset-bottom`, scroll visibility sync.                                                                                                               |
+| **`MobilePhotoSwipe.vue`**        | PhotoSwipe + safe-area positioning, mobile gesture handling.                                                                                                                             |
+| **`TabletPhotoSwipe.vue`**        | Tablet-specific PhotoSwipe integration.                                                                                                                                                  |
+| **`AlbumCardMobile.vue`**         | Mobile-specific card styling with compact layout, mobile hover overrides.                                                                                                                |
+| **`AlbumCardTablet.vue`**         | Tablet-specific card styling.                                                                                                                                                            |
 
 **Also frozen during initial phases:**
+
 - GalleryGrid virtualization (`@tanstack/vue-virtual` row virtualization logic)
 - GalleryGrid image loading behavior (IntersectionObserver, load-more sentinel)
 - Lightbox open/close behavior
@@ -381,6 +388,7 @@ Rather than hardcoding Tailwind palette colors (e.g., `bg-stone-100`) or mapping
   --radius-gallery-md: var(--gallery-radius-md);
 }
 ```
+
 Gallery-specific tokens remain available only under explicit brand/gallery names and must not replace shadcn Stone defaults for standard UI components.
 
 ### 5.2 Class Naming Strategy
@@ -406,6 +414,7 @@ Gallery uses `html[data-theme="dark"]` attribute selector (NOT Tailwind's `dark:
 Tailwind v4 CSS-first approach: Use `@custom-variant` to register the `[data-theme="dark"]` selector so that `dark:bg-background` resolves correctly against our existing `data-theme="dark"` attribute.
 
 Tailwind v3 alternative (not recommended):
+
 ```js
 darkMode: ['selector', '[data-theme="dark"]'],
 ```
@@ -419,6 +428,7 @@ darkMode: ['selector', '[data-theme="dark"]'],
 **Decision:** shadcn-vue may be adopted **selectively** for standard desktop UI primitives and behavior-heavy desktop components when it provides better accessibility, keyboard handling, focus management, or maintainability than our hand-rolled implementation.
 
 **Constraints (hard):**
+
 - shadcn-vue is NOT a wholesale replacement framework.
 - shadcn-vue must NOT override gallery brand identity on approved brand surfaces. For standard UI primitives, shadcn-vue default appearance is the baseline.
 - shadcn-vue standard UI tokens are supplied by the implemented Stone bridge (`_shadcn-token-bridge.css`). Do not remap them to gallery warm tokens (see §6.4).
@@ -451,6 +461,7 @@ New policy: brand hero keeps gallery identity; standard UI follows shadcn-vue pi
 For standard UI primitives and desktop UI components, use shadcn-vue pixel-level defaults as the baseline.
 
 Preserve upstream shadcn-vue defaults for:
+
 - component anatomy
 - spacing
 - radius
@@ -474,6 +485,7 @@ These should avoid gallery-custom mechanics unless approved.
 #### Brand/gallery-specific surfaces
 
 Legacy gallery warm colors, warm shadows, premium hover effects, custom easing, custom radius, and brand-specific visual effects are reserved for:
+
 - brand hero
 - logo/title treatment
 - explicitly approved branding surfaces
@@ -558,6 +570,7 @@ These are standard UI primitives that are reasonable candidates for early shadcn
 - Separator
 
 **Guidance:**
+
 - Prefer shadcn-vue or shadcn-vue-inspired internal wrappers for these.
 - Standard UI primitives should follow shadcn-vue pixel-level defaults (see §6.1a). Do not apply gallery warm colors, warm shadows, custom radius, or custom hover effects to these components by default.
 - Colors should be conservative and shadcn-compatible (see §6.1b). Gallery warm palette is reserved for brand hero and explicitly approved brand surfaces.
@@ -568,15 +581,16 @@ These are standard UI primitives that are reasonable candidates for early shadcn
 
 These are possible shadcn-vue replacements, but they require careful behavior and visual parity review:
 
-| Current Component | shadcn-vue Candidate | Notes |
-|---|---|---|
-| SettingsModal | Dialog | Dialog may improve focus trap and accessibility. Existing animations and UX must be preserved or explicitly reviewed. |
-| Sort/density menu | Dropdown Menu / Select | Behavior-heavy; must preserve existing sort/density logic and dropdown animation feel. |
-| Toast system | Sonner or Toast | Do NOT replace the toast manager unless there is a clear behavior benefit and tests prove parity. |
-| Sidebar/Folder tree | Sidebar / Collapsible / Button pattern | The existing folder tree is app-specific. Only use Collapsible/Button patterns if they reduce complexity. Do not force a full shadcn Sidebar. |
-| GalleryGrid toolbar | Button / Dropdown / Slider only | Only migrate toolbar controls. Never touch GalleryGrid virtualization, image loading, sentinel logic, skeleton logic, or lightbox trigger behavior. |
+| Current Component   | shadcn-vue Candidate                   | Notes                                                                                                                                               |
+| ------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SettingsModal       | Dialog                                 | Dialog may improve focus trap and accessibility. Existing animations and UX must be preserved or explicitly reviewed.                               |
+| Sort/density menu   | Dropdown Menu / Select                 | Behavior-heavy; must preserve existing sort/density logic and dropdown animation feel.                                                              |
+| Toast system        | Sonner or Toast                        | Do NOT replace the toast manager unless there is a clear behavior benefit and tests prove parity.                                                   |
+| Sidebar/Folder tree | Sidebar / Collapsible / Button pattern | The existing folder tree is app-specific. Only use Collapsible/Button patterns if they reduce complexity. Do not force a full shadcn Sidebar.       |
+| GalleryGrid toolbar | Button / Dropdown / Slider only        | Only migrate toolbar controls. Never touch GalleryGrid virtualization, image loading, sentinel logic, skeleton logic, or lightbox trigger behavior. |
 
 **Guidance:**
+
 - Migration must be incremental. Do not rewrite the whole feature.
 - Before/after Playwright screenshot comparison is mandatory (see §10).
 - Keyboard navigation, focus trap, Escape key, outside click, and dark/light theme must be tested per component.
@@ -595,6 +609,7 @@ These must stay frozen. Do not migrate to shadcn-vue in Phase 1:
 - iOS Safari safe-area / gesture fixes
 
 **Guidance:**
+
 - Do not rewrite gesture, safe-area, or mobile behavior.
 - Do not replace PhotoSwipe or lightbox internals.
 - Do not migrate animation-heavy premium gallery effects.
@@ -625,6 +640,7 @@ These must stay frozen. Do not migrate to shadcn-vue in Phase 1:
 shadcn-vue components reference CSS variables from a shadcn theme (defined on `:root` in a `globals.css` — e.g., `--background`, `--foreground`, `--primary`, `--muted`, `--accent`, `--border`, `--ring`, `--radius`). Gallery standard UI now uses the shadcn-vue Stone values for those variables.
 
 **Bridging approach:**
+
 - `_shadcn-token-bridge.css` is the canonical shadcn token layer, imported after `tokens.css` and before Tailwind.
 - The bridge supplies exact shadcn-vue Stone oklch values for shadcn color variable names (e.g., `--background`, `--foreground`, `--primary`).
 - Do NOT map shadcn variables to gallery warm/orange values or legacy gallery surface/accent variables.
@@ -667,11 +683,13 @@ shadcn-vue components reference CSS variables from a shadcn theme (defined on `:
 ```
 
 **Color values:**
+
 - Color mapping follows the final Stone policy at the top of this document (see §6.1b).
 - `--accent` is Stone neutral, not gallery orange/warm.
 - Gallery warm palette is reserved for the brand hero and explicitly approved brand/artwork surfaces.
 
 **Guidance:**
+
 - Token bridging is a **pre-requisite** to any shadcn component adoption.
 - Do not write a custom gallery-colored shadcn theme for standard UI.
 - Document any future deviation from Stone defaults and require explicit user approval.
@@ -683,21 +701,26 @@ shadcn-vue components reference CSS variables from a shadcn theme (defined on `:
 Every shadcn-vue adoption step must run:
 
 **Type and build:**
+
 - `vue-tsc --noEmit`
 - `npm run build`
 
 **Existing regression tests:**
+
 - All existing Playwright tests, including active `tailwind-preflight.spec.ts` (25 tests)
 
 **New component-specific tests:**
+
 - Visual regression screenshot for the affected component (light + dark) — pixel diff is informational, use manual inspection
 
 **For mobile/tablet freeze verification:**
+
 - Verify MobileHeader still renders and functions
 - Verify TabletHeader still renders and functions
 - Verify RootPathSheet and LightboxMobileSheet are untouched if not in scope
 
 **For desktop behavior-heavy components (Dialog, Popover, Dropdown Menu):**
+
 - Test keyboard navigation (Tab, Arrow keys, Enter, Space)
 - Test focus trap (if Dialog or Popover)
 - Test Escape key dismiss
@@ -707,6 +730,7 @@ Every shadcn-vue adoption step must run:
 - Test scroll lock behavior (Dialog should lock body scroll; Popover may or may not)
 
 **For mobile/tablet safety gates:**
+
 - Grep the diff for any changes to files listed in Group C. If any found, block the PR until they are reverted.
 
 ---
@@ -728,6 +752,7 @@ Every shadcn-vue adoption step must run:
 ### 7.1 What Tailwind Preflight Does
 
 Tailwind's Preflight (based on modern-normalize) resets:
+
 - `*` box-sizing to `border-box`
 - Removes default margins from `body`, `h1-h6`, `blockquote`, `dl`, `dd`, etc.
 - Resets heading font sizes/weights
@@ -740,16 +765,16 @@ Tailwind's Preflight (based on modern-normalize) resets:
 
 ### 7.2 Risk Assessment for This Repo
 
-| Preflight Reset | Gallery Already Handles? | Risk | Notes |
-|---|---|---|---|
-| `box-sizing: border-box` | ✅ Yes (`main.scss:237-241`) | **None** — already applied |
-| Body margin reset | ✅ Yes (`main.scss:243`) | **None** |
-| Heading size reset | ⚠️ Partial — `h1-h6` set to `font-family: var(--font-body)` but sizes are per-component | **Medium** — Preflight would remove browser-default heading sizes. Gallery Card titles use explicit `font-size`. AppHeader `h1` uses explicit `font-size: clamp(22px, 3vw, 30px)`. Safe. |
-| Image block display | ⚠️ Gallery images use `object-fit: cover` with `display: block` explicitly | **Low** — PhotoCard sets `img { display: block }`. Preflight's `img { display: block }` is compatible. |
-| Button font inheritance | ✅ Yes (`main.scss:261-263`) | **None** |
-| Input/textarea reset | ⚠️ Gallery inputs use explicit `border: none; background: transparent` in scoped styles | **Medium** — Preflight removes native `appearance` which may change select element rendering. Must test `<select>` elements (search scope, theme select). |
-| List style reset | ⚠️ Not used in gallery currently | **None** |
-| `-webkit-tap-highlight-color` | Already handled in `_mobile-overrides.scss:58` | **None** |
+| Preflight Reset               | Gallery Already Handles?                                                                | Risk                                                                                                                                                                                     | Notes |
+| ----------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| `box-sizing: border-box`      | ✅ Yes (`main.scss:237-241`)                                                            | **None** — already applied                                                                                                                                                               |
+| Body margin reset             | ✅ Yes (`main.scss:243`)                                                                | **None**                                                                                                                                                                                 |
+| Heading size reset            | ⚠️ Partial — `h1-h6` set to `font-family: var(--font-body)` but sizes are per-component | **Medium** — Preflight would remove browser-default heading sizes. Gallery Card titles use explicit `font-size`. AppHeader `h1` uses explicit `font-size: clamp(22px, 3vw, 30px)`. Safe. |
+| Image block display           | ⚠️ Gallery images use `object-fit: cover` with `display: block` explicitly              | **Low** — PhotoCard sets `img { display: block }`. Preflight's `img { display: block }` is compatible.                                                                                   |
+| Button font inheritance       | ✅ Yes (`main.scss:261-263`)                                                            | **None**                                                                                                                                                                                 |
+| Input/textarea reset          | ⚠️ Gallery inputs use explicit `border: none; background: transparent` in scoped styles | **Medium** — Preflight removes native `appearance` which may change select element rendering. Must test `<select>` elements (search scope, theme select).                                |
+| List style reset              | ⚠️ Not used in gallery currently                                                        | **None**                                                                                                                                                                                 |
+| `-webkit-tap-highlight-color` | Already handled in `_mobile-overrides.scss:58`                                          | **None**                                                                                                                                                                                 |
 
 ### 7.3 PhotoSwipe & Third-Party Impact
 
@@ -766,15 +791,18 @@ Similarly, vue-spring-bottom-sheet generates `[data-vsbs-*]` elements with its o
 **Staged approach:**
 
 **Phase 0A — Start without Preflight (initial)**
+
 - Started with Tailwind v4 utilities and theme layer only.
 - Phase 0A initially omitted Preflight during initial foundation (commit `90e6623`).
 
 **Phase 0B — Screenshot baselines**
+
 - Desktop/mobile/tablet screenshot baselines captured with Preflight disabled.
 - 23 Playwright smoke tests added — all passed, no regressions found (commit `b2dde0b`).
 - ✅ Phase 0B complete.
 
 **Phase 0C — Preflight enabled — testing passed**
+
 - Preflight enabled at commit `6eb447d` + `@import "tailwindcss/preflight.css" layer(base);`
 - Deployed to VPS for real-device testing on PC, iPad, iPhone.
 - ✅ User tested on PC, iPad, iPhone — 25/25 `tailwind-preflight.spec.ts` tests pass
@@ -782,6 +810,7 @@ Similarly, vue-spring-bottom-sheet generates `[data-vsbs-*]` elements with its o
 - ✅ No `_tailwind-patches.scss` patches required for Preflight (no regressions found)
 
 **Historical disabled-Preflight compatibility notes:**
+
 - Tailwind utilities are fully functional without Preflight. Most utilities do not depend on Preflight resets.
 - A few utilities (notably `border`, `border-*`) assume Preflight has reset `border-style` to `solid`. When Preflight was disabled, explicit `border-style: solid` could be needed alongside `border` utility in rare cases.
 - No other Tailwind utility requires Preflight to function correctly.
@@ -819,21 +848,23 @@ During Phase 0C Preflight verification, the following patches were candidate saf
 }
 
 /* Preserve html/body height */
-html, body {
+html,
+body {
   height: 100%;
 }
 ```
 
 **Specific Preflight patches for gallery components (if Preflight is enabled):**
 
-| Affected Element | Patch | Reason |
-|---|---|---|
-| `select` elements (scope selector, theme select) | Set explicit `appearance: auto` or style as custom | Preflight removes native OS styling |
-| PhotoSwipe images | `img { display: revert }` inside `.pswp` | Preflight `display: block` may break swipe layout |
-| VSBS header elements | Revert heading resets inside `[data-vsbs-*]` | VSBS uses its own heading styles |
-| `#app` height | Explicit `height: 100%` | Preflight may not set this |
+| Affected Element                                 | Patch                                              | Reason                                            |
+| ------------------------------------------------ | -------------------------------------------------- | ------------------------------------------------- |
+| `select` elements (scope selector, theme select) | Set explicit `appearance: auto` or style as custom | Preflight removes native OS styling               |
+| PhotoSwipe images                                | `img { display: revert }` inside `.pswp`           | Preflight `display: block` may break swipe layout |
+| VSBS header elements                             | Revert heading resets inside `[data-vsbs-*]`       | VSBS uses its own heading styles                  |
+| `#app` height                                    | Explicit `height: 100%`                            | Preflight may not set this                        |
 
 **Safety verification:**
+
 1. Phase 0C Preflight verification: Run full Playwright screenshot tests on desktop/mobile/tablet
 2. With Preflight enabled: Run same tests, compare pixel diff
 3. Investigate any deviations manually; pixel diff is informational, not a blocker
@@ -847,11 +878,13 @@ html, body {
 **Goal:** Install and configure Tailwind without changing any component styling.
 
 **Preflight tasks completed:**
+
 - ✅ Playwright is configured in the repo
 - ✅ Baseline capture commands defined
 - ✅ Baseline captures run before Tailwind install
 
 **Tasks completed (commit 90e6623):**
+
 - ✅ `npm install -D tailwindcss @tailwindcss/vite`
 - ✅ Tailwind v4 Vite plugin added to `vite.config.ts`
 - ✅ No `tailwind.config.js` — CSS-first configuration used
@@ -875,6 +908,7 @@ html, body {
 Phase 1 adopts shadcn-vue primitives with upstream pixel-level defaults preserved. Button, Badge, Input, Separator, and Breadcrumb should look and behave as close to shadcn-vue Tailwind v4 defaults as possible. Gallery legacy visual identity is not applied to these primitives except where explicitly approved.
 
 **Group A candidates (earliest targets):**
+
 - Button / IconButton — replace hand-rolled icon button patterns with shadcn Button at shadcn pixel-level defaults
 - Badge / Chip — replace hand-rolled badge styles with shadcn Badge at shadcn pixel-level defaults
 - Input — standardize input styling with shadcn Input at shadcn pixel-level defaults
@@ -882,6 +916,7 @@ Phase 1 adopts shadcn-vue primitives with upstream pixel-level defaults preserve
 - Breadcrumb — simple flex layout with separators; shadcn or internal wrapper
 
 **Group A candidates (second wave, same phase):**
+
 - Select — desktop scope selector, sort dropdown trigger
 - Dropdown Menu — sort/density menus
 - Tooltip — hover info on desktop controls
@@ -890,6 +925,7 @@ Phase 1 adopts shadcn-vue primitives with upstream pixel-level defaults preserve
 - Tabs — if needed for future admin UI
 
 **Guidance:**
+
 - Prefer shadcn-vue or shadcn-vue-inspired internal wrappers for these.
 - Standard UI primitives follow shadcn-vue pixel-level defaults (see §6.1a). Do not apply gallery warm colors, warm shadows, custom radius, or custom hover effects to these primitives by default.
 - Colors should be conservative and shadcn-compatible (see §6.1b). Gallery warm palette is reserved for brand hero and explicitly approved brand surfaces.
@@ -898,25 +934,28 @@ Phase 1 adopts shadcn-vue primitives with upstream pixel-level defaults preserve
 
 **Desktop-only Tailwind utilities (non-shadcn, safe to do in parallel):**
 
-| Component | Migration | Risk |
-|---|---|---|
-| AppHeader `hb-brand-hero` static layout (flex, gap, padding) | Tailwind utilities | Low |
-| Desktop toast shell (container, item layout, not colors) | Tailwind utilities | Low |
-| GalleryGrid toolbar layout (grid, gap, alignment) | Tailwind utilities | Low — desktop toolbar/control wrapper styles only. Do not touch scroller, virtual rows, sentinels, image loading states, skeleton behavior, virtualization logic, lightbox trigger behavior, or image sizing policy. |
-| SidebarHeader layout | Tailwind utilities | Low |
-| FolderTreeItem layout | Tailwind utilities | Low |
+| Component                                                    | Migration          | Risk                                                                                                                                                                                                                 |
+| ------------------------------------------------------------ | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AppHeader `hb-brand-hero` static layout (flex, gap, padding) | Tailwind utilities | Low                                                                                                                                                                                                                  |
+| Desktop toast shell (container, item layout, not colors)     | Tailwind utilities | Low                                                                                                                                                                                                                  |
+| GalleryGrid toolbar layout (grid, gap, alignment)            | Tailwind utilities | Low — desktop toolbar/control wrapper styles only. Do not touch scroller, virtual rows, sentinels, image loading states, skeleton behavior, virtualization logic, lightbox trigger behavior, or image sizing policy. |
+| SidebarHeader layout                                         | Tailwind utilities | Low                                                                                                                                                                                                                  |
+| FolderTreeItem layout                                        | Tailwind utilities | Low                                                                                                                                                                                                                  |
 
 **App-specific layout (AppHeader, toast shell, GalleryGrid toolbar, SidebarHeader, FolderTreeItem):**
+
 - Tailwind utilities are allowed for layout, but standard controls inside these areas should still use shadcn-like defaults.
 - Do not introduce warm gallery shadows/radius/hover effects into generic controls unless approved.
 
 **Completed (commits d980005..f00b167):** ✅
+
 - Button, Badge, Input, Separator, Breadcrumb — shadcn-vue with pixel-level defaults
 - AppHeader, toast shell, GalleryGrid toolbar, SidebarHeader, FolderTreeItem — Tailwind utilities for layout
 - 101/101 Playwright tests pass
 - Phase 1 token bridge refactored to neutral shadcn oklch values (commit 165bd0a)
 
 **Not allowed in Phase 1 (confirming):**
+
 - ❌ No MobileHeader, TabletHeader
 - ❌ No RootPathSheet, LightboxMobileSheet
 - ❌ No mobile/tablet layout components
@@ -933,6 +972,7 @@ Phase 1 adopts shadcn-vue primitives with upstream pixel-level defaults preserve
 Behavior-heavy components such as Dialog, Dropdown Menu, Select, Tooltip, Popover, and Tabs should also preserve shadcn-vue defaults first. Only after the user reviews the default shadcn-like result should additional gallery-specific styling be considered.
 
 **Candidates:**
+
 - **Dialog** — SettingsModal replacement. Studied for focus trap, Escape-key dismiss, outside-click dismiss, `aria-modal`, body scroll lock.
 - **Dropdown Menu** — GalleryGrid sort/density menus. Studied for keyboard nav, typeahead, focus management.
 - **Select** — Desktop scope/theming selectors. Studied for native vs. custom select behavior parity.
@@ -941,11 +981,13 @@ Behavior-heavy components such as Dialog, Dropdown Menu, Select, Tooltip, Popove
 - **Tabs** — If introduced for admin or settings UI.
 
 **Pre-requisites:**
+
 - Dependency and token bridge audit completed (see §6.4).
 - Token bridging file created and verified in both light and dark modes (see §6.5).
 - Phase 1 Group A lightweight candidates (Button, Badge, Input, Separator, Breadcrumb) already adopted and proven stable.
 
 **Completed (commits a304f0f, 733eb31, 91ed421):** ✅
+
 - Dialog, Dropdown Menu, Select, Tooltip, Popover, Tabs — 51 component files generated via `npx shadcn-vue add`
 - 14 animation modifier utilities (`fade-in-0`, `zoom-in-95`, `slide-in-from-left-1/2`, etc.) added to `tailwind.css` with CSS-variable-driven keyframes
 - All components follow pixel-level defaults policy (shadcn radius/shadow/hover, no gallery warm)
@@ -953,6 +995,7 @@ Behavior-heavy components such as Dialog, Dropdown Menu, Select, Tooltip, Popove
 - 101/101 Playwright tests pass
 
 **Guidance:**
+
 - Each component must pass the full testing checklist in §6.6 before being considered "adopted."
 - Do not replace SettingsModal wholesale in one commit — adopt Dialog as the shell first, then migrate internal panels incrementally.
 - Present the default shadcn-like result to the user for review before applying any gallery-specific styling.
@@ -962,6 +1005,7 @@ Behavior-heavy components such as Dialog, Dropdown Menu, Select, Tooltip, Popove
 **Completed — Phase 2A integrates shadcn components into 6 desktop UI areas**
 
 **Phase 2A — Desktop UI Integration (completed commit 7ac7ec9):** ✅
+
 - Open folder button → shadcn Button variant="outline"
 - Nav buttons (← →) → shadcn Button variant="ghost" size="icon"
 - Sort dropdown → shadcn DropdownMenu
@@ -972,6 +1016,7 @@ Behavior-heavy components such as Dialog, Dropdown Menu, Select, Tooltip, Popove
 - 101/101 Playwright tests pass
 
 **Phase 2B — Desktop Status & Dialog Integration (completed commit a26fe9e; Index Status polling refactored afterward):** ✅
+
 - IndexStatusChip + IndexStatusPanel — desktop component pair with shadcn Popover + Badge, path-scoped `/api/index/status?path=...`, adaptive polling, and no mobile/tablet imports
 - SettingsModal → shadcn Dialog — replaced hand-rolled modal shell, removed useFocusTrap (built-in), removed 226 lines stale CSS
 - SearchFilterChips — new component using shadcn Badge variant="secondary"
@@ -980,6 +1025,7 @@ Behavior-heavy components such as Dialog, Dropdown Menu, Select, Tooltip, Popove
 - vue-tsc + build pass, pixel-level defaults policy followed
 
 **Allowed candidates:**
+
 - Desktop AdvancedSearch layout (future component, Tailwind-first, shadcn-vue Input/Badge/Button as building blocks)
 - Desktop filter chips (future SearchFilterChips, Tailwind + shadcn-vue Stone defaults, shadcn Badge for chip base)
 - Desktop popover/dialog shell (future components, Tailwind `@layer`, shadcn Popover/Dialog where behavior/a11y benefits are clear)
@@ -987,6 +1033,7 @@ Behavior-heavy components such as Dialog, Dropdown Menu, Select, Tooltip, Popove
 - Desktop command/search palette shell (shadcn Command pattern where keyboard navigation adds value)
 
 **Guidance:**
+
 - shadcn-vue may be used where behavior or accessibility benefits are clear.
 - Preserve gallery brand identity on approved brand surfaces only, not for standard UI primitives. Standard shadcn components use shadcn-vue Stone pixel-level defaults (see §6.4, §6.5).
 - New standard UI components built in this phase should be Tailwind-first with shadcn-vue Stone tokens, using shadcn-vue primitives where they reduce boilerplate for standard interaction patterns.
@@ -996,6 +1043,7 @@ Behavior-heavy components such as Dialog, Dropdown Menu, Select, Tooltip, Popove
 **Not implementing now. Revisit when FRONTEND plan Phase 3 implementation begins.**
 
 **Scope (per FRONTEND plan Phase 3 — lightweight, read-only, desktop-first):**
+
 - A lightweight read-only metadata list that reuses the existing `/api/search?scope=all&limit=200` endpoint.
 - Uses a native table or basic component — not TanStack Table.
 - Columns: thumbnail, name, folder, model, sampler, seed, dimensions, modified date.
@@ -1004,12 +1052,14 @@ Behavior-heavy components such as Dialog, Dropdown Menu, Select, Tooltip, Popove
 - Desktop-only; mobile/tablet deferred to separate spec.
 
 **Explicitly excluded from MVP:**
+
 - Row selection, bulk actions, column visibility toggle.
 - Duplicate finder, broken image scanner, diagnostics dashboard.
 - Watcher/refresh control panels.
 - Editable or batch metadata.
 
 **Guidance:**
+
 - shadcn-vue can be considered for any standard UI chrome that accompanies the list (buttons, tooltips).
 - shadcn-vue must NOT be used for replacing gallery browsing UI (GalleryGrid, PhotoCard, lightbox).
 - No TanStack Table dependency is needed for this MVP. Revisit if a backend-paginated listing endpoint is added later.
@@ -1038,20 +1088,20 @@ Behavior-heavy components such as Dialog, Dropdown Menu, Select, Tooltip, Popove
 
 ### 9.2 Animation Classification by Migration Treatment
 
-| Animation | Treatment | Justification |
-|---|---|---|
-| `iconFlicker` (brand icon) | **Never migrate** | Multi-layer box-shadow animation with neon variables |
-| `dark-title-shimmer` (brand title) | **Never migrate** | Gradient background-position animation with `background-clip: text` |
-| `dark-title-glow` (brand title) | **Never migrate** | Multi-layer `filter: drop-shadow()` with specific rgba values |
-| `dark-underline-pulse` (brand title ::after) | **Never migrate** | Box-shadow pulse tied to theme variables |
-| `shimmer` (PhotoCard/SkeletonLoader) | **Possible future migration** | Could use Tailwind keyframe extension, but must preserve dark mode override and touch-device disable |
-| `searchBarExpand` (MobileHeader) | **Never migrate** | Mobile-header frozen; complex cubic-bezier with scaleX |
-| `thSearchBarIn` (TabletHeader) | **Never migrate** | Tablet-header frozen |
-| `fadeIn` / `slideUp` (SettingsModal) | **Keep in SCSS during Phase 1.** Defer animation migration to later phase after visual parity is proven. | Desktop-safe only, but animations must stay SCSS-first per §9.1 rule 2 (animations are not migrated unless visual parity is proven). |
-| `fadeIn` / `slideUp` (RootPathSheet) | **Keep in SCSS — do not touch** | Mobile-sensitive bottom sheet behavior, iOS textarea/focus quirks, previous mobile regressions. Deferred to future Mobile/Tablet Spec. |
-| `fadeSlideIn` (GalleryGrid scroller) | **Keep in SCSS** | Scoped to GalleryGrid; must not change |
-| `lucide-spin` | **Custom Tailwind utility:** `animate-[spin_1.5s_linear_infinite]` | Simple rotation; Tailwind equivalent exists, but default `animate-spin` duration is 1s instead of the existing 1.5s, so a custom duration utility is required for visual parity. |
-| Vue `<Transition>` animations (toast, sort dropdown, overlay) | **Preserve as-is** | Vue transition classes already handled; only surround markup can use Tailwind |
+| Animation                                                     | Treatment                                                                                                | Justification                                                                                                                                                                    |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `iconFlicker` (brand icon)                                    | **Never migrate**                                                                                        | Multi-layer box-shadow animation with neon variables                                                                                                                             |
+| `dark-title-shimmer` (brand title)                            | **Never migrate**                                                                                        | Gradient background-position animation with `background-clip: text`                                                                                                              |
+| `dark-title-glow` (brand title)                               | **Never migrate**                                                                                        | Multi-layer `filter: drop-shadow()` with specific rgba values                                                                                                                    |
+| `dark-underline-pulse` (brand title ::after)                  | **Never migrate**                                                                                        | Box-shadow pulse tied to theme variables                                                                                                                                         |
+| `shimmer` (PhotoCard/SkeletonLoader)                          | **Possible future migration**                                                                            | Could use Tailwind keyframe extension, but must preserve dark mode override and touch-device disable                                                                             |
+| `searchBarExpand` (MobileHeader)                              | **Never migrate**                                                                                        | Mobile-header frozen; complex cubic-bezier with scaleX                                                                                                                           |
+| `thSearchBarIn` (TabletHeader)                                | **Never migrate**                                                                                        | Tablet-header frozen                                                                                                                                                             |
+| `fadeIn` / `slideUp` (SettingsModal)                          | **Keep in SCSS during Phase 1.** Defer animation migration to later phase after visual parity is proven. | Desktop-safe only, but animations must stay SCSS-first per §9.1 rule 2 (animations are not migrated unless visual parity is proven).                                             |
+| `fadeIn` / `slideUp` (RootPathSheet)                          | **Keep in SCSS — do not touch**                                                                          | Mobile-sensitive bottom sheet behavior, iOS textarea/focus quirks, previous mobile regressions. Deferred to future Mobile/Tablet Spec.                                           |
+| `fadeSlideIn` (GalleryGrid scroller)                          | **Keep in SCSS**                                                                                         | Scoped to GalleryGrid; must not change                                                                                                                                           |
+| `lucide-spin`                                                 | **Custom Tailwind utility:** `animate-[spin_1.5s_linear_infinite]`                                       | Simple rotation; Tailwind equivalent exists, but default `animate-spin` duration is 1s instead of the existing 1.5s, so a custom duration utility is required for visual parity. |
+| Vue `<Transition>` animations (toast, sort dropdown, overlay) | **Preserve as-is**                                                                                       | Vue transition classes already handled; only surround markup can use Tailwind                                                                                                    |
 
 ### 9.3 Per-Effect Preservation Examples
 
@@ -1063,9 +1113,15 @@ Behavior-heavy components such as Dialog, Dropdown Menu, Select, Tooltip, Popove
   &:hover {
     transform: translateY(-4px);
     box-shadow: var(--album-hover-shadow);
-    .album-cover-diagonal { transform: translateY(-10px); }
-    .album-layer-back { transform: translate(-20px, 5px) rotate(-15deg); }
-    .album-layer-front { transform: translate(10px, -5px) rotate(12deg) scale(1.05); }
+    .album-cover-diagonal {
+      transform: translateY(-10px);
+    }
+    .album-layer-back {
+      transform: translate(-20px, 5px) rotate(-15deg);
+    }
+    .album-layer-front {
+      transform: translate(10px, -5px) rotate(12deg) scale(1.05);
+    }
   }
 }
 ```
@@ -1082,8 +1138,11 @@ html[data-theme="dark"] .brand-title {
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 0 4px ...) drop-shadow(0 0 12px ...) drop-shadow(0 0 20px ...);
-  animation: dark-title-shimmer 4s linear infinite, dark-title-glow 3s ease-in-out infinite;
+  filter: drop-shadow(0 0 4px...) drop-shadow(0 0 12px...)
+    drop-shadow(0 0 20px...);
+  animation:
+    dark-title-shimmer 4s linear infinite,
+    dark-title-glow 3s ease-in-out infinite;
 }
 ```
 
@@ -1108,51 +1167,51 @@ backdrop-filter: blur(12px);
 
 Required test captures (all at 2x DPR for retina accuracy):
 
-| # | Test | Devices | Views |
-|---|---|---|---|
-| 1 | Desktop gallery grid (light) | Chromium desktop 1440×900 | Full page |
-| 2 | Desktop gallery grid (dark) | Chromium desktop 1440×900 | Full page |
-| 3 | Desktop album card hover (light) | Chromium desktop 1440×900 | Single card close-up |
-| 4 | Desktop album card hover (dark) | Chromium desktop 1440×900 | Single card close-up |
-| 5 | Desktop photo card hover | Chromium desktop 1440×900 | Single card close-up |
-| 6 | Desktop AppHeader (brand icon + title + theme toggle + search) | Chromium desktop 1440×900 | Header region |
-| 7 | Desktop lightbox open (dark overlay) | Chromium desktop 1440×900 | Full viewport |
-| 8 | Desktop lightbox sidebar | Chromium desktop 1440×900 | Sidebar region |
-| 9 | Desktop SettingsModal open | Chromium desktop 1440×900 | Modal close-up |
-| 10 | Desktop toast notification | Chromium desktop 1440×900 | Toast region |
-| 11 | Desktop sort dropdown open | Chromium desktop 1440×900 | Dropdown close-up |
-| 12 | Desktop skeleton loading | Chromium desktop 1440×900 | Grid region |
-| 13 | Desktop empty state | Chromium desktop 1440×900 | Content region |
-| 14 | Mobile gallery grid (light) | iPhone 15 Pro (393×852) | Full page |
-| 15 | Mobile gallery grid (dark) | iPhone 15 Pro (393×852) | Full page |
-| 16 | Mobile header (collapsed) | iPhone 15 Pro (393×852) | Header region |
-| 17 | Mobile header (search active) | iPhone 15 Pro (393×852) | Header region |
-| 18 | Mobile sidebar open | iPhone 15 Pro (393×852) | Full viewport |
-| 19 | Mobile sort popover | iPhone 15 Pro (393×852) | Popover close-up |
-| 20 | Mobile lightbox + bottom sheet | iPhone 15 Pro (393×852) | Full viewport |
-| 21 | Mobile floating bottom bar | iPhone 15 Pro (393×852) | Bottom region |
-| 22 | Tablet gallery grid (light) | iPad Pro 11" (834×1194) | Full page |
-| 23 | Tablet header | iPad Pro 11" (834×1194) | Header region |
-| 24 | Tablet lightbox + panel | iPad Pro 11" (834×1194) | Full viewport |
+| #   | Test                                                           | Devices                   | Views                |
+| --- | -------------------------------------------------------------- | ------------------------- | -------------------- |
+| 1   | Desktop gallery grid (light)                                   | Chromium desktop 1440×900 | Full page            |
+| 2   | Desktop gallery grid (dark)                                    | Chromium desktop 1440×900 | Full page            |
+| 3   | Desktop album card hover (light)                               | Chromium desktop 1440×900 | Single card close-up |
+| 4   | Desktop album card hover (dark)                                | Chromium desktop 1440×900 | Single card close-up |
+| 5   | Desktop photo card hover                                       | Chromium desktop 1440×900 | Single card close-up |
+| 6   | Desktop AppHeader (brand icon + title + theme toggle + search) | Chromium desktop 1440×900 | Header region        |
+| 7   | Desktop lightbox open (dark overlay)                           | Chromium desktop 1440×900 | Full viewport        |
+| 8   | Desktop lightbox sidebar                                       | Chromium desktop 1440×900 | Sidebar region       |
+| 9   | Desktop SettingsModal open                                     | Chromium desktop 1440×900 | Modal close-up       |
+| 10  | Desktop toast notification                                     | Chromium desktop 1440×900 | Toast region         |
+| 11  | Desktop sort dropdown open                                     | Chromium desktop 1440×900 | Dropdown close-up    |
+| 12  | Desktop skeleton loading                                       | Chromium desktop 1440×900 | Grid region          |
+| 13  | Desktop empty state                                            | Chromium desktop 1440×900 | Content region       |
+| 14  | Mobile gallery grid (light)                                    | iPhone 15 Pro (393×852)   | Full page            |
+| 15  | Mobile gallery grid (dark)                                     | iPhone 15 Pro (393×852)   | Full page            |
+| 16  | Mobile header (collapsed)                                      | iPhone 15 Pro (393×852)   | Header region        |
+| 17  | Mobile header (search active)                                  | iPhone 15 Pro (393×852)   | Header region        |
+| 18  | Mobile sidebar open                                            | iPhone 15 Pro (393×852)   | Full viewport        |
+| 19  | Mobile sort popover                                            | iPhone 15 Pro (393×852)   | Popover close-up     |
+| 20  | Mobile lightbox + bottom sheet                                 | iPhone 15 Pro (393×852)   | Full viewport        |
+| 21  | Mobile floating bottom bar                                     | iPhone 15 Pro (393×852)   | Bottom region        |
+| 22  | Tablet gallery grid (light)                                    | iPad Pro 11" (834×1194)   | Full page            |
+| 23  | Tablet header                                                  | iPad Pro 11" (834×1194)   | Header region        |
+| 24  | Tablet lightbox + panel                                        | iPad Pro 11" (834×1194)   | Full viewport        |
 
 ### 10.2 Manual Real-Device Checklist
 
-| # | Check | Device |
-|---|---|---|
-| 1 | Header buttons: hamburger, search, sort, theme toggle all functional | iPhone (Safari) |
-| 2 | Search expand/collapse animation smooth | iPhone (Safari) |
-| 3 | Sidebar overlay opens/closes correctly | iPhone (Safari) |
-| 4 | Album cards tappable with press feedback | iPhone (Safari) |
-| 5 | Photo cards tappable (no sticky hover) | iPhone (Safari) |
-| 6 | Lightbox opens, swipes between images, sheet expands | iPhone (Safari) |
-| 7 | Safe-area: header below notch, bottom bar above home indicator | iPhone (Safari) |
-| 8 | No white background bleeding in dark mode | iPhone (Safari) |
-| 9 | Theme toggle works, dark/light transition smooth | iPhone (Safari) |
-| 10 | Same checks on iPad | iPad (Safari) |
-| 11 | Sidebar toggle, breadcrumb, all desktop controls | Desktop Chrome |
-| 12 | Album card 3D hover effect (desktop) | Desktop Chrome |
-| 13 | Brand title shimmer+glow (desktop dark) | Desktop Chrome |
-| 14 | Theme toggle animation (desktop) | Desktop Chrome |
+| #   | Check                                                                | Device          |
+| --- | -------------------------------------------------------------------- | --------------- |
+| 1   | Header buttons: hamburger, search, sort, theme toggle all functional | iPhone (Safari) |
+| 2   | Search expand/collapse animation smooth                              | iPhone (Safari) |
+| 3   | Sidebar overlay opens/closes correctly                               | iPhone (Safari) |
+| 4   | Album cards tappable with press feedback                             | iPhone (Safari) |
+| 5   | Photo cards tappable (no sticky hover)                               | iPhone (Safari) |
+| 6   | Lightbox opens, swipes between images, sheet expands                 | iPhone (Safari) |
+| 7   | Safe-area: header below notch, bottom bar above home indicator       | iPhone (Safari) |
+| 8   | No white background bleeding in dark mode                            | iPhone (Safari) |
+| 9   | Theme toggle works, dark/light transition smooth                     | iPhone (Safari) |
+| 10  | Same checks on iPad                                                  | iPad (Safari)   |
+| 11  | Sidebar toggle, breadcrumb, all desktop controls                     | Desktop Chrome  |
+| 12  | Album card 3D hover effect (desktop)                                 | Desktop Chrome  |
+| 13  | Brand title shimmer+glow (desktop dark)                              | Desktop Chrome  |
+| 14  | Theme toggle animation (desktop)                                     | Desktop Chrome  |
 
 ### 10.3 Before/After Comparison Protocol
 
@@ -1178,12 +1237,12 @@ Required test captures (all at 2x DPR for retina accuracy):
 
 ### 11.1 Rollback Points
 
-| Phase | Rollback Action | Recovery Time |
-|---|---|---|
-| Phase 0 | Remove Tailwind import, remove `tailwind.css`, remove Vite plugin, `npm uninstall tailwindcss` | ~5 min |
-| Phase 1 | Git revert affected component files to pre-migration commit | ~2 min |
-| Phase 2 | Git revert search/filter component files | ~5 min |
-| Phase 3 (Future / Deferred) | Git revert metadata/table component files | ~5 min |
+| Phase                       | Rollback Action                                                                                | Recovery Time |
+| --------------------------- | ---------------------------------------------------------------------------------------------- | ------------- |
+| Phase 0                     | Remove Tailwind import, remove `tailwind.css`, remove Vite plugin, `npm uninstall tailwindcss` | ~5 min        |
+| Phase 1                     | Git revert affected component files to pre-migration commit                                    | ~2 min        |
+| Phase 2                     | Git revert search/filter component files                                                       | ~5 min        |
+| Phase 3 (Future / Deferred) | Git revert metadata/table component files                                                      | ~5 min        |
 
 ### 11.2 Git Strategy
 
@@ -1210,64 +1269,64 @@ If a critical visual regression is discovered in production after Tailwind migra
 
 ### SCSS/CSS Files
 
-| File | Current Role | Risk | Phase | Recommendation | Reason |
-|---|---|---|---|---|---|
-| `styles/tokens.css` | Design tokens (90+ vars) | **High** | 0 | **Keep as-is**, map to Tailwind theme | Tokens must remain as CSS variables; Tailwind references them via `var()` |
-| `styles/main.scss` | Global resets, brand animations, base styles, a11y | **High** | 0 | **Keep in SCSS**, strip only Preflight-overlapping resets | Brand animations, scrollbar styles, focus-visible, high-contrast, reduced-motion must stay SCSS |
-| `styles/_breakpoints.scss` | SCSS breakpoint mixins | Low | 0 | **Keep in SCSS** but mark as deprecated | Tailwind has its own breakpoint system; SCSS mixins needed only for legacy components |
-| `styles/_mobile-overrides.scss` | Touch hover fixes, iOS Safari background, safe-area | **Critical** | 0 | **Keep 100% as-is — do not touch** | This file fixes real iOS Safari bugs. Any change = potential regression |
-| `styles/_lightbox-shared.scss` | PhotoSwipe overrides, accordion, focus rings | **High** | 0 | **Keep in SCSS** | PhotoSwipe class overrides + third-party selectors must stay |
-| `styles/_lightbox-desktop.scss` | Desktop metadata panel | Medium | 0 | **Keep in SCSS** | Complex lightbox styling with backdrop-filter, scrollbar, nested selectors |
-| `styles/_lightbox-mobile.scss` | Mobile bottom sheet | **High** | 0 | **Keep in SCSS — do not touch** | Mobile lightbox sheet is frozen |
-| `styles/_lightbox-tablet.scss` | Tablet bottom sheet | **High** | 0 | **Keep in SCSS — do not touch** | Tablet lightbox sheet is frozen |
-| `assets/fonts.css` | Google Fonts import | Low | 0 | **Keep as-is** | Font imports are orthogonal to Tailwind |
+| File                            | Current Role                                        | Risk         | Phase | Recommendation                                            | Reason                                                                                          |
+| ------------------------------- | --------------------------------------------------- | ------------ | ----- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `styles/tokens.css`             | Design tokens (90+ vars)                            | **High**     | 0     | **Keep as-is**, map to Tailwind theme                     | Tokens must remain as CSS variables; Tailwind references them via `var()`                       |
+| `styles/main.scss`              | Global resets, brand animations, base styles, a11y  | **High**     | 0     | **Keep in SCSS**, strip only Preflight-overlapping resets | Brand animations, scrollbar styles, focus-visible, high-contrast, reduced-motion must stay SCSS |
+| `styles/_breakpoints.scss`      | SCSS breakpoint mixins                              | Low          | 0     | **Keep in SCSS** but mark as deprecated                   | Tailwind has its own breakpoint system; SCSS mixins needed only for legacy components           |
+| `styles/_mobile-overrides.scss` | Touch hover fixes, iOS Safari background, safe-area | **Critical** | 0     | **Keep 100% as-is — do not touch**                        | This file fixes real iOS Safari bugs. Any change = potential regression                         |
+| `styles/_lightbox-shared.scss`  | PhotoSwipe overrides, accordion, focus rings        | **High**     | 0     | **Keep in SCSS**                                          | PhotoSwipe class overrides + third-party selectors must stay                                    |
+| `styles/_lightbox-desktop.scss` | Desktop metadata panel                              | Medium       | 0     | **Keep in SCSS**                                          | Complex lightbox styling with backdrop-filter, scrollbar, nested selectors                      |
+| `styles/_lightbox-mobile.scss`  | Mobile bottom sheet                                 | **High**     | 0     | **Keep in SCSS — do not touch**                           | Mobile lightbox sheet is frozen                                                                 |
+| `styles/_lightbox-tablet.scss`  | Tablet bottom sheet                                 | **High**     | 0     | **Keep in SCSS — do not touch**                           | Tablet lightbox sheet is frozen                                                                 |
+| `assets/fonts.css`              | Google Fonts import                                 | Low          | 0     | **Keep as-is**                                            | Font imports are orthogonal to Tailwind                                                         |
 
 ### Vue Components — Desktop (Safe to Migrate)
 
-| File | Risk | Phase | Recommendation | Notes |
-|---|---|---|---|---|
-| `AppHeader.vue` | **High** | 1 | **Partial migration** — static layout (flex, gap, padding) to Tailwind. Animations (brand-icon, brand-title, theme toggle, search neon) keep in SCSS. | Dark mode neon effects on `.search-box`, `.theme-toggle` must stay SCSS. |
-| `SettingsModal.vue` | Medium | 2+ | **Partial migration** — shell structure (backdrop, content, header/body/footer) to Tailwind `@layer`. Animations (`fadeIn`, `slideUp`) stay in SCSS and are deferred to Phase 2+ until visual parity is proven. | animation migration deferred — SCSS-first per §9.1 |
-| `ToastContainer.vue` | Low | 1 | **Full migration** — positioning, layout, TransitionGroup classes to Tailwind. | Keep ToastItem color variants in SCSS (color-mix dependencies). |
-| `ToastItem.vue` | Low | 1 | **Partial migration** — layout (flex, gap, padding) to Tailwind. Type variants (success/error/warning/info) keep in SCSS. | Color tokens via CSS variables are safe. |
-| `GalleryGrid.vue` | **High** | 1 | **Partial migration** — toolbar/control wrapper layout (grid, gap, buttons) to Tailwind. Only desktop toolbar/control wrapper styles may be considered. Do not touch scroller, virtual rows, sentinels, image loading states, skeleton behavior, virtualization logic, lightbox trigger behavior, or image sizing policy. | Do NOT touch `.scroller`, `.virtual-row`, `.tanstack-virtual-*`, `.skeleton-grid`. |
-| `DesktopLayout.vue` | Medium | 1 | **Partial migration** — grid layout, sidebar static styles. Sidebar open/close transition keep in SCSS. | |
-| `Breadcrumb.vue` | Low | 1 | **Full migration** possible | Simple flex layout with text and separators. |
-| `SidebarHeader.vue` | Low | 1 | **Full migration** possible | Simple layout with form elements. |
-| `FolderTreeItem.vue` | Low | 1 | **Full migration** possible | Recursive flex layout; scoped styles are simple. |
-| `EmptyState.vue` | Low | 1 | **Partial migration** — layout to Tailwind, decorative animations (icon-spin, pulse-slow, float, twinkle) keep in SCSS. | |
-| `SkeletonLoader.vue` | Medium | 1 | **Partial migration** — layout to Tailwind, shimmer animation keep in SCSS. | Shimmer has touch-device disable logic. |
-| `GlowContainer.vue` | Low | 1 | **Keep in SCSS** — the negative margin overflow hack must not be changed. | |
-| `GallerySectionHeader.vue` | Low | 1 | **Full migration** possible | Simple flex layout with text and badge. |
-| `AlbumScroller.vue` | Medium | 1 | **Keep in SCSS** — uses `@supports (background: color-mix(...))` progressive enhancement pattern. | |
-| `ExpandableText.vue` | Low | 1 | **Keep in SCSS** — text clipping and expand logic depend on computed styles. | |
-| `IntroScreen.vue` | Medium | 0 | **Keep in SCSS** — complex gradient, shimmer, and pulse animations. | |
+| File                       | Risk     | Phase | Recommendation                                                                                                                                                                                                                                                                                                            | Notes                                                                              |
+| -------------------------- | -------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `AppHeader.vue`            | **High** | 1     | **Partial migration** — static layout (flex, gap, padding) to Tailwind. Animations (brand-icon, brand-title, theme toggle, search neon) keep in SCSS.                                                                                                                                                                     | Dark mode neon effects on `.search-box`, `.theme-toggle` must stay SCSS.           |
+| `SettingsModal.vue`        | Medium   | 2+    | **Partial migration** — shell structure (backdrop, content, header/body/footer) to Tailwind `@layer`. Animations (`fadeIn`, `slideUp`) stay in SCSS and are deferred to Phase 2+ until visual parity is proven.                                                                                                           | animation migration deferred — SCSS-first per §9.1                                 |
+| `ToastContainer.vue`       | Low      | 1     | **Full migration** — positioning, layout, TransitionGroup classes to Tailwind.                                                                                                                                                                                                                                            | Keep ToastItem color variants in SCSS (color-mix dependencies).                    |
+| `ToastItem.vue`            | Low      | 1     | **Partial migration** — layout (flex, gap, padding) to Tailwind. Type variants (success/error/warning/info) keep in SCSS.                                                                                                                                                                                                 | Color tokens via CSS variables are safe.                                           |
+| `GalleryGrid.vue`          | **High** | 1     | **Partial migration** — toolbar/control wrapper layout (grid, gap, buttons) to Tailwind. Only desktop toolbar/control wrapper styles may be considered. Do not touch scroller, virtual rows, sentinels, image loading states, skeleton behavior, virtualization logic, lightbox trigger behavior, or image sizing policy. | Do NOT touch `.scroller`, `.virtual-row`, `.tanstack-virtual-*`, `.skeleton-grid`. |
+| `DesktopLayout.vue`        | Medium   | 1     | **Partial migration** — grid layout, sidebar static styles. Sidebar open/close transition keep in SCSS.                                                                                                                                                                                                                   |                                                                                    |
+| `Breadcrumb.vue`           | Low      | 1     | **Full migration** possible                                                                                                                                                                                                                                                                                               | Simple flex layout with text and separators.                                       |
+| `SidebarHeader.vue`        | Low      | 1     | **Full migration** possible                                                                                                                                                                                                                                                                                               | Simple layout with form elements.                                                  |
+| `FolderTreeItem.vue`       | Low      | 1     | **Full migration** possible                                                                                                                                                                                                                                                                                               | Recursive flex layout; scoped styles are simple.                                   |
+| `EmptyState.vue`           | Low      | 1     | **Partial migration** — layout to Tailwind, decorative animations (icon-spin, pulse-slow, float, twinkle) keep in SCSS.                                                                                                                                                                                                   |                                                                                    |
+| `SkeletonLoader.vue`       | Medium   | 1     | **Partial migration** — layout to Tailwind, shimmer animation keep in SCSS.                                                                                                                                                                                                                                               | Shimmer has touch-device disable logic.                                            |
+| `GlowContainer.vue`        | Low      | 1     | **Keep in SCSS** — the negative margin overflow hack must not be changed.                                                                                                                                                                                                                                                 |                                                                                    |
+| `GallerySectionHeader.vue` | Low      | 1     | **Full migration** possible                                                                                                                                                                                                                                                                                               | Simple flex layout with text and badge.                                            |
+| `AlbumScroller.vue`        | Medium   | 1     | **Keep in SCSS** — uses `@supports (background: color-mix(...))` progressive enhancement pattern.                                                                                                                                                                                                                         |                                                                                    |
+| `ExpandableText.vue`       | Low      | 1     | **Keep in SCSS** — text clipping and expand logic depend on computed styles.                                                                                                                                                                                                                                              |                                                                                    |
+| `IntroScreen.vue`          | Medium   | 0     | **Keep in SCSS** — complex gradient, shimmer, and pulse animations.                                                                                                                                                                                                                                                       |                                                                                    |
 
 ### Vue Components — Do Not Touch (All Phases)
 
-| File | Reason |
-|---|---|
-| `MobileHeader.vue` | Frozen — complex search expand/backdrop/overlay logic with mobile-specific CSS |
-| `TabletHeader.vue` | Frozen — same risk profile, tablet-specific breadcrumb integration |
-| `MobileLayout.vue` | Frozen — sidebar behavior, backdrop, padding transitions |
-| `TabletLayout.vue` | Frozen — sidebar overlay, backdrop transition, grid layout |
-| `LightboxMobileSheet.vue` | Frozen — VSBS integration, 200+ lines of `[data-vsbs-*]` overrides |
-| `RootPathSheet.vue` | Frozen — mobile bottom sheet with iOS textarea quirks |
-| `MobileFloatingBottomBar.vue` | Frozen — safe-area-inset-bottom, scroll visibility sync |
-| `MobilePhotoSwipe.vue` | Frozen — mobile PhotoSwipe + safe-area positioning |
-| `TabletPhotoSwipe.vue` | Frozen — tablet-specific PhotoSwipe integration |
-| `LightboxTabletPanel.vue` | Frozen — tablet metadata panel with 2-column grid |
-| `LightboxDesktopPanel.vue` | Frozen — complex metadata panel with collapsible sections |
-| `Lightbox.vue` | Frozen — device-adaptive lightbox orchestration |
-| `PhotoSwipeViewer.vue` | Frozen — core PhotoSwipe wrapper with paddingFn |
-| `AlbumCardMobile.vue` | Frozen — mobile-specific, compact, hover overrides |
-| `AlbumCardTablet.vue` | Frozen — tablet-specific card styling |
-| `AlbumCard.vue` | **Partial freeze** — static layout (padding, border-radius, info section) can use Tailwind; 3D hover/perspective/dark glow keep in SCSS |
-| `PhotoCard.vue` | **Partial freeze** — static layout can use Tailwind; hover transform, thumbnail opacity, shimmer animation, type badge keep in SCSS |
-| `TabletGalleryToolbar.vue` | Frozen — tablet-specific toolbar component |
-| `App.vue` | Frozen — theme toggle logic, layout switching |
-| `GalleryGrid.vue` | Frozen for virtualization/internals — only the desktop toolbar wrapper may be considered |
-| All mobile/tablet sheet behavior files | Frozen — includes `RootPathSheet.vue`, `LightboxMobileSheet.vue`, `LightboxTabletPanel.vue`, and any VSBS/sheet orchestration |
+| File                                   | Reason                                                                                                                                  |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `MobileHeader.vue`                     | Frozen — complex search expand/backdrop/overlay logic with mobile-specific CSS                                                          |
+| `TabletHeader.vue`                     | Frozen — same risk profile, tablet-specific breadcrumb integration                                                                      |
+| `MobileLayout.vue`                     | Frozen — sidebar behavior, backdrop, padding transitions                                                                                |
+| `TabletLayout.vue`                     | Frozen — sidebar overlay, backdrop transition, grid layout                                                                              |
+| `LightboxMobileSheet.vue`              | Frozen — VSBS integration, 200+ lines of `[data-vsbs-*]` overrides                                                                      |
+| `RootPathSheet.vue`                    | Frozen — mobile bottom sheet with iOS textarea quirks                                                                                   |
+| `MobileFloatingBottomBar.vue`          | Frozen — safe-area-inset-bottom, scroll visibility sync                                                                                 |
+| `MobilePhotoSwipe.vue`                 | Frozen — mobile PhotoSwipe + safe-area positioning                                                                                      |
+| `TabletPhotoSwipe.vue`                 | Frozen — tablet-specific PhotoSwipe integration                                                                                         |
+| `LightboxTabletPanel.vue`              | Frozen — tablet metadata panel with 2-column grid                                                                                       |
+| `LightboxDesktopPanel.vue`             | Frozen — complex metadata panel with collapsible sections                                                                               |
+| `Lightbox.vue`                         | Frozen — device-adaptive lightbox orchestration                                                                                         |
+| `PhotoSwipeViewer.vue`                 | Frozen — core PhotoSwipe wrapper with paddingFn                                                                                         |
+| `AlbumCardMobile.vue`                  | Frozen — mobile-specific, compact, hover overrides                                                                                      |
+| `AlbumCardTablet.vue`                  | Frozen — tablet-specific card styling                                                                                                   |
+| `AlbumCard.vue`                        | **Partial freeze** — static layout (padding, border-radius, info section) can use Tailwind; 3D hover/perspective/dark glow keep in SCSS |
+| `PhotoCard.vue`                        | **Partial freeze** — static layout can use Tailwind; hover transform, thumbnail opacity, shimmer animation, type badge keep in SCSS     |
+| `TabletGalleryToolbar.vue`             | Frozen — tablet-specific toolbar component                                                                                              |
+| `App.vue`                              | Frozen — theme toggle logic, layout switching                                                                                           |
+| `GalleryGrid.vue`                      | Frozen for virtualization/internals — only the desktop toolbar wrapper may be considered                                                |
+| All mobile/tablet sheet behavior files | Frozen — includes `RootPathSheet.vue`, `LightboxMobileSheet.vue`, `LightboxTabletPanel.vue`, and any VSBS/sheet orchestration           |
 
 ---
 
@@ -1279,15 +1338,15 @@ If a critical visual regression is discovered in production after Tailwind migra
 
 **Do pursue a hybrid approach:**
 
-| Layer | Technology | Scope |
-|---|---|---|
-| **Semantic tokens** | CSS custom properties (`tokens.css`) | All colors, shadows, radii, timing, sizing. Single source of truth. |
-| **Layout utilities** | Tailwind CSS | Spacing, flex/grid, sizing, typography, borders, simple hover states on desktop-safe components. |
-| **Component abstractions** | Tailwind `@layer components` | Repeated patterns: icon buttons, input shells, badges, modals, dropdowns. |
-| **Animations** | SCSS | All keyframes, complex hover effects, 3D transforms, gradient animations, multi-layer shadows. |
-| **Visual effects** | SCSS | Dark mode neon glows, album card 3D, brand title shimmer, backdrop-filter compositions, `color-mix()` rules. |
-| **Third-party overrides** | SCSS | PhotoSwipe, vue-spring-bottom-sheet, scrollbar styles. |
-| **Mobile/iOS fixes** | SCSS | Safe-area, touch hover disables, rubber-band, viewport hacks. |
+| Layer                       | Technology                                                 | Scope                                                                                                        |
+| --------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| **Semantic tokens**         | CSS custom properties (`tokens.css`)                       | All colors, shadows, radii, timing, sizing. Single source of truth.                                          |
+| **Layout utilities**        | Tailwind CSS                                               | Spacing, flex/grid, sizing, typography, borders, simple hover states on desktop-safe components.             |
+| **Component abstractions**  | Tailwind `@layer components`                               | Repeated patterns: icon buttons, input shells, badges, modals, dropdowns.                                    |
+| **Animations**              | SCSS                                                       | All keyframes, complex hover effects, 3D transforms, gradient animations, multi-layer shadows.               |
+| **Visual effects**          | SCSS                                                       | Dark mode neon glows, album card 3D, brand title shimmer, backdrop-filter compositions, `color-mix()` rules. |
+| **Third-party overrides**   | SCSS                                                       | PhotoSwipe, vue-spring-bottom-sheet, scrollbar styles.                                                       |
+| **Mobile/iOS fixes**        | SCSS                                                       | Safe-area, touch hover disables, rubber-band, viewport hacks.                                                |
 | **New components (future)** | Tailwind-first + shadcn-vue Stone defaults for standard UI | AdvancedSearch, IndexPanel — built with Tailwind from the start. MetadataTable deferred to Phase 3 (Future). |
 
 ### Why Not Full Migration
@@ -1320,24 +1379,24 @@ If a critical visual regression is discovered in production after Tailwind migra
 
 ## 14. Summary of Key Numbers
 
-| Metric | Count |
-|---|---|
-| Vue SFC files audited | 35 |
-| SCSS files audited | 7 |
-| CSS files audited | 2 |
-| `@keyframes` definitions found | 25 |
-| `transition` declarations | 129 |
-| `backdrop-filter` uses | 20+ |
-| `color-mix()` uses | 20+ |
-| `transform` uses | 133 |
-| Custom scrollbar styles | 38 |
-| `safe-area-inset` references | 6 |
-| PhotoSwipe references | 20+ |
-| vue-spring-bottom-sheet references | 30+ |
-| Design tokens defined | 90+ |
-| Components classified "do not touch" | 18 |
-| Components safe for partial Tailwind migration | 10 |
-| Components safe for full Tailwind migration | 5 |
+| Metric                                         | Count |
+| ---------------------------------------------- | ----- |
+| Vue SFC files audited                          | 35    |
+| SCSS files audited                             | 7     |
+| CSS files audited                              | 2     |
+| `@keyframes` definitions found                 | 25    |
+| `transition` declarations                      | 129   |
+| `backdrop-filter` uses                         | 20+   |
+| `color-mix()` uses                             | 20+   |
+| `transform` uses                               | 133   |
+| Custom scrollbar styles                        | 38    |
+| `safe-area-inset` references                   | 6     |
+| PhotoSwipe references                          | 20+   |
+| vue-spring-bottom-sheet references             | 30+   |
+| Design tokens defined                          | 90+   |
+| Components classified "do not touch"           | 18    |
+| Components safe for partial Tailwind migration | 10    |
+| Components safe for full Tailwind migration    | 5     |
 
 ---
 

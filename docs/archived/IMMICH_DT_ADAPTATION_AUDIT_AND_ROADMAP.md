@@ -61,11 +61,11 @@ single-process FastAPI/Vue/SQLite application.
 
 ### Repositories and revisions
 
-| Repository | Revision inspected | Date/context |
-| --- | --- | --- |
-| `gallery-repo` | `bd03061` | Phases 0–4 plus CI regression fixes, 2026-06-19 |
-| Immich | [`38920fc4cac8cbdbeb35fecf930583d875d033ba`](https://github.com/immich-app/immich/tree/38920fc4cac8cbdbeb35fecf930583d875d033ba) | `v3.0.0-rc.2`, 2026-06-18 |
-| DiffusionToolkit | [`153409c3a0e9569886e6601530365808d4ecbb0e`](https://github.com/RupertAvery/DiffusionToolkit/tree/153409c3a0e9569886e6601530365808d4ecbb0e) | Current upstream HEAD at review time |
+| Repository       | Revision inspected                                                                                                                          | Date/context                                    |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `gallery-repo`   | `bd03061`                                                                                                                                   | Phases 0–4 plus CI regression fixes, 2026-06-19 |
+| Immich           | [`38920fc4cac8cbdbeb35fecf930583d875d033ba`](https://github.com/immich-app/immich/tree/38920fc4cac8cbdbeb35fecf930583d875d033ba)            | `v3.0.0-rc.2`, 2026-06-18                       |
+| DiffusionToolkit | [`153409c3a0e9569886e6601530365808d4ecbb0e`](https://github.com/RupertAvery/DiffusionToolkit/tree/153409c3a0e9569886e6601530365808d4ecbb0e) | Current upstream HEAD at review time            |
 
 The earlier Immich audit used commit `f382624e`. The relevant upstream
 guarantees were rechecked at `38920fc`: thumbnail-generation concurrency remains
@@ -125,30 +125,30 @@ worker threads into later SQLite fixtures.
 
 ## Pattern status overview
 
-| Pattern | Main reference | Current gallery status | Classification |
-| --- | --- | --- | --- |
-| Scan does not block on metadata/PIL | Immich + web hot-path design | Complete | Done |
-| Background metadata indexing | Immich/DT | Durable SQLite jobs, coalescing, bounded workers | Done |
-| Batch SQLite writes | DT | Implemented | Done |
-| Index status/progress | Immich/DT | `/api/index/status` and rebuild UI | Done |
-| DB-first metadata on warm cache | Immich | Implemented | Done |
-| Warm folder listing | Immich/DT | DB path with direct-scan fallback | Done for current hybrid contract |
-| Persistent thumbnail/preview cache | Immich/DT | Implemented | Done |
-| Path/mtime/size cache invalidation | Gallery-specific adaptation | Implemented | Done |
-| Derivative-first lightbox | Immich | Thumbnail -> preview -> original | Done at source-policy level |
-| Original on zoom/fullscreen/preference | Immich | Implemented | Done |
-| Separate derivative roles/cache keys | Immich | Implemented | Done |
-| Metadata does not block overlay | Immich; avoids DT weakness | Implemented | Done |
-| Neighbor preload | Immich | Preview + dimensions + metadata bundle with cancellable AbortController | **Done** |
-| Watcher/scheduled refresh | Immich/DT | Configured-root watcher, enabled by default for registered libraries | **Done** |
-| AI metadata parsing/search | DT | Broad parser and indexed search | Done |
-| Fielded search/facets | DT/Immich | Implemented | Done |
-| Virtualized grid/list | Immich scale pattern | Implemented | Done |
-| Perf tests/instrumentation | Gallery-specific | Implemented; metrics split into queue/render/network/decode stages | **Done** |
-| Dedicated derivative workers | Immich/DT | **3 bounded thread workers, configurable 1-8, priority P0-P3, coalescing** | **Done** |
-| Derivative readiness/catalog | Immich | **asset_derivatives + derivative_jobs tables with status tracking** | **Done** |
-| Full derivative warming | Immich-style prepared library | **Background warming after metadata index, 10 GiB LRU quota** | **Done** |
-| Dimension invariants across catalog tables | Immich DTO guarantee | **COALESCE + sync_dimensions_to_file_index in same transaction** | **Done** |
+| Pattern                                    | Main reference                | Current gallery status                                                     | Classification                   |
+| ------------------------------------------ | ----------------------------- | -------------------------------------------------------------------------- | -------------------------------- |
+| Scan does not block on metadata/PIL        | Immich + web hot-path design  | Complete                                                                   | Done                             |
+| Background metadata indexing               | Immich/DT                     | Durable SQLite jobs, coalescing, bounded workers                           | Done                             |
+| Batch SQLite writes                        | DT                            | Implemented                                                                | Done                             |
+| Index status/progress                      | Immich/DT                     | `/api/index/status` and rebuild UI                                         | Done                             |
+| DB-first metadata on warm cache            | Immich                        | Implemented                                                                | Done                             |
+| Warm folder listing                        | Immich/DT                     | DB path with direct-scan fallback                                          | Done for current hybrid contract |
+| Persistent thumbnail/preview cache         | Immich/DT                     | Implemented                                                                | Done                             |
+| Path/mtime/size cache invalidation         | Gallery-specific adaptation   | Implemented                                                                | Done                             |
+| Derivative-first lightbox                  | Immich                        | Thumbnail -> preview -> original                                           | Done at source-policy level      |
+| Original on zoom/fullscreen/preference     | Immich                        | Implemented                                                                | Done                             |
+| Separate derivative roles/cache keys       | Immich                        | Implemented                                                                | Done                             |
+| Metadata does not block overlay            | Immich; avoids DT weakness    | Implemented                                                                | Done                             |
+| Neighbor preload                           | Immich                        | Preview + dimensions + metadata bundle with cancellable AbortController    | **Done**                         |
+| Watcher/scheduled refresh                  | Immich/DT                     | Configured-root watcher, enabled by default for registered libraries       | **Done**                         |
+| AI metadata parsing/search                 | DT                            | Broad parser and indexed search                                            | Done                             |
+| Fielded search/facets                      | DT/Immich                     | Implemented                                                                | Done                             |
+| Virtualized grid/list                      | Immich scale pattern          | Implemented                                                                | Done                             |
+| Perf tests/instrumentation                 | Gallery-specific              | Implemented; metrics split into queue/render/network/decode stages         | **Done**                         |
+| Dedicated derivative workers               | Immich/DT                     | **3 bounded thread workers, configurable 1-8, priority P0-P3, coalescing** | **Done**                         |
+| Derivative readiness/catalog               | Immich                        | **asset_derivatives + derivative_jobs tables with status tracking**        | **Done**                         |
+| Full derivative warming                    | Immich-style prepared library | **Background warming after metadata index, 10 GiB LRU quota**              | **Done**                         |
+| Dimension invariants across catalog tables | Immich DTO guarantee          | **COALESCE + sync_dimensions_to_file_index in same transaction**           | **Done**                         |
 
 ## Patterns already adapted successfully
 
@@ -435,16 +435,16 @@ should not be copied.
 “Complete” should mean implementing the selected guarantee fully, not copying
 the original code or infrastructure:
 
-| Guarantee | Upstream mechanism | gallery target mechanism |
-| --- | --- | --- |
-| Durable jobs | Redis/BullMQ or .NET channels | SQLite jobs + in-process workers |
-| DB-first assets | PostgreSQL asset tables | SQLite libraries/assets |
-| Derivative catalog | `asset_file` rows | SQLite `asset_derivatives` |
-| Bounded media concurrency | queue concurrency 3 / DT workers 2 | configurable default 3 |
-| Prepared viewer | eager background derivatives | default full-library warming |
-| Neighbor preload | Immich `PreloadManager` | Query/cache readiness + browser preload |
-| Library watching | chokidar/FileSystemWatcher | configured-root watcher |
-| Compact dimensions | asset DTO | authoritative assets/listing DTO |
+| Guarantee                 | Upstream mechanism                 | gallery target mechanism                |
+| ------------------------- | ---------------------------------- | --------------------------------------- |
+| Durable jobs              | Redis/BullMQ or .NET channels      | SQLite jobs + in-process workers        |
+| DB-first assets           | PostgreSQL asset tables            | SQLite libraries/assets                 |
+| Derivative catalog        | `asset_file` rows                  | SQLite `asset_derivatives`              |
+| Bounded media concurrency | queue concurrency 3 / DT workers 2 | configurable default 3                  |
+| Prepared viewer           | eager background derivatives       | default full-library warming            |
+| Neighbor preload          | Immich `PreloadManager`            | Query/cache readiness + browser preload |
+| Library watching          | chokidar/FileSystemWatcher         | configured-root watcher                 |
+| Compact dimensions        | asset DTO                          | authoritative assets/listing DTO        |
 
 ## Implemented gaps and residual hardening
 
@@ -555,31 +555,31 @@ preserve existing data.
 
 ### `libraries`
 
-| Column | Purpose |
-| --- | --- |
-| `id` | Stable integer library identifier |
-| `root_path` | Unique canonical filesystem root |
-| `name` | User-facing library name |
-| `state` | `discovering`, `indexing`, `ready`, `error`, `offline` |
-| `watch_enabled` | Default true for registered roots |
-| `warm_enabled` | Default true |
-| `created_at`, `updated_at` | Lifecycle timestamps |
-| `last_scan_at`, `last_error` | Operational status |
+| Column                       | Purpose                                                |
+| ---------------------------- | ------------------------------------------------------ |
+| `id`                         | Stable integer library identifier                      |
+| `root_path`                  | Unique canonical filesystem root                       |
+| `name`                       | User-facing library name                               |
+| `state`                      | `discovering`, `indexing`, `ready`, `error`, `offline` |
+| `watch_enabled`              | Default true for registered roots                      |
+| `warm_enabled`               | Default true                                           |
+| `created_at`, `updated_at`   | Lifecycle timestamps                                   |
+| `last_scan_at`, `last_error` | Operational status                                     |
 
 ### `assets`
 
 This is the compact listing source for registered libraries. Existing
 `file_index` remains a compatibility store during rollout.
 
-| Column | Purpose |
-| --- | --- |
-| `id` | Stable asset ID |
-| `library_id` | Registered library |
-| `path`, `parent_path`, `name`, `type` | Filesystem identity |
-| `mtime_ns`, `size` | Source version |
-| `width`, `height`, `orientation` | Authoritative display geometry |
-| `indexed_at`, `metadata_state` | Readiness |
-| `offline`, `deleted_at` | Watcher/import state |
+| Column                                | Purpose                        |
+| ------------------------------------- | ------------------------------ |
+| `id`                                  | Stable asset ID                |
+| `library_id`                          | Registered library             |
+| `path`, `parent_path`, `name`, `type` | Filesystem identity            |
+| `mtime_ns`, `size`                    | Source version                 |
+| `width`, `height`, `orientation`      | Authoritative display geometry |
+| `indexed_at`, `metadata_state`        | Readiness                      |
+| `offline`, `deleted_at`               | Watcher/import state           |
 
 Unique identity is `(library_id, path)`. Source version is
 `(mtime_ns, size)`. Renames may initially be represented as delete/add; hash- or
@@ -587,18 +587,18 @@ inode-based rename detection is optional and must not enter the hot path.
 
 ### `asset_derivatives`
 
-| Column | Purpose |
-| --- | --- |
-| `id`, `asset_id` | Catalog identity |
-| `kind` | `thumbnail`, `preview`, later `fullsize` if required |
-| `variant` | Controlled name such as `thumb_512` |
-| `source_mtime_ns`, `source_size` | Version generated from |
-| `format`, `quality`, `max_long_edge` | Output contract |
-| `status` | Current persisted states: `queued`, `running`, `ready`, `failed` |
-| `cache_path`, `byte_size` | Persisted output |
-| `last_accessed_at` | LRU accounting |
-| `attempts`, `last_error` | Recovery |
-| `created_at`, `updated_at` | Lifecycle |
+| Column                               | Purpose                                                          |
+| ------------------------------------ | ---------------------------------------------------------------- |
+| `id`, `asset_id`                     | Catalog identity                                                 |
+| `kind`                               | `thumbnail`, `preview`, later `fullsize` if required             |
+| `variant`                            | Controlled name such as `thumb_512`                              |
+| `source_mtime_ns`, `source_size`     | Version generated from                                           |
+| `format`, `quality`, `max_long_edge` | Output contract                                                  |
+| `status`                             | Current persisted states: `queued`, `running`, `ready`, `failed` |
+| `cache_path`, `byte_size`            | Persisted output                                                 |
+| `last_accessed_at`                   | LRU accounting                                                   |
+| `attempts`, `last_error`             | Recovery                                                         |
+| `created_at`, `updated_at`           | Lifecycle                                                        |
 
 Unique key:
 
@@ -608,13 +608,13 @@ Unique key:
 
 ### `derivative_jobs`
 
-| Column | Purpose |
-| --- | --- |
-| `derivative_id` | One durable job per derivative version |
-| `priority` | Integer `0..3`; P0 interactive, P3 warming/rebuild, P1/P2 reserved |
-| `state` | Queue lifecycle |
-| `attempts`, `error` | Retry/error |
-| queue timestamps | Metrics and recovery |
+| Column              | Purpose                                                            |
+| ------------------- | ------------------------------------------------------------------ |
+| `derivative_id`     | One durable job per derivative version                             |
+| `priority`          | Integer `0..3`; P0 interactive, P3 warming/rebuild, P1/P2 reserved |
+| `state`             | Queue lifecycle                                                    |
+| `attempts`, `error` | Retry/error                                                        |
+| queue timestamps    | Metrics and recovery                                               |
 
 The catalog stores desired/current state; the job table stores execution state.
 Completed jobs can be compacted after a retention period.
@@ -900,16 +900,16 @@ the current suite; unchecked items remain release-hardening criteria.
 Targets apply on the repository's deterministic fixture and documented reference
 machine/profile:
 
-| Metric | Target |
-| --- | ---: |
-| Warm album thumbnail request p95 | <= 200 ms |
-| Lightbox event-to-overlay p95 | <= 100 ms |
-| Warm preview HTTP p95 | <= 200 ms |
-| Visual preview-ready p95 | <= 750 ms |
-| Warm neighbor preview-ready p95 | <= 200 ms |
-| Warm 5,000-image DB first page | <= 500 ms |
-| Derivative queue worker overcommit | 0 |
-| Same-key duplicate renders | 0 |
+| Metric                             |    Target |
+| ---------------------------------- | --------: |
+| Warm album thumbnail request p95   | <= 200 ms |
+| Lightbox event-to-overlay p95      | <= 100 ms |
+| Warm preview HTTP p95              | <= 200 ms |
+| Visual preview-ready p95           | <= 750 ms |
+| Warm neighbor preview-ready p95    | <= 200 ms |
+| Warm 5,000-image DB first page     | <= 500 ms |
+| Derivative queue worker overcommit |         0 |
+| Same-key duplicate renders         |         0 |
 
 Cold derivative generation is reported separately and must not be compared to
 warm serving budgets.
@@ -933,17 +933,17 @@ No metric may use raw paths or asset IDs as labels.
 
 ## Risks and mitigations
 
-| Risk | Mitigation |
-| --- | --- |
-| Full warming saturates CPU/disk | Three workers, low background priority, interactive promotion, configurable disable |
-| 10 GiB is insufficient | Current LRU enforcement; add capacity reservation, `deferred_capacity`, and coverage reporting before strict-cap rollout |
-| DB-required browsing worsens first use | Progressive rows and explicit import state |
-| Watcher event storms | Registered roots only, debounce, batch coalescing, scheduled reconciliation |
-| SQLite contention | Separate bounded workers, short transactions, WAL, busy retry, batch writes |
-| Catalog/cache divergence | Reconcile at startup/maintenance, source-version keys, atomic file rename before ready state |
-| Migration loses arbitrary-folder convenience | Persistent multi-library registration and explicit 409 guidance |
-| Adaptive variants multiply storage | Controlled variant set only; phase after core stability |
-| PhotoSwipe repair reintroduces Safari duplicates | Update internal geometry safely and retain visual-layer regression tests |
+| Risk                                             | Mitigation                                                                                                               |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| Full warming saturates CPU/disk                  | Three workers, low background priority, interactive promotion, configurable disable                                      |
+| 10 GiB is insufficient                           | Current LRU enforcement; add capacity reservation, `deferred_capacity`, and coverage reporting before strict-cap rollout |
+| DB-required browsing worsens first use           | Progressive rows and explicit import state                                                                               |
+| Watcher event storms                             | Registered roots only, debounce, batch coalescing, scheduled reconciliation                                              |
+| SQLite contention                                | Separate bounded workers, short transactions, WAL, busy retry, batch writes                                              |
+| Catalog/cache divergence                         | Reconcile at startup/maintenance, source-version keys, atomic file rename before ready state                             |
+| Migration loses arbitrary-folder convenience     | Persistent multi-library registration and explicit 409 guidance                                                          |
+| Adaptive variants multiply storage               | Controlled variant set only; phase after core stability                                                                  |
+| PhotoSwipe repair reintroduces Safari duplicates | Update internal geometry safely and retain visual-layer regression tests                                                 |
 
 ## Final recommendation
 

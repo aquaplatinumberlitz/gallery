@@ -267,7 +267,7 @@ const colorMode = useColorMode({
   storageKey: "gallery-theme",
   initialValue: "auto",
   disableTransition: false,
-})
+});
 ```
 
 Notes:
@@ -295,19 +295,19 @@ This composable should become the single source of truth for app color-mode stat
 Proposed type model:
 
 ```ts
-export type GalleryThemeMode = "light" | "dark" | "system"
-export type GalleryResolvedTheme = "light" | "dark"
+export type GalleryThemeMode = "light" | "dark" | "system";
+export type GalleryResolvedTheme = "light" | "dark";
 
 export function useGalleryTheme() {
   return {
-    mode,             // Ref<GalleryThemeMode>
-    resolvedTheme,    // ComputedRef<GalleryResolvedTheme>
-    systemTheme,      // ComputedRef<GalleryResolvedTheme>
-    isDark,           // ComputedRef<boolean>
-    setTheme,         // (mode: GalleryThemeMode) => void
-    toggleTheme,      // () => void
-    cycleTheme,       // optional: light -> dark -> system -> light
-  }
+    mode, // Ref<GalleryThemeMode>
+    resolvedTheme, // ComputedRef<GalleryResolvedTheme>
+    systemTheme, // ComputedRef<GalleryResolvedTheme>
+    isDark, // ComputedRef<boolean>
+    setTheme, // (mode: GalleryThemeMode) => void
+    toggleTheme, // () => void
+    cycleTheme, // optional: light -> dark -> system -> light
+  };
 }
 ```
 
@@ -324,26 +324,27 @@ const colorMode = useColorMode({
   storageKey: "gallery-theme",
   initialValue: "auto",
   disableTransition: false,
-})
+});
 
 const mode = computed<GalleryThemeMode>({
-  get: () => colorMode.store.value === "auto"
-    ? "system"
-    : colorMode.store.value as "light" | "dark",
+  get: () =>
+    colorMode.store.value === "auto"
+      ? "system"
+      : (colorMode.store.value as "light" | "dark"),
   set: (next) => {
-    colorMode.store.value = next === "system" ? "auto" : next
+    colorMode.store.value = next === "system" ? "auto" : next;
   },
-})
+});
 
 const resolvedTheme = computed<GalleryResolvedTheme>(
-  () => colorMode.state.value as GalleryResolvedTheme
-)
+  () => colorMode.state.value as GalleryResolvedTheme,
+);
 
 const systemTheme = computed<GalleryResolvedTheme>(
-  () => colorMode.system.value
-)
+  () => colorMode.system.value,
+);
 
-const isDark = computed(() => resolvedTheme.value === "dark")
+const isDark = computed(() => resolvedTheme.value === "dark");
 ```
 
 ### DOM contract
@@ -351,13 +352,13 @@ const isDark = computed(() => resolvedTheme.value === "dark")
 The DOM should always receive:
 
 ```html
-<html data-theme="light">
+<html data-theme="light"></html>
 ```
 
 or:
 
 ```html
-<html data-theme="dark">
+<html data-theme="dark"></html>
 ```
 
 When the user mode is System, the DOM should still receive the resolved theme:
@@ -369,7 +370,8 @@ The DOM must not receive:
 
 ```html
 <html data-theme="system">
-<html data-theme="auto">
+  <html data-theme="auto"></html>
+</html>
 ```
 
 Existing CSS depends on resolved selectors.
@@ -460,27 +462,26 @@ Proposed inline script behavior:
 
 ```html
 <script>
-(() => {
-  const key = "gallery-theme"
-  let stored = null
+  (() => {
+    const key = "gallery-theme";
+    let stored = null;
 
-  try {
-    stored = localStorage.getItem(key)
-  } catch (_) {
-    stored = null
-  }
+    try {
+      stored = localStorage.getItem(key);
+    } catch (_) {
+      stored = null;
+    }
 
-  const explicit = stored === "light" || stored === "dark"
-  const systemDark = window.matchMedia &&
-    window.matchMedia("(prefers-color-scheme: dark)").matches
+    const explicit = stored === "light" || stored === "dark";
+    const systemDark =
+      window.matchMedia &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches;
 
-  const theme = explicit
-    ? stored
-    : systemDark ? "dark" : "light"
+    const theme = explicit ? stored : systemDark ? "dark" : "light";
 
-  document.documentElement.dataset.theme = theme
-  document.documentElement.style.colorScheme = theme
-})()
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+  })();
 </script>
 ```
 
@@ -510,7 +511,7 @@ VueUse `useColorMode` has `disableTransition` enabled by default in the installe
 If the migration adds custom smooth transitions, configure:
 
 ```ts
-disableTransition: false
+disableTransition: false;
 ```
 
 Then own transition behavior explicitly through the gallery composable and CSS.
@@ -559,12 +560,12 @@ The composable should provide theme setters that own transition timing:
 ```ts
 function setTheme(next: GalleryThemeMode) {
   applyThemeChange(() => {
-    mode.value = next
-  })
+    mode.value = next;
+  });
 }
 
 function toggleTheme() {
-  setTheme(resolvedTheme.value === "dark" ? "light" : "dark")
+  setTheme(resolvedTheme.value === "dark" ? "light" : "dark");
 }
 ```
 
@@ -602,12 +603,12 @@ function applyThemeChange(applyTheme: () => void) {
     prefersReducedMotion.value !== "reduce"
   ) {
     document.startViewTransition(() => {
-      applyTheme()
-    })
-    return
+      applyTheme();
+    });
+    return;
   }
 
-  applyTheme()
+  applyTheme();
 }
 ```
 
@@ -806,13 +807,17 @@ Add or update tests for:
 Useful checks:
 
 ```ts
-expect(await page.evaluate(() =>
-  document.documentElement.getAttribute("data-theme")
-)).toBe("dark")
+expect(
+  await page.evaluate(() =>
+    document.documentElement.getAttribute("data-theme"),
+  ),
+).toBe("dark");
 
-expect(await page.evaluate(() =>
-  document.documentElement.classList.contains("dark")
-)).toBe(false)
+expect(
+  await page.evaluate(() =>
+    document.documentElement.classList.contains("dark"),
+  ),
+).toBe(false);
 ```
 
 ### No-flash tests
@@ -821,12 +826,12 @@ Add a Playwright test that injects storage before navigation:
 
 ```ts
 await page.addInitScript(() => {
-  localStorage.setItem("gallery-theme", "dark")
-})
-await page.goto(baseUrl, { waitUntil: "domcontentloaded" })
-expect(await page.evaluate(() =>
-  document.documentElement.dataset.theme
-)).toBe("dark")
+  localStorage.setItem("gallery-theme", "dark");
+});
+await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe(
+  "dark",
+);
 ```
 
 For stronger coverage:

@@ -74,15 +74,14 @@ video section, while image results still use the existing PhotoSwipe path.
 V1.1/V2 API cleanup is complete. `GET /api/scan` now exposes one canonical
 mixed-media collection (`media`) with `next_media_cursor`, `total_images`,
 `total_videos`, and `total_assets`. The legacy `images`, `videos`, and
-`next_cursor` response fields were removed; pagination uses `limit` and
-`media_cursor`. The legacy `image_cursor` query parameter was fully removed;
-FastAPI silently ignores undeclared params, so older callers sending it still
-receive a 200 response without error.
+the former split response collections and cursor field were removed;
+pagination uses `limit` and `media_cursor`. `/api/scan` explicitly rejects
+undeclared query parameters with `422`.
 
-> Note: Phase 6 replaced the legacy `galleryStore.setRootPath()` bridge with
-> an `activeLibraryId` (persisted) + `currentBrowsePath` (in-memory) model.
-> `RootPathSidebarHeader.vue` and `RootPathSheet.vue` were deleted. The
-> one-shot `gallery-root-path` → `activeLibraryId` migration is complete.
+> Note: Phase 6 replaced the legacy writable arbitrary-path bridge with an
+> `activeLibraryId` (persisted) + `currentBrowsePath` (in-memory) model.
+> `LibrarySidebarHeader.vue` and `LibrarySelectorSheet.vue` now own selection.
+> The one-shot legacy localStorage migration is complete.
 
 > Note: SSE fan-out is single-process; the subscriber registry in
 > `backend/library_events.py` enqueues to in-process `asyncio.Queue` instances
@@ -113,17 +112,17 @@ Not implemented yet:
 
 ## 2. Phase Progress
 
-| Phase | Status | Delivered | Next dependency |
-| --- | --- | --- | --- |
-| 0. Contract lock | Complete | API, migration, state, jobs/SSE, video, dependency contract | Keep contract tests aligned with changes |
-| 1. Schema, validation, CRUD | Complete | SQLite v6, import paths, exclusions, CRUD/validate, multi-root lookup/scan/repair | Phase 2 builds on v6 |
-| 2. Jobs, stats, scan-all, SSE | Complete | library_jobs table, job tracking, scan-all, per-library/global stats, jobs endpoints, SSE events | Phase 3 builds on v7 |
-| 3. Video backend | Complete | v8 migration, ffprobe indexing, /api/video streaming, /api/video/poster | Phase 4 builds on v8 |
-| 4. Frontend data layer | Complete | Library types/API, query keys/composables, mutations, SSE invalidation, status utilities | Phase 5 builds on this layer |
-| 5. Admin management UI | Complete | `/admin/libraries` + `/admin/libraries/:id` routes; `LibraryListPage`, `LibraryDetailPage`, `LibraryForm`, create/edit/delete dialogs, `LibraryStatusBadge`, `LibraryProgressBar`, `LibrarySummaryPanel`, `LibraryActionMenu`; AppHeader "Libraries" entry; desktop/tablet/mobile route render via `RouterView` | Phase 6 builds on this layer |
-| 6. Active library selection | Complete | activeLibraryId/currentBrowsePath store model, LibrarySidebarHeader, LibrarySelectorSheet, one-shot legacy migration, no {rootPath,setRootPath,resetRootPath} | Phase 7 builds on this layer |
-| 7. Mixed-media UI | Complete | VideoCard, VideoPlayerDialog, mixed-media rendering in GalleryGrid, video poster/play affordance/fallback, canonical scan `media` pagination, search video results | Phase 8 verification complete |
-| 8. Final verification | Complete | 630 backend tests, 392 frontend unit tests, 44 targeted E2E tests, static checks, compact-admin sidebar fix | V1 implementation complete |
+| Phase                         | Status   | Delivered                                                                                                                                                                                                                                                                                                       | Next dependency                          |
+| ----------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| 0. Contract lock              | Complete | API, migration, state, jobs/SSE, video, dependency contract                                                                                                                                                                                                                                                     | Keep contract tests aligned with changes |
+| 1. Schema, validation, CRUD   | Complete | SQLite v6, import paths, exclusions, CRUD/validate, multi-root lookup/scan/repair                                                                                                                                                                                                                               | Phase 2 builds on v6                     |
+| 2. Jobs, stats, scan-all, SSE | Complete | library_jobs table, job tracking, scan-all, per-library/global stats, jobs endpoints, SSE events                                                                                                                                                                                                                | Phase 3 builds on v7                     |
+| 3. Video backend              | Complete | v8 migration, ffprobe indexing, /api/video streaming, /api/video/poster                                                                                                                                                                                                                                         | Phase 4 builds on v8                     |
+| 4. Frontend data layer        | Complete | Library types/API, query keys/composables, mutations, SSE invalidation, status utilities                                                                                                                                                                                                                        | Phase 5 builds on this layer             |
+| 5. Admin management UI        | Complete | `/admin/libraries` + `/admin/libraries/:id` routes; `LibraryListPage`, `LibraryDetailPage`, `LibraryForm`, create/edit/delete dialogs, `LibraryStatusBadge`, `LibraryProgressBar`, `LibrarySummaryPanel`, `LibraryActionMenu`; AppHeader "Libraries" entry; desktop/tablet/mobile route render via `RouterView` | Phase 6 builds on this layer             |
+| 6. Active library selection   | Complete | activeLibraryId/currentBrowsePath store model, LibrarySidebarHeader, LibrarySelectorSheet, one-shot legacy migration, no writable arbitrary-path state                                                                                                                                                          | Phase 7 builds on this layer             |
+| 7. Mixed-media UI             | Complete | VideoCard, VideoPlayerDialog, mixed-media rendering in GalleryGrid, video poster/play affordance/fallback, canonical scan `media` pagination, search video results                                                                                                                                              | Phase 8 verification complete            |
+| 8. Final verification         | Complete | 630 backend tests, 392 frontend unit tests, 44 targeted E2E tests, static checks, compact-admin sidebar fix                                                                                                                                                                                                     | V1 implementation complete               |
 
 All V1 implementation phases are complete. Future work should use the
 extensions in section 13 of the implementation plan as new scope rather than
@@ -215,28 +214,28 @@ asset counts; video discovery/indexing was added in Phase 3.
 
 ### 3.3 API endpoints implemented now
 
-| Method | Endpoint | Current status |
-| --- | --- | --- |
-| `GET` | `/api/libraries` | Implemented with import paths, exclusions, asset count |
-| `POST` | `/api/libraries` | Implemented; accepts `import_paths` or legacy `root_path` |
-| `POST` | `/api/libraries/validate` | Implemented; read-only validation |
-| `GET` | `/api/libraries/{id}` | Implemented with expanded serialization |
-| `PATCH` | `/api/libraries/{id}` | Implemented with replacement semantics |
-| `PUT` | `/api/libraries/{id}` | Implemented as PATCH-compatible alias |
-| `POST` | `/api/libraries/{id}/validate` | Implemented; excludes current library from overlap checks |
-| `GET` | `/api/libraries/{id}/progress` | Implemented; returns `active_job_id` |
-| `POST` | `/api/libraries/{id}/scan` | Implemented; job-tracked lifecycle |
-| `POST` | `/api/libraries/{id}/repair` | Implemented; job-recorded synchronous operation |
-| `DELETE` | `/api/libraries/{id}?confirm=true` | Existing source-file-safe behavior retained |
-| `GET` | `/api/libraries/{id}/stats` | Implemented with per-library counts |
-| `GET` | `/api/libraries/{id}/jobs` | Implemented |
-| `POST` | `/api/libraries/scan-all` | Implemented; parent/child job flow |
-| `GET` | `/api/stats` | Implemented with global gallery counts |
-| `GET` | `/api/jobs` | Implemented |
-| `GET` | `/api/jobs/{id}` | Implemented |
-| `GET` | `/api/events` | Implemented; SSE stream with keep-alive |
-| `GET` | `/api/video` | Implemented; HTTP Range streaming |
-| `GET` | `/api/video/poster` | Implemented; ffmpeg WebP caching |
+| Method   | Endpoint                           | Current status                                            |
+| -------- | ---------------------------------- | --------------------------------------------------------- |
+| `GET`    | `/api/libraries`                   | Implemented with import paths, exclusions, asset count    |
+| `POST`   | `/api/libraries`                   | Implemented; accepts `import_paths` or legacy `root_path` |
+| `POST`   | `/api/libraries/validate`          | Implemented; read-only validation                         |
+| `GET`    | `/api/libraries/{id}`              | Implemented with expanded serialization                   |
+| `PATCH`  | `/api/libraries/{id}`              | Implemented with replacement semantics                    |
+| `PUT`    | `/api/libraries/{id}`              | Implemented as PATCH-compatible alias                     |
+| `POST`   | `/api/libraries/{id}/validate`     | Implemented; excludes current library from overlap checks |
+| `GET`    | `/api/libraries/{id}/progress`     | Implemented; returns `active_job_id`                      |
+| `POST`   | `/api/libraries/{id}/scan`         | Implemented; job-tracked lifecycle                        |
+| `POST`   | `/api/libraries/{id}/repair`       | Implemented; job-recorded synchronous operation           |
+| `DELETE` | `/api/libraries/{id}?confirm=true` | Existing source-file-safe behavior retained               |
+| `GET`    | `/api/libraries/{id}/stats`        | Implemented with per-library counts                       |
+| `GET`    | `/api/libraries/{id}/jobs`         | Implemented                                               |
+| `POST`   | `/api/libraries/scan-all`          | Implemented; parent/child job flow                        |
+| `GET`    | `/api/stats`                       | Implemented with global gallery counts                    |
+| `GET`    | `/api/jobs`                        | Implemented                                               |
+| `GET`    | `/api/jobs/{id}`                   | Implemented                                               |
+| `GET`    | `/api/events`                      | Implemented; SSE stream with keep-alive                   |
+| `GET`    | `/api/video`                       | Implemented; HTTP Range streaming                         |
+| `GET`    | `/api/video/poster`                | Implemented; ffmpeg WebP caching                          |
 
 All target endpoints from Phase 2 and Phase 3 are now implemented.
 
@@ -246,10 +245,10 @@ route. When adding `/api/libraries/scan-all`, keep it before
 
 Admin UI routes (Phase 5):
 
-| Path | Component | Purpose |
-| --- | --- | --- |
-| `/admin/libraries` | `components/admin/LibraryListPage.vue` | List libraries, scan-all, add library, "Use in Gallery" action |
-| `/admin/libraries/:id` | `components/admin/LibraryDetailPage.vue` | Per-library stats/progress/jobs, edit/scan/repair/unregister |
+| Path                   | Component                                | Purpose                                                        |
+| ---------------------- | ---------------------------------------- | -------------------------------------------------------------- |
+| `/admin/libraries`     | `components/admin/LibraryListPage.vue`   | List libraries, scan-all, add library, "Use in Gallery" action |
+| `/admin/libraries/:id` | `components/admin/LibraryDetailPage.vue` | Per-library stats/progress/jobs, edit/scan/repair/unregister   |
 
 Both routes are lazy-loaded in `router/index.ts` and rendered via `RouterView`
 inside `DesktopLayout` / `TabletLayout` / `MobileLayout`. `AppHeader.vue`
@@ -362,6 +361,7 @@ while legacy search-index coverage converges after the next scan.
 ### 3.8 Scan and repair behavior
 
 Scan currently:
+
 - verifies every import path is an available directory;
 - queues a `library_jobs` row and returns a `job_id` (202 Accepted);
 - uses FastAPI `BackgroundTasks` for the async scan runner;
@@ -394,12 +394,14 @@ backbone (DB-level unique constraint / transaction for coalescing; Redis
 pub/sub or Postgres `LISTEN/NOTIFY` for SSE fan-out).
 
 Repair currently:
+
 - is a job-recorded synchronous operation;
 - creates a job row, runs `repair_library_assets`, then sets succeeded/failed;
 - returns the result in the same HTTP response (no polling needed);
 - returns a `job_id` for audit-trail reference.
 
 `GET /api/libraries/{id}/progress` returns:
+
 - `active_job_id` — the current queued/running job id, or null
 - `indexed_assets`, `estimated_assets`, `discovery_complete`, `library_state`
 
@@ -580,26 +582,10 @@ not changed.
 
 ## 6. Resolved Gaps and Remaining Constraints
 
-All planned frontend gaps below are resolved:
-
-1. ~~Frontend types/API/query keys/composables for library management do not
-   exist.~~ Implemented in Phase 4.
-2. ~~`/admin/libraries` and `/admin/libraries/:id` do not exist.~~ Implemented
-   in Phase 5.
-3. ~~`frontend/src/stores/gallery.ts` still persists `gallery-root-path`, and the
-   Phase 5 admin "Use in Gallery" action (`LibraryListPage.vue`,
-   `LibraryDetailPage.vue`) bridges through `galleryStore.setRootPath()` until
-   Phase 6 introduces `activeLibraryId` / `currentBrowsePath`.~~ Resolved in
-   Phase 6.
-4. ~~`RootPathSidebarHeader.vue` and `RootPathSheet.vue` still expose arbitrary
-   path entry. These are scheduled for removal in Phase 6 after the
-   one-shot `gallery-root-path` → `activeLibraryId` migration.~~
-   `RootPathSidebarHeader.vue` and `RootPathSheet.vue` were deleted in Phase 6.
-5. ~~Mobile/tablet admin availability and registered-library selection are not
-   implemented.~~ Admin routes now render on desktop/tablet/mobile via
-   `RouterView`; active-library selection is the Phase 6 deliverable.
-6. ~~Existing frontend error mapping does not yet include all new Phase 1/2/3
-   typed errors.~~ `library_busy` is now mapped in `LIBRARY_ERRORS`.
+All planned frontend gaps are resolved: the library data layer and responsive
+admin routes are implemented; active-library selection uses
+`activeLibraryId`/`currentBrowsePath`; compact and sidebar selectors use the
+current library components; and library-management typed errors are mapped.
 
 Remaining constraints are documented architecture boundaries rather than
 incomplete V1 deliverables: SSE/job coordination is single-process, native

@@ -387,11 +387,11 @@ Library Inspector Search (`/api/library/inspector`):
 
 ### Data Source Table Mapping
 
-| Table | Content | Schema row count | Used by |
-|---|---|---|---|
-| `file_index` | 1 row per file/folder: path, name, type, parent_path, mtime, size, width, height | 1-to-1 | Scan, gallery browse, gallery search (photos/albums) |
-| `file_index_fts` | FTS5 index over `file_index` filename | 1-to-1 with `file_index` | Gallery search filename matching |
-| `image_metadata` | 1 row per photo: path, prompt, negative_prompt, model, sampler, seed, steps, cfg_scale, metadata_json (raw), lora_text | 1-to-1 with indexed photos | Metadata display, Library Inspector, fielded search, gallery prompt search |
-| `image_metadata_fts` | FTS5 unicode61 over prompt/negative/model/sampler/raw_metadata_text | 1-to-1 with `image_metadata` | Gallery prompt search, metadata search |
-| `image_metadata_fts_trigram` | FTS5 trigram over same fields (CJK support) | 1-to-1 with `image_metadata` | CJK/substring search |
-| `image_resources` | N rows per photo: kind, name, hash, resource_hash, weight, strength (flattened from metadata_json/loras/lora_text) | 1-to-many | Fielded search `lora:`/`resource_hash:`, LoRA facets, Library Inspector list LoRA badges |
+| Table                        | Content                                                                                                                | Schema row count             | Used by                                                                                  |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------- |
+| `file_index`                 | 1 row per file/folder: path, name, type, parent_path, mtime, size, width, height                                       | 1-to-1                       | Scan, gallery browse, gallery search (photos/albums)                                     |
+| `file_index_fts`             | FTS5 index over `file_index` filename                                                                                  | 1-to-1 with `file_index`     | Gallery search filename matching                                                         |
+| `image_metadata`             | 1 row per photo: path, prompt, negative_prompt, model, sampler, seed, steps, cfg_scale, metadata_json (raw), lora_text | 1-to-1 with indexed photos   | Metadata display, Library Inspector, fielded search, gallery prompt search               |
+| `image_metadata_fts`         | FTS5 unicode61 over prompt/negative/model/sampler/raw_metadata_text                                                    | 1-to-1 with `image_metadata` | Gallery prompt search, metadata search                                                   |
+| `image_metadata_fts_trigram` | FTS5 trigram over same fields (CJK support)                                                                            | 1-to-1 with `image_metadata` | CJK/substring search                                                                     |
+| `image_resources`            | N rows per photo: kind, name, hash, resource_hash, weight, strength (flattened from metadata_json/loras/lora_text)     | 1-to-many                    | Fielded search `lora:`/`resource_hash:`, LoRA facets, Library Inspector list LoRA badges |

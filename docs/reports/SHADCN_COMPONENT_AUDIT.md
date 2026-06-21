@@ -6,19 +6,19 @@ This report records the findings from the shadcn-vue component audit completed o
 
 ## Summary
 
-| Component | Status | Quick note |
-| --- | --- | --- |
-| `dialog` | ✅ | Matches official shadcn-vue across all 9 component files plus `index.ts`; `DialogClose` is present. |
-| `dropdown-menu` | ✅ | Matches official shadcn-vue across all 14 component files plus `index.ts`; Reka imports, animations, and portal export match. |
-| `popover` | ✅ | Matches official shadcn-vue across `Popover.vue`, `PopoverTrigger.vue`, `PopoverContent.vue`, and `index.ts`; `bg-popover` is correct here. |
-| `select` | ✅ | Matches official shadcn-vue across all 11 component files plus `index.ts`; `ScrollUpButton` and `ScrollDownButton` are present. |
-| `tabs` | ✅ | Matches official shadcn-vue across `Tabs.vue`, `TabsList.vue`, `TabsTrigger.vue`, `TabsContent.vue`, and `index.ts`. |
-| `input` | ✅ | Matches official shadcn-vue exactly. |
-| `button` | ⚠️ | Local styling diverges from official border radius, sizing, and minimum width behavior. |
-| `breadcrumb` | ⚠️ | `BreadcrumbLink` is missing the official `data-reka-collection-item` attribute on its span wrapper. |
-| `badge` | ⚠️ | Local component includes custom `loading` and `subtle` variants that are not part of official shadcn-vue. |
-| `separator` | ⚠️ | Local component adds `decoration-slice`, which is not in official shadcn-vue. |
-| `tooltip` | ⚠️ | Intentionally user-approved visual deviation from official shadcn-vue, including custom colors, size, and `TooltipArrow`. |
+| Component       | Status | Quick note                                                                                                                                  |
+| --------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dialog`        | ✅     | Matches official shadcn-vue across all 9 component files plus `index.ts`; `DialogClose` is present.                                         |
+| `dropdown-menu` | ✅     | Matches official shadcn-vue across all 14 component files plus `index.ts`; Reka imports, animations, and portal export match.               |
+| `popover`       | ✅     | Matches official shadcn-vue across `Popover.vue`, `PopoverTrigger.vue`, `PopoverContent.vue`, and `index.ts`; `bg-popover` is correct here. |
+| `select`        | ✅     | Matches official shadcn-vue across all 11 component files plus `index.ts`; `ScrollUpButton` and `ScrollDownButton` are present.             |
+| `tabs`          | ✅     | Matches official shadcn-vue across `Tabs.vue`, `TabsList.vue`, `TabsTrigger.vue`, `TabsContent.vue`, and `index.ts`.                        |
+| `input`         | ✅     | Matches official shadcn-vue exactly.                                                                                                        |
+| `button`        | ⚠️     | Local styling diverges from official border radius, sizing, and minimum width behavior.                                                     |
+| `breadcrumb`    | ⚠️     | `BreadcrumbLink` is missing the official `data-reka-collection-item` attribute on its span wrapper.                                         |
+| `badge`         | ⚠️     | Local component includes custom `loading` and `subtle` variants that are not part of official shadcn-vue.                                   |
+| `separator`     | ⚠️     | Local component adds `decoration-slice`, which is not in official shadcn-vue.                                                               |
+| `tooltip`       | ⚠️     | Intentionally user-approved visual deviation from official shadcn-vue, including custom colors, size, and `TooltipArrow`.                   |
 
 ## Components Matching Official shadcn-vue
 

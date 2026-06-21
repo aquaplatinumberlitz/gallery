@@ -574,10 +574,10 @@ document.removeEventListener("click", closeDensityMenu);
 After both sort and density are migrated, remove unused imports:
 
 ```ts
-onMounted
-onBeforeUnmount
-ref // only if no other refs remain in the file
-Check // if no longer used elsewhere
+onMounted;
+onBeforeUnmount;
+ref; // only if no other refs remain in the file
+Check; // if no longer used elsewhere
 ```
 
 Do not remove `computed`, `inject`, or other refs used by virtualization or scroller code.
@@ -736,7 +736,9 @@ Replace:
   background: var(--surface-color);
   border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 10px;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
 }
 
 .search-box:hover {
@@ -995,7 +997,9 @@ Remove warm toggle styles:
 .toggle-btn {
   border: 1px solid var(--gallery-border-subtle, ...);
   border-radius: 8px;
-  transition: border-color 120ms ease, background-color 120ms ease;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
 }
 
 .toggle-btn:not(:disabled):hover {
@@ -1009,9 +1013,12 @@ Do not recreate the active left rail with `--primary-color` in Phase 2A. If prod
 Keep only layout and icon-size rules:
 
 ```scss
-.tree-item { }
-.children { }
-.empty-children { }
+.tree-item {
+}
+.children {
+}
+.empty-children {
+}
 .folder-icon {
   color: var(--folder-color);
 }
