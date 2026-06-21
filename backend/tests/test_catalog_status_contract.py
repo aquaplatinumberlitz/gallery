@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
+from jsonschema import Draft202012Validator
+
+from backend.catalog.status_builder import PrecedenceFacts, derive_summary_state
 
 FIXTURE_ROOT = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "catalog_status"
 SUMMARY_STATES = {
@@ -18,6 +21,17 @@ SUMMARY_STATES = {
     "ready",
     "error",
 }
+TIMESTAMP_MS_MINIMUM = 10_000_000_000
+FIXTURE_SUMMARIES = {
+    "initial_scan_queued": "scanning",
+    "scan_complete_metadata_indexing": "indexing",
+    "ready_with_unavailable_import_path": "ready_with_issues",
+    "failed_rebuild_with_usable_catalog": "ready_with_issues",
+    "all_import_paths_unavailable": "offline",
+    "scan_complete_metadata_stale_without_worker": "needs_update",
+    "metadata_disabled_scan_complete": "ready",
+    "empty_scanned_scope": "ready",
+}
 
 
 def _load_fixture(name: str) -> dict[str, Any]:
@@ -25,85 +39,70 @@ def _load_fixture(name: str) -> dict[str, Any]:
         return json.load(fixture_file)
 
 
-def _derive_summary_state(facts: dict[str, Any]) -> str:
-    """Test oracle for the locked precedence in plan section 7.4."""
-    if not facts["resolved"]:
-        return "unknown"
-    if facts["availability"] == "unavailable":
-        return "offline"
-    if facts["active_catalog_job_state"] in {"queued", "running"}:
-        return "scanning"
-    if facts["active_metadata_state"] in {"queued", "running"}:
-        return "indexing"
-    if facts["latest_covering_scan_failed"] and not facts["prior_successful_covering_scan"]:
-        return "error"
-    if not facts["prior_successful_covering_scan"] and not facts["has_failed_scan_attempt"]:
-        return "needs_scan"
-    if facts["metadata_pending_without_active_work"]:
-        return "needs_update"
-    if (
-        not facts["metadata_disabled"]
-        and facts["total_assets"] > 0
-        and facts["ready_assets"] == 0
-        and facts["failed_assets"] == facts["total_assets"]
-    ):
-        return "error"
-    if facts["later_scan_failure"] or facts["current_metadata_failures"] > 0 or facts["availability"] == "degraded":
-        return "ready_with_issues"
-    return "ready"
+def _global_runtime() -> dict[str, Any]:
+    return {
+        "catalog_worker_count": 1,
+        "catalog_active_jobs": 0,
+        "catalog_queue_depth": 0,
+        "metadata_worker_count": 2,
+        "metadata_active_jobs": 0,
+        "metadata_queue_depth": 0,
+        "metadata_staged_queue_depth": 0,
+        "watcher_enabled": True,
+        "watcher_healthy": True,
+        "watcher_issue": None,
+        "scheduled_reconciliation_enabled": True,
+    }
 
 
-def test_required_unified_status_fixtures_match_contract_v1() -> None:
+def _assert_timestamp_ms(value: int | None) -> None:
+    assert value is None or (isinstance(value, int) and value > TIMESTAMP_MS_MINIMUM)
+
+
+def test_unified_status_fixtures_match_shared_schema_and_invariants() -> None:
     document = _load_fixture("unified_status_v1.json")
+    schema = _load_fixture("schema_v1.json")
+    validator = Draft202012Validator(schema)
 
     assert document["contract_version"] == 1
-    assert [fixture["name"] for fixture in document["fixtures"]] == [
-        "initial_scan_queued",
-        "scan_complete_metadata_indexing",
-        "ready_with_unavailable_import_path",
-        "failed_rebuild_with_usable_catalog",
-    ]
+    assert [fixture["name"] for fixture in document["fixtures"]] == list(FIXTURE_SUMMARIES)
 
     for fixture in document["fixtures"]:
         status = fixture["status"]
-        assert set(status) == {
-            "contract_version",
-            "generated_at",
-            "summary_state",
-            "scope",
-            "availability",
-            "scan",
-            "metadata",
-            "issue_count",
-            "issues",
-            "latest_issue",
-            "last_scan_at",
-            "last_index_at",
-        }
-        assert status["contract_version"] == 1
-        assert status["summary_state"] in SUMMARY_STATES
-        assert isinstance(status["generated_at"], int)
-        assert status["scope"]["kind"] in {"library", "path"}
-        assert status["scope"]["path"] is None or isinstance(status["scope"]["path"], str)
-        assert status["availability"]["state"] in {
-            "unknown",
-            "available",
-            "degraded",
-            "unavailable",
-        }
-        assert status["scan"]["state"] in {"never", "queued", "scanning", "complete", "failed"}
-        assert status["metadata"]["state"] in {
-            "disabled",
-            "queued",
-            "indexing",
-            "needs_update",
-            "complete",
-            "failed",
-        }
-        assert status["issue_count"] == sum(status["issues"].values())
+        validator.validate(status)
+        assert status["summary_state"] == FIXTURE_SUMMARIES[fixture["name"]]
+
+        scope = status["scope"]
+        assert isinstance(scope["library_id"], int)
+        assert isinstance(scope["import_path_count"], int)
+
+        availability = status["availability"]
+        assert availability["available_paths"] <= availability["total_paths"]
+
+        scan = status["scan"]
+        assert scan["operation"] in {"scan", "rebuild", None}
+        assert scan["trigger"] in {"initial", "manual", "watcher", "scheduled", "startup", None}
+        for field in ("active_job_id", "completed_units", "total_units"):
+            assert scan[field] is None or isinstance(scan[field], int)
 
         metadata = status["metadata"]
-        if metadata["total_assets"] is not None:
+        assert isinstance(metadata["global_active_outside_scope"], bool)
+        if metadata["total_assets"] is None:
+            assert metadata["state"] == "disabled"
+            assert all(
+                metadata[field] is None
+                for field in (
+                    "ready_assets",
+                    "not_ready_assets",
+                    "queued_assets",
+                    "running_assets",
+                    "stale_assets",
+                    "idle_pending_assets",
+                    "failed_assets",
+                    "progress_percent",
+                )
+            )
+        else:
             assert metadata["not_ready_assets"] == (
                 metadata["total_assets"] - metadata["ready_assets"] - metadata["failed_assets"]
             )
@@ -111,8 +110,38 @@ def test_required_unified_status_fixtures_match_contract_v1() -> None:
                 metadata[field] for field in ("queued_assets", "running_assets", "stale_assets", "idle_pending_assets")
             )
 
-        for progress in (status["scan"]["progress_percent"], metadata["progress_percent"]):
-            assert progress is None or 0 <= progress <= 100
+        assert status["issue_count"] == sum(status["issues"].values())
+        latest_issue = status["latest_issue"]
+        if status["issue_count"] == 0:
+            assert latest_issue is None
+        else:
+            assert latest_issue is not None
+            assert latest_issue["source"] in status["issues"]
+            assert status["issues"][latest_issue["source"]] > 0
+            assert latest_issue["path"] is None or isinstance(latest_issue["path"], str)
+            assert isinstance(latest_issue["message"], str) and latest_issue["message"]
+            _assert_timestamp_ms(latest_issue["updated_at"])
+
+        _assert_timestamp_ms(status["generated_at"])
+        _assert_timestamp_ms(status["last_scan_at"])
+        _assert_timestamp_ms(status["last_index_at"])
+
+
+def test_response_envelopes_and_global_runtime_match_shared_schema() -> None:
+    fixture = _load_fixture("unified_status_v1.json")["fixtures"][0]["status"]
+    validator = Draft202012Validator(_load_fixture("schema_v1.json"))
+    runtime = _global_runtime()
+
+    envelope = {"contract_version": 1, "status": fixture, "global_runtime": runtime}
+    batch = {
+        "contract_version": 1,
+        "generated_at": fixture["generated_at"],
+        "items": [{"library_id": fixture["scope"]["library_id"], "status": fixture}],
+        "global_runtime": runtime,
+    }
+
+    validator.validate(envelope)
+    validator.validate(batch)
 
 
 def test_summary_precedence_vectors_cover_every_summary_state() -> None:
@@ -126,21 +155,31 @@ def test_summary_precedence_vectors_cover_every_summary_state() -> None:
 
     for case in cases:
         assert set(case["overrides"]) <= set(defaults), case["name"]
-        facts = defaults | case["overrides"]
-        assert _derive_summary_state(facts) == case["expected"], case["name"]
+        facts = cast(PrecedenceFacts, defaults | case["overrides"])
+        assert derive_summary_state(facts) == case["expected"], case["name"]
 
 
-@pytest.mark.parametrize(
-    ("fixture_name", "expected_summary"),
-    [
-        ("initial_scan_queued", "scanning"),
-        ("scan_complete_metadata_indexing", "indexing"),
-        ("ready_with_unavailable_import_path", "ready_with_issues"),
-        ("failed_rebuild_with_usable_catalog", "ready_with_issues"),
-    ],
-)
+@pytest.mark.parametrize(("fixture_name", "expected_summary"), FIXTURE_SUMMARIES.items())
 def test_required_fixture_summary_states(fixture_name: str, expected_summary: str) -> None:
     document = _load_fixture("unified_status_v1.json")
     fixture = next(item for item in document["fixtures"] if item["name"] == fixture_name)
-
     assert fixture["status"]["summary_state"] == expected_summary
+
+
+def test_empty_scanned_scope_has_complete_progress() -> None:
+    document = _load_fixture("unified_status_v1.json")
+    status = next(item["status"] for item in document["fixtures"] if item["name"] == "empty_scanned_scope")
+
+    assert status["scan"]["state"] == "complete"
+    assert status["metadata"]["total_assets"] == 0
+    assert status["metadata"]["progress_percent"] == 100
+
+
+def test_indexing_with_issues_preserves_indexing_summary() -> None:
+    document = _load_fixture("unified_status_v1.json")
+    status = next(
+        item["status"] for item in document["fixtures"] if item["name"] == "scan_complete_metadata_indexing"
+    )
+
+    assert status["summary_state"] == "indexing"
+    assert status["issue_count"] > 0

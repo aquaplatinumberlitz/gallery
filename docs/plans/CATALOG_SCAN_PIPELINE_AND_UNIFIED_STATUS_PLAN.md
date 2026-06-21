@@ -661,8 +661,8 @@ Derive centrally in this order:
 5. latest covering scan failed and no prior successful covering scan exists:
    `error`;
 6. never successfully scanned and no failed attempt exists: `needs_scan`;
-7. current pending/stale metadata without active work: `needs_update`;
-8. no usable metadata and all current assets failed: `error`;
+7. no usable metadata and all current assets failed: `error`;
+8. current pending/stale metadata without active work: `needs_update`;
 9. usable catalog plus a later scan/rebuild failure, metadata failures, or
    degraded availability:
    `ready_with_issues`;

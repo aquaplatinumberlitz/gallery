@@ -41,7 +41,11 @@
           "global_active_outside_scope": false
         },
         "issue_count": 0,
-        "issues": { "availability": 0, "scan": 0, "metadata": 0 },
+        "issues": {
+          "availability": 0,
+          "scan": 0,
+          "metadata": 0
+        },
         "latest_issue": null,
         "last_scan_at": null,
         "last_index_at": null
@@ -87,7 +91,11 @@
           "global_active_outside_scope": false
         },
         "issue_count": 2,
-        "issues": { "availability": 0, "scan": 0, "metadata": 2 },
+        "issues": {
+          "availability": 0,
+          "scan": 0,
+          "metadata": 2
+        },
         "latest_issue": {
           "source": "metadata",
           "path": "/photos/2026/bad.jpg",
@@ -138,7 +146,11 @@
           "global_active_outside_scope": false
         },
         "issue_count": 1,
-        "issues": { "availability": 1, "scan": 0, "metadata": 0 },
+        "issues": {
+          "availability": 1,
+          "scan": 0,
+          "metadata": 0
+        },
         "latest_issue": {
           "source": "availability",
           "path": "/mnt/archive",
@@ -189,7 +201,11 @@
           "global_active_outside_scope": false
         },
         "issue_count": 1,
-        "issues": { "availability": 0, "scan": 1, "metadata": 0 },
+        "issues": {
+          "availability": 0,
+          "scan": 1,
+          "metadata": 0
+        },
         "latest_issue": {
           "source": "scan",
           "path": "/photos/2026",
@@ -198,6 +214,211 @@
         },
         "last_scan_at": 1782036900000,
         "last_index_at": 1782036950000
+      }
+    },
+    {
+      "name": "all_import_paths_unavailable",
+      "status": {
+        "contract_version": 1,
+        "generated_at": 1782039000000,
+        "summary_state": "offline",
+        "scope": {
+          "kind": "library",
+          "library_id": 8,
+          "path": null,
+          "import_path_count": 2
+        },
+        "availability": {
+          "state": "unavailable",
+          "available_paths": 0,
+          "total_paths": 2
+        },
+        "scan": {
+          "state": "complete",
+          "operation": "scan",
+          "trigger": "scheduled",
+          "active_job_id": null,
+          "completed_units": 80,
+          "total_units": 80,
+          "progress_percent": 100
+        },
+        "metadata": {
+          "state": "complete",
+          "total_assets": 80,
+          "ready_assets": 80,
+          "not_ready_assets": 0,
+          "queued_assets": 0,
+          "running_assets": 0,
+          "stale_assets": 0,
+          "idle_pending_assets": 0,
+          "failed_assets": 0,
+          "progress_percent": 100,
+          "global_active_outside_scope": false
+        },
+        "issue_count": 2,
+        "issues": {
+          "availability": 2,
+          "scan": 0,
+          "metadata": 0
+        },
+        "latest_issue": {
+          "source": "availability",
+          "path": "/mnt/archive",
+          "message": "Import path is unavailable",
+          "updated_at": 1782038990000
+        },
+        "last_scan_at": 1782038900000,
+        "last_index_at": 1782038950000
+      }
+    },
+    {
+      "name": "scan_complete_metadata_stale_without_worker",
+      "status": {
+        "contract_version": 1,
+        "generated_at": 1782040000000,
+        "summary_state": "needs_update",
+        "scope": {
+          "kind": "path",
+          "library_id": 7,
+          "path": "/photos/2025",
+          "import_path_count": 1
+        },
+        "availability": {
+          "state": "available",
+          "available_paths": 1,
+          "total_paths": 1
+        },
+        "scan": {
+          "state": "complete",
+          "operation": "scan",
+          "trigger": "watcher",
+          "active_job_id": null,
+          "completed_units": 10,
+          "total_units": 10,
+          "progress_percent": 100
+        },
+        "metadata": {
+          "state": "needs_update",
+          "total_assets": 10,
+          "ready_assets": 8,
+          "not_ready_assets": 2,
+          "queued_assets": 0,
+          "running_assets": 0,
+          "stale_assets": 2,
+          "idle_pending_assets": 0,
+          "failed_assets": 0,
+          "progress_percent": 80,
+          "global_active_outside_scope": true
+        },
+        "issue_count": 0,
+        "issues": {
+          "availability": 0,
+          "scan": 0,
+          "metadata": 0
+        },
+        "latest_issue": null,
+        "last_scan_at": 1782039900000,
+        "last_index_at": 1782039950000
+      }
+    },
+    {
+      "name": "metadata_disabled_scan_complete",
+      "status": {
+        "contract_version": 1,
+        "generated_at": 1782041000000,
+        "summary_state": "ready",
+        "scope": {
+          "kind": "library",
+          "library_id": 9,
+          "path": null,
+          "import_path_count": 1
+        },
+        "availability": {
+          "state": "available",
+          "available_paths": 1,
+          "total_paths": 1
+        },
+        "scan": {
+          "state": "complete",
+          "operation": "scan",
+          "trigger": "startup",
+          "active_job_id": null,
+          "completed_units": 12,
+          "total_units": 12,
+          "progress_percent": 100
+        },
+        "metadata": {
+          "state": "disabled",
+          "total_assets": null,
+          "ready_assets": null,
+          "not_ready_assets": null,
+          "queued_assets": null,
+          "running_assets": null,
+          "stale_assets": null,
+          "idle_pending_assets": null,
+          "failed_assets": null,
+          "progress_percent": null,
+          "global_active_outside_scope": false
+        },
+        "issue_count": 0,
+        "issues": {
+          "availability": 0,
+          "scan": 0,
+          "metadata": 0
+        },
+        "latest_issue": null,
+        "last_scan_at": 1782040900000,
+        "last_index_at": null
+      }
+    },
+    {
+      "name": "empty_scanned_scope",
+      "status": {
+        "contract_version": 1,
+        "generated_at": 1782042000000,
+        "summary_state": "ready",
+        "scope": {
+          "kind": "path",
+          "library_id": 7,
+          "path": "/photos/empty",
+          "import_path_count": 1
+        },
+        "availability": {
+          "state": "available",
+          "available_paths": 1,
+          "total_paths": 1
+        },
+        "scan": {
+          "state": "complete",
+          "operation": "scan",
+          "trigger": "manual",
+          "active_job_id": null,
+          "completed_units": 0,
+          "total_units": 0,
+          "progress_percent": 100
+        },
+        "metadata": {
+          "state": "complete",
+          "total_assets": 0,
+          "ready_assets": 0,
+          "not_ready_assets": 0,
+          "queued_assets": 0,
+          "running_assets": 0,
+          "stale_assets": 0,
+          "idle_pending_assets": 0,
+          "failed_assets": 0,
+          "progress_percent": 100,
+          "global_active_outside_scope": false
+        },
+        "issue_count": 0,
+        "issues": {
+          "availability": 0,
+          "scan": 0,
+          "metadata": 0
+        },
+        "latest_issue": null,
+        "last_scan_at": 1782041900000,
+        "last_index_at": null
       }
     }
   ]

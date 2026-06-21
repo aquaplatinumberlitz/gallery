@@ -1,5 +1,6 @@
 -r requirements.txt
 httpx
+jsonschema==4.26.0
 pytest
 pytest-cov
 pytest-timeout
