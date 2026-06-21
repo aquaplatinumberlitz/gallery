@@ -1,10 +1,13 @@
 # Catalog Scan Pipeline and Unified Status Plan
 
-Status: Proposed — audit revision 2, awaiting approval; no implementation is authorized yet
+Status: Active — audit revision 2 approved; Phase 1 complete
 
 Created: 2026-06-21
 
 Last revised: 2026-06-21
+
+Implementation status:
+[`CATALOG_SCAN_PIPELINE_AND_UNIFIED_STATUS_IMPLEMENTATION_STATUS.md`](CATALOG_SCAN_PIPELINE_AND_UNIFIED_STATUS_IMPLEMENTATION_STATUS.md)
 
 ## 1. Objective
 
