@@ -2,28 +2,29 @@
 
 Last updated: 2026-06-21
 
-Current milestone: Phase 6 complete
+Current milestone: Phase 7 complete
 
-Next milestone: Phase 7 — read-only `/api/browse` and gallery query migration
+Next milestone: Phase 8 — admin/sidebar actions, labels, polling, and SSE
+invalidation migration
 
 SQLite schema version currently implemented: `PRAGMA user_version = 9`
 
 ## Verified Git Baseline
 
-Phase 6 implementation commit:
+Phase 7 implementation commit:
 
 ```text
-79811c8 feat: add catalog unified status endpoints
+8b3270d feat: add catalog browse endpoint
 ```
 
-Latest verification before the Phase 6 implementation commit:
+Latest verification before the Phase 7 implementation commit:
 
 ```text
 ./test.sh fast passed
 backend ruff check and ruff format --check passed
-674 backend tests passed; backend coverage 85.50%
+679 backend tests passed; backend coverage 85.63%
 frontend ESLint and Prettier checks passed
-396 frontend unit tests passed
+399 frontend unit tests passed
 frontend typecheck and production build passed
 ```
 
@@ -40,7 +41,52 @@ and chunk-size warnings remain non-blocking.
 | 4. Route triggers through the Catalog Scan Service | Complete | Library creation atomically queues an initial scan job and returns initial_scan_job_id; manual scan, Scan All child jobs, watcher events, startup catch-up, and scheduled reconciliation all submit/coalesce durable catalog scan jobs with documented trigger priorities; watcher and scheduled reconciliation no longer write catalog data directly |
 | 5. Rebuild staging/atomic activation and repair removal | Complete | Rebuild enumeration writes to catalog_rebuild_entries staging in bounded batches; one short activation transaction merges staged rows, reconciles missing rows, resets affected metadata state, and removes staging data; POST /api/libraries/{id}/rebuild with confirm=true; rebuild conflict rules from plan §5.3; standalone repair_library_assets function and POST /api/libraries/{id}/repair endpoint removed |
 | 6. Shared status builder and status endpoints | Complete | Contract-v1 status builder backed by grouped catalog/metadata/runtime facts; `GET /api/libraries/{id}/status` with optional `scope_path`; `GET /api/libraries/status` admin batch endpoint; global runtime envelope; schema/endpoint coverage for initial queued scan, batch envelope, scoped prefix isolation, out-of-library scope rejection, degraded availability, and Scan All zero-library terminal behavior |
-| 7–10. Browse, frontend migration, old-route hard cut, docs | Not started | Follow the master plan sequence |
+| 7. Read-only `/api/browse` and gallery query migration | Complete | DB-only catalog browse route with virtual import-root listing, path-scoped asset/folder pagination, offline tombstones hidden by default, out-of-library scope rejection, no scan/write side effects, and gallery infinite query migration from `/api/scan` to `/api/browse` keyed by library ID |
+| 8–10. Admin/sidebar migration, old-route hard cut, docs | Not started | Follow the master plan sequence |
+
+## Phase 7 Delivered
+
+Read-only browse API (`backend/browse.py`, `backend/metadata_store.py`):
+
+- Added `GET /api/browse` with required `library_id`, optional `path`,
+  `cursor`, `limit`, and reserved `include_offline` query params.
+- Null/omitted `path` returns the library virtual root as ordered synthetic
+  `import_root` folder entries from `library_import_paths`; duplicate leaf
+  names are disambiguated with the full path and entries expose
+  `display_label` plus catalog-derived availability.
+- Non-null paths are validated with the component-aware catalog path helpers
+  against the selected library's import paths; cross-library or
+  out-of-library scopes return the standard `bad_request` envelope.
+- Real folder pages read only persisted catalog rows from `assets`, cached
+  dimensions from `image_metadata`, and derivative readiness from
+  `asset_derivatives`; normal browse hides offline/deleted tombstones.
+- Empty or partially populated catalog pages return empty browse results
+  without invoking filesystem scan, metadata queueing, catalog jobs, or direct
+  writes.
+
+Frontend gallery migration:
+
+- Added `browseDirectory`, `BrowseResponse`, browse query keys, and
+  `useInfiniteBrowseQuery`.
+- `GalleryGrid` now fetches gallery folders/media through `/api/browse` using
+  the active library ID and current browse path.
+- Library job/progress SSE handling invalidates browse query prefixes for the
+  affected library.
+- Removed the unused `useInfiniteScanQuery` composable and `query/scan.ts`
+  helper so the gallery infinite query no longer targets `/api/scan`.
+
+Phase 7 coverage added:
+
+- backend route tests for virtual roots, real folder pagination, offline
+  filtering, cross-library scope rejection, unknown query rejection, and
+  empty-catalog no-scan/no-write behavior;
+- frontend unit tests for browse API params and browse query keys.
+
+Remaining by design for later phases:
+
+- Legacy `/api/scan`, old index-status/repair/rebuild UI actions, old global
+  index status routes, config cleanup, and documentation hard-cut work remain
+  in Phase 8 through Phase 10.
 
 ## Phase 6 Delivered
 
@@ -157,6 +203,5 @@ Legacy repair tests were replaced with equivalent scan/rebuild coverage.
 
 ## Working Tree Note
 
-At Phase 6 handoff, `.codex_phase7.txt`, `.fix_gpt_audit.txt`, and
-`_codex_prompt.txt` remain untracked local note/prompt files. They were
-intentionally excluded from the Phase 6 commits.
+At Phase 7 handoff, `_codex_phase7_prompt.txt` remains an untracked local
+prompt file. It was intentionally excluded from the Phase 7 commits.
