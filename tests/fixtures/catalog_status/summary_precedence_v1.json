@@ -1,0 +1,146 @@
+{
+  "contract_version": 1,
+  "defaults": {
+    "resolved": true,
+    "availability": "available",
+    "active_catalog_job_state": null,
+    "active_metadata_state": null,
+    "latest_covering_scan_failed": false,
+    "prior_successful_covering_scan": true,
+    "has_failed_scan_attempt": false,
+    "metadata_pending_without_active_work": false,
+    "total_assets": 10,
+    "ready_assets": 10,
+    "failed_assets": 0,
+    "later_scan_failure": false,
+    "current_metadata_failures": 0,
+    "metadata_disabled": false
+  },
+  "cases": [
+    {
+      "name": "unresolved_scope",
+      "overrides": { "resolved": false },
+      "expected": "unknown"
+    },
+    {
+      "name": "entire_scope_unavailable",
+      "overrides": { "availability": "unavailable" },
+      "expected": "offline"
+    },
+    {
+      "name": "catalog_job_queued",
+      "overrides": { "active_catalog_job_state": "queued" },
+      "expected": "scanning"
+    },
+    {
+      "name": "catalog_job_running",
+      "overrides": { "active_catalog_job_state": "running" },
+      "expected": "scanning"
+    },
+    {
+      "name": "active_retry_outranks_historical_failure",
+      "overrides": {
+        "active_catalog_job_state": "queued",
+        "latest_covering_scan_failed": true,
+        "prior_successful_covering_scan": false,
+        "has_failed_scan_attempt": true
+      },
+      "expected": "scanning"
+    },
+    {
+      "name": "metadata_queued",
+      "overrides": { "active_metadata_state": "queued" },
+      "expected": "indexing"
+    },
+    {
+      "name": "metadata_running",
+      "overrides": { "active_metadata_state": "running" },
+      "expected": "indexing"
+    },
+    {
+      "name": "first_covering_scan_failed",
+      "overrides": {
+        "latest_covering_scan_failed": true,
+        "prior_successful_covering_scan": false,
+        "has_failed_scan_attempt": true,
+        "total_assets": 0,
+        "ready_assets": 0
+      },
+      "expected": "error"
+    },
+    {
+      "name": "never_scanned",
+      "overrides": {
+        "prior_successful_covering_scan": false,
+        "total_assets": 0,
+        "ready_assets": 0
+      },
+      "expected": "needs_scan"
+    },
+    {
+      "name": "pending_metadata_without_active_work",
+      "overrides": {
+        "metadata_pending_without_active_work": true,
+        "ready_assets": 9
+      },
+      "expected": "needs_update"
+    },
+    {
+      "name": "all_current_assets_failed",
+      "overrides": {
+        "ready_assets": 0,
+        "failed_assets": 10,
+        "current_metadata_failures": 10
+      },
+      "expected": "error"
+    },
+    {
+      "name": "later_scan_failure_with_usable_catalog",
+      "overrides": {
+        "latest_covering_scan_failed": true,
+        "has_failed_scan_attempt": true,
+        "later_scan_failure": true
+      },
+      "expected": "ready_with_issues"
+    },
+    {
+      "name": "metadata_failures_with_usable_catalog",
+      "overrides": {
+        "ready_assets": 9,
+        "failed_assets": 1,
+        "current_metadata_failures": 1
+      },
+      "expected": "ready_with_issues"
+    },
+    {
+      "name": "degraded_availability",
+      "overrides": { "availability": "degraded" },
+      "expected": "ready_with_issues"
+    },
+    { "name": "settled_without_issues", "overrides": {}, "expected": "ready" },
+    {
+      "name": "cancelled_catalog_job_is_ignored",
+      "overrides": { "active_catalog_job_state": "cancelled" },
+      "expected": "ready"
+    },
+    {
+      "name": "metadata_disabled_after_completed_scan",
+      "overrides": {
+        "metadata_disabled": true,
+        "total_assets": 0,
+        "ready_assets": 0
+      },
+      "expected": "ready"
+    },
+    {
+      "name": "metadata_disabled_never_scanned",
+      "overrides": {
+        "metadata_disabled": true,
+        "prior_successful_covering_scan": false,
+        "total_assets": 0,
+        "ready_assets": 0
+      },
+      "expected": "needs_scan"
+    }
+  ]
+}

@@ -1,0 +1,204 @@
+{
+  "contract_version": 1,
+  "fixtures": [
+    {
+      "name": "initial_scan_queued",
+      "status": {
+        "contract_version": 1,
+        "generated_at": 1782036000000,
+        "summary_state": "scanning",
+        "scope": {
+          "kind": "library",
+          "library_id": 7,
+          "path": null,
+          "import_path_count": 2
+        },
+        "availability": {
+          "state": "available",
+          "available_paths": 2,
+          "total_paths": 2
+        },
+        "scan": {
+          "state": "queued",
+          "operation": "scan",
+          "trigger": "initial",
+          "active_job_id": 101,
+          "completed_units": 0,
+          "total_units": null,
+          "progress_percent": null
+        },
+        "metadata": {
+          "state": "queued",
+          "total_assets": 0,
+          "ready_assets": 0,
+          "not_ready_assets": 0,
+          "queued_assets": 0,
+          "running_assets": 0,
+          "stale_assets": 0,
+          "idle_pending_assets": 0,
+          "failed_assets": 0,
+          "progress_percent": null,
+          "global_active_outside_scope": false
+        },
+        "issue_count": 0,
+        "issues": { "availability": 0, "scan": 0, "metadata": 0 },
+        "latest_issue": null,
+        "last_scan_at": null,
+        "last_index_at": null
+      }
+    },
+    {
+      "name": "scan_complete_metadata_indexing",
+      "status": {
+        "contract_version": 1,
+        "generated_at": 1782036060000,
+        "summary_state": "indexing",
+        "scope": {
+          "kind": "path",
+          "library_id": 7,
+          "path": "/photos/2026",
+          "import_path_count": 1
+        },
+        "availability": {
+          "state": "available",
+          "available_paths": 1,
+          "total_paths": 1
+        },
+        "scan": {
+          "state": "complete",
+          "operation": "scan",
+          "trigger": "manual",
+          "active_job_id": null,
+          "completed_units": 120,
+          "total_units": 120,
+          "progress_percent": 100
+        },
+        "metadata": {
+          "state": "indexing",
+          "total_assets": 100,
+          "ready_assets": 60,
+          "not_ready_assets": 38,
+          "queued_assets": 30,
+          "running_assets": 8,
+          "stale_assets": 0,
+          "idle_pending_assets": 0,
+          "failed_assets": 2,
+          "progress_percent": 60,
+          "global_active_outside_scope": false
+        },
+        "issue_count": 2,
+        "issues": { "availability": 0, "scan": 0, "metadata": 2 },
+        "latest_issue": {
+          "source": "metadata",
+          "path": "/photos/2026/bad.jpg",
+          "message": "Metadata extraction failed",
+          "updated_at": 1782036055000
+        },
+        "last_scan_at": 1782036040000,
+        "last_index_at": 1782036059000
+      }
+    },
+    {
+      "name": "ready_with_unavailable_import_path",
+      "status": {
+        "contract_version": 1,
+        "generated_at": 1782037000000,
+        "summary_state": "ready_with_issues",
+        "scope": {
+          "kind": "library",
+          "library_id": 7,
+          "path": null,
+          "import_path_count": 2
+        },
+        "availability": {
+          "state": "degraded",
+          "available_paths": 1,
+          "total_paths": 2
+        },
+        "scan": {
+          "state": "complete",
+          "operation": "scan",
+          "trigger": "scheduled",
+          "active_job_id": null,
+          "completed_units": 100,
+          "total_units": 100,
+          "progress_percent": 100
+        },
+        "metadata": {
+          "state": "complete",
+          "total_assets": 100,
+          "ready_assets": 100,
+          "not_ready_assets": 0,
+          "queued_assets": 0,
+          "running_assets": 0,
+          "stale_assets": 0,
+          "idle_pending_assets": 0,
+          "failed_assets": 0,
+          "progress_percent": 100,
+          "global_active_outside_scope": false
+        },
+        "issue_count": 1,
+        "issues": { "availability": 1, "scan": 0, "metadata": 0 },
+        "latest_issue": {
+          "source": "availability",
+          "path": "/mnt/archive",
+          "message": "Import path is unavailable",
+          "updated_at": 1782036990000
+        },
+        "last_scan_at": 1782036900000,
+        "last_index_at": 1782036950000
+      }
+    },
+    {
+      "name": "failed_rebuild_with_usable_catalog",
+      "status": {
+        "contract_version": 1,
+        "generated_at": 1782038000000,
+        "summary_state": "ready_with_issues",
+        "scope": {
+          "kind": "path",
+          "library_id": 7,
+          "path": "/photos/2026",
+          "import_path_count": 1
+        },
+        "availability": {
+          "state": "available",
+          "available_paths": 1,
+          "total_paths": 1
+        },
+        "scan": {
+          "state": "failed",
+          "operation": "rebuild",
+          "trigger": "manual",
+          "active_job_id": null,
+          "completed_units": 42,
+          "total_units": null,
+          "progress_percent": null
+        },
+        "metadata": {
+          "state": "complete",
+          "total_assets": 100,
+          "ready_assets": 100,
+          "not_ready_assets": 0,
+          "queued_assets": 0,
+          "running_assets": 0,
+          "stale_assets": 0,
+          "idle_pending_assets": 0,
+          "failed_assets": 0,
+          "progress_percent": 100,
+          "global_active_outside_scope": false
+        },
+        "issue_count": 1,
+        "issues": { "availability": 0, "scan": 1, "metadata": 0 },
+        "latest_issue": {
+          "source": "scan",
+          "path": "/photos/2026",
+          "message": "Rebuild failed; previous catalog remains active",
+          "updated_at": 1782037990000
+        },
+        "last_scan_at": 1782036900000,
+        "last_index_at": 1782036950000
+      }
+    }
+  ]
+}
