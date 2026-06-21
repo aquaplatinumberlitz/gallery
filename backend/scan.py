@@ -6,7 +6,7 @@ import time
 from contextlib import suppress
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
@@ -360,12 +360,21 @@ def _shadow_compare_asset_listing(
 
 @router.get("/api/scan")
 async def api_scan(
+    request: Request,
     background_tasks: BackgroundTasks,
     path: str | None = Query(None, description="Absolute path to scan"),
     limit: int | None = Query(None, ge=1, le=5000, description="Max media items to return"),
     media_cursor: int | None = Query(None, ge=0, description="Cursor/offset for mixed media"),
 ):
     """Return folder children and media paginated by ``media_cursor``."""
+    allowed = {"path", "limit", "media_cursor"}
+    extra = set(request.query_params.keys()) - allowed
+    if extra:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unexpected query parameters: {', '.join(sorted(extra))}",
+        )
+
     scan_tracking_target: Path | None = None
     try:
         request_started = time.perf_counter()

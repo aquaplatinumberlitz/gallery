@@ -18,6 +18,14 @@ from fastapi.testclient import TestClient
 
 
 class TestScanResponseShape:
+    def test_api_scan_rejects_unknown_params(self, isolated_app: TestClient, isolated_gallery_root: Path):
+        resp = isolated_app.get(
+            "/api/scan",
+            params={"path": str(isolated_gallery_root), "unknown_param": "1"},
+        )
+        assert resp.status_code == 422
+        assert "unknown_param" in resp.text
+
     def test_scan_returns_expected_keys(self, isolated_app: TestClient, temp_gallery: Path):
         album = temp_gallery / "album_a"
         resp = isolated_app.get("/api/scan", params={"path": str(album)})
