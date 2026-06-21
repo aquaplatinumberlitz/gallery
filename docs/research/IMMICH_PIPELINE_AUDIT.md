@@ -4,11 +4,12 @@
 > reviewed revision and may be historical; use [Architecture](../ARCHITECTURE.md)
 > for current behavior.
 
-Date: 2026-06-09
+Date: 2026-06-21
 
 References inspected:
 
 - Immich: `f382624e689315f327632fff1505cca3cfa21640` (`2026-06-09`, shallow clone at `/tmp/immich-audit`)
+- Immich re-verification: `62b00a1f26856845bc9005bb2dabf36ff478e358` (`2026-06-19`, shallow clone at `/home/ubuntu/immich`)
 - gallery-repo: `155f120f81730fa7ac1e65609364135e4262e776`
 - DiffusionToolkit audit input: [docs/DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md](DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md)
 
@@ -45,6 +46,18 @@ Note: the requested `backend/services/metadata_index.py` does not exist in this 
 
 Immich files:
 
+- `package.json`
+- `server/package.json`
+- `web/package.json`
+- `mobile/pubspec.yaml`
+- `machine-learning/pyproject.toml`
+- `docker/docker-compose.yml`
+- `server/src/main.ts`
+- `server/src/app.module.ts`
+- `server/src/app.common.ts`
+- `server/src/workers/api.ts`
+- `server/src/workers/microservices.ts`
+- `server/src/workers/maintenance.ts`
 - `server/src/controllers/library.controller.ts`
 - `server/src/services/library.service.ts`
 - `server/src/repositories/library.repository.ts`
@@ -66,6 +79,7 @@ Immich files:
 - `server/src/schema/tables/asset-job-status.table.ts`
 - `server/src/services/job.service.ts`
 - `server/src/repositories/job.repository.ts`
+- `server/src/repositories/event.repository.ts`
 - `server/src/services/queue.service.ts`
 - `server/src/controllers/queue.controller.ts`
 - `server/src/controllers/job.controller.ts`
@@ -82,6 +96,31 @@ Immich files:
 - `server/src/services/smart-info.service.ts`
 - `server/src/repositories/machine-learning.repository.ts`
 - `server/src/services/ocr.service.ts`
+- `server/src/controllers/sync.controller.ts`
+- `server/src/services/sync.service.ts`
+- `server/src/repositories/sync.repository.ts`
+- `server/src/schema/tables/sync-checkpoint.table.ts`
+- `server/src/controllers/video-stream.controller.ts`
+- `server/src/services/hls.service.ts`
+- `server/src/services/transcoding.service.ts`
+- `server/src/repositories/video-stream.repository.ts`
+- `server/src/schema/tables/video-stream.table.ts`
+- `server/src/schema/tables/asset-av.table.ts`
+- `server/src/controllers/plugin.controller.ts`
+- `server/src/controllers/workflow.controller.ts`
+- `server/src/services/plugin.service.ts`
+- `server/src/services/workflow.service.ts`
+- `server/src/services/workflow-execution.service.ts`
+- `server/src/repositories/plugin.repository.ts`
+- `server/src/repositories/workflow.repository.ts`
+- `server/src/schema/tables/plugin.table.ts`
+- `server/src/schema/tables/plugin-method.table.ts`
+- `server/src/schema/tables/workflow.table.ts`
+- `server/src/schema/tables/workflow-step.table.ts`
+- `server/src/services/database-backup.service.ts`
+- `server/src/services/integrity.service.ts`
+- `server/src/repositories/integrity.repository.ts`
+- `server/src/schema/tables/integrity-report.table.ts`
 - `server/src/enum.ts`
 - `server/src/config.ts`
 - `web/src/lib/utils.ts`
@@ -108,12 +147,29 @@ Immich files:
 - `web/src/routes/(user)/+layout.svelte`
 - `web/src/routes/(user)/photos/[[assetId=id]]/+page.svelte`
 - `web/src/routes/(user)/photos/[[assetId=id]]/+page.ts`
+- `machine-learning/immich_ml/main.py`
+- `machine-learning/immich_ml/models/cache.py`
+- `machine-learning/immich_ml/models/clip/visual.py`
+- `machine-learning/immich_ml/models/clip/textual.py`
+- `machine-learning/immich_ml/models/facial_recognition/detection.py`
+- `machine-learning/immich_ml/models/facial_recognition/recognition.py`
+- `machine-learning/immich_ml/models/ocr/detection.py`
+- `machine-learning/immich_ml/models/ocr/recognition.py`
+- `mobile/lib/infrastructure/repositories/sync_api.repository.dart`
+- `mobile/lib/domain/services/sync_stream.service.dart`
 
 ## Executive Summary
 
 Immich is DB-first. It discovers or receives files, persists asset rows, then uses background queues for sidecar checks, metadata extraction, thumbnail generation, search indexing, OCR, face detection, and duplicate detection. Its web UI does not parse metadata from original files. It gets asset metadata from API DTOs backed by PostgreSQL rows.
 
 Immich keeps the timeline fast by separating the lightweight timeline path from full asset detail. The timeline loads time bucket counts first, then loads compact per-month asset arrays when a month is in or near the viewport. Browser image requests use generated derivatives (`thumbnail`, `preview`, optional `fullsize`) or original endpoints depending on view and settings.
+
+The server image supervises separate API and microservices runtime roles, with a
+restricted maintenance role used during repair/migration mode. PostgreSQL is
+the durable source of truth, Valkey/Redis backs BullMQ and cross-process
+Socket.IO events, and the optional Python ML service handles CLIP, faces, and
+OCR. Mobile clients maintain their own Drift/SQLite state through a checkpointed
+incremental sync protocol rather than consuming the web timeline directly.
 
 gallery-repo is intentionally different. Its `/api/scan` hot path lists a folder and reads cached dimensions from SQLite in a batch. It does not probe images with PIL or parse metadata during scan. Metadata is extracted on demand through `/api/metadata`, thumbnails are generated on demand through `/api/thumbnail`, and PhotoSwipe's main source is the original `/api/image`.
 
@@ -387,34 +443,295 @@ Relevant queues include:
 - `duplicateDetection`
 - `backgroundTask`
 - `storageTemplateMigration`
+- `migration`
 - `search`
 - `sidecar`
 - `library`
+- `notifications`
+- `backupDatabase`
 - `ocr`
 - `workflow`
+- `integrityCheck` (present in the 2026-06-19 re-verification revision)
+- `editor`
 
 Important job chain:
 
 ```txt
-Upload or external library asset row
--> SidecarCheck when needed
+Upload asset row
 -> AssetExtractMetadata
--> StorageTemplateMigrationSingle
--> AssetGenerateThumbnails
--> SmartSearch / face detection / OCR / duplicate detection / video encoding follow-up jobs
--> websocket notifications for upload-ready/update events where applicable
+-> AssetMetadataExtracted event
+   -> StorageTemplateMigrationSingle
+   -> matching plugin workflows
+-> AssetGenerateThumbnails after storage-template success or skip
+-> queue SmartSearch / face detection / OCR, plus video encoding for video
+   [only when source=upload or notify=true]
+-> emit upload-ready websocket notification without waiting for those follow-up jobs
+-> SmartSearch success queues duplicate detection only when source=upload
+
+External library asset row
+-> SidecarCheck
+-> same chain above
+   [queuePostSyncJobs currently labels the source as upload to enable the fan-out]
 ```
 
-`JobRepository` creates one BullMQ worker per queue and `QueueService` updates concurrency from config. Admin/queue endpoints expose queue status, pause/resume, empty, and job inspection operations.
+The microservices process creates one BullMQ worker per queue. `QueueService`
+updates worker concurrency from config, while the API process watches for the
+presence of microservices workers. Admin/queue endpoints expose queue status,
+pause/resume, empty, and job inspection operations.
 
-### 9. Cold Cache vs Warm Cache
+### 9. Process Architecture
+
+Immich packages several runtime roles in the server image rather than running
+each domain as an independent service.
+
+Supervisor and worker topology:
+
+- `server/src/main.ts` is the process supervisor. It checks PostgreSQL for
+  maintenance mode and starts the configured worker roles.
+- The API role runs as a Node child process. It creates the NestJS/Express HTTP
+  app, REST controllers, Socket.IO endpoint, OpenAPI setup, and static web app
+  serving.
+- The microservices role runs in a Node worker thread. It creates the common
+  Nest application without public controllers, discovers job handlers, and
+  starts one BullMQ worker for every queue.
+- The maintenance role replaces normal API/microservices startup when the
+  database is in maintenance mode. It exposes a restricted maintenance surface
+  while migrations, restore, or repair operations are being handled.
+- API and microservices use the same service/repository classes, but event and
+  job decorators can restrict a handler to specific worker roles.
+
+In-process orchestration:
+
+- `EventRepository` discovers methods decorated with `@OnEvent`, orders them by
+  priority, and invokes matching handlers sequentially within the process.
+- Cross-process events and client updates use Socket.IO. The Redis/Valkey
+  adapter allows events to reach the API or microservices process that owns the
+  relevant handler or client connection.
+- `JobRepository` discovers `@OnJob` handlers, verifies at startup that every
+  `JobName` has exactly one handler, and maps each job to its BullMQ queue.
+- PostgreSQL advisory locks serialize migrations, storage-template moves,
+  nightly scheduling, library watching, plugin import, backups, and other
+  singleton operations across server instances.
+
+Deployment shape:
+
+```txt
+immich-server container
+  -> supervisor
+     -> API child process
+        [REST, Socket.IO, OpenAPI, static Svelte app]
+     -> microservices worker thread
+        [BullMQ consumers, media/metadata/ML/library work]
+     -> maintenance worker instead of normal roles when maintenance mode is active
+
+shared infrastructure
+  -> PostgreSQL
+     [assets, EXIF, derivatives, jobs, sync/audit data, search vectors]
+  -> Valkey/Redis protocol
+     [BullMQ queues and Socket.IO adapter]
+  -> filesystem storage
+     [originals, sidecars, derivatives, encoded video, backups, temporary HLS]
+  -> optional Immich ML service
+     [CLIP, faces, OCR]
+```
+
+### 10. Mobile Sync and Incremental State Replication
+
+Mobile synchronization is a separate workflow from upload and from the web
+timeline APIs.
+
+Server protocol:
+
+- `POST /sync/stream` returns `application/jsonlines+json`, allowing the server
+  to stream ordered changes without building one large response in memory.
+- Sync requires a user session; API keys cannot use the checkpoint protocol.
+- Each session stores acknowledgements in `session_sync_checkpoint`. The mobile
+  client sends the latest acknowledgement after applying a batch locally.
+- The server captures a `nowId` at the start of a stream so all requested entity
+  types are read against a stable upper bound.
+- Entity streams include users, partners, assets, stacks, albums and album
+  membership, EXIF, OCR, people/faces, memories, user metadata, asset metadata,
+  and asset edits.
+- Upserts use monotonic update ids. Deletes and relationship changes use audit
+  tables and delete triggers so removals can be replicated after the primary
+  row is gone.
+- Newly shared partner/album data can require backfill. Backfill checkpoints
+  track both the entity that caused the backfill and progress inside its rows.
+- Audit history is retained for a bounded period. If the last complete client
+  checkpoint is older than 30 days, the server sends `SyncResetV1` and the
+  client must perform a full resynchronization.
+- `AuditTableCleanup` removes expired audit rows as background maintenance.
+
+Mobile client behavior:
+
+- The Flutter client reads the JSONL response incrementally, applies events in
+  bounded batches, and acknowledges durable progress.
+- Remote state is materialized into the mobile Drift/SQLite database; the
+  mobile UI does not use the web timeline manager as its source of truth.
+- Local-device backup/upload is a related but distinct path: file upload creates
+  server assets, while sync propagates resulting server-side state and later
+  updates back to the mobile database.
+
+### 11. Video, Encoded Media, and On-Demand HLS
+
+Video has two serving paths: a persistent encoded-video derivative and an
+on-demand adaptive HLS path.
+
+Metadata and persistent encoding:
+
+- Metadata extraction calls ffprobe for video/GIF media and stores normalized
+  stream data in `asset_video`, `asset_audio`, and `asset_keyframe`, in addition
+  to asset/EXIF fields such as dimensions, duration, frame rate, and dates.
+- Video thumbnail generation extracts a representative frame and writes the
+  same thumbnail/preview/thumbhash derivative set used by image assets.
+- For upload-source videos, successful thumbnail generation queues
+  `AssetEncodeVideo` along with smart search, faces, and OCR.
+- The encoded output is recorded as an `asset_file` row of type
+  `encoded_video`. The normal playback endpoint serves that derivative when it
+  exists and otherwise falls back to the original file.
+- FFmpeg policy selects codecs, resolution, bitrate, audio handling, and
+  hardware acceleration from system configuration. Supported deployment
+  profiles include CPU and platform-specific acceleration such as NVENC,
+  Quick Sync, VAAPI, RKMPP, and Mali paths.
+
+On-demand HLS:
+
+- Real-time transcoding is feature-gated by the FFmpeg realtime configuration.
+- The API returns a master playlist with supported codec/resolution variants
+  and creates a video-stream session in PostgreSQL.
+- Session ownership is acquired by one microservices worker. API and worker
+  coordinate session, heartbeat, segment request, and segment-ready events over
+  the server Socket.IO channel.
+- The worker launches FFmpeg only when a segment/variant is needed. It writes
+  fragmented MP4 init and media segments under a temporary HLS session folder.
+- A filesystem watcher detects completed segment renames and wakes the pending
+  API request. Backpressure pauses or resumes FFmpeg based on how far generated
+  segments are ahead of the client.
+- Variant switches and seeks can restart transcoding at a calculated segment.
+  The current implementation accepts position/init-segment hints and prewarms a
+  target variant to reduce startup after a seek or quality switch.
+- Session end and scheduled cleanup terminate FFmpeg processes, remove rows,
+  and delete temporary HLS files.
+
+The original audit's image viewer analysis remains correct for photos, but it
+does not describe this video session/transcoding path.
+
+### 12. Plugins and User Workflows
+
+Immich includes a WebAssembly plugin system and user-configurable workflow
+engine in the inspected revisions.
+
+Plugin loading:
+
+- Core and optionally external plugin folders contain a manifest and WASM
+  module. The microservices worker imports them under a PostgreSQL advisory
+  lock.
+- Plugin manifests, WASM bytes, exported methods, accepted workflow types,
+  templates, and host-function permissions are persisted in PostgreSQL.
+- Extism loads ordinary modules in process and modules requiring host functions
+  in worker isolation. Plugins without declared host-function access receive
+  rejecting stubs.
+
+Workflow execution:
+
+- Workflows and ordered workflow steps are stored in `workflow` and
+  `workflow_step` rows linked to plugin methods.
+- `AssetCreate` and `AssetMetadataExtracted` events select matching user
+  workflows and enqueue `WorkflowAssetTrigger` on the workflow queue.
+- A workflow reads a typed asset payload, executes each compatible plugin step,
+  applies returned changes through normal services, refreshes the payload, and
+  continues unless a step requests termination.
+- Host functions use a per-process internal JWT-derived auth context and are
+  limited to explicitly exposed operations such as album search/create and
+  adding assets to albums.
+- Metadata events sourced from `sidecar-write` do not retrigger metadata
+  workflows, preventing the direct write/extract loop. General workflow loop
+  detection is still marked as TODO in source.
+
+This branch runs alongside storage-template handling after metadata extraction;
+it is not represented by a purely linear metadata-to-thumbnail diagram.
+
+### 13. Operational Lifecycle
+
+Storage and change ownership:
+
+- Uploaded originals are owned by Immich storage. External-library originals
+  remain in place; storage templates explicitly do not move external assets.
+- Upload errors and failed inserts queue file deletion. Successful asset/file
+  deletion also uses background cleanup so request handlers do not perform all
+  filesystem work synchronously.
+- `asset_file` is the database inventory for sidecars, thumbnail/preview/
+  fullsize images, and encoded video. Regeneration upserts the new rows and
+  queues superseded files for deletion.
+- Uploaded assets use content SHA1 and a per-owner uniqueness constraint.
+  External assets currently use the deprecated `sha1-path` identity plus
+  library/path/stat reconciliation.
+
+Scheduled and singleton work:
+
+- The API process holding the nightly advisory lock schedules database cleanup,
+  memory generation, quota synchronization, missing-thumbnail checks, and face
+  clustering according to config.
+- External-library scheduled scan is enabled by default; filesystem watching is
+  optional and guarded so only one microservices process watches a library.
+- Database backups, version checks, geodata initialization, plugin import, and
+  storage migrations use dedicated locks or deduplicated jobs.
+
+Offline, trash, and repair states:
+
+- External sync marks inaccessible files offline and restores them online when
+  they reappear. File mtime changes re-enter sidecar/metadata processing.
+- Trash is soft-delete state with delayed background deletion; asset status and
+  visibility are distinct from filesystem offline state.
+- Maintenance mode starts a restricted maintenance worker instead of the
+  normal API/microservices pair.
+- In the 2026-06-19 re-verification revision, the new integrity pipeline can
+  scan for missing tracked files, untracked storage files, and checksum
+  failures. Findings are stored in `integrity_report`; refresh and delete
+  operations run through the `integrityCheck` queue and admin maintenance API.
+  This integrity-report implementation was not present in the original
+  2026-06-09 snapshot.
+
+Observability and invalidation:
+
+- OpenTelemetry instruments HTTP, NestJS, PostgreSQL, Redis, I/O, repository,
+  and job work according to enabled metric groups; Prometheus export is
+  available from configured API and microservices ports.
+- Socket.IO update events invalidate or refresh web caches. Media URLs include
+  thumbhash/cache keys, while database rows and timestamps are the durable
+  source for server-side readiness and sync state.
+
+### 14. Technology Stack
+
+| Layer               | Technologies in the inspected repository                                                                       | Role                                                                                    |
+| ------------------- | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Monorepo/tooling    | pnpm workspaces, TypeScript, Vitest, ESLint, Prettier                                                          | Shared server, web, SDK, plugin SDK, UI, and test packages.                             |
+| Server/API          | Node.js, NestJS 11, Express 5, Zod/nestjs-zod, OpenAPI/Swagger                                                 | REST API, auth/permissions, DTO validation, websocket setup, and static web serving.    |
+| Data access         | PostgreSQL 14, Kysely, `@immich/sql-tools`, migrations and triggers                                            | Asset state, EXIF, derivatives, audit/sync data, workflow state, and relational search. |
+| Database extensions | VectorChord with pgvector compatibility, `pg_trgm`, `unaccent`, cube/earthdistance                             | CLIP/face vector indexes, fuzzy text search, and geographic queries.                    |
+| Queue/realtime      | BullMQ, Valkey/Redis protocol, Socket.IO, Redis adapter                                                        | Durable jobs, configurable concurrency, worker coordination, and client events.         |
+| Image/media         | ExifTool, Sharp/libvips, FFmpeg/ffprobe, ThumbHash                                                             | Metadata, RAW extraction, resize/convert/edit, video probe/transcode, and placeholders. |
+| Web                 | Svelte 5, SvelteKit 2, Vite 8, Tailwind CSS 4, Immich UI                                                       | Static SPA, timeline virtualization, adaptive viewer, maps, search, and admin UI.       |
+| Machine learning    | Python 3.11+, FastAPI, Gunicorn/Uvicorn, ONNX Runtime, OpenCLIP/MCLIP, InsightFace, RapidOCR, Hugging Face Hub | CLIP image/text embeddings, face detection/recognition, and OCR.                        |
+| ML acceleration     | ONNX Runtime CPU, CUDA, OpenVINO, ROCm/MIGraphX, ARM NN, RKNN variants                                         | Optional hardware-specific inference images.                                            |
+| Mobile              | Flutter/Dart, Riverpod, Drift/SQLite, generated OpenAPI client, native platform bridges                        | Device backup, local database, incremental sync, background work, and mobile viewer.    |
+| Plugins             | Extism and `@immich/plugin-sdk`                                                                                | WASM plugin loading and workflow step execution.                                        |
+| Observability       | OpenTelemetry and Prometheus exporter                                                                          | API, database, Redis, I/O, repository, and job metrics.                                 |
+| Deployment          | Docker Compose; server, ML, Valkey, custom PostgreSQL/VectorChord images                                       | Default self-hosted topology with persistent media, database, and model cache volumes.  |
+
+The production web build uses SvelteKit's static adapter. The NestJS server
+serves the generated files and injects Open Graph metadata for shared-link
+routes; it is not a general server-rendered Svelte application.
+
+### 15. Cold Cache vs Warm Cache
 
 Cold import or library scan:
 
 - External library scan discovers paths with `fast-glob` and creates rows from stat data.
 - Original file metadata and thumbnails are not available until background jobs finish.
-- Timeline visibility can be DB-fast after asset rows exist, but thumbnails/previews may be missing or represented by placeholders until derivative jobs complete.
-- Upload flow emits ready notifications only after key post-processing work in the job chain.
+- `/timeline/buckets` can count an asset after the `asset` row exists, but `/timeline/bucket` uses an inner join to `asset_exif`. An external asset does not enter the compact grid payload until metadata extraction has created its EXIF row.
+- After the EXIF row exists, the grid can expose the asset before derivatives are ready; thumbnails/previews may still be missing or represented by placeholders.
+- Upload-ready websocket notifications are emitted after thumbnail generation queues its follow-up jobs. They do not wait for smart search, faces, OCR, duplicate detection, or video encoding to finish.
 
 Warm library:
 
@@ -446,10 +763,12 @@ User upload
      [async background, storage/DB update]
   -> AssetGenerateThumbnails
      [async background, original read, thumbnail/preview/fullsize write, asset_file DB write]
-  -> SmartSearch / OCR / faces / duplicate jobs
-     [async background, preview/DB/ML as configured]
+  -> queue SmartSearch / OCR / faces and video encoding when applicable
+     [conditional fan-out for source=upload or notify=true]
   -> websocket upload-ready/update events
-     [UI can refresh from API/DB]
+     [sent after queueing follow-ups; UI does not wait for them to finish]
+  -> SmartSearch success may queue duplicate detection
+     [source=upload only]
 
 External library scan
   -> LibraryController.scanLibrary
@@ -461,10 +780,12 @@ External library scan
   -> handleSyncFiles/processEntity
      [filesystem stat, DB asset insert, path-derived checksum]
   -> SidecarCheck
-     [async background, filesystem/DB sidecar work]
+     [async background, filesystem/DB sidecar work; source is currently labeled upload]
   -> AssetExtractMetadata
      [async background, original/sidecar read, DB write]
-  -> AssetGenerateThumbnails and search/ML follow-ups
+  -> StorageTemplateMigrationSingle
+     [storage move is a no-op for external assets; a disabled template returns skipped; either result advances the chain]
+  -> AssetGenerateThumbnails, then conditional search/ML follow-ups
      [async background, derivative/search/index writes]
   -> asset becomes warm for timeline/search/viewer
      [UI reads DB and derivative files]
