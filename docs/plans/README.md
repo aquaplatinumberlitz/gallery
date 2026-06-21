@@ -9,8 +9,8 @@ plans.
 
 Current plans:
 
-- [Unified Scan and Metadata Status Contract](UNIFIED_SCAN_METADATA_STATUS_CONTRACT_PLAN.md)
-  — proposed.
+- [Catalog Scan Pipeline and Unified Status](CATALOG_SCAN_PIPELINE_AND_UNIFIED_STATUS_PLAN.md)
+  — proposed, awaiting approval; no implementation started.
 
 When a plan is completed or superseded, update its status and move it to
 [`../archived/`](../archived/README.md). Do not leave completed work here.
