@@ -1,7 +1,7 @@
 # Catalog Scan Pipeline and Unified Status Plan
 
-Status: Active — audit revision 2 approved; Phase 1 through Phase 4 complete;
-Phase 5 next
+Status: Active — audit revision 2 approved; Phase 1 through Phase 5 complete;
+Phase 6 next
 
 Created: 2026-06-21
 
@@ -75,6 +75,43 @@ Phase 4 completion note, 2026-06-21:
 - Rebuild staging/atomic activation, independent repair removal, unified status
   endpoints, read-only browse, frontend migration, old-route hard cut, and
   final documentation/config cleanup remain future phases.
+
+Phase 5 completion note, 2026-06-21:
+
+- Implemented rebuild staging and atomic activation through the durable catalog
+  worker. Enumeration writes to `catalog_rebuild_entries` in bounded batches
+  without holding a write transaction during filesystem walks; one short
+  activation transaction merges staged rows into `file_index` and `assets`,
+  reconciles missing rows in scope as offline, resets affected `metadata_state`
+  to `pending`, updates `last_seen_scan_job_id`, and deletes staging rows only
+  after commit. Failed rebuild cleans up staging and leaves the canonical
+  generation untouched.
+- Added `POST /api/libraries/{id}/rebuild` with `confirm=true` requirement,
+  scope validation, and the documented `library_busy` 409 envelope. Extended
+  `create_or_coalesce_catalog_job` with rebuild conflict rules from §5.3:
+  manual rebuild returns 409 when catalog work is running or another rebuild is
+  queued/running, cancels queued scans it covers, and manual scan while rebuild
+  is queued/running returns 409.
+- Removed the standalone `repair_library_assets` function and
+  `POST /api/libraries/{id}/repair` endpoint; normal catalog scan performs
+  discovery and reconciliation in one canonical operation.
+- Added `GALLERY_CATALOG_WRITE_BATCH_SIZE` config (default 500) and extended
+  `APIError` with optional `extra` fields for structured 409 payloads.
+- Added Phase 5 coverage for rebuild execution, staging clearance, offline
+  reconciliation, failure preservation, scan/rebuild conflict rules, rebuild
+  API confirmation/scope validation, scan exclusion patterns, and scan
+  reconciliation without deleting derivatives. Replaced legacy repair tests
+  with equivalent scan/rebuild coverage.
+- Latest pushed Phase 5 implementation commit before this plan update:
+  `f70dd8d feat: implement catalog rebuild staging and atomic activation`.
+- Latest local verification before this plan update: backend ruff check/format
+  passed, and
+  `backend/venv/bin/python -m pytest backend/tests/ -q --cov=backend --cov-report=term-missing --cov-report=xml --cov-fail-under=85`
+  passed on 2026-06-21 with 664 backend tests and 85.23% backend coverage.
+  Frontend typecheck, production build, ESLint, Prettier, and 396 unit tests
+  passed. Existing FastAPI lifecycle deprecation warnings remain non-blocking.
+- Unified status endpoints, read-only browse, frontend migration, old-route
+  hard cut, and final documentation/config cleanup remain future phases.
 
 ## 1. Objective
 
