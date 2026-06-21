@@ -363,7 +363,6 @@ async def api_scan(
     background_tasks: BackgroundTasks,
     path: str | None = Query(None, description="Absolute path to scan"),
     limit: int | None = Query(None, ge=1, le=5000, description="Max media items to return"),
-    image_cursor: int = Query(0, ge=0, description="Deprecated; accepted but ignored"),  # noqa: ARG001
     media_cursor: int | None = Query(None, ge=0, description="Cursor/offset for mixed media"),
 ):
     """Return folder children and media paginated by ``media_cursor``."""

@@ -72,7 +72,7 @@ def test_api_scan_hot_path_uses_cached_dimensions_without_parsing_or_opening_ima
 
     response = client.get(
         "/api/scan",
-        params={"path": str(album), "limit": 1, "image_cursor": 0},
+        params={"path": str(album), "limit": 1},
     )
 
     assert response.status_code == 200

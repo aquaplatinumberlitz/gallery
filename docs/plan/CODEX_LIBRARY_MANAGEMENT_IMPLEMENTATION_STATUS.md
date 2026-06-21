@@ -75,8 +75,9 @@ V1.1/V2 API cleanup is complete. `GET /api/scan` now exposes one canonical
 mixed-media collection (`media`) with `next_media_cursor`, `total_images`,
 `total_videos`, and `total_assets`. The legacy `images`, `videos`, and
 `next_cursor` response fields were removed; pagination uses `limit` and
-`media_cursor`. The deprecated `image_cursor` query parameter remains accepted
-and ignored so older callers do not fail request validation.
+`media_cursor`. The legacy `image_cursor` query parameter was fully removed;
+FastAPI silently ignores undeclared params, so older callers sending it still
+receive a 200 response without error.
 
 > Note: Phase 6 replaced the legacy `galleryStore.setRootPath()` bridge with
 > an `activeLibraryId` (persisted) + `currentBrowsePath` (in-memory) model.

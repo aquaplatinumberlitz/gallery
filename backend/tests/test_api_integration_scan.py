@@ -142,7 +142,7 @@ class TestPagination:
 
         resp = isolated_app.get(
             "/api/scan",
-            params={"path": str(album), "limit": 2, "image_cursor": 0},
+            params={"path": str(album), "limit": 2},
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -150,7 +150,7 @@ class TestPagination:
         assert data["total_images"] == 5
         assert data["next_media_cursor"] == 2
 
-    def test_image_cursor_is_ignored(self, isolated_app: TestClient, isolated_gallery_root: Path):
+    def test_basic_limit_pagination(self, isolated_app: TestClient, isolated_gallery_root: Path):
         from .conftest import create_test_png
 
         album = isolated_gallery_root / "cursor_test"
@@ -160,7 +160,7 @@ class TestPagination:
 
         resp = isolated_app.get(
             "/api/scan",
-            params={"path": str(album), "limit": 2, "image_cursor": 2},
+            params={"path": str(album), "limit": 2},
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -178,7 +178,7 @@ class TestPagination:
 
         resp = isolated_app.get(
             "/api/scan",
-            params={"path": str(album), "limit": 5, "image_cursor": 0},
+            params={"path": str(album), "limit": 5},
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -195,7 +195,7 @@ class TestPagination:
 
         resp = isolated_app.get(
             "/api/scan",
-            params={"path": str(album), "limit": 3, "image_cursor": 0},
+            params={"path": str(album), "limit": 3},
         )
         assert resp.status_code == 200
         data = resp.json()

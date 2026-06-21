@@ -204,7 +204,7 @@ def test_cold_path_unchanged_when_warm_disabled(tmp_path: Path, monkeypatch: pyt
 
     response = client.get(
         "/api/scan",
-        params={"path": str(album), "limit": 10, "image_cursor": 0},
+        params={"path": str(album), "limit": 10},
     )
     assert response.status_code == 200
     data = response.json()
@@ -256,7 +256,7 @@ def test_api_scan_uses_warm_listing(tmp_path: Path, monkeypatch: pytest.MonkeyPa
 
     response = client.get(
         "/api/scan",
-        params={"path": str(album), "limit": 10, "image_cursor": 0},
+        params={"path": str(album), "limit": 10},
     )
     assert response.status_code == 200
     data = response.json()
