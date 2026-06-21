@@ -461,6 +461,9 @@ def _migrate_v8_to_v9(conn: sqlite3.Connection) -> None:
         raise
     finally:
         conn.execute("PRAGMA foreign_keys=ON")
+        violations = conn.execute("PRAGMA foreign_key_check").fetchall()
+        if violations:
+            raise RuntimeError(f"Foreign key violations after v9 migration: {violations}")
 
 
 def initialize_database() -> None:
@@ -1256,6 +1259,174 @@ def create_job(
         return _serialize_library_job(row)
 
 
+def _job_scope_covers(existing_scope: str | None, requested_scope: str | None) -> bool:
+    """Return whether an active job scope covers a requested scope."""
+    if existing_scope is None:
+        return True
+    if requested_scope is None:
+        return False
+    return catalog_path_contains(existing_scope, requested_scope)
+
+
+def _serialize_catalog_enqueue_result(job: sqlite3.Row, created: bool) -> tuple[dict[str, Any], bool]:
+    return _serialize_library_job(job), created
+
+
+def create_or_coalesce_catalog_job(
+    library_id: int,
+    *,
+    operation: str = "scan",
+    trigger: str = "manual",
+    scope_path: str | Path | None = None,
+    priority: int = 50,
+    parent_job_id: int | None = None,
+    message: str | None = None,
+) -> tuple[dict[str, Any], bool]:
+    """Create or coalesce one durable catalog job under the v9 trigger rules."""
+    if operation not in {"scan", "rebuild"}:
+        raise ValueError(f"Unsupported catalog operation: {operation}")
+    requested_scope = canonicalize_catalog_path(scope_path) if scope_path is not None else None
+    now = time.time()
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            active_rows = conn.execute(
+                """
+                SELECT * FROM library_jobs
+                WHERE library_id = ? AND type = ?
+                  AND state IN ('queued', 'running')
+                ORDER BY CASE state WHEN 'queued' THEN 0 ELSE 1 END, priority DESC, created_at, id
+                """,
+                (library_id, operation),
+            ).fetchall()
+            for row in active_rows:
+                if _job_scope_covers(row["scope_path"], requested_scope):
+                    if row["state"] == "running" and trigger == "watcher":
+                        continue
+                    if row["state"] == "queued" and priority > int(row["priority"]):
+                        conn.execute(
+                            """
+                            UPDATE library_jobs
+                            SET priority = ?, trigger = ?, updated_at = ?
+                            WHERE id = ?
+                            """,
+                            (priority, trigger, now, int(row["id"])),
+                        )
+                        row = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (int(row["id"]),)).fetchone()
+                    conn.execute("COMMIT")
+                    return _serialize_catalog_enqueue_result(row, False)
+
+            for row in active_rows:
+                if row["state"] == "queued" and _job_scope_covers(requested_scope, row["scope_path"]):
+                    conn.execute(
+                        """
+                        UPDATE library_jobs
+                        SET state = 'cancelled',
+                            message = COALESCE(message, 'Superseded by broader catalog job'),
+                            error = 'Superseded by broader catalog job',
+                            updated_at = ?,
+                            finished_at = COALESCE(finished_at, ?)
+                        WHERE id = ?
+                        """,
+                        (now, now, int(row["id"])),
+                    )
+
+            cursor = conn.execute(
+                """
+                INSERT INTO library_jobs (
+                  library_id, parent_job_id, type, state, scope_path, trigger, priority,
+                  progress_current, progress_total, message, counters, created_at, updated_at
+                ) VALUES (?, ?, ?, 'queued', ?, ?, ?, 0, NULL, ?, '{}', ?, ?)
+                """,
+                (
+                    library_id,
+                    parent_job_id,
+                    operation,
+                    requested_scope,
+                    trigger,
+                    priority,
+                    message or "Catalog scan queued",
+                    now,
+                    now,
+                ),
+            )
+            row = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (cursor.lastrowid,)).fetchone()
+            conn.execute("COMMIT")
+            return _serialize_catalog_enqueue_result(row, True)
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
+
+
+def claim_next_catalog_job(*, max_queue_wait_seconds: int = 600) -> dict[str, Any] | None:
+    """Mark the next runnable catalog job running and return it."""
+    initialize_database()
+    now = time.time()
+    with _DB_LOCK, _connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM library_jobs AS queued
+                WHERE queued.state = 'queued'
+                  AND queued.type IN ('scan', 'rebuild')
+                  AND queued.library_id IS NOT NULL
+                  AND NOT EXISTS (
+                    SELECT 1 FROM library_jobs AS running
+                    WHERE running.library_id = queued.library_id
+                      AND running.state = 'running'
+                      AND running.type IN ('scan', 'rebuild')
+                  )
+                ORDER BY
+                  CASE
+                    WHEN (? - queued.created_at) >= ? THEN 100
+                    ELSE queued.priority
+                  END DESC,
+                  queued.created_at ASC,
+                  queued.id ASC
+                LIMIT 1
+                """,
+                (now, max_queue_wait_seconds),
+            ).fetchall()
+            if not rows:
+                conn.execute("COMMIT")
+                return None
+            job_id = int(rows[0]["id"])
+            conn.execute(
+                """
+                UPDATE library_jobs
+                SET state = 'running',
+                    started_at = COALESCE(started_at, ?),
+                    updated_at = ?,
+                    message = COALESCE(message, 'Catalog job running')
+                WHERE id = ? AND state = 'queued'
+                """,
+                (now, now, job_id),
+            )
+            row = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (job_id,)).fetchone()
+            conn.execute("COMMIT")
+            return _serialize_library_job(row)
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
+
+
+def enqueue_startup_catalog_scans(*, priority: int = 10) -> list[dict[str, Any]]:
+    """Queue or coalesce one low-priority startup scan per registered library."""
+    jobs: list[dict[str, Any]] = []
+    for library in list_libraries():
+        job, _created = create_or_coalesce_catalog_job(
+            int(library["id"]),
+            trigger="startup",
+            priority=priority,
+            message="Startup catch-up scan queued",
+        )
+        jobs.append(job)
+    return jobs
+
+
 def update_job_state(
     job_id: int,
     state: str,
@@ -1375,45 +1546,25 @@ def create_or_get_active_scan_job(
     ``True`` when a new job was inserted and ``False`` when an existing active
     scan job was reused.
     """
-    now = time.time()
-    initialize_database()
-    with _DB_LOCK, _connect() as conn:
-        existing = conn.execute(
-            """
-            SELECT * FROM library_jobs
-            WHERE library_id = ? AND type = 'scan'
-              AND state IN ('queued', 'running')
-            ORDER BY id LIMIT 1
-            """,
-            (library_id,),
-        ).fetchone()
-        if existing is not None:
-            return _serialize_library_job(existing), False
-        cursor = conn.execute(
-            """
-            INSERT INTO library_jobs (
-              library_id, parent_job_id, type, state, progress_current,
-              progress_total, message, counters, created_at, updated_at
-            ) VALUES (?, ?, 'scan', 'queued', 0, NULL, 'Scan queued', '{}', ?, ?)
-            """,
-            (library_id, parent_job_id, now, now),
-        )
-        row = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (cursor.lastrowid,)).fetchone()
-        return _serialize_library_job(row), True
+    return create_or_coalesce_catalog_job(
+        library_id,
+        operation="scan",
+        trigger="manual",
+        priority=100,
+        parent_job_id=parent_job_id,
+        message="Scan queued",
+    )
 
 
 def recover_stale_jobs() -> list[dict[str, Any]]:
-    """Fail jobs left running or queued by a previous server process.
+    """Fail jobs left running by a previous server process.
 
-    Running jobs are transitioned to ``failed`` with an interrupted-by-restart
-    message. Queued jobs are transitioned to ``cancelled`` because no worker
-    has picked them up yet and re-running them automatically could duplicate
-    work that the user already retried manually.
+    Queued durable jobs remain queued so startup can resume them or coalesce a
+    low-priority catch-up scan without losing work.
     """
     initialize_database()
     with _DB_LOCK, _connect() as conn:
         running_ids = [int(row["id"]) for row in conn.execute("SELECT id FROM library_jobs WHERE state = 'running'")]
-        queued_ids = [int(row["id"]) for row in conn.execute("SELECT id FROM library_jobs WHERE state = 'queued'")]
     recovered: list[dict[str, Any]] = []
     for job_id in running_ids:
         job = update_job_state(
@@ -1421,15 +1572,6 @@ def recover_stale_jobs() -> list[dict[str, Any]]:
             "failed",
             message="Interrupted by server restart",
             error="Interrupted by server restart",
-        )
-        if job is not None:
-            recovered.append(job)
-    for job_id in queued_ids:
-        job = update_job_state(
-            job_id,
-            "cancelled",
-            message="Cancelled by server restart",
-            error="Cancelled by server restart",
         )
         if job is not None:
             recovered.append(job)
@@ -1569,12 +1711,18 @@ class LibraryOverlapError(ValueError):
     """Raised when an import path overlaps another registered library."""
 
 
-def _assert_no_cross_library_overlap_conn(
+def _assert_no_import_path_overlap_conn(
     conn: sqlite3.Connection,
     import_paths: list[str],
     *,
     exclude_library_id: int | None = None,
 ) -> None:
+    # 1. Check new paths don't overlap each other (same-library)
+    for i, left in enumerate(import_paths):
+        for right in import_paths[i + 1 :]:
+            if _catalog_paths_overlap(left, right):
+                raise LibraryOverlapError(f"Import paths overlap each other: {left} vs {right}")
+    # 2. Cross-library check
     query = "SELECT library_id, path FROM library_import_paths"
     params: tuple[Any, ...] = ()
     if exclude_library_id is not None:
@@ -1669,6 +1817,7 @@ def create_library(
     *,
     name: str | None = None,
     exclusion_patterns: list[str] | None = None,
+    queue_initial_scan: bool = False,
 ) -> dict[str, Any]:
     """Create one library with ordered import paths and exclusion patterns."""
     canonical_paths = [str(Path(path).resolve()) for path in import_paths]
@@ -1683,7 +1832,7 @@ def create_library(
     now = time.time()
     initialize_database()
     with _DB_LOCK, _connect() as conn:
-        _assert_no_cross_library_overlap_conn(conn, canonical_paths)
+        _assert_no_import_path_overlap_conn(conn, canonical_paths)
         cursor = conn.execute(
             """
             INSERT INTO libraries (
@@ -1695,8 +1844,23 @@ def create_library(
         library_id = int(cursor.lastrowid)
         _replace_library_paths_conn(conn, library_id, canonical_paths, now=now)
         _replace_library_patterns_conn(conn, library_id, patterns, now=now)
+        initial_scan_job_id: int | None = None
+        if queue_initial_scan:
+            cursor = conn.execute(
+                """
+                INSERT INTO library_jobs (
+                  library_id, type, state, scope_path, trigger, priority,
+                  progress_current, progress_total, message, counters, created_at, updated_at
+                ) VALUES (?, 'scan', 'queued', NULL, 'initial', 100, 0, NULL, 'Initial scan queued', '{}', ?, ?)
+                """,
+                (library_id, now, now),
+            )
+            initial_scan_job_id = int(cursor.lastrowid)
         row = conn.execute("SELECT * FROM libraries WHERE id = ?", (library_id,)).fetchone()
-        return _serialize_library_conn(conn, row)
+        library = _serialize_library_conn(conn, row)
+        if initial_scan_job_id is not None:
+            library["initial_scan_job_id"] = initial_scan_job_id
+        return library
 
 
 def update_library(
@@ -1722,7 +1886,7 @@ def update_library(
         if row is None:
             return None
         if canonical_paths is not None:
-            _assert_no_cross_library_overlap_conn(conn, canonical_paths, exclude_library_id=library_id)
+            _assert_no_import_path_overlap_conn(conn, canonical_paths, exclude_library_id=library_id)
             _replace_library_paths_conn(conn, library_id, canonical_paths, now=now)
         if patterns is not None:
             _replace_library_patterns_conn(conn, library_id, patterns, now=now)

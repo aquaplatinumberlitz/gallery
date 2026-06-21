@@ -1,25 +1,23 @@
 """Registered library management and progressive discovery endpoints."""
 
 import os
-import time
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Query, Request
+from fastapi import APIRouter, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.responses import StreamingResponse
 from wcmatch import glob
 
+from .catalog import service as catalog_service
 from .derivative_scheduler import scheduler
 from .errors import APIError, ErrorType
-from .indexer import rebuild_index_scope
 from .library_events import event_payload, event_stream, publish
 from .metadata_store import (
     LibraryOverlapError,
     create_job,
     create_library,
-    create_or_get_active_scan_job,
     get_gallery_stats,
     get_job,
     get_library,
@@ -59,6 +57,14 @@ class LibraryUpdate(BaseModel):
     name: str | None = None
     import_paths: list[str] | None = None
     exclusion_patterns: list[str] | None = None
+
+
+class LibraryScanRequest(BaseModel):
+    """Manual catalog scan request."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    scope_path: str | None = None
 
 
 def _trim_value(value: str) -> str:
@@ -148,7 +154,8 @@ def _validate_settings(
             if index == other_index or other is None or canonical == other:
                 continue
             if _path_overlaps(canonical, other):
-                item["warnings"].append("This import path overlaps another path in the same library")
+                item["is_valid"] = False
+                item["message"] = "This import path overlaps another path in the same library"
                 break
         for library in libraries:
             if existing_library_id is not None and int(library["id"]) == existing_library_id:
@@ -215,11 +222,7 @@ def _path_overlaps(left: str, right: str) -> bool:
 def _normalized_validated_values(result: dict[str, Any], field: str) -> list[str]:
     if not result["is_valid"]:
         overlap = next(
-            (
-                item["message"]
-                for item in result["import_paths"]
-                if item["message"] and "overlaps registered path" in item["message"]
-            ),
+            (item["message"] for item in result["import_paths"] if item["message"] and "overlaps" in item["message"]),
             None,
         )
         if overlap:
@@ -270,94 +273,7 @@ def _active_library_job(library_id: int, *job_types: str) -> dict[str, Any] | No
 
 
 def _queue_scan(library_id: int, *, parent_job_id: int | None = None) -> tuple[dict[str, Any], bool]:
-    job, created = create_or_get_active_scan_job(library_id, parent_job_id=parent_job_id)
-    if created:
-        _emit_job(job)
-    return job, created
-
-
-def _discover_library(job_id: int, library_id: int, import_paths: list[str]) -> bool:
-    try:
-        _set_job_state(
-            job_id,
-            "running",
-            progress_current=0,
-            progress_total=len(import_paths),
-            message="Scanning library",
-        )
-        update_library_state(library_id, "indexing")
-        counters = {"indexed": 0, "reconciled": 0, "queued": 0, "coalesced": 0, "skipped": 0, "failed": 0}
-        for index, import_path in enumerate(import_paths, start=1):
-            result = rebuild_index_scope(import_path)
-            counters["indexed"] += int(result.get("indexed", 0))
-            counters["reconciled"] += int(result.get("reconciled", 0))
-            for key in ("queued", "coalesced", "skipped", "failed"):
-                counters[key] += int(result.get("metadata", {}).get(key, 0))
-            _set_job_state(
-                job_id,
-                "running",
-                progress_current=index,
-                progress_total=len(import_paths),
-                message=f"Scanned {index} of {len(import_paths)} import paths",
-                counters=counters,
-            )
-        update_library_state(library_id, "ready", scan_completed=True)
-        _set_job_state(
-            job_id,
-            "succeeded",
-            progress_current=len(import_paths),
-            progress_total=len(import_paths),
-            message="Scan completed",
-            counters=counters,
-        )
-        return True
-    except Exception as exc:  # noqa: BLE001
-        update_library_state(library_id, "error", last_error=str(exc), scan_completed=True)
-        _set_job_state(job_id, "failed", message="Scan failed", error=str(exc))
-        return False
-
-
-def _run_scan_all(parent_job_id: int, children: list[tuple[int, int, list[str], bool]]) -> None:
-    total = len(children)
-    counters = {"total": total, "succeeded": 0, "failed": 0, "coalesced": 0}
-    _set_job_state(
-        parent_job_id,
-        "running",
-        progress_current=0,
-        progress_total=total,
-        message="Scanning all libraries",
-        counters=counters,
-    )
-    for index, (job_id, library_id, import_paths, created) in enumerate(children, start=1):
-        if created:
-            _discover_library(job_id, library_id, import_paths)
-        else:
-            counters["coalesced"] += 1
-            while (job := get_job(job_id)) is not None and job["state"] in {"queued", "running"}:
-                time.sleep(0.05)
-        job = get_job(job_id)
-        if job is not None and job["state"] == "succeeded":
-            counters["succeeded"] += 1
-        else:
-            counters["failed"] += 1
-        _set_job_state(
-            parent_job_id,
-            "running",
-            progress_current=index,
-            progress_total=total,
-            message=f"Completed {index} of {total} library scans",
-            counters=counters,
-        )
-    state = "failed" if counters["failed"] else "succeeded"
-    _set_job_state(
-        parent_job_id,
-        state,
-        progress_current=total,
-        progress_total=total,
-        message="Scan all completed" if state == "succeeded" else "One or more library scans failed",
-        error="One or more library scans failed" if state == "failed" else None,
-        counters=counters,
-    )
+    return catalog_service.queue_scan(library_id, trigger="manual", parent_job_id=parent_job_id)
 
 
 @router.get("/api/libraries")
@@ -378,14 +294,19 @@ async def api_register_library(payload: LibraryCreate):
     normalized_paths = _normalized_validated_values(validation, "import_paths")
     normalized_patterns = _normalized_validated_values(validation, "exclusion_patterns")
     try:
-        return await run_in_threadpool(
+        library = await run_in_threadpool(
             create_library,
             normalized_paths,
             name=_trim_value(payload.name) if payload.name is not None else None,
             exclusion_patterns=normalized_patterns,
+            queue_initial_scan=True,
         )
     except LibraryOverlapError as exc:
         raise APIError(409, "library_overlap", str(exc)) from exc
+    initial_scan_job_id = library.get("initial_scan_job_id")
+    if initial_scan_job_id is not None:
+        await run_in_threadpool(catalog_service.queue_initial_scan_job, int(initial_scan_job_id))
+    return library
 
 
 @router.post("/api/libraries/validate")
@@ -405,7 +326,7 @@ async def api_validate_library_create(payload: LibraryCreate):
 
 
 @router.post("/api/libraries/scan-all", status_code=202)
-async def api_scan_all_libraries(background_tasks: BackgroundTasks):
+async def api_scan_all_libraries():
     """Queue a parent scan-all job and one child scan per library."""
     libraries = await run_in_threadpool(list_libraries)
     parent = await run_in_threadpool(
@@ -415,16 +336,38 @@ async def api_scan_all_libraries(background_tasks: BackgroundTasks):
         message="Scan all queued",
     )
     _emit_job(parent)
-    children: list[tuple[int, int, list[str], bool]] = []
+    children: list[tuple[int, bool]] = []
     for library in libraries:
         library_id = int(library["id"])
-        import_paths = [str(item["path"]) for item in library["import_paths"]]
         job, created = await run_in_threadpool(_queue_scan, library_id, parent_job_id=parent["id"])
-        children.append((int(job["id"]), library_id, import_paths, created))
-    background_tasks.add_task(_run_scan_all, int(parent["id"]), children)
+        children.append((int(job["id"]), created))
+    counters = {
+        "total": len(children),
+        "succeeded": 0,
+        "failed": 0,
+        "coalesced": sum(1 for _job_id, created in children if not created),
+    }
+    await run_in_threadpool(
+        _set_job_state,
+        int(parent["id"]),
+        "running",
+        progress_current=0,
+        progress_total=len(children),
+        message="Queueing library scans",
+        counters=counters,
+    )
+    await run_in_threadpool(
+        _set_job_state,
+        int(parent["id"]),
+        "succeeded",
+        progress_current=len(children),
+        progress_total=len(children),
+        message="Scan all queued",
+        counters=counters,
+    )
     return {
         "job_id": parent["id"],
-        "state": parent["state"],
+        "state": "succeeded",
         "child_job_ids": [child[0] for child in children],
         "count": len(children),
     }
@@ -587,20 +530,38 @@ async def api_library_jobs(library_id: int, limit: int = Query(50, ge=1, le=200)
 
 
 @router.post("/api/libraries/{library_id}/scan", status_code=202)
-async def api_scan_library(library_id: int, background_tasks: BackgroundTasks):
+async def api_scan_library(library_id: int, payload: LibraryScanRequest | None = None):
     """Trigger background discovery/import for a registered library."""
     library = await run_in_threadpool(get_library, library_id)
     if library is None:
         raise APIError(404, ErrorType.NOT_FOUND, "Library not found")
-    import_paths = [str(item["path"]) for item in library["import_paths"]]
-    if any(not Path(path).is_dir() for path in import_paths):
+    scope_path = payload.scope_path if payload is not None else None
+    import_paths = [str(Path(item["path"]).resolve()) for item in library["import_paths"]]
+    scan_paths = [str(Path(scope_path).resolve())] if scope_path is not None else import_paths
+    if scope_path is not None and not any(
+        Path(scan_paths[0]) == Path(root) or Path(root) in Path(scan_paths[0]).parents for root in import_paths
+    ):
+        raise APIError(400, ErrorType.BAD_REQUEST, "Scan scope is outside this library")
+    if any(not Path(path).is_dir() for path in scan_paths):
         await run_in_threadpool(update_library_state, library_id, "offline", last_error="Root path is offline")
         raise APIError(409, "library_offline", "One or more library import paths are offline")
-    job, created = await run_in_threadpool(_queue_scan, library_id)
+    job, created = await run_in_threadpool(
+        catalog_service.queue_scan,
+        library_id,
+        trigger="manual",
+        scope_path=scope_path,
+    )
     if created:
         await run_in_threadpool(update_library_state, library_id, "discovering")
-        background_tasks.add_task(_discover_library, int(job["id"]), library_id, import_paths)
-    return {"library_id": library_id, "job_id": job["id"], "state": job["state"]}
+    return {
+        "job_id": job["id"],
+        "library_id": library_id,
+        "scope_path": job["scope_path"],
+        "operation": job["type"],
+        "trigger": job["trigger"],
+        "state": job["state"],
+        "coalesced": not created,
+    }
 
 
 @router.post("/api/libraries/{library_id}/repair")

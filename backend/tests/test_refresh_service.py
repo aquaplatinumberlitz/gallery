@@ -1,16 +1,10 @@
 """
 Purpose:
-Unit-test the scheduled-refresh service logic without spawning background threads
-or sleeping.  Every coverage branch in refresh.py is exercised via direct helper
-calls and monkeypatched dependencies.
+Unit-test the scheduled catalog reconciliation loop without spawning background
+threads or sleeping.
 
 Guarantees:
-* _refresh_folder marks incomplete on missing path and returns False.
-* _refresh_folder calls index_directory_tree, _scan_folder_counts, and
-  update_folder_index_state on success.
-* _refresh_folder marks incomplete on exception and returns False.
-* _run_refresh_tick skips when no roots + allow_all=False.
-* _run_refresh_tick processes all indexed paths when allow_all=True.
+* _run_refresh_tick queues scheduled catalog scans for registered libraries.
 * _run_refresh_tick filters candidates to configured roots.
 * _run_refresh_tick respects SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK.
 * _run_refresh_tick stops early when _refresh_stop is set.
@@ -36,7 +30,6 @@ import pytest
 
 from backend import refresh
 from backend.refresh import (
-    _refresh_folder,
     _refresh_thread,
     _run_refresh_tick,
     get_refresh_status,
@@ -59,133 +52,46 @@ def reset_refresh_state(monkeypatch: pytest.MonkeyPatch):
 
 
 # ---------------------------------------------------------------------------
-# _refresh_folder
-# ---------------------------------------------------------------------------
-
-
-class TestRefreshFolder:
-    def test_missing_path_marks_incomplete_and_returns_false(self, monkeypatch: pytest.MonkeyPatch):
-        calls = []
-
-        def fake_mark(path, last_error=None):
-            calls.append(("mark", path, last_error))
-
-        monkeypatch.setattr(refresh, "mark_folder_index_incomplete", fake_mark)
-
-        result = _refresh_folder("/nonexistent/path")
-        assert result is False
-        assert len(calls) == 1
-        assert calls[0][1] == "/nonexistent/path"
-        assert calls[0][2] == "path_not_found"
-
-    def test_file_path_marks_incomplete_and_returns_false(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-        f = tmp_path / "file.txt"
-        f.write_text("data")
-        calls = []
-
-        def fake_mark(path, last_error=None):
-            calls.append(("mark", path, last_error))
-
-        monkeypatch.setattr(refresh, "mark_folder_index_incomplete", fake_mark)
-
-        result = _refresh_folder(str(f))
-        assert result is False
-        assert len(calls) == 1
-
-    def test_successful_path(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-        folder = tmp_path / "album"
-        folder.mkdir()
-
-        index_calls = []
-        scan_counts_calls = []
-        update_calls = []
-
-        def fake_index(path, include_metadata=False):
-            index_calls.append(str(path))
-
-        def fake_scan_counts(path):
-            scan_counts_calls.append(str(path))
-            return {"child_count": 5, "folder_count": 2, "image_count": 10}
-
-        def fake_update(path, complete, child_count, folder_count, image_count, last_error):
-            update_calls.append((str(path), complete, child_count))
-
-        monkeypatch.setattr(refresh, "index_directory_tree", fake_index)
-        monkeypatch.setattr(refresh, "_scan_folder_counts", fake_scan_counts)
-        monkeypatch.setattr(refresh, "update_folder_index_state", fake_update)
-
-        result = _refresh_folder(str(folder))
-        assert result is True
-        assert len(index_calls) == 1
-        assert len(scan_counts_calls) == 1
-        assert len(update_calls) == 1
-        assert update_calls[0][1] is True
-
-    def test_exception_marks_incomplete_and_returns_false(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-        folder = tmp_path / "album"
-        folder.mkdir()
-
-        def fake_index(path, include_metadata=False):
-            raise RuntimeError("boom")
-
-        mark_calls = []
-
-        def fake_mark(path, last_error=None):
-            mark_calls.append((path, last_error))
-
-        monkeypatch.setattr(refresh, "index_directory_tree", fake_index)
-        monkeypatch.setattr(refresh, "mark_folder_index_incomplete", fake_mark)
-
-        result = _refresh_folder(str(folder))
-        assert result is False
-        assert len(mark_calls) == 1
-        assert "boom" in mark_calls[0][1]
-
-
-# ---------------------------------------------------------------------------
 # _run_refresh_tick
 # ---------------------------------------------------------------------------
 
 
 class TestRunRefreshTick:
-    def test_no_roots_and_allow_all_false_skips(self, monkeypatch: pytest.MonkeyPatch):
+    def test_no_libraries_noops(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_ROOTS", [])
-        monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_ALLOW_ALL_INDEXED", False)
 
-        get_folders_calls = []
+        queue_calls = []
 
-        def fake_get_folders():
-            get_folders_calls.append(1)
+        def fake_list_libraries():
             return []
 
-        monkeypatch.setattr(refresh, "get_folder_indexed_paths", fake_get_folders)
+        monkeypatch.setattr(refresh, "list_libraries", fake_list_libraries)
+        monkeypatch.setattr(refresh, "queue_scan", lambda *args, **kwargs: queue_calls.append((args, kwargs)))
         _run_refresh_tick()
-        assert len(get_folders_calls) == 0
+        assert queue_calls == []
 
-    def test_allow_all_true_processes_indexed_paths(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    def test_queues_registered_libraries_without_roots(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_ROOTS", [])
-        monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_ALLOW_ALL_INDEXED", True)
         monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK", 100)
 
         folder = tmp_path / "album"
         folder.mkdir()
 
-        def fake_get_folders():
-            return [{"path": str(folder), "updated_at": 0}]
+        def fake_list_libraries():
+            return [{"id": 7, "import_paths": [{"path": str(folder)}]}]
 
         refresh_calls = []
 
-        def fake_refresh_folder(p):
-            refresh_calls.append(p)
-            return True
+        def fake_queue_scan(library_id, *, trigger):
+            refresh_calls.append((library_id, trigger))
 
-        monkeypatch.setattr(refresh, "get_folder_indexed_paths", fake_get_folders)
-        monkeypatch.setattr(refresh, "_refresh_folder", fake_refresh_folder)
+        monkeypatch.setattr(refresh, "list_libraries", fake_list_libraries)
+        monkeypatch.setattr(refresh, "queue_scan", fake_queue_scan)
         monkeypatch.setattr(refresh, "_refresh_runs", None)
         monkeypatch.setattr(refresh, "_refresh_folders", None)
 
         _run_refresh_tick()
-        assert len(refresh_calls) == 1
+        assert refresh_calls == [(7, "scheduled")]
 
     def test_configured_roots_filter_candidates(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         root = tmp_path / "movies"
@@ -196,48 +102,45 @@ class TestRunRefreshTick:
         monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_ROOTS", [str(root)])
         monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK", 100)
 
-        def fake_get_folders():
+        def fake_list_libraries():
             return [
-                {"path": str(root / "sub"), "updated_at": 0},
-                {"path": str(other), "updated_at": 0},
+                {"id": 1, "import_paths": [{"path": str(root / "sub")}]},
+                {"id": 2, "import_paths": [{"path": str(other)}]},
             ]
 
         refresh_calls = []
 
-        def fake_refresh_folder(p):
-            refresh_calls.append(p)
-            return True
+        def fake_queue_scan(library_id, *, trigger):
+            refresh_calls.append((library_id, trigger))
 
-        monkeypatch.setattr(refresh, "get_folder_indexed_paths", fake_get_folders)
-        monkeypatch.setattr(refresh, "_refresh_folder", fake_refresh_folder)
+        monkeypatch.setattr(refresh, "list_libraries", fake_list_libraries)
+        monkeypatch.setattr(refresh, "queue_scan", fake_queue_scan)
         monkeypatch.setattr(refresh, "_refresh_runs", None)
         monkeypatch.setattr(refresh, "_refresh_folders", None)
 
         _run_refresh_tick()
-        paths = refresh_calls
-        assert str(root / "sub") in paths
-        assert str(other) not in paths
+        assert refresh_calls == [(1, "scheduled")]
 
     def test_respects_max_folders_per_tick(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_ROOTS", [])
-        monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_ALLOW_ALL_INDEXED", True)
         monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK", 2)
 
-        folders = [{"path": str(tmp_path / f"album_{i}"), "updated_at": i} for i in range(5)]
-        for f in folders:
-            Path(f["path"]).mkdir(parents=True, exist_ok=True)
+        libraries = []
+        for i in range(5):
+            folder = tmp_path / f"album_{i}"
+            folder.mkdir(parents=True, exist_ok=True)
+            libraries.append({"id": i + 1, "import_paths": [{"path": str(folder)}]})
 
-        def fake_get_folders():
-            return folders
+        def fake_list_libraries():
+            return libraries
 
         refresh_calls = []
 
-        def fake_refresh_folder(p):
-            refresh_calls.append(p)
-            return True
+        def fake_queue_scan(library_id, *, trigger):
+            refresh_calls.append((library_id, trigger))
 
-        monkeypatch.setattr(refresh, "get_folder_indexed_paths", fake_get_folders)
-        monkeypatch.setattr(refresh, "_refresh_folder", fake_refresh_folder)
+        monkeypatch.setattr(refresh, "list_libraries", fake_list_libraries)
+        monkeypatch.setattr(refresh, "queue_scan", fake_queue_scan)
         monkeypatch.setattr(refresh, "_refresh_runs", None)
         monkeypatch.setattr(refresh, "_refresh_folders", None)
 
@@ -246,24 +149,22 @@ class TestRunRefreshTick:
 
     def test_stops_early_when_refresh_stop_set(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_ROOTS", [])
-        monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_ALLOW_ALL_INDEXED", True)
         monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK", 100)
 
         folder = tmp_path / "album"
         folder.mkdir()
 
-        def fake_get_folders():
-            return [{"path": str(folder), "updated_at": 0}]
+        def fake_list_libraries():
+            return [{"id": 1, "import_paths": [{"path": str(folder)}]}]
 
         refresh_calls = []
 
-        def fake_refresh_folder(p):
-            refresh_calls.append(p)
+        def fake_queue_scan(library_id, *, trigger):
+            refresh_calls.append((library_id, trigger))
             refresh._refresh_stop.set()
-            return True
 
-        monkeypatch.setattr(refresh, "get_folder_indexed_paths", fake_get_folders)
-        monkeypatch.setattr(refresh, "_refresh_folder", fake_refresh_folder)
+        monkeypatch.setattr(refresh, "list_libraries", fake_list_libraries)
+        monkeypatch.setattr(refresh, "queue_scan", fake_queue_scan)
         monkeypatch.setattr(refresh, "_refresh_runs", None)
         monkeypatch.setattr(refresh, "_refresh_folders", None)
 
@@ -277,17 +178,16 @@ class TestRunRefreshTick:
         folder = tmp_path / "album"
         folder.mkdir()
 
-        def fake_get_folders():
-            return [{"path": str(folder), "updated_at": 0}]
+        def fake_list_libraries():
+            return [{"id": 1, "import_paths": [{"path": str(folder)}]}]
 
         refresh_calls = []
 
-        def fake_refresh_folder(p):
-            refresh_calls.append(p)
-            return True
+        def fake_queue_scan(library_id, *, trigger):
+            refresh_calls.append((library_id, trigger))
 
-        monkeypatch.setattr(refresh, "get_folder_indexed_paths", fake_get_folders)
-        monkeypatch.setattr(refresh, "_refresh_folder", fake_refresh_folder)
+        monkeypatch.setattr(refresh, "list_libraries", fake_list_libraries)
+        monkeypatch.setattr(refresh, "queue_scan", fake_queue_scan)
         monkeypatch.setattr(refresh, "_refresh_runs", None)
         monkeypatch.setattr(refresh, "_refresh_folders", None)
 
@@ -296,7 +196,6 @@ class TestRunRefreshTick:
 
     def test_increments_counters_when_present(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_ROOTS", [])
-        monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_ALLOW_ALL_INDEXED", True)
         monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK", 100)
 
         class FakeCounter:
@@ -314,8 +213,8 @@ class TestRunRefreshTick:
 
         monkeypatch.setattr(refresh, "_refresh_runs", run_counter)
         monkeypatch.setattr(refresh, "_refresh_folders", folder_counter)
-        monkeypatch.setattr(refresh, "get_folder_indexed_paths", lambda: [])
-        monkeypatch.setattr(refresh, "_refresh_folder", lambda p: True)
+        monkeypatch.setattr(refresh, "list_libraries", lambda: [])
+        monkeypatch.setattr(refresh, "queue_scan", lambda library_id, *, trigger: None)
 
         _run_refresh_tick()
         assert run_counter._val == 1

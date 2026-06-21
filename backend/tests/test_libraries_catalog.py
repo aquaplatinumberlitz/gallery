@@ -21,6 +21,7 @@ from backend.metadata_store import (
     list_libraries,
     register_library,
     repair_library_assets,
+    update_job_state,
     update_library,
     update_library_state,
     upsert_image_dimensions,
@@ -553,6 +554,8 @@ def test_library_api_create_validate_and_update_multiple_import_paths(
         ]
         assert [item["position"] for item in library["import_paths"]] == [0, 1]
         assert library["exclusion_patterns"] == ["**/cache/**", "**/*.tmp"]
+        update_job_state(library["initial_scan_job_id"], "running")
+        update_job_state(library["initial_scan_job_id"], "succeeded")
 
         updated = client.patch(
             f"/api/libraries/{library['id']}",
@@ -597,7 +600,7 @@ def test_library_api_rejects_cross_library_overlap_and_empty_update(
         assert empty.json()["detail"]["error"] == "bad_request"
 
 
-def test_same_library_overlap_warns_but_is_allowed(
+def test_same_library_overlap_is_rejected(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,
 ):
@@ -608,10 +611,42 @@ def test_same_library_overlap_warns_but_is_allowed(
     with TestClient(app) as client:
         validation = client.post("/api/libraries/validate", json=payload)
         assert validation.status_code == 200
-        assert validation.json()["is_valid"] is True
-        assert validation.json()["import_paths"][0]["warnings"]
+        assert validation.json()["is_valid"] is False
         created = client.post("/api/libraries", json=payload)
-        assert created.status_code == 201
+        assert created.status_code == 409
+
+
+def test_same_library_overlap_migration_preflight_rejects(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    _create_v8_catalog_fixture(isolated_metadata_db, isolated_gallery_root)
+    nested = isolated_gallery_root / "nested"
+    nested.mkdir()
+    now = time.time()
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        library_id = int(conn.execute("SELECT id FROM libraries").fetchone()[0])
+        conn.execute(
+            """
+            INSERT INTO library_import_paths (library_id, path, position, created_at, updated_at)
+            VALUES (?, ?, 1, ?, ?)
+            """,
+            (library_id, str(nested.resolve()), now, now),
+        )
+
+    import backend.metadata_store as metadata_store
+
+    metadata_store._DB_INITIALIZED = False
+    try:
+        initialize_database()
+    except RuntimeError as exc:
+        assert "overlapping import paths" in str(exc)
+    else:  # pragma: no cover - assertion clarity
+        raise AssertionError("Expected v9 preflight to reject same-library overlapping import paths")
+
+    assert not list(isolated_metadata_db.parent.glob(f"{isolated_metadata_db.stem}.v8-backup-*"))
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 8
 
 
 def test_library_update_marks_removed_or_excluded_assets_offline_and_reactivates(

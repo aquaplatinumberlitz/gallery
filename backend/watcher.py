@@ -1,4 +1,4 @@
-"""Optional file watcher that marks indexed folders stale after filesystem changes."""
+"""Optional file watcher that queues scoped catalog scans after filesystem changes."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
+from .catalog.service import queue_watcher_scan
 from .config import (
     ENABLE_FILE_WATCHER,
     WATCHER_DEBOUNCE_SECONDS,
@@ -16,7 +17,6 @@ from .config import (
     WATCHER_ROOTS,
 )
 from .files import is_image_path
-from .metadata_store import mark_folder_index_incomplete
 
 try:
     from prometheus_client import Counter
@@ -163,22 +163,10 @@ def _watcher_loop(roots: list[str] | None = None) -> None:
                 if tick_count >= WATCHER_MAX_EVENTS_PER_TICK:
                     break
                 try:
-                    mark_folder_index_incomplete(folder, last_error="watcher_marked_stale")
+                    queue_watcher_scan(folder)
                     tick_count += 1
                 except Exception as exc:  # noqa: BLE001
-                    LOGGER.warning("Watcher mark incomplete failed for %s: %s", folder, exc)
-
-            ready_paths = handler.get_and_clear_debounced_image_paths()
-            if ready_paths:
-                try:
-                    from .indexer import stage_metadata_paths_from_scan
-
-                    stage_metadata_paths_from_scan(
-                        ready_paths[:WATCHER_MAX_EVENTS_PER_TICK],
-                        start_worker=True,
-                    )
-                except Exception as exc:  # noqa: BLE001
-                    LOGGER.warning("Watcher metadata staging failed: %s", exc)
+                    LOGGER.warning("Watcher scan queue failed for %s: %s", folder, exc)
     finally:
         observer.stop()
         observer.join()

@@ -6,7 +6,15 @@ import time
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from .config import ENABLE_METRICS, ENABLE_PROFILER, PROFILE_DIR, PROFILE_ENDPOINTS
+from .catalog import service as catalog_service
+from .config import (
+    ENABLE_METRICS,
+    ENABLE_PROFILER,
+    GALLERY_CATALOG_SERVICE_ENABLED,
+    GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED,
+    PROFILE_DIR,
+    PROFILE_ENDPOINTS,
+)
 from .derivative_scheduler import scheduler
 from .facets import router as facets_router
 from .folders import router as folders_router
@@ -16,11 +24,15 @@ from .indexer import router as indexer_router
 from .libraries import router as libraries_router
 from .metadata_parse import router as metadata_parse_router
 from .metadata_store import recover_stale_jobs
+from .refresh import start_refresh as _start_refresh
+from .refresh import stop_refresh as _stop_refresh
 from .scan import router as scan_router
 from .search import router as search_router
 from .static_files import router as static_files_router
 from .thumbnails import router as thumbnails_router
 from .video import router as video_router
+from .watcher import start_watcher as _start_watcher
+from .watcher import stop_watcher as _stop_watcher
 
 
 def _get_cors_origins() -> list[str]:
@@ -80,17 +92,14 @@ app.include_router(libraries_router)
 app.include_router(facets_router)
 app.include_router(static_files_router)
 
-from .refresh import (  # noqa: E402 — keep startup wiring colocated with event handler below
-    start_refresh as _start_refresh,
-)
-from .watcher import (  # noqa: E402 — keep startup wiring colocated with event handler below
-    start_watcher as _start_watcher,
-)
-
 
 @app.on_event("startup")
 async def _startup_background_services():
     recover_stale_jobs()
+    if GALLERY_CATALOG_SERVICE_ENABLED:
+        catalog_service.start()
+        if GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED:
+            catalog_service.queue_startup_scans()
     scheduler.start()
     _start_refresh()
     _start_watcher()
@@ -98,6 +107,9 @@ async def _startup_background_services():
 
 @app.on_event("shutdown")
 async def _shutdown_background_services():
+    _stop_watcher()
+    _stop_refresh()
+    catalog_service.stop()
     scheduler.stop()
 
 

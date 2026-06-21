@@ -5,10 +5,6 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-import pytest
-from fastapi.testclient import TestClient
-
-from backend.app import app
 from backend.library_events import event_payload, format_sse
 from backend.metadata_store import (
     create_job,
@@ -57,16 +53,17 @@ def test_recover_stale_running_and_queued_jobs(isolated_metadata_db: Path, isola
     recovered = recover_stale_jobs()
     recovered_by_id = {job["id"]: job for job in recovered}
 
-    assert set(recovered_by_id) == {running["id"], queued["id"]}
+    assert set(recovered_by_id) == {running["id"]}
     assert get_job(running["id"])["state"] == "failed"
     assert get_job(running["id"])["error"] == "Interrupted by server restart"
-    assert get_job(queued["id"])["state"] == "cancelled"
-    assert get_job(queued["id"])["error"] == "Cancelled by server restart"
+    assert get_job(queued["id"])["state"] == "queued"
+    assert get_job(queued["id"])["error"] is None
 
 
 def test_scan_all_creates_parent_and_linked_children(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,
+    isolated_app,
 ):
     first = isolated_gallery_root / "first"
     second = isolated_gallery_root / "second"
@@ -77,41 +74,40 @@ def test_scan_all_creates_parent_and_linked_children(
     first_id = int(register_library(first)["id"])
     second_id = int(register_library(second)["id"])
 
-    with TestClient(app) as client:
-        response = client.post("/api/libraries/scan-all")
-        assert response.status_code == 202
-        body = response.json()
-        assert body["count"] == 2
-        assert len(body["child_job_ids"]) == 2
-        parent = client.get(f"/api/jobs/{body['job_id']}").json()
-        children = [client.get(f"/api/jobs/{job_id}").json() for job_id in body["child_job_ids"]]
+    response = isolated_app.post("/api/libraries/scan-all")
+    assert response.status_code == 202
+    body = response.json()
+    assert body["count"] == 2
+    assert len(body["child_job_ids"]) == 2
+    parent = isolated_app.get(f"/api/jobs/{body['job_id']}").json()
+    children = [isolated_app.get(f"/api/jobs/{job_id}").json() for job_id in body["child_job_ids"]]
 
     assert parent["type"] == "scan_all"
     assert parent["state"] == "succeeded"
-    assert parent["counters"] == {"total": 2, "succeeded": 2, "failed": 0, "coalesced": 0}
+    assert parent["counters"] == {"total": 2, "succeeded": 0, "failed": 0, "coalesced": 0}
     assert {job["library_id"] for job in children} == {first_id, second_id}
     assert all(job["parent_job_id"] == parent["id"] for job in children)
-    assert all(job["state"] == "succeeded" for job in children)
+    assert all(job["state"] == "queued" for job in children)
+    assert all(job["trigger"] == "manual" for job in children)
 
 
-def test_stats_and_job_history_endpoints(isolated_metadata_db: Path, isolated_gallery_root: Path):
+def test_stats_and_job_history_endpoints(isolated_metadata_db: Path, isolated_gallery_root: Path, isolated_app):
     create_test_png(isolated_gallery_root / "active.png", size=(20, 10))
     create_test_png(isolated_gallery_root / "offline.png", size=(30, 10))
     library_id = int(register_library(isolated_gallery_root)["id"])
 
-    with TestClient(app) as client:
-        repair = client.post(f"/api/libraries/{library_id}/repair")
-        assert repair.status_code == 200
-        with sqlite3.connect(isolated_metadata_db) as conn:
-            conn.execute(
-                "UPDATE assets SET offline = 1 WHERE path = ?",
-                (str((isolated_gallery_root / "offline.png").resolve()),),
-            )
-        library_stats = client.get(f"/api/libraries/{library_id}/stats")
-        gallery_stats = client.get("/api/stats")
-        library_jobs = client.get(f"/api/libraries/{library_id}/jobs")
-        all_jobs = client.get("/api/jobs")
-        job = client.get(f"/api/jobs/{repair.json()['job_id']}")
+    repair = isolated_app.post(f"/api/libraries/{library_id}/repair")
+    assert repair.status_code == 200
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute(
+            "UPDATE assets SET offline = 1 WHERE path = ?",
+            (str((isolated_gallery_root / "offline.png").resolve()),),
+        )
+    library_stats = isolated_app.get(f"/api/libraries/{library_id}/stats")
+    gallery_stats = isolated_app.get("/api/stats")
+    library_jobs = isolated_app.get(f"/api/libraries/{library_id}/jobs")
+    all_jobs = isolated_app.get("/api/jobs")
+    job = isolated_app.get(f"/api/jobs/{repair.json()['job_id']}")
 
     assert library_stats.status_code == 200
     assert library_stats.json() == {
@@ -162,35 +158,31 @@ def test_sse_event_shape_and_frame(isolated_metadata_db: Path, isolated_gallery_
 def test_scan_progress_reports_active_job_id(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,
-    monkeypatch: pytest.MonkeyPatch,
+    isolated_app,
 ):
     """POST scan -> GET progress -> active_job_id is set while the job is active."""
     create_test_png(isolated_gallery_root / "image.png")
     library_id = int(register_library(isolated_gallery_root)["id"])
 
-    monkeypatch.setattr("backend.libraries._discover_library", lambda *args, **kwargs: None)
+    scan = isolated_app.post(f"/api/libraries/{library_id}/scan")
+    assert scan.status_code == 202
+    job_id = scan.json()["job_id"]
 
-    with TestClient(app) as client:
-        scan = client.post(f"/api/libraries/{library_id}/scan")
-        assert scan.status_code == 202
-        job_id = scan.json()["job_id"]
-
-        progress = client.get(f"/api/libraries/{library_id}/progress")
+    progress = isolated_app.get(f"/api/libraries/{library_id}/progress")
 
     assert progress.status_code == 200
     assert progress.json()["active_job_id"] == job_id
 
 
-def test_scan_all_with_zero_libraries(isolated_metadata_db: Path, isolated_gallery_root: Path):
+def test_scan_all_with_zero_libraries(isolated_metadata_db: Path, isolated_gallery_root: Path, isolated_app):
     """POST /api/libraries/scan-all succeeds with no registered libraries."""
-    with TestClient(app) as client:
-        response = client.post("/api/libraries/scan-all")
-        assert response.status_code == 202
-        body = response.json()
-        assert body["count"] == 0
-        assert body["child_job_ids"] == []
+    response = isolated_app.post("/api/libraries/scan-all")
+    assert response.status_code == 202
+    body = response.json()
+    assert body["count"] == 0
+    assert body["child_job_ids"] == []
 
-        parent = client.get(f"/api/jobs/{body['job_id']}").json()
+    parent = isolated_app.get(f"/api/jobs/{body['job_id']}").json()
 
     assert parent["type"] == "scan_all"
     assert parent["state"] == "succeeded"

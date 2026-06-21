@@ -1,0 +1,261 @@
+"""Durable catalog scan coordinator and worker."""
+
+from __future__ import annotations
+
+import logging
+import threading
+from pathlib import Path
+from typing import Any
+
+from ..config import GALLERY_CATALOG_JOB_MAX_QUEUE_WAIT_SECONDS, GALLERY_CATALOG_WORKERS
+from ..indexer import rebuild_index_scope
+from ..library_events import event_payload, publish
+from ..metadata_store import (
+    catalog_path_contains,
+    claim_next_catalog_job,
+    create_or_coalesce_catalog_job,
+    enqueue_startup_catalog_scans,
+    get_job,
+    get_library,
+    get_library_for_path,
+    list_libraries,
+    update_job_state,
+    update_library_state,
+)
+
+LOGGER = logging.getLogger(__name__)
+
+_worker_threads: list[threading.Thread] = []
+_service_lock = threading.RLock()
+_wake_event = threading.Event()
+_stop_event = threading.Event()
+
+TRIGGER_PRIORITIES = {
+    "initial": 100,
+    "manual": 100,
+    "watcher": 50,
+    "scheduled": 10,
+    "startup": 10,
+}
+
+
+def _emit_job(job: dict[str, Any], event_type: str = "job.updated") -> None:
+    publish(event_payload(event_type, job))
+    if job["library_id"] is not None:
+        publish(event_payload("library.progress", job))
+
+
+def _transition_job(job_id: int, state: str, **changes: Any) -> dict[str, Any]:
+    job = update_job_state(job_id, state, **changes)
+    if job is None:
+        raise RuntimeError(f"Catalog job {job_id} disappeared")
+    event_type = "job.updated"
+    if state == "succeeded":
+        event_type = "job.completed"
+    elif state == "failed":
+        event_type = "job.failed"
+    elif state == "cancelled":
+        event_type = "job.cancelled"
+    _emit_job(job, event_type)
+    return job
+
+
+def notify_workers() -> None:
+    """Wake sleeping catalog workers after durable queue changes."""
+    _wake_event.set()
+
+
+def queue_scan(
+    library_id: int,
+    *,
+    trigger: str,
+    scope_path: str | Path | None = None,
+    parent_job_id: int | None = None,
+) -> tuple[dict[str, Any], bool]:
+    """Create/coalesce a durable scan job and wake the worker."""
+    if trigger not in TRIGGER_PRIORITIES:
+        raise ValueError(f"Unsupported scan trigger: {trigger}")
+    job, created = create_or_coalesce_catalog_job(
+        library_id,
+        operation="scan",
+        trigger=trigger,
+        scope_path=scope_path,
+        priority=TRIGGER_PRIORITIES[trigger],
+        parent_job_id=parent_job_id,
+        message=f"{trigger.capitalize()} scan queued",
+    )
+    _emit_job(job)
+    notify_workers()
+    return job, created
+
+
+def queue_initial_scan_job(job_id: int) -> None:
+    """Wake the worker for an initial scan row created inside another transaction."""
+    job = get_job(job_id)
+    if job is not None:
+        _emit_job(job)
+    notify_workers()
+
+
+def queue_startup_scans() -> list[dict[str, Any]]:
+    """Queue startup catch-up scans for all registered libraries."""
+    jobs = enqueue_startup_catalog_scans(priority=TRIGGER_PRIORITIES["startup"])
+    for job in jobs:
+        _emit_job(job)
+    notify_workers()
+    return jobs
+
+
+def queue_watcher_scan(scope_path: str | Path) -> dict[str, Any] | None:
+    """Queue a watcher-triggered scan for the library owning scope_path."""
+    library = get_library_for_path(scope_path)
+    if library is None:
+        return None
+    job, _created = queue_scan(int(library["id"]), trigger="watcher", scope_path=scope_path)
+    return job
+
+
+def queue_scheduled_scans() -> list[dict[str, Any]]:
+    """Queue one scheduled whole-library scan per registered library."""
+    jobs: list[dict[str, Any]] = []
+    for library in list_libraries():
+        job, _created = queue_scan(int(library["id"]), trigger="scheduled")
+        jobs.append(job)
+    return jobs
+
+
+def _scan_paths_for_job(job: dict[str, Any]) -> tuple[int, list[str]]:
+    library_id = int(job["library_id"])
+    library = get_library(library_id)
+    if library is None:
+        raise KeyError(library_id)
+    import_paths = [str(item["path"]) for item in library["import_paths"]]
+    scope_path = job.get("scope_path")
+    if scope_path is None:
+        return library_id, import_paths
+    if not any(catalog_path_contains(root, scope_path) for root in import_paths):
+        raise ValueError("Scan scope is outside this library's import paths")
+    return library_id, [str(Path(scope_path).resolve())]
+
+
+def execute_scan_job(job: dict[str, Any]) -> bool:
+    """Run one claimed scan job through the catalog-owned pipeline."""
+    job_id = int(job["id"])
+    library_id = int(job["library_id"])
+    try:
+        library_id, scan_paths = _scan_paths_for_job(job)
+        if any(not Path(path).is_dir() for path in scan_paths):
+            update_library_state(library_id, "offline", last_error="One or more library import paths are offline")
+            _transition_job(job_id, "failed", message="Scan failed", error="One or more scan paths are offline")
+            return False
+
+        update_library_state(library_id, "indexing")
+        counters = {
+            "indexed": 0,
+            "reconciled": 0,
+            "queued": 0,
+            "coalesced": 0,
+            "skipped": 0,
+            "failed": 0,
+        }
+        _transition_job(
+            job_id,
+            "running",
+            progress_current=0,
+            progress_total=len(scan_paths),
+            message="Scanning library",
+            counters=counters,
+        )
+        for index, scan_path in enumerate(scan_paths, start=1):
+            result = rebuild_index_scope(scan_path)
+            counters["indexed"] += int(result.get("indexed", 0))
+            counters["reconciled"] += int(result.get("reconciled", 0))
+            for key in ("queued", "coalesced", "skipped", "failed"):
+                counters[key] += int(result.get("metadata", {}).get(key, 0))
+            _transition_job(
+                job_id,
+                "running",
+                progress_current=index,
+                progress_total=len(scan_paths),
+                message=f"Scanned {index} of {len(scan_paths)} scan scopes",
+                counters=counters,
+            )
+        update_library_state(library_id, "ready", scan_completed=job.get("scope_path") is None)
+        _transition_job(
+            job_id,
+            "succeeded",
+            progress_current=len(scan_paths),
+            progress_total=len(scan_paths),
+            message="Scan completed",
+            counters=counters,
+        )
+        return True
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.exception("Catalog scan job %s failed: %s", job_id, exc)
+        update_library_state(library_id, "error", last_error=str(exc), scan_completed=job.get("scope_path") is None)
+        _transition_job(job_id, "failed", message="Scan failed", error=str(exc))
+        return False
+
+
+def run_once() -> bool:
+    """Claim and execute one queued catalog job. Returns True when work ran."""
+    job = claim_next_catalog_job(max_queue_wait_seconds=GALLERY_CATALOG_JOB_MAX_QUEUE_WAIT_SECONDS)
+    if job is None:
+        return False
+    _emit_job(job)
+    if job["type"] == "scan":
+        execute_scan_job(job)
+    else:
+        _transition_job(int(job["id"]), "failed", message="Unsupported catalog operation", error="Unsupported")
+    return True
+
+
+def _worker_loop() -> None:
+    while not _stop_event.is_set():
+        ran = False
+        try:
+            ran = run_once()
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.exception("Catalog worker iteration failed: %s", exc)
+        if ran:
+            continue
+        _wake_event.wait(0.5)
+        _wake_event.clear()
+
+
+def start() -> None:
+    """Start bounded in-process catalog workers."""
+    with _service_lock:
+        alive = [thread for thread in _worker_threads if thread.is_alive()]
+        _worker_threads[:] = alive
+        if alive:
+            return
+        _stop_event.clear()
+        for index in range(GALLERY_CATALOG_WORKERS):
+            thread = threading.Thread(
+                target=_worker_loop,
+                name=f"gallery-catalog-worker-{index + 1}",
+                daemon=True,
+            )
+            _worker_threads.append(thread)
+            thread.start()
+
+
+def stop() -> None:
+    """Signal catalog workers to stop."""
+    _stop_event.set()
+    _wake_event.set()
+    with _service_lock:
+        threads = list(_worker_threads)
+        for thread in threads:
+            thread.join(timeout=1)
+        _worker_threads.clear()
+
+
+def runtime_status() -> dict[str, int]:
+    """Return catalog worker runtime counts."""
+    active = [thread for thread in _worker_threads if thread.is_alive()]
+    return {
+        "worker_count": GALLERY_CATALOG_WORKERS,
+        "alive_workers": len(active),
+    }

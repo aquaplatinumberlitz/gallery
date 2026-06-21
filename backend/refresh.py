@@ -1,4 +1,4 @@
-"""Scheduled background refresh for persisted folder index state."""
+"""Scheduled background reconciliation for registered catalog libraries."""
 
 from __future__ import annotations
 
@@ -7,20 +7,14 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from .catalog.service import queue_scan
 from .config import (
     ENABLE_SCHEDULED_REFRESH,
-    SCHEDULED_REFRESH_ALLOW_ALL_INDEXED,
     SCHEDULED_REFRESH_INTERVAL_SECONDS,
     SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK,
     SCHEDULED_REFRESH_ROOTS,
 )
-from .metadata_store import (
-    _scan_folder_counts,
-    get_folder_indexed_paths,
-    index_directory_tree,
-    mark_folder_index_incomplete,
-    update_folder_index_state,
-)
+from .metadata_store import list_libraries
 
 LOGGER = logging.getLogger(__name__)
 
@@ -38,29 +32,6 @@ except Exception:  # noqa: BLE001
     _refresh_folders = None
 
 
-def _refresh_folder(folder_path_str: str) -> bool:
-    path = Path(folder_path_str)
-    if not path.exists() or not path.is_dir():
-        mark_folder_index_incomplete(folder_path_str, last_error="path_not_found")
-        return False
-    try:
-        index_directory_tree(path, include_metadata=False)
-        counts = _scan_folder_counts(path)
-        update_folder_index_state(
-            path,
-            complete=True,
-            child_count=counts["child_count"],
-            folder_count=counts["folder_count"],
-            image_count=counts["image_count"],
-            last_error=None,
-        )
-        return True
-    except Exception as exc:  # noqa: BLE001
-        mark_folder_index_incomplete(folder_path_str, last_error=str(exc))
-        LOGGER.warning("Scheduled refresh failed for %s: %s", folder_path_str, exc)
-        return False
-
-
 def _refresh_loop() -> None:
     while not _refresh_stop.is_set():
         _refresh_stop.wait(SCHEDULED_REFRESH_INTERVAL_SECONDS)
@@ -74,44 +45,32 @@ def _refresh_loop() -> None:
 
 
 def _run_refresh_tick() -> None:
-    roots = set(SCHEDULED_REFRESH_ROOTS)
-    if not roots and not SCHEDULED_REFRESH_ALLOW_ALL_INDEXED:
-        LOGGER.warning(
-            "Scheduled refresh tick skipped: no roots configured and SCHEDULED_REFRESH_ALLOW_ALL_INDEXED is false"
-        )
-        return
-
-    folders = get_folder_indexed_paths()
-    candidate_folders: list[dict] = []
-
-    for f in folders:
-        p = f["path"]
-        if not roots:
-            candidate_folders.append(f)
-        else:
-            for root in roots:
-                try:
-                    rp = Path(root).resolve()
-                    fp = Path(p).resolve()
-                    if fp == rp or rp in fp.parents:
-                        candidate_folders.append(f)
-                        break
-                except OSError:
-                    pass
-
-    candidate_folders.sort(key=lambda x: float(x.get("updated_at", 0) or 0))
-
-    tick_count = 0
-    for f in candidate_folders:
-        if tick_count >= SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK:
-            break
-        if _refresh_stop.is_set():
-            break
-        try:
-            if _refresh_folder(f["path"]):
+    libraries = list_libraries()
+    roots = {str(Path(root).resolve()) for root in SCHEDULED_REFRESH_ROOTS}
+    if not libraries:
+        tick_count = 0
+    else:
+        if roots:
+            libraries = [
+                library
+                for library in libraries
+                if any(
+                    Path(import_path["path"]).resolve() == Path(root)
+                    or Path(root) in Path(import_path["path"]).resolve().parents
+                    or Path(import_path["path"]).resolve() in Path(root).parents
+                    for root in roots
+                    for import_path in library["import_paths"]
+                )
+            ]
+        tick_count = 0
+        for library in libraries[:SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK]:
+            if _refresh_stop.is_set():
+                break
+            try:
+                queue_scan(int(library["id"]), trigger="scheduled")
                 tick_count += 1
-        except Exception:  # noqa: BLE001
-            pass
+            except Exception as exc:  # noqa: BLE001
+                LOGGER.warning("Scheduled catalog reconciliation queue failed for library %s: %s", library["id"], exc)
 
     if _refresh_runs is not None:
         _refresh_runs.inc()

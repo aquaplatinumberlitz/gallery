@@ -13,6 +13,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 os.environ.setdefault("ENABLE_METRICS", "0")
+os.environ.setdefault("GALLERY_CATALOG_SERVICE_ENABLED", "0")
 
 
 # ---------------------------------------------------------------------------
@@ -166,6 +167,9 @@ def isolated_metadata_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pat
     monkeypatch.setenv("GALLERY_METADATA_DB", str(db_path))
 
     import backend.metadata_store as ms
+    from backend.catalog import service as catalog_service
+
+    catalog_service.stop()
 
     monkeypatch.setattr(ms, "GALLERY_METADATA_DB", db_path)
     # Force re-initialization for every test
@@ -211,6 +215,7 @@ def disable_background_services(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("backend.config.ENABLE_WARM_INDEXED_LISTING", False)
     monkeypatch.setattr("backend.config.ENABLE_SCHEDULED_REFRESH", False)
     monkeypatch.setattr("backend.config.ENABLE_FILE_WATCHER", False)
+    monkeypatch.setattr("backend.app.GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED", False)
 
     # Suppress startup phase3 tasks
     def _noop(*args, **kwargs):  # noqa: ANN002, ANN003
@@ -218,6 +223,10 @@ def disable_background_services(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr("backend.refresh.start_refresh", _noop)
     monkeypatch.setattr("backend.watcher.start_watcher", _noop)
+    monkeypatch.setattr("backend.app._start_refresh", _noop)
+    monkeypatch.setattr("backend.app._start_watcher", _noop)
+    monkeypatch.setattr("backend.app.catalog_service.start", _noop)
+    monkeypatch.setattr("backend.app.catalog_service.queue_startup_scans", lambda: [])
 
 
 @pytest.fixture

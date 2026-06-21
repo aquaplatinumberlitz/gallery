@@ -146,12 +146,30 @@ else:
 ENABLE_WARM_INDEXED_LISTING = _env_flag("ENABLE_WARM_INDEXED_LISTING", default=False)
 
 # ---------------------------------------------------------------------------
-# Scheduled refresh (optional, disabled by default)
+# Catalog scan pipeline
 # ---------------------------------------------------------------------------
-ENABLE_SCHEDULED_REFRESH = _env_flag("ENABLE_SCHEDULED_REFRESH", default=False)
+GALLERY_CATALOG_WORKERS = max(1, min(int(os.getenv("GALLERY_CATALOG_WORKERS", "1")), 8))
+GALLERY_CATALOG_SERVICE_ENABLED = _env_flag("GALLERY_CATALOG_SERVICE_ENABLED", default=True)
+GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED = _env_flag("GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED", default=True)
+GALLERY_CATALOG_JOB_MAX_QUEUE_WAIT_SECONDS = max(
+    0,
+    int(os.getenv("GALLERY_CATALOG_JOB_MAX_QUEUE_WAIT_SECONDS", "600")),
+)
+
+# ---------------------------------------------------------------------------
+# Scheduled catalog reconciliation
+# ---------------------------------------------------------------------------
+ENABLE_SCHEDULED_REFRESH = _env_flag(
+    "GALLERY_CATALOG_RECONCILE_ENABLED",
+    default=_env_flag("ENABLE_SCHEDULED_REFRESH", default=True),
+)
 SCHEDULED_REFRESH_INTERVAL_SECONDS = max(
     60,
-    int(os.getenv("SCHEDULED_REFRESH_INTERVAL_SECONDS", "300")),
+    int(
+        os.getenv(
+            "GALLERY_CATALOG_RECONCILE_INTERVAL_SECONDS", os.getenv("SCHEDULED_REFRESH_INTERVAL_SECONDS", "21600")
+        )
+    ),
 )
 SCHEDULED_REFRESH_ROOTS = [p.strip() for p in os.getenv("SCHEDULED_REFRESH_ROOTS", "").split(",") if p.strip()]
 SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK = max(
@@ -163,7 +181,13 @@ SCHEDULED_REFRESH_ALLOW_ALL_INDEXED = _env_flag("SCHEDULED_REFRESH_ALLOW_ALL_IND
 # ---------------------------------------------------------------------------
 # File watcher (enabled by default for registered libraries)
 # ---------------------------------------------------------------------------
-ENABLE_FILE_WATCHER = _env_flag("ENABLE_FILE_WATCHER", default=True)
+ENABLE_FILE_WATCHER = _env_flag(
+    "GALLERY_CATALOG_WATCHER_ENABLED",
+    default=_env_flag("ENABLE_FILE_WATCHER", default=True),
+)
 WATCHER_ROOTS = [p.strip() for p in os.getenv("WATCHER_ROOTS", "").split(",") if p.strip()]
-WATCHER_DEBOUNCE_SECONDS = max(0.0, float(os.getenv("WATCHER_DEBOUNCE_SECONDS", "2.0")))
+WATCHER_DEBOUNCE_SECONDS = max(
+    0.0,
+    float(os.getenv("GALLERY_CATALOG_WATCHER_DEBOUNCE_SECONDS", os.getenv("WATCHER_DEBOUNCE_SECONDS", "2.0"))),
+)
 WATCHER_MAX_EVENTS_PER_TICK = max(1, int(os.getenv("WATCHER_MAX_EVENTS_PER_TICK", "500")))

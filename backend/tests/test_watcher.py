@@ -1,14 +1,14 @@
 """
 Purpose:
-Verifies file watcher configuration, debounce handling, and metadata staging hooks.
+Verifies file watcher configuration, debounce handling, and catalog scan queue hooks.
 
 Guarantees:
 * watcher is enabled by default and handles missing watchdog dependency safely
 * only registered, watch-enabled library roots are monitored
-* file events mark folders stale and can stage changed images for metadata indexing
+* file events debounce to scoped catalog scan requests
 
 Run when:
-* changing watcher config, debounce behavior, image event handling, or metadata staging integration
+* changing watcher config, debounce behavior, image event handling, or catalog trigger routing
 * touching future enablement paths for filesystem watching
 """
 
@@ -157,14 +157,7 @@ def test_handler_tracks_image_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     assert str(tmp_path / "readme.txt") not in ready_paths
 
 
-def test_watcher_image_event_can_be_staged(monkeypatch: pytest.MonkeyPatch):
-    staged_paths = []
-
-    def fake_stage(paths, **kwargs):
-        staged_paths.extend(paths)
-        return {"staged": len(paths), "coalesced": 0, "skipped": 0}
-
-    monkeypatch.setattr("backend.indexer.stage_metadata_paths_from_scan", fake_stage)
+def test_watcher_image_event_is_tracked_without_direct_metadata_staging(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 0.01)
 
     from backend.watcher import _DebouncedHandler
@@ -297,7 +290,7 @@ def test_watcher_loop_returns_when_no_watchdog(monkeypatch: pytest.MonkeyPatch):
     watcher._watcher_loop()
 
 
-def test_watcher_loop_schedules_roots_and_marks_incomplete(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+def test_watcher_loop_schedules_roots_and_queues_catalog_scans(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     import sys
     from types import ModuleType
 
@@ -338,7 +331,8 @@ def test_watcher_loop_schedules_roots_and_marks_incomplete(monkeypatch: pytest.M
     monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 0.01)
     monkeypatch.setattr(watcher, "WATCHER_MAX_EVENTS_PER_TICK", 500)
 
-    monkeypatch.setattr(watcher, "mark_folder_index_incomplete", lambda *a, **kw: None)
+    queued = []
+    monkeypatch.setattr(watcher, "queue_watcher_scan", lambda folder: queued.append(folder))
 
     def stop_soon():
         watcher._watcher_stop.set()
