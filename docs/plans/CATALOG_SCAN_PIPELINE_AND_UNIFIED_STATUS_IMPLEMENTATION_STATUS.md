@@ -1,30 +1,30 @@
 # Catalog Scan Pipeline and Unified Status Implementation Status
 
-Last updated: 2026-06-21
+Last updated: 2026-06-22
 
-Current milestone: Phase 7 complete
+Current milestone: Phase 8 complete
 
-Next milestone: Phase 8 — admin/sidebar actions, labels, polling, and SSE
-invalidation migration
+Next milestone: Phase 9 — remove old routes, fallback branches, config, types,
+and dead code
 
 SQLite schema version currently implemented: `PRAGMA user_version = 9`
 
 ## Verified Git Baseline
 
-Phase 7 implementation commit:
+Phase 8 implementation commit:
 
 ```text
-8b3270d feat: add catalog browse endpoint
+8cb976e feat: migrate admin and sidebar to unified catalog status
 ```
 
-Latest verification before the Phase 7 implementation commit:
+Latest verification before the Phase 8 implementation commit:
 
 ```text
 ./test.sh fast passed
 backend ruff check and ruff format --check passed
-679 backend tests passed; backend coverage 85.63%
+683 backend tests passed; backend coverage 85.56%
 frontend ESLint and Prettier checks passed
-399 frontend unit tests passed
+426 frontend unit tests passed
 frontend typecheck and production build passed
 ```
 
@@ -42,7 +42,144 @@ and chunk-size warnings remain non-blocking.
 | 5. Rebuild staging/atomic activation and repair removal | Complete | Rebuild enumeration writes to catalog_rebuild_entries staging in bounded batches; one short activation transaction merges staged rows, reconciles missing rows, resets affected metadata state, and removes staging data; POST /api/libraries/{id}/rebuild with confirm=true; rebuild conflict rules from plan §5.3; standalone repair_library_assets function and POST /api/libraries/{id}/repair endpoint removed |
 | 6. Shared status builder and status endpoints | Complete | Contract-v1 status builder backed by grouped catalog/metadata/runtime facts; `GET /api/libraries/{id}/status` with optional `scope_path`; `GET /api/libraries/status` admin batch endpoint; global runtime envelope; schema/endpoint coverage for initial queued scan, batch envelope, scoped prefix isolation, out-of-library scope rejection, degraded availability, and Scan All zero-library terminal behavior |
 | 7. Read-only `/api/browse` and gallery query migration | Complete | DB-only catalog browse route with virtual import-root listing, path-scoped asset/folder pagination, offline tombstones hidden by default, out-of-library scope rejection, no scan/write side effects, and gallery infinite query migration from `/api/scan` to `/api/browse` keyed by library ID |
-| 8–10. Admin/sidebar migration, old-route hard cut, docs | Not started | Follow the master plan sequence |
+| 8. Admin/sidebar migration to unified status | Complete | useCatalogStatusQuery and useLibraryStatusBatchQuery composables with 2.5s/60s polling and contract-v1 guard; shared catalog labels utility; admin list joins batch status by ID with Last index column; admin detail shows Availability/File scan/Metadata/Issues/Last scan/Last index separately; sidebar IndexStatusPanel/Card/DetailsPopover migrated to UnifiedStatus with scope copy, Photos found/Photo details ready mapping, library-scoped scan/rebuild actions, and updated rebuild wording; Repair UI removed; SSE invalidates status keys; scan/rebuild mutations seed/invalidate status; LibraryInspector rebuild tracking migrated to UnifiedStatus |
+| 9–10. Old-route hard cut and documentation | Not started | Follow the master plan sequence |
+
+## Phase 8 Delivered
+
+Unified status composables (`frontend/src/composables/`):
+
+- Added `useCatalogStatusQuery(libraryId, scopePath?, enabled?)` returning the
+  contract-v1 `StatusResponseEnvelope` for a library-wide or path-scoped
+  status. Polls every 2.5 seconds while scan/metadata work is active and every
+  60 seconds when stable; pauses when the document is hidden; refetches on
+  window focus with a 300 ms debounce.
+- Added `useLibraryStatusBatchQuery()` returning the admin batch envelope and
+  a `statusByLibrary` map keyed by library ID for O(1) row joins. Uses the
+  same active/stable polling intervals.
+- Both composables run every response through `assertStatusEnvelope` /
+  `assertLibraryStatusBatch` and expose a `contractError` computed so the UI
+  can surface the plan's "App updated, please reload" message instead of
+  rendering partial status.
+
+Contract guard and labels (`frontend/src/lib/catalog/`):
+
+- Added `contractGuard.ts` with `StatusContractError`,
+  `assertStatusEnvelope`, `assertLibraryStatusBatch`, and
+  `STATUS_CONTRACT_ERROR_MESSAGE`. The guard rejects unknown
+  `contract_version`, non-object envelopes, missing required `UnifiedStatus`
+  fields, and invalid batch item shapes.
+- Added `labels.ts` with `getCatalogStatusPresentation`,
+  `CATALOG_STATUS_LABELS`, and `getCatalogStatusLabel` keyed by
+  `SummaryState`. The presentation map locks the plan's label/variant/tone/
+  pulse table for `unknown`, `offline`, `needs_scan`, `scanning`, `indexing`,
+  `needs_update`, `ready_with_issues`, `ready`, and `error`.
+
+API client and query keys (`frontend/src/services/api.ts`,
+`frontend/src/query/keys.ts`):
+
+- Added `fetchCatalogStatus(libraryId, scopePath?)` calling
+  `GET /api/libraries/{id}/status`.
+- Added `fetchLibraryStatusBatch()` calling `GET /api/libraries/status`.
+- Added `rebuildLibrary(libraryId, scopePath?)` calling
+  `POST /api/libraries/{id}/rebuild` with `confirm=true` and optional
+  `scope_path`.
+- Extended `scanLibrary` to accept an optional `scopePath` sent as the
+  `scope_path` body field.
+- Added query keys `statusRoot()`, `statusBatch()`, `statusLibrary(id)`,
+  `statusPathRoot(id)`, and `statusPath(id, path)` matching the plan's
+  `['status','library',id]` and `['status','path',id,normalizedPath]`
+  conventions.
+
+Admin list migration (`frontend/src/components/admin/LibraryListPage.vue`,
+`LibraryStatusBadge.vue`, `LibrarySummaryPanel.vue`, `LibraryProgressBar.vue`,
+`LibraryActionMenu.vue`):
+
+- The list joins `useLibrariesQuery()` with `useLibraryStatusBatchQuery()` by
+  library ID; it no longer issues a per-row status/progress request.
+- `LibraryStatusBadge` and `LibrarySummaryPanel` accept a `UnifiedStatus`
+  prop and derive labels, counts, and progress exclusively from it. No
+  component reads `RegisteredLibrary.state` or `LibraryProgress` for
+  semantics.
+- Replaced the list's `Updated` column with a `Last index` column sourced
+  from `status.last_index_at`; the `Last scan` column now prefers
+  `status.last_scan_at`.
+- `LibraryActionMenu` no longer emits or renders a Repair action.
+- Scan calls use the new `scanMutation.mutate({ id })` shape; the
+  `repairMutation` remains as dead code for Phase 9 cleanup.
+
+Admin detail migration (`frontend/src/components/admin/LibraryDetailPage.vue`):
+
+- Uses `useCatalogStatusQuery(libraryId)` for the library-wide status and
+  renders Availability, File scan, Metadata progress, issue breakdown, Last
+  scan, and Last index in separate sections.
+- Removed the Repair button; retained the configuration `Updated` field on
+  the detail page per plan §8.1.
+- The delete dialog's estimated assets now falls back to
+  `status.metadata.total_assets` then `library.asset_count`.
+
+Sidebar migration (`frontend/src/components/IndexStatusPanel.vue`,
+`IndexStatusCard.vue`, `IndexStatusDetailsPopover.vue`,
+`IndexStatusBadge.vue`):
+
+- `IndexStatusPanel` resolves the active library via
+  `useActiveLibrarySelection` and calls `useCatalogStatusQuery` with the
+  current browse path. Null/empty path yields library-wide status; a real
+  path yields path-scoped status.
+- Scope copy is `Entire library · All import paths` at the virtual root and
+  `Current folder · Including subfolders` for real folders.
+- `Photos found` maps to `metadata.total_assets`; `Photo details ready` maps
+  to `metadata.ready_assets`. Last scan and Last index are shown separately.
+- `Indexer working in another folder` is preserved through
+  `metadata.global_active_outside_scope`.
+- Scan invokes `POST /api/libraries/{id}/scan` via `scanLibrary`; Rebuild
+  invokes the confirmed library-scoped rebuild endpoint via `rebuildLibrary`.
+  The rebuild confirm dialog and tooltip use the plan's "rebuild indexed
+  files and extracted metadata" wording instead of "clear index cache".
+- `IndexStatusBadge` now accepts the shared `CatalogStatusPresentation`
+  type so admin and sidebar share one label/color/precedence utility.
+- Contract errors surface the "App updated, please reload" message inline.
+
+SSE invalidation and mutations (`frontend/src/composables/admin/`):
+
+- `useLibraryEvents` now invalidates `statusRoot`, `statusLibrary(id)`, and
+  `statusPathRoot(id)` for every catalog job transition so active status
+  queries refetch immediately.
+- `useLibraryMutations` scan and rebuild mutations accept `{ id, scopePath? }`
+  and invalidate status library/path/batch keys plus browse keys on success.
+  A new `rebuildMutation` wraps `rebuildLibrary` with the same invalidation.
+  Create/update/scan-all/unregister also invalidate the relevant status keys.
+
+LibraryInspector rebuild tracking (`frontend/src/components/LibraryInspector.vue`):
+
+- Replaced `useIndexStatusQuery` with `useCatalogStatusQuery` keyed by the
+  active library ID and current path.
+- Rebuild tracking now watches `metadata.ready_assets` and unified
+  scan/metadata states instead of `IndexStatusResponse.metadata_records` and
+  `hasActiveIndexWork`/`hasQueuedIndexWork`.
+
+Phase 8 coverage added (`frontend/src/`):
+
+- query keys test for `statusRoot`, `statusBatch`, `statusLibrary`,
+  `statusPathRoot`, and `statusPath`;
+- API client tests for `fetchCatalogStatus`, `fetchLibraryStatusBatch`,
+  `rebuildLibrary`, and scoped `scanLibrary`;
+- mutation invalidation tests for scan (status keys), rebuild, and scan-all
+  (status root);
+- contract guard tests for valid/invalid envelopes and batch responses;
+- catalog labels tests locking the plan's label table, pulse behavior, and
+  variant/tone mapping.
+
+Remaining by design for later phases:
+
+- Legacy `/api/scan`, `/api/index/status`, `/api/index/rebuild`,
+  `useIndexStatusQuery`, `useLibraryProgressQuery`, `fetchIndexStatus`,
+  `rebuildIndex`, `scanDirectory`, `repairLibrary`, old `IndexStatusResponse`
+  and `LibraryProgress` types, `utils/indexStatus.ts`, `utils/indexStatusCopy.ts`,
+  `utils/libraryStatus.ts` presentation helpers, and `GALLERY_DB_REQUIRED`
+  configuration remain as dead code for Phase 9 removal.
+- Architecture/API/config documentation updates and the final release gate
+  remain in Phase 10.
 
 ## Phase 7 Delivered
 
@@ -203,5 +340,6 @@ Legacy repair tests were replaced with equivalent scan/rebuild coverage.
 
 ## Working Tree Note
 
-At Phase 7 handoff, `_codex_phase7_prompt.txt` remains an untracked local
-prompt file. It was intentionally excluded from the Phase 7 commits.
+At Phase 8 handoff, `_opencode_phase8_prompt.txt` remains an untracked local
+prompt file. It was intentionally excluded from the Phase 8 commits. The
+earlier `_codex_phase7_prompt.txt` from Phase 7 also remains untracked.
