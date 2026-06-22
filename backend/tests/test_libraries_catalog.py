@@ -12,6 +12,8 @@ from backend.app import app
 from backend.catalog import service as catalog_service
 from backend.indexer import rebuild_index_scope
 from backend.metadata_store import (
+    _DB_LOCK,
+    _connect,
     get_asset_folder_listing,
     get_first_library_root,
     get_job,
@@ -26,8 +28,6 @@ from backend.metadata_store import (
     update_library,
     update_library_state,
     upsert_image_dimensions,
-    _DB_LOCK,
-    _connect,
 )
 from tests.conftest import create_test_png
 
@@ -728,7 +728,7 @@ def test_scan_applies_exclusion_patterns_across_import_paths(
     assert stored["asset_count"] == 1
 
 
-def test_scan_and_folder_endpoints_apply_library_exclusion_patterns(
+def test_folder_endpoints_apply_library_exclusion_patterns(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,
 ):
@@ -742,15 +742,10 @@ def test_scan_and_folder_endpoints_apply_library_exclusion_patterns(
     update_library(int(library["id"]), exclusion_patterns=["private/**"])
 
     with TestClient(app) as client:
-        scan = client.get("/api/scan", params={"path": str(isolated_gallery_root)})
-        assert scan.status_code == 200
-        assert [folder["name"] for folder in scan.json()["folders"]] == ["visible"]
-
         folders = client.get("/api/folders", params={"path": str(isolated_gallery_root)})
         assert folders.status_code == 200
         assert [folder["name"] for folder in folders.json()] == ["visible"]
 
-        assert client.get("/api/scan", params={"path": str(excluded)}).status_code == 404
         assert client.get("/api/folders", params={"path": str(excluded)}).status_code == 404
         assert (
             client.get(

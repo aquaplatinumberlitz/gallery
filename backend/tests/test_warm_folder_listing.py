@@ -17,9 +17,7 @@ import os
 from pathlib import Path
 
 import pytest
-from fastapi.testclient import TestClient
 
-from backend.app import app
 from backend.files import natural_sort_key
 from backend.metadata_store import (
     get_warm_folder_listing,
@@ -27,13 +25,10 @@ from backend.metadata_store import (
     update_folder_index_state,
 )
 
-client = TestClient(app)
-
 
 @pytest.fixture(autouse=True)
 def ensure_warm_listing_enabled(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("backend.metadata_store.ENABLE_WARM_INDEXED_LISTING", True)
-    monkeypatch.setattr("backend.scan.ENABLE_WARM_INDEXED_LISTING", True)
     yield
 
 
@@ -193,25 +188,6 @@ def test_response_shape_compatible(tmp_path: Path):
         }
 
 
-def test_cold_path_unchanged_when_warm_disabled(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr("backend.metadata_store.ENABLE_WARM_INDEXED_LISTING", False)
-    monkeypatch.setattr("backend.scan.ENABLE_WARM_INDEXED_LISTING", False)
-    monkeypatch.setattr("backend.scan.is_path_safe", lambda _: True)
-
-    album = tmp_path / "album"
-    album.mkdir()
-    (album / "test.jpg").write_text("fake")
-
-    response = client.get(
-        "/api/scan",
-        params={"path": str(album), "limit": 10},
-    )
-    assert response.status_code == 200
-    data = response.json()
-    assert data["total_images"] == 1
-    assert data["index_source"] == "direct_scan"
-
-
 def test_pagination_matches_direct_scan(tmp_path: Path):
     album = tmp_path / "album"
     album.mkdir()
@@ -231,37 +207,6 @@ def test_pagination_matches_direct_scan(tmp_path: Path):
     assert page2 is not None
     assert len(page2["media"]) == 10
     assert page2["next_media_cursor"] is None
-
-
-def test_api_scan_uses_warm_listing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr("backend.scan.is_path_safe", lambda _: True)
-
-    album = tmp_path / "album"
-    album.mkdir()
-    (album / "test.jpg").write_text("fake")
-
-    index_directory_tree(album, include_metadata=False)
-    counts = _scan_folder_counts(album)
-    update_folder_index_state(album, complete=True, **counts)
-
-    scandir_calls = []
-
-    original_scandir = os.scandir
-
-    def tracking_scandir(path):
-        scandir_calls.append(path)
-        return original_scandir(path)
-
-    monkeypatch.setattr(os, "scandir", tracking_scandir)
-
-    response = client.get(
-        "/api/scan",
-        params={"path": str(album), "limit": 10},
-    )
-    assert response.status_code == 200
-    data = response.json()
-    assert data["total_images"] == 1
-    assert data.get("index_source") == "warm_db"
 
 
 def test_warm_path_does_not_call_build_album_metadata(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

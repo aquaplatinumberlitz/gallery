@@ -18,7 +18,7 @@ ENABLE_METRICS = _env_flag("ENABLE_METRICS", default=os.getenv("PRODUCTION") != 
 ENABLE_PROFILER = _env_flag("ENABLE_PROFILER", default=False)
 PROFILE_ENDPOINTS = {
     endpoint.strip()
-    for endpoint in os.getenv("PROFILE_ENDPOINTS", "/api/scan,/api/metadata,/api/thumbnail,/api/preview").split(",")
+    for endpoint in os.getenv("PROFILE_ENDPOINTS", "/api/browse,/api/metadata,/api/thumbnail,/api/preview").split(",")
     if endpoint.strip()
 }
 PROFILE_DIR = Path(__file__).resolve().parent / "profiles"

@@ -157,31 +157,6 @@ def test_thumbnail_stores_oriented_dimensions_for_exif_jpeg(tmp_path, monkeypatc
     assert cached[key].height == 1440, f"expected height=1440, got {cached[key].height}"
 
 
-def test_scan_returns_oriented_dimensions_for_exif_jpeg(tmp_path, monkeypatch):
-    import backend.config as cfg
-    import backend.metadata_store as ms
-
-    monkeypatch.setattr(cfg, "PATH_SAFETY_ROOT", tmp_path)
-    monkeypatch.setattr(ms, "GALLERY_METADATA_DB", tmp_path / "test_scan_dim.db")
-    monkeypatch.setattr(ms, "_DB_INITIALIZED", False)
-    monkeypatch.setattr(ms, "_DB_INITIALIZED_PATH", None)
-    monkeypatch.setattr(cfg, "ENABLE_WARM_INDEXED_LISTING", False)
-
-    image_path = tmp_path / "iphone_scan.jpg"
-    create_exif_rotated_jpeg(image_path, size=(1440, 1080), orientation=6)
-
-    thumbnail_resp = client.get("/api/thumbnail", params={"path": str(image_path)})
-    assert thumbnail_resp.status_code == 200
-
-    scan_resp = client.get("/api/scan", params={"path": str(tmp_path)})
-    assert scan_resp.status_code == 200
-    data = scan_resp.json()
-    assert data["total_images"] == 1
-    image = data["media"][0]
-    assert image["width"] == 1080, f"scan width: expected 1080, got {image['width']}"
-    assert image["height"] == 1440, f"scan height: expected 1440, got {image['height']}"
-
-
 def test_metadata_returns_oriented_dimensions_for_exif_jpeg(tmp_path, monkeypatch):
     import backend.metadata_store as ms
 

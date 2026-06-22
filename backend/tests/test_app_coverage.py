@@ -109,16 +109,18 @@ def test_profiler_middleware_writes_report_for_profiled_endpoint(
 
     original_profiler = config_module.ENABLE_PROFILER
     original_dir = config_module.PROFILE_DIR
+    original_endpoints = config_module.PROFILE_ENDPOINTS
     profile_dir = tmp_path / "profiles"
     config_module.ENABLE_PROFILER = True
     config_module.PROFILE_DIR = profile_dir
+    config_module.PROFILE_ENDPOINTS = {"/api/health"}
     try:
         import backend.app as app_module
 
         importlib.reload(app_module)
         client = TestClient(app_module.app, raise_server_exceptions=False)
 
-        resp = client.get("/api/scan", params={"path": str(isolated_gallery_root)})
+        resp = client.get("/api/health")
         assert resp.status_code == 200
 
         html_files = list(profile_dir.glob("*.html"))
@@ -128,6 +130,7 @@ def test_profiler_middleware_writes_report_for_profiled_endpoint(
     finally:
         config_module.ENABLE_PROFILER = original_profiler
         config_module.PROFILE_DIR = original_dir
+        config_module.PROFILE_ENDPOINTS = original_endpoints
         importlib.reload(app_module)
 
 

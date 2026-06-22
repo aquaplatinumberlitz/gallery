@@ -4,14 +4,12 @@ Verifies health endpoint shape and path safety enforcement across public APIs.
 
 Guarantees:
 * /api/health remains JSON and includes expected runtime fields
-* scan, image, thumbnail, preview, and metadata endpoints reject unsafe paths
+* image, thumbnail, preview, and metadata endpoints reject unsafe paths
 
 Run when:
 * changing health response fields, path safety checks, or gallery root resolution
 * touching public endpoint validation behavior
 """
-
-from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -31,10 +29,6 @@ class TestHealth:
 
 
 class TestPathSafety:
-    def test_scan_rejects_path_outside_gallery_root(self, isolated_app: TestClient, isolated_gallery_root: Path):
-        resp = isolated_app.get("/api/scan", params={"path": "/etc/passwd"})
-        assert resp.status_code == 403
-
     def test_image_rejects_path_outside_gallery_root(self, isolated_app: TestClient):
         resp = isolated_app.get("/api/image", params={"path": "/etc/hosts"})
         assert resp.status_code in (403, 404)
@@ -50,17 +44,3 @@ class TestPathSafety:
     def test_metadata_rejects_path_outside_gallery_root(self, isolated_app: TestClient):
         resp = isolated_app.get("/api/metadata", params={"path": "/etc/hosts"})
         assert resp.status_code in (400, 403)
-
-    def test_scan_accepts_path_inside_gallery_root(self, isolated_app: TestClient, temp_gallery: Path):
-        album = temp_gallery / "album_a"
-        resp = isolated_app.get("/api/scan", params={"path": str(album)})
-        assert resp.status_code == 200
-
-    def test_scan_missing_folder_returns_404(self, isolated_app: TestClient, temp_gallery: Path):
-        resp = isolated_app.get("/api/scan", params={"path": str(temp_gallery / "nonexistent")})
-        assert resp.status_code == 404
-
-    def test_scan_file_path_returns_400(self, isolated_app: TestClient, temp_gallery: Path):
-        file_path = temp_gallery / "album_a" / "001.png"
-        resp = isolated_app.get("/api/scan", params={"path": str(file_path)})
-        assert resp.status_code == 400

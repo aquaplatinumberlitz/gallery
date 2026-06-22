@@ -269,7 +269,8 @@ def test_unsafe_path_rejected():
 
 def test_routes_registered():
     routes = [r.path for r in app.routes]
-    assert "/api/scan" in routes
+    assert "/api/scan" not in routes
+    assert "/api/browse" in routes
     assert "/api/metadata" in routes
     assert "/api/thumbnail" in routes
     assert "/api/preview" in routes
