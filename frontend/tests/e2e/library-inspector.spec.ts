@@ -11,6 +11,7 @@
  * * touching search scope, stale notices, or inspector cache behavior
  */
 
+import { browseResponse, statusEnvelope } from "./helpers/catalogFixtures";
 import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
@@ -203,73 +204,46 @@ async function installStubbedInspector(page: Page) {
       return;
     }
 
-    if (url.pathname === "/api/scan") {
+    if (url.pathname === "/api/browse") {
       await route.fulfill({
         contentType: "application/json",
-        body: JSON.stringify({
-          folders: [],
-          media: [],
-          next_media_cursor: null,
-          total_images: 0,
-          total_videos: 0,
-          total_assets: 0,
-          index_source: "direct_scan",
-        }),
+        body: JSON.stringify(
+          browseResponse({
+            libraryId: Number(url.searchParams.get("library_id") ?? 1),
+            path: url.searchParams.get("path") ?? rootPath,
+          }),
+        ),
       });
       return;
     }
 
-    if (url.pathname === "/api/index/status") {
+    if (url.pathname === "/api/libraries/1/status") {
       await route.fulfill({
         contentType: "application/json",
-        body: JSON.stringify({
-          enabled: true,
-          worker_count: 0,
-          active_jobs: 0,
-          runtime_queue_depth: 0,
-          done: 150,
-          running: 0,
-          queued: 0,
-          failed: 0,
-          stale: 0,
-          skipped: 0,
-          total: 150,
-          path: rootPath,
-          counts: { done: 150 },
-          oldest_queued_age_seconds: null,
-          last_error: null,
-          updated_at: 1000000000,
-          coalesced_duplicates: 0,
-          staged_path_queue_depth: 0,
-          staged_path_coalesced: 0,
-          staged_path_failed: 0,
-          staged_path_flushes_forced: 0,
-          staged_path_worker_count: 0,
-          active_scan_requests: 0,
-          batch_size: 100,
-          staged_path_batch_size: 50,
-          stage_max_wait_seconds: 30,
-          metadata_records: 150,
-          indexed_photos: 150,
-        }),
+        body: JSON.stringify(
+          statusEnvelope({
+            libraryId: 1,
+            totalAssets: 150,
+            readyAssets: 150,
+            path: url.searchParams.get("scope_path") ?? rootPath,
+          }),
+        ),
       });
       return;
     }
 
-    if (url.pathname === "/api/index/rebuild") {
+    if (url.pathname === "/api/libraries/1/rebuild") {
       await route.fulfill({
+        status: 202,
         contentType: "application/json",
         body: JSON.stringify({
-          path: url.searchParams.get("path") ?? rootPath,
-          cleared: {
-            file_index_fts: 1,
-            file_index: 1,
-            image_metadata: 1,
-            metadata_index_jobs: 1,
-            folder_index_state: 1,
-          },
-          rebuild_started: true,
-          rebuild_started_at: Date.now() / 1000,
+          library_id: 1,
+          job_id: 77,
+          scope_path: url.searchParams.get("scope_path") ?? rootPath,
+          operation: "rebuild",
+          trigger: "manual",
+          state: "queued",
+          coalesced: false,
         }),
       });
       return;
@@ -383,12 +357,12 @@ test.describe("LibraryInspector", () => {
     await expect(page.getByText(`40 indexed photos · ${rootPath} · Including subfolders`)).toBeVisible();
 
     const inspectorRequestsBefore = requests.filter((request) => request.startsWith("/api/library/inspector?")).length;
-    await page.getByLabel("Index Status").click();
-    const popover = page.getByRole("dialog", { name: "Index Status" });
+    await page.getByLabel("Catalog Status").click();
+    const popover = page.getByRole("dialog").filter({ hasText: "Catalog" });
     await expect(popover).toBeVisible({ timeout: 5_000 });
     await popover.getByRole("button", { name: "Rebuild" }).click();
 
-    const dialog = page.getByRole("dialog", { name: "Rebuild?" });
+    const dialog = page.getByRole("alertdialog", { name: "Rebuild?" });
     await expect(dialog).toBeVisible({ timeout: 5_000 });
     await dialog.getByRole("button", { name: "Rebuild" }).click();
 

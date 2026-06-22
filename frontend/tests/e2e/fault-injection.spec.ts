@@ -8,9 +8,10 @@
  *
  * Run when:
  * * changing API error handling, toast/error UI, or lightbox fallback behavior
- * * touching scan, search, metadata, thumbnail, preview, or image request flows
+ * * touching browse, search, metadata, thumbnail, preview, or image request flows
  */
 
+import { browseResponse, statusEnvelope } from "./helpers/catalogFixtures";
 import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
@@ -37,13 +38,14 @@ const stubLibrary = {
   last_error: null,
 };
 
-// Shared scan response used by most tests unless overridden
-const scanResponse = {
-  folders: [],
+// Shared browse response used by most tests unless overridden
+const browsePayload = browseResponse({
+  libraryId: 1,
+  path: rootPath,
   media: imagePaths.map((path, i) => ({
     name: `image-${i + 1}.png`,
     path,
-    type: "image",
+    type: "image" as const,
     has_children: false,
     cover_images: [],
     mtime: 1000 + i,
@@ -51,12 +53,7 @@ const scanResponse = {
     width: 1600,
     height: 1000,
   })),
-  next_media_cursor: null,
-  total_images: imagePaths.length,
-  total_videos: 0,
-  total_assets: imagePaths.length,
-  index_source: "direct_scan",
-};
+});
 
 const metadataResponse = (name: string) => ({
   tool: "stub",
@@ -77,7 +74,7 @@ function requestsFor(requests: ApiRequest[], pathname: string) {
 async function installGalleryWithFaults(
   page: Page,
   faults: {
-    failScan?: boolean;
+    failBrowse?: boolean;
     failThumbnail?: boolean;
     failPreview?: boolean;
     failImage?: boolean;
@@ -99,18 +96,26 @@ async function installGalleryWithFaults(
       return;
     }
 
-    if (url.pathname === "/api/scan") {
-      if (faults.failScan) {
+    if (url.pathname === "/api/libraries/1/status") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify(statusEnvelope({ libraryId: 1, path: url.searchParams.get("scope_path") ?? rootPath })),
+      });
+      return;
+    }
+
+    if (url.pathname === "/api/browse") {
+      if (faults.failBrowse) {
         await route.fulfill({
           status: 500,
           contentType: "application/json",
-          body: JSON.stringify({ detail: { error: "server_error", message: "Scan failed" } }),
+          body: JSON.stringify({ detail: { error: "server_error", message: "Browse failed" } }),
         });
         return;
       }
       await route.fulfill({
         contentType: "application/json",
-        body: JSON.stringify(scanResponse),
+        body: JSON.stringify(browsePayload),
       });
       return;
     }
@@ -374,9 +379,9 @@ test("thumbnail 500 shows placeholder in grid; no page error", async ({ page }) 
   expect(placeholderCount).toBeGreaterThanOrEqual(1);
 });
 
-// ─── 2f: Scan 500 — error message shown ───
-test("scan 500 shows error message; no page error", async ({ page }) => {
-  await installGalleryWithFaults(page, { failScan: true });
+// ─── 2f: Browse 500 - error message shown ───
+test("browse 500 shows error message; no page error", async ({ page }) => {
+  await installGalleryWithFaults(page, { failBrowse: true });
 
   await page.addInitScript(() => {
     localStorage.setItem("intro_mode", "disabled");

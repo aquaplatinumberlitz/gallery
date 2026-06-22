@@ -4,13 +4,14 @@
  *
  * Guarantees:
  * * boot identity stays stable across album and lightbox interactions
- * * duplicate initial scan requests are avoided during stubbed navigation flows
+ * * duplicate initial browse requests are avoided during stubbed navigation flows
  *
  * Run when:
  * * changing router, gallery navigation, lightbox prev/next, or boot initialization
- * * touching query caching that controls scan request reuse
+ * * touching query caching that controls browse request reuse
  */
 
+import { browseResponse, statusEnvelope } from "./helpers/catalogFixtures";
 import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
@@ -27,14 +28,14 @@ const png1x1 = Buffer.from(
   "base64",
 );
 
-type ApiRequest = { pathname: string; path: string; mediaCursor: string };
+type ApiRequest = { pathname: string; path: string; cursor: string };
 
 function requestsFor(requests: ApiRequest[], pathname: string) {
   return requests.filter((r) => r.pathname === pathname);
 }
 
-function cursorZeroScans(requests: ApiRequest[]) {
-  return requests.filter((r) => r.pathname === "/api/scan" && r.mediaCursor === "0");
+function cursorZeroBrowses(requests: ApiRequest[]) {
+  return requests.filter((r) => r.pathname === "/api/browse" && r.cursor === "0");
 }
 
 async function installStubbedGallery(page: Page) {
@@ -44,7 +45,7 @@ async function installStubbedGallery(page: Page) {
     const req: ApiRequest = {
       pathname: url.pathname,
       path: url.searchParams.get("path") ?? "",
-      mediaCursor: url.searchParams.get("media_cursor") ?? "0",
+      cursor: url.searchParams.get("cursor") ?? "0",
     };
     requests.push(req);
 
@@ -72,28 +73,34 @@ async function installStubbedGallery(page: Page) {
       return;
     }
 
-    if (url.pathname === "/api/scan") {
+    if (url.pathname === "/api/libraries/1/status") {
       await route.fulfill({
         contentType: "application/json",
-        body: JSON.stringify({
-          folders: [],
-          media: imagePaths.map((path, i) => ({
-            name: `image-${i + 1}.png`,
-            path,
-            type: "image",
-            has_children: false,
-            cover_images: [],
-            mtime: 1000 + i,
-            image_count: 0,
-            width: 1600,
-            height: 1000,
-          })),
-          next_media_cursor: null,
-          total_images: imagePaths.length,
-          total_videos: 0,
-          total_assets: imagePaths.length,
-          index_source: "direct_scan",
-        }),
+        body: JSON.stringify(statusEnvelope({ libraryId: 1, path: url.searchParams.get("scope_path") ?? rootPath })),
+      });
+      return;
+    }
+
+    if (url.pathname === "/api/browse") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify(
+          browseResponse({
+            libraryId: Number(url.searchParams.get("library_id") ?? 1),
+            path: url.searchParams.get("path") ?? rootPath,
+            media: imagePaths.map((path, i) => ({
+              name: `image-${i + 1}.png`,
+              path,
+              type: "image",
+              has_children: false,
+              cover_images: [],
+              mtime: 1000 + i,
+              image_count: 0,
+              width: 1600,
+              height: 1000,
+            })),
+          }),
+        ),
       });
       return;
     }
@@ -204,21 +211,21 @@ test("no unexpected full page reload during album browsing", async ({ page }) =>
   expect(navigations).toBe(baseline);
 });
 
-test("/api/scan with media_cursor=0 is not duplicated unnecessarily", async ({ page }) => {
+test("/api/browse with cursor=0 is not duplicated unnecessarily", async ({ page }) => {
   const requests = await installStubbedGallery(page);
   await openStubbedGallery(page);
 
-  // Wait for initial scan requests to settle
+  // Wait for initial browse requests to settle
   await page.waitForTimeout(500);
 
-  const scanRequests = requestsFor(requests, "/api/scan");
-  const cursorZeroRequests = cursorZeroScans(requests);
+  const browseRequests = requestsFor(requests, "/api/browse");
+  const cursorZeroRequests = cursorZeroBrowses(requests);
 
-  // Should not have duplicate initial (cursor=0) scan requests
+  // Should not have duplicate initial (cursor=0) browse requests
   expect(cursorZeroRequests.length).toBeLessThanOrEqual(2);
 
-  // Verify at least one scan happened
-  expect(scanRequests.length).toBeGreaterThanOrEqual(1);
+  // Verify at least one browse happened
+  expect(browseRequests.length).toBeGreaterThanOrEqual(1);
 });
 
 test("lightbox prev/next navigate without page reload", async ({ page }) => {

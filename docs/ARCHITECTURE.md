@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-06-21
+Last reviewed: 2026-06-22
 
 Historical Library Management V1 handoff context is retained in the
 [archived implementation status](archived/CODEX_LIBRARY_MANAGEMENT_IMPLEMENTATION_STATUS.md).
@@ -34,7 +34,8 @@ Backend modules live flat in `backend/`.
 | `paths.py`                 | `resolve_path`, `is_path_safe`, and `PATH_SAFETY_ROOT` boundary checks                                                                     |
 | `files.py`                 | Image/video classification, exclusion checks, natural sort, and image safety limits                                                        |
 | `albums.py`                | Album cover/count/child-folder metadata                                                                                                    |
-| `scan.py`                  | `/api/scan`, direct folder scans, optional warm SQLite listing, background index scheduling                                                |
+| `scan.py`                  | Routes removed (Phase 9); scan.py still exports `require_media_path_allowed` and the router included by app.py                            |
+| `browse.py`                | DB-only read-only browse via `/api/browse`; virtual import-root listing, path-scoped asset/folder pagination                              |
 | `folders.py`               | `/api/folders` folder-tree endpoint and `/api/open-folder` OS explorer hook                                                                |
 | `images.py`                | `/api/image` original file serving                                                                                                         |
 | `thumbnails.py`            | `/api/thumbnail`, `/api/preview`, WebP derivative generation, persistent disk cache                                                        |
@@ -44,10 +45,10 @@ Backend modules live flat in `backend/`.
 | `fielded_search_parser.py` | Parser for `prompt:`, `seed:`, `model:`, numeric operators, quoted values, and related fielded search syntax                               |
 | `search.py`                | `/api/search`, `/api/search-metadata`, `/api/library/inspector`, `/api/library/inspector/metadata`                                         |
 | `facets.py`                | `/api/facets` aggregation over indexed metadata                                                                                            |
-| `indexer.py`               | Background metadata queue, staged path batching, SQLite write batching, `/api/index/status`                                                |
+| `indexer.py`               | Background metadata queue, staged path batching, SQLite write batching, catalog rebuild helpers                                            |
 | `refresh.py`               | Optional scheduled refresh loop                                                                                                            |
 | `watcher.py`               | Optional filesystem watcher loop                                                                                                           |
-| `libraries.py`             | Registered-library CRUD/validation, multi-import-path scan, repair, and unregister flows                                                   |
+| `libraries.py`             | Registered-library CRUD/validation, multi-import-path scan, unregister flows, status endpoints                                             |
 | `library_events.py`        | Best-effort single-process SSE fan-out for library/job progress                                                                            |
 | `video.py`                 | Range-capable original video streaming and cached poster generation                                                                        |
 | `health.py`                | `/api/health`, favicon, git commit reporting                                                                                               |
@@ -57,7 +58,7 @@ Backend modules live flat in `backend/`.
 
 | Endpoint                                  | Purpose                                                               | Module              |
 | ----------------------------------------- | --------------------------------------------------------------------- | ------------------- |
-| `GET /api/scan`                           | Return folders and paginated mixed-media rows for a directory         | `scan.py`           |
+| `GET /api/browse`                         | Return folders and paginated mixed-media rows from catalog rows for a library | `browse.py`         |
 | `GET /api/folders`                        | Return direct non-hidden child folders for sidebar expansion          | `folders.py`        |
 | `GET /api/image`                          | Serve an original image file                                          | `images.py`         |
 | `GET /api/thumbnail`                      | Serve a cached WebP thumbnail, default max long edge 512px            | `thumbnails.py`     |
@@ -70,17 +71,18 @@ Backend modules live flat in `backend/`.
 | `GET /api/library/inspector`              | Bounded read-only rows for the desktop metadata inspector             | `search.py`         |
 | `GET /api/library/inspector/metadata`     | DB-first full metadata detail for one inspector row                   | `search.py`         |
 | `GET /api/facets`                         | DB-derived model/tool/sampler/etc. aggregation counts                 | `facets.py`         |
-| `GET /api/index/status`                   | Metadata indexer queue/runtime status                                 | `indexer.py`        |
 | `POST /api/open-folder`                   | Open a folder in the OS file explorer when enabled                    | `folders.py`        |
 | `GET /api/health`                         | Return service health and commit metadata                             | `health.py`         |
 | `GET /api/landing-pages`                  | List intro page HTML templates from `frontend/public/landpage/`       | `static_files.py`   |
 | `GET /api/libraries`                      | List libraries with ordered import paths and exclusions               | `libraries.py`      |
-| `POST /api/libraries`                     | Register a library using `import_paths` or legacy `root_path`         | `libraries.py`      |
+| `POST /api/libraries`                     | Register a library using import_paths                                 | `libraries.py`      |
 | `POST /api/libraries/validate`            | Validate create settings without writing                              | `libraries.py`      |
 | `PATCH/PUT /api/libraries/{id}`           | Replace supplied library settings                                     | `libraries.py`      |
 | `POST /api/libraries/{id}/validate`       | Validate update settings without writing                              | `libraries.py`      |
 | `POST /api/libraries/{id}/scan`           | Scan every import path in one library                                 | `libraries.py`      |
-| `POST /api/libraries/{id}/repair`         | Reconcile library assets with filesystem scope                        | `libraries.py`      |
+| `GET /api/libraries/{id}/status`          | Return unified status envelope for a library or path scope            | `libraries.py`      |
+| `GET /api/libraries/status`               | Return admin batch status for all libraries                           | `libraries.py`      |
+| `POST /api/libraries/{id}/rebuild`        | Rebuild catalog and metadata for a library scope                      | `libraries.py`      |
 | `DELETE /api/libraries/{id}?confirm=true` | Unregister catalog data without deleting source files                 | `libraries.py`      |
 | `GET /` and `GET /{path:path}`            | Serve the built SPA in production mode                                | `static_files.py`   |
 
@@ -94,12 +96,9 @@ Backend modules live flat in `backend/`.
 - Derivative cache keys include kind, cache version, resolved path, mtime, size, long-edge target, format, and quality. WebP files persist under `backend/.cache/thumbnails/`.
 - The metadata DB defaults to `backend/.cache/gallery_metadata.db` and can be overridden with `GALLERY_METADATA_DB`.
 - SQLite uses WAL mode and stores both file index rows and normalized metadata rows. FTS5 tables cover folder/photo names and metadata text.
-- Registered libraries store ordered roots in `library_import_paths`; `libraries.root_path` remains a compatibility alias for the first root. Relative globstar exclusions live in `library_exclusion_patterns`.
-- `/api/scan` stays hot-path focused: `os.scandir`, stat, natural sort, one batched dimension lookup, and no blanket metadata parsing.
-- `/api/scan` accepts only `path`, `limit`, and `media_cursor`; unknown query parameters return `422`. Its canonical response fields are `folders`, `media`, `next_media_cursor`, `total_images`, `total_videos`, `total_assets`, and `index_source`.
-- `/api/scan` schedules background indexing work for scanned folders/images and metadata jobs. `/api/metadata`, `/api/thumbnail`, and `/api/preview` also update cached metadata/dimensions when they already open the image.
-- `ENABLE_WARM_INDEXED_LISTING=1` allows `/api/scan` to serve a warm SQLite-backed listing when the folder index is complete and fresh.
-- Scheduled refresh is disabled by default. The file watcher is enabled for registered library roots by default and can be disabled with `ENABLE_FILE_WATCHER=0`.
+- Registered libraries store ordered roots in `library_import_paths`. Relative globstar exclusions live in `library_exclusion_patterns`.
+- `/api/browse` is the read-only catalog query endpoint. It accepts `library_id`, `path`, `cursor`, `limit`, and `include_offline`. The response contains `folders`, `media`, `next_media_cursor`, `total_images`, `total_videos`, `total_assets`. Scan, rebuild, and status are managed through library endpoints.
+- Catalog scan workers and metadata indexer run as background services. The catalog watcher and scheduled reconciliation are enabled by default for registered libraries.
 
 ## Frontend
 
@@ -119,7 +118,7 @@ Key paths:
 | `frontend/src/components/search/AdvancedSearchDrawer.vue` | Facet-backed fielded search form                                                                                               |
 | `frontend/src/components/ui/`                             | shadcn-vue/Reka-inspired local UI primitives                                                                                   |
 | `frontend/src/composables/`                               | Query wrappers, device detection, PhotoSwipe lifecycle, metadata helpers, theme, haptics                                       |
-| `frontend/src/query/`                                     | TanStack Query client, normalized query keys, scan prefetch helpers                                                            |
+| `frontend/src/query/`                                     | TanStack Query client, normalized query keys, browse prefetch helpers                                                          |
 | `frontend/src/db/`                                        | TanStack DB beta foundation and landing-pages pilot collection                                                                 |
 | `frontend/src/stores/`                                    | Pinia stores for gallery UI/navigation, lightbox, and toasts                                                                   |
 | `frontend/src/services/api.ts`                            | Axios client, endpoint wrappers, URL helpers, API error mapping                                                                |
@@ -129,7 +128,7 @@ Key paths:
 
 | Layer                | Responsibilities                                                                                                                                      |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| TanStack Query       | `/api/scan`, `/api/folders`, `/api/search`, `/api/metadata`, `/api/facets`, `/api/index/status`, Library Inspector rows/details, landing page fetches |
+| TanStack Query       | `/api/browse`, `/api/folders`, `/api/search`, `/api/metadata`, `/api/facets`, `/api/libraries/{id}/status`, `/api/libraries/status`, Library Inspector rows/details, landing page fetches |
 | TanStack DB          | Beta local reactive collection foundation; currently only the landing-pages collection is a runtime pilot                                             |
 | Pinia gallery store  | Root/current path, selected path, history, expanded folders, search text/scope, sort, loaded flags, settings UI state                                 |
 | Pinia lightbox store | Open image, current index, visible item list, navigation                                                                                              |
@@ -140,13 +139,15 @@ Query keys are centralized in `frontend/src/query/keys.ts`. Paths are normalized
 Core keys:
 
 ```text
-["scan", normalizedPath, limit]
-["scan-infinite", normalizedPath, limit]
+["browse", libraryId, normalizedPath, limit]
+["browse-infinite", libraryId, normalizedPath, limit]
 ["folder-children", normalizedPath]
 ["search", query, scope, normalizedPath]
 ["metadata", normalizedPath]
 ["facets", normalizedPath]
-["index-status", normalizedPath]
+["status-library", id]
+["status-path", id, normalizedPath]
+["status-batch"]
 ["library-inspector", query, scope, normalizedPath, limit]
 ["library-inspector-metadata", normalizedPath]
 ["landing-pages"]
@@ -159,9 +160,9 @@ Core keys:
 ```text
 Folder selection
 -> Pinia gallery store updates current path/history
--> useInfiniteScanQuery(path)
--> GET /api/scan
--> TanStack Query stores pages under ["scan-infinite", normalizedPath, IMAGE_PAGE_SIZE]
+-> useInfiniteBrowseQuery(libraryId, path)
+-> GET /api/browse?library_id=...
+-> TanStack Query stores pages under ["browse-infinite", libraryId, normalizedPath, IMAGE_PAGE_SIZE]
 -> GalleryGrid renders folders and mixed-media rows
 ```
 
@@ -185,7 +186,7 @@ Folder expansion state is UI state. Query-owned `FileNode` results should not be
 IntersectionObserver sees load-more sentinel
 -> guard hasNextPage and fetch-in-progress flags
 -> fetchNextPage()
--> GET /api/scan?media_cursor=...
+-> GET /api/browse?library_id=...&cursor=...
 -> TanStack Query appends page
 -> grid rows recompute
 ```

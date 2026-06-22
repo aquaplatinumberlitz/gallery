@@ -3,7 +3,7 @@
 Status: Maintained
 
 Last verified against `backend/config.py`, `frontend/.env`, `frontend/vite.config.ts`,
-and frontend environment reads: 2026-06-18.
+and frontend environment reads: 2026-06-22.
 
 Boolean flags parsed by `_env_flag()` treat `0`, `false`, `no`, and `off`
 case-insensitively as false; any other provided value is true. Flags documented as
@@ -16,12 +16,11 @@ case-insensitively as false; any other provided value is true. Flags documented 
 | `PRODUCTION`                                           | boolean (`"1"`)         | `0`                                                   | Enables production mode; also changes defaults for metrics and scan perf logs.                           |
 | `ENABLE_METRICS`                                       | boolean flag            | true unless `PRODUCTION=1`                            | Enables optional Prometheus instrumentation.                                                             |
 | `ENABLE_PROFILER`                                      | boolean flag            | false                                                 | Enables pyinstrument middleware where configured.                                                        |
-| `PROFILE_ENDPOINTS`                                    | comma-separated strings | `/api/scan,/api/metadata,/api/thumbnail,/api/preview` | Endpoints selected for profiling.                                                                        |
+| `PROFILE_ENDPOINTS`                                    | comma-separated strings | `/api/browse,/api/metadata,/api/thumbnail,/api/preview` | Endpoints selected for profiling.                                                                        |
 | `GALLERY_THUMBNAIL_CACHE_DIR`                          | path                    | `backend/.cache/thumbnails`                           | Persistent derivative cache directory.                                                                   |
 | `SCAN_PERF_LOGS`                                       | boolean-like            | `1` unless `PRODUCTION=1`, then `0`                   | Values `0`, `false`, and `no` disable scan performance logs.                                             |
 | `PATH_SAFETY_ROOT`                                     | path                    | `/`                                                   | Resolved root boundary for gallery paths.                                                                |
-| `GALLERY_DB_REQUIRED`                                  | boolean flag            | false                                                 | Requires `/api/scan` paths to belong to a registered library and disables filesystem listing fallback.   |
-| `GALLERY_OPEN_FOLDER`                                  | boolean (`"true"`)      | `false`                                               | Enables the OS “open folder” operation.                                                                  |
+| `GALLERY_OPEN_FOLDER`                                  | boolean (`"true"`)      | `false`                                               | Enables the OS "open folder" operation.                                                                  |
 | `GALLERY_METADATA_DB`                                  | path                    | `backend/.cache/gallery_metadata.db`                  | SQLite metadata/index database.                                                                          |
 | `GALLERY_METADATA_INDEXER_ENABLED`                     | boolean flag            | true                                                  | Enables metadata path staging and worker processing.                                                     |
 | `GALLERY_METADATA_INDEXER_BATCH_SIZE`                  | integer, clamped 1–64   | `8`                                                   | Metadata worker batch size.                                                                              |
@@ -40,16 +39,16 @@ case-insensitively as false; any other provided value is true. Flags documented 
 | `METADATA_INDEXER_SQLITE_BUSY_RETRIES`                 | integer                 | `3`                                                   | Legacy fallback for the prefixed busy-retry variable.                                                    |
 | `GALLERY_METADATA_INDEXER_SQLITE_BUSY_BACKOFF_SECONDS` | float, minimum 0        | `0.1`                                                 | SQLite busy retry backoff. Falls back to `METADATA_INDEXER_SQLITE_BUSY_BACKOFF_SECONDS`.                 |
 | `METADATA_INDEXER_SQLITE_BUSY_BACKOFF_SECONDS`         | float                   | `0.1`                                                 | Legacy fallback for the prefixed busy-backoff variable.                                                  |
-| `ENABLE_WARM_INDEXED_LISTING`                          | boolean flag            | false                                                 | Allows `/api/scan` to use a complete, fresh SQLite folder listing.                                       |
-| `ENABLE_SCHEDULED_REFRESH`                             | boolean flag            | false                                                 | Starts the scheduled folder-index refresh thread.                                                        |
-| `SCHEDULED_REFRESH_INTERVAL_SECONDS`                   | integer, minimum 60     | `300`                                                 | Refresh interval.                                                                                        |
-| `SCHEDULED_REFRESH_ROOTS`                              | comma-separated paths   | empty                                                 | Restricts scheduled refresh to configured roots.                                                         |
-| `SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK`               | integer, minimum 1      | `20`                                                  | Maximum refreshed folders per tick.                                                                      |
-| `SCHEDULED_REFRESH_ALLOW_ALL_INDEXED`                  | boolean flag            | false                                                 | Allows refresh of all indexed folders when no roots are configured.                                      |
 | `ENABLE_FILE_WATCHER`                                  | boolean flag            | true                                                  | Starts the watchdog observer for registered, watch-enabled libraries.                                    |
-| `WATCHER_ROOTS`                                        | comma-separated paths   | empty                                                 | Optionally filters the registered library roots watched recursively.                                     |
-| `WATCHER_DEBOUNCE_SECONDS`                             | float, minimum 0        | `2.0`                                                 | Filesystem event debounce interval.                                                                      |
-| `WATCHER_MAX_EVENTS_PER_TICK`                          | integer, minimum 1      | `500`                                                 | Maximum folder/image events processed per watcher tick.                                                  |
+| `GALLERY_CATALOG_WORKERS`                              | integer, minimum 1      | `1`                                                   | Number of concurrent catalog worker threads.                                                             |
+| `GALLERY_CATALOG_WATCHER_ENABLED`                      | boolean flag            | true                                                  | Enables filesystem watcher for registered library import paths.                                          |
+| `GALLERY_CATALOG_WATCHER_DEBOUNCE_SECONDS`             | float, minimum 0        | `2.0`                                                 | Filesystem event debounce interval for catalog scan triggers.                                            |
+| `GALLERY_CATALOG_RECONCILE_ENABLED`                    | boolean flag            | true                                                  | Enables scheduled catalog reconciliation for missed events.                                              |
+| `GALLERY_CATALOG_RECONCILE_INTERVAL_SECONDS`           | integer, minimum 60     | `21600`                                               | Catalog reconciliation interval (default 6 hours).                                                       |
+| `GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED`              | boolean flag            | true                                                  | Enables low-priority startup scan for every registered library.                                          |
+| `GALLERY_CATALOG_JOB_MAX_QUEUE_WAIT_SECONDS`           | integer, minimum 1      | `600`                                                 | Max queue wait before a queued catalog job is priority-promoted.                                         |
+| `GALLERY_CATALOG_WRITE_BATCH_SIZE`                     | integer, clamped 1–2000 | `500`                                                 | Catalog write batch size for discovery/staging.                                                          |
+| `GALLERY_METADATA_EVENT_THROTTLE_MS`                   | integer, minimum 50     | `500`                                                 | Metadata SSE coalescing throttle per library.                                                            |
 
 Invalid numeric strings raise during configuration import; the code does not provide a
 fallback for malformed numbers.

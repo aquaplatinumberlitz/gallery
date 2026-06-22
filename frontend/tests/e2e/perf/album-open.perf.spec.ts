@@ -38,7 +38,7 @@ function filterByAlbumPath(sample: { search: string }, path: string): boolean {
 
 function scanCursor(sample: { search: string }): string {
   const params = new URLSearchParams(sample.search);
-  return params.get("media_cursor") ?? "0";
+  return params.get("cursor") ?? "0";
 }
 
 function scanLimit(sample: { search: string }): string {

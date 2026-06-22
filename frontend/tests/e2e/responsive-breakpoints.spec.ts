@@ -11,6 +11,7 @@
  * * touching device detection or viewport-specific CSS
  */
 
+import { browseResponse, statusEnvelope } from "./helpers/catalogFixtures";
 import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
@@ -49,28 +50,34 @@ async function installStubbedGallery(page: Page) {
       return;
     }
 
-    if (url.pathname === "/api/scan") {
+    if (url.pathname === "/api/libraries/1/status") {
       await route.fulfill({
         contentType: "application/json",
-        body: JSON.stringify({
-          folders: [],
-          media: imagePaths.map((path, i) => ({
-            name: `image_${i + 1}.png`,
-            path,
-            type: "image",
-            has_children: false,
-            cover_images: [],
-            mtime: 1000 + i,
-            image_count: 0,
-            width: 1600,
-            height: 1000,
-          })),
-          next_media_cursor: null,
-          total_images: imagePaths.length,
-          total_videos: 0,
-          total_assets: imagePaths.length,
-          index_source: "direct_scan",
-        }),
+        body: JSON.stringify(statusEnvelope({ libraryId: 1, path: url.searchParams.get("scope_path") ?? rootPath })),
+      });
+      return;
+    }
+
+    if (url.pathname === "/api/browse") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify(
+          browseResponse({
+            libraryId: 1,
+            path: url.searchParams.get("path") ?? rootPath,
+            media: imagePaths.map((path, i) => ({
+              name: `image_${i + 1}.png`,
+              path,
+              type: "image",
+              has_children: false,
+              cover_images: [],
+              mtime: 1000 + i,
+              image_count: 0,
+              width: 1600,
+              height: 1000,
+            })),
+          }),
+        ),
       });
       return;
     }

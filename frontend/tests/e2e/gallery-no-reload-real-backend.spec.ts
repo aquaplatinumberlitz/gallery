@@ -4,10 +4,10 @@
  *
  * Guarantees:
  * * album browse and lightbox navigation do not cause full page reloads
- * * initial real-backend scan is not duplicated unnecessarily
+ * * initial real-backend browse request is not duplicated unnecessarily
  *
  * Run when:
- * * changing app boot, routing, lightbox navigation, or real backend scan wiring
+ * * changing app boot, routing, lightbox navigation, or real backend browse wiring
  * * investigating reloads that only reproduce with real server responses
  */
 
@@ -107,23 +107,23 @@ test("navigates albums without page reload against real backend", async ({ page 
   expect(navigations).toBe(0);
 });
 
-test("no duplicate initial /api/scan against real backend", async ({ page }) => {
-  const scanUrls: string[] = [];
+test("no duplicate initial /api/browse against real backend", async ({ page }) => {
+  const browseUrls: string[] = [];
   page.on("request", (req) => {
-    if (req.url().includes("/api/scan")) scanUrls.push(req.url());
+    if (req.url().includes("/api/browse")) browseUrls.push(req.url());
   });
 
   await setupGallery(page);
   await expect(page.getByTestId("album-card").first()).toBeVisible({ timeout: 20_000 });
   await page.waitForTimeout(1500);
 
-  // Count root-level scans (no path, or path = pathSafetyRoot)
-  const rootScans = scanUrls.filter((u) => {
+  // Count root-level browse requests (no path, or path = pathSafetyRoot)
+  const rootBrowses = browseUrls.filter((u) => {
     const p = new URL(u).searchParams;
     const path = p.get("path");
     return !path || path === pathSafetyRoot || path === "/";
   });
 
-  expect(rootScans.length).toBeGreaterThanOrEqual(1);
-  expect(rootScans.length).toBeLessThanOrEqual(2);
+  expect(rootBrowses.length).toBeGreaterThanOrEqual(1);
+  expect(rootBrowses.length).toBeLessThanOrEqual(2);
 });

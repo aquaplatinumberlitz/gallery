@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { browseResponse, statusEnvelope } from "./helpers/catalogFixtures";
 
 const rootPath = "/registered/photos";
 const nestedPath = `${rootPath}/events`;
@@ -29,17 +30,12 @@ async function mockGallery(page: Page, libraries = [library]) {
       await route.fulfill({ json: libraries });
       return;
     }
-    if (url.pathname === "/api/scan") {
+    if (url.pathname === "/api/browse") {
       await route.fulfill({
-        json: {
-          folders: [],
-          media: [],
-          next_media_cursor: null,
-          total_images: 0,
-          total_videos: 0,
-          total_assets: 0,
-          request_path: url.searchParams.get("path"),
-        },
+        json: browseResponse({
+          libraryId: Number(url.searchParams.get("library_id") ?? library.id),
+          path: url.searchParams.get("path") ?? rootPath,
+        }),
       });
       return;
     }
@@ -49,38 +45,12 @@ async function mockGallery(page: Page, libraries = [library]) {
       });
       return;
     }
-    if (url.pathname === "/api/index/status") {
+    if (/^\/api\/libraries\/\d+\/status$/.test(url.pathname)) {
       await route.fulfill({
-        json: {
-          path: url.searchParams.get("path") ?? "",
-          total: 0,
-          indexed_photos: 0,
-          metadata_records: 0,
-          counts: {},
-          queued: 0,
-          running: 0,
-          done: 0,
-          failed: 0,
-          stale: 0,
-          skipped: 0,
-          oldest_queued_age_seconds: null,
-          last_error: null,
-          updated_at: null,
-          enabled: true,
-          worker_count: 0,
-          active_jobs: 0,
-          runtime_queue_depth: 0,
-          coalesced_duplicates: 0,
-          staged_path_queue_depth: 0,
-          staged_path_coalesced: 0,
-          staged_path_failed: 0,
-          staged_path_flushes_forced: 0,
-          staged_path_worker_count: 0,
-          active_scan_requests: 0,
-          batch_size: 0,
-          staged_path_batch_size: 0,
-          stage_max_wait_seconds: 0,
-        },
+        json: statusEnvelope({
+          libraryId: Number(url.pathname.match(/^\/api\/libraries\/(\d+)\/status$/)?.[1] ?? library.id),
+          path: url.searchParams.get("scope_path") ?? rootPath,
+        }),
       });
       return;
     }

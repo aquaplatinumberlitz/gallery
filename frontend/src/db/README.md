@@ -18,7 +18,7 @@ Current runtime collection:
 
 Reviewed but not adopted:
 
-- Folder tree, scan, and infinite loading stay in plain TanStack Query. Folder tree expansion uses path-scoped `/api/folders`, and scan/infinite loading use path-scoped `/api/scan`; these request-specific responses are not safe Query Collection full-state scopes.
+- Folder tree, scan, and infinite loading stay in plain TanStack Query. Folder tree expansion uses path-scoped `/api/folders`, and scan/infinite loading use path-scoped `/api/browse`; these request-specific responses are not safe Query Collection full-state scopes.
 - Search stays in plain TanStack Query. Search responses are filtered subsets rather than complete collection state.
 - Lightbox metadata stays in plain TanStack Query. It is a per-image document fetch, not a collection/live-query use case.
 

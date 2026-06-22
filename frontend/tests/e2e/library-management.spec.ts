@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Request } from "@playwright/test";
+import { browseResponse, statusBatch, statusEnvelope } from "./helpers/catalogFixtures";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://127.0.0.1:5173";
 
@@ -60,6 +61,18 @@ const job = {
   started_at: 1_718_000_000,
   finished_at: 1_718_000_100,
 };
+
+function libraryJob(id: number, operation: "scan" | "rebuild") {
+  return {
+    library_id: id,
+    job_id: operation === "scan" ? 41 : 42,
+    scope_path: null,
+    operation,
+    trigger: "manual",
+    state: "queued",
+    coalesced: false,
+  };
+}
 
 interface MockOptions {
   libraries?: (typeof library)[];
@@ -159,8 +172,20 @@ async function mockLibraryApi(page: Page, options: MockOptions = {}): Promise<Mo
       });
       return;
     }
+    if (url.pathname === "/api/libraries/status" && method === "GET") {
+      await route.fulfill({
+        json: statusBatch(
+          state.libraries.map((item) => ({
+            id: item.id,
+            totalAssets: item.asset_count,
+            readyAssets: item.asset_count,
+          })),
+        ),
+      });
+      return;
+    }
 
-    const match = url.pathname.match(/^\/api\/libraries\/(\d+)(?:\/(progress|stats|jobs|validate|scan|repair))?$/);
+    const match = url.pathname.match(/^\/api\/libraries\/(\d+)(?:\/(progress|stats|jobs|validate|scan|rebuild|status))?$/);
     if (match) {
       const id = Number(match[1]);
       const suffix = match[2];
@@ -202,11 +227,22 @@ async function mockLibraryApi(page: Page, options: MockOptions = {}): Promise<Mo
         return;
       }
       if (suffix === "scan" && method === "POST") {
-        await route.fulfill({ status: 202, json: { library_id: id, job_id: 41, state: "queued" } });
+        await route.fulfill({ status: 202, json: libraryJob(id, "scan") });
         return;
       }
-      if (suffix === "repair" && method === "POST") {
-        await route.fulfill({ json: { library_id: id, job_id: 42, added: 1, removed: 0, modified: 2 } });
+      if (suffix === "rebuild" && method === "POST") {
+        await route.fulfill({ status: 202, json: libraryJob(id, "rebuild") });
+        return;
+      }
+      if (suffix === "status" && method === "GET") {
+        await route.fulfill({
+          json: statusEnvelope({
+            libraryId: id,
+            path: url.searchParams.get("scope_path") ?? selected?.root_path ?? null,
+            totalAssets: selected?.asset_count ?? 0,
+            readyAssets: selected?.asset_count ?? 0,
+          }),
+        });
         return;
       }
       if (!suffix && method === "PATCH" && selected) {
@@ -250,25 +286,17 @@ async function mockLibraryApi(page: Page, options: MockOptions = {}): Promise<Mo
       await route.fulfill({ json: [job] });
       return;
     }
-    if (url.pathname === "/api/scan") {
+    if (url.pathname === "/api/browse") {
       await route.fulfill({
-        json: {
-          folders: [],
-          media: [],
-          next_media_cursor: null,
-          total_images: 0,
-          total_videos: 0,
-          total_assets: 0,
-        },
+        json: browseResponse({
+          libraryId: Number(url.searchParams.get("library_id") ?? 1),
+          path: url.searchParams.get("path") ?? library.root_path,
+        }),
       });
       return;
     }
     if (url.pathname === "/api/search") {
       await route.fulfill({ json: { query: "", scope: "current", albums: [], photos: [], videos: [], prompt: [] } });
-      return;
-    }
-    if (url.pathname === "/api/index/status") {
-      await route.fulfill({ json: { path: "", total: 0, counts: {}, enabled: false } });
       return;
     }
     await route.fulfill({ status: 404, json: { detail: { type: "not_found" } } });
@@ -350,8 +378,7 @@ test("runs detail actions, updates settings, and unregisters safely", async ({ p
 
   await page.getByRole("button", { name: "Scan", exact: true }).click();
   await expect.poll(() => matchingRequests(state, "POST", "/api/libraries/1/scan").length).toBe(1);
-  await page.getByRole("button", { name: "Repair", exact: true }).click();
-  await expect.poll(() => matchingRequests(state, "POST", "/api/libraries/1/repair").length).toBe(1);
+  await expect(page.getByRole("button", { name: "Repair", exact: true })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Edit", exact: true }).first().click();
   await page.getByLabel("Display name").fill("Family archive");

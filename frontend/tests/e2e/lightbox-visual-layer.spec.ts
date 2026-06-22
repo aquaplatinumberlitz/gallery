@@ -11,6 +11,7 @@
  * * touching close/reopen lifecycle or placeholder image behavior
  */
 
+import { browseResponse, statusEnvelope } from "./helpers/catalogFixtures";
 import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
@@ -67,25 +68,33 @@ async function installStubbedGallery(page: Page) {
       return;
     }
 
-    if (url.pathname === "/api/scan") {
+    if (url.pathname === "/api/libraries/1/status") {
       await route.fulfill({
         contentType: "application/json",
         headers: { "Cache-Control": "no-store" },
-        body: JSON.stringify({
-          folders: [],
-          media: imagePaths.map((path, index) => ({
-            name: `image-${index + 1}.png`,
-            path,
-            type: "image",
-            mtime: 1000 + index,
-            width: 1600,
-            height: 1000,
-          })),
-          next_media_cursor: null,
-          total_images: imagePaths.length,
-          total_videos: 0,
-          total_assets: imagePaths.length,
-        }),
+        body: JSON.stringify(statusEnvelope({ libraryId: 1, path: url.searchParams.get("scope_path") ?? rootPath })),
+      });
+      return;
+    }
+
+    if (url.pathname === "/api/browse") {
+      await route.fulfill({
+        contentType: "application/json",
+        headers: { "Cache-Control": "no-store" },
+        body: JSON.stringify(
+          browseResponse({
+            libraryId: 1,
+            path: url.searchParams.get("path") ?? rootPath,
+            media: imagePaths.map((path, index) => ({
+              name: `image-${index + 1}.png`,
+              path,
+              type: "image",
+              mtime: 1000 + index,
+              width: 1600,
+              height: 1000,
+            })),
+          }),
+        ),
       });
       return;
     }
@@ -277,35 +286,43 @@ test.describe("EXIF-rotated portrait JPEG", () => {
         return;
       }
 
-      if (url.pathname === "/api/scan") {
+      if (url.pathname === "/api/libraries/1/status") {
         await route.fulfill({
           contentType: "application/json",
           headers: { "Cache-Control": "no-store" },
-          body: JSON.stringify({
-            folders: [],
-            media: [
-              {
-                name: "iphone-photo.jpg",
-                path: exifImagePaths[0],
-                type: "image",
-                mtime: 1000,
-                width: 1080,
-                height: 1440,
-              },
-              {
-                name: "normal.png",
-                path: exifImagePaths[1],
-                type: "image",
-                mtime: 1001,
-                width: 1600,
-                height: 1000,
-              },
-            ],
-            next_media_cursor: null,
-            total_images: exifImagePaths.length,
-            total_videos: 0,
-            total_assets: exifImagePaths.length,
-          }),
+          body: JSON.stringify(statusEnvelope({ libraryId: 1, path: url.searchParams.get("scope_path") ?? exifRoot })),
+        });
+        return;
+      }
+
+      if (url.pathname === "/api/browse") {
+        await route.fulfill({
+          contentType: "application/json",
+          headers: { "Cache-Control": "no-store" },
+          body: JSON.stringify(
+            browseResponse({
+              libraryId: 1,
+              path: url.searchParams.get("path") ?? exifRoot,
+              media: [
+                {
+                  name: "iphone-photo.jpg",
+                  path: exifImagePaths[0],
+                  type: "image",
+                  mtime: 1000,
+                  width: 1080,
+                  height: 1440,
+                },
+                {
+                  name: "normal.png",
+                  path: exifImagePaths[1],
+                  type: "image",
+                  mtime: 1001,
+                  width: 1600,
+                  height: 1000,
+                },
+              ],
+            }),
+          ),
         });
         return;
       }

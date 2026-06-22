@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { browseResponse, statusEnvelope } from "./helpers/catalogFixtures";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://127.0.0.1:5173";
 const rootPath = "/registered/mixed";
@@ -35,26 +36,23 @@ async function mockMixedGallery(page: Page) {
       });
       return;
     }
-    if (url.pathname === "/api/scan") {
-      const image = { name: "photo.jpg", path: imagePath, type: "image", has_children: false, mtime: 2 };
+    if (url.pathname === "/api/browse") {
+      const image = { name: "photo.jpg", path: imagePath, type: "image" as const, has_children: false, mtime: 2 };
       const video = {
         name: "clip.mp4",
         path: videoPath,
-        type: "video",
+        type: "video" as const,
         has_children: false,
         mtime: 1,
         duration_ms: 65_000,
         mime_type: "video/mp4",
       };
       await route.fulfill({
-        json: {
-          folders: [],
+        json: browseResponse({
+          libraryId: Number(url.searchParams.get("library_id") ?? 1),
+          path: url.searchParams.get("path") ?? rootPath,
           media: [image, video],
-          next_media_cursor: null,
-          total_images: 1,
-          total_videos: 1,
-          total_assets: 2,
-        },
+        }),
       });
       return;
     }
@@ -68,8 +66,10 @@ async function mockMixedGallery(page: Page) {
       await route.fulfill({ status: 503, json: { detail: { type: "video_poster_unavailable" } } });
       return;
     }
-    if (url.pathname === "/api/index/status") {
-      await route.fulfill({ json: { path: rootPath, total: 0, counts: {}, enabled: false } });
+    if (url.pathname === "/api/libraries/1/status") {
+      await route.fulfill({
+        json: statusEnvelope({ libraryId: 1, path: url.searchParams.get("scope_path") ?? rootPath, totalAssets: 2 }),
+      });
       return;
     }
     await route.fulfill({ status: 200, contentType: "image/png", body: "" });

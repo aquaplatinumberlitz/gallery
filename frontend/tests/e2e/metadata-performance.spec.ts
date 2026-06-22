@@ -7,7 +7,7 @@
  *
  * Guarantees:
  * - Timing separated into: click→URL, click→API request, API duration, API response→render, click→usable
- * - Network tracking for library inspector, thumbnails, index status
+ * - Network tracking for library inspector, thumbnails, catalog status
  * - Compact JSON report printed to console
  *
  * Run when:
@@ -86,12 +86,12 @@ function installMetadataTracker(page: Page, clickTimeRef: { value: number }) {
     "/api/library/inspector",
     "/api/thumbnail",
     "/api/library/inspector/metadata",
-    "/api/index/status",
   ]);
+  const libraryStatusPattern = /^\/api\/libraries\/\d+\/status$/;
 
   page.on("request", (req) => {
     const url = new URL(req.url());
-    if (!trackedPaths.has(url.pathname)) return;
+    if (!trackedPaths.has(url.pathname) && !libraryStatusPattern.test(url.pathname)) return;
     if (clickTimeRef.value <= 0) return;
     const sample: MetadataSample = {
       url: req.url(),
@@ -116,14 +116,14 @@ function installMetadataTracker(page: Page, clickTimeRef: { value: number }) {
   const inspectorSamples = () => samples.filter((s) => s.pathname === "/api/library/inspector");
   const thumbnailSamples = () => samples.filter((s) => s.pathname === "/api/thumbnail");
   const metadataDetailSamples = () => samples.filter((s) => s.pathname === "/api/library/inspector/metadata");
-  const indexStatusSamples = () => samples.filter((s) => s.pathname === "/api/index/status");
+  const catalogStatusSamples = () => samples.filter((s) => libraryStatusPattern.test(s.pathname));
 
   const clear = () => {
     samples.length = 0;
     byRequest.clear();
   };
 
-  return { samples, inspectorSamples, thumbnailSamples, metadataDetailSamples, indexStatusSamples, clear };
+  return { samples, inspectorSamples, thumbnailSamples, metadataDetailSamples, catalogStatusSamples, clear };
 }
 
 // ---------------------------------------------------------------------------
@@ -214,7 +214,7 @@ test.describe("Metadata performance", () => {
     const thumbnailSamples = tracker.thumbnailSamples();
     const rowCount = await page.locator("tbody > tr").count();
 
-    const indexStatusSamples = tracker.indexStatusSamples();
+    const catalogStatusSamples = tracker.catalogStatusSamples();
     const metadataDetailSamples = tracker.metadataDetailSamples();
 
     const report = {
@@ -226,7 +226,7 @@ test.describe("Metadata performance", () => {
         clickToTableReadyMs: Math.round(firstRowMs),
         renderedRows: rowCount,
         thumbnailRequests: thumbnailSamples.length,
-        indexStatusRequests: indexStatusSamples.length,
+        catalogStatusRequests: catalogStatusSamples.length,
         metadataDetailRequests: metadataDetailSamples.length,
         inspectorRequests: inspectorSamples.length,
         budgets: {

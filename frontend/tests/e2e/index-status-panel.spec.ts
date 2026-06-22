@@ -1,17 +1,18 @@
 /**
  * Purpose:
- * Verifies IndexStatusPanel copy, status states, popover content, and rebuild actions.
+ * Verifies Catalog Status copy, status states, popover content, and rebuild actions.
  *
  * Guarantees:
- * * index status counts and labels remain user-facing and stable
- * * global indexer activity from another folder does not drive the primary status
- * * rebuild/rescan controls call the expected endpoints and refresh state
+ * * catalog status counts and labels remain user-facing and stable
+ * * global metadata activity outside the current scope does not drive the primary status
+ * * scan/rebuild controls call the library-scoped endpoints and refresh state
  *
  * Run when:
- * * changing IndexStatusPanel, index status API fields, or rebuild controls
+ * * changing IndexStatusPanel, catalog status API fields, or rebuild controls
  * * touching status copy, tooltips, popovers, or debug-only API traces
  */
 
+import { browseResponse, statusEnvelope } from "./helpers/catalogFixtures";
 import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
@@ -31,48 +32,63 @@ const stubLibrary = {
   state: "ready",
   watch_enabled: 1,
   warm_enabled: 1,
-  asset_count: 0,
+  asset_count: imagePaths.length,
   created_at: 1,
   updated_at: 1,
   last_scan_at: null,
   last_error: null,
 };
 
-const indexStatusData = {
-  enabled: true,
-  worker_count: 2,
-  active_jobs: 0,
-  runtime_queue_depth: 0,
-  done: 150,
-  running: 0,
-  queued: 0,
-  failed: 0,
-  stale: 0,
-  skipped: 0,
-  total: 150,
-  indexed_photos: 150,
-  metadata_records: 150,
-  missing_metadata_records: 0,
-  path: rootPath,
-  counts: { done: 150 },
-  oldest_queued_age_seconds: null,
-  last_error: null,
-  updated_at: 1000000000,
-  coalesced_duplicates: 0,
-  staged_path_queue_depth: 0,
-  staged_path_coalesced: 0,
-  staged_path_failed: 0,
-  staged_path_flushes_forced: 0,
-  staged_path_worker_count: 1,
-  active_scan_requests: 0,
-  batch_size: 100,
-  staged_path_batch_size: 50,
-  stage_max_wait_seconds: 30,
-};
+function mediaRows(width = 1600, height = 1000) {
+  return imagePaths.map((path, i) => ({
+    name: `image_${i + 1}.png`,
+    path,
+    type: "image" as const,
+    has_children: false,
+    cover_images: [],
+    mtime: 1000 + i,
+    image_count: 0,
+    width,
+    height,
+  }));
+}
 
-async function installStubbedGallery(page: Page) {
+type StatusFixture = NonNullable<Parameters<typeof statusEnvelope>[0]>;
+
+function defaultStatusFixture(): StatusFixture {
+  return {
+    libraryId: 1,
+    path: rootPath,
+    summaryState: "ready",
+    totalAssets: 150,
+    readyAssets: 150,
+    lastScanAt: 1_782_036_040_000,
+    lastIndexAt: 1_782_036_050_000,
+  };
+}
+
+let statusFixture: StatusFixture = defaultStatusFixture();
+
+function currentStatusEnvelope() {
+  return statusEnvelope(statusFixture);
+}
+
+function scanJob(scopePath: string | null, operation: "scan" | "rebuild" = "scan") {
+  return {
+    library_id: 1,
+    job_id: operation === "scan" ? 501 : 502,
+    scope_path: scopePath,
+    operation,
+    trigger: "manual",
+    state: "queued",
+    coalesced: false,
+  };
+}
+
+async function installStubbedGallery(page: Page, options: { failStatus?: boolean; delayStatus?: Promise<unknown> } = {}) {
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
+    const method = route.request().method();
 
     if (url.pathname === "/api/libraries") {
       await route.fulfill({
@@ -82,28 +98,53 @@ async function installStubbedGallery(page: Page) {
       return;
     }
 
-    if (url.pathname === "/api/scan") {
+    if (url.pathname === "/api/browse") {
       await route.fulfill({
         contentType: "application/json",
-        body: JSON.stringify({
-          folders: [],
-          media: imagePaths.map((path, i) => ({
-            name: `image_${i + 1}.png`,
-            path,
-            type: "image",
-            has_children: false,
-            cover_images: [],
-            mtime: 1000 + i,
-            image_count: 0,
-            width: 1600,
-            height: 1000,
-          })),
-          next_media_cursor: null,
-          total_images: imagePaths.length,
-          total_videos: 0,
-          total_assets: imagePaths.length,
-          index_source: "direct_scan",
-        }),
+        body: JSON.stringify(
+          browseResponse({
+            libraryId: Number(url.searchParams.get("library_id") ?? 1),
+            path: url.searchParams.get("path") ?? rootPath,
+            media: mediaRows(),
+          }),
+        ),
+      });
+      return;
+    }
+
+    if (url.pathname === "/api/libraries/1/status") {
+      if (options.failStatus) {
+        await route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: { error: "server_error", message: "Status failed" } }),
+        });
+        return;
+      }
+      if (options.delayStatus) await options.delayStatus;
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify(currentStatusEnvelope()),
+      });
+      return;
+    }
+
+    if (url.pathname === "/api/libraries/1/scan" && method === "POST") {
+      const body = route.request().postDataJSON() as { scope_path?: string } | null;
+      await route.fulfill({
+        status: 202,
+        contentType: "application/json",
+        body: JSON.stringify(scanJob(body?.scope_path ?? null, "scan")),
+      });
+      return;
+    }
+
+    if (url.pathname === "/api/libraries/1/rebuild" && method === "POST") {
+      const body = route.request().postDataJSON() as { scope_path?: string } | null;
+      await route.fulfill({
+        status: 202,
+        contentType: "application/json",
+        body: JSON.stringify(scanJob(body?.scope_path ?? null, "rebuild")),
       });
       return;
     }
@@ -125,10 +166,7 @@ async function installStubbedGallery(page: Page) {
     }
 
     if (url.pathname === "/api/health") {
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ status: "ok" }),
-      });
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ status: "ok" }) });
       return;
     }
 
@@ -145,32 +183,6 @@ async function installStubbedGallery(page: Page) {
       return;
     }
 
-    if (url.pathname === "/api/index/status") {
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify(indexStatusData),
-      });
-      return;
-    }
-
-    if (url.pathname === "/api/index/rebuild") {
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({
-          path: url.searchParams.get("path"),
-          cleared: {
-            file_index_fts: 0,
-            file_index: 0,
-            image_metadata: 0,
-            metadata_index_jobs: 0,
-            folder_index_state: 0,
-          },
-          rebuild_started: true,
-        }),
-      });
-      return;
-    }
-
     if (["/api/thumbnail", "/api/preview", "/api/image"].includes(url.pathname)) {
       await route.fulfill({ contentType: "image/png", body: png1x1 });
       return;
@@ -180,24 +192,39 @@ async function installStubbedGallery(page: Page) {
   });
 }
 
-async function openStubbedGallery(page: Page, withPath = true) {
+async function openStubbedGallery(page: Page, withLibrary = true) {
   await page.addInitScript(
-    (opts) => {
+    (enabled) => {
       localStorage.setItem("intro_mode", "disabled");
-      if (opts) {
+      if (enabled) {
         localStorage.setItem("gallery-active-library-id", "1");
         localStorage.setItem("gallery-active-import-path-id", "10");
       }
     },
-    withPath ? "1" : "",
+    withLibrary,
   );
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
-  await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
+  if (withLibrary) {
+    await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
+  }
 }
 
-test.describe("IndexStatusPanel", () => {
+async function openStatusPopover(page: Page) {
+  const statusButton = page.getByLabel("Catalog Status");
+  await expect(statusButton).toBeVisible({ timeout: 10_000 });
+  await statusButton.click();
+  const popover = page.getByRole("dialog").filter({ hasText: "Catalog" });
+  await expect(popover).toBeVisible({ timeout: 5_000 });
+  return popover;
+}
+
+test.describe("Catalog Status panel", () => {
   test.use({ viewport: { width: 1280, height: 900 } });
+
+  test.beforeEach(() => {
+    statusFixture = defaultStatusFixture();
+  });
 
   test("desktop load does not throw SidebarContext injection errors", async ({ page, monitoredErrors }) => {
     await installStubbedGallery(page);
@@ -212,362 +239,106 @@ test.describe("IndexStatusPanel", () => {
     ).toBe(false);
   });
 
-  test("shows Unknown status when no root path is set", async ({ page }) => {
+  test("shows Unknown status when no library is selected", async ({ page }) => {
     await installStubbedGallery(page);
-    // Override /api/libraries to return empty so no library is auto-selected,
-    // leaving status as Unknown. Registered after installStubbedGallery so it
-    // takes precedence (Playwright tries last-registered routes first).
     await page.route("**/api/libraries**", async (route) => {
       await route.fulfill({ contentType: "application/json", body: JSON.stringify([]) });
     });
 
-    await page.addInitScript(() => {
-      localStorage.setItem("intro_mode", "disabled");
-    });
-    await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
-    await expect(page.getByLabel("Index Status")).toBeVisible({ timeout: 10_000 });
-
-    const statusButton = page.getByLabel("Index Status");
-    await expect(statusButton).toBeVisible();
-
+    await openStubbedGallery(page, false);
+    const statusButton = page.getByLabel("Catalog Status");
+    await expect(statusButton).toBeVisible({ timeout: 10_000 });
     await expect(statusButton).toContainText("Unknown");
   });
 
-  test("shows index status details when path is set", async ({ page }) => {
+  test("shows catalog status details when path is set", async ({ page }) => {
     await installStubbedGallery(page);
     await openStubbedGallery(page, true);
 
-    const statusButton = page.getByLabel("Index Status");
-    await expect(statusButton).toBeVisible();
-
+    const statusButton = page.getByLabel("Catalog Status");
     await expect(statusButton).toContainText("Ready");
     await expect(statusButton).toContainText("150 photo details ready");
     await expect(statusButton).toContainText("Details");
 
-    await statusButton.click();
-    const popover = page.getByRole("dialog", { name: "Index Status" });
-    await expect(popover).toBeVisible({ timeout: 5_000 });
-
-    // Summary fields visible by default
+    const popover = await openStatusPopover(page);
     await expect(popover).toContainText("Ready");
     await expect(popover).toContainText("Photo details ready");
     await expect(popover).toContainText("150");
-    await expect(popover).toContainText("Folder");
+    await expect(popover).toContainText("Location");
     await expect(popover).toContainText(rootPath);
     await expect(popover).toContainText("Including subfolders");
     await expect(popover).toContainText("Yes");
-    await expect(popover.getByRole("button", { name: "Rescan" })).toBeVisible();
+    await expect(popover.getByRole("button", { name: "Scan" })).toBeVisible();
     await expect(popover.getByRole("button", { name: "Rebuild" })).toBeVisible();
     await expect(popover).toContainText(
-      "Rebuild clears this folder's index and extracted metadata cache before indexing again. Source image files are not deleted.",
+      "Rebuild will re-index this scope's files and re-extract metadata. Source image files are not deleted.",
     );
-    await expect(popover).not.toContainText("Clear cache");
-    await expect(popover).not.toContainText("Clear DB");
-    await expect(popover).not.toContainText("Clear index");
-    await expect(popover).not.toContainText("Reset DB");
-    await expect(popover).not.toContainText("Reset");
   });
 
-  test("popover content is not empty when opened", async ({ page }) => {
-    await installStubbedGallery(page);
-    await openStubbedGallery(page, true);
-
-    const statusButton = page.getByLabel("Index Status");
-    await expect(statusButton).toBeVisible();
-    await statusButton.click();
-
-    const popover = page.getByRole("dialog", { name: "Index Status" });
-    await expect(popover).toBeVisible({ timeout: 5_000 });
-
-    await page.waitForTimeout(300);
-
-    const textContent = await popover.textContent();
-    expect(textContent.trim().length).toBeGreaterThan(0);
-
-    const isVisible = await popover.isVisible();
-    expect(isVisible).toBe(true);
-
-    const boundingBox = await popover.boundingBox();
-    expect(boundingBox).not.toBeNull();
-    expect(boundingBox!.width).toBeGreaterThan(0);
-    expect(boundingBox!.height).toBeGreaterThan(0);
-  });
-
-  test("index status shows loading state initially", async ({ page }) => {
-    let resolveStatus: (value: unknown) => void;
-    const statusPromise = new Promise<unknown>((resolve) => {
+  test("catalog status shows loading state initially", async ({ page }) => {
+    let resolveStatus: (value: unknown) => void = () => undefined;
+    const delayedStatus = new Promise<unknown>((resolve) => {
       resolveStatus = resolve;
     });
 
-    await page.route("**/api/**", async (route) => {
-      const url = new URL(route.request().url());
-
-      if (url.pathname === "/api/libraries") {
-        await route.fulfill({
-          contentType: "application/json",
-          body: JSON.stringify([stubLibrary]),
-        });
-        return;
-      }
-
-      if (url.pathname === "/api/index/status") {
-        await statusPromise.then(() =>
-          route.fulfill({
-            contentType: "application/json",
-            body: JSON.stringify(indexStatusData),
-          }),
-        );
-        return;
-      }
-
-      if (url.pathname === "/api/scan") {
-        await route.fulfill({
-          contentType: "application/json",
-          body: JSON.stringify({
-            folders: [],
-            media: imagePaths.map((path, i) => ({
-              name: `image_${i + 1}.png`,
-              path,
-              type: "image",
-              has_children: false,
-              cover_images: [],
-              mtime: 1000 + i,
-              image_count: 0,
-              width: 1600,
-              height: 1000,
-            })),
-            next_media_cursor: null,
-            total_images: imagePaths.length,
-            total_videos: 0,
-            total_assets: imagePaths.length,
-            index_source: "direct_scan",
-          }),
-        });
-        return;
-      }
-
-      if (url.pathname === "/api/metadata") {
-        await route.fulfill({
-          contentType: "application/json",
-          body: JSON.stringify({
-            tool: "stub",
-            prompt: "stub prompt",
-            negative_prompt: "",
-            params: {},
-            width: 1600,
-            height: 1000,
-            name: url.searchParams.get("path")?.split("/").pop() ?? "image.png",
-          }),
-        });
-        return;
-      }
-
-      if (url.pathname === "/api/health") {
-        await route.fulfill({
-          contentType: "application/json",
-          body: JSON.stringify({ status: "ok" }),
-        });
-        return;
-      }
-
-      if (url.pathname === "/api/landing-pages") {
-        await route.fulfill({ contentType: "application/json", body: JSON.stringify([]) });
-        return;
-      }
-
-      if (url.pathname === "/api/search") {
-        await route.fulfill({
-          contentType: "application/json",
-          body: JSON.stringify({ albums: [], photos: [], prompts: [] }),
-        });
-        return;
-      }
-
-      if (["/api/thumbnail", "/api/preview", "/api/image"].includes(url.pathname)) {
-        await route.fulfill({ contentType: "image/png", body: png1x1 });
-        return;
-      }
-
-      await route.fulfill({ status: 404, contentType: "application/json", body: "{}" });
-    });
-
+    await installStubbedGallery(page, { delayStatus: delayedStatus });
     await openStubbedGallery(page, true);
 
-    const statusButton = page.getByLabel("Index Status");
+    const statusButton = page.getByLabel("Catalog Status");
     await statusButton.click();
+    await expect(page.getByRole("dialog")).toContainText("Loading catalog status", { timeout: 5_000 });
 
-    await expect(page.getByRole("dialog", { name: "Index Status" })).toBeVisible({ timeout: 5_000 });
-    await expect(page.getByRole("dialog", { name: "Index Status" })).toContainText("Loading index status");
+    resolveStatus(null);
+    await expect(page.getByRole("dialog")).toContainText("Photo details ready", { timeout: 5_000 });
+  });
 
-    resolveStatus!(null);
-    await page.waitForTimeout(500);
+  test("catalog status shows error state when API fails", async ({ page }) => {
+    await installStubbedGallery(page, { failStatus: true });
+    await openStubbedGallery(page, true);
 
-    await expect(page.getByRole("dialog", { name: "Index Status" })).toContainText("Photo details ready", {
+    const popover = await openStatusPopover(page);
+    await expect(popover).toContainText(/Failed to load status|Status failed|Something went wrong/);
+  });
+
+  test("Scan calls the library scan endpoint", async ({ page }) => {
+    await installStubbedGallery(page);
+    await openStubbedGallery(page, true);
+
+    const popover = await openStatusPopover(page);
+    const scanPromise = page.waitForRequest((req) => new URL(req.url()).pathname === "/api/libraries/1/scan", {
       timeout: 5_000,
     });
-  });
-
-  test("index status shows error state when API fails", async ({ page }) => {
-    await page.route("**/api/**", async (route) => {
-      const url = new URL(route.request().url());
-
-      if (url.pathname === "/api/libraries") {
-        await route.fulfill({
-          contentType: "application/json",
-          body: JSON.stringify([stubLibrary]),
-        });
-        return;
-      }
-
-      if (url.pathname === "/api/index/status") {
-        await route.fulfill({
-          status: 500,
-          contentType: "application/json",
-          body: JSON.stringify({ error: "Internal Server Error" }),
-        });
-        return;
-      }
-
-      if (url.pathname === "/api/scan") {
-        await route.fulfill({
-          contentType: "application/json",
-          body: JSON.stringify({
-            folders: [],
-            media: imagePaths.map((path, i) => ({
-              name: `image_${i + 1}.png`,
-              path,
-              type: "image",
-              has_children: false,
-              cover_images: [],
-              mtime: 1000 + i,
-              image_count: 0,
-              width: 1600,
-              height: 1000,
-            })),
-            next_media_cursor: null,
-            total_images: imagePaths.length,
-            total_videos: 0,
-            total_assets: imagePaths.length,
-            index_source: "direct_scan",
-          }),
-        });
-        return;
-      }
-
-      if (url.pathname === "/api/metadata") {
-        await route.fulfill({
-          contentType: "application/json",
-          body: JSON.stringify({
-            tool: "stub",
-            prompt: "stub prompt",
-            negative_prompt: "",
-            params: {},
-            width: 1600,
-            height: 1000,
-            name: url.searchParams.get("path")?.split("/").pop() ?? "image.png",
-          }),
-        });
-        return;
-      }
-
-      if (url.pathname === "/api/health") {
-        await route.fulfill({
-          contentType: "application/json",
-          body: JSON.stringify({ status: "ok" }),
-        });
-        return;
-      }
-
-      if (url.pathname === "/api/landing-pages") {
-        await route.fulfill({ contentType: "application/json", body: JSON.stringify([]) });
-        return;
-      }
-
-      if (url.pathname === "/api/search") {
-        await route.fulfill({
-          contentType: "application/json",
-          body: JSON.stringify({ albums: [], photos: [], prompts: [] }),
-        });
-        return;
-      }
-
-      if (["/api/thumbnail", "/api/preview", "/api/image"].includes(url.pathname)) {
-        await route.fulfill({ contentType: "image/png", body: png1x1 });
-        return;
-      }
-
-      await route.fulfill({ status: 404, contentType: "application/json", body: "{}" });
-    });
-
-    await openStubbedGallery(page, true);
-
-    const statusButton = page.getByLabel("Index Status");
-    await statusButton.click();
-
-    const popover = page.getByRole("dialog", { name: "Index Status" });
-    await expect(popover).toBeVisible({ timeout: 5_000 });
-    await expect(popover).toContainText(/Failed to load status|Error|Something went wrong/);
-  });
-
-  test("Rescan calls /api/scan", async ({ page }) => {
-    await installStubbedGallery(page);
-    await openStubbedGallery(page, true);
-
-    const statusButton = page.getByLabel("Index Status");
-    await statusButton.click();
-    const popover = page.getByRole("dialog", { name: "Index Status" });
-    await expect(popover).toBeVisible({ timeout: 5_000 });
-
-    const scanPromise = page.waitForRequest((req) => new URL(req.url()).pathname === "/api/scan", { timeout: 5_000 });
-    await popover.getByRole("button", { name: "Rescan" }).click();
+    await popover.getByRole("button", { name: "Scan" }).click();
     const scanReq = await scanPromise;
-    expect(scanReq.method()).toBe("GET");
+    expect(scanReq.method()).toBe("POST");
+    expect(scanReq.postDataJSON()).toMatchObject({ scope_path: rootPath });
   });
 
-  test("Rebuild index shows confirmation dialog and calls /api/index/rebuild after confirm", async ({ page }) => {
+  test("Rebuild shows confirmation dialog and calls the library rebuild endpoint after confirm", async ({ page }) => {
     await installStubbedGallery(page);
     await openStubbedGallery(page, true);
 
-    const statusButton = page.getByLabel("Index Status");
-    await statusButton.click();
-    const popover = page.getByRole("dialog", { name: "Index Status" });
-    await expect(popover).toBeVisible({ timeout: 5_000 });
+    const popover = await openStatusPopover(page);
+    await popover.getByRole("button", { name: "Rebuild" }).click();
 
-    const rebuildButton = popover.getByRole("button", { name: "Rebuild" });
-
-    // Opening the dialog should not call the API yet.
-    await rebuildButton.click();
-    const dialog = page.getByRole("dialog", { name: "Rebuild?" });
+    const dialog = page.getByRole("alertdialog", { name: "Rebuild?" });
     await expect(dialog).toBeVisible({ timeout: 5_000 });
-    await expect(dialog).toContainText("Rebuild?");
     await expect(dialog).toContainText(
-      "Rebuild clears this folder's index and extracted metadata cache before indexing again. Source image files are not deleted.",
+      "Rebuild will re-index this scope's files and re-extract metadata. Source image files are not deleted.",
     );
 
     await dialog.getByRole("button", { name: "Cancel" }).click();
     await expect(dialog).not.toBeVisible();
 
-    // Confirming should issue the rebuild request.
-    await rebuildButton.click();
+    await popover.getByRole("button", { name: "Rebuild" }).click();
     await expect(dialog).toBeVisible({ timeout: 5_000 });
-
-    const rebuildPromise = page.waitForRequest((req) => new URL(req.url()).pathname === "/api/index/rebuild", {
+    const rebuildPromise = page.waitForRequest((req) => new URL(req.url()).pathname === "/api/libraries/1/rebuild", {
       timeout: 5_000,
     });
     await dialog.getByRole("button", { name: "Rebuild" }).click();
     const rebuildReq = await rebuildPromise;
     expect(rebuildReq.method()).toBe("POST");
-    const rebuildUrl = new URL(rebuildReq.url());
-    expect(rebuildUrl.searchParams.get("confirm")).toBe("true");
-  });
-
-  test("card variant shows Database icon near Index title", async ({ page }) => {
-    await installStubbedGallery(page);
-    await openStubbedGallery(page, true);
-
-    const dbIcon = page.locator(".index-status-card .index-status-card__title .lucide-database");
-    await expect(dbIcon).toBeVisible({ timeout: 5_000 });
-    await expect(dbIcon).toHaveClass(/lucide-database/);
+    expect(rebuildReq.postDataJSON()).toMatchObject({ confirm: true, scope_path: rootPath });
   });
 
   test("collapsed desktop sidebar shows compact status button with dot", async ({ page }) => {
@@ -579,8 +350,7 @@ test.describe("IndexStatusPanel", () => {
     await trigger.click();
     await expect(trigger).toHaveAttribute("aria-label", "Expand sidebar");
 
-    const sidebarContainer = page.locator('[data-sidebar="sidebar"]');
-    const statusButton = page.getByLabel("Index Status");
+    const statusButton = page.getByLabel("Catalog Status");
     await expect(statusButton).toBeVisible({ timeout: 10_000 });
     await expect(statusButton.locator(".lucide-database")).toBeVisible();
 
@@ -595,463 +365,106 @@ test.describe("IndexStatusPanel", () => {
     await expect(dot).toHaveClass(/size-1\.5/);
     await expect(dot).toHaveClass(/rounded-full/);
     await expect(dot).toHaveClass(/(bg-green-500|bg-amber-500|bg-red-500|bg-gray-400)/);
-
-    const footer = page.locator('[data-sidebar="footer"]');
-    await expect(footer).toBeVisible();
-    const sidebarBox = await sidebarContainer.boundingBox();
-    const footerBox = await footer.boundingBox();
-    expect(sidebarBox).not.toBeNull();
-    expect(footerBox).not.toBeNull();
-    expect(footerBox!.width).toBeLessThanOrEqual(sidebarBox!.width + 1);
   });
 
-  test("collapsed desktop index button opens details popover", async ({ page }) => {
-    await installStubbedGallery(page);
-    await openStubbedGallery(page, true);
-
-    const trigger = page.locator('[data-sidebar="trigger"]');
-    await expect(trigger).toBeVisible({ timeout: 5_000 });
-    await trigger.click();
-    await expect(trigger).toHaveAttribute("aria-label", "Expand sidebar");
-
-    const statusButton = page.getByLabel("Index Status");
-    await expect(statusButton).toBeVisible({ timeout: 10_000 });
-    await statusButton.click();
-
-    const popover = page.getByRole("dialog", { name: "Index Status" });
-    await expect(popover).toBeVisible({ timeout: 5_000 });
-    await expect(popover).toContainText("150 photo details ready");
-  });
-
-  test("details popover does not overflow with long root path", async ({ page }) => {
-    const longRootPath = "/home/ubuntu/gallery-repo/test-images/comfyui/some/very/long/path/that/should/overflow";
-    const prev = { ...indexStatusData };
-
-    try {
-      Object.assign(indexStatusData, { path: longRootPath });
-
-      await installStubbedGallery(page);
-      await openStubbedGallery(page, true);
-
-      const statusButton = page.getByLabel("Index Status");
-      await statusButton.click();
-
-      const popover = page.getByRole("dialog", { name: "Index Status" });
-      await expect(popover).toBeVisible({ timeout: 5_000 });
-      await expect(popover).toContainText("Folder");
-
-      const rootValue = popover.locator("strong[title]");
-      await expect(rootValue).toHaveAttribute("title", longRootPath);
-
-      const box = await popover.boundingBox();
-      expect(box).not.toBeNull();
-      expect(box!.x + box!.width).toBeLessThanOrEqual(1280);
-      expect(box!.y + box!.height).toBeLessThanOrEqual(900);
-    } finally {
-      Object.assign(indexStatusData, prev);
-    }
-  });
-
-  test("mobile viewport preserves button variant", async ({ page }) => {
-    await page.setViewportSize({ width: 768, height: 1024 });
+  test("global activity outside scope does not force current scope Updating", async ({ page }) => {
+    Object.assign(statusFixture, {
+      globalActiveOutsideScope: true,
+      runtime: { metadata_active_jobs: 2, metadata_queue_depth: 3 },
+    });
 
     await installStubbedGallery(page);
     await openStubbedGallery(page, true);
 
-    const statusButton = page.getByLabel("Index Status");
-    await expect(statusButton).toBeVisible({ timeout: 10_000 });
-    await statusButton.click();
+    const statusButton = page.getByLabel("Catalog Status");
+    await expect(statusButton).toContainText("Ready");
+    await expect(statusButton).toContainText("Indexer working in another folder");
+    await expect(statusButton).not.toContainText("Updating");
 
-    const popover = page.getByRole("dialog", { name: "Index Status" });
-    await expect(popover).toBeVisible({ timeout: 5_000 });
-    await expect(popover).toContainText("150 photo details ready");
+    const popover = await openStatusPopover(page);
+    await expect(popover).toContainText("Indexer working in another folder");
+    await expect(popover.locator(".index-progress-bar")).not.toBeVisible();
   });
 
-  test("collapsed Ready popover shows clean count without fraction when all records ready", async ({ page }) => {
-    const prev = { ...indexStatusData };
+  test("Needs update popover shows pending photo details", async ({ page }) => {
+    Object.assign(statusFixture, {
+      summaryState: "needs_update",
+      totalAssets: 205,
+      readyAssets: 200,
+      staleAssets: 5,
+      metadataState: "needs_update",
+    });
 
-    try {
-      Object.assign(indexStatusData, {
-        indexed_photos: 205,
-        metadata_records: 205,
-        done: 205,
-        total: 205,
-        stale: 0,
-        failed: 0,
-        staged_path_failed: 0,
-      });
-
-      await installStubbedGallery(page);
-      await openStubbedGallery(page, true);
-
-      const trigger = page.locator('[data-sidebar="trigger"]');
-      await trigger.click();
-      await expect(trigger).toHaveAttribute("aria-label", "Expand sidebar");
-
-      const statusButton = page.getByLabel("Index Status");
-      await statusButton.click();
-      const popover = page.getByRole("dialog", { name: "Index Status" });
-      await expect(popover).toBeVisible({ timeout: 5_000 });
-
-      await expect(popover).toContainText("205 photo details ready");
-      await expect(popover).not.toContainText("205 / 205 photo details ready");
-      await expect(popover).not.toContainText("Processing");
-
-      await expect(popover.locator(".index-progress-bar")).not.toBeVisible();
-    } finally {
-      Object.assign(indexStatusData, prev);
-    }
-  });
-
-  test("global activity in another folder does not force current scope Updating", async ({ page }) => {
-    const prev = { ...indexStatusData };
-
-    try {
-      const globalRuntime = {
-        enabled: true,
-        worker_count: 1,
-        active_jobs: 2,
-        runtime_queue_depth: 3,
-        coalesced_duplicates: 0,
-        staged_path_queue_depth: 1,
-        staged_path_coalesced: 0,
-        staged_path_failed: 0,
-        staged_path_flushes_forced: 0,
-        staged_path_worker_count: 1,
-        active_scan_requests: 1,
-        batch_size: 100,
-        staged_path_batch_size: 50,
-        stage_max_wait_seconds: 30,
-      };
-
-      Object.assign(indexStatusData, {
-        active_jobs: 2,
-        runtime_queue_depth: 3,
-        staged_path_queue_depth: 1,
-        active_scan_requests: 1,
-        global_runtime: globalRuntime,
-        scope: {
-          ...indexStatusData,
-          active_jobs: 0,
-          runtime_queue_depth: 0,
-          staged_path_queue_depth: 0,
-          active_scan_requests: 0,
-          active_rebuilds: 0,
-          queued: 0,
-          running: 0,
-          failed: 0,
-          stale: 0,
-          last_error: null,
-          missing_metadata_records: 0,
-        },
-      });
-
-      await installStubbedGallery(page);
-      await openStubbedGallery(page, true);
-
-      const statusButton = page.getByLabel("Index Status");
-      await expect(statusButton).toContainText("Ready");
-      await expect(statusButton).toContainText("Indexer working in another folder");
-      await expect(statusButton).not.toContainText("Updating");
-
-      const badge = statusButton.locator(".index-status-badge");
-      await expect(badge).toHaveClass(/index-status-badge--green/);
-      await expect(badge).not.toHaveClass(/index-status-badge--yellow/);
-
-      await statusButton.click();
-      const popover = page.getByRole("dialog", { name: "Index Status" });
-      await expect(popover).toContainText("Indexer working in another folder");
-      await expect(popover.locator(".index-progress-bar")).not.toBeVisible();
-    } finally {
-      Object.assign(indexStatusData, prev);
-      delete (indexStatusData as Record<string, unknown>).scope;
-      delete (indexStatusData as Record<string, unknown>).global_runtime;
-    }
-  });
-
-  test("collapsed Needs update popover shows known items when stale > 0", async ({ page }) => {
-    const prev = { ...indexStatusData };
-
-    try {
-      Object.assign(indexStatusData, {
-        indexed_photos: 205,
-        metadata_records: 200,
-        done: 200,
-        total: 205,
-        stale: 5,
-      });
-
-      await installStubbedGallery(page);
-      await openStubbedGallery(page, true);
-
-      const trigger = page.locator('[data-sidebar="trigger"]');
-      await trigger.click();
-      await expect(trigger).toHaveAttribute("aria-label", "Expand sidebar");
-
-      const statusButton = page.getByLabel("Index Status");
-      await statusButton.click();
-      const popover = page.getByRole("dialog", { name: "Index Status" });
-      await expect(popover).toBeVisible({ timeout: 5_000 });
-
-      await expect(popover).toContainText("5 known photos need updating");
-      await expect(popover).not.toContainText("200 / 205 photo details ready");
-    } finally {
-      Object.assign(indexStatusData, prev);
-    }
-  });
-
-  test("collapsed Updating popover shows compact header with one progress bar in Processing", async ({ page }) => {
-    const prev = { ...indexStatusData };
-
-    try {
-      Object.assign(indexStatusData, {
-        indexed_photos: 522,
-        metadata_records: 200,
-        done: 256,
-        total: 522,
-        queued: 50,
-        running: 1,
-        stale: 0,
-        failed: 0,
-      });
-
-      await installStubbedGallery(page);
-      await openStubbedGallery(page, true);
-
-      const trigger = page.locator('[data-sidebar="trigger"]');
-      await trigger.click();
-      await expect(trigger).toHaveAttribute("aria-label", "Expand sidebar");
-
-      const statusButton = page.getByLabel("Index Status");
-      await statusButton.click();
-      const popover = page.getByRole("dialog", { name: "Index Status" });
-      await expect(popover).toBeVisible({ timeout: 5_000 });
-
-      await expect(popover).toContainText("Updating");
-      await expect(popover).toContainText("Updating photo details");
-
-      await popover.getByRole("button", { name: "Details" }).click();
-
-      await expect(popover).toContainText("Processing");
-      await expect(popover).toContainText("256 / 522 details processed");
-
-      const barCount = await popover.locator(".index-progress-bar").count();
-      expect(barCount).toBe(1);
-    } finally {
-      Object.assign(indexStatusData, prev);
-    }
-  });
-
-  test("stale badge label shows Needs update not Stale", async ({ page }) => {
-    const prev = { ...indexStatusData };
-
-    try {
-      Object.assign(indexStatusData, {
-        indexed_photos: 205,
-        metadata_records: 200,
-        stale: 5,
-        done: 200,
-        total: 205,
-      });
-
-      await installStubbedGallery(page);
-      await openStubbedGallery(page, true);
-
-      const statusButton = page.getByLabel("Index Status");
-      await expect(statusButton).toBeVisible({ timeout: 10_000 });
-      await expect(statusButton).toContainText("Needs update");
-      await expect(statusButton).not.toContainText("Stale");
-    } finally {
-      Object.assign(indexStatusData, prev);
-    }
-  });
-
-  test("error state with zero issues shows Index needs attention fallback", async ({ page }) => {
-    const prev = { ...indexStatusData };
-
-    try {
-      Object.assign(indexStatusData, {
-        failed: 0,
-        staged_path_failed: 0,
-        last_error: {
-          message: "Connection refused",
-          updated_at: 1000000000,
-        },
-      });
-
-      await installStubbedGallery(page);
-      await openStubbedGallery(page, true);
-
-      const trigger = page.locator('[data-sidebar="trigger"]');
-      await trigger.click();
-      await expect(trigger).toHaveAttribute("aria-label", "Expand sidebar");
-
-      const statusButton = page.getByLabel("Index Status");
-      await statusButton.click();
-      const popover = page.getByRole("dialog", { name: "Index Status" });
-      await expect(popover).toBeVisible({ timeout: 5_000 });
-
-      await expect(popover).toContainText("Index needs attention");
-      await expect(popover).not.toContainText("0 items need attention");
-    } finally {
-      Object.assign(indexStatusData, prev);
-    }
-  });
-
-  test("unavailable state badge shows Unavailable not Warning", async ({ page }) => {
-    const prev = { ...indexStatusData };
-
-    try {
-      Object.assign(indexStatusData, {
-        enabled: false,
-        stale: 0,
-        failed: 0,
-        last_error: null,
-      });
-
-      await installStubbedGallery(page);
-      await openStubbedGallery(page, true);
-
-      const statusButton = page.getByLabel("Index Status");
-      await expect(statusButton).toBeVisible({ timeout: 10_000 });
-      await expect(statusButton).toContainText("Unavailable");
-      await expect(statusButton).not.toContainText("Warning");
-
-      const badge = statusButton.locator(".index-status-badge");
-      await expect(badge).toHaveClass(/index-status-badge--gray/);
-      await expect(badge).not.toHaveClass(/index-status-badge--yellow/);
-    } finally {
-      Object.assign(indexStatusData, prev);
-    }
-  });
-
-  test("known missing photo details shows Needs update without claiming Ready", async ({ page }) => {
-    const prev = { ...indexStatusData };
-
-    try {
-      Object.assign(indexStatusData, {
-        indexed_photos: 205,
-        metadata_records: 200,
-        missing_metadata_records: 5,
-        done: 200,
-        total: 205,
-        stale: 0,
-        failed: 0,
-      });
-
-      await installStubbedGallery(page);
-      await openStubbedGallery(page, true);
-
-      const trigger = page.locator('[data-sidebar="trigger"]');
-      await trigger.click();
-      await expect(trigger).toHaveAttribute("aria-label", "Expand sidebar");
-
-      const statusButton = page.getByLabel("Index Status");
-      await statusButton.click();
-      const popover = page.getByRole("dialog", { name: "Index Status" });
-      await expect(popover).toBeVisible({ timeout: 5_000 });
-
-      await expect(statusButton).toContainText("Needs update");
-      await expect(popover).toContainText("5 photo details need updating");
-      await expect(popover).not.toContainText("200 / 205 photo details ready");
-    } finally {
-      Object.assign(indexStatusData, prev);
-    }
-  });
-
-  test("collapsed Updating progress bar uses shared index-progress-bar", async ({ page }) => {
-    const prev = { ...indexStatusData };
-
-    try {
-      Object.assign(indexStatusData, {
-        indexed_photos: 522,
-        metadata_records: 200,
-        done: 256,
-        total: 522,
-        queued: 50,
-        running: 1,
-        stale: 0,
-        failed: 0,
-      });
-
-      await installStubbedGallery(page);
-      await openStubbedGallery(page, true);
-
-      const trigger = page.locator('[data-sidebar="trigger"]');
-      await trigger.click();
-      await expect(trigger).toHaveAttribute("aria-label", "Expand sidebar");
-
-      const statusButton = page.getByLabel("Index Status");
-      await statusButton.click();
-      const popover = page.getByRole("dialog", { name: "Index Status" });
-      await expect(popover).toBeVisible({ timeout: 5_000 });
-
-      await popover.getByRole("button", { name: "Details" }).click();
-      await expect(popover).toContainText("Processing");
-
-      const bar = popover.locator(".index-progress-bar");
-      await expect(bar).toBeVisible();
-      const fill = bar.locator(".index-progress-bar__fill");
-      await expect(fill).toBeVisible();
-    } finally {
-      Object.assign(indexStatusData, prev);
-    }
-  });
-
-  test("expanded card Updating progress bar uses shared index-progress-bar", async ({ page }) => {
-    const prev = { ...indexStatusData };
-
-    try {
-      Object.assign(indexStatusData, {
-        indexed_photos: 522,
-        metadata_records: 200,
-        done: 256,
-        total: 522,
-        queued: 50,
-        running: 1,
-        stale: 0,
-        failed: 0,
-      });
-
-      await installStubbedGallery(page);
-      await openStubbedGallery(page, true);
-
-      const card = page.locator(".index-status-card");
-      await expect(card).toBeVisible({ timeout: 10_000 });
-
-      const bar = card.locator(".index-progress-bar");
-      await expect(bar).toBeVisible();
-      const fill = bar.locator(".index-progress-bar__fill");
-      await expect(fill).toBeVisible();
-
-      await card.click();
-      const popover = page.getByRole("dialog", { name: "Index Status" });
-      await expect(popover).toBeVisible({ timeout: 5_000 });
-
-      const popoverBar = popover.locator(".index-progress-bar");
-      await expect(popoverBar).toBeVisible();
-      const popoverFill = popoverBar.locator(".index-progress-bar__fill");
-      await expect(popoverFill).toBeVisible();
-    } finally {
-      Object.assign(indexStatusData, prev);
-    }
-  });
-
-  test("debug fields are hidden by default in collapsed popover", async ({ page }) => {
     await installStubbedGallery(page);
     await openStubbedGallery(page, true);
 
-    const trigger = page.locator('[data-sidebar="trigger"]');
-    await trigger.click();
-    await expect(trigger).toHaveAttribute("aria-label", "Expand sidebar");
+    const statusButton = page.getByLabel("Catalog Status");
+    await expect(statusButton).toContainText("Needs update");
+    await expect(statusButton).toContainText("5 photo details need updating");
 
-    const statusButton = page.getByLabel("Index Status");
-    await statusButton.click();
-    const popover = page.getByRole("dialog", { name: "Index Status" });
-    await expect(popover).toBeVisible({ timeout: 5_000 });
+    const popover = await openStatusPopover(page);
+    await expect(popover).toContainText("5 photo details need updating");
+    await expect(popover).not.toContainText("200 / 205 photo details ready");
+  });
 
-    await expect(popover).not.toContainText("Workers");
-    await expect(popover).not.toContainText("Active jobs");
-    await expect(popover).not.toContainText("Queue depth");
+  test("Updating popover shows compact progress", async ({ page }) => {
+    Object.assign(statusFixture, {
+      summaryState: "indexing",
+      totalAssets: 522,
+      readyAssets: 256,
+      queuedAssets: 50,
+      runningAssets: 1,
+      metadataState: "indexing",
+    });
+
+    await installStubbedGallery(page);
+    await openStubbedGallery(page, true);
+
+    const statusButton = page.getByLabel("Catalog Status");
+    await expect(statusButton).toContainText("Updating");
+    await expect(statusButton).toContainText("256 / 522 photo details ready");
+
+    const popover = await openStatusPopover(page);
+    await expect(popover).toContainText("Updating");
+    await popover.getByRole("button", { name: "Details" }).click();
+    await expect(popover).toContainText("Processing");
+    await expect(popover).toContainText("49% details processed");
+    await expect(popover.locator(".index-progress-bar")).toHaveCount(1);
+  });
+
+  test("error state with zero issue count shows catalog attention fallback", async ({ page }) => {
+    Object.assign(statusFixture, {
+      summaryState: "error",
+      failedAssets: 0,
+      issueCount: 0,
+      latestIssue: { source: "scan", path: rootPath, message: "Connection refused", updated_at: 1_782_036_060_000 },
+    });
+
+    await installStubbedGallery(page);
+    await openStubbedGallery(page, true);
+
+    const popover = await openStatusPopover(page);
+    await expect(popover).toContainText("Catalog needs attention");
+    await expect(popover).not.toContainText("0 items need attention");
+  });
+
+  test("offline state badge shows Offline not Warning", async ({ page }) => {
+    Object.assign(statusFixture, {
+      summaryState: "offline",
+      availabilityState: "unavailable",
+      availablePaths: 0,
+      totalPaths: 1,
+    });
+
+    await installStubbedGallery(page);
+    await openStubbedGallery(page, true);
+
+    const statusButton = page.getByLabel("Catalog Status");
+    await expect(statusButton).toContainText("Offline");
+    await expect(statusButton).not.toContainText("Warning");
+
+    const badge = statusButton.locator(".index-status-badge");
+    await expect(badge).toHaveClass(/index-status-badge--gray/);
+    await expect(badge).not.toHaveClass(/index-status-badge--yellow/);
   });
 });

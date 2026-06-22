@@ -2,10 +2,9 @@
 
 Last updated: 2026-06-22
 
-Current milestone: Phase 9 complete
+Current milestone: Phase 10 complete
 
-Next milestone: Phase 10 — update architecture/API/config documentation and run
-release gates
+Next milestone: Phase 11 — Archive plan and documentation finalization
 
 SQLite schema version currently implemented: `PRAGMA user_version = 9`
 
@@ -51,7 +50,7 @@ and chunk-size warnings remain non-blocking.
 | 7. Read-only `/api/browse` and gallery query migration | Complete | DB-only catalog browse route with virtual import-root listing, path-scoped asset/folder pagination, offline tombstones hidden by default, out-of-library scope rejection, no scan/write side effects, and gallery infinite query migration from `/api/scan` to `/api/browse` keyed by library ID |
 | 8. Admin/sidebar migration to unified status | Complete | useCatalogStatusQuery and useLibraryStatusBatchQuery composables with 2.5s/60s polling and contract-v1 guard; shared catalog labels utility; admin list joins batch status by ID with Last index column; admin detail shows Availability/File scan/Metadata/Issues/Last scan/Last index separately; sidebar IndexStatusPanel/Card/DetailsPopover migrated to UnifiedStatus with scope copy, Photos found/Photo details ready mapping, library-scoped scan/rebuild actions, and updated rebuild wording; Repair UI removed; SSE invalidates status keys; scan/rebuild mutations seed/invalidate status; LibraryInspector rebuild tracking migrated to UnifiedStatus |
 | 9. Old-route hard cut and dead-code removal | Complete | Removed `GET /api/scan`, `scan_directory`, `_require_db_path`, and `GALLERY_DB_REQUIRED` branches from `backend/scan.py`; removed `GET /api/index/status` and `POST /api/index/rebuild` plus their dedicated helpers from `backend/indexer.py`; removed `GALLERY_DB_REQUIRED` config; deleted `backend/debug/scan_perf.py` and the `test_db_required_*` / scan-endpoint / index-status test files; removed `scanDirectory`, `rebuildIndex`, `IndexRebuildResponse`, `IndexStatusResponse`, `IndexStatusRuntime`, `IndexStatusScope`, `IndexStatusState`, `LibraryProgress`, `utils/indexStatus.ts`, `utils/indexStatusCopy.ts`, and the `LibraryProgress`-derived `libraryStatus.ts` helpers; updated `PROFILE_ENDPOINTS` and `reloadMonitor` API patterns |
-| 10. Documentation and release gates | Not started | Update architecture/API/config documentation and run the full release suite |
+| 10. Documentation and release gates | Complete | Updated docs/ARCHITECTURE.md, docs/CONFIGURATION.md, and frontend/src/db/README.md; migrated Playwright E2E stubs from /api/scan, /api/index/status, /api/index/rebuild to /api/browse and unified catalog status endpoints; removed dead query keys and legacy ScanResponse type; updated comment in scan.py; full test suite passed |
 
 ## Phase 8 Delivered
 
@@ -252,6 +251,59 @@ Remaining for Phase 10:
   and must be migrated to `/api/browse` and the unified catalog status
   endpoints before the release gates run. These are not exercised by the
   `vitest` unit suite or `vue-tsc` typecheck.
+
+## Phase 10 Delivered
+
+Documentation updates:
+
+- `docs/ARCHITECTURE.md`: updated module table (scan.py, indexer.py,
+  libraries.py, browse.py), route table (removed /api/scan, /api/index/status,
+  /api/libraries/{id}/repair; added /api/browse, /api/libraries/{id}/status,
+  /api/libraries/status, /api/libraries/{id}/rebuild), backend behavior
+  section, state ownership, query keys, and data flow sections.
+- `docs/CONFIGURATION.md`: removed GALLERY_DB_REQUIRED,
+  ENABLE_WARM_INDEXED_LISTING, ENABLE_SCHEDULED_REFRESH,
+  SCHEDULED_REFRESH_*, WATCHER_ROOTS, and WATCHER_DEBOUNCE_SECONDS;
+  updated PROFILE_ENDPOINTS default to /api/browse; added
+  GALLERY_CATALOG_WORKERS, GALLERY_CATALOG_WATCHER_ENABLED,
+  GALLERY_CATALOG_WATCHER_DEBOUNCE_SECONDS,
+  GALLERY_CATALOG_RECONCILE_ENABLED,
+  GALLERY_CATALOG_RECONCILE_INTERVAL_SECONDS,
+  GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED,
+  GALLERY_CATALOG_JOB_MAX_QUEUE_WAIT_SECONDS,
+  GALLERY_CATALOG_WRITE_BATCH_SIZE, and
+  GALLERY_METADATA_EVENT_THROTTLE_MS config vars.
+- `frontend/src/db/README.md`: updated `/api/scan` reference to `/api/browse`.
+
+Playwright E2E migration:
+
+- 25 E2E test files migrated from `/api/scan`, `/api/index/status`, and
+  `/api/index/rebuild` stubs to `/api/browse`, `/api/libraries/{id}/status`,
+  `/api/libraries/{id}/rebuild` using the new unified contract-v1
+  `StatusResponseEnvelope` fixture helpers.
+- Added `frontend/tests/e2e/helpers/catalogFixtures.ts` with
+  `browseResponse()`, `statusEnvelope()`, `globalRuntime()`, and
+  `statusBatch()` reusable fixture builders.
+
+Pre-release cleanup:
+
+- `backend/scan.py`: fixed misleading "registered-library security model"
+  comment to accurately reflect PATH_SAFETY_ROOT containment.
+- `frontend/src/query/keys.ts`: removed dead `queryKeys.scan` and
+  `queryKeys.scanInfinite` (zero consumers).
+- `frontend/src/types/index.ts`: removed orphaned `ScanResponse` interface;
+  inlined fields directly into `BrowseResponse`.
+
+Verified baseline:
+
+```text
+5563862 cleanup: address phase 10 pre-release cleanup items
+```
+
+Verification: backend ruff check/format passed, 631 backend tests passed,
+357 frontend unit tests passed, frontend typecheck and production build
+passed. Existing FastAPI lifecycle deprecation, Sass import, Rollup
+annotation, eval, and chunk-size warnings remain non-blocking.
 
 ## Phase 7 Delivered
 

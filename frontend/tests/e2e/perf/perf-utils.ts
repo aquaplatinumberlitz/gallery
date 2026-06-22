@@ -93,7 +93,7 @@ export function installApiNetworkTracker(page: Page, clickTimeRef: { value: numb
   const shouldTrack = (request: Request) => {
     const url = new URL(request.url());
     return (
-      url.pathname === "/api/scan" ||
+      url.pathname === "/api/browse" ||
       url.pathname === "/api/thumbnail" ||
       url.pathname === "/api/preview" ||
       url.pathname === "/api/image" ||
@@ -141,7 +141,7 @@ export function installApiNetworkTracker(page: Page, clickTimeRef: { value: numb
 
   return {
     samples,
-    scanSamples: () => samples.filter((sample) => sample.pathname === "/api/scan"),
+    scanSamples: () => samples.filter((sample) => sample.pathname === "/api/browse"),
     thumbnailSamples: () => samples.filter((sample) => sample.pathname === "/api/thumbnail"),
     previewSamples: () => samples.filter((sample) => sample.pathname === "/api/preview"),
     imageSamples: () => samples.filter((sample) => sample.pathname === "/api/image"),

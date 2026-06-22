@@ -11,6 +11,7 @@
  * * touching gallery-lightbox-always-load-original controls
  */
 
+import { browseResponse, statusEnvelope } from "./helpers/catalogFixtures";
 import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
@@ -49,28 +50,26 @@ async function installStubbedGallery(page: Page) {
       return;
     }
 
-    if (url.pathname === "/api/scan") {
+    if (url.pathname === "/api/browse") {
       await route.fulfill({
         contentType: "application/json",
-        body: JSON.stringify({
-          folders: [],
-          media: imagePaths.map((path, i) => ({
-            name: `image_${i + 1}.png`,
-            path,
-            type: "image",
-            has_children: false,
-            cover_images: [],
-            mtime: 1000 + i,
-            image_count: 0,
-            width: 1600,
-            height: 1000,
-          })),
-          next_media_cursor: null,
-          total_images: imagePaths.length,
-          total_videos: 0,
-          total_assets: imagePaths.length,
-          index_source: "direct_scan",
-        }),
+        body: JSON.stringify(
+          browseResponse({
+            libraryId: Number(url.searchParams.get("library_id") ?? 1),
+            path: url.searchParams.get("path") ?? rootPath,
+            media: imagePaths.map((path, i) => ({
+              name: `image_${i + 1}.png`,
+              path,
+              type: "image",
+              has_children: false,
+              cover_images: [],
+              mtime: 1000 + i,
+              image_count: 0,
+              width: 1600,
+              height: 1000,
+            })),
+          }),
+        ),
       });
       return;
     }
@@ -115,37 +114,10 @@ async function installStubbedGallery(page: Page) {
       return;
     }
 
-    if (url.pathname === "/api/index/status") {
+    if (url.pathname === "/api/libraries/1/status") {
       await route.fulfill({
         contentType: "application/json",
-        body: JSON.stringify({
-          enabled: false,
-          worker_count: 0,
-          active_jobs: 0,
-          runtime_queue_depth: 0,
-          done: 0,
-          running: 0,
-          queued: 0,
-          failed: 0,
-          stale: 0,
-          skipped: 0,
-          total: 0,
-          path: rootPath,
-          counts: {},
-          oldest_queued_age_seconds: null,
-          last_error: null,
-          updated_at: null,
-          coalesced_duplicates: 0,
-          staged_path_queue_depth: 0,
-          staged_path_coalesced: 0,
-          staged_path_failed: 0,
-          staged_path_flushes_forced: 0,
-          staged_path_worker_count: 0,
-          active_scan_requests: 0,
-          batch_size: 100,
-          staged_path_batch_size: 50,
-          stage_max_wait_seconds: 30,
-        }),
+        body: JSON.stringify(statusEnvelope({ libraryId: 1, path: url.searchParams.get("scope_path") ?? rootPath })),
       });
       return;
     }

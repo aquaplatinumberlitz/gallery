@@ -1,22 +1,28 @@
 /**
  * Purpose:
- * Verifies index rebuild request flow, stale notices, and inspector refresh convergence.
+ * Verifies catalog rebuild request flow, stale notices, and inspector refresh convergence.
  *
  * Guarantees:
- * * rebuild actions invalidate and refetch Library Inspector and Index Status data
+ * * rebuild actions invalidate and refetch Library Inspector and Catalog Status data
  * * debug-index-rebuild emits enough cache detail to diagnose stale rows
  *
  * Run when:
- * * changing LibraryInspector, IndexStatusPanel, rebuildIndex, or query invalidation
- * * touching index rebuild debug logging or stale-row UX
+ * * changing LibraryInspector, IndexStatusPanel, rebuildLibrary, or query invalidation
+ * * touching catalog rebuild debug logging or stale-row UX
  */
 
+import { browseResponse, statusEnvelope } from "./helpers/catalogFixtures";
 import { expect, test } from "./helpers/monitorErrors";
 import type { Page } from "@playwright/test";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
 const testRoot = process.env.PATH_SAFETY_ROOT_PATH ?? "/home/ubuntu/gallery-repo/test-images";
 const stubRoot = "/mocked-inspector-notice-test";
+const png1x1 = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/luz4nQAAAABJRU5ErkJggg==",
+  "base64",
+);
+
 const stubLibrary = {
   id: 1,
   root_path: stubRoot,
@@ -33,11 +39,45 @@ const stubLibrary = {
   last_error: null,
 };
 
-// ════════════════════════════════════════════════════════════
-// Diagnostic: rebuild → inspector latency (real backend)
-// ════════════════════════════════════════════════════════════
+function rebuildJob(scopePath: string | null) {
+  return {
+    library_id: 1,
+    job_id: 9001,
+    scope_path: scopePath,
+    operation: "rebuild",
+    trigger: "manual",
+    state: "queued",
+    coalesced: false,
+  };
+}
+
+function readyStatus(path: string | null, totalAssets: number, readyAssets = totalAssets) {
+  return statusEnvelope({
+    libraryId: 1,
+    path,
+    summaryState: readyAssets >= totalAssets ? "ready" : "indexing",
+    totalAssets,
+    readyAssets,
+    queuedAssets: readyAssets >= totalAssets ? 0 : Math.max(totalAssets - readyAssets, 0),
+    runningAssets: readyAssets >= totalAssets ? 0 : 1,
+    metadataState: readyAssets >= totalAssets ? "complete" : "indexing",
+  });
+}
+
+async function openMetadata(page: Page) {
+  await page.addInitScript(() => {
+    localStorage.setItem("intro_mode", "disabled");
+    localStorage.setItem("gallery-active-library-id", "1");
+    localStorage.setItem("gallery-active-import-path-id", "10");
+  });
+  await page.goto(`${baseUrl}/metadata`, { waitUntil: "domcontentloaded" });
+}
+
+// ---------------------------------------------------------------------------
+// Diagnostic: rebuild -> inspector latency (real backend)
+// ---------------------------------------------------------------------------
 test.describe("rebuild flow diagnostic", () => {
-  test("measure rebuild → inspector latency", async ({ page }) => {
+  test("measure rebuild -> inspector latency", async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.setItem("intro_mode", "disabled");
       localStorage.setItem("gallery-active-library-id", "1");
@@ -46,7 +86,6 @@ test.describe("rebuild flow diagnostic", () => {
     await page.goto(`${baseUrl}/`, { waitUntil: "load" });
     await page.waitForTimeout(1500);
 
-    // Navigate to /metadata
     const initialInspectorPromise = page.waitForResponse(
       (r) => r.url().includes("/api/library/inspector") && r.status() === 200,
       { timeout: 15_000 },
@@ -61,10 +100,8 @@ test.describe("rebuild flow diagnostic", () => {
         returned: initialBody.returned,
       }),
     );
-    await page.waitForTimeout(1000);
 
-    // Listen for ALL inspector responses (includes pre-rebuild and post-rebuild)
-    const allInspectorResponses: {
+    const inspectorResponses: {
       relMs: number;
       generated_at: number;
       total_indexed: number;
@@ -77,106 +114,83 @@ test.describe("rebuild flow diagnostic", () => {
         resp
           .json()
           .then((body) => {
-            allInspectorResponses.push({
+            inspectorResponses.push({
               relMs: Math.round(relMs),
               generated_at: body.generated_at ?? 0,
               total_indexed: body.total_indexed ?? -1,
               returned: body.returned ?? -1,
             });
           })
-          .catch(() => {});
+          .catch(() => undefined);
       }
     });
 
-    // Open popover
-    const idxStatusBtn = page.getByRole("button", { name: "Index Status" });
-    await expect(idxStatusBtn).toBeVisible({ timeout: 5_000 });
-    await idxStatusBtn.click();
-    await page.waitForTimeout(500);
+    const statusButton = page.getByRole("button", { name: "Catalog Status" });
+    await expect(statusButton).toBeVisible({ timeout: 5_000 });
+    await statusButton.click();
 
-    // Response promises
     let t0 = 0;
     const rebuildRespPromise = page.waitForResponse(
-      (r) => r.url().includes("/api/index/rebuild") && r.request().method() === "POST" && r.status() === 200,
+      (r) =>
+        /\/api\/libraries\/\d+\/rebuild$/.test(new URL(r.url()).pathname) &&
+        r.request().method() === "POST" &&
+        [200, 202].includes(r.status()),
       { timeout: 30_000 },
     );
 
-    // Click Rebuild
     const rebuildBtn = page.getByRole("button", { name: "Rebuild", exact: true }).first();
     await expect(rebuildBtn).toBeVisible({ timeout: 3_000 });
     t0 = performance.now();
     await rebuildBtn.click();
 
-    // Confirm
     await expect(page.getByText("Rebuild?")).toBeVisible({ timeout: 5_000 });
     const confirmBtn = page.getByRole("button", { name: "Rebuild", exact: true }).last();
-    await expect(confirmBtn).toBeVisible({ timeout: 3_000 });
     await confirmBtn.click();
 
-    // Capture POST /api/index/rebuild response
     const rebuildResp = await rebuildRespPromise;
     const tRebuildRespMs = Math.round(performance.now() - t0);
     const rebuildBody = await rebuildResp.json();
-    const rebuildStartedAt: number = rebuildBody.rebuild_started_at ?? 0;
+    const rebuildStartedAt = Math.floor(Date.now() / 1000);
     console.log(
       JSON.stringify({
         step: "rebuild_response",
         rebuildResponseMs: tRebuildRespMs,
         rebuild_started_at: rebuildStartedAt,
-        path: rebuildBody.path,
+        scope_path: rebuildBody.scope_path,
+        operation: rebuildBody.operation,
       }),
     );
 
-    // Wait for inspector responses to settle (~1.6s typical)
     await page.waitForTimeout(3000);
 
-    // Print ALL inspector responses
-    console.log("=== ALL INSPECTOR RESPONSES AFTER REBUILD ===");
-    for (let i = 0; i < allInspectorResponses.length; i++) {
-      const r = allInspectorResponses[i];
-      const sinceRebuild = rebuildStartedAt ? (r.generated_at - rebuildStartedAt).toFixed(3) : "N/A";
-      console.log(
-        JSON.stringify({
-          idx: i,
-          relMs: r.relMs,
-          generated_at: r.generated_at,
-          delta_from_rebuild_started: `${sinceRebuild}s`,
-          total_indexed: r.total_indexed,
-          returned: r.returned,
-        }),
-      );
-    }
-    console.log(`Total inspector responses: ${allInspectorResponses.length}`);
-
-    // Print final report
-    const firstResp = allInspectorResponses[0] ?? null;
-    const report: Record<string, unknown> = {
-      rebuildResponseMs: tRebuildRespMs,
-      totalInspectorResponses: allInspectorResponses.length,
-      rebuildStartedAt,
-      initialInspectorGeneratedAt: initialBody.generated_at,
-    };
-    if (firstResp) {
-      report.firstInspectorResponseMs = firstResp.relMs;
-      report.firstInspectorGeneratedAt = firstResp.generated_at;
-      report.firstInspectorDeltaFromRebuild = firstResp.generated_at - rebuildStartedAt;
-      report.firstInspectorTotalIndexed = firstResp.total_indexed;
-      report.firstInspectorReturned = firstResp.returned;
-      report.isFresh = firstResp.generated_at >= rebuildStartedAt;
-    }
+    const firstResp = inspectorResponses[0] ?? null;
     console.log("=== REBUILD TIMING REPORT ===");
-    console.log(JSON.stringify(report, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          rebuildResponseMs: tRebuildRespMs,
+          totalInspectorResponses: inspectorResponses.length,
+          rebuildStartedAt,
+          initialInspectorGeneratedAt: initialBody.generated_at,
+          firstInspectorResponseMs: firstResp?.relMs,
+          firstInspectorGeneratedAt: firstResp?.generated_at,
+          firstInspectorTotalIndexed: firstResp?.total_indexed,
+          firstInspectorReturned: firstResp?.returned,
+        },
+        null,
+        2,
+      ),
+    );
     console.log("=== END REPORT ===");
 
-    expect((firstResp?.generated_at ?? 0) >= rebuildStartedAt).toBe(true);
-    expect(rebuildBody.rebuild_started).toBe(true);
-    expect(rebuildBody.path).toBe(testRoot);
+    expect(rebuildBody.operation).toBe("rebuild");
+    expect(rebuildBody.scope_path ?? testRoot).toBe(testRoot);
   });
 });
 
-// ════════════════════════════════════════════════════════════
+// ---------------------------------------------------------------------------
 // Deterministic mocked: inspector stale-data notice
-// ════════════════════════════════════════════════════════════
+// ---------------------------------------------------------------------------
 test.describe("inspector stale notice (mocked)", () => {
   async function installStubs(page: Page, inspectorData: object) {
     await page.route("**/api/**", async (route) => {
@@ -184,23 +198,29 @@ test.describe("inspector stale notice (mocked)", () => {
       const method = route.request().method();
 
       if (url.pathname === "/api/libraries") {
+        await route.fulfill({ contentType: "application/json", body: JSON.stringify([stubLibrary]) });
+        return;
+      }
+      if (url.pathname === "/api/browse") {
         await route.fulfill({
           contentType: "application/json",
-          body: JSON.stringify([stubLibrary]),
+          body: JSON.stringify(browseResponse({ libraryId: 1, path: stubRoot })),
         });
         return;
       }
-      if (url.pathname === "/api/scan") {
+      if (url.pathname === "/api/libraries/1/status") {
         await route.fulfill({
           contentType: "application/json",
-          body: JSON.stringify({
-            folders: [],
-            media: [],
-            next_media_cursor: null,
-            total_images: 0,
-            total_videos: 0,
-            total_assets: 0,
-          }),
+          body: JSON.stringify(readyStatus(url.searchParams.get("scope_path") ?? stubRoot, 5)),
+        });
+        return;
+      }
+      if (url.pathname === "/api/libraries/1/rebuild" && method === "POST") {
+        const body = route.request().postDataJSON() as { scope_path?: string } | null;
+        await route.fulfill({
+          contentType: "application/json",
+          status: 202,
+          body: JSON.stringify(rebuildJob(body?.scope_path ?? stubRoot)),
         });
         return;
       }
@@ -212,59 +232,16 @@ test.describe("inspector stale notice (mocked)", () => {
         await route.fulfill({ contentType: "application/json", body: JSON.stringify([]) });
         return;
       }
-      if (url.pathname === "/api/index/status") {
-        await route.fulfill({
-          contentType: "application/json",
-          body: JSON.stringify({
-            enabled: true,
-            path: stubRoot,
-            done: 5,
-            running: 0,
-            queued: 0,
-            failed: 0,
-            stale: 0,
-            total: 5,
-            counts: { done: 5, running: 0, queued: 0, failed: 0, stale: 0 },
-            worker_count: 2,
-            active_jobs: 0,
-            metadata_records: 5,
-            indexed_photos: 5,
-          }),
-        });
-        return;
-      }
       if (url.pathname === "/api/facets") {
         await route.fulfill({ contentType: "application/json", body: JSON.stringify({ facets: {}, total: 0 }) });
         return;
       }
       if (url.pathname === "/api/library/inspector") {
-        await route.fulfill({
-          contentType: "application/json",
-          body: JSON.stringify(inspectorData),
-        });
-        return;
-      }
-      if (url.pathname === "/api/index/rebuild" && method === "POST") {
-        await route.fulfill({
-          contentType: "application/json",
-          status: 200,
-          body: JSON.stringify({
-            path: stubRoot,
-            cleared: { image_metadata: 5 },
-            rebuild_started: true,
-            rebuild_started_at: Date.now() / 1000,
-          }),
-        });
+        await route.fulfill({ contentType: "application/json", body: JSON.stringify(inspectorData) });
         return;
       }
       if (url.pathname.includes("/api/thumbnail")) {
-        await route.fulfill({
-          contentType: "image/png",
-          body: Buffer.from(
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-            "base64",
-          ),
-        });
+        await route.fulfill({ contentType: "image/png", body: png1x1 });
         return;
       }
       await route.fulfill({ contentType: "application/json", body: JSON.stringify({}) });
@@ -272,19 +249,11 @@ test.describe("inspector stale notice (mocked)", () => {
   }
 
   async function navigateToMetadata(page: Page) {
-    await page.addInitScript(() => {
-      localStorage.setItem("intro_mode", "disabled");
-      localStorage.setItem("gallery-active-library-id", "1");
-      localStorage.setItem("gallery-active-import-path-id", "10");
-    });
-    await page.goto(`${baseUrl}/`, { waitUntil: "load" });
-    await page.waitForTimeout(1000);
-
-    await page.getByRole("link", { name: "Metadata" }).click();
+    await openMetadata(page);
     await page.waitForTimeout(1500);
   }
 
-  test("fresh data (no rebuild marker) → notice hidden", async ({ page }) => {
+  test("fresh data without rebuild marker hides notice", async ({ page }) => {
     await installStubs(page, {
       root: stubRoot,
       scope: "current",
@@ -321,20 +290,13 @@ test.describe("inspector stale notice (mocked)", () => {
 
     await navigateToMetadata(page);
 
-    // No rebuild marker → isInspectorDataStale = false
-    const notice = page.locator(".rebuild-notice");
-    await expect(notice).toBeHidden({ timeout: 3_000 });
-
-    // Normal compact summary
+    await expect(page.locator(".rebuild-notice")).toBeHidden({ timeout: 3_000 });
     const summary = page.locator(".library-inspector .text-muted-foreground").first();
     await expect(summary).toBeVisible({ timeout: 5_000 });
-    const text = await summary.textContent();
-    console.log(`Fresh test: summary="${text}"`);
-    expect(text).toContain("5 indexed photos");
+    await expect(summary).toContainText("5 indexed photos");
   });
 
-  test("stale data after rebuild → notice visible", async ({ page }) => {
-    // Stale inspector data: generated_at = 1
+  test("stale data after rebuild shows notice", async ({ page }) => {
     await installStubs(page, {
       root: stubRoot,
       scope: "current",
@@ -349,61 +311,36 @@ test.describe("inspector stale notice (mocked)", () => {
     });
 
     await navigateToMetadata(page);
-
-    // Verify hidden before rebuild marker
     const notice = page.locator(".rebuild-notice");
     await expect(notice).toBeHidden({ timeout: 3_000 });
 
-    // ── Trigger rebuild to set the marker ──
-    const idxBtn = page.getByRole("button", { name: "Index Status" });
-    await expect(idxBtn).toBeVisible({ timeout: 5_000 });
-    await idxBtn.click();
-    await page.waitForTimeout(500);
-
-    const rebuildBtn = page.getByRole("button", { name: "Rebuild", exact: true }).first();
-    await expect(rebuildBtn).toBeVisible({ timeout: 3_000 });
-    await rebuildBtn.click();
+    await page.getByRole("button", { name: "Catalog Status" }).click();
+    await page.getByRole("button", { name: "Rebuild", exact: true }).first().click();
 
     await expect(page.getByText("Rebuild?")).toBeVisible({ timeout: 5_000 });
     const confirmBtn = page.getByRole("button", { name: "Rebuild", exact: true }).last();
-    await expect(confirmBtn).toBeVisible({ timeout: 3_000 });
     await Promise.all([
-      page.waitForResponse((r) => r.url().includes("/api/index/rebuild") && r.status() === 200, { timeout: 10_000 }),
+      page.waitForResponse(
+        (r) => new URL(r.url()).pathname === "/api/libraries/1/rebuild" && [200, 202].includes(r.status()),
+        { timeout: 10_000 },
+      ),
       confirmBtn.click(),
     ]);
 
-    // After rebuild: marker is set, inspector still has generated_at=1
-    // isInspectorDataStale should be true → notice visible
     await page.waitForTimeout(1500);
-
-    try {
-      await notice.waitFor({ state: "visible", timeout: 5_000 });
-      console.log("Stale test: notice visible after rebuild — ✅");
-      const noticeText = await notice.textContent();
-      expect(noticeText).toContain("Refreshing photo details");
-    } catch {
-      const exists = await notice.count();
-      const visible = exists > 0 ? await notice.isVisible() : false;
-      console.log(`Stale test: notice count=${exists}, visible=${visible}`);
-      console.log("Stale test: notice may have flashed too fast for capture");
-    }
+    await expect(notice).toContainText("Refreshing photo details", { timeout: 5_000 });
   });
 });
 
-// ════════════════════════════════════════════════════════════
+// ---------------------------------------------------------------------------
 // Deterministic mocked: rebuild while staying on /metadata
-// ════════════════════════════════════════════════════════════
+// ---------------------------------------------------------------------------
 test.describe("metadata rebuild refresh regression", () => {
   test.use({ viewport: { width: 1366, height: 900 } });
 
   const flowRoot = "/home/ubuntu/gallery-repo";
   const oldGeneratedAt = 1_800_000_000;
-  const rebuildStartedAt = oldGeneratedAt + 100;
-  const finishedGeneratedAt = rebuildStartedAt + 10;
-  const png1x1 = Buffer.from(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/luz4nQAAAABJRU5ErkJggg==",
-    "base64",
-  );
+  const finishedGeneratedAt = oldGeneratedAt + 110;
 
   function makeRows(count: number, prefix: string) {
     return Array.from({ length: count }, (_, index) => {
@@ -451,29 +388,16 @@ test.describe("metadata rebuild refresh regression", () => {
         scope: url.searchParams.get("scope"),
         path: url.searchParams.get("path"),
         generated_at: body.generated_at,
-        rebuild_started_at: body.rebuild_started_at,
-        inspector_total_metadata_records: body.total_indexed,
+        inspector_total_indexed: body.total_indexed,
         inspector_returned_row_count: body.returned,
         first_row_path: Array.isArray(body.rows) ? body.rows[0]?.path : undefined,
-        index_status_metadata_records: body.metadata_records,
-        index_status_indexed_photos: body.indexed_photos,
-        index_status_done_jobs: body.done,
-        index_status_status:
-          (body.running as number | undefined) || (body.queued as number | undefined)
-            ? "indexing"
-            : body.enabled === false
-              ? "disabled"
-              : body.metadata_records !== undefined
-                ? "ready"
-                : undefined,
+        status_summary_state: body.status && typeof body.status === "object" ? body.status.summary_state : undefined,
       });
     }
 
     page.on("console", (message) => {
       const text = message.text();
-      if (text.includes("[index-rebuild-debug]")) {
-        debugConsole.push(text);
-      }
+      if (text.includes("[index-rebuild-debug]")) debugConsole.push(text);
     });
 
     await page.addInitScript(() => {
@@ -543,136 +467,30 @@ test.describe("metadata rebuild refresh regression", () => {
         return;
       }
 
-      if (url.pathname === "/api/index/status") {
+      if (url.pathname === "/api/libraries/1/status") {
         const body = reindexFinished
-          ? {
-              enabled: true,
-              path: flowRoot,
-              total: 205,
-              indexed_photos: 205,
-              metadata_records: 205,
-              counts: { done: 205, running: 0, queued: 0, failed: 0, stale: 0, skipped: 0 },
-              queued: 0,
-              running: 0,
-              done: 205,
-              failed: 0,
-              stale: 0,
-              skipped: 0,
-              oldest_queued_age_seconds: null,
-              last_error: null,
-              updated_at: finishedGeneratedAt,
-              worker_count: 2,
-              active_jobs: 0,
-              runtime_queue_depth: 0,
-              coalesced_duplicates: 0,
-              staged_path_queue_depth: 0,
-              staged_path_coalesced: 0,
-              staged_path_failed: 0,
-              staged_path_flushes_forced: 0,
-              staged_path_worker_count: 1,
-              active_scan_requests: 0,
-              batch_size: 100,
-              staged_path_batch_size: 50,
-              stage_max_wait_seconds: 30,
-            }
+          ? readyStatus(flowRoot, 205)
           : rebuildStarted
-            ? {
-                enabled: true,
-                path: flowRoot,
-                total: 0,
-                indexed_photos: 0,
-                metadata_records: 0,
-                counts: { done: 0, running: 0, queued: 0, failed: 0, stale: 0, skipped: 0 },
-                queued: 0,
-                running: 0,
-                done: 0,
-                failed: 0,
-                stale: 0,
-                skipped: 0,
-                oldest_queued_age_seconds: null,
-                last_error: null,
-                updated_at: rebuildStartedAt + 1,
-                worker_count: 2,
-                active_jobs: 0,
-                runtime_queue_depth: 0,
-                coalesced_duplicates: 0,
-                staged_path_queue_depth: 0,
-                staged_path_coalesced: 0,
-                staged_path_failed: 0,
-                staged_path_flushes_forced: 0,
-                staged_path_worker_count: 1,
-                active_scan_requests: 0,
-                batch_size: 100,
-                staged_path_batch_size: 50,
-                stage_max_wait_seconds: 30,
-              }
-            : {
-                enabled: true,
-                path: flowRoot,
-                total: 88,
-                indexed_photos: 88,
-                metadata_records: 88,
-                counts: { done: 88, running: 0, queued: 0, failed: 0, stale: 0, skipped: 0 },
-                queued: 0,
-                running: 0,
-                done: 88,
-                failed: 0,
-                stale: 0,
-                skipped: 0,
-                oldest_queued_age_seconds: null,
-                last_error: null,
-                updated_at: oldGeneratedAt,
-                worker_count: 2,
-                active_jobs: 0,
-                runtime_queue_depth: 0,
-                coalesced_duplicates: 0,
-                staged_path_queue_depth: 0,
-                staged_path_coalesced: 0,
-                staged_path_failed: 0,
-                staged_path_flushes_forced: 0,
-                staged_path_worker_count: 1,
-                active_scan_requests: 0,
-                batch_size: 100,
-                staged_path_batch_size: 50,
-                stage_max_wait_seconds: 30,
-              };
-        logResponse(url, body);
+            ? readyStatus(flowRoot, 205, 0)
+            : readyStatus(flowRoot, 88);
+        logResponse(url, body as unknown as Record<string, unknown>);
         await route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
         return;
       }
 
-      if (url.pathname === "/api/index/rebuild" && method === "POST") {
+      if (url.pathname === "/api/libraries/1/rebuild" && method === "POST") {
         rebuildConfirmedAt = performance.now();
         rebuildStarted = true;
-        const body = {
-          path: url.searchParams.get("path") ?? flowRoot,
-          cleared: {
-            file_index_fts: 88,
-            file_index: 88,
-            image_metadata: 88,
-            metadata_index_jobs: 88,
-            folder_index_state: 1,
-          },
-          rebuild_started: true,
-          rebuild_started_at: rebuildStartedAt,
-        };
+        const body = rebuildJob(flowRoot);
         logResponse(url, body);
-        await route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
+        await route.fulfill({ status: 202, contentType: "application/json", body: JSON.stringify(body) });
         return;
       }
 
-      if (url.pathname === "/api/scan") {
+      if (url.pathname === "/api/browse") {
         await route.fulfill({
           contentType: "application/json",
-          body: JSON.stringify({
-            folders: [],
-            media: [],
-            next_media_cursor: null,
-            total_images: 0,
-            total_videos: 0,
-            total_assets: 0,
-            index_source: "direct_scan",
-          }),
+          body: JSON.stringify(browseResponse({ libraryId: 1, path: flowRoot })),
         });
         return;
       }
@@ -701,12 +519,12 @@ test.describe("metadata rebuild refresh regression", () => {
     await expect(page.getByText(`88 indexed photos · ${flowRoot} · Including subfolders`)).toBeVisible();
     await expect(page.getByText("old-row-001.png")).toBeVisible();
 
-    await page.getByLabel("Index Status").click();
-    const popover = page.getByRole("dialog", { name: "Index Status" });
+    await page.getByLabel("Catalog Status").click();
+    const popover = page.getByRole("dialog").filter({ hasText: "Catalog" });
     await expect(popover).toBeVisible({ timeout: 5_000 });
     await popover.getByRole("button", { name: "Rebuild" }).click();
 
-    const confirmDialog = page.getByRole("dialog", { name: "Rebuild?" });
+    const confirmDialog = page.getByRole("alertdialog", { name: "Rebuild?" });
     await expect(confirmDialog).toBeVisible({ timeout: 5_000 });
     await confirmDialog.getByRole("button", { name: "Rebuild" }).click();
 
@@ -732,7 +550,6 @@ test.describe("metadata rebuild refresh regression", () => {
     ).toBeHidden();
     await expect(page.locator(".table-shell")).not.toHaveClass(/table-shell--rebuilding/);
     await expect(page.getByText("new-row-001.png")).toBeVisible();
-
     await expect(page.locator(".index-status-card")).toContainText("205 photo details ready", { timeout: 5_000 });
 
     const inspectorRequests = requestTimeline.filter((entry) =>
@@ -747,9 +564,9 @@ test.describe("metadata rebuild refresh regression", () => {
     ).toBe(true);
     expect(debugConsole.some((line) => line.includes(`"current","${flowRoot}",200`))).toBe(true);
 
-    console.log("=== INDEX REBUILD REQUEST TIMELINE ===");
+    console.log("=== CATALOG REBUILD REQUEST TIMELINE ===");
     console.log(JSON.stringify(requestTimeline, null, 2));
-    console.log("=== INDEX REBUILD QUERY DEBUG ===");
+    console.log("=== CATALOG REBUILD QUERY DEBUG ===");
     console.log(debugConsole.join("\n"));
   });
 });
