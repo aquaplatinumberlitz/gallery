@@ -14,7 +14,6 @@ import subprocess
 import sys
 import threading
 import time
-import unicodedata
 from collections.abc import Iterable
 from contextlib import suppress
 from dataclasses import dataclass
@@ -45,6 +44,25 @@ from ..metadata_extract import (
     sanitize_metadata_for_json,
 )
 from ..models import FileNode, VideoFileNode
+from . import path_utils as path_utils
+from .path_utils import (
+    _catalog_paths_overlap as _catalog_paths_overlap,
+)
+from .path_utils import (
+    _compare_natural_sql as _compare_natural_sql,
+)
+from .path_utils import (
+    _natural_sort_parts as _natural_sort_parts,
+)
+from .path_utils import (
+    _path_is_within as _path_is_within,
+)
+from .path_utils import (
+    canonicalize_catalog_path as canonicalize_catalog_path,
+)
+from .path_utils import (
+    catalog_path_contains as catalog_path_contains,
+)
 
 SEARCH_FIELDS = ("name", "prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
 PROMPT_SEARCH_FIELDS = ("prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
@@ -132,59 +150,6 @@ def _database_has_application_tables(conn: sqlite3.Connection) -> bool:
         ).fetchone()
         is not None
     )
-
-
-def canonicalize_catalog_path(path: str | Path) -> str:
-    """Return a stable lexical catalog path without requiring the path to exist."""
-    text = unicodedata.normalize("NFC", str(path)).replace("\\", os.sep)
-    normalized = os.path.normpath(text)
-    if os.name == "nt":
-        drive, tail = os.path.splitdrive(normalized)
-        normalized = drive.lower() + tail
-    return normalized.rstrip(os.sep) if normalized != os.sep else normalized
-
-
-def catalog_path_contains(root: str | Path, candidate: str | Path) -> bool:
-    """Return whether candidate is root or a descendant using path components."""
-    root_text = canonicalize_catalog_path(root)
-    candidate_text = canonicalize_catalog_path(candidate)
-    if candidate_text == root_text:
-        return True
-    root_parts = Path(root_text).parts
-    candidate_parts = Path(candidate_text).parts
-    return len(candidate_parts) > len(root_parts) and candidate_parts[: len(root_parts)] == root_parts
-
-
-def _catalog_paths_overlap(left: str | Path, right: str | Path) -> bool:
-    return catalog_path_contains(left, right) or catalog_path_contains(right, left)
-
-
-def _natural_sort_parts(value: str) -> list[str | int]:
-    parts: list[str | int] = []
-    for part in re.split(r"(\d+)", value):
-        if part.isdigit():
-            parts.append(int(part))
-        else:
-            parts.append(part.lower())
-    return parts
-
-
-def _compare_natural_sql(left: str | None, right: str | None) -> int:
-    left_parts = _natural_sort_parts(left or "")
-    right_parts = _natural_sort_parts(right or "")
-    max_len = max(len(left_parts), len(right_parts))
-    for index in range(max_len):
-        left_part: str | int = left_parts[index] if index < len(left_parts) else ""
-        right_part: str | int = right_parts[index] if index < len(right_parts) else ""
-        if isinstance(left_part, int) and isinstance(right_part, int):
-            if left_part != right_part:
-                return -1 if left_part < right_part else 1
-        else:
-            left_text = str(left_part)
-            right_text = str(right_part)
-            if left_text != right_text:
-                return -1 if left_text < right_text else 1
-    return 0
 
 
 def _connect(*, set_journal_mode: bool = False) -> sqlite3.Connection:
@@ -1038,10 +1003,6 @@ def _ensure_default_library_conn(conn: sqlite3.Connection) -> int:
         (library_id, root_path, now, now),
     )
     return library_id
-
-
-def _path_is_within(path: str, root: str) -> bool:
-    return catalog_path_contains(root, path)
 
 
 def _find_library_for_path_conn(conn: sqlite3.Connection, path: str | Path) -> sqlite3.Row | None:
@@ -5540,3 +5501,4 @@ def get_library_inspector_metadata(path: str | Path) -> dict[str, Any] | None:
         "resources": resources,
         "metadata_detail_available": bool(metadata or row["prompt"] or row["negative_prompt"] or loras or resources),
     }
+
