@@ -23,19 +23,19 @@ from pathlib import Path
 from typing import Any
 
 if not __package__:
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    __package__ = "backend"
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    __package__ = "backend.metadata_store"
 
-from .albums import build_album_metadata
-from .config import (
+from ..albums import build_album_metadata
+from ..config import (
     ENABLE_WARM_INDEXED_LISTING,
     GALLERY_CATALOG_WRITE_BATCH_SIZE,
     GALLERY_METADATA_DB,
     PATH_SAFETY_ROOT,
     THUMBNAIL_CACHE_DIR,
 )
-from .files import asset_type_for_path, is_asset_path, is_image_path, is_index_excluded_path
-from .metadata_extract import (
+from ..files import asset_type_for_path, is_asset_path, is_image_path, is_index_excluded_path
+from ..metadata_extract import (
     ExtractedMetadata,
     contains_cjk,
     extract_metadata,
@@ -44,7 +44,7 @@ from .metadata_extract import (
     safe_text,
     sanitize_metadata_for_json,
 )
-from .models import FileNode, VideoFileNode
+from ..models import FileNode, VideoFileNode
 
 SEARCH_FIELDS = ("name", "prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
 PROMPT_SEARCH_FIELDS = ("prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
@@ -1334,7 +1334,7 @@ def create_or_coalesce_catalog_job(
                 )
 
             def _emit_cancelled(job_id: int) -> None:
-                from .library_events import event_payload, publish
+                from ..library_events import event_payload, publish
 
                 cancelled = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (job_id,)).fetchone()
                 if cancelled is not None:
@@ -2634,7 +2634,7 @@ def _catalog_browse_path_conn(
         """,
         (int(library["id"]), scope_path),
     ).fetchall()
-    from .files import natural_sort_key
+    from ..files import natural_sort_key
 
     folder_rows = sorted(
         (row for row in rows if row["type"] == "folder"), key=lambda row: natural_sort_key(row["name"])
@@ -2794,7 +2794,7 @@ def get_asset_folder_listing(
             # Bootstrap compatibility: the first request seeds both catalogs;
             # subsequent requests for this folder are DB-backed.
             return None
-        from .files import natural_sort_key
+        from ..files import natural_sort_key
 
         folder_rows = sorted(
             (row for row in rows if row["type"] == "folder"), key=lambda row: natural_sort_key(row["name"])
@@ -3684,7 +3684,7 @@ def get_warm_folder_listing(
         )
 
         # Sort in Python with natural_sort_key to match direct scan order
-        from .files import natural_sort_key
+        from ..files import natural_sort_key
 
         raw_folders.sort(key=lambda x: natural_sort_key(x["name"]))
         raw_images.sort(key=lambda x: natural_sort_key(x["name"]))
@@ -4835,7 +4835,7 @@ def _search_fielded_photos(
 
     Falls back to LIKE on fi.name when FTS returns zero rows.
     """
-    from .fielded_search_parser import (
+    from ..fielded_search_parser import (
         ParsedQuery,
         build_fielded_conditions,
     )
@@ -4909,7 +4909,7 @@ def search_index_fielded(
     query: str, scope: str, root_path: str | Path | None = None, limit: int = 50
 ) -> dict[str, Any]:
     """Search indexed albums and photos with structured field filters."""
-    from .fielded_search_parser import (
+    from ..fielded_search_parser import (
         build_fielded_search_sql,
         parse_fielded_query,
     )
@@ -5345,7 +5345,7 @@ def list_library_inspector_rows(
     cursor: str | None = None,
 ) -> dict[str, Any]:
     """Return bounded DB/index-backed rows for the read-only Library Inspector."""
-    from .fielded_search_parser import build_fielded_conditions, parse_fielded_query
+    from ..fielded_search_parser import build_fielded_conditions, parse_fielded_query
 
     initialize_database()
     trimmed = query.strip()
