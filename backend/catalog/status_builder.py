@@ -477,7 +477,7 @@ def _metadata_counts_for_scope(conn: Any, library_id: int, scope_path: str | Non
         f"""
         SELECT
           count(*) AS total,
-          sum(CASE WHEN a.metadata_state = 'done' THEN 1 ELSE 0 END) AS ready,
+          sum(CASE WHEN a.metadata_state = 'done' AND im.path IS NOT NULL THEN 1 ELSE 0 END) AS ready,
           sum(CASE
                 WHEN a.metadata_state != 'done'
                  AND COALESCE(mij.state, '') = 'queued'
@@ -495,6 +495,8 @@ def _metadata_counts_for_scope(conn: Any, library_id: int, scope_path: str | Non
                   OR COALESCE(mij.state, '') = 'failed'
                 THEN 1 ELSE 0 END) AS failed
         FROM assets AS a
+        LEFT JOIN image_metadata AS im
+          ON im.path = a.path AND im.mtime_ns = a.mtime_ns AND im.size = a.size
         LEFT JOIN ({_latest_metadata_jobs_sql()}) AS mij
           ON mij.path = a.path AND mij.size = a.size AND mij.mtime_ns = a.mtime_ns
         WHERE a.library_id = ?
@@ -524,7 +526,7 @@ def _batch_metadata_counts(conn: Any, library_ids: list[int]) -> dict[int, dict[
         SELECT
           a.library_id,
           count(*) AS total,
-          sum(CASE WHEN a.metadata_state = 'done' THEN 1 ELSE 0 END) AS ready,
+          sum(CASE WHEN a.metadata_state = 'done' AND im.path IS NOT NULL THEN 1 ELSE 0 END) AS ready,
           sum(CASE
                 WHEN a.metadata_state != 'done'
                  AND COALESCE(mij.state, '') = 'queued'
@@ -542,6 +544,8 @@ def _batch_metadata_counts(conn: Any, library_ids: list[int]) -> dict[int, dict[
                   OR COALESCE(mij.state, '') = 'failed'
                 THEN 1 ELSE 0 END) AS failed
         FROM assets AS a
+        LEFT JOIN image_metadata AS im
+          ON im.path = a.path AND im.mtime_ns = a.mtime_ns AND im.size = a.size
         LEFT JOIN ({_latest_metadata_jobs_sql()}) AS mij
           ON mij.path = a.path AND mij.size = a.size AND mij.mtime_ns = a.mtime_ns
         WHERE a.library_id IN ({placeholders})
