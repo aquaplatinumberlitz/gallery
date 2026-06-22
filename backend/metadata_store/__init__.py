@@ -15,7 +15,6 @@ import sys
 import time
 from collections.abc import Iterable
 from contextlib import suppress
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -108,47 +107,29 @@ from .path_utils import (
 from .path_utils import (
     catalog_path_contains as catalog_path_contains,
 )
+from .types import (
+    CachedDimensions as CachedDimensions,
+)
+from .types import (
+    CatalogBrowseScopeError as CatalogBrowseScopeError,
+)
+from .types import (
+    CatalogJobConflict as CatalogJobConflict,
+)
+from .types import (
+    LibraryOverlapError as LibraryOverlapError,
+)
+from .types import (
+    MetadataIndexJob as MetadataIndexJob,
+)
+from .types import (
+    MetadataQueueResult as MetadataQueueResult,
+)
 
 SEARCH_FIELDS = ("name", "prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
 PROMPT_SEARCH_FIELDS = ("prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
 CATALOG_SCHEMA_VERSION = 9
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class CachedDimensions:
-    """Cached image dimensions keyed by path, mtime, and size."""
-
-    width: int
-    height: int
-
-
-@dataclass(frozen=True)
-class MetadataIndexJob:
-    """Durable metadata indexing job for one image file version."""
-
-    path: str
-    name: str
-    parent_path: str
-    mtime: float
-    size: int
-    folder_path: str
-    root_path: str
-
-    @property
-    def key(self) -> tuple[str, float, int]:
-        """Return the in-memory deduplication key for this file version."""
-        return (self.path, self.mtime, self.size)
-
-
-@dataclass(frozen=True)
-class MetadataQueueResult:
-    """Summary of metadata jobs queued, coalesced, skipped, or failed."""
-
-    enqueued: list[MetadataIndexJob]
-    coalesced: int = 0
-    skipped: int = 0
-    failed: int = 0
 
 
 def _v9_backup_path() -> Path:
@@ -1215,15 +1196,6 @@ def _serialize_catalog_enqueue_result(job: sqlite3.Row, created: bool) -> tuple[
     return _serialize_library_job(job), created
 
 
-class CatalogJobConflict(Exception):
-    """Raised when a catalog request conflicts with already-active catalog work."""
-
-    def __init__(self, active_job: dict[str, Any]) -> None:
-        """Store the conflicting active job for API-layer 409 rendering."""
-        self.active_job = active_job
-        super().__init__("Catalog work is already active for this library.")
-
-
 def create_or_coalesce_catalog_job(
     library_id: int,
     *,
@@ -1705,14 +1677,6 @@ def get_first_library_root() -> Path | None:
             """
         ).fetchone()
         return Path(row["path"]).resolve() if row else None
-
-
-class LibraryOverlapError(ValueError):
-    """Raised when an import path overlaps another registered library."""
-
-
-class CatalogBrowseScopeError(ValueError):
-    """Raised when a browse request points outside the selected library."""
 
 
 def _assert_no_import_path_overlap_conn(
