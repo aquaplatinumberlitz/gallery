@@ -101,7 +101,7 @@ describe("useLibraryMutations invalidation", () => {
     wrapper.unmount();
   });
 
-  it("invalidates progress, job, and status queries after scan", async () => {
+  it("invalidates progress, job, status, and browse queries after scan", async () => {
     const { invalidate, mutations, wrapper } = setup();
 
     await mutations.scanMutation.mutateAsync({ id: 3 });
@@ -112,6 +112,8 @@ describe("useLibraryMutations invalidation", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusLibrary(3) });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusPathRoot(3) });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusBatch() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.browseRoot(3) });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.browseInfiniteRoot(3) });
     wrapper.unmount();
   });
 

@@ -343,3 +343,42 @@ Legacy repair tests were replaced with equivalent scan/rebuild coverage.
 At Phase 8 handoff, `_opencode_phase8_prompt.txt` remains an untracked local
 prompt file. It was intentionally excluded from the Phase 8 commits. The
 earlier `_codex_phase7_prompt.txt` from Phase 7 also remains untracked.
+
+## Follow-up Audit Fixes
+
+Applied after Phase 8 against audit findings on the unified status contract
+and pipeline edge cases.
+
+### Fix 1: backend ready_assets current-metadata guard
+
+Commit `c3042a1 fix: require current image_metadata row for ready_assets in
+status builder`. `status_builder.py` now joins `image_metadata` on
+`path + mtime_ns + size` when counting `ready_assets`, so stale metadata rows
+no longer inflate the ready count. Coverage added in
+`backend/tests/test_catalog_status_ready_assets.py`.
+
+### Fix 2: frontend contract guard nested field validation
+
+Commit `4c5a3f7 fix: add nested field validation to status contract guard`.
+`contractGuard.ts` now rejects missing `metadata.total_assets`, invalid
+`summary_state` strings, missing `scan.state`, and missing `scope.library_id`.
+Negative coverage added in `frontend/src/lib/catalog/__tests__/contractGuard.test.ts`.
+
+### Fix 3: dead repair mutation and types cleanup
+
+Commit `7c5ce11 cleanup: remove dead repair mutation and types`. Removed the
+orphaned `repairLibrary` mutation, `LibraryRepair*` types, and the matching
+API client surface that were left behind when Phase 5 deleted the backend
+repair endpoint.
+
+### Fix 4: component-level tests for catalog status edge states
+
+Commit `test: add component-level tests for catalog status edge states`.
+Added `frontend/src/components/__tests__/IndexStatusDetailsPopover.test.ts`
+covering `ready`, `ready_with_issues` with `issue_count > 0`, `offline` when
+availability is unavailable, `metadata.global_active_outside_scope = true`,
+non-null `latest_issue` message render, and the
+`STATUS_CONTRACT_ERROR_MESSAGE` ("App updated, please reload") contract error
+branch. Extended `useLibraryMutations.test.ts` to assert that `scanMutation`
+also invalidates `browseRoot` and `browseInfiniteRoot`, matching the
+implementation.
