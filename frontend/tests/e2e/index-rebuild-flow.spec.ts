@@ -558,9 +558,9 @@ test.describe("metadata rebuild refresh regression", () => {
     expect(inspectorRequests.every((entry) => entry.scope === "current")).toBe(true);
     expect(inspectorRequests.every((entry) => entry.path === flowRoot)).toBe(true);
     expect(debugConsole.some((line) => line.includes("inspector-refetch"))).toBe(true);
-    expect(
-      debugConsole.some((line) => line.includes('"activeLibraryInspectorQueryKey":["library-inspector"')),
-    ).toBe(true);
+    expect(debugConsole.some((line) => line.includes('"activeLibraryInspectorQueryKey":["library-inspector"'))).toBe(
+      true,
+    );
     expect(debugConsole.some((line) => line.includes(`"current","${flowRoot}",200`))).toBe(true);
 
     console.log("=== CATALOG REBUILD REQUEST TIMELINE ===");
