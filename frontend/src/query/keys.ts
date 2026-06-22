@@ -34,16 +34,12 @@ export const queryKeys = {
 
   job: (id: number) => ["jobs", id] as const,
 
-  scan: (path: string, limit: number) => ["scan", normalizeQueryPath(path), limit] as const,
-
   browseRoot: (libraryId: number) => ["browse", libraryId] as const,
 
   browse: (libraryId: number, path: string | null | undefined, limit: number, includeOffline = false) =>
     ["browse", libraryId, normalizeBrowsePath(path), limit, includeOffline] as const,
 
   folderChildren: (path: string) => ["folder-children", normalizeQueryPath(path)] as const,
-
-  scanInfinite: (path: string, limit: number) => ["scan-infinite", normalizeQueryPath(path), limit] as const,
 
   browseInfiniteRoot: (libraryId: number) => ["browse-infinite", libraryId] as const,
 

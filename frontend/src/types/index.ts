@@ -101,7 +101,7 @@ export interface MetadataResponse {
   error?: string;
 }
 
-export interface ScanResponse {
+export interface BrowseResponse {
   folders: FolderTreeNode[];
   media: FileNode[];
   next_media_cursor: number | null;
@@ -109,15 +109,10 @@ export interface ScanResponse {
   total_images: number;
   total_videos: number;
   total_assets: number;
-  request_path?: string | null;
-  index_source?: "warm_db" | "direct_scan" | "mixed" | "catalog";
-}
-
-export interface BrowseResponse extends ScanResponse {
-  library_id: number;
-  path: string | null;
   request_path: string | null;
   index_source: "catalog";
+  library_id: number;
+  path: string | null;
 }
 
 export type FolderChildrenResponse = FolderTreeNode[];

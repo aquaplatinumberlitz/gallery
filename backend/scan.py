@@ -1,4 +1,4 @@
-"""Authorize media file paths for serving under the registered-library security model.
+"""Authorize media file paths for serving under the PATH_SAFETY_ROOT containment model.
 
 The legacy ``GET /api/scan`` route, ``scan_directory`` filesystem fallback, and
 ``GALLERY_DB_REQUIRED`` conditional branches were removed in Phase 9 of the
