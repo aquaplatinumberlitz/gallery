@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { IndexStatusPresentation } from "@/utils/indexStatus";
+import type { CatalogStatusPresentation } from "@/lib/catalog/labels";
 
 defineProps<{
-  presentation: IndexStatusPresentation;
+  presentation: CatalogStatusPresentation;
 }>();
 </script>
 

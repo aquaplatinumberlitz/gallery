@@ -25,4 +25,14 @@ describe("library management query keys", () => {
     expect(queryKeys.browseInfiniteRoot(7)).toEqual(["browse-infinite", 7]);
     expect(queryKeys.browseInfinite(7, "/photos", 100, true)).toEqual(["browse-infinite", 7, "/photos", 100, true]);
   });
+
+  it("builds catalog status keys", () => {
+    expect(queryKeys.statusRoot()).toEqual(["status"]);
+    expect(queryKeys.statusBatch()).toEqual(["status", "libraries", "batch"]);
+    expect(queryKeys.statusLibrary(7)).toEqual(["status", "library", 7]);
+    expect(queryKeys.statusPathRoot(7)).toEqual(["status", "path", 7]);
+    expect(queryKeys.statusPath(7, "/photos/")).toEqual(["status", "path", 7, "/photos"]);
+    expect(queryKeys.statusPath(7, null)).toEqual(["status", "path", 7, null]);
+    expect(queryKeys.statusPath(7, "")).toEqual(["status", "path", 7, null]);
+  });
 });

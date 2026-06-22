@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
-import { ArrowLeft, Copy, Images, Pencil, Play, RefreshCw, Trash2, Wrench, AlertTriangle } from "lucide-vue-next";
+import { ArrowLeft, Copy, Images, Pencil, Play, RefreshCw, Trash2, AlertTriangle } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import ButtonLink from "@/components/ui/ButtonLink.vue";
 import Separator from "@/components/ui/Separator.vue";
@@ -10,12 +10,15 @@ import { useLibrariesQuery } from "@/composables/admin/useLibrariesQuery";
 import { useLibraryEvents } from "@/composables/admin/useLibraryEvents";
 import { useLibraryJobsQuery } from "@/composables/admin/useLibraryJobsQuery";
 import { useLibraryMutations } from "@/composables/admin/useLibraryMutations";
-import { useLibraryProgressQuery } from "@/composables/admin/useLibraryProgressQuery";
+import { useCatalogStatusQuery } from "@/composables/useCatalogStatusQuery";
 import { useLibraryQuery } from "@/composables/admin/useLibraryQuery";
 import { useLibraryStatsQuery } from "@/composables/admin/useLibraryStatsQuery";
 import { useToast } from "@/composables/useToast";
 import { useGalleryStore } from "@/stores/gallery";
 import { formatAssetCount, formatLibraryTimestamp } from "@/utils/libraryStatus";
+import { getCatalogStatusPresentation } from "@/lib/catalog/labels";
+import { STATUS_CONTRACT_ERROR_MESSAGE } from "@/lib/catalog/contractGuard";
+import type { UnifiedStatus } from "@/lib/catalog/status";
 import LibraryProgressBar from "./LibraryProgressBar.vue";
 import LibraryStatusBadge from "./LibraryStatusBadge.vue";
 import LibraryEditDialog from "./dialogs/LibraryEditDialog.vue";
@@ -27,17 +30,62 @@ const toast = useToast();
 const galleryStore = useGalleryStore();
 const libraryId = computed(() => (Number.isFinite(props.id) && props.id > 0 ? props.id : null));
 const libraryQuery = useLibraryQuery(libraryId);
-const progressQuery = useLibraryProgressQuery(libraryId);
+const statusQuery = useCatalogStatusQuery(libraryId);
 const statsQuery = useLibraryStatsQuery(libraryId);
 const jobsQuery = useLibraryJobsQuery(libraryId);
 const librariesQuery = useLibrariesQuery();
-const { scanMutation, repairMutation, unregisterMutation } = useLibraryMutations();
+const { scanMutation, unregisterMutation } = useLibraryMutations();
 useLibraryEvents();
 
 const editOpen = ref(false);
 const deleteOpen = ref(false);
 const library = computed(() => libraryQuery.data.value ?? null);
-const busy = computed(() => scanMutation.isPending.value || repairMutation.isPending.value);
+const status = computed<UnifiedStatus | null>(() => statusQuery.data.value?.status ?? null);
+const busy = computed(() => scanMutation.isPending.value);
+const statusContractError = computed(() => Boolean(statusQuery.contractError.value));
+
+const availabilityLabel = computed(() => {
+  const state = status.value?.availability.state;
+  if (!state) return "Unknown";
+  return state.charAt(0).toUpperCase() + state.slice(1);
+});
+
+const scanStateLabel = computed(() => {
+  const state = status.value?.scan.state;
+  if (!state) return "Unknown";
+  return state.charAt(0).toUpperCase() + state.slice(1);
+});
+
+const metadataStateLabel = computed(() => {
+  const state = status.value?.metadata.state;
+  if (!state) return "Unknown";
+  return state.charAt(0).toUpperCase() + state.slice(1);
+});
+
+const scanProgressLabel = computed(() => {
+  const scan = status.value?.scan;
+  if (!scan) return "";
+  if (scan.state === "queued" || scan.state === "scanning") {
+    const completed = scan.completed_units ?? 0;
+    if (scan.total_units !== null) {
+      return `${formatAssetCount(completed)} / ${formatAssetCount(scan.total_units)} units`;
+    }
+    return `${formatAssetCount(completed)} units`;
+  }
+  return "";
+});
+
+const issueBreakdown = computed(() => {
+  const issues = status.value?.issues;
+  if (!issues) return [];
+  return [
+    { label: "Availability", count: issues.availability },
+    { label: "File scan", count: issues.scan },
+    { label: "Metadata", count: issues.metadata },
+  ];
+});
+
+const latestIssue = computed(() => status.value?.latest_issue ?? null);
 
 function formatBytes(bytes?: number): string {
   if (!bytes) return "0 B";
@@ -69,6 +117,10 @@ async function confirmUnregister() {
 function jobProgress(current: number, total: number | null): string {
   return total && total > 0 ? `${formatAssetCount(current)} / ${formatAssetCount(total)}` : formatAssetCount(current);
 }
+
+function estimatedAssets(): number | undefined {
+  return status.value?.metadata.total_assets ?? library.value?.asset_count;
+}
 </script>
 
 <template>
@@ -97,29 +149,42 @@ function jobProgress(current: number, total: number | null): string {
           <div class="min-w-0">
             <div class="flex flex-wrap items-center gap-3">
               <h2 id="library-heading" class="truncate text-2xl font-semibold tracking-tight">{{ library.name }}</h2>
-              <LibraryStatusBadge :library="library" :progress="progressQuery.data.value" />
+              <LibraryStatusBadge :status="status" />
             </div>
-            <p class="mt-1 truncate font-mono text-xs text-muted-foreground" :title="library.root_path">
-              {{ library.root_path }}
+            <p class="mt-1 truncate font-mono text-xs text-muted-foreground" :title="library.import_paths[0]?.path">
+              {{ library.import_paths[0]?.path ?? library.root_path }}
             </p>
           </div>
           <div class="flex flex-wrap gap-2">
             <Button variant="outline" @click="useInGallery"> <Images /> Use in gallery </Button>
             <Button variant="outline" @click="editOpen = true"> <Pencil /> Edit </Button>
-            <Button variant="outline" :disabled="busy" @click="scanMutation.mutate(library.id)"> <Play /> Scan </Button>
-            <Button variant="outline" :disabled="busy" @click="repairMutation.mutate(library.id)">
-              <Wrench /> Repair
+            <Button variant="outline" :disabled="busy" @click="scanMutation.mutate({ id: library.id })">
+              <Play /> Scan
             </Button>
             <Button variant="destructive" @click="deleteOpen = true"> <Trash2 /> Unregister </Button>
           </div>
         </header>
 
-        <section v-if="library.last_error" class="rounded-md border border-destructive/40 bg-destructive/10 p-4">
+        <div
+          v-if="statusContractError"
+          class="rounded-md border border-amber-500/40 bg-amber-500/10 p-4 text-sm"
+          role="status"
+        >
+          {{ STATUS_CONTRACT_ERROR_MESSAGE }}
+        </div>
+
+        <section
+          v-if="latestIssue && !statusContractError"
+          class="rounded-md border border-destructive/40 bg-destructive/10 p-4"
+        >
           <div class="flex gap-3">
             <AlertTriangle class="mt-0.5 size-5 text-destructive" />
             <div>
-              <h3 class="font-medium text-destructive">Last error</h3>
-              <p class="mt-1 whitespace-pre-wrap text-sm">{{ library.last_error }}</p>
+              <h3 class="font-medium text-destructive">{{ latestIssue.source }} issue</h3>
+              <p class="mt-1 whitespace-pre-wrap text-sm">{{ latestIssue.message }}</p>
+              <p v-if="latestIssue.path" class="mt-1 truncate font-mono text-xs text-muted-foreground">
+                {{ latestIssue.path }}
+              </p>
             </div>
           </div>
         </section>
@@ -128,17 +193,63 @@ function jobProgress(current: number, total: number | null): string {
           <section class="rounded-md border bg-background p-5">
             <div class="flex items-center justify-between gap-3">
               <h3 class="font-semibold">Status and progress</h3>
-              <Button variant="ghost" size="icon" aria-label="Refresh progress" @click="progressQuery.refetch()">
+              <Button variant="ghost" size="icon" aria-label="Refresh status" @click="statusQuery.refetch()">
                 <RefreshCw />
               </Button>
             </div>
-            <div class="mt-5"><LibraryProgressBar :progress="progressQuery.data.value" /></div>
-            <p v-if="progressQuery.data.value" class="mt-3 text-xs text-muted-foreground">
-              {{ progressQuery.data.value.discovery_complete ? "Discovery complete" : "Discovery in progress"
-              }}<span v-if="progressQuery.data.value.active_job_id">
-                · Job #{{ progressQuery.data.value.active_job_id }}</span
-              >
-            </p>
+            <div class="mt-5 space-y-4">
+              <dl class="grid gap-3 text-sm">
+                <div class="flex items-center justify-between gap-3">
+                  <dt class="text-muted-foreground">Summary</dt>
+                  <dd class="font-medium">{{ getCatalogStatusPresentation(status?.summary_state ?? null).label }}</dd>
+                </div>
+                <div class="flex items-center justify-between gap-3">
+                  <dt class="text-muted-foreground">Availability</dt>
+                  <dd class="font-medium">
+                    {{ availabilityLabel }}
+                    <span v-if="status" class="text-muted-foreground">
+                      ({{ status.availability.available_paths }}/{{ status.availability.total_paths }} paths)
+                    </span>
+                  </dd>
+                </div>
+                <div class="flex items-center justify-between gap-3">
+                  <dt class="text-muted-foreground">File scan</dt>
+                  <dd class="font-medium">
+                    {{ scanStateLabel }}
+                    <span v-if="scanProgressLabel" class="text-muted-foreground"> · {{ scanProgressLabel }}</span>
+                  </dd>
+                </div>
+                <div class="flex items-center justify-between gap-3">
+                  <dt class="text-muted-foreground">Metadata</dt>
+                  <dd class="font-medium">
+                    {{ metadataStateLabel }}
+                    <span v-if="status && status.metadata.total_assets !== null" class="text-muted-foreground">
+                      · {{ formatAssetCount(status.metadata.ready_assets ?? 0) }} /
+                      {{ formatAssetCount(status.metadata.total_assets) }} ready
+                    </span>
+                  </dd>
+                </div>
+              </dl>
+              <LibraryProgressBar :status="status" />
+            </div>
+          </section>
+
+          <section class="rounded-md border bg-background p-5">
+            <h3 class="font-semibold">Issues</h3>
+            <div v-if="status" class="mt-4 space-y-3">
+              <div class="grid grid-cols-3 gap-4 text-sm">
+                <div v-for="issue in issueBreakdown" :key="issue.label">
+                  <p class="text-xs text-muted-foreground">{{ issue.label }}</p>
+                  <p class="text-xl font-semibold" :class="issue.count > 0 ? 'text-destructive' : ''">
+                    {{ issue.count }}
+                  </p>
+                </div>
+              </div>
+              <p class="text-xs text-muted-foreground">
+                Total issues: <span class="font-medium text-foreground">{{ status.issue_count }}</span>
+              </p>
+            </div>
+            <Skeleton v-else class="mt-4 h-24 w-full" />
           </section>
 
           <section class="rounded-md border bg-background p-5">
@@ -239,7 +350,7 @@ function jobProgress(current: number, total: number | null): string {
         <section class="rounded-md border bg-background p-5">
           <h3 class="font-semibold">Catalog lifecycle</h3>
           <Separator class="my-4" />
-          <dl class="grid gap-4 text-sm sm:grid-cols-3">
+          <dl class="grid gap-4 text-sm sm:grid-cols-4">
             <div>
               <dt class="text-muted-foreground">Created</dt>
               <dd class="mt-1">{{ formatLibraryTimestamp(library.created_at) }}</dd>
@@ -250,7 +361,11 @@ function jobProgress(current: number, total: number | null): string {
             </div>
             <div>
               <dt class="text-muted-foreground">Last scan</dt>
-              <dd class="mt-1">{{ formatLibraryTimestamp(library.last_scan_at) }}</dd>
+              <dd class="mt-1">{{ formatLibraryTimestamp(status?.last_scan_at ?? library.last_scan_at) }}</dd>
+            </div>
+            <div>
+              <dt class="text-muted-foreground">Last index</dt>
+              <dd class="mt-1">{{ formatLibraryTimestamp(status?.last_index_at ?? null) }}</dd>
             </div>
           </dl>
         </section>
@@ -266,7 +381,7 @@ function jobProgress(current: number, total: number | null): string {
     <LibraryDeleteConfirmDialog
       v-model:open="deleteOpen"
       :library="library"
-      :estimated-assets="progressQuery.data.value?.estimated_assets"
+      :estimated-assets="estimatedAssets()"
       :pending="unregisterMutation.isPending.value"
       @confirm="confirmUnregister"
     />

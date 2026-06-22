@@ -7,6 +7,7 @@ import { queryKeys } from "@/query/keys";
 import {
   createLibrary,
   deleteLibrary,
+  rebuildLibrary,
   repairLibrary,
   scanAllLibraries,
   scanLibrary,
@@ -27,6 +28,7 @@ vi.mock("@/services/api", async () => {
     ...actual,
     createLibrary: vi.fn(),
     deleteLibrary: vi.fn(),
+    rebuildLibrary: vi.fn(),
     repairLibrary: vi.fn(),
     scanAllLibraries: vi.fn(),
     scanLibrary: vi.fn(),
@@ -56,7 +58,24 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(createLibrary).mockResolvedValue({ id: 3 } as Awaited<ReturnType<typeof createLibrary>>);
   vi.mocked(updateLibrary).mockResolvedValue({ id: 3 } as Awaited<ReturnType<typeof updateLibrary>>);
-  vi.mocked(scanLibrary).mockResolvedValue({ library_id: 3, job_id: 8, state: "queued" });
+  vi.mocked(scanLibrary).mockResolvedValue({
+    library_id: 3,
+    job_id: 8,
+    scope_path: null,
+    operation: "scan",
+    trigger: "manual",
+    state: "queued",
+    coalesced: false,
+  });
+  vi.mocked(rebuildLibrary).mockResolvedValue({
+    library_id: 3,
+    job_id: 14,
+    scope_path: null,
+    operation: "rebuild",
+    trigger: "manual",
+    state: "queued",
+    coalesced: false,
+  });
   vi.mocked(scanAllLibraries).mockResolvedValue({ job_id: 9, state: "queued", count: 0, child_job_ids: [] });
   vi.mocked(repairLibrary).mockResolvedValue({ library_id: 3, added: 1, removed: 0, modified: 0 });
   vi.mocked(deleteLibrary).mockResolvedValue();
@@ -85,14 +104,30 @@ describe("useLibraryMutations invalidation", () => {
     wrapper.unmount();
   });
 
-  it("invalidates progress and job queries after scan", async () => {
+  it("invalidates progress, job, and status queries after scan", async () => {
     const { invalidate, mutations, wrapper } = setup();
 
-    await mutations.scanMutation.mutateAsync(3);
+    await mutations.scanMutation.mutateAsync({ id: 3 });
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.libraryProgress(3) });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.libraryJobs(3) });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.jobsRoot() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusLibrary(3) });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusPathRoot(3) });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusBatch() });
+    wrapper.unmount();
+  });
+
+  it("invalidates status and browse queries after rebuild", async () => {
+    const { invalidate, mutations, wrapper } = setup();
+
+    await mutations.rebuildMutation.mutateAsync({ id: 3 });
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusLibrary(3) });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusPathRoot(3) });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusBatch() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.browseRoot(3) });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.browseInfiniteRoot(3) });
     wrapper.unmount();
   });
 
@@ -107,12 +142,13 @@ describe("useLibraryMutations invalidation", () => {
     wrapper.unmount();
   });
 
-  it("invalidates global jobs after scan-all", async () => {
+  it("invalidates global jobs and status root after scan-all", async () => {
     const { invalidate, mutations, wrapper } = setup();
 
     await mutations.scanAllMutation.mutateAsync();
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.jobsRoot() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusRoot() });
     wrapper.unmount();
   });
 });

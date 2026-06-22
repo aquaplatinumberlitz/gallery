@@ -34,6 +34,7 @@ export function useLibraryEvents() {
       queryClient.invalidateQueries({ queryKey: queryKeys.jobsRoot() }),
       queryClient.invalidateQueries({ queryKey: queryKeys.libraries() }),
       queryClient.invalidateQueries({ queryKey: queryKeys.galleryStats() }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.statusRoot() }),
     ];
 
     if (payload.job_id) {
@@ -47,6 +48,8 @@ export function useLibraryEvents() {
         queryClient.invalidateQueries({ queryKey: queryKeys.libraryJobs(payload.library_id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.browseRoot(payload.library_id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.browseInfiniteRoot(payload.library_id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.statusLibrary(payload.library_id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.statusPathRoot(payload.library_id) }),
       );
     }
     await Promise.all(invalidations);

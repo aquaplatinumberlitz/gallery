@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useClipboard } from "@/composables/useClipboard";
-import { useIndexStatusQuery } from "@/composables/useIndexStatusQuery";
+import { useCatalogStatusQuery } from "@/composables/useCatalogStatusQuery";
 import { useToast } from "@/composables/useToast";
 import { useLibraryInspectorMetadataQuery } from "@/composables/useLibraryInspectorMetadataQuery";
 import { useInfiniteLibraryInspectorQuery } from "@/composables/useInfiniteLibraryInspectorQuery";
@@ -37,7 +37,6 @@ import { queryKeys } from "@/query/keys";
 import { clearScopeRebuildMarker, getScopeRebuildStartedAt } from "@/utils/indexMaintenance";
 import { logIndexRebuildDebug } from "@/debug/indexRebuildDebug";
 import { logLightboxNavDebug, summarizeLightboxItems } from "@/debug/lightboxNavDebug";
-import { hasActiveIndexWork, hasQueuedIndexWork } from "@/utils/indexStatus";
 import type {
   FileNode,
   LibraryInspectorMetadataResponse,
@@ -112,12 +111,17 @@ const rebuildStartedAt = computed(() => (scope.value === "current" ? getScopeReb
 const indexStatusEnabled = computed(
   () => scope.value === "current" && Boolean(currentPath.value) && Boolean(rebuildStartedAt.value),
 );
-const indexStatusQuery = useIndexStatusQuery(currentPath, indexStatusEnabled);
+const activeLibraryIdRef = computed(() => galleryStore.activeLibraryId ?? null);
+const indexStatusQuery = useCatalogStatusQuery(activeLibraryIdRef, currentPath, indexStatusEnabled);
 const rebuildMarkerFirstSeenAtMs = ref(0);
-const statusMetadataRecords = computed(() => indexStatusQuery.data.value?.metadata_records ?? null);
-const indexStatusHasPendingWork = computed(
-  () => hasActiveIndexWork(indexStatusQuery.data.value) || hasQueuedIndexWork(indexStatusQuery.data.value),
-);
+const statusMetadataRecords = computed(() => indexStatusQuery.data.value?.status.metadata.ready_assets ?? null);
+const indexStatusHasPendingWork = computed(() => {
+  const status = indexStatusQuery.data.value?.status;
+  if (!status) return false;
+  if (status.scan.state === "queued" || status.scan.state === "scanning") return true;
+  if (status.metadata.state === "queued" || status.metadata.state === "indexing") return true;
+  return false;
+});
 const isInspectorPlaceholderData = computed(() => inspectorQuery.isPlaceholderData.value);
 const inspectorSnapshotIsAfterRebuild = computed(() => {
   const startedAt = rebuildStartedAt.value;
@@ -186,7 +190,7 @@ function maybeClearRebuildMarker() {
     rebuild_started_at: rebuildStartedAt.value,
     inspector_total_indexed: inspectorQuery.data.value.total_indexed,
     status_metadata_records: statusMetadataRecords.value,
-    status_updated_at: indexStatusQuery.data.value?.updated_at ?? null,
+    status_updated_at: indexStatusQuery.data.value?.status.generated_at ?? null,
   });
   clearScopeRebuildMarker(currentPath.value, inspectorQuery.data.value.generated_at);
 }

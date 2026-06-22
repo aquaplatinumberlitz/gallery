@@ -1,28 +1,29 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { useLibraryProgressQuery } from "@/composables/admin/useLibraryProgressQuery";
-import { useLibraryStatsQuery } from "@/composables/admin/useLibraryStatsQuery";
 import { formatAssetCount } from "@/utils/libraryStatus";
 import LibraryProgressBar from "./LibraryProgressBar.vue";
-import Skeleton from "@/components/ui/skeleton/Skeleton.vue";
+import type { UnifiedStatus } from "@/lib/catalog/status";
 
-const props = defineProps<{ libraryId: number }>();
-const id = computed(() => props.libraryId);
-const statsQuery = useLibraryStatsQuery(id);
-const progressQuery = useLibraryProgressQuery(id);
+const props = defineProps<{ status?: UnifiedStatus | null }>();
+
+const totalAssets = computed(() => props.status?.metadata.total_assets ?? null);
+const readyAssets = computed(() => props.status?.metadata.ready_assets ?? null);
+const failedAssets = computed(() => props.status?.metadata.failed_assets ?? 0);
+const issueCount = computed(() => props.status?.issue_count ?? 0);
 </script>
 
 <template>
   <div class="min-w-40 space-y-2">
-    <template v-if="statsQuery.data.value">
-      <div class="text-sm font-medium">{{ formatAssetCount(statsQuery.data.value.total_assets) }} assets</div>
+    <template v-if="status">
+      <div class="text-sm font-medium">{{ formatAssetCount(totalAssets ?? 0) }} assets</div>
       <div class="text-xs text-muted-foreground">
-        {{ formatAssetCount(statsQuery.data.value.photos) }} photos ·
-        {{ formatAssetCount(statsQuery.data.value.videos) }} videos
+        {{ formatAssetCount(readyAssets ?? 0) }} ready<span v-if="failedAssets > 0">
+          · {{ formatAssetCount(failedAssets) }} failed</span
+        >
       </div>
+      <div v-if="issueCount > 0" class="text-xs text-destructive">{{ issueCount }} issue(s)</div>
     </template>
-    <Skeleton v-else-if="statsQuery.isPending.value" class="h-9 w-36" />
-    <span v-else class="text-xs text-destructive">Stats unavailable</span>
-    <LibraryProgressBar :progress="progressQuery.data.value" compact />
+    <span v-else class="text-xs text-muted-foreground">Status unavailable</span>
+    <LibraryProgressBar :status="status" compact />
   </div>
 </template>

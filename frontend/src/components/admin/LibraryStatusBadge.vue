@@ -1,17 +1,16 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import Badge from "@/components/ui/Badge.vue";
-import type { LibraryProgress, RegisteredLibrary } from "@/types";
-import { getLibraryStatusPresentation } from "@/utils/libraryStatus";
+import { getCatalogStatusPresentation } from "@/lib/catalog/labels";
+import type { UnifiedStatus } from "@/lib/catalog/status";
 
 const props = defineProps<{
-  library?: Pick<RegisteredLibrary, "state"> | null;
-  progress?: Pick<LibraryProgress, "library_state"> | null;
+  status?: UnifiedStatus | null;
 }>();
 
-const status = computed(() => getLibraryStatusPresentation(props.library, props.progress));
+const presentation = computed(() => getCatalogStatusPresentation(props.status?.summary_state ?? null));
 </script>
 
 <template>
-  <Badge :variant="status.variant" :title="status.meaning">{{ status.label }}</Badge>
+  <Badge :variant="presentation.variant" :title="presentation.meaning">{{ presentation.label }}</Badge>
 </template>

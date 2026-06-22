@@ -408,7 +408,21 @@ export interface LibraryValidationResult {
 export interface LibraryScanResponse {
   library_id: number;
   job_id: number;
-  state: string;
+  scope_path: string | null;
+  operation: "scan";
+  trigger: "initial" | "manual" | "watcher" | "scheduled" | "startup";
+  state: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+  coalesced: boolean;
+}
+
+export interface LibraryRebuildResponse {
+  library_id: number;
+  job_id: number;
+  scope_path: string | null;
+  operation: "rebuild";
+  trigger: "manual";
+  state: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+  coalesced: boolean;
 }
 
 export interface ScanAllLibrariesResponse {

@@ -10,9 +10,12 @@ import { useGalleryStatsQuery } from "@/composables/admin/useGalleryStatsQuery";
 import { useJobsQuery } from "@/composables/admin/useJobsQuery";
 import { useLibraryMutations } from "@/composables/admin/useLibraryMutations";
 import { useLibraryEvents } from "@/composables/admin/useLibraryEvents";
+import { useLibraryStatusBatchQuery } from "@/composables/admin/useLibraryStatusBatchQuery";
 import { useGalleryStore } from "@/stores/gallery";
 import type { RegisteredLibrary } from "@/types";
 import { formatAssetCount, formatLibraryTimestamp } from "@/utils/libraryStatus";
+import { STATUS_CONTRACT_ERROR_MESSAGE } from "@/lib/catalog/contractGuard";
+import type { UnifiedStatus } from "@/lib/catalog/status";
 import LibraryActionMenu from "./LibraryActionMenu.vue";
 import LibraryStatusBadge from "./LibraryStatusBadge.vue";
 import LibrarySummaryPanel from "./LibrarySummaryPanel.vue";
@@ -25,19 +28,40 @@ const galleryStore = useGalleryStore();
 const librariesQuery = useLibrariesQuery();
 const statsQuery = useGalleryStatsQuery();
 const jobsQuery = useJobsQuery();
-const { scanMutation, scanAllMutation, repairMutation, unregisterMutation } = useLibraryMutations();
+const statusBatchQuery = useLibraryStatusBatchQuery();
+const { scanMutation, scanAllMutation, unregisterMutation } = useLibraryMutations();
 useLibraryEvents();
 
 const createOpen = ref(false);
 const editLibrary = ref<RegisteredLibrary | null>(null);
 const deleteLibrary = ref<RegisteredLibrary | null>(null);
 const libraries = computed(() => librariesQuery.data.value ?? []);
+const statusByLibrary = computed(() => statusBatchQuery.statusByLibrary.value);
 const activeJobs = computed(
   () => jobsQuery.data.value?.filter((job) => job.state === "queued" || job.state === "running").length ?? 0,
 );
-const actionPending = computed(
-  () => scanMutation.isPending.value || repairMutation.isPending.value || unregisterMutation.isPending.value,
-);
+const actionPending = computed(() => scanMutation.isPending.value || unregisterMutation.isPending.value);
+const statusContractError = computed(() => Boolean(statusBatchQuery.contractError.value));
+
+function statusFor(library: RegisteredLibrary): UnifiedStatus | null {
+  return statusByLibrary.value.get(library.id) ?? null;
+}
+
+function lastScanAt(library: RegisteredLibrary): number | null {
+  return statusFor(library)?.last_scan_at ?? library.last_scan_at;
+}
+
+function lastIndexAt(library: RegisteredLibrary): number | null {
+  return statusFor(library)?.last_index_at ?? null;
+}
+
+function scanErrorMessage(library: RegisteredLibrary): string | null {
+  const status = statusFor(library);
+  if (status?.latest_issue && status.latest_issue.source === "scan") {
+    return status.latest_issue.message;
+  }
+  return library.last_error;
+}
 
 function formatBytes(bytes?: number): string {
   if (!bytes) return "0 B";
@@ -106,6 +130,14 @@ function created(library: RegisteredLibrary) {
         </div>
       </section>
 
+      <div
+        v-if="statusContractError"
+        class="rounded-md border border-amber-500/40 bg-amber-500/10 p-5 text-sm"
+        role="status"
+      >
+        {{ STATUS_CONTRACT_ERROR_MESSAGE }}
+      </div>
+
       <div v-if="librariesQuery.isError.value" class="rounded-md border border-destructive/40 bg-destructive/10 p-5">
         <div class="flex items-start gap-3">
           <AlertTriangle class="mt-0.5 size-5 text-destructive" />
@@ -139,7 +171,7 @@ function created(library: RegisteredLibrary) {
             <TableHeader>
               <TableRow>
                 <TableHead>Library</TableHead><TableHead>Import paths</TableHead><TableHead>Status</TableHead
-                ><TableHead>Assets / Stats</TableHead><TableHead>Last scan</TableHead><TableHead>Updated</TableHead
+                ><TableHead>Assets / Stats</TableHead><TableHead>Last scan</TableHead><TableHead>Last index</TableHead
                 ><TableHead class="w-14"><span class="sr-only">Actions</span></TableHead>
               </TableRow>
             </TableHeader>
@@ -153,9 +185,9 @@ function created(library: RegisteredLibrary) {
                     {{ library.name }}
                   </button>
                   <div
-                    v-if="library.last_error"
+                    v-if="scanErrorMessage(library)"
                     class="mt-1 flex items-center gap-1 text-xs text-destructive"
-                    :title="library.last_error"
+                    :title="scanErrorMessage(library) ?? ''"
                   >
                     <AlertTriangle class="size-3" /> Last scan failed
                   </div>
@@ -175,18 +207,17 @@ function created(library: RegisteredLibrary) {
                     </p>
                   </div>
                 </TableCell>
-                <TableCell><LibraryStatusBadge :library="library" /></TableCell>
-                <TableCell><LibrarySummaryPanel :library-id="library.id" /></TableCell>
-                <TableCell class="text-sm">{{ formatLibraryTimestamp(library.last_scan_at) }}</TableCell>
-                <TableCell class="text-sm">{{ formatLibraryTimestamp(library.updated_at) }}</TableCell>
+                <TableCell><LibraryStatusBadge :status="statusFor(library)" /></TableCell>
+                <TableCell><LibrarySummaryPanel :status="statusFor(library)" /></TableCell>
+                <TableCell class="text-sm">{{ formatLibraryTimestamp(lastScanAt(library)) }}</TableCell>
+                <TableCell class="text-sm">{{ formatLibraryTimestamp(lastIndexAt(library)) }}</TableCell>
                 <TableCell>
                   <LibraryActionMenu
                     :disabled="actionPending"
                     @view="router.push(`/admin/libraries/${library.id}`)"
                     @use="useInGallery(library)"
                     @edit="editLibrary = library"
-                    @scan="scanMutation.mutate(library.id)"
-                    @repair="repairMutation.mutate(library.id)"
+                    @scan="scanMutation.mutate({ id: library.id })"
                     @unregister="deleteLibrary = library"
                   />
                 </TableCell>
@@ -217,18 +248,19 @@ function created(library: RegisteredLibrary) {
                 @view="router.push(`/admin/libraries/${library.id}`)"
                 @use="useInGallery(library)"
                 @edit="editLibrary = library"
-                @scan="scanMutation.mutate(library.id)"
-                @repair="repairMutation.mutate(library.id)"
+                @scan="scanMutation.mutate({ id: library.id })"
                 @unregister="deleteLibrary = library"
               />
             </div>
             <div class="mt-4 flex items-center justify-between gap-3">
-              <LibraryStatusBadge :library="library" /><span class="text-xs text-muted-foreground"
-                >Scanned {{ formatLibraryTimestamp(library.last_scan_at) }}</span
+              <LibraryStatusBadge :status="statusFor(library)" /><span class="text-xs text-muted-foreground"
+                >Scanned {{ formatLibraryTimestamp(lastScanAt(library)) }}</span
               >
             </div>
-            <div class="mt-4"><LibrarySummaryPanel :library-id="library.id" /></div>
-            <p v-if="library.last_error" class="mt-3 line-clamp-2 text-xs text-destructive">{{ library.last_error }}</p>
+            <div class="mt-4"><LibrarySummaryPanel :status="statusFor(library)" /></div>
+            <p v-if="scanErrorMessage(library)" class="mt-3 line-clamp-2 text-xs text-destructive">
+              {{ scanErrorMessage(library) }}
+            </p>
           </article>
         </div>
       </template>

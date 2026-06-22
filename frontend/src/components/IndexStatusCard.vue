@@ -1,86 +1,105 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { Database } from "lucide-vue-next";
 import IndexStatusBadge from "@/components/IndexStatusBadge.vue";
 import IndexStatusDetailsPopover from "@/components/IndexStatusDetailsPopover.vue";
 import IndexProgressBar from "@/components/IndexProgressBar.vue";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { IndexStatusCounts, IndexStatusPresentation, IndexStatusProgressInfo } from "@/utils/indexStatus";
-import type { IndexStatusResponse } from "@/types";
+import type { CatalogStatusPresentation } from "@/lib/catalog/labels";
+import type { UnifiedStatus } from "@/lib/catalog/status";
 
-defineProps<{
-  data: IndexStatusResponse | null | undefined;
-  counts: IndexStatusCounts;
-  presentation: IndexStatusPresentation;
-  progress: IndexStatusProgressInfo;
+const props = defineProps<{
+  status: UnifiedStatus | null;
+  presentation: CatalogStatusPresentation;
   path?: string;
+  isVirtualRoot?: boolean;
+  scopeLabel?: string;
   isLoading?: boolean;
   isError?: boolean;
   errorMessage?: string;
   globalWorkOutsideScope?: boolean;
-  actionPending?: "rescan" | "rebuild" | null;
+  actionPending?: "scan" | "rebuild" | null;
   actionError?: string;
+  contractError?: boolean;
 }>();
 
 const emit = defineEmits<{
-  (e: "rescan"): void;
+  (e: "scan"): void;
   (e: "rebuild"): void;
 }>();
 
-function formatCount(value: number) {
-  return value.toLocaleString();
-}
+const photosFound = computed(() => props.status?.metadata.total_assets ?? 0);
+const photoDetailsReady = computed(() => props.status?.metadata.ready_assets ?? 0);
+const metadataProgress = computed(() => props.status?.metadata.progress_percent ?? null);
+const isIndexing = computed(
+  () => props.status?.metadata.state === "queued" || props.status?.metadata.state === "indexing",
+);
+const isScanning = computed(() => props.status?.scan.state === "queued" || props.status?.scan.state === "scanning");
+const notReadyAssets = computed(() => props.status?.metadata.not_ready_assets ?? 0);
+const summaryState = computed(() => props.status?.summary_state ?? null);
+
+const bodyText = computed(() => {
+  if (!props.status) return "Loading...";
+  if (isScanning.value) {
+    const completed = props.status.scan.completed_units ?? 0;
+    const total = props.status.scan.total_units;
+    if (total !== null) return `${completed.toLocaleString()} / ${total.toLocaleString()} units scanned`;
+    return completed > 0 ? `${completed.toLocaleString()} units scanned` : "Scanning...";
+  }
+  if (isIndexing.value) {
+    if (metadataProgress.value !== null) {
+      return `${photoDetailsReady.value.toLocaleString()} / ${photosFound.value.toLocaleString()} photo details ready`;
+    }
+    return "Updating photo details...";
+  }
+  if (props.globalWorkOutsideScope) return "Indexer working in another folder";
+  if (summaryState.value === "needs_update" && notReadyAssets.value > 0) {
+    return `${notReadyAssets.value.toLocaleString()} photo details need updating`;
+  }
+  if (summaryState.value === "error") return "Catalog needs attention";
+  if (summaryState.value === "offline") return "Offline";
+  if (summaryState.value === "needs_scan") return "Needs scan";
+  return `${photoDetailsReady.value.toLocaleString()} photo details ready`;
+});
 </script>
 
 <template>
   <Popover>
     <PopoverTrigger as-child>
-      <button type="button" class="index-status-card group-data-[collapsible=icon]:hidden" aria-label="Index Status">
+      <button type="button" class="index-status-card group-data-[collapsible=icon]:hidden" aria-label="Catalog Status">
         <span class="index-status-card__top">
           <span class="index-status-card__title">
             <Database class="size-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
-            <span>Index</span>
+            <span>Catalog</span>
           </span>
           <IndexStatusBadge :presentation="presentation" />
         </span>
 
         <span class="index-status-card__body">
-          <span v-if="presentation.status === 'indexing' && progress.total !== null">
-            {{ formatCount(progress.indexed) }} / {{ formatCount(progress.total) }} details processed
-          </span>
-          <span v-else-if="presentation.status === 'indexing'"> Indexing... </span>
-          <span v-else-if="globalWorkOutsideScope"> Indexer working in another folder </span>
-          <span v-else-if="presentation.status === 'stale' && counts.stale > 0">
-            {{ formatCount(counts.stale) }} known photos need updating
-          </span>
-          <span v-else-if="presentation.status === 'stale' && counts.missingMetadataRecords > 0">
-            {{ formatCount(counts.missingMetadataRecords) }} photo details need updating
-          </span>
-          <span v-else> {{ formatCount(data?.metadata_records ?? 0) }} photo details ready </span>
+          {{ bodyText }}
         </span>
 
-        <IndexProgressBar
-          v-if="presentation.status === 'indexing' && progress.percent !== null"
-          :percent="progress.percent"
-        />
+        <IndexProgressBar v-if="isIndexing && metadataProgress !== null" :percent="Math.round(metadataProgress)" />
 
         <span class="index-status-card__details">Details</span>
       </button>
     </PopoverTrigger>
 
-    <PopoverContent class="w-80 p-4" align="end" :side-offset="8" aria-label="Index Status">
+    <PopoverContent class="w-80 p-4" align="end" :side-offset="8" aria-label="Catalog Status">
       <IndexStatusDetailsPopover
-        :data="data"
-        :counts="counts"
+        :status="status"
         :presentation="presentation"
-        :progress="progress"
         :path="path"
+        :is-virtual-root="isVirtualRoot"
+        :scope-label="scopeLabel"
         :is-loading="isLoading"
         :is-error="isError"
         :error-message="errorMessage"
         :global-work-outside-scope="globalWorkOutsideScope"
         :action-pending="actionPending"
         :action-error="actionError"
-        @rescan="emit('rescan')"
+        :contract-error="contractError"
+        @scan="emit('scan')"
         @rebuild="emit('rebuild')"
       />
     </PopoverContent>

@@ -4,49 +4,50 @@ import Button from "@/components/ui/Button.vue";
 import IndexStatusBadge from "@/components/IndexStatusBadge.vue";
 import IndexProgressBar from "@/components/IndexProgressBar.vue";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { getFieldTooltip } from "@/utils/indexStatusCopy";
-import type { IndexStatusCounts, IndexStatusPresentation, IndexStatusProgressInfo } from "@/utils/indexStatus";
-import type { IndexStatusResponse } from "@/types";
+import { formatLibraryTimestamp } from "@/utils/libraryStatus";
+import type { CatalogStatusPresentation } from "@/lib/catalog/labels";
+import { STATUS_CONTRACT_ERROR_MESSAGE } from "@/lib/catalog/contractGuard";
+import type { UnifiedStatus } from "@/lib/catalog/status";
 
-defineProps<{
-  data: IndexStatusResponse | null | undefined;
-  counts: IndexStatusCounts;
-  presentation: IndexStatusPresentation;
-  progress: IndexStatusProgressInfo;
+const props = defineProps<{
+  status: UnifiedStatus | null;
+  presentation: CatalogStatusPresentation;
   path?: string;
+  isVirtualRoot?: boolean;
+  scopeLabel?: string;
   isLoading?: boolean;
   isError?: boolean;
   errorMessage?: string;
   globalWorkOutsideScope?: boolean;
-  actionPending?: "rescan" | "rebuild" | null;
+  actionPending?: "scan" | "rebuild" | null;
   actionError?: string;
+  contractError?: boolean;
 }>();
 
 const emit = defineEmits<{
-  (e: "rescan"): void;
+  (e: "scan"): void;
   (e: "rebuild"): void;
 }>();
 
-const photosFoundTooltip = computed(() => getFieldTooltip("indexed_photos"));
-const photoDetailsReadyTooltip = computed(() => getFieldTooltip("metadata_records"));
-const detailsProcessedTooltip = computed(() => getFieldTooltip("done"));
-const folderTooltip = computed(() => getFieldTooltip("path"));
+const photosFound = computed(() => props.status?.metadata.total_assets ?? 0);
+const photoDetailsReady = computed(() => props.status?.metadata.ready_assets ?? 0);
+const metadataProgress = computed(() => props.status?.metadata.progress_percent ?? null);
+const isIndexing = computed(
+  () => props.status?.metadata.state === "queued" || props.status?.metadata.state === "indexing",
+);
+const failedAssets = computed(() => props.status?.metadata.failed_assets ?? 0);
+const issueCount = computed(() => props.status?.issue_count ?? 0);
 
 function formatCount(value: number) {
   return value.toLocaleString();
 }
-
-function formatUpdatedAt(value: number | null | undefined) {
-  if (!value) return null;
-  return new Date(value * 1000).toLocaleString();
-}
 </script>
 
 <template>
-  <div class="index-details" aria-label="Index Status">
+  <div class="index-details" aria-label="Catalog Status">
     <div class="index-details__header">
       <div>
-        <p class="index-details__eyebrow">Index</p>
+        <p class="index-details__eyebrow">Catalog</p>
       </div>
       <IndexStatusBadge :presentation="presentation" />
     </div>
@@ -54,116 +55,92 @@ function formatUpdatedAt(value: number | null | undefined) {
       Indexer working in another folder
     </p>
 
-    <div v-if="isLoading" class="index-details__muted">Loading index status...</div>
+    <div v-if="contractError" class="index-details__error">{{ STATUS_CONTRACT_ERROR_MESSAGE }}</div>
+
+    <div v-else-if="isLoading" class="index-details__muted">Loading catalog status...</div>
 
     <div v-else-if="isError" class="index-details__error">
       {{ errorMessage || "Failed to load status" }}
     </div>
 
-    <template v-else>
+    <template v-else-if="status">
       <div class="index-details__section">
         <p class="index-details__section-label">Library</p>
 
-        <Tooltip v-if="photosFoundTooltip" :delay-duration="800">
+        <Tooltip :delay-duration="800">
           <TooltipTrigger as-child>
             <div class="index-details__row has-tooltip">
               <span class="index-details__row-key">Photos found</span>
-              <strong>{{ formatCount(data?.indexed_photos ?? 0) }}</strong>
+              <strong>{{ formatCount(photosFound) }}</strong>
             </div>
           </TooltipTrigger>
           <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
-            {{ photosFoundTooltip }}
+            Online image and video assets found in this scope.
           </TooltipContent>
         </Tooltip>
-        <div v-else class="index-details__row">
-          <span class="index-details__row-key">Photos found</span>
-          <strong>{{ formatCount(data?.indexed_photos ?? 0) }}</strong>
-        </div>
 
-        <Tooltip v-if="photoDetailsReadyTooltip" :delay-duration="800">
+        <Tooltip :delay-duration="800">
           <TooltipTrigger as-child>
             <div class="index-details__row has-tooltip">
               <span class="index-details__row-key">Photo details ready</span>
-              <strong>{{ formatCount(data?.metadata_records ?? 0) }}</strong>
+              <strong>{{ formatCount(photoDetailsReady) }}</strong>
             </div>
           </TooltipTrigger>
           <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
-            {{ photoDetailsReadyTooltip }}
+            Assets with current metadata ready for search and inspection.
           </TooltipContent>
         </Tooltip>
-        <div v-else class="index-details__row">
-          <span class="index-details__row-key">Photo details ready</span>
-          <strong>{{ formatCount(data?.metadata_records ?? 0) }}</strong>
-        </div>
       </div>
 
-      <div v-if="presentation.status === 'indexing'" class="index-details__section">
+      <div v-if="isIndexing && metadataProgress !== null" class="index-details__section">
         <p class="index-details__section-label">Processing</p>
-
-        <Tooltip v-if="detailsProcessedTooltip" :delay-duration="800">
-          <TooltipTrigger as-child>
-            <p
-              class="index-details__muted has-tooltip"
-              style="margin: 0; font-size: 12px; color: var(--muted-foreground)"
-            >
-              {{ formatCount(progress.indexed)
-              }}<template v-if="progress.total !== null"> / {{ formatCount(progress.total) }} </template> details
-              processed
-            </p>
-          </TooltipTrigger>
-          <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
-            {{ detailsProcessedTooltip }}
-          </TooltipContent>
-        </Tooltip>
-        <p v-else class="index-details__muted" style="margin: 0; font-size: 12px">
-          {{ formatCount(progress.indexed)
-          }}<template v-if="progress.total !== null"> / {{ formatCount(progress.total) }} </template> details processed
+        <p class="index-details__muted" style="margin: 0; font-size: 12px">
+          {{ Math.round(metadataProgress) }}% details processed
         </p>
-
-        <IndexProgressBar v-if="progress.percent !== null" :percent="progress.percent" />
+        <IndexProgressBar :percent="Math.round(metadataProgress)" />
       </div>
 
       <div class="index-details__section">
         <p class="index-details__section-label">Location</p>
 
-        <Tooltip v-if="folderTooltip" :delay-duration="800">
-          <TooltipTrigger as-child>
-            <div class="index-details__row index-details__row--path has-tooltip">
-              <span class="index-details__row-key">Folder</span>
-              <strong :title="data?.path || path">{{ data?.path || path }}</strong>
-            </div>
-          </TooltipTrigger>
-          <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
-            {{ folderTooltip }}
-          </TooltipContent>
-        </Tooltip>
-        <div v-else class="index-details__row index-details__row--path">
-          <span class="index-details__row-key">Folder</span>
-          <strong :title="data?.path || path">{{ data?.path || path }}</strong>
+        <div class="index-details__row index-details__row--path">
+          <span class="index-details__row-key">Scope</span>
+          <strong :title="path || 'Library root'">{{ path || "Library root" }}</strong>
         </div>
 
         <div class="index-details__row">
           <span class="index-details__row-key">Including subfolders</span>
-          <strong>Yes</strong>
+          <strong>{{ isVirtualRoot ? "All paths" : "Yes" }}</strong>
         </div>
       </div>
 
-      <div v-if="counts.failed > 0" class="index-details__section">
+      <div v-if="failedAssets > 0 || issueCount > 0" class="index-details__section">
         <p class="index-details__section-label">Issues</p>
+        <div v-if="failedAssets > 0" class="index-details__row">
+          <span class="index-details__row-key index-details__row-key--error">Failed assets</span>
+          <strong>{{ formatCount(failedAssets) }}</strong>
+        </div>
         <div class="index-details__row">
-          <span class="index-details__row-key index-details__row-key--error">Failed jobs</span>
-          <strong>{{ formatCount(counts.failed) }}</strong>
+          <span class="index-details__row-key">Total issues</span>
+          <strong>{{ formatCount(issueCount) }}</strong>
         </div>
       </div>
 
-      <div v-if="formatUpdatedAt(data?.updated_at)" class="index-details__row">
-        <span class="index-details__row-key">Last scan</span>
-        <strong>{{ formatUpdatedAt(data?.updated_at) }}</strong>
+      <div class="index-details__section">
+        <p class="index-details__section-label">Timestamps</p>
+        <div class="index-details__row">
+          <span class="index-details__row-key">Last scan</span>
+          <strong>{{ formatLibraryTimestamp(status.last_scan_at) }}</strong>
+        </div>
+        <div class="index-details__row">
+          <span class="index-details__row-key">Last index</span>
+          <strong>{{ formatLibraryTimestamp(status.last_index_at) }}</strong>
+        </div>
       </div>
 
-      <div v-if="data?.last_error" class="index-details__last-error">
-        <strong>Last error</strong>
-        <span>{{ data.last_error.message }}</span>
+      <div v-if="status.latest_issue" class="index-details__last-error">
+        <strong>Latest issue</strong>
+        <span>{{ status.latest_issue.message }}</span>
       </div>
     </template>
 
@@ -172,30 +149,39 @@ function formatUpdatedAt(value: number | null | undefined) {
     </div>
 
     <p class="index-details__warning">
-      Warning: Rebuild clears this folder's index and extracted metadata cache before indexing again. Source image files
-      are not deleted.
+      Warning: Rebuild will re-index this scope's files and re-extract metadata. Source image files are not deleted.
     </p>
 
     <div class="index-details__actions">
       <Tooltip>
         <TooltipTrigger as-child>
           <span class="inline-flex">
-            <Button variant="outline" size="sm" :disabled="!path || !!actionPending" @click="emit('rescan')">
-              {{ actionPending === "rescan" ? "Rescanning..." : "Rescan" }}
+            <Button
+              variant="outline"
+              size="sm"
+              :disabled="(!path && !isVirtualRoot) || !!actionPending"
+              @click="emit('scan')"
+            >
+              {{ actionPending === "scan" ? "Scanning..." : "Scan" }}
             </Button>
           </span>
         </TooltipTrigger>
-        <TooltipContent> Refresh this folder and queue new metadata work. </TooltipContent>
+        <TooltipContent> Refresh this scope and queue new metadata work. </TooltipContent>
       </Tooltip>
       <Tooltip>
         <TooltipTrigger as-child>
           <span class="inline-flex">
-            <Button variant="secondary" size="sm" :disabled="!path || !!actionPending" @click="emit('rebuild')">
+            <Button
+              variant="secondary"
+              size="sm"
+              :disabled="(!path && !isVirtualRoot) || !!actionPending"
+              @click="emit('rebuild')"
+            >
               {{ actionPending === "rebuild" ? "Rebuilding..." : "Rebuild" }}
             </Button>
           </span>
         </TooltipTrigger>
-        <TooltipContent> Clear this scope's index cache, then scan it again. </TooltipContent>
+        <TooltipContent> Rebuild indexed files and extracted metadata for this scope. </TooltipContent>
       </Tooltip>
     </div>
   </div>

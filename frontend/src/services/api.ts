@@ -11,6 +11,7 @@ import type {
   LibraryInspectorResponse,
   LibraryProgress,
   LibraryRepairResponse,
+  LibraryRebuildResponse,
   LibraryScanResponse,
   LibraryStats,
   LibraryUpdateRequest,
@@ -23,6 +24,7 @@ import type {
   SortValue,
   UnifiedSearchResponse,
 } from "../types";
+import type { LibraryStatusBatchResponse, StatusResponseEnvelope } from "../lib/catalog/status";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -532,9 +534,10 @@ export const updateLibrary = async (id: number, payload: LibraryUpdateRequest): 
   }
 };
 
-export const scanLibrary = async (id: number): Promise<LibraryScanResponse> => {
+export const scanLibrary = async (id: number, scopePath?: string | null): Promise<LibraryScanResponse> => {
   try {
-    const { data } = await api.post<LibraryScanResponse>(`/api/libraries/${id}/scan`);
+    const body = scopePath ? { scope_path: scopePath } : undefined;
+    const { data } = await api.post<LibraryScanResponse>(`/api/libraries/${id}/scan`, body);
     return data;
   } catch (error) {
     if (error instanceof AxiosError) throw GalleryAPIError.fromAxiosError(error);
@@ -552,9 +555,48 @@ export const scanAllLibraries = async (): Promise<ScanAllLibrariesResponse> => {
   }
 };
 
+export const rebuildLibrary = async (id: number, scopePath?: string | null): Promise<LibraryRebuildResponse> => {
+  try {
+    const body: Record<string, unknown> = { confirm: true };
+    if (scopePath) body.scope_path = scopePath;
+    const { data } = await api.post<LibraryRebuildResponse>(`/api/libraries/${id}/rebuild`, body);
+    return data;
+  } catch (error) {
+    if (error instanceof AxiosError) throw GalleryAPIError.fromAxiosError(error);
+    throw error;
+  }
+};
+
 export const repairLibrary = async (id: number): Promise<LibraryRepairResponse> => {
   try {
     const { data } = await api.post<LibraryRepairResponse>(`/api/libraries/${id}/repair`);
+    return data;
+  } catch (error) {
+    if (error instanceof AxiosError) throw GalleryAPIError.fromAxiosError(error);
+    throw error;
+  }
+};
+
+export const fetchCatalogStatus = async (
+  libraryId: number,
+  scopePath?: string | null,
+): Promise<StatusResponseEnvelope> => {
+  try {
+    const params: Record<string, string | number> = {};
+    if (scopePath) params.scope_path = scopePath;
+    const { data } = await api.get<StatusResponseEnvelope>(`/api/libraries/${libraryId}/status`, {
+      params,
+    });
+    return data;
+  } catch (error) {
+    if (error instanceof AxiosError) throw GalleryAPIError.fromAxiosError(error);
+    throw error;
+  }
+};
+
+export const fetchLibraryStatusBatch = async (): Promise<LibraryStatusBatchResponse> => {
+  try {
+    const { data } = await api.get<LibraryStatusBatchResponse>("/api/libraries/status");
     return data;
   } catch (error) {
     if (error instanceof AxiosError) throw GalleryAPIError.fromAxiosError(error);

@@ -26,9 +26,12 @@ import {
   browseDirectory,
   createLibrary,
   deleteLibrary,
+  fetchCatalogStatus,
   fetchLibraries,
+  fetchLibraryStatusBatch,
   GalleryAPIError,
   LIBRARY_ERRORS,
+  rebuildLibrary,
   scanLibrary,
 } from "../api";
 
@@ -91,11 +94,70 @@ describe("library API", () => {
   });
 
   it("queues a scan for one library", async () => {
-    const response = { library_id: 4, job_id: 9, state: "queued" };
+    const response = {
+      library_id: 4,
+      job_id: 9,
+      scope_path: null,
+      operation: "scan",
+      trigger: "manual",
+      state: "queued",
+      coalesced: false,
+    };
     mockApi.post.mockResolvedValueOnce({ data: response });
 
     await expect(scanLibrary(4)).resolves.toEqual(response);
-    expect(mockApi.post).toHaveBeenCalledWith("/api/libraries/4/scan");
+    expect(mockApi.post).toHaveBeenCalledWith("/api/libraries/4/scan", undefined);
+  });
+
+  it("queues a scoped scan for one library", async () => {
+    const response = {
+      library_id: 4,
+      job_id: 10,
+      scope_path: "/photos/2026",
+      operation: "scan",
+      trigger: "manual",
+      state: "queued",
+      coalesced: false,
+    };
+    mockApi.post.mockResolvedValueOnce({ data: response });
+
+    await expect(scanLibrary(4, "/photos/2026")).resolves.toEqual(response);
+    expect(mockApi.post).toHaveBeenCalledWith("/api/libraries/4/scan", { scope_path: "/photos/2026" });
+  });
+
+  it("queues a confirmed rebuild for one library scope", async () => {
+    const response = {
+      library_id: 4,
+      job_id: 11,
+      scope_path: "/photos/2026",
+      operation: "rebuild",
+      trigger: "manual",
+      state: "queued",
+      coalesced: false,
+    };
+    mockApi.post.mockResolvedValueOnce({ data: response });
+
+    await expect(rebuildLibrary(4, "/photos/2026")).resolves.toEqual(response);
+    expect(mockApi.post).toHaveBeenCalledWith("/api/libraries/4/rebuild", {
+      confirm: true,
+      scope_path: "/photos/2026",
+    });
+  });
+
+  it("queues a whole-library rebuild when scope is omitted", async () => {
+    const response = {
+      library_id: 4,
+      job_id: 12,
+      scope_path: null,
+      operation: "rebuild",
+      trigger: "manual",
+      state: "queued",
+      coalesced: false,
+    };
+    mockApi.post.mockResolvedValueOnce({ data: response });
+
+    await expect(rebuildLibrary(4)).resolves.toEqual(response);
+    expect(mockApi.post).toHaveBeenCalledWith("/api/libraries/4/rebuild", { confirm: true });
   });
 
   it("browses catalog rows for a library path", async () => {
@@ -175,5 +237,44 @@ describe("library API", () => {
 
     await expect(deleteLibrary(4)).resolves.toBeUndefined();
     expect(mockApi.delete).toHaveBeenCalledWith("/api/libraries/4", { params: { confirm: true } });
+  });
+
+  it("fetches catalog status for a library scope", async () => {
+    const response = {
+      contract_version: 1,
+      status: { contract_version: 1, summary_state: "ready" },
+      global_runtime: { catalog_worker_count: 1 },
+    };
+    mockApi.get.mockResolvedValueOnce({ data: response });
+
+    await expect(fetchCatalogStatus(4, "/photos")).resolves.toEqual(response);
+    expect(mockApi.get).toHaveBeenCalledWith("/api/libraries/4/status", {
+      params: { scope_path: "/photos" },
+    });
+  });
+
+  it("fetches catalog status without a scope path", async () => {
+    const response = {
+      contract_version: 1,
+      status: { contract_version: 1, summary_state: "scanning" },
+      global_runtime: { catalog_worker_count: 1 },
+    };
+    mockApi.get.mockResolvedValueOnce({ data: response });
+
+    await expect(fetchCatalogStatus(4)).resolves.toEqual(response);
+    expect(mockApi.get).toHaveBeenCalledWith("/api/libraries/4/status", { params: {} });
+  });
+
+  it("fetches the admin library status batch", async () => {
+    const response = {
+      contract_version: 1,
+      generated_at: 1782036000000,
+      items: [{ library_id: 4, status: { contract_version: 1, summary_state: "ready" } }],
+      global_runtime: { catalog_worker_count: 1 },
+    };
+    mockApi.get.mockResolvedValueOnce({ data: response });
+
+    await expect(fetchLibraryStatusBatch()).resolves.toEqual(response);
+    expect(mockApi.get).toHaveBeenCalledWith("/api/libraries/status");
   });
 });

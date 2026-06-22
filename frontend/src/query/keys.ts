@@ -57,6 +57,17 @@ export const queryKeys = {
 
   indexStatus: (path: string) => ["index-status", normalizeQueryPath(path)] as const,
 
+  statusRoot: () => ["status"] as const,
+
+  statusBatch: () => ["status", "libraries", "batch"] as const,
+
+  statusLibrary: (libraryId: number) => ["status", "library", libraryId] as const,
+
+  statusPathRoot: (libraryId: number) => ["status", "path", libraryId] as const,
+
+  statusPath: (libraryId: number, path: string | null | undefined) =>
+    ["status", "path", libraryId, normalizeBrowsePath(path)] as const,
+
   libraryInspectorRoot: () => ["library-inspector"] as const,
 
   facets: (path: string) => ["facets", normalizeQueryPath(path)] as const,

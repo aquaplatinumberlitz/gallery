@@ -130,7 +130,7 @@ async function submit(scanAfterCreate = false) {
     const saved = props.library
       ? await updateMutation.mutateAsync({ id: props.library.id, payload: payload() })
       : await createMutation.mutateAsync(payload());
-    if (scanAfterCreate) await scanMutation.mutateAsync(saved.id);
+    if (scanAfterCreate) await scanMutation.mutateAsync({ id: saved.id });
     emit("saved", saved);
   } catch (error) {
     serverError.value = describeError(error);
