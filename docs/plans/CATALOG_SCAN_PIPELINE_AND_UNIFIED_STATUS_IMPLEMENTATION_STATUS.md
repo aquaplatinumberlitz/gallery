@@ -382,3 +382,14 @@ non-null `latest_issue` message render, and the
 branch. Extended `useLibraryMutations.test.ts` to assert that `scanMutation`
 also invalidates `browseRoot` and `browseInfiniteRoot`, matching the
 implementation.
+
+### Fix 5: reactive visibility handling for batch status polling
+
+Commit `fix: add reactive visibility handling to batch status polling`.
+`useLibraryStatusBatchQuery` now mirrors `useCatalogStatusQuery`: it owns a
+reactive `isDocumentHidden` ref, registers `visibilitychange`/`focus`
+listeners, sets `enabled: !isDocumentHidden.value` to pause polling while the
+tab is hidden, and triggers a 300 ms debounced refetch when the tab becomes
+visible again. The previous `document.visibilityState` check inside
+`refetchInterval` is now backed by a reactive listener so the query pauses and
+resumes immediately instead of relying on the next interval tick.
