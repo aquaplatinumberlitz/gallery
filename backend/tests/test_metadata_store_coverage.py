@@ -863,9 +863,7 @@ def test_get_metadata_index_status_populated_db(isolated_metadata_db: Path, tmp_
     assert status["updated_at"] is not None
 
 
-def test_get_metadata_index_status_populated_db_with_path_scope(
-    isolated_metadata_db: Path, tmp_path: Path
-):
+def test_get_metadata_index_status_populated_db_with_path_scope(isolated_metadata_db: Path, tmp_path: Path):
     """Populated DB with a path argument scopes counts to that subtree and
     sets the root field to the resolved path."""
     inside_album = tmp_path / "inside"

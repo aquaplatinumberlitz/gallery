@@ -45,9 +45,7 @@ def _seed_image_with_prompt(tmp_path: Path, filename: str, prompt: str) -> Path:
 # ---------------------------------------------------------------------------
 
 
-def test_search_metadata_falls_back_to_like_when_fts_table_missing(
-    isolated_metadata_db: Path, tmp_path: Path
-):
+def test_search_metadata_falls_back_to_like_when_fts_table_missing(isolated_metadata_db: Path, tmp_path: Path):
     """Dropping image_metadata_fts forces _search_fts to raise OperationalError,
     which search_metadata catches and falls back to _search_like."""
     _seed_image_with_prompt(tmp_path, "fts_missing.png", "hello world")
@@ -85,9 +83,7 @@ def test_search_metadata_short_cjk_skips_trigram_fts(isolated_metadata_db: Path,
 # ---------------------------------------------------------------------------
 
 
-def test_search_metadata_non_cjk_substring_falls_back_to_like(
-    isolated_metadata_db: Path, tmp_path: Path
-):
+def test_search_metadata_non_cjk_substring_falls_back_to_like(isolated_metadata_db: Path, tmp_path: Path):
     """A non-CJK substring that the unicode61 tokenizer cannot match as a whole
     token (e.g. "ello" against indexed "hello world") returns 0 FTS rows,
     triggering the "not rows and not contains_cjk" LIKE fallback."""
