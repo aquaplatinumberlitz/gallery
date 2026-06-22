@@ -165,13 +165,13 @@ function getNavigationTiming(): Record<string, number> {
 
 function isGalleryApiUrl(url: string): boolean {
   const apiPatterns = [
-    "/api/scan",
+    "/api/browse",
     "/api/thumbnail",
     "/api/preview",
     "/api/image",
     "/api/metadata",
     "/api/search",
-    "/api/index/status",
+    "/api/libraries/",
     "/api/folders",
     "/api/landing-pages",
   ];
