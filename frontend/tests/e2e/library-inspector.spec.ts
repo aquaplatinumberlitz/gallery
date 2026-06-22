@@ -362,7 +362,7 @@ test.describe("LibraryInspector", () => {
     await expect(popover).toBeVisible({ timeout: 5_000 });
     await popover.getByRole("button", { name: "Rebuild" }).click();
 
-    const dialog = page.getByRole("alertdialog", { name: "Rebuild?" });
+    const dialog = page.getByRole("dialog", { name: "Rebuild?" });
     await expect(dialog).toBeVisible({ timeout: 5_000 });
     await dialog.getByRole("button", { name: "Rebuild" }).click();
 

@@ -321,7 +321,7 @@ test.describe("Catalog Status panel", () => {
     const popover = await openStatusPopover(page);
     await popover.getByRole("button", { name: "Rebuild" }).click();
 
-    const dialog = page.getByRole("alertdialog", { name: "Rebuild?" });
+    const dialog = page.getByRole("dialog", { name: "Rebuild?" });
     await expect(dialog).toBeVisible({ timeout: 5_000 });
     await expect(dialog).toContainText(
       "Rebuild will re-index this scope's files and re-extract metadata. Source image files are not deleted.",
@@ -403,7 +403,10 @@ test.describe("Catalog Status panel", () => {
     await expect(statusButton).toContainText("5 photo details need updating");
 
     const popover = await openStatusPopover(page);
-    await expect(popover).toContainText("5 photo details need updating");
+    await expect(popover).toContainText("Photos found");
+    await expect(popover).toContainText("205");
+    await expect(popover).toContainText("Photo details ready");
+    await expect(popover).toContainText("200");
     await expect(popover).not.toContainText("200 / 205 photo details ready");
   });
 
@@ -426,7 +429,6 @@ test.describe("Catalog Status panel", () => {
 
     const popover = await openStatusPopover(page);
     await expect(popover).toContainText("Updating");
-    await popover.getByRole("button", { name: "Details" }).click();
     await expect(popover).toContainText("Processing");
     await expect(popover).toContainText("49% details processed");
     await expect(popover.locator(".index-progress-bar")).toHaveCount(1);
@@ -443,8 +445,12 @@ test.describe("Catalog Status panel", () => {
     await installStubbedGallery(page);
     await openStubbedGallery(page, true);
 
+    const statusButton = page.getByLabel("Catalog Status");
+    await expect(statusButton).toContainText("Catalog needs attention");
+
     const popover = await openStatusPopover(page);
-    await expect(popover).toContainText("Catalog needs attention");
+    await expect(popover).toContainText("Error");
+    await expect(popover).toContainText("Connection refused");
     await expect(popover).not.toContainText("0 items need attention");
   });
 

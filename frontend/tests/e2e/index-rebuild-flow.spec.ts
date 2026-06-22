@@ -340,7 +340,6 @@ test.describe("metadata rebuild refresh regression", () => {
 
   const flowRoot = "/home/ubuntu/gallery-repo";
   const oldGeneratedAt = 1_800_000_000;
-  const finishedGeneratedAt = oldGeneratedAt + 110;
 
   function makeRows(count: number, prefix: string) {
     return Array.from({ length: count }, (_, index) => {
@@ -443,7 +442,7 @@ test.describe("metadata rebuild refresh regression", () => {
               scope: "current",
               query: url.searchParams.get("q") ?? "",
               limit: 200,
-              generated_at: finishedGeneratedAt,
+              generated_at: Date.now(),
               total_indexed: 205,
               returned: 200,
               truncated: true,
@@ -524,7 +523,7 @@ test.describe("metadata rebuild refresh regression", () => {
     await expect(popover).toBeVisible({ timeout: 5_000 });
     await popover.getByRole("button", { name: "Rebuild" }).click();
 
-    const confirmDialog = page.getByRole("alertdialog", { name: "Rebuild?" });
+    const confirmDialog = page.getByRole("dialog", { name: "Rebuild?" });
     await expect(confirmDialog).toBeVisible({ timeout: 5_000 });
     await confirmDialog.getByRole("button", { name: "Rebuild" }).click();
 
@@ -558,9 +557,9 @@ test.describe("metadata rebuild refresh regression", () => {
     expect(inspectorRequests.length).toBeGreaterThan(1);
     expect(inspectorRequests.every((entry) => entry.scope === "current")).toBe(true);
     expect(inspectorRequests.every((entry) => entry.path === flowRoot)).toBe(true);
-    expect(debugConsole.some((line) => line.includes("invalidate-before"))).toBe(true);
+    expect(debugConsole.some((line) => line.includes("inspector-refetch"))).toBe(true);
     expect(
-      debugConsole.some((line) => line.includes('"invalidatedLibraryInspectorQueryKey":["library-inspector"]')),
+      debugConsole.some((line) => line.includes('"activeLibraryInspectorQueryKey":["library-inspector"')),
     ).toBe(true);
     expect(debugConsole.some((line) => line.includes(`"current","${flowRoot}",200`))).toBe(true);
 

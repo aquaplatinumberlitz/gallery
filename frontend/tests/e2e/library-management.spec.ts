@@ -326,7 +326,7 @@ test("renders the responsive library list on desktop and mobile", async ({ page 
   await expect(page.getByRole("heading", { name: "Libraries", exact: true })).toBeVisible();
   await expect(page.getByRole("table")).toBeVisible();
   await expect(page.getByRole("table").getByRole("button", { name: "Family photos" })).toBeVisible();
-  await expect(page.getByRole("table").getByText("10 photos · 2 videos")).toBeVisible();
+  await expect(page.getByRole("table").getByText("12 assets")).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page).toHaveURL(/\/admin\/libraries$/);
