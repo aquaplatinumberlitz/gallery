@@ -12,6 +12,7 @@ current system.
 
 Notable groups include:
 
+- Catalog Scan Pipeline and Unified Status — 11-phase implementation with migration, status builder, browse API, and documentation.
 - Library Management V1 plan, phase contract, and final implementation status.
 - Completed AlbumScroller, VueUse theme, shadcn-vue, Tailwind, sidebar, and TanStack migrations.
 - Completed lint/format adoption and frontend adaptation plans.
