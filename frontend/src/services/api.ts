@@ -16,7 +16,6 @@ import type {
   MetadataResponse,
   RegisteredLibrary,
   ScanAllLibrariesResponse,
-  ScanResponse,
   SearchScope,
   SortValue,
   UnifiedSearchResponse,
@@ -56,13 +55,6 @@ export interface APIErrorResponse {
 }
 
 const isLibraryError = (errorType: string): errorType is LibraryErrorType => errorType in LIBRARY_ERRORS;
-
-export interface IndexRebuildResponse {
-  path: string;
-  cleared: Record<string, number>;
-  rebuild_started: boolean;
-  rebuild_started_at: number;
-}
 
 export class GalleryAPIError extends Error {
   readonly type: ErrorType;
@@ -185,26 +177,6 @@ const api = axios.create({
   baseURL: API_BASE,
   timeout: 30000, // 30 second timeout
 });
-
-export const scanDirectory = async (
-  path?: string,
-  opts?: { limit?: number; mediaCursor?: number },
-): Promise<ScanResponse> => {
-  try {
-    const params: Record<string, string | number> = {};
-    if (path) params.path = path;
-    if (opts?.limit) params.limit = opts.limit;
-    if (typeof opts?.mediaCursor === "number") params.media_cursor = opts.mediaCursor;
-
-    const { data } = await api.get<ScanResponse>("/api/scan", { params });
-    return { ...data, next_media_cursor: data.next_media_cursor ?? null };
-  } catch (error) {
-    if (error instanceof AxiosError) {
-      throw GalleryAPIError.fromAxiosError(error);
-    }
-    throw error;
-  }
-};
 
 export const browseDirectory = async (
   libraryId: number,
@@ -350,20 +322,6 @@ export const getPreviewUrl = (path: string, maxLongEdge: number = 1440) => {
   const params = new URLSearchParams({ path });
   params.set("max_long_edge", String(maxLongEdge));
   return `${API_BASE}/api/preview?${params.toString()}`;
-};
-
-export const rebuildIndex = async (path: string): Promise<IndexRebuildResponse> => {
-  try {
-    const { data } = await api.post<IndexRebuildResponse>("/api/index/rebuild", null, {
-      params: { path, confirm: true },
-    });
-    return data;
-  } catch (error) {
-    if (error instanceof AxiosError) {
-      throw GalleryAPIError.fromAxiosError(error);
-    }
-    throw error;
-  }
 };
 
 export const fetchFacets = async (path: string): Promise<FacetsResponse> => {
