@@ -2460,6 +2460,19 @@ def _browse_import_root_name(path: str, duplicate_leaf_names: set[str]) -> str:
     return path if leaf in duplicate_leaf_names else leaf
 
 
+def _import_root_availability(root_path: str) -> str:
+    """Return the availability state of an import root path.
+
+    Network/offline mounts can raise ``OSError`` from ``Path.is_dir()`` (stale
+    NFS handle, permission denied, unreachable host). Treat any such error as
+    ``unavailable`` instead of letting the browse request fail.
+    """
+    try:
+        return "available" if Path(root_path).is_dir() else "unavailable"
+    except OSError:
+        return "unavailable"
+
+
 def _browse_folder_counts_conn(
     conn: sqlite3.Connection,
     library_id: int,
@@ -2567,7 +2580,7 @@ def _catalog_browse_virtual_root_conn(
     for root_path in root_paths:
         has_children, image_count, cover_images = folder_counts.get(root_path, (False, 0, []))
         display_label = _browse_import_root_name(root_path, duplicate_leaf_names)
-        availability = "available" if Path(root_path).is_dir() else "unavailable"
+        availability = _import_root_availability(root_path)
         folders.append(
             {
                 "name": display_label,

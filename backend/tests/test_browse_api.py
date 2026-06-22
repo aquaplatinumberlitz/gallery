@@ -344,6 +344,35 @@ def test_browse_per_root_availability(
     assert availability_by_path[str(offline.resolve())] == "unavailable"
 
 
+def test_browse_virtual_root_availability_treats_oserror_as_unavailable(
+    isolated_app: TestClient,
+    isolated_gallery_root: Path,
+    monkeypatch,
+):
+    online = isolated_gallery_root / "online"
+    offline_mount = isolated_gallery_root / "offline_mount"
+    online.mkdir()
+    offline_mount.mkdir()
+    library = create_library([online, offline_mount], name="Multi import")
+    library_id = int(library["id"])
+
+    real_is_dir = Path.is_dir
+
+    def fake_is_dir(self: Path) -> bool:
+        if str(self) == str(offline_mount.resolve()):
+            raise OSError("stale NFS handle")
+        return real_is_dir(self)
+
+    monkeypatch.setattr(Path, "is_dir", fake_is_dir)
+
+    response = isolated_app.get("/api/browse", params={"library_id": library_id})
+
+    assert response.status_code == 200
+    availability_by_path = {folder["path"]: folder["availability"] for folder in response.json()["folders"]}
+    assert availability_by_path[str(online.resolve())] == "available"
+    assert availability_by_path[str(offline_mount.resolve())] == "unavailable"
+
+
 def test_browse_case_sensitive_scope(
     isolated_app: TestClient,
     isolated_gallery_root: Path,

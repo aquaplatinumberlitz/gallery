@@ -421,3 +421,18 @@ with a `cleanup: remove after migration to unified status` TODO because it is
 still consumed by `useLibraryStatsQuery` / `LibraryDetailPage` for storage
 usage stats. Updated `keys.test.ts` and `useLibraryMutations.test.ts` to drop
 the removed-key assertions.
+
+### Fix 8: offline network mount handling in virtual root availability probe
+
+Commit `fix: handle offline network mounts in virtual root availability probe`.
+Extracted `_import_root_availability(root_path)` in `backend/metadata_store.py`
+wrapping `Path(root_path).is_dir()` in `try/except OSError` so a stale NFS
+handle, permission denied, or unreachable host on a network mount returns
+`unavailable` instead of failing the browse request. Added
+`test_browse_virtual_root_availability_treats_oserror_as_unavailable` in
+`backend/tests/test_browse_api.py` monkeypatching `Path.is_dir` to raise
+`OSError` for one import root and asserting that root reports `unavailable`
+while an online root still reports `available`. The duplicate current
+metadata row case (`image_metadata` with two rows sharing a path but
+differing `mtime_ns`) was already covered by
+`test_browse_duplicate_metadata_does_not_duplicate_media`.
