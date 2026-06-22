@@ -1,4 +1,4 @@
-"""Background metadata indexing queues, workers, metrics, and API endpoints."""
+"""Background metadata indexing queues, workers, and metrics."""
 
 from __future__ import annotations
 
@@ -11,8 +11,7 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Query
-from fastapi.concurrency import run_in_threadpool
+from fastapi import APIRouter
 
 from .config import (
     METADATA_INDEXER_BATCH_SIZE,
@@ -26,13 +25,10 @@ from .config import (
     METADATA_INDEXER_STAGE_SLEEP_SECONDS,
     METADATA_INDEXER_WORKER_SLEEP_SECONDS,
 )
-from .errors import APIError, ErrorType
 from .metadata_extract import ExtractedMetadata, extract_metadata
 from .metadata_store import (
     MetadataIndexJob,
-    clear_index_records,
     get_library_for_path,
-    get_metadata_index_status,
     index_directory_tree,
     mark_metadata_jobs_done,
     mark_metadata_jobs_failed,
@@ -42,7 +38,6 @@ from .metadata_store import (
     reconcile_library_assets,
     upsert_metadata_batch,
 )
-from .paths import is_path_safe, resolve_path
 
 try:  # prometheus-fastapi-instrumentator depends on prometheus_client.
     from prometheus_client import Counter, Gauge, Histogram
@@ -722,100 +717,4 @@ def rebuild_index_scope(root: str | Path) -> dict[str, Any]:
         "indexed": indexed,
         "reconciled": reconciled,
         "metadata": metadata,
-    }
-
-
-def _mark_rebuild_scope_started(root: str | Path, started_at: float) -> None:
-    root_text = _normalized_path_text(root)
-    if not root_text:
-        return
-    with _path_stager_lock:
-        _active_rebuild_roots[root_text] = started_at
-
-
-def _mark_rebuild_scope_finished(root: str | Path) -> None:
-    root_text = _normalized_path_text(root)
-    if not root_text:
-        return
-    with _path_stager_lock:
-        _active_rebuild_roots.pop(root_text, None)
-
-
-def _rebuild_index_scope_safely(root: str | Path) -> None:
-    try:
-        rebuild_index_scope(root)
-    except Exception as exc:  # noqa: BLE001
-        LOGGER.exception("Index rebuild failed for %s: %s", root, exc)
-    finally:
-        _mark_rebuild_scope_finished(root)
-
-
-@router.get("/api/index/status")
-async def api_index_status(path: str | None = Query(None, description="Folder/root path to scope index status")):
-    """Return persisted metadata job counts plus live indexer queue state."""
-    target = resolve_path(path) if path else None
-    if target is not None and not is_path_safe(target):
-        raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied")
-
-    status = await run_in_threadpool(get_metadata_index_status, target)
-    runtime = get_indexer_runtime_status(target)
-    global_runtime_keys = {
-        "enabled",
-        "worker_count",
-        "active_jobs",
-        "runtime_queue_depth",
-        "coalesced_duplicates",
-        "staged_path_queue_depth",
-        "staged_path_coalesced",
-        "staged_path_failed",
-        "staged_path_flushes_forced",
-        "staged_path_worker_count",
-        "active_scan_requests",
-        "batch_size",
-        "staged_path_batch_size",
-        "stage_max_wait_seconds",
-    }
-    global_runtime = {key: runtime[key] for key in global_runtime_keys}
-    scope = {
-        **status,
-        "active_jobs": runtime["scoped_active_jobs"],
-        "runtime_queue_depth": runtime["scoped_runtime_queue_depth"],
-        "staged_path_queue_depth": runtime["scoped_staged_path_queue_depth"],
-        "active_scan_requests": runtime["scoped_active_scan_requests"],
-        "active_rebuilds": runtime["scoped_active_rebuilds"],
-    }
-    response = {**status, **global_runtime}
-    response["scope"] = scope
-    response["global_runtime"] = global_runtime
-    return response
-
-
-@router.post("/api/index/rebuild")
-async def api_index_rebuild(
-    background_tasks: BackgroundTasks,
-    path: str = Query(..., description="Folder/root path to rebuild"),
-    confirm: bool = Query(False, description="Must be true because rebuild clears persisted index rows first"),
-):
-    """Clear and rebuild indexed file rows for a confirmed folder scope in the background."""
-    if not confirm:
-        raise APIError(400, "confirmation_required", "Rebuild requires explicit confirmation")
-
-    target = resolve_path(path)
-    if not is_path_safe(target):
-        raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied")
-    if not target.exists():
-        raise APIError(404, ErrorType.NOT_FOUND, "Path not found")
-    if not target.is_dir():
-        raise APIError(400, ErrorType.NOT_DIRECTORY, "Path is not a folder")
-
-    cleared = await run_in_threadpool(clear_index_records, target)
-    rebuild_started_at = time.time()
-    _mark_rebuild_scope_started(target, rebuild_started_at)
-    background_tasks.add_task(_rebuild_index_scope_safely, target)
-
-    return {
-        "path": str(target),
-        "cleared": cleared,
-        "rebuild_started": True,
-        "rebuild_started_at": rebuild_started_at,
     }
