@@ -52,6 +52,7 @@ from backend.metadata_store import (
     cleanup_stale_index,
     get_folder_index_state,
     get_folder_indexed_paths,
+    get_metadata_index_status,
     index_directory_tree,
     index_file,
     initialize_database,
@@ -772,6 +773,120 @@ def test_initialize_database_is_idempotent(isolated_metadata_db: Path):
     assert "image_metadata" in tables
     assert "file_index" in tables
     assert "folder_index_state" in tables
+
+
+# ---------------------------------------------------------------------------
+# get_metadata_index_status — defensive None / zero handling
+# ---------------------------------------------------------------------------
+
+
+def test_get_metadata_index_status_empty_db_no_path(isolated_metadata_db: Path):
+    """Empty DB with path=None exercises the null-path branch and the
+    "if x else 0" / "if x else None" defensive fallbacks."""
+    status = get_metadata_index_status()
+    assert status["path"] == ""
+    assert status["total"] == 0
+    assert status["indexed_photos"] == 0
+    assert status["metadata_records"] == 0
+    assert status["missing_metadata_records"] == 0
+    assert status["counts"] == {
+        "queued": 0,
+        "running": 0,
+        "done": 0,
+        "failed": 0,
+        "stale": 0,
+        "skipped": 0,
+    }
+    assert status["queued"] == 0
+    assert status["running"] == 0
+    assert status["done"] == 0
+    assert status["failed"] == 0
+    assert status["stale"] == 0
+    assert status["skipped"] == 0
+    assert status["oldest_queued_age_seconds"] is None
+    assert status["last_error"] is None
+    assert status["updated_at"] is None
+
+
+def test_get_metadata_index_status_empty_db_with_path(isolated_metadata_db: Path, tmp_path: Path):
+    """Empty DB with a path argument exercises the if-path branch (WHERE clause
+    built) but still returns zeros/None because no rows exist."""
+    album = tmp_path / "empty_album"
+    album.mkdir()
+
+    status = get_metadata_index_status(path=album)
+    assert status["path"] == str(album.resolve())
+    assert status["total"] == 0
+    assert status["indexed_photos"] == 0
+    assert status["metadata_records"] == 0
+    assert status["last_error"] is None
+    assert status["oldest_queued_age_seconds"] is None
+    assert status["updated_at"] is None
+
+
+def test_get_metadata_index_status_populated_db(isolated_metadata_db: Path, tmp_path: Path):
+    """Populated DB exercises the happy path: non-zero counts, last_error from
+    a failed job, oldest_queued_age_seconds, and updated_at all populated."""
+    album = tmp_path / "status_album"
+    album.mkdir()
+    image = album / "pic.png"
+    image.write_bytes(b"data")
+
+    # Queue a job (queued state)
+    result = queue_metadata_index_paths([image])
+    assert len(result.enqueued) == 1
+
+    # Create a second image + job to mark failed
+    image2 = album / "broken.png"
+    image2.write_bytes(b"data")
+    result2 = queue_metadata_index_paths([image2])
+    failed_job = result2.enqueued[0]
+    mark_metadata_jobs_failed([(failed_job, "extraction boom")])
+
+    # Index a file so indexed_photos > 0
+    index_file(str(image), "pic.png", str(album), "photo", time.time(), 4, 1, 1)
+
+    status = get_metadata_index_status()
+    assert status["total"] == 2
+    assert status["counts"]["queued"] == 1
+    assert status["counts"]["failed"] == 1
+    assert status["queued"] == 1
+    assert status["failed"] == 1
+    assert status["indexed_photos"] >= 1
+    # last_error should be populated from the failed job
+    assert status["last_error"] is not None
+    assert status["last_error"]["message"] == "extraction boom"
+    assert status["last_error"]["path"] == failed_job.path
+    # oldest_queued_age_seconds should be set because there is a queued job
+    assert status["oldest_queued_age_seconds"] is not None
+    # updated_at should be set because rows exist
+    assert status["updated_at"] is not None
+
+
+def test_get_metadata_index_status_populated_db_with_path_scope(
+    isolated_metadata_db: Path, tmp_path: Path
+):
+    """Populated DB with a path argument scopes counts to that subtree and
+    sets the root field to the resolved path."""
+    inside_album = tmp_path / "inside"
+    inside_album.mkdir()
+    inside_image = inside_album / "in.png"
+    inside_image.write_bytes(b"data")
+
+    outside_album = tmp_path / "outside"
+    outside_album.mkdir()
+    outside_image = outside_album / "out.png"
+    outside_image.write_bytes(b"data")
+
+    # Queue jobs in both albums
+    queue_metadata_index_paths([inside_image])
+    queue_metadata_index_paths([outside_image])
+
+    # Scope to inside_album only
+    status = get_metadata_index_status(path=inside_album)
+    assert status["path"] == str(inside_album.resolve())
+    assert status["total"] == 1
+    assert status["counts"]["queued"] == 1
 
 
 # ---------------------------------------------------------------------------

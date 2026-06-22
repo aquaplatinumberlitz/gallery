@@ -4238,7 +4238,8 @@ def index_files_from_scan(folders: list[Any], media: list[Any], *, scan_folder_p
                 height=_path_value(item, "height", None),
             ):
                 indexed += 1
-        except Exception:  # noqa: BLE001
+        except (OSError, sqlite3.Error):
+            logger.exception("Failed to index file")
             continue
 
     if scan_folder_path is not None:
