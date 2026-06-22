@@ -167,19 +167,16 @@ def isolated_metadata_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pat
     monkeypatch.setenv("GALLERY_METADATA_DB", str(db_path))
 
     import backend.metadata_store as ms
+    import backend.config as cfg
     from backend.catalog import service as catalog_service
 
     catalog_service.stop()
 
     monkeypatch.setattr(ms, "GALLERY_METADATA_DB", db_path)
-    # Force re-initialization for every test
-    monkeypatch.setattr(ms, "_DB_INITIALIZED", False)
-    monkeypatch.setattr(ms, "_DB_INITIALIZED_PATH", None)
-
-    # Also patch the config module so any new imports see the right db
-    import backend.config as cfg
-
     monkeypatch.setattr(cfg, "GALLERY_METADATA_DB", db_path)
+    # Force re-initialization for every test
+    monkeypatch.setattr(ms._db, "_DB_INITIALIZED", False)
+    monkeypatch.setattr(ms._db, "_DB_INITIALIZED_PATH", None)
 
     return db_path
 

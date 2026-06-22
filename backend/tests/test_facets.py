@@ -192,11 +192,13 @@ def test_facets_caps_output_size(tmp_path: Path):
 
 
 def test_facets_handles_empty_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    import backend.config as cfg
     import backend.metadata_store as ms
 
     test_db = tmp_path / "test_empty_facets.db"
     monkeypatch.setattr(ms, "GALLERY_METADATA_DB", test_db)
-    monkeypatch.setattr(ms, "_DB_INITIALIZED", False)
+    monkeypatch.setattr(cfg, "GALLERY_METADATA_DB", test_db)
+    monkeypatch.setattr(ms._db, "_DB_INITIALIZED", False)
 
     facets = build_facets(folder_path=None)
     assert isinstance(facets, dict)
@@ -294,11 +296,13 @@ def test_facets_lora_facet(tmp_path: Path):
 
 
 def test_facets_empty_db_contains_lora(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    import backend.config as cfg
     import backend.metadata_store as ms
 
     test_db = tmp_path / "test_facets_lora_empty.db"
     monkeypatch.setattr(ms, "GALLERY_METADATA_DB", test_db)
-    monkeypatch.setattr(ms, "_DB_INITIALIZED", False)
+    monkeypatch.setattr(cfg, "GALLERY_METADATA_DB", test_db)
+    monkeypatch.setattr(ms._db, "_DB_INITIALIZED", False)
 
     facets = build_facets(folder_path=None)
     assert "lora" in facets

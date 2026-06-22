@@ -136,11 +136,13 @@ def test_oriented_dimensions_for_normal_image_is_unchanged(tmp_path):
 
 
 def test_thumbnail_stores_oriented_dimensions_for_exif_jpeg(tmp_path, monkeypatch):
+    import backend.config as cfg
     import backend.metadata_store as ms
 
     monkeypatch.setattr(ms, "GALLERY_METADATA_DB", tmp_path / "test_thumb_dim.db")
-    monkeypatch.setattr(ms, "_DB_INITIALIZED", False)
-    monkeypatch.setattr(ms, "_DB_INITIALIZED_PATH", None)
+    monkeypatch.setattr(cfg, "GALLERY_METADATA_DB", tmp_path / "test_thumb_dim.db")
+    monkeypatch.setattr(ms._db, "_DB_INITIALIZED", False)
+    monkeypatch.setattr(ms._db, "_DB_INITIALIZED_PATH", None)
 
     image_path = tmp_path / "iphone.jpg"
     create_exif_rotated_jpeg(image_path, size=(1440, 1080), orientation=6)
@@ -158,11 +160,13 @@ def test_thumbnail_stores_oriented_dimensions_for_exif_jpeg(tmp_path, monkeypatc
 
 
 def test_metadata_returns_oriented_dimensions_for_exif_jpeg(tmp_path, monkeypatch):
+    import backend.config as cfg
     import backend.metadata_store as ms
 
     monkeypatch.setattr(ms, "GALLERY_METADATA_DB", tmp_path / "test_meta_dim.db")
-    monkeypatch.setattr(ms, "_DB_INITIALIZED", False)
-    monkeypatch.setattr(ms, "_DB_INITIALIZED_PATH", None)
+    monkeypatch.setattr(cfg, "GALLERY_METADATA_DB", tmp_path / "test_meta_dim.db")
+    monkeypatch.setattr(ms._db, "_DB_INITIALIZED", False)
+    monkeypatch.setattr(ms._db, "_DB_INITIALIZED_PATH", None)
 
     image_path = tmp_path / "iphone_meta.jpg"
     create_exif_rotated_jpeg(image_path, size=(1440, 1080), orientation=6)

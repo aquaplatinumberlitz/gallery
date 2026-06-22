@@ -268,7 +268,7 @@ def test_v8_to_v9_migration_backs_up_removes_root_path_and_adds_catalog_schema(
 
     import backend.metadata_store as metadata_store
 
-    metadata_store._DB_INITIALIZED = False
+    metadata_store._db._DB_INITIALIZED = False
     initialize_database()
 
     backups = list(isolated_metadata_db.parent.glob(f"{isolated_metadata_db.stem}.v8-backup-*"))
@@ -302,7 +302,7 @@ def test_v9_migration_preflight_failure_leaves_v8_database_unmutated(
 
     import backend.metadata_store as metadata_store
 
-    metadata_store._DB_INITIALIZED = False
+    metadata_store._db._DB_INITIALIZED = False
     try:
         initialize_database()
     except RuntimeError as exc:
@@ -344,7 +344,7 @@ def test_v9_migration_rejects_overlapping_import_paths_before_backup(
 
     import backend.metadata_store as metadata_store
 
-    metadata_store._DB_INITIALIZED = False
+    metadata_store._db._DB_INITIALIZED = False
     try:
         initialize_database()
     except RuntimeError as exc:
@@ -380,7 +380,7 @@ def test_v9_migration_rejects_unowned_catalog_rows_before_backup(
 
     import backend.metadata_store as metadata_store
 
-    metadata_store._DB_INITIALIZED = False
+    metadata_store._db._DB_INITIALIZED = False
     try:
         initialize_database()
     except RuntimeError as exc:
@@ -409,7 +409,7 @@ def test_v9_migration_backup_failure_leaves_v8_database_unmutated(
     def fail_backup(conn):  # noqa: ANN001
         raise RuntimeError("forced backup failure")
 
-    metadata_store._DB_INITIALIZED = False
+    metadata_store._db._DB_INITIALIZED = False
     metadata_store._backup_database_before_v9 = fail_backup
     try:
         try:
@@ -442,7 +442,7 @@ def test_v9_migration_rolls_back_after_schema_error_and_can_retry(
         original(conn)
         raise RuntimeError("forced migration failure")
 
-    metadata_store._DB_INITIALIZED = False
+    metadata_store._db._DB_INITIALIZED = False
     metadata_store._rebuild_libraries_without_root_path = fail_rebuild
     try:
         try:
@@ -459,7 +459,7 @@ def test_v9_migration_rolls_back_after_schema_error_and_can_retry(
         columns = {row[1] for row in conn.execute("PRAGMA table_info(libraries)")}
         assert "root_path" in columns
 
-    metadata_store._DB_INITIALIZED = False
+    metadata_store._db._DB_INITIALIZED = False
     initialize_database()
     with sqlite3.connect(isolated_metadata_db) as conn:
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 9
@@ -648,7 +648,7 @@ def test_same_library_overlap_migration_preflight_rejects(
 
     import backend.metadata_store as metadata_store
 
-    metadata_store._DB_INITIALIZED = False
+    metadata_store._db._DB_INITIALIZED = False
     try:
         initialize_database()
     except RuntimeError as exc:

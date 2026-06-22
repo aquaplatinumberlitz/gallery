@@ -12,7 +12,6 @@ import re
 import sqlite3
 import subprocess
 import sys
-import threading
 import time
 from collections.abc import Iterable
 from contextlib import suppress
@@ -44,7 +43,53 @@ from ..metadata_extract import (
     sanitize_metadata_for_json,
 )
 from ..models import FileNode, VideoFileNode
+from . import _db as _db
 from . import path_utils as path_utils
+from ._db import (
+    _DB_INITIALIZED as _DB_INITIALIZED,
+)
+from ._db import (
+    _DB_INITIALIZED_PATH as _DB_INITIALIZED_PATH,
+)
+from ._db import (
+    _DB_LOCK as _DB_LOCK,
+)
+from ._db import (
+    ACTIVE_ASSET_WHERE as ACTIVE_ASSET_WHERE,
+)
+from ._db import (
+    LIBRARY_JOB_ACTIVE_STATES as LIBRARY_JOB_ACTIVE_STATES,
+)
+from ._db import (
+    LIBRARY_JOB_TERMINAL_STATES as LIBRARY_JOB_TERMINAL_STATES,
+)
+from ._db import (
+    MAX_METADATA_JOB_ATTEMPTS as MAX_METADATA_JOB_ATTEMPTS,
+)
+from ._db import (
+    METADATA_JOB_STATES as METADATA_JOB_STATES,
+)
+from ._db import (
+    _active_asset_where as _active_asset_where,
+)
+from ._db import (
+    _connect as _connect,
+)
+from ._db import (
+    _database_has_application_tables as _database_has_application_tables,
+)
+from ._db import (
+    _ensure_column as _ensure_column,
+)
+from ._db import (
+    _table_columns as _table_columns,
+)
+from ._db import (
+    _table_exists as _table_exists,
+)
+from ._db import (
+    init_db as init_db,
+)
 from .path_utils import (
     _catalog_paths_overlap as _catalog_paths_overlap,
 )
@@ -66,22 +111,8 @@ from .path_utils import (
 
 SEARCH_FIELDS = ("name", "prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
 PROMPT_SEARCH_FIELDS = ("prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
-_DB_LOCK = threading.RLock()
-_DB_INITIALIZED = False
-_DB_INITIALIZED_PATH: Path | None = None
-METADATA_JOB_STATES = ("queued", "running", "done", "failed", "stale", "skipped")
-LIBRARY_JOB_ACTIVE_STATES = ("queued", "running")
-LIBRARY_JOB_TERMINAL_STATES = ("succeeded", "failed", "cancelled")
-MAX_METADATA_JOB_ATTEMPTS = 3
-ACTIVE_ASSET_WHERE = "deleted_at IS NULL AND offline = 0"
 CATALOG_SCHEMA_VERSION = 9
 logger = logging.getLogger(__name__)
-
-
-def _active_asset_where(alias: str | None = None) -> str:
-    if alias is None:
-        return ACTIVE_ASSET_WHERE
-    return f"{alias}.deleted_at IS NULL AND {alias}.offline = 0"
 
 
 @dataclass(frozen=True)
@@ -118,50 +149,6 @@ class MetadataQueueResult:
     coalesced: int = 0
     skipped: int = 0
     failed: int = 0
-
-
-def _table_columns(conn: sqlite3.Connection, table_name: str) -> set[str]:
-    return {row["name"] for row in conn.execute(f"PRAGMA table_info({table_name})")}
-
-
-def _ensure_column(conn: sqlite3.Connection, table_name: str, column_name: str, column_sql: str) -> None:
-    if column_name not in _table_columns(conn, table_name):
-        conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_sql}")
-
-
-def _table_exists(conn: sqlite3.Connection, table_name: str) -> bool:
-    return (
-        conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
-            (table_name,),
-        ).fetchone()
-        is not None
-    )
-
-
-def _database_has_application_tables(conn: sqlite3.Connection) -> bool:
-    return (
-        conn.execute(
-            """
-            SELECT 1 FROM sqlite_master
-            WHERE type IN ('table', 'virtual table') AND name NOT LIKE 'sqlite_%'
-            LIMIT 1
-            """
-        ).fetchone()
-        is not None
-    )
-
-
-def _connect(*, set_journal_mode: bool = False) -> sqlite3.Connection:
-    GALLERY_METADATA_DB.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(GALLERY_METADATA_DB, timeout=30)
-    conn.row_factory = sqlite3.Row
-    conn.create_collation("GALLERY_NATURAL", _compare_natural_sql)
-    if set_journal_mode:
-        conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA busy_timeout=5000")
-    conn.execute("PRAGMA foreign_keys=ON")
-    return conn
 
 
 def _v9_backup_path() -> Path:
@@ -434,19 +421,18 @@ def _migrate_v8_to_v9(conn: sqlite3.Connection) -> None:
 
 def initialize_database() -> None:
     """Create or migrate the SQLite metadata database once per configured DB path."""
-    global _DB_INITIALIZED, _DB_INITIALIZED_PATH
-    if _DB_INITIALIZED and _DB_INITIALIZED_PATH == GALLERY_METADATA_DB:
+    if _db._DB_INITIALIZED and _db._DB_INITIALIZED_PATH == GALLERY_METADATA_DB:
         return
 
-    with _DB_LOCK:
-        if _DB_INITIALIZED and _DB_INITIALIZED_PATH == GALLERY_METADATA_DB:
+    with _db._DB_LOCK:
+        if _db._DB_INITIALIZED and _db._DB_INITIALIZED_PATH == GALLERY_METADATA_DB:
             return
 
         with _connect(set_journal_mode=True) as conn:
             _initialize_database_conn(conn)
 
-        _DB_INITIALIZED = True
-        _DB_INITIALIZED_PATH = GALLERY_METADATA_DB
+        _db._DB_INITIALIZED = True
+        _db._DB_INITIALIZED_PATH = GALLERY_METADATA_DB
 
 
 def _initialize_database_conn(conn: sqlite3.Connection) -> None:
@@ -1143,11 +1129,6 @@ def _upsert_asset_conn(
         (library_id, resolved_path),
     ).fetchone()
     return int(row["id"])
-
-
-def init_db() -> None:
-    """Backward-compatible database initialization entry point."""
-    initialize_database()
 
 
 def _serialize_library_job(row: sqlite3.Row) -> dict[str, Any]:
@@ -5501,4 +5482,3 @@ def get_library_inspector_metadata(path: str | Path) -> dict[str, Any] | None:
         "resources": resources,
         "metadata_detail_available": bool(metadata or row["prompt"] or row["negative_prompt"] or loras or resources),
     }
-
