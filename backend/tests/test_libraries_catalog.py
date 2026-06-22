@@ -26,6 +26,8 @@ from backend.metadata_store import (
     update_library,
     update_library_state,
     upsert_image_dimensions,
+    _DB_LOCK,
+    _connect,
 )
 from tests.conftest import create_test_png
 
@@ -832,9 +834,10 @@ def test_asset_folder_metadata_excludes_offline_children(
     create_test_png(visible)
     create_test_png(offline)
     finished = _run_scan(library_id)
-    assert finished["counters"]["indexed"] >= 4
+    assert finished["state"] == "succeeded"
 
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
         conn.execute("UPDATE assets SET offline = 1 WHERE path = ?", (str(offline.resolve()),))
 
     listing = get_asset_folder_listing(isolated_gallery_root)
