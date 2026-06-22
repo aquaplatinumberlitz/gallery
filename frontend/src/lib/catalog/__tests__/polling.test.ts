@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  ACTIVE_POLL_INTERVAL,
-  STABLE_POLL_INTERVAL,
-  isUnifiedStatusActive,
-  statusRefetchInterval,
-} from "../polling";
+import { ACTIVE_POLL_INTERVAL, STABLE_POLL_INTERVAL, isUnifiedStatusActive, statusRefetchInterval } from "../polling";
 import type { UnifiedStatus } from "../status";
 
 function makeStatus(overrides: Partial<UnifiedStatus> = {}): UnifiedStatus {
@@ -56,43 +51,23 @@ describe("isUnifiedStatusActive", () => {
   });
 
   it("returns true when scan.state is queued", () => {
-    expect(
-      isUnifiedStatusActive(
-        makeStatus({ scan: { ...makeStatus().scan, state: "queued" } }),
-      ),
-    ).toBe(true);
+    expect(isUnifiedStatusActive(makeStatus({ scan: { ...makeStatus().scan, state: "queued" } }))).toBe(true);
   });
 
   it("returns true when scan.state is scanning", () => {
-    expect(
-      isUnifiedStatusActive(
-        makeStatus({ scan: { ...makeStatus().scan, state: "scanning" } }),
-      ),
-    ).toBe(true);
+    expect(isUnifiedStatusActive(makeStatus({ scan: { ...makeStatus().scan, state: "scanning" } }))).toBe(true);
   });
 
   it("returns true when metadata.state is queued", () => {
-    expect(
-      isUnifiedStatusActive(
-        makeStatus({ metadata: { ...makeStatus().metadata, state: "queued" } }),
-      ),
-    ).toBe(true);
+    expect(isUnifiedStatusActive(makeStatus({ metadata: { ...makeStatus().metadata, state: "queued" } }))).toBe(true);
   });
 
   it("returns true when metadata.state is indexing", () => {
-    expect(
-      isUnifiedStatusActive(
-        makeStatus({ metadata: { ...makeStatus().metadata, state: "indexing" } }),
-      ),
-    ).toBe(true);
+    expect(isUnifiedStatusActive(makeStatus({ metadata: { ...makeStatus().metadata, state: "indexing" } }))).toBe(true);
   });
 
   it("returns false when scan failed and metadata is complete", () => {
-    expect(
-      isUnifiedStatusActive(
-        makeStatus({ scan: { ...makeStatus().scan, state: "failed" } }),
-      ),
-    ).toBe(false);
+    expect(isUnifiedStatusActive(makeStatus({ scan: { ...makeStatus().scan, state: "failed" } }))).toBe(false);
   });
 });
 

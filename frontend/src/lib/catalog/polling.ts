@@ -21,10 +21,7 @@ export function isUnifiedStatusActive(status: UnifiedStatus | undefined | null):
  * is available yet, `ACTIVE_POLL_INTERVAL` while catalog/metadata work is
  * queued or running, and `STABLE_POLL_INTERVAL` once the scope settles.
  */
-export function statusRefetchInterval(
-  status: UnifiedStatus | undefined | null,
-  enabled: boolean,
-): number | false {
+export function statusRefetchInterval(status: UnifiedStatus | undefined | null, enabled: boolean): number | false {
   if (!enabled || !status) return false;
   return isUnifiedStatusActive(status) ? ACTIVE_POLL_INTERVAL : STABLE_POLL_INTERVAL;
 }

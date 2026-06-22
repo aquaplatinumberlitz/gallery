@@ -3,11 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from "vue";
 import { queryKeys } from "@/query/keys";
 import { fetchLibraryStatusBatch } from "@/services/api";
 import { assertLibraryStatusBatch, isStatusContractError } from "@/lib/catalog/contractGuard";
-import {
-  ACTIVE_POLL_INTERVAL,
-  STABLE_POLL_INTERVAL,
-  isUnifiedStatusActive,
-} from "@/lib/catalog/polling";
+import { ACTIVE_POLL_INTERVAL, STABLE_POLL_INTERVAL, isUnifiedStatusActive } from "@/lib/catalog/polling";
 import type { UnifiedStatus } from "@/lib/catalog/status";
 
 function batchHasActiveStatus(items: { status: UnifiedStatus }[] | undefined): boolean {
