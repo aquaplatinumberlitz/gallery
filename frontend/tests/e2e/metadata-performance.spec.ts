@@ -82,11 +82,7 @@ function installMetadataTracker(page: Page, clickTimeRef: { value: number }) {
   const samples: MetadataSample[] = [];
   const byRequest = new Map<Request, MetadataSample>();
 
-  const trackedPaths = new Set([
-    "/api/library/inspector",
-    "/api/thumbnail",
-    "/api/library/inspector/metadata",
-  ]);
+  const trackedPaths = new Set(["/api/library/inspector", "/api/thumbnail", "/api/library/inspector/metadata"]);
   const libraryStatusPattern = /^\/api\/libraries\/\d+\/status$/;
 
   page.on("request", (req) => {

@@ -1,0 +1,47 @@
+You are reviewing the gallery-repo project at /home/ubuntu/gallery-repo.
+
+Read the following files completely:
+- backend/scan.py
+- frontend/src/query/keys.ts
+- frontend/src/types/index.ts (specifically ScanResponse and BrowseResponse)
+- frontend/src/lib/catalog/contractGuard.ts
+
+Then give your opinion on 3 issues raised about this codebase. I want structured agree/disagree with code evidence.
+
+---
+
+## Issue 1: Media-serving policy — "not truly registered-library only"
+
+The claim: `require_media_path_allowed()` in backend/scan.py only checks `PATH_SAFETY_ROOT` via `is_path_safe()`, not whether the path belongs to a registered library or catalog asset. So `/api/image`, `/api/video`, `/api/thumbnail`, `/api/preview` can serve any file within `PATH_SAFETY_ROOT` regardless of library registration. The audit says this contradicts the "registered-library security model" comment in scan.py.
+
+The question: Is this a real problem that needs fixing, or just a misleading comment? Read the catalog scan pipeline plan at docs/plans/CATALOG_SCAN_PIPELINE_AND_UNIFIED_STATUS_PLAN.md section §3.1 (field-level ownership table) and §11.3 (API hard-cut checks) to understand the intended security model.
+
+---
+
+## Issue 2: Contract guard not deep enough
+
+The claim: `assertStatusEnvelope()` in frontend/src/lib/catalog/contractGuard.ts validates some fields (summary_state enum, scope.library_id, metadata.total_assets) but NOT many other contract-required fields like `metadata.failed_assets`, `metadata.not_ready_assets`, `metadata.queued_assets`, `scan.operation`, `scan.trigger`, `availability.available_paths`, and all `global_runtime.*` fields. If the backend omits any of these, the guard passes and the frontend component sees undefined.
+
+The question: Should this be fixed now (full nested Zod/JSON Schema validation) or is the current guard sufficient for v1? Check how components actually access these fields (e.g. do they use `?? 0` optional chaining fallbacks?).
+
+---
+
+## Issue 3: Legacy scan naming still in code
+
+Three sub-issues:
+a) `frontend/src/query/keys.ts` still defines `queryKeys.scan()` and `queryKeys.scanInfinite()` but they have ZERO consumers in the codebase.
+b) `frontend/src/types/index.ts` still has `ScanResponse` interface (the old `/api/scan` response type), and `BrowseResponse extends ScanResponse` inherits from it. The `index_source` field in `ScanResponse` has `"warm_db" | "direct_scan" | "mixed" | "catalog"` while `BrowseResponse` overrides it to just `"catalog"`.
+c) `ScanResponse` is NOT imported anywhere in the frontend — it exists only as a base for `BrowseResponse`.
+
+The question: Should these be cleaned up as part of Phase 10? Are they causing any real issues or just cosmetic?
+
+---
+
+Format your response:
+1. For each issue: AGREE / DISAGREE / AGREE WITH NUANCE
+2. Code evidence (relevant lines)
+3. Recommended action: fix now vs fix later vs no fix needed<｜end▁of▁thinking｜>
+
+<｜｜DSML｜｜tool_calls>
+<｜｜DSML｜｜invoke name="terminal">
+<｜｜DSML｜｜parameter name="background" string="false">true

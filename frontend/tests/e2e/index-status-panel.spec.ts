@@ -85,7 +85,10 @@ function scanJob(scopePath: string | null, operation: "scan" | "rebuild" = "scan
   };
 }
 
-async function installStubbedGallery(page: Page, options: { failStatus?: boolean; delayStatus?: Promise<unknown> } = {}) {
+async function installStubbedGallery(
+  page: Page,
+  options: { failStatus?: boolean; delayStatus?: Promise<unknown> } = {},
+) {
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
     const method = route.request().method();
@@ -193,16 +196,13 @@ async function installStubbedGallery(page: Page, options: { failStatus?: boolean
 }
 
 async function openStubbedGallery(page: Page, withLibrary = true) {
-  await page.addInitScript(
-    (enabled) => {
-      localStorage.setItem("intro_mode", "disabled");
-      if (enabled) {
-        localStorage.setItem("gallery-active-library-id", "1");
-        localStorage.setItem("gallery-active-import-path-id", "10");
-      }
-    },
-    withLibrary,
-  );
+  await page.addInitScript((enabled) => {
+    localStorage.setItem("intro_mode", "disabled");
+    if (enabled) {
+      localStorage.setItem("gallery-active-library-id", "1");
+      localStorage.setItem("gallery-active-import-path-id", "10");
+    }
+  }, withLibrary);
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   if (withLibrary) {

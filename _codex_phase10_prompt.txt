@@ -1,0 +1,169 @@
+You are working on the gallery-repo project at /home/ubuntu/gallery-repo.
+
+Read the full plan FIRST (the plan is at docs/plans/CATALOG_SCAN_PIPELINE_AND_UNIFIED_STATUS_PLAN.md — read the entire file, every line).
+Then read the full implementation status at docs/plans/CATALOG_SCAN_PIPELINE_AND_UNIFIED_STATUS_IMPLEMENTATION_STATUS.md (the whole file).
+Then implement Phase 10 of that plan.
+
+## Phase 10 Deliverables
+
+Phase 10 is "Documentation and release gates". Here's exactly what to do, in order:
+
+### 1. Update docs/ARCHITECTURE.md
+
+The file has many stale references to removed endpoints and old behavior. Fix ALL of these:
+
+**Module table (lines 27-54):**
+- Line 37: `scan.py` — change description from "`/api/scan`, direct folder scans, optional warm SQLite listing, background index scheduling" to "Routes removed (Phase 9); scan.py still exports `require_media_path_allowed` and the router included by app.py"
+- Line 47: `indexer.py` — remove `/api/index/status` from description. Change to "Background metadata queue, staged path batching, SQLite write batching, catalog rebuild helpers"
+- Line 50: `libraries.py` — remove "repair" from description. Change to "Registered-library CRUD/validation, multi-import-path scan, unregister flows, status endpoints"
+- Add a row for `browse.py` after scan.py or near it: `browse.py` with purpose "DB-only read-only browse via /api/browse; virtual import-root listing, path-scoped asset/folder pagination"
+
+**Route table (lines 58-85):**
+- Line 60: Remove the `GET /api/scan` row. Replace with: `GET /api/browse` | Return folders and paginated mixed-media rows from catalog rows for a library | `browse.py`
+- Line 73: Remove the `GET /api/index/status` row entirely
+- Line 78: Change `POST /api/libraries` description: remove "legacy `root_path`" — change to "Register a library using import_paths"
+- Line 83: Remove the `POST /api/libraries/{id}/repair` row entirely
+- Add a row: `GET /api/libraries/{id}/status` | Return unified status envelope for a library or path scope | `libraries.py`
+- Add a row: `GET /api/libraries/status` | Return admin batch status for all libraries | `libraries.py`
+- Add a row: `POST /api/libraries/{id}/rebuild` | Rebuild catalog and metadata for a library scope | `libraries.py`
+
+**Backend behavior section (lines 89-102):**
+- Line 97: Remove "`libraries.root_path` remains a compatibility alias for the first root" — change to just "Registered libraries store ordered roots in `library_import_paths`. Relative globstar exclusions live in `library_exclusion_patterns`."
+- Lines 98-101: Remove the paragraphs about `/api/scan` hot-path, `/api/scan` response fields, `/api/scan` scheduling background indexing, and warm-listing. Replace with: "`/api/browse` is the read-only catalog query endpoint. It accepts `library_id`, `path`, `cursor`, `limit`, and `include_offline`. The response contains `folders`, `media`, `next_media_cursor`, `total_images`, `total_videos`, `total_assets`. Scan, rebuild, and status are managed through library endpoints."
+- Line 101: Remove the `/api/metadata` / `/api/thumbnail` / `/api/preview` "also update cached metadata/dimensions" sentence
+- Line 102: Remove "Scheduled refresh is disabled by default. The file watcher is enabled for registered library roots by default" — update to: "Catalog scan workers and metadata indexer run as background services. The catalog watcher and scheduled reconciliation are enabled by default for registered libraries."
+
+**State ownership table (lines 130-136):**
+- Line 132: Change `"/api/scan", "/api/folders", "/api/search", "/api/metadata", "/api/facets", "/api/index/status", Library Inspector` to `"/api/browse", "/api/folders", "/api/search", "/api/metadata", "/api/facets", "/api/libraries/{id}/status", "/api/libraries/status", Library Inspector`
+
+**Query keys (lines 142-153):**
+- Remove `["scan", ...]`, `["scan-infinite", ...]`, `["index-status", ...]` keys
+- Add correct keys: `["browse", libraryId, normalizedPath, limit]`, `["browse-infinite", libraryId, normalizedPath, limit]`, `["status-library", id]`, `["status-path", id, normalizedPath]`, `["status-batch"]`
+- Keep existing: `["folder-children", ...]`, `["search", ...]`, `["metadata", ...]`, `["facets", ...]`, `["library-inspector", ...]`, etc.
+
+**Data flow sections (lines 157-191):**
+- "Folder Load" section: Change `useInfiniteScanQuery(path)` → `useInfiniteBrowseQuery(libraryId, path)` and `GET /api/scan` → `GET /api/browse?library_id=...`
+- "Infinite Scroll" section: Same changes
+
+### 2. Update docs/CONFIGURATION.md
+
+- **Remove** the `GALLERY_DB_REQUIRED` row (line 23)
+- **Remove** the `ENABLE_WARM_INDEXED_LISTING` row (line 43)
+- **Remove** the `ENABLE_SCHEDULED_REFRESH` row (line 44) — replaced by catalog reconciliation
+- **Remove** the `SCHEDULED_REFRESH_INTERVAL_SECONDS` row (line 45)
+- **Remove** the `SCHEDULED_REFRESH_ROOTS` row (line 46)
+- **Remove** the `SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK` row (line 47)
+- **Remove** the `SCHEDULED_REFRESH_ALLOW_ALL_INDEXED` row (line 48)
+- **Remove** the `WATCHER_ROOTS` row (line 50) — watcher roots are derived from registered library import paths
+- **Remove** the `WATCHER_DEBOUNCE_SECONDS` row (line 51) — replaced by GALLERY_CATALOG_WATCHER_DEBOUNCE_SECONDS
+- **Remove** the `WATCHER_MAX_EVENTS_PER_TICK` row (line 52) — superseded by catalog worker batching
+- **Change** `SCAN_PERF_LOGS` (line 21): update to mention it controls only old perf logs; the `/api/scan` route is removed
+- **Change** `PROFILE_ENDPOINTS` default (line 19): default has already changed to `/api/browse` in code, update doc to match: `"/api/browse,/api/metadata,/api/thumbnail,/api/preview"`
+
+**Add new catalog configuration rows** (in alphabetical position or grouped at end of backend table):
+
+| Variable | Type | Default | Behavior |
+| -------- | ---- | ------- | -------- |
+| `GALLERY_CATALOG_WORKERS` | integer, minimum 1 | `1` | Number of concurrent catalog worker threads |
+| `GALLERY_CATALOG_WATCHER_ENABLED` | boolean flag | true | Enables filesystem watcher for registered library import paths |
+| `GALLERY_CATALOG_WATCHER_DEBOUNCE_SECONDS` | float, minimum 0 | `2.0` | Filesystem event debounce interval for catalog scan triggers |
+| `GALLERY_CATALOG_RECONCILE_ENABLED` | boolean flag | true | Enables scheduled catalog reconciliation for missed events |
+| `GALLERY_CATALOG_RECONCILE_INTERVAL_SECONDS` | integer, minimum 60 | `21600` | Catalog reconciliation interval (default 6 hours) |
+| `GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED` | boolean flag | true | Enables low-priority startup scan for every registered library |
+| `GALLERY_CATALOG_JOB_MAX_QUEUE_WAIT_SECONDS` | integer, minimum 1 | `600` | Max queue wait before a queued catalog job is priority-promoted |
+| `GALLERY_CATALOG_WRITE_BATCH_SIZE` | integer, clamped 1–2000 | `500` | Catalog write batch size for discovery/staging |
+| `GALLERY_METADATA_EVENT_THROTTLE_MS` | integer, minimum 50 | `500` | Metadata SSE coalescing throttle per library |
+
+### 3. Update frontend/src/db/README.md
+
+- Line 21: Change "scan/infinite loading use path-scoped `/api/scan`" to "scan/infinite loading use path-scoped `/api/browse`"
+- That's the only change needed in this file.
+
+### 4. Update Playwright E2E tests
+
+These are stubbed-route tests that intercept `/api/scan`, `/api/index/status`, `/api/index/rebuild`, etc. They need stubs for the NEW endpoints instead. For EACH file, understand the test's purpose and migrate accordingly:
+
+**frontend/tests/e2e/index-status-panel.spec.ts** (~1057 lines):
+- This test stubs `/api/scan` (line 85-108) to return image data and `/api/index/status` to return indexer runtime
+- It needs to be migrated to stub `/api/browse` instead of `/api/scan`, and `/api/libraries/{id}/status` instead of `/api/index/status`
+- The stub library fixture (line 25-39) uses old fields like `state`, `warm_enabled` — these are kept for backward compat on the libraries endpoint
+- The `indexStatusData` (line 41-71) is an old IndexStatusResponse shape — this must be replaced with a unified `StatusResponseEnvelope` (contract-v1 shape)
+- The route interceptor (starting line 74) needs to handle `/api/browse`, `/api/libraries/{id}/status` instead of `/api/scan`, `/api/index/status`
+- The test assertions and waits also check for `/api/scan` and `/api/index/status` calls — update these to the new endpoint paths
+
+**frontend/tests/e2e/index-rebuild-flow.spec.ts** (~755 lines):
+- Tests rebuild flow through Library Inspector and Index Status panel
+- Mock responses for `/api/index/status` need replacement with unified status responses
+- The `rebuildIndex` calls in assertions need updating to use the new `/api/libraries/{id}/rebuild` endpoint
+- Check route interception patterns — update to new endpoint paths
+
+**frontend/tests/e2e/gallery-no-reload.spec.ts** (~254 lines):
+- Stubs `/api/scan` at line 36 (cursorZeroScans function filters for `/api/scan`)
+- The route interceptor stubs `/api/scan` to return browse-style data already
+- Migrate cursorZeroScans to look for `/api/browse` instead
+- Update the `installStubbedGallery` function to handle `/api/browse` with `library_id` param instead of `/api/scan` with `path`
+- The `requestsFor` tracking (line 32-34) needs to track /api/browse calls
+
+**frontend/tests/e2e/library-management.spec.ts** (~385 lines):
+- Uses `progress` (old LibraryProgress) at line 30 — may need updating if tests use it for status assertions
+- Check route interception for old index-related endpoints
+
+**frontend/tests/e2e/gallery-no-reload-real-backend.spec.ts** (~? lines):
+- Similarly check and update if it references `/api/scan`
+
+**frontend/tests/e2e/library-inspector.spec.ts** (~? lines):
+- Check if it references old endpoints
+
+**frontend/tests/e2e/sidebar-trigger.spec.ts** (~? lines):
+- Check for `/api/index/status` or `/api/scan` references
+
+IMPORTANT: For EACH E2E file:
+1. Read the FULL file first
+2. Understand what it tests
+3. Update stubs to use new endpoints while preserving the test's purpose
+4. The stub data should use realistic shapes matching the new API contracts
+5. The old IndexStatusResponse shape is: { enabled, worker_count, active_jobs, runtime_queue_depth, done, running, queued, failed, stale, skipped, total, indexed_photos, metadata_records, missing_metadata_records, path, counts, oldest_queued_age_seconds, last_error, updated_at, coalesced_duplicates, staged_path_queue_depth, staged_path_coalesced, staged_path_failed, staged_path_flushes_forced, staged_path_worker_count, active_scan_requests, batch_size, staged_path_batch_size, stage_max_wait_seconds }
+6. The new StatusResponseEnvelope shape is: { contract_version: 1, status: { contract_version, generated_at, summary_state, scope: { kind, library_id, path, import_path_count }, availability: { state, available_paths, total_paths }, scan: { state, operation, trigger, active_job_id, completed_units, total_units, progress_percent }, metadata: { state, total_assets, ready_assets, not_ready_assets, queued_assets, running_assets, stale_assets, idle_pending_assets, failed_assets, progress_percent, global_active_outside_scope }, issue_count, issues: { availability, scan, metadata }, latest_issue: { source, path, message, updated_at } | null, last_scan_at, last_index_at }, global_runtime: { catalog_worker_count, catalog_active_jobs, catalog_queue_depth, metadata_worker_count, metadata_active_jobs, metadata_queue_depth, metadata_staged_queue_depth, watcher_enabled, watcher_healthy, watcher_issue, scheduled_reconciliation_enabled } }
+
+### 5. Verify with the full test suite
+
+Run: `cd /home/ubuntu/gallery-repo && ./test.sh fast`
+- This should pass all backend tests, frontend unit tests, frontend typecheck, and production build
+- If any tests fail (especially the ones you changed), fix them until green
+
+Then run: `cd /home/ubuntu/gallery-repo && backend/venv/bin/python -m pytest backend/tests/ -q --cov=backend --cov-report=term-missing --cov-report=xml --cov-fail-under=85`
+- Backend coverage must stay above 85%
+
+### 6. Update the implementation status file
+
+Update docs/plans/CATALOG_SCAN_PIPELINE_AND_UNIFIED_STATUS_IMPLEMENTATION_STATUS.md:
+
+- Change "Current milestone: Phase 9 complete" to "Current milestone: Phase 10 complete"
+- Change "Next milestone: Phase 10 — ..." to "Next milestone: Phase 11 — Archive plan and documentation finalization"
+- Change Phase 10 row from "Not started" to "Complete" with updated deliverables description
+- Add a "## Phase 10 Delivered" section listing everything done:
+  - Updated docs/ARCHITECTURE.md with new module/routing tables, data flow diagrams, query keys, and state ownership
+  - Updated docs/CONFIGURATION.md: removed GALLERY_DB_REQUIRED, ENABLE_WARM_INDEXED_LISTING, old watcher/scheduler config; added GALLERY_CATALOG_* config vars
+  - Updated frontend/src/db/README.md to reference /api/browse instead of /api/scan
+  - Migrated Playwright E2E stubs from /api/scan, /api/index/status, /api/index/rebuild to /api/browse, /api/libraries/{id}/status, /api/libraries/{id}/rebuild
+  - Full test suite passed (./test.sh fast, backend coverage)
+- Update "Last updated" date to today
+- Add verified git baseline commits (git log --oneline -10 after your changes)
+
+### 7. Commit and push
+
+Since this is Phase 10 (documentation + E2E migration), use commit messages like:
+- `docs: update architecture docs for catalog pipeline phase 10`
+- `docs: update configuration docs with new catalog config vars`
+- `docs: update db readme browse endpoint reference`
+- `test: migrate e2e stubs to unified status endpoints`
+- `docs: mark phase 10 complete in implementation status`
+
+Push each commit, or batch into one docs+test commit, then push.
+
+IMPORTANT RULES:
+1. Read every file completely before editing — especially the E2E test files (they are large, 250-1057 lines)
+2. After each file edit, verify the file is syntactically valid (check TypeScript/JSON/Playwright syntax)
+3. Run tests after ALL edits are done — do NOT run tests between every file edit since the test suite takes time
+4. If Playwright tests can't run in this environment (no browser), that's OK — just make the code changes correctly
+5. The key deliverable is: docs are accurate, E2E tests use correct new endpoints, tests pass, and status is updated

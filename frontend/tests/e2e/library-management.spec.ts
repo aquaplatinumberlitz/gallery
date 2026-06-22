@@ -185,7 +185,9 @@ async function mockLibraryApi(page: Page, options: MockOptions = {}): Promise<Mo
       return;
     }
 
-    const match = url.pathname.match(/^\/api\/libraries\/(\d+)(?:\/(progress|stats|jobs|validate|scan|rebuild|status))?$/);
+    const match = url.pathname.match(
+      /^\/api\/libraries\/(\d+)(?:\/(progress|stats|jobs|validate|scan|rebuild|status))?$/,
+    );
     if (match) {
       const id = Number(match[1]);
       const suffix = match[2];
