@@ -2,39 +2,11 @@
 
 Status: Maintained
 
-Last reviewed: 2026-06-19
+Last reviewed: 2026-06-22
 
 Debug helpers must stay gated and off by default. Prefer these tools before adding new console logging, and remove temporary investigation code once the diagnosis is complete.
 
 ## Runtime Debug Flags
-
-### `SCAN_PERF_LOGS`
-
-Location: `backend/debug/scan_perf.py`, called from `backend/scan.py`
-
-Purpose: Emits `/api/scan` timing diagnostics for direct scans and warm SQLite listing hits.
-
-Enable:
-
-```bash
-SCAN_PERF_LOGS=1 python3 -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
-```
-
-Disable:
-
-```bash
-SCAN_PERF_LOGS=0 python3 -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
-```
-
-Output: stdout lines prefixed with `[SCAN PERF]`, including path, limit, cursor, total time, warm/direct source, serialization time, and scan phase timings.
-
-Use when:
-
-- `/api/scan` is slow for large folders.
-- Warm listing falls back to direct scan unexpectedly.
-- Pagination or serialization timing needs to be separated from filesystem scan time.
-
-Safety: Controlled by `SCAN_PERF_LOGS`. Defaults on outside production and off when `PRODUCTION=1`.
 
 ### `debug-index-rebuild`
 
@@ -379,32 +351,9 @@ Use when:
 
 Safety: Diagnostic-only Playwright script. Requires a running app/backend with useful image data.
 
-### `scripts/perf_scan.py`
-
-Purpose: Measures `/api/scan` latency against a p95 budget.
-
-Enable:
-
-```bash
-GALLERY_API_BASE_URL=http://localhost:8000 \
-GALLERY_PERF_SCAN_PATH=/path/to/gallery \
-python scripts/perf_scan.py
-```
-
-Disable: No persistent state.
-
-Output: Compact JSON report on stdout; non-zero exit if p95 exceeds `GALLERY_PERF_SCAN_P95_BUDGET_MS`.
-
-Use when:
-
-- Changing scan performance, warm listing, or folder traversal.
-- Checking real folder scan latency.
-
-Safety: Read-only API calls against the configured backend.
-
 ### `scripts/perf_warm_listing.py`
 
-Purpose: Compares cold direct scan and warm SQLite listing performance.
+Purpose: Compares cold filesystem listing and warm SQLite catalog-listing performance.
 
 Enable:
 

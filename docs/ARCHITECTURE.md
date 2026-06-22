@@ -28,7 +28,7 @@ Backend modules live flat in `backend/`.
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `app.py`                   | FastAPI app creation, CORS, optional Prometheus metrics, optional pyinstrument middleware, router composition, startup background services |
 | `main.py`                  | Import-compatible `app` shim and uvicorn fallback block                                                                                    |
-| `config.py`                | Environment flags, cache paths, image limits, indexer tuning, production/static config                                                     |
+| `config.py`                | Environment flags, cache paths, derivative limits, image limits, indexer/catalog tuning, production/static config                           |
 | `errors.py`                | `APIError`, `ErrorType`, and FastAPI error shaping                                                                                         |
 | `models.py`                | Shared Pydantic DTOs, including `FileNode`                                                                                                 |
 | `paths.py`                 | `resolve_path`, `is_path_safe`, and `PATH_SAFETY_ROOT` boundary checks                                                                     |
@@ -75,15 +75,28 @@ Backend modules live flat in `backend/`.
 | `GET /api/health`                         | Return service health and commit metadata                             | `health.py`         |
 | `GET /api/landing-pages`                  | List intro page HTML templates from `frontend/public/landpage/`       | `static_files.py`   |
 | `GET /api/libraries`                      | List libraries with ordered import paths and exclusions               | `libraries.py`      |
+| `GET /api/libraries/status`               | Return admin batch status for all libraries                           | `libraries.py`      |
 | `POST /api/libraries`                     | Register a library using import_paths                                 | `libraries.py`      |
 | `POST /api/libraries/validate`            | Validate create settings without writing                              | `libraries.py`      |
+| `POST /api/libraries/scan-all`            | Queue one scan job per registered library                             | `libraries.py`      |
+| `GET /api/stats`                          | Return aggregate statistics across registered libraries               | `libraries.py`      |
+| `GET /api/jobs`                           | Return recent library-management jobs                                 | `libraries.py`      |
+| `GET /api/jobs/{job_id}`                  | Return one library-management job                                     | `libraries.py`      |
+| `GET /api/events`                         | Stream best-effort library job and progress events over SSE           | `libraries.py`      |
 | `PATCH/PUT /api/libraries/{id}`           | Replace supplied library settings                                     | `libraries.py`      |
+| `GET /api/libraries/{id}`                 | Return library details                                                | `libraries.py`      |
 | `POST /api/libraries/{id}/validate`       | Validate update settings without writing                              | `libraries.py`      |
+| `GET /api/libraries/{id}/progress`        | Return progressive discovery and metadata coverage                    | `libraries.py`      |
 | `POST /api/libraries/{id}/scan`           | Scan every import path in one library                                 | `libraries.py`      |
 | `GET /api/libraries/{id}/status`          | Return unified status envelope for a library or path scope            | `libraries.py`      |
-| `GET /api/libraries/status`               | Return admin batch status for all libraries                           | `libraries.py`      |
+| `GET /api/libraries/{id}/stats`           | Return aggregate media statistics for one library                     | `libraries.py`      |
+| `GET /api/libraries/{id}/jobs`            | Return recent jobs for one library                                    | `libraries.py`      |
 | `POST /api/libraries/{id}/rebuild`        | Rebuild catalog and metadata for a library scope                      | `libraries.py`      |
 | `DELETE /api/libraries/{id}?confirm=true` | Unregister catalog data without deleting source files                 | `libraries.py`      |
+| `GET /api/derivatives/status`             | Return derivative warm coverage and quota use for a library           | `libraries.py`      |
+| `POST /api/derivatives/warm`              | Queue default thumbnail and preview derivatives for a library         | `libraries.py`      |
+| `POST /api/derivatives/rebuild`           | Queue replacements for stale derivatives                              | `libraries.py`      |
+| `POST /api/derivatives/clear`             | Clear derivative catalog rows and persisted derivative files          | `libraries.py`      |
 | `GET /` and `GET /{path:path}`            | Serve the built SPA in production mode                                | `static_files.py`   |
 
 ### Backend Behavior
@@ -283,5 +296,5 @@ Mobile sheet contract:
 - Keep mobile outside-tap close non-blocking: no `stopPropagation()`, track `pointerId` and `isPrimary`, require pointerdown and pointerup outside the sheet, use the movement threshold, and handle `pointercancel`.
 - Keep `pswp.currIndex !== index` in the PhotoSwipe index watcher to prevent feedback loops.
 - Keep Query as the owner of server/API data and Pinia as the owner of UI/navigation state.
-- Do not move scan, infinite loading, folder tree, unified search, or lightbox metadata into TanStack DB without a dedicated collection-state design.
+- Do not move browse, infinite loading, folder tree, unified search, or lightbox metadata into TanStack DB without a dedicated collection-state design.
 - Keep shadcn-vue Select controls as the metadata toolbar contract for model, prompt, and sort filters. `toolbarTrigger.ts` is a shared dropdown/button trigger class, but `SortSelect.vue` uses the local `SelectTrigger` styling directly.

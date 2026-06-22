@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-06-21
+Last reviewed: 2026-06-22
 
 This document records how major third-party libraries are used in the current codebase and which integration contracts should not be changed casually.
 
@@ -18,7 +18,7 @@ This document records how major third-party libraries are used in the current co
 | cachetools                                                      | In-memory metadata response cache                                                 | `backend/metadata_parse.py`                                                                           | Metadata cache only; thumbnail bytes are disk-backed                                                    |
 | SQLite FTS5                                                     | Folder/photo/metadata index and search                                            | `backend/metadata_store.py`, `backend/search.py`, `backend/facets.py`                                 | Uses Python stdlib `sqlite3`; no external search service                                                |
 | wcmatch                                                         | Per-library globstar exclusion matching                                           | `backend/files.py`, `backend/libraries.py`                                                            | Patterns are relative to each registered import path                                                    |
-| prometheus-fastapi-instrumentator / prometheus-client           | Optional metrics                                                                  | `backend/app.py`, `backend/scan.py`, `backend/indexer.py`                                             | Enabled by default outside production through `ENABLE_METRICS`                                          |
+| prometheus-fastapi-instrumentator / prometheus-client           | Optional metrics                                                                  | `backend/app.py`, `backend/indexer.py`                                                                | Enabled by default outside production through `ENABLE_METRICS`                                          |
 | pyinstrument                                                    | Optional endpoint profiling                                                       | `backend/app.py`                                                                                      | Enabled by `ENABLE_PROFILER=1`; writes HTML profiles to `backend/profiles/`                             |
 | Ruff                                                            | Backend lint and format checks                                                    | `pyproject.toml`, `test.sh`                                                                           | `./test.sh lint` scans the full Python codebase                                                         |
 | pnpm / Corepack                                                 | Frontend package management                                                       | `frontend/package.json`, `frontend/pnpm-lock.yaml`                                                    | `packageManager` pins pnpm; do not reintroduce `package-lock.json`                                      |
@@ -130,7 +130,7 @@ with the gallery's built-in dependency/cache/build exclusions.
 `pyinstrument` profiling is opt-in:
 
 ```bash
-ENABLE_PROFILER=1 PROFILE_ENDPOINTS=/api/scan,/api/metadata python3 -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+ENABLE_PROFILER=1 PROFILE_ENDPOINTS=/api/browse,/api/metadata python3 -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```
 
 Profiles are written to `backend/profiles/`.
@@ -213,13 +213,12 @@ Integration files:
 
 - `frontend/src/query/index.ts`: shared `QueryClient` and Vue plugin installer.
 - `frontend/src/query/keys.ts`: normalized query-key factory.
-- `frontend/src/query/scan.ts`: scan prefetch/helper functions.
-- `frontend/src/composables/useInfiniteScanQuery.ts`
+- `frontend/src/composables/useInfiniteBrowseQuery.ts`
 - `frontend/src/composables/useFolderChildrenQuery.ts`
 - `frontend/src/composables/useUnifiedSearchQuery.ts`
 - `frontend/src/composables/usePhotoMetadataQuery.ts`
 - `frontend/src/composables/useFacetsQuery.ts`
-- `frontend/src/composables/useIndexStatusQuery.ts`
+- `frontend/src/composables/useCatalogStatusQuery.ts`
 - `frontend/src/composables/useInfiniteLibraryInspectorQuery.ts`
 - `frontend/src/composables/useLibraryInspectorMetadataQuery.ts`
 
@@ -250,7 +249,7 @@ TanStack DB is still an incremental beta foundation. Runtime usage is intentiona
 - `frontend/src/db/collections/landingPagesCollection.ts` wraps `/api/landing-pages`.
 - `frontend/src/db/composables/useLandingPagesLiveQuery.ts` exposes a Vue live query for settings/intro UI.
 
-Do not migrate `/api/scan`, infinite loading, folder tree, unified search, lightbox metadata, PhotoSwipe, virtual scrolling, or the Pinia gallery store shape into TanStack DB without a dedicated design for stable keys and complete collection state.
+Do not migrate `/api/browse`, infinite loading, folder tree, unified search, lightbox metadata, PhotoSwipe, virtual scrolling, or the Pinia gallery store shape into TanStack DB without a dedicated design for stable keys and complete collection state.
 
 ### PhotoSwipe 5
 
@@ -331,7 +330,7 @@ Eruda is an optional mobile debugging console. `frontend/src/debug/erudaDebug.ts
 
 - Do not run backend docs/examples with the wrong import target; prefer `python3 -m uvicorn backend.main:app` from repo root.
 - Do not move server/API state from TanStack Query into Pinia.
-- Do not move scan/infinite/folder/search/lightbox metadata flows into TanStack DB without a specific collection-state design.
+- Do not move browse/infinite/folder/search/lightbox metadata flows into TanStack DB without a specific collection-state design.
 - Do not enable VSBS `blocking=true` or add a second focus trap inside PhotoSwipe.
 - Do not move VSBS teleported DOM overrides into scoped-only styles.
 - Do not add `stopPropagation()` to mobile sheet outside-tap close.

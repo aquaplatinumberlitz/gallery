@@ -1,0 +1,47 @@
+Audit và cập nhật toàn bộ `/docs/` của gallery-repo. Làm việc này độc lập — đọc codebase để xác thực, đừng chỉ dựa vào mô tả bên dưới.
+
+**Context:**
+- Project vừa hoàn thành 11-phase Catalog Scan Pipeline and Unified Status refactor.
+- Endpoint `/api/scan`, `/api/index/status`, `/api/index/rebuild`, `/api/libraries/{id}/repair` đã bị xoá.
+- Config `GALLERY_DB_REQUIRED`, `ENABLE_WARM_INDEXED_LISTING`, `ENABLE_SCHEDULED_REFRESH`, `SCHEDULED_REFRESH_*`, `WATCHER_ROOTS`, `WATCHER_DEBOUNCE_SECONDS` đã bị xoá.
+- Endpoint mới: `/api/browse`, `/api/libraries/{id}/status`, `/api/libraries/status`, `/api/libraries/{id}/rebuild`.
+- Config mới: `GALLERY_CATALOG_*` family, `GALLERY_METADATA_EVENT_THROTTLE_MS`.
+- File test `test_api_integration_scan.py`, `test_scan_hot_path.py` đã bị xoá ở Phase 9.
+- `docs/ARCHITECTURE.md` và `docs/CONFIGURATION.md` đã được Phase 10 cập nhật — verify kỹ xem còn sót gì ko.
+- `docs/research/` chứa research docs mô tả old behavior — giữ nguyên (historical context).
+- `docs/archived/` chứa archived plans — giữ nguyên.
+- `docs/reports/` chứa các report phân tích cũ — nếu còn mô tả stale behavior thì move vào `docs/archived/`.
+
+**Các việc:**
+
+1. **Scan tất cả `.md` files trong `docs/`** (trừ `docs/archived/` và `docs/research/`) để tìm:
+   - Mọi reference còn sót tới endpoint cũ: `/api/scan`, `/api/index/status`, `/api/index/rebuild`, `/api/libraries/{id}/repair`
+   - Mọi reference còn sót tới config cũ: `GALLERY_DB_REQUIRED`, `ENABLE_WARM_INDEXED_LISTING`, `ENABLE_SCHEDULED_REFRESH`, `SCHEDULED_REFRESH_*`, `WATCHER_ROOTS`, `WATCHER_DEBOUNCE_SECONDS`, `root_path` (nói về DB column)
+   - Mọi reference tới test files đã xoá: `test_api_integration_scan.py`, `test_scan_hot_path.py`, `test_db_required_*`
+   - Logic contradictions — mô tả behavior ko còn tồn tại
+   - Cross-reference accuracy — link tới file ko còn tồn tại
+
+2. **Cập nhật các file bị stale:**
+   - `docs/THIRD_PARTY_LIBRARIES.md`: sửa `/api/scan` → `/api/browse`
+   - `docs/testing/PERFORMANCE_TESTING.md`: sửa tất cả `/api/scan` refs → `/api/browse`, xoá/cập nhật mô tả scan profiling
+   - `docs/testing/DEBUG_TOOLS.md`: sửa `/api/scan` → `/api/browse`, cập nhật mô tả diagnostic
+   - `docs/testing/README.md`: sửa reference tới test files đã xoá
+   - Bất kỳ file nào khác trong scope mà còn stale
+
+3. **File trong `docs/reports/DB_REQUIRED_LIBRARY_DERIVATIVE_AUDIT.md`:**
+   - Nếu còn mô tả các behavior đã xoá (GALLERY_DB_REQUIRED, /api/scan) như hiện tại: move vào `docs/archived/`
+
+4. **Verify lại `docs/CONFIGURATION.md` && `docs/ARCHITECTURE.md`:**
+   - Config nào mới còn thiếu? Config nào cũ còn sót?
+   - Route/module nào mô tả sai? Module table có đúng ko?
+
+5. **Commit message:** `"docs: audit and update stale references after catalog scan pipeline refactor"`
+
+6. **Push lên main.**
+
+Lưu ý:
+- KHÔNG sửa `docs/research/` (giữ nguyên historical context).
+- KHÔNG sửa `docs/archived/` (đã archive).
+- Chạy `git diff --stat` trước commit để kiểm tra scope thay đổi.
+- Không sửa code file nào.
+- Không chạy test/coverage.
