@@ -1,7 +1,6 @@
 # Catalog Scan Pipeline and Unified Status Plan
 
-Status: Active — audit revision 2 approved; Phase 1 through Phase 5 complete;
-Phase 6 next
+Status: Complete
 
 Created: 2026-06-21
 

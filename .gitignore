@@ -9,6 +9,7 @@ backend/profiles/
 .venv*/
 venv/
 *.venv/
+uv.lock
 
 # Node
 node_modules/
