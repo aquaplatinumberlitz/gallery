@@ -95,6 +95,30 @@ describe("assertStatusEnvelope", () => {
       }),
     ).toThrow(StatusContractError);
   });
+
+  it("rejects an envelope with missing metadata.total_assets", () => {
+    const broken = makeEnvelope();
+    delete (broken.status.metadata as { total_assets?: number | null }).total_assets;
+    expect(() => assertStatusEnvelope(broken)).toThrow(StatusContractError);
+  });
+
+  it("rejects an envelope with an invalid summary_state string", () => {
+    const broken = makeEnvelope();
+    (broken.status as { summary_state: string }).summary_state = "invalid_summary";
+    expect(() => assertStatusEnvelope(broken)).toThrow(StatusContractError);
+  });
+
+  it("rejects an envelope with missing scan.state", () => {
+    const broken = makeEnvelope();
+    delete (broken.status.scan as { state?: string }).state;
+    expect(() => assertStatusEnvelope(broken)).toThrow(StatusContractError);
+  });
+
+  it("rejects an envelope with missing scope.library_id", () => {
+    const broken = makeEnvelope();
+    delete (broken.status.scope as { library_id?: number }).library_id;
+    expect(() => assertStatusEnvelope(broken)).toThrow(StatusContractError);
+  });
 });
 
 describe("assertLibraryStatusBatch", () => {

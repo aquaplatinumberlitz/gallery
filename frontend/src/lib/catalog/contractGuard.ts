@@ -26,8 +26,30 @@ const REQUIRED_STATUS_FIELDS: ReadonlyArray<keyof UnifiedStatus> = [
   "last_index_at",
 ];
 
+const SUMMARY_STATES = new Set<string>([
+  "unknown",
+  "offline",
+  "needs_scan",
+  "scanning",
+  "indexing",
+  "needs_update",
+  "ready_with_issues",
+  "ready",
+  "error",
+]);
+
+const AVAILABILITY_STATES = new Set<string>(["unknown", "available", "degraded", "unavailable"]);
+
+const SCAN_STATES = new Set<string>(["never", "queued", "scanning", "complete", "failed"]);
+
+const SCOPE_KINDS = new Set<string>(["library", "path"]);
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function isNumberOrNull(value: unknown): value is number | null {
+  return typeof value === "number" || value === null;
 }
 
 function assertUnifiedStatus(status: unknown): asserts status is UnifiedStatus {
@@ -37,11 +59,26 @@ function assertUnifiedStatus(status: unknown): asserts status is UnifiedStatus {
   }
   if (status.contract_version !== STATUS_CONTRACT_VERSION) throw new StatusContractError();
   if (typeof status.generated_at !== "number") throw new StatusContractError();
-  if (typeof status.summary_state !== "string") throw new StatusContractError();
+  if (typeof status.summary_state !== "string" || !SUMMARY_STATES.has(status.summary_state)) {
+    throw new StatusContractError();
+  }
   if (!isObject(status.scope)) throw new StatusContractError();
+  if (typeof status.scope.library_id !== "number") throw new StatusContractError();
+  if (typeof status.scope.kind !== "string" || !SCOPE_KINDS.has(status.scope.kind)) {
+    throw new StatusContractError();
+  }
   if (!isObject(status.availability)) throw new StatusContractError();
+  if (typeof status.availability.state !== "string" || !AVAILABILITY_STATES.has(status.availability.state)) {
+    throw new StatusContractError();
+  }
   if (!isObject(status.scan)) throw new StatusContractError();
+  if (typeof status.scan.state !== "string" || !SCAN_STATES.has(status.scan.state)) {
+    throw new StatusContractError();
+  }
   if (!isObject(status.metadata)) throw new StatusContractError();
+  if (!isNumberOrNull(status.metadata.total_assets)) throw new StatusContractError();
+  if (!isNumberOrNull(status.metadata.ready_assets)) throw new StatusContractError();
+  if (!isNumberOrNull(status.metadata.progress_percent)) throw new StatusContractError();
   if (typeof status.issue_count !== "number") throw new StatusContractError();
   if (!isObject(status.issues)) throw new StatusContractError();
   if (status.latest_issue !== null && !isObject(status.latest_issue)) throw new StatusContractError();
