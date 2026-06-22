@@ -406,3 +406,18 @@ status, `ACTIVE_POLL_INTERVAL` 2500 ms while active, `STABLE_POLL_INTERVAL`
 now consume these helpers instead of redefining the constants and active
 detection. Coverage added in
 `frontend/src/lib/catalog/__tests__/polling.test.ts`.
+
+### Fix 7: legacy query keys and invalidation cleanup
+
+Commit `cleanup: remove legacy query keys and invalidation paths`. Removed
+the `queryKeys.libraryProgress(id)` and `queryKeys.indexStatus(path)` keys
+from `frontend/src/query/keys.ts` (no remaining component consumers). Removed
+the dead `useLibraryProgressQuery` and `useIndexStatusQuery` composables plus
+the orphaned `fetchLibraryProgress` and `fetchIndexStatus` API client
+functions. Removed `libraryProgress` invalidations from `useLibraryMutations`
+(`scanMutation`, `updateMutation`, `rebuildMutation`, `unregisterMutation`)
+and `useLibraryEvents`. Kept `queryKeys.libraryStats` and its invalidations
+with a `cleanup: remove after migration to unified status` TODO because it is
+still consumed by `useLibraryStatsQuery` / `LibraryDetailPage` for storage
+usage stats. Updated `keys.test.ts` and `useLibraryMutations.test.ts` to drop
+the removed-key assertions.

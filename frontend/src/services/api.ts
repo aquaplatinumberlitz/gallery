@@ -3,13 +3,11 @@ import type {
   BrowseResponse,
   FacetsResponse,
   FolderChildrenResponse,
-  IndexStatusResponse,
   GalleryStats,
   LibraryCreateRequest,
   LibraryJob,
   LibraryInspectorMetadataResponse,
   LibraryInspectorResponse,
-  LibraryProgress,
   LibraryRebuildResponse,
   LibraryScanResponse,
   LibraryStats,
@@ -354,20 +352,6 @@ export const getPreviewUrl = (path: string, maxLongEdge: number = 1440) => {
   return `${API_BASE}/api/preview?${params.toString()}`;
 };
 
-export const fetchIndexStatus = async (path: string): Promise<IndexStatusResponse> => {
-  try {
-    const { data } = await api.get<IndexStatusResponse>("/api/index/status", {
-      params: { path },
-    });
-    return data;
-  } catch (error) {
-    if (error instanceof AxiosError) {
-      throw GalleryAPIError.fromAxiosError(error);
-    }
-    throw error;
-  }
-};
-
 export const rebuildIndex = async (path: string): Promise<IndexRebuildResponse> => {
   try {
     const { data } = await api.post<IndexRebuildResponse>("/api/index/rebuild", null, {
@@ -421,16 +405,6 @@ export const fetchLibraries = async (): Promise<RegisteredLibrary[]> => {
 export const fetchLibrary = async (id: number): Promise<RegisteredLibrary> => {
   try {
     const { data } = await api.get<RegisteredLibrary>(`/api/libraries/${id}`);
-    return data;
-  } catch (error) {
-    if (error instanceof AxiosError) throw GalleryAPIError.fromAxiosError(error);
-    throw error;
-  }
-};
-
-export const fetchLibraryProgress = async (id: number): Promise<LibraryProgress> => {
-  try {
-    const { data } = await api.get<LibraryProgress>(`/api/libraries/${id}/progress`);
     return data;
   } catch (error) {
     if (error instanceof AxiosError) throw GalleryAPIError.fromAxiosError(error);

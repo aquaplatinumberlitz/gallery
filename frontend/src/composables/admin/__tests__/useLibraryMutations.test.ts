@@ -106,7 +106,6 @@ describe("useLibraryMutations invalidation", () => {
 
     await mutations.scanMutation.mutateAsync({ id: 3 });
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.libraryProgress(3) });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.libraryJobs(3) });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.jobsRoot() });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusLibrary(3) });

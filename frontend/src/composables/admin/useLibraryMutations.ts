@@ -64,8 +64,9 @@ export function useLibraryMutations() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.library(id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.libraries() }),
+        // cleanup: remove after migration to unified status. Still consumed by
+        // useLibraryStatsQuery / LibraryDetailPage for storage usage stats.
         queryClient.invalidateQueries({ queryKey: queryKeys.libraryStats(id) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.libraryProgress(id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.galleryStats() }),
         queryClient.invalidateQueries({ queryKey: queryKeys.statusLibrary(id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.statusPathRoot(id) }),
@@ -92,7 +93,8 @@ export function useLibraryMutations() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.library(id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.libraries() }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.libraryProgress(id) }),
+        // cleanup: remove after migration to unified status. Still consumed by
+        // useLibraryStatsQuery / LibraryDetailPage for storage usage stats.
         queryClient.invalidateQueries({ queryKey: queryKeys.libraryStats(id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.libraryJobs(id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.jobsRoot() }),
@@ -128,7 +130,8 @@ export function useLibraryMutations() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.library(id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.libraries() }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.libraryProgress(id) }),
+        // cleanup: remove after migration to unified status. Still consumed by
+        // useLibraryStatsQuery / LibraryDetailPage for storage usage stats.
         queryClient.invalidateQueries({ queryKey: queryKeys.libraryStats(id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.libraryJobs(id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.jobsRoot() }),
@@ -155,7 +158,6 @@ export function useLibraryMutations() {
         else galleryStore.clearActiveLibrary();
       }
       queryClient.removeQueries({ queryKey: queryKeys.library(id) });
-      queryClient.removeQueries({ queryKey: queryKeys.libraryProgress(id) });
       queryClient.removeQueries({ queryKey: queryKeys.libraryStats(id) });
       queryClient.removeQueries({ queryKey: queryKeys.libraryJobs(id) });
       queryClient.removeQueries({ queryKey: queryKeys.statusLibrary(id) });

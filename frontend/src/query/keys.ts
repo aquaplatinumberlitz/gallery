@@ -20,8 +20,8 @@ export const queryKeys = {
 
   library: (id: number) => ["libraries", "detail", id] as const,
 
-  libraryProgress: (id: number) => ["libraries", "progress", id] as const,
-
+  // cleanup: remove after migration to unified status. Still consumed by
+  // useLibraryStatsQuery / LibraryDetailPage for storage usage stats.
   libraryStats: (id: number) => ["libraries", "stats", id] as const,
 
   libraryJobs: (id: number) => ["libraries", "jobs", id] as const,
@@ -54,8 +54,6 @@ export const queryKeys = {
     ["search", query.trim(), scope, normalizeQueryPath(path)] as const,
 
   metadata: (path: string) => ["metadata", normalizeQueryPath(path)] as const,
-
-  indexStatus: (path: string) => ["index-status", normalizeQueryPath(path)] as const,
 
   statusRoot: () => ["status"] as const,
 
