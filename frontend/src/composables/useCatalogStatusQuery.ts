@@ -3,17 +3,7 @@ import { computed, onMounted, onUnmounted, ref, type MaybeRefOrGetter, toValue }
 import { normalizeBrowsePath, queryKeys } from "@/query/keys";
 import { fetchCatalogStatus } from "@/services/api";
 import { assertStatusEnvelope, isStatusContractError } from "@/lib/catalog/contractGuard";
-import type { UnifiedStatus } from "@/lib/catalog/status";
-
-const ACTIVE_POLL_INTERVAL = 2_500;
-const STABLE_POLL_INTERVAL = 60_000;
-
-function isStatusActive(status: UnifiedStatus | undefined): boolean {
-  if (!status) return false;
-  if (status.scan.state === "queued" || status.scan.state === "scanning") return true;
-  if (status.metadata.state === "queued" || status.metadata.state === "indexing") return true;
-  return false;
-}
+import { statusRefetchInterval } from "@/lib/catalog/polling";
 
 export function useCatalogStatusQuery(
   libraryId: MaybeRefOrGetter<number | null | undefined>,
@@ -50,10 +40,7 @@ export function useCatalogStatusQuery(
       if (isStatusContractError(error)) return false;
       return failureCount < 1;
     },
-    refetchInterval: (q) => {
-      if (!queryEnabled.value || isDocumentHidden.value) return false;
-      return isStatusActive(q.state.data?.status) ? ACTIVE_POLL_INTERVAL : STABLE_POLL_INTERVAL;
-    },
+    refetchInterval: (q) => statusRefetchInterval(q.state.data?.status, queryEnabled.value),
     refetchOnWindowFocus: () => typeof document === "undefined" || document.visibilityState !== "hidden",
   });
 

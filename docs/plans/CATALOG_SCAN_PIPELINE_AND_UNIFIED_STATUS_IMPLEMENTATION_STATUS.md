@@ -393,3 +393,16 @@ tab is hidden, and triggers a 300 ms debounced refetch when the tab becomes
 visible again. The previous `document.visibilityState` check inside
 `refetchInterval` is now backed by a reactive listener so the query pauses and
 resumes immediately instead of relying on the next interval tick.
+
+### Fix 6: shared catalog status polling helpers
+
+Commit `refactor: extract shared catalog status polling helpers`. Added
+`frontend/src/lib/catalog/polling.ts` exporting
+`isUnifiedStatusActive(status)` (true when `scan.state` is `queued`/`scanning`
+or `metadata.state` is `queued`/`indexing`) and
+`statusRefetchInterval(status, enabled)` (returns `false` when disabled or no
+status, `ACTIVE_POLL_INTERVAL` 2500 ms while active, `STABLE_POLL_INTERVAL`
+60000 ms when settled). `useCatalogStatusQuery` and `useLibraryStatusBatchQuery`
+now consume these helpers instead of redefining the constants and active
+detection. Coverage added in
+`frontend/src/lib/catalog/__tests__/polling.test.ts`.
