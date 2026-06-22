@@ -54,7 +54,6 @@ if "GALLERY_ROOT" in os.environ and "PATH_SAFETY_ROOT" not in os.environ:
         stacklevel=2,
     )
 PATH_SAFETY_ROOT = Path(_raw).resolve()
-GALLERY_DB_REQUIRED = _env_flag("GALLERY_DB_REQUIRED", default=False)
 
 METADATA_INDEXER_ENABLED = _env_flag("GALLERY_METADATA_INDEXER_ENABLED", default=True)
 METADATA_INDEXER_BATCH_SIZE = max(1, min(int(os.getenv("GALLERY_METADATA_INDEXER_BATCH_SIZE", "8")), 64))
