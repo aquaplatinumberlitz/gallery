@@ -10,7 +10,6 @@ import type {
   LibraryInspectorMetadataResponse,
   LibraryInspectorResponse,
   LibraryProgress,
-  LibraryRepairResponse,
   LibraryRebuildResponse,
   LibraryScanResponse,
   LibraryStats,
@@ -560,16 +559,6 @@ export const rebuildLibrary = async (id: number, scopePath?: string | null): Pro
     const body: Record<string, unknown> = { confirm: true };
     if (scopePath) body.scope_path = scopePath;
     const { data } = await api.post<LibraryRebuildResponse>(`/api/libraries/${id}/rebuild`, body);
-    return data;
-  } catch (error) {
-    if (error instanceof AxiosError) throw GalleryAPIError.fromAxiosError(error);
-    throw error;
-  }
-};
-
-export const repairLibrary = async (id: number): Promise<LibraryRepairResponse> => {
-  try {
-    const { data } = await api.post<LibraryRepairResponse>(`/api/libraries/${id}/repair`);
     return data;
   } catch (error) {
     if (error instanceof AxiosError) throw GalleryAPIError.fromAxiosError(error);

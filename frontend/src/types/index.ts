@@ -432,14 +432,6 @@ export interface ScanAllLibrariesResponse {
   child_job_ids: number[];
 }
 
-export interface LibraryRepairResponse {
-  library_id: number;
-  job_id?: number;
-  added: number;
-  removed: number;
-  modified: number;
-}
-
 export interface LibraryInspectorResource {
   name?: string;
   hash?: string | null;

@@ -8,7 +8,6 @@ import {
   createLibrary,
   deleteLibrary,
   rebuildLibrary,
-  repairLibrary,
   scanAllLibraries,
   scanLibrary,
   updateLibrary,
@@ -29,7 +28,6 @@ vi.mock("@/services/api", async () => {
     createLibrary: vi.fn(),
     deleteLibrary: vi.fn(),
     rebuildLibrary: vi.fn(),
-    repairLibrary: vi.fn(),
     scanAllLibraries: vi.fn(),
     scanLibrary: vi.fn(),
     updateLibrary: vi.fn(),
@@ -77,7 +75,6 @@ beforeEach(() => {
     coalesced: false,
   });
   vi.mocked(scanAllLibraries).mockResolvedValue({ job_id: 9, state: "queued", count: 0, child_job_ids: [] });
-  vi.mocked(repairLibrary).mockResolvedValue({ library_id: 3, added: 1, removed: 0, modified: 0 });
   vi.mocked(deleteLibrary).mockResolvedValue();
 });
 
@@ -128,17 +125,6 @@ describe("useLibraryMutations invalidation", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusBatch() });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.browseRoot(3) });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.browseInfiniteRoot(3) });
-    wrapper.unmount();
-  });
-
-  it("invalidates stats and job queries after repair", async () => {
-    const { invalidate, mutations, wrapper } = setup();
-
-    await mutations.repairMutation.mutateAsync(3);
-
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.libraryStats(3) });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.libraryJobs(3) });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.jobsRoot() });
     wrapper.unmount();
   });
 
