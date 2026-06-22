@@ -15,6 +15,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import backend.libraries as libraries_module
+from backend.catalog import service as catalog_service
 from backend.errors import APIError, ErrorType
 from backend.libraries import (
     LibraryCreate,
@@ -25,7 +26,6 @@ from backend.libraries import (
     _trim_value,
     _validate_settings,
 )
-from backend.catalog import service as catalog_service
 from backend.metadata_store import (
     LibraryOverlapError,
     create_job,
@@ -33,7 +33,6 @@ from backend.metadata_store import (
     update_job_state,
 )
 from tests.conftest import create_test_png
-
 
 # ---------------------------------------------------------------------------
 # _trim_value (line 84 — quoted value stripping)
@@ -243,9 +242,7 @@ def test_validate_settings_invalid_glob_pattern(
 def test_normalized_validated_values_404_for_nonexistent_path():
     result = {
         "is_valid": False,
-        "import_paths": [
-            {"is_valid": False, "message": "Import path does not exist", "normalized_value": None}
-        ],
+        "import_paths": [{"is_valid": False, "message": "Import path does not exist", "normalized_value": None}],
         "exclusion_patterns": [],
     }
     with pytest.raises(APIError) as exc:
@@ -257,9 +254,7 @@ def test_normalized_validated_values_404_for_nonexistent_path():
 def test_normalized_validated_values_400_for_not_directory():
     result = {
         "is_valid": False,
-        "import_paths": [
-            {"is_valid": False, "message": "Import path is not a directory", "normalized_value": None}
-        ],
+        "import_paths": [{"is_valid": False, "message": "Import path is not a directory", "normalized_value": None}],
         "exclusion_patterns": [],
     }
     with pytest.raises(APIError) as exc:
@@ -336,9 +331,7 @@ def test_api_register_library_create_overlap_409(
 
 def test_api_validate_create_with_both_root_and_import(isolated_app: TestClient):
     """Validate endpoint returns structured error when both root_path and import_paths given (lines 334-337)."""
-    response = isolated_app.post(
-        "/api/libraries/validate", json={"root_path": "/tmp", "import_paths": ["/tmp"]}
-    )
+    response = isolated_app.post("/api/libraries/validate", json={"root_path": "/tmp", "import_paths": ["/tmp"]})
     assert response.status_code == 200
     body = response.json()
     assert body["is_valid"] is False
@@ -356,6 +349,7 @@ def test_api_get_job_not_found(isolated_app: TestClient):
 
 def test_api_events_stream(isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch):
     """GET /api/events returns a StreamingResponse (line 435)."""
+
     async def finite_stream(_request):
         yield ": keep-alive\n\n"
 
@@ -404,9 +398,7 @@ def test_api_validate_update_library_not_found(isolated_app: TestClient):
     assert response.status_code == 404
 
 
-def test_api_validate_update_existing_library(
-    isolated_app: TestClient, isolated_gallery_root: Path
-):
+def test_api_validate_update_existing_library(isolated_app: TestClient, isolated_gallery_root: Path):
     root = isolated_gallery_root / "root"
     root.mkdir()
     library_id = int(register_library(root)["id"])
@@ -449,9 +441,7 @@ def test_api_patch_library_busy(isolated_app: TestClient, isolated_gallery_root:
     root.mkdir()
     library_id = int(register_library(root)["id"])
     create_job("scan", library_id=library_id)
-    response = isolated_app.patch(
-        f"/api/libraries/{library_id}", json={"import_paths": [str(root)]}
-    )
+    response = isolated_app.patch(f"/api/libraries/{library_id}", json={"import_paths": [str(root)]})
     assert response.status_code == 409
     assert response.json()["detail"]["error"] == "library_busy"
 
@@ -502,17 +492,13 @@ def test_api_scan_library_not_found(isolated_app: TestClient):
     assert isolated_app.post("/api/libraries/999999/scan").status_code == 404
 
 
-def test_api_scan_library_scope_outside(
-    isolated_app: TestClient, isolated_gallery_root: Path, tmp_path: Path
-):
+def test_api_scan_library_scope_outside(isolated_app: TestClient, isolated_gallery_root: Path, tmp_path: Path):
     root = isolated_gallery_root / "root"
     root.mkdir()
     library_id = int(register_library(root)["id"])
     outside = tmp_path / "outside"
     outside.mkdir()
-    response = isolated_app.post(
-        f"/api/libraries/{library_id}/scan", json={"scope_path": str(outside)}
-    )
+    response = isolated_app.post(f"/api/libraries/{library_id}/scan", json={"scope_path": str(outside)})
     assert response.status_code == 400
 
 
@@ -523,9 +509,7 @@ def test_api_scan_library_scope_offline(isolated_app: TestClient, isolated_galle
     sub.mkdir()
     library_id = int(register_library(root)["id"])
     sub.rmdir()
-    response = isolated_app.post(
-        f"/api/libraries/{library_id}/scan", json={"scope_path": str(sub)}
-    )
+    response = isolated_app.post(f"/api/libraries/{library_id}/scan", json={"scope_path": str(sub)})
     assert response.status_code == 409
     assert response.json()["detail"]["error"] == "library_offline"
 
@@ -540,9 +524,7 @@ def test_api_scan_library_all_paths_offline(isolated_app: TestClient, isolated_g
     assert response.json()["detail"]["error"] == "library_offline"
 
 
-def test_api_scan_library_conflict_with_rebuild(
-    isolated_app: TestClient, isolated_gallery_root: Path
-):
+def test_api_scan_library_conflict_with_rebuild(isolated_app: TestClient, isolated_gallery_root: Path):
     """CatalogJobConflict from scan while rebuild is queued maps to 409 (lines 603-605)."""
     root = isolated_gallery_root / "root"
     root.mkdir()
@@ -583,25 +565,19 @@ def test_api_rebuild_library_all_paths_offline(isolated_app: TestClient, isolate
     root.mkdir()
     library_id = int(register_library(root)["id"])
     root.rmdir()
-    response = isolated_app.post(
-        f"/api/libraries/{library_id}/rebuild", json={"confirm": True}
-    )
+    response = isolated_app.post(f"/api/libraries/{library_id}/rebuild", json={"confirm": True})
     assert response.status_code == 409
     assert response.json()["detail"]["error"] == "library_offline"
 
 
-def test_api_rebuild_library_conflict_with_running_scan(
-    isolated_app: TestClient, isolated_gallery_root: Path
-):
+def test_api_rebuild_library_conflict_with_running_scan(isolated_app: TestClient, isolated_gallery_root: Path):
     """CatalogJobConflict from rebuild while scan is running maps to 409 (lines 665-667)."""
     root = isolated_gallery_root / "root"
     root.mkdir()
     library_id = int(register_library(root)["id"])
     scan_job, _created = catalog_service.queue_scan(library_id, trigger="manual")
     update_job_state(int(scan_job["id"]), "running")
-    response = isolated_app.post(
-        f"/api/libraries/{library_id}/rebuild", json={"confirm": True}
-    )
+    response = isolated_app.post(f"/api/libraries/{library_id}/rebuild", json={"confirm": True})
     assert response.status_code == 409
     assert response.json()["detail"]["error"] == "library_busy"
 
@@ -636,9 +612,7 @@ def test_api_derivative_status_not_found(isolated_app: TestClient):
     assert response.status_code == 404
 
 
-def test_api_derivative_status_success(
-    isolated_app: TestClient, isolated_gallery_root: Path
-):
+def test_api_derivative_status_success(isolated_app: TestClient, isolated_gallery_root: Path):
     root = isolated_gallery_root / "root"
     root.mkdir()
     library_id = int(register_library(root)["id"])
@@ -652,9 +626,7 @@ def test_api_warm_derivatives_not_found(isolated_app: TestClient):
     assert response.status_code == 404
 
 
-def test_api_warm_derivatives_success(
-    isolated_app: TestClient, isolated_gallery_root: Path
-):
+def test_api_warm_derivatives_success(isolated_app: TestClient, isolated_gallery_root: Path):
     root = isolated_gallery_root / "root"
     root.mkdir()
     library_id = int(register_library(root)["id"])
