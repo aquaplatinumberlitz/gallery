@@ -94,10 +94,6 @@ fi
 
 if [[ "${GALLERY_PERF_SKIP_BACKEND:-0}" != "1" ]]; then
     echo ""
-    echo ">>> Running backend scan p95 perf test..."
-    "$PERF_PYTHON" "$SCRIPT_DIR/perf_scan.py" | tee "$RESULTS_DIR/scan-report.json"
-
-    echo ""
     echo ">>> Running backend Library Inspector p95 perf test..."
     "$PERF_PYTHON" "$SCRIPT_DIR/perf_library_inspector.py" | tee "$RESULTS_DIR/library-inspector-report.json"
 

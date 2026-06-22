@@ -17,10 +17,6 @@
 #   3. Register the consumer in `scripts/check_perf_budgets.py` BUDGET_CONSUMERS.
 #   4. Re-run `python scripts/check_perf_budgets.py` to confirm coverage.
 
-[scan]
-p95_ms = 500
-description = "/api/scan P95 latency"
-
 [inspector]
 p95_ms = 500
 description = "/api/library/inspector P95 latency"

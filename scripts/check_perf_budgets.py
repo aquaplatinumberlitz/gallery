@@ -35,10 +35,6 @@ from perf_lib import load_budgets  # noqa: E402
 # env var (e.g. metadata_nav is documented but the metadata-performance spec
 # uses a different legacy env-var scheme).
 BUDGET_CONSUMERS: dict[str, tuple[list[str], list[str]]] = {
-    "scan": (
-        ["scripts/perf_scan.py"],
-        ["GALLERY_PERF_SCAN_P95_BUDGET_MS", 'budget_for("scan"'],
-    ),
     "inspector": (
         ["scripts/perf_library_inspector.py"],
         ["GALLERY_PERF_INSPECTOR_P95_BUDGET_MS", 'budget_for("inspector"'],

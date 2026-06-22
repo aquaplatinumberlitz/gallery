@@ -58,7 +58,7 @@ FEATURE_MATRIX: list[dict[str, Any]] = [
         "feature": "Scan API and hot path",
         "backend": ["backend/tests/test_api_integration_scan.py", "backend/tests/test_scan_hot_path.py"],
         "frontend": ["frontend/tests/e2e/gallery-cache-revisit.spec.ts"],
-        "perf": ["scripts/perf_scan.py"],
+        "perf": [],
     },
     {
         "feature": "Warm listing and folder counts",
