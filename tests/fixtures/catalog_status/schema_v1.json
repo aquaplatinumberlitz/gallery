@@ -29,45 +29,28 @@
       ]
     },
     "NullableNonNegativeInteger": {
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": ["integer", "null"],
       "minimum": 0
     },
     "NullableProgress": {
-      "type": [
-        "number",
-        "null"
-      ],
+      "type": ["number", "null"],
       "minimum": 0,
       "maximum": 100
     },
     "Scope": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "kind",
-        "library_id",
-        "path",
-        "import_path_count"
-      ],
+      "required": ["kind", "library_id", "path", "import_path_count"],
       "properties": {
         "kind": {
-          "enum": [
-            "library",
-            "path"
-          ]
+          "enum": ["library", "path"]
         },
         "library_id": {
           "type": "integer",
           "minimum": 1
         },
         "path": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "import_path_count": {
           "type": "integer",
@@ -78,19 +61,10 @@
     "Availability": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "state",
-        "available_paths",
-        "total_paths"
-      ],
+      "required": ["state", "available_paths", "total_paths"],
       "properties": {
         "state": {
-          "enum": [
-            "unknown",
-            "available",
-            "degraded",
-            "unavailable"
-          ]
+          "enum": ["unknown", "available", "degraded", "unavailable"]
         },
         "available_paths": {
           "type": "integer",
@@ -116,30 +90,13 @@
       ],
       "properties": {
         "state": {
-          "enum": [
-            "never",
-            "queued",
-            "scanning",
-            "complete",
-            "failed"
-          ]
+          "enum": ["never", "queued", "scanning", "complete", "failed"]
         },
         "operation": {
-          "enum": [
-            "scan",
-            "rebuild",
-            null
-          ]
+          "enum": ["scan", "rebuild", null]
         },
         "trigger": {
-          "enum": [
-            "initial",
-            "manual",
-            "watcher",
-            "scheduled",
-            "startup",
-            null
-          ]
+          "enum": ["initial", "manual", "watcher", "scheduled", "startup", null]
         },
         "active_job_id": {
           "$ref": "#/$defs/NullableNonNegativeInteger"
@@ -217,11 +174,7 @@
     "Issues": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "availability",
-        "scan",
-        "metadata"
-      ],
+      "required": ["availability", "scan", "metadata"],
       "properties": {
         "availability": {
           "type": "integer",
@@ -238,30 +191,15 @@
       }
     },
     "LatestIssue": {
-      "type": [
-        "object",
-        "null"
-      ],
+      "type": ["object", "null"],
       "additionalProperties": false,
-      "required": [
-        "source",
-        "path",
-        "message",
-        "updated_at"
-      ],
+      "required": ["source", "path", "message", "updated_at"],
       "properties": {
         "source": {
-          "enum": [
-            "availability",
-            "scan",
-            "metadata"
-          ]
+          "enum": ["availability", "scan", "metadata"]
         },
         "path": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "message": {
           "type": "string",
@@ -391,10 +329,7 @@
           "type": "boolean"
         },
         "watcher_issue": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "scheduled_reconciliation_enabled": {
           "type": "boolean"
@@ -404,11 +339,7 @@
     "StatusResponseEnvelope": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "contract_version",
-        "status",
-        "global_runtime"
-      ],
+      "required": ["contract_version", "status", "global_runtime"],
       "properties": {
         "contract_version": {
           "const": 1
@@ -424,10 +355,7 @@
     "LibraryStatusBatchItem": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "library_id",
-        "status"
-      ],
+      "required": ["library_id", "status"],
       "properties": {
         "library_id": {
           "type": "integer",
