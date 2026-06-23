@@ -21,9 +21,7 @@ def test_db_path_source_of_truth_is_consistent(monkeypatch, tmp_path):
     test_db = tmp_path / "test_consistency.db"
     monkeypatch.setattr(cfg, "GALLERY_METADATA_DB", test_db)
 
-    assert _gallery_metadata_db_path() == test_db, (
-        "_gallery_metadata_db_path should return the patched path"
-    )
+    assert _gallery_metadata_db_path() == test_db, "_gallery_metadata_db_path should return the patched path"
 
     conn = _connect()
     initialize_database()
@@ -45,6 +43,4 @@ def test_db_path_works_with_relative_import(monkeypatch, tmp_path):
     rows = cur.fetchall()
     conn.close()
 
-    assert any(test_db.name in str(row[2]) for row in rows), (
-        f"Connection should point to {test_db}, got: {rows}"
-    )
+    assert any(test_db.name in str(row[2]) for row in rows), f"Connection should point to {test_db}, got: {rows}"

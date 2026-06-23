@@ -7,16 +7,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Patterns that should NOT appear in non-archived docs
 BAD_PATTERNS: dict[str, str] = {
-    "metadata_store.py": (
-        "metadata_store is now a package (backend/metadata_store/), "
-        "not a single file"
-    ),
-    "Backend modules live flat in `backend/`": (
-        "backend now has domain packages (metadata_store/)"
-    ),
-    "Backend modules live flat in backend/": (
-        "backend now has domain packages (metadata_store/)"
-    ),
+    "metadata_store.py": ("metadata_store is now a package (backend/metadata_store/), not a single file"),
+    "Backend modules live flat in `backend/`": ("backend now has domain packages (metadata_store/)"),
+    "Backend modules live flat in backend/": ("backend now has domain packages (metadata_store/)"),
 }
 
 DOC_FILES = [
