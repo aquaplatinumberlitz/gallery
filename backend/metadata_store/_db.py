@@ -6,7 +6,6 @@ import sqlite3
 import threading
 from pathlib import Path
 
-from .. import config
 from .path_utils import _compare_natural_sql
 
 _DB_LOCK = threading.RLock()
@@ -57,9 +56,17 @@ def _database_has_application_tables(conn: sqlite3.Connection) -> bool:
     )
 
 
+def _gallery_metadata_db_path() -> Path:
+    """Single source of truth for the metadata database path."""
+    from ..config import GALLERY_METADATA_DB
+
+    return GALLERY_METADATA_DB
+
+
 def _connect(*, set_journal_mode: bool = False) -> sqlite3.Connection:
-    config.GALLERY_METADATA_DB.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(config.GALLERY_METADATA_DB, timeout=30)
+    db_path = _gallery_metadata_db_path()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.create_collation("GALLERY_NATURAL", _compare_natural_sql)
     if set_journal_mode:

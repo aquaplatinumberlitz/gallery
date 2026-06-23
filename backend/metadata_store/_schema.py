@@ -11,7 +11,14 @@ from pathlib import Path
 
 from .. import config
 from . import _db as _db
-from ._db import _connect, _database_has_application_tables, _ensure_column, _table_columns, _table_exists
+from ._db import (
+    _connect,
+    _database_has_application_tables,
+    _ensure_column,
+    _gallery_metadata_db_path,
+    _table_columns,
+    _table_exists,
+)
 from ._resources import _backfill_image_resources_conn
 from .file_index import _cleanup_ignored_index_conn
 from .library_store import _ensure_default_library_conn
@@ -21,9 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 def _gallery_metadata_db() -> Path:
-    from . import GALLERY_METADATA_DB
-
-    return GALLERY_METADATA_DB
+    return _gallery_metadata_db_path()
 
 
 def _shim_backup_database_before_v9(conn: sqlite3.Connection) -> Path:
