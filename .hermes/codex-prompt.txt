@@ -1,0 +1,73 @@
+Đọc full plan (đọc kỹ từng dòng, ko bỏ sót):
+docs/plans/METADATA_STORE_SPLIT_PLAN.md
+để nắm context.
+
+ĐÃ LÀM (steps 1-5):
+- Step 1: git mv → package shell ✅
+- Step 2: path_utils.py ✅
+- Step 3: _db.py ✅
+- Step 4: types.py ✅
+- Step 5: _asset_store.py + _resources.py ✅
+- Test patches updated cho _DB_INITIALIZED → _db._DB_INITIALIZED ✅
+- Shim re-exports trong __init__.py cho các module đã extract ✅
+
+CÒN LẠI (thực hiện THEO THỨ TỰ NÀY, ko theo số step trong plan):
+
+SCRIPT LÀM VIỆC:
+cd /home/ubuntu/gallery-repo
+codex exec ở thư mục gốc repo
+
+SAU MỖI STEP: verify với
+  cd /home/ubuntu/gallery-repo
+  python -m pytest -q backend/tests/ --tb=short 2>&1 | tail -3
+  ruff check backend/metadata_store/
+
+NẾU TEST FAIL: sửa ngay, chạy lại verify, rồi mới commit.
+
+SAU TỪNG STEP: commit + push
+  git add -A
+  git commit -m "refactor: extract <module> from metadata_store (step <x>/12)"
+  git push
+
+===== THỨ TỰ LÀM =====
+
+--- STEP 7: library_store.py + job_store.py + rebuild_store.py ---
+Extract từ __init__.py:
+- library_store.py: create_library, update_library, register_library, unregister_library, get_library, list_libraries, get_library_for_path, get_library_progress, get_library_stats, get_gallery_stats, update_library_state, get_first_library_root, get_asset_state_for_path, _serialize_library_conn, _find_library_for_path_conn, _assert_no_import_path_overlap_conn, _replace_library_paths_conn, _replace_library_patterns_conn, _reconcile_library_configuration_conn, _ensure_default_library_conn
+- job_store.py: create_job, create_or_coalesce_catalog_job, claim_next_catalog_job, update_job_state, get_job, get_library_jobs, list_jobs, list_active_jobs, create_or_get_active_scan_job, recover_stale_jobs, enqueue_startup_catalog_scans, _job_scope_covers, _serialize_catalog_enqueue_result, _serialize_library_job
+- rebuild_store.py: enumerate_to_rebuild_staging, activate_rebuild_staging, delete_rebuild_staging, _reconcile_assets_conn, reconcile_library_assets
+
+Mỗi file là git mv riêng.
+Thêm re-exports vào __init__.py: `from .library_store import ...` etc.
+Commit riêng cho mỗi module.
+
+--- STEP 8: browse_store.py ---
+Extract: get_catalog_browse_listing, get_asset_folder_listing, _browse_import_paths_conn, _validate_browse_scope, _browse_visibility_sql, _browse_availability_from_library_state, _browse_import_root_name, _import_root_availability, _browse_folder_counts_conn, _browse_folder_counts_batch_conn, _catalog_browse_virtual_root_conn, _catalog_browse_path_conn
+
+--- STEP 9: metadata_queue.py + metadata_persist.py ---
+metadata_queue.py: queue_metadata_index_paths, mark_metadata_jobs_running, mark_metadata_jobs_done, mark_metadata_jobs_stale, mark_metadata_jobs_failed, get_metadata_index_status, _current_metadata_is_complete, _metadata_job_from_path, _mark_current_metadata_done
+metadata_persist.py: upsert_extracted_metadata, upsert_metadata_batch, upsert_metadata_result, index_image, index_images, get_lightbox_metadata, get_cached_dimensions_for_files, upsert_image_dimensions, _needs_reindex, _upsert_extracted_metadata_conn, _sync_dimensions_to_file_index, _metadata_param
+
+--- STEP 10: folder_index.py + file_index.py ---
+folder_index.py: update_folder_index_state, get_folder_index_state, get_warm_folder_listing, get_folder_indexed_paths, mark_folder_index_incomplete, _scan_folder_counts, index_files_from_scan
+file_index.py: index_file, index_directory_tree, cleanup_stale_index, cleanup_ignored_index, clear_index_records, _cleanup_stale_index_conn, _cleanup_ignored_index_conn, _scoped_path_where, _normalize_file_type, _path_value
+
+--- STEP 6: _schema.py ---
+(Sau khi library_store và file_index đã extract - đây là dependency của _schema.py)
+Extract: _initialize_database_conn, initialize_database, _migrate_v8_to_v9, _ensure_v9_catalog_schema, _validate_v9_preflight, _v9_backup_path, _backup_database_before_v9, _v9_import_paths, _format_path_conflict, _rebuild_libraries_without_root_path, _populate_v9_file_index_library_ids, _import_cached_derivatives_conn, _ensure_default_library_conn(LƯU Ý: _ensure_default_library_conn đã ở library_store.py rồi, nên schema chỉ import chứ ko định nghĩa lại)
+
+--- STEP 11: search_store.py + inspector_store.py ---
+search_store.py: search_metadata, search_index, search_index_fielded, _search_fts, _search_like, _search_file_index_fts, _search_prompt_rows, _search_fielded_photos, _format_file_index_rows, _format_prompt_rows, _format_rows, _snippet, _count_fts, _count_like, _escape_fts_token, _unicode_match_query, _trigram_match_query, _like_pattern, _like_escape, _folder_relative_path, _is_inside_root, _path_prefix, _scope_clause, _build_scope_named, _optional_row_value
+inspector_store.py: list_library_inspector_rows, get_library_inspector_metadata, _dedupe_inspector_rows, _encode_inspector_cursor, _build_library_inspector_keyset_where, _format_inspector_row, _lora_summary(LƯU Ý: _lora_summary đã ở _resources.py rồi), _truncate_preview, _safe_json_loads
+
+--- STEP 12: Cleanup ---
+- Chạy full test suite
+- Chạy ruff check
+- Xoá các re-export chết nếu có
+- Kiểm tra coverage: python -m pytest -q backend/tests/ --cov=backend --cov-fail-under=85
+
+===== QUAN TRỌNG =====
+- Mỗi module: git mv function definitions SANG file mới, THÊM re-export trong __init__.py, XOÁ function body khỏi __init__.py
+- Đừng set timeout cho Codex
+- Codex có thể timeout nhưng cứ chạy, nếu timeout thì chạy lại từ đầu step đó
+- VERIFY: pytest pass + ruff clean trước khi commit

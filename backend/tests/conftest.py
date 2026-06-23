@@ -166,8 +166,8 @@ def isolated_metadata_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pat
     db_path = tmp_path / "test_metadata.db"
     monkeypatch.setenv("GALLERY_METADATA_DB", str(db_path))
 
-    import backend.metadata_store as ms
     import backend.config as cfg
+    import backend.metadata_store as ms
     from backend.catalog import service as catalog_service
 
     catalog_service.stop()
