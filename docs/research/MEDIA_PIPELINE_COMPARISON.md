@@ -196,14 +196,14 @@ Reason: it has PostgreSQL metadata filters, timeline/date indexes, trigram/unacc
 ### P1 - High value borrow
 
 - Add a bounded local metadata indexing queue.
-  - Files likely affected: `backend/metadata_store.py`, `backend/metadata_parse.py`, `backend/search.py`, new queue module.
+  - Files likely affected: `backend/metadata_store/`, `backend/metadata_parse.py`, `backend/search.py`, new queue module.
   - Benefit: warm metadata/search without blocking scan.
   - Risk: CPU/disk contention.
   - Test plan: queue coalescing, stale invalidation, perf tests.
   - Perf budget: no scan p95 regression.
 
 - Add batched SQLite writer.
-  - Files likely affected: `backend/metadata_store.py`.
+  - Files likely affected: `backend/metadata_store/`.
   - Benefit: fewer writes and less lock churn for large folders.
   - Risk: long transactions if batches are too large.
   - Test plan: transaction tests and large-folder fixture.
@@ -246,7 +246,7 @@ gallery-repo evidence:
 - `backend/scan.py`: scan path uses cached dimension lookup and avoids image probing.
 - `backend/thumbnails.py`: thumbnail endpoint opens images only for thumbnail generation and records dimensions then.
 - `backend/metadata_parse.py`: metadata extraction is request-driven and cached.
-- `backend/metadata_store.py`: SQLite metadata, dimension, file index, FTS/trigram structures.
+- `backend/metadata_store/`: SQLite metadata, dimension, file index, FTS/trigram structures.
 - `frontend/src/utils/lightbox.ts`: PhotoSwipe item `src` is `/api/image`; `msrc` is thumbnail.
 - `frontend/src/composables/usePhotoSwipe.ts`: dimension resolver order includes scan/cache/metadata/thumbnail natural dimensions.
 - `frontend/tests/e2e/perf/album-open.perf.spec.ts` and `frontend/tests/e2e/perf/lightbox.perf.spec.ts`: enforce the current hot paths.

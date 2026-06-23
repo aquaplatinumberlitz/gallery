@@ -24,7 +24,7 @@ gallery-repo files:
 - [backend/scan.py](../../backend/scan.py)
 - [backend/thumbnails.py](../../backend/thumbnails.py)
 - [backend/images.py](../../backend/images.py)
-- [backend/metadata_store.py](../../backend/metadata_store.py)
+- [backend/metadata_store/](../../backend/metadata_store/)
 - [backend/metadata_parse.py](../../backend/metadata_parse.py)
 - [backend/metadata_extract.py](../../backend/metadata_extract.py)
 - [backend/search.py](../../backend/search.py)
@@ -42,7 +42,7 @@ gallery-repo files:
 - [docs/testing/PERFORMANCE_TESTING.md](../testing/PERFORMANCE_TESTING.md)
 - [docs/DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md](DIFFUSIONTOOLKIT_PIPELINE_AUDIT.md)
 
-Note: the requested `backend/services/metadata_index.py` does not exist in this repo. The active metadata/indexing implementation is in [backend/metadata_store.py](../../backend/metadata_store.py), [backend/metadata_parse.py](../../backend/metadata_parse.py), and [backend/search.py](../../backend/search.py).
+Note: the requested `backend/services/metadata_index.py` does not exist in this repo. The active metadata/indexing implementation is in [backend/metadata_store/](../../backend/metadata_store/), [backend/metadata_parse.py](../../backend/metadata_parse.py), and [backend/search.py](../../backend/search.py).
 
 Immich files:
 
@@ -1082,7 +1082,7 @@ Perf budget: cleanup is batched and never runs in `/api/scan` hot path beyond ch
 | Item                                                        | Files likely affected                                                             | Expected benefit                         | Risk                                                                        | Test plan                                                       | Perf budget                                        |
 | ----------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------- | -------------------------------------------------- |
 | Keep `/api/scan` free of metadata parsing and PIL probing.  | `backend/scan.py`, docs/tests only                                                | Preserves fast folder open.              | Future features may accidentally add file opens.                            | Existing album-open perf test plus route-level unit/inspection. | Scan p95 must stay within current test budget.     |
-| Keep scan dimensions cache-only.                            | `backend/scan.py`, `backend/metadata_store.py`                                    | Avoids opening cold images for layout.   | Some cold images lack dimensions until thumbnail/metadata path warms cache. | Verify scan only returns matching cached dimensions.            | Batch SQLite dimension lookup only.                |
+| Keep scan dimensions cache-only.                            | `backend/scan.py`, `backend/metadata_store/`                                    | Avoids opening cold images for layout.   | Some cold images lack dimensions until thumbnail/metadata path warms cache. | Verify scan only returns matching cached dimensions.            | Batch SQLite dimension lookup only.                |
 | Keep PhotoSwipe main source as `/api/image`.                | `frontend/src/utils/lightbox.ts`, `frontend/tests/e2e/perf/lightbox.perf.spec.ts` | Preserves original-display guarantee.    | Preview experiments could replace original by mistake.                      | Lightbox perf test already asserts `/api/image`.                | No regression to lightbox-open/full-image budgets. |
 | Keep TanStack Query as owner of scan/metadata server state. | frontend query/services/components                                                | Avoids duplicate client cache ownership. | Store/query drift.                                                          | Existing frontend tests plus manual query invalidation checks.  | No extra blocking request on grid open.            |
 
@@ -1090,20 +1090,20 @@ Perf budget: cleanup is batched and never runs in `/api/scan` hot path beyond ch
 
 | Item                                                               | Files likely affected                                                              | Expected benefit                                   | Risk                                     | Test plan                                                                         | Perf budget                                              |
 | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------- | -------------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| Add a bounded local metadata indexing queue.                       | `backend/metadata_store.py`, `backend/metadata_parse.py`, new backend queue module | Warm viewer/search metadata without blocking scan. | CPU contention with thumbnails/lightbox. | Unit tests for coalescing, stale invalidation, queue ordering.                    | One worker by default; scan p95 unchanged.               |
-| Add batched SQLite writer for index results.                       | `backend/metadata_store.py`                                                        | Reduces write overhead for large folders.          | Transaction locking if too large.        | Batch insert/update tests and large-folder smoke test.                            | Writes in bounded batches, no long lock on request path. |
+| Add a bounded local metadata indexing queue.                       | `backend/metadata_store/`, `backend/metadata_parse.py`, new backend queue module | Warm viewer/search metadata without blocking scan. | CPU contention with thumbnails/lightbox. | Unit tests for coalescing, stale invalidation, queue ordering.                    | One worker by default; scan p95 unchanged.               |
+| Add batched SQLite writer for index results.                       | `backend/metadata_store/`                                                        | Reduces write overhead for large folders.          | Transaction locking if too large.        | Batch insert/update tests and large-folder smoke test.                            | Writes in bounded batches, no long lock on request path. |
 | Add index status/progress endpoint.                                | backend API modules, frontend optional status UI                                   | Makes background work understandable.              | Status can become inaccurate.            | API tests for queued/running/done/error counts.                                   | Endpoint p95 under 50 ms warm.                           |
 | Prefetch next/previous metadata and medium thumbnails in lightbox. | `frontend/src/stores/lightbox.ts`, `frontend/src/composables/usePhotoSwipe.ts`     | Faster navigation after first slide.               | Wasteful preloads.                       | Extend lightbox perf test for transitions and assert no full originals preloaded. | Transition budget improves or remains <= current.        |
-| DB-backed folder listing experiment for very large folders.        | `backend/metadata_store.py`, `backend/scan.py`, maybe new endpoint                 | Avoid repeated full filesystem/sort work at scale. | Stale listings if invalidation is weak.  | Separate opt-in test fixture; compare cold/warm behavior.                         | Do not affect default `/api/scan` hot path until proven. |
+| DB-backed folder listing experiment for very large folders.        | `backend/metadata_store/`, `backend/scan.py`, maybe new endpoint                 | Avoid repeated full filesystem/sort work at scale. | Stale listings if invalidation is weak.  | Separate opt-in test fixture; compare cold/warm behavior.                         | Do not affect default `/api/scan` hot path until proven. |
 
 ### P2 - Later
 
 | Item                                                | Files likely affected                                                                | Expected benefit                            | Risk                                    | Test plan                                        | Perf budget                                      |
 | --------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------- | --------------------------------------- | ------------------------------------------------ | ------------------------------------------------ |
-| Full-text search facets beyond current AI metadata. | `backend/search.py`, `backend/metadata_store.py`, frontend search UI                 | Better discovery in large indexed folders.  | Query complexity.                       | SQLite query tests with representative metadata. | Search p95 target defined before implementation. |
+| Full-text search facets beyond current AI metadata. | `backend/search.py`, `backend/metadata_store/`, frontend search UI                 | Better discovery in large indexed folders.  | Query complexity.                       | SQLite query tests with representative metadata. | Search p95 target defined before implementation. |
 | Optional external folder watcher.                   | new backend watcher module, status API                                               | Warmer cache while browsing stable folders. | Platform-specific watcher behavior.     | Integration tests behind opt-in flag.            | Watcher must be disabled by default.             |
 | Optional semantic search.                           | new optional service or local embedding path                                         | Powerful discovery for large libraries.     | Dependencies and hardware expectations. | Feature-flagged tests/mocks.                     | No dependency or startup cost when disabled.     |
-| Preview derivative table and warmer.                | `backend/thumbnails.py`, `backend/metadata_store.py`, frontend lightbox placeholders | Better perceived load for huge originals.   | Duplicate cache ownership.              | Tests for path+mtime+size invalidation.          | No change to PhotoSwipe main original source.    |
+| Preview derivative table and warmer.                | `backend/thumbnails.py`, `backend/metadata_store/`, frontend lightbox placeholders | Better perceived load for huge originals.   | Duplicate cache ownership.              | Tests for path+mtime+size invalidation.          | No change to PhotoSwipe main original source.    |
 
 ### Avoid
 
@@ -1137,7 +1137,7 @@ Verified against the current repository on 2026-06-18:
   and 1440px preview derivatives with role-specific cache keys, mtime/size
   invalidation, ETags, format, edge, and quality in the key.
 - The local background metadata pipeline is implemented in `backend/indexer.py`
-  and `backend/metadata_store.py`: RAM path staging, durable SQLite jobs,
+  and `backend/metadata_store/`: RAM path staging, durable SQLite jobs,
   duplicate coalescing, bounded worker batches, batched writes, and
   `/api/index/status`.
 - `/api/metadata` is DB-first for matching path/mtime/size rows, then uses an
