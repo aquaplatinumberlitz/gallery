@@ -7,8 +7,8 @@ import time
 from pathlib import Path
 from typing import Any, Literal, TypedDict
 
-from .. import config
-from ..metadata_store import (
+from . import config
+from .metadata_store import (
     _DB_LOCK,
     _connect,
     canonicalize_catalog_path,
@@ -808,10 +808,10 @@ def build_global_runtime() -> GlobalRuntime:
             ).fetchone()[0]
         )
 
-    from ..indexer import get_indexer_runtime_status
-    from ..refresh import get_refresh_status
-    from ..watcher import get_watcher_status
-    from . import service as catalog_service
+    from . import scan_worker as catalog_service
+    from .indexer import get_indexer_runtime_status
+    from .refresh import get_refresh_status
+    from .watcher import get_watcher_status
 
     catalog_runtime = catalog_service.runtime_status()
     metadata_runtime = get_indexer_runtime_status()

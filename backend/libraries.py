@@ -10,8 +10,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.responses import StreamingResponse
 from wcmatch import glob
 
-from .catalog import service as catalog_service
-from .catalog.status_builder import CatalogStatusScopeError, build_catalog_status, build_library_status_batch
 from .derivative_scheduler import scheduler
 from .errors import APIError, ErrorType
 from .library_events import event_payload, event_stream, publish
@@ -36,6 +34,8 @@ from .metadata_store import (
     update_library_state,
 )
 from .paths import is_path_safe, resolve_path
+from .scan_worker import queue_initial_scan_job, queue_rebuild, queue_scan
+from .status_builder import CatalogStatusScopeError, build_catalog_status, build_library_status_batch
 
 router = APIRouter()
 
@@ -284,7 +284,7 @@ def _active_library_job(library_id: int, *job_types: str) -> dict[str, Any] | No
 
 
 def _queue_scan(library_id: int, *, parent_job_id: int | None = None) -> tuple[dict[str, Any], bool]:
-    return catalog_service.queue_scan(library_id, trigger="manual", parent_job_id=parent_job_id)
+    return queue_scan(library_id, trigger="manual", parent_job_id=parent_job_id)
 
 
 @router.get("/api/libraries")
@@ -322,7 +322,7 @@ async def api_register_library(payload: LibraryCreate):
         raise APIError(409, "library_overlap", str(exc)) from exc
     initial_scan_job_id = library.get("initial_scan_job_id")
     if initial_scan_job_id is not None:
-        await run_in_threadpool(catalog_service.queue_initial_scan_job, int(initial_scan_job_id))
+        await run_in_threadpool(queue_initial_scan_job, int(initial_scan_job_id))
     return library
 
 
@@ -595,7 +595,7 @@ async def api_scan_library(library_id: int, payload: LibraryScanRequest | None =
         raise APIError(409, "library_offline", "All library import paths are offline")
     try:
         job, created = await run_in_threadpool(
-            catalog_service.queue_scan,
+            queue_scan,
             library_id,
             trigger="manual",
             scope_path=scope_path,
@@ -658,7 +658,7 @@ async def api_rebuild_library(library_id: int, payload: LibraryRebuildRequest | 
         raise APIError(409, "library_offline", "All library import paths are offline")
     try:
         job, created = await run_in_threadpool(
-            catalog_service.queue_rebuild,
+            queue_rebuild,
             library_id,
             scope_path=resolved_scope,
         )

@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from backend.catalog import service as catalog_service
+from backend import scan_worker as catalog_service
 from backend.metadata_store import (
     CatalogJobConflict,
     create_library,
@@ -255,7 +255,7 @@ def test_rebuild_preserves_canonical_on_failure(
     assert catalog_service.run_once() is True
 
     rebuild, _ = catalog_service.queue_rebuild(library_id)
-    import backend.catalog.service as svc
+    import backend.scan_worker as svc
 
     original = svc.enumerate_to_rebuild_staging
     svc.enumerate_to_rebuild_staging = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom"))

@@ -8,8 +8,8 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from backend import scan_worker as catalog_service
 from backend.app import app
-from backend.catalog import service as catalog_service
 from backend.indexer import rebuild_index_scope
 from backend.metadata_store import (
     _DB_LOCK,

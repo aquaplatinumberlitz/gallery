@@ -168,9 +168,9 @@ def isolated_metadata_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pat
 
     import backend.config as cfg
     import backend.metadata_store as ms
-    from backend.catalog import service as catalog_service
+    from backend.scan_worker import stop as stop_scan_worker
 
-    catalog_service.stop()
+    stop_scan_worker()
 
     monkeypatch.setattr(ms, "GALLERY_METADATA_DB", db_path)
     monkeypatch.setattr(cfg, "GALLERY_METADATA_DB", db_path)
@@ -222,8 +222,8 @@ def disable_background_services(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("backend.watcher.start_watcher", _noop)
     monkeypatch.setattr("backend.app._start_refresh", _noop)
     monkeypatch.setattr("backend.app._start_watcher", _noop)
-    monkeypatch.setattr("backend.app.catalog_service.start", _noop)
-    monkeypatch.setattr("backend.app.catalog_service.queue_startup_scans", lambda: [])
+    monkeypatch.setattr("backend.scan_worker.start", _noop)
+    monkeypatch.setattr("backend.scan_worker.queue_startup_scans", lambda: [])
 
 
 @pytest.fixture

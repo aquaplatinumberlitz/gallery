@@ -7,7 +7,7 @@ from typing import Any, cast
 import pytest
 from jsonschema import Draft202012Validator
 
-from backend.catalog.status_builder import PrecedenceFacts, derive_summary_state
+from backend.status_builder import PrecedenceFacts, derive_summary_state
 
 FIXTURE_ROOT = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "catalog_status"
 SUMMARY_STATES = {

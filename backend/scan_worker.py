@@ -8,10 +8,10 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from ..config import GALLERY_CATALOG_JOB_MAX_QUEUE_WAIT_SECONDS, GALLERY_CATALOG_WORKERS
-from ..indexer import rebuild_index_scope
-from ..library_events import event_payload, publish
-from ..metadata_store import (
+from .config import GALLERY_CATALOG_JOB_MAX_QUEUE_WAIT_SECONDS, GALLERY_CATALOG_WORKERS
+from .indexer import rebuild_index_scope
+from .library_events import event_payload, publish
+from .metadata_store import (
     activate_rebuild_staging,
     catalog_path_contains,
     claim_next_catalog_job,

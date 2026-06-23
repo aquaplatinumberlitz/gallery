@@ -7,7 +7,6 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from .catalog.service import queue_scan
 from .config import (
     ENABLE_SCHEDULED_REFRESH,
     SCHEDULED_REFRESH_INTERVAL_SECONDS,
@@ -15,6 +14,7 @@ from .config import (
     SCHEDULED_REFRESH_ROOTS,
 )
 from .metadata_store import list_libraries
+from .scan_worker import queue_scan
 
 LOGGER = logging.getLogger(__name__)
 

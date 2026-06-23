@@ -7,7 +7,6 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from .browse import router as browse_router
-from .catalog import service as catalog_service
 from .config import (
     ENABLE_METRICS,
     ENABLE_PROFILER,
@@ -28,6 +27,7 @@ from .metadata_store import recover_stale_jobs
 from .refresh import start_refresh as _start_refresh
 from .refresh import stop_refresh as _stop_refresh
 from .scan import router as scan_router
+from .scan_worker import queue_startup_scans, start, stop
 from .search import router as search_router
 from .static_files import router as static_files_router
 from .thumbnails import router as thumbnails_router
@@ -99,9 +99,9 @@ app.include_router(static_files_router)
 async def _startup_background_services():
     recover_stale_jobs()
     if GALLERY_CATALOG_SERVICE_ENABLED:
-        catalog_service.start()
+        start()
         if GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED:
-            catalog_service.queue_startup_scans()
+            queue_startup_scans()
     scheduler.start()
     _start_refresh()
     _start_watcher()
@@ -111,7 +111,7 @@ async def _startup_background_services():
 async def _shutdown_background_services():
     _stop_watcher()
     _stop_refresh()
-    catalog_service.stop()
+    stop()
     scheduler.stop()
 
 

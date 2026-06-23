@@ -15,7 +15,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import backend.libraries as libraries_module
-from backend.catalog import service as catalog_service
+from backend import scan_worker as catalog_service
 from backend.errors import APIError, ErrorType
 from backend.libraries import (
     LibraryCreate,

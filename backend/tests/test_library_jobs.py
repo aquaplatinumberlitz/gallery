@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from backend.catalog import service as catalog_service
+from backend import scan_worker as catalog_service
 from backend.library_events import event_payload, format_sse
 from backend.metadata_store import (
     create_job,

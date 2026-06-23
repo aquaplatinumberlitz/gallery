@@ -9,7 +9,6 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
-from .catalog.service import queue_watcher_scan
 from .config import (
     ENABLE_FILE_WATCHER,
     WATCHER_DEBOUNCE_SECONDS,
@@ -17,6 +16,7 @@ from .config import (
     WATCHER_ROOTS,
 )
 from .files import is_image_path
+from .scan_worker import queue_watcher_scan
 
 try:
     from prometheus_client import Counter
