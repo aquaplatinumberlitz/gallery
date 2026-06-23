@@ -26,7 +26,7 @@ def _upsert_asset_conn(
     duration_ms: int | None = None,
     codec: str | None = None,
 ) -> int:
-    from . import _find_library_for_path_conn, _library_exclusion_patterns_conn
+    from .library_store import _find_library_for_path_conn, _library_exclusion_patterns_conn
 
     resolved_path = str(Path(path).resolve())
     library = _find_library_for_path_conn(conn, resolved_path)
