@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-06-22
+Last reviewed: 2026-06-23
 
 Historical Library Management V1 handoff context is retained in the
 [archived implementation status](archived/CODEX_LIBRARY_MANAGEMENT_IMPLEMENTATION_STATUS.md).
@@ -22,7 +22,7 @@ Environment variables and parser behavior are documented in
 
 ## Backend
 
-Backend modules live flat in `backend/`.
+Backend modules are mostly flat, with selected domain packages.
 
 | File                       | Purpose                                                                                                                                    |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -41,11 +41,10 @@ Backend modules live flat in `backend/`.
 | `thumbnails.py`            | `/api/thumbnail`, `/api/preview`, WebP derivative generation, persistent disk cache                                                        |
 | `metadata_extract.py`      | Raw metadata extraction/parsing helpers for A1111, SwarmUI, ComfyUI, NovelAI, EasyDiffusion, and generic EXIF/text fields                  |
 | `metadata_parse.py`        | `/api/metadata`, in-memory metadata cache, response shaping                                                                                |
-| `metadata_store.py`        | SQLite schema, FTS5 search, folder/photo index, metadata rows, facets, Library Inspector data access                                       |
 | `fielded_search_parser.py` | Parser for `prompt:`, `seed:`, `model:`, numeric operators, quoted values, and related fielded search syntax                               |
 | `search.py`                | `/api/search`, `/api/search-metadata`, `/api/library/inspector`, `/api/library/inspector/metadata`                                         |
 | `facets.py`                | `/api/facets` aggregation over indexed metadata                                                                                            |
-| `indexer.py`               | Background metadata queue, staged path batching, SQLite write batching, catalog rebuild helpers                                            |
+| `indexer.py`               | Background metadata queue, staged path batching, SQLite write batching, scan worker rebuild helpers                                        |
 | `refresh.py`               | Optional scheduled refresh loop                                                                                                            |
 | `watcher.py`               | Optional filesystem watcher loop                                                                                                           |
 | `libraries.py`             | Registered-library CRUD/validation, multi-import-path scan, unregister flows, status endpoints                                             |
@@ -53,6 +52,31 @@ Backend modules live flat in `backend/`.
 | `video.py`                 | Range-capable original video streaming and cached poster generation                                                                        |
 | `health.py`                | `/api/health`, favicon, git commit reporting                                                                                               |
 | `static_files.py`          | `/`, `/api/landing-pages`, and production SPA fallback                                                                                     |
+| `scan_worker.py`           | Background catalog scan/rebuild worker, durable job queue, queue_scan/queue_rebuild/run_once/start/stop                                    |
+
+### Domain Packages
+
+| Package / Module                     | Purpose                                                   |
+| ------------------------------------ | --------------------------------------------------------- |
+| `metadata_store/`                    | SQLite data access layer: schema, search, CRUD, job queue |
+| `metadata_store/_db.py`              | SQLite connection, init flags, shared constants           |
+| `metadata_store/_schema.py`          | Schema creation, v8-to-v9 migration                       |
+| `metadata_store/types.py`            | Shared dataclasses and exceptions                         |
+| `metadata_store/path_utils.py`       | Path normalization and overlap helpers                    |
+| `metadata_store/library_store.py`    | Library CRUD                                              |
+| `metadata_store/job_store.py`        | Catalog job queue management                              |
+| `metadata_store/rebuild_store.py`    | Staging area for rebuild operations                       |
+| `metadata_store/browse_store.py`     | Browse listing queries                                    |
+| `metadata_store/file_index.py`       | File index operations                                     |
+| `metadata_store/folder_index.py`     | Folder index operations                                   |
+| `metadata_store/metadata_queue.py`   | Metadata index job queue                                  |
+| `metadata_store/metadata_persist.py` | Metadata persistence helpers                              |
+| `metadata_store/search_store.py`     | FTS5 search queries                                       |
+| `metadata_store/inspector_store.py`  | Library Inspector data access                             |
+| `metadata_store/_asset_store.py`     | Shared asset upsert helper                                |
+| `metadata_store/_resources.py`       | Image resource parsing helpers                            |
+| `metadata_store/status_store.py`     | Unified catalog status query builder                      |
+| `tests/`                             | Backend test suite (pytest)                               |
 
 ### Route Reference
 

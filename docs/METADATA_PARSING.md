@@ -3,7 +3,7 @@
 Status: Maintained
 
 Last verified against `backend/metadata_extract.py`, `backend/metadata_parse.py`, and
-`backend/metadata_store.py`: 2026-06-18.
+`backend/metadata_store/`: 2026-06-18.
 
 ## Supported generators
 

@@ -1,6 +1,6 @@
 # AI Art Gallery
 
-Last reviewed: 2026-06-21
+Last reviewed: 2026-06-23
 
 A local-first web gallery for browsing AI-generated image and video collections. It pairs a FastAPI backend for registered-library management, mixed-media scanning, image derivatives, video streaming/posters, indexed metadata search, and read-only metadata inspection with a Vue 3 frontend that provides a responsive TanStack Virtual gallery, PhotoSwipe-based image lightbox, native video player, and virtualized desktop Library Inspector.
 
@@ -124,7 +124,7 @@ gallery-repo/
 │   ├── library_events.py
 │   ├── metadata_extract.py
 │   ├── metadata_parse.py
-│   ├── metadata_store.py
+│   ├── metadata_store/
 │   ├── models.py
 │   ├── paths.py
 │   ├── refresh.py
@@ -200,7 +200,7 @@ gallery-repo/
 
 | Method                 | Endpoint                                        | Purpose                                                                                         |
 | ---------------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `GET`                  | `/api/scan?path=...&limit=...&media_cursor=...` | Scan a folder and return mixed-media (images+videos) with cursor pagination                     |
+| `GET`                  | `/api/browse?library_id=...&path=...`           | Read-only catalog listing for a library root or folder with cursor pagination                   |
 | `GET`                  | `/api/folders?path=...`                         | Return direct child folders for sidebar expansion                                               |
 | `GET`                  | `/api/image?path=...`                           | Serve an original image                                                                         |
 | `GET`                  | `/api/thumbnail?path=...`                       | Serve a cached WebP thumbnail (max 512px)                                                       |
@@ -220,9 +220,10 @@ gallery-repo/
 | `GET/POST`             | `/api/libraries`                                | List or register libraries                                                                      |
 | `GET/PATCH/PUT/DELETE` | `/api/libraries/{id}`                           | Read, update, or unregister a library                                                           |
 
-`GET /api/scan` accepts only `path`, `limit`, and `media_cursor`. It returns
-`folders`, `media`, `next_media_cursor`, `total_images`, `total_videos`,
-`total_assets`, and `index_source`. Undeclared query parameters return `422`.
+`GET /api/browse` accepts only `library_id`, `path`, `cursor`, `limit`, and
+`include_offline`. It returns `folders`, `media`, `next_media_cursor`,
+`total_images`, `total_videos`, `total_assets`, and `index_source`. Undeclared
+query parameters return `422`.
 
 ## Documentation
 
