@@ -50,12 +50,6 @@ from ._resources import (
     _replace_image_resources_conn as _replace_image_resources_conn,
 )
 from ._schema import (
-    _backup_database_before_v9 as _backup_database_before_v9,
-)
-from ._schema import (
-    _rebuild_libraries_without_root_path as _rebuild_libraries_without_root_path,
-)
-from ._schema import (
     initialize_database as initialize_database,
 )
 from .browse_store import (

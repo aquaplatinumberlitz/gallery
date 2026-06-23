@@ -7,7 +7,6 @@ import time
 from pathlib import Path
 from typing import Any
 
-from ..config import PATH_SAFETY_ROOT
 from ..files import is_index_excluded_path
 from ._db import _DB_LOCK, _active_asset_where, _connect
 from .path_utils import _catalog_paths_overlap, _path_is_within
@@ -18,24 +17,6 @@ def _initialize_database() -> None:
     from ._schema import initialize_database
 
     initialize_database()
-
-
-def _ensure_default_library_conn(conn: sqlite3.Connection) -> int:
-    row = conn.execute("SELECT id FROM libraries ORDER BY id LIMIT 1").fetchone()
-    if row is not None:
-        return int(row["id"])
-    root_path = str(PATH_SAFETY_ROOT.resolve())
-    cursor = conn.execute("INSERT INTO libraries (name, state) VALUES ('Default', 'discovering')")
-    library_id = int(cursor.lastrowid)
-    now = time.time()
-    conn.execute(
-        """
-        INSERT INTO library_import_paths (library_id, path, position, created_at, updated_at)
-        VALUES (?, ?, 0, ?, ?)
-        """,
-        (library_id, root_path, now, now),
-    )
-    return library_id
 
 
 def _find_library_for_path_conn(conn: sqlite3.Connection, path: str | Path) -> sqlite3.Row | None:

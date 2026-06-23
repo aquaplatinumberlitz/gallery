@@ -17,7 +17,7 @@ import { useRoute, useRouter } from "vue-router";
 import { useLibrariesQuery } from "./composables/admin/useLibrariesQuery";
 
 const Lightbox = defineAsyncComponent(() => import("./components/Lightbox.vue"));
-const showDevtools = import.meta.env.VITE_DEVTOOLS === "true";
+const showDevtools = import.meta.env.DEV || import.meta.env.VITE_DEVTOOLS === "true";
 const VueQueryDevtools = showDevtools
   ? defineAsyncComponent(() => import("@tanstack/vue-query-devtools").then((m) => m.VueQueryDevtools))
   : null;

@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
-import time
 from typing import Any
 
 
@@ -198,28 +197,6 @@ def _replace_image_resources_conn(
             for item in rows
         ),
     )
-
-
-def _backfill_image_resources_conn(conn: sqlite3.Connection) -> None:
-    existing = conn.execute("SELECT count(*) AS total FROM image_resources").fetchone()
-    if existing and int(existing["total"] or 0) > 0:
-        return
-    rows = conn.execute(
-        """
-        SELECT path, metadata_json, lora_text, COALESCE(updated_at, indexed_at, mtime, 0) AS updated_at
-        FROM image_metadata
-        WHERE (metadata_json IS NOT NULL AND metadata_json != '')
-           OR (lora_text IS NOT NULL AND lora_text != '')
-        """
-    ).fetchall()
-    for row in rows:
-        _replace_image_resources_conn(
-            conn,
-            row["path"],
-            row["metadata_json"],
-            row["lora_text"],
-            float(row["updated_at"] or time.time()),
-        )
 
 
 def _lora_summary(row: sqlite3.Row) -> tuple[bool, int, str]:
