@@ -69,7 +69,5 @@ export const queryKeys = {
   libraryInspector: (query: string, scope: string, path: string, limit: number, sort: SortValue) =>
     ["library-inspector", query.trim(), scope, normalizeQueryPath(path), limit, sort] as const,
 
-  libraryInspectorMetadataRoot: () => ["library-inspector-metadata"] as const,
-
   libraryInspectorMetadata: (path: string) => ["library-inspector-metadata", normalizeQueryPath(path)] as const,
 };

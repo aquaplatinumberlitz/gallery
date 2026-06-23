@@ -47,7 +47,7 @@ const EXPECTED_FIXTURES = [
   "empty_scanned_scope",
 ];
 
-const fixturePath = (name: string): string => resolve(process.cwd(), "../tests/fixtures/catalog_status", name);
+const fixturePath = (name: string): string => resolve(process.cwd(), "../backend/tests/fixtures/catalog_status", name);
 const loadFixture = <T>(name: string): T => JSON.parse(readFileSync(fixturePath(name), "utf8")) as T;
 
 const expectTimestampMs = (value: number | null): void => {
