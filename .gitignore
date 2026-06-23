@@ -42,3 +42,6 @@ coverage-report/
 
 # Hermes agent scratch, plans, and session artifacts
 .hermes/
+
+# Test reports
+frontend/playwright-report/
