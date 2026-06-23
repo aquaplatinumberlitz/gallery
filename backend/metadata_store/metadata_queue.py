@@ -15,13 +15,13 @@ from .types import MetadataIndexJob, MetadataQueueResult
 
 
 def _initialize_database() -> None:
-    from . import initialize_database
+    from ._schema import initialize_database
 
     initialize_database()
 
 
 def _search_like_escape(value: str) -> str:
-    from . import _like_escape
+    from .search_store import _like_escape
 
     return _like_escape(value)
 

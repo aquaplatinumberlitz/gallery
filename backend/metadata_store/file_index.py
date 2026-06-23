@@ -24,19 +24,19 @@ logger = logging.getLogger(__name__)
 
 
 def _initialize_database() -> None:
-    from . import initialize_database
+    from ._schema import initialize_database
 
     initialize_database()
 
 
 def _search_like_escape(value: str) -> str:
-    from . import _like_escape
+    from .search_store import _like_escape
 
     return _like_escape(value)
 
 
 def _search_is_inside_root(path: Path, root: Path) -> bool:
-    from . import _is_inside_root
+    from .search_store import _is_inside_root
 
     return _is_inside_root(path, root)
 

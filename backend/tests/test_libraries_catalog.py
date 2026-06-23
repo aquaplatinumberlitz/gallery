@@ -404,13 +404,13 @@ def test_v9_migration_backup_failure_leaves_v8_database_unmutated(
 
     import backend.metadata_store as metadata_store
 
-    original = metadata_store._backup_database_before_v9
+    original = metadata_store._schema._backup_database_before_v9
 
     def fail_backup(conn):  # noqa: ANN001
         raise RuntimeError("forced backup failure")
 
     metadata_store._db._DB_INITIALIZED = False
-    metadata_store._backup_database_before_v9 = fail_backup
+    metadata_store._schema._backup_database_before_v9 = fail_backup
     try:
         try:
             initialize_database()
@@ -419,7 +419,7 @@ def test_v9_migration_backup_failure_leaves_v8_database_unmutated(
         else:  # pragma: no cover - assertion clarity
             raise AssertionError("Expected backup failure")
     finally:
-        metadata_store._backup_database_before_v9 = original
+        metadata_store._schema._backup_database_before_v9 = original
 
     assert not list(isolated_metadata_db.parent.glob(f"{isolated_metadata_db.stem}.v8-backup-*"))
     with sqlite3.connect(isolated_metadata_db) as conn:
@@ -436,14 +436,14 @@ def test_v9_migration_rolls_back_after_schema_error_and_can_retry(
 
     import backend.metadata_store as metadata_store
 
-    original = metadata_store._rebuild_libraries_without_root_path
+    original = metadata_store._schema._rebuild_libraries_without_root_path
 
     def fail_rebuild(conn):  # noqa: ANN001
         original(conn)
         raise RuntimeError("forced migration failure")
 
     metadata_store._db._DB_INITIALIZED = False
-    metadata_store._rebuild_libraries_without_root_path = fail_rebuild
+    metadata_store._schema._rebuild_libraries_without_root_path = fail_rebuild
     try:
         try:
             initialize_database()
@@ -452,7 +452,7 @@ def test_v9_migration_rolls_back_after_schema_error_and_can_retry(
         else:  # pragma: no cover - assertion clarity
             raise AssertionError("Expected forced migration failure")
     finally:
-        metadata_store._rebuild_libraries_without_root_path = original
+        metadata_store._schema._rebuild_libraries_without_root_path = original
 
     with sqlite3.connect(isolated_metadata_db) as conn:
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 8

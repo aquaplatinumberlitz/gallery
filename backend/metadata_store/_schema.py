@@ -31,18 +31,6 @@ def _gallery_metadata_db() -> Path:
     return _gallery_metadata_db_path()
 
 
-def _shim_backup_database_before_v9(conn: sqlite3.Connection) -> Path:
-    from . import _backup_database_before_v9
-
-    return _backup_database_before_v9(conn)
-
-
-def _shim_rebuild_libraries_without_root_path(conn: sqlite3.Connection) -> None:
-    from . import _rebuild_libraries_without_root_path
-
-    _rebuild_libraries_without_root_path(conn)
-
-
 CATALOG_SCHEMA_VERSION = 9
 
 
@@ -276,7 +264,7 @@ def _populate_v9_file_index_library_ids(conn: sqlite3.Connection) -> None:
 
 def _migrate_v8_to_v9(conn: sqlite3.Connection) -> None:
     _validate_v9_preflight(conn)
-    backup_path = _shim_backup_database_before_v9(conn)
+    backup_path = _backup_database_before_v9(conn)
     logger.info("Created catalog v8 backup before v9 migration: %s", backup_path)
 
     conn.execute("PRAGMA foreign_keys=OFF")
@@ -297,7 +285,7 @@ def _migrate_v8_to_v9(conn: sqlite3.Connection) -> None:
             """,
             (now, now),
         )
-        _shim_rebuild_libraries_without_root_path(conn)
+        _rebuild_libraries_without_root_path(conn)
         if "root_path" in _table_columns(conn, "libraries"):
             raise RuntimeError("Catalog v9 migration failed to remove libraries.root_path")
         conn.execute(f"PRAGMA user_version = {CATALOG_SCHEMA_VERSION}")

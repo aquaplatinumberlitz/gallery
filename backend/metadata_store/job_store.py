@@ -15,7 +15,7 @@ from .types import CatalogJobConflict
 
 
 def _initialize_database() -> None:
-    from . import initialize_database
+    from ._schema import initialize_database
 
     initialize_database()
 

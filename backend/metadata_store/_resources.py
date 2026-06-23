@@ -128,7 +128,7 @@ def _split_lora_text(lora_text: str | None) -> list[str]:
 def _resource_rows_from_metadata(
     metadata_json: str | None, lora_text: str | None, updated_at: float
 ) -> list[dict[str, Any]]:
-    from . import _safe_json_loads
+    from .inspector_store import _safe_json_loads
 
     resources = _iter_metadata_resources(_safe_json_loads(metadata_json))
     seen = {

@@ -77,6 +77,6 @@ def _connect(*, set_journal_mode: bool = False) -> sqlite3.Connection:
 
 
 def init_db() -> None:
-    from . import initialize_database
+    from ._schema import initialize_database
 
     initialize_database()

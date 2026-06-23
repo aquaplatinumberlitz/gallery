@@ -153,8 +153,8 @@ def main() -> int:
     import backend.metadata_store as ms
 
     ms.GALLERY_METADATA_DB = Path("/tmp/perf_warm_listing_test.db")
-    ms._DB_INITIALIZED = False
-    ms._DB_INITIALIZED_PATH = None
+    ms._db._DB_INITIALIZED = False
+    ms._db._DB_INITIALIZED_PATH = None
 
     folder = Path(args.path)
     needs_cleanup = not args.no_cleanup and folder.exists()
