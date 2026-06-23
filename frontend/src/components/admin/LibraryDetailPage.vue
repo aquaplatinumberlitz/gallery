@@ -344,7 +344,7 @@ function estimatedAssets(): number | undefined {
               }}</span
               ><span class="text-muted-foreground"
                 >{{ jobProgress(job.progress_current, job.progress_total) }} ·
-                {{ formatLibraryTimestamp(job.updated_at) }}</span
+                {{ formatLibraryTimestamp(job.updated_at * 1000) }}</span
               >
             </div>
           </div>

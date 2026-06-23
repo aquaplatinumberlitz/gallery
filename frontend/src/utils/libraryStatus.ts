@@ -1,6 +1,6 @@
 export function formatLibraryTimestamp(value: number | string | null | undefined): string {
   if (value === null || value === undefined || value === "") return "Never";
-  const date = new Date(typeof value === "number" ? value * 1_000 : value);
+  const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? "Unknown"
     : new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
