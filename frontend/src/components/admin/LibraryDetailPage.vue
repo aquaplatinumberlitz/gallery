@@ -109,9 +109,13 @@ async function copyPath(path: string) {
 
 async function confirmUnregister() {
   if (!library.value) return;
-  await unregisterMutation.mutateAsync(library.value.id);
-  deleteOpen.value = false;
-  await router.push("/admin/libraries");
+  try {
+    await unregisterMutation.mutateAsync(library.value.id);
+    deleteOpen.value = false;
+    await router.push("/admin/libraries");
+  } catch {
+    // Error is already handled by the mutation's onError handler (toast)
+  }
 }
 
 function jobProgress(current: number, total: number | null): string {

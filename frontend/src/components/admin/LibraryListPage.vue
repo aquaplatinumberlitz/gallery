@@ -76,8 +76,12 @@ async function useInGallery(library: RegisteredLibrary) {
 
 async function confirmUnregister() {
   if (!deleteLibrary.value) return;
-  await unregisterMutation.mutateAsync(deleteLibrary.value.id);
-  deleteLibrary.value = null;
+  try {
+    await unregisterMutation.mutateAsync(deleteLibrary.value.id);
+    deleteLibrary.value = null;
+  } catch {
+    // Error is already handled by the mutation's onError handler (toast)
+  }
 }
 
 function created(library: RegisteredLibrary) {
