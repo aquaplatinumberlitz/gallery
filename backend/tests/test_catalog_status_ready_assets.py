@@ -4,6 +4,16 @@ Verifies that `ready_assets` only counts assets whose `metadata_state='done'`
 has a matching current `image_metadata` row by path + mtime_ns + size. Both the
 single-scope and admin batch status endpoints exercise the same SQL shape, so
 each scenario asserts the behavior through both surfaces.
+
+Purpose:
+Cover ready-asset aggregation for scoped and batch catalog status responses.
+
+Guarantees:
+Ready asset counts require current image metadata and stay consistent across
+single-library and batch status endpoints.
+
+Run when:
+Changing metadata freshness joins, ready/not-ready counts, or status SQL.
 """
 
 from __future__ import annotations

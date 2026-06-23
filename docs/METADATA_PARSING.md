@@ -3,7 +3,7 @@
 Status: Maintained
 
 Last verified against `backend/metadata_extract.py`, `backend/metadata_parse.py`, and
-`backend/metadata_store/`: 2026-06-18.
+`backend/metadata_store/`: 2026-06-23.
 
 ## Supported generators
 
@@ -42,7 +42,7 @@ metadata. Only `.txt` sidecars produced by `path.with_suffix(".txt")` are consid
 
 `GET /api/metadata?path=...` is defined in `backend/metadata_parse.py`.
 
-- The route resolves the path, enforces the configured gallery-root boundary, verifies
+- The route resolves the path, enforces the configured `PATH_SAFETY_ROOT` boundary, verifies
   the image extension, and runs parsing in a thread pool.
 - `parse_metadata()` keys its in-memory LRU by path, mtime, and size.
 - A matching SQLite row is preferred before reopening the original image.
@@ -59,7 +59,7 @@ The `image_metadata` table stores:
 
 | Group                    | Fields                                                                                                                                                                         |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| File identity/version    | `id`, `path`, `name`, `mtime`, `size`                                                                                                                                          |
+| File identity/version    | `id`, `path`, `name`, `mtime`, `mtime_ns`, `size`                                                                                                                              |
 | Image properties         | `width`, `height`, `format`, `mode`, `has_alpha`, `aspect_ratio`                                                                                                               |
 | Core generation data     | `prompt`, `negative_prompt`, `model`, `sampler`, `seed`, `steps`, `cfg_scale`                                                                                                  |
 | Extended generation data | `tool`, `scheduler`, `model_hash`, `lora_text`, `generation_time`, `clip_skip`, `hires_upscale`, `hires_steps`, `denoising_strength`, `vae`, `ensd`, `aesthetic_score`, `date` |

@@ -1,0 +1,61 @@
+Move backend/status_builder.py vào backend/metadata_store/ với tên status_store.py.
+Repo: /home/ubuntu/gallery-repo, branch: main.
+Commit gần nhất: 9ef2ca6 (rename catalog/).
+
+## Thao tác
+
+1. `git mv backend/status_builder.py backend/metadata_store/status_store.py`
+
+2. Sửa imports bên trong **backend/metadata_store/status_store.py**:
+   
+   Hiện tại (sau rename catalog/):
+   ```python
+   from . import config                       # backend.config
+   from .metadata_store import (              # backend.metadata_store
+       _DB_LOCK, _connect, canonicalize_catalog_path,
+       catalog_path_contains, initialize_database,
+   )
+   # Late imports bên trong function build_global_runtime (line ~811):
+   from . import scan_worker as catalog_service    # → from ..scan_worker import runtime_status
+   from .indexer import get_indexer_runtime_status  # → from ..indexer import get_indexer_runtime_status
+   from .refresh import get_refresh_status          # → from ..refresh import get_refresh_status
+   from .watcher import get_watcher_status          # → from ..watcher import get_watcher_status
+   catalog_service.runtime_status()                 # → runtime_status()
+   ```
+   
+   Thành:
+   ```python
+   from .. import config                      # lên backend/
+   from . import (                            # cùng package metadata_store/
+       _DB_LOCK, _connect, canonicalize_catalog_path,
+       catalog_path_contains, initialize_database,
+   )
+   # Late imports bên trong function build_global_runtime:
+   from ..scan_worker import runtime_status
+   from ..indexer import get_indexer_runtime_status
+   from ..refresh import get_refresh_status
+   from ..watcher import get_watcher_status
+   ```
+
+3. Sửa imports bên ngoài:
+
+   **backend/libraries.py:**
+   - `from .status_builder import ...` → `from .metadata_store.status_store import ...`
+
+   **backend/tests/test_catalog_status_contract.py:**
+   - `from backend.status_builder import ...` → `from backend.metadata_store.status_store import ...`
+
+4. Verify:
+   ```bash
+   cd /home/ubuntu/gallery-repo/backend
+   python -m pytest -q tests/ --tb=short 2>&1 | tail -5
+   ruff check backend/
+   ```
+
+5. Commit + push
+
+## KHÔNG được sửa
+- Nội dung logic status_store.py (chỉ sửa import paths)
+- backend/scan_worker.py
+- backend/metadata_store/ (ngoài status_store.py mới)
+- tests/fixtures/catalog_status/

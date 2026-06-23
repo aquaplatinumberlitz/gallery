@@ -1,4 +1,16 @@
-"""Library/asset migration, dual-write, listing, and API coverage."""
+"""Library/asset migration, dual-write, listing, and API coverage.
+
+Purpose:
+Cover library registration, catalog asset writes, migration compatibility, and
+management API behavior.
+
+Guarantees:
+Registered libraries, import paths, file index rows, and asset rows stay
+consistent through scans, updates, and listing.
+
+Run when:
+Changing library CRUD, asset catalog writes, migrations, or listing helpers.
+"""
 
 from __future__ import annotations
 

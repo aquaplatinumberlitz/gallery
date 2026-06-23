@@ -1,3 +1,17 @@
+/*
+Purpose:
+Cover responsive library management list/detail flows, create/update/delete,
+scan, rebuild, and scan-all actions.
+
+Guarantees:
+Library management remains usable on compact and desktop layouts, preserves
+safe confirmations, and calls the expected management endpoints.
+
+Run when:
+Changing library management UI, mutations, status wiring, or responsive admin
+layouts.
+*/
+
 import { expect, test, type Page, type Request } from "@playwright/test";
 import { browseResponse, statusBatch, statusEnvelope } from "./helpers/catalogFixtures";
 

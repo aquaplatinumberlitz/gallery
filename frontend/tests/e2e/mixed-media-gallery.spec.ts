@@ -1,3 +1,16 @@
+/*
+Purpose:
+Cover mixed image/video gallery rendering and media-specific open behavior.
+
+Guarantees:
+Images still open through the lightbox, videos open through the video dialog,
+and mixed-media browse rows preserve the correct UI affordances.
+
+Run when:
+Changing mixed-media browse responses, `VideoCard`, gallery rendering, or
+lightbox/video routing.
+*/
+
 import { expect, test, type Page } from "@playwright/test";
 import { browseResponse, statusEnvelope } from "./helpers/catalogFixtures";
 

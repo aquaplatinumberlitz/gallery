@@ -1,3 +1,17 @@
+/*
+Purpose:
+Cover active registered-library selection, legacy raw-path migration, and empty
+library states across desktop/mobile shells.
+
+Guarantees:
+The gallery persists registered library/import-path IDs, removes legacy raw
+root paths, and avoids arbitrary path entry when no library exists.
+
+Run when:
+Changing active library selection, legacy migration, library selector UI, or
+no-library onboarding.
+*/
+
 import { expect, test, type Page } from "@playwright/test";
 import { browseResponse, statusEnvelope } from "./helpers/catalogFixtures";
 

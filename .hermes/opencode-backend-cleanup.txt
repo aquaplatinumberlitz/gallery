@@ -1,0 +1,95 @@
+Backend code cleanup phase 1. Repo: /home/ubuntu/gallery-repo, branch: main.
+
+## Task 1: Fix internal metadata_store imports
+
+Các module trong metadata_store/ đang import qua facade `from . import X` thay vì import trực tiếp từ module con. Sửa:
+
+1. `from . import initialize_database` → `from ._schema import initialize_database`
+   - Files: metadata_persist.py:22, _db.py:80, browse_store.py:17, job_store.py:18, rebuild_store.py:20, file_index.py:27, library_store.py:18, metadata_queue.py:18
+
+2. `from . import _like_escape` → `from .search_store import _like_escape`
+   - Files: rebuild_store.py:26, file_index.py:33, metadata_queue.py:24
+
+3. `from . import _is_inside_root` → `from .search_store import _is_inside_root`
+   - File: file_index.py:39
+
+4. `from . import _backup_database_before_v9` → `from ._schema import _backup_database_before_v9`
+   - File: _schema.py:35
+
+5. `from . import _rebuild_libraries_without_root_path` → `from ._schema import _rebuild_libraries_without_root_path`
+   - File: _schema.py:41
+
+6. `from . import _safe_json_loads` → `from .inspector_store import _safe_json_loads`
+   - File: _resources.py:131
+
+## Task 1b: Xoá shim functions chết trong _schema.py
+
+Xoá 2 shim wrapper và sửa call sites thành direct call:
+
+**Xoá function (lines 34-43):**
+```python
+def _shim_backup_database_before_v9(conn: sqlite3.Connection) -> Path:
+    from . import _backup_database_before_v9
+    return _backup_database_before_v9(conn)
+
+def _shim_rebuild_libraries_without_root_path(conn: sqlite3.Connection) -> None:
+    from . import _rebuild_libraries_without_root_path
+    _rebuild_libraries_without_root_path(conn)
+```
+
+**Sửa call sites:**
+- Line 279: `_shim_backup_database_before_v9(conn)` → `_backup_database_before_v9(conn)`
+- Line 300: `_shim_rebuild_libraries_without_root_path(conn)` → `_rebuild_libraries_without_root_path(conn)`
+
+KHÔNG sửa các import external (từ albums, metadata_extract, models, config, files) — những cái đó đúng là qua facade.
+
+## Task 2: Fix scripts/perf_warm_listing.py
+
+File này patch:
+```python
+ms.GALLERY_METADATA_DB = Path(...)      # OK, still in shim
+ms._DB_INITIALIZED = False               # BROKEN - removed from shim
+ms._DB_INITIALIZED_PATH = None           # BROKEN - removed from shim
+```
+
+Sửa thành:
+```python
+import backend.metadata_store as ms
+ms.GALLERY_METADATA_DB = Path("/tmp/perf_warm_listing_test.db")
+ms._db._DB_INITIALIZED = False
+ms._db._DB_INITIALIZED_PATH = None
+```
+
+## Task 3: Check for any remaining references to old paths
+
+```
+grep -rn "catalog\.service\|catalog\.status_builder\|from .catalog import" backend/ --include="*.py" | grep -v __pycache__
+grep -rn "metadata_store\.py" backend/ --include="*.py" | grep -v __pycache__
+```
+
+Nếu còn, sửa import paths.
+
+## Task 4: Check scripts for stale references
+
+```
+grep -rn "catalog/" scripts/ --include="*.py"
+grep -rn "ms\._DB_INITIALIZED\|ms\._DB_INITIALIZED_PATH" scripts/ --include="*.py"
+```
+
+## Verify
+
+```bash
+cd /home/ubuntu/gallery-repo/backend
+python -m pytest -q tests/ --tb=short 2>&1 | tail -3
+ruff check backend/ scripts/
+```
+
+## Commit + push
+
+Commit message: `refactor: clean metadata_store internal imports and fix stale script references`
+
+## KHÔNG sửa
+- frontend/ (phase 2 riêng)
+- docs/ (phase 3 riêng)
+- .github/workflows/ (giữ nguyên)
+- Nội dung logic của bất kỳ file nào (chỉ sửa import paths)

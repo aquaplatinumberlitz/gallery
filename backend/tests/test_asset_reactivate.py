@@ -1,4 +1,16 @@
-"""Test that metadata operations do not resurrect offline/deleted assets."""
+"""Test that metadata operations do not resurrect offline/deleted assets.
+
+Purpose:
+Cover asset reactivation rules when metadata writes and catalog writes see
+offline/deleted rows.
+
+Guarantees:
+Metadata persistence does not reactivate offline assets, while explicit file
+indexing can restore an active catalog row.
+
+Run when:
+Changing asset upsert, offline/deleted handling, or metadata persistence.
+"""
 
 from __future__ import annotations
 

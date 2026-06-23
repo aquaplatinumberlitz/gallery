@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-06-22
+Last reviewed: 2026-06-23
 
 This document records how major third-party libraries are used in the current codebase and which integration contracts should not be changed casually.
 
@@ -11,7 +11,7 @@ This document records how major third-party libraries are used in the current co
 | Library                                                         | Used for                                                                          | Main integration file(s)                                                                              | Notes                                                                                                   |
 | --------------------------------------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | FastAPI                                                         | Backend API app and routing                                                       | `backend/app.py`, route modules in `backend/`                                                         | Routers are composed in `app.py`; `backend.main:app` is the uvicorn target                              |
-| Uvicorn                                                         | ASGI dev/prod server                                                              | `start.py`, `backend/main.py`                                                                         | `start.py` runs `python -m uvicorn backend.main:app` from repo root                                     |
+| Uvicorn                                                         | ASGI dev/prod server                                                              | `start.py`, `backend/main.py`                                                                         | `start.py` runs `python3 -m uvicorn backend.main:app` from repo root                                    |
 | Pydantic                                                        | Backend DTO validation                                                            | `backend/models.py`                                                                                   | Used for `FileNode` and shared response/request schemas                                                 |
 | Pillow                                                          | Image opening, dimensions, metadata, derivative and video-poster rendering        | `backend/metadata_extract.py`, `backend/thumbnails.py`, `backend/video.py`, `backend/files.py`        | Honors project file size/pixel limits                                                                   |
 | diskcache                                                       | Persistent derivative cache                                                       | `backend/thumbnails.py`, `backend/config.py`                                                          | Stores rendered WebP thumbnail/preview files under `backend/.cache/thumbnails/` by default              |

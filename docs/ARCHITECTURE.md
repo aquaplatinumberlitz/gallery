@@ -134,7 +134,7 @@ Backend modules are mostly flat, with selected domain packages.
 - The metadata DB defaults to `backend/.cache/gallery_metadata.db` and can be overridden with `GALLERY_METADATA_DB`.
 - SQLite uses WAL mode and stores both file index rows and normalized metadata rows. FTS5 tables cover folder/photo names and metadata text.
 - Registered libraries store ordered roots in `library_import_paths`. Relative globstar exclusions live in `library_exclusion_patterns`.
-- `/api/browse` is the read-only catalog query endpoint. It accepts `library_id`, `path`, `cursor`, `limit`, and `include_offline`. The response contains `folders`, `media`, `next_media_cursor`, `total_images`, `total_videos`, `total_assets`. Scan, rebuild, and status are managed through library endpoints.
+- `/api/browse` is the read-only catalog query endpoint. It accepts `library_id`, `path`, `cursor`, `limit`, and `include_offline`. The response contains `folders`, `media`, `next_cursor`, legacy alias `next_media_cursor`, `total_images`, `total_videos`, `total_assets`, `request_path`, `index_source`, `library_id`, and `path`. Scan, rebuild, and status are managed through library endpoints.
 - Catalog scan workers and metadata indexer run as background services. The catalog watcher and scheduled reconciliation are enabled by default for registered libraries.
 
 ## Frontend
@@ -176,18 +176,32 @@ Query keys are centralized in `frontend/src/query/keys.ts`. Paths are normalized
 Core keys:
 
 ```text
-["browse", libraryId, normalizedPath, limit]
-["browse-infinite", libraryId, normalizedPath, limit]
+["landing-pages"]
+["libraries"]
+["libraries", "list"]
+["libraries", "detail", id]
+["libraries", "stats", id]
+["libraries", "jobs", id]
+["stats", "gallery"]
+["jobs"]
+["jobs", "list"]
+["jobs", id]
+["browse", libraryId]
+["browse", libraryId, normalizedPath, limit, includeOffline]
+["browse-infinite", libraryId]
+["browse-infinite", libraryId, normalizedPath, limit, includeOffline]
 ["folder-children", normalizedPath]
 ["search", query, scope, normalizedPath]
 ["metadata", normalizedPath]
 ["facets", normalizedPath]
-["status-library", id]
-["status-path", id, normalizedPath]
-["status-batch"]
-["library-inspector", query, scope, normalizedPath, limit]
+["status"]
+["status", "libraries", "batch"]
+["status", "library", libraryId]
+["status", "path", libraryId]
+["status", "path", libraryId, normalizedPath]
+["library-inspector"]
+["library-inspector", query, scope, normalizedPath, limit, sort]
 ["library-inspector-metadata", normalizedPath]
-["landing-pages"]
 ```
 
 ## Data Flow

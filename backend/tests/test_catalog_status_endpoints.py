@@ -1,3 +1,17 @@
+"""Catalog status endpoint contract coverage.
+
+Purpose:
+Exercise `/api/libraries/{id}/status` and `/api/libraries/status` with real
+library/job/index state.
+
+Guarantees:
+Status endpoints return contract-v1 envelopes with scoped counts, availability,
+runtime fields, and validation errors intact.
+
+Run when:
+Changing library status endpoints, status aggregation SQL, or schema validation.
+"""
+
 from __future__ import annotations
 
 import json
@@ -15,7 +29,7 @@ from backend.metadata_store import (
 )
 from tests.conftest import create_test_png
 
-FIXTURE_ROOT = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "catalog_status"
+FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures" / "catalog_status"
 
 
 def _enable_metadata_status(monkeypatch) -> None:

@@ -1,6 +1,6 @@
 # Metadata Store Split Plan
 
-Status: Proposed
+Status: Archived — plan is complete, current architecture is in docs/ARCHITECTURE.md
 
 Created: 2026-06-22
 

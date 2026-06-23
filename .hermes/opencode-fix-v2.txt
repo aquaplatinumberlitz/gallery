@@ -1,0 +1,147 @@
+Fix 3 issues từ audit metadata_store split. Repo: /home/ubuntu/gallery-repo, branch: main.
+Commit gần nhất: 601b761 (fix: trim dead re-exports).
+Hiện tại: 708 tests pass, ruff clean.
+
+CHỈ ĐƯỢC SỬA:
+- backend/metadata_store/_db.py
+- backend/metadata_store/_schema.py
+- backend/tests/test_asset_reactivate.py (file mới)
+KHÔNG sửa file nào khác.
+
+====================================
+ISSUE 3: GALLERY_METADATA_DB source-of-truth
+====================================
+
+Vấn đề: _db._connect() đọc config.GALLERY_METADATA_DB trực tiếp, còn _schema._gallery_metadata_db() đọc qua shim (from . import GALLERY_METADATA_DB). Nếu ai patch 1 trong 2, DB path bị lệch.
+
+File: backend/metadata_store/_db.py
+- Thêm helper:
+```python
+def _gallery_metadata_db_path() -> Path:
+    """Single source of truth for the metadata database path."""
+    from ..config import GALLERY_METADATA_DB
+    return GALLERY_METADATA_DB
+```
+- Sửa _connect() dùng _gallery_metadata_db_path() thay vì config.GALLERY_METADATA_DB trực tiếp
+
+File: backend/metadata_store/_schema.py
+- Import _gallery_metadata_db_path từ _db:
+  from ._db import _gallery_metadata_db_path
+- Sửa _gallery_metadata_db() trả về _gallery_metadata_db_path()
+- Xoá dòng `from . import GALLERY_METADATA_DB`
+
+Verify:
+```
+cd /home/ubuntu/gallery-repo/backend
+python -c "from metadata_store import _db, _schema; print(_db._gallery_metadata_db_path())"
+python -m pytest -q tests/ --tb=short 2>&1 | tail -3
+```
+
+====================================
+ISSUE 4: Test reactivate_existing=False
+====================================
+
+File mới: backend/tests/test_asset_reactivate.py
+
+Test rằng metadata upsert KHÔNG resurrect offline/deleted asset.
+
+```python
+"""Test that metadata operations do not resurrect offline/deleted assets."""
+
+import time
+from pathlib import Path
+
+import pytest
+
+
+def test_metadata_upsert_does_not_reactivate_offline_asset(
+    metadata_db, temp_assets_root, library_fixture
+):
+    """upsert_extracted_metadata should not resurrect an offline/deleted asset."""
+    from backend.metadata_store import index_file, upsert_extracted_metadata
+    from backend.metadata_store._db import _connect
+    from backend.metadata_extract import ExtractedMetadata
+
+    lib = library_fixture
+    asset_path = temp_assets_root / "test_offline.png"
+    asset_path.write_text("fake png")
+
+    # Index it
+    index_file(str(asset_path))
+
+    # Mark as offline + deleted (simulate reconcile)
+    conn = _connect()
+    conn.execute(
+        "UPDATE assets SET offline = 1, deleted_at = ? WHERE path = ?",
+        (time.time(), str(asset_path)),
+    )
+    conn.commit()
+
+    # Now upsert metadata — this should NOT resurrect
+    meta = ExtractedMetadata(path=str(asset_path), name="test_offline.png")
+    upsert_extracted_metadata(meta)
+
+    # Verify still offline
+    row = conn.execute(
+        "SELECT offline, deleted_at FROM assets WHERE path = ?",
+        (str(asset_path),),
+    ).fetchone()
+    assert row is not None
+    assert row["offline"] == 1, "Asset should remain offline after metadata upsert"
+    assert row["deleted_at"] is not None, (
+        "Asset should remain deleted after metadata upsert"
+    )
+
+
+def test_index_file_reactivates_active_asset(
+    metadata_db, temp_assets_root, library_fixture
+):
+    """Normal index operation (reactivate_existing=True default) should reactivate."""
+    from backend.metadata_store import index_file
+    from backend.metadata_store._db import _connect
+
+    lib = library_fixture
+    asset_path = temp_assets_root / "test_active.png"
+    asset_path.write_text("fake png")
+
+    index_file(str(asset_path))
+
+    # Verify it's active
+    conn = _connect()
+    row = conn.execute(
+        "SELECT offline, deleted_at FROM assets WHERE path = ?",
+        (str(asset_path),),
+    ).fetchone()
+    assert row["offline"] == 0
+    assert row["deleted_at"] is None
+```
+
+Verify:
+```
+cd /home/ubuntu/gallery-repo/backend
+python -m pytest -q tests/test_asset_reactivate.py --tb=long 2>&1
+python -m pytest -q tests/ --tb=short 2>&1 | tail -3
+```
+
+====================================
+ISSUE 5: Squash scratch commits
+====================================
+
+3 scratch removal commits cần squash vào parent:
+- 5b00831 (chore: remove scratch files from step 1) → 3332eef (step 1)
+- 3f48b5c (chore: remove scratch file from step 2) → 6499a7f (step 2)
+- abaacab (chore: remove scratch file from step 3-5) → 142f8be (steps 3-5)
+
+Cách: git rebase -i, đổi pick thành fixup cho 3 scratch commits.
+
+THẬN TRỌNG: Có 14 commit sau abaacab (f36cf27..601b761). Squash sẽ rewrite history. Trước khi thực hiện, PRINT ra kế hoạch squash và HỎI user xác nhận (ghi "CONFIRM: [plan]" và chờ user reply). Nếu ko có reply, BỎ QUA issue 5.
+
+====================================
+QUY TRÌNH
+====================================
+1. Fix Issue 3 → commit "fix: consolidate GALLERY_METADATA_DB source-of-truth in _db.py"
+2. Fix Issue 4 → commit "test: add test for reactivate_existing=False behavior"
+3. Issue 5: hỏi user trước (rewrite history)
+4. Mỗi issue commit riêng
+5. Sau mỗi commit: pytest + ruff check
+6. Push: git push origin main

@@ -50,13 +50,18 @@ FEATURE_MATRIX: list[dict[str, Any]] = [
     },
     {
         "feature": "Index Status and rebuild flow",
-        "backend": ["backend/tests/test_api_integration_index_status.py", "backend/tests/test_indexer_staging.py"],
+        "backend": [
+            "backend/tests/test_catalog_status_contract.py",
+            "backend/tests/test_catalog_status_endpoints.py",
+            "backend/tests/test_catalog_status_ready_assets.py",
+            "backend/tests/test_indexer_staging.py",
+        ],
         "frontend": ["frontend/tests/e2e/index-status-panel.spec.ts", "frontend/tests/e2e/index-rebuild-flow.spec.ts"],
         "perf": [],
     },
     {
-        "feature": "Scan API and hot path",
-        "backend": ["backend/tests/test_api_integration_scan.py", "backend/tests/test_scan_hot_path.py"],
+        "feature": "Browse API and catalog jobs",
+        "backend": ["backend/tests/test_browse_api.py", "backend/tests/test_catalog_trigger_routing.py"],
         "frontend": ["frontend/tests/e2e/gallery-cache-revisit.spec.ts"],
         "perf": [],
     },

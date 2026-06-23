@@ -1,0 +1,44 @@
+Move tests/fixtures/catalog_status/ vào backend/tests/fixtures/catalog_status/.
+Repo: /home/ubuntu/gallery-repo, branch: main.
+
+## Cấu trúc hiện tại
+```
+tests/fixtures/catalog_status/
+├── schema_v1.json
+├── summary_precedence_v1.json
+└── unified_status_v1.json
+```
+
+## Sau khi move
+```
+backend/tests/fixtures/catalog_status/
+├── schema_v1.json
+├── summary_precedence_v1.json
+└── unified_status_v1.json
+```
+
+Xoá thư mục `tests/fixtures/` cũ nếu rỗng sau khi move.
+
+## Files cần sửa
+
+**backend/tests/test_catalog_status_contract.py** (line 12):
+- `FIXTURE_ROOT = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "catalog_status"`
+- → `FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures" / "catalog_status"`
+
+**backend/tests/test_catalog_status_endpoints.py** (line 18):
+- `FIXTURE_ROOT = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "catalog_status"`
+- → `FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures" / "catalog_status"`
+
+## Quy trình
+
+1. `mkdir -p backend/tests/fixtures`
+2. `git mv tests/fixtures/catalog_status/ backend/tests/fixtures/catalog_status/`
+3. Nếu `tests/fixtures/` còn rỗng sau khi move, `git rm -r tests/fixtures/` (chỉ xoá nếu empty)
+4. Sửa 2 file test (cập nhật FIXTURE_ROOT path)
+5. `cd /home/ubuntu/gallery-repo/backend && python -m pytest -q tests/ --tb=short 2>&1 | tail -5`
+6. `ruff check backend/`
+7. Commit + push
+
+## Chú ý
+- Chỉ sửa đường dẫn FIXTURE_ROOT, ko sửa nội dung fixtures
+- Đảm bảo `backend/tests/fixtures/` có `__init__.py` hoặc ko cần (thường pytest ko cần __init__ trong fixtures)

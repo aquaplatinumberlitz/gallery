@@ -1,4 +1,15 @@
-"""Mixed-media browse and search response coverage."""
+"""Mixed-media browse and search response coverage.
+
+Purpose:
+Cover image/video catalog listing and filename search result grouping.
+
+Guarantees:
+Mixed-media listings expose canonical `image`/`video` asset types and search
+keeps videos in their dedicated response section.
+
+Run when:
+Changing asset type normalization, browse listing, or search grouping.
+"""
 
 from pathlib import Path
 

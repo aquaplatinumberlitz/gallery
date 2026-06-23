@@ -1,4 +1,17 @@
-"""Phase 2 library job, stats, scan-all, and SSE coverage."""
+"""Phase 2 library job, stats, scan-all, and SSE coverage.
+
+Purpose:
+Cover durable library job state transitions, scan-all behavior, stats, and SSE
+event formatting.
+
+Guarantees:
+Job counters, parent/child relationships, stale recovery, and event payloads
+remain stable.
+
+Run when:
+Changing library job storage, scan-all orchestration, stats aggregation, or SSE
+event payloads.
+"""
 
 from __future__ import annotations
 

@@ -1,4 +1,15 @@
-"""Test that _connect and initialize_database use the same DB path."""
+"""Test that _connect and initialize_database use the same DB path.
+
+Purpose:
+Guard the single source of truth for the configured metadata database path.
+
+Guarantees:
+Connection and schema initialization helpers respect patched
+`GALLERY_METADATA_DB` in both package and relative-import contexts.
+
+Run when:
+Changing metadata-store DB path resolution, config imports, or initialization.
+"""
 
 
 def test_db_path_source_of_truth_is_consistent(monkeypatch, tmp_path):

@@ -1,4 +1,17 @@
-"""Phase 7 read-only catalog browse API coverage."""
+"""Phase 7 read-only catalog browse API coverage.
+
+Purpose:
+Cover `/api/browse` catalog listings for virtual roots, real folders,
+pagination, availability, and invalid scopes.
+
+Guarantees:
+Browse responses stay catalog-backed, read-only, cursor-compatible, and strict
+about library ownership.
+
+Run when:
+Changing browse response shape, import-root listing, catalog visibility, or
+pagination.
+"""
 
 from __future__ import annotations
 

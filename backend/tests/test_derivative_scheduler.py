@@ -1,4 +1,17 @@
-"""Catalog and lifecycle coverage for the durable derivative scheduler."""
+"""Catalog and lifecycle coverage for the durable derivative scheduler.
+
+Purpose:
+Cover derivative job scheduling, coalescing, variant lookup, and catalog status
+integration.
+
+Guarantees:
+Derivative warm/clear flows update durable rows predictably and report library
+coverage without duplicate jobs.
+
+Run when:
+Changing derivative scheduler, variant definitions, cache clearing, or status
+coverage fields.
+"""
 
 from __future__ import annotations
 

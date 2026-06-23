@@ -2,8 +2,8 @@
 
 Status: Maintained
 
-Last verified against `backend/config.py`, `frontend/.env`, `frontend/vite.config.ts`,
-and frontend environment reads: 2026-06-22.
+Last verified against `backend/config.py`, `frontend/vite.config.ts`, and
+frontend environment reads: 2026-06-23.
 
 Boolean flags parsed by `_env_flag()` treat `0`, `false`, `no`, and `off`
 case-insensitively as false; any other provided value is true. Flags documented as
@@ -14,12 +14,13 @@ case-insensitively as false; any other provided value is true. Flags documented 
 | Variable                                               | Type                    | Default                                               | Behavior                                                                                                 |
 | ------------------------------------------------------ | ----------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `PRODUCTION`                                           | boolean (`"1"`)         | `0`                                                   | Enables production mode; also changes the default for metrics.                                           |
-| `PORT`                                                 | integer                 | `8000` in `backend/main.py` fallback                  | Uvicorn port when running `python -m backend.main` directly.                                             |
+| `PORT`                                                 | integer                 | `8000` in `backend/main.py` fallback                  | Uvicorn port when running `python3 -m backend.main` directly.                                            |
 | `FRONTEND_ORIGIN`                                      | URL/string              | unset                                                 | Extra CORS origin; trailing slash is stripped.                                                           |
 | `FRONTEND_PORT`                                        | integer/string          | unset                                                 | Adds localhost and 127.0.0.1 CORS origins for the active frontend port.                                  |
 | `ENABLE_METRICS`                                       | boolean flag            | true unless `PRODUCTION=1`                            | Enables optional Prometheus instrumentation.                                                             |
 | `ENABLE_PROFILER`                                      | boolean flag            | false                                                 | Enables pyinstrument middleware where configured.                                                        |
 | `PROFILE_ENDPOINTS`                                    | comma-separated strings | `/api/browse,/api/metadata,/api/thumbnail,/api/preview` | Endpoints selected for profiling.                                                                        |
+| `SCAN_PERF_LOGS`                                       | boolean-like flag       | true unless `PRODUCTION=1`                            | Enables legacy scan performance logging; false values are `0`, `false`, and `no`.                        |
 | `GALLERY_THUMBNAIL_CACHE_DIR`                          | path                    | `backend/.cache/thumbnails`                           | Persistent derivative cache directory.                                                                   |
 | `DERIVATIVE_WORKER_COUNT`                              | integer, clamped 1–8    | `3`                                                   | Number of derivative scheduler worker threads.                                                           |
 | `GALLERY_DERIVATIVE_QUOTA_BYTES`                       | integer, minimum 0      | `10737418240`                                         | Maximum derivative cache quota in bytes.                                                                 |
@@ -46,13 +47,22 @@ case-insensitively as false; any other provided value is true. Flags documented 
 | `METADATA_INDEXER_SQLITE_BUSY_RETRIES`                 | integer                 | `3`                                                   | Legacy fallback for the prefixed busy-retry variable.                                                    |
 | `GALLERY_METADATA_INDEXER_SQLITE_BUSY_BACKOFF_SECONDS` | float, minimum 0        | `0.1`                                                 | SQLite busy retry backoff. Falls back to `METADATA_INDEXER_SQLITE_BUSY_BACKOFF_SECONDS`.                 |
 | `METADATA_INDEXER_SQLITE_BUSY_BACKOFF_SECONDS`         | float                   | `0.1`                                                 | Legacy fallback for the prefixed busy-backoff variable.                                                  |
+| `ENABLE_WARM_INDEXED_LISTING`                          | boolean flag            | false                                                 | Enables legacy warm SQLite listing helpers where still used by tests/diagnostics.                        |
 | `GALLERY_CATALOG_WORKERS`                              | integer, clamped 1–8    | `1`                                                   | Number of concurrent catalog worker threads.                                                             |
 | `GALLERY_CATALOG_SERVICE_ENABLED`                      | boolean flag            | true                                                  | Starts the catalog worker service during backend startup.                                                |
 | `GALLERY_CATALOG_WATCHER_ENABLED`                      | boolean flag            | true                                                  | Enables filesystem watcher for registered library import paths.                                          |
+| `ENABLE_FILE_WATCHER`                                  | boolean flag            | true                                                  | Legacy fallback for `GALLERY_CATALOG_WATCHER_ENABLED`.                                                   |
+| `WATCHER_ROOTS`                                        | comma-separated paths   | unset                                                 | Optional watcher root filter; when unset, enabled registered library import paths are watched.            |
 | `GALLERY_CATALOG_WATCHER_DEBOUNCE_SECONDS`             | float, minimum 0        | `2.0`                                                 | Filesystem event debounce interval for catalog scan triggers.                                            |
+| `WATCHER_DEBOUNCE_SECONDS`                             | float                   | `2.0`                                                 | Legacy fallback for `GALLERY_CATALOG_WATCHER_DEBOUNCE_SECONDS`.                                          |
 | `WATCHER_MAX_EVENTS_PER_TICK`                          | integer, minimum 1      | `500`                                                 | Maximum filesystem events processed per watcher tick.                                                    |
 | `GALLERY_CATALOG_RECONCILE_ENABLED`                    | boolean flag            | true                                                  | Enables scheduled catalog reconciliation for missed events.                                              |
+| `ENABLE_SCHEDULED_REFRESH`                             | boolean flag            | true                                                  | Legacy fallback for `GALLERY_CATALOG_RECONCILE_ENABLED`.                                                 |
 | `GALLERY_CATALOG_RECONCILE_INTERVAL_SECONDS`           | integer, minimum 60     | `21600`                                               | Catalog reconciliation interval (default 6 hours).                                                       |
+| `SCHEDULED_REFRESH_INTERVAL_SECONDS`                   | integer                 | `21600`                                               | Legacy fallback for `GALLERY_CATALOG_RECONCILE_INTERVAL_SECONDS`.                                        |
+| `SCHEDULED_REFRESH_ROOTS`                              | comma-separated paths   | unset                                                 | Optional reconciliation filter; when unset, every registered library is eligible.                         |
+| `SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK`               | integer, minimum 1      | `20`                                                  | Maximum registered libraries queued per reconciliation tick.                                             |
+| `SCHEDULED_REFRESH_ALLOW_ALL_INDEXED`                  | boolean flag            | false                                                 | Parsed for compatibility; current reconciliation queues registered libraries directly.                    |
 | `GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED`              | boolean flag            | true                                                  | Enables low-priority startup scan for every registered library.                                          |
 | `GALLERY_CATALOG_JOB_MAX_QUEUE_WAIT_SECONDS`           | integer, minimum 0      | `600`                                                 | Max queue wait before a queued catalog job is priority-promoted.                                         |
 | `GALLERY_CATALOG_WRITE_BATCH_SIZE`                     | integer, minimum 1      | `500`                                                 | Catalog write batch size for discovery/staging.                                                          |

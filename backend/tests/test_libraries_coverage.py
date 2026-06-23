@@ -4,6 +4,17 @@ Exercises uncovered HTTP handler branches for library CRUD validation,
 import path validation errors, scan/rebuild edge cases, derivative
 endpoints, and internal helper functions so backend line coverage stays
 above the release threshold.
+
+Purpose:
+Cover edge and error branches in `backend/libraries.py` handlers and helpers.
+
+Guarantees:
+Validation, scan/rebuild, derivative, event, and error-response branches remain
+covered by focused backend tests.
+
+Run when:
+Changing library route validation, management actions, derivative endpoints, or
+coverage-sensitive helper branches.
 """
 
 from __future__ import annotations

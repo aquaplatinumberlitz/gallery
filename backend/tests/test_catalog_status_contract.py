@@ -1,3 +1,18 @@
+"""Unified catalog status fixture and schema contract tests.
+
+Purpose:
+Validate shared status fixtures, JSON schema envelopes, and summary precedence
+vectors used by backend and frontend.
+
+Guarantees:
+Catalog status contract version 1 remains serializable, schema-valid, and
+stable across summary-state edge cases.
+
+Run when:
+Changing status schema fields, summary precedence, fixtures, or frontend status
+contract types.
+"""
+
 from __future__ import annotations
 
 import json
@@ -9,7 +24,7 @@ from jsonschema import Draft202012Validator
 
 from backend.metadata_store.status_store import PrecedenceFacts, derive_summary_state
 
-FIXTURE_ROOT = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "catalog_status"
+FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures" / "catalog_status"
 SUMMARY_STATES = {
     "unknown",
     "offline",

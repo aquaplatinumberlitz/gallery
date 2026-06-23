@@ -1,4 +1,16 @@
-"""Video indexing, streaming, poster generation, and stats coverage."""
+"""Video indexing, streaming, poster generation, and stats coverage.
+
+Purpose:
+Cover video catalog indexing, byte-range streaming, poster generation, and
+library stats.
+
+Guarantees:
+Video assets stream with correct range semantics, reject non-video files, and
+contribute stable metadata/stats.
+
+Run when:
+Changing video routes, poster generation, media classification, or video stats.
+"""
 
 from __future__ import annotations
 

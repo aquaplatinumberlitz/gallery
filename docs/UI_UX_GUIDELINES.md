@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-06-07
+Last reviewed: 2026-06-23
 
 ## Breakpoints
 
@@ -100,7 +100,7 @@ Mobile:
 
 ## Mobile Lightbox Sheet
 
-Last reviewed: 2026-06-07
+Last reviewed: 2026-06-23
 
 Mobile lightbox metadata uses `@douxcode/vue-spring-bottom-sheet` through `LightboxMobileSheet.vue`.
 See [Third-Party Libraries](THIRD_PARTY_LIBRARIES.md) for VSBS and PhotoSwipe integration rationale, customizations, and pitfalls.
