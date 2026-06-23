@@ -104,7 +104,7 @@ const emit = defineEmits<{
   padding: 4px 4px;
   flex: 1;
   min-height: 0;
-  overflow: visible;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
