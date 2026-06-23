@@ -33,9 +33,9 @@ from .metadata_store import (
     update_library,
     update_library_state,
 )
+from .metadata_store.status_store import CatalogStatusScopeError, build_catalog_status, build_library_status_batch
 from .paths import is_path_safe, resolve_path
 from .scan_worker import queue_initial_scan_job, queue_rebuild, queue_scan
-from .status_builder import CatalogStatusScopeError, build_catalog_status, build_library_status_batch
 
 router = APIRouter()
 
