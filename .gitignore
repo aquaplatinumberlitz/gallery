@@ -40,10 +40,5 @@ coverage/
 coverage-report/
 .nyc_output/
 
-# Hermes agent plans
-.hermes/plans/
-frontend/playwright-report/
-
-# Hermes agent scratch and plan files
-.hermes/scratch/
-.hermes/plans/
+# Hermes agent scratch, plans, and session artifacts
+.hermes/

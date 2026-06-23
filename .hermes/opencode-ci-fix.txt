@@ -1,9 +1,0 @@
-CI keeps failing on ruff format check. Fix all ruff formatting issues across the full codebase.
-
-Steps:
-1. Run `ruff format backend/ scripts/` to auto-format all Python files
-2. Run `ruff format --check backend/ scripts/` to verify it passes
-3. Run `pnpm prettier --write frontend/` to check frontend formatting
-4. Commit and push with message "ci: fix ruff formatting"
-
-Do NOT change any logic, only formatting. Verify all checks pass before committing.
