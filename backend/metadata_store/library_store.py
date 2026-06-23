@@ -49,6 +49,10 @@ def _library_exclusion_patterns_conn(conn: sqlite3.Connection, library_id: int) 
 
 def _serialize_library_conn(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
     library = dict(row)
+    # Convert timestamps to milliseconds
+    for key in ("created_at", "updated_at", "last_scan_at"):
+        if key in library and library[key] is not None:
+            library[key] = int(library[key] * 1000)
     library_id = int(row["id"])
     import_paths = [
         dict(import_path)
@@ -62,6 +66,11 @@ def _serialize_library_conn(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[
             (library_id,),
         )
     ]
+    # Convert import_path timestamps to milliseconds
+    for ip in import_paths:
+        for key in ("created_at", "updated_at"):
+            if ip.get(key) is not None:
+                ip[key] = int(ip[key] * 1000)
     library["import_paths"] = import_paths
     library["exclusion_patterns"] = _library_exclusion_patterns_conn(conn, library_id)
     row_keys = set(row.keys())

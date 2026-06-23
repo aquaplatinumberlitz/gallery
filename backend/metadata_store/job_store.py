@@ -45,10 +45,10 @@ def _serialize_library_job(row: sqlite3.Row) -> dict[str, Any]:
         "updated_assets": int(row["updated_assets"]),
         "offline_assets": int(row["offline_assets"]),
         "metadata_queued_assets": int(row["metadata_queued_assets"]),
-        "created_at": float(row["created_at"]),
-        "updated_at": float(row["updated_at"]),
-        "started_at": float(row["started_at"]) if row["started_at"] is not None else None,
-        "finished_at": float(row["finished_at"]) if row["finished_at"] is not None else None,
+        "created_at": int(float(row["created_at"]) * 1000),
+        "updated_at": int(float(row["updated_at"]) * 1000),
+        "started_at": int(float(row["started_at"]) * 1000) if row["started_at"] is not None else None,
+        "finished_at": int(float(row["finished_at"]) * 1000) if row["finished_at"] is not None else None,
     }
 
 
