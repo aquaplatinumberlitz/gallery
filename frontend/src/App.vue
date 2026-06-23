@@ -17,8 +17,8 @@ import { useRoute, useRouter } from "vue-router";
 import { useLibrariesQuery } from "./composables/admin/useLibrariesQuery";
 
 const Lightbox = defineAsyncComponent(() => import("./components/Lightbox.vue"));
-const isDev = import.meta.env.DEV;
-const VueQueryDevtools = isDev
+const showDevtools = import.meta.env.VITE_DEVTOOLS === "true";
+const VueQueryDevtools = showDevtools
   ? defineAsyncComponent(() => import("@tanstack/vue-query-devtools").then((m) => m.VueQueryDevtools))
   : null;
 
@@ -218,7 +218,7 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
     <SettingsModal :is-open="isSettingsOpen" @close="isSettingsOpen = false" @preview="handlePreviewIntro" />
     <component
       :is="VueQueryDevtools"
-      v-if="isDev && VueQueryDevtools"
+      v-if="showDevtools && VueQueryDevtools"
       button-position="bottom-right"
       position="bottom"
     />
