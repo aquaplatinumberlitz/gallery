@@ -25,6 +25,7 @@ def _upsert_asset_conn(
     mime_type: str | None = None,
     duration_ms: int | None = None,
     codec: str | None = None,
+    reactivate_existing: bool = True,
 ) -> int:
     from .library_store import _find_library_for_path_conn, _library_exclusion_patterns_conn
 
@@ -61,8 +62,8 @@ def _upsert_asset_conn(
           mime_type=COALESCE(excluded.mime_type, assets.mime_type),
           duration_ms=COALESCE(excluded.duration_ms, assets.duration_ms),
           codec=COALESCE(excluded.codec, assets.codec),
-          offline=0,
-          deleted_at=NULL
+          offline=CASE WHEN ? THEN 0 ELSE assets.offline END,
+          deleted_at=CASE WHEN ? THEN NULL ELSE assets.deleted_at END
         """,
         (
             library_id,
@@ -81,6 +82,8 @@ def _upsert_asset_conn(
             duration_ms,
             codec,
             metadata_state,
+            int(reactivate_existing),
+            int(reactivate_existing),
         ),
     )
     row = conn.execute(
