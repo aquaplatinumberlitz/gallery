@@ -18,10 +18,10 @@ export interface ToastOptions {
 }
 
 const DURATION = {
-  SHORT: 3000,
+  SHORT: 4000,
   DEFAULT: 4000,
-  MEDIUM: 6000,
-  LONG: 10000,
+  MEDIUM: 4000,
+  LONG: 4000,
 } as const;
 
 const DEFAULT_DURATION = DURATION.DEFAULT;

@@ -108,16 +108,16 @@ describe("useToast composable", () => {
       expect(mocks.mockSonnerSuccess).toHaveBeenCalledWith("Saved", expect.objectContaining({ duration: 4000 }));
     });
 
-    it("error defaults to LONG (10000ms)", () => {
+    it("error defaults to LONG (4000ms)", () => {
       const toast = useToast();
       toast.error("Failed");
-      expect(mocks.mockSonnerError).toHaveBeenCalledWith("Failed", expect.objectContaining({ duration: 10000 }));
+      expect(mocks.mockSonnerError).toHaveBeenCalledWith("Failed", expect.objectContaining({ duration: 4000 }));
     });
 
-    it("warning defaults to MEDIUM (6000ms)", () => {
+    it("warning defaults to MEDIUM (4000ms)", () => {
       const toast = useToast();
       toast.warning("Careful");
-      expect(mocks.mockSonnerWarning).toHaveBeenCalledWith("Careful", expect.objectContaining({ duration: 6000 }));
+      expect(mocks.mockSonnerWarning).toHaveBeenCalledWith("Careful", expect.objectContaining({ duration: 4000 }));
     });
 
     it("info defaults to DEFAULT (4000ms)", () => {

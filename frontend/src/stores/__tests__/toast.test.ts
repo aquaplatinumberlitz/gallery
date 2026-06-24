@@ -29,10 +29,10 @@ describe("useToastStore", () => {
 
   it("exposes the standard duration constants on the store instance", () => {
     const store = useToastStore();
-    expect(store.DURATION.SHORT).toBe(3000);
+    expect(store.DURATION.SHORT).toBe(4000);
     expect(store.DURATION.DEFAULT).toBe(4000);
-    expect(store.DURATION.MEDIUM).toBe(6000);
-    expect(store.DURATION.LONG).toBe(10000);
+    expect(store.DURATION.MEDIUM).toBe(4000);
+    expect(store.DURATION.LONG).toBe(4000);
   });
 
   describe("addToast", () => {
