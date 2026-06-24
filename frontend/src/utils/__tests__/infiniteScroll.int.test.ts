@@ -66,10 +66,33 @@ describe("infinite scroll observer + guard integration", () => {
   });
 
   it.each([
-    { guard: "hasMoreImages=false", setup: (h: ReturnType<typeof createInfiniteScrollHarness>) => { h.guards.hasMoreImages.value = false; } },
-    { guard: "isLoadingMore=true", setup: (h: ReturnType<typeof createInfiniteScrollHarness>) => { h.guards.hasMoreImages.value = true; h.guards.isLoadingMore.value = true; } },
-    { guard: "isFetching=true", setup: (h: ReturnType<typeof createInfiniteScrollHarness>) => { h.guards.hasMoreImages.value = true; h.guards.isFetching.value = true; } },
-    { guard: "hasSearchQuery=true", setup: (h: ReturnType<typeof createInfiniteScrollHarness>) => { h.guards.hasMoreImages.value = true; h.guards.hasSearchQuery.value = true; } },
+    {
+      guard: "hasMoreImages=false",
+      setup: (h: ReturnType<typeof createInfiniteScrollHarness>) => {
+        h.guards.hasMoreImages.value = false;
+      },
+    },
+    {
+      guard: "isLoadingMore=true",
+      setup: (h: ReturnType<typeof createInfiniteScrollHarness>) => {
+        h.guards.hasMoreImages.value = true;
+        h.guards.isLoadingMore.value = true;
+      },
+    },
+    {
+      guard: "isFetching=true",
+      setup: (h: ReturnType<typeof createInfiniteScrollHarness>) => {
+        h.guards.hasMoreImages.value = true;
+        h.guards.isFetching.value = true;
+      },
+    },
+    {
+      guard: "hasSearchQuery=true",
+      setup: (h: ReturnType<typeof createInfiniteScrollHarness>) => {
+        h.guards.hasMoreImages.value = true;
+        h.guards.hasSearchQuery.value = true;
+      },
+    },
   ])("does NOT call fetchNextPage when $guard", ({ setup }) => {
     const h = createInfiniteScrollHarness();
     setup(h);
