@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { FocusScope } from "reka-ui";
 import { useLightboxStore } from "../stores/lightbox";
-import { useFocusTrap } from "../composables/useFocusTrap";
 import { useClipboard } from "../composables/useClipboard";
 import { useDevice } from "../composables/useDevice";
 import { DESKTOP_METADATA_WIDTH } from "../constants";
@@ -23,11 +23,6 @@ const { copyStatus, copyText } = useClipboard();
 // Refs for focus management
 const lightboxRef = ref<HTMLElement | null>(null);
 const desktopPhotoSwipeRef = ref<{ loadOriginalForCurrent: (reason?: "fullscreen") => Promise<void> } | null>(null);
-
-// Focus trap (auto-detects first focusable element)
-const focusTrap = useFocusTrap(lightboxRef, {
-  returnFocus: true,
-});
 
 const show = computed(() => lightbox.isOpen);
 const metadataPath = computed(() => lightbox.itemPath);
@@ -178,13 +173,11 @@ const handleKeydown = (e: KeyboardEvent) => {
   }
 };
 
-// Activate focus trap when lightbox opens
+// Sync lightbox state
 watch(show, (isOpen) => {
   if (isOpen) {
     showSheet.value = false;
-    focusTrap.activate();
   } else {
-    focusTrap.deactivate();
     if (document.fullscreenElement) {
       exitFullscreen();
     }
@@ -209,7 +202,6 @@ onUnmounted(() => {
   window.removeEventListener("keydown", handleKeydownCapture, { capture: true });
   window.removeEventListener("keydown", handleKeydown);
   document.removeEventListener("fullscreenchange", handleFullscreenChange);
-  focusTrap.deactivate();
 });
 
 // Fullscreen
@@ -252,13 +244,14 @@ function handleToggleFullscreen() {
 <template>
   <Teleport to="body">
     <Transition name="fade">
-      <div
-        v-if="show"
-        ref="lightboxRef"
-        data-testid="lightbox"
-        class="lightbox-overlay"
-        :style="{ '--lightbox-sidebar-width': sidebarWidthStyle }"
-      >
+      <FocusScope :trapped="show" :loop="true">
+        <div
+          v-if="show"
+          ref="lightboxRef"
+          data-testid="lightbox"
+          class="lightbox-overlay"
+          :style="{ '--lightbox-sidebar-width': sidebarWidthStyle }"
+        >
         <!-- Desktop/Wide: PhotoSwipe + Sidebar -->
         <template v-if="isDesktop || isWide">
           <PhotoSwipeViewer
@@ -355,6 +348,7 @@ function handleToggleFullscreen() {
           />
         </template>
       </div>
+      </FocusScope>
     </Transition>
   </Teleport>
 </template>
