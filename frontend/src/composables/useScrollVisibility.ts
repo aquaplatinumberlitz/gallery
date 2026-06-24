@@ -1,4 +1,5 @@
-import { ref, onMounted, onBeforeUnmount, watch, type Ref, type WatchStopHandle } from "vue";
+import { ref, onMounted, onBeforeUnmount, watch, type Ref } from "vue";
+import { useEventListener, useMutationObserver } from "@vueuse/core";
 
 const SCROLL_SELECTOR = ".scroller, .folders-only-container";
 
@@ -6,12 +7,11 @@ export function useScrollVisibility(containerRef?: Ref<HTMLElement | null>) {
   const barsVisible = ref(true);
   const isScrollingDown = ref(false);
   let lastScrollY = 0;
-  let observer: MutationObserver | null = null;
   let rafId = 0;
   let intervalId: ReturnType<typeof setInterval> | null = null;
   let cleanupScroll: (() => void) | null = null;
-  let stopContainerWatch: WatchStopHandle | null = null;
   let attachedElement: HTMLElement | null = null;
+  const mutationTarget = ref<HTMLElement | null>(null);
 
   function attachToElement(el: HTMLElement) {
     const handler = () => {
@@ -41,8 +41,7 @@ export function useScrollVisibility(containerRef?: Ref<HTMLElement | null>) {
         lastScrollY = st;
       });
     };
-    el.addEventListener("scroll", handler, { passive: true });
-    return () => el.removeEventListener("scroll", handler);
+    return useEventListener(el, "scroll", handler, { passive: true });
   }
 
   function cleanupAttachedElement() {
@@ -59,9 +58,21 @@ export function useScrollVisibility(containerRef?: Ref<HTMLElement | null>) {
     cleanupScroll = attachToElement(el);
   }
 
+  // Watch for DOM re-creation within the scroller's parent container
+  useMutationObserver(
+    () => mutationTarget.value,
+    () => {
+      const newEl = document.querySelector<HTMLElement>(SCROLL_SELECTOR);
+      if (newEl) {
+        attach(newEl);
+      }
+    },
+    { childList: true, subtree: true },
+  );
+
   onMounted(() => {
     if (containerRef) {
-      stopContainerWatch = watch(
+      watch(
         containerRef,
         (el) => {
           if (el) {
@@ -82,16 +93,9 @@ export function useScrollVisibility(containerRef?: Ref<HTMLElement | null>) {
         clearInterval(intervalId!);
         intervalId = null;
         attach(el);
-        // Watch for DOM re-creation within the scroller's parent container
         const scrollerParent = el.parentElement;
         if (scrollerParent) {
-          observer = new MutationObserver(() => {
-            const newEl = document.querySelector<HTMLElement>(SCROLL_SELECTOR);
-            if (newEl) {
-              attach(newEl);
-            }
-          });
-          observer.observe(scrollerParent, { childList: true, subtree: true });
+          mutationTarget.value = scrollerParent;
         }
       }
     }, 200);
@@ -102,10 +106,6 @@ export function useScrollVisibility(containerRef?: Ref<HTMLElement | null>) {
       clearInterval(intervalId);
       intervalId = null;
     }
-    observer?.disconnect();
-    observer = null;
-    stopContainerWatch?.();
-    stopContainerWatch = null;
     cleanupAttachedElement();
     if (rafId) {
       cancelAnimationFrame(rafId);
