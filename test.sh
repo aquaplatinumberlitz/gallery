@@ -23,6 +23,7 @@ Primary commands:
 Focused commands:
   lint         Full-repository lint and format checks
   unit         Backend and frontend unit tests with coverage, then build
+  docs         Docs staleness, test headers, and matrix catalog audit
   e2e          Managed functional Playwright suite
   perf         Managed Playwright performance suite
   backend-api  Backend API integration subset
@@ -63,6 +64,16 @@ run_unit() {
     corepack pnpm run build
 }
 
+run_docs() {
+    cd "$REPO_ROOT"
+    echo "==> Docs staleness check"
+    "$PYTHON" scripts/check_docs_staleness.py
+    echo "==> Test/debug header check"
+    "$PYTHON" scripts/check_test_docs.py
+    echo "==> Test matrix catalog audit"
+    "$PYTHON" scripts/audit_test_matrix.py --fail-on-gaps
+}
+
 COMMAND="${1:-help}"
 if [[ $# -gt 0 ]]; then
     shift
@@ -77,6 +88,9 @@ case "$COMMAND" in
         ;;
     unit)
         run_unit "$@"
+        ;;
+    docs)
+        run_docs
         ;;
     fast)
         run_lint

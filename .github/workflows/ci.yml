@@ -1,7 +1,8 @@
-# GitHub Actions CI — Lint, format, build, and test
+# GitHub Actions CI — Lint, format, build, test, and docs/test audit
 #
 # Runs on push/PR to main.
-# All lint, format, unit, functional E2E, and performance checks scan the full codebase.
+# All lint, format, unit, functional E2E, performance, and docs/test-catalog checks scan the full codebase.
+# Where practical, CI delegates to ./test.sh to keep local and CI commands in sync.
 ---
 name: CI
 
@@ -23,7 +24,6 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      # ---- Backend (Ruff) ----
       - name: Install Python
         uses: actions/setup-python@v6
         with:
@@ -32,13 +32,6 @@ jobs:
       - name: Install ruff
         run: pip install ruff==0.14.8
 
-      - name: Backend Ruff lint (full codebase)
-        run: python -m ruff check backend scripts start.py
-
-      - name: Backend Ruff format check (full codebase)
-        run: python -m ruff format --check backend scripts start.py
-
-      # ---- Frontend (ESLint + Prettier) ----
       - name: Install Node
         uses: actions/setup-node@v6
         with:
@@ -53,15 +46,8 @@ jobs:
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
-      - name: Frontend ESLint (source and tests)
-        working-directory: frontend
-        run: |
-          pnpm lint
-          pnpm lint:tests
-
-      - name: Frontend Prettier check (full codebase)
-        working-directory: frontend
-        run: pnpm format:check
+      - name: Lint and format check (via test.sh)
+        run: ./test.sh lint
 
   test-unit:
     name: test:unit
@@ -78,14 +64,49 @@ jobs:
       - name: Install backend dependencies
         run: pip install -r backend/requirements-dev.txt
 
-      - name: Backend Unit & Integration Tests
-        run: python -m pytest backend/tests/ -x -q --cov=backend --cov-report=term-missing --cov-report=xml --cov-fail-under=85
+      - name: Install Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Unit tests, coverage, and build (via test.sh)
+        run: ./test.sh unit
 
       - name: Upload backend coverage
         uses: actions/upload-artifact@v7
         with:
           name: coverage-backend
           path: coverage.xml
+
+      - name: Upload frontend unit coverage
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-frontend-unit
+          path: frontend/coverage/vitest/
+
+  test-docs:
+    name: test:docs
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements-dev.txt
 
       - name: Install Node
         uses: actions/setup-node@v6
@@ -101,19 +122,8 @@ jobs:
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
-      - name: Frontend Unit Tests
-        working-directory: frontend
-        run: pnpm test:unit:coverage
-
-      - name: Upload frontend unit coverage
-        uses: actions/upload-artifact@v7
-        with:
-          name: coverage-frontend-unit
-          path: frontend/coverage/vitest/
-
-      - name: Unit & Build
-        working-directory: frontend
-        run: pnpm build
+      - name: Docs staleness, test headers, and matrix audit (via test.sh)
+        run: ./test.sh docs
 
   # ---- E2E / Integration Tests ----
   test-e2e:

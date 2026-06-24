@@ -13,7 +13,8 @@ documented in [DEBUG_TOOLS.md](DEBUG_TOOLS.md).
 
 ## Test Selection
 
-- Push/PR CI runs full-codebase static checks, backend and frontend unit/integration tests, the complete Chromium functional suite split into four shards, and deterministic performance tests.
+- Push/PR CI runs full-codebase static checks, backend and frontend unit/integration tests, the complete Chromium functional suite split into four shards, deterministic performance tests, and docs/test-catalog drift checks.
+- CI delegates to `./test.sh` for lint, unit, and docs checks so local and CI commands stay in sync. Docs/test inventory drift is guarded by `scripts/check_docs_staleness.py`, `scripts/check_test_docs.py`, and `scripts/audit_test_matrix.py --fail-on-gaps` (run via `./test.sh docs`).
 - Functional Playwright runs without Istanbul instrumentation. Frontend coverage is produced by Vitest/V8 in the unit job.
 - Backend line coverage has an enforced 85% baseline. Frontend Vitest coverage remains informational.
 - Nightly and WebKit jobs are not currently configured.
@@ -159,14 +160,16 @@ Run from the repo root unless a command changes directory explicitly.
 | Metadata performance strict gate          | `cd frontend && GALLERY_PERF_METADATA_STRICT=1 corepack pnpm run perf:metadata`                                                                               |
 | Managed functional E2E suite              | `./test.sh e2e`                                                                                                                                               |
 | Managed performance suite                 | `./test.sh perf`                                                                                                                                              |
-| Lint and format checks                    | `./test.sh lint`                                                                                                                                              |
-| Backend and frontend unit suite           | `./test.sh unit`                                                                                                                                              |
+ | Lint and format checks                    | `./test.sh lint`              |
+ | Backend and frontend unit suite           | `./test.sh unit`              |
+ | Docs staleness, test headers, matrix audit | `./test.sh docs`              |
 | Perf fixture generation                   | `backend/.venv_linux/bin/python scripts/create_perf_fixture.py --clean --env-file /tmp/gallery_perf_fixture.env`                                              |
 | Backend inspector p95 perf                | `GALLERY_API_BASE_URL=http://localhost:4180 backend/.venv_linux/bin/python scripts/perf_library_inspector.py`                                                 |
 | Warm listing local perf                   | `backend/.venv_linux/bin/python scripts/perf_warm_listing.py --images 5000`                                                                                   |
 | Perf report summary                       | `backend/.venv_linux/bin/python scripts/summarize_perf_reports.py --results-dir frontend/test-results/perf`                                                   |
-| Test gap audit                            | `python3 scripts/audit_test_matrix.py`                                                                                                                        |
-| Perf smoke suite                          | `GALLERY_PERF_USE_FIXTURE=1 GALLERY_PERF_START_BACKEND=1 ./test.sh perf-smoke`                                                                                |
+ | Test gap audit                            | `python3 scripts/audit_test_matrix.py`                                                                                                                        |
+ | Docs staleness + test gap audit           | `./test.sh docs`                                                                                                                                              |
+ | Perf smoke suite                          | `GALLERY_PERF_USE_FIXTURE=1 GALLERY_PERF_START_BACKEND=1 ./test.sh perf-smoke`                                                                                |
 | Album perf test                           | `cd frontend && corepack pnpm run perf:album`                                                                                                                 |
 | Lightbox perf test                        | `cd frontend && corepack pnpm run perf:lightbox`                                                                                                              |
 | Test/debug header checker                 | `python3 scripts/check_test_docs.py`                                                                                                                          |
@@ -182,6 +185,12 @@ Additional controls:
 - `PLAYWRIGHT_RETRIES=<count>` overrides retries; `./test.sh full` defaults to the CI value of `1`.
 
 Ruff, ESLint, and Prettier checks scan the full codebase locally and in CI.
+
+### CI sync
+
+CI lint, unit, and docs jobs delegate to `./test.sh` rather than duplicating commands inline.
+Add new test commands to `test.sh` first, then wire them into CI.
+Docs/test inventory drift is caught by `./test.sh docs`:
 
 ## When Changing X, Run Y
 
@@ -222,4 +231,5 @@ Ruff, ESLint, and Prettier checks scan the full codebase locally and in CI.
 
 Before committing a new important test or debug helper, add a file header with `Purpose:`, `Guarantees:`, and `Run when:`. The checker enforces this for Playwright specs, backend test modules, `backend/debug/**/*.py`, and `frontend/src/debug/**/*.ts`.
 
-Use `python3 scripts/audit_test_matrix.py` when you need an inventory of collected tests, catalog drift, backend coverage gaps, frontend coverage artifact status, and available perf JSON reports. It writes `docs/testing/test-gap-report.md` and `docs/testing/test-gap-report.json`.
+Use `./test.sh docs` for the combined docs staleness, test header, and matrix catalog drift check (equivalent to `python scripts/check_docs_staleness.py && python scripts/check_test_docs.py && python scripts/audit_test_matrix.py --fail-on-gaps`).
+Use `python3 scripts/audit_test_matrix.py` (without `--fail-on-gaps`) for a non-failing inventory that writes `docs/testing/test-gap-report.md` and `docs/testing/test-gap-report.json`.
