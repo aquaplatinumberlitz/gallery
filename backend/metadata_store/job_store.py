@@ -444,7 +444,7 @@ def recover_stale_jobs() -> list[dict[str, Any]]:
     """
     _initialize_database()
     with _DB_LOCK, _connect() as conn:
-        running_ids = [int(row["id"]) for row in conn.execute("SELECT id FROM library_jobs WHERE state = 'running'")]
+        running_ids = [int(row["id"]) for row in conn.execute("SELECT id FROM library_jobs WHERE state = 'running' AND type IN ('scan', 'rebuild')")]
     recovered: list[dict[str, Any]] = []
     for job_id in running_ids:
         job = update_job_state(

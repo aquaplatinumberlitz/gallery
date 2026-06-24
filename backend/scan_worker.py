@@ -24,6 +24,7 @@ from .metadata_store import (
     get_library_for_path,
     list_libraries,
     queue_metadata_index_paths,
+    recover_stale_jobs,
     update_job_state,
     update_library_state,
 )
@@ -378,6 +379,12 @@ def start() -> None:
         _worker_threads[:] = alive
         if alive:
             return
+        # Recover orphaned running jobs before spawning workers
+        recovered_jobs = recover_stale_jobs()
+        for job in recovered_jobs:
+            LOGGER.warning("Recovered orphaned catalog job %s after server restart", job["id"])
+            _emit_job(job, event_type="job.failed")
+
         _stop_event.clear()
         for index in range(GALLERY_CATALOG_WORKERS):
             thread = threading.Thread(
