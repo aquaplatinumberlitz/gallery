@@ -16,6 +16,5 @@ Notable groups include:
 - Library Management V1 plan, phase contract, and final implementation status.
 - Completed AlbumScroller, VueUse theme, shadcn-vue, Tailwind, sidebar, and TanStack migrations.
 - Completed lint/format adoption and frontend adaptation plans.
-- Utility Library Migration — 12-item, 6-phase migration (clipboard, debounce, device breakpoints, focus trap → Reka FocusScope, column resize, natural sort, Axios interceptor, event listeners, localStorage, formatBytes).
 - Historical performance comparison and deprecated testing strategy.
 - Evolution and upstream-adaptation roadmaps retained for design context.
