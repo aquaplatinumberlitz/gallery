@@ -8,6 +8,11 @@ const { mockApi } = vi.hoisted(() => ({
     post: vi.fn(),
     patch: vi.fn(),
     delete: vi.fn(),
+    interceptors: {
+      response: {
+        use: vi.fn(),
+      },
+    },
   },
 }));
 

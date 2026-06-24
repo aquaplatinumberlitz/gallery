@@ -178,6 +178,16 @@ const api = axios.create({
   timeout: 30000, // 30 second timeout
 });
 
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error instanceof AxiosError) {
+      return Promise.reject(GalleryAPIError.fromAxiosError(error));
+    }
+    return Promise.reject(error);
+  },
+);
+
 export const browseDirectory = async (
   libraryId: number,
   path?: string | null,
@@ -205,66 +215,38 @@ export const browseDirectory = async (
 };
 
 export const listFolderChildren = async (path?: string): Promise<FolderChildrenResponse> => {
-  try {
-    const params: Record<string, string> = {};
-    if (path) params.path = path;
+  const params: Record<string, string> = {};
+  if (path) params.path = path;
 
-    const { data } = await api.get<FolderChildrenResponse>("/api/folders", { params });
-    return data;
-  } catch (error) {
-    if (error instanceof AxiosError) {
-      throw GalleryAPIError.fromAxiosError(error);
-    }
-    throw error;
-  }
+  const { data } = await api.get<FolderChildrenResponse>("/api/folders", { params });
+  return data;
 };
 
 export const openFolder = async (path: string): Promise<void> => {
-  try {
-    await api.post("/api/open-folder", null, { params: { path } });
-  } catch (error) {
-    if (error instanceof AxiosError) {
-      throw GalleryAPIError.fromAxiosError(error);
-    }
-    throw error;
-  }
+  await api.post("/api/open-folder", null, { params: { path } });
 };
 
 export const fetchMetadata = async (path: string, signal?: AbortSignal): Promise<MetadataResponse> => {
-  try {
-    const { data } = await api.get<MetadataResponse>("/api/metadata", {
-      params: { path },
-      signal,
-    });
-    return data;
-  } catch (error) {
-    if (error instanceof AxiosError) {
-      throw GalleryAPIError.fromAxiosError(error);
-    }
-    throw error;
-  }
+  const { data } = await api.get<MetadataResponse>("/api/metadata", {
+    params: { path },
+    signal,
+  });
+  return data;
 };
 
 export const unifiedSearch = async (
   query: string,
   opts?: { scope?: SearchScope; path?: string; limit?: number },
 ): Promise<UnifiedSearchResponse> => {
-  try {
-    const { data } = await api.get<UnifiedSearchResponse>("/api/search", {
-      params: {
-        q: query,
-        scope: opts?.scope ?? "current",
-        path: opts?.path,
-        limit: opts?.limit ?? 50,
-      },
-    });
-    return data;
-  } catch (error) {
-    if (error instanceof AxiosError) {
-      throw GalleryAPIError.fromAxiosError(error);
-    }
-    throw error;
-  }
+  const { data } = await api.get<UnifiedSearchResponse>("/api/search", {
+    params: {
+      q: query,
+      scope: opts?.scope ?? "current",
+      path: opts?.path,
+      limit: opts?.limit ?? 50,
+    },
+  });
+  return data;
 };
 
 export const fetchLibraryInspector = async (opts?: {
@@ -275,39 +257,25 @@ export const fetchLibraryInspector = async (opts?: {
   sort?: SortValue;
   cursor?: string;
 }): Promise<LibraryInspectorResponse> => {
-  try {
-    const requestScope = opts?.scope ?? "current";
-    const { data } = await api.get<LibraryInspectorResponse>("/api/library/inspector", {
-      params: {
-        q: opts?.q ?? "",
-        scope: requestScope,
-        path: requestScope === "current" ? opts?.path : undefined,
-        limit: opts?.limit ?? 200,
-        sort: opts?.sort ?? "date_desc",
-        cursor: opts?.cursor ?? undefined,
-      },
-    });
-    return data;
-  } catch (error) {
-    if (error instanceof AxiosError) {
-      throw GalleryAPIError.fromAxiosError(error);
-    }
-    throw error;
-  }
+  const requestScope = opts?.scope ?? "current";
+  const { data } = await api.get<LibraryInspectorResponse>("/api/library/inspector", {
+    params: {
+      q: opts?.q ?? "",
+      scope: requestScope,
+      path: requestScope === "current" ? opts?.path : undefined,
+      limit: opts?.limit ?? 200,
+      sort: opts?.sort ?? "date_desc",
+      cursor: opts?.cursor ?? undefined,
+    },
+  });
+  return data;
 };
 
 export const fetchLibraryInspectorMetadata = async (path: string): Promise<LibraryInspectorMetadataResponse> => {
-  try {
-    const { data } = await api.get<LibraryInspectorMetadataResponse>("/api/library/inspector/metadata", {
-      params: { path },
-    });
-    return data;
-  } catch (error) {
-    if (error instanceof AxiosError) {
-      throw GalleryAPIError.fromAxiosError(error);
-    }
-    throw error;
-  }
+  const { data } = await api.get<LibraryInspectorMetadataResponse>("/api/library/inspector/metadata", {
+    params: { path },
+  });
+  return data;
 };
 
 export const getImageUrl = (path: string) => `${API_BASE}/api/image?path=${encodeURIComponent(path)}`;
@@ -325,213 +293,114 @@ export const getPreviewUrl = (path: string, maxLongEdge: number = 1440) => {
 };
 
 export const fetchFacets = async (path: string): Promise<FacetsResponse> => {
-  try {
-    const { data } = await api.get<FacetsResponse>("/api/facets", {
-      params: { path },
-    });
-    return data;
-  } catch (error) {
-    if (error instanceof AxiosError) {
-      throw GalleryAPIError.fromAxiosError(error);
-    }
-    throw error;
-  }
+  const { data } = await api.get<FacetsResponse>("/api/facets", {
+    params: { path },
+  });
+  return data;
 };
 
 export const fetchLandingPages = async (): Promise<string[]> => {
-  try {
-    const { data } = await api.get<string[]>("/api/landing-pages");
-    return data;
-  } catch (error) {
-    if (error instanceof AxiosError) {
-      throw GalleryAPIError.fromAxiosError(error);
-    }
-    throw error;
-  }
+  const { data } = await api.get<string[]>("/api/landing-pages");
+  return data;
 };
 
 export const fetchLibraries = async (): Promise<RegisteredLibrary[]> => {
-  try {
-    const { data } = await api.get<RegisteredLibrary[]>("/api/libraries");
-    return data;
-  } catch (error) {
-    if (error instanceof AxiosError) throw GalleryAPIError.fromAxiosError(error);
-    throw error;
-  }
+  const { data } = await api.get<RegisteredLibrary[]>("/api/libraries");
+  return data;
 };
 
 export const fetchLibrary = async (id: number): Promise<RegisteredLibrary> => {
-  try {
-    const { data } = await api.get<RegisteredLibrary>(`/api/libraries/${id}`);
-    return data;
-  } catch (error) {
-    if (error instanceof AxiosError) throw GalleryAPIError.fromAxiosError(error);
-    throw error;
-  }
+  const { data } = await api.get<RegisteredLibrary>(`/api/libraries/${id}`);
+  return data;
 };
 
 export const fetchLibraryStats = async (id: number): Promise<LibraryStats> => {
-  try {
-    const { data } = await api.get<LibraryStats>(`/api/libraries/${id}/stats`);
-    return data;
-  } catch (error) {
-    if (error instanceof AxiosError) throw GalleryAPIError.fromAxiosError(error);
-    throw error;
-  }
+  const { data } = await api.get<LibraryStats>(`/api/libraries/${id}/stats`);
+  return data;
 };
 
 export const fetchLibraryJobs = async (id: number): Promise<LibraryJob[]> => {
-  try {
-    const { data } = await api.get<LibraryJob[]>(`/api/libraries/${id}/jobs`);
-    return data;
-  } catch (error) {
-    if (error instanceof AxiosError) throw GalleryAPIError.fromAxiosError(error);
-    throw error;
-  }
+  const { data } = await api.get<LibraryJob[]>(`/api/libraries/${id}/jobs`);
+  return data;
 };
 
 export const fetchGalleryStats = async (): Promise<GalleryStats> => {
-  try {
-    const { data } = await api.get<GalleryStats>("/api/stats");
-    return data;
-  } catch (error) {
-    if (error instanceof AxiosError) throw GalleryAPIError.fromAxiosError(error);
-    throw error;
-  }
+  const { data } = await api.get<GalleryStats>("/api/stats");
+  return data;
 };
 
 export const fetchJobs = async (): Promise<LibraryJob[]> => {
-  try {
-    const { data } = await api.get<LibraryJob[]>("/api/jobs");
-    return data;
-  } catch (error) {
-    if (error instanceof AxiosError) throw GalleryAPIError.fromAxiosError(error);
-    throw error;
-  }
+  const { data } = await api.get<LibraryJob[]>("/api/jobs");
+  return data;
 };
 
 export const fetchJob = async (id: number): Promise<LibraryJob> => {
-  try {
-    const { data } = await api.get<LibraryJob>(`/api/jobs/${id}`);
-    return data;
-  } catch (error) {
-    if (error instanceof AxiosError) throw GalleryAPIError.fromAxiosError(error);
-    throw error;
-  }
+  const { data } = await api.get<LibraryJob>(`/api/jobs/${id}`);
+  return data;
 };
 
 export const validateLibraryCreate = async (
   payload: LibraryCreateRequest | LibraryUpdateRequest,
 ): Promise<LibraryValidationResult> => {
-  try {
-    const { data } = await api.post<LibraryValidationResult>("/api/libraries/validate", payload);
-    return data;
-  } catch (error) {
-    if (error instanceof AxiosError) throw GalleryAPIError.fromAxiosError(error);
-    throw error;
-  }
+  const { data } = await api.post<LibraryValidationResult>("/api/libraries/validate", payload);
+  return data;
 };
 
 export const validateLibraryUpdate = async (
   id: number,
   payload: LibraryUpdateRequest,
 ): Promise<LibraryValidationResult> => {
-  try {
-    const { data } = await api.post<LibraryValidationResult>(`/api/libraries/${id}/validate`, payload);
-    return data;
-  } catch (error) {
-    if (error instanceof AxiosError) throw GalleryAPIError.fromAxiosError(error);
-    throw error;
-  }
+  const { data } = await api.post<LibraryValidationResult>(`/api/libraries/${id}/validate`, payload);
+  return data;
 };
 
 export const createLibrary = async (payload: LibraryCreateRequest): Promise<RegisteredLibrary> => {
-  try {
-    const { data } = await api.post<RegisteredLibrary>("/api/libraries", payload);
-    return data;
-  } catch (error) {
-    if (error instanceof AxiosError) throw GalleryAPIError.fromAxiosError(error);
-    throw error;
-  }
+  const { data } = await api.post<RegisteredLibrary>("/api/libraries", payload);
+  return data;
 };
 
 export const updateLibrary = async (id: number, payload: LibraryUpdateRequest): Promise<RegisteredLibrary> => {
-  try {
-    const { data } = await api.patch<RegisteredLibrary>(`/api/libraries/${id}`, payload);
-    return data;
-  } catch (error) {
-    if (error instanceof AxiosError) throw GalleryAPIError.fromAxiosError(error);
-    throw error;
-  }
+  const { data } = await api.patch<RegisteredLibrary>(`/api/libraries/${id}`, payload);
+  return data;
 };
 
 export const scanLibrary = async (id: number, scopePath?: string | null): Promise<LibraryScanResponse> => {
-  try {
-    const body = scopePath ? { scope_path: scopePath } : undefined;
-    const { data } = await api.post<LibraryScanResponse>(`/api/libraries/${id}/scan`, body);
-    return data;
-  } catch (error) {
-    if (error instanceof AxiosError) throw GalleryAPIError.fromAxiosError(error);
-    throw error;
-  }
+  const body = scopePath ? { scope_path: scopePath } : undefined;
+  const { data } = await api.post<LibraryScanResponse>(`/api/libraries/${id}/scan`, body);
+  return data;
 };
 
 export const scanAllLibraries = async (): Promise<ScanAllLibrariesResponse> => {
-  try {
-    const { data } = await api.post<ScanAllLibrariesResponse>("/api/libraries/scan-all");
-    return data;
-  } catch (error) {
-    if (error instanceof AxiosError) throw GalleryAPIError.fromAxiosError(error);
-    throw error;
-  }
+  const { data } = await api.post<ScanAllLibrariesResponse>("/api/libraries/scan-all");
+  return data;
 };
 
 export const rebuildLibrary = async (id: number, scopePath?: string | null): Promise<LibraryRebuildResponse> => {
-  try {
-    const body: Record<string, unknown> = { confirm: true };
-    if (scopePath) body.scope_path = scopePath;
-    const { data } = await api.post<LibraryRebuildResponse>(`/api/libraries/${id}/rebuild`, body);
-    return data;
-  } catch (error) {
-    if (error instanceof AxiosError) throw GalleryAPIError.fromAxiosError(error);
-    throw error;
-  }
+  const body: Record<string, unknown> = { confirm: true };
+  if (scopePath) body.scope_path = scopePath;
+  const { data } = await api.post<LibraryRebuildResponse>(`/api/libraries/${id}/rebuild`, body);
+  return data;
 };
 
 export const fetchCatalogStatus = async (
   libraryId: number,
   scopePath?: string | null,
 ): Promise<StatusResponseEnvelope> => {
-  try {
-    const params: Record<string, string | number> = {};
-    if (scopePath) params.scope_path = scopePath;
-    const { data } = await api.get<StatusResponseEnvelope>(`/api/libraries/${libraryId}/status`, {
-      params,
-    });
-    return data;
-  } catch (error) {
-    if (error instanceof AxiosError) throw GalleryAPIError.fromAxiosError(error);
-    throw error;
-  }
+  const params: Record<string, string | number> = {};
+  if (scopePath) params.scope_path = scopePath;
+  const { data } = await api.get<StatusResponseEnvelope>(`/api/libraries/${libraryId}/status`, {
+    params,
+  });
+  return data;
 };
 
 export const fetchLibraryStatusBatch = async (): Promise<LibraryStatusBatchResponse> => {
-  try {
-    const { data } = await api.get<LibraryStatusBatchResponse>("/api/libraries/status");
-    return data;
-  } catch (error) {
-    if (error instanceof AxiosError) throw GalleryAPIError.fromAxiosError(error);
-    throw error;
-  }
+  const { data } = await api.get<LibraryStatusBatchResponse>("/api/libraries/status");
+  return data;
 };
 
 export const deleteLibrary = async (id: number): Promise<void> => {
-  try {
-    await api.delete(`/api/libraries/${id}`, { params: { confirm: true } });
-  } catch (error) {
-    if (error instanceof AxiosError) throw GalleryAPIError.fromAxiosError(error);
-    throw error;
-  }
+  await api.delete(`/api/libraries/${id}`, { params: { confirm: true } });
 };
 
 export const getVideoUrl = (path: string): string => `${API_BASE}/api/video?path=${encodeURIComponent(path)}`;
