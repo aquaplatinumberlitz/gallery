@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { useEventListener } from "@vueuse/core";
+import { nextTick, ref, watch } from "vue";
+import { useEventListener, useResizeObserver } from "@vueuse/core";
 import type { FileNode } from "../types";
 import { ArrowLeft, ArrowRight } from "lucide-vue-next";
 import AlbumCardMobile from "./AlbumCardMobile.vue";
@@ -22,7 +22,6 @@ const showRightArrow = ref(false);
 const { isMobile } = useDevice();
 
 // ── ResizeObserver for realtime overflow tracking ──
-let resizeObserver: ResizeObserver | null = null;
 let scrollTick = false;
 
 const updateArrows = (grid: HTMLElement) => {
@@ -62,32 +61,24 @@ const scrollAlbums = (direction: number) => {
 };
 
 // ── Lifecycle ──
-const init = () => {
+useResizeObserver(gridRef, (entries) => {
+  const entry = entries[0];
+  if (entry && gridRef.value) {
+    updateArrows(gridRef.value);
+  }
+});
+
+const updateGridArrows = () => {
   if (!gridRef.value) return;
   updateArrows(gridRef.value);
-
-  if (resizeObserver) resizeObserver.disconnect();
-  resizeObserver = new ResizeObserver(([entry]) => {
-    if (entry && gridRef.value) {
-      updateArrows(gridRef.value);
-    }
-  });
-  resizeObserver.observe(gridRef.value);
 };
 
-onMounted(() => {
-  nextTick(() => init());
-});
-
-onBeforeUnmount(() => {
-  if (resizeObserver) resizeObserver.disconnect();
-  resizeObserver = null;
-});
+nextTick(() => updateGridArrows());
 
 watch(
   () => props.folders.length,
   () => {
-    nextTick(() => init());
+    nextTick(() => updateGridArrows());
   },
 );
 

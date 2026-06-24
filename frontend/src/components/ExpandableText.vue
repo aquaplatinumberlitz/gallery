@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, onUnmounted, nextTick } from "vue";
+import { computed, ref, watch, onMounted, nextTick } from "vue";
+import { useResizeObserver } from "@vueuse/core";
 
 const props = withDefaults(
   defineProps<{
@@ -32,8 +33,6 @@ const isExpanded = computed({
   },
 });
 
-let resizeObserver: ResizeObserver | null = null;
-
 function getCollapsedHeight(el: HTMLElement) {
   const style = window.getComputedStyle(el);
   const lineHeight = Number.parseFloat(style.lineHeight);
@@ -62,18 +61,12 @@ function toggle() {
 
 onMounted(() => {
   checkOverflow();
-  if (textRef.value) {
-    resizeObserver = new ResizeObserver(() => {
-      if (!isExpanded.value) {
-        checkOverflow();
-      }
-    });
-    resizeObserver.observe(textRef.value);
-  }
 });
 
-onUnmounted(() => {
-  resizeObserver?.disconnect();
+useResizeObserver(textRef, () => {
+  if (!isExpanded.value) {
+    checkOverflow();
+  }
 });
 
 watch(
