@@ -2,7 +2,7 @@
 
 Status: Maintained catalog
 
-Last reviewed: 2026-06-23
+Last reviewed: 2026-06-24
 
 Catalog entries summarize the regression or contract each important test file
 protects. File-level headers in tests provide the same purpose fields close to
@@ -97,7 +97,7 @@ the code.
 | `frontend/src/services/__tests__/api.test.ts` | Frontend unit | API wrapper requests and `GalleryAPIError` mapping. | Service functions call expected endpoints/params and map errors predictably. | Changing API service wrappers. | API service |
 | `frontend/src/stores/__tests__/gallery.test.ts` | Frontend unit | Gallery store active library lifecycle, navigation, sort, expansion, and explorer errors. | Store actions produce expected state and toast transitions. | Changing gallery store. | Gallery store |
 | `frontend/src/stores/__tests__/lightbox.test.ts` | Frontend unit | Lightbox open/close, image filtering, index resolution, preloading, and dimensions. | Navigation and dimension memory remain stable. | Changing lightbox store. | Lightbox store |
-| `frontend/src/stores/__tests__/toast.test.ts` | Frontend unit | Toast add/remove/clear, MAX_TOASTS, durations, timers, and helpers. | Toast queue and auto-dismiss behavior remain stable. | Changing toast store. | Toast store |
+| `frontend/src/stores/__tests__/toast.test.ts` | Frontend unit | Toast store adapts Gallery API to Sonner: IDs, variants, durations, dismiss, clear, actions, and visible-toast limit. | Gallery toast API remains stable while Sonner owns render/dismiss mechanics. | Changing toast store. | Toast store |
 | `frontend/src/utils/__tests__/assetType.test.ts` | Frontend unit | Asset type normalization and media checks. | Legacy `photo`/`file` values normalize to image and media checks stay stable. | Changing asset type vocabulary. | Asset type helpers |
 | `frontend/src/utils/__tests__/fuzzySearch.test.ts` | Frontend unit | Fuse-backed fuzzy FileNode matching. | Empty queries, includePath, cache reuse, special chars, and CJK stay stable. | Changing fuzzy search. | Fuzzy search |
 | `frontend/src/utils/__tests__/format.test.ts` | Frontend unit | `formatBytes` formatting, edge cases (`NaN`, `Infinity`, negative), and helper signature. | Invalid inputs return `"—"`, zero returns `"0 B"`, valid sizes format correctly. | Changing formatting logic. | Utility formatting |

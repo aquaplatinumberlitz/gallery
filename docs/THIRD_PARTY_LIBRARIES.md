@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-06-23
+Last reviewed: 2026-06-24
 
 This document records how major third-party libraries are used in the current codebase and which integration contracts should not be changed casually.
 
@@ -33,7 +33,7 @@ This document records how major third-party libraries are used in the current co
 | Reka UI                                                         | Headless primitives for local UI components                                       | `frontend/src/components/ui/`                                                                         | Dialog, sheet, dropdown, select, tooltip, popover, tabs, primitive/sidebar context                      |
 | class-variance-authority / clsx / tailwind-merge                | Variant and class composition                                                     | `frontend/src/components/ui/Button.vue`, `Badge.vue`, `Input.vue`, `frontend/src/lib/utils.ts`        | `cn()` merges Tailwind classes consistently                                                             |
 | Lucide Vue                                                      | Icons                                                                             | Gallery and UI components                                                                             | Both `lucide-vue-next` and `@lucide/vue` are installed; code currently imports `lucide-vue-next`        |
-| @vueuse/core                                                    | Theme, v-model helpers, media queries, UI primitive helpers                       | `frontend/src/composables/useGalleryTheme.ts`, `frontend/src/components/ui/`                          | Used by shadcn-style components and theme handling                                                      |
+| @vueuse/core                                                    | Browser/reactivity mechanics (clipboard, debounce, breakpoints, observers, localStorage) | `frontend/src/composables/useGalleryTheme.ts`, `frontend/src/components/ui/`, `frontend/src/composables/useClipboard.ts`, `frontend/src/composables/useScrollVisibility.ts` | VueUse owns mechanics; Gallery owns policy/UX guards. Used for clipboard, debounce, breakpoints/window size, event listeners, resize/mutation/intersection observers, localStorage, theme helpers. |
 | @tanstack/vue-query                                             | Server-state caching                                                              | `frontend/src/query/`, Query composables                                                              | Owns API data, stale time, retries, GC                                                                  |
 | @tanstack/vue-query-devtools                                    | Development Query inspection                                                      | `frontend/src/App.vue`, `frontend/package.json`                                                       | Dev mode only                                                                                           |
 | @tanstack/vue-virtual                                           | Row-based large gallery grid and Library Inspector table body                     | `frontend/src/components/GalleryGrid.vue`, `frontend/src/components/LibraryInspector.vue`             | Desktop/tablet grid virtualization; inspector renders the visible table-row window plus overscan        |
@@ -42,6 +42,7 @@ This document records how major third-party libraries are used in the current co
 | @tanstack/db / @tanstack/vue-db / @tanstack/query-db-collection | Beta local reactive collection foundation                                         | `frontend/src/db/`                                                                                    | Runtime pilot is landing pages only                                                                     |
 | PhotoSwipe 5                                                    | Lightbox image viewer                                                             | `frontend/src/components/Lightbox.vue`, PhotoSwipe wrappers, `usePhotoSwipe.ts`                       | Gallery owns custom metadata UI and controls                                                            |
 | @douxcode/vue-spring-bottom-sheet                               | Mobile lightbox metadata sheet                                                    | `frontend/src/components/LightboxMobileSheet.vue`, `frontend/src/styles/_lightbox-mobile.scss`        | Sheet/motion engine only, non-modal inside PhotoSwipe                                                   |
+| vue-sonner                                                      | Toast rendering/stack/dismiss mechanics                                           | `frontend/src/components/GalleryToaster.vue`, `frontend/src/stores/toast.ts`                           | Gallery keeps the public toast API, durations, variants, and styling; Sonner owns toaster mechanics.    |
 | Fuse.js                                                         | Local fuzzy filtering helper                                                      | `frontend/src/utils/fuzzySearch.ts`, `GalleryGrid.vue`                                                | Backend `/api/search` owns active recursive search                                                      |
 | embla-carousel-vue                                              | shadcn-style carousel primitive                                                   | `frontend/src/components/ui/carousel/`                                                                | Used by desktop album carousel through local carousel component                                         |
 | eruda                                                           | Optional mobile browser debug console                                             | `frontend/src/debug/erudaDebug.ts`, `frontend/src/main.ts`                                            | Enabled by query/localStorage debug flag                                                                |
@@ -286,6 +287,24 @@ Common pitfalls:
 - Do not reintroduce the removed custom sheet drag implementation.
 - `canBackdropClose` does not close anything when `blocking=false` because no VSBS backdrop is rendered.
 
+### vue-sonner / Sonner
+
+vue-sonner provides the toaster rendering engine. Gallery wraps it through `GalleryToaster.vue` and the toast Pinia store (`stores/toast.ts`).
+
+Core contract:
+
+- App callsites must use the Gallery toast API (`stores/toast.ts` + `useToast.ts` composable) rather than importing Sonner directly.
+- Gallery retains frontend control over duration, position, visible-toast limit, variant styling, dismissible/action options, and mobile layout.
+- Sonner owns: toast stack ordering, enter/exit animations, dismiss timers, close button rendering, and DOM teleport.
+- Gallery owns: `GalleryToaster.vue` CSS/styling, variant color tokens, icon rendering, responsive position offsets, and the toast store adapter.
+
+Integration files:
+- `frontend/src/components/GalleryToaster.vue`
+- `frontend/src/stores/toast.ts`
+- `frontend/src/composables/useToast.ts`
+
+Guiding principle: Sonner owns mechanics; Gallery owns policy, styling, and public API surface.
+
 ### Tailwind CSS 4, shadcn-vue-style Components, and Reka UI
 
 The frontend uses Tailwind 4 through `@tailwindcss/vite` and `frontend/src/styles/tailwind.css`. Existing SCSS still owns core gallery layout and lightbox styles.
@@ -310,7 +329,26 @@ Prefer Lucide icon components for buttons and controls where a semantic icon exi
 
 ### @vueuse/core
 
-VueUse is used for theme mode, media/v-model helpers, and several local shadcn-style UI components. Examples include `useColorMode`, `useMediaQuery`, `useVModel`, `reactiveOmit`, and carousel injection helpers.
+VueUse is used for browser/reactivity mechanics:
+
+- Clipboard (`useClipboard`)
+- Debounce / throttle (`useDebounceFn`, `useThrottleFn`)
+- Breakpoints / window size (`useBreakpoints`, `useWindowSize`)
+- Event listeners (`useEventListener`)
+- Resize / mutation / intersection observers (`useResizeObserver`, `useMutationObserver`, `useIntersectionObserver`)
+- Scroll visibility (`useScroll`, `useElementVisibility`)
+- localStorage (`useStorage`)
+- Theme mode (`useColorMode`)
+- Media queries / v-model helpers
+- shadcn-style UI component helpers
+
+Integration files:
+- `frontend/src/composables/useGalleryTheme.ts`
+- `frontend/src/composables/useClipboard.ts`
+- `frontend/src/composables/useScrollVisibility.ts`
+- `frontend/src/components/ui/` (shared primitives)
+
+**Principle:** VueUse owns mechanics; Gallery owns policy/UX guards. Every migration should replace only the browser API wiring while preserving guard logic, constants, and UX contracts.
 
 ### Fuse.js
 

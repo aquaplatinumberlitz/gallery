@@ -2,7 +2,7 @@
 
 Status: Maintained index
 
-Last reviewed: 2026-06-21
+Last reviewed: 2026-06-24
 
 This directory retains completed or superseded plans, historical contracts,
 and dated reports. These files preserve implementation context but do not
@@ -16,6 +16,6 @@ Notable groups include:
 - Library Management V1 plan, phase contract, and final implementation status.
 - Completed AlbumScroller, VueUse theme, shadcn-vue, Tailwind, sidebar, and TanStack migrations.
 - Completed lint/format adoption and frontend adaptation plans.
-- Utility Library Migration — 12-item, 6-phase migration (clipboard, debounce, device breakpoints, focus trap → Reka FocusScope, column resize, natural sort, Axios interceptor, event listeners, localStorage, formatBytes).
+- Utility Library Migration — 12-item, 6-phase migration (clipboard, debounce, device breakpoints, focus trap → Reka FocusScope, column resize, natural sort, Axios interceptor, event listeners, localStorage, formatBytes), plus follow-up deferred cleanups for GalleryGrid intersection observer and scroll visibility mechanics.
 - Historical performance comparison and deprecated testing strategy.
 - Evolution and upstream-adaptation roadmaps retained for design context.
