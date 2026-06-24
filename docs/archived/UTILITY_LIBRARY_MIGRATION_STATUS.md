@@ -1,3 +1,5 @@
+> **Archived — 2026-06-24.** Migration complete. All 12 items across 6 phases are done. See `docs/ARCHITECTURE.md` and `docs/testing/` for current documentation.
+>
 # Utility / Library Migration Status
 
 Last updated: 2026-06-24
@@ -43,7 +45,7 @@ Last updated: 2026-06-24
 
 | # | Item | Commit | Status | Notes |
 |---|------|--------|--------|-------|
-| 11 | `useFocusTrap.ts` → Reka FocusScope | — | ⏳ | Not started |
+| 11 | `useFocusTrap.ts` → Reka FocusScope | 73c1c77 | ✅ | Replaced imperative focus trap in Lightbox.vue with declarative `<FocusScope>` from reka-ui |
 
 ## Phase 6 — Small DRY cleanup
 

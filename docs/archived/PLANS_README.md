@@ -1,3 +1,5 @@
+> **Archived — 2026-06-24.** Migration complete. All 12 items across 6 phases are done. See `docs/ARCHITECTURE.md` and `docs/testing/` for current documentation.
+>
 # Plans
 
 Status: Maintained index
