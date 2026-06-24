@@ -1,41 +1,8 @@
 {
   "catalog_alignment": {
-    "cataloged_uncollected_tests": [
-      "backend/tests/test_catalog_status_contract.py",
-      "backend/tests/test_catalog_status_endpoints.py",
-      "frontend/src/utils/__tests__/indexStatus.test.ts",
-      "frontend/src/utils/__tests__/indexStatusCopy.test.ts"
-    ],
-    "missing_catalog_files": [
-      "frontend/src/utils/__tests__/indexStatus.test.ts",
-      "frontend/src/utils/__tests__/indexStatusCopy.test.ts"
-    ],
-    "uncataloged_files": [
-      "backend/tests/test_asset_reactivate.py",
-      "backend/tests/test_db_path_consistency.py",
-      "backend/tests/test_derivative_scheduler.py",
-      "backend/tests/test_libraries_catalog.py",
-      "backend/tests/test_libraries_coverage.py",
-      "backend/tests/test_library_jobs.py",
-      "backend/tests/test_metadata_store_search.py",
-      "backend/tests/test_mixed_media_listing.py",
-      "backend/tests/test_video.py",
-      "frontend/src/components/__tests__/IndexStatusDetailsPopover.test.ts",
-      "frontend/src/components/__tests__/VideoCard.test.ts",
-      "frontend/src/composables/admin/__tests__/useLibraryEvents.test.ts",
-      "frontend/src/composables/admin/__tests__/useLibraryMutations.test.ts",
-      "frontend/src/contracts/__tests__/catalogStatusContract.test.ts",
-      "frontend/src/lib/catalog/__tests__/contractGuard.test.ts",
-      "frontend/src/lib/catalog/__tests__/labels.test.ts",
-      "frontend/src/lib/catalog/__tests__/polling.test.ts",
-      "frontend/src/query/__tests__/keys.test.ts",
-      "frontend/src/services/__tests__/api.test.ts",
-      "frontend/src/utils/__tests__/assetType.test.ts",
-      "frontend/tests/e2e/active-library-selection.spec.ts",
-      "frontend/tests/e2e/library-management.spec.ts",
-      "frontend/tests/e2e/mixed-media-gallery.spec.ts",
-      "scripts/perf_lib.py"
-    ]
+    "cataloged_uncollected_tests": [],
+    "missing_catalog_files": [],
+    "uncataloged_files": []
   },
   "commands": {
     "backend": {
@@ -47,7 +14,7 @@
         "-q"
       ],
       "cwd": "backend",
-      "returncode": 2
+      "returncode": 0
     },
     "frontend": {
       "command": [
@@ -75,12 +42,12 @@
     }
   },
   "counts": {
-    "backend_test_files": 37,
-    "backend_tests": 694,
-    "catalog_entries": 77,
+    "backend_test_files": 40,
+    "backend_tests": 712,
+    "catalog_entries": 100,
     "frontend_test_files": 24,
     "frontend_tests": 159,
-    "important_files": 101,
+    "important_files": 102,
     "perf_reports": 0,
     "vitest_test_files": 29,
     "vitest_tests": 357
@@ -114,7 +81,7 @@
     },
     "frontend_summary_found": false
   },
-  "generated_at": "2026-06-23T11:33:24+00:00",
+  "generated_at": "2026-06-24T00:46:08+00:00",
   "matrix": [
     {
       "backend": "OK",
@@ -124,22 +91,17 @@
       "perf": "OK"
     },
     {
-      "backend": "GAP",
+      "backend": "OK",
       "feature": "Index Status and rebuild flow",
       "frontend": "OK",
-      "gaps": [
-        "missing file: backend/tests/test_api_integration_index_status.py"
-      ],
+      "gaps": [],
       "perf": "N/A"
     },
     {
-      "backend": "GAP",
-      "feature": "Scan API and hot path",
+      "backend": "OK",
+      "feature": "Browse API and catalog jobs",
       "frontend": "OK",
-      "gaps": [
-        "missing file: backend/tests/test_api_integration_scan.py",
-        "missing file: backend/tests/test_scan_hot_path.py"
-      ],
+      "gaps": [],
       "perf": "N/A"
     },
     {

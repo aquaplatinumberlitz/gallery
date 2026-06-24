@@ -52,7 +52,7 @@ Backend modules are mostly flat, with selected domain packages.
 | `video.py`                 | Range-capable original video streaming and cached poster generation                                                                        |
 | `health.py`                | `/api/health`, favicon, git commit reporting                                                                                               |
 | `static_files.py`          | `/`, `/api/landing-pages`, and production SPA fallback                                                                                     |
-| `scan_worker.py`           | Background catalog scan/rebuild worker, durable job queue, queue_scan/queue_rebuild/run_once/start/stop                                    |
+| `scan_worker.py`           | Background catalog scan/rebuild worker, durable job queue, startup stale-job recovery, queue_scan/queue_rebuild/run_once/start/stop        |
 
 ### Domain Packages
 

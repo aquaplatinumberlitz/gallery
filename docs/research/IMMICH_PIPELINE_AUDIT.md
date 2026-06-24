@@ -1151,3 +1151,14 @@ Verified against the current repository on 2026-06-18:
 
 Historical roadmap and “keep original as PhotoSwipe main source” statements
 above are superseded by the verified derivative-first implementation.
+
+## Clarification: Job Lifecycle vs BullMQ
+
+Immich relies on BullMQ/Redis for durable queues with stalled-job detection,
+heartbeats, and automatic retries. Gallery-repo uses SQLite as its durable job
+store with in-process worker threads and a simpler recovery model: on worker
+startup, `recover_stale_jobs()` marks any `running` catalog scan/rebuild job as
+`failed` (message: "Interrupted by server restart"), which unblocks queued jobs
+for the same library. This is a crash-recovery approach, not a heartbeat-based
+lease system. No Redis, BullMQ, or schema changes are required. See
+`backend/metadata_store/job_store.py` and `backend/scan_worker.py`.

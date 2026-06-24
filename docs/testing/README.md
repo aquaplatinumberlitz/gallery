@@ -20,7 +20,7 @@ documented in [DEBUG_TOOLS.md](DEBUG_TOOLS.md).
 
 ## Test Categories
 
-- Backend unit/integration tests: `backend/tests/test_*.py` cover FastAPI endpoint contracts, metadata parsing/search, catalog browse behavior, indexer staging, warm listing, refresh, watcher, facets, and derivatives.
+- Backend unit/integration tests: `backend/tests/test_*.py` cover FastAPI endpoint contracts, metadata parsing/search, catalog browse behavior, indexer staging, warm listing, refresh, watcher, facets, derivatives, and catalog job lifecycle/recovery.
 - Frontend Playwright/contract tests: `frontend/tests/e2e/*.spec.ts` cover gallery UI contracts with stubbed API responses, selected real-backend smoke paths, UI regressions, and diagnostics.
 - Frontend vitest unit tests: `frontend/src/**/__tests__/*.test.ts` cover pure utilities, Pinia stores, and Vue composables with jsdom + `@vue/test-utils`. Run with `cd frontend && pnpm test:unit`. See the "Frontend Vitest Unit Tests" section below for the testing-trophy rationale and per-tier inventory.
 - Rebuild/catalog status tests: `frontend/tests/e2e/index-rebuild-flow.spec.ts`, `frontend/tests/e2e/index-status-panel.spec.ts`, `backend/tests/test_catalog_status_contract.py`, `backend/tests/test_catalog_status_endpoints.py`, `backend/tests/test_catalog_status_ready_assets.py`, `backend/tests/test_catalog_trigger_routing.py`, `backend/tests/test_indexer_staging.py`, and `backend/tests/test_warm_folder_listing.py`.
