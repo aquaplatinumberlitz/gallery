@@ -168,17 +168,17 @@ describe("useColumnResize", () => {
     }).not.toThrow();
   });
 
-  it("recomputeRowHeight updates rowHeight based on width, column count, and gap", () => {
+  it("recomputeRowHeight updates rowHeight based on width, column count, and gap", async () => {
     const { result } = withSetup(() => useColumnResize("desktop"));
     result.sliderLevel.value = 3; // 6 columns on desktop
-    // We can't call recomputeRowHeight directly (it's not returned), but
-    // setGridRef(el) calls it. Use a real HTMLElement to trigger the path.
+    // setGridRef triggers useResizeObserver which fires on next tick
     const el = document.createElement("div");
     Object.defineProperty(el, "getBoundingClientRect", {
       configurable: true,
       value: () => ({ width: 1024, height: 0, x: 0, y: 0, top: 0, left: 0, right: 1024, bottom: 0, toJSON: () => {} }),
     });
     result.setGridRef(el);
+    await nextTick();
     // 6 columns, GAP=20: totalGap = 20*(6-1)=100; itemWidth = (1024-100)/6 = 154; rowHeight = 154+20 = 174
     expect(result.rowHeight.value).toBeCloseTo(174, 0);
   });
@@ -190,7 +190,7 @@ describe("useColumnResize", () => {
     expect(() => result.setGridRef(null)).not.toThrow();
   });
 
-  it("recomputeRowHeight ignores zero-width reports from getBoundingClientRect but the ResizeObserver mock fires with 1024", () => {
+  it("recomputeRowHeight ignores zero-width reports from getBoundingClientRect but the ResizeObserver mock fires with 1024", async () => {
     // The setup file's ResizeObserver mock fires synchronously with width=1024,
     // so setGridRef always recomputes rowHeight from that width regardless of
     // getBoundingClientRect. We verify the helper tolerates a zero bounding
@@ -202,7 +202,8 @@ describe("useColumnResize", () => {
       value: () => ({ width: 0, height: 0, x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, toJSON: () => {} }),
     });
     expect(() => result.setGridRef(el)).not.toThrow();
-    // The ResizeObserver mock reported 1024, so rowHeight is non-zero.
+    await nextTick();
+    // The ResizeObserver mock fires with 1024 on observe, so rowHeight is non-zero.
     expect(result.rowHeight.value).toBeGreaterThan(0);
   });
 

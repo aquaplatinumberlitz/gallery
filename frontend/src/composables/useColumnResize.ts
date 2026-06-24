@@ -1,4 +1,5 @@
-import { computed, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance, type Ref } from "vue";
+import { computed, ref, watch, type ComponentPublicInstance, type Ref } from "vue";
+import { useResizeObserver, useLocalStorage } from "@vueuse/core";
 
 const GAP = 20;
 const GRID_SIZE_KEY = "gallery-grid-size";
@@ -45,14 +46,34 @@ function migrateColumnsToLevel(stored: number): number {
   return entry?.level ?? DEFAULT_PHOTO_GRID_LEVEL;
 }
 
-function getDefaultLevel(): number {
-  return DEFAULT_PHOTO_GRID_LEVEL;
-}
-
 export function useColumnResize(deviceCategory: DeviceCategory | Ref<DeviceCategory> = "desktop") {
-  const sliderLevel = ref(getDefaultLevel());
+  // Read raw value with migration + Safari Private Browsing safety
+  let initialLevel: PhotoGridLevel = DEFAULT_PHOTO_GRID_LEVEL;
+  if (typeof window !== "undefined") {
+    try {
+      const rawStored = localStorage.getItem(GRID_SIZE_KEY);
+      if (rawStored !== null) {
+        const num = Number(rawStored);
+        if (!Number.isNaN(num)) {
+          if (num >= 1 && num <= PHOTO_GRID_LEVELS.length) {
+            initialLevel = num as PhotoGridLevel;
+          } else {
+            initialLevel = migrateColumnsToLevel(num) as PhotoGridLevel;
+          }
+        }
+      }
+      // Clear so useLocalStorage uses our computed initialLevel
+      localStorage.removeItem(GRID_SIZE_KEY);
+    } catch {
+      // Safari Private Browsing — localStorage throws; use default
+    }
+  }
+
+  // useLocalStorage syncs changes back automatically, wraps try/catch for Safari
+  const sliderLevel = useLocalStorage<number>(GRID_SIZE_KEY, initialLevel);
+
   const rowHeight = ref(0);
-  let resizeObserver: ResizeObserver | null = null;
+  const gridRef = ref<HTMLElement | null>(null);
   const lastGridWidth = ref(0);
 
   /** Reactive device category — works with plain string, ref, or computed ref */
@@ -71,33 +92,6 @@ export function useColumnResize(deviceCategory: DeviceCategory | Ref<DeviceCateg
   /** Alias for backward compatibility with template bindings */
   const columnCount = effectiveColumnCount;
 
-  const loadGridSize = () => {
-    if (typeof window === "undefined") return;
-    try {
-      const stored = Number(localStorage.getItem(GRID_SIZE_KEY));
-      if (!Number.isNaN(stored)) {
-        if (stored >= 1 && stored <= PHOTO_GRID_LEVELS.length) {
-          // New level-based value (1-5)
-          sliderLevel.value = stored as PhotoGridLevel;
-        } else {
-          // Legacy raw column count — migrate
-          sliderLevel.value = migrateColumnsToLevel(stored) as PhotoGridLevel;
-        }
-      }
-    } catch (e) {
-      // Safari Private Browsing — localStorage throws; use default
-    }
-  };
-
-  const saveGridSize = (val: number) => {
-    if (typeof window === "undefined") return;
-    try {
-      localStorage.setItem(GRID_SIZE_KEY, String(val));
-    } catch (e) {
-      // Safari Private Browsing — localStorage throws; silently ignore
-    }
-  };
-
   const recomputeRowHeight = (width: number) => {
     if (!width) return;
     lastGridWidth.value = width;
@@ -106,40 +100,27 @@ export function useColumnResize(deviceCategory: DeviceCategory | Ref<DeviceCateg
     rowHeight.value = itemWidth + GAP; // include vertical gap
   };
 
+  // VueUse useResizeObserver handles lifecycle (disconnect on ref change / unmount)
+  useResizeObserver(gridRef, (entries) => {
+    const entry = entries[0];
+    if (entry) {
+      recomputeRowHeight(entry.contentRect.width);
+    }
+  });
+
   const setGridRef = (el: Element | ComponentPublicInstance | null) => {
     if (el && el instanceof HTMLElement) {
-      if (resizeObserver) resizeObserver.disconnect();
-
-      resizeObserver = new ResizeObserver((entries) => {
-        const entry = entries[0];
-        if (entry) {
-          recomputeRowHeight(entry.contentRect.width);
-        }
-      });
-
-      resizeObserver.observe(el);
+      gridRef.value = el;
       const initialWidth = el.getBoundingClientRect().width;
       if (initialWidth) {
         recomputeRowHeight(initialWidth);
       }
     } else {
-      if (resizeObserver) {
-        resizeObserver.disconnect();
-        resizeObserver = null;
-      }
+      gridRef.value = null;
     }
   };
 
-  onBeforeUnmount(() => {
-    if (resizeObserver) resizeObserver.disconnect();
-  });
-
-  onMounted(() => {
-    loadGridSize();
-  });
-
-  watch(sliderLevel, (val: number) => {
-    saveGridSize(val);
+  watch(sliderLevel, (_val: number) => {
     if (lastGridWidth.value) {
       recomputeRowHeight(lastGridWidth.value);
     }
