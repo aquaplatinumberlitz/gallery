@@ -49,7 +49,7 @@ Last updated: 2026-06-24
 
 | # | Item | Commit | Status | Notes |
 |---|------|--------|--------|-------|
-| 12 | `formatBytes` dedup | — | ⏳ | Not started |
+| 12 | `formatBytes` dedup | f4955ba | ✅ | Extracted from LibraryListPage.vue + LibraryDetailPage.vue to shared `frontend/src/utils/format.ts` |
 
 ## Deferred / Conditional
 
