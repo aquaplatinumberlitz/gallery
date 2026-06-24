@@ -114,10 +114,13 @@ case "$COMMAND" in
         cd "$REPO_ROOT"
         exec "$PYTHON" -m pytest \
             backend/tests/test_api_integration_health_and_safety.py \
-            backend/tests/test_api_integration_scan.py \
             backend/tests/test_api_integration_derivatives.py \
             backend/tests/test_api_integration_metadata_search_facets.py \
-            backend/tests/test_api_integration_index_status.py \
+            backend/tests/test_catalog_status_contract.py \
+            backend/tests/test_catalog_status_endpoints.py \
+            backend/tests/test_catalog_status_ready_assets.py \
+            backend/tests/test_catalog_trigger_routing.py \
+            backend/tests/test_browse_api.py \
             -v "$@"
         ;;
     perf-smoke)
