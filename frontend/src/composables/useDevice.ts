@@ -1,4 +1,5 @@
-import { ref, computed, onMounted, onBeforeUnmount } from "vue";
+import { computed } from "vue";
+import { useWindowSize } from "@vueuse/core";
 
 // Source-of-truth breakpoints — also exists as SCSS vars in _breakpoints.scss
 export const BREAKPOINTS = {
@@ -10,14 +11,11 @@ export const BREAKPOINTS = {
 
 type Breakpoint = "compact" | "mobile" | "tablet" | "desktop" | "wide";
 
-// Singleton state
-let refCount = 0;
-const currentWidth = ref(typeof window !== "undefined" ? window.innerWidth : 1200);
-let resizeHandler: (() => void) | null = null;
-
 export function useDevice() {
+  const { width } = useWindowSize();
+
   const breakpoint = computed<Breakpoint>(() => {
-    const w = currentWidth.value;
+    const w = width.value;
     if (w < BREAKPOINTS.compact) return "compact";
     if (w < BREAKPOINTS.mobile) return "mobile";
     if (w < BREAKPOINTS.desktop) return "tablet";
@@ -32,25 +30,6 @@ export function useDevice() {
   const isWide = computed(() => breakpoint.value === "wide");
   const isMobile = computed(() => isCompact.value || isMobileOnly.value);
   const isLargeScreen = computed(() => isTablet.value || isDesktop.value || isWide.value);
-
-  onMounted(() => {
-    refCount++;
-    if (refCount === 1) {
-      // First subscriber — start listening
-      resizeHandler = () => {
-        currentWidth.value = window.innerWidth;
-      };
-      window.addEventListener("resize", resizeHandler, { passive: true });
-    }
-  });
-
-  onBeforeUnmount(() => {
-    refCount--;
-    if (refCount === 0 && resizeHandler) {
-      window.removeEventListener("resize", resizeHandler);
-      resizeHandler = null;
-    }
-  });
 
   return { breakpoint, isCompact, isMobileOnly, isTablet, isDesktop, isWide, isMobile, isLargeScreen };
 }
