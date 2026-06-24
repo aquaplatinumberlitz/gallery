@@ -1,5 +1,6 @@
 import { useInfiniteQuery } from "@tanstack/vue-query";
-import { computed, onBeforeUnmount, ref, watch, type Ref } from "vue";
+import { computed, type Ref } from "vue";
+import { refDebounced } from "@vueuse/core";
 import { normalizeQueryPath, queryKeys } from "@/query/keys";
 import { fetchLibraryInspector } from "@/services/api";
 import type { LibraryInspectorResponse, SearchScope, SortValue } from "@/types";
@@ -26,28 +27,8 @@ export function useInfiniteLibraryInspectorQuery(
   limit: Ref<number>,
   sort: Ref<SortValue>,
 ) {
-  const debouncedQuery = ref(query.value.trim());
-  let searchTimer: number | undefined;
-
-  watch(
-    [query, scope, path, sort],
-    () => {
-      if (searchTimer) {
-        window.clearTimeout(searchTimer);
-        searchTimer = undefined;
-      }
-      searchTimer = window.setTimeout(() => {
-        debouncedQuery.value = query.value.trim();
-      }, 250);
-    },
-    { flush: "sync" },
-  );
-
-  onBeforeUnmount(() => {
-    if (searchTimer) {
-      window.clearTimeout(searchTimer);
-    }
-  });
+  const trimmedQuery = computed(() => query.value.trim());
+  const debouncedQuery = refDebounced(trimmedQuery, 250);
 
   const requestPath = computed(() => (scope.value === "current" ? normalizeQueryPath(path.value || "") : ""));
   const requestLimit = computed(() => Math.max(1, limit.value));

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/vue-query";
-import { computed, onBeforeUnmount, ref, watch, type Ref } from "vue";
+import { computed, type Ref } from "vue";
+import { refDebounced } from "@vueuse/core";
 import { normalizeQueryPath, queryKeys } from "../query/keys";
 import { unifiedSearch } from "../services/api";
 import type { SearchScope, UnifiedSearchResults } from "../types";
@@ -12,38 +13,12 @@ const EMPTY_SEARCH_RESULTS: UnifiedSearchResults = {
 };
 
 export function useUnifiedSearchQuery(query: Ref<string>, scope: Ref<SearchScope>, path: Ref<string>) {
-  const debouncedQuery = ref("");
-  let searchTimer: number | undefined;
-
   const trimmedQuery = computed(() => query.value.trim());
+  const trimmedDebounced = refDebounced(trimmedQuery, 300);
+  const debouncedQuery = computed(() => (trimmedQuery.value ? trimmedDebounced.value : ""));
+
   const normalizedPath = computed(() => normalizeQueryPath(path.value || ""));
   const requestPath = computed(() => (scope.value === "current" ? normalizedPath.value : ""));
-
-  watch(
-    trimmedQuery,
-    (nextQuery) => {
-      if (searchTimer) {
-        window.clearTimeout(searchTimer);
-        searchTimer = undefined;
-      }
-
-      if (!nextQuery) {
-        debouncedQuery.value = "";
-        return;
-      }
-
-      searchTimer = window.setTimeout(() => {
-        debouncedQuery.value = nextQuery;
-      }, 300);
-    },
-    { immediate: true },
-  );
-
-  onBeforeUnmount(() => {
-    if (searchTimer) {
-      window.clearTimeout(searchTimer);
-    }
-  });
 
   const searchQuery = useQuery({
     queryKey: computed(() => {
