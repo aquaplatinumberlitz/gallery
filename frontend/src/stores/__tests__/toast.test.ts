@@ -1,21 +1,30 @@
-import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { useToastStore } from "../toast";
+
+const mocks = vi.hoisted(() => ({
+  mockSonnerSuccess: vi.fn(),
+  mockSonnerError: vi.fn(),
+  mockSonnerWarning: vi.fn(),
+  mockSonnerInfo: vi.fn(),
+  mockSonnerDismiss: vi.fn(),
+}));
+
+vi.mock("vue-sonner", () => ({
+  toast: Object.assign(vi.fn(), {
+    success: mocks.mockSonnerSuccess,
+    error: mocks.mockSonnerError,
+    warning: mocks.mockSonnerWarning,
+    info: mocks.mockSonnerInfo,
+    dismiss: mocks.mockSonnerDismiss,
+  }),
+  Toaster: { render: () => null },
+}));
 
 describe("useToastStore", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it("starts with no toasts", () => {
-    const store = useToastStore();
-    expect(store.toasts).toEqual([]);
-    expect(store.activeToasts).toEqual([]);
+    vi.clearAllMocks();
   });
 
   it("exposes the standard duration constants on the store instance", () => {
@@ -31,52 +40,67 @@ describe("useToastStore", () => {
       const store = useToastStore();
       const id = store.addToast({ title: "Hello" });
       expect(id).toMatch(/^toast-\d+-[a-z0-9]+$/);
-      expect(store.toasts).toHaveLength(1);
-      const toast = store.toasts[0]!;
-      expect(toast.id).toBe(id);
-      expect(toast.title).toBe("Hello");
-      expect(toast.type).toBe("info");
-      expect(toast.duration).toBe(store.DURATION.DEFAULT);
-      expect(toast.html).toBe(false);
-      expect(toast.dismissible).toBe(true);
-      expect(toast.createdAt).toBeTypeOf("number");
+      expect(mocks.mockSonnerInfo).toHaveBeenCalledWith("Hello", expect.objectContaining({ id }));
     });
 
-    it("respects explicit type, message, duration, html, action, and dismissible options", () => {
+    it("defaults type to info", () => {
       const store = useToastStore();
-      const action = { label: "Retry", onClick: vi.fn() };
-      const id = store.addToast({
-        type: "error",
-        title: "Boom",
-        message: "Something broke",
-        duration: store.DURATION.LONG,
-        html: true,
-        action,
-        dismissible: false,
-      });
-      const toast = store.toasts.find((t) => t.id === id)!;
-      expect(toast.type).toBe("error");
-      expect(toast.message).toBe("Something broke");
-      expect(toast.duration).toBe(store.DURATION.LONG);
-      expect(toast.html).toBe(true);
-      expect(toast.action?.label).toBe("Retry");
-      expect(toast.dismissible).toBe(false);
+      store.addToast({ title: "Hello" });
+      expect(mocks.mockSonnerInfo).toHaveBeenCalled();
     });
 
-    it("auto-removes the toast after its duration elapses", () => {
+    it("respects explicit type and calls the correct sonner method", () => {
       const store = useToastStore();
-      const id = store.addToast({ title: "Bye", duration: 1000 });
-      expect(store.toasts).toHaveLength(1);
-      vi.advanceTimersByTime(1000);
-      expect(store.toasts).toHaveLength(0);
-      expect(id).toMatch(/^toast-/);
+      store.addToast({ type: "success", title: "Saved" });
+      expect(mocks.mockSonnerSuccess).toHaveBeenCalledWith("Saved", expect.any(Object));
     });
 
-    it("keeps persistent toasts (duration 0) until removed manually", () => {
+    it("respects explicit type error and calls sonner error", () => {
+      const store = useToastStore();
+      store.addToast({ type: "error", title: "Boom" });
+      expect(mocks.mockSonnerError).toHaveBeenCalledWith("Boom", expect.any(Object));
+    });
+
+    it("respects explicit type warning and calls sonner warning", () => {
+      const store = useToastStore();
+      store.addToast({ type: "warning", title: "Careful" });
+      expect(mocks.mockSonnerWarning).toHaveBeenCalledWith("Careful", expect.any(Object));
+    });
+
+    it("passes message as description to sonner", () => {
+      const store = useToastStore();
+      store.addToast({ title: "Hello", message: "World" });
+      expect(mocks.mockSonnerInfo).toHaveBeenCalledWith("Hello", expect.objectContaining({ description: "World" }));
+    });
+
+    it("passes duration to sonner", () => {
+      const store = useToastStore();
+      store.addToast({ title: "Hello", duration: 5000 });
+      expect(mocks.mockSonnerInfo).toHaveBeenCalledWith("Hello", expect.objectContaining({ duration: 5000 }));
+    });
+
+    it("maps duration 0 (persistent) to Infinity for sonner", () => {
       const store = useToastStore();
       store.addToast({ title: "Persistent", duration: 0 });
-      vi.advanceTimersByTime(60_000);
-      expect(store.toasts).toHaveLength(1);
+      expect(mocks.mockSonnerInfo).toHaveBeenCalledWith("Persistent", expect.objectContaining({ duration: Infinity }));
+    });
+
+    it("passes dismissible option to sonner", () => {
+      const store = useToastStore();
+      store.addToast({ title: "Sticky", dismissible: false });
+      expect(mocks.mockSonnerInfo).toHaveBeenCalledWith("Sticky", expect.objectContaining({ dismissible: false }));
+    });
+
+    it("passes action option to sonner", () => {
+      const store = useToastStore();
+      const onClick = vi.fn();
+      store.addToast({ title: "Error", action: { label: "Retry", onClick } });
+      expect(mocks.mockSonnerInfo).toHaveBeenCalledWith(
+        "Error",
+        expect.objectContaining({
+          action: expect.objectContaining({ label: "Retry" }),
+        }),
+      );
     });
 
     it("generates unique ids for repeated calls", () => {
@@ -89,42 +113,22 @@ describe("useToastStore", () => {
     });
   });
 
-  describe("activeToasts", () => {
-    it("limits visible toasts to MAX_TOASTS (3)", () => {
-      const store = useToastStore();
-      for (let i = 0; i < 5; i++) {
-        store.addToast({ title: `t${i}`, duration: 0 });
-      }
-      expect(store.toasts).toHaveLength(5);
-      expect(store.activeToasts).toHaveLength(3);
-      expect(store.activeToasts.map((t) => t.title)).toEqual(["t0", "t1", "t2"]);
-    });
-  });
-
   describe("removeToast", () => {
-    it("removes the toast with the given id", () => {
+    it("removes the toast with the given id via sonner dismiss", () => {
       const store = useToastStore();
-      const id1 = store.addToast({ title: "one", duration: 0 });
-      const id2 = store.addToast({ title: "two", duration: 0 });
-      store.removeToast(id1);
-      expect(store.toasts.map((t) => t.id)).toEqual([id2]);
-    });
-
-    it("is a no-op for an unknown id", () => {
-      const store = useToastStore();
-      store.addToast({ title: "one", duration: 0 });
-      store.removeToast("does-not-exist");
-      expect(store.toasts).toHaveLength(1);
+      store.removeToast("test-id");
+      expect(mocks.mockSonnerDismiss).toHaveBeenCalledWith("test-id");
     });
   });
 
   describe("clearAll", () => {
-    it("removes every toast", () => {
+    it("dismisses all active toasts", () => {
       const store = useToastStore();
-      store.addToast({ title: "one", duration: 0 });
-      store.addToast({ title: "two", duration: 0 });
+      const id1 = store.addToast({ title: "one" });
+      const id2 = store.addToast({ title: "two" });
       store.clearAll();
-      expect(store.toasts).toEqual([]);
+      expect(mocks.mockSonnerDismiss).toHaveBeenCalledWith(id1);
+      expect(mocks.mockSonnerDismiss).toHaveBeenCalledWith(id2);
     });
   });
 
@@ -132,42 +136,46 @@ describe("useToastStore", () => {
     it("success() adds a toast with type=success and default duration", () => {
       const store = useToastStore();
       const id = store.success("Saved", "Done");
-      const toast = store.toasts.find((t) => t.id === id)!;
-      expect(toast.type).toBe("success");
-      expect(toast.title).toBe("Saved");
-      expect(toast.message).toBe("Done");
-      expect(toast.duration).toBe(store.DURATION.DEFAULT);
+      expect(mocks.mockSonnerSuccess).toHaveBeenCalledWith(
+        "Saved",
+        expect.objectContaining({ id, description: "Done", duration: store.DURATION.DEFAULT }),
+      );
     });
 
     it("error() adds a toast with type=error and LONG duration", () => {
       const store = useToastStore();
-      const id = store.error("Failed", "Oops");
-      const toast = store.toasts.find((t) => t.id === id)!;
-      expect(toast.type).toBe("error");
-      expect(toast.duration).toBe(store.DURATION.LONG);
+      store.error("Failed", "Oops");
+      expect(mocks.mockSonnerError).toHaveBeenCalledWith(
+        "Failed",
+        expect.objectContaining({ description: "Oops", duration: store.DURATION.LONG }),
+      );
     });
 
     it("warning() adds a toast with type=warning and MEDIUM duration", () => {
       const store = useToastStore();
-      const id = store.warning("Careful", "Heads up");
-      const toast = store.toasts.find((t) => t.id === id)!;
-      expect(toast.type).toBe("warning");
-      expect(toast.duration).toBe(store.DURATION.MEDIUM);
+      store.warning("Careful", "Heads up");
+      expect(mocks.mockSonnerWarning).toHaveBeenCalledWith(
+        "Careful",
+        expect.objectContaining({ description: "Heads up", duration: store.DURATION.MEDIUM }),
+      );
     });
 
     it("info() adds a toast with type=info and DEFAULT duration", () => {
       const store = useToastStore();
-      const id = store.info("FYI");
-      const toast = store.toasts.find((t) => t.id === id)!;
-      expect(toast.type).toBe("info");
-      expect(toast.duration).toBe(store.DURATION.DEFAULT);
+      store.info("FYI");
+      expect(mocks.mockSonnerInfo).toHaveBeenCalledWith(
+        "FYI",
+        expect.objectContaining({ duration: store.DURATION.DEFAULT }),
+      );
     });
 
     it("helpers allow caller options to override the default duration", () => {
       const store = useToastStore();
-      const id = store.success("Saved", "Done", { duration: store.DURATION.SHORT });
-      const toast = store.toasts.find((t) => t.id === id)!;
-      expect(toast.duration).toBe(store.DURATION.SHORT);
+      store.success("Saved", "Done", { duration: store.DURATION.SHORT });
+      expect(mocks.mockSonnerSuccess).toHaveBeenCalledWith(
+        "Saved",
+        expect.objectContaining({ description: "Done", duration: store.DURATION.SHORT }),
+      );
     });
   });
 });

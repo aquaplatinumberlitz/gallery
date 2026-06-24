@@ -1,16 +1,30 @@
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { useClipboard } from "../useClipboard";
-import { useToastStore } from "@/stores/toast";
 import { withSetup } from "@/test/withSetup";
+
+const mocks = vi.hoisted(() => ({
+  mockSonnerSuccess: vi.fn(),
+  mockSonnerError: vi.fn(),
+}));
+
+vi.mock("vue-sonner", () => ({
+  toast: Object.assign(vi.fn(), {
+    success: mocks.mockSonnerSuccess,
+    error: mocks.mockSonnerError,
+    warning: vi.fn(),
+    info: vi.fn(),
+    dismiss: vi.fn(),
+  }),
+  Toaster: { render: () => null },
+}));
 
 describe("useClipboard", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.useFakeTimers();
+    vi.clearAllMocks();
 
-    // VueUse useClipboard checks navigator.permissions.query("clipboard-write").
-    // jsdom lacks Permissions API — stub it so VueUse uses the modern path.
     Object.defineProperty(navigator, "permissions", {
       configurable: true,
       value: {
@@ -22,13 +36,11 @@ describe("useClipboard", () => {
       },
     });
 
-    // VueUse useClipboard (non-legacy) calls navigator.clipboard.write([ClipboardItem]).
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: { write: vi.fn().mockResolvedValue(undefined) },
     });
 
-    // ClipboardItem constructor needed by VueUse's createClipboardItem.
     globalThis.ClipboardItem = class {
       types: string[];
       items = {} as Record<string, string>;
@@ -78,42 +90,35 @@ describe("useClipboard", () => {
     const { result } = withSetup(() => useClipboard());
     await Promise.resolve();
     await result.copyText("hello", "prompt");
-    const store = useToastStore();
-    const toast = store.toasts.find((t) => t.title.startsWith("Prompt"));
-    expect(toast).toBeDefined();
-    expect(toast?.message).toBe("Copied to clipboard");
+    expect(mocks.mockSonnerSuccess).toHaveBeenCalledWith(expect.stringMatching(/^Prompt/), expect.any(Object));
   });
 
   it("uses the 'Negative prompt' label for the neg id", async () => {
     const { result } = withSetup(() => useClipboard());
     await Promise.resolve();
     await result.copyText("hello", "neg");
-    const store = useToastStore();
-    expect(store.toasts.find((t) => t.title.startsWith("Negative prompt"))).toBeDefined();
+    expect(mocks.mockSonnerSuccess).toHaveBeenCalledWith(expect.stringMatching(/^Negative prompt/), expect.any(Object));
   });
 
   it("uses the 'Seed' label for the seed id", async () => {
     const { result } = withSetup(() => useClipboard());
     await Promise.resolve();
     await result.copyText("123", "seed");
-    const store = useToastStore();
-    expect(store.toasts.find((t) => t.title.startsWith("Seed"))).toBeDefined();
+    expect(mocks.mockSonnerSuccess).toHaveBeenCalledWith(expect.stringMatching(/^Seed/), expect.any(Object));
   });
 
   it("uses the 'Path' label for the path id", async () => {
     const { result } = withSetup(() => useClipboard());
     await Promise.resolve();
     await result.copyText("/some/path", "path");
-    const store = useToastStore();
-    expect(store.toasts.find((t) => t.title.startsWith("Path"))).toBeDefined();
+    expect(mocks.mockSonnerSuccess).toHaveBeenCalledWith(expect.stringMatching(/^Path/), expect.any(Object));
   });
 
   it("uses the generic 'Text' label for unknown ids", async () => {
     const { result } = withSetup(() => useClipboard());
     await Promise.resolve();
     await result.copyText("data", "custom-id");
-    const store = useToastStore();
-    expect(store.toasts.find((t) => t.title.startsWith("Text"))).toBeDefined();
+    expect(mocks.mockSonnerSuccess).toHaveBeenCalledWith(expect.stringMatching(/^Text/), expect.any(Object));
   });
 
   it("resets copyStatus back to false after 1500ms", async () => {
@@ -133,10 +138,7 @@ describe("useClipboard", () => {
     await Promise.resolve();
     await result.copyText("hello", "prompt");
     expect(result.copyStatus.value.prompt).toBeUndefined();
-    const store = useToastStore();
-    const toast = store.toasts.find((t) => t.title === "Copy failed");
-    expect(toast).toBeDefined();
-    expect(toast?.message).toBe("Unable to copy to clipboard");
+    expect(mocks.mockSonnerError).toHaveBeenCalledWith("Copy failed", expect.any(Object));
     errorSpy.mockRestore();
   });
 });

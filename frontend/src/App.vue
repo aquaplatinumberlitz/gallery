@@ -2,7 +2,7 @@
 import { computed, ref, defineAsyncComponent, provide, watch } from "vue";
 import { useEventListener, useStorage } from "@vueuse/core";
 import { useGalleryStore } from "./stores/gallery";
-import ToastContainer from "./components/ToastContainer.vue";
+import GalleryToaster from "./components/GalleryToaster.vue";
 import SettingsModal from "./components/SettingsModal.vue";
 import IntroScreen from "./components/IntroScreen.vue";
 import DesktopLayout from "./layouts/DesktopLayout.vue";
@@ -193,7 +193,7 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
     />
 
     <Lightbox />
-    <ToastContainer v-if="!isMobile" />
+    <GalleryToaster v-if="!isMobile" />
     <SettingsModal :is-open="isSettingsOpen" @close="isSettingsOpen = false" @preview="handlePreviewIntro" />
     <component
       :is="VueQueryDevtools"

@@ -1,69 +1,26 @@
 import { useToastStore } from "../stores/toast";
 import type { ToastOptions } from "../stores/toast";
 
-/**
- * Composable for easy toast notifications
- * Usage:
- *   const toast = useToast();
- *   toast.success('Title', 'Message');
- *   toast.error('Error', 'Something went wrong', { action: { label: 'Retry', onClick: () => {} } });
- */
 export function useToast() {
   const store = useToastStore();
 
   return {
-    /**
-     * Show a success toast
-     */
-    success: (title: string, message?: string, options?: Partial<ToastOptions>) => {
-      return store.success(title, message, options);
-    },
+    success: (title: string, message?: string, options?: Partial<ToastOptions>) =>
+      store.success(title, message, options),
 
-    /**
-     * Show an error toast (stays longer by default)
-     */
-    error: (title: string, message?: string, options?: Partial<ToastOptions>) => {
-      return store.error(title, message, options);
-    },
+    error: (title: string, message?: string, options?: Partial<ToastOptions>) => store.error(title, message, options),
 
-    /**
-     * Show a warning toast
-     */
-    warning: (title: string, message?: string, options?: Partial<ToastOptions>) => {
-      return store.warning(title, message, options);
-    },
+    warning: (title: string, message?: string, options?: Partial<ToastOptions>) =>
+      store.warning(title, message, options),
 
-    /**
-     * Show an info toast
-     */
-    info: (title: string, message?: string, options?: Partial<ToastOptions>) => {
-      return store.info(title, message, options);
-    },
+    info: (title: string, message?: string, options?: Partial<ToastOptions>) => store.info(title, message, options),
 
-    /**
-     * Show a custom toast
-     */
-    show: (options: ToastOptions) => {
-      return store.addToast(options);
-    },
+    show: (options: ToastOptions) => store.addToast(options),
 
-    /**
-     * Dismiss a specific toast by ID
-     */
-    dismiss: (id: string) => {
-      store.removeToast(id);
-    },
+    dismiss: (id: string) => store.removeToast(id),
 
-    /**
-     * Clear all toasts
-     */
-    clear: () => {
-      store.clearAll();
-    },
+    clear: () => store.clearAll(),
 
-    /**
-     * Promise-based toast: shows loading, then success/error based on promise result
-     */
     promise: async <T>(
       promise: Promise<T>,
       options: {
