@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { useStorage } from "@vueuse/core";
 import type { FileNode } from "../types";
 import { FolderOpen } from "lucide-vue-next";
 import GallerySectionHeader from "./GallerySectionHeader.vue";
@@ -15,26 +15,12 @@ const emit = defineEmits<{
   (e: "open-folder", path: string): void;
 }>();
 
-// ── Collapse state — persist to localStorage ──
+// ── Collapse state — persist to localStorage via VueUse ──
 const COLLAPSE_KEY = "gallery-albums-collapsed";
-const collapsed = ref(true);
-
-onMounted(() => {
-  try {
-    const saved = localStorage.getItem(COLLAPSE_KEY);
-    if (saved !== null) collapsed.value = saved === "true";
-  } catch {
-    /* localStorage unavailable */
-  }
-});
+const collapsed = useStorage(COLLAPSE_KEY, true);
 
 function toggleCollapsed() {
   collapsed.value = !collapsed.value;
-  try {
-    localStorage.setItem(COLLAPSE_KEY, String(collapsed.value));
-  } catch {
-    /* localStorage unavailable */
-  }
 }
 
 // ── Device branching ──

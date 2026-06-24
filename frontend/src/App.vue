@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, defineAsyncComponent, provide, watch } from "vue";
-import { useEventListener } from "@vueuse/core";
+import { useEventListener, useStorage } from "@vueuse/core";
 import { useGalleryStore } from "./stores/gallery";
 import ToastContainer from "./components/ToastContainer.vue";
 import SettingsModal from "./components/SettingsModal.vue";
@@ -83,16 +83,7 @@ const { resolvedTheme, toggleTheme } = useGalleryTheme();
 
 const SIDEBAR_STATE_KEY = "gallery-sidebar-open";
 
-const isSidebarOpen = ref(
-  (() => {
-    try {
-      const stored = localStorage.getItem(SIDEBAR_STATE_KEY);
-      return stored !== null ? stored === "true" : true;
-    } catch {
-      return true;
-    }
-  })(),
-);
+const isSidebarOpen = useStorage(SIDEBAR_STATE_KEY, true);
 
 watch(
   [isAdminLibraryRoute, isMobile, isTablet],
@@ -104,13 +95,6 @@ watch(
   { immediate: true },
 );
 
-watch(isSidebarOpen, (val) => {
-  try {
-    localStorage.setItem(SIDEBAR_STATE_KEY, String(val));
-  } catch {
-    /* ignore */
-  }
-});
 const tree = computed(() => galleryStore.sidebarTree);
 const isLoading = computed(() => galleryStore.isLoading);
 const currentPath = computed(() => galleryStore.currentBrowsePath);
