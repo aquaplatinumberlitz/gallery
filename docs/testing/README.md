@@ -56,7 +56,7 @@ E2E (Playwright)                 <- pre-existing: frontend/tests/e2e/*.spec.ts
 
 ### Test inventory
 
-See [test-gap-report.md](test-gap-report.md) for the generated snapshot (currently 404 Vitest tests across 33 files). The per-file tables below describe what each test protects but do not replace the generated report for accurate counts.
+See [test-gap-report.md](test-gap-report.md) for the generated snapshot. The per-file tables below describe what each test protects but do not replace the generated report for accurate counts.
 
 Tier 1 — pure utilities (logic-only, no mocking, fast):
 

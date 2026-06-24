@@ -23,6 +23,27 @@ provide context but are not sources of truth for the running application.
 - [Research](research/README.md) — reusable analysis of upstream projects and UX patterns.
 - [Archived](archived/README.md) — completed or superseded plans and historical reports.
 
+## Source of truth map
+
+| Topic | Source of truth | Generated? | Check command |
+|---|---:|---|---|
+| Local/CI test entrypoints | `test.sh` | No | `./test.sh lint`, `./test.sh unit`, `./test.sh docs` |
+| Current test counts | `test-gap-report.md` / `.json` | Yes | `./test.sh docs` |
+| Test intent/guarantees | `TEST_CATALOG.md` | No | `./test.sh docs` |
+| Frontend dependency roles | `THIRD_PARTY_LIBRARIES.md` | No | docs review + `package.json` diff |
+| Dependency versions | lockfile / `package.json` | No | package manager |
+| Active plans | `docs/plans/` | No | manual review |
+| Completed historical plans | `docs/archived/` | No | manual review |
+
+### Rules
+
+- README files are navigation maps, not databases.
+- Generated facts (test counts, coverage) live in generated reports.
+- Test counts must not be copied into prose docs.
+- Dependency versions live in package files, not docs.
+- Completed plans must move to `docs/archived/`.
+- Archived docs are historical, not current source of truth.
+
 ## Lifecycle Rules
 
 - Maintained documents describe current behavior and include a verification date.
