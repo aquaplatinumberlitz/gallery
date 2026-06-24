@@ -164,6 +164,15 @@ async function installStubbedInspector(page: Page) {
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: {
+        write: async (items: ClipboardItem[]) => {
+          if (items.length > 0) {
+            const item = items[0];
+            if (item.types.includes("text/plain")) {
+              const blob = await item.getType("text/plain");
+              (window as Window & { __copiedText?: string }).__copiedText = await blob.text();
+            }
+          }
+        },
         writeText: async (text: string) => {
           (window as Window & { __copiedText?: string }).__copiedText = text;
         },
