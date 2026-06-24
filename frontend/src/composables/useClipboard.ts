@@ -5,7 +5,7 @@ import { useToast } from "./useToast";
 export function useClipboard() {
   const toast = useToast();
   const copyStatus = ref<Record<string, boolean>>({});
-  const { copy } = useVueUseClipboard({ legacy: true });
+  const { copy } = useVueUseClipboard();
 
   function getCopyLabel(id: string): string {
     switch (id) {
