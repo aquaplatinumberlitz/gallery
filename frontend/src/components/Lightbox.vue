@@ -251,102 +251,102 @@ function handleToggleFullscreen() {
           class="lightbox-overlay"
           :style="{ '--lightbox-sidebar-width': sidebarWidthStyle }"
         >
-        <!-- Desktop/Wide: PhotoSwipe + Sidebar -->
-        <template v-if="isDesktop || isWide">
-          <PhotoSwipeViewer
-            ref="desktopPhotoSwipeRef"
-            :items="lightbox.galleryItems"
-            :current-index="lightbox.currentIndex"
-            :is-open="show"
-            :close-on-vertical-drag="false"
-            :allow-pan-to-next="false"
-            :thumbnail-size="2400"
-            :padding-fn="desktopPaddingFn"
-            @close="handleClose"
-            @index-change="handleIndexChange"
-          />
-          <div v-if="lightbox.galleryItems.length > 1" class="desktop-lightbox-counter">
-            {{ lightbox.currentIndex + 1 }} / {{ lightbox.galleryItems.length }}
-          </div>
-          <!-- Image counter for screen readers -->
-          <div class="sr-only">Image {{ lightbox.currentIndex + 1 }} of {{ lightbox.galleryItems.length }}</div>
-          <!-- Sidebar -->
-          <LightboxDesktopPanel
-            v-if="!isFullscreen"
-            :meta="meta"
-            :is-loading="isLoading"
-            :image-name="imageName"
-            :size-text="sizeText"
-            :date-text="dateText"
-            :gen-time-text="genTimeText"
-            :can-fullscreen="canFullscreen"
-            :is-fullscreen="isFullscreen"
-            :copy-status="copyStatus"
-            :copy-text="copyText"
-            @close="handleClose"
-            @toggle-fullscreen="handleToggleFullscreen"
-          />
-          <!-- Fullscreen overlay controls -->
-          <div v-if="isFullscreen" class="fs-controls">
-            <button class="fs-btn" @click="exitFullscreen" title="Exit fullscreen">
-              <Minimize class="gallery-icon-xl" :stroke-width="1.5" />
-            </button>
-            <button class="fs-btn" @click="handleClose" title="Close">
-              <X class="gallery-icon-xl" :stroke-width="1.5" />
-            </button>
-          </div>
-        </template>
+          <!-- Desktop/Wide: PhotoSwipe + Sidebar -->
+          <template v-if="isDesktop || isWide">
+            <PhotoSwipeViewer
+              ref="desktopPhotoSwipeRef"
+              :items="lightbox.galleryItems"
+              :current-index="lightbox.currentIndex"
+              :is-open="show"
+              :close-on-vertical-drag="false"
+              :allow-pan-to-next="false"
+              :thumbnail-size="2400"
+              :padding-fn="desktopPaddingFn"
+              @close="handleClose"
+              @index-change="handleIndexChange"
+            />
+            <div v-if="lightbox.galleryItems.length > 1" class="desktop-lightbox-counter">
+              {{ lightbox.currentIndex + 1 }} / {{ lightbox.galleryItems.length }}
+            </div>
+            <!-- Image counter for screen readers -->
+            <div class="sr-only">Image {{ lightbox.currentIndex + 1 }} of {{ lightbox.galleryItems.length }}</div>
+            <!-- Sidebar -->
+            <LightboxDesktopPanel
+              v-if="!isFullscreen"
+              :meta="meta"
+              :is-loading="isLoading"
+              :image-name="imageName"
+              :size-text="sizeText"
+              :date-text="dateText"
+              :gen-time-text="genTimeText"
+              :can-fullscreen="canFullscreen"
+              :is-fullscreen="isFullscreen"
+              :copy-status="copyStatus"
+              :copy-text="copyText"
+              @close="handleClose"
+              @toggle-fullscreen="handleToggleFullscreen"
+            />
+            <!-- Fullscreen overlay controls -->
+            <div v-if="isFullscreen" class="fs-controls">
+              <button class="fs-btn" @click="exitFullscreen" title="Exit fullscreen">
+                <Minimize class="gallery-icon-xl" :stroke-width="1.5" />
+              </button>
+              <button class="fs-btn" @click="handleClose" title="Close">
+                <X class="gallery-icon-xl" :stroke-width="1.5" />
+              </button>
+            </div>
+          </template>
 
-        <!-- Tablet: PhotoSwipe + Bottom Sheet -->
-        <template v-if="isTablet">
-          <TabletPhotoSwipe
+          <!-- Tablet: PhotoSwipe + Bottom Sheet -->
+          <template v-if="isTablet">
+            <TabletPhotoSwipe
+              :items="lightbox.galleryItems"
+              :current-index="lightbox.currentIndex"
+              :is-open="show"
+              :metadata-open="showSheet"
+              @close="handleClose"
+              @index-change="handleIndexChange"
+              @toggle-metadata="toggleSheet"
+            />
+            <LightboxTabletPanel
+              v-if="showSheet && !isFullscreen"
+              :meta="meta"
+              :is-loading="isLoading"
+              :image-name="imageName"
+              :size-text="sizeText"
+              :date-text="dateText"
+              :gen-time-text="genTimeText"
+              :copy-status="copyStatus"
+              :copy-text="copyText"
+              @close="handleSheetClosed"
+            />
+            <!-- Image counter for screen readers -->
+            <div class="sr-only">Image {{ lightbox.currentIndex + 1 }} of {{ lightbox.galleryItems.length }}</div>
+          </template>
+
+          <!-- Mobile: PhotoSwipe (giữ nguyên) -->
+          <MobilePhotoSwipe
+            v-if="isMobile"
             :items="lightbox.galleryItems"
             :current-index="lightbox.currentIndex"
             :is-open="show"
             :metadata-open="showSheet"
-            @close="handleClose"
-            @index-change="handleIndexChange"
+            @close="handlePhotoSwipeClose"
+            @index-change="handlePhotoSwipeIndexChange"
             @toggle-metadata="toggleSheet"
           />
-          <LightboxTabletPanel
-            v-if="showSheet && !isFullscreen"
-            :meta="meta"
-            :is-loading="isLoading"
-            :image-name="imageName"
-            :size-text="sizeText"
-            :date-text="dateText"
-            :gen-time-text="genTimeText"
-            :copy-status="copyStatus"
-            :copy-text="copyText"
-            @close="handleSheetClosed"
-          />
-          <!-- Image counter for screen readers -->
-          <div class="sr-only">Image {{ lightbox.currentIndex + 1 }} of {{ lightbox.galleryItems.length }}</div>
-        </template>
-
-        <!-- Mobile: PhotoSwipe (giữ nguyên) -->
-        <MobilePhotoSwipe
-          v-if="isMobile"
-          :items="lightbox.galleryItems"
-          :current-index="lightbox.currentIndex"
-          :is-open="show"
-          :metadata-open="showSheet"
-          @close="handlePhotoSwipeClose"
-          @index-change="handlePhotoSwipeIndexChange"
-          @toggle-metadata="toggleSheet"
-        />
-        <template v-if="isMobile">
-          <div class="mobile-photo-counter">{{ lightbox.currentIndex + 1 }} / {{ lightbox.galleryItems.length }}</div>
-          <LightboxMobileSheet
-            v-if="showSheet && !isFullscreen"
-            :meta="meta"
-            :is-loading="isLoading"
-            :copy-status="copyStatus"
-            :copy-text="copyText"
-            @close="handleSheetClosed"
-          />
-        </template>
-      </div>
+          <template v-if="isMobile">
+            <div class="mobile-photo-counter">{{ lightbox.currentIndex + 1 }} / {{ lightbox.galleryItems.length }}</div>
+            <LightboxMobileSheet
+              v-if="showSheet && !isFullscreen"
+              :meta="meta"
+              :is-loading="isLoading"
+              :copy-status="copyStatus"
+              :copy-text="copyText"
+              @close="handleSheetClosed"
+            />
+          </template>
+        </div>
       </FocusScope>
     </Transition>
   </Teleport>

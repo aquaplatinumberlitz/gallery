@@ -70,9 +70,7 @@ describe("useClipboard", () => {
     const { result } = withSetup(() => useClipboard());
     await Promise.resolve();
     await result.copyText("hello", "prompt");
-    expect(write).toHaveBeenCalledWith(
-      expect.arrayContaining([expect.any(globalThis.ClipboardItem)]),
-    );
+    expect(write).toHaveBeenCalledWith(expect.arrayContaining([expect.any(globalThis.ClipboardItem)]));
     expect(result.copyStatus.value.prompt).toBe(true);
   });
 
