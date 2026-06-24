@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, inject, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from "vue";
+import { computed, inject, ref, watch, type ComponentPublicInstance } from "vue";
+import { useIntersectionObserver } from "@vueuse/core";
 import { useVirtualizer } from "@tanstack/vue-virtual";
 import { useGalleryStore } from "../stores/gallery";
 import { useLightboxStore } from "../stores/lightbox";
@@ -27,6 +28,7 @@ import { useUnifiedSearchQuery } from "../composables/useUnifiedSearchQuery";
 import { galleryScrollContainerRefKey } from "../injectionKeys";
 import type { ErrorType } from "../services/api";
 import { fuzzySearchFileNodes } from "../utils/fuzzySearch";
+import { shouldLoadMoreImages } from "../utils/gallery";
 import {
   ArrowLeft,
   ArrowRight,
@@ -141,17 +143,6 @@ const showDensityMenu = ref(false);
 const toggleDensityMenu = () => {
   showDensityMenu.value = !showDensityMenu.value;
 };
-
-onMounted(() => {
-  setupLoadObserver();
-});
-
-onBeforeUnmount(() => {
-  if (loadObserver) {
-    loadObserver.disconnect();
-    loadObserver = null;
-  }
-});
 
 const sortItems = <T extends { name: string; mtime?: number }>(items: T[]): T[] => {
   const sorted = [...items];
@@ -579,31 +570,30 @@ const skeletonItems = computed(() => Array.from({ length: 12 }, (_, i) => i));
 
 // Infinite load sentinel
 const loadMoreSentinel = ref<HTMLElement | null>(null);
-let loadObserver: IntersectionObserver | null = null;
 
-const setupLoadObserver = () => {
-  if (loadObserver) {
-    loadObserver.disconnect();
-    loadObserver = null;
-  }
-  if (!loadMoreSentinel.value) return;
-  loadObserver = new IntersectionObserver(
-    (entries) => {
-      if (!hasMoreImages.value || isLoadingMore.value || infiniteBrowseQuery.isFetching.value) return;
-      if (entries.some((e) => e.isIntersecting)) {
-        infiniteBrowseQuery.fetchNextPage();
-      }
-    },
-    {
-      root: null,
-      rootMargin: "400px",
-      threshold: 0,
-    },
-  );
-  loadObserver.observe(loadMoreSentinel.value);
-};
+const canLoadMoreImages = computed(() =>
+  shouldLoadMoreImages({
+    hasMoreImages: hasMoreImages.value,
+    isLoadingMore: isLoadingMore.value,
+    isFetching: infiniteBrowseQuery.isFetching.value,
+    hasSearchQuery: hasSearchQuery.value,
+  }),
+);
 
-watch(loadMoreSentinel, () => setupLoadObserver());
+useIntersectionObserver(
+  loadMoreSentinel,
+  ([entry]) => {
+    if (!entry?.isIntersecting) return;
+    if (!canLoadMoreImages.value) return;
+
+    infiniteBrowseQuery.fetchNextPage();
+  },
+  {
+    root: null,
+    rootMargin: "400px",
+    threshold: 0,
+  },
+);
 
 watch(
   () => infiniteBrowseQuery.folders.value,
