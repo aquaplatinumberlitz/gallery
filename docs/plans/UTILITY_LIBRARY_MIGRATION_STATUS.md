@@ -21,8 +21,8 @@ Last updated: 2026-06-24
 
 | # | Item | Commit | Status | Notes |
 |---|------|--------|--------|-------|
-| 4 | Natural sort → `Intl.Collator` | — | ⏳ | Not started |
-| 5 | Axios interceptor | — | ⏳ | Not started |
+| 4 | Natural sort → `Intl.Collator` | [97894a3](../..//commit/97894a3) | ✅ | Replaced regex-based numeric splitting with `Intl.Collator({ numeric: true, sensitivity: "base" })` |
+| 5 | Axios interceptor | [a252e82](../..//commit/a252e82) | ✅ | Added response interceptor, removed duplicate try/catch patterns from 25 API functions |
 
 ## Phase 3 — Responsive/layout plumbing
 
