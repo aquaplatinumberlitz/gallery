@@ -336,7 +336,7 @@ VueUse is used for browser/reactivity mechanics:
 - Breakpoints / window size (`useBreakpoints`, `useWindowSize`)
 - Event listeners (`useEventListener`)
 - Resize / mutation / intersection observers (`useResizeObserver`, `useMutationObserver`, `useIntersectionObserver`)
-- Scroll visibility (`useScroll`, `useElementVisibility`)
+- Scroll visibility mechanics (`useEventListener`, `useMutationObserver`, manual scroll handler; Gallery-owned guards: bottom guard, polling, iOS rubber-band prevention)
 - localStorage (`useStorage`)
 - Theme mode (`useColorMode`)
 - Media queries / v-model helpers

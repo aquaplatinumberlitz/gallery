@@ -28,7 +28,7 @@ provide context but are not sources of truth for the running application.
 | Topic | Source of truth | Generated? | Check command |
 |---|---:|---|---|
 | Local/CI test entrypoints | `test.sh` | No | `./test.sh lint`, `./test.sh unit`, `./test.sh docs` |
-| Current test counts | `test-gap-report.md` / `.json` | Yes | `./test.sh docs` |
+| Current test counts | `testing/test-gap-report.md` / `.json` | Yes | `./test.sh docs` |
 | Test intent/guarantees | `TEST_CATALOG.md` | No | `./test.sh docs` |
 | Frontend dependency roles | `THIRD_PARTY_LIBRARIES.md` | No | docs review + `package.json` diff |
 | Dependency versions | lockfile / `package.json` | No | package manager |
