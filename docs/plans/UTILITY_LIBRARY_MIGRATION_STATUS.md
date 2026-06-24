@@ -35,9 +35,9 @@ Last updated: 2026-06-24
 
 | # | Item | Commit | Status | Notes |
 |---|------|--------|--------|-------|
-| 8 | `useColumnResize.ts` partial VueUse migration | — | ⏳ | Not started |
-| 9 | Simple `ResizeObserver` callsites | — | ⏳ | Not started |
-| 10 | Simple localStorage callsites | — | ⏳ | Not started |
+| 8 | `useColumnResize.ts` partial VueUse migration | d86ddbf | ✅ | Replaced manual ResizeObserver/lifecycle + localStorage/loadGridSize/saveGridSize with useResizeObserver + useLocalStorage |
+| 9 | Simple `ResizeObserver` callsites | ea93bbf | ✅ | Migrated ExpandableText.vue and AlbumScrollerNative.vue to useResizeObserver |
+| 10 | Simple localStorage callsites | f82236d | ✅ | Migrated App.vue sidebar state and AlbumScroller.vue collapse state to useStorage |
 
 ## Phase 5 — Accessibility-sensitive migration
 
