@@ -244,9 +244,8 @@ function handleToggleFullscreen() {
 <template>
   <Teleport to="body">
     <Transition name="fade">
-      <FocusScope :trapped="show" :loop="true">
+      <FocusScope v-if="show" :trapped="true" :loop="true">
         <div
-          v-if="show"
           ref="lightboxRef"
           data-testid="lightbox"
           class="lightbox-overlay"

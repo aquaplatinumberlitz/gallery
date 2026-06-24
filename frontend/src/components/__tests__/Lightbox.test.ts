@@ -26,10 +26,9 @@ describe("FocusScope", () => {
     vi.useRealTimers();
 
     fireEvent.keyDown(btn3, { key: "Tab", shiftKey: false, bubbles: true });
-    // FocusScope preventDefault + focus(first) on Tab from last element
-    if ((document.activeElement as HTMLElement)?.id === "btn-1") {
+    await vi.waitFor(() => {
       expect(document.activeElement).toBe(btn1);
-    }
+    });
   });
 
   it("traps focus inside scope when trapped=true (Shift+Tab wraps first→last)", async () => {
