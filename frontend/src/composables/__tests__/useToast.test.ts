@@ -101,4 +101,87 @@ describe("useToast composable", () => {
     expect(titles).toContain("Failed: boom");
     expect(titles).not.toContain("Saving");
   });
+
+  describe("duration contract", () => {
+    it("success defaults to DEFAULT (4000ms)", () => {
+      const store = useToastStore();
+      const toast = useToast();
+      toast.success("Saved");
+      const created = store.toasts[store.toasts.length - 1]!;
+      expect(created.duration).toBe(store.DURATION.DEFAULT);
+    });
+
+    it("error defaults to LONG (10000ms)", () => {
+      const store = useToastStore();
+      const toast = useToast();
+      toast.error("Failed");
+      const created = store.toasts[store.toasts.length - 1]!;
+      expect(created.duration).toBe(store.DURATION.LONG);
+    });
+
+    it("warning defaults to MEDIUM (6000ms)", () => {
+      const store = useToastStore();
+      const toast = useToast();
+      toast.warning("Careful");
+      const created = store.toasts[store.toasts.length - 1]!;
+      expect(created.duration).toBe(store.DURATION.MEDIUM);
+    });
+
+    it("info defaults to DEFAULT (4000ms)", () => {
+      const store = useToastStore();
+      const toast = useToast();
+      toast.info("Heads up");
+      const created = store.toasts[store.toasts.length - 1]!;
+      expect(created.duration).toBe(store.DURATION.DEFAULT);
+    });
+  });
+
+  it("passes action option through to the toast", () => {
+    const store = useToastStore();
+    const toast = useToast();
+    const onClick = vi.fn();
+    toast.error("Error", "msg", { action: { label: "Retry", onClick } });
+    const created = store.toasts[store.toasts.length - 1]!;
+    expect(created.action?.label).toBe("Retry");
+    expect(created.action?.onClick).toBe(onClick);
+  });
+
+  it("passes dismissible option through to the toast", () => {
+    const store = useToastStore();
+    const toast = useToast();
+    toast.info("Sticky", undefined, { dismissible: false });
+    const created = store.toasts[store.toasts.length - 1]!;
+    expect(created.dismissible).toBe(false);
+  });
+
+  it("allows caller to override the default duration per variant", () => {
+    const store = useToastStore();
+    const toast = useToast();
+    toast.success("Quick", undefined, { duration: store.DURATION.SHORT });
+    const created = store.toasts[store.toasts.length - 1]!;
+    expect(created.duration).toBe(store.DURATION.SHORT);
+  });
+
+  it("show() accepts a full ToastOptions object", () => {
+    const store = useToastStore();
+    const toast = useToast();
+    const onClick = vi.fn();
+    const id = toast.show({
+      type: "warning",
+      title: "Custom",
+      message: "Custom message",
+      duration: 5000,
+      action: { label: "Undo", onClick },
+      dismissible: false,
+      html: true,
+    });
+    const created = store.toasts.find((t) => t.id === id)!;
+    expect(created.type).toBe("warning");
+    expect(created.title).toBe("Custom");
+    expect(created.message).toBe("Custom message");
+    expect(created.duration).toBe(5000);
+    expect(created.action?.label).toBe("Undo");
+    expect(created.dismissible).toBe(false);
+    expect(created.html).toBe(true);
+  });
 });
