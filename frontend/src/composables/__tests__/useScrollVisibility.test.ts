@@ -252,4 +252,133 @@ describe("useScrollVisibility", () => {
     wrapper.unmount();
     expect(() => vi.advanceTimersByTime(1000)).not.toThrow();
   });
+
+  it("only processes the last scroll per frame (rAF throttle prevents flicker)", () => {
+    const scroller = makeScrollableScroller(2000, 500, 0);
+    document.body.appendChild(scroller);
+
+    let barsVisible: { value: boolean } = { value: true };
+    let isScrollingDown: { value: boolean } = { value: false };
+    const wrapper = mount(
+      defineComponent({
+        setup() {
+          const r = useScrollVisibility();
+          barsVisible = r.barsVisible;
+          isScrollingDown = r.isScrollingDown;
+          return () => h("div");
+        },
+      }),
+      { attachTo: document.body },
+    );
+
+    vi.advanceTimersByTime(250);
+
+    // Dispatch multiple scroll events without advancing rAF between them.
+    // The rAF gate (`if (rafId) return`) should drop intermediate events.
+    scroller.scrollTop = 50;
+    scroller.dispatchEvent(new Event("scroll"));
+    scroller.scrollTop = 100;
+    scroller.dispatchEvent(new Event("scroll"));
+    scroller.scrollTop = 200;
+    scroller.dispatchEvent(new Event("scroll"));
+
+    // Advance timers to process the single scheduled rAF with the final position.
+    vi.advanceTimersByTime(20);
+    expect(barsVisible.value).toBe(false);
+    expect(isScrollingDown.value).toBe(true);
+
+    wrapper.unmount();
+  });
+
+  it("cleans up scroll listener on unmount", () => {
+    const scroller = makeScrollableScroller(2000, 500, 0);
+    document.body.appendChild(scroller);
+
+    const removeSpy = vi.spyOn(scroller, "removeEventListener");
+
+    const wrapper = mount(
+      defineComponent({
+        setup() {
+          useScrollVisibility();
+          return () => h("div");
+        },
+      }),
+      { attachTo: document.body },
+    );
+
+    vi.advanceTimersByTime(250);
+
+    wrapper.unmount();
+
+    expect(removeSpy).toHaveBeenCalledWith("scroll", expect.any(Function), { passive: true });
+    removeSpy.mockRestore();
+  });
+
+  it("does not leave a pending rAF after unmount", () => {
+    const scroller = makeScrollableScroller(2000, 500, 0);
+    document.body.appendChild(scroller);
+
+    const cancelSpy = vi.spyOn(window, "cancelAnimationFrame");
+
+    const wrapper = mount(
+      defineComponent({
+        setup() {
+          useScrollVisibility();
+          return () => h("div");
+        },
+      }),
+      { attachTo: document.body },
+    );
+
+    vi.advanceTimersByTime(250);
+
+    // Trigger a scroll to schedule a rAF.
+    scroller.scrollTop = 100;
+    scroller.dispatchEvent(new Event("scroll"));
+
+    // Unmount should cancel the pending rAF.
+    wrapper.unmount();
+
+    expect(cancelSpy).toHaveBeenCalled();
+    cancelSpy.mockRestore();
+  });
+
+  it("exposes isScrollingDown matching scroll direction", () => {
+    const scroller = makeScrollableScroller(2000, 500, 0);
+    document.body.appendChild(scroller);
+
+    let isScrollingDown: { value: boolean } = { value: false };
+    const wrapper = mount(
+      defineComponent({
+        setup() {
+          const r = useScrollVisibility();
+          isScrollingDown = r.isScrollingDown;
+          return () => h("div");
+        },
+      }),
+      { attachTo: document.body },
+    );
+
+    vi.advanceTimersByTime(250);
+
+    // Scroll down.
+    scroller.scrollTop = 300;
+    scroller.dispatchEvent(new Event("scroll"));
+    vi.advanceTimersByTime(20);
+    expect(isScrollingDown.value).toBe(true);
+
+    // Scroll up.
+    scroller.scrollTop = 100;
+    scroller.dispatchEvent(new Event("scroll"));
+    vi.advanceTimersByTime(20);
+    expect(isScrollingDown.value).toBe(false);
+
+    // At top.
+    scroller.scrollTop = 0;
+    scroller.dispatchEvent(new Event("scroll"));
+    vi.advanceTimersByTime(20);
+    expect(isScrollingDown.value).toBe(false);
+
+    wrapper.unmount();
+  });
 });
