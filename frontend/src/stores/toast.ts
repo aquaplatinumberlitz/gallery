@@ -31,9 +31,13 @@ export const useToastStore = defineStore("toast", () => {
 
   const generateId = () => `toast-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-  const removeToast = (id: string) => {
+  const forgetToast = (id: string) => {
     const idx = activeIds.value.indexOf(id);
     if (idx !== -1) activeIds.value.splice(idx, 1);
+  };
+
+  const removeToast = (id: string) => {
+    forgetToast(id);
     sonnerToast.dismiss(id);
   };
 
@@ -53,8 +57,8 @@ export const useToastStore = defineStore("toast", () => {
       duration: duration > 0 ? duration : Infinity,
       dismissible: options.dismissible ?? true,
       description: options.message,
-      onDismiss: () => removeToast(id),
-      onAutoClose: () => removeToast(id),
+      onDismiss: () => forgetToast(id),
+      onAutoClose: () => forgetToast(id),
     };
 
     if (options.action) {
