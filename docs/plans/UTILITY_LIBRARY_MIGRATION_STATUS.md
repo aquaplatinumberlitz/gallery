@@ -27,9 +27,9 @@ Last updated: 2026-06-24
 ## Phase 3 — Responsive/layout plumbing
 
 | # | Item | Commit | Status | Notes |
-|---|------|--------|--------|-------|
-| 6 | `useDevice.ts` → VueUse breakpoints | — | ⏳ | Not started |
-| 7 | Simple manual listeners → `useEventListener` | — | ⏳ | Not started |
+|--|------|--------|--------|-------|
+| 6 | `useDevice.ts` → VueUse breakpoints | [1ceac2a](../..//commit/1ceac2a) | ✅ | Replaced custom singleton resize listener with `useWindowSize()` from @vueuse/core. Added boundary tests. |
+| 7 | Simple manual listeners → `useEventListener` | [4b8109b](../..//commit/4b8109b) | ✅ | Migrated keydown/resize/visibilitychange/focus listeners in App.vue, AlbumScrollerNative.vue, useCatalogStatusQuery.ts, useLibraryStatusBatchQuery.ts |
 
 ## Phase 4 — Observer/storage plumbing
 
