@@ -2,7 +2,7 @@
 >
 # Plans
 
-Status: Maintained index
+Status: Archived historical index
 
 Last reviewed: 2026-06-21
 

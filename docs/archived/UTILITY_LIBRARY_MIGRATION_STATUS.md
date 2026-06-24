@@ -45,7 +45,7 @@ Last updated: 2026-06-24
 
 | # | Item | Commit | Status | Notes |
 |---|------|--------|--------|-------|
-| 11 | `useFocusTrap.ts` → Reka FocusScope | 73c1c77 | ✅ | Replaced imperative focus trap in Lightbox.vue with declarative `<FocusScope>` from reka-ui |
+| 11 | `useFocusTrap.ts` → Reka FocusScope | 73c1c77 + aa1130c | ✅ | Replaced imperative focus trap in Lightbox.vue with declarative `<FocusScope>` from reka-ui |
 
 ## Phase 6 — Small DRY cleanup
 

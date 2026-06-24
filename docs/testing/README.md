@@ -85,7 +85,7 @@ Tier 3 — composables (mounted via `withSetup`, lifecycle + reactive state):
 | `frontend/src/composables/__tests__/useNaturalSort.test.ts`      |    15 | Natural-sort key generation and comparator (numeric chunks, case-insensitivity, missing chunks).                 |
 | `frontend/src/composables/__tests__/useDelayedBoolean.test.ts`   |     7 | Timer-based boolean with cancellation, rescheduling, unmount cleanup.                                            |
 | `frontend/src/composables/__tests__/useHaptic.test.ts`           |     4 | `navigator.vibrate` guards and light/medium patterns.                                                            |
-| `frontend/src/composables/__tests__/useClipboard.test.ts`        |    10 | Clipboard API path, execCommand fallback, per-id labels, error toasts, status reset timer.                       |
+| `frontend/src/composables/__tests__/useClipboard.test.ts`        |    10 | Modern Clipboard API path, per-id labels, error toasts, status reset timer.                       |
 | `frontend/src/composables/__tests__/useColumnResize.test.ts`     |    28 | Slider level mapping per device category, localStorage persistence + legacy migration, row-height recomputation. |
 | `frontend/src/components/__tests__/Lightbox.test.ts`             |     4 | FocusScope focus trapping (Tab/Shift+Tab wrap, focus restore on unmount). |
 | `frontend/src/composables/__tests__/useScrollVisibility.test.ts` |     7 | Scroll-driven bar visibility, bottom guard, polling-vs-container-ref attach paths, unmount cleanup.              |
