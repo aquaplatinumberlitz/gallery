@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/vue-query";
 import { computed, onMounted, onUnmounted, ref, type MaybeRefOrGetter, toValue } from "vue";
+import { useEventListener } from "@vueuse/core";
 import { normalizeBrowsePath, queryKeys } from "@/query/keys";
 import { fetchCatalogStatus } from "@/services/api";
 import { assertStatusEnvelope, isStatusContractError } from "@/lib/catalog/contractGuard";
@@ -65,15 +66,14 @@ export function useCatalogStatusQuery(
     if (!isDocumentHidden.value) debouncedFocusRefetch();
   }
 
+  useEventListener(document, "visibilitychange", onVisibilityChange);
+  useEventListener(window, "focus", debouncedFocusRefetch);
+
   onMounted(() => {
     updateDocumentHidden();
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    window.addEventListener("focus", debouncedFocusRefetch);
   });
 
   onUnmounted(() => {
-    document.removeEventListener("visibilitychange", onVisibilityChange);
-    window.removeEventListener("focus", debouncedFocusRefetch);
     window.clearTimeout(focusTimer);
   });
 

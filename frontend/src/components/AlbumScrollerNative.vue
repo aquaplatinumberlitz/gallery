@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useEventListener } from "@vueuse/core";
 import type { FileNode } from "../types";
 import { ArrowLeft, ArrowRight } from "lucide-vue-next";
 import AlbumCardMobile from "./AlbumCardMobile.vue";
@@ -90,15 +91,8 @@ watch(
   },
 );
 
-let resizeHandler: (() => void) | null = null;
-onMounted(() => {
-  resizeHandler = () => {
-    if (gridRef.value) updateArrows(gridRef.value);
-  };
-  window.addEventListener("resize", resizeHandler);
-});
-onBeforeUnmount(() => {
-  if (resizeHandler) window.removeEventListener("resize", resizeHandler);
+useEventListener(window, "resize", () => {
+  if (gridRef.value) updateArrows(gridRef.value);
 });
 </script>
 

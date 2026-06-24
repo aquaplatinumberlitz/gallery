@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onBeforeUnmount, defineAsyncComponent, provide, watch } from "vue";
+import { computed, ref, defineAsyncComponent, provide, watch } from "vue";
+import { useEventListener } from "@vueuse/core";
 import { useGalleryStore } from "./stores/gallery";
 import ToastContainer from "./components/ToastContainer.vue";
 import SettingsModal from "./components/SettingsModal.vue";
@@ -137,13 +138,7 @@ const handleGlobalKeydown = (e: KeyboardEvent) => {
   }
 };
 
-onMounted(() => {
-  window.addEventListener("keydown", handleGlobalKeydown);
-});
-
-onBeforeUnmount(() => {
-  window.removeEventListener("keydown", handleGlobalKeydown);
-});
+useEventListener(window, "keydown", handleGlobalKeydown);
 
 const canBack = computed(() => galleryStore.historyIndex > 0);
 const canForward = computed(() => galleryStore.historyIndex < galleryStore.history.length - 1);

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/vue-query";
 import { computed, onMounted, onUnmounted, ref } from "vue";
+import { useEventListener } from "@vueuse/core";
 import { queryKeys } from "@/query/keys";
 import { fetchLibraryStatusBatch } from "@/services/api";
 import { assertLibraryStatusBatch, isStatusContractError } from "@/lib/catalog/contractGuard";
@@ -61,15 +62,14 @@ export function useLibraryStatusBatchQuery() {
     if (!isDocumentHidden.value) debouncedFocusRefetch();
   }
 
+  useEventListener(document, "visibilitychange", onVisibilityChange);
+  useEventListener(window, "focus", debouncedFocusRefetch);
+
   onMounted(() => {
     updateDocumentHidden();
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    window.addEventListener("focus", debouncedFocusRefetch);
   });
 
   onUnmounted(() => {
-    document.removeEventListener("visibilitychange", onVisibilityChange);
-    window.removeEventListener("focus", debouncedFocusRefetch);
     window.clearTimeout(focusTimer);
   });
 
