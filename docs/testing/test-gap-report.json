@@ -2,10 +2,7 @@
   "catalog_alignment": {
     "cataloged_uncollected_tests": [],
     "missing_catalog_files": [],
-    "uncataloged_files": [
-      "frontend/src/composables/__tests__/useDevice.test.ts",
-      "frontend/src/utils/__tests__/format.test.ts"
-    ]
+    "uncataloged_files": []
   },
   "commands": {
     "backend": {
@@ -47,7 +44,7 @@
   "counts": {
     "backend_test_files": 40,
     "backend_tests": 712,
-    "catalog_entries": 100,
+    "catalog_entries": 102,
     "frontend_test_files": 24,
     "frontend_tests": 159,
     "important_files": 104,
@@ -84,7 +81,7 @@
     },
     "frontend_summary_found": false
   },
-  "generated_at": "2026-06-24T09:45:44+00:00",
+  "generated_at": "2026-06-24T10:04:59+00:00",
   "matrix": [
     {
       "backend": "OK",
