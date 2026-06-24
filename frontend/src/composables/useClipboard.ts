@@ -1,9 +1,11 @@
 import { ref } from "vue";
+import { useClipboard as useVueUseClipboard } from "@vueuse/core";
 import { useToast } from "./useToast";
 
 export function useClipboard() {
   const toast = useToast();
   const copyStatus = ref<Record<string, boolean>>({});
+  const { copy } = useVueUseClipboard({ legacy: true });
 
   function getCopyLabel(id: string): string {
     switch (id) {
@@ -23,23 +25,7 @@ export function useClipboard() {
   async function copyText(text: string | undefined, id: string) {
     if (!text) return;
     try {
-      const str = String(text);
-
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(str);
-      } else {
-        // Fallback cho HTTP — clipboard API không khả dụng
-        const textarea = document.createElement("textarea");
-        textarea.value = str;
-        textarea.style.position = "fixed";
-        textarea.style.opacity = "0";
-        textarea.style.left = "-9999px";
-        document.body.appendChild(textarea);
-        textarea.focus();
-        textarea.select();
-        document.execCommand("copy");
-        document.body.removeChild(textarea);
-      }
+      await copy(String(text));
 
       copyStatus.value[id] = true;
       const label = getCopyLabel(id);

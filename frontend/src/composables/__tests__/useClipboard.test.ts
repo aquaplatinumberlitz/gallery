@@ -15,6 +15,16 @@ describe("useClipboard", () => {
     vi.restoreAllMocks();
   });
 
+  function mockExecCommand(fn: () => boolean = () => true) {
+    const spy = vi.fn(fn);
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      writable: true,
+      value: spy,
+    });
+    return spy;
+  }
+
   it("does nothing when text is undefined", async () => {
     const { result } = withSetup(() => useClipboard());
     await result.copyText(undefined, "prompt");
@@ -27,26 +37,18 @@ describe("useClipboard", () => {
     expect(result.copyStatus.value).toEqual({});
   });
 
-  it("copies via navigator.clipboard.writeText and flips copyStatus to true", async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: { writeText },
-    });
+  it("copies via the legacy execCommand fallback and flips copyStatus to true", async () => {
+    const execCommandSpy = mockExecCommand();
 
     const { result } = withSetup(() => useClipboard());
     await result.copyText("hello", "prompt");
 
-    expect(writeText).toHaveBeenCalledWith("hello");
+    expect(execCommandSpy).toHaveBeenCalledWith("copy");
     expect(result.copyStatus.value.prompt).toBe(true);
   });
 
   it("shows a success toast with a per-id label after copying", async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: { writeText },
-    });
+    mockExecCommand();
 
     const { result } = withSetup(() => useClipboard());
     await result.copyText("hello", "prompt");
@@ -58,11 +60,7 @@ describe("useClipboard", () => {
   });
 
   it("uses the 'Negative prompt' label for the neg id", async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: { writeText },
-    });
+    mockExecCommand();
 
     const { result } = withSetup(() => useClipboard());
     await result.copyText("hello", "neg");
@@ -72,11 +70,7 @@ describe("useClipboard", () => {
   });
 
   it("uses the 'Seed' label for the seed id", async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: { writeText },
-    });
+    mockExecCommand();
 
     const { result } = withSetup(() => useClipboard());
     await result.copyText("123", "seed");
@@ -85,12 +79,18 @@ describe("useClipboard", () => {
     expect(store.toasts.find((t) => t.title.startsWith("Seed"))).toBeDefined();
   });
 
+  it("uses the 'Path' label for the path id", async () => {
+    mockExecCommand();
+
+    const { result } = withSetup(() => useClipboard());
+    await result.copyText("/some/path", "path");
+
+    const store = useToastStore();
+    expect(store.toasts.find((t) => t.title.startsWith("Path"))).toBeDefined();
+  });
+
   it("uses the generic 'Text' label for unknown ids", async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: { writeText },
-    });
+    mockExecCommand();
 
     const { result } = withSetup(() => useClipboard());
     await result.copyText("data", "custom-id");
@@ -100,11 +100,7 @@ describe("useClipboard", () => {
   });
 
   it("resets copyStatus back to false after 1500ms", async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: { writeText },
-    });
+    mockExecCommand();
 
     const { result } = withSetup(() => useClipboard());
     await result.copyText("hello", "prompt");
@@ -120,13 +116,7 @@ describe("useClipboard", () => {
       configurable: true,
       value: undefined,
     });
-    // jsdom does not implement document.execCommand; define it as a mock.
-    const execCommandSpy = vi.fn().mockReturnValue(true);
-    Object.defineProperty(document, "execCommand", {
-      configurable: true,
-      writable: true,
-      value: execCommandSpy,
-    });
+    const execCommandSpy = mockExecCommand();
 
     const { result } = withSetup(() => useClipboard());
     await result.copyText("fallback", "prompt");
@@ -140,11 +130,9 @@ describe("useClipboard", () => {
     });
   });
 
-  it("shows an error toast when both clipboard methods fail", async () => {
-    const writeText = vi.fn().mockRejectedValue(new Error("denied"));
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: { writeText },
+  it("shows an error toast when the clipboard fallback also fails", async () => {
+    mockExecCommand(() => {
+      throw new Error("denied");
     });
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
