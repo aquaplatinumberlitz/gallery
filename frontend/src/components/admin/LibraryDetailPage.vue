@@ -13,7 +13,7 @@ import { useLibraryMutations } from "@/composables/admin/useLibraryMutations";
 import { useCatalogStatusQuery } from "@/composables/useCatalogStatusQuery";
 import { useLibraryQuery } from "@/composables/admin/useLibraryQuery";
 import { useLibraryStatsQuery } from "@/composables/admin/useLibraryStatsQuery";
-import { useToast } from "@/composables/useToast";
+import { useClipboard } from "@/composables/useClipboard";
 import { useGalleryStore } from "@/stores/gallery";
 import { formatAssetCount, formatLibraryTimestamp } from "@/utils/libraryStatus";
 import { getCatalogStatusPresentation } from "@/lib/catalog/labels";
@@ -26,8 +26,8 @@ import LibraryDeleteConfirmDialog from "./dialogs/LibraryDeleteConfirmDialog.vue
 
 const props = defineProps<{ id: number }>();
 const router = useRouter();
-const toast = useToast();
 const galleryStore = useGalleryStore();
+const { copyText } = useClipboard();
 const libraryId = computed(() => (Number.isFinite(props.id) && props.id > 0 ? props.id : null));
 const libraryQuery = useLibraryQuery(libraryId);
 const statusQuery = useCatalogStatusQuery(libraryId);
@@ -99,12 +99,7 @@ async function useInGallery() {
 }
 
 async function copyPath(path: string) {
-  try {
-    await navigator.clipboard.writeText(path);
-    toast.success("Path copied");
-  } catch {
-    toast.error("Could not copy path");
-  }
+  await copyText(path, "path");
 }
 
 async function confirmUnregister() {

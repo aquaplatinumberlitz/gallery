@@ -13,6 +13,8 @@ export function useClipboard() {
         return "Negative prompt";
       case "seed":
         return "Seed";
+      case "path":
+        return "Path";
       default:
         return "Text";
     }
