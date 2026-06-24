@@ -16,6 +16,7 @@ import { useLibraryStatsQuery } from "@/composables/admin/useLibraryStatsQuery";
 import { useClipboard } from "@/composables/useClipboard";
 import { useGalleryStore } from "@/stores/gallery";
 import { formatAssetCount, formatLibraryTimestamp } from "@/utils/libraryStatus";
+import { formatBytes } from "@/utils/format";
 import { getCatalogStatusPresentation } from "@/lib/catalog/labels";
 import { STATUS_CONTRACT_ERROR_MESSAGE } from "@/lib/catalog/contractGuard";
 import type { UnifiedStatus } from "@/lib/catalog/status";
@@ -86,13 +87,6 @@ const issueBreakdown = computed(() => {
 });
 
 const latestIssue = computed(() => status.value?.latest_issue ?? null);
-
-function formatBytes(bytes?: number): string {
-  if (!bytes) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  return `${(bytes / 1024 ** index).toFixed(index ? 1 : 0)} ${units[index]}`;
-}
 
 async function useInGallery() {
   if (library.value && galleryStore.setActiveLibrary(library.value)) await router.push("/");

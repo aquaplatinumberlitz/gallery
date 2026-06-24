@@ -14,6 +14,7 @@ import { useLibraryStatusBatchQuery } from "@/composables/admin/useLibraryStatus
 import { useGalleryStore } from "@/stores/gallery";
 import type { RegisteredLibrary } from "@/types";
 import { formatAssetCount, formatLibraryTimestamp } from "@/utils/libraryStatus";
+import { formatBytes } from "@/utils/format";
 import { STATUS_CONTRACT_ERROR_MESSAGE } from "@/lib/catalog/contractGuard";
 import type { UnifiedStatus } from "@/lib/catalog/status";
 import LibraryActionMenu from "./LibraryActionMenu.vue";
@@ -61,13 +62,6 @@ function scanErrorMessage(library: RegisteredLibrary): string | null {
     return status.latest_issue.message;
   }
   return library.last_error;
-}
-
-function formatBytes(bytes?: number): string {
-  if (!bytes) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  return `${(bytes / 1024 ** index).toFixed(index ? 1 : 0)} ${units[index]}`;
 }
 
 async function useInGallery(library: RegisteredLibrary) {
