@@ -447,7 +447,9 @@ Invariant enforced (single SQLite transaction):
 
 ```text
 PRE: image_metadata row exists for job.path with matching (mtime, size)
-      job identity must match the current asset row (path, mtime_ns, size) — §5.4
+      job identity must match the current asset row (path, mtime_ns, size) —
+      see §5.4 stale guard (primary: job.mtime_ns vs a.mtime_ns; legacy
+      fallback: job.mtime vs a.mtime_ns / 1e9)
 POST:
   - metadata_index_jobs.state='done', finished_at, updated_at
   - assets.metadata_state='done' for the matching asset row
@@ -476,10 +478,11 @@ Identity guard rule:
 > done if the file changed, was deleted, was replaced, or moved.
 
 Minimum identity: `path + mtime_ns + size`. `library_id` is a secondary
-diagnostic field, not a required key component. The schema has
-`metadata_index_jobs.mtime REAL` (float seconds) and `assets.mtime_ns REAL`;
-the comparison must tolerate the precision difference (the existing
-`_is_job_current` at `indexer.py:224-229` already uses float comparison).
+diagnostic field, not a required key component. The `mtime_ns` comparison
+uses `metadata_index_jobs.mtime_ns` (INTEGER ns) vs `assets.mtime_ns`
+(REAL ns) with a 1 ns tolerance; legacy rows lacking `job.mtime_ns` fall
+back to `job.mtime` (float seconds) vs `assets.mtime_ns / 1e9` (see
+§5.4 step 3).
 
 Implementation:
 
@@ -489,15 +492,27 @@ Implementation:
    (`_schema.py:394`) and `derivative_jobs` carries `priority`
    (`_schema.py:418`).
 2. **DB-side guard in `complete_metadata_job`**: before writing, compare
-   `job.(path, mtime, size)` against the current `assets.(path, mtime_ns, size)`.
+   `job.(path, mtime_ns, size)` against the current `assets.(path, mtime_ns, size)`.
+   Legacy fallback: if `job.mtime_ns IS NULL`, use `job.mtime` (seconds)
+   against `assets.mtime_ns / 1e9` with a 1 ms tolerance.
    If they differ, mark the job `'stale'` and skip the asset transition.
-   `library_id` is cross-checked for diagnostic logging (WARNING if the job
-   path maps to a different library than expected).
-3. **`mtime` vs `mtime_ns` normalisation:** `metadata_index_jobs.mtime` is
-   `REAL` (float seconds from `Path.stat().st_mtime`). `assets.mtime_ns` is
-   `REAL` (`float(stat.st_mtime_ns)`, see `_asset_store.py:74`). The
-   comparison uses `abs(a.mtime_ns - j.mtime) < 1e-3` tolerance, matching the
-   existing `_is_job_current` approach (`indexer.py:224-229`).
+   `library_id` is cross-checked separately for diagnostic logging (WARNING
+   if the job's path maps to a different library than expected).
+3. **`mtime` vs `mtime_ns` normalisation:**
+   - `metadata_index_jobs.mtime_ns INTEGER` — set at queue time from
+     `stat.st_mtime_ns` (integer nanoseconds). Column exists via
+     `_schema.py:44`.
+   - `assets.mtime_ns REAL` — set at asset upsert time from
+     `float(stat.st_mtime_ns)` (`_asset_store.py:74`). Same unit (nanoseconds)
+     as the job's `mtime_ns`.
+   - The primary guard comparison is between
+     `metadata_index_jobs.mtime_ns` and `assets.mtime_ns` (both nanoseconds).
+     Integer-to-float tolerance: `abs(a.mtime_ns - j.mtime_ns) < 1.0` (within
+     1 ns).
+   - **Fallback for legacy rows** where `job.mtime_ns IS NULL` (rows created
+     before the column existed): compare `job.mtime` (float seconds) with
+     `assets.mtime_ns / 1_000_000_000.0` using a 1 ms tolerance
+     (`abs(a.mtime_ns/1e9 - j.mtime) < 1e-3`).
 3. **Filesystem guard**: preserved by the existing `_is_job_current` pre-check
    in `_process_batch` (`indexer.py:224-229`).
 4. **Deleted / moved files**: if `Path(job.path).stat()` fails, mark the job
