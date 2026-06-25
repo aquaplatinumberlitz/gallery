@@ -362,7 +362,9 @@ Responsibilities:
 2. **Durable job creation/coalescing.** Delegate to the store-layer
    `_persist_metadata_index_jobs(paths, root_path, priority)` (renamed from
    `queue_metadata_index_paths`, privatized). The "already current" shortcut
-   still calls `_mark_current_metadata_done` to mark the job done in SQLite.
+   routes through `complete_metadata_job` (§5.3), not a job-only marking
+   helper, so both `metadata_index_jobs.state='done'` and
+   `assets.metadata_state='done'` are materialised together.
 3. **Wake/ensure metadata worker.** Call `wake_metadata_worker()` which sets a
    `_wake_event` and calls `start_metadata_worker()` if not already running.
    **No in-memory queue push.** The worker will claim from SQLite.
@@ -430,7 +432,9 @@ Worker loop pattern (mirrors `DerivativeScheduler._worker_loop`,
 ```
 
 **Guarantee:** The worker never holds a long SQLite write transaction during
-metadata extraction (step 4). This matches `DerivativeScheduler._run_job`
+metadata extraction (step 3) or the metadata upsert (step 4); both run
+outside the claim and completion transactions. This matches
+`DerivativeScheduler._run_job`
 which calls `generate_derivative()` outside the DB and then completes in a
 short transaction (`derivative_scheduler.py:451-476`).
 
