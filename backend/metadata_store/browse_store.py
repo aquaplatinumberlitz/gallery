@@ -8,6 +8,7 @@ from typing import Any
 
 from ..models import FileNode, VideoFileNode
 from ._db import _DB_LOCK, _active_asset_where, _connect
+from .identity import MTIME_NS_TOLERANCE
 from .library_store import _find_library_for_path_conn
 from .path_utils import canonicalize_catalog_path, catalog_path_contains
 from .types import CatalogBrowseScopeError
@@ -227,15 +228,30 @@ def _catalog_browse_path_conn(
     visibility_sql = _browse_visibility_sql("a", include_offline=include_offline)
     rows = conn.execute(
         f"""
-        SELECT a.id, a.path, a.parent_path, a.name, a.type, a.mtime_ns, a.size,
-               COALESCE(a.width, im.width) AS width,
-               COALESCE(a.height, im.height) AS height,
-               a.metadata_state, a.duration_ms, a.mime_type
-        FROM assets AS a
-        LEFT JOIN image_metadata AS im
-          ON im.path = a.path AND im.mtime_ns = a.mtime_ns AND im.size = a.size
-        WHERE a.library_id = ? AND a.parent_path = ?
-          AND {visibility_sql}
+        SELECT id, path, parent_path, name, type, mtime_ns, size,
+               COALESCE(a_width, im_width) AS width,
+               COALESCE(a_height, im_height) AS height,
+               metadata_state, duration_ms, mime_type
+        FROM (
+            SELECT a.id, a.path, a.parent_path, a.name, a.type,
+                   a.mtime_ns, a.size,
+                   a.width AS a_width, a.height AS a_height,
+                   im.width AS im_width, im.height AS im_height,
+                   a.metadata_state, a.duration_ms, a.mime_type,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY a.id
+                       ORDER BY ABS(im.mtime_ns - a.mtime_ns) ASC, im.id ASC
+                   ) AS rn
+            FROM assets AS a
+            LEFT JOIN image_metadata AS im
+              ON im.path = a.path AND im.size = a.size
+              AND im.mtime_ns IS NOT NULL
+              AND a.mtime_ns IS NOT NULL
+              AND ABS(im.mtime_ns - a.mtime_ns) < {MTIME_NS_TOLERANCE}
+            WHERE a.library_id = ? AND a.parent_path = ?
+              AND {visibility_sql}
+        )
+        WHERE rn = 1
         """,
         (int(library["id"]), scope_path),
     ).fetchall()
@@ -390,15 +406,30 @@ def get_asset_folder_listing(
             return None
         rows = conn.execute(
             f"""
-            SELECT a.id, a.path, a.parent_path, a.name, a.type, a.mtime_ns, a.size,
-                   COALESCE(a.width, im.width) AS width,
-                   COALESCE(a.height, im.height) AS height,
-                   a.metadata_state, a.duration_ms, a.mime_type
-            FROM assets AS a
-            LEFT JOIN image_metadata AS im
-              ON im.path = a.path AND im.mtime_ns = a.mtime_ns AND im.size = a.size
-            WHERE a.library_id = ? AND a.parent_path = ?
-              AND {_active_asset_where("a")}
+            SELECT id, path, parent_path, name, type, mtime_ns, size,
+                   COALESCE(a_width, im_width) AS width,
+                   COALESCE(a_height, im_height) AS height,
+                   metadata_state, duration_ms, mime_type
+            FROM (
+                SELECT a.id, a.path, a.parent_path, a.name, a.type,
+                       a.mtime_ns, a.size,
+                       a.width AS a_width, a.height AS a_height,
+                       im.width AS im_width, im.height AS im_height,
+                       a.metadata_state, a.duration_ms, a.mime_type,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY a.id
+                           ORDER BY ABS(im.mtime_ns - a.mtime_ns) ASC, im.id ASC
+                       ) AS rn
+                FROM assets AS a
+                LEFT JOIN image_metadata AS im
+                  ON im.path = a.path AND im.size = a.size
+                  AND im.mtime_ns IS NOT NULL
+                  AND a.mtime_ns IS NOT NULL
+                  AND ABS(im.mtime_ns - a.mtime_ns) < {MTIME_NS_TOLERANCE}
+                WHERE a.library_id = ? AND a.parent_path = ?
+                  AND {_active_asset_where("a")}
+            )
+            WHERE rn = 1
             """,
             (library["id"], resolved),
         ).fetchall()

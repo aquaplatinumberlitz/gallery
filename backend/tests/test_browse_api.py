@@ -299,7 +299,7 @@ def test_browse_stale_metadata_not_used(
         conn.execute(
             """
             UPDATE image_metadata
-            SET mtime_ns = 50, width = 10, height = 20
+            SET mtime_ns = 2100, width = 10, height = 20
             WHERE path = ?
             """,
             (str(image.resolve()),),
@@ -335,6 +335,33 @@ def test_browse_duplicate_metadata_does_not_duplicate_media(
     assert [item["path"] for item in media] == [str(image.resolve())]
     assert media[0]["width"] == 640
     assert media[0]["height"] == 480
+
+
+def test_browse_tolerant_mtime_picks_closest_metadata(
+    isolated_app: TestClient,
+    isolated_gallery_root: Path,
+):
+    root = isolated_gallery_root / "library"
+    root.mkdir()
+    image = root / "asset.png"
+    library = create_library([root], name="Library")
+    library_id = int(library["id"])
+    _allow_duplicate_image_metadata_for_test()
+    _insert_assets(
+        _asset_row(library_id, image, parent_path=root, mtime_ns=1000, size=100, metadata_state="done"),
+    )
+    _insert_image_metadata(image, mtime_ns=600, size=100, width=200, height=200)
+    _insert_image_metadata(image, mtime_ns=500, size=100, width=100, height=100)
+
+    response = isolated_app.get("/api/browse", params={"library_id": library_id, "path": str(root)})
+
+    assert response.status_code == 200
+    media = response.json()["media"]
+    assert len(media) == 1
+    assert media[0]["path"] == str(image.resolve())
+    # Closest match: gap=400 (mtime_ns=600) vs gap=500 (mtime_ns=500)
+    assert media[0]["width"] == 200
+    assert media[0]["height"] == 200
 
 
 def test_browse_per_root_availability(
