@@ -19,6 +19,7 @@ provide context but are not sources of truth for the running application.
 
 ## Working Documents
 
+- [Active plans](plans/) — proposed, active, or blocked implementation plans only.
 - [Reports](reports/README.md) — dated audits and measurement snapshots.
 - [Research](research/README.md) — reusable analysis of upstream projects and UX patterns.
 - [Archived](archived/README.md) — completed or superseded plans and historical reports.

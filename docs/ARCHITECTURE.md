@@ -142,7 +142,7 @@ Backend modules are mostly flat, with selected domain packages.
 | ------------------------------------ | --------------------------------------------------------- |
 | `metadata_store/`                    | SQLite data access layer: schema, search, CRUD, job queue |
 | `metadata_store/_db.py`              | SQLite connection, init flags, shared constants           |
-| `metadata_store/_schema.py`          | Schema creation, v8-to-v9 migration                       |
+| `metadata_store/_schema.py`          | Schema creation, v1 compatibility handling, and additive post-v1 columns/indexes |
 | `metadata_store/types.py`            | Shared dataclasses and exceptions                         |
 | `metadata_store/path_utils.py`       | Path normalization and overlap helpers                    |
 | `metadata_store/library_store.py`    | Library CRUD                                              |
@@ -216,7 +216,7 @@ Backend modules are mostly flat, with selected domain packages.
 - The metadata DB defaults to `backend/.cache/gallery_metadata.db` and can be overridden with `GALLERY_METADATA_DB`.
 - SQLite uses WAL mode and stores both file index rows and normalized metadata rows. FTS5 tables cover folder/photo names and metadata text.
 - Registered libraries store ordered roots in `library_import_paths`. Relative globstar exclusions live in `library_exclusion_patterns`.
-- `/api/browse` is the read-only catalog query endpoint. It accepts `library_id`, `path`, `cursor`, `limit`, and `include_offline`. The response contains `folders`, `media`, `next_cursor`, legacy alias `next_media_cursor`, `total_images`, `total_videos`, `total_assets`, `request_path`, `index_source`, `library_id`, and `path`. Scan, rebuild, and status are managed through library endpoints.
+- `/api/browse` is the read-only catalog query endpoint. It accepts `library_id`, `path`, `cursor`, `limit`, and `include_offline`. The response contains `folders`, `media`, `next_cursor`, legacy alias `next_media_cursor`, `total_images`, `total_videos`, `total_assets`, `request_path`, `index_source`, `library_id`, and `path`. Image media rows also include `derivative_ready` for thumbnail/preview readiness; the frontend treats this as a loading/preload hint, not visible user-facing status. Scan, rebuild, and status are managed through library endpoints.
 - Catalog scan workers, the DB-claim metadata lifecycle worker, the derivative scheduler, and the integrity checker run as background services. The catalog watcher and scheduled reconciliation are enabled by default for registered libraries.
 
 ## Frontend
@@ -226,12 +226,15 @@ Key paths:
 | Path                                                      | Role                                                                                                                           |
 | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `frontend/src/main.ts`                                    | Vue entry, global styles, Pinia, Vue Router, TanStack Query installation, dev debug utilities                                  |
-| `frontend/src/router/index.ts`                            | Routes: `/` gallery, `/metadata` Library Inspector, fallback redirect                                                          |
+| `frontend/src/router/index.ts`                            | Routes: `/` gallery, `/metadata` Library Inspector, `/admin/libraries`, `/admin/libraries/:id`, `/admin/maintenance`, fallback redirect |
 | `frontend/src/App.vue`                                    | Root shell, layout dispatch, lightbox/settings/toast mounting, Query Devtools in dev                                           |
 | `frontend/src/layouts/`                                   | Desktop, tablet, and mobile layout shells                                                                                      |
 | `frontend/src/components/GalleryGrid.vue`                 | Main gallery renderer, album/photo sections, infinite loading, search result rendering                                         |
 | `frontend/src/components/Lightbox.vue`                    | Device-dispatch lightbox orchestrator                                                                                          |
 | `frontend/src/components/LibraryInspector.vue`            | Desktop metadata inspection table at `/metadata`; TanStack Table for returned-row sorting plus TanStack Virtual for table rows |
+| `frontend/src/components/admin/LibraryListPage.vue`       | Admin registered-library list, scan-all entrypoint, status summaries, and navigation to library detail pages                    |
+| `frontend/src/components/admin/LibraryDetailPage.vue`     | Admin library detail with status/progress, generated-image coverage, live watcher/refresh state, problems, jobs, and dialogs   |
+| `frontend/src/components/admin/MaintenancePage.vue`       | Admin maintenance page with file-health sections, global generated-file actions, and active job visibility                      |
 | `frontend/src/components/SortSelect.vue`                  | shadcn-vue Select sort control used by gallery desktop/tablet toolbars and the Library Inspector                               |
 | `frontend/src/components/SortDropdown.vue`                | Dropdown-menu sort control still used by the mobile header                                                                     |
 | `frontend/src/components/search/AdvancedSearchDrawer.vue` | Facet-backed fielded search form                                                                                               |
@@ -247,7 +250,7 @@ Key paths:
 
 | Layer                | Responsibilities                                                                                                                                      |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| TanStack Query       | `/api/browse`, `/api/folders`, `/api/search`, `/api/metadata`, `/api/facets`, `/api/libraries/{id}/status`, `/api/libraries/status`, Library Inspector rows/details, landing page fetches |
+| TanStack Query       | `/api/browse`, `/api/folders`, `/api/search`, `/api/metadata`, `/api/facets`, library status/jobs/stats, generated-image status/actions, Library Inspector rows/details, landing page fetches |
 | TanStack DB          | Beta local reactive collection foundation; currently only the landing-pages collection is a runtime pilot                                             |
 | Pinia gallery store  | Root/current path, selected path, history, expanded folders, search text/scope, sort, loaded flags, settings UI state                                 |
 | Pinia lightbox store | Open image, current index, visible item list, navigation                                                                                              |
@@ -264,6 +267,8 @@ Core keys:
 ["libraries", "detail", id]
 ["libraries", "stats", id]
 ["libraries", "jobs", id]
+["generated-images"]
+["generated-images", "status", libraryId]
 ["stats", "gallery"]
 ["jobs"]
 ["jobs", "list"]
@@ -285,6 +290,31 @@ Core keys:
 ["library-inspector", query, scope, normalizedPath, limit, sort]
 ["library-inspector-metadata", normalizedPath]
 ```
+
+### Admin Library Health
+
+```text
+/admin/libraries
+-> LibraryListPage.vue
+-> library list, batch status, scan-all, and per-library navigation
+
+/admin/libraries/:id
+-> LibraryDetailPage.vue
+-> GET /api/libraries/{id}/status
+-> GET /api/derivatives/status?library_id=...
+-> Generated images, Live status, Problems, jobs, stats, scan/edit/delete
+
+/admin/maintenance
+-> MaintenancePage.vue
+-> generated-image summary by querying registered libraries
+-> POST /api/derivatives/rebuild?confirm=true for all-library stale generated files
+-> POST /api/derivatives/clear?confirm=true for all-library generated-file clearing
+-> File issues, Check files, and Repair results sections render unavailable/empty states until a backend file-health report API exists
+```
+
+Primary admin UI labels intentionally avoid backend terms such as derivatives,
+runtime, diagnostics, and integrity. User-facing labels are `Generated images`,
+`Live status`, `Problems`, `File issues`, `Check files`, and `Repair results`.
 
 ## Data Flow
 

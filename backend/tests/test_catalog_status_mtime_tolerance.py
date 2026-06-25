@@ -1,8 +1,10 @@
-"""Phase 6 regression tests for tolerant mtime_ns identity joins in status queries.
+"""Purpose:
+  Phase 6 regression tests for tolerant mtime_ns identity joins in status queries.
 
-Verifies that the status builder's asset-to-image_metadata and asset-to-metadata_index_jobs
-joins use the tolerant identity rule (ABS(mtime_ns difference) < 1000) instead of
-exact equality, matching the Phase 3 lifecycle invariant used elsewhere.
+Guarantees:
+  Status builder joins from assets to image_metadata and metadata_index_jobs use
+  the tolerant identity rule (ABS(mtime_ns difference) < 1000) instead of exact
+  equality, matching the Phase 3 lifecycle invariant used elsewhere.
 
 See: status_store.py _metadata_counts_for_scope, _batch_metadata_counts,
      _last_index_at_for_scope, _batch_last_index_at,

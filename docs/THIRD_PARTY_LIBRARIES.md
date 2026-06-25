@@ -23,7 +23,7 @@ This document records how major third-party libraries are used in the current co
 | Ruff                                                            | Backend lint and format checks                                                    | `pyproject.toml`, `test.sh`                                                                           | `./test.sh lint` scans the full Python codebase                                                         |
 | pnpm / Corepack                                                 | Frontend package management                                                       | `frontend/package.json`, `frontend/pnpm-lock.yaml`                                                    | `packageManager` pins pnpm; do not reintroduce `package-lock.json`                                      |
 | Vue 3                                                           | Frontend framework                                                                | `frontend/src/main.ts`, `frontend/src/App.vue`, components/layouts                                    | Composition API and SFCs                                                                                |
-| Vue Router                                                      | `/` gallery and `/metadata` inspector routing                                     | `frontend/src/router/index.ts`, `frontend/src/layouts/DesktopLayout.vue`, `frontend/src/App.vue`      | Production fallback is served by backend static route                                                   |
+| Vue Router                                                      | Gallery, metadata inspector, and admin routing                                    | `frontend/src/router/index.ts`, `frontend/src/layouts/DesktopLayout.vue`, `frontend/src/App.vue`      | Production fallback is served by backend static route                                                   |
 | Pinia                                                           | UI/navigation state stores                                                        | `frontend/src/stores/`                                                                                | Server state belongs in TanStack Query, not Pinia                                                       |
 | Axios                                                           | API client and error mapping                                                      | `frontend/src/services/api.ts`                                                                        | Uses `VITE_API_URL` or same-origin proxy                                                                |
 | Vite                                                            | Frontend build/dev server                                                         | `frontend/vite.config.ts`                                                                             | Uses Vue plugin and Tailwind 4 Vite plugin                                                              |
@@ -190,6 +190,9 @@ Vue 3 is the app framework. Vue Router defines:
 
 - `/`: gallery route through `GalleryRoute.vue`.
 - `/metadata`: desktop Library Inspector route.
+- `/admin/libraries`: registered-library administration.
+- `/admin/libraries/:id`: library detail, status, generated images, live status, problems, jobs, and scan/edit/delete actions.
+- `/admin/maintenance`: file-health sections, global generated-file actions, and active jobs.
 - fallback: redirect to `/`.
 
 Pinia stores UI/navigation state:

@@ -1,5 +1,11 @@
 # Frontend Plan: Library Health And Generated Files UI
 
+Status: Archived completed plan
+
+Archived: 2026-06-25
+
+Current source of truth: [Architecture](../ARCHITECTURE.md), [Configuration](../CONFIGURATION.md), and the frontend/backend source files.
+
 ## Summary
 
 Add frontend support for the remaining library lifecycle surfaces that are already present or emerging in the backend, while keeping user-facing labels simple.

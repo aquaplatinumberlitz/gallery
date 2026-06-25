@@ -12,6 +12,8 @@ plans.
 
 Recent plans:
 
+- [Frontend Library Health and Generated Files UI](FRONTEND_LIBRARY_HEALTH_GENERATED_FILES_PLAN.md)
+  — completed; moved to `docs/archived/`.
 - [Metadata Lifecycle D Full Clean](../archived/METADATA_LIFECYCLE_D_FULL_REFACTOR_PLAN.md)
   — completed; moved to `docs/archived/`.
 - [Metadata Lifecycle D Full Clean implementation status](../archived/METADATA_LIFECYCLE_D_FULL_REFACTOR_IMPLEMENTATION_STATUS.md)
