@@ -153,6 +153,7 @@ class StatusResponseEnvelope(TypedDict):
     contract_version: Literal[1]
     status: UnifiedStatus
     global_runtime: GlobalRuntime
+    metadata_lifecycle: dict[str, Any] | None
 
 
 class LibraryStatusBatchResponse(TypedDict):
@@ -162,6 +163,7 @@ class LibraryStatusBatchResponse(TypedDict):
     generated_at: int
     items: list[dict[str, Any]]
     global_runtime: GlobalRuntime
+    metadata_lifecycle: dict[str, Any] | None
 
 
 class CatalogStatusScopeError(ValueError):
@@ -904,10 +906,19 @@ def build_catalog_status(library_id: int, scope_path: str | Path | None = None) 
             active_metadata_paths=active_paths,
             import_paths=list(import_paths),
         )
+    # Wire metadata lifecycle diagnostics (lazy import to avoid circular deps)
+    try:
+        from backend.indexer import get_metadata_lifecycle_status
+
+        lifecycle = get_metadata_lifecycle_status(scope_path=requested_scope)
+    except Exception:
+        lifecycle = None
+
     return {
         "contract_version": CONTRACT_VERSION,
         "status": status,
         "global_runtime": build_global_runtime(),
+        "metadata_lifecycle": lifecycle,
     }
 
 
@@ -977,9 +988,17 @@ def build_library_status_batch() -> LibraryStatusBatchResponse:
                     import_paths=import_paths,
                 )
                 items.append({"library_id": library_id, "status": status})
+    try:
+        from backend.indexer import get_metadata_lifecycle_status
+
+        lifecycle = get_metadata_lifecycle_status()
+    except Exception:
+        lifecycle = None
+
     return {
         "contract_version": CONTRACT_VERSION,
         "generated_at": generated_at,
         "items": items,
         "global_runtime": build_global_runtime(),
+        "metadata_lifecycle": lifecycle,
     }

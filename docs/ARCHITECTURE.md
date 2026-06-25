@@ -7,6 +7,79 @@ Last reviewed: 2026-06-23
 Historical Library Management V1 handoff context is retained in the
 [archived implementation status](archived/CODEX_LIBRARY_MANAGEMENT_IMPLEMENTATION_STATUS.md).
 
+## Metadata Lifecycle
+
+### Owner: `backend/indexer.py`
+
+The metadata lifecycle owner is `MetadataLifecycleWorker` in `backend/indexer.py`,
+modeled on `DerivativeScheduler` (`backend/derivative_scheduler.py`). It owns
+scheduling, dispatch, worker lifecycle, completion invariants, stale guards,
+and startup recovery.
+
+### DB-claim worker pattern
+
+The worker claims jobs directly from SQLite — no in-memory queue bridges the
+DB to the runtime. This mirrors how `DerivativeScheduler._claim_job()` claims
+from `derivative_jobs` (`derivative_scheduler.py:392-420`).
+
+```
+dispatch_metadata_index_paths(paths, priority)
+  → _persist_metadata_index_jobs(paths, root_path, priority=priority)
+    → INSERT/ON CONFLICT into metadata_index_jobs
+  → metadata_worker.wake()
+
+metadata_worker._worker_loop
+  → claim_next_metadata_job()
+    → BEGIN IMMEDIATE
+    → SELECT metadata_index_jobs WHERE state='queued'
+      ORDER BY priority ASC, queued_at ASC LIMIT 1
+    → UPDATE state='running', attempts+1, started_at=now
+    → COMMIT
+  → extract_metadata(path)  [outside any DB transaction]
+  → upsert_metadata_batch([metadata])  [short transaction]
+  → complete_metadata_job(conn, job)
+    → verify image_metadata current for job identity
+    → verify matching asset row exists
+    → UPDATE metadata_index_jobs state='done'
+    → UPDATE assets metadata_state='done'
+```
+
+### Invariants
+
+1. **SQLite is the runtime queue.** The worker claims from `metadata_index_jobs`,
+   not from an in-memory `_job_queue`. Queued jobs survive process restart.
+
+2. **Completion materializes both job and asset.** `complete_metadata_job` atomically
+   marks the job `done` AND stamps `assets.metadata_state='done'`. If no asset
+   row exists, the job is `skipped`. If the asset version differs, the job is `stale`.
+
+3. **Extraction runs outside DB transactions.** Claim and complete are short
+   `BEGIN IMMEDIATE` transactions. `extract_metadata` (PIL + JSON parsing) runs
+   outside any transaction, matching `DerivativeScheduler._run_job`.
+
+4. **Identity is `path + mtime_ns + size`.** The stale guard compares job identity
+   against the current asset row. `library_id` is a secondary diagnostic field,
+   not a required key component.
+
+### Legacy fallback
+
+For rows created before `mtime_ns` was populated, the system falls back to
+comparing `mtime` (float seconds) with `assets.mtime_ns / 1e9` using a 1 ms
+tolerance.
+
+### Startup recovery
+
+`recover_metadata_index_jobs()` resets interrupted `running` jobs to `queued`,
+fails jobs whose attempts have been exhausted, and repairs `done` jobs whose
+asset state never materialised. Queued jobs are left claimable — they survive
+restart because SQLite is the queue.
+
+### Diagnostics
+
+`get_metadata_lifecycle_status(scope_path)` returns 15 counters covering job
+queue depth, inconsistency detection, worker health, and throughput. These are
+included in the status API envelope as `metadata_lifecycle`.
+
 ## Overview
 
 AI Art Gallery is a local-first mixed-media browser with a FastAPI backend and a Vue 3 frontend.

@@ -16,7 +16,7 @@ Last updated: 2026-06-25
 | **3** | **Completion invariant and stale guards** | **✅ Complete** |
 | **4** | **Startup recovery and repair** | **✅ Complete** |
 | 5 | Remove/deprecate old in-memory queue bridge | ✅ Complete |
-| 6 | Status/debug diagnostics and docs | ⬜ Pending |
+| 6 | Status/debug diagnostics and docs | ✅ Complete |
 | 7 | Broader integrity checker (P2 follow-up) | ✅ Complete |
 
 ---
@@ -193,8 +193,18 @@ The following regressions were found in the 2026-06-25 audit and fixed:
 
 ---
 
-## Next phase
+## Phase 6 — Status/debug diagnostics and docs ✅
 
-**Phase 6 — Status/debug diagnostics and docs**
+### Files added/changed
 
-Add status/debug diagnostics and update documentation.
+- `backend/indexer.py` — added `get_metadata_lifecycle_status(scope_path)` with
+  15 counters from §5.7: job state counts (queued/running/done/stale/failed/skipped),
+  oldest queued age, inconsistency counters (done+pending, current-metadata+pending,
+  orphan jobs, orphan assets, repairable), worker health, last claimed/completed timestamps.
+- `backend/metadata_store/status_store.py` — wired `metadata_lifecycle` field into
+  `StatusResponseEnvelope` and `LibraryStatusBatchResponse`; `build_catalog_status`
+  and `build_library_status_batch` both include the diagnostics.
+- `docs/ARCHITECTURE.md` — new file describing DB-claim worker pattern, invariants,
+  legacy fallback, startup recovery, and diagnostics.
+- `docs/testing/TEST_CATALOG.md` — catalog entries for lifecycle tests.
+- `docs/plans/IMPLEMENTATION_STATUS.md` — Phase 6 marked complete.

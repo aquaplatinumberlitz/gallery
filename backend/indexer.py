@@ -363,3 +363,138 @@ def recover_metadata_index_jobs() -> dict[str, int]:
         + repair_result["demoted"]
         + repair_result["skipped"],
     }
+
+
+def get_metadata_lifecycle_status(scope_path: str | Path | None = None) -> dict[str, Any]:
+    """Return metadata lifecycle diagnostics counters from §5.7 of the plan.
+
+    Provides 15 counters covering job queue depth, inconsistency detection,
+    worker health, and throughput.
+    """
+    initialize_database()
+    now = time.time()
+    result: dict[str, Any] = {}
+
+    mj_scope = ""
+    a_scope = ""
+    scope_params: list[Any] = []
+    if scope_path is not None:
+        resolved = str(Path(scope_path).resolve())
+        prefix = f"{resolved.rstrip(os.sep)}/"
+        mj_scope = "AND (mj.path = ? OR mj.path LIKE ?)"
+        a_scope = "AND (a.path = ? OR a.path LIKE ?)"
+        scope_params = [resolved, f"{prefix}%"]
+
+    with _DB_LOCK, _connect() as conn:
+        # Job state counts
+        for state in ("queued", "running", "done", "stale", "failed", "skipped"):
+            row = conn.execute(
+                f"SELECT count(*) AS cnt FROM metadata_index_jobs mj WHERE mj.state = ? {mj_scope}",
+                [state, *scope_params],
+            ).fetchone()
+            result[f"{state}_metadata_jobs"] = int(row["cnt"])
+
+        # oldest_queued_metadata_job_age
+        row = conn.execute(
+            f"SELECT min(mj.queued_at) AS oldest FROM metadata_index_jobs mj WHERE mj.state = 'queued' {mj_scope}",
+            scope_params,
+        ).fetchone()
+        oldest = row["oldest"]
+        result["oldest_queued_metadata_job_age"] = round(now - oldest, 3) if oldest else None
+
+        # done_jobs_with_pending_assets: done job whose asset is NOT done
+        row = conn.execute(
+            f"""
+            SELECT count(*) AS cnt FROM metadata_index_jobs mj
+            LEFT JOIN assets a ON a.path = mj.path
+            WHERE mj.state = 'done'
+              AND (a.path IS NULL OR a.metadata_state IS NULL OR a.metadata_state != 'done')
+              {mj_scope}
+            """,
+            scope_params,
+        ).fetchone()
+        result["done_jobs_with_pending_assets"] = int(row["cnt"])
+
+        # current_image_metadata_with_pending_assets: image_metadata current for path
+        # but asset not done.  Assets use mtime_ns (REAL), no separate mtime column.
+        row = conn.execute(
+            f"""
+            SELECT count(*) AS cnt FROM image_metadata im
+            JOIN assets a ON a.path = im.path
+            WHERE (a.metadata_state IS NULL OR a.metadata_state != 'done')
+              AND (
+                (im.mtime_ns IS NOT NULL AND a.mtime_ns IS NOT NULL AND ABS(im.mtime_ns - a.mtime_ns) < 1000 AND im.size = a.size)
+                OR (im.mtime_ns IS NULL AND a.mtime_ns IS NOT NULL AND ABS(a.mtime_ns / 1000000000.0 - im.mtime) < 1e-3 AND im.size = a.size)
+              )
+              {a_scope}
+            """,
+            scope_params,
+        ).fetchone()
+        result["current_image_metadata_with_pending_assets"] = int(row["cnt"])
+
+        # metadata_jobs_without_matching_assets
+        row = conn.execute(
+            f"""
+            SELECT count(*) AS cnt FROM metadata_index_jobs mj
+            LEFT JOIN assets a ON a.path = mj.path
+            WHERE a.path IS NULL
+              {mj_scope}
+            """,
+            scope_params,
+        ).fetchone()
+        result["metadata_jobs_without_matching_assets"] = int(row["cnt"])
+
+        # assets_done_but_metadata_missing_or_stale
+        row = conn.execute(
+            f"""
+            SELECT count(*) AS cnt FROM assets a
+            WHERE a.metadata_state = 'done'
+              AND NOT EXISTS (
+                SELECT 1 FROM image_metadata im
+                WHERE im.path = a.path
+                  AND ((im.mtime_ns IS NOT NULL AND a.mtime_ns IS NOT NULL AND ABS(im.mtime_ns - a.mtime_ns) < 1000 AND im.size = a.size)
+                    OR (im.mtime_ns IS NULL AND a.mtime_ns IS NOT NULL AND ABS(a.mtime_ns / 1000000000.0 - im.mtime) < 1e-3 AND im.size = a.size))
+              )
+              {a_scope}
+            """,
+            scope_params,
+        ).fetchone()
+        result["assets_done_but_metadata_missing_or_stale"] = int(row["cnt"])
+
+        # repairable_metadata_assets: done job + current metadata + pending asset
+        row = conn.execute(
+            f"""
+            SELECT count(*) AS cnt FROM metadata_index_jobs mj
+            JOIN assets a ON a.path = mj.path
+            WHERE mj.state = 'done'
+              AND (a.metadata_state IS NULL OR a.metadata_state != 'done')
+              AND EXISTS (
+                SELECT 1 FROM image_metadata im
+                WHERE im.path = mj.path
+                  AND ((im.mtime_ns IS NOT NULL AND mj.mtime_ns IS NOT NULL AND ABS(im.mtime_ns - mj.mtime_ns) < 1000 AND im.size = mj.size)
+                    OR (im.mtime_ns IS NULL AND mj.mtime_ns IS NULL AND im.mtime = mj.mtime AND im.size = mj.size))
+              )
+              {mj_scope}
+            """,
+            scope_params,
+        ).fetchone()
+        result["repairable_metadata_assets"] = int(row["cnt"])
+
+        # metadata_worker_last_claimed_at
+        row = conn.execute(
+            f"SELECT max(mj.started_at) AS last FROM metadata_index_jobs mj WHERE mj.state IN ('running', 'done') {mj_scope}",
+            scope_params,
+        ).fetchone()
+        result["metadata_worker_last_claimed_at"] = row["last"]
+
+        # metadata_worker_last_completed_at
+        row = conn.execute(
+            f"SELECT max(mj.finished_at) AS last FROM metadata_index_jobs mj WHERE mj.state IN ('done', 'failed', 'stale', 'skipped') {mj_scope}",
+            scope_params,
+        ).fetchone()
+        result["metadata_worker_last_completed_at"] = row["last"]
+
+    # metadata_worker_alive (runtime check, not DB)
+    result["metadata_worker_alive"] = metadata_worker.is_running()
+
+    return result
