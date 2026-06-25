@@ -236,18 +236,9 @@ def _is_job_current(job: MetadataIndexJob) -> bool:
 
 
 def _start_worker_if_needed() -> None:
-    global _worker_thread
-    if not METADATA_INDEXER_ENABLED:
-        return
-    with _worker_lock:
-        if _worker_thread and _worker_thread.is_alive():
-            return
-        _worker_thread = threading.Thread(
-            target=_worker_loop,
-            name="gallery-metadata-indexer",
-            daemon=True,
-        )
-        _worker_thread.start()
+    """No-op compatibility stub. Phase 2: DB-claim worker is authoritative.
+    The metadata worker is started at app startup via metadata_worker.start()."""
+    pass
 
 
 def _start_path_stager_if_needed() -> None:
@@ -401,31 +392,15 @@ def _process_batch(jobs: list[MetadataIndexJob]) -> None:
 
 
 def _enqueue_metadata_jobs_from_result(result: Any, *, start_worker: bool = True) -> dict[str, int]:
-    global _coalesced_duplicates
-    queued = 0
-    in_memory_coalesced = 0
-
-    with _worker_lock:
-        for job in result.enqueued:
-            if job.key in _queued_keys:
-                in_memory_coalesced += 1
-                continue
-            _queued_keys.add(job.key)
-            _job_queue.put(job)
-            queued += 1
-        _coalesced_duplicates += result.coalesced + in_memory_coalesced
-
-    if result.coalesced or in_memory_coalesced:
-        _inc(_jobs_total_metric, "skipped", amount=result.coalesced + in_memory_coalesced)
-
-    if queued and start_worker:
-        _start_worker_if_needed()
+    """No-op compatibility stub. Phase 2: DB-claim worker is authoritative."""
+    if result.coalesced or (hasattr(result, "enqueued") and result.enqueued):
+        LOGGER.debug("_enqueue_metadata_jobs_from_result called (no-op): %s enqueued", len(getattr(result, "enqueued", [])))
     _update_runtime_queue_metrics()
     return {
-        "queued": queued,
-        "coalesced": result.coalesced + in_memory_coalesced,
-        "skipped": result.skipped,
-        "failed": result.failed,
+        "queued": 0,
+        "coalesced": result.coalesced if hasattr(result, "coalesced") else 0,
+        "skipped": result.skipped if hasattr(result, "skipped") else 0,
+        "failed": result.failed if hasattr(result, "failed") else 0,
     }
 
 
@@ -580,10 +555,7 @@ def _flush_staged_paths_to_job_queue(
     totals = {"queued": 0, "coalesced": 0, "skipped": 0, "failed": 0}
     for root_path, paths in grouped_paths.items():
         try:
-            result = _run_sqlite_write(
-                lambda p=paths, r=root_path: queue_metadata_index_paths(p, r),
-                "queue staged metadata paths",
-            )
+            result = dispatch_metadata_index_paths(paths, root_path)
         except _SQLiteBusyRetriesExhausted as exc:
             failed = len(paths)
             totals["failed"] += failed
@@ -597,9 +569,8 @@ def _flush_staged_paths_to_job_queue(
             LOGGER.warning("Failed to flush %s staged metadata paths: %s", failed, exc)
             continue
 
-        queued = _enqueue_metadata_jobs_from_result(result, start_worker=start_worker)
         for key in totals:
-            totals[key] += queued[key]
+            totals[key] += result[key]
 
     return totals
 
@@ -706,17 +677,8 @@ def rebuild_index_scope(root: str | Path) -> dict[str, Any]:
     reconciled = 0
     if library is not None:
         reconciled = reconcile_library_assets(int(library["id"]), asset_paths, scope_path=root_path)
-    queued_result = queue_metadata_index_paths(image_paths, root_path)
 
-    if METADATA_INDEXER_ENABLED:
-        metadata = _enqueue_metadata_jobs_from_result(queued_result, start_worker=True)
-    else:
-        metadata = {
-            "queued": len(queued_result.enqueued),
-            "coalesced": queued_result.coalesced,
-            "skipped": queued_result.skipped,
-            "failed": queued_result.failed,
-        }
+    metadata = dispatch_metadata_index_paths(image_paths, root_path)
 
     return {
         "path": str(root_path),
@@ -729,6 +691,34 @@ def rebuild_index_scope(root: str | Path) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # DB-claim metadata worker (Phase 1)
 # ---------------------------------------------------------------------------
+
+
+def dispatch_metadata_index_paths(
+    paths: Iterable[str | Path],
+    root_path: str | Path | None = None,
+    *,
+    priority: int = 3,
+) -> dict[str, int]:
+    """Persist/coalesce metadata_index_jobs in SQLite and wake the DB-claim worker.
+
+    This is the single scheduling entrypoint for all metadata work. It does
+    NOT push jobs into the in-memory ``_job_queue``; the DB-claim worker
+    claims directly from SQLite.
+
+    Phase 2 replaces all direct calls to ``queue_metadata_index_paths`` +
+    ``_enqueue_metadata_jobs_from_result`` with this unified entrypoint.
+    """
+    result = _run_sqlite_write(
+        lambda: queue_metadata_index_paths(list(paths), root_path),
+        "persist metadata index paths",
+    )
+    metadata_worker.wake()
+    return {
+        "queued": len(result.enqueued),
+        "coalesced": result.coalesced,
+        "skipped": result.skipped,
+        "failed": result.failed,
+    }
 
 
 class MetadataLifecycleWorker:

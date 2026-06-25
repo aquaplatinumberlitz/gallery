@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import GALLERY_CATALOG_JOB_MAX_QUEUE_WAIT_SECONDS, GALLERY_CATALOG_WORKERS
-from .indexer import rebuild_index_scope
+from .indexer import dispatch_metadata_index_paths, rebuild_index_scope
 from .library_events import event_payload, publish
 from .metadata_store import (
     activate_rebuild_staging,
@@ -23,7 +23,6 @@ from .metadata_store import (
     get_library,
     get_library_for_path,
     list_libraries,
-    queue_metadata_index_paths,
     recover_stale_jobs,
     update_job_state,
     update_library_state,
@@ -309,9 +308,9 @@ def execute_rebuild_job(job: dict[str, Any]) -> bool:
                 )
                 by_root[matched_root].append(asset_path)
             for root, scoped_paths in by_root.items():
-                result = queue_metadata_index_paths(scoped_paths, root)
-                enqueued_total += len(result.enqueued)
-                failed_total += result.failed
+                result = dispatch_metadata_index_paths(scoped_paths, root)
+                enqueued_total += int(result.get("queued", 0))
+                failed_total += int(result.get("failed", 0))
         counters["metadata_queued"] = enqueued_total
         counters["failed"] = failed_total
         scan_completed = job.get("scope_path") is None

@@ -1,13 +1,14 @@
 """
 Purpose:
-Characterization tests for Bug 1: rebuild schedules DB jobs but does not
-dispatch runtime metadata work, so metadata_index_jobs rows can exist in
-SQLite without a matching in-memory _job_queue entry.
+Phase 2 test: rebuild path now schedules metadata jobs through
+dispatch_metadata_index_paths which persists in SQLite and wakes the
+DB-claim worker. The in-memory _job_queue is no longer the source of work.
 
 Guarantees:
 * After execute_rebuild_job, metadata_index_jobs rows exist in SQLite
-* After execute_rebuild_job, indexer._job_queue.qsize() == 0 (the bug)
-* These tests capture the buggy behavior before the refactor fixes it
+* After execute_rebuild_job, indexer._job_queue.qsize() == 0 (DB-claim worker
+  claims from SQLite, not from memory)
+* dispatch_metadata_index_paths is called (not raw queue_metadata_index_paths)
 
 Run when:
 * touching rebuild/index tests or metadata job scheduling behavior
@@ -25,24 +26,36 @@ from backend.scan_worker import execute_rebuild_job, queue_rebuild
 from tests.conftest import create_test_png
 
 
-def test_rebuild_schedules_db_jobs_but_not_runtime_dispatch(
+def test_rebuild_path_uses_dispatch_metadata_index_paths(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """Rebuild creates metadata_index_jobs rows in SQLite but does NOT
-    enqueue them into indexer._job_queue (the in-memory runtime queue).
+    """Rebuild creates metadata_index_jobs rows in SQLite and wakes the
+    DB-claim worker via dispatch_metadata_index_paths.
 
-    This is Bug 1: a DB job can exist without runtime worker dispatch.
-    After the D full clean refactor, this test should be updated to assert
-    that the DB-claim worker processes these jobs directly from SQLite.
+    The in-memory _job_queue is NOT populated because the DB-claim worker
+    claims directly from SQLite (Phase 2).
     """
     import backend.indexer as indexer
     from backend.metadata_store.job_store import _initialize_database as _init_jobs_db
 
     _init_jobs_db()
 
-    # Create library with an import path containing an image
+    # Track calls to dispatch_metadata_index_paths
+    dispatch_calls = []
+    original_dispatch = indexer.dispatch_metadata_index_paths
+
+    def tracking_dispatch(paths, root_path=None, **kwargs):
+        dispatch_calls.append((list(paths) if hasattr(paths, '__iter__') else [str(paths)], str(root_path) if root_path else None))
+        return original_dispatch(paths, root_path, **kwargs)
+
+    monkeypatch.setattr(indexer, "dispatch_metadata_index_paths", tracking_dispatch)
+
+    # scan_worker imports dispatch at module level; patch its reference too
+    import backend.scan_worker as scan_worker_mod
+    monkeypatch.setattr(scan_worker_mod, "dispatch_metadata_index_paths", tracking_dispatch)
+
     root = isolated_gallery_root / "lib"
     root.mkdir()
     album = root / "album_a"
@@ -53,15 +66,12 @@ def test_rebuild_schedules_db_jobs_but_not_runtime_dispatch(
     lib = create_library([root], name="TestLib")
     library_id = int(lib["id"])
 
-    # Drain any pre-existing items in the in-memory job queue
     while not indexer._job_queue.empty():
         indexer._job_queue.get_nowait()
 
-    # Queue a rebuild job (creates a real library_jobs row)
     job, _created = queue_rebuild(library_id)
     job_id = int(job["id"])
 
-    # Claim it the same way scan_worker.run_once does
     from backend.metadata_store.job_store import claim_next_catalog_job
 
     claimed = claim_next_catalog_job(max_queue_wait_seconds=1)
@@ -70,6 +80,11 @@ def test_rebuild_schedules_db_jobs_but_not_runtime_dispatch(
 
     success = execute_rebuild_job(claimed)
     assert success, "Rebuild job should succeed"
+
+    # Verify dispatch_metadata_index_paths was called (not raw queue)
+    assert len(dispatch_calls) > 0, (
+        "Rebuild path should call dispatch_metadata_index_paths"
+    )
 
     # Verify metadata_index_jobs rows exist in SQLite
     status = get_metadata_index_status(path=root)
@@ -82,10 +97,8 @@ def test_rebuild_schedules_db_jobs_but_not_runtime_dispatch(
         f"got counts={status['counts']}"
     )
 
-    # THE BUG: _job_queue is empty because execute_rebuild_job calls
-    # queue_metadata_index_paths (DB-only) and does NOT call
-    # _enqueue_metadata_jobs_from_result
+    # _job_queue should be empty because dispatch does NOT push to memory
     assert indexer._job_queue.qsize() == 0, (
-        "Bug 1: rebuild path should NOT populate the in-memory job queue "
-        "(the DB-claim worker will replace this in Phase 1)"
+        "Phase 2: dispatch_metadata_index_paths does not populate _job_queue; "
+        "the DB-claim worker claims from SQLite"
     )

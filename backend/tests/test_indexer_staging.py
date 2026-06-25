@@ -174,9 +174,10 @@ def test_flush_staged_paths_calls_sqlite_queue_and_runtime_coalesces(monkeypatch
     )
 
     assert calls == [(["/images/a.jpg", "/images/b.png"], "/images")]
-    assert result == {"queued": 1, "coalesced": 2, "skipped": 2, "failed": 3}
-    assert indexer._job_queue.qsize() == 1
-    assert indexer._queued_keys == {job.key}
+    # dispatch_metadata_index_paths returns raw result counters (not enqueue-processed)
+    assert result == {"queued": 2, "coalesced": 1, "skipped": 2, "failed": 3}
+    # _job_queue is not populated by dispatch (DB-claim worker is authoritative)
+    assert indexer._job_queue.qsize() == 0
 
 
 def test_wait_for_staged_paths_forces_flush_after_max_wait(monkeypatch: pytest.MonkeyPatch):
@@ -206,7 +207,8 @@ def test_wait_for_staged_paths_forces_flush_after_max_wait(monkeypatch: pytest.M
     indexer._process_staged_path_batch(first_path)
 
     assert queued_calls == [(["/images/a.jpg"], "/images")]
-    assert indexer._job_queue.qsize() == 1
+    # Phase 2: dispatch does NOT push into _job_queue (DB-claim worker claims from SQLite)
+    assert indexer._job_queue.qsize() == 0
     assert indexer.get_indexer_runtime_status()["staged_path_flushes_forced"] == 1
     assert indexer._pending_path_queue.qsize() == 0
 
@@ -295,7 +297,7 @@ def test_flush_staged_paths_retries_sqlite_busy_then_queues(monkeypatch: pytest.
 
     assert calls["count"] == 3
     assert result == {"queued": 1, "coalesced": 0, "skipped": 0, "failed": 0}
-    assert indexer._job_queue.qsize() == 1
+    assert indexer._job_queue.qsize() == 0
     assert indexer.get_indexer_runtime_status()["staged_path_failed"] == 0
 
 
@@ -314,23 +316,27 @@ def test_flush_staged_paths_records_failed_after_sqlite_busy_retries(monkeypatch
 
     assert calls["count"] == 3
     assert result == {"queued": 0, "coalesced": 0, "skipped": 0, "failed": 1}
-    assert indexer._job_queue.qsize() == 0
     assert indexer.get_indexer_runtime_status()["staged_path_failed"] == 1
 
 
-def test_scan_path_calls_enqueue_metadata_jobs_but_rebuild_does_not(
+def test_scan_and_rebuild_both_call_dispatch_metadata_index_paths(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ):
     """
     Purpose:
-    Characterize Bug 1 divergence: scan path calls _enqueue_metadata_jobs_from_result
-    but rebuild path does not.
+    Phase 2: both scan and rebuild paths call dispatch_metadata_index_paths
+    (the single scheduling entrypoint). Neither calls the old
+    _enqueue_metadata_jobs_from_result (now a no-op stub).
+
+    Guarantees:
+    * Both paths invoke dispatch_metadata_index_paths
+    * _enqueue_metadata_jobs_from_result is a no-op stub, not the source of work
     """
     from backend import scan_worker as catalog_service
     from backend.indexer import rebuild_index_scope
-    from backend.metadata_store import _connect, create_library, index_directory_tree, reconcile_library_assets
+    from backend.metadata_store import create_library
     from backend.metadata_store.job_store import _initialize_database
 
     _initialize_database()
@@ -346,27 +352,29 @@ def test_scan_path_calls_enqueue_metadata_jobs_but_rebuild_does_not(
     lib = create_library([root], name="Test")
     library_id = int(lib["id"])
 
-    # Track calls to _enqueue_metadata_jobs_from_result
-    calls = []
+    # Track calls to dispatch_metadata_index_paths
+    dispatch_calls = []
+    original_dispatch = indexer.dispatch_metadata_index_paths
 
+    def tracking_dispatch(paths, root_path=None, **kwargs):
+        dispatch_calls.append(("dispatch", list(paths) if hasattr(paths, '__iter__') else [str(paths)]))
+        return original_dispatch(paths, root_path, **kwargs)
+
+    monkeypatch.setattr(indexer, "dispatch_metadata_index_paths", tracking_dispatch)
+
+    # Also patch scan_worker's reference since it imports dispatch at module level
+    import backend.scan_worker as scan_worker_mod
+    monkeypatch.setattr(scan_worker_mod, "dispatch_metadata_index_paths", tracking_dispatch)
+
+    # Track calls to _enqueue_metadata_jobs_from_result (should be no-op)
+    enqueue_calls = []
     original_enqueue = indexer._enqueue_metadata_jobs_from_result
 
     def tracking_enqueue(result, *, start_worker=True):
-        calls.append(("_enqueue_metadata_jobs_from_result", len(result.enqueued)))
+        enqueue_calls.append(("_enqueue", len(result.enqueued) if hasattr(result, 'enqueued') else 0))
         return original_enqueue(result, start_worker=start_worker)
 
     monkeypatch.setattr(indexer, "_enqueue_metadata_jobs_from_result", tracking_enqueue)
-
-    # Track calls to queue_metadata_index_paths
-    path_calls = []
-    original_queue = indexer.queue_metadata_index_paths
-
-    def tracking_queue(paths, root_path=None):
-        result = original_queue(paths, root_path)
-        path_calls.append(("queue_metadata_index_paths", len(result.enqueued)))
-        return result
-
-    monkeypatch.setattr(indexer, "queue_metadata_index_paths", tracking_queue)
 
     # Run scan path via rebuild_index_scope
     scan_result = rebuild_index_scope(root)
@@ -380,17 +388,15 @@ def test_scan_path_calls_enqueue_metadata_jobs_but_rebuild_does_not(
     assert claimed_rjob is not None, "Should claim rebuild job"
     rebuild_success = execute_rebuild_job(claimed_rjob)
 
-    # Scan path: calls both queue_metadata_index_paths AND _enqueue_metadata_jobs_from_result
-    scan_path_calls = [name for name, _ in calls]
-    assert "_enqueue_metadata_jobs_from_result" in scan_path_calls, (
-        "Scan path should call _enqueue_metadata_jobs_from_result"
+    # Both paths call dispatch_metadata_index_paths
+    assert len(dispatch_calls) >= 2, (
+        f"Both scan and rebuild should call dispatch_metadata_index_paths, "
+        f"got {len(dispatch_calls)} calls"
     )
-    assert len(path_calls) >= 1, "Scan path should call queue_metadata_index_paths"
 
-    # Rebuild path: calls queue_metadata_index_paths but NOT _enqueue_metadata_jobs_from_result
-    # (the bug: the enqueue calls above are only from the scan path)
-    # We should see no additional _enqueue_metadata_jobs_from_result calls
-    # after the scan path calls finished
+    # _enqueue_metadata_jobs_from_result may be called but it's a no-op stub
+    # The important thing is that dispatch is the actual scheduling entrypoint
+    # and _enqueue_metadata_jobs_from_result does not queue to _job_queue
 
     # Verify - the rebuild never called it
     assert rebuild_success, "Rebuild should succeed"

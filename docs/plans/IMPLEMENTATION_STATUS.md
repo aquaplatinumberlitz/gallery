@@ -11,8 +11,8 @@ Last updated: 2026-06-25
 | --- | --- | --- |
 | 0A | Characterization tests (existing API) | ✅ Complete |
 | 0B | Contract tests for DB-claim worker | ✅ Complete (merged into Phase 1) |
-| **1** | **DB-claim metadata worker** | **✅ Complete** |
-| 2 | Convert scheduling to durable DB queue + wake worker | ⬜ Pending |
+| 1 | DB-claim metadata worker | ✅ Complete |
+| **2** | **Convert scheduling to durable DB queue + wake worker** | **✅ Complete** |
 | 3 | Completion invariant and stale guards | ⬜ Pending |
 | 4 | Startup recovery and repair | ⬜ Pending |
 | 5 | Remove/deprecate old in-memory queue bridge | ⬜ Pending |
@@ -21,111 +21,74 @@ Last updated: 2026-06-25
 
 ---
 
-## Phase 0A — Characterization Tests ✅
+## Phase 2 — Convert Scheduling to Durable DB Queue ✅
 
-6 tests capture the bug family using existing API and store primitives, no new symbols.
+### Dispatch entrypoint (`backend/indexer.py`)
 
-### Tests
+- `dispatch_metadata_index_paths(...)` — single scheduling entrypoint for all metadata work
+- Persists/coalesces jobs in SQLite via `queue_metadata_index_paths`
+- Wakes the DB-claim worker via `metadata_worker.wake()`
+- Does NOT push into in-memory `_job_queue`
+- Returns `{queued, coalesced, skipped, failed}` counters
 
-| Test | File | What it characterizes | Status |
-| --- | --- | --- | --- |
-| **1** | `backend/tests/test_scan_worker.py` | Bug 1: rebuild creates SQLite rows but `_job_queue` stays empty | ✅ |
-| **2** | `backend/tests/test_indexer_staging.py` | Bug 1 divergence: scan calls `_enqueue_metadata_jobs_from_result`, rebuild does not | ✅ |
-| **6** | `backend/tests/test_metadata_store_coverage.py` | Bug 2: "already current" shortcut marks job done but not asset | ✅ |
-| **7** | `backend/tests/test_catalog_status_ready_assets.py` | `ready_assets` requires both `asset_done` AND current `image_metadata` | ✅ |
-| **8** | `backend/tests/test_metadata_store_coverage.py` | `mark_metadata_jobs_done` has no stale guard | ✅ |
-| **14** | `backend/tests/test_indexer_staging.py` | `queue_metadata_index_paths` is idempotent | ✅ |
+### Callers migrated
 
-### Files changed
-
-- `backend/tests/test_scan_worker.py` — **new**
-- `backend/tests/test_indexer_staging.py` — added Tests 2, 14
-- `backend/tests/test_metadata_store_coverage.py` — added Tests 6, 8
-- `backend/tests/test_catalog_status_ready_assets.py` — added Test 7
-- `docs/testing/TEST_CATALOG.md` — appended new test rows
-
----
-
-## Phase 1 — DB-Claim Metadata Worker ✅ *(audit fixes applied 2026-06-25)*
-
-### Schema migration
-
-- Added `metadata_index_jobs.library_id INTEGER`
-- Added `metadata_index_jobs.priority INTEGER NOT NULL DEFAULT 3`
-- Added `idx_metadata_index_jobs_claim` on `(state, priority, queued_at)`
-- Added `idx_metadata_index_jobs_library_state` on `(library_id, state)`
-- Added `idx_assets_metadata_state` on `assets(metadata_state)`
-- Added `MetadataIndexJob.library_id` field to types module
-
-### Store primitives (`backend/metadata_store/metadata_queue.py`)
-
-- `claim_next_metadata_job()` — `BEGIN IMMEDIATE`, SELECT queued, UPDATE running
-- `complete_metadata_job(conn, job)` — updates both job (done) and asset (done)
-- `fail_metadata_job(conn, job, error)` — marks job failed
-- `mark_metadata_job_stale(conn, job)` — marks job stale
-- `list_recoverable_metadata_jobs(conn, states)` — lists jobs by state
-- `reset_running_jobs_to_queued(conn, job_paths)` — resets running to queued
-
-### Worker class (`backend/indexer.py`)
-
-- `MetadataLifecycleWorker` with start/stop/is_running/wake/worker_loop/claim_job/run_job
-- Singleton `metadata_worker` instance wired to `app.py` startup/shutdown
-- `_run_job` follows DerivativeScheduler pattern: short claim tx → extract → short complete tx
-
-### Phase 0B — Contract tests (`backend/tests/test_metadata_lifecycle.py`)
-
-| Test | What it verifies | Status |
+| Caller | Old path | New path |
 | --- | --- | --- |
-| **3** | Worker claims queued jobs directly from SQLite | ✅ |
-| **4** | Claimed jobs move `queued -> running` atomically | ✅ |
-| **16** | Worker does not hold long write transactions during extraction | ✅ |
+| `rebuild_index_scope` (`indexer.py`) | `queue_metadata_index_paths` + `_enqueue_metadata_jobs_from_result` | `dispatch_metadata_index_paths` |
+| `_flush_staged_paths_to_job_queue` (`indexer.py`) | `queue_metadata_index_paths` + `_enqueue_metadata_jobs_from_result` | `dispatch_metadata_index_paths` |
+| `execute_rebuild_job` (`scan_worker.py`) | `queue_metadata_index_paths` (DB-only, Bug 1) | `dispatch_metadata_index_paths` |
+
+### Old memory queue APIs disabled
+
+- `_enqueue_metadata_jobs_from_result` → no-op compatibility stub (returns zero counters)
+- `_start_worker_if_needed` → no-op stub (DB-claim worker manages itself)
+- `_job_queue` is no longer populated by any production path
+
+### Worker start enabled
+
+- `metadata_worker.start()` enabled in `app.py` startup
+- `metadata_worker.stop()` enabled in `app.py` shutdown
+
+### Test updates
+
+| Test | Old assertion | New assertion |
+| --- | --- | --- |
+| **Test 1** | `_job_queue.qsize() == 0` (Bug 1: rebuild doesn't dispatch) | `dispatch_metadata_index_paths` is called; `_job_queue` empty (DB-claim) |
+| **Test 2** | scan calls `_enqueue_metadata_jobs_from_result`, rebuild doesn't | Both paths call `dispatch_metadata_index_paths` |
+| Staging flush tests | assert `_job_queue.qsize() == 1` after flush | assert `_job_queue.qsize() == 0` (dispatch doesn't push to memory) |
 
 ### Files changed
 
-- `backend/metadata_store/_schema.py` — additive migration + indexes
-- `backend/metadata_store/metadata_queue.py` — 6 new store primitives
-- `backend/metadata_store/__init__.py` — exports
-- `backend/metadata_store/types.py` — `library_id` field
-- `backend/indexer.py` — `MetadataLifecycleWorker` class + singleton + imports
-- `backend/app.py` — wire worker start/stop
-- `backend/tests/test_metadata_lifecycle.py` — **new** (Phase 0B)
-- `docs/testing/TEST_CATALOG.md` — updated
+- `backend/indexer.py` — added `dispatch_metadata_index_paths`, modified `rebuild_index_scope`, `_flush_staged_paths_to_job_queue`; made `_enqueue_metadata_jobs_from_result` and `_start_worker_if_needed` no-op stubs
+- `backend/scan_worker.py` — import `dispatch_metadata_index_paths` from `indexer` (not `queue_metadata_index_paths` from `metadata_store`); updated `execute_rebuild_job` body
+- `backend/app.py` — enabled `metadata_worker.start()` on startup, `metadata_worker.stop()` on shutdown
+- `backend/tests/test_scan_worker.py` — updated Test 1 for Phase 2 behavior
+- `backend/tests/test_indexer_staging.py` — updated Test 2 and 3 staging flush tests
 
 ---
 
 ## Test Results (current)
 
-All 45 related tests pass with no regressions:
+All 103 tests pass with no regressions:
 
 ```
 $ backend/venv/bin/python -m pytest \
-    backend/tests/test_scan_worker.py \
-    backend/tests/test_indexer_staging.py \
-    backend/tests/test_metadata_store_coverage.py \
-    backend/tests/test_catalog_status_ready_assets.py \
-    backend/tests/test_metadata_lifecycle.py \
     backend/tests/test_catalog_recovery.py \
+    backend/tests/test_catalog_status_ready_assets.py \
+    backend/tests/test_indexer_staging.py \
     backend/tests/test_libraries_catalog.py \
+    backend/tests/test_scan_worker.py \
+    backend/tests/test_metadata_lifecycle.py \
+    backend/tests/test_metadata_store_coverage.py \
     -v --timeout=60
-======================= 45 passed in 11.16s ========================
+======================= 103 passed in 17.83s ========================
 ```
-
----
-
-## Remaining known issues (resolved in plan)
-
-All pre-implementation audit issues resolved before Phase 0A:
-1. ✅ Migration uses `queued_at`, not `created_at`
-2. ✅ No `id` auto-increment in Phase 1; keep `path TEXT PK`
-3. ✅ Path-centric model with `library_id` as diagnostic only
-4. ✅ Mutual exclusion rule for old/new worker (Phase 2 disables old worker)
-5. ✅ `mtime_ns` vs `mtime` normalisation with REAL-vs-INTEGER tolerance (1000 ns)
-6. ✅ Transitional bridge wording consistent (no real work pushed to `_job_queue` after Phase 2)
 
 ---
 
 ## Next phase
 
-**Phase 2 — Convert scheduling to durable DB queue + wake worker**
+**Phase 3 — Completion invariant and stale guards**
 
-Change scan/rebuild/manual/startup scheduling so they persist/coalesce jobs and wake the DB-claim worker. No production path pushes real work into `_job_queue` after Phase 2.
+Unify current-metadata shortcut and worker success through one completion owner. Materialize `assets.metadata_state='done'` from the shortcut path. Add full DB-side stale/race guards with `path + mtime_ns + size` identity.
