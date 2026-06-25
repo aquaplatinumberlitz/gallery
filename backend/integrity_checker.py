@@ -6,6 +6,10 @@ import time
 from pathlib import Path
 
 from .metadata_store import _DB_LOCK, _connect
+from .metadata_store.identity import (
+    asset_matches_image_metadata_sql,
+    job_matches_image_metadata_sql,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,14 +62,14 @@ class IntegrityChecker:
         return total
 
     def _check_asset_done_no_metadata(self, conn) -> int:
-        rows = conn.execute("""
+        rows = conn.execute(f"""
             SELECT a.path, a.library_id, a.mtime_ns, a.size
             FROM assets a
             WHERE a.metadata_state = 'done'
               AND NOT EXISTS (
                 SELECT 1 FROM image_metadata im
                 WHERE im.path = a.path
-                  AND ABS(im.mtime_ns - COALESCE(a.mtime_ns, 0)) < 1000
+                  AND ({asset_matches_image_metadata_sql()})
                   AND im.size = a.size
               )
         """).fetchall()
@@ -104,7 +108,7 @@ class IntegrityChecker:
         return len(rows)
 
     def _check_job_done_asset_not_done(self, conn) -> int:
-        rows = conn.execute("""
+        rows = conn.execute(f"""
             SELECT mj.path, mj.mtime_ns, mj.size
             FROM metadata_index_jobs mj
             JOIN assets a ON a.path = mj.path
@@ -113,8 +117,8 @@ class IntegrityChecker:
               AND EXISTS (
                 SELECT 1 FROM image_metadata im
                 WHERE im.path = mj.path
-                  AND ((mj.mtime_ns IS NOT NULL AND ABS(im.mtime_ns - mj.mtime_ns) < 1000 AND im.size = mj.size)
-                    OR (mj.mtime_ns IS NULL AND im.size = mj.size))
+                  AND ({job_matches_image_metadata_sql()})
+                  AND im.size = mj.size
               )
         """).fetchall()
         for row in rows:

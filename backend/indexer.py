@@ -26,12 +26,14 @@ from .metadata_store import (
     MetadataIndexJob,
     _connect,
     _persist_metadata_index_jobs,
+    asset_matches_image_metadata_sql,
     claim_next_metadata_job,
     complete_metadata_job,
     fail_metadata_job,
     get_library_for_path,
     index_directory_tree,
     initialize_database,
+    job_matches_image_metadata_sql,
     list_recoverable_metadata_jobs,
     mark_metadata_job_stale,
     reconcile_library_assets,
@@ -422,10 +424,7 @@ def get_metadata_lifecycle_status(scope_path: str | Path | None = None) -> dict[
             SELECT count(*) AS cnt FROM image_metadata im
             JOIN assets a ON a.path = im.path
             WHERE (a.metadata_state IS NULL OR a.metadata_state != 'done')
-              AND (
-                (im.mtime_ns IS NOT NULL AND a.mtime_ns IS NOT NULL AND ABS(im.mtime_ns - a.mtime_ns) < 1000 AND im.size = a.size)
-                OR (im.mtime_ns IS NULL AND a.mtime_ns IS NOT NULL AND ABS(a.mtime_ns / 1000000000.0 - im.mtime) < 1e-3 AND im.size = a.size)
-              )
+              AND ({asset_matches_image_metadata_sql()}) AND im.size = a.size
               {a_scope}
             """,
             scope_params,
@@ -452,10 +451,7 @@ def get_metadata_lifecycle_status(scope_path: str | Path | None = None) -> dict[
               AND NOT EXISTS (
                 SELECT 1 FROM image_metadata im
                 WHERE im.path = a.path AND im.size = a.size
-                  AND (
-                    (a.mtime_ns IS NOT NULL AND im.mtime_ns IS NOT NULL AND ABS(im.mtime_ns - a.mtime_ns) < 1000)
-                    OR (a.mtime_ns IS NOT NULL AND im.mtime_ns IS NULL AND ABS(a.mtime_ns / 1000000000.0 - im.mtime) < 1e-3)
-                  )
+                  AND ({asset_matches_image_metadata_sql()})
               )
               {a_scope}
             """,
@@ -474,11 +470,7 @@ def get_metadata_lifecycle_status(scope_path: str | Path | None = None) -> dict[
               AND EXISTS (
                 SELECT 1 FROM image_metadata im
                 WHERE im.path = mj.path AND im.size = mj.size
-                  AND (
-                    (mj.mtime_ns IS NOT NULL AND im.mtime_ns IS NOT NULL AND ABS(im.mtime_ns - mj.mtime_ns) < 1000)
-                    OR (mj.mtime_ns IS NOT NULL AND im.mtime_ns IS NULL AND im.mtime = mj.mtime)
-                    OR (mj.mtime_ns IS NULL AND im.mtime_ns IS NULL AND im.mtime = mj.mtime)
-                  )
+                  AND ({job_matches_image_metadata_sql()})
               )
               {mj_scope}
             """,

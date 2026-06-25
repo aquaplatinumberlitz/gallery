@@ -18,6 +18,11 @@ package-lock.json
 
 # OS
 .DS_Store
+
+# Generated / transient
+data/
+gallery-e2e-backend.log
+index.html
 Thumbs.db
 
 # IDE

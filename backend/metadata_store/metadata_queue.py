@@ -11,6 +11,7 @@ from typing import Any
 
 from ..files import is_image_path, is_index_excluded_path
 from ._db import _DB_LOCK, MAX_METADATA_JOB_ATTEMPTS, METADATA_JOB_STATES, _connect
+from .identity import MTIME_NS_TOLERANCE, MTIME_SEC_TOLERANCE
 from .types import MetadataIndexJob, MetadataQueueResult
 
 
@@ -35,28 +36,23 @@ def _image_metadata_exists_for_job(
 ) -> bool:
     """Return whether image_metadata exists for the given job identity.
 
-    Primary check: ABS(image_metadata.mtime_ns - job.mtime_ns) < 1000 AND size matches.
-    Legacy fallback: image_metadata.mtime_ns IS NULL AND mtime == job.mtime AND size matches.
+    Uses the canonical three-branch identity rule:
+    - ns match when both sides have mtime_ns,
+    - seconds bridge when one side has NULL mtime_ns.
     """
-    if mtime_ns is not None:
-        row = conn.execute(
-            """
-            SELECT 1 FROM image_metadata
-            WHERE path = ?
-              AND ((mtime_ns IS NOT NULL AND ABS(mtime_ns - ?) < 1000)
-                OR (mtime_ns IS NULL AND mtime = ?))
-              AND size = ?
-            """,
-            (path, mtime_ns, mtime, size),
-        ).fetchone()
-    else:
-        row = conn.execute(
-            """
-            SELECT 1 FROM image_metadata
-            WHERE path = ? AND mtime_ns IS NULL AND mtime = ? AND size = ?
-            """,
-            (path, mtime, size),
-        ).fetchone()
+    row = conn.execute(
+        f"""
+        SELECT 1 FROM image_metadata
+        WHERE path = ?
+          AND (
+            (? IS NOT NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns - ?) < {MTIME_NS_TOLERANCE})
+            OR (? IS NOT NULL AND mtime_ns IS NULL AND ABS(? / 1000000000.0 - mtime) < {MTIME_SEC_TOLERANCE})
+            OR (? IS NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns / 1000000000.0 - ?) < {MTIME_SEC_TOLERANCE})
+          )
+          AND size = ?
+        """,
+        (path, mtime_ns, mtime_ns, mtime_ns, mtime_ns, mtime_ns, mtime, size),
+    ).fetchone()
     return row is not None
 
 
@@ -67,24 +63,18 @@ def _current_metadata_is_complete(
     size: int,
     mtime_ns: int | None = None,
 ) -> bool:
-    if mtime_ns is not None:
-        row = conn.execute(
-            """
-            SELECT metadata_json FROM image_metadata
-            WHERE path = ?
-              AND ((mtime_ns IS NOT NULL AND ABS(mtime_ns - ?) < 1000 AND size = ?)
-                OR (mtime_ns IS NULL AND mtime = ? AND size = ?))
-            """,
-            (path, mtime_ns, size, mtime, size),
-        ).fetchone()
-    else:
-        row = conn.execute(
-            """
-            SELECT metadata_json FROM image_metadata
-            WHERE path = ? AND mtime = ? AND size = ?
-            """,
-            (path, mtime, size),
-        ).fetchone()
+    row = conn.execute(
+        f"""
+        SELECT metadata_json FROM image_metadata
+        WHERE path = ?
+          AND (
+            (? IS NOT NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns - ?) < {MTIME_NS_TOLERANCE} AND size = ?)
+            OR (? IS NOT NULL AND mtime_ns IS NULL AND ABS(? / 1000000000.0 - mtime) < {MTIME_SEC_TOLERANCE} AND size = ?)
+            OR (? IS NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns / 1000000000.0 - ?) < {MTIME_SEC_TOLERANCE} AND size = ?)
+          )
+        """,
+        (path, mtime_ns, mtime_ns, size, mtime_ns, mtime_ns, size, mtime_ns, mtime, size),
+    ).fetchone()
     if row is None:
         return False
     return bool(row["metadata_json"])
@@ -169,27 +159,23 @@ def _mark_current_metadata_done(conn: sqlite3.Connection, job: MetadataIndexJob,
 def _update_asset_done(conn: sqlite3.Connection, job: MetadataIndexJob, now: float) -> None:
     """Update assets.metadata_state='done' for the given job identity.
 
-    Primary match uses mtime_ns (same unit). Falls back to seconds tolerance
-    for legacy rows without mtime_ns.
+    Two branches (assets has no ``mtime`` column):
+    - ns match when both sides have mtime_ns,
+    - seconds bridge when the job has no mtime_ns but assets has mtime_ns.
     """
-    if job.mtime_ns is not None:
-        conn.execute(
-            """
-            UPDATE assets
-            SET metadata_state='done'
-            WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=?
-            """,
-            (job.path, job.mtime_ns, job.size),
-        )
-    else:
-        conn.execute(
-            """
-            UPDATE assets
-            SET metadata_state='done'
-            WHERE path=? AND ABS(mtime_ns / 1_000_000_000.0 - ?) < 1e-3 AND size=?
-            """,
-            (job.path, job.mtime, job.size),
-        )
+    conn.execute(
+        f"""
+        UPDATE assets
+        SET metadata_state='done'
+        WHERE path=?
+          AND (
+            (? IS NOT NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns - ?) < {MTIME_NS_TOLERANCE})
+            OR (? IS NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns / 1000000000.0 - ?) < {MTIME_SEC_TOLERANCE})
+          )
+          AND size=?
+        """,
+        (job.path, job.mtime_ns, job.mtime_ns, job.mtime_ns, job.mtime, job.size),
+    )
 
 
 def _persist_metadata_index_jobs(
@@ -601,77 +587,62 @@ def complete_metadata_job(
     now = time.time()
 
     # Check whether a matching asset row exists
-    if job.mtime_ns is not None:
-        asset_match = conn.execute(
-            """
-            SELECT 1 FROM assets
-            WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=?
-            """,
-            (job.path, job.mtime_ns, job.size),
-        ).fetchone()
-    else:
-        # Mirror _update_asset_done: convert asset mtime_ns to seconds with tolerance
-        asset_match = conn.execute(
-            """
-            SELECT 1 FROM assets
-            WHERE path=? AND ABS(COALESCE(mtime_ns, 0) / 1000000000.0 - ?) < 1e-3 AND size=?
-            """,
-            (job.path, job.mtime, job.size),
-        ).fetchone()
+    # Two branches: assets has no ``mtime`` column, so the seconds bridge
+    # only goes one direction (job has NULL mtime_ns → convert assets.mtime_ns).
+    asset_match = conn.execute(
+        f"""
+        SELECT 1 FROM assets
+        WHERE path=?
+          AND (
+            (? IS NOT NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns - ?) < {MTIME_NS_TOLERANCE})
+            OR (? IS NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns / 1000000000.0 - ?) < {MTIME_SEC_TOLERANCE})
+          )
+          AND size=?
+        """,
+        (job.path, job.mtime_ns, job.mtime_ns, job.mtime_ns, job.mtime, job.size),
+    ).fetchone()
 
     if asset_match is None:
-        # No matching asset row — check whether any asset exists for this path
         any_asset = conn.execute(
             "SELECT 1 FROM assets WHERE path = ?",
             (job.path,),
         ).fetchone()
         if any_asset is None:
-            if job.mtime_ns is not None:
-                conn.execute(
-                    """
-                    UPDATE metadata_index_jobs
-                    SET state='skipped', error=NULL, finished_at=?, updated_at=?
-                    WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=?
-                    """,
-                    (now, now, job.path, job.mtime_ns, job.size),
-                )
-            else:
-                conn.execute(
-                    """
-                    UPDATE metadata_index_jobs
-                    SET state='skipped', error=NULL, finished_at=?, updated_at=?
-                    WHERE path=? AND mtime=? AND size=?
-                    """,
-                    (now, now, job.path, job.mtime, job.size),
-                )
+            conn.execute(
+                f"""
+                UPDATE metadata_index_jobs
+                SET state='skipped', error=NULL, finished_at=?, updated_at=?
+                WHERE path=?
+                  AND (
+                    (? IS NOT NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns - ?) < {MTIME_NS_TOLERANCE})
+                    OR (? IS NOT NULL AND mtime_ns IS NULL AND ABS(? / 1000000000.0 - mtime) < {MTIME_SEC_TOLERANCE})
+                    OR (? IS NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns / 1000000000.0 - ?) < {MTIME_SEC_TOLERANCE})
+                  )
+                  AND size=?
+                """,
+                (now, now, job.path, job.mtime_ns, job.mtime_ns, job.mtime_ns, job.mtime_ns, job.mtime_ns, job.mtime, job.size),
+            )
         else:
             mark_metadata_job_stale(conn, job)
         return
 
-    if job.mtime_ns is not None:
-        conn.execute(
-            """
-            UPDATE metadata_index_jobs
-            SET state='done',
-                error=NULL,
-                finished_at=?,
-                updated_at=?
-            WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=?
-            """,
-            (now, now, job.path, job.mtime_ns, job.size),
-        )
-    else:
-        conn.execute(
-            """
-            UPDATE metadata_index_jobs
-            SET state='done',
-                error=NULL,
-                finished_at=?,
-                updated_at=?
-            WHERE path=? AND mtime=? AND size=?
-            """,
-            (now, now, job.path, job.mtime, job.size),
-        )
+    conn.execute(
+        f"""
+        UPDATE metadata_index_jobs
+        SET state='done',
+            error=NULL,
+            finished_at=?,
+            updated_at=?
+        WHERE path=?
+          AND (
+            (? IS NOT NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns - ?) < {MTIME_NS_TOLERANCE})
+            OR (? IS NOT NULL AND mtime_ns IS NULL AND ABS(? / 1000000000.0 - mtime) < {MTIME_SEC_TOLERANCE})
+            OR (? IS NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns / 1000000000.0 - ?) < {MTIME_SEC_TOLERANCE})
+          )
+          AND size=?
+        """,
+        (now, now, job.path, job.mtime_ns, job.mtime_ns, job.mtime_ns, job.mtime_ns, job.mtime_ns, job.mtime, job.size),
+    )
 
     _update_asset_done(conn, job, now)
 
