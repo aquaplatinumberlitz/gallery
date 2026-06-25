@@ -411,7 +411,7 @@ def dispatch_metadata_index_paths(
     """Full metadata lifecycle scheduling: durable jobs + in-memory dispatch + worker start."""
 ```
 
-Responsibilities (enforced in this order, under the existing `_DB_LOCK`):
+Responsibilities (enforced in this order):
 
 1. **Durable job creation/coalescing.** Delegate the DB-only row writes to the
    existing `queue_metadata_index_paths(...)` in `metadata_queue.py`
@@ -434,6 +434,13 @@ Responsibilities (enforced in this order, under the existing `_DB_LOCK`):
 6. **Counters/result reporting.** Return the same `{queued, coalesced,
    skipped, failed}` shape the callers already parse
    (`scan_worker.py:204-207`, `indexer.py:688-720`).
+
+Locking discipline:
+   - Only durable DB writes (step 1) run under `_DB_LOCK`.
+   - In-memory enqueue (step 2), worker start (step 3), and the asset
+     completion for short-circuited jobs (step 4) run *after* the DB lock
+     is released. This keeps SQLite write transactions short and avoids
+     holding `_DB_LOCK` across thread operations.
 
 Callers to migrate:
 
@@ -579,6 +586,19 @@ Implementation:
    should switch to joining on `asset_id`. That is documented in §7 Phase 4
    as a follow-up, not part of this refactor.
 
+7. **Multiple asset rows for the same path.** `metadata_index_jobs` uses
+   `path` as PK; `assets` uses `UNIQUE(library_id, path)`. The schema
+   therefore allows the same absolute path to appear under multiple
+   libraries. When the completion / stale guard finds multiple active asset
+   rows for `job.path` with matching `(mtime_ns, size)`, it MUST either:
+   - update all matching rows to `metadata_state='done'`, or
+   - explicitly skip (log WARNING) rather than updating an arbitrary single
+     row.
+   In practice the app guarantees that each absolute path belongs to exactly
+   one registered library (import roots do not overlap across libraries), so
+   the multi-match case indicates a misconfiguration. The completion helper
+   logs a warning if multiple asset rows match and updates all of them.
+
 ### 4.4 Startup recovery / rehydration
 
 Add `recover_metadata_index_jobs()` in `backend/indexer.py` (the runtime
@@ -616,6 +636,22 @@ recovery scoped):
   re-dispatched through the owner is either coalesced (no-op) or re-entered.
   Idempotency (§4.1 step 5) guarantees a single recovery pass sets all
   states correctly.
+- **Existing-row enqueue contract.** The DB-only persistence helper may
+  coalesce a row that is already `'queued'` and return it *outside* of
+  `result.enqueued`. Recovery must therefore not depend on the persist helper
+  returning freshly-enqueued rows. The recovery flow is:
+
+  ```
+  1. Load recoverable rows from metadata_index_jobs (store helper).
+  2. Reset 'running' → 'queued' (store helper).
+  3. For each recoverable row, push directly into _job_queue
+     (bypass the persist helper; no new SQLite write needed).
+  4. Ensure the metadata worker is started.
+  ```
+
+  This guarantees recovery re-poplates the in-memory queue regardless of
+  whether the DB row already existed. `_queued_keys` dedup prevents
+  double-enqueue against any concurrent dispatch call.
 - **Out of scope:** it must not touch `library_jobs`, `library_import_paths`,
   `catalog_rebuild_entries`, or `file_index`. Catalog recovery stays the
   catalog recovery owner.
@@ -740,13 +776,14 @@ include it. New rows must be appended to `docs/testing/TEST_CATALOG.md`.
      `indexer.extract_metadata` so we don't depend on PIL/A1111 parsing).
      Provide an `assets` row for the path with `metadata_state='pending'`.
    - Action: run `indexer._process_batch([job])`.
-   - Assert: `metadata_index_jobs.state='done'`,
-     `assets.metadata_state='done'`, and `complete_metadata_jobs` (the new
-     owner) — or the shared per-job transition — is the code path that wrote
-     both, not the divergent two-helper sequence. Also assert that if
-     `_upsert_asset_conn` would no-op (asset row removed), completion still
-     marks the job done and logs the missing asset rather than leaving the
-     job `running`.
+    - Assert: `metadata_index_jobs.state='done'`,
+      `assets.metadata_state='done'`, and `complete_metadata_jobs` (the new
+      owner) — or the shared per-job transition — is the code path that wrote
+      both, not the divergent two-helper sequence. Also assert that if
+      `_upsert_asset_conn` would no-op (asset row removed / no library match),
+      completion marks the job `'skipped'` (not `'done'`), does not attempt any
+      asset transition, and logs the missing asset rather than leaving the
+      job `'running'`.
    - Protects: Bug 3 (corrected form: completion is an owned invariant, not
      a sequencing side effect).
 
