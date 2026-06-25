@@ -179,6 +179,7 @@ jobs:
           GALLERY_METADATA_DB="$RUNNER_TEMP/gallery-e2e.db" \
           GALLERY_THUMBNAIL_CACHE_DIR="$RUNNER_TEMP/gallery-e2e-cache" \
           ENABLE_METRICS=false \
+          GALLERY_INTEGRITY_CHECK_ENABLED=false \
           python -m uvicorn backend.main:app --host 127.0.0.1 --port 4180 \
             >"$RUNNER_TEMP/gallery-e2e-backend.log" 2>&1 &
           for attempt in {1..60}; do
