@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import time
 from pathlib import Path
 from typing import Any
 
@@ -83,9 +84,27 @@ def test_metadata_indexing_sanitizes_pil_binary_info(
     queued = _persist_metadata_index_jobs([image_path], tmp_path)
     assert len(queued.enqueued) == 1
 
-    # Use new DB-claim worker pattern instead of old _process_batch
+    # Seed a matching asset row so complete_metadata_job can materialize done
     from backend.indexer import MetadataLifecycleWorker
-    from backend.metadata_store import claim_next_metadata_job
+    from backend.metadata_store import _DB_LOCK, _connect, claim_next_metadata_job, create_library
+
+    job_row_data = queued.enqueued[0]
+    create_library([tmp_path], name="TestLib")
+    with _DB_LOCK, _connect() as conn:
+        conn.execute(
+            """INSERT INTO assets (library_id, path, parent_path, name, type, mtime_ns, size,
+               indexed_at, metadata_state) VALUES (
+                 (SELECT id FROM libraries WHERE name = 'TestLib'), ?, ?, ?, 'image', ?, ?, ?, 'pending'
+               )""",
+            (
+                job_row_data.path,
+                str(Path(job_row_data.path).parent),
+                Path(job_row_data.path).name,
+                job_row_data.mtime_ns,
+                job_row_data.size,
+                time.time(),
+            ),
+        )
 
     job = claim_next_metadata_job()
     assert job is not None, "Should be able to claim the queued job"

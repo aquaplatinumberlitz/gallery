@@ -96,6 +96,7 @@ def check_file(filepath: Path, rel: Path) -> list[str]:
 
 
 def main() -> int:
+    """Run the ownership check and return 0 on success, 1 on violations."""
     errors: list[str] = []
     excluded_dirs = {"tests", "__pycache__"}
     excluded_files = {"__init__.py"}
