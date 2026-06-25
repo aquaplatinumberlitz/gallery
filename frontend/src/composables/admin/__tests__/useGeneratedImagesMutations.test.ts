@@ -4,11 +4,7 @@ import { defineComponent, h } from "vue";
 import { createPinia } from "pinia";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { queryKeys } from "@/query/keys";
-import {
-  clearGeneratedImages,
-  generateMissingImages,
-  refreshStaleGeneratedImages,
-} from "@/services/api";
+import { generateMissingImages } from "@/services/api";
 import { useGeneratedImagesMutations } from "../useGeneratedImagesMutations";
 
 const toast = { success: vi.fn(), error: vi.fn(), warning: vi.fn() };
@@ -16,8 +12,6 @@ const toast = { success: vi.fn(), error: vi.fn(), warning: vi.fn() };
 vi.mock("@/composables/useToast", () => ({ useToast: () => toast }));
 vi.mock("@/services/api", () => ({
   generateMissingImages: vi.fn(),
-  refreshStaleGeneratedImages: vi.fn(),
-  clearGeneratedImages: vi.fn(),
 }));
 
 function setup(libraryId = 1) {
@@ -44,14 +38,6 @@ beforeEach(() => {
     assets: 50,
     derivatives_considered: 100,
   });
-  vi.mocked(refreshStaleGeneratedImages).mockResolvedValue({
-    stale_derivatives: 3,
-    state: "queued",
-  });
-  vi.mocked(clearGeneratedImages).mockResolvedValue({
-    catalog_entries_cleared: 200,
-    files_deleted: 180,
-  });
 });
 
 describe("useGeneratedImagesMutations", () => {
@@ -64,26 +50,6 @@ describe("useGeneratedImagesMutations", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusLibrary(1) });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.libraryJobs(1) });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.jobsRoot() });
-    wrapper.unmount();
-  });
-
-  it("invalidates after rebuild", async () => {
-    const { invalidate, mutations, wrapper } = setup(1);
-
-    await mutations.rebuildMutation.mutateAsync();
-
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.generatedImages(1) });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusLibrary(1) });
-    wrapper.unmount();
-  });
-
-  it("invalidates browse roots after clear", async () => {
-    const { invalidate, mutations, wrapper } = setup(1);
-
-    await mutations.clearMutation.mutateAsync();
-
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.browseRoot(1) });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.browseInfiniteRoot(1) });
     wrapper.unmount();
   });
 
@@ -105,41 +71,12 @@ describe("useGeneratedImagesMutations", () => {
     wrapper.unmount();
   });
 
-  it("rebuildMutation calls global refresh action (no library scoping)", async () => {
+  it("does not export global mutations (rebuild/clear)", async () => {
     const { mutations, wrapper } = setup(1);
 
-    await mutations.rebuildMutation.mutateAsync();
-
-    expect(refreshStaleGeneratedImages).toHaveBeenCalled();
-    expect(refreshStaleGeneratedImages).not.toHaveBeenCalledWith(expect.any(Number));
-    wrapper.unmount();
-  });
-
-  it("clearMutation calls global clear action (no library scoping)", async () => {
-    const { mutations, wrapper } = setup(1);
-
-    await mutations.clearMutation.mutateAsync();
-
-    expect(clearGeneratedImages).toHaveBeenCalled();
-    expect(clearGeneratedImages).not.toHaveBeenCalledWith(expect.any(Number));
-    wrapper.unmount();
-  });
-
-  it("rebuildMutation shows stale count in toast", async () => {
-    const { mutations, wrapper } = setup(1);
-
-    await mutations.rebuildMutation.mutateAsync();
-
-    expect(toast.success).toHaveBeenCalledWith("Refresh queued for 3 stale items");
-    wrapper.unmount();
-  });
-
-  it("clearMutation toast says source images not affected", async () => {
-    const { mutations, wrapper } = setup(1);
-
-    await mutations.clearMutation.mutateAsync();
-
-    expect(toast.success).toHaveBeenCalledWith("Generated files cleared. Source images are not affected.");
+    expect(mutations).not.toHaveProperty("rebuildMutation");
+    expect(mutations).not.toHaveProperty("clearMutation");
+    expect(mutations).toHaveProperty("warmMutation");
     wrapper.unmount();
   });
 });

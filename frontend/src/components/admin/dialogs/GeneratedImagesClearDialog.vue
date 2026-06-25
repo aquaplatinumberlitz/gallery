@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-defineProps<{ open: boolean; pending: boolean }>();
+defineProps<{ open: boolean; pending: boolean; scopeLabel?: string }>();
 const emit = defineEmits<{ "update:open": [value: boolean]; confirm: [] }>();
 </script>
 
@@ -17,16 +17,16 @@ const emit = defineEmits<{ "update:open": [value: boolean]; confirm: [] }>();
   <Dialog :open="open" @update:open="emit('update:open', $event)">
     <DialogScrollContent class="max-w-md">
       <DialogHeader>
-        <DialogTitle>Clear generated files?</DialogTitle>
+        <DialogTitle>Clear generated files{{ scopeLabel }}?</DialogTitle>
         <DialogDescription>
-          Remove all generated thumbnail and preview files for this library. New previews will be created on demand when
+          Remove generated thumbnail and preview files{{ scopeLabel }}. New previews will be created on demand when
           assets are viewed. Source image files are not deleted.
         </DialogDescription>
       </DialogHeader>
       <DialogFooter>
         <Button variant="outline" :disabled="pending" @click="emit('update:open', false)">Cancel</Button>
         <Button variant="destructive" :disabled="pending" @click="emit('confirm')">
-          {{ pending ? "Clearing…" : "Clear generated files" }}
+          {{ pending ? "Clearing\u2026" : "Clear generated files" }}
         </Button>
       </DialogFooter>
     </DialogScrollContent>
