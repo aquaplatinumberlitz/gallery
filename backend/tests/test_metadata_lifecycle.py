@@ -32,7 +32,6 @@ from backend.metadata_store import (
     complete_metadata_job,
     get_metadata_index_status,
     initialize_database,
-    repair_inconsistent_asset_states,
 )
 from tests.conftest import create_test_image, create_test_png
 
@@ -92,7 +91,6 @@ def test_worker_claims_queued_jobs_directly_from_sqlite(
     After Phase 1, the worker's _claim_job calls claim_next_metadata_job() which
     claims directly from metadata_index_jobs. The old in-memory queue is not used.
     """
-    import backend.indexer as indexer
 
     image = tmp_path / "test.png"
     create_test_image(image)
@@ -443,7 +441,6 @@ def test_queued_jobs_survive_restart(
 ):
     """A queued metadata_index_job with matching file + asset is not affected
     by recovery; the worker later claims and completes it from SQLite."""
-    import backend.indexer as indexer
 
     root = tmp_path / "lib"
     root.mkdir()

@@ -57,7 +57,12 @@ def check_file(filepath: Path, rel: Path) -> list[str]:
 
         # Check for banned legacy symbols as direct attribute access
         for sym in BANNED_LEGACY_SYMBOLS:
-            if f".{sym}" in stripped or stripped.startswith(f"{sym} ") or re.match(rf"def\s+{re.escape(sym)}\s*\(", stripped) or re.match(rf"{re.escape(sym)}\s*[:=]", stripped):
+            if (
+                f".{sym}" in stripped
+                or stripped.startswith(f"{sym} ")
+                or re.match(rf"def\s+{re.escape(sym)}\s*\(", stripped)
+                or re.match(rf"{re.escape(sym)}\s*[:=]", stripped)
+            ):
                 errors.append(f"{rel}:{line_num} references banned legacy symbol '{sym}'")
 
         line_num += 1

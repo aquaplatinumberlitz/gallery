@@ -22,7 +22,7 @@ import pytest
 
 from backend import indexer, metadata_extract
 from backend.metadata_extract import safe_text, sanitize_metadata_for_json
-from backend.metadata_store import queue_metadata_index_paths
+from backend.metadata_store import _persist_metadata_index_jobs
 
 
 class _FakeImage:
@@ -80,7 +80,7 @@ def test_metadata_indexing_sanitizes_pil_binary_info(
     monkeypatch.setattr(metadata_extract.ImageOps, "exif_transpose", lambda img: img)
     monkeypatch.setattr(indexer, "METADATA_INDEXER_WORKER_SLEEP_SECONDS", 0)
 
-    queued = queue_metadata_index_paths([image_path], tmp_path)
+    queued = _persist_metadata_index_jobs([image_path], tmp_path)
     assert len(queued.enqueued) == 1
 
     # Use new DB-claim worker pattern instead of old _process_batch

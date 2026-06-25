@@ -72,6 +72,8 @@ run_docs() {
     "$PYTHON" scripts/check_test_docs.py
     echo "==> Test matrix catalog audit"
     "$PYTHON" scripts/audit_test_matrix.py --fail-on-gaps
+    echo "==> Metadata lifecycle ownership check"
+    "$PYTHON" scripts/check_metadata_lifecycle_ownership.py
 }
 
 COMMAND="${1:-help}"

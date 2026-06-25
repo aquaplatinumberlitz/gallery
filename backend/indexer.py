@@ -13,13 +13,16 @@ from typing import Any
 from fastapi import APIRouter
 
 from .config import (
-    METADATA_INDEXER_ENABLED,
-    METADATA_INDEXER_WORKER_SLEEP_SECONDS,
+    METADATA_INDEXER_ENABLED as METADATA_INDEXER_ENABLED,  # noqa: F401 — monkeypatched by tests
 )
-from .metadata_extract import ExtractedMetadata, extract_metadata
+from .config import (
+    METADATA_INDEXER_WORKER_SLEEP_SECONDS as METADATA_INDEXER_WORKER_SLEEP_SECONDS,  # noqa: F401 — monkeypatched by tests
+)
+from .metadata_extract import ExtractedMetadata as ExtractedMetadata  # noqa: F401 — monkeypatched by tests
+from .metadata_extract import extract_metadata
 from .metadata_store import (
-    MetadataIndexJob,
     _DB_LOCK,
+    MetadataIndexJob,
     _connect,
     _persist_metadata_index_jobs,
     claim_next_metadata_job,

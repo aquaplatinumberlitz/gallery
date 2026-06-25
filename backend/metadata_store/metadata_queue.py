@@ -82,7 +82,7 @@ def _metadata_job_from_path(path_value: str | Path, root_path: str | Path | None
 def _mark_current_metadata_done(conn: sqlite3.Connection, job: MetadataIndexJob, now: float) -> None:
     """Mark one metadata job done and materialize assets.metadata_state='done'.
 
-    This is called by the "already current" shortcut in queue_metadata_index_paths.
+    This is called by the "already current" shortcut in _persist_metadata_index_jobs.
     Makes the job row exist and then delegates to complete_metadata_job so all
     completion verification logic lives in one place.
     """

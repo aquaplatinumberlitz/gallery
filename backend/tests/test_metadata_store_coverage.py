@@ -20,7 +20,7 @@ Guarantees:
 * _scan_folder_counts returns zero counts when the folder cannot be scanned.
 * index_directory_tree follows symlinks safely, skips excluded paths, and
   respects include_metadata collection.
-* queue_metadata_index_paths coalesces, skips, and fails already-attempted jobs.
+* _persist_metadata_index_jobs coalesces, skips, and fails already-attempted jobs.
 * _current_metadata_is_complete and _metadata_job_from_path handle missing,
   excluded, and non-image paths.
 
@@ -28,7 +28,7 @@ Run when:
 * changing metadata_store.py folder index state, dimension upserts, metadata job
   lifecycle, stale/ignored cleanup, or directory tree indexing
 * adding new columns to folder_index_state or metadata_index_jobs schemas
-* tweaking queue_metadata_index_paths coalesce/skip/fail policy
+* tweaking _persist_metadata_index_jobs coalesce/skip/fail policy
 """
 
 from __future__ import annotations
@@ -47,6 +47,7 @@ from backend.metadata_store import (
     _current_metadata_is_complete,
     _metadata_job_from_path,
     _metadata_param,
+    _persist_metadata_index_jobs,
     _scan_folder_counts,
     cleanup_ignored_index,
     cleanup_stale_index,
@@ -61,7 +62,6 @@ from backend.metadata_store import (
     mark_metadata_jobs_failed,
     mark_metadata_jobs_running,
     mark_metadata_jobs_stale,
-    queue_metadata_index_paths,
     update_folder_index_state,
     upsert_image_dimensions,
     upsert_metadata_result,
@@ -345,7 +345,7 @@ def test_mark_metadata_jobs_running_updates_state(isolated_metadata_db: Path, tm
     image = tmp_path / "running.png"
     image.write_bytes(b"data")
     # First queue a job so a row exists
-    result = queue_metadata_index_paths([image])
+    result = _persist_metadata_index_jobs([image])
     assert len(result.enqueued) == 1
     job = result.enqueued[0]
 
@@ -364,7 +364,7 @@ def test_mark_metadata_jobs_done_updates_state(isolated_metadata_db: Path, tmp_p
 
     image = tmp_path / "done.png"
     image.write_bytes(b"data")
-    result = queue_metadata_index_paths([image])
+    result = _persist_metadata_index_jobs([image])
     job = result.enqueued[0]
 
     # Seed image_metadata so the stale guard passes (production caller
@@ -390,7 +390,7 @@ def test_mark_metadata_jobs_done_updates_state(isolated_metadata_db: Path, tmp_p
 def test_mark_metadata_jobs_stale_updates_state(isolated_metadata_db: Path, tmp_path: Path):
     image = tmp_path / "stale.png"
     image.write_bytes(b"data")
-    result = queue_metadata_index_paths([image])
+    result = _persist_metadata_index_jobs([image])
     job = result.enqueued[0]
 
     mark_metadata_jobs_stale([job])
@@ -405,7 +405,7 @@ def test_mark_metadata_jobs_stale_updates_state(isolated_metadata_db: Path, tmp_
 def test_mark_metadata_jobs_failed_truncates_error(isolated_metadata_db: Path, tmp_path: Path):
     image = tmp_path / "failed.png"
     image.write_bytes(b"data")
-    result = queue_metadata_index_paths([image])
+    result = _persist_metadata_index_jobs([image])
     job = result.enqueued[0]
 
     long_error = "x" * 5000
@@ -470,44 +470,44 @@ def test_metadata_job_from_path_uses_root_path(tmp_path: Path):
 
 
 # ---------------------------------------------------------------------------
-# queue_metadata_index_paths edge cases
+# _persist_metadata_index_jobs edge cases
 # ---------------------------------------------------------------------------
 
 
-def test_queue_metadata_index_paths_empty_input_returns_empty_result(isolated_metadata_db: Path):
-    result = queue_metadata_index_paths([])
+def test_persist_metadata_index_jobs_empty_input_returns_empty_result(isolated_metadata_db: Path):
+    result = _persist_metadata_index_jobs([])
     assert result.enqueued == []
     assert result.coalesced == 0
     assert result.skipped == 0
     assert result.failed == 0
 
 
-def test_queue_metadata_index_paths_skips_all_excluded(tmp_path: Path):
+def test_persist_metadata_index_jobs_skips_all_excluded(tmp_path: Path):
     excluded = tmp_path / "node_modules" / "pkg.png"
     excluded.parent.mkdir(parents=True)
     excluded.write_bytes(b"data")
-    result = queue_metadata_index_paths([excluded])
+    result = _persist_metadata_index_jobs([excluded])
     assert result.enqueued == []
 
 
-def test_queue_metadata_index_paths_coalesces_queued_job(isolated_metadata_db: Path, tmp_path: Path):
+def test_persist_metadata_index_jobs_coalesces_queued_job(isolated_metadata_db: Path, tmp_path: Path):
     image = tmp_path / "coalesce.png"
     image.write_bytes(b"data")
 
-    first = queue_metadata_index_paths([image])
+    first = _persist_metadata_index_jobs([image])
     assert len(first.enqueued) == 1
 
     # Second call with same file should coalesce (state stays queued)
-    second = queue_metadata_index_paths([image])
+    second = _persist_metadata_index_jobs([image])
     assert second.enqueued == []
     assert second.coalesced == 1
 
 
-def test_queue_metadata_index_paths_fails_after_max_attempts(isolated_metadata_db: Path, tmp_path: Path):
+def test_persist_metadata_index_jobs_fails_after_max_attempts(isolated_metadata_db: Path, tmp_path: Path):
     image = tmp_path / "maxfail.png"
     image.write_bytes(b"data")
 
-    first = queue_metadata_index_paths([image])
+    first = _persist_metadata_index_jobs([image])
     job = first.enqueued[0]
 
     # Mark failed with max attempts
@@ -519,7 +519,7 @@ def test_queue_metadata_index_paths_fails_after_max_attempts(isolated_metadata_d
             (ms.MAX_METADATA_JOB_ATTEMPTS, job.path),
         )
 
-    second = queue_metadata_index_paths([image])
+    second = _persist_metadata_index_jobs([image])
     assert second.enqueued == []
     assert second.failed == 1
 
@@ -846,13 +846,13 @@ def test_get_metadata_index_status_populated_db(isolated_metadata_db: Path, tmp_
     image.write_bytes(b"data")
 
     # Queue a job (queued state)
-    result = queue_metadata_index_paths([image])
+    result = _persist_metadata_index_jobs([image])
     assert len(result.enqueued) == 1
 
     # Create a second image + job to mark failed
     image2 = album / "broken.png"
     image2.write_bytes(b"data")
-    result2 = queue_metadata_index_paths([image2])
+    result2 = _persist_metadata_index_jobs([image2])
     failed_job = result2.enqueued[0]
     mark_metadata_jobs_failed([(failed_job, "extraction boom")])
 
@@ -890,8 +890,8 @@ def test_get_metadata_index_status_populated_db_with_path_scope(isolated_metadat
     outside_image.write_bytes(b"data")
 
     # Queue jobs in both albums
-    queue_metadata_index_paths([inside_image])
-    queue_metadata_index_paths([outside_image])
+    _persist_metadata_index_jobs([inside_image])
+    _persist_metadata_index_jobs([outside_image])
 
     # Scope to inside_album only
     status = get_metadata_index_status(path=inside_album)
@@ -907,20 +907,20 @@ def test_shortcut_marks_job_done_but_not_asset(
     """
     Purpose:
     Characterize Bug 2: the 'metadata already current' shortcut in
-    queue_metadata_index_paths calls _mark_current_metadata_done which
+    _persist_metadata_index_jobs calls _mark_current_metadata_done which
     updates metadata_index_jobs.state='done' but does NOT update
     assets.metadata_state='done'.
 
     Run when:
-    Changing queue_metadata_index_paths coalesce/skip/fail policy.
+    Changing _persist_metadata_index_jobs coalesce/skip/fail policy.
     """
     from backend.metadata_extract import ExtractedMetadata
     from backend.metadata_store import (
         _DB_LOCK,
         _connect,
+        _persist_metadata_index_jobs,
         create_library,
         get_metadata_index_status,
-        queue_metadata_index_paths,
         upsert_extracted_metadata,
     )
 
@@ -969,9 +969,9 @@ def test_shortcut_marks_job_done_but_not_asset(
             (str(image.resolve()),),
         )
 
-    # Call queue_metadata_index_paths - this should trigger the "already current"
+    # Call _persist_metadata_index_jobs - this should trigger the "already current"
     # shortcut because image_metadata exists with matching mtime/size
-    queue_metadata_index_paths([image])
+    _persist_metadata_index_jobs([image])
 
     # THE BUG: metadata_index_jobs.state='done' but assets.metadata_state is still 'reset'
     status = get_metadata_index_status(path=root)
@@ -1008,9 +1008,9 @@ def test_mark_metadata_jobs_done_stale_guard(
     from backend.metadata_store import (
         _DB_LOCK,
         _connect,
+        _persist_metadata_index_jobs,
         create_library,
         mark_metadata_jobs_done,
-        queue_metadata_index_paths,
     )
     from backend.metadata_store.metadata_queue import get_metadata_index_status
 
@@ -1029,7 +1029,7 @@ def test_mark_metadata_jobs_done_stale_guard(
     old_size = stat.st_size
 
     # Queue a metadata job for this version
-    result = queue_metadata_index_paths([image])
+    result = _persist_metadata_index_jobs([image])
     assert len(result.enqueued) == 1, "First queue should enqueue a job"
     # Simulate the file changing (new version with different mtime_ns/size)
 
