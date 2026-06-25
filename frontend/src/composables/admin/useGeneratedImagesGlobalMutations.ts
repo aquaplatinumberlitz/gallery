@@ -7,12 +7,19 @@ export function useGeneratedImagesGlobalMutations() {
   const queryClient = useQueryClient();
   const toast = useToast();
 
-  function invalidate() {
-    void Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["generated-images"] }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.jobsRoot() }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.statusRoot() }),
-    ]);
+  function invalidate(clear = false) {
+    const keys: Array<{ queryKey: readonly unknown[] }> = [
+      { queryKey: ["generated-images"] },
+      { queryKey: queryKeys.jobsRoot() },
+      { queryKey: queryKeys.statusRoot() },
+    ];
+    if (clear) {
+      keys.push(
+        { queryKey: ["browse"] },
+        { queryKey: ["browse-infinite"] },
+      );
+    }
+    void Promise.all(keys.map((k) => queryClient.invalidateQueries(k)));
   }
 
   const rebuildMutation = useMutation({
@@ -28,7 +35,7 @@ export function useGeneratedImagesGlobalMutations() {
     mutationFn: clearGeneratedImages,
     onSuccess: () => {
       toast.success("Generated files cleared across all libraries. Source images are not affected.");
-      invalidate();
+      invalidate(true);
     },
     onError: (error) => toast.error("Could not clear generated images", String(error)),
   });

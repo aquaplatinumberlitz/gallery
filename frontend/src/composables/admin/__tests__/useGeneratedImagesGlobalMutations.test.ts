@@ -54,7 +54,7 @@ describe("useGeneratedImagesGlobalMutations", () => {
     wrapper.unmount();
   });
 
-  it("clearMutation invalidates global queries", async () => {
+  it("clearMutation invalidates global queries + browse caches", async () => {
     const { invalidate, mutations, wrapper } = setup();
 
     await mutations.clearMutation.mutateAsync();
@@ -62,6 +62,8 @@ describe("useGeneratedImagesGlobalMutations", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["generated-images"] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs"] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["status"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["browse"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["browse-infinite"] });
     wrapper.unmount();
   });
 

@@ -34,15 +34,33 @@ const globalSummaryQuery = useQuery({
 
 const totalReady = computed(() => {
   const data = globalSummaryQuery.data.value;
-  if (!data || data.length === 0) return null;
+  if (!data) return null;
   return data.reduce((s, r) => s + r.ready_derivatives, 0);
 });
 
 const totalExpected = computed(() => {
   const data = globalSummaryQuery.data.value;
-  if (!data || data.length === 0) return null;
+  if (!data) return null;
   return data.reduce((s, r) => s + r.expected_derivatives, 0);
 });
+
+async function confirmClear() {
+  try {
+    await clearMutation.mutateAsync();
+    clearOpen.value = false;
+  } catch {
+    // toast handled in mutation onError
+  }
+}
+
+async function confirmRebuild() {
+  try {
+    await rebuildMutation.mutateAsync();
+    rebuildOpen.value = false;
+  } catch {
+    // toast handled in mutation onError
+  }
+}
 </script>
 
 <template>
@@ -152,11 +170,11 @@ const totalExpected = computed(() => {
           <dl class="grid gap-3 text-sm sm:grid-cols-2">
             <div class="flex items-center justify-between gap-3">
               <dt class="text-muted-foreground">Ready</dt>
-              <dd class="font-medium">{{ totalReady }}</dd>
+              <dd class="font-medium">{{ totalReady ?? "\u2014" }}</dd>
             </div>
             <div class="flex items-center justify-between gap-3">
               <dt class="text-muted-foreground">Expected</dt>
-              <dd class="font-medium">{{ totalExpected }}</dd>
+              <dd class="font-medium">{{ totalExpected ?? "\u2014" }}</dd>
             </div>
           </dl>
         </div>
@@ -207,13 +225,13 @@ const totalExpected = computed(() => {
       v-model:open="rebuildOpen"
       :pending="rebuildMutation.isPending.value"
       scope-label=" across all libraries"
-      @confirm="rebuildMutation.mutate()"
+      @confirm="confirmRebuild"
     />
     <GeneratedImagesClearDialog
       v-model:open="clearOpen"
       :pending="clearMutation.isPending.value"
       scope-label=" across all libraries"
-      @confirm="clearMutation.mutate()"
+      @confirm="confirmClear"
     />
   </main>
 </template>
