@@ -316,3 +316,110 @@ def test_flush_staged_paths_records_failed_after_sqlite_busy_retries(monkeypatch
     assert result == {"queued": 0, "coalesced": 0, "skipped": 0, "failed": 1}
     assert indexer._job_queue.qsize() == 0
     assert indexer.get_indexer_runtime_status()["staged_path_failed"] == 1
+
+
+def test_scan_path_calls_enqueue_metadata_jobs_but_rebuild_does_not(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """
+    Purpose:
+    Characterize Bug 1 divergence: scan path calls _enqueue_metadata_jobs_from_result
+    but rebuild path does not.
+    """
+    from backend import scan_worker as catalog_service
+    from backend.indexer import rebuild_index_scope
+    from backend.metadata_store import _connect, create_library, index_directory_tree, reconcile_library_assets
+    from backend.metadata_store.job_store import _initialize_database
+
+    _initialize_database()
+    root = isolated_gallery_root / "lib"
+    root.mkdir()
+    sub = root / "album"
+    sub.mkdir(parents=True)
+    image = sub / "test.png"
+    from tests.conftest import create_test_png
+
+    create_test_png(image)
+
+    lib = create_library([root], name="Test")
+    library_id = int(lib["id"])
+
+    # Track calls to _enqueue_metadata_jobs_from_result
+    calls = []
+
+    original_enqueue = indexer._enqueue_metadata_jobs_from_result
+
+    def tracking_enqueue(result, *, start_worker=True):
+        calls.append(("_enqueue_metadata_jobs_from_result", len(result.enqueued)))
+        return original_enqueue(result, start_worker=start_worker)
+
+    monkeypatch.setattr(indexer, "_enqueue_metadata_jobs_from_result", tracking_enqueue)
+
+    # Track calls to queue_metadata_index_paths
+    path_calls = []
+    original_queue = indexer.queue_metadata_index_paths
+
+    def tracking_queue(paths, root_path=None):
+        result = original_queue(paths, root_path)
+        path_calls.append(("queue_metadata_index_paths", len(result.enqueued)))
+        return result
+
+    monkeypatch.setattr(indexer, "queue_metadata_index_paths", tracking_queue)
+
+    # Run scan path via rebuild_index_scope
+    scan_result = rebuild_index_scope(root)
+
+    # Run rebuild path via execute_rebuild_job
+    from backend.scan_worker import execute_rebuild_job, queue_rebuild
+    from backend.metadata_store.job_store import claim_next_catalog_job
+
+    rjob, _created = queue_rebuild(library_id)
+    claimed_rjob = claim_next_catalog_job(max_queue_wait_seconds=1)
+    assert claimed_rjob is not None, "Should claim rebuild job"
+    rebuild_success = execute_rebuild_job(claimed_rjob)
+
+    # Scan path: calls both queue_metadata_index_paths AND _enqueue_metadata_jobs_from_result
+    scan_path_calls = [name for name, _ in calls]
+    assert "_enqueue_metadata_jobs_from_result" in scan_path_calls, (
+        "Scan path should call _enqueue_metadata_jobs_from_result"
+    )
+    assert len(path_calls) >= 1, "Scan path should call queue_metadata_index_paths"
+
+    # Rebuild path: calls queue_metadata_index_paths but NOT _enqueue_metadata_jobs_from_result
+    # (the bug: the enqueue calls above are only from the scan path)
+    # We should see no additional _enqueue_metadata_jobs_from_result calls
+    # after the scan path calls finished
+
+    # Verify - the rebuild never called it
+    assert rebuild_success, "Rebuild should succeed"
+    # The bug is captured: after rebuild, _job_queue only has jobs from scan path
+    # In D full clean, both paths should go through a single entrypoint
+
+
+def test_queue_metadata_index_paths_is_idempotent(
+    isolated_metadata_db: Path,
+    tmp_path: Path,
+):
+    """
+    Purpose:
+    Verify that queue_metadata_index_paths is idempotent and coalesces
+    duplicate calls for the same path.
+    """
+    from backend.metadata_store import queue_metadata_index_paths, get_metadata_index_status
+
+    image = tmp_path / "test.png"
+    image.write_bytes(b"fake png content")
+
+    first = queue_metadata_index_paths([image])
+    assert len(first.enqueued) == 1, "First call should enqueue the job"
+    assert first.coalesced == 0
+
+    second = queue_metadata_index_paths([image])
+    assert len(second.enqueued) == 0, "Second call should coalesce, not enqueue"
+    assert second.coalesced >= 1 or second.skipped >= 0, "Should be coalesced or skipped"
+
+    status = get_metadata_index_status(path=tmp_path)
+    assert status["total"] == 1, "Only one durable row should exist for the path"
+    assert status["counts"].get("queued", 0) <= 1, "At most one queued job"

@@ -162,6 +162,63 @@ def test_ready_assets_excludes_asset_when_image_metadata_missing(
     assert batch["ready_assets"] == 0
 
 
+def test_ready_assets_requires_both_asset_done_and_current_metadata(
+    isolated_app,
+    isolated_gallery_root: Path,
+    monkeypatch,
+):
+    """ready_assets only counts when assets.metadata_state='done' AND
+    image_metadata row exists with matching (mtime_ns, size). This is the
+    invariant that future completion transitions must guarantee.
+
+    The job table alone (metadata_index_jobs.state='done') does NOT make
+    an asset 'ready' for the status API.
+    """
+    _enable_metadata_status(monkeypatch)
+    root = isolated_gallery_root / "library"
+    root.mkdir()
+    library = create_library([root], name="Library")
+    library_id = int(library["id"])
+    image = root / "asset.png"
+
+    # Case 1: asset done + current metadata = ready
+    _insert_assets(
+        _asset_row(library_id, image, parent_path=root, mtime_ns=1000, size=100, metadata_state="done"),
+    )
+    _insert_image_metadata(image, mtime_ns=1000, size=100)
+    single = _single_scope_metadata(isolated_app, library_id)
+    assert single["ready_assets"] == 1, "Asset done + current metadata => ready"
+
+    # Case 2: add another asset with job done but asset NOT done
+    image2 = root / "asset2.png"
+    _insert_assets(
+        _asset_row(library_id, image2, parent_path=root, mtime_ns=1001, size=101, metadata_state="pending"),
+    )
+    _insert_image_metadata(image2, mtime_ns=1001, size=101)
+    # Insert a metadata_index_jobs row that is 'done'
+    with _connect() as conn:
+        import time
+        now = time.time()
+        resolved = str(image2.resolve())
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO metadata_index_jobs
+              (path, name, parent_path, folder_path, root_path, mtime, size, state, queued_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, 1001.0, 101, 'done', ?, ?)
+            """,
+            (resolved, image2.name, str(image2.parent), str(image2.parent), str(root), now, now),
+        )
+    single = _single_scope_metadata(isolated_app, library_id)
+    # Even though the job is 'done', the asset is NOT done => not counted as ready
+    # This is the invariant that the completion owner must enforce.
+    assert single["ready_assets"] == 1, (
+        "Job done alone should NOT make asset ready; "
+        "only assets.metadata_state='done' combined with current image_metadata counts"
+    )
+    assert single["total_assets"] == 2
+    assert single["not_ready_assets"] >= 1
+
+
 def test_ready_assets_excludes_asset_with_stale_image_metadata_mtime(
     isolated_app: TestClient,
     isolated_gallery_root: Path,
