@@ -82,8 +82,10 @@ class IntegrityChecker:
                   error, queued_at, finished_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', 0, NULL, ?, NULL, ?)
                 ON CONFLICT(path) DO UPDATE SET
-                  state = CASE WHEN excluded.state = 'queued' AND metadata_index_jobs.state IN ('queued', 'failed')
-                    THEN excluded.state ELSE metadata_index_jobs.state END,
+                  state = CASE
+                    WHEN metadata_index_jobs.state = 'running' THEN metadata_index_jobs.state
+                    ELSE 'queued'
+                  END,
                   updated_at = excluded.updated_at
             """,
                 (
@@ -147,12 +149,11 @@ class IntegrityChecker:
         rows = conn.execute("""
             SELECT id, cache_path FROM asset_derivatives
             WHERE status = 'ready'
-              AND cache_path IS NOT NULL
         """).fetchall()
         requeued = 0
         now = time.time()
         for row in rows:
-            if not Path(row["cache_path"]).is_file():
+            if row["cache_path"] is None or not Path(row["cache_path"]).is_file():
                 conn.execute(
                     "UPDATE asset_derivatives SET status = 'queued', last_error = ?, updated_at = ? WHERE id = ?",
                     ("integrity: file missing", now, row["id"]),
@@ -162,25 +163,27 @@ class IntegrityChecker:
 
     def _check_derivative_job_done_not_ready(self, conn) -> int:
         rows = conn.execute("""
-            SELECT ad.asset_id, ad.kind, ad.variant
+            SELECT ad.id, ad.cache_path, dj.id AS job_id
             FROM derivative_jobs dj
             JOIN asset_derivatives ad ON ad.id = dj.derivative_id
             WHERE dj.state = 'done'
               AND ad.status != 'ready'
-              AND EXISTS (
-                SELECT 1 FROM asset_derivatives ad2
-                WHERE ad2.asset_id = ad.asset_id AND ad2.kind = ad.kind AND ad2.variant = ad.variant
-                  AND ad2.status = 'ready'
-                  AND ad2.id >= ad.id
-              )
         """).fetchall()
         now = time.time()
+        fixed = 0
         for row in rows:
-            conn.execute(
-                "UPDATE asset_derivatives SET status = 'ready', updated_at = ? WHERE asset_id = ? AND kind = ? AND variant = ?",
-                (now, row["asset_id"], row["kind"], row["variant"]),
-            )
-        return len(rows)
+            if row["cache_path"] is not None and Path(row["cache_path"]).is_file():
+                conn.execute(
+                    "UPDATE asset_derivatives SET status = 'ready', updated_at = ? WHERE id = ? AND status != 'ready'",
+                    (now, row["id"]),
+                )
+                fixed += 1
+            else:
+                conn.execute(
+                    "UPDATE derivative_jobs SET state = 'failed', error = ?, updated_at = ? WHERE id = ? AND state = 'done'",
+                    ("integrity: cache file missing", now, row["job_id"]),
+                )
+        return fixed
 
     def _check_job_active_no_file(self, conn) -> int:
         rows = conn.execute("""
