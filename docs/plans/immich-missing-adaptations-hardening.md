@@ -468,6 +468,24 @@ later if needed. A `GET /api/maintenance/schema-check` route may be added later 
   `frontend/src/contracts/schemas/file-health-response.schema.json` (JSON Schema
   2020-12) — structure `$defs` similarly to the catalog schema doc.
 
+### L. Frontend style and library constraints
+
+- Use the existing Vue SFC + Composition API style already used in the repo.
+- Use TanStack Query through the existing query/composable pattern; do not add a
+  new server-state library.
+- Use the existing shadcn-vue/Reka-based primitives from
+  `frontend/src/components/ui/` for buttons, badges, skeletons, tables,
+  dialogs, popovers, tooltips, and separators.
+- Use `lucide-vue-next` icons for actions and status indicators; do not add a
+  new icon set.
+- Use the current Tailwind v4 + shadcn token classes and existing admin-page
+  patterns; do not introduce a new component library, charting library, or
+  global design system.
+- Keep the admin surfaces quiet, compact, and consistent with
+  `LibraryDetailPage.vue` and `MaintenancePage.vue`.
+- Do not widen the scope beyond wiring the completed UI to backend truth sources
+  and contracts.
+
 ## Implementation Order
 
 1. **Identity helper** — `backend/metadata_store/identity.py` + tests; refactor
