@@ -21,7 +21,7 @@ const jobsQuery = useQuery({
 });
 
 const globalSummaryQuery = useQuery({
-  queryKey: ["generated-images", "global-summary"],
+  queryKey: [...queryKeys.generatedImagesRoot(), "global-summary"],
   queryFn: async () => {
     const libraries = await fetchLibraries();
     const results = await Promise.all(

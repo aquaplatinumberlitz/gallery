@@ -12,6 +12,8 @@ export const normalizeBrowsePath = (path: string | null | undefined) => {
 };
 
 export const queryKeys = {
+  generatedImagesRoot: () => ["generated-images"] as const,
+
   generatedImages: (libraryId: number) => ["generated-images", "status", libraryId] as const,
 
   landingPages: () => ["landing-pages"] as const,
@@ -36,12 +38,16 @@ export const queryKeys = {
 
   job: (id: number) => ["jobs", id] as const,
 
+  browseAllRoot: () => ["browse"] as const,
+
   browseRoot: (libraryId: number) => ["browse", libraryId] as const,
 
   browse: (libraryId: number, path: string | null | undefined, limit: number, includeOffline = false) =>
     ["browse", libraryId, normalizeBrowsePath(path), limit, includeOffline] as const,
 
   folderChildren: (path: string) => ["folder-children", normalizeQueryPath(path)] as const,
+
+  browseInfiniteAllRoot: () => ["browse-infinite"] as const,
 
   browseInfiniteRoot: (libraryId: number) => ["browse-infinite", libraryId] as const,
 

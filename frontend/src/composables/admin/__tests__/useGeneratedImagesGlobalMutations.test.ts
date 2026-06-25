@@ -4,6 +4,7 @@ import { defineComponent, h } from "vue";
 import { createPinia } from "pinia";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clearGeneratedImages, refreshStaleGeneratedImages } from "@/services/api";
+import { queryKeys } from "@/query/keys";
 import { useGeneratedImagesGlobalMutations } from "../useGeneratedImagesGlobalMutations";
 
 const toast = { success: vi.fn(), error: vi.fn(), warning: vi.fn() };
@@ -48,9 +49,9 @@ describe("useGeneratedImagesGlobalMutations", () => {
 
     await mutations.rebuildMutation.mutateAsync();
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["generated-images"] });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs"] });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["status"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.generatedImagesRoot() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.jobsRoot() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusRoot() });
     wrapper.unmount();
   });
 
@@ -59,11 +60,11 @@ describe("useGeneratedImagesGlobalMutations", () => {
 
     await mutations.clearMutation.mutateAsync();
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["generated-images"] });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs"] });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["status"] });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["browse"] });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["browse-infinite"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.generatedImagesRoot() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.jobsRoot() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusRoot() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.browseAllRoot() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.browseInfiniteAllRoot() });
     wrapper.unmount();
   });
 

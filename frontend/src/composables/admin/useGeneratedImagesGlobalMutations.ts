@@ -9,14 +9,14 @@ export function useGeneratedImagesGlobalMutations() {
 
   function invalidate(clear = false) {
     const keys: Array<{ queryKey: readonly unknown[] }> = [
-      { queryKey: ["generated-images"] },
+      { queryKey: queryKeys.generatedImagesRoot() },
       { queryKey: queryKeys.jobsRoot() },
       { queryKey: queryKeys.statusRoot() },
     ];
     if (clear) {
       keys.push(
-        { queryKey: ["browse"] },
-        { queryKey: ["browse-infinite"] },
+        { queryKey: queryKeys.browseAllRoot() },
+        { queryKey: queryKeys.browseInfiniteAllRoot() },
       );
     }
     void Promise.all(keys.map((k) => queryClient.invalidateQueries(k)));
