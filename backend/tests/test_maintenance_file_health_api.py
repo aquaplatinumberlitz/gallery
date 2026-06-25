@@ -94,13 +94,16 @@ class TestPostFileHealthCheck:
         assert run["status"] == "ok"
         assert run["trigger"] == "manual"
         assert run["error"] is None
+        assert set(run["issues"].keys()) == FILE_HEALTH_ISSUES
+        assert set(run["repairs"].keys()) == FILE_HEALTH_REPAIRS
 
     def test_concurrency_returns_409(self, isolated_app: TestClient) -> None:
         integrity_checker.is_running = True
         try:
             resp = isolated_app.post("/api/maintenance/file-health/check")
             assert resp.status_code == 409
-            assert "already running" in resp.text
+            data = resp.json()
+            assert "already running" in data["detail"]
         finally:
             integrity_checker.is_running = False
 
@@ -114,3 +117,5 @@ class TestPostFileHealthCheck:
         data = resp.json()
         assert data["run"]["status"] == "error"
         assert "simulated crash" in data["run"]["error"]
+        assert data["run"]["issues"] == {k: 0 for k in FILE_HEALTH_ISSUES}
+        assert data["run"]["repairs"] == {k: 0 for k in FILE_HEALTH_REPAIRS}
