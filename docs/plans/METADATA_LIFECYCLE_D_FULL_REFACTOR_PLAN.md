@@ -35,10 +35,12 @@ target architecture and remove ambiguity that caused the original bug family.
    job is marked `'stale'`.
 
 4. **Stale guard identity.**
-   Minimum identity: `library_id` + normalised path + `mtime` + `size`. Since
-   `metadata_index_jobs` does not currently carry `library_id`, this plan
-   proposes a small additive migration (§5) to add it, mirroring how
-   `asset_derivatives` carries `asset_id` (`_schema.py:394`).
+   Job identity is `path + mtime_ns + size`. `library_id` is a secondary
+   diagnostic field (backfilled from the assets row at queue time), not a
+   required key component. Since `assets` uses `UNIQUE(library_id, path)` but
+   `metadata_index_jobs` is keyed by `path TEXT PK`, the completion guard
+   matches on `(path, mtime_ns, size)` and then checks `library_id` for
+   diagnostic logging when a cross-library mismatch is found.
 
 5. **In-memory queue bridge is transitional.**
    The existing `_job_queue` / `_queued_keys` / `_enqueue_metadata_jobs_from_result`
@@ -371,9 +373,8 @@ in-memory `_job_queue`. It only writes to SQLite and wakes the worker. The
 worker claims from SQLite.
 
 **Transitional bridge — mutual exclusion rule:**
-During Phases 1–4, `dispatch_metadata_index_paths` may also push to the old
-`_job_queue` for backward compatibility. Phase 5 removes this. However, the
-old in-memory worker and the new DB-claim worker must NOT both process
+
+The old in-memory worker and the new DB-claim worker must NOT both process
 metadata jobs in the same process.
 
 Rule:
@@ -383,13 +384,11 @@ Phase 1:  DB-claim worker introduced but not authoritative.
           Old _worker_loop processes _job_queue as today.
 Phase 2:  DB-claim worker becomes authoritative.
           Old _worker_loop is disabled (returns immediately or is replaced).
+          No production path pushes real work into _job_queue after this phase.
+          The old queue APIs (`_enqueue_metadata_jobs_from_result`, `_job_queue.put`)
+          become no-op/compatibility stubs until their removal in Phase 5.
 Phase 5:  Old _job_queue and _worker_loop code are removed entirely.
 ```
-
-This prevents double-extract/double-complete. The `_job_queue` push in
-`dispatch_metadata_index_paths` during Phases 2–4 exists only so that any
-code path still reading from `_job_queue` sees it as empty (no stranded items
-at removal time), not as an additional source of work.
 
 ### 5.2 Metadata worker (claims directly from SQLite)
 
@@ -448,7 +447,7 @@ Invariant enforced (single SQLite transaction):
 
 ```text
 PRE: image_metadata row exists for job.path with matching (mtime, size)
-     job identity must match the current asset row (path, mtime, size) — §5.4
+      job identity must match the current asset row (path, mtime_ns, size) — §5.4
 POST:
   - metadata_index_jobs.state='done', finished_at, updated_at
   - assets.metadata_state='done' for the matching asset row
@@ -476,7 +475,11 @@ Identity guard rule:
 > A job created for an old version of a file must not mark the current asset
 > done if the file changed, was deleted, was replaced, or moved.
 
-Minimum identity: `library_id` + normalised path + `mtime` + `size`.
+Minimum identity: `path + mtime_ns + size`. `library_id` is a secondary
+diagnostic field, not a required key component. The schema has
+`metadata_index_jobs.mtime REAL` (float seconds) and `assets.mtime_ns REAL`;
+the comparison must tolerate the precision difference (the existing
+`_is_job_current` at `indexer.py:224-229` already uses float comparison).
 
 Implementation:
 
@@ -486,8 +489,15 @@ Implementation:
    (`_schema.py:394`) and `derivative_jobs` carries `priority`
    (`_schema.py:418`).
 2. **DB-side guard in `complete_metadata_job`**: before writing, compare
-   `job.(library_id, path, mtime, size)` against the current `assets` row. If
-   they differ, mark the job `'stale'` and skip the asset transition.
+   `job.(path, mtime, size)` against the current `assets.(path, mtime_ns, size)`.
+   If they differ, mark the job `'stale'` and skip the asset transition.
+   `library_id` is cross-checked for diagnostic logging (WARNING if the job
+   path maps to a different library than expected).
+3. **`mtime` vs `mtime_ns` normalisation:** `metadata_index_jobs.mtime` is
+   `REAL` (float seconds from `Path.stat().st_mtime`). `assets.mtime_ns` is
+   `REAL` (`float(stat.st_mtime_ns)`, see `_asset_store.py:74`). The
+   comparison uses `abs(a.mtime_ns - j.mtime) < 1e-3` tolerance, matching the
+   existing `_is_job_current` approach (`indexer.py:224-229`).
 3. **Filesystem guard**: preserved by the existing `_is_job_current` pre-check
    in `_process_batch` (`indexer.py:224-229`).
 4. **Deleted / moved files**: if `Path(job.path).stat()` fails, mark the job
@@ -840,10 +850,9 @@ and wake the DB-claim worker. Do not use in-memory queue as source of work.
 Files:
 
 - `backend/indexer.py` — add `dispatch_metadata_index_paths(...)` which
-  persists via `_persist_metadata_index_jobs` and wakes the worker (no
-  `_job_queue` push in the final design); the old `_enqueue_metadata_jobs_from_result`
-  is disabled (replaced by DB-claim). The old `_job_queue` push in
-  `_flush_staged_paths_to_job_queue` is also removed or marked no-op.
+  persists via `_persist_metadata_index_jobs` and wakes the worker.
+  No real work is pushed into `_job_queue`; the old queue APIs are
+  disabled or replaced with no-op stubs.
 - `backend/scan_worker.py` — in `execute_rebuild_job` (`:311-315`), replace
   `queue_metadata_index_paths` with `dispatch_metadata_index_paths`.
 - `backend/indexer.py` — in `rebuild_index_scope` (`:688-720`) and
@@ -962,15 +971,16 @@ Files:
 | **Performance regression for large libraries** | `idx_metadata_index_jobs_claim` index covers the claim query. No full table scans. Worker claims one row at a time, same as derivative worker. |
 | **Startup recovery doing too much work** | Recovery only resets `running → queued` (one UPDATE) and repairs `done` mismatches (bounded by row count). Queued jobs need no recovery — they are claimable from SQLite. |
 | **Behavior changes for existing partially indexed DBs** | Repair pass is read-then-reconcile, never destructive. Legacy DBs get their stranded `queued` jobs processed by the new DB-claim worker for the first time — this is the intended behavior change. |
-| **Transitional bridge double-process** | Mutual-exclusion rule in §5.1: Phase 1 old worker runs alone; Phase 2+ DB-claim worker is authoritative and old worker disabled. `_job_queue` push exists only as a no-op fallback during Phases 2–4. |
+| **Transitional bridge double-process** | Mutual-exclusion rule in §5.1: Phase 1 old worker runs alone; Phase 2+ DB-claim worker is authoritative and old worker disabled. After Phase 2, no production path pushes real work into `_job_queue`; old queue APIs are no-op/compat stubs until Phase 5 removal. |
 | **PK migration (path → id)** | Deferred to Phase 5 if needed. The Phase 1–5 claim query uses `(state, priority, queued_at)` ordering on the existing `path PK` — no auto-increment id required. |
 
 ## 11. Acceptance criteria
 
 - [ ] This plan targets **D full clean**: `metadata_index_jobs` is the durable
   runtime queue; the metadata worker claims jobs directly from SQLite.
-- [ ] The in-memory queue bridge is transitional (Phases 1–4) and removed in
-  Phase 5.
+- [ ] The in-memory queue bridge is transitional: Phase 1 old worker runs
+  alone; Phase 2+ DB-claim worker authoritative, old worker disabled; removed
+  in Phase 5.
 - [ ] `DerivativeScheduler` is the local reference implementation; the metadata
   worker follows the same claim/complete/recover pattern.
 - [ ] Scan and rebuild use the same scheduling entrypoint
