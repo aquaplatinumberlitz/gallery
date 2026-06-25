@@ -713,3 +713,264 @@ def test_crash_between_upsert_and_completion(
     assert asset_final["metadata_state"] == "done", (
         f"Asset should be 'done' after re-completion, got '{asset_final['metadata_state']}'"
     )
+
+
+# ---------------------------------------------------------------------------
+# Migration test: legacy v1 DB missing additive columns
+# ---------------------------------------------------------------------------
+
+
+def test_legacy_v1_db_migration_adds_all_columns(
+    isolated_metadata_db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A legacy v1 database missing post-v1 additive columns is safely migrated
+    by initialize_database() and recover_metadata_index_jobs() does not crash.
+
+    Creates a minimal v1 schema, sets PRAGMA user_version=1, then calls
+    initialize_database() and recover_metadata_index_jobs() to verify all
+    additive columns/indexes exist and recovery runs without error.
+    """
+    import backend.metadata_store._db as _db
+    from backend.metadata_store import initialize_database
+
+    # Force re-initialization by clearing the global flag
+    _db._DB_INITIALIZED = False
+
+    # Connect directly to the isolated DB and create a minimal v1 schema
+    # that *intentionally* misses post-v1 columns
+    conn = sqlite3.connect(str(isolated_metadata_db))
+    conn.row_factory = sqlite3.Row
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS image_metadata (
+          id INTEGER PRIMARY KEY,
+          path TEXT NOT NULL UNIQUE,
+          name TEXT NOT NULL,
+          mtime REAL,
+          mtime_ns INTEGER,
+          size INTEGER,
+          width INTEGER,
+          height INTEGER,
+          prompt TEXT,
+          negative_prompt TEXT,
+          model TEXT,
+          sampler TEXT,
+          seed TEXT,
+          steps INTEGER,
+          cfg_scale REAL,
+          raw_metadata_text TEXT,
+          metadata_json TEXT,
+          indexed_at REAL
+        );
+        CREATE VIRTUAL TABLE IF NOT EXISTS image_metadata_fts USING fts5(
+          name, prompt, negative_prompt, model, sampler, raw_metadata_text,
+          content='image_metadata', content_rowid='id', tokenize='unicode61'
+        );
+        CREATE VIRTUAL TABLE IF NOT EXISTS image_metadata_fts_trigram USING fts5(
+          name, prompt, negative_prompt, model, sampler, raw_metadata_text,
+          content='image_metadata', content_rowid='id',
+          tokenize='trigram', content='image_metadata_fts'
+        );
+        CREATE TABLE IF NOT EXISTS metadata_index_jobs (
+          path TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          parent_path TEXT NOT NULL,
+          mtime REAL,
+          size INTEGER,
+          state TEXT NOT NULL DEFAULT 'queued',
+          attempts INTEGER NOT NULL DEFAULT 0,
+          queued_at REAL,
+          started_at REAL,
+          finished_at REAL,
+          updated_at REAL
+        );
+        CREATE TABLE IF NOT EXISTS assets (
+          library_id INTEGER NOT NULL,
+          path TEXT NOT NULL,
+          parent_path TEXT NOT NULL,
+          name TEXT NOT NULL,
+          type TEXT NOT NULL DEFAULT 'image',
+          mtime_ns REAL,
+          size INTEGER,
+          width INTEGER,
+          height INTEGER,
+          indexed_at REAL,
+          metadata_state TEXT NOT NULL DEFAULT 'pending',
+          offline INTEGER NOT NULL DEFAULT 0,
+          deleted_at REAL,
+          UNIQUE(library_id, path)
+        );
+        CREATE TABLE IF NOT EXISTS image_dimensions (
+          id INTEGER PRIMARY KEY,
+          path TEXT NOT NULL UNIQUE,
+          width INTEGER,
+          height INTEGER,
+          indexed_at REAL
+        );
+        CREATE TABLE IF NOT EXISTS folder_index_state (
+          folder_path TEXT PRIMARY KEY,
+          state TEXT NOT NULL DEFAULT 'pending',
+          last_error TEXT,
+          indexed_at REAL,
+          updated_at REAL
+        );
+        CREATE TABLE IF NOT EXISTS library_jobs (
+          id INTEGER PRIMARY KEY,
+          library_id INTEGER NOT NULL,
+          type TEXT NOT NULL,
+          state TEXT NOT NULL DEFAULT 'queued',
+          scope_path TEXT,
+          created_at REAL,
+          started_at REAL,
+          completed_at REAL,
+          error_message TEXT
+        );
+        CREATE TABLE IF NOT EXISTS derivative_jobs (
+          id INTEGER PRIMARY KEY,
+          derivative_id INTEGER NOT NULL,
+          priority INTEGER NOT NULL DEFAULT 3,
+          state TEXT NOT NULL DEFAULT 'queued',
+          attempts INTEGER NOT NULL DEFAULT 0,
+          created_at REAL,
+          started_at REAL,
+          completed_at REAL,
+          updated_at REAL,
+          error_message TEXT
+        );
+        CREATE TABLE IF NOT EXISTS asset_derivatives (
+          id INTEGER PRIMARY KEY,
+          asset_id INTEGER NOT NULL,
+          kind TEXT NOT NULL,
+          variant TEXT NOT NULL,
+          source_mtime_ns REAL,
+          source_size INTEGER,
+          status TEXT NOT NULL DEFAULT 'queued',
+          cache_path TEXT,
+          byte_size INTEGER,
+          error_message TEXT,
+          updated_at REAL,
+          UNIQUE(asset_id, kind, variant)
+        );
+        CREATE TABLE IF NOT EXISTS file_index (
+          path TEXT NOT NULL,
+          name TEXT NOT NULL,
+          parent_path TEXT NOT NULL,
+          type TEXT NOT NULL DEFAULT 'file',
+          mtime_ns REAL,
+          size INTEGER,
+          indexed_at REAL,
+          PRIMARY KEY(path, parent_path)
+        );
+        CREATE TABLE IF NOT EXISTS libraries (
+          id INTEGER PRIMARY KEY,
+          name TEXT NOT NULL,
+          scan_interval_hours REAL NOT NULL DEFAULT 24
+        );
+        CREATE TABLE IF NOT EXISTS library_exclusion_patterns (
+          id INTEGER PRIMARY KEY,
+          library_id INTEGER NOT NULL,
+          pattern TEXT NOT NULL,
+          position INTEGER NOT NULL DEFAULT 0,
+          UNIQUE(library_id, pattern),
+          UNIQUE(library_id, position)
+        );
+        CREATE TABLE IF NOT EXISTS catalog_rebuild_entries (
+          job_id INTEGER NOT NULL,
+          path TEXT NOT NULL,
+          library_id INTEGER NOT NULL,
+          parent_path TEXT NOT NULL,
+          name TEXT NOT NULL,
+          type TEXT NOT NULL,
+          mtime_ns REAL,
+          size INTEGER,
+          width INTEGER,
+          height INTEGER,
+          metadata_state TEXT,
+          PRIMARY KEY(job_id, path)
+        );
+        PRAGMA user_version = 1;
+    """)
+    conn.close()
+
+    # Now call initialize_database() — this should run _ensure_post_v1_additive_columns
+    initialize_database()
+
+    # Verify the critical additive columns exist by querying each table
+    with _DB_LOCK, sqlite3.connect(str(isolated_metadata_db)) as check:
+        check.row_factory = sqlite3.Row
+
+        # metadata_index_jobs additive columns
+        cols = {r[1] for r in check.execute("PRAGMA table_info(metadata_index_jobs)").fetchall()}
+        for col in ("folder_path", "root_path", "library_id", "priority", "mtime_ns"):
+            assert col in cols, f"metadata_index_jobs missing column '{col}' after migration"
+
+        # image_metadata additive columns
+        cols = {r[1] for r in check.execute("PRAGMA table_info(image_metadata)").fetchall()}
+        for col in (
+            "format",
+            "mode",
+            "has_alpha",
+            "updated_at",
+            "tool",
+            "scheduler",
+            "model_hash",
+            "lora_text",
+            "generation_time",
+            "clip_skip",
+            "hires_upscale",
+            "hires_steps",
+            "denoising_strength",
+            "vae",
+            "ensd",
+            "aesthetic_score",
+            "date",
+            "aspect_ratio",
+        ):
+            assert col in cols, f"image_metadata missing column '{col}' after migration"
+
+        # file_index additive columns
+        cols = {r[1] for r in check.execute("PRAGMA table_info(file_index)").fetchall()}
+        for col in ("library_id", "mtime_ns", "last_seen_scan_job_id"):
+            assert col in cols, f"file_index missing column '{col}' after migration"
+
+        # assets additive columns
+        cols = {r[1] for r in check.execute("PRAGMA table_info(assets)").fetchall()}
+        for col in ("mime_type", "duration_ms", "codec", "last_seen_scan_job_id"):
+            assert col in cols, f"assets missing column '{col}' after migration"
+
+        # library_jobs additive columns
+        cols = {r[1] for r in check.execute("PRAGMA table_info(library_jobs)").fetchall()}
+        for col in (
+            "scope_path",
+            "trigger",
+            "priority",
+            "discovered_assets",
+            "created_assets",
+            "updated_assets",
+            "offline_assets",
+            "metadata_queued_assets",
+        ):
+            assert col in cols, f"library_jobs missing column '{col}' after migration"
+
+        # Verify indexes exist
+        idx_info = {r[1] for r in check.execute("SELECT * FROM sqlite_master WHERE type='index'").fetchall()}
+        for idx in (
+            "idx_metadata_index_jobs_claim",
+            "idx_metadata_index_jobs_library_state",
+            "idx_assets_metadata_state",
+            "idx_image_metadata_mtime_size",
+        ):
+            assert idx in idx_info, f"Missing index '{idx}' after migration"
+
+    # Verify recover_metadata_index_jobs() does not crash on the migrated DB
+    import backend.indexer as indexer_mod
+    from backend.indexer import recover_metadata_index_jobs
+
+    # Reset the module-level initialized flag so recovery uses this DB
+    monkeypatch.setattr(indexer_mod, "metadata_worker", type("FakeWorker", (), {"wake": lambda self: None})())
+    result = recover_metadata_index_jobs()
+    assert isinstance(result, dict)
+    assert "running_reset" in result
+    assert "done_repaired" in result
+    assert "done_demoted" in result
+    assert "done_skipped" in result

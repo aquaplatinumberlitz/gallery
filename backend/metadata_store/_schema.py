@@ -112,6 +112,46 @@ def initialize_database() -> None:
         _db._DB_INITIALIZED_PATH = _gallery_metadata_db()
 
 
+def _ensure_post_v1_additive_columns(conn: sqlite3.Connection) -> None:
+    """Run additive column/index migrations for post-v1 schemas.
+
+    Safe to call on any database version — uses ALTER TABLE ADD COLUMN
+    which is idempotent (``_ensure_column`` catches duplicate-column errors).
+    Covers all columns and indexes that were added after the initial v1 schema.
+    """
+    _ensure_column(conn, "image_metadata", "format", "TEXT")
+    _ensure_column(conn, "image_metadata", "mode", "TEXT")
+    _ensure_column(conn, "image_metadata", "has_alpha", "INTEGER")
+    _ensure_column(conn, "image_metadata", "updated_at", "REAL")
+    _ensure_column(conn, "image_metadata", "tool", "TEXT")
+    _ensure_column(conn, "image_metadata", "scheduler", "TEXT")
+    _ensure_column(conn, "image_metadata", "model_hash", "TEXT")
+    _ensure_column(conn, "image_metadata", "lora_text", "TEXT")
+    _ensure_column(conn, "image_metadata", "generation_time", "REAL")
+    _ensure_column(conn, "image_metadata", "clip_skip", "INTEGER")
+    _ensure_column(conn, "image_metadata", "hires_upscale", "REAL")
+    _ensure_column(conn, "image_metadata", "hires_steps", "INTEGER")
+    _ensure_column(conn, "image_metadata", "denoising_strength", "REAL")
+    _ensure_column(conn, "image_metadata", "vae", "TEXT")
+    _ensure_column(conn, "image_metadata", "ensd", "INTEGER")
+    _ensure_column(conn, "image_metadata", "aesthetic_score", "REAL")
+    _ensure_column(conn, "image_metadata", "date", "TEXT")
+    _ensure_column(conn, "image_metadata", "aspect_ratio", "TEXT")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_image_metadata_mtime_size  ON image_metadata(path, mtime, size)")
+    _ensure_column(conn, "metadata_index_jobs", "folder_path", "TEXT NOT NULL DEFAULT ''")
+    _ensure_column(conn, "metadata_index_jobs", "root_path", "TEXT NOT NULL DEFAULT ''")
+    _ensure_column(conn, "metadata_index_jobs", "library_id", "INTEGER")
+    _ensure_column(conn, "metadata_index_jobs", "priority", "INTEGER NOT NULL DEFAULT 3")
+    _ensure_catalog_schema(conn)
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_metadata_index_jobs_claim  ON metadata_index_jobs(state, priority, queued_at)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_metadata_index_jobs_library_state  ON metadata_index_jobs(library_id, state)"
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_assets_metadata_state  ON assets(metadata_state)")
+
+
 def _initialize_database_conn(conn: sqlite3.Connection) -> None:
     current_version = conn.execute("PRAGMA user_version").fetchone()[0]
     has_application_tables = _database_has_application_tables(conn)
@@ -122,20 +162,7 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
 
     if current_version == 1:
         _cleanup_ignored_index_conn(conn)
-        # Additive migrations for metadata_index_jobs (post-v1 columns)
-        _ensure_column(conn, "metadata_index_jobs", "folder_path", "TEXT NOT NULL DEFAULT ''")
-        _ensure_column(conn, "metadata_index_jobs", "root_path", "TEXT NOT NULL DEFAULT ''")
-        _ensure_column(conn, "metadata_index_jobs", "library_id", "INTEGER")
-        _ensure_column(conn, "metadata_index_jobs", "priority", "INTEGER NOT NULL DEFAULT 3")
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_metadata_index_jobs_claim"
-            "  ON metadata_index_jobs(state, priority, queued_at)"
-        )
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_metadata_index_jobs_library_state"
-            "  ON metadata_index_jobs(library_id, state)"
-        )
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_assets_metadata_state  ON assets(metadata_state)")
+        _ensure_post_v1_additive_columns(conn)
         return
 
     if current_version == 0 and has_application_tables:
@@ -463,54 +490,7 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
               ON catalog_rebuild_entries(library_id, parent_path);
             """
     )
-    _ensure_column(conn, "image_metadata", "format", "TEXT")
-    _ensure_column(conn, "image_metadata", "mode", "TEXT")
-    _ensure_column(conn, "image_metadata", "has_alpha", "INTEGER")
-    _ensure_column(conn, "image_metadata", "updated_at", "REAL")
-    _ensure_column(conn, "image_metadata", "tool", "TEXT")
-    _ensure_column(conn, "image_metadata", "scheduler", "TEXT")
-    _ensure_column(conn, "image_metadata", "model_hash", "TEXT")
-    _ensure_column(conn, "image_metadata", "lora_text", "TEXT")
-    _ensure_column(conn, "image_metadata", "generation_time", "REAL")
-    _ensure_column(conn, "image_metadata", "clip_skip", "INTEGER")
-    _ensure_column(conn, "image_metadata", "hires_upscale", "REAL")
-    _ensure_column(conn, "image_metadata", "hires_steps", "INTEGER")
-    _ensure_column(conn, "image_metadata", "denoising_strength", "REAL")
-    _ensure_column(conn, "image_metadata", "vae", "TEXT")
-    _ensure_column(conn, "image_metadata", "ensd", "INTEGER")
-    _ensure_column(conn, "image_metadata", "aesthetic_score", "REAL")
-    _ensure_column(conn, "image_metadata", "date", "TEXT")
-    _ensure_column(conn, "image_metadata", "aspect_ratio", "TEXT")
-    conn.execute(
-        """
-            CREATE INDEX IF NOT EXISTS idx_image_metadata_mtime_size
-              ON image_metadata(path, mtime, size)
-            """
-    )
-    _ensure_column(conn, "metadata_index_jobs", "folder_path", "TEXT NOT NULL DEFAULT ''")
-    _ensure_column(conn, "metadata_index_jobs", "root_path", "TEXT NOT NULL DEFAULT ''")
-    _ensure_column(conn, "metadata_index_jobs", "library_id", "INTEGER")
-    _ensure_column(conn, "metadata_index_jobs", "priority", "INTEGER NOT NULL DEFAULT 3")
-    _ensure_catalog_schema(conn)
-
-    conn.execute(
-        """
-        CREATE INDEX IF NOT EXISTS idx_metadata_index_jobs_claim
-          ON metadata_index_jobs(state, priority, queued_at)
-        """
-    )
-    conn.execute(
-        """
-        CREATE INDEX IF NOT EXISTS idx_metadata_index_jobs_library_state
-          ON metadata_index_jobs(library_id, state)
-        """
-    )
-    conn.execute(
-        """
-        CREATE INDEX IF NOT EXISTS idx_assets_metadata_state
-          ON assets(metadata_state)
-        """
-    )
+    _ensure_post_v1_additive_columns(conn)
 
     conn.execute(f"PRAGMA user_version = {CATALOG_SCHEMA_VERSION}")
     _cleanup_ignored_index_conn(conn)
