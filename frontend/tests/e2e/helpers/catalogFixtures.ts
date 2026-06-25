@@ -195,6 +195,7 @@ export function statusEnvelope({
       last_index_at: lastIndexAt,
     },
     global_runtime: globalRuntime(runtime),
+    metadata_lifecycle: null,
   };
 }
 
@@ -211,5 +212,6 @@ export function statusBatch(libraries: Array<{ id: number; totalAssets?: number;
       }).status,
     })),
     global_runtime: globalRuntime(),
+    metadata_lifecycle: null,
   };
 }
