@@ -28,14 +28,20 @@ from .config import (
 from .metadata_extract import ExtractedMetadata, extract_metadata
 from .metadata_store import (
     MetadataIndexJob,
+    claim_next_metadata_job,
+    complete_metadata_job,
+    fail_metadata_job,
     get_library_for_path,
     index_directory_tree,
+    list_recoverable_metadata_jobs,
+    mark_metadata_job_stale,
     mark_metadata_jobs_done,
     mark_metadata_jobs_failed,
     mark_metadata_jobs_running,
     mark_metadata_jobs_stale,
     queue_metadata_index_paths,
     reconcile_library_assets,
+    reset_running_jobs_to_queued,
     upsert_metadata_batch,
 )
 
@@ -718,3 +724,133 @@ def rebuild_index_scope(root: str | Path) -> dict[str, Any]:
         "reconciled": reconciled,
         "metadata": metadata,
     }
+
+
+# ---------------------------------------------------------------------------
+# DB-claim metadata worker (Phase 1)
+# ---------------------------------------------------------------------------
+
+
+class MetadataLifecycleWorker:
+    """DB-claim metadata worker, modeled on ``DerivativeScheduler``.
+
+    Claims queued metadata jobs from SQLite, processes them, and materializes
+    completion state. The worker does NOT use an in-memory ``_job_queue`` as
+    the source of work — it claims directly from ``metadata_index_jobs``.
+    """
+
+    _logger = logging.getLogger("gallery.metadata")
+
+    def __init__(self, worker_count: int = 1):
+        self.worker_count = max(1, min(worker_count, 4))
+        self._stop_event = threading.Event()
+        self._wake_event = threading.Event()
+        self._lifecycle_lock = threading.RLock()
+        self._threads: list[threading.Thread] = []
+
+    def start(self) -> None:
+        """Start workers and recover jobs interrupted by a prior process."""
+        with self._lifecycle_lock:
+            if any(thread.is_alive() for thread in self._threads):
+                return
+            self._stop_event.clear()
+            self._threads = [
+                threading.Thread(
+                    target=self._worker_loop,
+                    name=f"gallery-metadata-worker-{i + 1}",
+                    daemon=True,
+                )
+                for i in range(self.worker_count)
+            ]
+            for thread in self._threads:
+                thread.start()
+            self._wake_event.set()
+
+    def stop(self) -> None:
+        """Stop workers and wait briefly for in-flight work to finish."""
+        with self._lifecycle_lock:
+            threads = self._threads
+            self._stop_event.set()
+            self._wake_event.set()
+        deadline = time.monotonic() + 1
+        for thread in threads:
+            thread.join(timeout=max(0.0, deadline - time.monotonic()))
+        with self._lifecycle_lock:
+            self._threads = [t for t in threads if t.is_alive()]
+
+    def is_running(self) -> bool:
+        """Return whether at least one configured worker is alive."""
+        with self._lifecycle_lock:
+            return any(thread.is_alive() for thread in self._threads)
+
+    def wake(self) -> None:
+        """Wake workers to check for new queued jobs."""
+        self._wake_event.set()
+
+    def _worker_loop(self) -> None:
+        while not self._stop_event.is_set():
+            try:
+                job = self._claim_job()
+            except Exception:  # noqa: BLE001
+                self._logger.exception("DB-claim worker could not read the job queue")
+                self._stop_event.wait(0.5)
+                continue
+            if job is None:
+                self._wake_event.clear()
+                self._wake_event.wait(timeout=1)
+                continue
+            self._run_job(job)
+
+    def _claim_job(self) -> MetadataIndexJob | None:
+        """Claim one queued metadata job from SQLite.
+
+        Mirrors ``DerivativeScheduler._claim_job`` (derivative_scheduler.py:392-420).
+        """
+        return claim_next_metadata_job()
+
+    def _run_job(self, job: MetadataIndexJob) -> None:
+        """Extract metadata and complete the job in short transactions."""
+        from .metadata_extract import extract_metadata
+        from .metadata_store import _connect, _DB_LOCK, upsert_metadata_batch
+
+        try:
+            if not self._is_job_current(job):
+                with _DB_LOCK, _connect() as conn:
+                    mark_metadata_job_stale(conn, job)
+                return
+
+            metadata = extract_metadata(Path(job.path))
+
+            if not self._is_job_current(job):
+                with _DB_LOCK, _connect() as conn:
+                    mark_metadata_job_stale(conn, job)
+                return
+
+            # Write image_metadata in its own short transaction
+            from .metadata_store import upsert_metadata_batch as _upbatch
+
+            _upbatch([metadata])
+
+            # Complete job + materialize asset state in another short transaction
+            with _DB_LOCK, _connect() as conn:
+                complete_metadata_job(conn, job)
+        except Exception as exc:  # noqa: BLE001
+            self._logger.exception("Metadata job %s failed: %s", job.path, exc)
+            try:
+                with _DB_LOCK, _connect() as conn:
+                    fail_metadata_job(conn, job, str(exc))
+            except Exception:  # noqa: BLE001
+                self._logger.exception("Could not mark job %s as failed", job.path)
+
+    @staticmethod
+    def _is_job_current(job: MetadataIndexJob) -> bool:
+        """Return whether the file on disk still matches the job's identity."""
+        try:
+            stat = Path(job.path).stat()
+        except OSError:
+            return False
+        return stat.st_mtime == job.mtime and stat.st_size == job.size
+
+
+# Singleton instance
+metadata_worker = MetadataLifecycleWorker()

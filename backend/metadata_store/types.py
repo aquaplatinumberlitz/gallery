@@ -25,6 +25,7 @@ class MetadataIndexJob:
     size: int
     folder_path: str
     root_path: str
+    library_id: int | None = None
 
     @property
     def key(self) -> tuple[str, float, int]:

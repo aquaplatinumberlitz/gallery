@@ -224,7 +224,13 @@ from .metadata_queue import (
     mark_metadata_jobs_stale as mark_metadata_jobs_stale,
 )
 from .metadata_queue import (
+    claim_next_metadata_job as claim_next_metadata_job,
+    complete_metadata_job as complete_metadata_job,
+    fail_metadata_job as fail_metadata_job,
+    list_recoverable_metadata_jobs as list_recoverable_metadata_jobs,
+    mark_metadata_job_stale as mark_metadata_job_stale,
     queue_metadata_index_paths as queue_metadata_index_paths,
+    reset_running_jobs_to_queued as reset_running_jobs_to_queued,
 )
 from .path_utils import (
     canonicalize_catalog_path as canonicalize_catalog_path,

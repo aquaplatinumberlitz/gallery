@@ -267,6 +267,180 @@ def mark_metadata_jobs_failed(errors: Iterable[tuple[MetadataIndexJob, str]]) ->
         )
 
 
+# ---------------------------------------------------------------------------
+# DB-claim worker primitives (Phase 1)
+# ---------------------------------------------------------------------------
+
+
+def claim_next_metadata_job(
+    *,
+    max_queue_wait_seconds: int = 600,
+) -> MetadataIndexJob | None:
+    """Claim one queued metadata job from SQLite in a short BEGIN IMMEDIATE transaction.
+
+    Mirrors ``DerivativeScheduler._claim_job`` (derivative_scheduler.py:392-420).
+    Returns ``None`` when no queued job is available.
+    """
+    _initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            """
+            SELECT path, name, parent_path, folder_path, root_path,
+                   mtime, mtime_ns, size, state, attempts,
+                   queued_at, started_at, finished_at, updated_at, library_id, priority
+            FROM metadata_index_jobs
+            WHERE state = 'queued'
+            ORDER BY priority ASC, queued_at ASC, path ASC
+            LIMIT 1
+            """
+        ).fetchone()
+        if row is None:
+            return None
+        attempts = int(row["attempts"]) + 1
+        now = time.time()
+        conn.execute(
+            """
+            UPDATE metadata_index_jobs
+            SET state='running',
+                attempts=?,
+                started_at=?,
+                finished_at=NULL,
+                updated_at=?
+            WHERE path=? AND mtime=? AND size=?
+            """,
+            (attempts, now, now, row["path"], row["mtime"], row["size"]),
+        )
+        job = MetadataIndexJob(
+            path=row["path"],
+            name=row["name"],
+            parent_path=row["parent_path"],
+            folder_path=row["folder_path"],
+            root_path=row["root_path"],
+            mtime=row["mtime"],
+            size=row["size"],
+            library_id=row["library_id"],
+        )
+        return job
+
+
+def complete_metadata_job(
+    conn: sqlite3.Connection,
+    job: MetadataIndexJob,
+    *,
+    metadata_is_current: bool = True,
+) -> None:
+    """Mark one metadata job done and materialize assets.metadata_state='done'.
+
+    Phase 3 adds full stale/race guards. For now this is the basic
+    completion transition linking job state and asset state.
+    """
+    now = time.time()
+    conn.execute(
+        """
+        UPDATE metadata_index_jobs
+        SET state='done',
+            error=NULL,
+            finished_at=?,
+            updated_at=?
+        WHERE path=? AND mtime=? AND size=?
+        """,
+        (now, now, job.path, job.mtime, job.size),
+    )
+    conn.execute(
+        """
+        UPDATE assets
+        SET metadata_state='done', updated_at=?
+        WHERE path=? AND mtime_ns=? AND size=?
+        """,
+        (now, job.path, job.mtime, job.size),
+    )
+
+
+def fail_metadata_job(
+    conn: sqlite3.Connection,
+    job: MetadataIndexJob,
+    error: str,
+) -> None:
+    """Mark one metadata job as failed with a bounded error message."""
+    now = time.time()
+    conn.execute(
+        """
+        UPDATE metadata_index_jobs
+        SET state='failed',
+            error=?,
+            finished_at=?,
+            updated_at=?
+        WHERE path=? AND mtime=? AND size=?
+        """,
+        (error[:1000], now, now, job.path, job.mtime, job.size),
+    )
+
+
+def mark_metadata_job_stale(
+    conn: sqlite3.Connection,
+    job: MetadataIndexJob,
+) -> None:
+    """Mark one metadata job stale when the file version no longer matches."""
+    now = time.time()
+    conn.execute(
+        """
+        UPDATE metadata_index_jobs
+        SET state='stale',
+            error=NULL,
+            finished_at=?,
+            updated_at=?
+        WHERE path=? AND mtime=? AND size=?
+        """,
+        (now, now, job.path, job.mtime, job.size),
+    )
+
+
+def list_recoverable_metadata_jobs(
+    conn: sqlite3.Connection,
+    states: tuple[str, ...],
+    limit: int = 1000,
+) -> list[dict[str, Any]]:
+    """List metadata_index_jobs rows matching the given states, bounded by limit."""
+    placeholders = ",".join("?" for _ in states)
+    rows = conn.execute(
+        f"""
+        SELECT path, name, parent_path, folder_path, root_path,
+               mtime, mtime_ns, size, state, attempts,
+               queued_at, started_at, finished_at, updated_at, library_id, priority
+        FROM metadata_index_jobs
+        WHERE state IN ({placeholders})
+        ORDER BY updated_at ASC
+        LIMIT ?
+        """,
+        (*states, limit),
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def reset_running_jobs_to_queued(
+    conn: sqlite3.Connection,
+    job_paths: list[tuple[str, float, int]],
+) -> None:
+    """Atomically reset running metadata jobs to queued (preserves attempts/queued_at).
+
+    Mirrors ``DerivativeScheduler.start()`` recovery pattern at
+    derivative_scheduler.py:71-79.
+    """
+    now = time.time()
+    conn.executemany(
+        """
+        UPDATE metadata_index_jobs
+        SET state='queued',
+            started_at=NULL,
+            finished_at=NULL,
+            updated_at=?
+        WHERE path=? AND mtime=? AND size=? AND state='running'
+        """,
+        ((now, path, mtime, size) for path, mtime, size in job_paths),
+    )
+
+
 def get_metadata_index_status(path: str | Path | None = None) -> dict[str, Any]:
     """Return durable metadata job counts, optionally scoped to a path subtree."""
     _initialize_database()

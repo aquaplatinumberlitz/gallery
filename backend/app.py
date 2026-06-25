@@ -23,6 +23,7 @@ from .images import router as images_router
 from .indexer import router as indexer_router
 from .libraries import router as libraries_router
 from .metadata_parse import router as metadata_parse_router
+from .indexer import metadata_worker
 from .metadata_store import recover_stale_jobs
 from .refresh import start_refresh as _start_refresh
 from .refresh import stop_refresh as _stop_refresh
@@ -102,6 +103,7 @@ async def _startup_background_services():
         start()
         if GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED:
             queue_startup_scans()
+    metadata_worker.start()
     scheduler.start()
     _start_refresh()
     _start_watcher()
@@ -112,6 +114,7 @@ async def _shutdown_background_services():
     _stop_watcher()
     _stop_refresh()
     stop()
+    metadata_worker.stop()
     scheduler.stop()
 
 
