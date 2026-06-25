@@ -242,6 +242,9 @@ from .metadata_queue import (
     queue_metadata_index_paths as queue_metadata_index_paths,
 )
 from .metadata_queue import (
+    repair_inconsistent_asset_states as repair_inconsistent_asset_states,
+)
+from .metadata_queue import (
     reset_running_jobs_to_queued as reset_running_jobs_to_queued,
 )
 from .path_utils import (

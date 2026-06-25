@@ -719,6 +719,151 @@ def reset_running_jobs_to_queued(
             )
 
 
+def repair_inconsistent_asset_states(
+    conn: sqlite3.Connection,
+    scope_path: str | Path | None = None,
+) -> dict[str, int]:
+    """Repair done metadata_index_jobs whose assets are not in the done state.
+
+    For each ``done`` job whose ``assets.metadata_state`` is not ``done``:
+    - If no asset row exists, marks the job ``skipped``.
+    - If ``image_metadata`` is current (matches the job's identity by mtime_ns
+      or mtime + size), stamps ``assets.metadata_state = 'done'``.
+    - Otherwise, demotes the job back to ``queued`` so the worker re-processes.
+
+    Uses ``scope_path`` to filter by path prefix (or None for all paths).
+
+    Returns counters ``{"repaired": N, "demoted": N, "skipped": N}``.
+    """
+    counters: dict[str, int] = {"repaired": 0, "demoted": 0, "skipped": 0}
+
+    scope_where = ""
+    scope_params: list[Any] = []
+    if scope_path is not None:
+        resolved = str(Path(scope_path).resolve())
+        prefix = f"{resolved.rstrip(os.sep)}{os.sep}"
+        scope_where = "AND (mj.path = ? OR mj.path LIKE ? ESCAPE '\\')"
+        scope_params = [resolved, f"{_search_like_escape(prefix)}%"]
+
+    rows = conn.execute(
+        f"""
+        SELECT mj.path, mj.mtime, mj.mtime_ns, mj.size,
+               a.path IS NOT NULL AS has_asset,
+               a.metadata_state AS asset_metadata_state
+        FROM metadata_index_jobs mj
+        LEFT JOIN assets a ON a.path = mj.path
+        WHERE mj.state = 'done'
+          AND (a.path IS NULL OR a.metadata_state IS NULL OR a.metadata_state != 'done')
+          {scope_where}
+        """,
+        scope_params,
+    ).fetchall()
+
+    now = time.time()
+    for row in rows:
+        path = row["path"]
+        mtime = row["mtime"]
+        mtime_ns = row["mtime_ns"]
+        size = row["size"]
+        has_asset = bool(row["has_asset"])
+
+        if not has_asset:
+            # No asset row — mark job skipped
+            if mtime_ns is not None:
+                conn.execute(
+                    """
+                    UPDATE metadata_index_jobs
+                    SET state='skipped',
+                        finished_at=?,
+                        updated_at=?
+                    WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=? AND state='done'
+                    """,
+                    (now, now, path, mtime_ns, size),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE metadata_index_jobs
+                    SET state='skipped',
+                        finished_at=?,
+                        updated_at=?
+                    WHERE path=? AND mtime=? AND size=? AND state='done'
+                    """,
+                    (now, now, path, mtime, size),
+                )
+            counters["skipped"] += 1
+            continue
+
+        # Check whether current image_metadata exists for the job identity
+        if mtime_ns is not None:
+            im_row = conn.execute(
+                """
+                SELECT 1 FROM image_metadata
+                WHERE path = ? AND ABS(mtime_ns - ?) < 1000 AND size = ?
+                """,
+                (path, mtime_ns, size),
+            ).fetchone()
+        else:
+            im_row = conn.execute(
+                """
+                SELECT 1 FROM image_metadata
+                WHERE path = ? AND mtime = ? AND size = ?
+                """,
+                (path, mtime, size),
+            ).fetchone()
+
+        if im_row is not None:
+            # image_metadata is current — repair asset state
+            if mtime_ns is not None:
+                conn.execute(
+                    """
+                    UPDATE assets
+                    SET metadata_state='done'
+                    WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=?
+                    """,
+                    (path, mtime_ns, size),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE assets
+                    SET metadata_state='done'
+                    WHERE path=? AND mtime=? AND size=?
+                    """,
+                    (path, mtime, size),
+                )
+            counters["repaired"] += 1
+        else:
+            # image_metadata missing or stale — demote job to queued
+            if mtime_ns is not None:
+                conn.execute(
+                    """
+                    UPDATE metadata_index_jobs
+                    SET state='queued',
+                        started_at=NULL,
+                        finished_at=NULL,
+                        updated_at=?
+                    WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=? AND state='done'
+                    """,
+                    (now, path, mtime_ns, size),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE metadata_index_jobs
+                    SET state='queued',
+                        started_at=NULL,
+                        finished_at=NULL,
+                        updated_at=?
+                    WHERE path=? AND mtime=? AND size=? AND state='done'
+                    """,
+                    (now, path, mtime, size),
+                )
+            counters["demoted"] += 1
+
+    return counters
+
+
 def get_metadata_index_status(path: str | Path | None = None) -> dict[str, Any]:
     """Return durable metadata job counts, optionally scoped to a path subtree."""
     _initialize_database()

@@ -122,6 +122,20 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
 
     if current_version == 1:
         _cleanup_ignored_index_conn(conn)
+        # Additive migrations for metadata_index_jobs (post-v1 columns)
+        _ensure_column(conn, "metadata_index_jobs", "folder_path", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "metadata_index_jobs", "root_path", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "metadata_index_jobs", "library_id", "INTEGER")
+        _ensure_column(conn, "metadata_index_jobs", "priority", "INTEGER NOT NULL DEFAULT 3")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_metadata_index_jobs_claim"
+            "  ON metadata_index_jobs(state, priority, queued_at)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_metadata_index_jobs_library_state"
+            "  ON metadata_index_jobs(library_id, state)"
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_assets_metadata_state  ON assets(metadata_state)")
         return
 
     if current_version == 0 and has_application_tables:

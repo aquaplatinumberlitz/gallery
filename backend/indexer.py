@@ -28,11 +28,15 @@ from .config import (
 from .metadata_extract import ExtractedMetadata, extract_metadata
 from .metadata_store import (
     MetadataIndexJob,
+    _DB_LOCK,
+    _connect,
     claim_next_metadata_job,
     complete_metadata_job,
     fail_metadata_job,
     get_library_for_path,
     index_directory_tree,
+    initialize_database,
+    list_recoverable_metadata_jobs,
     mark_metadata_job_stale,
     mark_metadata_jobs_done,
     mark_metadata_jobs_failed,
@@ -40,6 +44,8 @@ from .metadata_store import (
     mark_metadata_jobs_stale,
     queue_metadata_index_paths,
     reconcile_library_assets,
+    repair_inconsistent_asset_states,
+    reset_running_jobs_to_queued,
     upsert_metadata_batch,
 )
 
@@ -853,3 +859,33 @@ class MetadataLifecycleWorker:
 
 # Singleton instance
 metadata_worker = MetadataLifecycleWorker()
+
+
+def recover_metadata_index_jobs() -> dict[str, int]:
+    """Recover interrupted metadata jobs from SQLite.
+
+    Recovery does NOT mean "re-dispatch DB jobs into memory queue." It means
+    "make SQLite job state claimable and consistent."
+
+    Mirrors DerivativeScheduler.start() recovery pattern.
+
+    Returns:
+        dict with counters: running_reset, done_repaired, done_demoted,
+        done_skipped, total
+    """
+    initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        running_jobs = list_recoverable_metadata_jobs(conn, ("running",))
+        job_paths = [(j["path"], j["mtime"], j["size"], j["mtime_ns"]) for j in running_jobs]
+        reset_running_jobs_to_queued(conn, job_paths)
+        repair_result = repair_inconsistent_asset_states(conn)
+
+    metadata_worker.wake()
+
+    return {
+        "running_reset": len(running_jobs),
+        "done_repaired": repair_result["repaired"],
+        "done_demoted": repair_result["demoted"],
+        "done_skipped": repair_result["skipped"],
+        "total": len(running_jobs) + repair_result["repaired"] + repair_result["demoted"] + repair_result["skipped"],
+    }

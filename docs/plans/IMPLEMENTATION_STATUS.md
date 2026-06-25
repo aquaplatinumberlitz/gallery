@@ -14,7 +14,7 @@ Last updated: 2026-06-25
 | 1 | DB-claim metadata worker | ✅ Complete |
 | **2** | **Convert scheduling to durable DB queue + wake worker** | **✅ Complete** |
 | **3** | **Completion invariant and stale guards** | **✅ Complete** |
-| 4 | Startup recovery and repair | ⬜ Pending |
+| **4** | **Startup recovery and repair** | **✅ Complete** |
 | 5 | Remove/deprecate old in-memory queue bridge | ⬜ Pending |
 | 6 | Status/debug diagnostics and docs | ⬜ Pending |
 | 7 | Broader integrity checker (P2 follow-up) | ⬜ Pending |

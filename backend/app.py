@@ -20,7 +20,7 @@ from .facets import router as facets_router
 from .folders import router as folders_router
 from .health import router as health_router
 from .images import router as images_router
-from .indexer import metadata_worker
+from .indexer import metadata_worker, recover_metadata_index_jobs
 from .indexer import router as indexer_router
 from .libraries import router as libraries_router
 from .metadata_parse import router as metadata_parse_router
@@ -99,6 +99,7 @@ app.include_router(static_files_router)
 @app.on_event("startup")
 async def _startup_background_services():
     recover_stale_jobs()
+    recover_metadata_index_jobs()  # Phase 4: recover metadata jobs
     if GALLERY_CATALOG_SERVICE_ENABLED:
         start()
         if GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED:
