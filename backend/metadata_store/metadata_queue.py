@@ -26,6 +26,40 @@ def _search_like_escape(value: str) -> str:
     return _like_escape(value)
 
 
+def _image_metadata_exists_for_job(
+    conn: sqlite3.Connection,
+    path: str,
+    mtime: float,
+    size: int,
+    mtime_ns: int | None = None,
+) -> bool:
+    """Return whether image_metadata exists for the given job identity.
+
+    Primary check: ABS(image_metadata.mtime_ns - job.mtime_ns) < 1000 AND size matches.
+    Legacy fallback: image_metadata.mtime_ns IS NULL AND mtime == job.mtime AND size matches.
+    """
+    if mtime_ns is not None:
+        row = conn.execute(
+            """
+            SELECT 1 FROM image_metadata
+            WHERE path = ?
+              AND ((mtime_ns IS NOT NULL AND ABS(mtime_ns - ?) < 1000)
+                OR (mtime_ns IS NULL AND mtime = ?))
+              AND size = ?
+            """,
+            (path, mtime_ns, mtime, size),
+        ).fetchone()
+    else:
+        row = conn.execute(
+            """
+            SELECT 1 FROM image_metadata
+            WHERE path = ? AND mtime_ns IS NULL AND mtime = ? AND size = ?
+            """,
+            (path, mtime, size),
+        ).fetchone()
+    return row is not None
+
+
 def _current_metadata_is_complete(
     conn: sqlite3.Connection,
     path: str,
@@ -86,13 +120,22 @@ def _mark_current_metadata_done(conn: sqlite3.Connection, job: MetadataIndexJob,
     Makes the job row exist and then delegates to complete_metadata_job so all
     completion verification logic lives in one place.
     """
+    # Backfill library_id from matching assets row
+    library_row = conn.execute(
+        "SELECT library_id FROM assets WHERE path = ?",
+        (job.path,),
+    ).fetchone()
+    library_id = int(library_row["library_id"]) if library_row else None
+
     # Ensure the job row exists (INSERT/UPDATE for paths without queued jobs)
     conn.execute(
         """
         INSERT INTO metadata_index_jobs (
           path, name, parent_path, folder_path, root_path, mtime, mtime_ns, size, state,
-          attempts, error, queued_at, started_at, finished_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'running', 0, NULL, ?, NULL, NULL, ?)
+          attempts, error, queued_at, started_at, finished_at, updated_at,
+          priority, library_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'running', 0, NULL, ?, NULL, NULL, ?,
+                  3, ?)
         ON CONFLICT(path) DO UPDATE SET
           name=excluded.name,
           parent_path=excluded.parent_path,
@@ -103,7 +146,8 @@ def _mark_current_metadata_done(conn: sqlite3.Connection, job: MetadataIndexJob,
           size=excluded.size,
           state=CASE WHEN metadata_index_jobs.state = 'done' THEN 'done' ELSE 'running' END,
           error=NULL,
-          updated_at=excluded.updated_at
+          updated_at=excluded.updated_at,
+          library_id=COALESCE(metadata_index_jobs.library_id, excluded.library_id)
         """,
         (
             job.path,
@@ -116,6 +160,7 @@ def _mark_current_metadata_done(conn: sqlite3.Connection, job: MetadataIndexJob,
             job.size,
             now,
             now,
+            library_id,
         ),
     )
     complete_metadata_job(conn, job)
@@ -148,9 +193,10 @@ def _update_asset_done(conn: sqlite3.Connection, job: MetadataIndexJob, now: flo
 
 
 def _persist_metadata_index_jobs(
-    paths: Iterable[str | Path], root_path: str | Path | None = None
+    paths: Iterable[str | Path], root_path: str | Path | None = None, *, priority: int = 3
 ) -> MetadataQueueResult:
     """Create/coalesce metadata index jobs for image paths without parsing files."""
+    priority = max(0, min(priority, 3))
     jobs = [job for path in paths if (job := _metadata_job_from_path(path, root_path))]
     if not jobs:
         return MetadataQueueResult(enqueued=[])
@@ -169,9 +215,16 @@ def _persist_metadata_index_jobs(
                 skipped += 1
                 continue
 
+            # Backfill library_id from matching assets row
+            library_row = conn.execute(
+                "SELECT library_id FROM assets WHERE path = ?",
+                (job.path,),
+            ).fetchone()
+            library_id = int(library_row["library_id"]) if library_row else None
+
             existing = conn.execute(
                 """
-                SELECT mtime, mtime_ns, size, state, attempts
+                SELECT mtime, mtime_ns, size, state, attempts, priority, library_id
                 FROM metadata_index_jobs
                 WHERE path = ?
                 """,
@@ -189,6 +242,25 @@ def _persist_metadata_index_jobs(
                     state = existing["state"]
                     attempts = int(existing["attempts"] or 0)
                     if state in {"queued", "running"}:
+                        # Keep the higher (lower numeric) priority
+                        existing_priority = int(existing["priority"] or 3)
+                        existing_library_id = existing["library_id"]
+                        updates = []
+                        upd_params: list = []
+                        if priority < existing_priority:
+                            updates.append("priority = ?")
+                            upd_params.append(priority)
+                        if library_id is not None and existing_library_id is None:
+                            updates.append("library_id = ?")
+                            upd_params.append(library_id)
+                        if updates:
+                            updates.append("updated_at = ?")
+                            upd_params.append(now)
+                            upd_params.append(job.path)
+                            conn.execute(
+                                f"UPDATE metadata_index_jobs SET {', '.join(updates)} WHERE path = ?",
+                                upd_params,
+                            )
                         coalesced += 1
                         continue
                     if state == "failed" and attempts >= MAX_METADATA_JOB_ATTEMPTS:
@@ -204,8 +276,10 @@ def _persist_metadata_index_jobs(
                 """
                 INSERT INTO metadata_index_jobs (
                   path, name, parent_path, folder_path, root_path, mtime, mtime_ns, size,
-                  state, attempts, error, queued_at, started_at, finished_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', 0, NULL, ?, NULL, NULL, ?)
+                  state, attempts, error, queued_at, started_at, finished_at, updated_at,
+                  priority, library_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', 0, NULL, ?, NULL, NULL, ?,
+                          ?, ?)
                 ON CONFLICT(path) DO UPDATE SET
                   name=excluded.name,
                   parent_path=excluded.parent_path,
@@ -230,7 +304,13 @@ def _persist_metadata_index_jobs(
                   queued_at=excluded.queued_at,
                   started_at=NULL,
                   finished_at=NULL,
-                  updated_at=excluded.updated_at
+                  updated_at=excluded.updated_at,
+                  priority=CASE
+                    WHEN COALESCE(metadata_index_jobs.priority, 3) > ?
+                    THEN ?
+                    ELSE metadata_index_jobs.priority
+                  END,
+                  library_id=COALESCE(metadata_index_jobs.library_id, excluded.library_id)
                 """,
                 (
                     job.path,
@@ -243,6 +323,10 @@ def _persist_metadata_index_jobs(
                     job.size,
                     now,
                     now,
+                    priority,
+                    library_id,
+                    priority,
+                    priority,
                 ),
             )
             enqueued.append(job)
@@ -303,24 +387,7 @@ def mark_metadata_jobs_done(jobs: Iterable[MetadataIndexJob]) -> None:
     now = time.time()
     with _DB_LOCK, _connect() as conn:
         for job in rows:
-            mtime_ns_val = job.mtime_ns
-            if mtime_ns_val is not None:
-                row = conn.execute(
-                    """
-                    SELECT 1 FROM image_metadata
-                    WHERE path = ? AND mtime_ns = ? AND size = ?
-                    """,
-                    (job.path, mtime_ns_val, job.size),
-                ).fetchone()
-            else:
-                row = conn.execute(
-                    """
-                    SELECT 1 FROM image_metadata
-                    WHERE path = ? AND mtime = ? AND size = ?
-                    """,
-                    (job.path, job.mtime, job.size),
-                ).fetchone()
-            if row is None:
+            if not _image_metadata_exists_for_job(conn, job.path, job.mtime, job.size, job.mtime_ns):
                 if job.mtime_ns is not None:
                     conn.execute(
                         """
@@ -523,33 +590,64 @@ def complete_metadata_job(
     """Mark one metadata job done and materialize assets.metadata_state='done'.
 
     Enforces the invariant: image_metadata current + job done + asset done.
+    If no asset row exists for the path the job is marked skipped.
+    If the asset row exists but the version does not match the job is marked stale.
     Verifies that image_metadata exists for the job's identity before marking done.
     """
-    # Verify image_metadata is current for path + mtime_ns + size
-    mtime_ns_val = job.mtime_ns
-    if mtime_ns_val is not None:
-        row = conn.execute(
-            """
-            SELECT 1 FROM image_metadata
-            WHERE path = ? AND mtime_ns = ? AND size = ?
-            """,
-            (job.path, mtime_ns_val, job.size),
-        ).fetchone()
-    else:
-        # Legacy fallback: compare seconds to seconds
-        row = conn.execute(
-            """
-            SELECT 1 FROM image_metadata
-            WHERE path = ? AND mtime = ? AND size = ?
-            """,
-            (job.path, job.mtime, job.size),
-        ).fetchone()
-    if row is None:
-        # image_metadata not current; mark job stale
+    if not _image_metadata_exists_for_job(conn, job.path, job.mtime, job.size, job.mtime_ns):
         mark_metadata_job_stale(conn, job)
         return
 
     now = time.time()
+
+    # Check whether a matching asset row exists
+    if job.mtime_ns is not None:
+        asset_match = conn.execute(
+            """
+            SELECT 1 FROM assets
+            WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=?
+            """,
+            (job.path, job.mtime_ns, job.size),
+        ).fetchone()
+    else:
+        # Mirror _update_asset_done: convert asset mtime_ns to seconds with tolerance
+        asset_match = conn.execute(
+            """
+            SELECT 1 FROM assets
+            WHERE path=? AND ABS(COALESCE(mtime_ns, 0) / 1000000000.0 - ?) < 1e-3 AND size=?
+            """,
+            (job.path, job.mtime, job.size),
+        ).fetchone()
+
+    if asset_match is None:
+        # No matching asset row — check whether any asset exists for this path
+        any_asset = conn.execute(
+            "SELECT 1 FROM assets WHERE path = ?",
+            (job.path,),
+        ).fetchone()
+        if any_asset is None:
+            if job.mtime_ns is not None:
+                conn.execute(
+                    """
+                    UPDATE metadata_index_jobs
+                    SET state='skipped', error=NULL, finished_at=?, updated_at=?
+                    WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=?
+                    """,
+                    (now, now, job.path, job.mtime_ns, job.size),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE metadata_index_jobs
+                    SET state='skipped', error=NULL, finished_at=?, updated_at=?
+                    WHERE path=? AND mtime=? AND size=?
+                    """,
+                    (now, now, job.path, job.mtime, job.size),
+                )
+        else:
+            mark_metadata_job_stale(conn, job)
+        return
+
     if job.mtime_ns is not None:
         conn.execute(
             """
@@ -575,26 +673,7 @@ def complete_metadata_job(
             (now, now, job.path, job.mtime, job.size),
         )
 
-    # Materialize asset done using mtime_ns primary, with fallback
-    mtime_ns_val = job.mtime_ns
-    if mtime_ns_val is not None:
-        conn.execute(
-            """
-            UPDATE assets
-            SET metadata_state='done'
-            WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=?
-            """,
-            (job.path, mtime_ns_val, job.size),
-        )
-    else:
-        conn.execute(
-            """
-            UPDATE assets
-            SET metadata_state='done'
-            WHERE path=? AND ABS(mtime_ns / 1_000_000_000.0 - ?) < 1e-3 AND size=?
-            """,
-            (job.path, job.mtime, job.size),
-        )
+    _update_asset_done(conn, job, now)
 
 
 def fail_metadata_job(
@@ -667,8 +746,15 @@ def list_recoverable_metadata_jobs(
     states: tuple[str, ...],
     limit: int = 1000,
 ) -> list[dict[str, Any]]:
-    """List metadata_index_jobs rows matching the given states, bounded by limit."""
+    """List metadata_index_jobs rows matching the given states, bounded by limit.
+
+    Pass ``limit=0`` to return all matching rows (no LIMIT clause).
+    """
     placeholders = ",".join("?" for _ in states)
+    limit_clause = "" if limit == 0 else "LIMIT ?"
+    params = list(states)
+    if limit != 0:
+        params.append(limit)
     rows = conn.execute(
         f"""
         SELECT path, name, parent_path, folder_path, root_path,
@@ -677,9 +763,9 @@ def list_recoverable_metadata_jobs(
         FROM metadata_index_jobs
         WHERE state IN ({placeholders})
         ORDER BY updated_at ASC
-        LIMIT ?
+        {limit_clause}
         """,
-        (*states, limit),
+        params,
     ).fetchall()
     return [dict(row) for row in rows]
 
@@ -797,24 +883,9 @@ def repair_inconsistent_asset_states(
             continue
 
         # Check whether current image_metadata exists for the job identity
-        if mtime_ns is not None:
-            im_row = conn.execute(
-                """
-                SELECT 1 FROM image_metadata
-                WHERE path = ? AND ABS(mtime_ns - ?) < 1000 AND size = ?
-                """,
-                (path, mtime_ns, size),
-            ).fetchone()
-        else:
-            im_row = conn.execute(
-                """
-                SELECT 1 FROM image_metadata
-                WHERE path = ? AND mtime = ? AND size = ?
-                """,
-                (path, mtime, size),
-            ).fetchone()
+        im_exists = _image_metadata_exists_for_job(conn, path, mtime, size, mtime_ns)
 
-        if im_row is not None:
+        if im_exists:
             # image_metadata is current — repair asset state
             if mtime_ns is not None:
                 conn.execute(

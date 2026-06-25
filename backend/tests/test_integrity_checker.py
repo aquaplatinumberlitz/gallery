@@ -1,3 +1,22 @@
+"""
+Purpose:
+Regression and contract tests for the IntegrityChecker cross-table consistency
+checks. Verifies that integrity violations are detected and repaired correctly
+for all six check types.
+
+Guarantees:
+* Asset with done metadata_state but missing/stale image_metadata is demoted and requeued.
+* Done metadata job with current image_metadata but pending asset stamps asset done.
+* Queued/running metadata job with no asset row is failed.
+* Ready derivative with missing cache_path or file is requeued and derivative_jobs row created.
+* Done derivative job with non-ready catalog status is reconciled (ready or failed).
+* Queued/running metadata job with missing file is failed.
+* Start/stop lifecycle is idempotent and thread-safe.
+
+Run when:
+* Changing integrity_checker.py check logic or derivative job scheduling.
+"""
+
 from __future__ import annotations
 
 import sqlite3
@@ -224,10 +243,56 @@ class TestDerivativeReadyNoFile:
         assert count == 1
         with _DB_LOCK, _connect() as conn:
             row = conn.execute(
-                "SELECT status, last_error FROM asset_derivatives WHERE asset_id = ?", (asset_id,)
+                "SELECT status, last_error, cache_path, byte_size FROM asset_derivatives WHERE asset_id = ?",
+                (asset_id,),
             ).fetchone()
             assert row["status"] == "queued"
             assert "file missing" in row["last_error"]
+            assert row["cache_path"] is None, "stale cache_path should be cleared"
+            assert row["byte_size"] is None, "stale byte_size should be cleared"
+            # Verify a derivative_jobs row was created
+            ad_id = conn.execute(
+                "SELECT id FROM asset_derivatives WHERE asset_id = ? AND kind = 'thumbnail'", (asset_id,)
+            ).fetchone()[0]
+            dj = conn.execute("SELECT state FROM derivative_jobs WHERE derivative_id = ?", (ad_id,)).fetchone()
+            assert dj is not None, "derivative_jobs row should exist"
+            assert dj["state"] == "queued"
+
+    def test_derivative_requeue_does_not_duplicate_active_job(self, _checker, isolated_gallery_root: Path):
+        """When a derivative_jobs row is already queued/running, no duplicate is created."""
+        root = isolated_gallery_root
+        lib = create_library([root], name="Lib")
+        lib_id = int(lib["id"])
+        path = str(root / "img.png")
+        size = 1024
+        mtime_ns = int(time.time() * 1e9)
+        missing_path = str(root / "missing.webp")
+        with _DB_LOCK, _connect() as conn:
+            _asset_row(conn, path, lib_id, mtime_ns, size)
+            asset_id = conn.execute("SELECT id FROM assets WHERE path = ?", (path,)).fetchone()[0]
+            conn.execute(
+                """INSERT INTO asset_derivatives (asset_id, kind, variant, source_mtime_ns, source_size, status, cache_path, max_long_edge, format, quality)
+                   VALUES (?, 'thumbnail', 'thumb_512', ?, ?, 'ready', ?, 512, 'webp', 85)""",
+                (asset_id, mtime_ns, size, missing_path),
+            )
+            ad_id = conn.execute(
+                "SELECT id FROM asset_derivatives WHERE asset_id = ? AND kind = 'thumbnail'", (asset_id,)
+            ).fetchone()[0]
+            # Pre-seed a queued derivative_jobs row
+            conn.execute(
+                "INSERT INTO derivative_jobs (derivative_id, priority, state) VALUES (?, 3, 'queued')",
+                (ad_id,),
+            )
+        with _DB_LOCK, _connect() as conn:
+            count = _checker._check_derivative_ready_no_file(conn)
+        assert count == 1
+        with _DB_LOCK, _connect() as conn:
+            # Only one queued/running derivative_jobs row should exist
+            rows = conn.execute(
+                "SELECT id, state FROM derivative_jobs WHERE derivative_id = ? AND state IN ('queued', 'running')",
+                (ad_id,),
+            ).fetchall()
+            assert len(rows) == 1, "Should not duplicate an active derivative_jobs row"
 
     def test_derivative_requeued_when_cache_path_null(self, _checker, isolated_gallery_root: Path):
         """Derivative with status='ready' and cache_path=NULL should be requeued."""

@@ -163,7 +163,7 @@ $ backend/venv/bin/python -m pytest \
 
 ### Test Results (current)
 
-All 116 tests pass with no regressions:
+All tests pass with no regressions:
 
 ```
 $ backend/venv/bin/python -m pytest \
@@ -176,8 +176,20 @@ $ backend/venv/bin/python -m pytest \
     backend/tests/test_metadata_store_coverage.py \
     backend/tests/test_integrity_checker.py \
     -v --timeout=60
-======================= 116 passed in 19.23s ========================
 ```
+
+---
+
+## Known audit fixes (2026-06-25)
+
+The following regressions were found in the 2026-06-25 audit and fixed:
+
+1. **Derivative requeue runnable**: `_check_derivative_ready_no_file` now creates or reuses a queued `derivative_jobs` row for missing cache; clears stale cache fields; no duplicate active jobs.
+2. **Legacy fallback consistency**: extracted `_image_metadata_exists_for_job` helper with consistent primary (ABS mtime_ns) and legacy (mtime_ns IS NULL + mtime) matching. Used in `complete_metadata_job`, `mark_metadata_jobs_done`, `repair_inconsistent_asset_states`.
+3. **Asset row gating**: `complete_metadata_job` marks jobs `skipped` when no asset row exists, `stale` when asset version mismatches, and `done` only when matching asset row is updated.
+4. **Priority/library_id passthrough**: `dispatch_metadata_index_paths(priority=...)` persists `metadata_index_jobs.priority`; coalesce keeps MIN(existing, new) priority; backfills `library_id` from assets.
+5. **Recovery unbounded + max attempts**: `list_recoverable_metadata_jobs(limit=0)` returns all rows; running jobs with attempts >= MAX are failed, others reset to queued; counters remain honest.
+6. **Docs/CI compliance**: header added to `test_integrity_checker.py`; catalog entry added; reports regenerated.
 
 ---
 

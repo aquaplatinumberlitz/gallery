@@ -22,14 +22,16 @@ from pathlib import Path
 
 import pytest
 
-from backend.indexer import recover_metadata_index_jobs
+from backend.indexer import dispatch_metadata_index_paths, metadata_worker, recover_metadata_index_jobs
 from backend.metadata_store import (
     _DB_LOCK,
+    MAX_METADATA_JOB_ATTEMPTS,
     MetadataIndexJob,
     _connect,
     _persist_metadata_index_jobs,
     claim_next_metadata_job,
     complete_metadata_job,
+    create_library,
     get_metadata_index_status,
     initialize_database,
 )
@@ -959,3 +961,311 @@ def test_legacy_v1_db_migration_adds_all_columns(
     assert "done_repaired" in result
     assert "done_demoted" in result
     assert "done_skipped" in result
+
+
+# ---------------------------------------------------------------------------
+# Regression: complete_metadata_job with no asset row → skipped
+# ---------------------------------------------------------------------------
+
+
+def test_complete_metadata_job_skipped_when_no_asset_row(
+    isolated_metadata_db: Path,
+    tmp_path: Path,
+):
+    """complete_metadata_job marks job skipped when no asset row exists for the path."""
+    image = tmp_path / "lib" / "noasset.png"
+    image.parent.mkdir(parents=True)
+    create_test_png(image)
+    stat = image.stat()
+    resolved = str(image.resolve())
+
+    initialize_database()
+    now = time.time()
+
+    # Seed image_metadata but no asset row
+    with _DB_LOCK, _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO image_metadata (path, name, mtime, mtime_ns, size, metadata_json, updated_at, indexed_at)
+            VALUES (?, ?, ?, ?, ?, '{}', ?, ?)
+            """,
+            (resolved, image.name, stat.st_mtime, stat.st_mtime_ns, stat.st_size, now, now),
+        )
+        # Seed a running job
+        conn.execute(
+            """
+            INSERT INTO metadata_index_jobs (path, name, parent_path, folder_path, root_path,
+              mtime, mtime_ns, size, state, queued_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'running', ?, ?)
+            """,
+            (
+                resolved,
+                image.name,
+                str(image.parent),
+                str(image.parent),
+                str(image.parent.parent),
+                stat.st_mtime,
+                stat.st_mtime_ns,
+                stat.st_size,
+                now,
+                now,
+            ),
+        )
+
+    job = MetadataIndexJob(
+        path=resolved,
+        name=image.name,
+        parent_path=str(image.parent),
+        folder_path=str(image.parent),
+        root_path=str(image.parent.parent),
+        mtime=stat.st_mtime,
+        mtime_ns=stat.st_mtime_ns,
+        size=stat.st_size,
+    )
+
+    with _DB_LOCK, _connect() as conn:
+        complete_metadata_job(conn, job)
+
+    with _DB_LOCK, _connect() as conn:
+        job_row = conn.execute("SELECT state FROM metadata_index_jobs WHERE path = ?", (resolved,)).fetchone()
+    assert job_row is not None
+    assert job_row["state"] == "skipped", f"Expected skipped, got {job_row['state']}"
+
+
+# ---------------------------------------------------------------------------
+# Regression: complete_metadata_job with stale asset version → stale
+# ---------------------------------------------------------------------------
+
+
+def test_complete_metadata_job_stale_when_asset_version_mismatch(
+    isolated_metadata_db: Path,
+    tmp_path: Path,
+):
+    """complete_metadata_job marks stale when asset row exists but version mismatches."""
+    image = tmp_path / "lib" / "staleasset.png"
+    image.parent.mkdir(parents=True)
+    create_test_png(image)
+    stat = image.stat()
+    resolved = str(image.resolve())
+
+    lib = create_library([image.parent.parent], name="TestLib")
+    library_id = int(lib["id"])
+    now = time.time()
+
+    # Seed asset with DIFFERENT mtime_ns (stale version)
+    stale_mtime_ns = stat.st_mtime_ns - 1_000_000_000
+    with _DB_LOCK, _connect() as conn:
+        conn.execute(
+            """INSERT INTO assets (library_id, path, parent_path, name, type, mtime_ns, size,
+               indexed_at, metadata_state) VALUES (?, ?, ?, ?, 'image', ?, ?, ?, 'pending')""",
+            (library_id, resolved, str(image.parent), image.name, stale_mtime_ns, stat.st_size, now),
+        )
+        # Seed image_metadata matching the JOB version
+        conn.execute(
+            """INSERT INTO image_metadata (path, name, mtime, mtime_ns, size, metadata_json, updated_at, indexed_at)
+            VALUES (?, ?, ?, ?, ?, '{}', ?, ?)""",
+            (resolved, image.name, stat.st_mtime, stat.st_mtime_ns, stat.st_size, now, now),
+        )
+        # Seed a running job
+        conn.execute(
+            """INSERT INTO metadata_index_jobs (path, name, parent_path, folder_path, root_path,
+              mtime, mtime_ns, size, state, queued_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'running', ?, ?)""",
+            (
+                resolved,
+                image.name,
+                str(image.parent),
+                str(image.parent),
+                str(image.parent.parent),
+                stat.st_mtime,
+                stat.st_mtime_ns,
+                stat.st_size,
+                now,
+                now,
+            ),
+        )
+
+    job = MetadataIndexJob(
+        path=resolved,
+        name=image.name,
+        parent_path=str(image.parent),
+        folder_path=str(image.parent),
+        root_path=str(image.parent.parent),
+        mtime=stat.st_mtime,
+        mtime_ns=stat.st_mtime_ns,
+        size=stat.st_size,
+    )
+
+    with _DB_LOCK, _connect() as conn:
+        complete_metadata_job(conn, job)
+
+    with _DB_LOCK, _connect() as conn:
+        job_row = conn.execute("SELECT state FROM metadata_index_jobs WHERE path = ?", (resolved,)).fetchone()
+    assert job_row is not None
+    assert job_row["state"] == "stale", f"Expected stale, got {job_row['state']}"
+
+
+# ---------------------------------------------------------------------------
+# Regression: priority is persisted and claim_next_metadata_job picks lower numeric first
+# ---------------------------------------------------------------------------
+
+
+def test_priority_persisted_and_claim_order(
+    isolated_metadata_db: Path,
+    tmp_path: Path,
+):
+    """dispatch_metadata_index_paths with priority=1 is claimed before priority=3."""
+    initialize_database()
+    img1 = tmp_path / "p1.png"
+    img1.write_bytes(b"data")
+    img2 = tmp_path / "p3.png"
+    img2.write_bytes(b"data")
+
+    dispatch_metadata_index_paths([img1], priority=1)
+    dispatch_metadata_index_paths([img2], priority=3)
+
+    # Verify priority persisted
+    with _DB_LOCK, _connect() as conn:
+        rows = {r["path"]: r for r in conn.execute("SELECT path, priority FROM metadata_index_jobs").fetchall()}
+    assert rows[str(img1.resolve())]["priority"] == 1
+    assert rows[str(img2.resolve())]["priority"] == 3
+
+    # Claim should return the lower-number (higher-priority) job first
+    first = claim_next_metadata_job()
+    assert first is not None
+    assert first.path == str(img1.resolve()), f"Expected priority 1 job first, got {first.path}"
+
+    second = claim_next_metadata_job()
+    assert second is not None
+    assert second.path == str(img2.resolve()), f"Expected priority 3 job second, got {second.path}"
+
+
+# ---------------------------------------------------------------------------
+# Regression: recovery handles >1000 running jobs and fails exhausted attempts
+# ---------------------------------------------------------------------------
+
+
+def test_recovery_more_than_1000_running_jobs(
+    isolated_metadata_db: Path,
+    tmp_path: Path,
+):
+    """recover_metadata_index_jobs handles more than 1000 running jobs (unbounded)."""
+    initialize_database()
+    now = time.time()
+
+    # Insert 1001 running jobs
+    with _DB_LOCK, _connect() as conn:
+        for i in range(1001):
+            path = str(tmp_path / f"img{i}.png")
+            conn.execute(
+                """INSERT INTO metadata_index_jobs (path, name, parent_path, folder_path, root_path,
+                   mtime, mtime_ns, size, state, queued_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, 1.0, 1000000000, 100, 'running', ?, ?)""",
+                (path, f"img{i}.png", str(tmp_path), str(tmp_path), str(tmp_path), now, now),
+            )
+
+    # Suppress wake to avoid worker interference
+    metadata_worker._wake_event.clear()
+    result = recover_metadata_index_jobs()
+
+    assert result["running_reset"] == 1001, f"Expected 1001 running_reset, got {result}"
+
+    # All should now be queued
+    with _DB_LOCK, _connect() as conn:
+        queued = conn.execute("SELECT count(*) FROM metadata_index_jobs WHERE state = 'queued'").fetchone()[0]
+    assert queued == 1001, f"Expected 1001 queued, got {queued}"
+
+
+def test_recovery_fails_exhausted_attempts(
+    isolated_metadata_db: Path,
+    tmp_path: Path,
+):
+    """recover_metadata_index_jobs fails running jobs with attempts >= MAX."""
+    initialize_database()
+    now = time.time()
+
+    exhausted_path = str(tmp_path / "exhausted.png")
+    recoverable_path = str(tmp_path / "recoverable.png")
+
+    with _DB_LOCK, _connect() as conn:
+        for path, attempts in [(exhausted_path, MAX_METADATA_JOB_ATTEMPTS), (recoverable_path, 1)]:
+            conn.execute(
+                """INSERT INTO metadata_index_jobs (path, name, parent_path, folder_path, root_path,
+                   mtime, mtime_ns, size, state, attempts, queued_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, 1.0, 1000000000, 100, 'running', ?, ?, ?)""",
+                (path, Path(path).name, str(tmp_path), str(tmp_path), str(tmp_path), attempts, now, now),
+            )
+
+    metadata_worker._wake_event.clear()
+    result = recover_metadata_index_jobs()
+
+    assert result["running_reset"] == 1, f"Expected 1 running_reset, got {result}"
+    assert result["running_failed_exhausted"] == 1, f"Expected 1 running_failed_exhausted, got {result}"
+
+    with _DB_LOCK, _connect() as conn:
+        exhausted_state = conn.execute(
+            "SELECT state FROM metadata_index_jobs WHERE path = ?", (exhausted_path,)
+        ).fetchone()["state"]
+        recoverable_state = conn.execute(
+            "SELECT state FROM metadata_index_jobs WHERE path = ?", (recoverable_path,)
+        ).fetchone()["state"]
+
+    assert exhausted_state == "failed", f"Exhausted job should be failed, got {exhausted_state}"
+    assert recoverable_state == "queued", f"Recoverable job should be queued, got {recoverable_state}"
+
+
+# ---------------------------------------------------------------------------
+# Regression: legacy image_metadata.mtime_ns NULL + matching mtime/size
+# ---------------------------------------------------------------------------
+
+
+def test_legacy_mtime_ns_null_matching_through_persist(
+    isolated_metadata_db: Path,
+    tmp_path: Path,
+):
+    """Legacy image_metadata row with mtime_ns=NULL but matching mtime/size
+    should result in job done/skipped and asset metadata_state='done'."""
+    root = tmp_path / "lib"
+    root.mkdir()
+    image = root / "test.png"
+    from tests.conftest import create_test_png
+
+    create_test_png(image)
+    stat = image.stat()
+    resolved = str(image.resolve())
+
+    lib = create_library([root], name="TestLib")
+    library_id = int(lib["id"])
+    now = time.time()
+
+    # Seed asset row
+    with _DB_LOCK, _connect() as conn:
+        conn.execute(
+            """INSERT INTO assets (library_id, path, parent_path, name, type, mtime_ns, size,
+               indexed_at, metadata_state) VALUES (?, ?, ?, ?, 'image', ?, ?, ?, 'pending')""",
+            (library_id, resolved, str(image.parent), image.name, stat.st_mtime_ns, stat.st_size, now),
+        )
+        # Seed legacy image_metadata with mtime_ns=NULL
+        conn.execute(
+            """INSERT INTO image_metadata (path, name, mtime, mtime_ns, size, metadata_json, updated_at, indexed_at)
+            VALUES (?, ?, ?, NULL, ?, '{}', ?, ?)""",
+            (resolved, image.name, stat.st_mtime, stat.st_size, now, now),
+        )
+
+    # Call _persist_metadata_index_jobs — the "already current" shortcut
+    # should fire, matching the legacy row by mtime + size
+    result = _persist_metadata_index_jobs([image])
+    assert result.skipped >= 1, "Expected at least 1 skipped (already current)"
+
+    with _DB_LOCK, _connect() as conn:
+        job_state = conn.execute("SELECT state FROM metadata_index_jobs WHERE path = ?", (resolved,)).fetchone()
+        asset_state = conn.execute("SELECT metadata_state FROM assets WHERE path = ?", (resolved,)).fetchone()
+
+    assert job_state is not None
+    # _mark_current_metadata_done delegates to complete_metadata_job which may skip
+    # since asset version matches → done
+    assert job_state["state"] in ("done", "skipped"), f"Expected done or skipped, got {job_state['state']}"
+    assert asset_state is not None
+    assert asset_state["metadata_state"] == "done", (
+        f"Asset metadata_state should be 'done', got {asset_state['metadata_state']}"
+    )

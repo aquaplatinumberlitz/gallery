@@ -22,6 +22,7 @@ from .metadata_extract import ExtractedMetadata as ExtractedMetadata  # noqa: F4
 from .metadata_extract import extract_metadata
 from .metadata_store import (
     _DB_LOCK,
+    MAX_METADATA_JOB_ATTEMPTS,
     MetadataIndexJob,
     _connect,
     _persist_metadata_index_jobs,
@@ -155,7 +156,7 @@ def dispatch_metadata_index_paths(
     Phase 2 replaces all direct calls to ``queue_metadata_index_paths`` +
     ``_enqueue_metadata_jobs_from_result`` with this unified entrypoint.
     """
-    result = _persist_metadata_index_jobs(list(paths), root_path)
+    result = _persist_metadata_index_jobs(list(paths), root_path, priority=priority)
     metadata_worker.wake()
     return {
         "queued": len(result.enqueued),
@@ -304,23 +305,61 @@ def recover_metadata_index_jobs() -> dict[str, int]:
 
     Mirrors DerivativeScheduler.start() recovery pattern.
 
+    Running jobs with attempts >= MAX_METADATA_JOB_ATTEMPTS become failed.
+    Remaining running jobs are reset to queued.
+
     Returns:
-        dict with counters: running_reset, done_repaired, done_demoted,
-        done_skipped, total
+        dict with counters: running_reset, running_failed_exhausted,
+        done_repaired, done_demoted, done_skipped, total
     """
     initialize_database()
     with _DB_LOCK, _connect() as conn:
-        running_jobs = list_recoverable_metadata_jobs(conn, ("running",))
-        job_paths = [(j["path"], j["mtime"], j["size"], j["mtime_ns"]) for j in running_jobs]
-        reset_running_jobs_to_queued(conn, job_paths)
+        running_jobs = list_recoverable_metadata_jobs(conn, ("running",), limit=0)
+        now = time.time()
+        exhausted_paths: list[tuple[str, float, int, int | None]] = []
+        reset_paths: list[tuple[str, float, int, int | None]] = []
+        for j in running_jobs:
+            attempts = int(j["attempts"] or 0)
+            path = j["path"]
+            mtime_ns = j["mtime_ns"]
+            mtime = j["mtime"]
+            size = j["size"]
+            if attempts >= MAX_METADATA_JOB_ATTEMPTS:
+                if mtime_ns is not None:
+                    conn.execute(
+                        """
+                        UPDATE metadata_index_jobs
+                        SET state='failed', error=?, finished_at=?, updated_at=?
+                        WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=? AND state='running'
+                        """,
+                        ("exhausted recovery attempts", now, now, path, mtime_ns, size),
+                    )
+                else:
+                    conn.execute(
+                        """
+                        UPDATE metadata_index_jobs
+                        SET state='failed', error=?, finished_at=?, updated_at=?
+                        WHERE path=? AND mtime=? AND size=? AND state='running'
+                        """,
+                        ("exhausted recovery attempts", now, now, path, mtime, size),
+                    )
+                exhausted_paths.append((path, mtime, size, mtime_ns))
+            else:
+                reset_paths.append((path, mtime, size, mtime_ns))
+        reset_running_jobs_to_queued(conn, reset_paths)
         repair_result = repair_inconsistent_asset_states(conn)
 
     metadata_worker.wake()
 
     return {
-        "running_reset": len(running_jobs),
+        "running_reset": len(reset_paths),
+        "running_failed_exhausted": len(exhausted_paths),
         "done_repaired": repair_result["repaired"],
         "done_demoted": repair_result["demoted"],
         "done_skipped": repair_result["skipped"],
-        "total": len(running_jobs) + repair_result["repaired"] + repair_result["demoted"] + repair_result["skipped"],
+        "total": len(reset_paths)
+        + len(exhausted_paths)
+        + repair_result["repaired"]
+        + repair_result["demoted"]
+        + repair_result["skipped"],
     }

@@ -154,10 +154,34 @@ class IntegrityChecker:
         now = time.time()
         for row in rows:
             if row["cache_path"] is None or not Path(row["cache_path"]).is_file():
+                derivative_id = row["id"]
+                # Clear stale cache fields on the catalog row
                 conn.execute(
-                    "UPDATE asset_derivatives SET status = 'queued', last_error = ?, updated_at = ? WHERE id = ?",
-                    ("integrity: file missing", now, row["id"]),
+                    """
+                    UPDATE asset_derivatives
+                    SET status = 'queued', cache_path = NULL, byte_size = NULL,
+                        last_error = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    ("integrity: file missing", now, derivative_id),
                 )
+                # Reuse existing queued/running derivative_jobs row if one exists
+                existing = conn.execute(
+                    """
+                    SELECT id FROM derivative_jobs
+                    WHERE derivative_id = ? AND state IN ('queued', 'running')
+                    LIMIT 1
+                    """,
+                    (derivative_id,),
+                ).fetchone()
+                if existing is None:
+                    conn.execute(
+                        """
+                        INSERT INTO derivative_jobs (derivative_id, priority, state)
+                        VALUES (?, 3, 'queued')
+                        """,
+                        (derivative_id,),
+                    )
                 requeued += 1
         return requeued
 
