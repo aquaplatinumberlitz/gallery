@@ -27,11 +27,11 @@ from backend.metadata_store import (
     _DB_LOCK,
     MetadataIndexJob,
     _connect,
+    _persist_metadata_index_jobs,
     claim_next_metadata_job,
     complete_metadata_job,
     get_metadata_index_status,
     initialize_database,
-    queue_metadata_index_paths,
     repair_inconsistent_asset_states,
 )
 from tests.conftest import create_test_image, create_test_png
@@ -90,23 +90,17 @@ def test_worker_claims_queued_jobs_directly_from_sqlite(
     """The DB-claim worker claims jobs from SQLite, not from an in-memory queue.
 
     After Phase 1, the worker's _claim_job calls claim_next_metadata_job() which
-    claims directly from metadata_index_jobs. The old indexer._job_queue is
-    bypassed and remains empty.
+    claims directly from metadata_index_jobs. The old in-memory queue is not used.
     """
     import backend.indexer as indexer
 
-    while not indexer._job_queue.empty():
-        indexer._job_queue.get_nowait()
-
     image = tmp_path / "test.png"
     create_test_image(image)
-    queue_metadata_index_paths([image])
+    _persist_metadata_index_jobs([image])
 
     status = get_metadata_index_status(path=tmp_path)
     assert status["total"] == 1
     assert status["counts"].get("queued", 0) == 1
-
-    assert indexer._job_queue.qsize() == 0
 
     job = claim_next_metadata_job()
     assert job is not None
@@ -138,7 +132,7 @@ def test_claim_next_metadata_job_atomicity(
     image = tmp_path / "test.png"
     create_test_image(image)
 
-    queue_metadata_index_paths([image])
+    _persist_metadata_index_jobs([image])
 
     first = claim_next_metadata_job()
     assert first is not None
@@ -330,7 +324,7 @@ def test_worker_does_not_hold_long_write_transactions(
     create_library([root], name="TestLib")
 
     # Seed a metadata job
-    queue_metadata_index_paths([image])
+    _persist_metadata_index_jobs([image])
     job = claim_next_metadata_job()
     assert job is not None
     assert job.mtime_ns is not None
@@ -451,10 +445,6 @@ def test_queued_jobs_survive_restart(
     by recovery; the worker later claims and completes it from SQLite."""
     import backend.indexer as indexer
 
-    # Drain any in-memory queue items
-    while not indexer._job_queue.empty():
-        indexer._job_queue.get_nowait()
-
     root = tmp_path / "lib"
     root.mkdir()
     album = root / "album"
@@ -516,8 +506,6 @@ def test_queued_jobs_survive_restart(
         ).fetchone()
     assert asset_row is not None
     assert asset_row["metadata_state"] == "done", f"Asset should be 'done', got '{asset_row['metadata_state']}'"
-    # Verify no in-memory queue was rebuilt
-    assert indexer._job_queue.qsize() == 0, "In-memory queue should still be empty"
 
 
 # ---------------------------------------------------------------------------

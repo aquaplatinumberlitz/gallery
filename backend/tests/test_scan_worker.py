@@ -69,9 +69,6 @@ def test_rebuild_path_uses_dispatch_metadata_index_paths(
     lib = create_library([root], name="TestLib")
     library_id = int(lib["id"])
 
-    while not indexer._job_queue.empty():
-        indexer._job_queue.get_nowait()
-
     job, _created = queue_rebuild(library_id)
     job_id = int(job["id"])
 
@@ -93,8 +90,3 @@ def test_rebuild_path_uses_dispatch_metadata_index_paths(
         f"Expected metadata_index_jobs rows in SQLite after rebuild, got total={status['total']}"
     )
     assert status["counts"].get("queued", 0) > 0, f"Expected queued metadata jobs, got counts={status['counts']}"
-
-    # _job_queue should be empty because dispatch does NOT push to memory
-    assert indexer._job_queue.qsize() == 0, (
-        "Phase 2: dispatch_metadata_index_paths does not populate _job_queue; the DB-claim worker claims from SQLite"
-    )

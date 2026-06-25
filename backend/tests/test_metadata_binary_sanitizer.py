@@ -83,7 +83,14 @@ def test_metadata_indexing_sanitizes_pil_binary_info(
     queued = queue_metadata_index_paths([image_path], tmp_path)
     assert len(queued.enqueued) == 1
 
-    indexer._process_batch(queued.enqueued)
+    # Use new DB-claim worker pattern instead of old _process_batch
+    from backend.indexer import MetadataLifecycleWorker
+    from backend.metadata_store import claim_next_metadata_job
+
+    job = claim_next_metadata_job()
+    assert job is not None, "Should be able to claim the queued job"
+    worker = MetadataLifecycleWorker()
+    worker._run_job(job)
 
     conn = sqlite3.connect(isolated_metadata_db)
     conn.row_factory = sqlite3.Row

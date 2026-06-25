@@ -242,8 +242,10 @@ from .metadata_queue import (
     mark_metadata_jobs_stale as mark_metadata_jobs_stale,
 )
 
-# Backward compatibility alias for callers using the old public name
-queue_metadata_index_paths = _persist_metadata_index_jobs
+# Deprecated backward-compat alias — use _persist_metadata_index_jobs instead.
+# Tests may use this; production code must NOT (caught by ownership script).
+queue_metadata_index_paths = _persist_metadata_index_jobs  # noqa: F811
+
 from .metadata_queue import (
     repair_inconsistent_asset_states as repair_inconsistent_asset_states,
 )

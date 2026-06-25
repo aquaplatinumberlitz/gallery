@@ -13,9 +13,7 @@ from typing import Any
 from fastapi import APIRouter
 
 from .config import (
-    METADATA_INDEXER_BATCH_SIZE,
     METADATA_INDEXER_ENABLED,
-    METADATA_INDEXER_STAGE_BATCH_SIZE,
     METADATA_INDEXER_WORKER_SLEEP_SECONDS,
 )
 from .metadata_extract import ExtractedMetadata, extract_metadata
@@ -45,43 +43,6 @@ except Exception:  # noqa: BLE001  # pragma: no cover - metrics are optional at 
 
 router = APIRouter()
 LOGGER = logging.getLogger(__name__)
-
-# Backward compatibility shims used by tests
-import queue as _queue_module
-
-_job_queue: _queue_module.Queue = _queue_module.Queue()
-while True:
-    try:
-        _job_queue.get_nowait()
-    except _queue_module.Empty:
-        break
-
-
-def _process_batch(jobs: list[MetadataIndexJob]) -> None:
-    """Backward compat shim: extract metadata and complete jobs synchronously.
-
-    Used by test_metadata_binary_sanitizer.py. Production code uses
-    MetadataLifecycleWorker instead.
-    """
-    from .metadata_store import _DB_LOCK, _connect, complete_metadata_job, upsert_metadata_batch as _upbatch
-
-    successes: list[ExtractedMetadata] = []
-    completed: list[MetadataIndexJob] = []
-    for job in jobs:
-        try:
-            metadata = extract_metadata(Path(job.path))
-            successes.append(metadata)
-            completed.append(job)
-        except Exception:  # noqa: BLE001
-            pass
-    if successes:
-        _upbatch(successes)
-        for job in completed:
-            try:
-                with _DB_LOCK, _connect() as conn:
-                    complete_metadata_job(conn, job)
-            except Exception:  # noqa: BLE001
-                pass
 
 
 def _metric(factory: Any, name: str, documentation: str, *args: Any, **kwargs: Any) -> Any:
