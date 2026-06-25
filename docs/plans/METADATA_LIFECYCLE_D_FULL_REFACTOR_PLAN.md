@@ -31,7 +31,7 @@ target architecture and remove ambiguity that caused the original bug family.
    `complete_metadata_job()` marks a job `'done'` **only** when the asset row
    matches and `assets.metadata_state` is materialised to `'done'` in the same
    transaction. If no library owns the path or the path is excluded, the job is
-   marked `'skipped'`. If `(mtime, size)` differs from the current asset, the
+   marked `'skipped'`. If `(mtime_ns, size)` differs from the current asset, the
    job is marked `'stale'`.
 
 4. **Stale guard identity.**
@@ -422,8 +422,8 @@ Worker loop pattern (mirrors `DerivativeScheduler._worker_loop`,
    existing API/status/UI code reads them. The terminal materialised state
    that matters is `assets.metadata_state='done'` on successful completion.
 3. extract metadata outside any DB transaction
-4. extract metadata outside any DB transaction
-5. upsert image_metadata + complete job + materialize assets.metadata_state='done'
+4. upsert `image_metadata` through the completion owner's internal helper
+5. complete job + materialize `assets.metadata_state='done'`
    in a short completion transaction (§5.3)
 6. on failure: retry or mark failed in a short transaction
 7. repeat until no queued jobs remain, then wait on _wake_event
@@ -852,7 +852,7 @@ provides the implementation.
 Files:
 
 - `backend/tests/test_metadata_lifecycle.py` (new) — Tests 3, 9, 10, 13, 15
-  (DB-claim, recovery, restart, no bridge, no long tx).
+  (DB-claim, recovery, restart, no bridge, crash recovery).
 
 ### Phase 1 — Introduce DB-claim metadata worker
 
@@ -875,7 +875,7 @@ Files:
   `_worker_loop`, `_claim_job`, `_run_job`, `_complete_job`, `_fail_job`,
   `_mark_job_stale`, `start`, `stop`, `wake`, `is_running`.
 - `backend/app.py` — instantiate and start the worker on startup.
-- Tests: flip Tests 3, 4, 15 to passing.
+- Tests: flip Tests 3, 4, 16 to passing.
 
 ### Phase 2 — Convert scheduling to durable DB queue + wake worker
 
@@ -934,7 +934,7 @@ Files:
   then wakes the worker. Does not rebuild in-memory queue.
 - `backend/app.py` — call `recover_metadata_index_jobs()` in
   `_startup_background_services` after `recover_stale_jobs()`.
-- Tests: flip Tests 9, 10, 11 to passing; add "durable done was lying" demote
+- Tests: flip Tests 9, 10, 11, 15 to passing; add "durable done was lying" demote
   companion test.
 
 ### Phase 5 — Remove/deprecate old in-memory metadata queue bridge
@@ -998,7 +998,7 @@ Files:
 
 | Risk | Mitigation |
 | --- | --- |
-| **Double enqueue** | `metadata_index_jobs.path PK` prevents duplicate rows for the same path. `dispatch_metadata_index_paths` coalesces both in SQLite (ON CONFLICT path) and in `_queued_keys`. Test 14. |
+| **Double enqueue** | `metadata_index_jobs.path PK` prevents duplicate rows for the same path. `dispatch_metadata_index_paths` coalesces in SQLite (ON CONFLICT path). Phase 1 legacy path may also use `_queued_keys` while old worker is authoritative; Phase 2+ `_queued_keys` is no-op/removed. Test 14. |
 | **Starting multiple worker threads** | `MetadataLifecycleWorker.start()` guarded by `_lifecycle_lock` + `is_alive()` check, same as `DerivativeScheduler.start()` (`derivative_scheduler.py:65-87`). |
 | **Long SQLite transactions** | Claim and complete are short `BEGIN IMMEDIATE` transactions. Extraction runs outside any DB transaction, same as `DerivativeScheduler._run_job` (`derivative_scheduler.py:451-476`). Test 15. |
 | **Scan/rebuild concurrency** | Catalog service serializes via `claim_next_catalog_job`. Metadata worker claims independently from SQLite with `BEGIN IMMEDIATE`, same as derivative worker. No new cross-catalog locking. |
