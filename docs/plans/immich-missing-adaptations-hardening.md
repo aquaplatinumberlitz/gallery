@@ -2,7 +2,10 @@
 
 ## Summary
 
-Implement the remaining backend and contract hardening that Immich suggests, after the admin UI for generated files / library health has already been completed.
+This is a follow-up hardening plan created after the Immich adaptation audit and
+after the frontend library-health/generated-files plan was implemented. It
+finishes the remaining backend and contract hardening that Immich suggests,
+without reopening the completed admin UI work.
 
 This plan does **not** redo the finished `Generated images`, `Live status`, `Problems`, or `Admin > Maintenance` shell UI work. It focuses on the missing backend truth sources and the last read-model/contract gaps:
 
@@ -10,6 +13,47 @@ This plan does **not** redo the finished `Generated images`, `Live status`, `Pro
 2. add a persisted file-health report API behind the existing Maintenance page,
 3. make integrity checks auditable instead of only repair-side effects,
 4. add contract fixtures and schema checks so the frontend and backend stay aligned.
+
+## Why This Plan Exists
+
+Gallery has already adapted the useful local-first parts of Immich's lifecycle
+model: durable metadata jobs, derivative jobs, readiness state, watcher/refresh
+workers, status diagnostics, and admin surfaces for generated files and library
+health. The frontend follow-up for `Generated images`, `Live status`,
+`Problems`, and `Admin > Maintenance` is now done, so the remaining work is no
+longer UI discovery or layout.
+
+The reason this plan still exists is that the backend truth sources and
+contracts are not fully closed. The metadata lifecycle refactor fixed the major
+worker-lifecycle bugs by making SQLite the queue, materializing completion into
+`assets.metadata_state`, adding recovery/repair, and aligning catalog status on
+the tolerant identity rule. The codebase still shows narrower read-model,
+reporting, and contract gaps that can make the UI show placeholders or disagree
+with the lifecycle state.
+
+| Cause | Current Gallery state | Why it matters | Plan response |
+| --- | --- | --- | --- |
+| Frontend health/generated-files UI is done | Admin pages show generated-image coverage and Maintenance placeholders | UI now exposes places where backend truth is missing | Add file-health API and wire Maintenance to real data |
+| Metadata lifecycle uses tolerant identity | Status/indexer paths tolerate small `mtime_ns` drift | Browse can still disagree because it uses exact joins | Add shared identity helper and fix browse matching |
+| Integrity checker mutates silently | Repairs happen but no persisted run summary exists | Admin cannot audit what was found or repaired | Add `integrity_check_runs` and response envelope |
+| Contract guards exist for catalog status | New maintenance response has no schema/fixture contract | Frontend/backend drift can return | Add backend fixtures, JSON schema, and frontend contract tests |
+| Schema compatibility is additive | No explicit lifecycle schema-check helper exists | Missing tables/indexes can become runtime bugs | Add schema-check helper and tests |
+
+This plan deliberately extracts the local lesson from Immich rather than copying
+Immich's infrastructure. Gallery stays SQLite-first and single-process; it does
+not adopt Redis/BullMQ, PostgreSQL-specific migrations, a microservice split, or
+distributed-worker assumptions.
+
+## Already Done / Not Reopened Here
+
+- The generated-images card, live-status/problems sections, and Maintenance
+  shell UI are complete.
+- `derivative_ready` remains an internal grid/lightbox loading and preload hint,
+  not a visible admin status.
+- User-facing labels stay simple: `Generated images`, `Live status`, `Problems`,
+  `File issues`, `Check files`, and `Repair results`.
+- This plan does not redesign admin UI and does not change the local
+  SQLite-first architecture.
 
 ## Verified Current State (audit baseline)
 
@@ -75,7 +119,8 @@ Acceptance:
 
 - 500ns and 999ns deltas still match.
 - 1000ns deltas do not match.
-- legacy rows without `mtime_ns` still work through the seconds fallback.
+- seconds fallback applies to status/indexer/integrity where already present;
+  browse keeps the legacy NULL behavior via `COALESCE(a.width/a.height)`.
 
 ### 2. Add a persisted file-health API for Maintenance
 
