@@ -103,7 +103,9 @@ async def _startup_background_services():
         start()
         if GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED:
             queue_startup_scans()
-    metadata_worker.start()
+    # Phase 2 enables metadata_worker.start(). Phase 1 introduces the
+    # class and primitives but the old memory worker is still authoritative.
+    # metadata_worker.start()
     scheduler.start()
     _start_refresh()
     _start_watcher()
@@ -114,7 +116,7 @@ async def _shutdown_background_services():
     _stop_watcher()
     _stop_refresh()
     stop()
-    metadata_worker.stop()
+    # metadata_worker.stop()  # Phase 2 enables
     scheduler.stop()
 
 

@@ -749,7 +749,7 @@ class MetadataLifecycleWorker:
         self._threads: list[threading.Thread] = []
 
     def start(self) -> None:
-        """Start workers and recover jobs interrupted by a prior process."""
+        """Start DB-claim metadata worker threads. Recovery deferred to Phase 4."""
         with self._lifecycle_lock:
             if any(thread.is_alive() for thread in self._threads):
                 return
@@ -844,11 +844,17 @@ class MetadataLifecycleWorker:
 
     @staticmethod
     def _is_job_current(job: MetadataIndexJob) -> bool:
-        """Return whether the file on disk still matches the job's identity."""
+        """Return whether the file on disk still matches the job's identity.
+
+        Primary check uses st_mtime_ns (nanoseconds). Falls back to
+        st_mtime (seconds) for legacy jobs without mtime_ns.
+        """
         try:
             stat = Path(job.path).stat()
         except OSError:
             return False
+        if job.mtime_ns is not None:
+            return abs(stat.st_mtime_ns - job.mtime_ns) < 1000 and stat.st_size == job.size
         return stat.st_mtime == job.mtime and stat.st_size == job.size
 
 

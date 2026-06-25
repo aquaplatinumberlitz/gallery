@@ -46,7 +46,7 @@ Last updated: 2026-06-25
 
 ---
 
-## Phase 1 — DB-Claim Metadata Worker ✅
+## Phase 1 — DB-Claim Metadata Worker ✅ *(audit fixes applied 2026-06-25)*
 
 ### Schema migration
 

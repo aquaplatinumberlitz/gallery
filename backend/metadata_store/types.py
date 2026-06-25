@@ -25,6 +25,7 @@ class MetadataIndexJob:
     size: int
     folder_path: str
     root_path: str
+    mtime_ns: int | None = None
     library_id: int | None = None
 
     @property

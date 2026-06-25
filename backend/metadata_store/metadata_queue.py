@@ -58,6 +58,7 @@ def _metadata_job_from_path(path_value: str | Path, root_path: str | Path | None
         folder_path=str(parent),
         root_path=resolved_root,
         mtime=stat.st_mtime,
+        mtime_ns=stat.st_mtime_ns,
         size=stat.st_size,
     )
 
@@ -66,15 +67,16 @@ def _mark_current_metadata_done(conn: sqlite3.Connection, job: MetadataIndexJob,
     conn.execute(
         """
         INSERT INTO metadata_index_jobs (
-          path, name, parent_path, folder_path, root_path, mtime, size, state,
+          path, name, parent_path, folder_path, root_path, mtime, mtime_ns, size, state,
           attempts, error, queued_at, started_at, finished_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'done', 0, NULL, ?, NULL, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'done', 0, NULL, ?, NULL, ?, ?)
         ON CONFLICT(path) DO UPDATE SET
           name=excluded.name,
           parent_path=excluded.parent_path,
           folder_path=excluded.folder_path,
           root_path=excluded.root_path,
           mtime=excluded.mtime,
+          mtime_ns=excluded.mtime_ns,
           size=excluded.size,
           state='done',
           error=NULL,
@@ -88,6 +90,7 @@ def _mark_current_metadata_done(conn: sqlite3.Connection, job: MetadataIndexJob,
             job.folder_path,
             job.root_path,
             job.mtime,
+            job.mtime_ns,
             job.size,
             now,
             now,
@@ -141,15 +144,16 @@ def queue_metadata_index_paths(paths: Iterable[str | Path], root_path: str | Pat
             conn.execute(
                 """
                 INSERT INTO metadata_index_jobs (
-                  path, name, parent_path, folder_path, root_path, mtime, size,
+                  path, name, parent_path, folder_path, root_path, mtime, mtime_ns, size,
                   state, attempts, error, queued_at, started_at, finished_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', 0, NULL, ?, NULL, NULL, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', 0, NULL, ?, NULL, NULL, ?)
                 ON CONFLICT(path) DO UPDATE SET
                   name=excluded.name,
                   parent_path=excluded.parent_path,
                   folder_path=excluded.folder_path,
                   root_path=excluded.root_path,
                   mtime=excluded.mtime,
+                  mtime_ns=excluded.mtime_ns,
                   size=excluded.size,
                   state='queued',
                   attempts=CASE
@@ -171,6 +175,7 @@ def queue_metadata_index_paths(paths: Iterable[str | Path], root_path: str | Pat
                     job.folder_path,
                     job.root_path,
                     job.mtime,
+                    job.mtime_ns,
                     job.size,
                     now,
                     now,
@@ -318,6 +323,7 @@ def claim_next_metadata_job(
             folder_path=row["folder_path"],
             root_path=row["root_path"],
             mtime=row["mtime"],
+            mtime_ns=row["mtime_ns"],
             size=row["size"],
             library_id=row["library_id"],
         )
@@ -332,9 +338,36 @@ def complete_metadata_job(
 ) -> None:
     """Mark one metadata job done and materialize assets.metadata_state='done'.
 
-    Phase 3 adds full stale/race guards. For now this is the basic
-    completion transition linking job state and asset state.
+    Enforces the invariant: image_metadata current + job done + asset done.
+
+    Phase 3 adds full stale/race guards. For now this verifies that
+    image_metadata exists for the job's identity before marking done.
     """
+    # Verify image_metadata is current for path + mtime_ns + size
+    if metadata_is_current:
+        mtime_ns_val = job.mtime_ns
+        if mtime_ns_val is not None:
+            row = conn.execute(
+                """
+                SELECT 1 FROM image_metadata
+                WHERE path = ? AND mtime_ns = ? AND size = ?
+                """,
+                (job.path, mtime_ns_val, job.size),
+            ).fetchone()
+        else:
+            # Legacy fallback: compare seconds to seconds
+            row = conn.execute(
+                """
+                SELECT 1 FROM image_metadata
+                WHERE path = ? AND mtime = ? AND size = ?
+                """,
+                (job.path, job.mtime, job.size),
+            ).fetchone()
+        if row is None:
+            # image_metadata not current; mark job stale
+            mark_metadata_job_stale(conn, job)
+            return
+
     now = time.time()
     conn.execute(
         """
@@ -347,14 +380,27 @@ def complete_metadata_job(
         """,
         (now, now, job.path, job.mtime, job.size),
     )
-    conn.execute(
-        """
-        UPDATE assets
-        SET metadata_state='done', updated_at=?
-        WHERE path=? AND mtime_ns=? AND size=?
-        """,
-        (now, job.path, job.mtime, job.size),
-    )
+
+    # Materialize asset done using mtime_ns primary, with fallback
+    mtime_ns_val = job.mtime_ns
+    if mtime_ns_val is not None:
+        conn.execute(
+            """
+            UPDATE assets
+            SET metadata_state='done'
+            WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=?
+            """,
+            (job.path, mtime_ns_val, job.size),
+        )
+    else:
+        conn.execute(
+            """
+            UPDATE assets
+            SET metadata_state='done'
+            WHERE path=? AND ABS(mtime_ns / 1_000_000_000.0 - ?) < 1e-3 AND size=?
+            """,
+            (job.path, job.mtime, job.size),
+        )
 
 
 def fail_metadata_job(
