@@ -4,7 +4,47 @@ Status: Proposed (plan only — not implemented yet)
 Last reviewed: 2026-06-25
 Scope: `backend/indexer.py`, `backend/scan_worker.py`, `backend/metadata_store/metadata_queue.py`, and related store modules
 
-## 0. Summary of corrections to the task prompt
+## 0. Implementation clarifications before Phase 0
+
+Based on the external audit of this plan (2026-06-25), four clarifications
+are adopted before implementation begins. They do not change the D·full
+direction; they remove ambiguity that could cause circular imports, semantic
+drift, or scoping disputes during implementation.
+
+1. **Runtime owner boundary.**
+   `recover_metadata_index_jobs()` lives in `indexer.py` (or a new
+   `metadata_lifecycle.py` if `indexer.py` grows too large), not in
+   `metadata_queue.py`. The store layer (`metadata_queue.py`) remains DB-only:
+   it provides `list_recoverable_metadata_jobs()`, `reset_running_jobs_to_queued()`,
+   and `complete_metadata_jobs_conn()` but never imports the runtime layer.
+   All sections below have been updated to reflect this enforcement.
+
+2. **Completion terminal states.**
+   `complete_metadata_jobs()` marks a job `'done'` **only** when the asset row
+   matches and `assets.metadata_state` is materialised to `'done'` in the same
+   transaction. If no library owns the path or the path is excluded, the job is
+   marked `'skipped'` (a terminal no-op, clearly distinguishable from `'done'`).
+   If `(mtime, size)` differs from the current asset, the job is marked
+   `'stale'`. This prevents the "job done but asset pending" ambiguity that
+   caused Bug 2 and Bug 3.
+
+3. **Migration decision.**
+   No schema migration is required for Phases 1–3. Existing columns
+   (`metadata_index_jobs.path`, `mtime`, `size`, `state`, `root_path`;
+   `assets.metadata_state`, `mtime_ns`, `size`, `library_id`) are sufficient.
+   `metadata_index_jobs.library_id` and the
+   `idx_assets_metadata_state` index are optional follow-ups deferred until
+   large-library profiling proves they are needed.
+
+4. **Asset-state side-effect strategy.**
+   Phase 2 re-asserts `assets.metadata_state='done'` inside
+   `complete_metadata_jobs()` even though `_upsert_extracted_metadata_conn`
+   already sets it. This is a safety double-write — the canonical state
+   transition moves to the completion helper. Phase 4 may trim the redundant
+   side-effect from `_upsert_asset_conn` after the regression tests prove the
+   completion helper is always called.
+
+## 1. Summary of corrections to the task prompt
 
 The task brief assumes three bugs verbatim. After reading the code, two are
 confirmed exactly as described, and one (Bug 3) is partially inaccurate. The
@@ -451,8 +491,12 @@ POST: for each job,
      - metadata_index_jobs.state='done', finished_at, updated_at
      - assets.metadata_state='done' for the matching asset row
      - if no matching asset row exists (no library/excluded), the job is
-       marked 'done' but no asset transition is attempted; that is logged
-       and is the contract for "asset row not under any library"
+       marked 'skipped' but no asset transition is attempted; that is logged
+       and is the contract for "asset row not under any library".
+       This prevents the "job done but asset pending" ambiguity that the
+       original bug family exploited.
+     - if (mtime, size) differ from the current asset row, the job is
+       marked 'stale' instead of 'done' (see §4.3 stale guard).
 ```
 
 Routing rules (the divergence fix):
@@ -504,8 +548,10 @@ Implementation:
 2. **Library-owned path** is enforced by matching the asset row via
    `_find_library_for_path_conn` (`_asset_store.py:33`), the same resolver
    already used for upserts. If no library owns `job.path`, the job is marked
-   `'done'` (it had nowhere to materialize) but no asset transition is
-   attempted — and this is logged at WARNING.
+   `'skipped'` (it had nowhere to materialise) but no asset transition is
+   attempted — and this is logged at WARNING. Using `'skipped'` instead of
+   `'done'` signals "intentional terminal no-op" rather than "job done but
+   asset not done," avoiding the ambiguity that caused the original Bug 2/3.
 3. **Filesystem guard** is preserved by the existing `_is_job_current`
    pre-check in `_process_batch` (`indexer.py:224-229`, `343-352`); the
    completion guard adds a *DB-side* check: job's `(mtime, size)` must equal
@@ -535,10 +581,22 @@ Implementation:
 
 ### 4.4 Startup recovery / rehydration
 
-Add `recover_metadata_index_jobs()` in `backend/metadata_store/metadata_queue.py`
-and call it from `app.startup()` (`app.py:98-104`) alongside, but distinct
-from, `recover_stale_jobs()`. It must own *metadata* recovery only, not
-catalog recovery. Cases:
+Add `recover_metadata_index_jobs()` in `backend/indexer.py` (the runtime
+owner — see §0 clarification 1) and call it from `app.startup()`
+(`app.py:98-104`) alongside, but distinct from, `recover_stale_jobs()`.
+`backend/metadata_store/metadata_queue.py` exposes only the DB primitives it
+needs:
+- `list_recoverable_metadata_jobs()` — returns `metadata_index_jobs` rows
+  matching recovery criteria.
+- `reset_running_metadata_jobs_to_queued(job_ids)` — atomically resets
+  `'running'` → `'queued'` (preserving `attempts`, `queued_at`).
+- `complete_metadata_jobs(...)` — already shared with the completion owner.
+
+`indexer.recover_metadata_index_jobs()` calls these store helpers, then uses
+`dispatch_metadata_index_paths` (§4.1) to re-enqueue rows. The store layer
+never imports the runtime layer, preventing the circular hazard.
+
+Recovery must own *metadata* recovery only, not catalog recovery. Cases:
 
 | Case | Detection query | Recovery action |
 | --- | --- | --- |
@@ -579,13 +637,12 @@ the maintenance repair for already-inconsistent DBs. Decision:
   writes and for *legacy* writes by a single startup pass. (See §5 for why a
   one-off migration is not preferred.)
 - **Optional explicit maintenance function:** expose
-  `repair_metadata_asset_state(scope_path=None)` in
-  `backend/metadata_store/metadata_queue.py` for the admin/debug surface,
-  with a guard that it is a no-op when there is nothing to repair. The plan
-  does not require wiring this into a route; it exists so a future
-  `/api/libraries/{id}/repair`-style endpoint (see existing
-  `/api/derivatives/warm|rebuild|clear` patterns in `libraries.py`) can call
-  it without inventing new logic.
+  `repair_inconsistent_asset_states(conn, scope_path=None)` as a store-layer
+  helper in `backend/metadata_store/metadata_queue.py`. The runtime owner
+  (`indexer.recover_metadata_index_jobs`) calls it; it can also be wired
+  into a future `/api/libraries/{id}/repair`-style endpoint (see existing
+  `/api/derivatives/warm|rebuild|clear` patterns in `libraries.py`) without
+  importing the runtime layer.
 - **What not to do.** Do not sweep `assets.metadata_state='pending'` →
   `'done'` blindly. The repair MUST verify `image_metadata` row exists and
   its `(mtime, size)` matches the asset, otherwise it demotes the job and
@@ -600,49 +657,48 @@ For each job j where j.state='done':
     asset = assets.row_for(j.path)
     if im exists and im.(mtime,size) == j.(mtime,size) and asset exists:
         if asset.metadata_state != 'done':
-            complete_metadata_jobs([j])    # repair: stamp the asset done
-    else:
+            complete_metadata_jobs([j])    # repair: stamp asset done + keep job done
+    elif asset is None or no library owns j.path:
+        mark j.state='skipped'             # terminal no-op, not 'done'
+    elif im missing or im.(mtime,size) != j.(mtime,size):
         # durable "done" was lying; demote and re-dispatch
         set j.state='queued' (preserve queued_at, attempts)
         dispatch_metadata_index_paths([j.path], j.root_path)
+    elif asset.(mtime_ns,size) != j.(mtime,size):
+        mark j.state='stale'               # asset moved on; old job is stale
 ```
 
 ## 5. Migration / compatibility strategy
 
-No schema migration is *required* to implement the refactor. All new logic
-operates on existing columns. Specifically:
+No schema migration is required for Phases 1–3. All new logic operates on
+existing columns. No new columns, no new tables, no destructive DDL. The
+refactor is therefore safe to ship without a schema version bump.
 
-- `metadata_index_jobs` already has `path (PK)`, `mtime`, `size`, `state`,
-  `attempts`, `root_path`, `queued_at`, `finished_at`, `updated_at`.
-- `assets` already has `metadata_state`, `mtime_ns`, `size`, `library_id`,
-  `path` with `UNIQUE(library_id, path)`.
-- `image_metadata` already has `path (PK)`, `mtime`, `size`.
+Existing columns used:
 
-Whether a *minimal* migration would still help — yes, a small additive
-migration is justified to make the §4.3/§4.4 guards cheap and correct:
+- `metadata_index_jobs`: `path (PK)`, `mtime`, `size`, `state`, `attempts`,
+  `root_path`, `queued_at`, `started_at`, `finished_at`, `updated_at`.
+- `assets`: `metadata_state`, `mtime_ns`, `size`, `library_id`, `path`
+  (with `UNIQUE(library_id, path)`).
+- `image_metadata`: `path (PK)`, `mtime`, `size`, `metadata_json`.
 
-1. **Add `metadata_index_jobs.library_id INTEGER` (NULLABLE)**
-   populated opportunistically by `persist_metadata_index_jobs` when the
-   asset row's library is known at queue time. This is additive and does not
-   change existing behavior; recovery and completion can use it when present
-   and fall back to path-based lookup when NULL.
-2. **Add an index on `assets(metadata_state)` and on
-   `metadata_index_jobs(state, updated_at)`** — the recovery query in §4.4
-   filters on `state` and orders on `updated_at`, and the existing
-   `idx_metadata_index_jobs_state` (`_schema.py:249`) covers the state filter
-   already; only `assets.metadata_state` lacks an index. A small `CREATE INDEX
-   IF NOT EXISTS idx_assets_metadata_state ON assets(metadata_state)` keeps
-   the recovery/repair scan from being a full table scan on large libraries.
-3. **No column renames, no type changes, no destructive DDL.** The
-   `mtime_ns` (declared REAL) quirk is documented in §4.3 and tolerated in
-   code; no migration is forced.
+**Deferred (follow-up, not part of this refactor):**
 
-These additions are purely additive (`_ensure_column` /
-`CREATE INDEX IF NOT EXISTS` already used in `_schema.py:32-36, 476-477`), so
-they are safe to ship in the next schema init pass without a separate
-"migration" step. If the team prefers to defer them, the refactor still works
-using existing columns alone — the recovery query just gets slower on very
-large libraries.
+1. `metadata_index_jobs.library_id INTEGER` (NULLABLE) — would let the stale
+   guard join on `library_id` instead of re-deriving from `path`. Deferred
+   because the path→library lookup already exists (`_find_library_for_path_conn`)
+   and is cheap.
+2. `idx_assets_metadata_state` — would speed the repair/recovery scan on
+   libraries with 100k+ assets. Deferred until large-library profiling proves
+   the full scan is a bottleneck; the existing
+   `idx_metadata_index_jobs_state` (`_schema.py:249`) already covers the
+   metadata-jobs-side scan.
+3. `metadata_index_jobs.asset_id` — natural FK if a future phase adds it.
+   Not needed for the current stale guard, which uses `(path, mtime, size)`.
+
+These are purely additive (`_ensure_column` / `CREATE INDEX IF NOT EXISTS`
+already used in `_schema.py:32-36, 476-477`), so they are safe to add later
+without a heavyweight migration step if profiling justifies them.
 
 ## 6. Test plan
 
@@ -869,6 +925,12 @@ Files expected to change:
   `upsert_extracted_metadata` (`:178-189`), ensure
   `mark_job_done=True` routes through the completion helper (asset + job
   transition in one go).
+- **Side-effect note:** `_upsert_extracted_metadata_conn` continues to call
+  `_upsert_asset_conn(metadata_state="done")` during this phase. The
+  completion helper re-asserts the same state in its own transaction. This
+  double-write is a temporary safety net. Phase 4 may remove the
+  `metadata_state="done"` side-effect from `_upsert_extracted_metadata_conn`
+  after tests prove the completion helper always runs.
 - Tests: flip Phase 0 Tests 2, 3, 4, 5 to passing.
 
 ### Phase 3 — Stale guards and startup recovery
@@ -880,9 +942,16 @@ into `app.py` startup.
 
 Files expected to change:
 
-- `backend/metadata_store/metadata_queue.py` — `recover_metadata_index_jobs`
-  function and the §4.5 `repair_metadata_asset_state` helper.
-- `backend/app.py` — call `recover_metadata_index_jobs()` in
+- `backend/metadata_store/metadata_queue.py` — add DB primitives:
+  `list_recoverable_metadata_jobs(connection, states, limit)`,
+  `reset_running_metadata_jobs_to_queued(connection, job_ids)`.
+  These are called by the runtime owner, not by app.py directly.
+- `backend/indexer.py` — add `recover_metadata_index_jobs()`. This function
+  calls the store primitives above, then uses `dispatch_metadata_index_paths`
+  (§4.1) to re-enqueue recovered rows. The store primitive
+  `complete_metadata_jobs` is also reused. This function lives in the runtime
+  layer, not in the store layer, to avoid circular imports (§0 clarification 1).
+- `backend/app.py` — call `indexer.recover_metadata_index_jobs()` in
   `_startup_background_services` (`:98-104`) after `recover_stale_jobs()`.
 - Optionally `backend/config.py` — flag to disable/limit recovery work for
   very large libraries (e.g., `METADATA_RECOVERY_MAX_ROWS`, mirroring existing
@@ -904,7 +973,10 @@ Files expected to change:
   `backend/metadata_store/__init__.py:227` is removed so production code
   cannot import it). Similarly privatize `_mark_current_metadata_done` and
   `mark_metadata_jobs_done` if no external caller remains after Phase 2
-  routes through `complete_metadata_jobs`.
+  routes through `complete_metadata_jobs`. Remove the
+  `metadata_state="done"` side-effect from `_upsert_extracted_metadata_conn`
+  now that the completion helper (§0 clarification 4) is proven to always
+  run via tests.
 - `backend/tests/test_indexer_staging.py`,
   `backend/tests/test_metadata_store_coverage.py`,
   `backend/tests/test_metadata_binary_sanitizer.py:83` — retarget existing
