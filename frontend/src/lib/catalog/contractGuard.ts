@@ -88,22 +88,36 @@ function assertMetadataLifecycle(value: unknown): void {
   if (value === null) return;
   if (!isObject(value)) throw new StatusContractError();
   const required: string[] = [
-    "queued_metadata_jobs", "running_metadata_jobs", "done_metadata_jobs",
-    "stale_metadata_jobs", "failed_metadata_jobs", "skipped_metadata_jobs",
-    "oldest_queued_metadata_job_age", "done_jobs_with_pending_assets",
-    "current_image_metadata_with_pending_assets", "metadata_jobs_without_matching_assets",
-    "assets_done_but_metadata_missing_or_stale", "repairable_metadata_assets",
-    "metadata_worker_last_claimed_at", "metadata_worker_last_completed_at",
+    "queued_metadata_jobs",
+    "running_metadata_jobs",
+    "done_metadata_jobs",
+    "stale_metadata_jobs",
+    "failed_metadata_jobs",
+    "skipped_metadata_jobs",
+    "oldest_queued_metadata_job_age",
+    "done_jobs_with_pending_assets",
+    "current_image_metadata_with_pending_assets",
+    "metadata_jobs_without_matching_assets",
+    "assets_done_but_metadata_missing_or_stale",
+    "repairable_metadata_assets",
+    "metadata_worker_last_claimed_at",
+    "metadata_worker_last_completed_at",
     "metadata_worker_alive",
   ];
   for (const field of required) {
     if (!(field in value)) throw new StatusContractError();
   }
   const intFields: string[] = [
-    "queued_metadata_jobs", "running_metadata_jobs", "done_metadata_jobs",
-    "stale_metadata_jobs", "failed_metadata_jobs", "skipped_metadata_jobs",
-    "done_jobs_with_pending_assets", "current_image_metadata_with_pending_assets",
-    "metadata_jobs_without_matching_assets", "assets_done_but_metadata_missing_or_stale",
+    "queued_metadata_jobs",
+    "running_metadata_jobs",
+    "done_metadata_jobs",
+    "stale_metadata_jobs",
+    "failed_metadata_jobs",
+    "skipped_metadata_jobs",
+    "done_jobs_with_pending_assets",
+    "current_image_metadata_with_pending_assets",
+    "metadata_jobs_without_matching_assets",
+    "assets_done_but_metadata_missing_or_stale",
     "repairable_metadata_assets",
   ];
   for (const field of intFields) {

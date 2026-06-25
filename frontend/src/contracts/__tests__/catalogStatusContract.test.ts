@@ -170,7 +170,12 @@ describe("catalog status contract fixtures", () => {
   it("locks shared schema fields and frontend envelope types", () => {
     const schema = loadFixture<SchemaDocument>("schema_v1.json");
     const status = loadFixture<StatusFixtureDocument>("unified_status_v1.json").fixtures[0]!.status;
-    const envelope: StatusResponseEnvelope = { contract_version: 1, status, global_runtime: globalRuntime, metadata_lifecycle: null };
+    const envelope: StatusResponseEnvelope = {
+      contract_version: 1,
+      status,
+      global_runtime: globalRuntime,
+      metadata_lifecycle: null,
+    };
     const batch: LibraryStatusBatchResponse = {
       contract_version: 1,
       generated_at: status.generated_at,
@@ -179,7 +184,12 @@ describe("catalog status contract fixtures", () => {
       metadata_lifecycle: null,
     };
 
-    expect(schema.$defs.StatusResponseEnvelope?.required).toEqual(["contract_version", "status", "global_runtime", "metadata_lifecycle"]);
+    expect(schema.$defs.StatusResponseEnvelope?.required).toEqual([
+      "contract_version",
+      "status",
+      "global_runtime",
+      "metadata_lifecycle",
+    ]);
     expect(schema.$defs.LibraryStatusBatchResponse?.required).toEqual([
       "contract_version",
       "generated_at",

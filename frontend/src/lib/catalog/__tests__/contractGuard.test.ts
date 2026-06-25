@@ -158,7 +158,14 @@ describe("assertLibraryStatusBatch", () => {
 
 describe("metadata_lifecycle guard", () => {
   it("accepts metadata_lifecycle: null", () => {
-    expect(() => assertStatusEnvelope({ contract_version: 1, status: makeStatus(), global_runtime: globalRuntime, metadata_lifecycle: null })).not.toThrow();
+    expect(() =>
+      assertStatusEnvelope({
+        contract_version: 1,
+        status: makeStatus(),
+        global_runtime: globalRuntime,
+        metadata_lifecycle: null,
+      }),
+    ).not.toThrow();
   });
 
   it("accepts valid metadata_lifecycle object", () => {
@@ -179,7 +186,14 @@ describe("metadata_lifecycle guard", () => {
       metadata_worker_last_completed_at: null,
       metadata_worker_alive: true,
     };
-    expect(() => assertStatusEnvelope({ contract_version: 1, status: makeStatus(), global_runtime: globalRuntime, metadata_lifecycle: lifecycle })).not.toThrow();
+    expect(() =>
+      assertStatusEnvelope({
+        contract_version: 1,
+        status: makeStatus(),
+        global_runtime: globalRuntime,
+        metadata_lifecycle: lifecycle,
+      }),
+    ).not.toThrow();
   });
 
   it("rejects metadata_lifecycle with wrong field types", () => {
@@ -200,7 +214,14 @@ describe("metadata_lifecycle guard", () => {
       metadata_worker_last_completed_at: null,
       metadata_worker_alive: true,
     };
-    expect(() => assertStatusEnvelope({ contract_version: 1, status: makeStatus(), global_runtime: globalRuntime, metadata_lifecycle: lifecycle })).toThrow(StatusContractError);
+    expect(() =>
+      assertStatusEnvelope({
+        contract_version: 1,
+        status: makeStatus(),
+        global_runtime: globalRuntime,
+        metadata_lifecycle: lifecycle,
+      }),
+    ).toThrow(StatusContractError);
   });
 });
 
