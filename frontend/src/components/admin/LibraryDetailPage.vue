@@ -324,7 +324,7 @@ function estimatedAssets(): number | undefined {
                 </div>
                 <div class="flex items-center justify-between gap-3">
                   <dt class="text-muted-foreground">Progress</dt>
-                  <dd class="font-medium">{{ formatPercent(generatedImagesQuery.data.value.ready_derivatives / generatedImagesQuery.data.value.expected_derivatives) }}</dd>
+                  <dd class="font-medium">{{ formatPercent(generatedImagesQuery.data.value.expected_derivatives > 0 ? generatedImagesQuery.data.value.ready_derivatives / generatedImagesQuery.data.value.expected_derivatives : 0) }}</dd>
                 </div>
                 <div class="flex items-center justify-between gap-3">
                   <dt class="text-muted-foreground">Cache usage</dt>

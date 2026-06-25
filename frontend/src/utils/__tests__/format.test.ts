@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatBytes } from "../format";
+import { formatBytes, formatPercent } from "../format";
 
 describe("formatBytes", () => {
   it('returns "0 B" for zero', () => {
@@ -48,5 +48,43 @@ describe("formatBytes", () => {
 
   it("formats 1 TB", () => {
     expect(formatBytes(1099511627776)).toBe("1.0 TB");
+  });
+});
+
+describe("formatPercent", () => {
+  it('returns "—" for undefined', () => {
+    expect(formatPercent(undefined)).toBe("\u2014");
+  });
+
+  it('returns "—" for null', () => {
+    expect(formatPercent(null)).toBe("\u2014");
+  });
+
+  it('returns "—" for NaN', () => {
+    expect(formatPercent(NaN)).toBe("\u2014");
+  });
+
+  it('returns "—" for Infinity', () => {
+    expect(formatPercent(Infinity)).toBe("\u2014");
+  });
+
+  it('returns "0.0%" for 0', () => {
+    expect(formatPercent(0)).toBe("0.0%");
+  });
+
+  it('returns "100.0%" for 1', () => {
+    expect(formatPercent(1)).toBe("100.0%");
+  });
+
+  it('returns "50.0%" for 0.5', () => {
+    expect(formatPercent(0.5)).toBe("50.0%");
+  });
+
+  it('returns "23.8%" for 0.238', () => {
+    expect(formatPercent(0.238)).toBe("23.8%");
+  });
+
+  it('returns "0.0%" when expected=0 (division guard)', () => {
+    expect(formatPercent(0)).toBe("0.0%");
   });
 });
