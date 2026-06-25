@@ -156,144 +156,157 @@ Frontend:
 - add composable tests for loading/success/error and cache invalidation,
 - keep existing catalog status tests intact.
 
-## Contracts / Decisions (chốt cứng, dev không được tự пере quyết)
+## Contracts / Decisions (binding — dev must not re-decide)
 
-Tham chiếu chặt vào section đã audit. Mục này là nguồn sự thật khi section
-"Key Changes" mơ hồ.
+Tightly referenced by the audited sections above. This section is the source of
+truth whenever the "Key Changes" section is ambiguous.
 
 ### A. Identity helper
 
-- **File mới:** `backend/metadata_store/identity.py`
+- **New file:** `backend/metadata_store/identity.py`
 - **Public API:**
   ```python
   def asset_matches_image_metadata_sql(*, asset_alias: str = "a", im_alias: str = "im") -> str
   def asset_matches_metadata_job_sql(*, asset_alias: str = "a", job_alias: str = "mj") -> str
   def job_matches_image_metadata_sql(*, job_alias: str = "mj", im_alias: str = "im") -> str
   ```
-  Trả về **SQL fragment string** (không phải builder, không query executor), dạng
-  có thể nhúng vào `LEFT JOIN ... ON <fragment>` hoặc `WHERE EXISTS (SELECT 1 ... WHERE <fragment>)`.
-  Mỗi fragment phải là một biểu thức boolean khép kín, tham chiếu alias theo tham số.
-- **Canonical tolerance** = duy nhất **Variant A** (ns-tolerance `< 1000` + legacy
-  seconds-bridge `a.mtime_ns/1e9 - im.mtime < 1e-3` khi một bên `mtime_ns IS NULL`).
-  Stateful COALESCE-0 (Variant B trong `integrity_checker`) được **loại bỏ**; helper
-  mặc định NULL không khớp hostname trừ khi có seconds-bridge. Đây là quyết định
-  semantic thống nhất, kèm theo việc refactor `integrity_checker.py` sang helper.
-- **Tolerance constants** phải được export từ helper (`MTIME_NS_TOLERANCE = 1000`,
-  `MTIME_SEC_TOLERANCE = 1e-3`) để tests có thể import — không hardcode số ảo trong SQL.
-- **Host NULL**: cả hai bên `mtime_ns IS NULL` ⇒ **không match** trừ seconds-bridge.
-  Một bên NULL + bên kia có ns ⇒ đi qua seconds-bridge nếu `*mtime_seconds` tồn tại.
+  Each returns a **SQL fragment string** (not a builder, not a query executor)
+  that can be embedded as `LEFT JOIN ... ON <fragment>` or
+  `WHERE EXISTS (SELECT 1 ... WHERE <fragment>)`. Each fragment is a self-contained
+  boolean expression that references the aliases passed as parameters.
+- **Canonical tolerance** = **Variant A only** (ns-tolerance `< 1000` plus the
+  legacy seconds-bridge `a.mtime_ns/1e9 - im.mtime < 1e-3` when either side has
+  `mtime_ns IS NULL`). The stateful COALESCE-0 (Variant B currently in
+  `integrity_checker`) is **removed**; the helper defaults to "NULL does not
+  match" unless the seconds-bridge applies. This unifies the semantics, and is
+  paired with refactoring `integrity_checker.py` onto the helper.
+- **Tolerance constants** must be exported from the helper
+  (`MTIME_NS_TOLERANCE = 1000`, `MTIME_SEC_TOLERANCE = 1e-3`) so tests can import
+  them — do not hardcode magic numbers in SQL.
+- **NULL handling:** both sides `mtime_ns IS NULL` ⇒ **no match** unless the
+  seconds-bridge applies. One side NULL plus the other with ns ⇒ goes through the
+  seconds-bridge if the corresponding `*_mtime_seconds` column exists.
 
 ### B. Browse multi-row matching
 
-- Khi nới tolerance, một asset có thể khớp nhiều `image_metadata` row (exact + lân cận ns).
-- **Bắt buộc tie-break** trong browse: `JOIN` phải chọn duy nhất 1 row im cho mỗi asset.
-  - Cách thực thi: dùng `ROW_NUMBER() OVER (PARTITION BY a.id ORDER BY
-    ABS(im.mtime_ns - a.mtime_ns) ASC, im.id ASC)` subquery rồi filter `rn = 1`,
-    hoặc LEFT JOIN theo kiểu LATERAL tương đương (SQLite ≤3.35+ hỗ trợ window funcs).
-  - Không được để COALESCE width/height nhận "hàng nào cũng được".
-- Thứ tự tie-break: độ lệch ns nhỏ nhất trước, rồi `im.id` nhỏ hơn (row nhập trước
-  ổn định hơn). Acceptance test phải có case 2-row match và xác nhận width/height đến
-  từ row lệch nhỏ nhất.
+- Once tolerance is relaxed, a single asset can match multiple `image_metadata`
+  rows (exact plus ns-neighbors).
+- **Tie-break is mandatory** in browse: the `JOIN` must pick exactly 1 im row per
+  asset.
+  - Implementation: use `ROW_NUMBER() OVER (PARTITION BY a.id ORDER BY
+    ABS(im.mtime_ns - a.mtime_ns) ASC, im.id ASC)` in a subquery and filter
+    `rn = 1`, or an equivalent LATERAL-style LEFT JOIN (SQLite ≥3.35 supports
+    window functions).
+  - Do not let `COALESCE` width/height accept "any matching row".
+- Tie-break order: smallest ns delta first, then smallest `im.id` (earlier-inserted
+  row is more stable). The acceptance test must include a 2-row match case and
+  assert that width/height come from the closest-ns row.
 
 ### C. Browse seconds-fallback scope
 
-- `browse_store.py` hiện **không** có seconds fallback (NULL=NULL false ⇒ drop).
-- Quyết định **CHỈ nới ns-tolerance**, **KHÔNG** thêm seconds-bridge cho browse
-  trong plan này. Lý do: browse là read path nóng; chấp nhận NULL-width (`COALESCE`
-  fallback vô `assets.width/height`) đúng hành vi cũ, và tránh phình helper.
-- Do đó acceptance "legacy rows without `mtime_ns` still work through the seconds
-  fallback" **chỉ áp dụng cho** status/indexer/integrity path — không cho browse.
-  Browse giữ: NULL mtime_ns ở một bên ⇒ im không khớp ⇒ width/height lấy từ
-  `assets.*` như cũ. Cần cập nhật lại dòng acceptance trong section 1 thành
-  "seconds fallback áp dụng cho status/indexer/integrity (đã có); browse giữ
-  hành vi NULL cũ qua COALESCE assets.*".
+- `browse_store.py` currently has **no** seconds fallback (NULL = NULL is false ⇒
+  dropped).
+- Decision: **only relax the ns-tolerance**, do **not** add a seconds-bridge for
+  browse in this plan. Rationale: browse is a hot read path; keeping NULL-width
+  (COALESCE fallback to `assets.width/height`) matches current behavior and avoids
+  bloating the helper.
+- Therefore the acceptance line "legacy rows without `mtime_ns` still work through
+  the seconds fallback" **applies only to** the status/indexer/integrity path —
+  not to browse. Browse keeps: NULL mtime_ns on either side ⇒ im does not match ⇒
+  width/height come from `assets.*` as before. Update the section 1 acceptance
+  line to: "seconds fallback applies to status/indexer/integrity (already
+  present); browse keeps the legacy NULL behavior via COALESCE assets.*".
 
-### D. Mapping 6 check ↔ UI rows
+### D. Mapping 6 checks ↔ UI rows
 
-Chốt map cứng (không đổi). Mọi số trên UI lấy từ 1 run summary, không compute lại.
+Binding map (do not change). Every number on the UI comes from a single run
+summary, never recomputed.
 
-"File issues" 5 dòng — ánh xạ từ `run.issues.<key>`:
+"File issues" 5 rows — mapped from `run.issues.<key>`:
 
-| UI label                  | run.issues key            | Từ check `run_all_checks` key        |
-|---------------------------|---------------------------|--------------------------------------|
-| Missing source files      | `missing_source_files`    | `job_active_no_file`                 |
-| Generated image missing   | `generated_image_missing` | `derivative_ready_no_file`           |
-| Metadata mismatch         | `metadata_mismatch`       | `asset_done_but_no_metadata`         |
-| Orphaned work item        | `orphaned_work_item`      | `job_active_no_asset`                |
-| Generated image job mismatch | `generated_image_job_mismatch` | `derivative_done_not_ready` _hoặc_ `job_done_asset_not_done` |
+| UI label                     | run.issues key                 | Source `run_all_checks` key              |
+|------------------------------|--------------------------------|------------------------------------------|
+| Missing source files         | `missing_source_files`         | `job_active_no_file`                     |
+| Generated image missing      | `generated_image_missing`      | `derivative_ready_no_file`               |
+| Metadata mismatch            | `metadata_mismatch`            | `asset_done_but_no_metadata`             |
+| Orphaned work item           | `orphaned_work_item`           | `job_active_no_asset`                    |
+| Generated image job mismatch | `generated_image_job_mismatch` | `derivative_done_not_ready`              |
 
-"Generated image job mismatch" là chỉ **derivative** jobs (check #5
-`derivative_done_not_ready`); `job_done_asset_not_done` (check #2, về metadata
-job) **không hiển thị** trên UI v1 để bảo chỉn giữa sự rõ ràng (nhức nhối sửa
-trong Repair results, không nằm thống kê issue). Nếu cả 2 sau này cần thấy, thêm
-$row mới, không tự ghép.
+"Generated image job mismatch" refers only to **derivative** jobs (check #5
+`derivative_done_not_ready`); `job_done_asset_not_done` (check #2, about metadata
+jobs) is **not displayed** in v1 to preserve clarity (its repairs belong in
+Repair results, not in the issue counts). If both need to be visible later, add a
+new row — do not merge them.
 
-"Repair results" 4 bucket — lấy từ `run.repairs.<key>`:
+"Repair results" 4 buckets — from `run.repairs.<key>`:
 
-| UI label              | run.repairs key |
-|-----------------------|-----------------|
-| Repaired              | `repaired`      |
-| Requeued              | `requeued`      |
-| Marked failed         | `failed`        |
-| Skipped / unchanged   | `unchanged`     |
+| UI label            | run.repairs key |
+|---------------------|-----------------|
+| Repaired            | `repaired`      |
+| Requeued            | `requeued`      |
+| Marked failed       | `failed`        |
+| Skipped / unchanged | `unchanged`     |
 
-- `repaired` = số row đã UPDATE thành done/ready (check #2 + #5-positive).
-- `requeued` = số row đã đưa về `queued` và (re)create job row (check #1 + #4).
-- `failed` = số row đã UPDATE state='failed' với error (check #3 + #6 + #5-negative).
-- `unchanged` = `sum(issues) - repaired - requeued - failed` (computed), không
-  phải cột mới. Luôn ≥0; nếu âm do đoán sai map,raise trong tests.
+- `repaired`  = count of rows UPDATEd to done/ready (check #2 + #5-positive).
+- `requeued`  = count of rows set to `queued` with job rows (re)created (check #1 + #4).
+- `failed`    = count of rows UPDATEd to `state='failed'` with error (check #3 + #6 + #5-negative).
+- `unchanged` = `sum(issues) - repaired - requeued - failed` (computed), not a new
+  column. Always ≥0; if negative due to a wrong map, raise in tests.
 
 ### E. POST/GET semantics
 
-- **`POST /api/maintenance/file-health/check`** = **mutating, idempotent.** Chạy
-  toàn bộ `run_all_checks` (sửa catalog như daemon vẫn làm), persist 1 row vào
-  `integrity_check_runs`, trả về run summary vừa tạo. Gọi 2 lần = 2 run riêng.
-  Mỗi run mang `id`, `started_at`, `finished_at`, `trigger = "manual" | "daemon"`.
-- **`GET /api/maintenance/file-health`** = trả về **latest run** (max
-  `finished_at`), không chạy gì. Response envelope (xem điểm F).
-- **Concurrency:** `_DB_LOCK` đã serialize; 2 POST chồng nhau sẽ chạy nối tiếp.
-  Không cần thêm lock. Nhưng POST chạy khi daemon đang giữa chừng bad-feeling:
-  - Hậu cần: dùng flag `IntegrityChecker.is_running` (thêm, mặc định False); nếu
-    True, POST trả `409` với envelope `{ "run": null, "error": "check already running" }`.
-    Daemon và manual dùng cùng flag. Không bắt buộc, nhưng khuyến nghị để tránh
-    double repair lên cùng row.
-- **Daemon persistence:** khi method mới persist summary, daemon loop
-  (`_run_loop`) cũng phải persist run `trigger="daemon"`. GET-latest có thể là
-  daemon run. Đúng ý, không loại trừ.
-- POST không nhận body. Không nhận scope/filter v1 → kiểm toàn bộ thư viện.
+- **`POST /api/maintenance/file-health/check`** = **mutating, idempotent.** Runs
+  the full `run_all_checks` (mutates the catalog just like the daemon does),
+  persists 1 row into `integrity_check_runs`, and returns the just-created run
+  summary. Two calls = two separate runs. Each run carries `id`, `started_at`,
+  `finished_at`, `trigger = "manual" | "daemon"`.
+- **`GET /api/maintenance/file-health`** = returns the **latest run**
+  (max `finished_at`); it does not run anything. See point F for the envelope.
+- **Concurrency:** `_DB_LOCK` already serializes; two overlapping POSTs run
+  sequentially. No extra lock is needed. However, a POST while the daemon is
+  mid-check is bad-feeling:
+  - Fallback plan: add an `IntegrityChecker.is_running` flag (default False); if
+    True, POST returns `409` with envelope
+    `{ "run": null, "error": "check already running" }`. The daemon and the manual
+    path share the same flag. Not mandatory, but recommended to avoid double
+    repair on the same row.
+- **Daemon persistence:** once the new method persists summaries, the daemon loop
+  (`_run_loop`) must also persist runs with `trigger="daemon"`. GET-latest may
+  return a daemon run — that's expected, not excluded.
+- POST takes no body and no scope/filter in v1 → checks all libraries.
 
 ### F. Response envelope (never-run + success + error)
 
 ```jsonc
-// 200 OK, mọi trường hợp (bao gồm never-run và run-error)
+// 200 OK in all cases (including never-run and run-error)
 {
   "run": {
-    "id": 42,                       // int, NOT NULL khi có run
+    "id": 42,                       // int, NOT NULL when a run exists
     "trigger": "manual",            // "manual" | "daemon"
     "started_at": 1730000000.0,     // float epoch seconds
-    "finished_at": 1730000005.0,    // float epoch seconds, NULL nếu đang chạy (không xảy ra v1 GET)
+    "finished_at": 1730000005.0,    // float epoch seconds, NULL if running (does not happen in v1 GET)
     "status": "ok",                 // "ok" | "error"
-    "error": null,                  // string khi status = "error", dạng ngắn
-    "issues": { "missing_source_files": 0, ... }, // 5 keys theo map D
+    "error": null,                  // string when status = "error", short form
+    "issues": { "missing_source_files": 0, ... }, // 5 keys per map D
     "repairs": { "repaired": 0, "requeued": 0, "failed": 0, "unchanged": 0 }
   }
 }
 // never-run:
 { "run": null }
-// run lỗi:
+// errored run:
 { "run": { "id": 5, "trigger": "manual", "started_at": ..., "finished_at": ..., "status": "error", "error": "boom", "issues": {5 keys 0}, "repairs": {4 keys 0} } }
 ```
 
-- **HTTP status luôn 200** ở GET/POST thành công (kể cả run lỗi). 500 chỉ khi
-  server bản thân crash.
-- POST đang chạy (concurrent) → `409` với `{ "run": null, "error": "check already running" }`
-  (sync `E`, `H`).
-- `issues` có **đúng 5 keys** theo map D, `repairs` **đúng 4 keys**. Missing key
-  = contract break, tests phải fail.
+- **HTTP status is always 200** for successful GET/POST (including errored runs).
+  500 is reserved for the server itself crashing.
+- Concurrent POST → `409` with `{ "run": null, "error": "check already running" }`
+  (sync with `E`, `H`).
+- `issues` has **exactly 5 keys** per map D, `repairs` **exactly 4 keys**. A missing
+  key is a contract break and tests must fail.
 
 ### G. Persistence schema (`integrity_check_runs`)
 
-DDL thêm vào `backend/metadata_store/_schema.py`:
+DDL to add to `backend/metadata_store/_schema.py`:
 
 ```sql
 CREATE TABLE IF NOT EXISTS integrity_check_runs (
@@ -310,44 +323,48 @@ CREATE INDEX IF NOT EXISTS idx_integrity_check_runs_finished
   ON integrity_check_runs(finished_at DESC);
 ```
 
-- **No per-item rows v1.** Lưu issues/repairs dưới dạng JSON TEXT (SQLite không có
-  JSON type native ổn định khớp mọi version; encode trong Python).
+- **No per-item rows in v1.** Store issues/repairs as JSON TEXT (SQLite has no
+  stable native JSON type across versions; encode in Python).
 - "Latest run" = `ORDER BY finished_at DESC, id DESC LIMIT 1`.
-- Migration: tạo bảng + index nằm trong `initialize_database()` (idempotent qua
-  `IF NOT EXISTS`), giống các bảng khác. `_ensure_column` không dùng — bảng mới.
-- Helper persistence: thêm `backend/metadata_store/maintenance_store.py` với
-  `insert_run(conn, summary) -> run_id`, `get_latest_run(conn) -> row | None`.
-  Router dùng 2 helper này.
+- Migration: the table + index creation lives in `initialize_database()`
+  (idempotent via `IF NOT EXISTS`), like the other tables. Do not use
+  `_ensure_column` — this is a brand-new table.
+- Persistence helpers: add `backend/metadata_store/maintenance_store.py` with
+  `insert_run(conn, summary) -> run_id` and `get_latest_run(conn) -> row | None`.
+  The router uses these two helpers.
 
 ### H. Router structure & prefix
 
-- `backend/maintenance.py` mới. Router:
+- New file `backend/maintenance.py`. Router:
   ```python
   router = APIRouter(prefix="/api/maintenance", tags=["maintenance"])
   ```
-  Include vào `backend/app.py` cạnh `libraries_router`.
-- **V1 auth/rbac**: kế thừa trạng thái router admin hiện tại (xem `libraries.py`
-  có phụ thuộc `Request`/dependency gì → mirror y hệt; nếu không có, không thêm
-  mới trong plan này).
-- Pydantic response model = type có cấu trúc như envelope F (export `FileHealthRun`,
-  `FileHealthResponse`); các `issues`/`repairs` map thành **dict[str, int]** có freeze key-set để Ajv/frontend có schema ổn định. Không giải `dict[str,int]` thoải mái.
+  Include it in `backend/app.py` next to `libraries_router`.
+- **v1 auth/rbac:** mirror the current admin router state (check whether
+  `libraries.py` depends on `Request`/dependencies and copy exactly; if none,
+  do not add new ones in this plan).
+- Pydantic response model = types matching envelope F (export `FileHealthRun`,
+  `FileHealthResponse`); map `issues`/`repairs` to **dict[str, int]** with a
+  frozen key-set so Ajv/frontend get a stable schema. Do not expose a loose
+  `dict[str, int]`.
 
 ### I. Schema-check whitelist
 
-`backend/metadata_store/schema_check.py` (mới). Public:
+New file `backend/metadata_store/schema_check.py`. Public:
 
 ```python
-def check_catalog_schema(conn) -> list[str]:  # trả về danh sách issue strings, rỗng = ok
+def check_catalog_schema(conn) -> list[str]:  # returns list of issue strings, empty = ok
 ```
 
-Whitelist (bắt buộc v1 — chưa quét toàn bộ `_schema.py`, chỉ lifecycle path):
+Whitelist (required for v1 — does not scan all of `_schema.py`, only the lifecycle
+path):
 
 Tables:
 - `assets`, `image_metadata`, `metadata_index_jobs`, `asset_derivatives`,
   `derivative_jobs`, `libraries`, `library_import_paths`,
-  `catalog_rebuild_entries`, **`integrity_check_runs`** (mới).
+  `catalog_rebuild_entries`, **`integrity_check_runs`** (new).
 
-Columns (chỉ cột lifecycle nghiêm ngặt):
+Columns (only strictly lifecycle-required columns):
 - `assets`: `id, library_id, path, parent_path, name, type, mtime_ns, size,
   metadata_state, deleted_at, offline, indexed_at`
 - `image_metadata`: `path, mtime, mtime_ns, size, width, height`
@@ -359,71 +376,77 @@ Indexes:
 - `idx_metadata_index_jobs_claim`, `idx_metadata_index_jobs_library_state`,
   `idx_image_metadata_mtime_size`, `idx_integrity_check_runs_finished`.
 
-Command exposure v1: không expose như CLI riêng; chỉ function + test. Nếu sau cần
-CLI, thêm sau. Router có thể thêm `GET /api/maintenance/schema-check` sau này,
-không **v1**.
+v1 exposure: do not expose as a separate CLI; function + test only. Add a CLI
+later if needed. A `GET /api/maintenance/schema-check` route may be added later —
+**not in v1**.
 
 ### J. Frontend wiring
 
-- `frontend/src/query/keys.ts`: thêm
+- `frontend/src/query/keys.ts`: add
   ```ts
   maintenanceRoot: () => ["maintenance"] as const,
   maintenanceFileHealth: () => ["maintenance", "file-health"] as const,
   ```
-  Tất cả query/mutation dùng key từ đây — không magic string.
-- `frontend/src/services/api.ts`: thêm
-  `fetchFileHealth(): Promise<FileHealthResponse>` và
-  `runFileHealthCheck(): Promise<FileHealthResponse>` (POST, không body).
-- `frontend/src/composables/admin/useFileHealthQuery.ts` (mới):
+  All queries/mutations must use keys from here — no magic strings.
+- `frontend/src/services/api.ts`: add
+  `fetchFileHealth(): Promise<FileHealthResponse>` and
+  `runFileHealthCheck(): Promise<FileHealthResponse>` (POST, no body).
+- New file `frontend/src/composables/admin/useFileHealthQuery.ts`:
   - `useFileHealthQuery()` = `useQuery(queryKeys.maintenanceFileHealth(), fetchFileHealth, { staleTime: 60_000 })`.
   - `useFileHealthMutation()` = `useMutation({ mutationFn: runFileHealthCheck,
     onSuccess: () => queryClient.invalidateQueries({ queryKey:
     queryKeys.maintenanceFileHealth() }) })`.
-  - Export types đồng bộ với envelope F.
+  - Export types synchronized with envelope F.
 - `MaintenancePage.vue`:
-  - "File issues": lặp 5 key theo map D; `run.issues.<key>`; `<dd>` hiện số hoặc
-    `—` khi `run === null`.
-  - "Check files": bỏ `disabled`, gắn `useFileHealthMutation().mutateAsync()`;
-    pending state disable button + spinner.
-  - "Repair results": 4 bucket theo map D, số từ `run.repairs.<key>`; "Latest
-    run" hiện `finished_at` format (`new Date(seconds*1000).toLocaleString()`) hoặc `—`.
-  - never-run copy = "No run yet." (xóa câu "backend ... not available yet").
-  - **Không đổi** section "Generated files (all libraries)" và "Active jobs".
+  - "File issues": iterate the 5 keys per map D; render `run.issues.<key>`; `<dd>`
+    shows the number or `—` when `run === null`.
+  - "Check files": remove `disabled`, wire to `useFileHealthMutation().mutateAsync()`;
+    pending state disables the button + shows a spinner.
+  - "Repair results": 4 buckets per map D, numbers from `run.repairs.<key>`;
+    "Latest run" shows `finished_at` formatted
+    (`new Date(seconds*1000).toLocaleString()`) or `—`.
+  - never-run copy = "No run yet." (replace the "backend ... not available yet"
+    line).
+  - **Do not change** the "Generated files (all libraries)" and "Active jobs"
+    sections.
 
 ### K. Contract fixtures location
 
-- Backend schema/fixture: `backend/tests/fixtures/file_health/`
+- Backend schema/fixtures: `backend/tests/fixtures/file_health/`
   - `never_run.json` — `{"run": null}`
-  - `success.json` — envelope với 5+4 keys có giá trị khác 0.
-  - `error.json` — `status:"error"`, `error:"boom"`, counts 0.
-  - `schema_compat.json` — envelope min/max value cho boundary tests.
+  - `success.json` — envelope with 5+4 keys, non-zero values.
+  - `error.json` — `status:"error"`, `error:"boom"`, zero counts.
+  - `schema_compat.json` — envelope with min/max values for boundary tests.
 - FE contract test: `frontend/src/contracts/__tests__/maintenanceFileHealthContract.test.ts`
-  theo chuẩn `catalogStatusContract.test.ts` (read JSON, Ajv2020, validate types +
-  key-sets). Schema document JSON cho envelope đặt tại
-  `frontend/src/contracts/schemas/file-health-response.schema.json` (AxV2020) —
-  đặt cấu trúc `$defs` tương tự schema doc catalog.
+  following the `catalogStatusContract.test.ts` convention (read JSON, use
+  Ajv2020, validate types + key-sets). The envelope JSON schema document lives at
+  `frontend/src/contracts/schemas/file-health-response.schema.json` (JSON Schema
+  2020-12) — structure `$defs` similarly to the catalog schema doc.
 
 ## Implementation Order
 
-1. **identity helper** — `backend/metadata_store/identity.py` + tests; refactor
+1. **Identity helper** — `backend/metadata_store/identity.py` + tests; refactor
    `integrity_checker.py`, `status_store.py`, `indexer.py`, `metadata_queue.py`
-   sang helper (Variant A canonical). **Không đụng browseStore v1 order này.**
-2. **browse fix** — update 2 browse queries (`browse_store.py:236, :392`) dùng
-   helper + tie-break (point B). Update test `test_warm_folder_listing.py` +
-   `test_browse_api.py` cho 2-row match case.
-3. **persistence** — `maintenance_store.py`, `_schema.py` thêm bảng `integrity_check_runs`;
-   extend `IntegrityChecker` với `run_and_persist(trigger) -> summary`; hook daemon
-   loop dùng `trigger="daemon"`.
-4. **router** — `backend/maintenance.py` (`GET` + `POST`), include trong
-   `app.py`, Quyết envelope F. tests `test_maintenance_file_health_api.py`.
-5. **frontend wiring** — keys.ts, api.ts, composable, MaintenancePage.vue.
-6. **schema-check helper** — `backend/metadata_store/schema_check.py` + test
+   onto the helper (Variant A canonical). **Do not touch browse_store in this
+   step** — it has its own ordering step below.
+2. **Browse fix** — update the 2 browse queries (`browse_store.py:236, :392`) to
+   use the helper + tie-break (point B). Update `test_warm_folder_listing.py` and
+   `test_browse_api.py` for the 2-row match case.
+3. **Persistence** — `maintenance_store.py`, `_schema.py` adds the
+   `integrity_check_runs` table; extend `IntegrityChecker` with
+   `run_and_persist(trigger) -> summary`; hook the daemon loop to use
+   `trigger="daemon"`.
+4. **Router** — `backend/maintenance.py` (`GET` + `POST`), include in `app.py`,
+   envelope per F. Tests in `test_maintenance_file_health_api.py`.
+5. **Frontend wiring** — `keys.ts`, `api.ts`, composable, `MaintenancePage.vue`.
+6. **Schema-check helper** — `backend/metadata_store/schema_check.py` + test
    `test_schema_check.py` (whitelist I).
-7. **contract tests** — fixtures + schema doc + 2 FE test files. Verify suite pass.
+7. **Contract tests** — fixtures + schema doc + 2 FE test files. Verify the suite
+   passes.
 
 ## File manifest
 
-Backend tạo/sửa:
+Backend (new/edited):
 
 - NEW  `backend/metadata_store/identity.py`
 - NEW  `backend/metadata_store/maintenance_store.py`
@@ -433,17 +456,17 @@ Backend tạo/sửa:
 - NEW  `backend/tests/test_maintenance_file_health_api.py`
 - NEW  `backend/tests/test_schema_check.py`
 - NEW  `backend/tests/fixtures/file_health/{never_run,success,error,schema_compat}.json`
-- EDIT `backend/metadata_store/_schema.py`              (bảng + index)
-- EDIT `backend/metadata_store/browse_store.py`          (2 joins)
-- EDIT `backend/metadata_store/status_store.py`          (8 predicates sang helper)
-- EDIT `backend/metadata_store/metadata_queue.py`        (predicates sang helper)
-- EDIT `backend/indexer.py`                              (predicates sang helper)
-- EDIT `backend/integrity_checker.py`                    (predicates + persist summary)
-- EDIT `backend/app.py`                                    (include maintenance router)
+- EDIT `backend/metadata_store/_schema.py`               (table + index)
+- EDIT `backend/metadata_store/browse_store.py`           (2 joins)
+- EDIT `backend/metadata_store/status_store.py`           (8 predicates onto helper)
+- EDIT `backend/metadata_store/metadata_queue.py`         (predicates onto helper)
+- EDIT `backend/indexer.py`                               (predicates onto helper)
+- EDIT `backend/integrity_checker.py`                     (predicates + persist summary)
+- EDIT `backend/app.py`                                   (include maintenance router)
 - EDIT `backend/tests/test_integrity_checker.py`          (assert persisted summary)
 - EDIT `backend/tests/test_warm_folder_listing.py` + `test_browse_api.py` (multi-row tie-break)
 
-Frontend tạo/sửa:
+Frontend (new/edited):
 
 - NEW  `frontend/src/composables/admin/useFileHealthQuery.ts`
 - NEW  `frontend/src/composables/admin/__tests__/useFileHealthQuery.test.ts`
@@ -452,11 +475,11 @@ Frontend tạo/sửa:
 - EDIT `frontend/src/query/keys.ts`                       (2 entries)
 - EDIT `frontend/src/services/api.ts`                     (2 fn + types)
 - EDIT `frontend/src/components/admin/MaintenancePage.vue` (wire)
-- EDIT `frontend/package.json` / `vitest.config`          (chỉ nếu cần mới include path)
+- EDIT `frontend/package.json` / `vitest.config`          (only if a new include path is needed)
 
 ## Test Plan
 
-Backend (`pytest`, từ repo root):
+Backend (`pytest`, from repo root):
 
 ```bash
 pytest \
@@ -479,27 +502,27 @@ pnpm test:unit -- src/composables/admin/__tests__/useFileHealthQuery.test.ts
 pnpm typecheck
 ```
 
-Smoke (sửa后再 cciar):
+Smoke (after editing):
 
 ```bash
-python start.py &  # chạy app
-curl -s localhost:8000/api/maintenance/file-health | jq       # { "run": null } lần đầu
+python start.py &  # run the app
+curl -s localhost:8000/api/maintenance/file-health | jq       # { "run": null } the first time
 curl -sX POST localhost:8000/api/maintenance/file-health/check | jq
-curl -s localhost:8000/api/maintenance/file-health | jq       # thấy run vừa POST
+curl -s localhost:8000/api/maintenance/file-health | jq       # see the run just POSTed
 ```
 
 ## Assumptions
 
-- The completed UI plan stays as-is (chỉ wire data, không redesign).
+- The completed UI plan stays as-is (wire data only, no redesign).
 - The new backend API is allowed to be synchronous-in-threadpool for v1 (POST
-  chặn ≤ vài giây trên catalog vừa; nếu chậm, báo sau).
+  blocks for a few seconds on a modest catalog; report a follow-up if it is slow).
 - A summary-only persisted maintenance report is enough for now (no per-item rows).
-- SQLite-first implementation stays the source of truth; **không** copy Immich’s
+- SQLite-first implementation stays the source of truth; **do not** copy Immich's
   Redis/BullMQ or PostgreSQL migration toolchain.
-- Helper canonicalization (Variant A) có thể nécess sửa semantics cũ (
-  `integrity_checker` đang COALESCE-0). Acceptance trong `test_integrity_checker.py`
-  phải được rà lại; nếu test cũ build fixture với NULL mtime_ns, chuyển sang
-  seconds-bridge fixture chuẩn.
+- Helper canonicalization (Variant A) may require changing legacy semantics
+  (`integrity_checker` currently uses COALESCE-0). Acceptance in
+  `test_integrity_checker.py` must be re-audited; if existing tests build fixtures
+  with NULL `mtime_ns`, switch them to the canonical seconds-bridge fixture.
 
 ## Non-Goals
 
@@ -509,9 +532,9 @@ curl -s localhost:8000/api/maintenance/file-health | jq       # thấy run vừa
 - Do not rename the user-facing admin sections that already exist.
 - Do not expose raw backend jargon (`integrity`, `mtime_ns`, `metadata_index_jobs`)
   in primary UI labels.
-- Do not add auth/rbac middleware mới nếu `libraries.py` chưa có; chỉ mirror.
-- Do not add CLI command v1; schema-check chỉ là function + test.
-- Do not add `GET /api/maintenance/schema-check` v1.
-- Do not add seconds-bridge cho browse (quyết định C).
-- Do not expose `job_done_asset_not_done` (check #2) trên "File issues" v1 (chỉ
-  Repair results ẩn).
+- Do not add new auth/rbac middleware if `libraries.py` has none; only mirror.
+- Do not add a CLI command in v1; schema-check is a function + test only.
+- Do not add `GET /api/maintenance/schema-check` in v1.
+- Do not add a seconds-bridge for browse (decision C).
+- Do not expose `job_done_asset_not_done` (check #2) in "File issues" v1 (it
+  stays hidden in Repair results).
