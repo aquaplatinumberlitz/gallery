@@ -4,6 +4,10 @@ import type {
   FacetsResponse,
   FolderChildrenResponse,
   GalleryStats,
+  GeneratedImagesClearResponse,
+  GeneratedImagesRebuildResponse,
+  GeneratedImagesStatus,
+  GeneratedImagesWarmResponse,
   LibraryCreateRequest,
   LibraryJob,
   LibraryInspectorMetadataResponse,
@@ -409,3 +413,31 @@ export const getVideoPosterUrl = (path: string): string =>
   `${API_BASE}/api/video/poster?path=${encodeURIComponent(path)}`;
 
 export const getLibraryEventsUrl = (): string => `${API_BASE}/api/events`;
+
+export const fetchGeneratedImagesStatus = async (libraryId: number): Promise<GeneratedImagesStatus> => {
+  const { data } = await api.get<GeneratedImagesStatus>("/api/derivatives/status", {
+    params: { library_id: libraryId },
+  });
+  return data;
+};
+
+export const generateMissingImages = async (libraryId: number): Promise<GeneratedImagesWarmResponse> => {
+  const { data } = await api.post<GeneratedImagesWarmResponse>("/api/derivatives/warm", null, {
+    params: { library_id: libraryId },
+  });
+  return data;
+};
+
+export const refreshStaleGeneratedImages = async (): Promise<GeneratedImagesRebuildResponse> => {
+  const { data } = await api.post<GeneratedImagesRebuildResponse>("/api/derivatives/rebuild", null, {
+    params: { confirm: true },
+  });
+  return data;
+};
+
+export const clearGeneratedImages = async (): Promise<GeneratedImagesClearResponse> => {
+  const { data } = await api.post<GeneratedImagesClearResponse>("/api/derivatives/clear", null, {
+    params: { confirm: true },
+  });
+  return data;
+};

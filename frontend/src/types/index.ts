@@ -348,6 +348,33 @@ export interface LibraryInspectorResource {
   strength?: string | number | null;
 }
 
+export interface GeneratedImagesStatus {
+  library_id: number;
+  total_assets: number;
+  ready_derivatives: number;
+  expected_derivatives: number;
+  quota_bytes: number;
+  quota_used_bytes: number;
+  quota_utilization: number;
+}
+
+export interface GeneratedImagesWarmResponse {
+  library_id: number;
+  state: string;
+  assets: number;
+  derivatives_considered: number;
+}
+
+export interface GeneratedImagesRebuildResponse {
+  stale_derivatives: number;
+  state: string;
+}
+
+export interface GeneratedImagesClearResponse {
+  catalog_entries_cleared: number;
+  files_deleted: number;
+}
+
 export interface LibraryInspectorMetadataResponse {
   path: string;
   prompt: string;

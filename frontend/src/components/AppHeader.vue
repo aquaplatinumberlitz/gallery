@@ -12,6 +12,7 @@ import {
   SlidersHorizontal,
   Table2,
   Library,
+  Wrench,
 } from "lucide-vue-next";
 import { useRoute } from "vue-router";
 import Button from "@/components/ui/Button.vue";
@@ -66,6 +67,7 @@ const route = useRoute();
 const galleryStore = useGalleryStore();
 const isMetadataRoute = computed(() => route.path === "/metadata");
 const isLibrariesRoute = computed(() => route.path.startsWith("/admin/libraries"));
+const isMaintenanceRoute = computed(() => route.path.startsWith("/admin/maintenance"));
 
 const isAdvancedSearchOpen = ref(false);
 const advancedSearchInitialFilters = ref<FieldFilter[]>([]);
@@ -252,6 +254,17 @@ function handleClearAll() {
         >
           <Table2 class="size-4" />
           <span>Metadata</span>
+        </ButtonLink>
+        <ButtonLink
+          v-if="!isMobile"
+          to="/admin/maintenance"
+          :variant="isMaintenanceRoute ? 'secondary' : 'ghost'"
+          size="sm"
+          :aria-current="isMaintenanceRoute ? 'page' : undefined"
+          class="h-8 text-xs"
+        >
+          <Wrench class="size-4" />
+          <span>Maintenance</span>
         </ButtonLink>
         <DropdownMenu>
           <DropdownMenuTrigger as-child>

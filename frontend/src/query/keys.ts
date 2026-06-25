@@ -12,6 +12,8 @@ export const normalizeBrowsePath = (path: string | null | undefined) => {
 };
 
 export const queryKeys = {
+  generatedImages: (libraryId: number) => ["generated-images", "status", libraryId] as const,
+
   landingPages: () => ["landing-pages"] as const,
 
   librariesRoot: () => ["libraries"] as const,

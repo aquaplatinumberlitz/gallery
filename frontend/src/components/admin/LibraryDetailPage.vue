@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
-import { ArrowLeft, Copy, Images, Pencil, Play, RefreshCw, Trash2, AlertTriangle } from "lucide-vue-next";
+import { ArrowLeft, Copy, Images, Pencil, Play, RefreshCw, Trash2, AlertTriangle, ImageIcon, Activity, ChevronDown, ChevronUp } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import ButtonLink from "@/components/ui/ButtonLink.vue";
 import Separator from "@/components/ui/Separator.vue";
@@ -13,10 +13,12 @@ import { useLibraryMutations } from "@/composables/admin/useLibraryMutations";
 import { useCatalogStatusQuery } from "@/composables/useCatalogStatusQuery";
 import { useLibraryQuery } from "@/composables/admin/useLibraryQuery";
 import { useLibraryStatsQuery } from "@/composables/admin/useLibraryStatsQuery";
+import { useGeneratedImagesStatusQuery } from "@/composables/admin/useGeneratedImagesStatusQuery";
+import { useGeneratedImagesMutations } from "@/composables/admin/useGeneratedImagesMutations";
 import { useClipboard } from "@/composables/useClipboard";
 import { useGalleryStore } from "@/stores/gallery";
 import { formatAssetCount, formatLibraryTimestamp } from "@/utils/libraryStatus";
-import { formatBytes } from "@/utils/format";
+import { formatBytes, formatPercent } from "@/utils/format";
 import { getCatalogStatusPresentation } from "@/lib/catalog/labels";
 import { STATUS_CONTRACT_ERROR_MESSAGE } from "@/lib/catalog/contractGuard";
 import type { UnifiedStatus } from "@/lib/catalog/status";
@@ -24,6 +26,8 @@ import LibraryProgressBar from "./LibraryProgressBar.vue";
 import LibraryStatusBadge from "./LibraryStatusBadge.vue";
 import LibraryEditDialog from "./dialogs/LibraryEditDialog.vue";
 import LibraryDeleteConfirmDialog from "./dialogs/LibraryDeleteConfirmDialog.vue";
+import GeneratedImagesClearDialog from "./dialogs/GeneratedImagesClearDialog.vue";
+import GeneratedImagesRebuildDialog from "./dialogs/GeneratedImagesRebuildDialog.vue";
 
 const props = defineProps<{ id: number }>();
 const router = useRouter();
@@ -37,9 +41,13 @@ const jobsQuery = useLibraryJobsQuery(libraryId);
 const librariesQuery = useLibrariesQuery();
 const { scanMutation, unregisterMutation } = useLibraryMutations();
 useLibraryEvents();
+const generatedImagesQuery = useGeneratedImagesStatusQuery(libraryId);
+const generatedImagesMutations = useGeneratedImagesMutations(libraryId);
 
 const editOpen = ref(false);
 const deleteOpen = ref(false);
+const rebuildOpen = ref(false);
+const clearGeneratedOpen = ref(false);
 const library = computed(() => libraryQuery.data.value ?? null);
 const status = computed<UnifiedStatus | null>(() => statusQuery.data.value?.status ?? null);
 const busy = computed(() => scanMutation.isPending.value);
@@ -74,6 +82,30 @@ const scanProgressLabel = computed(() => {
     return `${formatAssetCount(completed)} units`;
   }
   return "";
+});
+
+const runtime = computed(() => statusQuery.data.value?.global_runtime ?? null);
+const lifecycle = computed(() => statusQuery.data.value?.metadata_lifecycle ?? null);
+const advancedOpen = ref(false);
+
+const watcherLabel = computed(() => {
+  const r = runtime.value;
+  if (!r) return "Not available";
+  if (!r.watcher_enabled) return "Off";
+  return r.watcher_healthy ? "On" : "Needs attention";
+});
+
+const watcherClass = computed(() => {
+  const r = runtime.value;
+  if (!r) return "";
+  if (!r.watcher_enabled) return "";
+  return r.watcher_healthy ? "text-green-600" : "text-destructive";
+});
+
+const refreshLabel = computed(() => {
+  const r = runtime.value;
+  if (!r) return "Not available";
+  return r.scheduled_reconciliation_enabled ? "On" : "Off";
 });
 
 const issueBreakdown = computed(() => {
@@ -113,6 +145,16 @@ function jobProgress(current: number, total: number | null): string {
 
 function estimatedAssets(): number | undefined {
   return status.value?.metadata.total_assets ?? library.value?.asset_count;
+}
+
+function confirmRebuild() {
+  rebuildOpen.value = false;
+  generatedImagesMutations.rebuildMutation.mutate();
+}
+
+function confirmClearGenerated() {
+  clearGeneratedOpen.value = false;
+  generatedImagesMutations.clearMutation.mutate();
 }
 </script>
 
@@ -273,6 +315,159 @@ function estimatedAssets(): number | undefined {
 
           <section class="rounded-md border bg-background p-5">
             <div class="flex items-center justify-between">
+              <h3 class="font-semibold">Generated images</h3>
+              <Button variant="ghost" size="icon" aria-label="Refresh generated images" @click="generatedImagesQuery.refetch()">
+                <RefreshCw />
+              </Button>
+            </div>
+            <div v-if="generatedImagesQuery.data.value" class="mt-4 space-y-4">
+              <dl class="grid gap-3 text-sm">
+                <div class="flex items-center justify-between gap-3">
+                  <dt class="text-muted-foreground">Ready</dt>
+                  <dd class="font-medium">{{ formatAssetCount(generatedImagesQuery.data.value.ready_derivatives) }}</dd>
+                </div>
+                <div class="flex items-center justify-between gap-3">
+                  <dt class="text-muted-foreground">Expected</dt>
+                  <dd class="font-medium">{{ formatAssetCount(generatedImagesQuery.data.value.expected_derivatives) }}</dd>
+                </div>
+                <div class="flex items-center justify-between gap-3">
+                  <dt class="text-muted-foreground">Progress</dt>
+                  <dd class="font-medium">{{ formatPercent(generatedImagesQuery.data.value.ready_derivatives / generatedImagesQuery.data.value.expected_derivatives) }}</dd>
+                </div>
+                <div class="flex items-center justify-between gap-3">
+                  <dt class="text-muted-foreground">Cache usage</dt>
+                  <dd class="font-medium">{{ formatBytes(generatedImagesQuery.data.value.quota_used_bytes) }}</dd>
+                </div>
+                <div class="flex items-center justify-between gap-3">
+                  <dt class="text-muted-foreground">Cache limit</dt>
+                  <dd class="font-medium">{{ formatBytes(generatedImagesQuery.data.value.quota_bytes) }}</dd>
+                </div>
+                <div class="flex items-center justify-between gap-3">
+                  <dt class="text-muted-foreground">Cache used</dt>
+                  <dd class="font-medium">{{ formatPercent(generatedImagesQuery.data.value.quota_utilization) }}</dd>
+                </div>
+              </dl>
+              <Separator />
+              <div class="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" :disabled="generatedImagesMutations.warmMutation.isPending.value" @click="generatedImagesMutations.warmMutation.mutate()">
+                  <ImageIcon /> Generate missing
+                </Button>
+                <Button variant="outline" size="sm" :disabled="generatedImagesMutations.rebuildMutation.isPending.value" @click="rebuildOpen = true">
+                  <RefreshCw /> Refresh stale
+                </Button>
+                <Button variant="destructive" size="sm" :disabled="generatedImagesMutations.clearMutation.isPending.value" @click="clearGeneratedOpen = true">
+                  <Trash2 /> Clear generated files
+                </Button>
+              </div>
+            </div>
+            <Skeleton v-else class="mt-4 h-24 w-full" />
+          </section>
+
+          <section class="rounded-md border bg-background p-5">
+            <div class="flex items-center gap-3">
+              <Activity class="size-5 text-muted-foreground" />
+              <h3 class="font-semibold">Live status</h3>
+            </div>
+            <div v-if="runtime" class="mt-4">
+              <dl class="grid gap-3 text-sm">
+                <div class="flex items-center justify-between gap-3">
+                  <dt class="text-muted-foreground">Watching for changes</dt>
+                  <dd class="font-medium" :class="watcherClass">{{ watcherLabel }}</dd>
+                </div>
+                <div v-if="runtime.watcher_issue" class="flex items-center justify-between gap-3">
+                  <dt class="text-muted-foreground">Latest issue</dt>
+                  <dd class="max-w-48 truncate text-right text-sm text-destructive">{{ runtime.watcher_issue }}</dd>
+                </div>
+                <div class="flex items-center justify-between gap-3">
+                  <dt class="text-muted-foreground">Scheduled refresh</dt>
+                  <dd class="font-medium">{{ refreshLabel }}</dd>
+                </div>
+              </dl>
+            </div>
+            <p v-else-if="statusQuery.isPending.value" class="mt-4 text-sm text-muted-foreground">Loading…</p>
+            <p v-else class="mt-4 text-sm text-muted-foreground">Not available</p>
+          </section>
+
+          <section class="rounded-md border bg-background p-5">
+            <div class="flex items-center gap-3">
+              <AlertTriangle class="size-5 text-muted-foreground" />
+              <h3 class="font-semibold">Problems</h3>
+            </div>
+            <div v-if="lifecycle" class="mt-4 space-y-3">
+              <dl class="grid gap-3 text-sm">
+                <div class="flex items-center justify-between gap-3">
+                  <dt class="text-muted-foreground">Waiting</dt>
+                  <dd class="font-medium">{{ lifecycle.queued_metadata_jobs }}</dd>
+                </div>
+                <div class="flex items-center justify-between gap-3">
+                  <dt class="text-muted-foreground">Processing</dt>
+                  <dd class="font-medium">{{ lifecycle.running_metadata_jobs }}</dd>
+                </div>
+                <div class="flex items-center justify-between gap-3">
+                  <dt class="text-muted-foreground">Failed</dt>
+                  <dd class="font-medium" :class="lifecycle.failed_metadata_jobs > 0 ? 'text-destructive' : ''">
+                    {{ lifecycle.failed_metadata_jobs }}
+                  </dd>
+                </div>
+                <div class="flex items-center justify-between gap-3">
+                  <dt class="text-muted-foreground">Needs refresh</dt>
+                  <dd class="font-medium" :class="lifecycle.assets_done_but_metadata_missing_or_stale > 0 ? 'text-amber-600' : ''">
+                    {{ lifecycle.assets_done_but_metadata_missing_or_stale }}
+                  </dd>
+                </div>
+                <div class="flex items-center justify-between gap-3">
+                  <dt class="text-muted-foreground">Can be repaired</dt>
+                  <dd class="font-medium" :class="lifecycle.repairable_metadata_assets > 0 ? 'text-amber-600' : ''">
+                    {{ lifecycle.repairable_metadata_assets }}
+                  </dd>
+                </div>
+                <div class="flex items-center justify-between gap-3">
+                  <dt class="text-muted-foreground">Worker</dt>
+                  <dd class="font-medium" :class="lifecycle.metadata_worker_alive ? 'text-green-600' : 'text-destructive'">
+                    {{ lifecycle.metadata_worker_alive ? "Active" : "Inactive" }}
+                  </dd>
+                </div>
+              </dl>
+              <div>
+                <Button variant="ghost" size="sm" class="gap-1 text-xs" @click="advancedOpen = !advancedOpen">
+                  {{ advancedOpen ? "Hide" : "Show" }} advanced details
+                  <ChevronDown v-if="!advancedOpen" class="size-3" />
+                  <ChevronUp v-else class="size-3" />
+                </Button>
+                <dl v-if="advancedOpen" class="mt-2 grid gap-2 text-xs text-muted-foreground">
+                  <div class="flex items-center justify-between gap-3">
+                    <dt>Done jobs</dt>
+                    <dd>{{ lifecycle.done_metadata_jobs }}</dd>
+                  </div>
+                  <div class="flex items-center justify-between gap-3">
+                    <dt>Stale jobs</dt>
+                    <dd>{{ lifecycle.stale_metadata_jobs }}</dd>
+                  </div>
+                  <div class="flex items-center justify-between gap-3">
+                    <dt>Skipped jobs</dt>
+                    <dd>{{ lifecycle.skipped_metadata_jobs }}</dd>
+                  </div>
+                  <div class="flex items-center justify-between gap-3">
+                    <dt>Done jobs with pending assets</dt>
+                    <dd>{{ lifecycle.done_jobs_with_pending_assets }}</dd>
+                  </div>
+                  <div class="flex items-center justify-between gap-3">
+                    <dt>Orphaned jobs</dt>
+                    <dd>{{ lifecycle.metadata_jobs_without_matching_assets }}</dd>
+                  </div>
+                  <div class="flex items-center justify-between gap-3">
+                    <dt>Oldest queued job</dt>
+                    <dd>{{ lifecycle.oldest_queued_metadata_job_age != null ? `${(lifecycle.oldest_queued_metadata_job_age / 60).toFixed(0)} min` : "\u2014" }}</dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
+            <p v-else-if="statusQuery.isPending.value" class="mt-4 text-sm text-muted-foreground">Loading…</p>
+            <p v-else class="mt-4 text-sm text-muted-foreground">No problem details available.</p>
+          </section>
+
+          <section class="rounded-md border bg-background p-5">
+            <div class="flex items-center justify-between">
               <h3 class="font-semibold">Import paths</h3>
               <Button variant="ghost" size="sm" @click="editOpen = true">Edit</Button>
             </div>
@@ -377,6 +572,16 @@ function estimatedAssets(): number | undefined {
       :estimated-assets="estimatedAssets()"
       :pending="unregisterMutation.isPending.value"
       @confirm="confirmUnregister"
+    />
+    <GeneratedImagesRebuildDialog
+      v-model:open="rebuildOpen"
+      :pending="generatedImagesMutations.rebuildMutation.isPending.value"
+      @confirm="confirmRebuild"
+    />
+    <GeneratedImagesClearDialog
+      v-model:open="clearGeneratedOpen"
+      :pending="generatedImagesMutations.clearMutation.isPending.value"
+      @confirm="confirmClearGenerated"
     />
   </main>
 </template>

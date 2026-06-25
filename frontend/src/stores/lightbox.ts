@@ -173,6 +173,9 @@ export const useLightboxStore = defineStore("lightbox", {
 
       for (const item of neighbors) {
         if (this.neighborReadyByPath[item.path] || activeNeighborPreloads.has(item.path)) continue;
+        // Skip aggressive neighbor preload when backend reports preview not ready.
+        // Active navigation will trigger generation naturally.
+        if (item.derivative_ready?.preview === false) continue;
 
         this.neighborReadyByPath[item.path] = false;
         const controller = new AbortController();

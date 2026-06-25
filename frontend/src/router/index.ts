@@ -5,6 +5,7 @@ const loadLibraryInspector = () => import("@/components/LibraryInspector.vue");
 const LibraryInspector = loadLibraryInspector;
 const loadLibraryListPage = () => import("@/components/admin/LibraryListPage.vue");
 const loadLibraryDetailPage = () => import("@/components/admin/LibraryDetailPage.vue");
+const loadMaintenancePage = () => import("@/components/admin/MaintenancePage.vue");
 
 let metadataRoutePrefetch: Promise<unknown> | null = null;
 let librariesRoutePrefetch: Promise<unknown> | null = null;
@@ -42,6 +43,11 @@ export const router = createRouter({
       name: "admin-library-detail",
       component: loadLibraryDetailPage,
       props: (route) => ({ id: Number(route.params.id) }),
+    },
+    {
+      path: "/admin/maintenance",
+      name: "admin-maintenance",
+      component: loadMaintenancePage,
     },
     {
       path: "/:pathMatch(.*)*",
