@@ -1,7 +1,20 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
-import { ArrowLeft, Copy, Images, Pencil, Play, RefreshCw, Trash2, AlertTriangle, ImageIcon, Activity, ChevronDown, ChevronUp } from "lucide-vue-next";
+import {
+  ArrowLeft,
+  Copy,
+  Images,
+  Pencil,
+  Play,
+  RefreshCw,
+  Trash2,
+  AlertTriangle,
+  ImageIcon,
+  Activity,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import ButtonLink from "@/components/ui/ButtonLink.vue";
 import Separator from "@/components/ui/Separator.vue";
@@ -308,7 +321,12 @@ function estimatedAssets(): number | undefined {
           <section class="rounded-md border bg-background p-5">
             <div class="flex items-center justify-between">
               <h3 class="font-semibold">Generated images</h3>
-              <Button variant="ghost" size="icon" aria-label="Refresh generated images" @click="generatedImagesQuery.refetch()">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Refresh generated images"
+                @click="generatedImagesQuery.refetch()"
+              >
                 <RefreshCw />
               </Button>
             </div>
@@ -320,11 +338,22 @@ function estimatedAssets(): number | undefined {
                 </div>
                 <div class="flex items-center justify-between gap-3">
                   <dt class="text-muted-foreground">Expected</dt>
-                  <dd class="font-medium">{{ formatAssetCount(generatedImagesQuery.data.value.expected_derivatives) }}</dd>
+                  <dd class="font-medium">
+                    {{ formatAssetCount(generatedImagesQuery.data.value.expected_derivatives) }}
+                  </dd>
                 </div>
                 <div class="flex items-center justify-between gap-3">
                   <dt class="text-muted-foreground">Progress</dt>
-                  <dd class="font-medium">{{ formatPercent(generatedImagesQuery.data.value.expected_derivatives > 0 ? generatedImagesQuery.data.value.ready_derivatives / generatedImagesQuery.data.value.expected_derivatives : 0) }}</dd>
+                  <dd class="font-medium">
+                    {{
+                      formatPercent(
+                        generatedImagesQuery.data.value.expected_derivatives > 0
+                          ? generatedImagesQuery.data.value.ready_derivatives /
+                              generatedImagesQuery.data.value.expected_derivatives
+                          : 0,
+                      )
+                    }}
+                  </dd>
                 </div>
                 <div class="flex items-center justify-between gap-3">
                   <dt class="text-muted-foreground">Cache usage</dt>
@@ -341,7 +370,12 @@ function estimatedAssets(): number | undefined {
               </dl>
               <Separator />
               <div class="flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" :disabled="warmMutation.isPending.value" @click="warmMutation.mutate()">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  :disabled="warmMutation.isPending.value"
+                  @click="warmMutation.mutate()"
+                >
                   <ImageIcon /> Generate missing
                 </Button>
               </div>
@@ -397,8 +431,8 @@ function estimatedAssets(): number | undefined {
                 </div>
                 <div class="flex items-center justify-between gap-3">
                   <dt class="text-muted-foreground">Needs refresh</dt>
-                <dd class="font-medium" :class="needsRefreshCount > 0 ? 'text-amber-600' : ''">
-                  {{ needsRefreshCount }}
+                  <dd class="font-medium" :class="needsRefreshCount > 0 ? 'text-amber-600' : ''">
+                    {{ needsRefreshCount }}
                   </dd>
                 </div>
                 <div class="flex items-center justify-between gap-3">
@@ -409,7 +443,10 @@ function estimatedAssets(): number | undefined {
                 </div>
                 <div class="flex items-center justify-between gap-3">
                   <dt class="text-muted-foreground">Worker</dt>
-                  <dd class="font-medium" :class="lifecycle.metadata_worker_alive ? 'text-green-600' : 'text-destructive'">
+                  <dd
+                    class="font-medium"
+                    :class="lifecycle.metadata_worker_alive ? 'text-green-600' : 'text-destructive'"
+                  >
                     {{ lifecycle.metadata_worker_alive ? "Active" : "Inactive" }}
                   </dd>
                 </div>
@@ -443,7 +480,13 @@ function estimatedAssets(): number | undefined {
                   </div>
                   <div class="flex items-center justify-between gap-3">
                     <dt>Oldest queued job</dt>
-                    <dd>{{ lifecycle.oldest_queued_metadata_job_age != null ? `${(lifecycle.oldest_queued_metadata_job_age / 60).toFixed(0)} min` : "\u2014" }}</dd>
+                    <dd>
+                      {{
+                        lifecycle.oldest_queued_metadata_job_age != null
+                          ? `${(lifecycle.oldest_queued_metadata_job_age / 60).toFixed(0)} min`
+                          : "\u2014"
+                      }}
+                    </dd>
                   </div>
                 </dl>
               </div>

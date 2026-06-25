@@ -209,10 +209,7 @@ function handleClearAll() {
         <TooltipContent>Change Intro Page</TooltipContent>
       </Tooltip>
     </div>
-    <div
-      v-if="!isMetadataRoute && !isAdminRoute"
-      class="brand-hero flex items-center justify-center gap-3 text-center"
-    >
+    <div v-if="!isMetadataRoute && !isAdminRoute" class="brand-hero flex items-center justify-center gap-3 text-center">
       <div class="brand-icon flicker-effect">
         <Landmark :size="40" />
       </div>

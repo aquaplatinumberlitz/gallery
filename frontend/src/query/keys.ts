@@ -78,4 +78,7 @@ export const queryKeys = {
     ["library-inspector", query.trim(), scope, normalizeQueryPath(path), limit, sort] as const,
 
   libraryInspectorMetadata: (path: string) => ["library-inspector-metadata", normalizeQueryPath(path)] as const,
+
+  maintenanceRoot: () => ["maintenance"] as const,
+  maintenanceFileHealth: () => ["maintenance", "file-health"] as const,
 };

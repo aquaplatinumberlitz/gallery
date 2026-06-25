@@ -24,6 +24,21 @@ import type {
   SortValue,
   UnifiedSearchResponse,
 } from "../types";
+
+export interface FileHealthRun {
+  id: number;
+  trigger: string;
+  started_at: number;
+  finished_at: number | null;
+  status: string;
+  error: string | null;
+  issues: Record<string, number>;
+  repairs: Record<string, number>;
+}
+
+export interface FileHealthResponse {
+  run: FileHealthRun | null;
+}
 import type { LibraryStatusBatchResponse, StatusResponseEnvelope } from "../lib/catalog/status";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -439,5 +454,15 @@ export const clearGeneratedImages = async (): Promise<GeneratedImagesClearRespon
   const { data } = await api.post<GeneratedImagesClearResponse>("/api/derivatives/clear", null, {
     params: { confirm: true },
   });
+  return data;
+};
+
+export const fetchFileHealth = async (): Promise<FileHealthResponse> => {
+  const { data } = await api.get<FileHealthResponse>("/api/maintenance/file-health");
+  return data;
+};
+
+export const runFileHealthCheck = async (): Promise<FileHealthResponse> => {
+  const { data } = await api.post<FileHealthResponse>("/api/maintenance/file-health/check");
   return data;
 };

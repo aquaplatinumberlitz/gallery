@@ -14,10 +14,7 @@ export function useGeneratedImagesGlobalMutations() {
       { queryKey: queryKeys.statusRoot() },
     ];
     if (clear) {
-      keys.push(
-        { queryKey: queryKeys.browseAllRoot() },
-        { queryKey: queryKeys.browseInfiniteAllRoot() },
-      );
+      keys.push({ queryKey: queryKeys.browseAllRoot() }, { queryKey: queryKeys.browseInfiniteAllRoot() });
     }
     void Promise.all(keys.map((k) => queryClient.invalidateQueries(k)));
   }

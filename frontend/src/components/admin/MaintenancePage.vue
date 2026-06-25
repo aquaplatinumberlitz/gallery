@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { useQuery } from "@tanstack/vue-query";
-import { FileWarning, ScanLine, Wrench, RefreshCw, Trash2, Bug } from "lucide-vue-next";
+import { FileWarning, ScanLine, Wrench, RefreshCw, Trash2, Bug, Loader2 } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import Skeleton from "@/components/ui/skeleton/Skeleton.vue";
 import Separator from "@/components/ui/Separator.vue";
 import { queryKeys } from "@/query/keys";
 import { fetchJobs, fetchLibraries, fetchGeneratedImagesStatus } from "@/services/api";
 import { useGeneratedImagesGlobalMutations } from "@/composables/admin/useGeneratedImagesGlobalMutations";
+import { useFileHealthQuery, useFileHealthMutation } from "@/composables/admin/useFileHealthQuery";
 import GeneratedImagesClearDialog from "./dialogs/GeneratedImagesClearDialog.vue";
 import GeneratedImagesRebuildDialog from "./dialogs/GeneratedImagesRebuildDialog.vue";
 
@@ -24,9 +25,7 @@ const globalSummaryQuery = useQuery({
   queryKey: [...queryKeys.generatedImagesRoot(), "global-summary"],
   queryFn: async () => {
     const libraries = await fetchLibraries();
-    const results = await Promise.all(
-      libraries.map((lib) => fetchGeneratedImagesStatus(lib.id)),
-    );
+    const results = await Promise.all(libraries.map((lib) => fetchGeneratedImagesStatus(lib.id)));
     return results;
   },
   staleTime: 30_000,
@@ -43,6 +42,24 @@ const totalExpected = computed(() => {
   if (!data) return null;
   return data.reduce((s, r) => s + r.expected_derivatives, 0);
 });
+
+const fileHealthQuery = useFileHealthQuery();
+const fileHealthMutation = useFileHealthMutation();
+
+const fileIssueKeys = [
+  { key: "missing_source_files" as const, label: "Missing source files" },
+  { key: "generated_image_missing" as const, label: "Generated image missing" },
+  { key: "metadata_mismatch" as const, label: "Metadata mismatch" },
+  { key: "orphaned_work_item" as const, label: "Orphaned work item" },
+  { key: "generated_image_job_mismatch" as const, label: "Generated image job mismatch" },
+] as const;
+
+const repairKeys = [
+  { key: "repaired" as const, label: "Repaired" },
+  { key: "requeued" as const, label: "Requeued" },
+  { key: "failed" as const, label: "Marked failed" },
+  { key: "unchanged" as const, label: "Skipped / unchanged" },
+] as const;
 
 async function confirmClear() {
   try {
@@ -84,36 +101,22 @@ async function confirmRebuild() {
           </div>
           <div class="mt-4 space-y-3">
             <dl class="grid gap-3 text-sm">
-              <div class="flex items-center justify-between gap-3">
-                <dt class="text-muted-foreground">Missing source files</dt>
-                <dd class="font-medium">\u2014</dd>
-              </div>
-              <div class="flex items-center justify-between gap-3">
-                <dt class="text-muted-foreground">Generated image missing</dt>
-                <dd class="font-medium">\u2014</dd>
-              </div>
-              <div class="flex items-center justify-between gap-3">
-                <dt class="text-muted-foreground">Metadata mismatch</dt>
-                <dd class="font-medium">\u2014</dd>
-              </div>
-              <div class="flex items-center justify-between gap-3">
-                <dt class="text-muted-foreground">Orphaned work item</dt>
-                <dd class="font-medium">\u2014</dd>
-              </div>
-              <div class="flex items-center justify-between gap-3">
-                <dt class="text-muted-foreground">Generated image job mismatch</dt>
-                <dd class="font-medium">\u2014</dd>
+              <div v-for="item in fileIssueKeys" :key="item.key" class="flex items-center justify-between gap-3">
+                <dt class="text-muted-foreground">{{ item.label }}</dt>
+                <dd class="font-medium">{{ fileHealthQuery.data.value?.run?.issues[item.key] ?? "—" }}</dd>
               </div>
             </dl>
             <Separator />
             <div class="flex items-center justify-between text-xs text-muted-foreground">
               <span>Latest run</span>
-              <span>\u2014</span>
+              <span>{{
+                fileHealthQuery.data.value?.run?.finished_at
+                  ? new Date(fileHealthQuery.data.value.run.finished_at * 1000).toLocaleString()
+                  : "—"
+              }}</span>
             </div>
           </div>
-          <p class="mt-4 text-sm text-muted-foreground">
-            No report history available \u2014 backend health report API not available yet.
-          </p>
+          <p v-if="!fileHealthQuery.data.value?.run" class="mt-4 text-sm text-muted-foreground">No run yet.</p>
         </section>
 
         <section class="rounded-md border bg-background p-5">
@@ -125,8 +128,13 @@ async function confirmRebuild() {
             Verify cross-table consistency and storage integrity across all registered libraries.
           </p>
           <div class="mt-4">
-            <Button variant="outline" disabled title="Backend check API not available">
-              <Bug /> Run checks
+            <Button
+              variant="outline"
+              :disabled="fileHealthMutation.isPending.value"
+              @click="fileHealthMutation.mutateAsync()"
+            >
+              <Loader2 v-if="fileHealthMutation.isPending.value" class="animate-spin" />
+              <Bug v-else /> Run checks
             </Button>
           </div>
           <p class="mt-2 text-xs text-muted-foreground">Automated file checks require a backend health API endpoint.</p>
@@ -139,24 +147,11 @@ async function confirmRebuild() {
           <h3 class="font-semibold">Repair results</h3>
         </div>
         <div class="mt-4 grid gap-4 text-sm sm:grid-cols-4">
-          <div>
-            <p class="text-xs text-muted-foreground">Repaired</p>
-            <p class="text-xl font-semibold">\u2014</p>
-          </div>
-          <div>
-            <p class="text-xs text-muted-foreground">Requeued</p>
-            <p class="text-xl font-semibold">\u2014</p>
-          </div>
-          <div>
-            <p class="text-xs text-muted-foreground">Marked failed</p>
-            <p class="text-xl font-semibold">\u2014</p>
-          </div>
-          <div>
-            <p class="text-xs text-muted-foreground">Skipped / unchanged</p>
-            <p class="text-xl font-semibold">\u2014</p>
+          <div v-for="item in repairKeys" :key="item.key">
+            <p class="text-xs text-muted-foreground">{{ item.label }}</p>
+            <p class="text-xl font-semibold">{{ fileHealthQuery.data.value?.run?.repairs[item.key] ?? "—" }}</p>
           </div>
         </div>
-        <p class="mt-4 text-sm text-muted-foreground">No repair history available.</p>
       </section>
 
       <section class="rounded-md border bg-background p-5">
