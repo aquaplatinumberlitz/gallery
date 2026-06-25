@@ -441,6 +441,9 @@ Locking discipline:
      completion for short-circuited jobs (step 4) run *after* the DB lock
      is released. This keeps SQLite write transactions short and avoids
      holding `_DB_LOCK` across thread operations.
+   - Short-circuit completion (step 4) runs in its own short DB transaction,
+     not inside the persistence transaction. This prevents a long persist
+     lock from blocking the completion write or vice versa.
 
 Callers to migrate:
 
@@ -639,19 +642,28 @@ recovery scoped):
 - **Existing-row enqueue contract.** The DB-only persistence helper may
   coalesce a row that is already `'queued'` and return it *outside* of
   `result.enqueued`. Recovery must therefore not depend on the persist helper
-  returning freshly-enqueued rows. The recovery flow is:
+  returning freshly-enqueued rows. Recovery calls a shared owner-level helper,
+  `enqueue_existing_metadata_jobs(rows)`, that both `dispatch_metadata_index_paths`
+  (after persistence) and `recover_metadata_index_jobs` (without re-persisting)
+  call:
 
   ```
-  1. Load recoverable rows from metadata_index_jobs (store helper).
-  2. Reset 'running' → 'queued' (store helper).
-  3. For each recoverable row, push directly into _job_queue
-     (bypass the persist helper; no new SQLite write needed).
-  4. Ensure the metadata worker is started.
+  dispatch_metadata_index_paths(paths):
+    persist jobs via store helper                        # SQLite write
+    enqueue_existing_metadata_jobs(result.enqueued)      # memory queue
+    complete short-circuited jobs                        # optional SQLite write
+    start worker if not already running
+
+  recover_metadata_index_jobs():
+    load existing queued/running rows                    # store helper
+    reset running -> queued                               # store helper
+    enqueue_existing_metadata_jobs(rows)                  # memory queue, no re-persist
+    start worker if not already running
   ```
 
-  This guarantees recovery re-poplates the in-memory queue regardless of
-  whether the DB row already existed. `_queued_keys` dedup prevents
-  double-enqueue against any concurrent dispatch call.
+  This deduplicates the in-memory enqueue logic: `_queued_keys` update,
+  `_job_queue.put`, and `_update_runtime_queue_metrics` live in one place.
+  Recovery does not re-persist already-queued DB rows into SQLite.
 - **Out of scope:** it must not touch `library_jobs`, `library_import_paths`,
   `catalog_rebuild_entries`, or `file_index`. Catalog recovery stays the
   catalog recovery owner.
@@ -968,7 +980,9 @@ Files expected to change:
   double-write is a temporary safety net. Phase 4 may remove the
   `metadata_state="done"` side-effect from `_upsert_extracted_metadata_conn`
   after tests prove the completion helper always runs.
-- Tests: flip Phase 0 Tests 2, 3, 4, 5 to passing.
+- Tests: flip Phase 0 Tests 2, 3, 4 to passing. Test 5 (stale guard) flips in
+  Phase 3, where the DB-side guard checks in `complete_metadata_jobs` are
+  implemented.
 
 ### Phase 3 — Stale guards and startup recovery
 
@@ -993,7 +1007,7 @@ Files expected to change:
 - Optionally `backend/config.py` — flag to disable/limit recovery work for
   very large libraries (e.g., `METADATA_RECOVERY_MAX_ROWS`, mirroring existing
   bounded-work flags).
-- Tests: flip Phase 0 Tests 6 + 7 to passing; add the "durable done was
+- Tests: flip Phase 0 Tests 5, 6, 7 to passing; add the "durable done was
   lying" demote companion test.
 
 ### Phase 4 — Cleanup and docs
