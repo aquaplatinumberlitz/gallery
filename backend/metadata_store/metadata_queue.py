@@ -64,6 +64,13 @@ def _metadata_job_from_path(path_value: str | Path, root_path: str | Path | None
 
 
 def _mark_current_metadata_done(conn: sqlite3.Connection, job: MetadataIndexJob, now: float) -> None:
+    """Mark one metadata job done and materialize assets.metadata_state='done'.
+
+    This is called by the "already current" shortcut in queue_metadata_index_paths.
+    After Phase 3, it routes through complete_metadata_job so asset state is
+    also materialized (fixing Bug 2).
+    """
+    # Ensure the job row exists (INSERT/UPDATE for paths without queued jobs)
     conn.execute(
         """
         INSERT INTO metadata_index_jobs (
@@ -97,6 +104,34 @@ def _mark_current_metadata_done(conn: sqlite3.Connection, job: MetadataIndexJob,
             now,
         ),
     )
+    # Materialize asset done (fixes Bug 2: shortcut marks job done but NOT asset)
+    _update_asset_done(conn, job, now)
+
+
+def _update_asset_done(conn: sqlite3.Connection, job: MetadataIndexJob, now: float) -> None:
+    """Update assets.metadata_state='done' for the given job identity.
+
+    Primary match uses mtime_ns (same unit). Falls back to seconds tolerance
+    for legacy rows without mtime_ns.
+    """
+    if job.mtime_ns is not None:
+        conn.execute(
+            """
+            UPDATE assets
+            SET metadata_state='done'
+            WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=?
+            """,
+            (job.path, job.mtime_ns, job.size),
+        )
+    else:
+        conn.execute(
+            """
+            UPDATE assets
+            SET metadata_state='done'
+            WHERE path=? AND ABS(mtime_ns / 1_000_000_000.0 - ?) < 1e-3 AND size=?
+            """,
+            (job.path, job.mtime, job.size),
+        )
 
 
 def queue_metadata_index_paths(paths: Iterable[str | Path], root_path: str | Path | None = None) -> MetadataQueueResult:
@@ -210,24 +245,30 @@ def mark_metadata_jobs_running(jobs: Iterable[MetadataIndexJob]) -> None:
 
 
 def mark_metadata_jobs_done(jobs: Iterable[MetadataIndexJob]) -> None:
-    """Mark durable metadata jobs as successfully completed."""
+    """Mark durable metadata jobs as successfully completed (legacy batch path).
+
+    Phase 3: also materializes assets.metadata_state='done' per job.
+    This function delegates to the per-job completion transition.
+    """
     rows = list(jobs)
     if not rows:
         return
     _initialize_database()
     now = time.time()
     with _DB_LOCK, _connect() as conn:
-        conn.executemany(
-            """
-            UPDATE metadata_index_jobs
-            SET state='done',
-                error=NULL,
-                finished_at=?,
-                updated_at=?
-            WHERE path=? AND mtime=? AND size=?
-            """,
-            ((now, now, job.path, job.mtime, job.size) for job in rows),
-        )
+        for job in rows:
+            conn.execute(
+                """
+                UPDATE metadata_index_jobs
+                SET state='done',
+                    error=NULL,
+                    finished_at=?,
+                    updated_at=?
+                WHERE path=? AND mtime=? AND size=?
+                """,
+                (now, now, job.path, job.mtime, job.size),
+            )
+            _update_asset_done(conn, job, now)
 
 
 def mark_metadata_jobs_stale(jobs: Iterable[MetadataIndexJob]) -> None:

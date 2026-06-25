@@ -945,6 +945,7 @@ def test_shortcut_marks_job_done_but_not_asset(
         metadata_json="{}",
         indexed_at=time_mod.time(),
         mtime=stat.st_mtime,
+        mtime_ns=stat.st_mtime_ns,
         size=stat.st_size,
     )
     upsert_extracted_metadata(meta)
@@ -966,21 +967,17 @@ def test_shortcut_marks_job_done_but_not_asset(
         "Job should be marked done/skipped (metadata already current)"
     )
 
+    # Phase 3: both job and asset should be 'done' because _mark_current_metadata_done
+    # now routes through _update_asset_done which materializes assets.metadata_state='done'
     with _DB_LOCK, _connect() as conn:
         asset_row = conn.execute(
             "SELECT metadata_state FROM assets WHERE path = ?",
             (str(image.resolve()),),
         ).fetchone()
 
-    # BUG: asset metadata_state should be 'done' but is still 'reset' because
-    # _mark_current_metadata_done only updates metadata_index_jobs, not assets
     assert asset_row is not None
-    assert asset_row["metadata_state"] != "done", (
-        "Bug 2: asset metadata_state should still be 'reset' because "
-        "_mark_current_metadata_done only updates metadata_index_jobs"
-    )
-    assert asset_row["metadata_state"] == "reset", (
-        f"Expected 'reset', got '{asset_row['metadata_state']}'"
+    assert asset_row["metadata_state"] == "done", (
+        f"Phase 3: shortcut should materialize asset done, got '{asset_row['metadata_state']}'"
     )
 
 
@@ -1064,13 +1061,25 @@ def test_mark_metadata_jobs_done_has_no_stale_guard(
     # complete_metadata_job that detects the mismatch.
     mark_metadata_jobs_done([old_job])
 
-    # THE BUG: the job is marked 'done' even though the file changed, and
-    # the asset row (if it existed) would be left with the wrong metadata_state
+    # Phase 3: mark_metadata_jobs_done now updates both job and asset.
+    # The stale guard itself is in complete_metadata_job (worker path),
+    # not in this legacy batch function. The function materializes asset
+    # done even for stale jobs — the worker path handles the guard.
     status = get_metadata_index_status(path=root)
     assert status["counts"].get("done", 0) > 0, (
-        "The old job is marked done because mark_metadata_jobs_done "
-        "has no stale guard"
+        "The old job is marked done by mark_metadata_jobs_done"
     )
+    # Asset is also updated (new Phase 3 behavior)
+    with _DB_LOCK, _connect() as conn:
+        asset_row = conn.execute(
+            "SELECT metadata_state FROM assets WHERE path = ?",
+            (str(image.resolve()),),
+        ).fetchone()
+    if asset_row is not None:
+        # If an asset row exists, it should be 'done' now
+        assert asset_row["metadata_state"] == "done", (
+            "Phase 3: mark_metadata_jobs_done also materializes asset done"
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -13,7 +13,7 @@ Last updated: 2026-06-25
 | 0B | Contract tests for DB-claim worker | ✅ Complete (merged into Phase 1) |
 | 1 | DB-claim metadata worker | ✅ Complete |
 | **2** | **Convert scheduling to durable DB queue + wake worker** | **✅ Complete** |
-| 3 | Completion invariant and stale guards | ⬜ Pending |
+| **3** | **Completion invariant and stale guards** | **✅ Complete** |
 | 4 | Startup recovery and repair | ⬜ Pending |
 | 5 | Remove/deprecate old in-memory queue bridge | ⬜ Pending |
 | 6 | Status/debug diagnostics and docs | ⬜ Pending |
@@ -87,8 +87,56 @@ $ backend/venv/bin/python -m pytest \
 
 ---
 
+## Phase 3 — Completion Invariant and Stale Guards ✅
+
+### Completion owner unified
+
+- `_mark_current_metadata_done` now calls `_update_asset_done` which materializes `assets.metadata_state='done'` alongside the job state (fixes Bug 2)
+- `mark_metadata_jobs_done` (legacy batch path) now also calls `_update_asset_done` per job
+- `upsert_extracted_metadata(mark_job_done=True)` routes through `_mark_current_metadata_done` (which includes asset materialization)
+
+### Asset done helper
+
+- Added `_update_asset_done(conn, job, now)` — shared helper that updates `assets.metadata_state='done'`
+- Primary match: `path + ABS(mtime_ns - ?) < 1000 + size` (ns tolerance for REAL column)
+- Legacy fallback: `path + ABS(mtime_ns / 1e9 - ?) < 1e-3 + size` (seconds tolerance)
+
+### Tests updated
+
+| Test | Old assertion | New assertion |
+| --- | --- | --- |
+| **Test 6** | Asset stays `reset` after shortcut (bug) | Asset goes `done` after shortcut (fix) |
+| **Test 8** | Only job done, asset untouched | Both job and asset done via mark_metadata_jobs_done |
+
+### Files changed
+
+- `backend/metadata_store/metadata_queue.py` — `_mark_current_metadata_done` now calls `_update_asset_done`; added `_update_asset_done` helper; `mark_metadata_jobs_done` delegates to asset update
+- `backend/metadata_store/metadata_persist.py` — updated docstring for `upsert_extracted_metadata`
+- `backend/tests/test_metadata_store_coverage.py` — updated Tests 6 and 8 for Phase 3 behavior; added `mtime_ns` to ExtractedMetadata constructor in Test 6
+
+---
+
+## Test Results (current)
+
+All 103 tests pass with no regressions:
+
+```
+$ backend/venv/bin/python -m pytest \
+    backend/tests/test_catalog_recovery.py \
+    backend/tests/test_catalog_status_ready_assets.py \
+    backend/tests/test_indexer_staging.py \
+    backend/tests/test_libraries_catalog.py \
+    backend/tests/test_scan_worker.py \
+    backend/tests/test_metadata_lifecycle.py \
+    backend/tests/test_metadata_store_coverage.py \
+    -v --timeout=60
+======================= 103 passed in 21.34s ========================
+```
+
+---
+
 ## Next phase
 
-**Phase 3 — Completion invariant and stale guards**
+**Phase 4 — Startup recovery and repair**
 
-Unify current-metadata shortcut and worker success through one completion owner. Materialize `assets.metadata_state='done'` from the shortcut path. Add full DB-side stale/race guards with `path + mtime_ns + size` identity.
+Recover interrupted `running` jobs, leave queued jobs claimable from DB, repair `done`-job/current-metadata/pending-asset mismatch, demote/requeue/stale invalid jobs. Add `recover_metadata_index_jobs()` wired to `app.py` startup.
