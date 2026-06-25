@@ -103,7 +103,8 @@ class IntegrityChecker:
         finally:
             try:
                 with _DB_LOCK, _connect() as conn:
-                    insert_run(conn, summary)
+                    run_id = insert_run(conn, summary)
+                    summary["id"] = run_id
             except Exception as e:
                 logger.exception("Failed to persist integrity check run")
                 summary["status"] = "error"

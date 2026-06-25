@@ -1,0 +1,116 @@
+"""Tests for the maintenance file-health API router (Phase 4)."""
+
+from __future__ import annotations
+
+import time
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+from backend.integrity_checker import integrity_checker
+from backend.metadata_store import _DB_LOCK, _connect, initialize_database
+from backend.metadata_store.maintenance_store import insert_run
+
+
+@pytest.fixture(autouse=True)
+def _init_db(isolated_metadata_db: Path) -> None:
+    initialize_database()
+
+
+@pytest.fixture(autouse=True)
+def _reset_checker() -> None:
+    integrity_checker.is_running = False
+
+
+FILE_HEALTH_ISSUES = {
+    "missing_source_files",
+    "generated_image_missing",
+    "metadata_mismatch",
+    "orphaned_work_item",
+    "generated_image_job_mismatch",
+}
+FILE_HEALTH_REPAIRS = {"repaired", "requeued", "failed", "unchanged"}
+
+
+def _make_dummy_run(trigger: str = "manual", now: float | None = None) -> dict:
+    if now is None:
+        now = time.time()
+    return {
+        "trigger": trigger,
+        "started_at": now - 10,
+        "finished_at": now - 5,
+        "status": "ok",
+        "error": None,
+        "issues": {k: 0 for k in FILE_HEALTH_ISSUES},
+        "repairs": {k: 0 for k in FILE_HEALTH_REPAIRS},
+    }
+
+
+class TestGetFileHealth:
+    def test_never_run_returns_null(self, isolated_app: TestClient) -> None:
+        resp = isolated_app.get("/api/maintenance/file-health")
+        assert resp.status_code == 200
+        assert resp.json() == {"run": None}
+
+    def test_after_manual_run(self, isolated_app: TestClient) -> None:
+        isolated_app.post("/api/maintenance/file-health/check")
+        resp = isolated_app.get("/api/maintenance/file-health")
+        assert resp.status_code == 200
+        data = resp.json()
+        run = data["run"]
+        assert run is not None
+        assert set(run.keys()) == {
+            "id",
+            "trigger",
+            "started_at",
+            "finished_at",
+            "status",
+            "error",
+            "issues",
+            "repairs",
+        }
+        assert run["trigger"] == "manual"
+        assert run["status"] == "ok"
+        assert run["error"] is None
+        assert set(run["issues"].keys()) == FILE_HEALTH_ISSUES
+        assert set(run["repairs"].keys()) == FILE_HEALTH_REPAIRS
+
+    def test_after_daemon_run(self, isolated_app: TestClient) -> None:
+        now = time.time()
+        with _DB_LOCK, _connect() as conn:
+            insert_run(conn, _make_dummy_run(trigger="daemon", now=now))
+        resp = isolated_app.get("/api/maintenance/file-health")
+        assert resp.status_code == 200
+        assert resp.json()["run"]["trigger"] == "daemon"
+
+
+class TestPostFileHealthCheck:
+    def test_creates_run(self, isolated_app: TestClient) -> None:
+        resp = isolated_app.post("/api/maintenance/file-health/check")
+        assert resp.status_code == 200
+        data = resp.json()
+        run = data["run"]
+        assert run["status"] == "ok"
+        assert run["trigger"] == "manual"
+        assert run["error"] is None
+
+    def test_concurrency_returns_409(self, isolated_app: TestClient) -> None:
+        integrity_checker.is_running = True
+        try:
+            resp = isolated_app.post("/api/maintenance/file-health/check")
+            assert resp.status_code == 409
+            assert "already running" in resp.text
+        finally:
+            integrity_checker.is_running = False
+
+    def test_error_run(self, isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+        def _raise(*args: object, **kwargs: object) -> dict:
+            raise RuntimeError("simulated crash")
+
+        monkeypatch.setattr(integrity_checker, "run_all_checks", _raise)
+        resp = isolated_app.post("/api/maintenance/file-health/check")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["run"]["status"] == "error"
+        assert "simulated crash" in data["run"]["error"]

@@ -25,6 +25,7 @@ from .indexer import metadata_worker, recover_metadata_index_jobs
 from .indexer import router as indexer_router
 from .integrity_checker import integrity_checker
 from .libraries import router as libraries_router
+from .maintenance import router as maintenance_router
 from .metadata_parse import router as metadata_parse_router
 from .metadata_store import recover_stale_jobs
 from .refresh import start_refresh as _start_refresh
@@ -94,6 +95,7 @@ app.include_router(search_router)
 app.include_router(health_router)
 app.include_router(indexer_router)
 app.include_router(libraries_router)
+app.include_router(maintenance_router)
 app.include_router(facets_router)
 app.include_router(static_files_router)
 
