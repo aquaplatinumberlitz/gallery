@@ -57,7 +57,7 @@ def check_file(filepath: Path, rel: Path) -> list[str]:
 
         # Check for banned legacy symbols as direct attribute access
         for sym in BANNED_LEGACY_SYMBOLS:
-            if f".{sym}" in stripped or stripped.startswith(f"{sym} "):
+            if f".{sym}" in stripped or stripped.startswith(f"{sym} ") or re.match(rf"def\s+{re.escape(sym)}\s*\(", stripped) or re.match(rf"{re.escape(sym)}\s*[:=]", stripped):
                 errors.append(f"{rel}:{line_num} references banned legacy symbol '{sym}'")
 
         line_num += 1
@@ -81,6 +81,11 @@ def check_file(filepath: Path, rel: Path) -> list[str]:
     for sym in BANNED_SYMBOLS:
         if re.search(rf"from\s+(backend|\.)metadata_store\s+import\s+[^)]*\b{re.escape(sym)}\b", text):
             errors.append(f"{rel}: imports banned old public name '{sym}'")
+
+        # Direct metadata_store.{banned_symbol} usage
+        for match in re.finditer(rf"metadata_store\.{re.escape(sym)}\b", text):
+            err_line = text[: match.start()].count("\n") + 1
+            errors.append(f"{rel}:{err_line} uses banned old public name 'metadata_store.{sym}'")
 
     return errors
 
