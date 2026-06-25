@@ -169,25 +169,34 @@ def queue_metadata_index_paths(paths: Iterable[str | Path], root_path: str | Pat
 
             existing = conn.execute(
                 """
-                SELECT mtime, size, state, attempts
+                SELECT mtime, mtime_ns, size, state, attempts
                 FROM metadata_index_jobs
                 WHERE path = ?
                 """,
                 (job.path,),
             ).fetchone()
 
-            if existing and existing["mtime"] == job.mtime and existing["size"] == job.size:
-                state = existing["state"]
-                attempts = int(existing["attempts"] or 0)
-                if state in {"queued", "running"}:
-                    coalesced += 1
-                    continue
-                if state == "failed" and attempts >= MAX_METADATA_JOB_ATTEMPTS:
-                    failed += 1
-                    continue
-                if state == "done" and _current_metadata_is_complete(conn, job.path, job.mtime, job.size, job.mtime_ns):
-                    skipped += 1
-                    continue
+            if existing:
+                if existing["mtime_ns"] is not None and job.mtime_ns is not None:
+                    same_version = abs(existing["mtime_ns"] - job.mtime_ns) < 1000 and existing["size"] == job.size
+                else:
+                    same_version = existing["mtime"] == job.mtime and existing["size"] == job.size
+                if not same_version:
+                    existing = None
+                else:
+                    state = existing["state"]
+                    attempts = int(existing["attempts"] or 0)
+                    if state in {"queued", "running"}:
+                        coalesced += 1
+                        continue
+                    if state == "failed" and attempts >= MAX_METADATA_JOB_ATTEMPTS:
+                        failed += 1
+                        continue
+                    if state == "done" and _current_metadata_is_complete(
+                        conn, job.path, job.mtime, job.size, job.mtime_ns
+                    ):
+                        skipped += 1
+                        continue
 
             conn.execute(
                 """
@@ -205,8 +214,13 @@ def queue_metadata_index_paths(paths: Iterable[str | Path], root_path: str | Pat
                   size=excluded.size,
                   state='queued',
                   attempts=CASE
-                    WHEN metadata_index_jobs.mtime = excluded.mtime
-                     AND metadata_index_jobs.size = excluded.size
+                    WHEN metadata_index_jobs.mtime_ns IS NOT NULL AND excluded.mtime_ns IS NOT NULL
+                      AND ABS(metadata_index_jobs.mtime_ns - excluded.mtime_ns) < 1000
+                      AND metadata_index_jobs.size = excluded.size
+                    THEN metadata_index_jobs.attempts
+                    WHEN metadata_index_jobs.mtime_ns IS NULL AND excluded.mtime_ns IS NULL
+                      AND metadata_index_jobs.mtime = excluded.mtime
+                      AND metadata_index_jobs.size = excluded.size
                     THEN metadata_index_jobs.attempts
                     ELSE 0
                   END,
@@ -242,19 +256,35 @@ def mark_metadata_jobs_running(jobs: Iterable[MetadataIndexJob]) -> None:
     _initialize_database()
     now = time.time()
     with _DB_LOCK, _connect() as conn:
-        conn.executemany(
-            """
-            UPDATE metadata_index_jobs
-            SET state='running',
-                attempts=attempts + 1,
-                error=NULL,
-                started_at=?,
-                finished_at=NULL,
-                updated_at=?
-            WHERE path=? AND mtime=? AND size=?
-            """,
-            ((now, now, job.path, job.mtime, job.size) for job in rows),
-        )
+        for job in rows:
+            if job.mtime_ns is not None:
+                conn.execute(
+                    """
+                    UPDATE metadata_index_jobs
+                    SET state='running',
+                        attempts=attempts + 1,
+                        error=NULL,
+                        started_at=?,
+                        finished_at=NULL,
+                        updated_at=?
+                    WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=?
+                    """,
+                    (now, now, job.path, job.mtime_ns, job.size),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE metadata_index_jobs
+                    SET state='running',
+                        attempts=attempts + 1,
+                        error=NULL,
+                        started_at=?,
+                        finished_at=NULL,
+                        updated_at=?
+                    WHERE path=? AND mtime=? AND size=?
+                    """,
+                    (now, now, job.path, job.mtime, job.size),
+                )
 
 
 def mark_metadata_jobs_done(jobs: Iterable[MetadataIndexJob]) -> None:
@@ -289,10 +319,49 @@ def mark_metadata_jobs_done(jobs: Iterable[MetadataIndexJob]) -> None:
                     (job.path, job.mtime, job.size),
                 ).fetchone()
             if row is None:
+                if job.mtime_ns is not None:
+                    conn.execute(
+                        """
+                        UPDATE metadata_index_jobs
+                        SET state='stale',
+                            error=NULL,
+                            finished_at=?,
+                            updated_at=?
+                        WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=?
+                        """,
+                        (now, now, job.path, job.mtime_ns, job.size),
+                    )
+                else:
+                    conn.execute(
+                        """
+                        UPDATE metadata_index_jobs
+                        SET state='stale',
+                            error=NULL,
+                            finished_at=?,
+                            updated_at=?
+                        WHERE path=? AND mtime=? AND size=?
+                        """,
+                        (now, now, job.path, job.mtime, job.size),
+                    )
+                continue
+
+            if job.mtime_ns is not None:
                 conn.execute(
                     """
                     UPDATE metadata_index_jobs
-                    SET state='stale',
+                    SET state='done',
+                        error=NULL,
+                        finished_at=?,
+                        updated_at=?
+                    WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=?
+                    """,
+                    (now, now, job.path, job.mtime_ns, job.size),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE metadata_index_jobs
+                    SET state='done',
                         error=NULL,
                         finished_at=?,
                         updated_at=?
@@ -300,19 +369,6 @@ def mark_metadata_jobs_done(jobs: Iterable[MetadataIndexJob]) -> None:
                     """,
                     (now, now, job.path, job.mtime, job.size),
                 )
-                continue
-
-            conn.execute(
-                """
-                UPDATE metadata_index_jobs
-                SET state='done',
-                    error=NULL,
-                    finished_at=?,
-                    updated_at=?
-                WHERE path=? AND mtime=? AND size=?
-                """,
-                (now, now, job.path, job.mtime, job.size),
-            )
             _update_asset_done(conn, job, now)
 
 
@@ -324,17 +380,31 @@ def mark_metadata_jobs_stale(jobs: Iterable[MetadataIndexJob]) -> None:
     _initialize_database()
     now = time.time()
     with _DB_LOCK, _connect() as conn:
-        conn.executemany(
-            """
-            UPDATE metadata_index_jobs
-            SET state='stale',
-                error=NULL,
-                finished_at=?,
-                updated_at=?
-            WHERE path=? AND mtime=? AND size=?
-            """,
-            ((now, now, job.path, job.mtime, job.size) for job in rows),
-        )
+        for job in rows:
+            if job.mtime_ns is not None:
+                conn.execute(
+                    """
+                    UPDATE metadata_index_jobs
+                    SET state='stale',
+                        error=NULL,
+                        finished_at=?,
+                        updated_at=?
+                    WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=?
+                    """,
+                    (now, now, job.path, job.mtime_ns, job.size),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE metadata_index_jobs
+                    SET state='stale',
+                        error=NULL,
+                        finished_at=?,
+                        updated_at=?
+                    WHERE path=? AND mtime=? AND size=?
+                    """,
+                    (now, now, job.path, job.mtime, job.size),
+                )
 
 
 def mark_metadata_jobs_failed(errors: Iterable[tuple[MetadataIndexJob, str]]) -> None:
@@ -345,17 +415,31 @@ def mark_metadata_jobs_failed(errors: Iterable[tuple[MetadataIndexJob, str]]) ->
     _initialize_database()
     now = time.time()
     with _DB_LOCK, _connect() as conn:
-        conn.executemany(
-            """
-            UPDATE metadata_index_jobs
-            SET state='failed',
-                error=?,
-                finished_at=?,
-                updated_at=?
-            WHERE path=? AND mtime=? AND size=?
-            """,
-            ((error, now, now, job.path, job.mtime, job.size) for job, error in rows),
-        )
+        for job, error in rows:
+            if job.mtime_ns is not None:
+                conn.execute(
+                    """
+                    UPDATE metadata_index_jobs
+                    SET state='failed',
+                        error=?,
+                        finished_at=?,
+                        updated_at=?
+                    WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=?
+                    """,
+                    (error, now, now, job.path, job.mtime_ns, job.size),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE metadata_index_jobs
+                    SET state='failed',
+                        error=?,
+                        finished_at=?,
+                        updated_at=?
+                    WHERE path=? AND mtime=? AND size=?
+                    """,
+                    (error, now, now, job.path, job.mtime, job.size),
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -390,18 +474,32 @@ def claim_next_metadata_job(
             return None
         attempts = int(row["attempts"]) + 1
         now = time.time()
-        conn.execute(
-            """
-            UPDATE metadata_index_jobs
-            SET state='running',
-                attempts=?,
-                started_at=?,
-                finished_at=NULL,
-                updated_at=?
-            WHERE path=? AND mtime=? AND size=?
-            """,
-            (attempts, now, now, row["path"], row["mtime"], row["size"]),
-        )
+        if row["mtime_ns"] is not None:
+            conn.execute(
+                """
+                UPDATE metadata_index_jobs
+                SET state='running',
+                    attempts=?,
+                    started_at=?,
+                    finished_at=NULL,
+                    updated_at=?
+                WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=?
+                """,
+                (attempts, now, now, row["path"], row["mtime_ns"], row["size"]),
+            )
+        else:
+            conn.execute(
+                """
+                UPDATE metadata_index_jobs
+                SET state='running',
+                    attempts=?,
+                    started_at=?,
+                    finished_at=NULL,
+                    updated_at=?
+                WHERE path=? AND mtime=? AND size=?
+                """,
+                (attempts, now, now, row["path"], row["mtime"], row["size"]),
+            )
         job = MetadataIndexJob(
             path=row["path"],
             name=row["name"],
@@ -450,17 +548,30 @@ def complete_metadata_job(
         return
 
     now = time.time()
-    conn.execute(
-        """
-        UPDATE metadata_index_jobs
-        SET state='done',
-            error=NULL,
-            finished_at=?,
-            updated_at=?
-        WHERE path=? AND mtime=? AND size=?
-        """,
-        (now, now, job.path, job.mtime, job.size),
-    )
+    if job.mtime_ns is not None:
+        conn.execute(
+            """
+            UPDATE metadata_index_jobs
+            SET state='done',
+                error=NULL,
+                finished_at=?,
+                updated_at=?
+            WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=?
+            """,
+            (now, now, job.path, job.mtime_ns, job.size),
+        )
+    else:
+        conn.execute(
+            """
+            UPDATE metadata_index_jobs
+            SET state='done',
+                error=NULL,
+                finished_at=?,
+                updated_at=?
+            WHERE path=? AND mtime=? AND size=?
+            """,
+            (now, now, job.path, job.mtime, job.size),
+        )
 
     # Materialize asset done using mtime_ns primary, with fallback
     mtime_ns_val = job.mtime_ns
@@ -491,17 +602,30 @@ def fail_metadata_job(
 ) -> None:
     """Mark one metadata job as failed with a bounded error message."""
     now = time.time()
-    conn.execute(
-        """
-        UPDATE metadata_index_jobs
-        SET state='failed',
-            error=?,
-            finished_at=?,
-            updated_at=?
-        WHERE path=? AND mtime=? AND size=?
-        """,
-        (error[:1000], now, now, job.path, job.mtime, job.size),
-    )
+    if job.mtime_ns is not None:
+        conn.execute(
+            """
+            UPDATE metadata_index_jobs
+            SET state='failed',
+                error=?,
+                finished_at=?,
+                updated_at=?
+            WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=?
+            """,
+            (error[:1000], now, now, job.path, job.mtime_ns, job.size),
+        )
+    else:
+        conn.execute(
+            """
+            UPDATE metadata_index_jobs
+            SET state='failed',
+                error=?,
+                finished_at=?,
+                updated_at=?
+            WHERE path=? AND mtime=? AND size=?
+            """,
+            (error[:1000], now, now, job.path, job.mtime, job.size),
+        )
 
 
 def mark_metadata_job_stale(
@@ -510,17 +634,30 @@ def mark_metadata_job_stale(
 ) -> None:
     """Mark one metadata job stale when the file version no longer matches."""
     now = time.time()
-    conn.execute(
-        """
-        UPDATE metadata_index_jobs
-        SET state='stale',
-            error=NULL,
-            finished_at=?,
-            updated_at=?
-        WHERE path=? AND mtime=? AND size=?
-        """,
-        (now, now, job.path, job.mtime, job.size),
-    )
+    if job.mtime_ns is not None:
+        conn.execute(
+            """
+            UPDATE metadata_index_jobs
+            SET state='stale',
+                error=NULL,
+                finished_at=?,
+                updated_at=?
+            WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=?
+            """,
+            (now, now, job.path, job.mtime_ns, job.size),
+        )
+    else:
+        conn.execute(
+            """
+            UPDATE metadata_index_jobs
+            SET state='stale',
+                error=NULL,
+                finished_at=?,
+                updated_at=?
+            WHERE path=? AND mtime=? AND size=?
+            """,
+            (now, now, job.path, job.mtime, job.size),
+        )
 
 
 def list_recoverable_metadata_jobs(
@@ -547,7 +684,7 @@ def list_recoverable_metadata_jobs(
 
 def reset_running_jobs_to_queued(
     conn: sqlite3.Connection,
-    job_paths: list[tuple[str, float, int]],
+    job_paths: list[tuple[str, float, int, int | None]],
 ) -> None:
     """Atomically reset running metadata jobs to queued (preserves attempts/queued_at).
 
@@ -555,17 +692,31 @@ def reset_running_jobs_to_queued(
     derivative_scheduler.py:71-79.
     """
     now = time.time()
-    conn.executemany(
-        """
-        UPDATE metadata_index_jobs
-        SET state='queued',
-            started_at=NULL,
-            finished_at=NULL,
-            updated_at=?
-        WHERE path=? AND mtime=? AND size=? AND state='running'
-        """,
-        ((now, path, mtime, size) for path, mtime, size in job_paths),
-    )
+    for path, mtime, size, mtime_ns in job_paths:
+        if mtime_ns is not None:
+            conn.execute(
+                """
+                UPDATE metadata_index_jobs
+                SET state='queued',
+                    started_at=NULL,
+                    finished_at=NULL,
+                    updated_at=?
+                WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=? AND state='running'
+                """,
+                (now, path, mtime_ns, size),
+            )
+        else:
+            conn.execute(
+                """
+                UPDATE metadata_index_jobs
+                SET state='queued',
+                    started_at=NULL,
+                    finished_at=NULL,
+                    updated_at=?
+                WHERE path=? AND mtime=? AND size=? AND state='running'
+                """,
+                (now, path, mtime, size),
+            )
 
 
 def get_metadata_index_status(path: str | Path | None = None) -> dict[str, Any]:
