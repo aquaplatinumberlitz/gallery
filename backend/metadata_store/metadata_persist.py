@@ -141,7 +141,6 @@ def _upsert_extracted_metadata_conn(conn: sqlite3.Connection, metadata: Extracte
         size=metadata.size,
         width=metadata.width,
         height=metadata.height,
-        metadata_state="done",
         reactivate_existing=False,
     )
     _sync_dimensions_to_file_index(conn, metadata.path, metadata.width, metadata.height)

@@ -147,7 +147,9 @@ def _update_asset_done(conn: sqlite3.Connection, job: MetadataIndexJob, now: flo
         )
 
 
-def queue_metadata_index_paths(paths: Iterable[str | Path], root_path: str | Path | None = None) -> MetadataQueueResult:
+def _persist_metadata_index_jobs(
+    paths: Iterable[str | Path], root_path: str | Path | None = None
+) -> MetadataQueueResult:
     """Create/coalesce metadata index jobs for image paths without parsing files."""
     jobs = [job for path in paths if (job := _metadata_job_from_path(path, root_path))]
     if not jobs:

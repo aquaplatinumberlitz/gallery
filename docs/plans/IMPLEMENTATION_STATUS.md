@@ -15,7 +15,7 @@ Last updated: 2026-06-25
 | **2** | **Convert scheduling to durable DB queue + wake worker** | **✅ Complete** |
 | **3** | **Completion invariant and stale guards** | **✅ Complete** |
 | **4** | **Startup recovery and repair** | **✅ Complete** |
-| 5 | Remove/deprecate old in-memory queue bridge | ⬜ Pending |
+| 5 | Remove/deprecate old in-memory queue bridge | ✅ Complete |
 | 6 | Status/debug diagnostics and docs | ⬜ Pending |
 | 7 | Broader integrity checker (P2 follow-up) | ⬜ Pending |
 
@@ -137,6 +137,6 @@ $ backend/venv/bin/python -m pytest \
 
 ## Next phase
 
-**Phase 4 — Startup recovery and repair**
+**Phase 6 — Status/debug diagnostics and docs**
 
-Recover interrupted `running` jobs, leave queued jobs claimable from DB, repair `done`-job/current-metadata/pending-asset mismatch, demote/requeue/stale invalid jobs. Add `recover_metadata_index_jobs()` wired to `app.py` startup.
+Add status/debug diagnostics and update documentation.
