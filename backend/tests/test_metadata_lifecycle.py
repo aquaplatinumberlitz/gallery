@@ -17,27 +17,22 @@ Run when:
 from __future__ import annotations
 
 import sqlite3
-import threading
 import time
 from pathlib import Path
 
 import pytest
 
 from backend.metadata_store import (
-    MetadataIndexJob,
     _DB_LOCK,
+    MetadataIndexJob,
     _connect,
     claim_next_metadata_job,
     complete_metadata_job,
-    fail_metadata_job,
     get_metadata_index_status,
     initialize_database,
-    mark_metadata_job_stale,
     queue_metadata_index_paths,
-    reset_running_jobs_to_queued,
 )
 from tests.conftest import create_test_image, create_test_png
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -148,10 +143,7 @@ def test_claim_next_metadata_job_atomicity(
     assert first.path == str(image.resolve())
 
     second = claim_next_metadata_job()
-    assert second is None, (
-        "Job should already be claimed (running); "
-        "no more queued jobs should be available"
-    )
+    assert second is None, "Job should already be claimed (running); no more queued jobs should be available"
 
 
 # ---------------------------------------------------------------------------
@@ -189,8 +181,18 @@ def test_complete_metadata_job_materializes_job_and_asset_done(
               mtime, mtime_ns, size, state, queued_at, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'running', ?, ?)
             """,
-            (resolved, image.name, str(image.parent), str(image.parent), str(image.parent.parent),
-             stat.st_mtime, stat.st_mtime_ns, stat.st_size, now, now),
+            (
+                resolved,
+                image.name,
+                str(image.parent),
+                str(image.parent),
+                str(image.parent.parent),
+                stat.st_mtime,
+                stat.st_mtime_ns,
+                stat.st_size,
+                now,
+                now,
+            ),
         )
 
     # Create a matching MetadataIndexJob
@@ -260,8 +262,18 @@ def test_complete_metadata_job_stales_job_when_metadata_missing(
               mtime, mtime_ns, size, state, queued_at, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'running', ?, ?)
             """,
-            (resolved, image.name, str(image.parent), str(image.parent), str(image.parent.parent),
-             stat.st_mtime, stat.st_mtime_ns, stat.st_size, now, now),
+            (
+                resolved,
+                image.name,
+                str(image.parent),
+                str(image.parent),
+                str(image.parent.parent),
+                stat.st_mtime,
+                stat.st_mtime_ns,
+                stat.st_size,
+                now,
+                now,
+            ),
         )
 
     job = MetadataIndexJob(
@@ -280,12 +292,8 @@ def test_complete_metadata_job_stales_job_when_metadata_missing(
 
     # Verify job is stale (not done) because no image_metadata exists
     status = get_metadata_index_status(path=image.parent)
-    assert status["counts"].get("stale", 0) >= 1, (
-        "Job should be stale when image_metadata is missing"
-    )
-    assert status["counts"].get("done", 0) == 0, (
-        "Job should NOT be done when image_metadata is missing"
-    )
+    assert status["counts"].get("stale", 0) >= 1, "Job should be stale when image_metadata is missing"
+    assert status["counts"].get("done", 0) == 0, "Job should NOT be done when image_metadata is missing"
 
 
 # ---------------------------------------------------------------------------
@@ -313,10 +321,10 @@ def test_worker_does_not_hold_long_write_transactions(
     album.mkdir()
     image = album / "test.png"
     create_test_png(image)
-    stat = image.stat()
 
     # Need a library for the metadata path to resolve
     from backend.metadata_store import create_library
+
     create_library([root], name="TestLib")
 
     # Seed a metadata job
@@ -364,6 +372,4 @@ def test_worker_does_not_hold_long_write_transactions(
 
     # Verify the job completed
     status = get_metadata_index_status(path=root)
-    assert status["counts"].get("done", 0) == 1, (
-        f"Job should be done after _run_job, got {status['counts']}"
-    )
+    assert status["counts"].get("done", 0) == 1, f"Job should be done after _run_job, got {status['counts']}"

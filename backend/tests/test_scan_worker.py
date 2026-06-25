@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from backend.metadata_store import _connect, create_library, initialize_database
+from backend.metadata_store import create_library
 from backend.metadata_store.metadata_queue import get_metadata_index_status
 from backend.scan_worker import execute_rebuild_job, queue_rebuild
 from tests.conftest import create_test_png
@@ -47,13 +47,16 @@ def test_rebuild_path_uses_dispatch_metadata_index_paths(
     original_dispatch = indexer.dispatch_metadata_index_paths
 
     def tracking_dispatch(paths, root_path=None, **kwargs):
-        dispatch_calls.append((list(paths) if hasattr(paths, '__iter__') else [str(paths)], str(root_path) if root_path else None))
+        dispatch_calls.append(
+            (list(paths) if hasattr(paths, "__iter__") else [str(paths)], str(root_path) if root_path else None)
+        )
         return original_dispatch(paths, root_path, **kwargs)
 
     monkeypatch.setattr(indexer, "dispatch_metadata_index_paths", tracking_dispatch)
 
     # scan_worker imports dispatch at module level; patch its reference too
     import backend.scan_worker as scan_worker_mod
+
     monkeypatch.setattr(scan_worker_mod, "dispatch_metadata_index_paths", tracking_dispatch)
 
     root = isolated_gallery_root / "lib"
@@ -82,23 +85,16 @@ def test_rebuild_path_uses_dispatch_metadata_index_paths(
     assert success, "Rebuild job should succeed"
 
     # Verify dispatch_metadata_index_paths was called (not raw queue)
-    assert len(dispatch_calls) > 0, (
-        "Rebuild path should call dispatch_metadata_index_paths"
-    )
+    assert len(dispatch_calls) > 0, "Rebuild path should call dispatch_metadata_index_paths"
 
     # Verify metadata_index_jobs rows exist in SQLite
     status = get_metadata_index_status(path=root)
     assert status["total"] > 0, (
-        "Expected metadata_index_jobs rows in SQLite after rebuild, "
-        f"got total={status['total']}"
+        f"Expected metadata_index_jobs rows in SQLite after rebuild, got total={status['total']}"
     )
-    assert status["counts"].get("queued", 0) > 0, (
-        "Expected queued metadata jobs, "
-        f"got counts={status['counts']}"
-    )
+    assert status["counts"].get("queued", 0) > 0, f"Expected queued metadata jobs, got counts={status['counts']}"
 
     # _job_queue should be empty because dispatch does NOT push to memory
     assert indexer._job_queue.qsize() == 0, (
-        "Phase 2: dispatch_metadata_index_paths does not populate _job_queue; "
-        "the DB-claim worker claims from SQLite"
+        "Phase 2: dispatch_metadata_index_paths does not populate _job_queue; the DB-claim worker claims from SQLite"
     )

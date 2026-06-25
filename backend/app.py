@@ -20,10 +20,10 @@ from .facets import router as facets_router
 from .folders import router as folders_router
 from .health import router as health_router
 from .images import router as images_router
+from .indexer import metadata_worker
 from .indexer import router as indexer_router
 from .libraries import router as libraries_router
 from .metadata_parse import router as metadata_parse_router
-from .indexer import metadata_worker
 from .metadata_store import recover_stale_jobs
 from .refresh import start_refresh as _start_refresh
 from .refresh import stop_refresh as _stop_refresh

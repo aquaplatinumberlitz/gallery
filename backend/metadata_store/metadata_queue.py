@@ -26,18 +26,34 @@ def _search_like_escape(value: str) -> str:
     return _like_escape(value)
 
 
-def _current_metadata_is_complete(conn: sqlite3.Connection, path: str, mtime: float, size: int) -> bool:
-    row = conn.execute(
-        """
-        SELECT mtime, size, metadata_json
-        FROM image_metadata
-        WHERE path = ?
-        """,
-        (path,),
-    ).fetchone()
+def _current_metadata_is_complete(
+    conn: sqlite3.Connection,
+    path: str,
+    mtime: float,
+    size: int,
+    mtime_ns: int | None = None,
+) -> bool:
+    if mtime_ns is not None:
+        row = conn.execute(
+            """
+            SELECT metadata_json FROM image_metadata
+            WHERE path = ?
+              AND ((mtime_ns IS NOT NULL AND ABS(mtime_ns - ?) < 1000 AND size = ?)
+                OR (mtime_ns IS NULL AND mtime = ? AND size = ?))
+            """,
+            (path, mtime_ns, size, mtime, size),
+        ).fetchone()
+    else:
+        row = conn.execute(
+            """
+            SELECT metadata_json FROM image_metadata
+            WHERE path = ? AND mtime = ? AND size = ?
+            """,
+            (path, mtime, size),
+        ).fetchone()
     if row is None:
         return False
-    return row["mtime"] == mtime and row["size"] == size and bool(row["metadata_json"])
+    return bool(row["metadata_json"])
 
 
 def _metadata_job_from_path(path_value: str | Path, root_path: str | Path | None = None) -> MetadataIndexJob | None:
@@ -67,8 +83,8 @@ def _mark_current_metadata_done(conn: sqlite3.Connection, job: MetadataIndexJob,
     """Mark one metadata job done and materialize assets.metadata_state='done'.
 
     This is called by the "already current" shortcut in queue_metadata_index_paths.
-    After Phase 3, it routes through complete_metadata_job so asset state is
-    also materialized (fixing Bug 2).
+    Makes the job row exist and then delegates to complete_metadata_job so all
+    completion verification logic lives in one place.
     """
     # Ensure the job row exists (INSERT/UPDATE for paths without queued jobs)
     conn.execute(
@@ -76,7 +92,7 @@ def _mark_current_metadata_done(conn: sqlite3.Connection, job: MetadataIndexJob,
         INSERT INTO metadata_index_jobs (
           path, name, parent_path, folder_path, root_path, mtime, mtime_ns, size, state,
           attempts, error, queued_at, started_at, finished_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'done', 0, NULL, ?, NULL, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'running', 0, NULL, ?, NULL, NULL, ?)
         ON CONFLICT(path) DO UPDATE SET
           name=excluded.name,
           parent_path=excluded.parent_path,
@@ -85,9 +101,8 @@ def _mark_current_metadata_done(conn: sqlite3.Connection, job: MetadataIndexJob,
           mtime=excluded.mtime,
           mtime_ns=excluded.mtime_ns,
           size=excluded.size,
-          state='done',
+          state=CASE WHEN metadata_index_jobs.state = 'done' THEN 'done' ELSE 'running' END,
           error=NULL,
-          finished_at=excluded.finished_at,
           updated_at=excluded.updated_at
         """,
         (
@@ -101,11 +116,9 @@ def _mark_current_metadata_done(conn: sqlite3.Connection, job: MetadataIndexJob,
             job.size,
             now,
             now,
-            now,
         ),
     )
-    # Materialize asset done (fixes Bug 2: shortcut marks job done but NOT asset)
-    _update_asset_done(conn, job, now)
+    complete_metadata_job(conn, job)
 
 
 def _update_asset_done(conn: sqlite3.Connection, job: MetadataIndexJob, now: float) -> None:
@@ -149,7 +162,7 @@ def queue_metadata_index_paths(paths: Iterable[str | Path], root_path: str | Pat
 
     with _DB_LOCK, _connect() as conn:
         for job in jobs:
-            if _current_metadata_is_complete(conn, job.path, job.mtime, job.size):
+            if _current_metadata_is_complete(conn, job.path, job.mtime, job.size, job.mtime_ns):
                 _mark_current_metadata_done(conn, job, now)
                 skipped += 1
                 continue
@@ -172,7 +185,7 @@ def queue_metadata_index_paths(paths: Iterable[str | Path], root_path: str | Pat
                 if state == "failed" and attempts >= MAX_METADATA_JOB_ATTEMPTS:
                     failed += 1
                     continue
-                if state == "done" and _current_metadata_is_complete(conn, job.path, job.mtime, job.size):
+                if state == "done" and _current_metadata_is_complete(conn, job.path, job.mtime, job.size, job.mtime_ns):
                     skipped += 1
                     continue
 
@@ -245,10 +258,11 @@ def mark_metadata_jobs_running(jobs: Iterable[MetadataIndexJob]) -> None:
 
 
 def mark_metadata_jobs_done(jobs: Iterable[MetadataIndexJob]) -> None:
-    """Mark durable metadata jobs as successfully completed (legacy batch path).
+    """Mark durable metadata jobs as successfully completed (batch path).
 
-    Phase 3: also materializes assets.metadata_state='done' per job.
-    This function delegates to the per-job completion transition.
+    Verifies image_metadata is current for each job before marking done.
+    If image_metadata is not current, marks the job stale instead.
+    Also materializes assets.metadata_state='done' per job.
     """
     rows = list(jobs)
     if not rows:
@@ -257,6 +271,37 @@ def mark_metadata_jobs_done(jobs: Iterable[MetadataIndexJob]) -> None:
     now = time.time()
     with _DB_LOCK, _connect() as conn:
         for job in rows:
+            mtime_ns_val = job.mtime_ns
+            if mtime_ns_val is not None:
+                row = conn.execute(
+                    """
+                    SELECT 1 FROM image_metadata
+                    WHERE path = ? AND mtime_ns = ? AND size = ?
+                    """,
+                    (job.path, mtime_ns_val, job.size),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    """
+                    SELECT 1 FROM image_metadata
+                    WHERE path = ? AND mtime = ? AND size = ?
+                    """,
+                    (job.path, job.mtime, job.size),
+                ).fetchone()
+            if row is None:
+                conn.execute(
+                    """
+                    UPDATE metadata_index_jobs
+                    SET state='stale',
+                        error=NULL,
+                        finished_at=?,
+                        updated_at=?
+                    WHERE path=? AND mtime=? AND size=?
+                    """,
+                    (now, now, job.path, job.mtime, job.size),
+                )
+                continue
+
             conn.execute(
                 """
                 UPDATE metadata_index_jobs
@@ -374,40 +419,35 @@ def claim_next_metadata_job(
 def complete_metadata_job(
     conn: sqlite3.Connection,
     job: MetadataIndexJob,
-    *,
-    metadata_is_current: bool = True,
 ) -> None:
     """Mark one metadata job done and materialize assets.metadata_state='done'.
 
     Enforces the invariant: image_metadata current + job done + asset done.
-
-    Phase 3 adds full stale/race guards. For now this verifies that
-    image_metadata exists for the job's identity before marking done.
+    Verifies that image_metadata exists for the job's identity before marking done.
     """
     # Verify image_metadata is current for path + mtime_ns + size
-    if metadata_is_current:
-        mtime_ns_val = job.mtime_ns
-        if mtime_ns_val is not None:
-            row = conn.execute(
-                """
-                SELECT 1 FROM image_metadata
-                WHERE path = ? AND mtime_ns = ? AND size = ?
-                """,
-                (job.path, mtime_ns_val, job.size),
-            ).fetchone()
-        else:
-            # Legacy fallback: compare seconds to seconds
-            row = conn.execute(
-                """
-                SELECT 1 FROM image_metadata
-                WHERE path = ? AND mtime = ? AND size = ?
-                """,
-                (job.path, job.mtime, job.size),
-            ).fetchone()
-        if row is None:
-            # image_metadata not current; mark job stale
-            mark_metadata_job_stale(conn, job)
-            return
+    mtime_ns_val = job.mtime_ns
+    if mtime_ns_val is not None:
+        row = conn.execute(
+            """
+            SELECT 1 FROM image_metadata
+            WHERE path = ? AND mtime_ns = ? AND size = ?
+            """,
+            (job.path, mtime_ns_val, job.size),
+        ).fetchone()
+    else:
+        # Legacy fallback: compare seconds to seconds
+        row = conn.execute(
+            """
+            SELECT 1 FROM image_metadata
+            WHERE path = ? AND mtime = ? AND size = ?
+            """,
+            (job.path, job.mtime, job.size),
+        ).fetchone()
+    if row is None:
+        # image_metadata not current; mark job stale
+        mark_metadata_job_stale(conn, job)
+        return
 
     now = time.time()
     conn.execute(

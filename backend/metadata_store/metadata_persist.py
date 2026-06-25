@@ -178,10 +178,11 @@ def _sync_dimensions_to_file_index(
 
 
 def upsert_extracted_metadata(metadata: ExtractedMetadata, *, mark_job_done: bool = False) -> bool:
-    """Persist extracted metadata and complete job state through the completion owner.
+    """Persist extracted metadata and optionally complete the metadata job.
 
-    Phase 3: routes through complete_metadata_job so both job done and
-    asset done are materialized together, fixing the incomplete shortcut path.
+    When mark_job_done is True, creates a MetadataIndexJob from current file stat
+    and completes it via _mark_current_metadata_done (which delegates to
+    complete_metadata_job) so job state and asset state are materialized together.
     """
     if is_index_excluded_path(metadata.path):
         return False

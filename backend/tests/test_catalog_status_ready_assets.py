@@ -198,6 +198,7 @@ def test_ready_assets_requires_both_asset_done_and_current_metadata(
     # Insert a metadata_index_jobs row that is 'done'
     with _connect() as conn:
         import time
+
         now = time.time()
         resolved = str(image2.resolve())
         conn.execute(

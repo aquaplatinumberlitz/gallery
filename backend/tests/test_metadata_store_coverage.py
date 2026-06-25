@@ -360,10 +360,23 @@ def test_mark_metadata_jobs_running_updates_state(isolated_metadata_db: Path, tm
 
 
 def test_mark_metadata_jobs_done_updates_state(isolated_metadata_db: Path, tmp_path: Path):
+    import time
+
     image = tmp_path / "done.png"
     image.write_bytes(b"data")
     result = queue_metadata_index_paths([image])
     job = result.enqueued[0]
+
+    # Seed image_metadata so the stale guard passes (production caller
+    # runs upsert_metadata_batch before mark_metadata_jobs_done)
+    with _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO image_metadata (path, name, mtime, mtime_ns, size, metadata_json, updated_at, indexed_at)
+            VALUES (?, ?, ?, ?, ?, '{}', ?, ?)
+            """,
+            (job.path, job.name, job.mtime, job.mtime_ns, job.size, time.time(), time.time()),
+        )
 
     mark_metadata_jobs_done([job])
     with _connect() as conn:
@@ -901,6 +914,7 @@ def test_shortcut_marks_job_done_but_not_asset(
     Run when:
     Changing queue_metadata_index_paths coalesce/skip/fail policy.
     """
+    from backend.metadata_extract import ExtractedMetadata
     from backend.metadata_store import (
         _DB_LOCK,
         _connect,
@@ -909,14 +923,11 @@ def test_shortcut_marks_job_done_but_not_asset(
         queue_metadata_index_paths,
         upsert_extracted_metadata,
     )
-    from backend.metadata_extract import ExtractedMetadata
 
     # Create a library
     root = tmp_path / "lib"
     root.mkdir()
-    lib = create_library([root])
-    library_id = int(lib["id"])
-
+    create_library([root])
     # Create an image
     image = root / "test.png"
     from tests.conftest import create_test_png
@@ -926,6 +937,7 @@ def test_shortcut_marks_job_done_but_not_asset(
 
     # Pre-populate image_metadata and asset row to simulate 'already current' state
     import time as time_mod
+
     meta = ExtractedMetadata(
         path=str(image.resolve()),
         name=image.name,
@@ -959,7 +971,7 @@ def test_shortcut_marks_job_done_but_not_asset(
 
     # Call queue_metadata_index_paths - this should trigger the "already current"
     # shortcut because image_metadata exists with matching mtime/size
-    result = queue_metadata_index_paths([image])
+    queue_metadata_index_paths([image])
 
     # THE BUG: metadata_index_jobs.state='done' but assets.metadata_state is still 'reset'
     status = get_metadata_index_status(path=root)
@@ -981,18 +993,17 @@ def test_shortcut_marks_job_done_but_not_asset(
     )
 
 
-def test_mark_metadata_jobs_done_has_no_stale_guard(
+def test_mark_metadata_jobs_done_stale_guard(
     isolated_metadata_db: Path,
     tmp_path: Path,
 ):
     """
     Purpose:
-    Characterize that mark_metadata_jobs_done has no DB-side stale guard.
-    It marks the job 'done' even if the underlying file's mtime_ns/size
-    no longer matches the current asset row.
+    Verify that mark_metadata_jobs_done has a stale guard: it marks the job
+    'stale' when no matching image_metadata row exists for the job identity.
 
     Run when:
-    Changing mark_metadata_jobs_done behavior or adding stale guards.
+    Changing mark_metadata_jobs_done behavior or stale guard logic.
     """
     from backend.metadata_store import (
         _DB_LOCK,
@@ -1006,27 +1017,21 @@ def test_mark_metadata_jobs_done_has_no_stale_guard(
     # Create a library
     root = tmp_path / "lib"
     root.mkdir()
-    lib = create_library([root])
-    library_id = int(lib["id"])
+    create_library([root])
 
     # Create first version of an image (old mtime_ns/size)
     image = root / "test.png"
-    import time as time_mod
 
-    now = time_mod.time()
     from tests.conftest import create_test_png
 
     create_test_png(image)
     stat = image.stat()
-    old_mtime_ns = stat.st_mtime_ns
     old_size = stat.st_size
 
     # Queue a metadata job for this version
     result = queue_metadata_index_paths([image])
     assert len(result.enqueued) == 1, "First queue should enqueue a job"
-
     # Simulate the file changing (new version with different mtime_ns/size)
-    import os
 
     # Record what job the system knows about
     with _DB_LOCK, _connect() as conn:
@@ -1042,8 +1047,7 @@ def test_mark_metadata_jobs_done_has_no_stale_guard(
     new_stat = image.stat()
     assert new_stat.st_size != old_size, "File size should differ after re-creation"
 
-    # Mark the ORIGINAL job done (the one with old mtime/size) - this is what
-    # the worker does after extracting metadata, but it has no stale guard
+    # Mark the ORIGINAL job done (the one with old mtime/size)
     from backend.metadata_store import MetadataIndexJob
 
     old_job = MetadataIndexJob(
@@ -1056,30 +1060,13 @@ def test_mark_metadata_jobs_done_has_no_stale_guard(
         size=job_row["size"],
     )
 
-    # This call has NO stale guard: it marks the old job done even though
-    # the file changed. The fix should add a DB-side guard in
-    # complete_metadata_job that detects the mismatch.
+    # There is no image_metadata row for this job identity, so the stale guard
+    # should mark the job stale instead of done.
     mark_metadata_jobs_done([old_job])
 
-    # Phase 3: mark_metadata_jobs_done now updates both job and asset.
-    # The stale guard itself is in complete_metadata_job (worker path),
-    # not in this legacy batch function. The function materializes asset
-    # done even for stale jobs — the worker path handles the guard.
     status = get_metadata_index_status(path=root)
-    assert status["counts"].get("done", 0) > 0, (
-        "The old job is marked done by mark_metadata_jobs_done"
-    )
-    # Asset is also updated (new Phase 3 behavior)
-    with _DB_LOCK, _connect() as conn:
-        asset_row = conn.execute(
-            "SELECT metadata_state FROM assets WHERE path = ?",
-            (str(image.resolve()),),
-        ).fetchone()
-    if asset_row is not None:
-        # If an asset row exists, it should be 'done' now
-        assert asset_row["metadata_state"] == "done", (
-            "Phase 3: mark_metadata_jobs_done also materializes asset done"
-        )
+    assert status["counts"].get("stale", 0) > 0, "Job should be marked stale when image_metadata is missing"
+    assert status["counts"].get("done", 0) == 0, "Job should NOT be done when image_metadata is missing"
 
 
 # ---------------------------------------------------------------------------

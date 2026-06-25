@@ -334,7 +334,6 @@ def test_scan_and_rebuild_both_call_dispatch_metadata_index_paths(
     * Both paths invoke dispatch_metadata_index_paths
     * _enqueue_metadata_jobs_from_result is a no-op stub, not the source of work
     """
-    from backend import scan_worker as catalog_service
     from backend.indexer import rebuild_index_scope
     from backend.metadata_store import create_library
     from backend.metadata_store.job_store import _initialize_database
@@ -357,13 +356,14 @@ def test_scan_and_rebuild_both_call_dispatch_metadata_index_paths(
     original_dispatch = indexer.dispatch_metadata_index_paths
 
     def tracking_dispatch(paths, root_path=None, **kwargs):
-        dispatch_calls.append(("dispatch", list(paths) if hasattr(paths, '__iter__') else [str(paths)]))
+        dispatch_calls.append(("dispatch", list(paths) if hasattr(paths, "__iter__") else [str(paths)]))
         return original_dispatch(paths, root_path, **kwargs)
 
     monkeypatch.setattr(indexer, "dispatch_metadata_index_paths", tracking_dispatch)
 
     # Also patch scan_worker's reference since it imports dispatch at module level
     import backend.scan_worker as scan_worker_mod
+
     monkeypatch.setattr(scan_worker_mod, "dispatch_metadata_index_paths", tracking_dispatch)
 
     # Track calls to _enqueue_metadata_jobs_from_result (should be no-op)
@@ -371,17 +371,17 @@ def test_scan_and_rebuild_both_call_dispatch_metadata_index_paths(
     original_enqueue = indexer._enqueue_metadata_jobs_from_result
 
     def tracking_enqueue(result, *, start_worker=True):
-        enqueue_calls.append(("_enqueue", len(result.enqueued) if hasattr(result, 'enqueued') else 0))
+        enqueue_calls.append(("_enqueue", len(result.enqueued) if hasattr(result, "enqueued") else 0))
         return original_enqueue(result, start_worker=start_worker)
 
     monkeypatch.setattr(indexer, "_enqueue_metadata_jobs_from_result", tracking_enqueue)
 
     # Run scan path via rebuild_index_scope
-    scan_result = rebuild_index_scope(root)
+    rebuild_index_scope(root)
 
     # Run rebuild path via execute_rebuild_job
-    from backend.scan_worker import execute_rebuild_job, queue_rebuild
     from backend.metadata_store.job_store import claim_next_catalog_job
+    from backend.scan_worker import execute_rebuild_job, queue_rebuild
 
     rjob, _created = queue_rebuild(library_id)
     claimed_rjob = claim_next_catalog_job(max_queue_wait_seconds=1)
@@ -390,8 +390,7 @@ def test_scan_and_rebuild_both_call_dispatch_metadata_index_paths(
 
     # Both paths call dispatch_metadata_index_paths
     assert len(dispatch_calls) >= 2, (
-        f"Both scan and rebuild should call dispatch_metadata_index_paths, "
-        f"got {len(dispatch_calls)} calls"
+        f"Both scan and rebuild should call dispatch_metadata_index_paths, got {len(dispatch_calls)} calls"
     )
 
     # _enqueue_metadata_jobs_from_result may be called but it's a no-op stub
@@ -413,7 +412,7 @@ def test_queue_metadata_index_paths_is_idempotent(
     Verify that queue_metadata_index_paths is idempotent and coalesces
     duplicate calls for the same path.
     """
-    from backend.metadata_store import queue_metadata_index_paths, get_metadata_index_status
+    from backend.metadata_store import get_metadata_index_status, queue_metadata_index_paths
 
     image = tmp_path / "test.png"
     image.write_bytes(b"fake png content")

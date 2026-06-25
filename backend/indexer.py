@@ -33,7 +33,6 @@ from .metadata_store import (
     fail_metadata_job,
     get_library_for_path,
     index_directory_tree,
-    list_recoverable_metadata_jobs,
     mark_metadata_job_stale,
     mark_metadata_jobs_done,
     mark_metadata_jobs_failed,
@@ -41,7 +40,6 @@ from .metadata_store import (
     mark_metadata_jobs_stale,
     queue_metadata_index_paths,
     reconcile_library_assets,
-    reset_running_jobs_to_queued,
     upsert_metadata_batch,
 )
 
@@ -237,7 +235,9 @@ def _is_job_current(job: MetadataIndexJob) -> bool:
 
 def _start_worker_if_needed() -> None:
     """No-op compatibility stub. Phase 2: DB-claim worker is authoritative.
-    The metadata worker is started at app startup via metadata_worker.start()."""
+
+    The metadata worker is started at app startup via metadata_worker.start().
+    """
     pass
 
 
@@ -394,7 +394,9 @@ def _process_batch(jobs: list[MetadataIndexJob]) -> None:
 def _enqueue_metadata_jobs_from_result(result: Any, *, start_worker: bool = True) -> dict[str, int]:
     """No-op compatibility stub. Phase 2: DB-claim worker is authoritative."""
     if result.coalesced or (hasattr(result, "enqueued") and result.enqueued):
-        LOGGER.debug("_enqueue_metadata_jobs_from_result called (no-op): %s enqueued", len(getattr(result, "enqueued", [])))
+        LOGGER.debug(
+            "_enqueue_metadata_jobs_from_result called (no-op): %s enqueued", len(getattr(result, "enqueued", []))
+        )
     _update_runtime_queue_metrics()
     return {
         "queued": 0,
@@ -732,6 +734,7 @@ class MetadataLifecycleWorker:
     _logger = logging.getLogger("gallery.metadata")
 
     def __init__(self, worker_count: int = 1):
+        """Initialize metadata worker thread pool."""
         self.worker_count = max(1, min(worker_count, 4))
         self._stop_event = threading.Event()
         self._wake_event = threading.Event()
@@ -801,7 +804,7 @@ class MetadataLifecycleWorker:
     def _run_job(self, job: MetadataIndexJob) -> None:
         """Extract metadata and complete the job in short transactions."""
         from .metadata_extract import extract_metadata
-        from .metadata_store import _connect, _DB_LOCK, upsert_metadata_batch
+        from .metadata_store import _DB_LOCK, _connect
 
         try:
             if not self._is_job_current(job):
