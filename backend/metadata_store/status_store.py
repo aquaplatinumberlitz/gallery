@@ -230,9 +230,9 @@ def _scope_sql(alias: str, scope_path: str | None) -> tuple[str, list[Any]]:
 
 def _latest_metadata_jobs_sql() -> str:
     return """
-        SELECT path, mtime_ns, size, state, error, updated_at
+        SELECT path, mtime_ns, size, state, error, updated_at, mtime
         FROM (
-          SELECT mij.path, mij.mtime_ns, mij.size, mij.state, mij.error, mij.updated_at,
+          SELECT mij.path, mij.mtime_ns, mij.size, mij.state, mij.error, mij.updated_at, mij.mtime,
                  row_number() OVER (
                    PARTITION BY mij.path, mij.mtime_ns, mij.size
                    ORDER BY mij.updated_at DESC, mij.rowid DESC
@@ -498,9 +498,17 @@ def _metadata_counts_for_scope(conn: Any, library_id: int, scope_path: str | Non
                 THEN 1 ELSE 0 END) AS failed
         FROM assets AS a
         LEFT JOIN image_metadata AS im
-          ON im.path = a.path AND im.mtime_ns = a.mtime_ns AND im.size = a.size
+          ON im.path = a.path AND im.size = a.size
+         AND (
+           (im.mtime_ns IS NOT NULL AND a.mtime_ns IS NOT NULL AND ABS(im.mtime_ns - a.mtime_ns) < 1000)
+           OR (im.mtime_ns IS NULL AND a.mtime_ns IS NOT NULL AND ABS(a.mtime_ns / 1000000000.0 - im.mtime) < 1e-3)
+         )
         LEFT JOIN ({_latest_metadata_jobs_sql()}) AS mij
-          ON mij.path = a.path AND mij.size = a.size AND mij.mtime_ns = a.mtime_ns
+          ON mij.path = a.path AND mij.size = a.size
+         AND (
+           (mij.mtime_ns IS NOT NULL AND a.mtime_ns IS NOT NULL AND ABS(mij.mtime_ns - a.mtime_ns) < 1000)
+           OR (mij.mtime_ns IS NULL AND a.mtime_ns IS NOT NULL AND ABS(a.mtime_ns / 1000000000.0 - mij.mtime) < 1e-3)
+         )
         WHERE a.library_id = ?
           AND a.type IN ('image', 'video')
           AND a.deleted_at IS NULL
@@ -547,9 +555,17 @@ def _batch_metadata_counts(conn: Any, library_ids: list[int]) -> dict[int, dict[
                 THEN 1 ELSE 0 END) AS failed
         FROM assets AS a
         LEFT JOIN image_metadata AS im
-          ON im.path = a.path AND im.mtime_ns = a.mtime_ns AND im.size = a.size
+          ON im.path = a.path AND im.size = a.size
+         AND (
+           (im.mtime_ns IS NOT NULL AND a.mtime_ns IS NOT NULL AND ABS(im.mtime_ns - a.mtime_ns) < 1000)
+           OR (im.mtime_ns IS NULL AND a.mtime_ns IS NOT NULL AND ABS(a.mtime_ns / 1000000000.0 - im.mtime) < 1e-3)
+         )
         LEFT JOIN ({_latest_metadata_jobs_sql()}) AS mij
-          ON mij.path = a.path AND mij.size = a.size AND mij.mtime_ns = a.mtime_ns
+          ON mij.path = a.path AND mij.size = a.size
+         AND (
+           (mij.mtime_ns IS NOT NULL AND a.mtime_ns IS NOT NULL AND ABS(mij.mtime_ns - a.mtime_ns) < 1000)
+           OR (mij.mtime_ns IS NULL AND a.mtime_ns IS NOT NULL AND ABS(a.mtime_ns / 1000000000.0 - mij.mtime) < 1e-3)
+         )
         WHERE a.library_id IN ({placeholders})
           AND a.type IN ('image', 'video')
           AND a.deleted_at IS NULL
@@ -579,7 +595,11 @@ def _last_index_at_for_scope(conn: Any, library_id: int, scope_path: str | None)
         SELECT max(COALESCE(im.indexed_at, im.updated_at)) AS last_index_at
         FROM assets AS a
         JOIN image_metadata AS im
-          ON im.path = a.path AND im.size = a.size AND im.mtime_ns = a.mtime_ns
+          ON im.path = a.path AND im.size = a.size
+         AND (
+           (im.mtime_ns IS NOT NULL AND a.mtime_ns IS NOT NULL AND ABS(im.mtime_ns - a.mtime_ns) < 1000)
+           OR (im.mtime_ns IS NULL AND a.mtime_ns IS NOT NULL AND ABS(a.mtime_ns / 1000000000.0 - im.mtime) < 1e-3)
+         )
         WHERE a.library_id = ?
           AND a.type IN ('image', 'video')
           AND a.deleted_at IS NULL
@@ -601,7 +621,11 @@ def _batch_last_index_at(conn: Any, library_ids: list[int]) -> dict[int, int | N
         SELECT a.library_id, max(COALESCE(im.indexed_at, im.updated_at)) AS last_index_at
         FROM assets AS a
         JOIN image_metadata AS im
-          ON im.path = a.path AND im.size = a.size AND im.mtime_ns = a.mtime_ns
+          ON im.path = a.path AND im.size = a.size
+         AND (
+           (im.mtime_ns IS NOT NULL AND a.mtime_ns IS NOT NULL AND ABS(im.mtime_ns - a.mtime_ns) < 1000)
+           OR (im.mtime_ns IS NULL AND a.mtime_ns IS NOT NULL AND ABS(a.mtime_ns / 1000000000.0 - im.mtime) < 1e-3)
+         )
         WHERE a.library_id IN ({placeholders})
           AND a.type IN ('image', 'video')
           AND a.deleted_at IS NULL
@@ -624,7 +648,11 @@ def _latest_metadata_issue_for_scope(conn: Any, library_id: int, scope_path: str
         SELECT a.path, mij.error, mij.updated_at
         FROM assets AS a
         JOIN ({_latest_metadata_jobs_sql()}) AS mij
-          ON mij.path = a.path AND mij.size = a.size AND mij.mtime_ns = a.mtime_ns
+          ON mij.path = a.path AND mij.size = a.size
+         AND (
+           (mij.mtime_ns IS NOT NULL AND a.mtime_ns IS NOT NULL AND ABS(mij.mtime_ns - a.mtime_ns) < 1000)
+           OR (mij.mtime_ns IS NULL AND a.mtime_ns IS NOT NULL AND ABS(a.mtime_ns / 1000000000.0 - mij.mtime) < 1e-3)
+         )
         WHERE a.library_id = ?
           AND a.type IN ('image', 'video')
           AND a.deleted_at IS NULL
@@ -655,7 +683,11 @@ def _batch_metadata_issues(conn: Any, library_ids: list[int]) -> dict[int, Issue
         SELECT a.library_id, a.path, mij.error, mij.updated_at
         FROM assets AS a
         JOIN ({_latest_metadata_jobs_sql()}) AS mij
-          ON mij.path = a.path AND mij.size = a.size AND mij.mtime_ns = a.mtime_ns
+          ON mij.path = a.path AND mij.size = a.size
+         AND (
+           (mij.mtime_ns IS NOT NULL AND a.mtime_ns IS NOT NULL AND ABS(mij.mtime_ns - a.mtime_ns) < 1000)
+           OR (mij.mtime_ns IS NULL AND a.mtime_ns IS NOT NULL AND ABS(a.mtime_ns / 1000000000.0 - mij.mtime) < 1e-3)
+         )
         WHERE a.library_id IN ({placeholders})
           AND a.type IN ('image', 'video')
           AND a.deleted_at IS NULL
