@@ -73,10 +73,12 @@ class IntegrityChecker:
                 "generated_image_job_mismatch": results.get("derivative_done_not_ready", 0),
             }
             repaired = results.get("job_done_asset_not_done", 0) + results.get("derivative_done_not_ready", 0)
-            requeued = results.get("derivative_ready_no_file", 0)
+            requeued = results.get("asset_done_but_no_metadata", 0) + results.get("derivative_ready_no_file", 0)
             failed = results.get("job_active_no_asset", 0) + results.get("job_active_no_file", 0)
             total_issues = sum(issues.values())
-            unchanged = total_issues - results.get("derivative_done_not_ready", 0) - requeued - failed
+            unchanged = total_issues - repaired - requeued - failed
+            if unchanged < 0:
+                unchanged = 0
             repairs = {
                 "repaired": repaired,
                 "requeued": requeued,
@@ -99,9 +101,16 @@ class IntegrityChecker:
             }
             summary["repairs"] = {"repaired": 0, "requeued": 0, "failed": 0, "unchanged": 0}
         finally:
-            with _DB_LOCK, _connect() as conn:
-                insert_run(conn, summary)
-            self.is_running = False
+            try:
+                with _DB_LOCK, _connect() as conn:
+                    insert_run(conn, summary)
+            except Exception as e:
+                logger.exception("Failed to persist integrity check run")
+                summary["status"] = "error"
+                if summary["error"] is None:
+                    summary["error"] = str(e)
+            finally:
+                self.is_running = False
         return summary
 
     def run_all_checks(self) -> dict[str, int]:
