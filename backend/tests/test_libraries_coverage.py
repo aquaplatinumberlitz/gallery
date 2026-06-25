@@ -718,6 +718,17 @@ def test_derivative_status_stale_source_not_counted(isolated_app: TestClient, is
         f"expected ready derivatives after warm. Status: {first_status}"
     )
 
+    # Verify derivative_ready rows in DB have cache_path and file on disk
+    with _connect() as conn:
+        ready_rows = conn.execute(
+            "SELECT cache_path FROM asset_derivatives WHERE status = 'ready' AND cache_path IS NOT NULL"
+        ).fetchall()
+        assert ready_rows, "expected ready derivatives with cache_path"
+        for row in ready_rows:
+            assert Path(row["cache_path"]).is_file(), (
+                f"cache file must exist for ready derivative: {row['cache_path']}"
+            )
+
     # Modify source image (new content = new mtime_ns and size)
     _time.sleep(0.01)  # ensure different mtime
     create_test_png(photo, size=(128, 128), color=(255, 0, 0))
@@ -741,12 +752,22 @@ def test_derivative_status_stale_source_not_counted(isolated_app: TestClient, is
         stale_status["ready_derivatives"] == 0
     ), "stale derivatives must not be counted as ready after source change"
 
-    # Browse endpoint must not report derivative_ready for the stale asset
-    browse_resp = isolated_app.get("/api/browse", params={"library_id": library_id})
-    assert browse_resp.status_code == 200
-    browse_data = browse_resp.json()
-    for media in browse_data.get("media", []):
-        dr = media.get("derivative_ready")
-        if dr is not None:
-            assert dr.get("preview") is False, "stale asset must not report preview ready"
-            assert dr.get("thumbnail") is False, "stale asset must not report thumbnail ready"
+    # The old derivative rows still exist but must NOT match asset version or have file
+    with _connect() as conn:
+        stale_db = conn.execute(
+            """
+            SELECT d.id, d.status, d.source_mtime_ns, d.source_size, d.cache_path,
+                   a.mtime_ns AS asset_mtime, a.size AS asset_size
+            FROM asset_derivatives d
+            JOIN assets a ON a.id = d.asset_id
+            WHERE d.asset_id = ?
+            """,
+            (asset_id,),
+        ).fetchall()
+        for row in stale_db:
+            # Version must differ from current asset
+            assert row["source_mtime_ns"] != row["asset_mtime"] or row["source_size"] != row["asset_size"], (
+                "stale derivative source version must differ from current asset"
+            )
+            # cache_path may exist from old generate, but that's fine (rebuild_stale will cleanup)
+

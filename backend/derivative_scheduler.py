@@ -314,6 +314,7 @@ class DerivativeScheduler:
                     WHERE a.library_id = ? AND d.status = 'ready'
                       AND d.source_mtime_ns = a.mtime_ns
                       AND d.source_size = a.size
+                      AND d.cache_path IS NOT NULL
                     """,
                     (library_id,),
                 ).fetchone()[0]

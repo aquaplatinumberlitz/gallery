@@ -258,7 +258,7 @@ def _catalog_browse_path_conn(
         placeholders = ", ".join("?" for _ in derivative_ready_by_asset)
         derivative_rows = conn.execute(
             f"""
-            SELECT d.asset_id, d.kind
+            SELECT d.asset_id, d.kind, d.cache_path
             FROM asset_derivatives d
             JOIN assets a ON a.id = d.asset_id
             WHERE d.asset_id IN ({placeholders})
@@ -266,12 +266,15 @@ def _catalog_browse_path_conn(
               AND d.status = 'ready'
               AND d.source_mtime_ns = a.mtime_ns
               AND d.source_size = a.size
+              AND d.cache_path IS NOT NULL
             GROUP BY d.asset_id, d.kind
             """,
             tuple(derivative_ready_by_asset),
         ).fetchall()
         for derivative in derivative_rows:
-            derivative_ready_by_asset[int(derivative["asset_id"])][str(derivative["kind"])] = True
+            cache = derivative["cache_path"]
+            if cache and Path(cache).is_file():
+                derivative_ready_by_asset[int(derivative["asset_id"])][str(derivative["kind"])] = True
 
     folders: list[FileNode] = []
     folder_counts = _browse_folder_counts_batch_conn(
@@ -427,7 +430,7 @@ def get_asset_folder_listing(
             placeholders = ", ".join("?" for _ in derivative_ready_by_asset)
             derivative_rows = conn.execute(
                 f"""
-                SELECT d.asset_id, d.kind
+                SELECT d.asset_id, d.kind, d.cache_path
                 FROM asset_derivatives d
                 JOIN assets a ON a.id = d.asset_id
                 WHERE d.asset_id IN ({placeholders})
@@ -435,12 +438,15 @@ def get_asset_folder_listing(
                   AND d.status = 'ready'
                   AND d.source_mtime_ns = a.mtime_ns
                   AND d.source_size = a.size
+                  AND d.cache_path IS NOT NULL
                 GROUP BY d.asset_id, d.kind
                 """,
                 tuple(derivative_ready_by_asset),
             ).fetchall()
             for derivative in derivative_rows:
-                derivative_ready_by_asset[int(derivative["asset_id"])][str(derivative["kind"])] = True
+                cache = derivative["cache_path"]
+                if cache and Path(cache).is_file():
+                    derivative_ready_by_asset[int(derivative["asset_id"])][str(derivative["kind"])] = True
 
         folders: list[FileNode] = []
         for row in folder_rows:

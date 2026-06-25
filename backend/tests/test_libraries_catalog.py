@@ -98,7 +98,7 @@ def test_scan_and_metadata_dual_write_assets(
 
     listing = get_asset_folder_listing(isolated_gallery_root)
     assert listing is not None
-    assert listing["media"][0].derivative_ready == {"thumbnail": True, "preview": False}
+    assert listing["media"][0].derivative_ready == {"thumbnail": False, "preview": False}
 
     library_id = list_libraries()[0]["id"]
     progress = get_library_progress(library_id)
