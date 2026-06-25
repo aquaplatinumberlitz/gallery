@@ -147,12 +147,13 @@ def test_response_envelopes_and_global_runtime_match_shared_schema() -> None:
     validator = Draft202012Validator(_load_fixture("schema_v1.json"))
     runtime = _global_runtime()
 
-    envelope = {"contract_version": 1, "status": fixture, "global_runtime": runtime}
+    envelope = {"contract_version": 1, "status": fixture, "global_runtime": runtime, "metadata_lifecycle": None}
     batch = {
         "contract_version": 1,
         "generated_at": fixture["generated_at"],
         "items": [{"library_id": fixture["scope"]["library_id"], "status": fixture}],
         "global_runtime": runtime,
+        "metadata_lifecycle": None,
     }
 
     validator.validate(envelope)

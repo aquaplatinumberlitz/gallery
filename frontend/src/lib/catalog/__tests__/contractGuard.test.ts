@@ -156,6 +156,54 @@ describe("assertLibraryStatusBatch", () => {
   });
 });
 
+describe("metadata_lifecycle guard", () => {
+  it("accepts metadata_lifecycle: null", () => {
+    expect(() => assertStatusEnvelope({ contract_version: 1, status: makeStatus(), global_runtime: globalRuntime, metadata_lifecycle: null })).not.toThrow();
+  });
+
+  it("accepts valid metadata_lifecycle object", () => {
+    const lifecycle = {
+      queued_metadata_jobs: 0,
+      running_metadata_jobs: 0,
+      done_metadata_jobs: 1,
+      stale_metadata_jobs: 0,
+      failed_metadata_jobs: 0,
+      skipped_metadata_jobs: 0,
+      oldest_queued_metadata_job_age: null,
+      done_jobs_with_pending_assets: 0,
+      current_image_metadata_with_pending_assets: 0,
+      metadata_jobs_without_matching_assets: 0,
+      assets_done_but_metadata_missing_or_stale: 0,
+      repairable_metadata_assets: 0,
+      metadata_worker_last_claimed_at: null,
+      metadata_worker_last_completed_at: null,
+      metadata_worker_alive: true,
+    };
+    expect(() => assertStatusEnvelope({ contract_version: 1, status: makeStatus(), global_runtime: globalRuntime, metadata_lifecycle: lifecycle })).not.toThrow();
+  });
+
+  it("rejects metadata_lifecycle with wrong field types", () => {
+    const lifecycle = {
+      queued_metadata_jobs: 0,
+      running_metadata_jobs: 0,
+      done_metadata_jobs: "1",
+      stale_metadata_jobs: 0,
+      failed_metadata_jobs: 0,
+      skipped_metadata_jobs: 0,
+      oldest_queued_metadata_job_age: null,
+      done_jobs_with_pending_assets: 0,
+      current_image_metadata_with_pending_assets: 0,
+      metadata_jobs_without_matching_assets: 0,
+      assets_done_but_metadata_missing_or_stale: 0,
+      repairable_metadata_assets: 0,
+      metadata_worker_last_claimed_at: null,
+      metadata_worker_last_completed_at: null,
+      metadata_worker_alive: true,
+    };
+    expect(() => assertStatusEnvelope({ contract_version: 1, status: makeStatus(), global_runtime: globalRuntime, metadata_lifecycle: lifecycle })).toThrow(StatusContractError);
+  });
+});
+
 describe("StatusContractError", () => {
   it("uses the documented reload message by default", () => {
     const error = new StatusContractError();

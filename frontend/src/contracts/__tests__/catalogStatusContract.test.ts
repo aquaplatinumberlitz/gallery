@@ -179,12 +179,13 @@ describe("catalog status contract fixtures", () => {
       metadata_lifecycle: null,
     };
 
-    expect(schema.$defs.StatusResponseEnvelope?.required).toEqual(["contract_version", "status", "global_runtime"]);
+    expect(schema.$defs.StatusResponseEnvelope?.required).toEqual(["contract_version", "status", "global_runtime", "metadata_lifecycle"]);
     expect(schema.$defs.LibraryStatusBatchResponse?.required).toEqual([
       "contract_version",
       "generated_at",
       "items",
       "global_runtime",
+      "metadata_lifecycle",
     ]);
     expect(schema.$defs.GlobalRuntime?.required).toEqual(Object.keys(globalRuntime));
     expect(envelope.status).toBe(status);

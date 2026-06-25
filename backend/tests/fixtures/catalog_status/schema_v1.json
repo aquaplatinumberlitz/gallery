@@ -339,7 +339,7 @@
     "StatusResponseEnvelope": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["contract_version", "status", "global_runtime"],
+      "required": ["contract_version", "status", "global_runtime", "metadata_lifecycle"],
       "properties": {
         "contract_version": {
           "const": 1
@@ -379,7 +379,8 @@
         "contract_version",
         "generated_at",
         "items",
-        "global_runtime"
+        "global_runtime",
+        "metadata_lifecycle"
       ],
       "properties": {
         "contract_version": {

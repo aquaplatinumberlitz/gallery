@@ -99,7 +99,19 @@ function assertMetadataLifecycle(value: unknown): void {
   for (const field of required) {
     if (!(field in value)) throw new StatusContractError();
   }
-  if (typeof value.queued_metadata_jobs !== "number") throw new StatusContractError();
+  const intFields: string[] = [
+    "queued_metadata_jobs", "running_metadata_jobs", "done_metadata_jobs",
+    "stale_metadata_jobs", "failed_metadata_jobs", "skipped_metadata_jobs",
+    "done_jobs_with_pending_assets", "current_image_metadata_with_pending_assets",
+    "metadata_jobs_without_matching_assets", "assets_done_but_metadata_missing_or_stale",
+    "repairable_metadata_assets",
+  ];
+  for (const field of intFields) {
+    if (!Number.isInteger(value[field]) || (value[field] as number) < 0) throw new StatusContractError();
+  }
+  if (!isNumberOrNull(value.oldest_queued_metadata_job_age)) throw new StatusContractError();
+  if (!isNumberOrNull(value.metadata_worker_last_claimed_at)) throw new StatusContractError();
+  if (!isNumberOrNull(value.metadata_worker_last_completed_at)) throw new StatusContractError();
   if (typeof value.metadata_worker_alive !== "boolean") throw new StatusContractError();
 }
 
