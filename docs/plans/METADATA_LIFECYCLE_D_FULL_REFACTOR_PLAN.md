@@ -318,8 +318,8 @@ start()
 | --- | --- |
 | `derivative_jobs` table (id, derivative_id, priority, state, attempts, created_at, started_at, completed_at) | `metadata_index_jobs` table (path PK, mtime, size, state, attempts, queued_at, started_at, finished_at) — needs `library_id`, `priority` |
 | `asset_derivatives` catalog row (asset_id, kind, variant, source_mtime_ns, source_size, status) | `image_metadata` row (path, mtime, size, metadata_json) + `assets.metadata_state` |
-| `asset_derivatives.status` ∈ queued/running/ready/failed | `assets.metadata_state` ∈ pending/running/done/failed/skipped |
-| `source_mtime_ns` + `source_size` for stale detection | `metadata_index_jobs.mtime` + `metadata_index_jobs.size` for stale detection |
+| `asset_derivatives.status` ∈ queued/running/ready/failed | `assets.metadata_state` ∈ pending/done/failed/skipped. The `running`/`processing` states are not supported in Phase 1–5; the terminal invariant is `done` on successful completion. |
+| `source_mtime_ns` + `source_size` for stale detection | `metadata_index_jobs.mtime_ns` + `metadata_index_jobs.size` as primary stale guard; `metadata_index_jobs.mtime` seconds is legacy fallback only |
 | `_claim_job()` — BEGIN IMMEDIATE, SELECT queued, UPDATE running, COMMIT | Proposed `claim_next_metadata_job()` — same pattern |
 | `_run_job()` — generate derivative outside DB tx, then complete in short tx | Proposed metadata worker — extract metadata outside DB tx, then complete in short tx |
 | `start()` — recover running → queued | Proposed `recover_metadata_index_jobs()` — same pattern |
@@ -417,8 +417,11 @@ Worker loop pattern (mirrors `DerivativeScheduler._worker_loop`,
 ```text
 1. claim one queued job from SQLite in a short BEGIN IMMEDIATE transaction
    (set state='running', attempts+1, started_at=now)
-2. optionally set assets.metadata_state='running' or 'processing'
-3. release DB transaction
+2. release DB transaction. Phase 1–5 do not introduce new
+   `assets.metadata_state` values (`running`/`processing`) because no
+   existing API/status/UI code reads them. The terminal materialised state
+   that matters is `assets.metadata_state='done'` on successful completion.
+3. extract metadata outside any DB transaction
 4. extract metadata outside any DB transaction
 5. upsert image_metadata + complete job + materialize assets.metadata_state='done'
    in a short completion transaction (§5.3)
@@ -446,15 +449,18 @@ def complete_metadata_job(
 Invariant enforced (single SQLite transaction):
 
 ```text
-PRE: image_metadata row exists for job.path with matching (mtime, size)
+PRE: image_metadata row exists for job.path with matching (mtime_ns, size)
+      (primary; legacy fallback uses (mtime, size) for rows without mtime_ns)
       job identity must match the current asset row (path, mtime_ns, size) —
       see §5.4 stale guard (primary: job.mtime_ns vs a.mtime_ns; legacy
       fallback: job.mtime vs a.mtime_ns / 1e9)
 POST:
+  - image_metadata is current for path + mtime_ns + size (verified within
+    the transaction)
   - metadata_index_jobs.state='done', finished_at, updated_at
   - assets.metadata_state='done' for the matching asset row
   - if no library/excluded: job.state='skipped', no asset transition, log WARNING
-  - if (mtime,size) mismatch: job.state='stale', no asset transition
+  - if (mtime_ns, size) mismatch: job.state='stale', no asset transition
 ```
 
 Routing rules:
@@ -463,7 +469,7 @@ Routing rules:
 | --- | --- | --- |
 | `_mark_current_metadata_done` (`metadata_queue.py:65`) | writes job only | Delegate to `complete_metadata_job` so asset is also materialized when the row matches |
 | `mark_metadata_jobs_done` (`metadata_queue.py:207`) | writes job only | Replace with `complete_metadata_job` (per-job) in the worker success path |
-| Worker success batch | `upsert_metadata_batch` + `mark_metadata_jobs_done` (two transactions) | `upsert_metadata_batch` then `complete_metadata_job` per job (each short transaction) |
+| Worker success batch | `upsert_metadata_batch` + `mark_metadata_jobs_done` (two transactions, job state diverges from asset) | `upsert_metadata_batch` (internal helper) then `complete_metadata_job` per job. If a crash occurs between them, startup recovery (§5.5) repairs: job `'running'` is reset to `'queued'` for retry; the metadata upsert is durable (no data loss) and the completion is re-attempted. The completion is the single authoritative transition that materialises both job-done and asset-done. |
 
 **Side-effect note:** `_upsert_extracted_metadata_conn` continues to call
 `_upsert_asset_conn(metadata_state="done")` during Phase 2–3 as a safety
@@ -747,9 +753,10 @@ Run when` docstring header per existing convention.
    - Assert: `ready_assets` increases by 1.
    - Protects: API/progress sees indexed assets after completion.
 
-8. **Stale job with old `mtime`/`size` cannot mark a changed asset done.**
-   - Setup: `assets` row with new `(mtime_ns, size)`; job with old `(mtime,
-     size)`; `image_metadata` matching the asset's new values.
+8. **Stale job with old `mtime_ns`/`size` cannot mark a changed asset done.**
+   - Setup: `assets` row with new `(mtime_ns, size)`; job with old `(mtime_ns,
+      size)`; `image_metadata` matching the asset's new values. Legacy
+      variant: job with old `(mtime_seconds, size)` and no `mtime_ns`.
    - Action: call `complete_metadata_job([stale_job])`.
    - Assert: `metadata_index_jobs.state='stale'` (NOT `'done'`),
      `assets.metadata_state` unchanged.
@@ -794,7 +801,17 @@ Run when` docstring header per existing convention.
     - Assert: exactly one durable job row; counters report `coalesced >= 2`.
     - Protects: idempotency.
 
-15. **Worker does not hold long write transactions during extraction.**
+15. **Completion owner recovers from crash between metadata upsert and
+    completion.**
+    - Setup: seed `metadata_index_jobs.row` with `state='running'` and a
+      current `image_metadata` row but `assets.metadata_state='pending'`
+      (simulating a crash after upsert before completion).
+    - Action: run `recover_metadata_index_jobs()`.
+    - Assert: job is reset to `'queued'` for retry; asset stays `'pending'`;
+      the metadata upsert is not lost; the next worker claim re-completes.
+    - Protects: crash safety between multi-step completion.
+
+16. **Worker does not hold long write transactions during extraction.**
     - Setup: monkeypatch `extract_metadata` to record whether a DB write
       transaction is open during the call.
     - Action: run `_run_job`.
@@ -1017,7 +1034,7 @@ Files:
 - [ ] Status/debug mismatch counters are planned and implemented in Phase 6.
 - [ ] Broader integrity checker is explicitly listed as P2 follow-up (Phase 7).
 - [ ] Regression tests cover the known bug family and the DB-claim invariants
-  (Tests 1–15).
+  (Tests 1–16).
 - [ ] All existing backend tests still pass (Phase 5 retargets mocks, does not
   delete them).
 - [ ] Frontend tests are unaffected; `./test.sh e2e` remains green.
