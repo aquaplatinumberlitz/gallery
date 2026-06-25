@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from backend.metadata_store.identity import (
+    _NANOS_PER_SEC,
     MTIME_NS_TOLERANCE,
     MTIME_SEC_TOLERANCE,
-    _NANOS_PER_SEC,
     asset_matches_image_metadata_sql,
     asset_matches_metadata_job_sql,
     job_matches_image_metadata_sql,

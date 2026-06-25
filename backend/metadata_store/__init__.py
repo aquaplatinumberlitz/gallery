@@ -82,21 +82,6 @@ from .file_index import (
 from .file_index import (
     index_file as index_file,
 )
-from .identity import (
-    MTIME_NS_TOLERANCE as MTIME_NS_TOLERANCE,
-)
-from .identity import (
-    MTIME_SEC_TOLERANCE as MTIME_SEC_TOLERANCE,
-)
-from .identity import (
-    asset_matches_image_metadata_sql as asset_matches_image_metadata_sql,
-)
-from .identity import (
-    asset_matches_metadata_job_sql as asset_matches_metadata_job_sql,
-)
-from .identity import (
-    job_matches_image_metadata_sql as job_matches_image_metadata_sql,
-)
 from .folder_index import (
     _scan_folder_counts as _scan_folder_counts,
 )
@@ -114,6 +99,21 @@ from .folder_index import (
 )
 from .folder_index import (
     update_folder_index_state as update_folder_index_state,
+)
+from .identity import (
+    MTIME_NS_TOLERANCE as MTIME_NS_TOLERANCE,
+)
+from .identity import (
+    MTIME_SEC_TOLERANCE as MTIME_SEC_TOLERANCE,
+)
+from .identity import (
+    asset_matches_image_metadata_sql as asset_matches_image_metadata_sql,
+)
+from .identity import (
+    asset_matches_metadata_job_sql as asset_matches_metadata_job_sql,
+)
+from .identity import (
+    job_matches_image_metadata_sql as job_matches_image_metadata_sql,
 )
 from .inspector_store import (
     _encode_inspector_cursor as _encode_inspector_cursor,

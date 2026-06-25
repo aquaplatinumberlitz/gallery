@@ -35,9 +35,7 @@ MTIME_SEC_TOLERANCE = 1e-3
 _NANOS_PER_SEC: float = 1_000_000_000.0
 
 
-def asset_matches_image_metadata_sql(
-    *, asset_alias: str = "a", im_alias: str = "im"
-) -> str:
+def asset_matches_image_metadata_sql(*, asset_alias: str = "a", im_alias: str = "im") -> str:
     """Return SQL fragment matching an asset row to an image_metadata row.
 
     Two branches (assets has no ``mtime`` column):
@@ -54,9 +52,7 @@ def asset_matches_image_metadata_sql(
     )
 
 
-def asset_matches_metadata_job_sql(
-    *, asset_alias: str = "a", job_alias: str = "mj"
-) -> str:
+def asset_matches_metadata_job_sql(*, asset_alias: str = "a", job_alias: str = "mj") -> str:
     """Return SQL fragment matching an asset row to a metadata_index_jobs row.
 
     Two branches (assets has no ``mtime`` column):
@@ -73,9 +69,7 @@ def asset_matches_metadata_job_sql(
     )
 
 
-def job_matches_image_metadata_sql(
-    *, job_alias: str = "mj", im_alias: str = "im"
-) -> str:
+def job_matches_image_metadata_sql(*, job_alias: str = "mj", im_alias: str = "im") -> str:
     """Return SQL fragment matching a metadata_index_jobs row to image_metadata.
 
     Three branches (both tables have ``mtime`` and ``mtime_ns``):

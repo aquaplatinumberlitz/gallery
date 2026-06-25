@@ -121,8 +121,17 @@ def _insert_metadata_job(
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    resolved, path.name, str(path.parent), str(path.parent), str(root),
-                    mtime_ns / 1_000_000_000, mtime_ns, size, state, now, now,
+                    resolved,
+                    path.name,
+                    str(path.parent),
+                    str(path.parent),
+                    str(root),
+                    mtime_ns / 1_000_000_000,
+                    mtime_ns,
+                    size,
+                    state,
+                    now,
+                    now,
                 ),
             )
         else:
@@ -133,8 +142,16 @@ def _insert_metadata_job(
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    resolved, path.name, str(path.parent), str(path.parent), str(root),
-                    1.0, size, state, now, now,
+                    resolved,
+                    path.name,
+                    str(path.parent),
+                    str(path.parent),
+                    str(root),
+                    1.0,
+                    size,
+                    state,
+                    now,
+                    now,
                 ),
             )
 

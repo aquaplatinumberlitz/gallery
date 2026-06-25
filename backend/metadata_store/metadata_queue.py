@@ -620,7 +620,18 @@ def complete_metadata_job(
                   )
                   AND size=?
                 """,
-                (now, now, job.path, job.mtime_ns, job.mtime_ns, job.mtime_ns, job.mtime_ns, job.mtime_ns, job.mtime, job.size),
+                (
+                    now,
+                    now,
+                    job.path,
+                    job.mtime_ns,
+                    job.mtime_ns,
+                    job.mtime_ns,
+                    job.mtime_ns,
+                    job.mtime_ns,
+                    job.mtime,
+                    job.size,
+                ),
             )
         else:
             mark_metadata_job_stale(conn, job)

@@ -714,9 +714,7 @@ def test_derivative_status_stale_source_not_counted(isolated_app: TestClient, is
         if first_status["ready_derivatives"] > 0:
             break
 
-    assert first_status["ready_derivatives"] > 0, (
-        f"expected ready derivatives after warm. Status: {first_status}"
-    )
+    assert first_status["ready_derivatives"] > 0, f"expected ready derivatives after warm. Status: {first_status}"
 
     # Verify derivative_ready rows in DB have cache_path and file on disk
     with _connect() as conn:
@@ -725,17 +723,15 @@ def test_derivative_status_stale_source_not_counted(isolated_app: TestClient, is
         ).fetchall()
         assert ready_rows, "expected ready derivatives with cache_path"
         for row in ready_rows:
-            assert Path(row["cache_path"]).is_file(), (
-                f"cache file must exist for ready derivative: {row['cache_path']}"
-            )
+            assert Path(row["cache_path"]).is_file(), f"cache file must exist for ready derivative: {row['cache_path']}"
 
     # Modify source image (new content = new mtime_ns and size)
     _time.sleep(0.01)  # ensure different mtime
     create_test_png(photo, size=(128, 128), color=(255, 0, 0))
     after_stat = photo.stat()
-    assert (
-        photo_stat.st_mtime_ns != after_stat.st_mtime_ns or photo_stat.st_size != after_stat.st_size
-    ), "source must differ after rewrite"
+    assert photo_stat.st_mtime_ns != after_stat.st_mtime_ns or photo_stat.st_size != after_stat.st_size, (
+        "source must differ after rewrite"
+    )
 
     # Update the asset row to reflect the new file version
     with _connect() as conn:
@@ -748,9 +744,7 @@ def test_derivative_status_stale_source_not_counted(isolated_app: TestClient, is
     status_resp = isolated_app.get("/api/derivatives/status", params={"library_id": library_id})
     assert status_resp.status_code == 200
     stale_status = status_resp.json()
-    assert (
-        stale_status["ready_derivatives"] == 0
-    ), "stale derivatives must not be counted as ready after source change"
+    assert stale_status["ready_derivatives"] == 0, "stale derivatives must not be counted as ready after source change"
 
     # The old derivative rows still exist but must NOT match asset version or have file
     with _connect() as conn:
@@ -834,4 +828,3 @@ def test_derivative_ready_cache_file_deleted(isolated_app: TestClient, isolated_
             (asset_id,),
         ).fetchone()[0]
     assert still_ready > 0, "DB rows should still be marked ready (integrity checker will reconcile later)"
-
