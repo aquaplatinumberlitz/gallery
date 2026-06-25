@@ -668,8 +668,10 @@ recovery scoped):
   `catalog_rebuild_entries`, or `file_index`. Catalog recovery stays the
   catalog recovery owner.
 - **Ordering:** metadata recovery should run *after* `recover_stale_jobs()` so
-  catalog rows are coherent first; then `dispatch_metadata_index_paths` is
-  safe to call.
+  catalog rows are coherent first; then `enqueue_existing_metadata_jobs` is
+  safe to call. Recovery does not call the normal persist-path branch of
+  `dispatch_metadata_index_paths` for existing rows; it passes rows directly
+  to the shared enqueue helper.
 
 `recover_metadata_index_jobs()` returns a small diagnostics dict
 (`{requeued, refailed, repaired, stale, deleted}`) that startup can log.
@@ -965,7 +967,9 @@ Files expected to change:
 - `backend/metadata_store/metadata_queue.py` — add `complete_metadata_jobs`
   and `complete_metadata_jobs_conn(conn, jobs)` variants; refactor
   `_mark_current_metadata_done` (`:65-96`) and `mark_metadata_jobs_done`
-  (`:207-225`) to delegate to it; the §4.3 stale guard lives in this helper.
+  (`:207-225`) to delegate to it. Phase 2 introduces the basic
+  asset-and-job materialization contract. The full DB-side stale/race guards
+  (§4.3) are added in Phase 3.
 - `backend/metadata_store/__init__.py` — export `complete_metadata_jobs`.
 - `backend/indexer.py` — in `_process_batch` (`:311-395`), replace the
   separate `upsert_metadata_batch` + `mark_metadata_jobs_done` two-step
@@ -998,10 +1002,11 @@ Files expected to change:
   `reset_running_metadata_jobs_to_queued(connection, job_ids)`.
   These are called by the runtime owner, not by app.py directly.
 - `backend/indexer.py` — add `recover_metadata_index_jobs()`. This function
-  calls the store primitives above, then uses `dispatch_metadata_index_paths`
-  (§4.1) to re-enqueue recovered rows. The store primitive
-  `complete_metadata_jobs` is also reused. This function lives in the runtime
-  layer, not in the store layer, to avoid circular imports (§0 clarification 1).
+  calls the store primitives above, then calls
+  `enqueue_existing_metadata_jobs(rows)` to repopulate the in-memory queue
+  without re-persisting existing DB rows. `complete_metadata_jobs` is also
+  reused for repair. This function lives in the runtime layer, not in the
+  store layer, to avoid circular imports (§0 clarification 1).
 - `backend/app.py` — call `indexer.recover_metadata_index_jobs()` in
   `_startup_background_services` (`:98-104`) after `recover_stale_jobs()`.
 - Optionally `backend/config.py` — flag to disable/limit recovery work for
@@ -1045,7 +1050,7 @@ Files expected to change:
 
 | Risk | Mitigation |
 | --- | --- |
-| **Double enqueue** (re-dispatch at recovery + scan in-flight) | Idempotency is enforced by `_queued_keys` (RAM) and `metadata_index_jobs.path PK` (DB). The recovery pass and the owner call the same `dispatch_metadata_index_paths`, so the second call coalesces. Test 10 covers it. |
+| **Double enqueue** (re-dispatch at recovery + scan in-flight) | Idempotency is enforced by `_queued_keys` (RAM) and `metadata_index_jobs.path PK` (DB). Both `dispatch_metadata_index_paths` (fresh dispatch, after DB persistence) and `recover_metadata_index_jobs` (load-then-enqueue from DB) feed rows through the shared `enqueue_existing_metadata_jobs(rows)`, which owns `_queued_keys`, `_job_queue.put`, and runtime queue metrics. Fresh dispatch persists/coalesces DB rows first; recovery skips persistence and passes existing rows directly. `_queued_keys` dedup prevents double-enqueue against any concurrent dispatch call. Test 10 covers it. |
 | **Starting multiple metadata worker threads** | `_start_worker_if_needed` (`indexer.py:232-244`) is guarded by `_worker_lock` + `_worker_thread.is_alive()`; the owner calls exactly this. No new thread spawn path is added. |
 | **Long SQLite transactions** | Completion transaction is bounded to two writes + one existence check (§4.2). Metadata `image_metadata` upsert stays a separate, larger transaction as today. Recovery is one scan + per-batch `dispatch_metadata_index_paths`. |
 | **Scan/rebuild concurrency** | Catalog service already serializes via `claim_next_catalog_job` (`scan_worker.run_once`). The metadata owner inherits the existing `_DB_LOCK` + WAL semantics; no new cross-catalog locking is added. |
