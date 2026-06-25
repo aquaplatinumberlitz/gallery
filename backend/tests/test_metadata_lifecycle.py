@@ -1269,3 +1269,66 @@ def test_legacy_mtime_ns_null_matching_through_persist(
     assert asset_state["metadata_state"] == "done", (
         f"Asset metadata_state should be 'done', got {asset_state['metadata_state']}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Regression: get_metadata_lifecycle_status returns correct counters
+# ---------------------------------------------------------------------------
+
+
+def test_get_metadata_lifecycle_status_returns_counters(
+    isolated_metadata_db: Path,
+    tmp_path: Path,
+):
+    """get_metadata_lifecycle_status returns all 15 counters with correct values."""
+    from backend.indexer import get_metadata_lifecycle_status
+
+    initialize_database()
+    now = time.time()
+    root = tmp_path / "lib"
+    root.mkdir()
+    image = root / "test.png"
+    from tests.conftest import create_test_png
+
+    create_test_png(image)
+    stat = image.stat()
+    resolved = str(image.resolve())
+
+    lib = create_library([root], name="Lib")
+    library_id = int(lib["id"])
+
+    # Seed asset with matching version + NON-matching image_metadata so the
+    # "already current" shortcut does not fire and the job stays queued.
+    with _DB_LOCK, _connect() as conn:
+        conn.execute(
+            """INSERT INTO assets (library_id, path, parent_path, name, type, mtime_ns, size,
+               indexed_at, metadata_state) VALUES (?, ?, ?, ?, 'image', ?, ?, ?, 'done')""",
+            (library_id, resolved, str(image.parent), image.name, stat.st_mtime_ns, stat.st_size, now),
+        )
+        # Deliberately different mtime/size so _current_metadata_is_complete returns False
+        conn.execute(
+            """INSERT INTO image_metadata (path, name, mtime, mtime_ns, size, metadata_json, updated_at, indexed_at)
+            VALUES (?, ?, 1.0, 1000, 999, '{}', ?, ?)""",
+            (resolved, image.name, now, now),
+        )
+
+    # Seed a queued job (will not be shortcut because image_metadata doesn't match)
+    dispatch_metadata_index_paths([image], priority=2)
+
+    result = get_metadata_lifecycle_status()
+    assert isinstance(result, dict)
+    assert result["queued_metadata_jobs"] >= 1
+    assert result["done_metadata_jobs"] >= 0
+    assert result["running_metadata_jobs"] == 0
+    assert result["failed_metadata_jobs"] == 0
+    assert result["stale_metadata_jobs"] == 0
+    assert result["skipped_metadata_jobs"] == 0
+    assert isinstance(result["oldest_queued_metadata_job_age"], (int, float, type(None)))
+    assert isinstance(result["done_jobs_with_pending_assets"], int)
+    assert isinstance(result["current_image_metadata_with_pending_assets"], int)
+    assert isinstance(result["metadata_jobs_without_matching_assets"], int)
+    assert isinstance(result["assets_done_but_metadata_missing_or_stale"], int)
+    assert isinstance(result["repairable_metadata_assets"], int)
+    assert isinstance(result["metadata_worker_alive"], bool)
+    assert "metadata_worker_last_claimed_at" in result
+    assert "metadata_worker_last_completed_at" in result

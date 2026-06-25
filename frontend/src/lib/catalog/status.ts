@@ -96,10 +96,29 @@ export interface GlobalRuntime {
   scheduled_reconciliation_enabled: boolean;
 }
 
+export interface MetadataLifecycle {
+  queued_metadata_jobs: number;
+  running_metadata_jobs: number;
+  done_metadata_jobs: number;
+  stale_metadata_jobs: number;
+  failed_metadata_jobs: number;
+  skipped_metadata_jobs: number;
+  oldest_queued_metadata_job_age: number | null;
+  done_jobs_with_pending_assets: number;
+  current_image_metadata_with_pending_assets: number;
+  metadata_jobs_without_matching_assets: number;
+  assets_done_but_metadata_missing_or_stale: number;
+  repairable_metadata_assets: number;
+  metadata_worker_last_claimed_at: number | null;
+  metadata_worker_last_completed_at: number | null;
+  metadata_worker_alive: boolean;
+}
+
 export interface StatusResponseEnvelope {
   contract_version: 1;
   status: UnifiedStatus;
   global_runtime: GlobalRuntime;
+  metadata_lifecycle: MetadataLifecycle | null;
 }
 
 export interface LibraryStatusBatchResponse {
@@ -107,6 +126,7 @@ export interface LibraryStatusBatchResponse {
   generated_at: number;
   items: Array<{ library_id: number; status: UnifiedStatus }>;
   global_runtime: GlobalRuntime;
+  metadata_lifecycle: MetadataLifecycle | null;
 }
 
 export const deriveSummaryState = (facts: PrecedenceFacts): SummaryState => {
