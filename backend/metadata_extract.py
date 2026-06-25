@@ -41,6 +41,7 @@ class ExtractedMetadata:
     raw_metadata_text: str
     metadata_json: str
     indexed_at: float
+    mtime_ns: int | None = None
     tool: str = ""
     scheduler: str = ""
     model_hash: str = ""
@@ -806,6 +807,7 @@ def extract_metadata(path: Path) -> ExtractedMetadata:
         path=str(path.resolve()),
         name=path.name,
         mtime=stat.st_mtime,
+        mtime_ns=stat.st_mtime_ns,
         size=stat.st_size,
         width=width,
         height=height,

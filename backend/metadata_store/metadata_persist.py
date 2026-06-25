@@ -49,17 +49,18 @@ def _upsert_extracted_metadata_conn(conn: sqlite3.Connection, metadata: Extracte
     conn.execute(
         """
         INSERT INTO image_metadata (
-          path, name, mtime, size, width, height, prompt, negative_prompt,
+          path, name, mtime, mtime_ns, size, width, height, prompt, negative_prompt,
           format, mode, has_alpha, model, sampler, seed, steps, cfg_scale,
           raw_metadata_text, metadata_json, updated_at, indexed_at,
           tool, scheduler, model_hash, lora_text, generation_time,
           clip_skip, hires_upscale, hires_steps, denoising_strength,
           vae, ensd, aesthetic_score, date, aspect_ratio
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(path) DO UPDATE SET
           name=excluded.name,
           mtime=excluded.mtime,
+          mtime_ns=excluded.mtime_ns,
           size=excluded.size,
           width=excluded.width,
           height=excluded.height,
@@ -96,6 +97,7 @@ def _upsert_extracted_metadata_conn(conn: sqlite3.Connection, metadata: Extracte
             metadata.path,
             metadata.name,
             metadata.mtime,
+            metadata.mtime_ns,
             metadata.size,
             metadata.width,
             metadata.height,
@@ -135,7 +137,7 @@ def _upsert_extracted_metadata_conn(conn: sqlite3.Connection, metadata: Extracte
         name=metadata.name,
         parent_path=Path(metadata.path).parent,
         type="image",
-        mtime_ns=metadata.mtime,
+        mtime_ns=metadata.mtime_ns,
         size=metadata.size,
         width=metadata.width,
         height=metadata.height,
@@ -374,7 +376,7 @@ def upsert_image_dimensions(
             name=image_path.name,
             parent_path=image_path.parent,
             type="image",
-            mtime_ns=stat.st_mtime,
+            mtime_ns=stat.st_mtime_ns,
             size=stat.st_size,
             width=width,
             height=height,
@@ -432,13 +434,14 @@ def upsert_metadata_result(path: str | Path, metadata: dict[str, Any]) -> bool:
         conn.execute(
             """
             INSERT INTO image_metadata (
-              path, name, mtime, size, width, height, prompt, negative_prompt,
+              path, name, mtime, mtime_ns, size, width, height, prompt, negative_prompt,
               model, sampler, seed, steps, cfg_scale, raw_metadata_text,
               metadata_json, updated_at, indexed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(path) DO UPDATE SET
               name=excluded.name,
               mtime=excluded.mtime,
+              mtime_ns=excluded.mtime_ns,
               size=excluded.size,
               width=COALESCE(excluded.width, image_metadata.width),
               height=COALESCE(excluded.height, image_metadata.height),
@@ -458,6 +461,7 @@ def upsert_metadata_result(path: str | Path, metadata: dict[str, Any]) -> bool:
                 resolved_path,
                 image_path.name,
                 stat.st_mtime,
+                stat.st_mtime_ns,
                 stat.st_size,
                 width if isinstance(width, int) else None,
                 height if isinstance(height, int) else None,
@@ -480,7 +484,7 @@ def upsert_metadata_result(path: str | Path, metadata: dict[str, Any]) -> bool:
             name=image_path.name,
             parent_path=image_path.parent,
             type="image",
-            mtime_ns=stat.st_mtime,
+            mtime_ns=stat.st_mtime_ns,
             size=stat.st_size,
             width=width if isinstance(width, int) else None,
             height=height if isinstance(height, int) else None,

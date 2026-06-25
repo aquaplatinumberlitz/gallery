@@ -319,27 +319,11 @@ def test_worker_does_not_hold_long_write_transactions(
     from backend.metadata_store import create_library
     create_library([root], name="TestLib")
 
-    # Seed a metadata job (don't pre-seed image_metadata or it gets short-circuited)
+    # Seed a metadata job
     queue_metadata_index_paths([image])
     job = claim_next_metadata_job()
     assert job is not None
     assert job.mtime_ns is not None
-
-    # Insert image_metadata now so complete_metadata_job can verify it's current.
-    # This simulates what _run_job's upsert_metadata_batch will do, but with
-    # proper mtime_ns propagation that ExtractedMetadata currently lacks.
-    stat = image.stat()
-    now = time.time()
-    resolved = str(image.resolve())
-    with _DB_LOCK, _connect() as conn:
-        conn.execute(
-            """
-            INSERT INTO image_metadata (
-              path, name, mtime, mtime_ns, size, width, height, metadata_json, updated_at, indexed_at
-            ) VALUES (?, ?, ?, ?, ?, 64, 64, '{}', ?, ?)
-            """,
-            (resolved, image.name, stat.st_mtime, stat.st_mtime_ns, stat.st_size, now, now),
-        )
 
     # Monkeypatch extract_metadata to verify no write tx is open
     from backend.metadata_extract import extract_metadata as original_extract
@@ -352,11 +336,10 @@ def test_worker_does_not_hold_long_write_transactions(
         # Open a separate connection to check transaction state
         conn2 = sqlite3.connect(str(db_path))
         try:
-            # A write transaction is active if journal_mode is 'wal' and
-            # we can detect an ongoing transaction. The simplest check:
-            # if another connection can't acquire a RESERVED lock,
-            # a write transaction is in progress.
-            conn2.execute("BEGIN IMMUTABLE")
+            # Check if a write transaction is open by attempting to acquire
+            # a RESERVED lock. If another connection holds a write transaction,
+            # this will raise OperationalError.
+            conn2.execute("BEGIN IMMEDIATE")
             conn2.execute("SELECT 1 FROM metadata_index_jobs LIMIT 1")
             extraction_had_open_tx[0] = False
         except sqlite3.OperationalError:
@@ -366,7 +349,7 @@ def test_worker_does_not_hold_long_write_transactions(
         return original_extract(path)
 
     monkeypatch.setattr(
-        "backend.indexer.extract_metadata",
+        "backend.metadata_extract.extract_metadata",
         tracking_extract,
     )
 
