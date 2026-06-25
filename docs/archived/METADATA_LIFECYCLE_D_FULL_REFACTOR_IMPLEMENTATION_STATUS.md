@@ -1,6 +1,11 @@
 # Metadata Lifecycle D·Full Clean — Implementation Status
 
-Plan: `docs/plans/METADATA_LIFECYCLE_D_FULL_REFACTOR_PLAN.md`
+> **Archived — 2026-06-25.** Implementation complete. Current behavior is
+> documented in [Architecture](../ARCHITECTURE.md), [Metadata Parsing](../METADATA_PARSING.md),
+> [Configuration](../CONFIGURATION.md), and [Testing](../testing/README.md).
+>
+
+Plan: `docs/archived/METADATA_LIFECYCLE_D_FULL_REFACTOR_PLAN.md`
 Last updated: 2026-06-25
 
 ---
@@ -148,7 +153,7 @@ $ backend/venv/bin/python -m pytest \
 
 - `backend/config.py` — added `INTEGRITY_CHECK_ENABLED`, `INTEGRITY_CHECK_INTERVAL_SECONDS`
 - `backend/app.py` — wired `integrity_checker.start()` into startup, `integrity_checker.stop()` into shutdown
-- `docs/plans/IMPLEMENTATION_STATUS.md` — Phase 7 marked complete
+- `docs/archived/METADATA_LIFECYCLE_D_FULL_REFACTOR_IMPLEMENTATION_STATUS.md` — Phase 7 marked complete
 
 ### Checks implemented
 
@@ -207,4 +212,4 @@ The following regressions were found in the 2026-06-25 audit and fixed:
 - `docs/ARCHITECTURE.md` — new file describing DB-claim worker pattern, invariants,
   legacy fallback, startup recovery, and diagnostics.
 - `docs/testing/TEST_CATALOG.md` — catalog entries for lifecycle tests.
-- `docs/plans/IMPLEMENTATION_STATUS.md` — Phase 6 marked complete.
+- `docs/archived/METADATA_LIFECYCLE_D_FULL_REFACTOR_IMPLEMENTATION_STATUS.md` — Phase 6 marked complete.

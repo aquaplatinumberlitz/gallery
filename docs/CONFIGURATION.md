@@ -3,7 +3,7 @@
 Status: Maintained
 
 Last verified against `backend/config.py`, `frontend/vite.config.ts`, and
-frontend environment reads: 2026-06-23.
+frontend environment reads: 2026-06-25.
 
 Boolean flags parsed by `_env_flag()` treat `0`, `false`, `no`, and `off`
 case-insensitively as false; any other provided value is true. Flags documented as
@@ -47,6 +47,8 @@ case-insensitively as false; any other provided value is true. Flags documented 
 | `METADATA_INDEXER_SQLITE_BUSY_RETRIES`                 | integer                 | `3`                                                   | Legacy fallback for the prefixed busy-retry variable.                                                    |
 | `GALLERY_METADATA_INDEXER_SQLITE_BUSY_BACKOFF_SECONDS` | float, minimum 0        | `0.1`                                                 | SQLite busy retry backoff. Falls back to `METADATA_INDEXER_SQLITE_BUSY_BACKOFF_SECONDS`.                 |
 | `METADATA_INDEXER_SQLITE_BUSY_BACKOFF_SECONDS`         | float                   | `0.1`                                                 | Legacy fallback for the prefixed busy-backoff variable.                                                  |
+| `GALLERY_INTEGRITY_CHECK_ENABLED`                      | boolean flag            | true                                                  | Starts the periodic cross-table integrity checker during backend startup.                                |
+| `GALLERY_INTEGRITY_CHECK_INTERVAL_SECONDS`             | integer, minimum 60     | `3600`                                                | Integrity checker interval in seconds.                                                                  |
 | `ENABLE_WARM_INDEXED_LISTING`                          | boolean flag            | false                                                 | Enables legacy warm SQLite listing helpers where still used by tests/diagnostics.                        |
 | `GALLERY_CATALOG_WORKERS`                              | integer, clamped 1–8    | `1`                                                   | Number of concurrent catalog worker threads.                                                             |
 | `GALLERY_CATALOG_SERVICE_ENABLED`                      | boolean flag            | true                                                  | Starts the catalog worker service during backend startup.                                                |

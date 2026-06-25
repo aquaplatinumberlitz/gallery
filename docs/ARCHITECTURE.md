@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-06-23
+Last reviewed: 2026-06-25
 
 Historical Library Management V1 handoff context is retained in the
 [archived implementation status](archived/CODEX_LIBRARY_MANAGEMENT_IMPLEMENTATION_STATUS.md).
@@ -80,6 +80,14 @@ restart because SQLite is the queue.
 queue depth, inconsistency detection, worker health, and throughput. These are
 included in the status API envelope as `metadata_lifecycle`.
 
+### Integrity checker
+
+`backend/integrity_checker.py` runs a periodic background consistency pass when
+`GALLERY_INTEGRITY_CHECK_ENABLED` is true. It repairs or re-queues mismatches
+between `assets`, `image_metadata`, `metadata_index_jobs`, `asset_derivatives`,
+and `derivative_jobs`, including missing derivative cache files and active
+metadata jobs whose source file or asset row disappeared.
+
 ## Overview
 
 AI Art Gallery is a local-first mixed-media browser with a FastAPI backend and a Vue 3 frontend.
@@ -117,7 +125,8 @@ Backend modules are mostly flat, with selected domain packages.
 | `fielded_search_parser.py` | Parser for `prompt:`, `seed:`, `model:`, numeric operators, quoted values, and related fielded search syntax                               |
 | `search.py`                | `/api/search`, `/api/search-metadata`, `/api/library/inspector`, `/api/library/inspector/metadata`                                         |
 | `facets.py`                | `/api/facets` aggregation over indexed metadata                                                                                            |
-| `indexer.py`               | Background metadata queue, staged path batching, SQLite write batching, scan worker rebuild helpers                                        |
+| `indexer.py`               | DB-claim metadata lifecycle worker, durable scheduling, startup recovery, diagnostics, staged path batching, scan worker rebuild helpers    |
+| `integrity_checker.py`     | Periodic cross-table consistency checker for metadata jobs, assets, image metadata, derivatives, and derivative jobs                       |
 | `refresh.py`               | Optional scheduled refresh loop                                                                                                            |
 | `watcher.py`               | Optional filesystem watcher loop                                                                                                           |
 | `libraries.py`             | Registered-library CRUD/validation, multi-import-path scan, unregister flows, status endpoints                                             |
@@ -142,7 +151,7 @@ Backend modules are mostly flat, with selected domain packages.
 | `metadata_store/browse_store.py`     | Browse listing queries                                    |
 | `metadata_store/file_index.py`       | File index operations                                     |
 | `metadata_store/folder_index.py`     | Folder index operations                                   |
-| `metadata_store/metadata_queue.py`   | Metadata index job queue                                  |
+| `metadata_store/metadata_queue.py`   | Durable metadata index job queue primitives, completion invariants, and stale guards |
 | `metadata_store/metadata_persist.py` | Metadata persistence helpers                              |
 | `metadata_store/search_store.py`     | FTS5 search queries                                       |
 | `metadata_store/inspector_store.py`  | Library Inspector data access                             |
@@ -208,7 +217,7 @@ Backend modules are mostly flat, with selected domain packages.
 - SQLite uses WAL mode and stores both file index rows and normalized metadata rows. FTS5 tables cover folder/photo names and metadata text.
 - Registered libraries store ordered roots in `library_import_paths`. Relative globstar exclusions live in `library_exclusion_patterns`.
 - `/api/browse` is the read-only catalog query endpoint. It accepts `library_id`, `path`, `cursor`, `limit`, and `include_offline`. The response contains `folders`, `media`, `next_cursor`, legacy alias `next_media_cursor`, `total_images`, `total_videos`, `total_assets`, `request_path`, `index_source`, `library_id`, and `path`. Scan, rebuild, and status are managed through library endpoints.
-- Catalog scan workers and metadata indexer run as background services. The catalog watcher and scheduled reconciliation are enabled by default for registered libraries.
+- Catalog scan workers, the DB-claim metadata lifecycle worker, the derivative scheduler, and the integrity checker run as background services. The catalog watcher and scheduled reconciliation are enabled by default for registered libraries.
 
 ## Frontend
 

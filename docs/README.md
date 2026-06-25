@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-06-24
+Last reviewed: 2026-06-25
 
 Use this page as the entry point for project documentation. Current behavior is
 documented in the maintained references below; research and archived documents

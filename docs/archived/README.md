@@ -2,7 +2,7 @@
 
 Status: Maintained index
 
-Last reviewed: 2026-06-24
+Last reviewed: 2026-06-25
 
 This directory retains completed or superseded plans, historical contracts,
 and dated reports. These files preserve implementation context but do not
@@ -13,6 +13,7 @@ current system.
 Notable groups include:
 
 - Catalog Scan Pipeline and Unified Status — 11-phase implementation with migration, status builder, browse API, and documentation.
+- Metadata Lifecycle D Full Clean — durable SQLite-backed metadata queue, DB-claim worker, completion invariants, startup recovery, lifecycle diagnostics, and integrity checker.
 - Library Management V1 plan, phase contract, and final implementation status.
 - Completed AlbumScroller, VueUse theme, shadcn-vue, Tailwind, sidebar, and TanStack migrations.
 - Completed lint/format adoption and frontend adaptation plans.

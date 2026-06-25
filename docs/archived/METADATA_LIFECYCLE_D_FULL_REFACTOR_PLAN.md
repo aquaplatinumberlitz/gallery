@@ -1,6 +1,11 @@
+> **Archived — 2026-06-25.** Implementation complete. Current behavior is
+> documented in [Architecture](../ARCHITECTURE.md), [Metadata Parsing](../METADATA_PARSING.md),
+> [Configuration](../CONFIGURATION.md), and [Testing](../testing/README.md).
+>
+
 # Metadata Lifecycle D·Full Clean Refactor Plan
 
-Status: Proposed (plan only — not implemented yet)
+Status: Archived historical plan — implemented 2026-06-25
 Last reviewed: 2026-06-25
 Target architecture: **D full clean** — `metadata_index_jobs` is the durable runtime queue; the metadata worker claims jobs directly from SQLite.
 Local reference: `backend/derivative_scheduler.py` (`DerivativeScheduler`)
@@ -996,7 +1001,7 @@ Files:
 - `backend/integrity_checker.py` (new, P2) — scheduled background task that
   runs the checks from §7.
 - `backend/config.py` — `INTEGRITY_CHECK_ENABLED`, `INTEGRITY_CHECK_INTERVAL`.
-- `docs/plans/` — new follow-up plan for the integrity checker.
+- `docs/archived/` — completed lifecycle plan/status retained as historical context.
 
 ## 10. Risk assessment
 

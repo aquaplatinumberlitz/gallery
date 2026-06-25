@@ -3,7 +3,7 @@
 Status: Maintained
 
 Last verified against `backend/metadata_extract.py`, `backend/metadata_parse.py`, and
-`backend/metadata_store/`: 2026-06-23.
+`backend/metadata_store/`: 2026-06-25.
 
 ## Supported generators
 
@@ -52,6 +52,25 @@ metadata. Only `.txt` sidecars produced by `path.with_suffix(".txt")` are consid
 
 Background indexing uses the same `extract_metadata()` function, so the API and indexer
 share one parser implementation.
+
+## Background lifecycle
+
+Background metadata work is scheduled through
+`indexer.dispatch_metadata_index_paths()`. The scheduler persists/coalesces rows
+in `metadata_index_jobs` and wakes `MetadataLifecycleWorker`; it does not push
+runtime work into an in-memory queue.
+
+The worker claims queued jobs directly from SQLite, extracts metadata outside
+any long DB transaction, writes `image_metadata`, and then completes the job
+through the store-layer completion helper. Completion verifies the current
+`path + mtime_ns + size` identity, marks `metadata_index_jobs.state='done'`, and
+materializes `assets.metadata_state='done'` together. Missing asset rows become
+`skipped`; changed file versions become `stale`.
+
+Backend startup runs metadata job recovery before starting the worker. Recovery
+resets interrupted `running` jobs, fails exhausted attempts, and repairs
+historical rows where a done job/current metadata row exists but the asset state
+was not materialized.
 
 ## Stored database fields
 

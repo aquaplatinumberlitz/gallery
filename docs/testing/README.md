@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-06-24
+Last reviewed: 2026-06-25
 
 This directory documents the test and debug surface for the gallery repo. Keep it focused on what each test protects, when to run it, and which debug helper to use before changing behavior.
 
@@ -21,10 +21,10 @@ documented in [DEBUG_TOOLS.md](DEBUG_TOOLS.md).
 
 ## Test Categories
 
-- Backend unit/integration tests: `backend/tests/test_*.py` cover FastAPI endpoint contracts, metadata parsing/search, catalog browse behavior, indexer staging, warm listing, refresh, watcher, facets, derivatives, and catalog job lifecycle/recovery.
+- Backend unit/integration tests: `backend/tests/test_*.py` cover FastAPI endpoint contracts, metadata parsing/search, catalog browse behavior, indexer staging, metadata lifecycle recovery/diagnostics, integrity checking, warm listing, refresh, watcher, facets, derivatives, and catalog job lifecycle/recovery.
 - Frontend Playwright/contract tests: `frontend/tests/e2e/*.spec.ts` cover gallery UI contracts with stubbed API responses, selected real-backend smoke paths, UI regressions, and diagnostics.
 - Frontend vitest unit tests: `frontend/src/**/__tests__/*.test.ts` cover pure utilities, Pinia stores, and Vue composables with jsdom + `@vue/test-utils`. Run with `cd frontend && pnpm test:unit`. See the "Frontend Vitest Unit Tests" section below for the testing-trophy rationale and per-tier inventory.
-- Rebuild/catalog status tests: `frontend/tests/e2e/index-rebuild-flow.spec.ts`, `frontend/tests/e2e/index-status-panel.spec.ts`, `backend/tests/test_catalog_status_contract.py`, `backend/tests/test_catalog_status_endpoints.py`, `backend/tests/test_catalog_status_ready_assets.py`, `backend/tests/test_catalog_trigger_routing.py`, `backend/tests/test_indexer_staging.py`, and `backend/tests/test_warm_folder_listing.py`.
+- Rebuild/catalog status tests: `frontend/tests/e2e/index-rebuild-flow.spec.ts`, `frontend/tests/e2e/index-status-panel.spec.ts`, `backend/tests/test_catalog_status_contract.py`, `backend/tests/test_catalog_status_endpoints.py`, `backend/tests/test_catalog_status_ready_assets.py`, `backend/tests/test_catalog_trigger_routing.py`, `backend/tests/test_indexer_staging.py`, `backend/tests/test_metadata_lifecycle.py`, `backend/tests/test_integrity_checker.py`, and `backend/tests/test_warm_folder_listing.py`.
 - Library Inspector tests: `frontend/tests/e2e/library-inspector.spec.ts` and `backend/tests/test_library_inspector.py`.
 - Metadata performance diagnostics: `frontend/tests/e2e/metadata-performance.spec.ts` measures `/metadata` navigation, sort, search, rendered row counts, thumbnail requests, and state restoration against a running gallery app.
 - Lightbox tests: `frontend/tests/e2e/lightbox-loading-policy.spec.ts`, `frontend/tests/e2e/lightbox-visual-layer.spec.ts`, `frontend/tests/e2e/mobile-lightbox-sheet.spec.ts`, and derivative backend tests.
