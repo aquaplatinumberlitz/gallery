@@ -194,3 +194,12 @@ WATCHER_DEBOUNCE_SECONDS = max(
     float(os.getenv("GALLERY_CATALOG_WATCHER_DEBOUNCE_SECONDS", os.getenv("WATCHER_DEBOUNCE_SECONDS", "2.0"))),
 )
 WATCHER_MAX_EVENTS_PER_TICK = max(1, int(os.getenv("WATCHER_MAX_EVENTS_PER_TICK", "500")))
+
+# ---------------------------------------------------------------------------
+# Integrity checker
+# ---------------------------------------------------------------------------
+INTEGRITY_CHECK_ENABLED = _env_flag("GALLERY_INTEGRITY_CHECK_ENABLED", default=True)
+INTEGRITY_CHECK_INTERVAL_SECONDS = max(
+    60,
+    int(os.getenv("GALLERY_INTEGRITY_CHECK_INTERVAL_SECONDS", "3600")),
+)

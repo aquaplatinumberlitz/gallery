@@ -17,7 +17,7 @@ Last updated: 2026-06-25
 | **4** | **Startup recovery and repair** | **✅ Complete** |
 | 5 | Remove/deprecate old in-memory queue bridge | ✅ Complete |
 | 6 | Status/debug diagnostics and docs | ⬜ Pending |
-| 7 | Broader integrity checker (P2 follow-up) | ⬜ Pending |
+| 7 | Broader integrity checker (P2 follow-up) | ✅ Complete |
 
 ---
 
@@ -131,6 +131,52 @@ $ backend/venv/bin/python -m pytest \
     backend/tests/test_metadata_store_coverage.py \
     -v --timeout=60
 ======================= 103 passed in 21.34s ========================
+```
+
+---
+
+---
+
+## Phase 7 — Broader Integrity Checker ✅
+
+### Files created
+
+- `backend/integrity_checker.py` — `IntegrityChecker` class with 6 cross-table consistency checks
+- `backend/tests/test_integrity_checker.py` — 13 tests covering all checks + lifecycle
+
+### Files changed
+
+- `backend/config.py` — added `INTEGRITY_CHECK_ENABLED`, `INTEGRITY_CHECK_INTERVAL_SECONDS`
+- `backend/app.py` — wired `integrity_checker.start()` into startup, `integrity_checker.stop()` into shutdown
+- `docs/plans/IMPLEMENTATION_STATUS.md` — Phase 7 marked complete
+
+### Checks implemented
+
+| # | Check | Description |
+| --- | --- | --- |
+| 1 | `asset_done_but_no_metadata` | Assets with `metadata_state='done'` but missing/stale `image_metadata` → demoted to pending + re-queued |
+| 2 | `job_done_asset_not_done` | Done metadata jobs whose assets aren't `done` → stamped done |
+| 3 | `job_active_no_asset` | Queued/running jobs with no corresponding asset row → failed |
+| 4 | `derivative_ready_no_file` | Ready derivatives whose `cache_path` is missing from disk → re-queued |
+| 5 | `derivative_job_done_not_ready` | Done derivative jobs whose deriviative status isn't `ready` → reconciled |
+| 6 | `job_active_no_file` | Queued/running metadata jobs whose file is missing from disk → failed |
+
+### Test Results (current)
+
+All 116 tests pass with no regressions:
+
+```
+$ backend/venv/bin/python -m pytest \
+    backend/tests/test_catalog_recovery.py \
+    backend/tests/test_catalog_status_ready_assets.py \
+    backend/tests/test_indexer_staging.py \
+    backend/tests/test_libraries_catalog.py \
+    backend/tests/test_scan_worker.py \
+    backend/tests/test_metadata_lifecycle.py \
+    backend/tests/test_metadata_store_coverage.py \
+    backend/tests/test_integrity_checker.py \
+    -v --timeout=60
+======================= 116 passed in 19.23s ========================
 ```
 
 ---

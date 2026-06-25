@@ -12,6 +12,7 @@ from .config import (
     ENABLE_PROFILER,
     GALLERY_CATALOG_SERVICE_ENABLED,
     GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED,
+    INTEGRITY_CHECK_ENABLED,
     PROFILE_DIR,
     PROFILE_ENDPOINTS,
 )
@@ -22,6 +23,7 @@ from .health import router as health_router
 from .images import router as images_router
 from .indexer import metadata_worker, recover_metadata_index_jobs
 from .indexer import router as indexer_router
+from .integrity_checker import integrity_checker
 from .libraries import router as libraries_router
 from .metadata_parse import router as metadata_parse_router
 from .metadata_store import recover_stale_jobs
@@ -106,6 +108,8 @@ async def _startup_background_services():
             queue_startup_scans()
     # Phase 2: DB-claim worker is authoritative
     metadata_worker.start()
+    if INTEGRITY_CHECK_ENABLED:
+        integrity_checker.start()
     scheduler.start()
     _start_refresh()
     _start_watcher()
@@ -118,6 +122,7 @@ async def _shutdown_background_services():
     stop()
     metadata_worker.stop()
     scheduler.stop()
+    integrity_checker.stop()
 
 
 if ENABLE_PROFILER:
