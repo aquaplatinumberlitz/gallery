@@ -771,3 +771,67 @@ def test_derivative_status_stale_source_not_counted(isolated_app: TestClient, is
             )
             # cache_path may exist from old generate, but that's fine (rebuild_stale will cleanup)
 
+
+def test_derivative_ready_cache_file_deleted(isolated_app: TestClient, isolated_gallery_root: Path):
+    """When a ready derivative's cache file is deleted externally,
+    library_status() must not count it as ready."""
+    import time as _time
+
+    from backend.derivative_scheduler import scheduler as deriv_scheduler
+    from backend.metadata_store import _connect
+
+    root = isolated_gallery_root / "root"
+    root.mkdir()
+    photo = root / "img.png"
+    create_test_png(photo)
+    library_id = int(register_library(root)["id"])
+    deriv_scheduler.start()
+
+    photo_stat = photo.stat()
+    with _connect() as conn:
+        conn.execute(
+            """INSERT INTO assets (library_id, path, name, parent_path, type, mtime_ns, size, metadata_state)
+               VALUES (?, ?, ?, ?, 'image', ?, ?, 'pending')""",
+            (library_id, str(photo), "img.png", str(root), photo_stat.st_mtime_ns, photo_stat.st_size),
+        )
+        asset_id = int(conn.execute("SELECT last_insert_rowid()").fetchone()[0])
+
+    deriv_scheduler.warm_library(library_id)
+
+    for _ in range(30):
+        _time.sleep(0.5)
+        status = isolated_app.get("/api/derivatives/status", params={"library_id": library_id}).json()
+        if status["ready_derivatives"] > 0:
+            break
+
+    assert status["ready_derivatives"] > 0, "expected ready derivatives after warm"
+
+    # Capture cache paths before deletion
+    with _connect() as conn:
+        cache_paths = [
+            row["cache_path"]
+            for row in conn.execute(
+                "SELECT cache_path FROM asset_derivatives WHERE asset_id = ? AND status = 'ready' AND cache_path IS NOT NULL",
+                (asset_id,),
+            ).fetchall()
+        ]
+    assert cache_paths, "expected cache_paths for ready derivatives"
+
+    # Delete all cache files externally
+    for cp in cache_paths:
+        Path(cp).unlink(missing_ok=True)
+
+    # library_status must report 0 ready (files no longer exist)
+    status = isolated_app.get("/api/derivatives/status", params={"library_id": library_id}).json()
+    assert status["ready_derivatives"] == 0, (
+        f"ready_derivatives must be 0 after cache files deleted. Got: {status['ready_derivatives']}"
+    )
+
+    # DB rows are still 'ready' but cache_path files are gone
+    with _connect() as conn:
+        still_ready = conn.execute(
+            "SELECT count(*) FROM asset_derivatives WHERE asset_id = ? AND status = 'ready'",
+            (asset_id,),
+        ).fetchone()[0]
+    assert still_ready > 0, "DB rows should still be marked ready (integrity checker will reconcile later)"
+

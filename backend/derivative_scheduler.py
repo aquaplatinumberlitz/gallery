@@ -307,23 +307,23 @@ class DerivativeScheduler:
                     (library_id,),
                 ).fetchone()[0]
             )
-            ready = int(
-                conn.execute(
-                    """
-                    SELECT count(*) FROM asset_derivatives d JOIN assets a ON a.id = d.asset_id
-                    WHERE a.library_id = ? AND d.status = 'ready'
-                      AND d.source_mtime_ns = a.mtime_ns
-                      AND d.source_size = a.size
-                      AND d.cache_path IS NOT NULL
-                    """,
-                    (library_id,),
-                ).fetchone()[0]
-            )
-            used = int(
-                conn.execute(
-                    "SELECT COALESCE(sum(byte_size), 0) FROM asset_derivatives WHERE status = 'ready'"
-                ).fetchone()[0]
-            )
+            ready_rows = conn.execute(
+                """
+                SELECT d.cache_path, d.byte_size
+                FROM asset_derivatives d JOIN assets a ON a.id = d.asset_id
+                WHERE a.library_id = ? AND d.status = 'ready'
+                  AND d.source_mtime_ns = a.mtime_ns
+                  AND d.source_size = a.size
+                  AND d.cache_path IS NOT NULL
+                """,
+                (library_id,),
+            ).fetchall()
+            ready = 0
+            used = 0
+            for row in ready_rows:
+                if Path(row["cache_path"]).is_file():
+                    ready += 1
+                    used += row["byte_size"] or 0
         return {
             "library_id": library_id,
             "total_assets": total_assets,
