@@ -316,7 +316,11 @@ class TestDerivativeJobDoneNotReady:
             )
         with _DB_LOCK, _connect() as conn:
             count = _checker._check_derivative_job_done_not_ready(conn)
-        assert count == 0
+        assert count == 1
+        with _DB_LOCK, _connect() as conn:
+            row = conn.execute("SELECT state, error FROM derivative_jobs WHERE derivative_id = ?", (ad_id,)).fetchone()
+            assert row["state"] == "failed"
+            assert "cache file missing" in row["error"]
 
 
 # ---------------------------------------------------------------------------

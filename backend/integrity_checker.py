@@ -170,20 +170,21 @@ class IntegrityChecker:
               AND ad.status != 'ready'
         """).fetchall()
         now = time.time()
-        fixed = 0
+        repaired = 0
         for row in rows:
             if row["cache_path"] is not None and Path(row["cache_path"]).is_file():
                 conn.execute(
                     "UPDATE asset_derivatives SET status = 'ready', updated_at = ? WHERE id = ? AND status != 'ready'",
                     (now, row["id"]),
                 )
-                fixed += 1
+                repaired += 1
             else:
                 conn.execute(
                     "UPDATE derivative_jobs SET state = 'failed', error = ?, updated_at = ? WHERE id = ? AND state = 'done'",
                     ("integrity: cache file missing", now, row["job_id"]),
                 )
-        return fixed
+                repaired += 1
+        return repaired
 
     def _check_job_active_no_file(self, conn) -> int:
         rows = conn.execute("""
