@@ -480,9 +480,9 @@ Identity guard rule:
 Minimum identity: `path + mtime_ns + size`. `library_id` is a secondary
 diagnostic field, not a required key component. The `mtime_ns` comparison
 uses `metadata_index_jobs.mtime_ns` (INTEGER ns) vs `assets.mtime_ns`
-(REAL ns) with a 1 ns tolerance; legacy rows lacking `job.mtime_ns` fall
-back to `job.mtime` (float seconds) vs `assets.mtime_ns / 1e9` (see
-§5.4 step 3).
+(REAL ns, `float(stat.st_mtime_ns)`) with a 1000 ns tolerance (REAL
+precision at ~1.7e18); legacy rows lacking `job.mtime_ns` fall back to
+`job.mtime` (float seconds) vs `assets.mtime_ns / 1e9` (see §5.4 step 3).
 
 Implementation:
 
@@ -506,9 +506,11 @@ Implementation:
      `float(stat.st_mtime_ns)` (`_asset_store.py:74`). Same unit (nanoseconds)
      as the job's `mtime_ns`.
    - The primary guard comparison is between
-     `metadata_index_jobs.mtime_ns` and `assets.mtime_ns` (both nanoseconds).
-     Integer-to-float tolerance: `abs(a.mtime_ns - j.mtime_ns) < 1.0` (within
-     1 ns).
+     `metadata_index_jobs.mtime_ns` (INTEGER ns) and `assets.mtime_ns`
+     (REAL ns, `float(stat.st_mtime_ns)`, `_asset_store.py:74`). Because
+     `REAL` at epoch nanosecond scale (~1.7e18) loses integer precision,
+     use a safe nanosecond tolerance: `abs(a.mtime_ns - j.mtime_ns) < 1000`
+     (within 1 microsecond).
    - **Fallback for legacy rows** where `job.mtime_ns IS NULL` (rows created
      before the column existed): compare `job.mtime` (float seconds) with
      `assets.mtime_ns / 1_000_000_000.0` using a 1 ms tolerance
