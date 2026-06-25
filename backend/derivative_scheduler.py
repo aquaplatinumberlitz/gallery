@@ -312,6 +312,8 @@ class DerivativeScheduler:
                     """
                     SELECT count(*) FROM asset_derivatives d JOIN assets a ON a.id = d.asset_id
                     WHERE a.library_id = ? AND d.status = 'ready'
+                      AND d.source_mtime_ns = a.mtime_ns
+                      AND d.source_size = a.size
                     """,
                     (library_id,),
                 ).fetchone()[0]

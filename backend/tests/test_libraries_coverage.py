@@ -668,3 +668,85 @@ def test_api_clear_derivatives_success(isolated_app: TestClient):
     response = isolated_app.post("/api/derivatives/clear?confirm=true")
     assert response.status_code == 200
     assert "catalog_entries_cleared" in response.json()
+
+
+# ---------------------------------------------------------------------------
+# Stale derivative readiness (P1 bug: stale rows counted as ready)
+# ---------------------------------------------------------------------------
+
+
+def test_derivative_status_stale_source_not_counted(isolated_app: TestClient, isolated_gallery_root: Path):
+    """After a source image changes, its old derivative rows must not count
+    as ready in library_status() or browse derivative_ready."""
+    import time as _time
+
+    from backend.derivative_scheduler import scheduler as deriv_scheduler
+    from backend.metadata_store import _connect
+
+    root = isolated_gallery_root / "root"
+    root.mkdir()
+    photo = root / "img.png"
+    create_test_png(photo)
+    library_id = int(register_library(root)["id"])
+
+    # Ensure derivative scheduler is running (isolated_app may skip startup events)
+    deriv_scheduler.start()
+
+    # Directly insert the asset row so we don't need the scan worker
+    photo_stat = photo.stat()
+    with _connect() as conn:
+        conn.execute(
+            """INSERT INTO assets (library_id, path, name, parent_path, type, mtime_ns, size, metadata_state)
+               VALUES (?, ?, ?, ?, 'image', ?, ?, 'pending')""",
+            (library_id, str(photo), "img.png", str(root), photo_stat.st_mtime_ns, photo_stat.st_size),
+        )
+        asset_id = int(conn.execute("SELECT last_insert_rowid()").fetchone()[0])
+
+    # Warm derivatives for this asset by calling scheduler directly
+    deriv_scheduler.warm_library(library_id)
+
+    # Wait for derivative workers to finish processing
+    for _ in range(30):
+        _time.sleep(0.5)
+        status_resp = isolated_app.get("/api/derivatives/status", params={"library_id": library_id})
+        assert status_resp.status_code == 200
+        first_status = status_resp.json()
+        if first_status["ready_derivatives"] > 0:
+            break
+
+    assert first_status["ready_derivatives"] > 0, (
+        f"expected ready derivatives after warm. Status: {first_status}"
+    )
+
+    # Modify source image (new content = new mtime_ns and size)
+    _time.sleep(0.01)  # ensure different mtime
+    create_test_png(photo, size=(128, 128), color=(255, 0, 0))
+    after_stat = photo.stat()
+    assert (
+        photo_stat.st_mtime_ns != after_stat.st_mtime_ns or photo_stat.st_size != after_stat.st_size
+    ), "source must differ after rewrite"
+
+    # Update the asset row to reflect the new file version
+    with _connect() as conn:
+        conn.execute(
+            "UPDATE assets SET mtime_ns = ?, size = ? WHERE id = ?",
+            (after_stat.st_mtime_ns, after_stat.st_size, asset_id),
+        )
+
+    # Re-fetch derivative status — stale rows must be excluded
+    status_resp = isolated_app.get("/api/derivatives/status", params={"library_id": library_id})
+    assert status_resp.status_code == 200
+    stale_status = status_resp.json()
+    assert (
+        stale_status["ready_derivatives"] == 0
+    ), "stale derivatives must not be counted as ready after source change"
+
+    # Browse endpoint must not report derivative_ready for the stale asset
+    browse_resp = isolated_app.get("/api/browse", params={"library_id": library_id})
+    assert browse_resp.status_code == 200
+    browse_data = browse_resp.json()
+    for media in browse_data.get("media", []):
+        dr = media.get("derivative_ready")
+        if dr is not None:
+            assert dr.get("preview") is False, "stale asset must not report preview ready"
+            assert dr.get("thumbnail") is False, "stale asset must not report thumbnail ready"

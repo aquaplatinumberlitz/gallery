@@ -258,11 +258,15 @@ def _catalog_browse_path_conn(
         placeholders = ", ".join("?" for _ in derivative_ready_by_asset)
         derivative_rows = conn.execute(
             f"""
-            SELECT asset_id, kind
-            FROM asset_derivatives
-            WHERE asset_id IN ({placeholders})
-              AND kind IN ('thumbnail', 'preview') AND status = 'ready'
-            GROUP BY asset_id, kind
+            SELECT d.asset_id, d.kind
+            FROM asset_derivatives d
+            JOIN assets a ON a.id = d.asset_id
+            WHERE d.asset_id IN ({placeholders})
+              AND d.kind IN ('thumbnail', 'preview')
+              AND d.status = 'ready'
+              AND d.source_mtime_ns = a.mtime_ns
+              AND d.source_size = a.size
+            GROUP BY d.asset_id, d.kind
             """,
             tuple(derivative_ready_by_asset),
         ).fetchall()
@@ -423,11 +427,15 @@ def get_asset_folder_listing(
             placeholders = ", ".join("?" for _ in derivative_ready_by_asset)
             derivative_rows = conn.execute(
                 f"""
-                SELECT asset_id, kind
-                FROM asset_derivatives
-                WHERE asset_id IN ({placeholders})
-                  AND kind IN ('thumbnail', 'preview') AND status = 'ready'
-                GROUP BY asset_id, kind
+                SELECT d.asset_id, d.kind
+                FROM asset_derivatives d
+                JOIN assets a ON a.id = d.asset_id
+                WHERE d.asset_id IN ({placeholders})
+                  AND d.kind IN ('thumbnail', 'preview')
+                  AND d.status = 'ready'
+                  AND d.source_mtime_ns = a.mtime_ns
+                  AND d.source_size = a.size
+                GROUP BY d.asset_id, d.kind
                 """,
                 tuple(derivative_ready_by_asset),
             ).fetchall()
