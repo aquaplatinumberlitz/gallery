@@ -61,7 +61,7 @@ function makeStatus(overrides: Partial<UnifiedStatus> = {}): UnifiedStatus {
 }
 
 function makeEnvelope(status: UnifiedStatus = makeStatus()): StatusResponseEnvelope {
-  return { contract_version: 1, status, global_runtime: globalRuntime };
+  return { contract_version: 1, status, global_runtime: globalRuntime, metadata_lifecycle: null };
 }
 
 describe("assertStatusEnvelope", () => {
@@ -128,6 +128,7 @@ describe("assertLibraryStatusBatch", () => {
       generated_at: 1782036000000,
       items: [{ library_id: 7, status: makeStatus() }],
       global_runtime: globalRuntime,
+      metadata_lifecycle: null,
     };
     expect(() => assertLibraryStatusBatch(batch)).not.toThrow();
   });

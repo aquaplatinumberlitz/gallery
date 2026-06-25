@@ -84,11 +84,31 @@ function assertUnifiedStatus(status: unknown): asserts status is UnifiedStatus {
   if (status.latest_issue !== null && !isObject(status.latest_issue)) throw new StatusContractError();
 }
 
+function assertMetadataLifecycle(value: unknown): void {
+  if (value === null) return;
+  if (!isObject(value)) throw new StatusContractError();
+  const required: string[] = [
+    "queued_metadata_jobs", "running_metadata_jobs", "done_metadata_jobs",
+    "stale_metadata_jobs", "failed_metadata_jobs", "skipped_metadata_jobs",
+    "oldest_queued_metadata_job_age", "done_jobs_with_pending_assets",
+    "current_image_metadata_with_pending_assets", "metadata_jobs_without_matching_assets",
+    "assets_done_but_metadata_missing_or_stale", "repairable_metadata_assets",
+    "metadata_worker_last_claimed_at", "metadata_worker_last_completed_at",
+    "metadata_worker_alive",
+  ];
+  for (const field of required) {
+    if (!(field in value)) throw new StatusContractError();
+  }
+  if (typeof value.queued_metadata_jobs !== "number") throw new StatusContractError();
+  if (typeof value.metadata_worker_alive !== "boolean") throw new StatusContractError();
+}
+
 export function assertStatusEnvelope(envelope: unknown): asserts envelope is StatusResponseEnvelope {
   if (!isObject(envelope)) throw new StatusContractError();
   if (envelope.contract_version !== STATUS_CONTRACT_VERSION) throw new StatusContractError();
   if (!isObject(envelope.global_runtime)) throw new StatusContractError();
   assertUnifiedStatus(envelope.status);
+  assertMetadataLifecycle(envelope.metadata_lifecycle);
 }
 
 export function assertLibraryStatusBatch(response: unknown): asserts response is LibraryStatusBatchResponse {
@@ -102,6 +122,7 @@ export function assertLibraryStatusBatch(response: unknown): asserts response is
     if (typeof item.library_id !== "number") throw new StatusContractError();
     assertUnifiedStatus(item.status);
   }
+  assertMetadataLifecycle(response.metadata_lifecycle);
 }
 
 export function isStatusContractError(error: unknown): boolean {
