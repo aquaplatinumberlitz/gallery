@@ -551,7 +551,7 @@ Recovery cases:
 | `state='done'` + current `image_metadata` + `assets.metadata_state` pending/reset | JOIN query | Repair: `complete_metadata_job` stamps asset done. |
 | `state='done'` + missing/stale `image_metadata` | JOIN query | Demote to `'queued'` and let the worker re-process. |
 | `state='done'` + no asset row | JOIN query | Mark `'skipped'`. |
-| Stale job `(mtime,size)` no longer matches `Path.stat()` | stat check | Mark `'stale'`. |
+| Stale job `(mtime_ns, size)` no longer matches `Path.stat()` or `assets.(mtime_ns, size)` | stat check + asset join | Mark `'stale'`. Legacy fallback: `(mtime seconds, size)` if `mtime_ns` is NULL. |
 | Missing file | `Path.stat()` raises `OSError` | Mark `'stale'`. |
 | Asset moved/rebuilt with new content | asset row has different `(mtime_ns,size)` | Mark `'stale'`; next scan/rebuild will re-queue. |
 
@@ -740,7 +740,8 @@ Run when` docstring header per existing convention.
 
 6. **Current metadata shortcut also materializes `assets.metadata_state='done'`.**
    - Setup: `assets` row with `metadata_state='reset'`; `image_metadata` row
-     with matching `(mtime, size)`.
+      with matching `(mtime_ns, size)`. Legacy variant may cover
+      `(mtime, size)` if `mtime_ns` is absent.
    - Action: call `dispatch_metadata_index_paths([path], root)`.
    - Assert: `metadata_index_jobs.state='done'` AND
      `assets.metadata_state='done'`.
@@ -866,7 +867,7 @@ Files:
   `list_recoverable_metadata_jobs(conn, states)`,
   `reset_running_jobs_to_queued(conn, job_ids)`.
 - `backend/metadata_store/_schema.py` — additive migration:
-  `metadata_index_jobs.library_id`, `priority`, `id`; indexes
+  `metadata_index_jobs.library_id`, `priority`; indexes
   `idx_metadata_index_jobs_claim`, `idx_metadata_index_jobs_library_state`,
   `idx_assets_metadata_state`.
 - `backend/metadata_store/__init__.py` — export new primitives.
@@ -897,8 +898,10 @@ Files:
 ### Phase 3 — Completion invariant and stale guards
 
 Unify current-metadata shortcut and worker success through one completion
-owner. Materialize `assets.metadata_state='done'`. Guard by `library_id` +
-normalised path + `mtime` + `size`.
+owner. Materialize `assets.metadata_state='done'`. Guard by `path` +
+`mtime_ns` + `size`. `library_id` is diagnostic/backfill only, not a
+required key component. Legacy fallback may use `job.mtime` seconds vs
+`assets.mtime_ns / 1e9`.
 
 Files:
 
@@ -999,8 +1002,8 @@ Files:
 | **Starting multiple worker threads** | `MetadataLifecycleWorker.start()` guarded by `_lifecycle_lock` + `is_alive()` check, same as `DerivativeScheduler.start()` (`derivative_scheduler.py:65-87`). |
 | **Long SQLite transactions** | Claim and complete are short `BEGIN IMMEDIATE` transactions. Extraction runs outside any DB transaction, same as `DerivativeScheduler._run_job` (`derivative_scheduler.py:451-476`). Test 15. |
 | **Scan/rebuild concurrency** | Catalog service serializes via `claim_next_catalog_job`. Metadata worker claims independently from SQLite with `BEGIN IMMEDIATE`, same as derivative worker. No new cross-catalog locking. |
-| **Old job marking a new asset done** | §5.4 DB-side guard: `job.(library_id, path, mtime, size)` must match `assets` row. Test 8. |
-| **Repair marking the wrong asset done** | Repair requires `image_metadata` row's `(mtime, size)` to match the job; otherwise demote/requeue. Never bulk-updates `metadata_state='done'`. |
+| **Old job marking a new asset done** | §5.4 DB-side guard: `job.(path, mtime_ns, size)` must match `assets.(path, mtime_ns, size)`; `library_id` is diagnostic only. Legacy rows without `mtime_ns` use seconds fallback. Test 8. |
+| **Repair marking the wrong asset done** | Repair requires `image_metadata` row's `(mtime_ns, size)` to match the job (legacy: `(mtime seconds, size)` if `mtime_ns` absent); otherwise demote/requeue. Never bulk-updates `metadata_state='done'`. |
 | **Current tests mocking too low-level** | Phase 5 privatizes/renames DB-only helpers and retargets existing tests to owner boundaries. Test 12. |
 | **Performance regression for large libraries** | `idx_metadata_index_jobs_claim` index covers the claim query. No full table scans. Worker claims one row at a time, same as derivative worker. |
 | **Startup recovery doing too much work** | Recovery only resets `running → queued` (one UPDATE) and repairs `done` mismatches (bounded by row count). Queued jobs need no recovery — they are claimable from SQLite. |
@@ -1024,8 +1027,8 @@ Files:
 - [ ] Metadata job completion always materializes `assets.metadata_state='done'`
   when metadata is current and an asset row exists, via one owned completion
   transition (`complete_metadata_job`).
-- [ ] Stale jobs (old `mtime`/`size`, missing file, replaced asset) cannot
-  mark a changed asset done.
+- [ ] Stale jobs (old `mtime_ns`/`size`, legacy old `mtime` seconds, missing
+  file, replaced asset) cannot mark a changed asset done.
 - [ ] `queued`/`running` metadata jobs do not get stuck after restart; the
   worker claims them from SQLite.
 - [ ] Inconsistent `done`-job + current-metadata + pending-asset states are
