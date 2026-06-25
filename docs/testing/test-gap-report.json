@@ -2,7 +2,9 @@
   "catalog_alignment": {
     "cataloged_uncollected_tests": [],
     "missing_catalog_files": [],
-    "uncataloged_files": []
+    "uncataloged_files": [
+      "backend/tests/test_integrity_checker.py"
+    ]
   },
   "commands": {
     "backend": {
@@ -42,12 +44,12 @@
     }
   },
   "counts": {
-    "backend_test_files": 40,
-    "backend_tests": 712,
-    "catalog_entries": 104,
+    "backend_test_files": 43,
+    "backend_tests": 739,
+    "catalog_entries": 106,
     "frontend_test_files": 24,
     "frontend_tests": 159,
-    "important_files": 106,
+    "important_files": 109,
     "perf_reports": 0,
     "vitest_test_files": 33,
     "vitest_tests": 404
@@ -81,7 +83,7 @@
     },
     "frontend_summary_found": false
   },
-  "generated_at": "2026-06-24T14:25:48+00:00",
+  "generated_at": "2026-06-25T06:37:04+00:00",
   "matrix": [
     {
       "backend": "OK",

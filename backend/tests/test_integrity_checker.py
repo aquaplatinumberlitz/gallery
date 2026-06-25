@@ -229,6 +229,34 @@ class TestDerivativeReadyNoFile:
             assert row["status"] == "queued"
             assert "file missing" in row["last_error"]
 
+    def test_derivative_requeued_when_cache_path_null(self, _checker, isolated_gallery_root: Path):
+        """Derivative with status='ready' and cache_path=NULL should be requeued."""
+        root = isolated_gallery_root
+        lib = create_library([root], name="Lib")
+        lib_id = int(lib["id"])
+        path = str(root / "img.png")
+        size = 1024
+        mtime_ns = int(time.time() * 1e9)
+        with _DB_LOCK, _connect() as conn:
+            _asset_row(conn, path, lib_id, mtime_ns, size)
+            asset_id = conn.execute("SELECT id FROM assets WHERE path = ?", (path,)).fetchone()[0]
+            # cache_path = NULL means no derivative was ever generated
+            conn.execute(
+                """INSERT INTO asset_derivatives (asset_id, kind, variant, source_mtime_ns, source_size, status, cache_path, max_long_edge, format, quality)
+                   VALUES (?, 'thumbnail', 'thumb_512', ?, ?, 'ready', NULL, 512, 'webp', 85)""",
+                (asset_id, mtime_ns, size),
+            )
+        with _DB_LOCK, _connect() as conn:
+            count = _checker._check_derivative_ready_no_file(conn)
+        assert count == 1
+        with _DB_LOCK, _connect() as conn:
+            row = conn.execute(
+                "SELECT status, last_error FROM asset_derivatives WHERE asset_id = ? AND kind = 'thumbnail'",
+                (asset_id,),
+            ).fetchone()
+            assert row["status"] == "queued"
+            assert "file missing" in row["last_error"]
+
     def test_derivative_unchanged_when_cache_file_exists(self, _checker, isolated_gallery_root: Path, tmp_path: Path):
         root = isolated_gallery_root
         lib = create_library([root], name="Lib")
@@ -291,7 +319,7 @@ class TestDerivativeJobDoneNotReady:
             row = conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (ad_id,)).fetchone()
             assert row["status"] == "ready"
 
-    def test_no_reconciliation_when_no_ready_derivative_exists(self, _checker, isolated_gallery_root: Path):
+    def test_done_derivative_job_failed_when_cache_file_missing(self, _checker, isolated_gallery_root: Path):
         root = isolated_gallery_root
         lib = create_library([root], name="Lib")
         lib_id = int(lib["id"])
