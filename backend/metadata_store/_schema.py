@@ -91,6 +91,22 @@ def _ensure_catalog_schema(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_catalog_rebuild_entries_parent
           ON catalog_rebuild_entries(library_id, parent_path)
         """,
+        """
+        CREATE TABLE IF NOT EXISTS integrity_check_runs (
+          id            INTEGER PRIMARY KEY AUTOINCREMENT,
+          trigger       TEXT NOT NULL CHECK (trigger IN ('manual', 'daemon')),
+          started_at    REAL NOT NULL,
+          finished_at   REAL,
+          status        TEXT NOT NULL CHECK (status IN ('ok', 'error')),
+          error         TEXT,
+          issues_json   TEXT NOT NULL,
+          repairs_json  TEXT NOT NULL
+        )
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_integrity_check_runs_finished
+          ON integrity_check_runs(finished_at DESC)
+        """,
     ]
     for statement in statements:
         conn.execute(statement)

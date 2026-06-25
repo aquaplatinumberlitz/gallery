@@ -19,6 +19,7 @@ Run when:
 
 from __future__ import annotations
 
+import json
 import sqlite3
 import time
 from pathlib import Path
@@ -488,3 +489,127 @@ class TestEmptyDB:
             results = _checker.run_all_checks()
         for key, val in results.items():
             assert val == 0, f"{key} should be 0 but got {val}"
+
+
+# ---------------------------------------------------------------------------
+# Test 9: Persistence layer (Phase 3)
+# ---------------------------------------------------------------------------
+
+
+class TestRunAndPersist:
+    def test_run_and_persist_creates_run_row(self, _checker):
+        checker = _checker
+        summary = checker.run_and_persist(trigger="manual")
+        assert summary["trigger"] == "manual"
+        assert summary["status"] == "ok"
+        assert summary["error"] is None
+        assert set(summary["issues"].keys()) == {
+            "missing_source_files",
+            "generated_image_missing",
+            "metadata_mismatch",
+            "orphaned_work_item",
+            "generated_image_job_mismatch",
+        }
+        assert set(summary["repairs"].keys()) == {"repaired", "requeued", "failed", "unchanged"}
+        assert summary["started_at"] is not None
+        assert summary["finished_at"] is not None
+        with _DB_LOCK, _connect() as conn:
+            row = conn.execute("SELECT * FROM integrity_check_runs").fetchone()
+        assert row is not None
+        assert row["trigger"] == "manual"
+        assert row["status"] == "ok"
+        assert row["error"] is None
+        issues = json.loads(row["issues_json"])
+        assert set(issues.keys()) == {
+            "missing_source_files",
+            "generated_image_missing",
+            "metadata_mismatch",
+            "orphaned_work_item",
+            "generated_image_job_mismatch",
+        }
+        repairs = json.loads(row["repairs_json"])
+        assert set(repairs.keys()) == {"repaired", "requeued", "failed", "unchanged"}
+
+    def test_run_and_persist_error_records_error(self, _checker, monkeypatch):
+        checker = _checker
+
+        def _raise(*args, **kwargs):
+            raise RuntimeError("simulated crash")
+
+        monkeypatch.setattr(checker, "run_all_checks", _raise)
+        summary = checker.run_and_persist(trigger="daemon")
+        assert summary["status"] == "error"
+        assert "simulated crash" in summary["error"]
+        assert summary["trigger"] == "daemon"
+        with _DB_LOCK, _connect() as conn:
+            row = conn.execute("SELECT * FROM integrity_check_runs").fetchone()
+        assert row["status"] == "error"
+        assert "simulated crash" in row["error"]
+
+    def test_get_latest_run_returns_none_when_empty(self):
+        from backend.metadata_store.maintenance_store import get_latest_run
+
+        with _DB_LOCK, _connect() as conn:
+            result = get_latest_run(conn)
+        assert result is None
+
+    def test_get_latest_run_returns_most_recent(self):
+        from backend.metadata_store.maintenance_store import insert_run, get_latest_run
+
+        now = time.time()
+        with _DB_LOCK, _connect() as conn:
+            id1 = insert_run(
+                conn,
+                {
+                    "trigger": "manual",
+                    "started_at": now - 10,
+                    "finished_at": now - 5,
+                    "status": "ok",
+                    "error": None,
+                    "issues": {
+                        "missing_source_files": 0,
+                        "generated_image_missing": 0,
+                        "metadata_mismatch": 0,
+                        "orphaned_work_item": 0,
+                        "generated_image_job_mismatch": 0,
+                    },
+                    "repairs": {"repaired": 0, "requeued": 0, "failed": 0, "unchanged": 0},
+                },
+            )
+            id2 = insert_run(
+                conn,
+                {
+                    "trigger": "daemon",
+                    "started_at": now - 3,
+                    "finished_at": now,
+                    "status": "ok",
+                    "error": None,
+                    "issues": {
+                        "missing_source_files": 0,
+                        "generated_image_missing": 0,
+                        "metadata_mismatch": 0,
+                        "orphaned_work_item": 0,
+                        "generated_image_job_mismatch": 0,
+                    },
+                    "repairs": {"repaired": 0, "requeued": 0, "failed": 0, "unchanged": 0},
+                },
+            )
+            latest = get_latest_run(conn)
+        assert latest is not None
+        assert latest["id"] == id2
+        assert latest["trigger"] == "daemon"
+
+    def test_is_running_flag_during_run(self, _checker):
+        checker = _checker
+        assert checker.is_running is False
+        captured = []
+        original = checker.run_all_checks
+
+        def tracking_run(*args, **kwargs):
+            captured.append(checker.is_running)
+            return original(*args, **kwargs)
+
+        checker.run_all_checks = tracking_run
+        checker.run_and_persist(trigger="manual")
+        assert captured == [True]
+        assert checker.is_running is False

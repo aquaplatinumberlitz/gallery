@@ -23,6 +23,7 @@ class IntegrityChecker:
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
         self._lock = threading.Lock()
+        self.is_running: bool = False
 
     def start(self) -> None:
         """Start the background checker daemon thread."""
@@ -43,11 +44,65 @@ class IntegrityChecker:
     def _run_loop(self) -> None:
         while not self._stop_event.wait(self.interval):
             try:
-                results = self.run_all_checks()
-                if any(results.values()):
-                    logger.info("Integrity check results: %s", results)
+                self.run_and_persist(trigger="daemon")
             except Exception:
                 logger.exception("Integrity checker crashed")
+
+    def run_and_persist(self, trigger: str = "manual") -> dict:
+        """Run all checks and persist the summary to the integrity_check_runs table."""
+        from .metadata_store.maintenance_store import insert_run
+
+        self.is_running = True
+        started_at = time.time()
+        summary = {
+            "trigger": trigger,
+            "started_at": started_at,
+            "finished_at": None,
+            "status": "ok",
+            "error": None,
+            "issues": {},
+            "repairs": {},
+        }
+        try:
+            results = self.run_all_checks()
+            issues = {
+                "missing_source_files": results.get("job_active_no_file", 0),
+                "generated_image_missing": results.get("derivative_ready_no_file", 0),
+                "metadata_mismatch": results.get("asset_done_but_no_metadata", 0),
+                "orphaned_work_item": results.get("job_active_no_asset", 0),
+                "generated_image_job_mismatch": results.get("derivative_done_not_ready", 0),
+            }
+            repaired = results.get("job_done_asset_not_done", 0) + results.get("derivative_done_not_ready", 0)
+            requeued = results.get("derivative_ready_no_file", 0)
+            failed = results.get("job_active_no_asset", 0) + results.get("job_active_no_file", 0)
+            total_issues = sum(issues.values())
+            unchanged = total_issues - results.get("derivative_done_not_ready", 0) - requeued - failed
+            repairs = {
+                "repaired": repaired,
+                "requeued": requeued,
+                "failed": failed,
+                "unchanged": unchanged,
+            }
+            summary["finished_at"] = time.time()
+            summary["issues"] = issues
+            summary["repairs"] = repairs
+        except Exception as exc:
+            summary["finished_at"] = time.time()
+            summary["status"] = "error"
+            summary["error"] = str(exc)
+            summary["issues"] = {
+                "missing_source_files": 0,
+                "generated_image_missing": 0,
+                "metadata_mismatch": 0,
+                "orphaned_work_item": 0,
+                "generated_image_job_mismatch": 0,
+            }
+            summary["repairs"] = {"repaired": 0, "requeued": 0, "failed": 0, "unchanged": 0}
+        finally:
+            with _DB_LOCK, _connect() as conn:
+                insert_run(conn, summary)
+            self.is_running = False
+        return summary
 
     def run_all_checks(self) -> dict[str, int]:
         """Run all six checks and return a dict mapping check name to issue count."""
