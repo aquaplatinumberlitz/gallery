@@ -68,6 +68,7 @@ const galleryStore = useGalleryStore();
 const isMetadataRoute = computed(() => route.path === "/metadata");
 const isLibrariesRoute = computed(() => route.path.startsWith("/admin/libraries"));
 const isMaintenanceRoute = computed(() => route.path.startsWith("/admin/maintenance"));
+const isAdminRoute = computed(() => isLibrariesRoute.value || isMaintenanceRoute.value);
 
 const isAdvancedSearchOpen = ref(false);
 const advancedSearchInitialFilters = ref<FieldFilter[]>([]);
@@ -209,7 +210,7 @@ function handleClearAll() {
       </Tooltip>
     </div>
     <div
-      v-if="!isMetadataRoute && !isLibrariesRoute"
+      v-if="!isMetadataRoute && !isAdminRoute"
       class="brand-hero flex items-center justify-center gap-3 text-center"
     >
       <div class="brand-icon flicker-effect">
@@ -286,7 +287,7 @@ function handleClearAll() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <div v-if="!isMetadataRoute && !isLibrariesRoute" class="header-search-area">
+      <div v-if="!isMetadataRoute && !isAdminRoute" class="header-search-area">
         <div class="search-box">
           <Tooltip>
             <TooltipTrigger as-child>

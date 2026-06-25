@@ -95,4 +95,51 @@ describe("useGeneratedImagesMutations", () => {
     expect(toast.success).toHaveBeenCalledWith("Generated images queued");
     wrapper.unmount();
   });
+
+  it("warmMutation calls generateMissingImages with library id (library-scoped)", async () => {
+    const { mutations, wrapper } = setup(42);
+
+    await mutations.warmMutation.mutateAsync();
+
+    expect(generateMissingImages).toHaveBeenCalledWith(42);
+    wrapper.unmount();
+  });
+
+  it("rebuildMutation calls global refresh action (no library scoping)", async () => {
+    const { mutations, wrapper } = setup(1);
+
+    await mutations.rebuildMutation.mutateAsync();
+
+    expect(refreshStaleGeneratedImages).toHaveBeenCalled();
+    expect(refreshStaleGeneratedImages).not.toHaveBeenCalledWith(expect.any(Number));
+    wrapper.unmount();
+  });
+
+  it("clearMutation calls global clear action (no library scoping)", async () => {
+    const { mutations, wrapper } = setup(1);
+
+    await mutations.clearMutation.mutateAsync();
+
+    expect(clearGeneratedImages).toHaveBeenCalled();
+    expect(clearGeneratedImages).not.toHaveBeenCalledWith(expect.any(Number));
+    wrapper.unmount();
+  });
+
+  it("rebuildMutation shows stale count in toast", async () => {
+    const { mutations, wrapper } = setup(1);
+
+    await mutations.rebuildMutation.mutateAsync();
+
+    expect(toast.success).toHaveBeenCalledWith("Refresh queued for 3 stale items");
+    wrapper.unmount();
+  });
+
+  it("clearMutation toast says source images not affected", async () => {
+    const { mutations, wrapper } = setup(1);
+
+    await mutations.clearMutation.mutateAsync();
+
+    expect(toast.success).toHaveBeenCalledWith("Generated files cleared. Source images are not affected.");
+    wrapper.unmount();
+  });
 });

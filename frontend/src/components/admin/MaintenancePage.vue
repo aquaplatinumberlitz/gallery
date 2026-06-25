@@ -1,16 +1,23 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { useQuery, useQueryClient } from "@tanstack/vue-query";
-import { FileWarning, ScanLine, Wrench, RefreshCw, Bug } from "lucide-vue-next";
+import { FileWarning, ScanLine, Wrench, RefreshCw, Trash2, Bug } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import Skeleton from "@/components/ui/skeleton/Skeleton.vue";
 import Separator from "@/components/ui/Separator.vue";
 import { useToast } from "@/composables/useToast";
 import { queryKeys } from "@/query/keys";
-import { fetchJobs } from "@/services/api";
+import { fetchJobs, clearGeneratedImages, refreshStaleGeneratedImages } from "@/services/api";
+import GeneratedImagesClearDialog from "./dialogs/GeneratedImagesClearDialog.vue";
+import GeneratedImagesRebuildDialog from "./dialogs/GeneratedImagesRebuildDialog.vue";
 
 const queryClient = useQueryClient();
 const toast = useToast();
+const rebuildOpen = ref(false);
+const clearGeneratedOpen = ref(false);
+
+const rebuildPending = ref(false);
+const clearPending = ref(false);
 const checkRunning = ref(false);
 
 const jobsQuery = useQuery({
@@ -18,15 +25,75 @@ const jobsQuery = useQuery({
   queryFn: fetchJobs,
 });
 
-async function runChecks() {
+const generatedStatusesQuery = useQuery({
+  queryKey: ["generated-images", "global-summary"],
+  queryFn: async () => {
+    const libraries = await (await fetch("/api/libraries")).json();
+    const statuses = await Promise.all(
+      (libraries as Array<{ id: number }>).map((lib) =>
+        fetch(`/api/derivatives/status?library_id=${lib.id}`).then((r) => r.json()),
+      ),
+    );
+    return statuses as Array<{
+      library_id: number;
+      total_assets: number;
+      ready_derivatives: number;
+      expected_derivatives: number;
+    }>;
+  },
+  enabled: false,
+});
+
+const totalReady = computed(() =>
+  generatedStatusesQuery.data.value?.reduce((s, r) => s + r.ready_derivatives, 0) ?? null,
+);
+const totalExpected = computed(() =>
+  generatedStatusesQuery.data.value?.reduce((s, r) => s + r.expected_derivatives, 0) ?? null,
+);
+
+async function confirmRebuild() {
+  rebuildOpen.value = false;
+  rebuildPending.value = true;
+  try {
+    const result = await refreshStaleGeneratedImages();
+    toast.success(`Refresh queued for ${result.stale_derivatives} stale items across all libraries`);
+    await invalidateDerivativeQueries();
+  } catch {
+    toast.error("Could not refresh generated images");
+  } finally {
+    rebuildPending.value = false;
+  }
+}
+
+async function confirmClearGenerated() {
+  clearGeneratedOpen.value = false;
+  clearPending.value = true;
+  try {
+    await clearGeneratedImages();
+    toast.success("Generated files cleared across all libraries. Source images are not affected.");
+    await invalidateDerivativeQueries();
+  } catch {
+    toast.error("Could not clear generated images");
+  } finally {
+    clearPending.value = false;
+  }
+}
+
+async function invalidateDerivativeQueries() {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.jobsRoot() }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.statusRoot() }),
+    queryClient.invalidateQueries({ queryKey: ["generated-images"] }),
+  ]);
+}
+
+async function refreshStatuses() {
   checkRunning.value = true;
   try {
-    await queryClient.invalidateQueries({ queryKey: queryKeys.jobsRoot() });
-    await queryClient.invalidateQueries({ queryKey: queryKeys.statusRoot() });
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    toast.success("File checks completed");
+    await invalidateDerivativeQueries();
+    toast.success("Status refreshed");
   } catch {
-    toast.error("File check failed");
+    toast.error("Could not refresh status");
   } finally {
     checkRunning.value = false;
   }
@@ -81,7 +148,7 @@ async function runChecks() {
               <span>\u2014</span>
             </div>
           </div>
-          <p class="mt-4 text-sm text-muted-foreground">No report history available. Run checks to scan for issues.</p>
+          <p class="mt-4 text-sm text-muted-foreground">No report history available — backend health report API not available yet.</p>
         </section>
 
         <section class="rounded-md border bg-background p-5">
@@ -92,40 +159,45 @@ async function runChecks() {
           <p class="mt-4 text-sm text-muted-foreground">
             Verify cross-table consistency and storage integrity across all registered libraries.
           </p>
-          <div class="mt-4">
-            <Button variant="outline" :disabled="checkRunning" @click="runChecks">
+          <div class="mt-4 flex flex-wrap gap-2">
+            <Button variant="outline" :disabled="true" title="Backend check API not available">
+              <Bug /> Run checks
+            </Button>
+            <Button variant="outline" :disabled="checkRunning" @click="refreshStatuses">
               <RefreshCw v-if="checkRunning" class="animate-spin" />
-              <Bug v-else />
-              {{ checkRunning ? "Checking\u2026" : "Run checks" }}
+              <RefreshCw v-else />
+              {{ checkRunning ? "Refreshing\u2026" : "Refresh status" }}
             </Button>
           </div>
+          <p class="mt-2 text-xs text-muted-foreground">Automated file checks require a backend health API endpoint.</p>
         </section>
       </div>
 
       <section class="rounded-md border bg-background p-5">
         <div class="flex items-center gap-3">
           <Wrench class="size-5 text-muted-foreground" />
-          <h3 class="font-semibold">Repair results</h3>
+          <h3 class="font-semibold">Generated files (all libraries)</h3>
         </div>
-        <div class="mt-4 grid gap-4 text-sm sm:grid-cols-4">
-          <div>
-            <p class="text-xs text-muted-foreground">Repaired</p>
-            <p class="text-xl font-semibold">\u2014</p>
-          </div>
-          <div>
-            <p class="text-xs text-muted-foreground">Requeued</p>
-            <p class="text-xl font-semibold">\u2014</p>
-          </div>
-          <div>
-            <p class="text-xs text-muted-foreground">Marked failed</p>
-            <p class="text-xl font-semibold">\u2014</p>
-          </div>
-          <div>
-            <p class="text-xs text-muted-foreground">Skipped</p>
-            <p class="text-xl font-semibold">\u2014</p>
-          </div>
+        <div class="mt-4">
+          <dl class="grid gap-3 text-sm sm:grid-cols-2">
+            <div class="flex items-center justify-between gap-3">
+              <dt class="text-muted-foreground">Ready</dt>
+              <dd class="font-medium">{{ totalReady != null ? totalReady : "\u2014" }}</dd>
+            </div>
+            <div class="flex items-center justify-between gap-3">
+              <dt class="text-muted-foreground">Expected</dt>
+              <dd class="font-medium">{{ totalExpected != null ? totalExpected : "\u2014" }}</dd>
+            </div>
+          </dl>
         </div>
-        <p class="mt-4 text-sm text-muted-foreground">No repair history available.</p>
+        <div class="mt-4 flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" :disabled="rebuildPending" @click="rebuildOpen = true">
+            <RefreshCw /> Refresh stale (all libraries)
+          </Button>
+          <Button variant="destructive" size="sm" :disabled="clearPending" @click="clearGeneratedOpen = true">
+            <Trash2 /> Clear generated files (all libraries)
+          </Button>
+        </div>
       </section>
 
       <section class="rounded-md border bg-background p-5">
@@ -158,5 +230,16 @@ async function runChecks() {
         <p v-else class="mt-4 text-sm text-muted-foreground">No active jobs.</p>
       </section>
     </div>
+
+    <GeneratedImagesRebuildDialog
+      v-model:open="rebuildOpen"
+      :pending="rebuildPending"
+      @confirm="confirmRebuild"
+    />
+    <GeneratedImagesClearDialog
+      v-model:open="clearGeneratedOpen"
+      :pending="clearPending"
+      @confirm="confirmClearGenerated"
+    />
   </main>
 </template>

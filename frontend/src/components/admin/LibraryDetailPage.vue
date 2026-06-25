@@ -26,8 +26,6 @@ import LibraryProgressBar from "./LibraryProgressBar.vue";
 import LibraryStatusBadge from "./LibraryStatusBadge.vue";
 import LibraryEditDialog from "./dialogs/LibraryEditDialog.vue";
 import LibraryDeleteConfirmDialog from "./dialogs/LibraryDeleteConfirmDialog.vue";
-import GeneratedImagesClearDialog from "./dialogs/GeneratedImagesClearDialog.vue";
-import GeneratedImagesRebuildDialog from "./dialogs/GeneratedImagesRebuildDialog.vue";
 
 const props = defineProps<{ id: number }>();
 const router = useRouter();
@@ -42,12 +40,10 @@ const librariesQuery = useLibrariesQuery();
 const { scanMutation, unregisterMutation } = useLibraryMutations();
 useLibraryEvents();
 const generatedImagesQuery = useGeneratedImagesStatusQuery(libraryId);
-const generatedImagesMutations = useGeneratedImagesMutations(libraryId);
+const { warmMutation } = useGeneratedImagesMutations(libraryId);
 
 const editOpen = ref(false);
 const deleteOpen = ref(false);
-const rebuildOpen = ref(false);
-const clearGeneratedOpen = ref(false);
 const library = computed(() => libraryQuery.data.value ?? null);
 const status = computed<UnifiedStatus | null>(() => statusQuery.data.value?.status ?? null);
 const busy = computed(() => scanMutation.isPending.value);
@@ -87,6 +83,12 @@ const scanProgressLabel = computed(() => {
 const runtime = computed(() => statusQuery.data.value?.global_runtime ?? null);
 const lifecycle = computed(() => statusQuery.data.value?.metadata_lifecycle ?? null);
 const advancedOpen = ref(false);
+
+const needsRefreshCount = computed(() => {
+  const lc = lifecycle.value;
+  if (!lc) return 0;
+  return (lc.stale_metadata_jobs ?? 0) + (lc.assets_done_but_metadata_missing_or_stale ?? 0);
+});
 
 const watcherLabel = computed(() => {
   const r = runtime.value;
@@ -145,16 +147,6 @@ function jobProgress(current: number, total: number | null): string {
 
 function estimatedAssets(): number | undefined {
   return status.value?.metadata.total_assets ?? library.value?.asset_count;
-}
-
-function confirmRebuild() {
-  rebuildOpen.value = false;
-  generatedImagesMutations.rebuildMutation.mutate();
-}
-
-function confirmClearGenerated() {
-  clearGeneratedOpen.value = false;
-  generatedImagesMutations.clearMutation.mutate();
 }
 </script>
 
@@ -349,14 +341,8 @@ function confirmClearGenerated() {
               </dl>
               <Separator />
               <div class="flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" :disabled="generatedImagesMutations.warmMutation.isPending.value" @click="generatedImagesMutations.warmMutation.mutate()">
+                <Button variant="outline" size="sm" :disabled="warmMutation.isPending.value" @click="warmMutation.mutate()">
                   <ImageIcon /> Generate missing
-                </Button>
-                <Button variant="outline" size="sm" :disabled="generatedImagesMutations.rebuildMutation.isPending.value" @click="rebuildOpen = true">
-                  <RefreshCw /> Refresh stale
-                </Button>
-                <Button variant="destructive" size="sm" :disabled="generatedImagesMutations.clearMutation.isPending.value" @click="clearGeneratedOpen = true">
-                  <Trash2 /> Clear generated files
                 </Button>
               </div>
             </div>
@@ -411,8 +397,8 @@ function confirmClearGenerated() {
                 </div>
                 <div class="flex items-center justify-between gap-3">
                   <dt class="text-muted-foreground">Needs refresh</dt>
-                  <dd class="font-medium" :class="lifecycle.assets_done_but_metadata_missing_or_stale > 0 ? 'text-amber-600' : ''">
-                    {{ lifecycle.assets_done_but_metadata_missing_or_stale }}
+                <dd class="font-medium" :class="needsRefreshCount > 0 ? 'text-amber-600' : ''">
+                  {{ needsRefreshCount }}
                   </dd>
                 </div>
                 <div class="flex items-center justify-between gap-3">
@@ -572,16 +558,6 @@ function confirmClearGenerated() {
       :estimated-assets="estimatedAssets()"
       :pending="unregisterMutation.isPending.value"
       @confirm="confirmUnregister"
-    />
-    <GeneratedImagesRebuildDialog
-      v-model:open="rebuildOpen"
-      :pending="generatedImagesMutations.rebuildMutation.isPending.value"
-      @confirm="confirmRebuild"
-    />
-    <GeneratedImagesClearDialog
-      v-model:open="clearGeneratedOpen"
-      :pending="generatedImagesMutations.clearMutation.isPending.value"
-      @confirm="confirmClearGenerated"
     />
   </main>
 </template>
