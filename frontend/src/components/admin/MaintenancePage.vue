@@ -131,13 +131,13 @@ async function confirmRebuild() {
             <Button
               variant="outline"
               :disabled="fileHealthMutation.isPending.value"
-              @click="fileHealthMutation.mutateAsync()"
+              @click="fileHealthMutation.mutateAsync(undefined, { onError: (e) => console.error('File health check failed:', e) })"
             >
               <Loader2 v-if="fileHealthMutation.isPending.value" class="animate-spin" />
               <Bug v-else /> Run checks
             </Button>
           </div>
-          <p class="mt-2 text-xs text-muted-foreground">Automated file checks require a backend health API endpoint.</p>
+          <p class="mt-2 text-xs text-muted-foreground">Checks verify cross-table consistency and storage integrity.</p>
         </section>
       </div>
 
