@@ -32,7 +32,7 @@ its acceptance criteria and listed verification commands pass.
 | Phase | Status | Notes |
 | --- | --- | --- |
 | Phase 1 — Baseline, flake fix, and audit wiring | Complete | Schema init deterministic, regression test added, audit reads Vitest coverage. |
-| Phase 2 — Backend coverage >90% | Complete | 91.1% total, all modules >=80%. Tests added for library_events, watcher, folder_index, indexer, thumbnails. Gate raised to --cov-fail-under=90. |
+| Phase 2 — Backend coverage >90% | Complete | 91.1% total, all modules >=80%. Tests added for library_events, watcher, folder_index, indexer. Gate raised to --cov-fail-under=90. thumbnails.py (82%) already above 80%, tested by prior coverage file. |
 | Phase 3 — Frontend Vitest coverage >90% | Pending | Not started. |
 | Phase 4 — CI/local threshold enforcement | Pending | Not started. |
 | Phase 5 — Docs, reports, and optional Playwright coverage | Pending | Not started. |
