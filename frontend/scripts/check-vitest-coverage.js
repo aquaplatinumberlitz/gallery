@@ -10,10 +10,10 @@ const summaryPath = resolve(__dirname, "../coverage/vitest/coverage-summary.json
 // Phase 3 target thresholds (not yet reachable — see plan status note).
 // Updated from current baseline as coverage improves.
 const thresholds = {
-  lines: 19,
-  statements: 18,
-  functions: 14,
-  branches: 14,
+  lines: 21,
+  statements: 20,
+  functions: 15,
+  branches: 15,
 };
 
 let summary;

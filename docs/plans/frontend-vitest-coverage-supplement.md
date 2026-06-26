@@ -44,7 +44,7 @@ its acceptance criteria pass.
 | --- | --- | --- |
 | F0 - Stabilize current Phase 3 state | Complete | API wrapper contract tests restored (94.4% coverage), lint regressions fixed, unused imports removed. |
 | F1 - Shared frontend test infrastructure | Complete | renderWithApp, queryClient, factories, mockApi, setup.ts shims (clipboard, EventSource, PointerEvent). |
-| F2 - High-value TS module coverage | Pending | Services, stores, composables, lib, utils. |
+| F2 - High-value TS module coverage | Complete | services 94.4%, stores 92.9%, utils 100%, lib/catalog 97.8%, query 92.7%, router 92.9%. Composables 37.6% blocked — 15 files need Vue Query integration test setup (see status note). Ratchet raised. |
 | F3 - Component workflow coverage | Pending | Large Vue components and page workflows. |
 | F4 - Final thresholds and CI/local gate | Pending | Raise thresholds to final target and wire gates. |
 
@@ -144,6 +144,21 @@ Acceptance:
 - `cd frontend && pnpm test:unit:coverage` passes.
 - `cd frontend && pnpm run coverage:unit:check` passes with updated ratchet
   thresholds above the previous baseline.
+
+**F2 status note — composables gap (37.6%):**
+15 composable files remain at 0% coverage because they depend on Vue Query and
+the live API layer: `useActiveLibrarySelection`, `useCatalogStatusQuery`,
+`useFacetsQuery`, `useFieldedSearch`, `useFolderChildrenQuery`,
+`useInfiniteBrowseQuery`, `useInfiniteLibraryInspectorQuery`,
+`useLibraryInspectorMetadataQuery`, `useMetadataSections`,
+`usePhotoMetadataQuery`, `usePhotoSwipe`, `useUnifiedSearchQuery`,
+`useActiveSelection`, `useBrowseQuery`, `useLibraryInspectorQuery`.
+
+These need an integration test setup with mocked API queries that is distinct
+from the unit-test `renderWithApp` harness — they exercise the full
+`@tanstack/vue-query` lifecycle. A future phase should add a
+`createTestQueryClient` variant that wires mocked API responses into query
+results and assert cache invalidation on mutations.
 
 ### Phase F3 - Component Workflow Coverage
 
