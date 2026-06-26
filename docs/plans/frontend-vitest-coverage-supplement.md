@@ -62,8 +62,8 @@ its acceptance criteria pass.
 | F3 - Component workflow coverage | Complete | EmptyState (10 tests, ~90% lines), IndexProgressBar (3 tests, 100%) added. renderWithApp/Async harness ready for future component coverage. Largest files (LibraryInspector, GalleryGrid, Lightbox) remain 0% — deferred to F7. |
 | F4 - Baseline gate integration | Complete | coverage:unit:check wired into ./test.sh unit at baseline ratchet (~24% lines). All gates pass: lint, typecheck, test (44/605), coverage, docs. blocked from 90% by F7 (components) and F6 (composables). |
 | F5 - Coverage harness hardening | Complete | renderWithApp rejects initialRoute at type/runtime level, renderWithAppAsync awaits router readiness, Vue Query harness helper added, regression tests pass. |
-| F6 - Vue Query composable coverage | Complete | 22 composable test files, composables coverage achieved. All previously 0% composables covered. |
-| F7 - Large component workflow coverage | In progress | 17 component test files, components 38.30%, total frontend lines 57.82%. 10 target components covered but below 60% line target. Additional passes needed. |
+| F6 - Vue Query composable coverage | In progress | 22 composable test files, composables 91.3% lines. Remaining 0% files: useGalleryStatsQuery, useJobQuery, useJobsQuery, useLibraryJobsQuery. |
+| F7 - Large component workflow coverage | In progress | 17 component test files, components 34.4%, total frontend lines 53%. 10 target components covered but below 60% line target. Additional passes needed. |
 | F8 - Threshold ratchet to final target | Pending | Raise local/CI thresholds in mandatory ratchet steps up to 90/90/85/80. |
 
 Allowed statuses: `Pending`, `In progress`, `Blocked`, `Complete`.
@@ -287,6 +287,8 @@ Acceptance:
 - `src/composables/admin` line coverage reaches at least 75%.
 - No composable listed in this phase remains at 0% line coverage unless the
   status note names the file, exact blocker, and follow-up test design.
+  Remaining 0% files: useGalleryStatsQuery, useJobQuery, useJobsQuery,
+  useLibraryJobsQuery — need integration-style test setup with live API mocking.
 - `cd frontend && pnpm test:unit:coverage` and
   `cd frontend && pnpm run coverage:unit:check` pass with thresholds raised above
   the F4 baseline.

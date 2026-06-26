@@ -8,6 +8,7 @@ const originalLocalStorage = window.localStorage;
 
 describe("useGalleryTheme", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
     // jsdom doesn't implement matchMedia; the setup file provides a stub but
     // we want predictable prefers-reduced-motion behavior here.
     window.matchMedia = vi.fn().mockImplementation((query: string) => ({
@@ -30,6 +31,8 @@ describe("useGalleryTheme", () => {
       configurable: true,
       value: originalLocalStorage,
     });
+    vi.advanceTimersByTime(200);
+    vi.useRealTimers();
   });
 
   it("defaults to 'system' mode and a resolved theme driven by vueuse", async () => {
@@ -144,18 +147,13 @@ describe("useGalleryTheme", () => {
   });
 
   it("falls back to the theme-transitioning class when startViewTransition is unavailable", async () => {
-    vi.useFakeTimers();
     // jsdom does not provide startViewTransition; the applyWithTransition helper
-    // should synchronously add the .theme-transitioning class. The class is
-    // removed via setTimeout(200ms) — exercising the removal requires fake
-    // timers and risks interfering with vueuse's internal scheduling, so we
-    // only assert the synchronous add here.
+    // should synchronously add the .theme-transitioning class. afterEach drains
+    // the setTimeout(200ms) so it never fires after jsdom cleanup.
     const { result } = withSetup(() => useGalleryTheme());
     result.setTheme("dark");
     await nextTick();
     expect(document.documentElement.classList.contains("theme-transitioning")).toBe(true);
     expect(window.localStorage.getItem("gallery-theme")).toBe("dark");
-    vi.advanceTimersByTime(200);
-    vi.useRealTimers();
   });
 });
