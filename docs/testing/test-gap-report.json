@@ -43,7 +43,7 @@
   },
   "counts": {
     "backend_test_files": 48,
-    "backend_tests": 816,
+    "backend_tests": 817,
     "catalog_entries": 117,
     "frontend_test_files": 24,
     "frontend_tests": 159,
@@ -79,9 +79,9 @@
       "percent_statements_covered": 87.87878787878788,
       "percent_statements_covered_display": "88"
     },
-    "frontend_summary_found": false
+    "frontend_summary_found": true
   },
-  "generated_at": "2026-06-26T04:00:43+00:00",
+  "generated_at": "2026-06-26T04:53:56+00:00",
   "matrix": [
     {
       "backend": "OK",

@@ -335,3 +335,30 @@ def test_inspector_not_truncated_clears_cursor(isolated_app: TestClient, monkeyp
     assert data["truncated"] is False
     assert data["next_cursor"] is None
     assert data["has_more"] is False
+
+
+# ---------------------------------------------------------------------------
+# Regression: register_library on a fresh isolated DB + library_import_paths
+# ---------------------------------------------------------------------------
+
+
+def test_register_library_on_fresh_isolated_db(isolated_metadata_db, isolated_gallery_root):
+    """register_library must create a library row and a library_import_paths row
+    on a freshly initialised isolated DB — no prior catalog state required."""
+    from backend.metadata_store import _connect, register_library
+
+    library = register_library(isolated_gallery_root)
+
+    assert "id" in library
+    paths = [ip["path"] for ip in library["import_paths"]]
+    assert paths == [str(isolated_gallery_root.resolve())]
+
+    with _connect() as conn:
+        lib_row = conn.execute("SELECT id, name FROM libraries WHERE id = ?", (library["id"],)).fetchone()
+        assert lib_row is not None, "libraries row must exist"
+
+        import_paths = conn.execute(
+            "SELECT path FROM library_import_paths WHERE library_id = ?", (library["id"],)
+        ).fetchall()
+        assert len(import_paths) >= 1
+        assert import_paths[0]["path"] == str(isolated_gallery_root.resolve())

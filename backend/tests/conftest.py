@@ -178,6 +178,10 @@ def isolated_metadata_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pat
     monkeypatch.setattr(ms._db, "_DB_INITIALIZED", False)
     monkeypatch.setattr(ms._db, "_DB_INITIALIZED_PATH", None)
 
+    # Initialize the isolated schema deterministically at fixture time so
+    # tests do not depend on order-dependent first-use initialisation.
+    ms.initialize_database()
+
     return db_path
 
 

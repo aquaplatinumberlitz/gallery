@@ -31,7 +31,7 @@ its acceptance criteria and listed verification commands pass.
 
 | Phase | Status | Notes |
 | --- | --- | --- |
-| Phase 1 — Baseline, flake fix, and audit wiring | Pending | Not started. |
+| Phase 1 — Baseline, flake fix, and audit wiring | Complete | Schema init deterministic, regression test added, audit reads Vitest coverage. |
 | Phase 2 — Backend coverage >90% | Pending | Not started. |
 | Phase 3 — Frontend Vitest coverage >90% | Pending | Not started. |
 | Phase 4 — CI/local threshold enforcement | Pending | Not started. |

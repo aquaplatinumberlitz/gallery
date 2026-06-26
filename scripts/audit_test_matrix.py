@@ -356,6 +356,7 @@ def backend_coverage_rows(
 
 def load_frontend_coverage_summary(root: Path) -> dict[str, Any] | None:
     candidates = [
+        root / "frontend/coverage/vitest/coverage-summary.json",
         root / "frontend/coverage/coverage-summary.json",
         root / "frontend/coverage-summary.json",
     ]
