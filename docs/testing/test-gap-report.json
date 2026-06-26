@@ -50,7 +50,7 @@
     "important_files": 124,
     "perf_reports": 0,
     "vitest_test_files": 40,
-    "vitest_tests": 485
+    "vitest_tests": 495
   },
   "coverage": {
     "backend_modules_below_threshold": [],
@@ -66,7 +66,7 @@
     },
     "frontend_summary_found": true
   },
-  "generated_at": "2026-06-26T06:41:23+00:00",
+  "generated_at": "2026-06-26T07:19:33+00:00",
   "matrix": [
     {
       "backend": "OK",
