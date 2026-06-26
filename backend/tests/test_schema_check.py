@@ -103,6 +103,8 @@ def test_missing_column_reported() -> None:
             offline INTEGER NOT NULL DEFAULT 0
         )
     """)
+    cols = [row[1] for row in conn.execute("PRAGMA table_info(assets)").fetchall()]
+    assert "indexed_at" not in cols
     issues = check_catalog_schema(conn)
     assert "Table 'assets' missing column: indexed_at" in issues
 

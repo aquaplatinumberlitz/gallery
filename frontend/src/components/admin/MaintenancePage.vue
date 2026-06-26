@@ -131,7 +131,7 @@ async function confirmRebuild() {
             <Button
               variant="outline"
               :disabled="fileHealthMutation.isPending.value"
-              @click="fileHealthMutation.mutateAsync(undefined, { onError: (e) => console.error('File health check failed:', e) })"
+              @click="fileHealthMutation.mutateAsync()"
             >
               <Loader2 v-if="fileHealthMutation.isPending.value" class="animate-spin" />
               <Bug v-else /> Run checks
