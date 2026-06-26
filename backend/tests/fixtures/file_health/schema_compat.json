@@ -1,0 +1,23 @@
+{
+  "run": {
+    "id": 3,
+    "trigger": "daemon",
+    "started_at": 0.0,
+    "finished_at": 0.001,
+    "status": "ok",
+    "error": null,
+    "issues": {
+      "missing_source_files": 0,
+      "generated_image_missing": 0,
+      "metadata_mismatch": 0,
+      "orphaned_work_item": 0,
+      "generated_image_job_mismatch": 0
+    },
+    "repairs": {
+      "repaired": 0,
+      "requeued": 0,
+      "failed": 0,
+      "unchanged": 0
+    }
+  }
+}

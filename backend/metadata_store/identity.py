@@ -69,6 +69,37 @@ def asset_matches_metadata_job_sql(*, asset_alias: str = "a", job_alias: str = "
     )
 
 
+def image_metadata_params_match_sql() -> str:
+    """Return SQL for 3-branch identity match with ``?`` placeholders.
+    
+    The returned fragment compares ``image_metadata`` columns (``mtime_ns``,
+    ``mtime``) against bound ``?`` parameters.  Callers embed this in
+    ``WHERE`` after ``path=?`` and before ``AND size=?``.
+    
+    Parameter order (6 ``?`` placeholders): ``mtime_ns x5``, ``mtime x1``.
+    """
+    return (
+        f"(? IS NOT NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns - ?) < {MTIME_NS_TOLERANCE})"
+        f" OR (? IS NOT NULL AND mtime_ns IS NULL AND ABS(? / {_NANOS_PER_SEC} - mtime) < {MTIME_SEC_TOLERANCE})"
+        f" OR (? IS NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns / {_NANOS_PER_SEC} - ?) < {MTIME_SEC_TOLERANCE})"
+    )
+
+
+def asset_params_match_sql() -> str:
+    """Return SQL for 2-branch identity match with ``?`` placeholders.
+    
+    The returned fragment compares ``assets`` columns (``mtime_ns``) against
+    bound ``?`` parameters.  Assets has no ``mtime`` column, so the seconds
+    bridge only goes one direction.
+    
+    Parameter order (4 ``?`` placeholders): ``mtime_ns x3``, ``mtime x1``.
+    """
+    return (
+        f"(? IS NOT NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns - ?) < {MTIME_NS_TOLERANCE})"
+        f" OR (? IS NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns / {_NANOS_PER_SEC} - ?) < {MTIME_SEC_TOLERANCE})"
+    )
+
+
 def job_matches_image_metadata_sql(*, job_alias: str = "mj", im_alias: str = "im") -> str:
     """Return SQL fragment matching a metadata_index_jobs row to image_metadata.
 

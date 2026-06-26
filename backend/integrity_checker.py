@@ -72,9 +72,9 @@ class IntegrityChecker:
                 "orphaned_work_item": results.get("job_active_no_asset", 0),
                 "generated_image_job_mismatch": results.get("derivative_done_not_ready", 0),
             }
-            repaired = results.get("job_done_asset_not_done", 0) + results.get("derivative_done_not_ready", 0)
+            repaired = results.get("job_done_asset_not_done", 0) + results.get("derivative_done_repaired", 0)
             requeued = results.get("asset_done_but_no_metadata", 0) + results.get("derivative_ready_no_file", 0)
-            failed = results.get("job_active_no_asset", 0) + results.get("job_active_no_file", 0)
+            failed = results.get("job_active_no_asset", 0) + results.get("job_active_no_file", 0) + results.get("derivative_done_failed", 0)
             total_issues = sum(issues.values())
             unchanged = total_issues - repaired - requeued - failed
             if unchanged < 0:
@@ -122,7 +122,10 @@ class IntegrityChecker:
             total["job_done_asset_not_done"] = self._check_job_done_asset_not_done(conn)
             total["job_active_no_asset"] = self._check_job_active_no_asset(conn)
             total["derivative_ready_no_file"] = self._check_derivative_ready_no_file(conn)
-            total["derivative_done_not_ready"] = self._check_derivative_job_done_not_ready(conn)
+            result = self._check_derivative_job_done_not_ready(conn)
+            total["derivative_done_not_ready"] = result["repaired"] + result["failed"]
+            total["derivative_done_repaired"] = result["repaired"]
+            total["derivative_done_failed"] = result["failed"]
             total["job_active_no_file"] = self._check_job_active_no_file(conn)
         return total
 
@@ -254,7 +257,7 @@ class IntegrityChecker:
                 requeued += 1
         return requeued
 
-    def _check_derivative_job_done_not_ready(self, conn) -> int:
+    def _check_derivative_job_done_not_ready(self, conn) -> dict[str, int]:
         rows = conn.execute("""
             SELECT ad.id, ad.cache_path, dj.id AS job_id
             FROM derivative_jobs dj
@@ -264,6 +267,7 @@ class IntegrityChecker:
         """).fetchall()
         now = time.time()
         repaired = 0
+        failed = 0
         for row in rows:
             if row["cache_path"] is not None and Path(row["cache_path"]).is_file():
                 conn.execute(
@@ -276,8 +280,8 @@ class IntegrityChecker:
                     "UPDATE derivative_jobs SET state = 'failed', error = ?, updated_at = ? WHERE id = ? AND state = 'done'",
                     ("integrity: cache file missing", now, row["job_id"]),
                 )
-                repaired += 1
-        return repaired
+                failed += 1
+        return {"repaired": repaired, "failed": failed}
 
     def _check_job_active_no_file(self, conn) -> int:
         rows = conn.execute("""

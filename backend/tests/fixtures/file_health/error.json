@@ -1,0 +1,23 @@
+{
+  "run": {
+    "id": 2,
+    "trigger": "manual",
+    "started_at": 1730000000.0,
+    "finished_at": 1730000005.0,
+    "status": "error",
+    "error": "boom",
+    "issues": {
+      "missing_source_files": 0,
+      "generated_image_missing": 0,
+      "metadata_mismatch": 0,
+      "orphaned_work_item": 0,
+      "generated_image_job_mismatch": 0
+    },
+    "repairs": {
+      "repaired": 0,
+      "requeued": 0,
+      "failed": 0,
+      "unchanged": 0
+    }
+  }
+}

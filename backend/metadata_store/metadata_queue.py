@@ -11,7 +11,10 @@ from typing import Any
 
 from ..files import is_image_path, is_index_excluded_path
 from ._db import _DB_LOCK, MAX_METADATA_JOB_ATTEMPTS, METADATA_JOB_STATES, _connect
-from .identity import MTIME_NS_TOLERANCE, MTIME_SEC_TOLERANCE
+from .identity import (
+    asset_params_match_sql,
+    image_metadata_params_match_sql,
+)
 from .types import MetadataIndexJob, MetadataQueueResult
 
 
@@ -44,11 +47,7 @@ def _image_metadata_exists_for_job(
         f"""
         SELECT 1 FROM image_metadata
         WHERE path = ?
-          AND (
-            (? IS NOT NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns - ?) < {MTIME_NS_TOLERANCE})
-            OR (? IS NOT NULL AND mtime_ns IS NULL AND ABS(? / 1000000000.0 - mtime) < {MTIME_SEC_TOLERANCE})
-            OR (? IS NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns / 1000000000.0 - ?) < {MTIME_SEC_TOLERANCE})
-          )
+          AND ({image_metadata_params_match_sql()})
           AND size = ?
         """,
         (path, mtime_ns, mtime_ns, mtime_ns, mtime_ns, mtime_ns, mtime, size),
@@ -67,13 +66,10 @@ def _current_metadata_is_complete(
         f"""
         SELECT metadata_json FROM image_metadata
         WHERE path = ?
-          AND (
-            (? IS NOT NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns - ?) < {MTIME_NS_TOLERANCE} AND size = ?)
-            OR (? IS NOT NULL AND mtime_ns IS NULL AND ABS(? / 1000000000.0 - mtime) < {MTIME_SEC_TOLERANCE} AND size = ?)
-            OR (? IS NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns / 1000000000.0 - ?) < {MTIME_SEC_TOLERANCE} AND size = ?)
-          )
+          AND ({image_metadata_params_match_sql()})
+          AND size = ?
         """,
-        (path, mtime_ns, mtime_ns, size, mtime_ns, mtime_ns, size, mtime_ns, mtime, size),
+        (path, mtime_ns, mtime_ns, mtime_ns, mtime_ns, mtime_ns, mtime, size),
     ).fetchone()
     if row is None:
         return False
@@ -168,10 +164,7 @@ def _update_asset_done(conn: sqlite3.Connection, job: MetadataIndexJob, now: flo
         UPDATE assets
         SET metadata_state='done'
         WHERE path=?
-          AND (
-            (? IS NOT NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns - ?) < {MTIME_NS_TOLERANCE})
-            OR (? IS NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns / 1000000000.0 - ?) < {MTIME_SEC_TOLERANCE})
-          )
+          AND ({asset_params_match_sql()})
           AND size=?
         """,
         (job.path, job.mtime_ns, job.mtime_ns, job.mtime_ns, job.mtime, job.size),
@@ -593,10 +586,7 @@ def complete_metadata_job(
         f"""
         SELECT 1 FROM assets
         WHERE path=?
-          AND (
-            (? IS NOT NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns - ?) < {MTIME_NS_TOLERANCE})
-            OR (? IS NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns / 1000000000.0 - ?) < {MTIME_SEC_TOLERANCE})
-          )
+          AND ({asset_params_match_sql()})
           AND size=?
         """,
         (job.path, job.mtime_ns, job.mtime_ns, job.mtime_ns, job.mtime, job.size),
@@ -613,11 +603,7 @@ def complete_metadata_job(
                 UPDATE metadata_index_jobs
                 SET state='skipped', error=NULL, finished_at=?, updated_at=?
                 WHERE path=?
-                  AND (
-                    (? IS NOT NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns - ?) < {MTIME_NS_TOLERANCE})
-                    OR (? IS NOT NULL AND mtime_ns IS NULL AND ABS(? / 1000000000.0 - mtime) < {MTIME_SEC_TOLERANCE})
-                    OR (? IS NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns / 1000000000.0 - ?) < {MTIME_SEC_TOLERANCE})
-                  )
+                  AND ({image_metadata_params_match_sql()})
                   AND size=?
                 """,
                 (
@@ -645,11 +631,7 @@ def complete_metadata_job(
             finished_at=?,
             updated_at=?
         WHERE path=?
-          AND (
-            (? IS NOT NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns - ?) < {MTIME_NS_TOLERANCE})
-            OR (? IS NOT NULL AND mtime_ns IS NULL AND ABS(? / 1000000000.0 - mtime) < {MTIME_SEC_TOLERANCE})
-            OR (? IS NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns / 1000000000.0 - ?) < {MTIME_SEC_TOLERANCE})
-          )
+          AND ({image_metadata_params_match_sql()})
           AND size=?
         """,
         (now, now, job.path, job.mtime_ns, job.mtime_ns, job.mtime_ns, job.mtime_ns, job.mtime_ns, job.mtime, job.size),

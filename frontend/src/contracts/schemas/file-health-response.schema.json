@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "file-health-response.schema.json",
+  "title": "FileHealthResponse",
+  "description": "Response envelope for the maintenance file-health API",
+  "type": "object",
+  "required": ["run"],
+  "properties": {
+    "run": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "#/$defs/FileHealthRun" }
+      ]
+    }
+  },
+  "$defs": {
+    "FileHealthRun": {
+      "type": "object",
+      "required": [
+        "id", "trigger", "started_at", "finished_at",
+        "status", "error", "issues", "repairs"
+      ],
+      "properties": {
+        "id": { "type": "integer" },
+        "trigger": { "type": "string", "enum": ["manual", "daemon"] },
+        "started_at": { "type": "number" },
+        "finished_at": { "type": ["number", "null"] },
+        "status": { "type": "string", "enum": ["ok", "error"] },
+        "error": { "type": ["string", "null"] },
+        "issues": { "$ref": "#/$defs/FileHealthIssues" },
+        "repairs": { "$ref": "#/$defs/FileHealthRepairs" }
+      }
+    },
+    "FileHealthIssues": {
+      "type": "object",
+      "required": [
+        "missing_source_files",
+        "generated_image_missing",
+        "metadata_mismatch",
+        "orphaned_work_item",
+        "generated_image_job_mismatch"
+      ],
+      "properties": {
+        "missing_source_files": { "type": "integer", "minimum": 0 },
+        "generated_image_missing": { "type": "integer", "minimum": 0 },
+        "metadata_mismatch": { "type": "integer", "minimum": 0 },
+        "orphaned_work_item": { "type": "integer", "minimum": 0 },
+        "generated_image_job_mismatch": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "FileHealthRepairs": {
+      "type": "object",
+      "required": ["repaired", "requeued", "failed", "unchanged"],
+      "properties": {
+        "repaired": { "type": "integer", "minimum": 0 },
+        "requeued": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "unchanged": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    }
+  }
+}

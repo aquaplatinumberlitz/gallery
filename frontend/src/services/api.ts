@@ -25,6 +25,21 @@ import type {
   UnifiedSearchResponse,
 } from "../types";
 
+export interface FileHealthIssues {
+  missing_source_files: number;
+  generated_image_missing: number;
+  metadata_mismatch: number;
+  orphaned_work_item: number;
+  generated_image_job_mismatch: number;
+}
+
+export interface FileHealthRepairs {
+  repaired: number;
+  requeued: number;
+  failed: number;
+  unchanged: number;
+}
+
 export interface FileHealthRun {
   id: number;
   trigger: string;
@@ -32,8 +47,8 @@ export interface FileHealthRun {
   finished_at: number | null;
   status: string;
   error: string | null;
-  issues: Record<string, number>;
-  repairs: Record<string, number>;
+  issues: FileHealthIssues;
+  repairs: FileHealthRepairs;
 }
 
 export interface FileHealthResponse {

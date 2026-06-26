@@ -379,8 +379,8 @@ class TestDerivativeJobDoneNotReady:
                 (ad_id, now, now),
             )
         with _DB_LOCK, _connect() as conn:
-            count = _checker._check_derivative_job_done_not_ready(conn)
-        assert count == 1
+            result = _checker._check_derivative_job_done_not_ready(conn)
+        assert result == {"repaired": 1, "failed": 0}
         with _DB_LOCK, _connect() as conn:
             row = conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (ad_id,)).fetchone()
             assert row["status"] == "ready"
@@ -409,8 +409,8 @@ class TestDerivativeJobDoneNotReady:
                 (ad_id, now, now),
             )
         with _DB_LOCK, _connect() as conn:
-            count = _checker._check_derivative_job_done_not_ready(conn)
-        assert count == 1
+            result = _checker._check_derivative_job_done_not_ready(conn)
+        assert result == {"repaired": 0, "failed": 1}
         with _DB_LOCK, _connect() as conn:
             row = conn.execute("SELECT state, error FROM derivative_jobs WHERE derivative_id = ?", (ad_id,)).fetchone()
             assert row["state"] == "failed"

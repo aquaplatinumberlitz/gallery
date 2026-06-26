@@ -103,7 +103,7 @@ class TestPostFileHealthCheck:
             resp = isolated_app.post("/api/maintenance/file-health/check")
             assert resp.status_code == 409
             data = resp.json()
-            assert "already running" in data["detail"]
+            assert data == {"run": None, "error": "check already running"}
         finally:
             integrity_checker.is_running = False
 
