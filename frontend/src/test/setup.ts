@@ -24,6 +24,8 @@ type WriteableWindow = Window & {
   ResizeObserver?: typeof ResizeObserver;
   IntersectionObserver?: typeof IntersectionObserver;
   MutationObserver?: typeof MutationObserver;
+  EventSource?: typeof EventSource;
+  PointerEvent?: typeof PointerEvent;
 };
 
 const ResizeObserverShim = class {

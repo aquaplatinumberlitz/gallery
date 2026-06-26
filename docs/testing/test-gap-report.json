@@ -2,12 +2,7 @@
   "catalog_alignment": {
     "cataloged_uncollected_tests": [],
     "missing_catalog_files": [],
-    "uncataloged_files": [
-      "frontend/src/test/factories.ts",
-      "frontend/src/test/mockApi.ts",
-      "frontend/src/test/queryClient.ts",
-      "frontend/src/test/renderWithApp.ts"
-    ]
+    "uncataloged_files": []
   },
   "commands": {
     "backend": {
@@ -49,7 +44,7 @@
   "counts": {
     "backend_test_files": 51,
     "backend_tests": 862,
-    "catalog_entries": 125,
+    "catalog_entries": 129,
     "frontend_test_files": 24,
     "frontend_tests": 159,
     "important_files": 131,
@@ -71,7 +66,7 @@
     },
     "frontend_summary_found": true
   },
-  "generated_at": "2026-06-26T07:56:07+00:00",
+  "generated_at": "2026-06-26T08:31:13+00:00",
   "matrix": [
     {
       "backend": "OK",

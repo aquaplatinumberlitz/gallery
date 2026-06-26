@@ -7,7 +7,8 @@
  *
  * Guarantees:
  * * Pinia is installed and active (createPinia)
- * * Vue Router is installed with a stub history
+ * * Vue Router is installed with createMemoryHistory (no URL side effects)
+ * * A fresh router is created per call (no cross-test state leak)
  * * Vue Query is installed with an isolated QueryClient (retry: false)
  * * Reka UI / Tooltip providers are included when needed
  * * Common component stubs (transition, teleport, keep-alive) are provided
@@ -18,7 +19,7 @@
 
 import { mount, type MountingOptions } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
-import { createRouter, createWebHistory, type Router } from "vue-router";
+import { createRouter, createMemoryHistory } from "vue-router";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { defineComponent, h, type Component, type DefineComponent } from "vue";
 import { createIsolatedQueryClient } from "./queryClient";
@@ -32,15 +33,18 @@ export interface RenderWithAppOptions {
   props?: Record<string, unknown>;
 }
 
-let _router: Router | null = null;
+let routeCounter = 0;
 
-function createTestRouter(): Router {
-  if (_router) return _router;
-  _router = createRouter({
-    history: createWebHistory(),
+function createTestRouter(initialRoute?: string) {
+  routeCounter += 1;
+  const router = createRouter({
+    history: createMemoryHistory(`/test-base-${routeCounter}/`),
     routes: [{ path: "/:pathMatch(.*)*", component: { template: "<div />" } }],
   });
-  return _router;
+  if (initialRoute) {
+    router.push(initialRoute);
+  }
+  return router;
 }
 
 /**
@@ -58,7 +62,7 @@ export function renderWithApp(
 ) {
   setActivePinia(createPinia());
 
-  const router = createTestRouter();
+  const router = createTestRouter(options.initialRoute);
   const queryClient = createIsolatedQueryClient();
 
   const App = defineComponent({

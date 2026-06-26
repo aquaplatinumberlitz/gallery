@@ -24,9 +24,8 @@ import type {
   LibraryJob,
   LibraryStats,
   RegisteredLibrary,
-  UnifiedStatus,
 } from "../types";
-import type { StatusResponseEnvelope } from "../lib/catalog/status";
+import type { StatusResponseEnvelope, UnifiedStatus } from "../lib/catalog/status";
 
 export function makeLibrary(overrides: Partial<RegisteredLibrary> = {}): RegisteredLibrary {
   const id = overrides.id ?? 1;
@@ -177,9 +176,8 @@ export function makeInspectorResponse(overrides: Partial<LibraryInspectorRespons
 
 export function makeFacetsResponse(overrides: Partial<FacetsResponse> = {}): FacetsResponse {
   return {
-    facets: {},
     ...overrides,
-  } as FacetsResponse;
+  };
 }
 
 export function makeLibraryStats(overrides: Partial<LibraryStats> = {}): LibraryStats {
