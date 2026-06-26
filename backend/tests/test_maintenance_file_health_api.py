@@ -55,8 +55,8 @@ def _make_dummy_run(trigger: str = "manual", now: float | None = None) -> dict:
         "finished_at": now - 5,
         "status": "ok",
         "error": None,
-        "issues": {k: 0 for k in FILE_HEALTH_ISSUES},
-        "repairs": {k: 0 for k in FILE_HEALTH_REPAIRS},
+        "issues": dict.fromkeys(FILE_HEALTH_ISSUES, 0),
+        "repairs": dict.fromkeys(FILE_HEALTH_REPAIRS, 0),
     }
 
 
@@ -130,5 +130,5 @@ class TestPostFileHealthCheck:
         data = resp.json()
         assert data["run"]["status"] == "error"
         assert "simulated crash" in data["run"]["error"]
-        assert data["run"]["issues"] == {k: 0 for k in FILE_HEALTH_ISSUES}
-        assert data["run"]["repairs"] == {k: 0 for k in FILE_HEALTH_REPAIRS}
+        assert data["run"]["issues"] == dict.fromkeys(FILE_HEALTH_ISSUES, 0)
+        assert data["run"]["repairs"] == dict.fromkeys(FILE_HEALTH_REPAIRS, 0)

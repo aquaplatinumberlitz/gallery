@@ -113,13 +113,13 @@ from .identity import (
     asset_matches_metadata_job_sql as asset_matches_metadata_job_sql,
 )
 from .identity import (
-    job_matches_image_metadata_sql as job_matches_image_metadata_sql,
+    asset_params_match_sql as asset_params_match_sql,
 )
 from .identity import (
     image_metadata_params_match_sql as image_metadata_params_match_sql,
 )
 from .identity import (
-    asset_params_match_sql as asset_params_match_sql,
+    job_matches_image_metadata_sql as job_matches_image_metadata_sql,
 )
 from .inspector_store import (
     _encode_inspector_cursor as _encode_inspector_cursor,

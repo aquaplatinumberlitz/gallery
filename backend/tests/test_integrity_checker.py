@@ -554,11 +554,11 @@ class TestRunAndPersist:
         assert result is None
 
     def test_get_latest_run_returns_most_recent(self):
-        from backend.metadata_store.maintenance_store import insert_run, get_latest_run
+        from backend.metadata_store.maintenance_store import get_latest_run, insert_run
 
         now = time.time()
         with _DB_LOCK, _connect() as conn:
-            id1 = insert_run(
+            insert_run(
                 conn,
                 {
                     "trigger": "manual",

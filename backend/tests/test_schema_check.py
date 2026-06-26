@@ -17,8 +17,8 @@ from __future__ import annotations
 
 import sqlite3
 
-from backend.metadata_store._schema import initialize_database
 from backend.metadata_store._db import _connect
+from backend.metadata_store._schema import initialize_database
 from backend.metadata_store.schema_check import check_catalog_schema
 
 

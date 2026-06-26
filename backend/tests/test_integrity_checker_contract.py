@@ -191,12 +191,14 @@ class TestCheckAssetDoneNoMetadata:
             count = integrity_checker._check_asset_done_no_metadata(conn)
         assert count == 1
         with _DB_LOCK, _connect() as conn:
-            assert conn.execute(
-                "SELECT metadata_state FROM assets WHERE path = ?", (good,)
-            ).fetchone()["metadata_state"] == "done"
-            assert conn.execute(
-                "SELECT metadata_state FROM assets WHERE path = ?", (bad,)
-            ).fetchone()["metadata_state"] == "pending"
+            assert (
+                conn.execute("SELECT metadata_state FROM assets WHERE path = ?", (good,)).fetchone()["metadata_state"]
+                == "done"
+            )
+            assert (
+                conn.execute("SELECT metadata_state FROM assets WHERE path = ?", (bad,)).fetchone()["metadata_state"]
+                == "pending"
+            )
 
 
 # ===================================================================
@@ -240,12 +242,14 @@ class TestCheckJobDoneAssetNotDone:
             count = integrity_checker._check_job_done_asset_not_done(conn)
         assert count == 1
         with _DB_LOCK, _connect() as conn:
-            assert conn.execute(
-                "SELECT metadata_state FROM assets WHERE path = ?", (good,)
-            ).fetchone()["metadata_state"] == "done"
-            assert conn.execute(
-                "SELECT metadata_state FROM assets WHERE path = ?", (bad,)
-            ).fetchone()["metadata_state"] == "pending"
+            assert (
+                conn.execute("SELECT metadata_state FROM assets WHERE path = ?", (good,)).fetchone()["metadata_state"]
+                == "done"
+            )
+            assert (
+                conn.execute("SELECT metadata_state FROM assets WHERE path = ?", (bad,)).fetchone()["metadata_state"]
+                == "pending"
+            )
 
 
 # ===================================================================
@@ -283,12 +287,14 @@ class TestCheckJobActiveNoAsset:
             count = integrity_checker._check_job_active_no_asset(conn)
         assert count == 1
         with _DB_LOCK, _connect() as conn:
-            assert conn.execute(
-                "SELECT state FROM metadata_index_jobs WHERE path = ?", (good,)
-            ).fetchone()["state"] == "queued"
-            assert conn.execute(
-                "SELECT state FROM metadata_index_jobs WHERE path = ?", (bad,)
-            ).fetchone()["state"] == "failed"
+            assert (
+                conn.execute("SELECT state FROM metadata_index_jobs WHERE path = ?", (good,)).fetchone()["state"]
+                == "queued"
+            )
+            assert (
+                conn.execute("SELECT state FROM metadata_index_jobs WHERE path = ?", (bad,)).fetchone()["state"]
+                == "failed"
+            )
 
 
 # ===================================================================
@@ -331,12 +337,14 @@ class TestCheckDerivativeReadyNoFile:
             count = integrity_checker._check_derivative_ready_no_file(conn)
         assert count == 1
         with _DB_LOCK, _connect() as conn:
-            assert conn.execute(
-                "SELECT status FROM asset_derivatives WHERE id = ?", (good_id,)
-            ).fetchone()["status"] == "ready"
-            assert conn.execute(
-                "SELECT status FROM asset_derivatives WHERE id = ?", (bad_id,)
-            ).fetchone()["status"] == "queued"
+            assert (
+                conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (good_id,)).fetchone()["status"]
+                == "ready"
+            )
+            assert (
+                conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (bad_id,)).fetchone()["status"]
+                == "queued"
+            )
 
 
 # ===================================================================
@@ -381,12 +389,14 @@ class TestCheckDerivativeJobDoneNotReady:
             result = integrity_checker._check_derivative_job_done_not_ready(conn)
         assert result == {"repaired": 1, "failed": 0}
         with _DB_LOCK, _connect() as conn:
-            assert conn.execute(
-                "SELECT status FROM asset_derivatives WHERE id = ?", (ad_id,)
-            ).fetchone()["status"] == "ready"
-            assert conn.execute(
-                "SELECT status FROM asset_derivatives WHERE id = ?", (ad_id2,)
-            ).fetchone()["status"] == "ready"
+            assert (
+                conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (ad_id,)).fetchone()["status"]
+                == "ready"
+            )
+            assert (
+                conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (ad_id2,)).fetchone()["status"]
+                == "ready"
+            )
 
 
 # ===================================================================
@@ -425,12 +435,16 @@ class TestCheckJobActiveNoFile:
             count = integrity_checker._check_job_active_no_file(conn)
         assert count == 1
         with _DB_LOCK, _connect() as conn:
-            assert conn.execute(
-                "SELECT state FROM metadata_index_jobs WHERE path = ?", (str(existing),)
-            ).fetchone()["state"] == "queued"
-            assert conn.execute(
-                "SELECT state FROM metadata_index_jobs WHERE path = ?", (missing,)
-            ).fetchone()["state"] == "failed"
+            assert (
+                conn.execute("SELECT state FROM metadata_index_jobs WHERE path = ?", (str(existing),)).fetchone()[
+                    "state"
+                ]
+                == "queued"
+            )
+            assert (
+                conn.execute("SELECT state FROM metadata_index_jobs WHERE path = ?", (missing,)).fetchone()["state"]
+                == "failed"
+            )
 
 
 # ===================================================================
@@ -465,7 +479,16 @@ class TestRunAllChecks:
 class TestRunAndPersist:
     def test_returns_full_summary_and_persists_run(self) -> None:
         summary = integrity_checker.run_and_persist(trigger="manual")
-        assert set(summary.keys()) == {"id", "trigger", "started_at", "finished_at", "status", "error", "issues", "repairs"}
+        assert set(summary.keys()) == {
+            "id",
+            "trigger",
+            "started_at",
+            "finished_at",
+            "status",
+            "error",
+            "issues",
+            "repairs",
+        }
         assert summary["trigger"] == "manual"
         assert summary["status"] == "ok"
         assert summary["error"] is None

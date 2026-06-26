@@ -39,7 +39,14 @@ from backend.metadata_parse import (
     _parse_metadata_uncached,
     parse_metadata,
 )
+from backend.metadata_store import initialize_database
 from tests.conftest import create_test_png
+
+
+@pytest.fixture(autouse=True)
+def _init_db(isolated_metadata_db: Path) -> None:
+    initialize_database()
+
 
 # ---------------------------------------------------------------------------
 # _estimate_dict_size fallbacks (lines 26-27)

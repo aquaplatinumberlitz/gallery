@@ -12,6 +12,8 @@ router = APIRouter(prefix="/api/maintenance", tags=["maintenance"])
 
 
 class FileHealthIssues(BaseModel):
+    """File-health issue counters for a maintenance run."""
+
     model_config = ConfigDict(extra="forbid")
     missing_source_files: int
     generated_image_missing: int
@@ -21,6 +23,8 @@ class FileHealthIssues(BaseModel):
 
 
 class FileHealthRepairs(BaseModel):
+    """File-health repair counters for a maintenance run."""
+
     model_config = ConfigDict(extra="forbid")
     repaired: int
     requeued: int
@@ -29,6 +33,8 @@ class FileHealthRepairs(BaseModel):
 
 
 class FileHealthRun(BaseModel):
+    """A single file-health check run."""
+
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
     id: int
     trigger: str
@@ -41,40 +47,48 @@ class FileHealthRun(BaseModel):
 
 
 class FileHealthResponse(BaseModel):
+    """Response envelope for file-health endpoints."""
+
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
     run: FileHealthRun | None
 
 
 @router.get("/file-health")
 async def get_file_health():
+    """Return the latest file-health check run, or null if never run."""
     with _DB_LOCK, _connect() as conn:
         run = get_latest_run(conn)
     if run is None:
         return FileHealthResponse(run=None)
-    return FileHealthResponse(run=FileHealthRun(
-        id=run["id"],
-        trigger=run["trigger"],
-        started_at=run["started_at"],
-        finished_at=run["finished_at"],
-        status=run["status"],
-        error=run["error"],
-        issues=FileHealthIssues(**run["issues"]),
-        repairs=FileHealthRepairs(**run["repairs"]),
-    ))
+    return FileHealthResponse(
+        run=FileHealthRun(
+            id=run["id"],
+            trigger=run["trigger"],
+            started_at=run["started_at"],
+            finished_at=run["finished_at"],
+            status=run["status"],
+            error=run["error"],
+            issues=FileHealthIssues(**run["issues"]),
+            repairs=FileHealthRepairs(**run["repairs"]),
+        )
+    )
 
 
 @router.post("/file-health/check")
 async def post_file_health_check():
+    """Trigger a new file-health check run."""
     if integrity_checker.is_running:
         return JSONResponse(status_code=409, content={"run": None, "error": "check already running"})
     summary = integrity_checker.run_and_persist(trigger="manual")
-    return FileHealthResponse(run=FileHealthRun(
-        id=summary["id"],
-        trigger=summary["trigger"],
-        started_at=summary["started_at"],
-        finished_at=summary["finished_at"],
-        status=summary["status"],
-        error=summary["error"],
-        issues=FileHealthIssues(**summary["issues"]),
-        repairs=FileHealthRepairs(**summary["repairs"]),
-    ))
+    return FileHealthResponse(
+        run=FileHealthRun(
+            id=summary["id"],
+            trigger=summary["trigger"],
+            started_at=summary["started_at"],
+            finished_at=summary["finished_at"],
+            status=summary["status"],
+            error=summary["error"],
+            issues=FileHealthIssues(**summary["issues"]),
+            repairs=FileHealthRepairs(**summary["repairs"]),
+        )
+    )

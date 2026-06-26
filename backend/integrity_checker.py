@@ -74,7 +74,11 @@ class IntegrityChecker:
             }
             repaired = results.get("job_done_asset_not_done", 0) + results.get("derivative_done_repaired", 0)
             requeued = results.get("asset_done_but_no_metadata", 0) + results.get("derivative_ready_no_file", 0)
-            failed = results.get("job_active_no_asset", 0) + results.get("job_active_no_file", 0) + results.get("derivative_done_failed", 0)
+            failed = (
+                results.get("job_active_no_asset", 0)
+                + results.get("job_active_no_file", 0)
+                + results.get("derivative_done_failed", 0)
+            )
             total_issues = sum(issues.values())
             unchanged = total_issues - repaired - requeued - failed
             if unchanged < 0:
