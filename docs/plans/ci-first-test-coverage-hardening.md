@@ -24,6 +24,120 @@ Current audit baseline:
   `test_search_filters_stale_rows_and_triggers_cleanup`, while the test passed
   alone and a later full backend run passed.
 
+## Progress Status
+
+Update this table as implementation lands. Do not mark a phase complete until
+its acceptance criteria and listed verification commands pass.
+
+| Phase | Status | Notes |
+| --- | --- | --- |
+| Phase 1 — Baseline, flake fix, and audit wiring | Pending | Not started. |
+| Phase 2 — Backend coverage >90% | Pending | Not started. |
+| Phase 3 — Frontend Vitest coverage >90% | Pending | Not started. |
+| Phase 4 — CI/local threshold enforcement | Pending | Not started. |
+| Phase 5 — Docs, reports, and optional Playwright coverage | Pending | Not started. |
+
+Allowed statuses: `Pending`, `In progress`, `Blocked`, `Complete`.
+
+## Implementation Phases
+
+### Phase 1 — Baseline, flake fix, and audit wiring
+
+Tasks:
+
+- Reproduce or guard against the observed order-dependent failure in
+  `test_search_filters_stale_rows_and_triggers_cleanup`.
+- Make `isolated_metadata_db` initialize the isolated schema deterministically
+  before public metadata-store helpers run.
+- Add regression coverage proving `register_library` works on a fresh isolated
+  DB and `library_import_paths` exists.
+- Fix `scripts/audit_test_matrix.py` so it reads
+  `frontend/coverage/vitest/coverage-summary.json`.
+
+Acceptance:
+
+- Targeted stale-row search test passes alone.
+- Full backend pytest passes twice consecutively without schema-order failures.
+- After `pnpm test:unit:coverage`, `python scripts/audit_test_matrix.py` reports
+  the Vitest coverage artifact instead of `frontend coverage artifact: missing`.
+
+### Phase 2 — Backend coverage >90%
+
+Tasks:
+
+- Add behavior-focused backend tests for the current weak modules:
+  `library_events.py`, `watcher.py`, `indexer.py`,
+  `metadata_store/folder_index.py`, and `thumbnails.py`.
+- Raise the backend coverage gate to `--cov-fail-under=90` only after tests meet
+  the target.
+- Update test catalog entries for any new important backend test files.
+
+Acceptance:
+
+- Backend pytest line coverage is >90%.
+- No production backend module remains below 80% unless a status note explains
+  why useful coverage could not be added in this phase.
+- `./test.sh unit` passes through the backend coverage step.
+
+### Phase 3 — Frontend Vitest coverage >90%
+
+Tasks:
+
+- Add meaningful unit/component tests for high-value frontend code:
+  composables, stores, services/API wrappers, lib/utils, contract guards, and
+  critical user-facing Vue components.
+- Add `coverage:unit:check` to enforce Vitest V8 coverage thresholds.
+- Avoid coverage gaming: no empty tests, assertion-free mount tests, broad
+  production exclusions, or line-execution-only tests.
+- Update test catalog entries for any new important frontend test files.
+
+Acceptance:
+
+- Frontend Vitest coverage reaches at least:
+  - lines >= 90%;
+  - statements >= 90%;
+  - functions >= 85%;
+  - branches >= 80%.
+- `cd frontend && pnpm test:unit:coverage` passes.
+- `cd frontend && pnpm run coverage:unit:check` passes.
+- If the target cannot be reached with quality tests, a status note lists each
+  remaining low-coverage file, why a useful test was not written, and the next
+  concrete follow-up.
+
+### Phase 4 — CI/local threshold enforcement
+
+Tasks:
+
+- Wire backend and frontend coverage thresholds into both CI and local
+  `./test.sh unit`.
+- Ensure `.github/workflows/ci.yml` delegates to `./test.sh` wherever practical
+  so CI/local commands do not drift.
+- Keep `./test.sh full` as the local CI-equivalent rollup.
+
+Acceptance:
+
+- `./test.sh unit` enforces backend pytest >90% and frontend Vitest thresholds.
+- CI `test-unit` enforces the same thresholds via the same command path.
+- `./test.sh lint`, `./test.sh docs`, and `./test.sh unit` pass locally.
+
+### Phase 5 — Docs, reports, and optional Playwright coverage
+
+Tasks:
+
+- Update `docs/testing/README.md` and `docs/testing/TESTING_STRATEGY.md` with
+  enforced backend/frontend coverage expectations.
+- Regenerate `docs/testing/test-gap-report.md` and `.json`.
+- Add optional Playwright coverage workflow only as supplementary signal:
+  `workflow_dispatch` plus scheduled run, deterministic fixture, and uploaded
+  nyc/html/lcov artifacts.
+
+Acceptance:
+
+- `./test.sh docs` passes.
+- Docs distinguish backend pytest coverage, frontend Vitest coverage, and
+  optional Playwright browser coverage.
+- Optional Playwright coverage is not used to satisfy the Vitest >90% gate.
+
 ## Key Changes
 
 ### 1. CI-first command contract
