@@ -88,3 +88,20 @@ describe("formatPercent", () => {
     expect(formatPercent(0)).toBe("0.0%");
   });
 });
+
+import { formatFraction } from "../format";
+
+describe("formatFraction", () => {
+  it("formats numerator and denominator", () => {
+    expect(formatFraction(3, 10)).toBe("3 / 10 (30.0%)");
+  });
+  it("handles zero denominator", () => {
+    expect(formatFraction(5, 0)).toBe("5 / 0");
+  });
+  it("handles null numerator", () => {
+    expect(formatFraction(null, 10)).toBe("0 / 10 (0.0%)");
+  });
+  it("handles null denominator", () => {
+    expect(formatFraction(5, null)).toBe("5 / 0");
+  });
+});

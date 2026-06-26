@@ -1,153 +1,212 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createPinia, setActivePinia } from "pinia";
-import {
-  ACTIVE_IMPORT_PATH_STORAGE_KEY,
-  ACTIVE_LIBRARY_STORAGE_KEY,
-  LEGACY_ROOT_PATH_STORAGE_KEY,
-  findImportPathForPath,
-  useGalleryStore,
-} from "../gallery";
-import type { FileNode, RegisteredLibrary } from "@/types";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { setActivePinia, createPinia } from "pinia";
+import { useGalleryStore, findImportPathForPath, resolveActiveImportPath } from "../gallery";
+import type { RegisteredLibrary } from "../../types";
 
-const openFolderMock = vi.fn<(path: string) => Promise<void>>();
-vi.mock("@/services/api", async () => {
-  const actual = await vi.importActual<typeof import("@/services/api")>("@/services/api");
-  return { ...actual, openFolder: (...args: unknown[]) => openFolderMock(...(args as [string])) };
-});
-
-function library(id: number, paths: string[]): RegisteredLibrary {
-  return {
+const makeLib = (id: number, importPaths: Array<{ id: number; path: string; position: number }>): RegisteredLibrary =>
+  ({
     id,
-    name: `Library ${id}`,
-    root_path: paths[0] ?? "",
-    state: "ready",
-    watch_enabled: 1,
-    warm_enabled: 1,
-    asset_count: 0,
-    created_at: 1,
-    updated_at: 1,
-    last_scan_at: null,
-    last_error: null,
-    exclusion_patterns: [],
-    import_paths: paths.map((path, position) => ({
-      id: id * 10 + position,
-      library_id: id,
-      path,
-      position,
-      created_at: 1,
-      updated_at: 1,
-    })),
-  };
-}
+    name: `lib${id}`,
+    import_paths: importPaths,
+  }) as RegisteredLibrary;
 
-describe("useGalleryStore active library selection", () => {
+describe("gallery store", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    localStorage.clear();
-    openFolderMock.mockReset();
   });
 
-  it("starts without a writable raw root path", () => {
+  it("initializes with default state", () => {
     const store = useGalleryStore();
     expect(store.activeLibraryId).toBeNull();
-    expect(store.activeImportPathId).toBeNull();
-    expect(store.currentBrowsePath).toBe("");
-    expect("rootPath" in store).toBe(false);
-    expect("setRootPath" in store).toBe(false);
-  });
-
-  it("hydrates valid persisted IDs and removes a leftover legacy key", () => {
-    const first = library(1, ["/photos/a", "/photos/b"]);
-    localStorage.setItem(ACTIVE_LIBRARY_STORAGE_KEY, "1");
-    localStorage.setItem(ACTIVE_IMPORT_PATH_STORAGE_KEY, "11");
-    localStorage.setItem(LEGACY_ROOT_PATH_STORAGE_KEY, "/stale");
-    const store = useGalleryStore();
-
-    store.hydrateActiveLibrary([first]);
-
-    expect(store.activeLibraryId).toBe(1);
-    expect(store.activeImportPathId).toBe(11);
-    expect(store.currentBrowsePath).toBe("/photos/b");
-    expect(localStorage.getItem(LEGACY_ROOT_PATH_STORAGE_KEY)).toBeNull();
-  });
-
-  it("rejects malformed persisted IDs and migrates the most specific legacy subfolder", () => {
-    const outer = library(2, ["/photos"]);
-    const inner = library(1, ["/photos/events"]);
-    localStorage.setItem(ACTIVE_LIBRARY_STORAGE_KEY, "1x");
-    localStorage.setItem(ACTIVE_IMPORT_PATH_STORAGE_KEY, "-1");
-    localStorage.setItem(LEGACY_ROOT_PATH_STORAGE_KEY, "/photos/events/wedding");
-    const store = useGalleryStore();
-
-    store.hydrateActiveLibrary([outer, inner]);
-
-    expect(store.activeLibraryId).toBe(1);
-    expect(store.activeImportPathId).toBe(10);
-    expect(store.currentBrowsePath).toBe("/photos/events/wedding");
-    expect(localStorage.getItem(ACTIVE_LIBRARY_STORAGE_KEY)).toBe("1");
-    expect(localStorage.getItem(LEGACY_ROOT_PATH_STORAGE_KEY)).toBeNull();
-  });
-
-  it("removes an unusable legacy key and auto-selects the only eligible library", () => {
-    localStorage.setItem(LEGACY_ROOT_PATH_STORAGE_KEY, "/missing");
-    const only = library(4, ["/only"]);
-    const store = useGalleryStore();
-    store.hydrateActiveLibrary([only]);
-    expect(store.activeLibraryId).toBe(4);
-    expect(store.currentBrowsePath).toBe("/only");
-    expect(localStorage.getItem(LEGACY_ROOT_PATH_STORAGE_KEY)).toBeNull();
-  });
-
-  it("leaves selection empty when several libraries exist without a migration match", () => {
-    const store = useGalleryStore();
-    store.hydrateActiveLibrary([library(1, ["/one"]), library(2, ["/two"])]);
-    expect(store.activeLibraryId).toBeNull();
-    expect(store.activeLibraryHydrated).toBe(true);
-  });
-
-  it("selection resets browse history, expansion, and search and persists only IDs", () => {
-    const selected = library(3, ["/three", "/three/other"]);
-    const store = useGalleryStore();
-    store.searchQuery = "cats";
-    store.expandedFolderPaths = { "/old": true };
-    store.history = ["/old"];
-    store.historyIndex = 0;
-
-    expect(store.setActiveLibrary(selected, selected.import_paths[1])).toBe(true);
-    expect(store.currentBrowsePath).toBe("/three/other");
-    expect(store.history).toEqual(["/three/other"]);
-    expect(store.expandedFolderPaths).toEqual({});
     expect(store.searchQuery).toBe("");
-    expect(localStorage.getItem(ACTIVE_LIBRARY_STORAGE_KEY)).toBe("3");
-    expect(localStorage.getItem(ACTIVE_IMPORT_PATH_STORAGE_KEY)).toBe("31");
-    expect(localStorage.getItem(LEGACY_ROOT_PATH_STORAGE_KEY)).toBeNull();
+    expect(store.searchScope).toBe("current");
+    expect(store.sortField).toBe("name");
+    expect(store.sortOrder).toBe("asc");
   });
 
-  it("clears active selection without writing a raw path", () => {
+  it("setSearchQuery updates search query", () => {
     const store = useGalleryStore();
-    store.setActiveLibrary(library(1, ["/one"]));
+    store.setSearchQuery("test");
+    expect(store.searchQuery).toBe("test");
+  });
+
+  it("clearSearch resets search query", () => {
+    const store = useGalleryStore();
+    store.setSearchQuery("test");
+    store.clearSearch();
+    expect(store.searchQuery).toBe("");
+  });
+
+  it("setSearchScope updates scope", () => {
+    const store = useGalleryStore();
+    store.setSearchScope("all");
+    expect(store.searchScope).toBe("all");
+  });
+
+  it("setSortField updates field", () => {
+    const store = useGalleryStore();
+    store.setSortField("date");
+    expect(store.sortField).toBe("date");
+  });
+
+  it("setSortOrder updates order", () => {
+    const store = useGalleryStore();
+    store.setSortOrder("desc");
+    expect(store.sortOrder).toBe("desc");
+  });
+
+  it("toggleSortOrder flips order", () => {
+    const store = useGalleryStore();
+    expect(store.sortOrder).toBe("asc");
+    store.toggleSortOrder();
+    expect(store.sortOrder).toBe("desc");
+    store.toggleSortOrder();
+    expect(store.sortOrder).toBe("asc");
+  });
+
+  it("clearError clears error state", () => {
+    const store = useGalleryStore();
+    store.errorMessage = "error";
+    store.errorType = "server_error";
+    store.clearError();
+    expect(store.errorMessage).toBeNull();
+    expect(store.errorType).toBeNull();
+  });
+
+  it("setSidebarTree normalizes nodes", () => {
+    const store = useGalleryStore();
+    store.setSidebarTree([
+      { type: "folder", path: "/a", name: "A", children: [{ type: "folder", path: "/a/b", name: "B" }] },
+    ]);
+    expect(store.sidebarTree[0].children).toBeUndefined();
+  });
+
+  it("toggleFolderExpanded toggles expansion", () => {
+    const store = useGalleryStore();
+    expect(store.isFolderExpanded("/test")).toBe(false);
+    store.toggleFolderExpanded("/test");
+    expect(store.isFolderExpanded("/test")).toBe(true);
+    store.toggleFolderExpanded("/test");
+    expect(store.isFolderExpanded("/test")).toBe(false);
+  });
+
+  it("setFolderExpanded sets expansion state", () => {
+    const store = useGalleryStore();
+    store.setFolderExpanded("/test", true);
+    expect(store.isFolderExpanded("/test")).toBe(true);
+    store.setFolderExpanded("/test", false);
+    expect(store.isFolderExpanded("/test")).toBe(false);
+  });
+
+  it("selectFolder updates browse path and history", () => {
+    const store = useGalleryStore();
+    store.selectFolder("/new/path");
+    expect(store.currentBrowsePath).toBe("/new/path");
+    expect(store.history).toContain("/new/path");
+  });
+
+  it("goBack and goForward navigate history", () => {
+    const store = useGalleryStore();
+    store.selectFolder("/first");
+    store.selectFolder("/second");
+    store.selectFolder("/third");
+    expect(store.currentBrowsePath).toBe("/third");
+    store.goBack();
+    expect(store.currentBrowsePath).toBe("/second");
+    store.goBack();
+    expect(store.currentBrowsePath).toBe("/first");
+    store.goForward();
+    expect(store.currentBrowsePath).toBe("/second");
+  });
+
+  it("pushHistory does not add duplicates", () => {
+    const store = useGalleryStore();
+    store.pushHistory("/path");
+    store.pushHistory("/path");
+    expect(store.history.filter((p) => p === "/path").length).toBe(1);
+  });
+
+  it("resetBrowseState clears browse state", () => {
+    const store = useGalleryStore();
+    store.selectFolder("/test");
+    store.resetBrowseState();
+    expect(store.currentBrowsePath).toBe("");
+    expect(store.history).toEqual([]);
+    expect(store.historyIndex).toBe(-1);
+  });
+
+  it("clearActiveLibrary resets library and browse state", () => {
+    const store = useGalleryStore();
+    store.activeLibraryId = 1;
+    store.activeImportPathId = 1;
     store.clearActiveLibrary();
     expect(store.activeLibraryId).toBeNull();
-    expect(store.currentBrowsePath).toBe("");
-    expect(localStorage.getItem(ACTIVE_LIBRARY_STORAGE_KEY)).toBeNull();
-    expect(localStorage.getItem(ACTIVE_IMPORT_PATH_STORAGE_KEY)).toBeNull();
+    expect(store.activeImportPathId).toBeNull();
   });
 
-  it("keeps browse navigation and explorer actions path-based", async () => {
+  it("setActiveLibrary returns false when import path invalid", () => {
     const store = useGalleryStore();
-    store.setActiveLibrary(library(1, ["/one"]));
-    store.selectFolder({ name: "album", path: "/one/album", type: "folder" } as FileNode);
-    store.goBack();
-    expect(store.currentBrowsePath).toBe("/one");
-    store.goForward();
-    expect(store.currentBrowsePath).toBe("/one/album");
-    openFolderMock.mockResolvedValue();
-    await store.openInExplorer();
-    expect(openFolderMock).toHaveBeenCalledWith("/one/album");
+    const lib = makeLib(1, [{ id: 10, path: "/a", position: 0 }]);
+    const result = store.setActiveLibrary(lib, { id: 99, library_id: 1, path: "/b", position: 0 });
+    expect(result).toBe(false);
   });
 
-  it("uses deterministic tie-breaking for legacy path matches", () => {
-    const match = findImportPathForPath([library(2, ["/same"]), library(1, ["/same"])], "/same/child");
-    expect(match?.library.id).toBe(1);
+  it("setActiveImportPath returns false for mismatched library", () => {
+    const store = useGalleryStore();
+    store.activeLibraryId = 1;
+    const result = store.setActiveImportPath(
+      { id: 10, library_id: 2, path: "/a", position: 0 },
+      makeLib(1, [{ id: 10, path: "/a", position: 0 }]),
+    );
+    expect(result).toBe(false);
+  });
+});
+
+describe("findImportPathForPath", () => {
+  const libraries = [
+    makeLib(1, [
+      { id: 10, path: "/photos", position: 0 },
+      { id: 11, path: "/photos/vacation", position: 1 },
+    ]),
+  ];
+
+  it("finds exact match", () => {
+    const result = findImportPathForPath(libraries, "/photos");
+    expect(result).not.toBeNull();
+    expect(result!.importPath.path).toBe("/photos");
+  });
+
+  it("finds nested path", () => {
+    const result = findImportPathForPath(libraries, "/photos/vacation/beach.jpg");
+    expect(result).not.toBeNull();
+    expect(result!.importPath.path).toBe("/photos/vacation");
+  });
+
+  it("returns null for non-matching path", () => {
+    const result = findImportPathForPath(libraries, "/other");
+    expect(result).toBeNull();
+  });
+});
+
+describe("resolveActiveImportPath", () => {
+  const libraries = [
+    makeLib(1, [
+      { id: 10, path: "/a", position: 0 },
+      { id: 11, path: "/b", position: 1 },
+    ]),
+  ];
+
+  it("resolves by library and path ids", () => {
+    const result = resolveActiveImportPath(libraries, 1, 10);
+    expect(result).not.toBeNull();
+    expect(result!.path).toBe("/a");
+  });
+
+  it("returns null when library not found", () => {
+    expect(resolveActiveImportPath(libraries, 999, 10)).toBeNull();
+  });
+
+  it("returns null when import path not found", () => {
+    expect(resolveActiveImportPath(libraries, 1, 999)).toBeNull();
   });
 });

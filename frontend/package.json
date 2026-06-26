@@ -18,6 +18,7 @@
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
     "test:unit:coverage": "vitest run --coverage",
+    "coverage:unit:check": "node scripts/check-vitest-coverage.js",
     "coverage:report": "nyc report --reporter=text --reporter=html --reporter=lcov",
     "coverage": "VITE_COVERAGE=true playwright test --project=chromium && nyc report --reporter=text --reporter=html --reporter=lcov",
     "perf:album": "playwright test tests/e2e/perf/album-open.perf.spec.ts --project=chromium",
