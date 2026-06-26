@@ -453,3 +453,167 @@ def test_stop_watcher_sets_stop_and_clears_thread(monkeypatch: pytest.MonkeyPatc
     watcher.stop_watcher()
     assert e.is_set()
     assert watcher._watcher_thread is None
+
+
+# ---------------------------------------------------------------------------
+# Additional edge coverage: handle_event exception, stale cleanup, loop body
+# ---------------------------------------------------------------------------
+
+
+def test_stale_cleanup_removes_very_old_entries(monkeypatch: pytest.MonkeyPatch):
+    """Cover the stale-cleanup path (line 116) when entries are not debounce-ready
+    but older than 300 seconds."""
+    monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 1000)
+    handler = watcher._DebouncedHandler(roots=["/test"])
+
+    now = time.time()
+    handler.affected_folders["/test/stale"] = now - 400  # older than 5 min
+    handler._last_cleanup = now - 120  # older than 60s, triggers cleanup
+
+    ready = handler.get_and_clear_debounced()
+    # "/test/stale" should NOT be in ready (timestamp is before cutoff of now-1000)
+    assert "/test/stale" not in ready
+    # But it should have been removed by the stale cleanup
+    assert "/test/stale" not in handler.affected_folders
+
+
+def test_watcher_loop_processes_ready_folders(monkeypatch: pytest.MonkeyPatch):
+    """Cover the main loop body ready-folder processing (lines 160-169)."""
+    import sys
+    from types import ModuleType
+
+    class FakeObserver:
+        def __init__(self):
+            self._started = False
+            self._stopped = False
+        def schedule(self, handler, path, recursive=False):
+            pass
+        def start(self):
+            self._started = True
+        def stop(self):
+            self._stopped = True
+        def join(self):
+            pass
+
+    fake_watchdog = ModuleType("watchdog")
+    fake_events = ModuleType("watchdog.events")
+    fake_observers = ModuleType("watchdog.observers")
+    fake_events.FileSystemEventHandler = type("FileSystemEventHandler", (), {})
+    fake_observers.Observer = FakeObserver
+    fake_watchdog.events = fake_events
+    fake_watchdog.observers = fake_observers
+
+    monkeypatch.setitem(sys.modules, "watchdog", fake_watchdog)
+    monkeypatch.setitem(sys.modules, "watchdog.events", fake_events)
+    monkeypatch.setitem(sys.modules, "watchdog.observers", fake_observers)
+    monkeypatch.setattr(watcher, "_HAS_WATCHDOG", True)
+    monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 0.001)
+    monkeypatch.setattr(watcher, "WATCHER_MAX_EVENTS_PER_TICK", 5)
+    monkeypatch.setattr(watcher, "_registered_watcher_roots", lambda: ["/test"])
+
+    queued = []
+    monkeypatch.setattr(watcher, "queue_watcher_scan", lambda folder: queued.append(folder))
+
+    handler = watcher._DebouncedHandler(roots=["/test"])
+    handler.affected_folders = {"/test/a": time.time() - 10}
+    monkeypatch.setattr(watcher, "_DebouncedHandler", lambda roots: handler)
+    monkeypatch.setattr(watcher, "_watcher_stop", threading.Event())
+
+    def stop():
+        watcher._watcher_stop.set()
+    threading.Timer(0.05, stop).start()
+    watcher._watcher_loop()
+    assert len(queued) >= 1
+
+
+def test_watcher_loop_respects_max_events_per_tick(monkeypatch: pytest.MonkeyPatch):
+    """Cover the max-events-per-tick break (line 163-164)."""
+    import sys
+    from types import ModuleType
+
+    class FakeObserver:
+        def __init__(self):
+            pass
+        def schedule(self, handler, path, recursive=False):
+            pass
+        def start(self):
+            pass
+        def stop(self):
+            pass
+        def join(self):
+            pass
+
+    fake_watchdog = ModuleType("watchdog")
+    fake_events = ModuleType("watchdog.events")
+    fake_observers = ModuleType("watchdog.observers")
+    fake_events.FileSystemEventHandler = type("FileSystemEventHandler", (), {})
+    fake_observers.Observer = FakeObserver
+    fake_watchdog.events = fake_events
+    fake_watchdog.observers = fake_observers
+
+    monkeypatch.setitem(sys.modules, "watchdog", fake_watchdog)
+    monkeypatch.setitem(sys.modules, "watchdog.events", fake_events)
+    monkeypatch.setitem(sys.modules, "watchdog.observers", fake_observers)
+    monkeypatch.setattr(watcher, "_HAS_WATCHDOG", True)
+    monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 0.001)
+    monkeypatch.setattr(watcher, "WATCHER_MAX_EVENTS_PER_TICK", 1)
+    monkeypatch.setattr(watcher, "_registered_watcher_roots", lambda: ["/test"])
+
+    queued = []
+    monkeypatch.setattr(watcher, "queue_watcher_scan", lambda folder: queued.append(folder))
+
+    handler = watcher._DebouncedHandler(roots=["/test"])
+    handler.affected_folders = {"/test/a": time.time() - 10, "/test/b": time.time() - 10}
+    monkeypatch.setattr(watcher, "_DebouncedHandler", lambda roots: handler)
+    monkeypatch.setattr(watcher, "_watcher_stop", threading.Event())
+
+    def stop():
+        watcher._watcher_stop.set()
+    threading.Timer(0.05, stop).start()
+    watcher._watcher_loop()
+    assert len(queued) == 1
+
+
+def test_watcher_loop_logs_and_continues_on_exception(monkeypatch: pytest.MonkeyPatch):
+    """Cover the exception handler in the loop (line 168-169)."""
+    import sys
+    from types import ModuleType
+
+    class FakeObserver:
+        def __init__(self):
+            pass
+        def schedule(self, handler, path, recursive=False):
+            pass
+        def start(self):
+            pass
+        def stop(self):
+            pass
+        def join(self):
+            pass
+
+    fake_watchdog = ModuleType("watchdog")
+    fake_events = ModuleType("watchdog.events")
+    fake_observers = ModuleType("watchdog.observers")
+    fake_events.FileSystemEventHandler = type("FileSystemEventHandler", (), {})
+    fake_observers.Observer = FakeObserver
+    fake_watchdog.events = fake_events
+    fake_watchdog.observers = fake_observers
+
+    monkeypatch.setitem(sys.modules, "watchdog", fake_watchdog)
+    monkeypatch.setitem(sys.modules, "watchdog.events", fake_events)
+    monkeypatch.setitem(sys.modules, "watchdog.observers", fake_observers)
+    monkeypatch.setattr(watcher, "_HAS_WATCHDOG", True)
+    monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 0.001)
+    monkeypatch.setattr(watcher, "WATCHER_MAX_EVENTS_PER_TICK", 5)
+    monkeypatch.setattr(watcher, "_registered_watcher_roots", lambda: ["/test"])
+
+    handler = watcher._DebouncedHandler(roots=["/test"])
+    handler.affected_folders = {"/test/a": time.time() - 10}
+    monkeypatch.setattr(watcher, "_DebouncedHandler", lambda roots: handler)
+    monkeypatch.setattr(watcher, "_watcher_stop", threading.Event())
+    monkeypatch.setattr(watcher, "queue_watcher_scan", lambda folder: (_ for _ in ()).throw(RuntimeError("boom")))
+
+    def stop():
+        watcher._watcher_stop.set()
+    threading.Timer(0.05, stop).start()
+    watcher._watcher_loop()

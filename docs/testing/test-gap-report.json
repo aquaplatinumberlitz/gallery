@@ -2,7 +2,11 @@
   "catalog_alignment": {
     "cataloged_uncollected_tests": [],
     "missing_catalog_files": [],
-    "uncataloged_files": []
+    "uncataloged_files": [
+      "backend/tests/test_folder_index_coverage.py",
+      "backend/tests/test_indexer_coverage.py",
+      "backend/tests/test_library_events_coverage.py"
+    ]
   },
   "commands": {
     "backend": {
@@ -42,46 +46,31 @@
     }
   },
   "counts": {
-    "backend_test_files": 48,
-    "backend_tests": 817,
+    "backend_test_files": 51,
+    "backend_tests": 862,
     "catalog_entries": 117,
     "frontend_test_files": 24,
     "frontend_tests": 159,
-    "important_files": 119,
+    "important_files": 122,
     "perf_reports": 0,
     "vitest_test_files": 38,
     "vitest_tests": 440
   },
   "coverage": {
-    "backend_modules_below_threshold": [
-      {
-        "below_threshold": true,
-        "file": "main.py",
-        "missing_lines": 11,
-        "percent": 15.384615384615385,
-        "statements": 13
-      },
-      {
-        "below_threshold": true,
-        "file": "facets.py",
-        "missing_lines": 71,
-        "percent": 28.282828282828284,
-        "statements": 99
-      }
-    ],
+    "backend_modules_below_threshold": [],
     "backend_totals": {
-      "covered_lines": 3190,
+      "covered_lines": 5726,
       "excluded_lines": 2,
-      "missing_lines": 440,
-      "num_statements": 3630,
-      "percent_covered": 87.87878787878788,
-      "percent_covered_display": "88",
-      "percent_statements_covered": 87.87878787878788,
-      "percent_statements_covered_display": "88"
+      "missing_lines": 561,
+      "num_statements": 6287,
+      "percent_covered": 91.0768251948465,
+      "percent_covered_display": "91",
+      "percent_statements_covered": 91.0768251948465,
+      "percent_statements_covered_display": "91"
     },
     "frontend_summary_found": true
   },
-  "generated_at": "2026-06-26T04:53:56+00:00",
+  "generated_at": "2026-06-26T06:02:38+00:00",
   "matrix": [
     {
       "backend": "OK",

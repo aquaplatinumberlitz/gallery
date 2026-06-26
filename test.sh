@@ -54,7 +54,7 @@ run_unit() {
         --cov=backend \
         --cov-report=term-missing \
         --cov-report=xml \
-        --cov-fail-under=85 \
+        --cov-fail-under=90 \
         "$@"
 
     cd "$REPO_ROOT/frontend"
