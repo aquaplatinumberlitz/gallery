@@ -67,6 +67,12 @@ from backend.metadata_store import (
     upsert_metadata_result,
 )
 
+
+@pytest.fixture(autouse=True)
+def _init_db(isolated_metadata_db: Path) -> None:
+    initialize_database()
+
+
 # ---------------------------------------------------------------------------
 # Folder index state
 # ---------------------------------------------------------------------------

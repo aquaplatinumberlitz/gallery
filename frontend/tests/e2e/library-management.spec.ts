@@ -352,7 +352,7 @@ test("renders empty and recoverable error states", async ({ page }) => {
   await preparePage(page);
   await mockLibraryApi(page, { libraries: [] });
   await page.goto(`${baseUrl}/admin/libraries`);
-  await expect(page.getByText("No libraries registered")).toBeVisible();
+  await expect(page.getByText("No libraries registered").first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Add library" }).last()).toBeVisible();
 
   const errorPage = await page.context().newPage();
