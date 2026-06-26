@@ -7,18 +7,13 @@ import { dirname, resolve } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const summaryPath = resolve(__dirname, "../coverage/vitest/coverage-summary.json");
-// Phase 3 target thresholds (not yet reachable — see plan status note).
-// Updated from current baseline as coverage improves.
+// Final target thresholds.
 const thresholds = {
-  lines: 21,
-  statements: 20,
-  functions: 15,
-  branches: 15,
+  lines: 90,
+  statements: 90,
+  functions: 85,
+  branches: 80,
 };
-
-// TODO: Raise to final targets (90/90/85/80) in a future phase.
-// Current infrastructure supports mount/integration tests via renderWithApp
-// but large Vue components and Vue Query composables remain untested.
 
 let summary;
 try {
@@ -37,7 +32,51 @@ for (const [metric, required] of Object.entries(thresholds)) {
   if (!ok) failed = true;
 }
 
-if (failed) {
+let overallFailed = failed;
+
+// Aggregate per-directory coverage from per-file entries.
+function aggregateArea(prefix) {
+  let totalLines = 0, coveredLines = 0;
+  const search = prefix.includes(":/") ? prefix : prefix;
+  for (const [file, metrics] of Object.entries(summary)) {
+    if (metrics.lines && file.includes(`/${prefix}/`)) {
+      totalLines += metrics.lines.total;
+      coveredLines += metrics.lines.covered;
+    }
+  }
+  if (totalLines === 0) return null;
+  return (coveredLines / totalLines) * 100;
+}
+
+// Per-area soft checks (warn-only — do not block CI).
+const areaThresholds = {
+  "src/services": 90,
+  "src/stores": 90,
+  "src/utils": 90,
+  "src/lib/catalog": 90,
+  "src/query": 90,
+  "src/composables": 80,
+  "src/components": 80,
+};
+
+let anyAreaBelow = false;
+console.log("\nPer-area coverage (soft checks):");
+for (const [area, required] of Object.entries(areaThresholds)) {
+  const pct = aggregateArea(area);
+  if (pct === null) {
+    console.log(`  ${area.padEnd(25)} — no data (area not found in summary)`);
+    continue;
+  }
+  const ok = pct >= required;
+  if (!ok) anyAreaBelow = true;
+  console.log(`  ${area.padEnd(25)} ${ok ? "✓" : "✗"} ${String(pct.toFixed(1)).padStart(5)}% lines (suggested ${required}%)`);
+}
+
+if (anyAreaBelow) {
+  console.warn("\n⚠ Some areas are below suggested thresholds. Consider adding tests.");
+}
+
+if (overallFailed) {
   console.error("\nCoverage thresholds not met.");
   process.exit(1);
 }

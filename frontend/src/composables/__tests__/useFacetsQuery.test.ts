@@ -20,7 +20,10 @@ function setup(path: string | null | undefined, enabled = true) {
   const wrapper = mount(
     defineComponent({
       setup() {
-        result = useFacetsQuery(() => path, () => enabled);
+        result = useFacetsQuery(
+          () => path,
+          () => enabled,
+        );
         return () => h("div");
       },
     }),

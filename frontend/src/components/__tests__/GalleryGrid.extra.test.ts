@@ -51,9 +51,15 @@ vi.mock("@/composables/useDevice", () => ({
 
 vi.mock("@/composables/usePullToRefresh", () => ({
   usePullToRefresh: () => ({
-    pullDistance: { value: 0 }, isRefreshing: { value: false }, showPullIndicator: { value: false },
-    pullProgress: { value: 0 }, pullTransform: { value: "" }, pullOpacity: { value: 1 },
-    onTouchStart: vi.fn(), onTouchMove: vi.fn(), onTouchEnd: vi.fn(),
+    pullDistance: { value: 0 },
+    isRefreshing: { value: false },
+    showPullIndicator: { value: false },
+    pullProgress: { value: 0 },
+    pullTransform: { value: "" },
+    pullOpacity: { value: 1 },
+    onTouchStart: vi.fn(),
+    onTouchMove: vi.fn(),
+    onTouchEnd: vi.fn(),
   }),
 }));
 
@@ -78,7 +84,16 @@ vi.mock("@/stores/gallery", () => {
     errorType: null,
     history: [],
     historyIndex: 0,
-    metadataInspector: { scope: "current", query: "", sort: "date_desc", modelFilter: "all", promptFilter: "all", selectedPath: "", scrollTop: 0, scrollPath: "" },
+    metadataInspector: {
+      scope: "current",
+      query: "",
+      sort: "date_desc",
+      modelFilter: "all",
+      promptFilter: "all",
+      selectedPath: "",
+      scrollTop: 0,
+      scrollPath: "",
+    },
     setSortField: vi.fn(),
     setSortOrder: vi.fn(),
     selectFolder: vi.fn(),
@@ -125,7 +140,9 @@ function createWrapper() {
 }
 
 describe("GalleryGrid extra", () => {
-  beforeEach(() => { setActivePinia(createPinia()); });
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
 
   it("renders main grid container", () => {
     const wrapper = createWrapper();
@@ -139,8 +156,8 @@ describe("GalleryGrid extra", () => {
 
   it("renders back and forward navigation buttons", () => {
     const wrapper = createWrapper();
-    const backBtn = wrapper.findAll("button").find(b => b.attributes("aria-label") === "Go back");
-    const fwdBtn = wrapper.findAll("button").find(b => b.attributes("aria-label") === "Go forward");
+    const backBtn = wrapper.findAll("button").find((b) => b.attributes("aria-label") === "Go back");
+    const fwdBtn = wrapper.findAll("button").find((b) => b.attributes("aria-label") === "Go forward");
     expect(backBtn).toBeDefined();
     expect(fwdBtn).toBeDefined();
   });

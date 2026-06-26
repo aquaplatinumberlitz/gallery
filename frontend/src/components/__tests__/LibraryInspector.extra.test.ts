@@ -6,12 +6,40 @@ import { VueQueryPlugin } from "@tanstack/vue-query";
 import LibraryInspector from "../LibraryInspector.vue";
 
 const mockRows = [
-  { path: "/photos/img1.png", name: "img1.png", type: "image" as const, mtime: 1700000000, width: 1024, height: 768, seed: 12345, model: "SDXL", tool: "ComfyUI", has_prompt: true, has_negative: false, has_lora: false, lora_count: 0, prompt_preview: "a beautiful landscape", relative_path: "/photos", folder: "/photos" },
+  {
+    path: "/photos/img1.png",
+    name: "img1.png",
+    type: "image" as const,
+    mtime: 1700000000,
+    width: 1024,
+    height: 768,
+    seed: 12345,
+    model: "SDXL",
+    tool: "ComfyUI",
+    has_prompt: true,
+    has_negative: false,
+    has_lora: false,
+    lora_count: 0,
+    prompt_preview: "a beautiful landscape",
+    relative_path: "/photos",
+    folder: "/photos",
+  },
 ];
 
 vi.mock("@/composables/useInfiniteLibraryInspectorQuery", () => ({
   useInfiniteLibraryInspectorQuery: () => ({
-    data: { value: { rows: mockRows, returned: 1, total_indexed: 50, total: 1, generated_at: Date.now(), next_cursor: null, has_more: false, root: "/photos" } },
+    data: {
+      value: {
+        rows: mockRows,
+        returned: 1,
+        total_indexed: 50,
+        total: 1,
+        generated_at: Date.now(),
+        next_cursor: null,
+        has_more: false,
+        root: "/photos",
+      },
+    },
     isLoading: { value: false },
     isError: { value: false },
     isPlaceholderData: { value: false },
@@ -77,7 +105,10 @@ function createWrapper() {
         RouterLink: { template: "<a><slot /></a>" },
         Button: { template: "<button @click='$attrs.onClick?.()'><slot /></button>" },
         ButtonLink: { template: "<a :href='to'><slot /></a>" },
-        Input: { template: "<input :value='$attrs.modelValue ?? modelValue' @input='$emit(\"update:modelValue\", $event.target.value)' />" },
+        Input: {
+          template:
+            "<input :value='$attrs.modelValue ?? modelValue' @input='$emit(\"update:modelValue\", $event.target.value)' />",
+        },
         Badge: { template: "<span class='badge'><slot /></span>" },
         Skeleton: { template: "<div class='skeleton' />" },
         Select: { template: "<div class='select-mock'><slot /></div>" },

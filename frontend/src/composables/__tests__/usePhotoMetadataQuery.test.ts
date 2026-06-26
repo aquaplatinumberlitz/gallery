@@ -4,18 +4,22 @@ import { defineComponent, h, ref } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchMetadata } from "@/services/api";
 import { usePhotoMetadataQuery } from "../usePhotoMetadataQuery";
+import type { MetadataResponse } from "@/types";
 
 vi.mock("@/services/api", () => ({
   fetchMetadata: vi.fn(),
 }));
 
-const mockMetadata = {
-  path: "/photos/test.png",
+const makeMockMetadata = (overrides?: Partial<MetadataResponse>): MetadataResponse => ({
+  tool: "sd-webui",
   prompt: "a beautiful landscape",
+  negative_prompt: "",
+  params: { Seed: "12345", Steps: "30", CFG: "7.5", Sampler: "Euler a", Scheduler: "Karras", Model: "sd-xl" },
   width: 1024,
   height: 768,
-  model: "sd-xl",
-};
+  name: "/photos/test.png",
+  ...overrides,
+});
 
 function setup(isOpen: boolean, path: string) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
@@ -36,13 +40,13 @@ function setup(isOpen: boolean, path: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(fetchMetadata).mockResolvedValue(mockMetadata);
+  vi.mocked(fetchMetadata).mockResolvedValue(makeMockMetadata());
 });
 
 describe("usePhotoMetadataQuery", () => {
   it("fetches metadata when open and path is provided", async () => {
     const { result } = setup(true, "/photos/test.png");
-    await vi.waitFor(() => expect(result.data.value).toEqual(mockMetadata));
+    await vi.waitFor(() => expect(result.data.value).toEqual(makeMockMetadata()));
     expect(fetchMetadata).toHaveBeenCalledWith("/photos/test.png");
   });
 
@@ -76,10 +80,10 @@ describe("usePhotoMetadataQuery", () => {
 
   it("refetches when path changes and isOpen stays true", async () => {
     const { result, pathRef } = setup(true, "/photos/test.png");
-    await vi.waitFor(() => expect(result.data.value).toEqual(mockMetadata));
+    await vi.waitFor(() => expect(result.data.value).toEqual(makeMockMetadata()));
     expect(fetchMetadata).toHaveBeenCalledWith("/photos/test.png");
 
-    vi.mocked(fetchMetadata).mockResolvedValue({ ...mockMetadata, path: "/photos/other.png" });
+    vi.mocked(fetchMetadata).mockResolvedValue(makeMockMetadata({ name: "/photos/other.png" }));
     pathRef.value = "/photos/other.png";
     await vi.waitFor(() => expect(fetchMetadata).toHaveBeenCalledWith("/photos/other.png"));
   });

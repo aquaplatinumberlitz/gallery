@@ -32,7 +32,10 @@ function createWrapper(props: Record<string, unknown> = {}) {
       stubs: {
         Teleport: { template: "<div><slot /></div>" },
         Button: { template: "<button :disabled='disabled' @click='$attrs.onClick?.()'><slot /></button>" },
-        Input: { template: "<input :value='$attrs.modelValue ?? modelValue' @input='$emit(\"update:modelValue\", $event.target.value)' />" },
+        Input: {
+          template:
+            "<input :value='$attrs.modelValue ?? modelValue' @input='$emit(\"update:modelValue\", $event.target.value)' />",
+        },
       },
     },
   });

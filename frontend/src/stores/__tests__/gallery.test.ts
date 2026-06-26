@@ -30,17 +30,28 @@ const makeLib = (id: number, importPaths: Array<{ id: number; path: string; posi
 
 beforeEach(() => {
   setActivePinia(createPinia());
-  vi.stubGlobal("localStorage", (() => {
-    const store: Record<string, string> = {};
-    return {
-      getItem: (k: string) => store[k] ?? null,
-      setItem: (k: string, v: string) => { store[k] = v; },
-      removeItem: (k: string) => { delete store[k]; },
-      clear: () => { Object.keys(store).forEach((k) => delete store[k]); },
-      get length() { return Object.keys(store).length; },
-      key: (i: number) => Object.keys(store)[i] ?? null,
-    };
-  })());
+  vi.stubGlobal(
+    "localStorage",
+    (() => {
+      const store: Record<string, string> = {};
+      return {
+        getItem: (k: string) => store[k] ?? null,
+        setItem: (k: string, v: string) => {
+          store[k] = v;
+        },
+        removeItem: (k: string) => {
+          delete store[k];
+        },
+        clear: () => {
+          Object.keys(store).forEach((k) => delete store[k]);
+        },
+        get length() {
+          return Object.keys(store).length;
+        },
+        key: (i: number) => Object.keys(store)[i] ?? null,
+      };
+    })(),
+  );
   localStorage.clear();
 });
 
@@ -328,42 +339,50 @@ describe("setActiveLibrary", () => {
   it("returns false when import path not in library", () => {
     const lib = makeLib(1, [{ id: 10, path: "/p", position: 0 }]);
     const store = useGalleryStore();
-    const ok = store.setActiveLibrary(lib, { id: 99, library_id: 1, path: "/x", position: 0, created_at: 1, updated_at: 1 });
+    const ok = store.setActiveLibrary(lib, {
+      id: 99,
+      library_id: 1,
+      path: "/x",
+      position: 0,
+      created_at: 1,
+      updated_at: 1,
+    });
     expect(ok).toBe(false);
   });
 });
 
 describe("setActiveImportPath", () => {
-  const ip = (id: number, path: string, library_id = 1) => ({ id, library_id, path, position: 0, created_at: 1, updated_at: 1 });
+  const ip = (id: number, path: string, library_id = 1) => ({
+    id,
+    library_id,
+    path,
+    position: 0,
+    created_at: 1,
+    updated_at: 1,
+  });
 
   it("returns false on mismatched library id", () => {
     const store = useGalleryStore();
     store.activeLibraryId = 1;
-    const ok = store.setActiveImportPath(
-      ip(10, "/a", 2),
-      makeLib(2, [{ id: 10, path: "/a", position: 0 }]),
-    );
+    const ok = store.setActiveImportPath(ip(10, "/a", 2), makeLib(2, [{ id: 10, path: "/a", position: 0 }]));
     expect(ok).toBe(false);
   });
 
   it("returns false on mismatched import path library_id", () => {
     const store = useGalleryStore();
     store.activeLibraryId = 1;
-    const ok = store.setActiveImportPath(
-      ip(10, "/a", 2),
-      makeLib(1, [{ id: 10, path: "/a", position: 0 }]),
-    );
+    const ok = store.setActiveImportPath(ip(10, "/a", 2), makeLib(1, [{ id: 10, path: "/a", position: 0 }]));
     expect(ok).toBe(false);
   });
 
   it("updates when valid", () => {
-    const lib = makeLib(1, [{ id: 10, path: "/p", position: 0 }, { id: 11, path: "/q", position: 1 }]);
+    const lib = makeLib(1, [
+      { id: 10, path: "/p", position: 0 },
+      { id: 11, path: "/q", position: 1 },
+    ]);
     const store = useGalleryStore();
     store.setActiveLibrary(lib);
-    const ok = store.setActiveImportPath(
-      ip(11, "/q", 1),
-      lib,
-    );
+    const ok = store.setActiveImportPath(ip(11, "/q", 1), lib);
     expect(ok).toBe(true);
     expect(store.activeImportPathId).toBe(11);
   });

@@ -13,8 +13,22 @@ vi.mock("@/services/api", () => ({
 }));
 
 const mockLibraries = [
-  makeLibrary({ id: 1, name: "Library 1", root_path: "/lib1", import_paths: [{ id: 10, library_id: 1, path: "/lib1/sub", position: 0, created_at: Date.now(), updated_at: Date.now() }] }),
-  makeLibrary({ id: 2, name: "Library 2", root_path: "/lib2", import_paths: [{ id: 20, library_id: 2, path: "/lib2/sub", position: 0, created_at: Date.now(), updated_at: Date.now() }] }),
+  makeLibrary({
+    id: 1,
+    name: "Library 1",
+    root_path: "/lib1",
+    import_paths: [
+      { id: 10, library_id: 1, path: "/lib1/sub", position: 0, created_at: Date.now(), updated_at: Date.now() },
+    ],
+  }),
+  makeLibrary({
+    id: 2,
+    name: "Library 2",
+    root_path: "/lib2",
+    import_paths: [
+      { id: 20, library_id: 2, path: "/lib2/sub", position: 0, created_at: Date.now(), updated_at: Date.now() },
+    ],
+  }),
 ];
 
 function setup(libraryId: number | null, importPathId: number | null) {

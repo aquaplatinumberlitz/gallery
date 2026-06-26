@@ -21,7 +21,10 @@ vi.mock("@/stores/lightbox", () => ({
 
 vi.mock("@/composables/useDevice", () => ({
   useDevice: () => ({
-    isDesktop: true, isTablet: false, isMobile: false, isWide: false,
+    isDesktop: true,
+    isTablet: false,
+    isMobile: false,
+    isWide: false,
   }),
 }));
 

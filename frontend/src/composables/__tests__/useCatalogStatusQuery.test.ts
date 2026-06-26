@@ -6,6 +6,7 @@ import { fetchCatalogStatus } from "@/services/api";
 import { useCatalogStatusQuery } from "../useCatalogStatusQuery";
 import { assertStatusEnvelope, isStatusContractError } from "@/lib/catalog/contractGuard";
 import { statusRefetchInterval } from "@/lib/catalog/polling";
+import type { StatusResponseEnvelope } from "@/lib/catalog/status";
 
 vi.mock("@/services/api", () => ({
   fetchCatalogStatus: vi.fn(),
@@ -28,8 +29,28 @@ const mockStatusEnvelope = {
     summary_state: "ready",
     scope: { kind: "library", library_id: 1, path: null, import_path_count: 1 },
     availability: { state: "available", available_paths: 1, total_paths: 1 },
-    scan: { state: "complete", operation: null, trigger: null, active_job_id: null, completed_units: null, total_units: null, progress_percent: null },
-    metadata: { state: "complete", total_assets: 10, ready_assets: 10, not_ready_assets: 0, queued_assets: 0, running_assets: 0, stale_assets: 0, idle_pending_assets: 0, failed_assets: 0, progress_percent: null, global_active_outside_scope: false },
+    scan: {
+      state: "complete",
+      operation: null,
+      trigger: null,
+      active_job_id: null,
+      completed_units: null,
+      total_units: null,
+      progress_percent: null,
+    },
+    metadata: {
+      state: "complete",
+      total_assets: 10,
+      ready_assets: 10,
+      not_ready_assets: 0,
+      queued_assets: 0,
+      running_assets: 0,
+      stale_assets: 0,
+      idle_pending_assets: 0,
+      failed_assets: 0,
+      progress_percent: null,
+      global_active_outside_scope: false,
+    },
     issue_count: 0,
     issues: { availability: 0, scan: 0, metadata: 0 },
     latest_issue: null,
@@ -37,10 +58,16 @@ const mockStatusEnvelope = {
     last_index_at: null,
   },
   global_runtime: {
-    catalog_worker_count: 1, catalog_active_jobs: 0, catalog_queue_depth: 0,
-    metadata_worker_count: 1, metadata_active_jobs: 0, metadata_queue_depth: 0,
+    catalog_worker_count: 1,
+    catalog_active_jobs: 0,
+    catalog_queue_depth: 0,
+    metadata_worker_count: 1,
+    metadata_active_jobs: 0,
+    metadata_queue_depth: 0,
     metadata_staged_queue_depth: 0,
-    watcher_enabled: true, watcher_healthy: true, watcher_issue: null,
+    watcher_enabled: true,
+    watcher_healthy: true,
+    watcher_issue: null,
     scheduled_reconciliation_enabled: false,
   },
   metadata_lifecycle: null,
@@ -52,7 +79,11 @@ function setup(libraryId: number | null | undefined, scopePath?: string | null, 
   const wrapper = mount(
     defineComponent({
       setup() {
-        result = useCatalogStatusQuery(() => libraryId, () => scopePath ?? null, () => enabled);
+        result = useCatalogStatusQuery(
+          () => libraryId,
+          () => scopePath ?? null,
+          () => enabled,
+        );
         return () => h("div");
       },
     }),
@@ -63,7 +94,7 @@ function setup(libraryId: number | null | undefined, scopePath?: string | null, 
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(fetchCatalogStatus).mockResolvedValue(mockStatusEnvelope);
+  vi.mocked(fetchCatalogStatus).mockResolvedValue(mockStatusEnvelope as StatusResponseEnvelope);
   vi.mocked(assertStatusEnvelope).mockReturnValue(undefined);
   vi.mocked(isStatusContractError).mockReturnValue(false);
   vi.mocked(statusRefetchInterval).mockReturnValue(0);

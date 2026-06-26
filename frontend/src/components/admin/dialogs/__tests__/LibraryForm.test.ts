@@ -9,7 +9,10 @@ vi.mock("@/composables/admin/useLibraryMutations", () => ({
   useLibraryMutations: () => ({
     createMutation: { isPending: { value: false }, mutateAsync: vi.fn().mockRejectedValue(new Error("fail")) },
     updateMutation: { isPending: { value: false }, mutateAsync: vi.fn().mockRejectedValue(new Error("fail")) },
-    validateMutation: { isPending: { value: false }, mutateAsync: vi.fn().mockResolvedValue({ is_valid: true, import_paths: [], exclusion_patterns: [] }) },
+    validateMutation: {
+      isPending: { value: false },
+      mutateAsync: vi.fn().mockResolvedValue({ is_valid: true, import_paths: [], exclusion_patterns: [] }),
+    },
     scanMutation: { isPending: { value: false }, mutateAsync: vi.fn().mockRejectedValue(new Error("fail")) },
   }),
 }));
@@ -37,7 +40,10 @@ function createWrapper(props: Record<string, unknown> = {}) {
       plugins: [[VueQueryPlugin, { queryClient }]],
       stubs: {
         Button: { template: "<button :disabled='disabled' @click='$attrs.onClick?.()'><slot /></button>" },
-        Input: { template: "<input :value='$attrs.modelValue ?? modelValue' @input='$emit(\"update:modelValue\", $event.target.value)' />" },
+        Input: {
+          template:
+            "<input :value='$attrs.modelValue ?? modelValue' @input='$emit(\"update:modelValue\", $event.target.value)' />",
+        },
       },
     },
   });
@@ -71,9 +77,21 @@ describe("LibraryForm", () => {
   it("shows Save changes when library prop provided", () => {
     const wrapper = createWrapper({
       library: {
-        id: 1, name: "Test", state: "ready", watch_enabled: 1, warm_enabled: 1,
-        import_paths: [{ id: 1, path: "/test", library_id: 1, position: 0, created_at: Date.now(), updated_at: Date.now() }],
-        exclusion_patterns: [], root_path: "/test", asset_count: 0, created_at: Date.now(), updated_at: Date.now(), last_scan_at: null, last_error: null,
+        id: 1,
+        name: "Test",
+        state: "ready",
+        watch_enabled: 1,
+        warm_enabled: 1,
+        import_paths: [
+          { id: 1, path: "/test", library_id: 1, position: 0, created_at: Date.now(), updated_at: Date.now() },
+        ],
+        exclusion_patterns: [],
+        root_path: "/test",
+        asset_count: 0,
+        created_at: Date.now(),
+        updated_at: Date.now(),
+        last_scan_at: null,
+        last_error: null,
       },
     });
     expect(wrapper.text()).toContain("Save changes");

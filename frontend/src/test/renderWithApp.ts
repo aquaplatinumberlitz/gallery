@@ -68,9 +68,7 @@ export function renderWithApp(
   options: RenderWithAppOptions = {},
 ) {
   if ("initialRoute" in options) {
-    throw new Error(
-      "renderWithApp does not support initialRoute. Use renderWithAppAsync for route-aware components.",
-    );
+    throw new Error("renderWithApp does not support initialRoute. Use renderWithAppAsync for route-aware components.");
   }
   setActivePinia(createPinia());
 

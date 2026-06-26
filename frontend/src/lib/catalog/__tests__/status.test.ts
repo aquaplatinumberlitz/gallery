@@ -44,57 +44,71 @@ describe("deriveSummaryState", () => {
   });
 
   it("returns error when latest scan failed and no prior success", () => {
-    expect(deriveSummaryState({
-      ...baseFacts,
-      latest_covering_scan_failed: true,
-      prior_successful_covering_scan: false,
-    })).toBe("error");
+    expect(
+      deriveSummaryState({
+        ...baseFacts,
+        latest_covering_scan_failed: true,
+        prior_successful_covering_scan: false,
+      }),
+    ).toBe("error");
   });
 
   it("returns needs_scan when no prior scan and no failed attempt", () => {
-    expect(deriveSummaryState({
-      ...baseFacts,
-      prior_successful_covering_scan: false,
-      has_failed_scan_attempt: false,
-    })).toBe("needs_scan");
+    expect(
+      deriveSummaryState({
+        ...baseFacts,
+        prior_successful_covering_scan: false,
+        has_failed_scan_attempt: false,
+      }),
+    ).toBe("needs_scan");
   });
 
   it("returns error when all assets failed and metadata not disabled", () => {
-    expect(deriveSummaryState({
-      ...baseFacts,
-      total_assets: 50,
-      ready_assets: 0,
-      failed_assets: 50,
-      metadata_disabled: false,
-    })).toBe("error");
+    expect(
+      deriveSummaryState({
+        ...baseFacts,
+        total_assets: 50,
+        ready_assets: 0,
+        failed_assets: 50,
+        metadata_disabled: false,
+      }),
+    ).toBe("error");
   });
 
   it("returns needs_update when metadata pending without active work", () => {
-    expect(deriveSummaryState({
-      ...baseFacts,
-      metadata_pending_without_active_work: true,
-    })).toBe("needs_update");
+    expect(
+      deriveSummaryState({
+        ...baseFacts,
+        metadata_pending_without_active_work: true,
+      }),
+    ).toBe("needs_update");
   });
 
   it("returns ready_with_issues when later scan failed", () => {
-    expect(deriveSummaryState({
-      ...baseFacts,
-      later_scan_failure: true,
-    })).toBe("ready_with_issues");
+    expect(
+      deriveSummaryState({
+        ...baseFacts,
+        later_scan_failure: true,
+      }),
+    ).toBe("ready_with_issues");
   });
 
   it("returns ready_with_issues when metadata failures exist", () => {
-    expect(deriveSummaryState({
-      ...baseFacts,
-      current_metadata_failures: 3,
-    })).toBe("ready_with_issues");
+    expect(
+      deriveSummaryState({
+        ...baseFacts,
+        current_metadata_failures: 3,
+      }),
+    ).toBe("ready_with_issues");
   });
 
   it("returns ready_with_issues when degraded", () => {
-    expect(deriveSummaryState({
-      ...baseFacts,
-      availability: "degraded",
-    })).toBe("ready_with_issues");
+    expect(
+      deriveSummaryState({
+        ...baseFacts,
+        availability: "degraded",
+      }),
+    ).toBe("ready_with_issues");
   });
 
   it("returns ready when everything is fine", () => {

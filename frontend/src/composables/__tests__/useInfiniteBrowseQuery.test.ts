@@ -11,19 +11,25 @@ vi.mock("@/services/api", () => ({
   browseDirectory: vi.fn(),
 }));
 
-const mockBrowseResponse: BrowseResponse = {
-  folders: [{ name: "sub", path: "/photos/sub", type: "folder", has_children: false, cover_images: [], mtime: 1000 }],
+const makeMockBrowseResponse = (overrides?: Partial<BrowseResponse>): BrowseResponse => ({
+  folders: [
+    { name: "sub", path: "/photos/sub", type: "folder" as const, has_children: false, cover_images: [], mtime: 1000 },
+  ],
   media: [
-    { name: "img1.png", path: "/photos/img1.png", type: "image", mtime: 1000 },
-    { name: "img2.png", path: "/photos/img2.png", type: "image", mtime: 1000 },
+    { name: "img1.png", path: "/photos/img1.png", type: "image" as const, mtime: 1000 },
+    { name: "img2.png", path: "/photos/img2.png", type: "image" as const, mtime: 1000 },
   ],
   next_cursor: null,
   next_media_cursor: null,
   total_images: 2,
   total_videos: 0,
   total_assets: 2,
-  index_source: "catalog",
-};
+  request_path: null,
+  library_id: 1,
+  path: "/photos",
+  index_source: "catalog" as const,
+  ...overrides,
+});
 
 function setup(libraryId: number | null | undefined, path: string | null | undefined, includeOffline = false) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
@@ -45,7 +51,7 @@ function setup(libraryId: number | null | undefined, path: string | null | undef
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(browseDirectory).mockResolvedValue(mockBrowseResponse);
+  vi.mocked(browseDirectory).mockResolvedValue(makeMockBrowseResponse());
 });
 
 describe("useInfiniteBrowseQuery", () => {
@@ -105,11 +111,11 @@ describe("useInfiniteBrowseQuery", () => {
   });
 
   it("returns nextMediaCursor from last page", async () => {
-    const withCursor: BrowseResponse = { ...mockBrowseResponse, next_media_cursor: "cursor_abc" };
+    const withCursor = makeMockBrowseResponse({ next_media_cursor: 123 });
     vi.mocked(browseDirectory).mockResolvedValue(withCursor);
     const { result } = setup(1, "/photos");
     await vi.waitFor(() => expect(result.isSuccess.value).toBe(true));
-    expect(result.nextMediaCursor.value).toBe("cursor_abc");
+    expect(result.nextMediaCursor.value).toBe(123);
   });
 
   it("returns null nextMediaCursor when no cursor", async () => {

@@ -4,26 +4,29 @@ import { defineComponent, h } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchLibrary } from "@/services/api";
 import { useLibraryQuery } from "../useLibraryQuery";
+import type { RegisteredLibrary } from "@/types";
 
 vi.mock("@/services/api", () => ({
   fetchLibrary: vi.fn(),
 }));
 
-const mockLibrary = {
+const MOCK_LIBRARY_NOW = 1_000_000;
+const makeMockLibrary = (overrides?: Partial<RegisteredLibrary>): RegisteredLibrary => ({
   id: 1,
   name: "Test Library",
   root_path: "/test",
-  state: "ready",
+  state: "ready" as const,
   import_paths: [],
   exclusion_patterns: [],
-  watch_enabled: 1,
-  warm_enabled: 1,
+  watch_enabled: 1 as const,
+  warm_enabled: 1 as const,
   asset_count: 10,
-  created_at: Date.now(),
-  updated_at: Date.now(),
+  created_at: MOCK_LIBRARY_NOW,
+  updated_at: MOCK_LIBRARY_NOW,
   last_scan_at: null,
   last_error: null,
-};
+  ...overrides,
+});
 
 function setup(id: number | null | undefined) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
@@ -42,13 +45,13 @@ function setup(id: number | null | undefined) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(fetchLibrary).mockResolvedValue(mockLibrary);
+  vi.mocked(fetchLibrary).mockResolvedValue(makeMockLibrary());
 });
 
 describe("useLibraryQuery", () => {
   it("fetches library when id is provided", async () => {
     const { result } = setup(1);
-    await vi.waitFor(() => expect(result.data.value).toEqual(mockLibrary));
+    await vi.waitFor(() => expect(result.data.value).toEqual(makeMockLibrary()));
     expect(fetchLibrary).toHaveBeenCalledWith(1);
   });
 

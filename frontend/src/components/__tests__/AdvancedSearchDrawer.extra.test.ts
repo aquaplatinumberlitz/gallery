@@ -32,7 +32,10 @@ function createWrapper(props: Record<string, unknown> = {}) {
       stubs: {
         Teleport: { template: "<div><slot /></div>" },
         Button: { template: "<button :disabled='disabled' @click='$attrs.onClick?.()'><slot /></button>" },
-        Input: { template: "<input :value='$attrs.modelValue ?? modelValue' @input='$emit(\"update:modelValue\", $event.target.value)' />" },
+        Input: {
+          template:
+            "<input :value='$attrs.modelValue ?? modelValue' @input='$emit(\"update:modelValue\", $event.target.value)' />",
+        },
       },
     },
   });
@@ -86,13 +89,13 @@ describe("AdvancedSearchDrawer extra", () => {
 
   it("renders operator select for seed field", () => {
     const wrapper = createWrapper();
-    const seedOps = wrapper.findAll("select").filter(s => s.attributes("aria-label") === "Seed operator");
+    const seedOps = wrapper.findAll("select").filter((s) => s.attributes("aria-label") === "Seed operator");
     expect(seedOps.length).toBe(1);
   });
 
   it("renders operator select for steps field", () => {
     const wrapper = createWrapper();
-    const stepsOps = wrapper.findAll("select").filter(s => s.attributes("aria-label") === "Steps operator");
+    const stepsOps = wrapper.findAll("select").filter((s) => s.attributes("aria-label") === "Steps operator");
     expect(stepsOps.length).toBe(1);
   });
 });

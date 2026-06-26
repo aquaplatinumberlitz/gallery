@@ -8,13 +8,21 @@ describe("router helpers", () => {
   it("prefetchMetadataRoute returns a Promise", async () => {
     const p = prefetchMetadataRoute();
     expect(p).toBeInstanceOf(Promise);
-    try { await p; } catch { /* dynamic import may fail in test env */ }
+    try {
+      await p;
+    } catch {
+      /* dynamic import may fail in test env */
+    }
   });
 
   it("prefetchLibrariesRoute returns a Promise", async () => {
     const p = prefetchLibrariesRoute();
     expect(p).toBeInstanceOf(Promise);
-    try { await p; } catch { /* dynamic import may fail in test env */ }
+    try {
+      await p;
+    } catch {
+      /* dynamic import may fail in test env */
+    }
   });
 
   it("prefetchMetadataRoute memoizes", () => {

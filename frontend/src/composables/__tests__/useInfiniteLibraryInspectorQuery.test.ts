@@ -4,13 +4,36 @@ import { defineComponent, h, ref } from "vue";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { fetchLibraryInspector } from "@/services/api";
 import { useInfiniteLibraryInspectorQuery } from "../useInfiniteLibraryInspectorQuery";
-import type { SearchScope, SortValue } from "@/types";
+import type { SearchScope, SortValue, LibraryInspectorResponse, LibraryInspectorRow } from "@/types";
 
 vi.mock("@/services/api", () => ({
   fetchLibraryInspector: vi.fn(),
 }));
 
-const mockPage = {
+function makeRow(name: string, path: string): LibraryInspectorRow {
+  return {
+    path,
+    name,
+    folder: path.split("/").slice(0, -1).join("/"),
+    relative_path: name,
+    mtime: 1000,
+    width: null,
+    height: null,
+    model: "",
+    tool: "",
+    sampler: "",
+    seed: "",
+    prompt_preview: "",
+    has_prompt: false,
+    has_negative: false,
+    has_lora: false,
+    lora_count: 0,
+    lora_preview: "",
+    metadata_detail_available: false,
+  };
+}
+
+const makeMockPage = (overrides?: Partial<LibraryInspectorResponse>): LibraryInspectorResponse => ({
   root: "",
   scope: "current" as const,
   query: "",
@@ -22,11 +45,9 @@ const mockPage = {
   next_cursor: null,
   has_more: false,
   sort: "date_desc" as const,
-  rows: [
-    { path: "/photos/img1.png", name: "img1.png", type: "image" as const, mtime: 1000 },
-    { path: "/photos/img2.png", name: "img2.png", type: "image" as const, mtime: 1000 },
-  ],
-};
+  rows: [makeRow("img1.png", "/photos/img1.png"), makeRow("img2.png", "/photos/img2.png")],
+  ...overrides,
+});
 
 function setup(query: string, scope: SearchScope, path: string, limit: number, sort: SortValue) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
@@ -51,7 +72,7 @@ function setup(query: string, scope: SearchScope, path: string, limit: number, s
 beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers();
-  vi.mocked(fetchLibraryInspector).mockResolvedValue(mockPage);
+  vi.mocked(fetchLibraryInspector).mockResolvedValue(makeMockPage());
 });
 
 afterEach(() => {
@@ -124,12 +145,14 @@ describe("useInfiniteLibraryInspectorQuery", () => {
   });
 
   it("builds merged data from multiple pages", async () => {
-    const page1 = { ...mockPage, rows: [{ path: "/photos/img1.png", name: "img1.png", type: "image" as const, mtime: 1000 }], next_cursor: "cursor2", has_more: true };
-    const page2 = { ...mockPage, rows: [{ path: "/photos/img2.png", name: "img2.png", type: "image" as const, mtime: 1000 }], next_cursor: null, has_more: false };
+    const page1 = makeMockPage({
+      rows: [makeRow("img1.png", "/photos/img1.png")],
+      next_cursor: "cursor2",
+      has_more: true,
+    });
+    const page2 = makeMockPage({ rows: [makeRow("img2.png", "/photos/img2.png")], next_cursor: null, has_more: false });
 
-    vi.mocked(fetchLibraryInspector)
-      .mockResolvedValueOnce(page1)
-      .mockResolvedValueOnce(page2);
+    vi.mocked(fetchLibraryInspector).mockResolvedValueOnce(page1).mockResolvedValueOnce(page2);
 
     const { result } = setup("test", "all", "", 200, "date_desc");
     await vi.waitFor(() => expect(result.isSuccess.value).toBe(true));

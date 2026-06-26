@@ -56,7 +56,12 @@ describe("queryKeys", () => {
   });
   it("libraryInspector", () => {
     expect(queryKeys.libraryInspector("q", "all", "/p", 50, "date_desc")).toEqual([
-      "library-inspector", "q", "all", "/p", 50, "date_desc",
+      "library-inspector",
+      "q",
+      "all",
+      "/p",
+      50,
+      "date_desc",
     ]);
   });
 });

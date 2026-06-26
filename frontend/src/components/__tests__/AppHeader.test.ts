@@ -54,7 +54,16 @@ vi.mock("@/stores/gallery", () => ({
   useGalleryStore: () => ({
     activeLibraryId: null,
     currentBrowsePath: "",
-    metadataInspector: { scope: "current", query: "", sort: "date_desc", modelFilter: "all", promptFilter: "all", selectedPath: "", scrollTop: 0, scrollPath: "" },
+    metadataInspector: {
+      scope: "current",
+      query: "",
+      sort: "date_desc",
+      modelFilter: "all",
+      promptFilter: "all",
+      selectedPath: "",
+      scrollTop: 0,
+      scrollPath: "",
+    },
     $id: "gallery",
   }),
 }));

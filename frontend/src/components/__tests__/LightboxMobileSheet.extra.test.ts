@@ -29,7 +29,7 @@ function makeMeta(overrides: Partial<MetadataResponse> = {}): MetadataResponse {
 }
 
 function createWrapper(props: Record<string, unknown> = {}) {
-  const copyText = props.copyText || vi.fn();
+  const copyText: (text: string | undefined, id: string) => Promise<void> = (props.copyText as any) || vi.fn();
   return mount(LightboxMobileSheet, {
     props: {
       meta: null,
@@ -80,21 +80,21 @@ describe("LightboxMobileSheet extra", () => {
 
   it("renders Params tab with generation data", async () => {
     const wrapper = createWrapper({ meta: makeMeta() });
-    const paramsTab = wrapper.findAll("button").find(b => b.text() === "Params");
+    const paramsTab = wrapper.findAll("button").find((b) => b.text() === "Params");
     await paramsTab?.trigger("click");
     expect(wrapper.text()).toContain("Generation Data");
   });
 
   it("renders seed param pill", async () => {
     const wrapper = createWrapper({ meta: makeMeta() });
-    const paramsTab = wrapper.findAll("button").find(b => b.text() === "Params");
+    const paramsTab = wrapper.findAll("button").find((b) => b.text() === "Params");
     await paramsTab?.trigger("click");
     expect(wrapper.element.innerHTML).toContain("12345");
   });
 
   it("renders Model tab with model info", async () => {
     const wrapper = createWrapper({ meta: makeMeta() });
-    const modelTab = wrapper.findAll("button").find(b => b.text() === "Model");
+    const modelTab = wrapper.findAll("button").find((b) => b.text() === "Model");
     await modelTab?.trigger("click");
     expect(wrapper.text()).toContain("Checkpoint");
     expect(wrapper.text()).toContain("SDXL 1.0");

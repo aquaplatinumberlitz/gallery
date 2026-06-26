@@ -109,7 +109,16 @@ vi.mock("@/stores/gallery", () => {
     errorType: null,
     history: [],
     historyIndex: 0,
-    metadataInspector: { scope: "current", query: "", sort: "date_desc", modelFilter: "all", promptFilter: "all", selectedPath: "", scrollTop: 0, scrollPath: "" },
+    metadataInspector: {
+      scope: "current",
+      query: "",
+      sort: "date_desc",
+      modelFilter: "all",
+      promptFilter: "all",
+      selectedPath: "",
+      scrollTop: 0,
+      scrollPath: "",
+    },
     setSortField: vi.fn(),
     setSortOrder: vi.fn(),
     selectFolder: vi.fn(),
@@ -126,7 +135,6 @@ vi.mock("@/stores/gallery", () => {
     useGalleryStore: () => mockStore,
   };
 });
-
 
 describe("GalleryGrid", () => {
   beforeEach(() => {

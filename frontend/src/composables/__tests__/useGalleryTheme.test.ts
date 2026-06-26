@@ -144,6 +144,7 @@ describe("useGalleryTheme", () => {
   });
 
   it("falls back to the theme-transitioning class when startViewTransition is unavailable", async () => {
+    vi.useFakeTimers();
     // jsdom does not provide startViewTransition; the applyWithTransition helper
     // should synchronously add the .theme-transitioning class. The class is
     // removed via setTimeout(200ms) — exercising the removal requires fake
@@ -154,5 +155,7 @@ describe("useGalleryTheme", () => {
     await nextTick();
     expect(document.documentElement.classList.contains("theme-transitioning")).toBe(true);
     expect(window.localStorage.getItem("gallery-theme")).toBe("dark");
+    vi.advanceTimersByTime(200);
+    vi.useRealTimers();
   });
 });

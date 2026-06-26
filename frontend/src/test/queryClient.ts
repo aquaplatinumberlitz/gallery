@@ -39,9 +39,7 @@ export function createIsolatedQueryClient(): QueryClient {
 export function expectQueryInvalidated(client: QueryClient, key: ReadonlyArray<unknown>): void {
   const queryCache = client.getQueryCache();
   const all = queryCache.getAll();
-  const match = all.find((q) =>
-    key.every((k, i) => q.queryKey[i] === k),
-  );
+  const match = all.find((q) => key.every((k, i) => q.queryKey[i] === k));
   expect(match?.state?.isInvalidated ?? false).toBe(true);
 }
 
@@ -60,9 +58,11 @@ export function expectQueryInvalidated(client: QueryClient, key: ReadonlyArray<u
  * await vi.waitFor(() => expect(result.data.value).toBeDefined())
  * ```
  */
-export function mountWithQuery<T>(
-  setupFn: () => T,
-): { result: T; queryClient: QueryClient; wrapper: VueWrapper<Component> } {
+export function mountWithQuery<T>(setupFn: () => T): {
+  result: T;
+  queryClient: QueryClient;
+  wrapper: VueWrapper<Component>;
+} {
   const queryClient = createIsolatedQueryClient();
   let result!: T;
   const wrapper = mount(

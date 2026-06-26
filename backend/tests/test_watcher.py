@@ -486,12 +486,16 @@ def test_watcher_loop_processes_ready_folders(monkeypatch: pytest.MonkeyPatch):
         def __init__(self):
             self._started = False
             self._stopped = False
+
         def schedule(self, handler, path, recursive=False):
             pass
+
         def start(self):
             self._started = True
+
         def stop(self):
             self._stopped = True
+
         def join(self):
             pass
 
@@ -521,6 +525,7 @@ def test_watcher_loop_processes_ready_folders(monkeypatch: pytest.MonkeyPatch):
 
     def stop():
         watcher._watcher_stop.set()
+
     threading.Timer(0.05, stop).start()
     watcher._watcher_loop()
     assert len(queued) >= 1
@@ -534,12 +539,16 @@ def test_watcher_loop_respects_max_events_per_tick(monkeypatch: pytest.MonkeyPat
     class FakeObserver:
         def __init__(self):
             pass
+
         def schedule(self, handler, path, recursive=False):
             pass
+
         def start(self):
             pass
+
         def stop(self):
             pass
+
         def join(self):
             pass
 
@@ -569,6 +578,7 @@ def test_watcher_loop_respects_max_events_per_tick(monkeypatch: pytest.MonkeyPat
 
     def stop():
         watcher._watcher_stop.set()
+
     threading.Timer(0.05, stop).start()
     watcher._watcher_loop()
     assert len(queued) == 1
@@ -582,12 +592,16 @@ def test_watcher_loop_logs_and_continues_on_exception(monkeypatch: pytest.Monkey
     class FakeObserver:
         def __init__(self):
             pass
+
         def schedule(self, handler, path, recursive=False):
             pass
+
         def start(self):
             pass
+
         def stop(self):
             pass
+
         def join(self):
             pass
 
@@ -615,5 +629,6 @@ def test_watcher_loop_logs_and_continues_on_exception(monkeypatch: pytest.Monkey
 
     def stop():
         watcher._watcher_stop.set()
+
     threading.Timer(0.05, stop).start()
     watcher._watcher_loop()

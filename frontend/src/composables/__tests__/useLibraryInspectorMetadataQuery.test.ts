@@ -4,27 +4,29 @@ import { defineComponent, h, ref } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchLibraryInspectorMetadata } from "@/services/api";
 import { useLibraryInspectorMetadataQuery } from "../useLibraryInspectorMetadataQuery";
+import type { LibraryInspectorMetadataResponse } from "@/types";
 
 vi.mock("@/services/api", () => ({
   fetchLibraryInspectorMetadata: vi.fn(),
 }));
 
-const mockMetadata = {
+const makeMockMetadata = (overrides?: Partial<LibraryInspectorMetadataResponse>): LibraryInspectorMetadataResponse => ({
   path: "/photos/test.png",
   prompt: "a cat",
   negative_prompt: "",
-  raw_metadata: {},
+  raw_metadata: null,
   model: "sd-v1.5",
   tool: "sd-webui",
   sampler: "euler_a",
-  seed: 42,
+  seed: "42",
   width: 512,
   height: 512,
   mtime: 1000,
   loras: [],
   resources: [],
   metadata_detail_available: true,
-};
+  ...overrides,
+});
 
 function setup(path: string, enabled: boolean) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
@@ -45,13 +47,13 @@ function setup(path: string, enabled: boolean) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(fetchLibraryInspectorMetadata).mockResolvedValue(mockMetadata);
+  vi.mocked(fetchLibraryInspectorMetadata).mockResolvedValue(makeMockMetadata());
 });
 
 describe("useLibraryInspectorMetadataQuery", () => {
   it("fetches metadata when path and enabled are provided", async () => {
     const { result } = setup("/photos/test.png", true);
-    await vi.waitFor(() => expect(result.data.value).toEqual(mockMetadata));
+    await vi.waitFor(() => expect(result.data.value).toEqual(makeMockMetadata()));
     expect(fetchLibraryInspectorMetadata).toHaveBeenCalledWith("/photos/test.png");
   });
 

@@ -101,8 +101,12 @@ def test_index_files_from_scan_skips_empty_path(tmp_path: Path, monkeypatch: pyt
 def test_index_files_from_scan_handles_sqlite_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     import sqlite3
 
-    monkeypatch.setattr(folder_index, "_file_index_path_value", lambda item, key, default=None: str(tmp_path / "test.png"))
-    monkeypatch.setattr(folder_index, "_file_index_index_file", lambda *a, **kw: (_ for _ in ()).throw(sqlite3.Error("db locked")))
+    monkeypatch.setattr(
+        folder_index, "_file_index_path_value", lambda item, key, default=None: str(tmp_path / "test.png")
+    )
+    monkeypatch.setattr(
+        folder_index, "_file_index_index_file", lambda *a, **kw: (_ for _ in ()).throw(sqlite3.Error("db locked"))
+    )
     result = folder_index.index_files_from_scan(
         [{"path": str(tmp_path / "test.png")}],
         [],
@@ -111,7 +115,9 @@ def test_index_files_from_scan_handles_sqlite_error(tmp_path: Path, monkeypatch:
 
 
 def test_index_files_from_scan_updates_folder_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(folder_index, "_file_index_path_value", lambda item, key, default=None: str(tmp_path / "test.png"))
+    monkeypatch.setattr(
+        folder_index, "_file_index_path_value", lambda item, key, default=None: str(tmp_path / "test.png")
+    )
     monkeypatch.setattr(folder_index, "_file_index_index_file", lambda *a, **kw: True)
     monkeypatch.setattr(folder_index, "_file_index_normalize_file_type", lambda t: t)
 

@@ -4,18 +4,42 @@ import { defineComponent, h, ref } from "vue";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { unifiedSearch } from "@/services/api";
 import { useUnifiedSearchQuery } from "../useUnifiedSearchQuery";
-import type { SearchScope } from "@/types";
+import type { SearchScope, UnifiedSearchResponse, UnifiedSearchResult } from "@/types";
 
 vi.mock("@/services/api", () => ({
   unifiedSearch: vi.fn(),
 }));
 
-const mockResults = {
-  albums: [{ id: 1, name: "Album 1", count: 5 }],
-  photos: [{ path: "/photos/1.png", name: "1.png", type: "image" as const, mtime: 1000 }],
+const makeSearchResult = (name: string): UnifiedSearchResult => ({
+  name,
+  path: `/photos/${name}`,
+  type: "image" as const,
+  parent_path: "/photos",
+  relative_path: name,
+  mtime: 1000,
+  width: null,
+  height: null,
+  match_type: "exact",
+  model: "",
+  sampler: "",
+  seed: "",
+  prompt_snippet: "",
+});
+
+const makeMockResults = (overrides?: Partial<UnifiedSearchResponse>): UnifiedSearchResponse => ({
+  albums: [makeSearchResult("album1"), makeSearchResult("album2")].map((r, i) => ({
+    ...r,
+    name: `Album ${i + 1}`,
+    image_count: 5,
+  })),
+  photos: [makeSearchResult("1.png")],
   videos: [],
   prompt: [],
-};
+  query: "",
+  scope: "all" as const,
+  root: "",
+  ...overrides,
+});
 
 function setup(query: string, scope: SearchScope, path: string) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
@@ -46,11 +70,11 @@ afterEach(() => {
 
 describe("useUnifiedSearchQuery", () => {
   it("fetches search results when query is non-empty after debounce", async () => {
-    vi.mocked(unifiedSearch).mockResolvedValue(mockResults);
+    vi.mocked(unifiedSearch).mockResolvedValue(makeMockResults());
     const { result } = setup("cat", "all", "");
     await vi.advanceTimersByTimeAsync(300);
 
-    await vi.waitFor(() => expect(result.data.value).toEqual(mockResults));
+    await vi.waitFor(() => expect(result.data.value).toEqual(makeMockResults()));
     expect(unifiedSearch).toHaveBeenCalledWith("cat", { scope: "all", path: "", limit: 100 });
   });
 
@@ -70,13 +94,13 @@ describe("useUnifiedSearchQuery", () => {
   });
 
   it("returns empty results before debounce settles", () => {
-    vi.mocked(unifiedSearch).mockResolvedValue(mockResults);
+    vi.mocked(unifiedSearch).mockResolvedValue(makeMockResults());
     const { result } = setup("cat", "all", "");
     expect(result.results.value).toEqual({ albums: [], photos: [], videos: [], prompt: [] });
   });
 
   it("debounces query changes before fetching", async () => {
-    vi.mocked(unifiedSearch).mockResolvedValue(mockResults);
+    vi.mocked(unifiedSearch).mockResolvedValue(makeMockResults());
     const { queryRef } = setup("ca", "all", "");
     // On mount, trimmedDebounced = "ca" and debouncedQuery = "ca" (initial value)
     // So the query fires on mount. Let's first wait for that.
@@ -92,10 +116,10 @@ describe("useUnifiedSearchQuery", () => {
   });
 
   it("uses placeholder data from previous query", async () => {
-    vi.mocked(unifiedSearch).mockResolvedValue(mockResults);
+    vi.mocked(unifiedSearch).mockResolvedValue(makeMockResults());
     const { result, queryRef } = setup("cat", "all", "");
     await vi.advanceTimersByTimeAsync(300);
-    await vi.waitFor(() => expect(result.data.value).toEqual(mockResults));
+    await vi.waitFor(() => expect(result.data.value).toEqual(makeMockResults()));
 
     // Keep second fetch pending so we can observe placeholder data
     vi.mocked(unifiedSearch).mockReturnValue(new Promise(() => {}));
@@ -103,15 +127,15 @@ describe("useUnifiedSearchQuery", () => {
     await vi.advanceTimersByTimeAsync(300);
 
     // placeholderData keeps the previous result while refetching
-    expect(result.data.value).toEqual(mockResults);
+    expect(result.data.value).toEqual(makeMockResults());
   });
 
   it("uses scope current to scope search within path", async () => {
-    vi.mocked(unifiedSearch).mockResolvedValue(mockResults);
+    vi.mocked(unifiedSearch).mockResolvedValue(makeMockResults());
     const { result } = setup("cat", "current", "/photos");
     await vi.advanceTimersByTimeAsync(300);
 
-    await vi.waitFor(() => expect(result.data.value).toEqual(mockResults));
+    await vi.waitFor(() => expect(result.data.value).toEqual(makeMockResults()));
     expect(unifiedSearch).toHaveBeenCalledWith("cat", { scope: "current", path: "/photos", limit: 100 });
   });
 

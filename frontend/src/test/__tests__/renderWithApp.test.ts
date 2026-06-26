@@ -33,9 +33,9 @@ describe("renderWithApp", () => {
 
   it("rejects initialRoute at runtime", () => {
     const Comp = defineComponent({ setup: () => () => h("div", "x") });
-    expect(() =>
-      renderWithApp(Comp, { initialRoute: "/admin" as never }),
-    ).toThrow("renderWithApp does not support initialRoute");
+    expect(() => renderWithApp(Comp, { initialRoute: "/admin" as never })).toThrow(
+      "renderWithApp does not support initialRoute",
+    );
   });
 
   it("rejects initialRoute even when cast through RenderWithAppOptions", () => {
@@ -44,9 +44,7 @@ describe("renderWithApp", () => {
     // catches cases where type checking is bypassed (e.g. `as any`).
     const Comp = defineComponent({ setup: () => () => h("div", "x") });
     const opts = { initialRoute: "/admin" } as unknown as RenderWithAppOptions;
-    expect(() => renderWithApp(Comp, opts)).toThrow(
-      "renderWithApp does not support initialRoute",
-    );
+    expect(() => renderWithApp(Comp, opts)).toThrow("renderWithApp does not support initialRoute");
   });
 });
 

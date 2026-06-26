@@ -3,15 +3,36 @@ import { setActivePinia, createPinia } from "pinia";
 import { mount } from "@vue/test-utils";
 import { createIsolatedQueryClient } from "@/test/queryClient";
 import { VueQueryPlugin } from "@tanstack/vue-query";
+import type { StatusResponseEnvelope } from "@/lib/catalog/status";
 
 const mockStatus = {
-  contract_version: 1,
+  contract_version: 1 as const,
   generated_at: Date.now(),
   summary_state: "ready" as const,
   scope: { kind: "library" as const, library_id: 1, path: null, import_path_count: 1 },
   availability: { state: "available" as const, available_paths: 1, total_paths: 1 },
-  scan: { state: "complete" as const, operation: null, trigger: null, active_job_id: null, completed_units: null, total_units: null, progress_percent: null },
-  metadata: { state: "complete" as const, total_assets: 100, ready_assets: 95, not_ready_assets: 5, queued_assets: 0, running_assets: 0, stale_assets: 0, idle_pending_assets: 0, failed_assets: 0, progress_percent: 100, global_active_outside_scope: false },
+  scan: {
+    state: "complete" as const,
+    operation: null,
+    trigger: null,
+    active_job_id: null,
+    completed_units: null,
+    total_units: null,
+    progress_percent: null,
+  },
+  metadata: {
+    state: "complete" as const,
+    total_assets: 100,
+    ready_assets: 95,
+    not_ready_assets: 5,
+    queued_assets: 0,
+    running_assets: 0,
+    stale_assets: 0,
+    idle_pending_assets: 0,
+    failed_assets: 0,
+    progress_percent: 100,
+    global_active_outside_scope: false,
+  },
   issue_count: 0,
   issues: { availability: 0, scan: 0, metadata: 0 },
   latest_issue: null,
@@ -19,7 +40,26 @@ const mockStatus = {
   last_index_at: null,
 };
 
-let mockDataValue = { value: { status: mockStatus, contract_version: 1 } };
+let mockDataValue: { value: StatusResponseEnvelope | null } = {
+  value: {
+    status: mockStatus as StatusResponseEnvelope["status"],
+    contract_version: 1 as const,
+    global_runtime: {
+      catalog_worker_count: 1,
+      catalog_active_jobs: 0,
+      catalog_queue_depth: 0,
+      metadata_worker_count: 1,
+      metadata_active_jobs: 0,
+      metadata_queue_depth: 0,
+      metadata_staged_queue_depth: 0,
+      watcher_enabled: true,
+      watcher_healthy: true,
+      watcher_issue: null,
+      scheduled_reconciliation_enabled: false,
+    },
+    metadata_lifecycle: null,
+  },
+};
 let mockIsLoadingValue = { value: false };
 let mockIsErrorValue = { value: false };
 let mockErrorValue = { value: null };
@@ -68,50 +108,30 @@ vi.mock("@/utils/indexMaintenance", () => ({
   markScopeRebuildStarted: vi.fn(),
 }));
 
-function _createWrapper(props: Record<string, unknown> = {}) {
-  setActivePinia(createPinia());
-  const queryClient = createIsolatedQueryClient();
-  return mount(
-    {
-      components: {
-        IndexStatusPanel: () => import("../IndexStatusPanel.vue"),
-      },
-      template: "<IndexStatusPanel v-bind='$attrs' />",
-      inheritAttrs: false,
-    },
-    {
-      props,
-      global: {
-        plugins: [[VueQueryPlugin, { queryClient }]],
-        stubs: {
-          Button: { template: "<button :disabled='disabled' @click='$emit(\"click\")'><slot /></button>" },
-          Badge: { template: "<span class='badge'><slot /></span>" },
-          Popover: { template: "<div><slot /></div>" },
-          PopoverTrigger: { template: "<div><slot /></div>" },
-          PopoverContent: { template: "<div><slot /></div>" },
-          Dialog: { template: "<div v-if='open'><slot /></div>" },
-          DialogContent: { template: "<div><slot /></div>" },
-          DialogTitle: { template: "<h2><slot /></h2>" },
-          DialogDescription: { template: "<p><slot /></p>" },
-          Tooltip: { template: "<span><slot /></span>" },
-          TooltipTrigger: { template: "<span><slot /></span>" },
-          TooltipContent: { template: "<span><slot /></span>" },
-          IndexStatusBadge: { template: "<span class='status-badge'><slot /></span>" },
-          IndexStatusCard: { template: "<div class='status-card'><slot /></div>" },
-          Database: { template: "<span>db-icon</span>" },
-          Loader: { template: "<span>loader-icon</span>" },
-          AlertCircle: { template: "<span>alert-icon</span>" },
-        },
-      },
-    },
-  );
-}
-
 describe("IndexStatusPanel", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
-    mockDataValue = { value: { status: mockStatus, contract_version: 1 } };
+    mockDataValue = {
+      value: {
+        status: mockStatus as StatusResponseEnvelope["status"],
+        contract_version: 1 as const,
+        global_runtime: {
+          catalog_worker_count: 1,
+          catalog_active_jobs: 0,
+          catalog_queue_depth: 0,
+          metadata_worker_count: 1,
+          metadata_active_jobs: 0,
+          metadata_queue_depth: 0,
+          metadata_staged_queue_depth: 0,
+          watcher_enabled: true,
+          watcher_healthy: true,
+          watcher_issue: null,
+          scheduled_reconciliation_enabled: false,
+        },
+        metadata_lifecycle: null,
+      },
+    };
     mockIsLoadingValue = { value: false };
     mockIsErrorValue = { value: false };
     mockErrorValue = { value: null };

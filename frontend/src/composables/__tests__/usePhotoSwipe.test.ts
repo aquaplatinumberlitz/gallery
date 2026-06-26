@@ -8,7 +8,7 @@ import { usePhotoSwipe } from "../usePhotoSwipe";
 import { useLightboxStore } from "@/stores/lightbox";
 import { queryClient } from "@/query";
 import { queryKeys } from "@/query/keys";
-import { fetchMetadata, getImageUrl } from "@/services/api";
+import { fetchMetadata } from "@/services/api";
 import { shouldAlwaysLoadOriginal, type LightboxDimensions, type PhotoSwipeImageItem } from "@/utils/lightbox";
 
 interface MockPswpInstance {
@@ -89,12 +89,10 @@ vi.mock("@/utils/lightbox", () => ({
       isAnimatedAsset,
     };
   }),
-  hasValidDimensions: vi.fn(
-    (d: { width?: number | null; height?: number | null } | null | undefined) => {
-      if (!d) return false;
-      return typeof d.width === "number" && d.width > 0 && typeof d.height === "number" && d.height > 0;
-    },
-  ),
+  hasValidDimensions: vi.fn((d: { width?: number | null; height?: number | null } | null | undefined) => {
+    if (!d) return false;
+    return typeof d.width === "number" && d.width > 0 && typeof d.height === "number" && d.height > 0;
+  }),
   LIGHTBOX_PREVIEW_EDGE: 1440,
   LIGHTBOX_ORIGINAL_ZOOM_THRESHOLD: 1.2,
   shouldAlwaysLoadOriginal: vi.fn(() => false),
@@ -118,17 +116,19 @@ vi.mock("@/query", () => {
 
 function mockImageConstructor() {
   const originalImage = globalThis.Image;
-  globalThis.Image = function () {
+  globalThis.Image = function (this: any) {
     this.onload = null;
     this.onerror = null;
     this.decoding = "async";
     this.naturalWidth = 800;
     this.naturalHeight = 600;
     this._src = "";
-    this.decode = function () { return Promise.resolve(); };
+    this.decode = () => Promise.resolve();
   } as unknown as typeof Image;
   Object.defineProperty(globalThis.Image.prototype, "src", {
-    get() { return this._src; },
+    get() {
+      return this._src;
+    },
     set(url: string) {
       this._src = url;
       if (this.onload) this.onload();
@@ -146,8 +146,8 @@ function makeItem(path: string, name: string): FileNode {
 
 interface SetupOptions {
   preloadedStoreDimensions?: Record<string, LightboxDimensions>;
-  onRegisterUi?: (pswp: MockPswpInstance) => void;
-  onAfterInit?: (pswp: MockPswpInstance) => void;
+  onRegisterUi?: (pswp: any) => void;
+  onAfterInit?: (pswp: any) => void;
 }
 
 function setup(items: FileNode[], currentIndex = 0, isInitiallyOpen = false, options?: SetupOptions) {
@@ -202,13 +202,13 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  delete (window as Record<string, unknown>).__pswp;
-  delete (window as Record<string, unknown>).__loadOriginalForCurrent;
+  delete (window as any).__pswp;
+  delete (window as any).__loadOriginalForCurrent;
   if (restoreImage) {
     restoreImage();
     restoreImage = null;
   }
-  shouldAlwaysLoadOriginal.mockImplementation(() => false);
+  (shouldAlwaysLoadOriginal as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => false);
   (fetchMetadata as unknown as ReturnType<typeof vi.fn>).mockReset();
 });
 
@@ -253,7 +253,7 @@ describe("usePhotoSwipe", () => {
     });
 
     const instance = pswpInstances[0];
-    const registeredEvents = instance.on.mock.calls.map((c: [string]) => c[0]);
+    const registeredEvents = instance.on.mock.calls.map((c: any) => c[0]);
     expect(registeredEvents).toContain("change");
     expect(registeredEvents).toContain("close");
     expect(registeredEvents).toContain("zoomPanUpdate");
@@ -265,8 +265,8 @@ describe("usePhotoSwipe", () => {
     const { isOpenRef } = setup([makeItem("/img1.png", "img1.png")], 0, false);
 
     isOpenRef.value = true;
-    await vi.waitFor(() => expect((window as Record<string, unknown>).__pswp).toBeDefined());
-    expect(typeof (window as Record<string, unknown>).__loadOriginalForCurrent).toBe("function");
+    await vi.waitFor(() => expect((window as any).__pswp).toBeDefined());
+    expect(typeof (window as any).__loadOriginalForCurrent).toBe("function");
   });
 
   it("cleanly destroys on unmount", async () => {
@@ -307,10 +307,9 @@ describe("usePhotoSwipe", () => {
 
     it("falls back to remembered dimensions from store", async () => {
       const item = makeItem("/img1.png", "img1.png");
-      const { result, isOpenRef } = setup(
-        [item], 0, false,
-        { preloadedStoreDimensions: { "/img1.png": { width: 1920, height: 1080, source: "metadata" } } },
-      );
+      const { result, isOpenRef } = setup([item], 0, false, {
+        preloadedStoreDimensions: { "/img1.png": { width: 1920, height: 1080, source: "metadata" } },
+      });
 
       isOpenRef.value = true;
       await vi.waitFor(() => expect(result.pswp.value).not.toBeNull());
@@ -321,10 +320,9 @@ describe("usePhotoSwipe", () => {
 
     it("ignores remembered dimensions with thumbnail source", async () => {
       const item = makeItem("/img1.png", "img1.png");
-      const { result, isOpenRef } = setup(
-        [item], 0, false,
-        { preloadedStoreDimensions: { "/img1.png": { width: 200, height: 200, source: "thumbnail" } } },
-      );
+      const { result, isOpenRef } = setup([item], 0, false, {
+        preloadedStoreDimensions: { "/img1.png": { width: 200, height: 200, source: "thumbnail" } },
+      });
 
       isOpenRef.value = true;
       await vi.waitFor(() => expect(result.pswp.value).not.toBeNull());
@@ -334,7 +332,13 @@ describe("usePhotoSwipe", () => {
 
     it("falls back to cached metadata dimensions", async () => {
       queryClient.setQueryData(queryKeys.metadata("/img1.png"), {
-        width: 1920, height: 1080, name: "test", tool: "test", prompt: "", negative_prompt: "", params: {},
+        width: 1920,
+        height: 1080,
+        name: "test",
+        tool: "test",
+        prompt: "",
+        negative_prompt: "",
+        params: {},
       } as MetadataResponse);
       const item = makeItem("/img1.png", "img1.png");
       const { result, isOpenRef } = setup([item], 0, false);
@@ -361,14 +365,16 @@ describe("usePhotoSwipe", () => {
 
       const { result, isOpenRef } = setup([makeItem("/img1.png", "img1.png")], 0, false);
 
-      globalThis.Image = function () {
+      globalThis.Image = function (this: any) {
         this.onload = null;
         this.onerror = null;
         this._src = "";
         this.decode = () => Promise.resolve();
       } as unknown as typeof Image;
       Object.defineProperty(globalThis.Image.prototype, "src", {
-        get() { return this._src; },
+        get() {
+          return this._src;
+        },
         set(url: string) {
           this._src = url;
           if (this.onerror) this.onerror();
@@ -387,14 +393,16 @@ describe("usePhotoSwipe", () => {
     it("fetches metadata dimensions when preview fails", async () => {
       const { result, isOpenRef } = setup([makeItem("/img1.png", "img1.png")], 0, false);
 
-      globalThis.Image = function () {
+      globalThis.Image = function (this: any) {
         this.onload = null;
         this.onerror = null;
         this._src = "";
-        this.decode = function () { return Promise.resolve(); };
+        this.decode = () => Promise.resolve();
       } as unknown as typeof Image;
       Object.defineProperty(globalThis.Image.prototype, "src", {
-        get() { return this._src; },
+        get() {
+          return this._src;
+        },
         set(url: string) {
           this._src = url;
           if (this.onerror) this.onerror();
@@ -403,7 +411,13 @@ describe("usePhotoSwipe", () => {
       });
 
       (fetchMetadata as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
-        width: 1920, height: 1080, name: "test", tool: "test", prompt: "", negative_prompt: "", params: {},
+        width: 1920,
+        height: 1080,
+        name: "test",
+        tool: "test",
+        prompt: "",
+        negative_prompt: "",
+        params: {},
       });
 
       isOpenRef.value = true;
@@ -421,8 +435,13 @@ describe("usePhotoSwipe", () => {
 
     it("applies dimensions from fetchMetadata and remembers in store", async () => {
       (fetchMetadata as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
-        width: 1920, height: 1080, name: "img2", tool: "test",
-        prompt: "", negative_prompt: "", params: {},
+        width: 1920,
+        height: 1080,
+        name: "img2",
+        tool: "test",
+        prompt: "",
+        negative_prompt: "",
+        params: {},
       });
 
       const items = makeItems();
@@ -462,8 +481,13 @@ describe("usePhotoSwipe", () => {
 
     it("calls refreshSlideContent when applying dimensions to non-current slide", async () => {
       (fetchMetadata as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
-        width: 1920, height: 1080, name: "img2", tool: "test",
-        prompt: "", negative_prompt: "", params: {},
+        width: 1920,
+        height: 1080,
+        name: "img2",
+        tool: "test",
+        prompt: "",
+        negative_prompt: "",
+        params: {},
       });
 
       const items = makeItems();
@@ -512,17 +536,21 @@ describe("usePhotoSwipe", () => {
       const { result } = await openWithCurrSlide();
 
       const origImage = globalThis.Image;
-      globalThis.Image = function () {
+      globalThis.Image = function (this: any) {
         this.onload = null;
         this.onerror = null;
         this._src = "";
         this.decode = () => Promise.resolve();
       } as unknown as typeof Image;
       Object.defineProperty(globalThis.Image.prototype, "src", {
-        get() { return this._src; },
+        get() {
+          return this._src;
+        },
         set(url: string) {
           this._src = url;
-          setTimeout(() => { if (this.onload) this.onload(); }, 50);
+          setTimeout(() => {
+            if (this.onload) this.onload();
+          }, 50);
         },
         configurable: true,
       });
@@ -546,7 +574,7 @@ describe("usePhotoSwipe", () => {
     });
 
     it("handles Image API unavailability in loadOriginalForIndex", async () => {
-      const { result, instance } = await openWithCurrSlide();
+      const { result } = await openWithCurrSlide();
 
       (globalThis as any).Image = undefined;
 
@@ -555,17 +583,19 @@ describe("usePhotoSwipe", () => {
     });
 
     it("handles image load error", async () => {
-      const { result, instance } = await openWithCurrSlide();
+      const { result } = await openWithCurrSlide();
 
       const origImage = globalThis.Image;
-      globalThis.Image = function () {
+      globalThis.Image = function (this: any) {
         this.onload = null;
         this.onerror = null;
         this._src = "";
         this.decode = () => Promise.resolve();
       } as unknown as typeof Image;
       Object.defineProperty(globalThis.Image.prototype, "src", {
-        get() { return this._src; },
+        get() {
+          return this._src;
+        },
         set(url: string) {
           this._src = url;
           if (this.onerror) this.onerror();
@@ -599,7 +629,8 @@ describe("usePhotoSwipe", () => {
     it("no-ops when currIndex does not match", async () => {
       const { result, isOpenRef } = setup(
         [makeItem("/img1.png", "img1.png"), makeItem("/img2.png", "img2.png")],
-        0, false,
+        0,
+        false,
       );
       isOpenRef.value = true;
       await vi.waitFor(() => expect(result.pswp.value).not.toBeNull());
@@ -673,7 +704,7 @@ describe("usePhotoSwipe", () => {
   describe("currentIndex watch", () => {
     it("calls pswp.goTo when external index changes", async () => {
       const items = [makeItem("/img1.png", "img1.png"), makeItem("/img2.png", "img2.png")];
-      const { result, isOpenRef, currentIndexRef } = setup(items, 0, true);
+      const { result, currentIndexRef } = setup(items, 0, true);
       await vi.waitFor(() => expect(result.pswp.value).not.toBeNull());
 
       currentIndexRef.value = 1;
@@ -700,10 +731,7 @@ describe("usePhotoSwipe", () => {
     it("calls onRegisterUi and onAfterInit callbacks", async () => {
       const onRegisterUi = vi.fn();
       const onAfterInit = vi.fn();
-      const { isOpenRef } = setup(
-        [makeItem("/img1.png", "img1.png")], 0, false,
-        { onRegisterUi, onAfterInit },
-      );
+      const { isOpenRef } = setup([makeItem("/img1.png", "img1.png")], 0, false, { onRegisterUi, onAfterInit });
 
       isOpenRef.value = true;
       await vi.waitFor(() => {
@@ -713,8 +741,8 @@ describe("usePhotoSwipe", () => {
     });
 
     it("calls maybeLoadOriginalForCurrent when shouldAlwaysLoadOriginal is true", async () => {
-      shouldAlwaysLoadOriginal.mockReturnValue(true);
-      const { result, isOpenRef } = setup([makeItem("/img1.png", "img1.png")], 0, false);
+      (shouldAlwaysLoadOriginal as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
+      const { isOpenRef } = setup([makeItem("/img1.png", "img1.png")], 0, false);
 
       isOpenRef.value = true;
       await vi.waitFor(() => {
@@ -737,7 +765,8 @@ describe("usePhotoSwipe", () => {
     it("change event calls onIndexChange and triggers resolveAndRefresh", async () => {
       const { result, isOpenRef, onIndexChange } = setup(
         [makeItem("/img1.png", "img1.png"), makeItem("/img2.png", "img2.png")],
-        0, false,
+        0,
+        false,
       );
       isOpenRef.value = true;
       await vi.waitFor(() => expect(result.pswp.value).not.toBeNull());
@@ -751,10 +780,11 @@ describe("usePhotoSwipe", () => {
     });
 
     it("change event loads original when shouldAlwaysLoadOriginal is true", async () => {
-      shouldAlwaysLoadOriginal.mockReturnValue(true);
+      (shouldAlwaysLoadOriginal as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
       const { result, isOpenRef } = setup(
         [makeItem("/img1.png", "img1.png"), makeItem("/img2.png", "img2.png")],
-        0, false,
+        0,
+        false,
       );
       isOpenRef.value = true;
       await vi.waitFor(() => expect(result.pswp.value).not.toBeNull());
@@ -765,7 +795,10 @@ describe("usePhotoSwipe", () => {
       instance.currSlide = {
         index: 1,
         data: {} as Record<string, unknown>,
-        content: { data: {} as Record<string, unknown>, element: document.createElement("img") } as Record<string, unknown>,
+        content: { data: {} as Record<string, unknown>, element: document.createElement("img") } as Record<
+          string,
+          unknown
+        >,
         resize: vi.fn(),
       } as any;
 
@@ -775,9 +808,7 @@ describe("usePhotoSwipe", () => {
     });
 
     it("close event calls destroyPhotoSwipe and onClose", async () => {
-      const { result, isOpenRef, onClose } = setup(
-        [makeItem("/img1.png", "img1.png")], 0, false,
-      );
+      const { result, isOpenRef, onClose } = setup([makeItem("/img1.png", "img1.png")], 0, false);
       isOpenRef.value = true;
       await vi.waitFor(() => expect(result.pswp.value).not.toBeNull());
 
@@ -798,7 +829,10 @@ describe("usePhotoSwipe", () => {
       instance.currSlide = {
         index: 0,
         data: {} as Record<string, unknown>,
-        content: { data: {} as Record<string, unknown>, element: document.createElement("img") } as Record<string, unknown>,
+        content: { data: {} as Record<string, unknown>, element: document.createElement("img") } as Record<
+          string,
+          unknown
+        >,
         resize: vi.fn(),
       } as any;
 
@@ -835,8 +869,8 @@ describe("usePhotoSwipe", () => {
       const { result, isOpenRef } = setup([makeItem("/img1.png", "img1.png")], 0, false);
       isOpenRef.value = true;
       await vi.waitFor(() => expect(result.pswp.value).not.toBeNull());
-      expect((window as Record<string, unknown>).__pswp).toBeDefined();
-      expect(typeof (window as Record<string, unknown>).__loadOriginalForCurrent).toBe("function");
+      expect((window as any).__pswp).toBeDefined();
+      expect(typeof (window as any).__loadOriginalForCurrent).toBe("function");
 
       const instance = pswpInstances[0];
       result.destroyPhotoSwipe();
@@ -868,10 +902,10 @@ describe("usePhotoSwipe", () => {
       isOpenRef.value = true;
       await vi.waitFor(() => expect(result.pswp.value).not.toBeNull());
 
-      (window as Record<string, unknown>).__pswp = result.pswp.value;
+      (window as any).__pswp = result.pswp.value;
       result.destroyPhotoSwipe();
 
-      expect((window as Record<string, unknown>).__pswp).toBeUndefined();
+      expect((window as any).__pswp).toBeUndefined();
     });
 
     it("calls loadOriginalForCurrent via window.__loadOriginalForCurrent hook", async () => {
@@ -883,11 +917,14 @@ describe("usePhotoSwipe", () => {
       instance.currSlide = {
         index: 0,
         data: {} as Record<string, unknown>,
-        content: { data: {} as Record<string, unknown>, element: document.createElement("img") } as Record<string, unknown>,
+        content: { data: {} as Record<string, unknown>, element: document.createElement("img") } as Record<
+          string,
+          unknown
+        >,
         resize: vi.fn(),
       } as any;
 
-      (window as Record<string, unknown>).__loadOriginalForCurrent("fullscreen");
+      (window as any).__loadOriginalForCurrent("fullscreen");
 
       await vi.waitFor(() => {
         const dataItem = instance.options.dataSource[0] as PhotoSwipeImageItem;
@@ -898,7 +935,8 @@ describe("usePhotoSwipe", () => {
     it("triggers maybeLoadCurrentAnimatedOriginal from change event on animated asset", async () => {
       const { result, isOpenRef } = setup(
         [makeItem("/img1.png", "img1.png"), makeItem("/img.gif", "img.gif")],
-        0, false,
+        0,
+        false,
       );
       isOpenRef.value = true;
       await vi.waitFor(() => expect(result.pswp.value).not.toBeNull());
@@ -908,7 +946,10 @@ describe("usePhotoSwipe", () => {
       instance.currSlide = {
         index: 1,
         data: {} as Record<string, unknown>,
-        content: { data: {} as Record<string, unknown>, element: document.createElement("img") } as Record<string, unknown>,
+        content: { data: {} as Record<string, unknown>, element: document.createElement("img") } as Record<
+          string,
+          unknown
+        >,
         resize: vi.fn(),
       } as any;
       instance.currIndex = 1;

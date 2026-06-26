@@ -7,8 +7,42 @@ import { VueQueryPlugin } from "@tanstack/vue-query";
 function mockInspectorData(overrides = {}) {
   return {
     rows: [
-      { path: "/photos/img1.png", name: "img1.png", type: "image", mtime: 1700000000, width: 1024, height: 768, seed: 12345, model: "SDXL", tool: "ComfyUI", has_prompt: true, has_negative: false, has_lora: false, lora_count: 0, prompt_preview: "a beautiful landscape", relative_path: "/photos", folder: "/photos" },
-      { path: "/photos/img2.png", name: "img2.png", type: "image", mtime: 1700000001, width: 512, height: 512, seed: 67890, model: "SDXL", tool: "ComfyUI", has_prompt: false, has_negative: false, has_lora: true, lora_count: 2, prompt_preview: null, relative_path: "/photos", folder: "/photos" },
+      {
+        path: "/photos/img1.png",
+        name: "img1.png",
+        type: "image",
+        mtime: 1700000000,
+        width: 1024,
+        height: 768,
+        seed: 12345,
+        model: "SDXL",
+        tool: "ComfyUI",
+        has_prompt: true,
+        has_negative: false,
+        has_lora: false,
+        lora_count: 0,
+        prompt_preview: "a beautiful landscape",
+        relative_path: "/photos",
+        folder: "/photos",
+      },
+      {
+        path: "/photos/img2.png",
+        name: "img2.png",
+        type: "image",
+        mtime: 1700000001,
+        width: 512,
+        height: 512,
+        seed: 67890,
+        model: "SDXL",
+        tool: "ComfyUI",
+        has_prompt: false,
+        has_negative: false,
+        has_lora: true,
+        lora_count: 2,
+        prompt_preview: null,
+        relative_path: "/photos",
+        folder: "/photos",
+      },
     ],
     returned: 2,
     total_indexed: 50,
@@ -101,57 +135,6 @@ vi.mock("@/debug/lightboxNavDebug", () => ({
   logLightboxNavDebug: vi.fn(),
   summarizeLightboxItems: vi.fn(() => ""),
 }));
-
-function _createWrapper() {
-  setActivePinia(createPinia());
-  const queryClient = createIsolatedQueryClient();
-  return mount(
-    {
-      components: {
-        LibraryInspector: () => import("../LibraryInspector.vue"),
-      },
-      template: "<LibraryInspector />",
-    },
-    {
-      global: {
-        plugins: [[VueQueryPlugin, { queryClient }]],
-        stubs: {
-          RouterLink: { template: "<a><slot /></a>" },
-          Button: { template: "<button :disabled='disabled' @click='$emit(\"click\")'><slot /></button>" },
-          ButtonLink: { template: "<a :href='to'><slot /></a>" },
-          Input: { template: "<input :value='modelValue' @input='$emit(\"update:modelValue\", $event.target.value)' />" },
-          Badge: { template: "<span class='badge'><slot /></span>" },
-          Skeleton: { template: "<div class='skeleton'><slot /></div>" },
-          Select: { template: "<div><slot /></div>" },
-          SelectTrigger: { template: "<button><slot /></button>" },
-          SelectContent: { template: "<div><slot /></div>" },
-          SelectItem: { template: "<div><slot /></div>" },
-          SelectValue: { template: "<span><slot /></span>" },
-          SortSelect: { template: "<select><slot /></select>" },
-          Popover: { template: "<div><slot /></div>" },
-          PopoverTrigger: { template: "<div><slot /></div>" },
-          PopoverContent: { template: "<div><slot /></div>" },
-          DropdownMenu: { template: "<div><slot /></div>" },
-          DropdownMenuContent: { template: "<div><slot /></div>" },
-          DropdownMenuItem: { template: "<div><slot /></div>" },
-          DropdownMenuTrigger: { template: "<div><slot /></div>" },
-          Table: { template: "<table><slot /></table>" },
-          TableBody: { template: "<tbody><slot /></tbody>" },
-          TableCell: { template: "<td><slot /></td>" },
-          TableHead: { template: "<th><slot /></th>" },
-          TableHeader: { template: "<thead><slot /></thead>" },
-          TableRow: { template: "<tr><slot /></tr>" },
-          ArrowLeft: { template: "<span>arrow-left</span>" },
-          ArrowUpDown: { template: "<span>sort-icon</span>" },
-          Copy: { template: "<span>copy-icon</span>" },
-          ExternalLink: { template: "<span>external-link</span>" },
-          MoreHorizontal: { template: "<span>more-icon</span>" },
-          Search: { template: "<span>search-icon</span>" },
-        },
-      },
-    },
-  );
-}
 
 describe("LibraryInspector", () => {
   beforeEach(() => {
