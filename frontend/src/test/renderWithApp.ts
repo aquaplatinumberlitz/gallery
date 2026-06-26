@@ -24,43 +24,37 @@ import { VueQueryPlugin } from "@tanstack/vue-query";
 import { defineComponent, h, type Component, type DefineComponent } from "vue";
 import { createIsolatedQueryClient } from "./queryClient";
 
+/** Options for the sync renderWithApp helper — does NOT support initialRoute. */
 export interface RenderWithAppOptions {
-  /** Route path to start on (default /) */
-  initialRoute?: string;
-  /** Component slots */
   slots?: MountingOptions<Component>["slots"];
-  /** Props to pass to the component */
   props?: Record<string, unknown>;
+}
+
+/** Options for the async renderWithAppAsync helper — supports initialRoute. */
+export interface RenderWithAppAsyncOptions extends RenderWithAppOptions {
+  initialRoute?: string;
 }
 
 let routeCounter = 0;
 
-function createTestRouter(initialRoute?: string) {
+function createTestRouter() {
   routeCounter += 1;
-  const router = createRouter({
+  return createRouter({
     history: createMemoryHistory(`/test-base-${routeCounter}/`),
     routes: [{ path: "/:pathMatch(.*)*", component: { template: "<div />" } }],
   });
-  if (initialRoute) {
-    router.push(initialRoute);
-  }
-  return router;
 }
 
 /**
  * Mount a component with the full app plugin stack (Pinia + Router + Vue Query).
  *
- * Use `renderWithApp` for components that do not read the current route at mount time.
- * Use `renderWithAppAsync` when the component depends on `initialRoute` being fully
- * resolved before mount (awaits `router.push` + `router.isReady`).
+ * Does NOT accept `initialRoute`. For route-aware components use
+ * `renderWithAppAsync`.
  *
  * Example:
  * ```ts
  * const { wrapper } = renderWithApp(MyComponent, { props: { id: 1 } })
  * expect(wrapper.text()).toContain("Hello")
- *
- * // Route-aware component:
- * const { wrapper } = await renderWithAppAsync(MyComponent, { initialRoute: "/admin" })
  * ```
  */
 export function renderWithApp(
@@ -69,7 +63,7 @@ export function renderWithApp(
 ) {
   setActivePinia(createPinia());
 
-  const router = createTestRouter(options.initialRoute);
+  const router = createTestRouter();
   const queryClient = createIsolatedQueryClient();
 
   const App = defineComponent({
@@ -95,10 +89,15 @@ export function renderWithApp(
 /**
  * Async variant of renderWithApp that pushes the initial route and waits for
  * the router to be ready before mounting the component.
+ *
+ * Example:
+ * ```ts
+ * const { wrapper } = await renderWithAppAsync(MyComponent, { initialRoute: "/admin" })
+ * ```
  */
 export async function renderWithAppAsync(
   component: DefineComponent<Record<string, unknown>> | Component,
-  options: RenderWithAppOptions = {},
+  options: RenderWithAppAsyncOptions = {},
 ) {
   setActivePinia(createPinia());
 
