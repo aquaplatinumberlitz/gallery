@@ -61,6 +61,11 @@ export function renderWithApp(
   component: DefineComponent<Record<string, unknown>> | Component,
   options: RenderWithAppOptions = {},
 ) {
+  if ("initialRoute" in options) {
+    throw new Error(
+      "renderWithApp does not support initialRoute. Use renderWithAppAsync for route-aware components.",
+    );
+  }
   setActivePinia(createPinia());
 
   const router = createTestRouter();

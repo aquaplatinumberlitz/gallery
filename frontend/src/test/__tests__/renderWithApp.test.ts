@@ -11,7 +11,10 @@ describe("renderWithApp", () => {
   });
 
   it("passes props to the component", () => {
-    const Comp = defineComponent({ props: { msg: String }, setup: (props) => () => h("div", props.msg) });
+    const Comp = defineComponent({
+      props: { msg: { type: String, required: true } },
+      setup: (props: { msg: string }) => () => h("div", props.msg),
+    });
     const { wrapper } = renderWithApp(Comp, { props: { msg: "world" } });
     expect(wrapper.text()).toBe("world");
   });
