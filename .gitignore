@@ -34,6 +34,7 @@ Thumbs.db
 *.tar.gz
 
 # Test images (large)
+test mika/
 test-images/
 test-results/
 

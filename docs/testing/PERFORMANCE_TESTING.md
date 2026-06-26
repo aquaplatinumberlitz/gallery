@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-06-22
+Last reviewed: 2026-06-26
 
 This document describes how to measure and profile Gallery API performance.
 
@@ -112,7 +112,7 @@ catalog-backed and requires a registered `library_id`.
 ```bash
 # Replace library_id/path with values from your local catalog.
 time curl -sS \
-  "http://localhost:8000/api/browse?library_id=1&path=/home/ubuntu/gallery-repo/test%20mika&limit=200" \
+  "http://localhost:8000/api/browse?library_id=1&path=/absolute/path/to/local/album&limit=200" \
   >/tmp/gallery-browse.json
 ```
 
@@ -122,7 +122,7 @@ Response shape:
 {
   "index_source": "catalog",
   "library_id": 1,
-  "path": "/home/ubuntu/gallery-repo/test mika",
+  "path": "/absolute/path/to/local/album",
   "folders": [],
   "media": [],
   "total_images": 50,
@@ -212,8 +212,8 @@ Config via env vars (override defaults from `perf-budgets.json[album_open]`):
 
 ```bash
 GALLERY_BASE_URL=https://150.230.56.153 \
-GALLERY_PERF_ALBUM_NAME="test mika" \
-GALLERY_PERF_ALBUM_PATH="/home/ubuntu/gallery-repo/test mika" \
+GALLERY_PERF_ALBUM_NAME="Local Perf Album" \
+GALLERY_PERF_ALBUM_PATH="/absolute/path/to/local/album" \
 GALLERY_PERF_ALBUM_SAMPLES=5 \
 GALLERY_PERF_SCAN_BUDGET_MS=500 \
 GALLERY_PERF_FIRST_THUMB_BUDGET_MS=1000 \
@@ -272,8 +272,8 @@ npm run perf:lightbox:headed
 
 ```bash
 GALLERY_BASE_URL=http://localhost:5173 \
-GALLERY_PERF_ALBUM_NAME="test mika" \
-GALLERY_PERF_ALBUM_PATH="/home/ubuntu/gallery-repo/test mika" \
+GALLERY_PERF_ALBUM_NAME="Local Perf Album" \
+GALLERY_PERF_ALBUM_PATH="/absolute/path/to/local/album" \
 GALLERY_PERF_LIGHTBOX_SAMPLES=5 \
 GALLERY_PERF_LIGHTBOX_OPEN_BUDGET_MS=800 \
 GALLERY_PERF_LIGHTBOX_PREVIEW_BUDGET_MS=1500 \
@@ -307,7 +307,7 @@ npm run perf:lightbox
 | `GALLERY_METADATA_DB`                           | `backend/.cache/gallery_metadata.db`                  | Path to SQLite metadata cache DB                                          |
 | `GALLERY_BASE_URL`                              | `http://localhost:5173`                               | Frontend URL for Playwright tests                                         |
 | `GALLERY_API_BASE_URL`                          | `http://localhost:8000`                               | Backend API URL for perf scripts                                          |
-| `GALLERY_PERF_ALBUM_NAME`                       | `test mika`                                           | Album name for Playwright test                                            |
+| `GALLERY_PERF_ALBUM_NAME`                       | `Test Album`                                         | Album name for Playwright test                                            |
 | `GALLERY_PERF_ALBUM_PATH`                       | `""`                                                  | Album path to filter browse/thumbnail samples; prevents root-browse pollution |
 | `GALLERY_PERF_ALBUM_SAMPLES`                    | `5`                                                   | Iterations for album-open perf spec (p95 aggregation)                     |
 | `GALLERY_PERF_LIGHTBOX_SAMPLES`                 | `5`                                                   | Iterations for lightbox perf specs (p95 aggregation)                      |
