@@ -61,9 +61,9 @@ its acceptance criteria pass.
 | F2 - High-value TS module coverage | Complete | services 94.4%, stores 92.9%, utils 100%, lib/catalog 97.8%, query 92.7%, router 92.9%. Composables 37.6% blocked — 15 files need Vue Query integration test setup (see status note). Ratchet raised. |
 | F3 - Component workflow coverage | Complete | EmptyState (10 tests, ~90% lines), IndexProgressBar (3 tests, 100%) added. renderWithApp/Async harness ready for future component coverage. Largest files (LibraryInspector, GalleryGrid, Lightbox) remain 0% — deferred to F7. |
 | F4 - Baseline gate integration | Complete | coverage:unit:check wired into ./test.sh unit at baseline ratchet (~24% lines). All gates pass: lint, typecheck, test (44/605), coverage, docs. blocked from 90% by F7 (components) and F6 (composables). |
-| F5 - Coverage harness hardening | Pending | Make route-aware/component/query harnesses reliable enough for large workflow tests. |
-| F6 - Vue Query composable coverage | Pending | Cover query/mutation composables and raise composables coverage materially. |
-| F7 - Large component workflow coverage | In progress | All 10 target components have non-zero coverage; total lines 50.47%, components 37.09%. Additional passes needed to reach 60/80% thresholds. |
+| F5 - Coverage harness hardening | Complete | renderWithApp rejects initialRoute at type/runtime level, renderWithAppAsync awaits router readiness, Vue Query harness helper added, regression tests pass. |
+| F6 - Vue Query composable coverage | Complete | 22 composable test files, composables coverage >=75%. All previously 0% composables covered. |
+| F7 - Large component workflow coverage | Complete | 17 component test files, components coverage >=60%, total frontend lines >=60%. All 10 target components covered. |
 | F8 - Threshold ratchet to final target | Pending | Raise local/CI thresholds in mandatory ratchet steps up to 90/90/85/80. |
 
 Allowed statuses: `Pending`, `In progress`, `Blocked`, `Complete`.

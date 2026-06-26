@@ -24,16 +24,20 @@ import { VueQueryPlugin } from "@tanstack/vue-query";
 import { defineComponent, h, type Component, type DefineComponent } from "vue";
 import { createIsolatedQueryClient } from "./queryClient";
 
-/** Options for the sync renderWithApp helper — does NOT support initialRoute. */
-export interface RenderWithAppOptions {
+/** Common options shared between sync and async render helpers. */
+export interface RenderWithAppBaseOptions {
   slots?: MountingOptions<Component>["slots"];
   props?: Record<string, unknown>;
+}
+
+/** Options for the sync renderWithApp helper — does NOT support initialRoute. */
+export interface RenderWithAppOptions extends RenderWithAppBaseOptions {
   /** {@inheritDoc} — renderWithApp does not support initialRoute. Use renderWithAppAsync. */
   initialRoute?: never;
 }
 
 /** Options for the async renderWithAppAsync helper — supports initialRoute. */
-export interface RenderWithAppAsyncOptions extends RenderWithAppOptions {
+export interface RenderWithAppAsyncOptions extends RenderWithAppBaseOptions {
   initialRoute?: string;
 }
 

@@ -43,7 +43,7 @@ describe("renderWithApp", () => {
     // initialRoute at compile time. This test verifies the runtime guard
     // catches cases where type checking is bypassed (e.g. `as any`).
     const Comp = defineComponent({ setup: () => () => h("div", "x") });
-    const opts = { initialRoute: "/admin" } as RenderWithAppOptions;
+    const opts = { initialRoute: "/admin" } as unknown as RenderWithAppOptions;
     expect(() => renderWithApp(Comp, opts)).toThrow(
       "renderWithApp does not support initialRoute",
     );

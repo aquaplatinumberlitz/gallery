@@ -127,55 +127,6 @@ vi.mock("@/stores/gallery", () => {
   };
 });
 
-function _createWrapper(props: Record<string, unknown> = {}) {
-  setActivePinia(createPinia());
-  const queryClient = createIsolatedQueryClient();
-  return mount(
-    {
-      components: {
-        GalleryGrid: () => import("../GalleryGrid.vue"),
-      },
-      template: "<GalleryGrid v-bind='$attrs' />",
-      inheritAttrs: false,
-    },
-    {
-      props: {
-        isMobile: false,
-        barsVisible: true,
-        showToolbarBreadcrumb: true,
-        ...props,
-      },
-      global: {
-        plugins: [[VueQueryPlugin, { queryClient }]],
-        stubs: {
-          RouterLink: { template: "<a><slot /></a>" },
-          AlbumCard: { template: "<div class='album-card'><slot /></div>" },
-          AlbumScroller: { template: "<div class='album-scroller'><slot /></div>" },
-          GallerySectionHeader: { template: "<div class='section-header'><slot /></div>" },
-          GlowContainer: { template: "<div class='glow-container'><slot /></div>" },
-          PhotoCard: { template: "<div class='photo-card'><slot /></div>" },
-          VideoCard: { template: "<div class='video-card'><slot /></div>" },
-          VideoPlayerDialog: { template: "<div class='video-dialog'><slot /></div>" },
-          SkeletonLoader: { template: "<div class='skeleton-loader'>skeleton</div>" },
-          Breadcrumb: { template: "<div class='breadcrumb-stub'><slot /></div>" },
-          EmptyState: { template: "<div class='empty-state'><slot /></div>" },
-          TabletGalleryToolbar: { template: "<div class='tablet-toolbar'><slot /></div>" },
-          SortSelect: { template: "<select class='sort-select'><slot /></select>" },
-          Button: { template: "<button :disabled='disabled' @click='$emit(\"click\")'><slot /></button>" },
-          Badge: { template: "<span class='badge'><slot /></span>" },
-          Tooltip: { template: "<span><slot /></span>" },
-          TooltipTrigger: { template: "<span><slot /></span>" },
-          TooltipContent: { template: "<span><slot /></span>" },
-          DropdownMenu: { template: "<div><slot /></div>" },
-          DropdownMenuContent: { template: "<div><slot /></div>" },
-          DropdownMenuRadioGroup: { template: "<div><slot /></div>" },
-          DropdownMenuRadioItem: { template: "<div><slot /></div>" },
-          DropdownMenuTrigger: { template: "<div><slot /></div>" },
-        },
-      },
-    },
-  );
-}
 
 describe("GalleryGrid", () => {
   beforeEach(() => {
