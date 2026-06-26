@@ -28,6 +28,8 @@ import { createIsolatedQueryClient } from "./queryClient";
 export interface RenderWithAppOptions {
   slots?: MountingOptions<Component>["slots"];
   props?: Record<string, unknown>;
+  /** {@inheritDoc} — renderWithApp does not support initialRoute. Use renderWithAppAsync. */
+  initialRoute?: never;
 }
 
 /** Options for the async renderWithAppAsync helper — supports initialRoute. */
