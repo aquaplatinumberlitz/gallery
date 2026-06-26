@@ -46,7 +46,7 @@ its acceptance criteria pass.
 | F1 - Shared frontend test infrastructure | Complete | renderWithApp, queryClient, factories, mockApi, setup.ts shims (clipboard, EventSource, PointerEvent). |
 | F2 - High-value TS module coverage | Complete | services 94.4%, stores 92.9%, utils 100%, lib/catalog 97.8%, query 92.7%, router 92.9%. Composables 37.6% blocked — 15 files need Vue Query integration test setup (see status note). Ratchet raised. |
 | F3 - Component workflow coverage | In progress | EmptyState (10 tests, ~90% lines), IndexProgressBar (3 tests, 100%) added. Largest files (LibraryInspector, GalleryGrid, Lightbox) remain 0% — need mount with Pinia/Router/Query. header/router/lightbox harness not yet built. |
-| F4 - Final thresholds and CI/local gate | In progress | coverage:unit:check wired into ./test.sh unit. Ratchet thresholds at current baseline. unit/docs gates still fail (router test unhandled rejection, typecheck errors, missing catalog entries). blocking gates not yet passing. |
+| F4 - Final thresholds and CI/local gate | In progress | coverage:unit:check wired into ./test.sh unit. Ratchet thresholds at current baseline (~24% lines). All gates pass (lint, typecheck, test, coverage, docs). Final 90% not enforced — blocked by Vue components and Vue Query composables needing mount/integration harness. |
 
 Allowed statuses: `Pending`, `In progress`, `Blocked`, `Complete`.
 

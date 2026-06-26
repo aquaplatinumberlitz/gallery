@@ -73,7 +73,9 @@ run_docs() {
     echo "==> Test/debug header check"
     "$PYTHON" scripts/check_test_docs.py
     echo "==> Test matrix catalog audit"
-    "$PYTHON" scripts/audit_test_matrix.py --fail-on-gaps
+    "$PYTHON" scripts/audit_test_matrix.py --fail-on-gaps \
+        --output /tmp/gallery-test-gap-report.md \
+        --json-output /tmp/gallery-test-gap-report.json
     echo "==> Metadata lifecycle ownership check"
     "$PYTHON" scripts/check_metadata_lifecycle_ownership.py
 }
