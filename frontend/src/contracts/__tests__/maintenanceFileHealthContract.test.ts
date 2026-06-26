@@ -14,8 +14,7 @@ const backendFixturePath = (name: string): string =>
 const frontendSchemaPath = (): string =>
   resolve(process.cwd(), "src/contracts/schemas/file-health-response.schema.json");
 
-const loadFixture = <T>(name: string): T =>
-  JSON.parse(readFileSync(backendFixturePath(name), "utf8")) as T;
+const loadFixture = <T>(name: string): T => JSON.parse(readFileSync(backendFixturePath(name), "utf8")) as T;
 
 const EXPECTED_ISSUE_KEYS: (keyof FileHealthIssues)[] = [
   "missing_source_files",
@@ -25,12 +24,7 @@ const EXPECTED_ISSUE_KEYS: (keyof FileHealthIssues)[] = [
   "generated_image_job_mismatch",
 ];
 
-const EXPECTED_REPAIR_KEYS: (keyof FileHealthRepairs)[] = [
-  "repaired",
-  "requeued",
-  "failed",
-  "unchanged",
-];
+const EXPECTED_REPAIR_KEYS: (keyof FileHealthRepairs)[] = ["repaired", "requeued", "failed", "unchanged"];
 
 const EXPECTED_RUN_KEYS: (keyof FileHealthRun)[] = [
   "id",

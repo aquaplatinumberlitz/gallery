@@ -7,19 +7,13 @@
   "required": ["run"],
   "properties": {
     "run": {
-      "oneOf": [
-        { "type": "null" },
-        { "$ref": "#/$defs/FileHealthRun" }
-      ]
+      "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/FileHealthRun" }]
     }
   },
   "$defs": {
     "FileHealthRun": {
       "type": "object",
-      "required": [
-        "id", "trigger", "started_at", "finished_at",
-        "status", "error", "issues", "repairs"
-      ],
+      "required": ["id", "trigger", "started_at", "finished_at", "status", "error", "issues", "repairs"],
       "properties": {
         "id": { "type": "integer" },
         "trigger": { "type": "string", "enum": ["manual", "daemon"] },
