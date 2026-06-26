@@ -503,8 +503,6 @@ class TestSchemaCheckEdgeCases:
         """)
         issues = check_catalog_schema(conn)
         missing_tables = [i for i in issues if i.startswith("Missing table")]
-        missing_cols = [i for i in issues if i.startswith("Table")]
-        missing_indexes = [i for i in issues if i.startswith("Missing index")]
         assert len(missing_tables) >= 7
         assert "Missing table: image_metadata" in issues
         assert "Missing table: metadata_index_jobs" in issues
