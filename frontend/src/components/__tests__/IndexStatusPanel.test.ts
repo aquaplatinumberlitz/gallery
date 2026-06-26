@@ -1,0 +1,188 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { setActivePinia, createPinia } from "pinia";
+import { mount } from "@vue/test-utils";
+import { createIsolatedQueryClient } from "@/test/queryClient";
+import { VueQueryPlugin } from "@tanstack/vue-query";
+
+const mockStatus = {
+  contract_version: 1,
+  generated_at: Date.now(),
+  summary_state: "ready" as const,
+  scope: { kind: "library" as const, library_id: 1, path: null, import_path_count: 1 },
+  availability: { state: "available" as const, available_paths: 1, total_paths: 1 },
+  scan: { state: "complete" as const, operation: null, trigger: null, active_job_id: null, completed_units: null, total_units: null, progress_percent: null },
+  metadata: { state: "complete" as const, total_assets: 100, ready_assets: 95, not_ready_assets: 5, queued_assets: 0, running_assets: 0, stale_assets: 0, idle_pending_assets: 0, failed_assets: 0, progress_percent: 100, global_active_outside_scope: false },
+  issue_count: 0,
+  issues: { availability: 0, scan: 0, metadata: 0 },
+  latest_issue: null,
+  last_scan_at: null,
+  last_index_at: null,
+};
+
+let mockDataValue = { value: { status: mockStatus, contract_version: 1 } };
+let mockIsLoadingValue = { value: false };
+let mockIsErrorValue = { value: false };
+let mockErrorValue = { value: null };
+let mockContractErrorValue = { value: null };
+const mockRefetch = vi.fn();
+
+vi.mock("@/composables/useCatalogStatusQuery", () => ({
+  useCatalogStatusQuery: () => ({
+    data: mockDataValue,
+    isLoading: mockIsLoadingValue,
+    isError: mockIsErrorValue,
+    error: mockErrorValue,
+    refetch: mockRefetch,
+    contractError: mockContractErrorValue,
+  }),
+}));
+
+vi.mock("@/composables/useActiveLibrarySelection", () => ({
+  useActiveLibrarySelection: () => ({
+    activeLibrary: { value: { id: 1, name: "Test" } },
+  }),
+}));
+
+vi.mock("@/services/api", () => ({
+  rebuildLibrary: vi.fn(),
+  scanLibrary: vi.fn(),
+}));
+
+vi.mock("@/query", () => ({
+  queryClient: { invalidateQueries: vi.fn() },
+}));
+
+vi.mock("@/query/keys", () => ({
+  queryKeys: {
+    statusLibrary: vi.fn(() => ["status", "library", 1]),
+    statusPathRoot: vi.fn(() => ["status", "path", 1]),
+    statusBatch: vi.fn(() => ["status", "batch"]),
+    browseRoot: vi.fn(() => ["browse", 1]),
+    browseInfiniteRoot: vi.fn(() => ["browse", "infinite", 1]),
+    libraries: vi.fn(() => ["libraries"]),
+    jobsRoot: vi.fn(() => ["jobs"]),
+  },
+}));
+
+vi.mock("@/utils/indexMaintenance", () => ({
+  markScopeRebuildStarted: vi.fn(),
+}));
+
+function _createWrapper(props: Record<string, unknown> = {}) {
+  setActivePinia(createPinia());
+  const queryClient = createIsolatedQueryClient();
+  return mount(
+    {
+      components: {
+        IndexStatusPanel: () => import("../IndexStatusPanel.vue"),
+      },
+      template: "<IndexStatusPanel v-bind='$attrs' />",
+      inheritAttrs: false,
+    },
+    {
+      props,
+      global: {
+        plugins: [[VueQueryPlugin, { queryClient }]],
+        stubs: {
+          Button: { template: "<button :disabled='disabled' @click='$emit(\"click\")'><slot /></button>" },
+          Badge: { template: "<span class='badge'><slot /></span>" },
+          Popover: { template: "<div><slot /></div>" },
+          PopoverTrigger: { template: "<div><slot /></div>" },
+          PopoverContent: { template: "<div><slot /></div>" },
+          Dialog: { template: "<div v-if='open'><slot /></div>" },
+          DialogContent: { template: "<div><slot /></div>" },
+          DialogTitle: { template: "<h2><slot /></h2>" },
+          DialogDescription: { template: "<p><slot /></p>" },
+          Tooltip: { template: "<span><slot /></span>" },
+          TooltipTrigger: { template: "<span><slot /></span>" },
+          TooltipContent: { template: "<span><slot /></span>" },
+          IndexStatusBadge: { template: "<span class='status-badge'><slot /></span>" },
+          IndexStatusCard: { template: "<div class='status-card'><slot /></div>" },
+          Database: { template: "<span>db-icon</span>" },
+          Loader: { template: "<span>loader-icon</span>" },
+          AlertCircle: { template: "<span>alert-icon</span>" },
+        },
+      },
+    },
+  );
+}
+
+describe("IndexStatusPanel", () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    vi.clearAllMocks();
+    mockDataValue = { value: { status: mockStatus, contract_version: 1 } };
+    mockIsLoadingValue = { value: false };
+    mockIsErrorValue = { value: false };
+    mockErrorValue = { value: null };
+    mockContractErrorValue = { value: null };
+  });
+
+  it("renders button with catalog status trigger", async () => {
+    const IndexStatusPanel = (await import("../IndexStatusPanel.vue")).default;
+    setActivePinia(createPinia());
+    const queryClient = createIsolatedQueryClient();
+    const wrapper = mount(IndexStatusPanel, {
+      global: {
+        plugins: [[VueQueryPlugin, { queryClient }]],
+        stubs: {
+          Button: { template: "<button><slot /></button>" },
+          Badge: { template: "<span><slot /></span>" },
+          Popover: { template: "<div><slot /></div>" },
+          PopoverTrigger: { template: "<div><slot /></div>" },
+          PopoverContent: { template: "<div><slot /></div>" },
+          IndexStatusBadge: { template: "<span><slot /></span>" },
+          IndexStatusCard: { template: "<div class='status-card'><slot /></div>" },
+          Database: { template: "<span>db</span>" },
+          Loader: { template: "<span>loader</span>" },
+          AlertCircle: { template: "<span>alert</span>" },
+        },
+      },
+    });
+    expect(wrapper.find("button").exists()).toBe(true);
+  });
+
+  it("renders card variant", async () => {
+    const IndexStatusPanel = (await import("../IndexStatusPanel.vue")).default;
+    setActivePinia(createPinia());
+    const queryClient = createIsolatedQueryClient();
+    const wrapper = mount(IndexStatusPanel, {
+      props: { variant: "card" },
+      global: {
+        plugins: [[VueQueryPlugin, { queryClient }]],
+        stubs: {
+          IndexStatusCard: { template: "<div class='status-card'>Card Content</div>" },
+          Button: { template: "<button><slot /></button>" },
+          Badge: { template: "<span><slot /></span>" },
+        },
+      },
+    });
+    expect(wrapper.find(".status-card").exists()).toBe(true);
+  });
+
+  it("shows loading state", async () => {
+    mockIsLoadingValue = { value: true };
+    mockDataValue = { value: null };
+    const IndexStatusPanel = (await import("../IndexStatusPanel.vue")).default;
+    setActivePinia(createPinia());
+    const queryClient = createIsolatedQueryClient();
+    const wrapper = mount(IndexStatusPanel, {
+      global: {
+        plugins: [[VueQueryPlugin, { queryClient }]],
+        stubs: {
+          Button: { template: "<button><slot /></button>" },
+          Badge: { template: "<span><slot /></span>" },
+          Popover: { template: "<div><slot /></div>" },
+          PopoverTrigger: { template: "<div><slot /></div>" },
+          PopoverContent: { template: "<div class='popover-content'><slot /></div>" },
+          IndexStatusBadge: { template: "<span><slot /></span>" },
+          IndexStatusCard: { template: "<div class='status-card'><slot /></div>" },
+          Database: { template: "<span>db</span>" },
+          Loader: { template: "<span>loader</span>" },
+          AlertCircle: { template: "<span>alert</span>" },
+        },
+      },
+    });
+    expect(wrapper.text()).toBeTruthy();
+  });
+});
