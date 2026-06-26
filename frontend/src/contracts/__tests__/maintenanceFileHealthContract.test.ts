@@ -8,10 +8,14 @@ import Ajv2020 from "ajv/dist/2020.js";
 
 import type { FileHealthIssues, FileHealthRepairs, FileHealthResponse, FileHealthRun } from "@/services/api";
 
-const fixturePath = (name: string): string =>
+const backendFixturePath = (name: string): string =>
   resolve(process.cwd(), "../backend/tests/fixtures/file_health", name);
 
-const loadFixture = <T>(name: string): T => JSON.parse(readFileSync(fixturePath(name), "utf8")) as T;
+const frontendSchemaPath = (): string =>
+  resolve(process.cwd(), "src/contracts/schemas/file-health-response.schema.json");
+
+const loadFixture = <T>(name: string): T =>
+  JSON.parse(readFileSync(backendFixturePath(name), "utf8")) as T;
 
 const EXPECTED_ISSUE_KEYS: (keyof FileHealthIssues)[] = [
   "missing_source_files",
@@ -46,7 +50,7 @@ describe("maintenance file-health contract fixtures", () => {
   let validate: ReturnType<Ajv2020["compile"]>;
 
   beforeAll(() => {
-    schema = loadFixture<AnySchema>("schema.json");
+    schema = JSON.parse(readFileSync(frontendSchemaPath(), "utf8")) as AnySchema;
     validate = new Ajv2020().compile(schema);
   });
 

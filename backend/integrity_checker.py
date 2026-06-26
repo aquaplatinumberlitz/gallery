@@ -115,7 +115,13 @@ class IntegrityChecker:
         return summary
 
     def run_all_checks(self) -> dict[str, int]:
-        """Run all six checks and return a dict mapping check name to issue count."""
+        """Run all checks and return a dict mapping check name to issue count.
+
+        Keys: asset_done_but_no_metadata, job_done_asset_not_done,
+        job_active_no_asset, derivative_ready_no_file,
+        derivative_done_not_ready, derivative_done_repaired,
+        derivative_done_failed, job_active_no_file.
+        """
         total = {}
         with _DB_LOCK, _connect() as conn:
             total["asset_done_but_no_metadata"] = self._check_asset_done_no_metadata(conn)

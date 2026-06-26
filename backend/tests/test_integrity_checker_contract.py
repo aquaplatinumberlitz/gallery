@@ -336,8 +336,8 @@ class TestCheckDerivativeJobDoneNotReady:
 
     def test_empty_db_returns_zero(self) -> None:
         with _DB_LOCK, _connect() as conn:
-            count = integrity_checker._check_derivative_job_done_not_ready(conn)
-        assert count == 0
+            result = integrity_checker._check_derivative_job_done_not_ready(conn)
+        assert result == {"repaired": 0, "failed": 0}
 
     def test_detects_and_reconciles_when_file_exists(self, tmp_path: Path) -> None:
         cache_file = tmp_path / "exists.webp"
@@ -348,8 +348,8 @@ class TestCheckDerivativeJobDoneNotReady:
             ad_id = _derivative_row(conn, asset_id, cache_path=str(cache_file), status="queued")
             _derivative_job_row(conn, ad_id, state="done")
         with _DB_LOCK, _connect() as conn:
-            count = integrity_checker._check_derivative_job_done_not_ready(conn)
-        assert count == 1
+            result = integrity_checker._check_derivative_job_done_not_ready(conn)
+        assert result == {"repaired": 1, "failed": 0}
         with _DB_LOCK, _connect() as conn:
             row = conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (ad_id,)).fetchone()
             assert row["status"] == "ready"
@@ -365,8 +365,8 @@ class TestCheckDerivativeJobDoneNotReady:
             ad_id2 = _derivative_row(conn, asset_id, cache_path=str(cache_file), status="queued", source_mtime_ns=2)
             _derivative_job_row(conn, ad_id2, state="done")
         with _DB_LOCK, _connect() as conn:
-            count = integrity_checker._check_derivative_job_done_not_ready(conn)
-        assert count == 1
+            result = integrity_checker._check_derivative_job_done_not_ready(conn)
+        assert result == {"repaired": 1, "failed": 0}
         with _DB_LOCK, _connect() as conn:
             assert conn.execute(
                 "SELECT status FROM asset_derivatives WHERE id = ?", (ad_id,)
@@ -426,7 +426,7 @@ class TestCheckJobActiveNoFile:
 
 
 class TestRunAllChecks:
-    def test_returns_all_six_keys_with_int_values(self) -> None:
+    def test_returns_all_eight_keys_with_int_values(self) -> None:
         results = integrity_checker.run_all_checks()
         expected_keys = {
             "asset_done_but_no_metadata",
@@ -434,6 +434,8 @@ class TestRunAllChecks:
             "job_active_no_asset",
             "derivative_ready_no_file",
             "derivative_done_not_ready",
+            "derivative_done_repaired",
+            "derivative_done_failed",
             "job_active_no_file",
         }
         assert set(results.keys()) == expected_keys
