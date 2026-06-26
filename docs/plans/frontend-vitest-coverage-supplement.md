@@ -63,7 +63,7 @@ its acceptance criteria pass.
 | F4 - Baseline gate integration | Complete | coverage:unit:check wired into ./test.sh unit at baseline ratchet (~24% lines). All gates pass: lint, typecheck, test (44/605), coverage, docs. blocked from 90% by F7 (components) and F6 (composables). |
 | F5 - Coverage harness hardening | Pending | Make route-aware/component/query harnesses reliable enough for large workflow tests. |
 | F6 - Vue Query composable coverage | Pending | Cover query/mutation composables and raise composables coverage materially. |
-| F7 - Large component workflow coverage | Pending | Cover the largest uncovered Vue workflows by missing lines, not by easiest files. |
+| F7 - Large component workflow coverage | In progress | All 10 target components have non-zero coverage; total lines 50.47%, components 37.09%. Additional passes needed to reach 60/80% thresholds. |
 | F8 - Threshold ratchet to final target | Pending | Raise local/CI thresholds in mandatory ratchet steps up to 90/90/85/80. |
 
 Allowed statuses: `Pending`, `In progress`, `Blocked`, `Complete`.
