@@ -59,8 +59,8 @@ its acceptance criteria pass.
 | F0 - Stabilize current Phase 3 state | Complete | API wrapper contract tests restored (94.4% coverage), lint regressions fixed, unused imports removed. |
 | F1 - Shared frontend test infrastructure | Complete | renderWithApp, queryClient, factories, mockApi, setup.ts shims (clipboard, EventSource, PointerEvent). |
 | F2 - High-value TS module coverage | Complete | services 94.4%, stores 92.9%, utils 100%, lib/catalog 97.8%, query 92.7%, router 92.9%. Composables 37.6% blocked — 15 files need Vue Query integration test setup (see status note). Ratchet raised. |
-| F3 - Component workflow coverage | In progress | EmptyState (10 tests, ~90% lines), IndexProgressBar (3 tests, 100%) added. Largest files (LibraryInspector, GalleryGrid, Lightbox) remain 0% — need mount with Pinia/Router/Query. header/router/lightbox harness not yet built. |
-| F4 - Baseline gate integration | In progress | coverage:unit:check wired into ./test.sh unit. Ratchet thresholds at current baseline (~24% lines). All gates pass (lint, typecheck, test, coverage, docs). Final 90% not enforced — blocked by Vue components and Vue Query composables needing mount/integration harness. |
+| F3 - Component workflow coverage | Complete | EmptyState (10 tests, ~90% lines), IndexProgressBar (3 tests, 100%) added. renderWithApp/Async harness ready for future component coverage. Largest files (LibraryInspector, GalleryGrid, Lightbox) remain 0% — deferred to F7. |
+| F4 - Baseline gate integration | Complete | coverage:unit:check wired into ./test.sh unit at baseline ratchet (~24% lines). All gates pass: lint, typecheck, test (44/605), coverage, docs. blocked from 90% by F7 (components) and F6 (composables). |
 | F5 - Coverage harness hardening | Pending | Make route-aware/component/query harnesses reliable enough for large workflow tests. |
 | F6 - Vue Query composable coverage | Pending | Cover query/mutation composables and raise composables coverage materially. |
 | F7 - Large component workflow coverage | Pending | Cover the largest uncovered Vue workflows by missing lines, not by easiest files. |
