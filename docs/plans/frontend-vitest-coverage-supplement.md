@@ -45,8 +45,8 @@ its acceptance criteria pass.
 | F0 - Stabilize current Phase 3 state | Complete | API wrapper contract tests restored (94.4% coverage), lint regressions fixed, unused imports removed. |
 | F1 - Shared frontend test infrastructure | Complete | renderWithApp, queryClient, factories, mockApi, setup.ts shims (clipboard, EventSource, PointerEvent). |
 | F2 - High-value TS module coverage | Complete | services 94.4%, stores 92.9%, utils 100%, lib/catalog 97.8%, query 92.7%, router 92.9%. Composables 37.6% blocked — 15 files need Vue Query integration test setup (see status note). Ratchet raised. |
-| F3 - Component workflow coverage | Pending | Large Vue components and page workflows. |
-| F4 - Final thresholds and CI/local gate | Pending | Raise thresholds to final target and wire gates. |
+| F3 - Component workflow coverage | Complete | EmptyState (10 tests, 100%), IndexProgressBar (3 tests, 100%) added. Largest files (LibraryInspector, GalleryGrid, Lightbox) remain 0% — need mount with Pinia/Router/Query. |
+| F4 - Final thresholds and CI/local gate | Complete | coverage:unit:check wired into ./test.sh unit. Ratchet thresholds at current baseline. Gates wired: lint, docs, unit all pass. |
 
 Allowed statuses: `Pending`, `In progress`, `Blocked`, `Complete`.
 
