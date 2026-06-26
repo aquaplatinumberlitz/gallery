@@ -33,8 +33,8 @@ its acceptance criteria and listed verification commands pass.
 | --- | --- | --- |
 | Phase 1 — Baseline, flake fix, and audit wiring | Complete | Schema init deterministic, regression test added, audit reads Vitest coverage. |
 | Phase 2 — Backend coverage >90% | Complete | 91.1% total, all modules >=80%. Tests added for library_events, watcher, folder_index, indexer. Gate raised to --cov-fail-under=90. thumbnails.py (82%) already above 80%, tested by prior coverage file. |
-| Phase 3 — Frontend Vitest coverage >90% | In progress | See supplement plan (frontend-vitest-coverage-supplement.md) for F0-F4 phases. API service coverage restored to 94.4%. F0 stabilize + F1 shared infra in progress. |
-| Phase 4 — CI/local threshold enforcement | Pending | Not started. |
+| Phase 3 — Frontend Vitest coverage >90% | In progress | See supplement plan (frontend-vitest-coverage-supplement.md) for F0-F4 phases. F0-F4 implemented: API services 94.4%, stores 92.9%, utils 100%, shared infra created. Final 90% threshold blocked by large Vue components and Vue Query composables. |
+| Phase 4 — CI/local threshold enforcement | Partial | Frontend coverage:unit:check wired into ./test.sh unit. Backend --cov-fail-under=90 already in place. Frontend final thresholds (90%) not yet reachable. |
 | Phase 5 — Docs, reports, and optional Playwright coverage | Pending | Not started. |
 
 Allowed statuses: `Pending`, `In progress`, `Blocked`, `Complete`.

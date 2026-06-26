@@ -60,6 +60,8 @@ run_unit() {
     cd "$REPO_ROOT/frontend"
     echo "==> Frontend Vitest with coverage"
     corepack pnpm run test:unit:coverage
+    echo "==> Frontend coverage check"
+    corepack pnpm run coverage:unit:check
     echo "==> Frontend build"
     corepack pnpm run build
 }

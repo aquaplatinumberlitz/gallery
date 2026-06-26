@@ -16,6 +16,10 @@ const thresholds = {
   branches: 15,
 };
 
+// TODO: Raise to final targets (90/90/85/80) in a future phase.
+// Current infrastructure supports mount/integration tests via renderWithApp
+// but large Vue components and Vue Query composables remain untested.
+
 let summary;
 try {
   summary = JSON.parse(readFileSync(summaryPath, "utf-8"));
