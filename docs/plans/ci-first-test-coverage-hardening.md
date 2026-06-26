@@ -33,7 +33,7 @@ its acceptance criteria and listed verification commands pass.
 | --- | --- | --- |
 | Phase 1 — Baseline, flake fix, and audit wiring | Complete | Schema init deterministic, regression test added, audit reads Vitest coverage. |
 | Phase 2 — Backend coverage >90% | Complete | 91.1% total, all modules >=80%. Tests added for library_events, watcher, folder_index, indexer. Gate raised to --cov-fail-under=90. thumbnails.py (82%) already above 80%, tested by prior coverage file. |
-| Phase 3 — Frontend Vitest coverage >90% | Complete | Coverage 19.7% lines — 90% unreachable in this pass. See status note below. coverage:unit:check script added with baseline thresholds. High-value tests added for assetType, libraryStatus, status derivation, api errors, naturalSort, composables, and gallery store. |
+| Phase 3 — Frontend Vitest coverage >90% | In progress | See supplement plan (frontend-vitest-coverage-supplement.md) for F0-F4 phases. API service coverage restored to 94.4%. F0 stabilize + F1 shared infra in progress. |
 | Phase 4 — CI/local threshold enforcement | Pending | Not started. |
 | Phase 5 — Docs, reports, and optional Playwright coverage | Pending | Not started. |
 

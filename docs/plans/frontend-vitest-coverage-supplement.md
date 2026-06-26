@@ -42,8 +42,8 @@ its acceptance criteria pass.
 
 | Phase | Status | Notes |
 | --- | --- | --- |
-| F0 - Stabilize current Phase 3 state | Pending | Fix lint/test regressions and restore API wrapper contract tests. |
-| F1 - Shared frontend test infrastructure | Pending | Add reusable render/query/router/store/API fixtures. |
+| F0 - Stabilize current Phase 3 state | Complete | API wrapper contract tests restored (94.4% coverage), lint regressions fixed, unused imports removed. |
+| F1 - Shared frontend test infrastructure | Complete | renderWithApp, queryClient, factories, mockApi, setup.ts shims (clipboard, EventSource, PointerEvent). |
 | F2 - High-value TS module coverage | Pending | Services, stores, composables, lib, utils. |
 | F3 - Component workflow coverage | Pending | Large Vue components and page workflows. |
 | F4 - Final thresholds and CI/local gate | Pending | Raise thresholds to final target and wire gates. |

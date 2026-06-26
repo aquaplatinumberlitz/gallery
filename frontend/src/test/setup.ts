@@ -127,6 +127,55 @@ beforeEach(() => {
   if (typeof w.requestAnimationFrame !== "function") {
     w.requestAnimationFrame = ((cb: FrameRequestCallback) => cb(0)) as typeof requestAnimationFrame;
   }
+
+  // Clipboard API — used by composables, missing in jsdom.
+  if (typeof navigator.clipboard?.writeText !== "function") {
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+      configurable: true,
+    });
+  }
+
+  // EventSource API — used by SSE subscription, missing in jsdom.
+  if (typeof w.EventSource !== "function") {
+    class EventSourceShim extends EventTarget {
+      static readonly CONNECTING = 0;
+      static readonly OPEN = 1;
+      static readonly CLOSED = 2;
+      readonly CONNECTING = 0;
+      readonly OPEN = 1;
+      readonly CLOSED = 2;
+      readonly readyState = EventSourceShim.CONNECTING;
+      readonly url: string;
+      readonly withCredentials = false;
+      onopen: ((event: Event) => void) | null = null;
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      onerror: ((event: Event) => void) | null = null;
+      constructor(url: string) {
+        super();
+        this.url = url;
+      }
+      close() {}
+    }
+    w.EventSource = EventSourceShim as unknown as typeof EventSource;
+  }
+
+  // PointerEvent — jsdom does not implement PointerEvent.
+  if (typeof w.PointerEvent !== "function") {
+    class PointerEventShim extends MouseEvent {
+      readonly pointerId = 0;
+      readonly pointerType = "";
+      readonly isPrimary = false;
+      readonly width = 1;
+      readonly height = 1;
+      readonly pressure = 0;
+      readonly tangentialPressure = 0;
+      readonly tiltX = 0;
+      readonly tiltY = 0;
+      readonly twist = 0;
+    }
+    w.PointerEvent = PointerEventShim as unknown as typeof PointerEvent;
+  }
 });
 
 afterEach(() => {
