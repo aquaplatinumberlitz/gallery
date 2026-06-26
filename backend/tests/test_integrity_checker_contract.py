@@ -10,7 +10,6 @@ Also covers run_all_checks, run_and_persist, and schema_check edge cases.
 
 from __future__ import annotations
 
-import json
 import sqlite3
 import time
 from pathlib import Path
