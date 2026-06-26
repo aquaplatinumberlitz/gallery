@@ -5,13 +5,17 @@
 
 Status: Archived historical index
 
-Last reviewed: 2026-06-25
+Last reviewed: 2026-06-26
 
 This directory is reserved for proposed, active, or blocked implementation
 plans.
 
 Recent plans:
 
+- [Immich Missing Adaptations Hardening](IMMICH_MISSING_ADAPTATIONS_HARDENING_PLAN.md)
+  — completed; moved to `docs/archived/`.
+- [Immich Missing Adaptations Hardening implementation status](IMMICH_MISSING_ADAPTATIONS_HARDENING_IMPLEMENTATION_STATUS.md)
+  — verified implementation baseline; moved to `docs/archived/`.
 - [Frontend Library Health and Generated Files UI](FRONTEND_LIBRARY_HEALTH_GENERATED_FILES_PLAN.md)
   — completed; moved to `docs/archived/`.
 - [Metadata Lifecycle D Full Clean](../archived/METADATA_LIFECYCLE_D_FULL_REFACTOR_PLAN.md)

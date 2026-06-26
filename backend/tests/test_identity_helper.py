@@ -1,4 +1,17 @@
-"""Tests for the shared identity matching helper."""
+"""Tests for the shared identity matching helper.
+
+Purpose:
+Validate the SQL fragments and tolerance constants that define metadata
+identity matching across lifecycle, status, browse, and integrity paths.
+
+Guarantees:
+Identity helper fragments keep the canonical tolerant mtime_ns rule, legacy
+seconds bridge, alias substitution, and exported tolerance constants stable.
+
+Run when:
+Changing metadata identity predicates, mtime tolerance policy, or SQL joins that
+match assets, image metadata, and metadata jobs.
+"""
 
 from __future__ import annotations
 

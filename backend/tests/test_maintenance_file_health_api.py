@@ -1,4 +1,17 @@
-"""Tests for the maintenance file-health API router (Phase 4)."""
+"""Tests for the maintenance file-health API router.
+
+Purpose:
+Validate the GET/POST maintenance file-health endpoints and their response
+envelope.
+
+Guarantees:
+Never-run, latest-run, manual-check, daemon-run, failed-run, and concurrent-run
+responses keep the stable file-health contract used by the Maintenance page.
+
+Run when:
+Changing maintenance routes, IntegrityChecker.run_and_persist, file-health
+response models, or the concurrent-run 409 envelope.
+"""
 
 from __future__ import annotations
 

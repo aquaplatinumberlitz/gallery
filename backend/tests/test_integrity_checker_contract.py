@@ -1,4 +1,17 @@
-"""Contract tests for IntegrityChecker individual check methods + schema_check edge cases.
+"""Contract tests for IntegrityChecker individual checks and schema edge cases.
+
+Purpose:
+Validate per-check IntegrityChecker contracts, run summary mapping, persisted
+file-health envelopes, and schema-check failure reporting.
+
+Guarantees:
+Each check returns stable counts, repairs only the intended rows, preserves
+unrelated rows, maps eight run_all_checks keys into five issue and four repair
+keys, and records manual/daemon runs consistently.
+
+Run when:
+Changing integrity checker checks, file-health summary mapping, schema_check,
+or the maintenance run persistence contract.
 
 Each check is tested for three contract guarantees:
 1. Returns 0 on empty DB

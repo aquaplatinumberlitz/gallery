@@ -1,20 +1,31 @@
-# Backend Hardening Plan: Remaining Immich Adaptations
+# Backend Hardening Plan: Immich Adaptations
+
+Status: Completed and archived
+
+Last reviewed: 2026-06-26
+
+Implementation status:
+[Immich Missing Adaptations Hardening implementation status](IMMICH_MISSING_ADAPTATIONS_HARDENING_IMPLEMENTATION_STATUS.md)
+
+> Historical plan. This file preserves the planning baseline and acceptance
+> criteria that led to the implementation. It is not an active plan and is not
+> the current source of truth for runtime behavior.
 
 ## Summary
 
-This is a follow-up hardening plan created after the Immich adaptation audit and
+This was a follow-up hardening plan created after the Immich adaptation audit and
 after the frontend library-health/generated-files plan was implemented. It
-finishes the remaining backend and contract hardening that Immich suggests,
+finished the remaining backend and contract hardening that Immich suggests,
 without reopening the completed admin UI work.
 
-This plan does **not** redo the finished `Generated images`, `Live status`, `Problems`, or `Admin > Maintenance` shell UI work. It focuses on the missing backend truth sources and the last read-model/contract gaps:
+This plan did **not** redo the finished `Generated images`, `Live status`, `Problems`, or `Admin > Maintenance` shell UI work. It focused on the missing backend truth sources and the last read-model/contract gaps:
 
 1. remove remaining `mtime_ns` identity drift from browse/status/read paths,
 2. add a persisted file-health report API behind the existing Maintenance page,
 3. make integrity checks auditable instead of only repair-side effects,
 4. add contract fixtures and schema checks so the frontend and backend stay aligned.
 
-## Why This Plan Exists
+## Why This Plan Existed
 
 Gallery has already adapted the useful local-first parts of Immich's lifecycle
 model: durable metadata jobs, derivative jobs, readiness state, watcher/refresh
@@ -23,21 +34,21 @@ health. The frontend follow-up for `Generated images`, `Live status`,
 `Problems`, and `Admin > Maintenance` is now done, so the remaining work is no
 longer UI discovery or layout.
 
-The reason this plan still exists is that the backend truth sources and
-contracts are not fully closed. The metadata lifecycle refactor fixed the major
+The reason this plan existed is that the backend truth sources and
+contracts were not fully closed. The metadata lifecycle refactor fixed the major
 worker-lifecycle bugs by making SQLite the queue, materializing completion into
 `assets.metadata_state`, adding recovery/repair, and aligning catalog status on
-the tolerant identity rule. The codebase still shows narrower read-model,
+the tolerant identity rule. The codebase still showed narrower read-model,
 reporting, and contract gaps that can make the UI show placeholders or disagree
 with the lifecycle state.
 
-| Cause | Current Gallery state | Why it matters | Plan response |
+| Cause | Original Gallery state | Why it mattered | Plan response |
 | --- | --- | --- | --- |
-| Frontend health/generated-files UI is done | Admin pages show generated-image coverage and Maintenance placeholders | UI now exposes places where backend truth is missing | Add file-health API and wire Maintenance to real data |
-| Metadata lifecycle uses tolerant identity | Status/indexer paths tolerate small `mtime_ns` drift | Browse can still disagree because it uses exact joins | Add shared identity helper and fix browse matching |
-| Integrity checker mutates silently | Repairs happen but no persisted run summary exists | Admin cannot audit what was found or repaired | Add `integrity_check_runs` and response envelope |
-| Contract guards exist for catalog status | New maintenance response has no schema/fixture contract | Frontend/backend drift can return | Add backend fixtures, JSON schema, and frontend contract tests |
-| Schema compatibility is additive | No explicit lifecycle schema-check helper exists | Missing tables/indexes can become runtime bugs | Add schema-check helper and tests |
+| Frontend health/generated-files UI was done | Admin pages showed generated-image coverage and empty Maintenance file-health rows | UI exposed places where backend truth was missing | Add file-health API and wire Maintenance to real data |
+| Metadata lifecycle used tolerant identity | Status/indexer paths tolerated small `mtime_ns` drift | Browse could still disagree because it used exact joins | Add shared identity helper and fix browse matching |
+| Integrity checker mutated silently | Repairs happened but no persisted run summary existed | Admin could not audit what was found or repaired | Add `integrity_check_runs` and response envelope |
+| Contract guards existed for catalog status | New maintenance response had no schema/fixture contract | Frontend/backend drift could return | Add backend fixtures, JSON schema, and frontend contract tests |
+| Schema compatibility was additive | No explicit lifecycle schema-check helper existed | Missing tables/indexes could become runtime bugs | Add schema-check helper and tests |
 
 This plan deliberately extracts the local lesson from Immich rather than copying
 Immich's infrastructure. Gallery stays SQLite-first and single-process; it does
@@ -55,11 +66,12 @@ distributed-worker assumptions.
 - This plan does not redesign admin UI and does not change the local
   SQLite-first architecture.
 
-## Verified Current State (audit baseline)
+## Original Audit Baseline
 
-These claims were checked against the codebase at the time of writing and are the
-factual basis for every decision below. Re-audit before implementing if the tree
-has moved.
+These claims were checked against the pre-implementation codebase and were the
+factual basis for every decision below. They are intentionally historical; see
+the implementation status linked above and the maintained architecture docs for
+current behavior.
 
 - `backend/metadata_store/browse_store.py:236` and `:392` join `image_metadata`
   with the **exact** predicate `im.mtime_ns = a.mtime_ns AND im.size = a.size`.
@@ -84,7 +96,7 @@ has moved.
   - "File issues" with 5 listed rows all `—`,
   - "Check files" with a `disabled` "Run checks" button,
   - "Repair results" with 4 buckets all `—`,
-  - literal "backend health report API not available yet".
+  - pre-implementation backend-unavailable copy.
 - `backend/libraries.py` is the admin router: `APIRouter()` with **no prefix**,
   included plain in `backend/app.py:96`.
 - No table `integrity_check_runs` exists. No `/maintenance` route. No

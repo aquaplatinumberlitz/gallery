@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-06-25
+Last reviewed: 2026-06-26
 
 Historical Library Management V1 handoff context is retained in the
 [archived implementation status](archived/CODEX_LIBRARY_MANAGEMENT_IMPLEMENTATION_STATUS.md).
@@ -83,10 +83,12 @@ included in the status API envelope as `metadata_lifecycle`.
 ### Integrity checker
 
 `backend/integrity_checker.py` runs a periodic background consistency pass when
-`GALLERY_INTEGRITY_CHECK_ENABLED` is true. It repairs or re-queues mismatches
-between `assets`, `image_metadata`, `metadata_index_jobs`, `asset_derivatives`,
-and `derivative_jobs`, including missing derivative cache files and active
-metadata jobs whose source file or asset row disappeared.
+`GALLERY_INTEGRITY_CHECK_ENABLED` is true. It repairs, re-queues, or marks failed
+mismatches between `assets`, `image_metadata`, `metadata_index_jobs`,
+`asset_derivatives`, and `derivative_jobs`, including missing derivative cache
+files and active metadata jobs whose source file or asset row disappeared. Each
+daemon or manual run persists a summary into `integrity_check_runs`, which backs
+the Maintenance file-health API.
 
 ## Overview
 
@@ -117,6 +119,7 @@ Backend modules are mostly flat, with selected domain packages.
 | `albums.py`                | Album cover/count/child-folder metadata                                                                                                    |
 | `scan.py`                  | Routes removed (Phase 9); scan.py still exports `require_media_path_allowed` and the router included by app.py                            |
 | `browse.py`                | DB-only read-only browse via `/api/browse`; virtual import-root listing, path-scoped asset/folder pagination                              |
+| `maintenance.py`           | `/api/maintenance/file-health` latest-run report and `/api/maintenance/file-health/check` manual integrity run                             |
 | `folders.py`               | `/api/folders` folder-tree endpoint and `/api/open-folder` OS explorer hook                                                                |
 | `images.py`                | `/api/image` original file serving                                                                                                         |
 | `thumbnails.py`            | `/api/thumbnail`, `/api/preview`, WebP derivative generation, persistent disk cache                                                        |
@@ -309,7 +312,8 @@ Core keys:
 -> generated-image summary by querying registered libraries
 -> POST /api/derivatives/rebuild?confirm=true for all-library stale generated files
 -> POST /api/derivatives/clear?confirm=true for all-library generated-file clearing
--> File issues, Check files, and Repair results sections render unavailable/empty states until a backend file-health report API exists
+-> GET /api/maintenance/file-health for latest File issues and Repair results
+-> POST /api/maintenance/file-health/check from Check files
 ```
 
 Primary admin UI labels intentionally avoid backend terms such as derivatives,

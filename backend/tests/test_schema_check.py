@@ -1,4 +1,17 @@
-"""Tests for the schema-check helper."""
+"""Tests for the schema-check helper.
+
+Purpose:
+Validate lifecycle-required catalog schema checks for tables, columns, and
+indexes.
+
+Guarantees:
+A fresh catalog DB passes, and missing lifecycle tables, columns, or indexes are
+reported with stable issue strings.
+
+Run when:
+Changing catalog lifecycle schema requirements, additive migrations, or
+schema_check reporting.
+"""
 
 from __future__ import annotations
 
