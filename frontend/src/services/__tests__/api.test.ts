@@ -1,5 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { GalleryAPIError } from "../api";
+import { describe, it, expect } from "vitest";
+import {
+  GalleryAPIError,
+  getImageUrl,
+  getThumbnailUrl,
+  getPreviewUrl,
+  getVideoUrl,
+  getVideoPosterUrl,
+  getLibraryEventsUrl,
+} from "../api";
 import type { AxiosError } from "axios";
 
 function createAxiosError(params: {
@@ -133,5 +141,43 @@ describe("GalleryAPIError.fromAxiosError", () => {
     });
     const result = GalleryAPIError.fromAxiosError(err);
     expect(result.type).toBe("bad_request");
+  });
+});
+
+describe("URL helpers", () => {
+  it("getImageUrl builds correct URL", () => {
+    const url = getImageUrl("/path/to/image.jpg");
+    expect(url).toBe("/api/image?path=%2Fpath%2Fto%2Fimage.jpg");
+  });
+
+  it("getThumbnailUrl defaults to 512 edge", () => {
+    const url = getThumbnailUrl("/test.png");
+    expect(url).toContain("/api/thumbnail?path=%2Ftest.png");
+    expect(url).toContain("max_long_edge=512");
+  });
+
+  it("getThumbnailUrl accepts custom edge", () => {
+    const url = getThumbnailUrl("/test.png", 256);
+    expect(url).toContain("max_long_edge=256");
+  });
+
+  it("getPreviewUrl builds correct URL", () => {
+    const url = getPreviewUrl("/test.png");
+    expect(url).toContain("/api/preview");
+    expect(url).toContain("max_long_edge=1440");
+  });
+
+  it("getVideoUrl builds correct URL", () => {
+    const url = getVideoUrl("/video.mp4");
+    expect(url).toBe("/api/video?path=%2Fvideo.mp4");
+  });
+
+  it("getVideoPosterUrl builds correct URL", () => {
+    const url = getVideoPosterUrl("/video.mp4");
+    expect(url).toBe("/api/video/poster?path=%2Fvideo.mp4");
+  });
+
+  it("getLibraryEventsUrl returns events endpoint", () => {
+    expect(getLibraryEventsUrl()).toBe("/api/events");
   });
 });

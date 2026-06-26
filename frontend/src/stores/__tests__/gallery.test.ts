@@ -160,9 +160,29 @@ describe("gallery store", () => {
     );
     expect(result).toBe(false);
   });
+
+  it("toggleFolder delegates to toggleFolderExpanded", () => {
+    const store = useGalleryStore();
+    store.toggleFolder({ path: "/test", type: "folder" } as any);
+    expect(store.isFolderExpanded("/test")).toBe(true);
+  });
+
+  it("selectFolder accepts FileNode", () => {
+    const store = useGalleryStore();
+    store.selectFolder({ path: "/from-node", name: "test", type: "folder" } as any);
+    expect(store.currentBrowsePath).toBe("/from-node");
+  });
+
+  it("openInExplorer no-ops when no path set", async () => {
+    const store = useGalleryStore();
+    store.currentBrowsePath = "";
+    const before = store.errorMessage;
+    await store.openInExplorer();
+    expect(store.errorMessage).toBe(before);
+  });
 });
 
-describe("findImportPathForPath", () => {
+describe("resolveActiveImportPath", () => {
   const libraries = [
     makeLib(1, [
       { id: 10, path: "/photos", position: 0 },
