@@ -44,13 +44,13 @@
   "counts": {
     "backend_test_files": 51,
     "backend_tests": 862,
-    "catalog_entries": 161,
+    "catalog_entries": 157,
     "frontend_test_files": 24,
     "frontend_tests": 159,
-    "important_files": 163,
+    "important_files": 159,
     "perf_reports": 0,
-    "vitest_test_files": 74,
-    "vitest_tests": 938
+    "vitest_test_files": 70,
+    "vitest_tests": 910
   },
   "coverage": {
     "backend_modules_below_threshold": [],
@@ -66,7 +66,7 @@
     },
     "frontend_summary_found": true
   },
-  "generated_at": "2026-06-27T04:17:50+00:00",
+  "generated_at": "2026-06-27T05:13:43+00:00",
   "matrix": [
     {
       "backend": "OK",

@@ -379,4 +379,135 @@ describe("GalleryGrid", () => {
     });
     expect(wrapper.find('[aria-label="Sort gallery"]').exists()).toBe(true);
   });
+
+  it("shows desktop toolbar", async () => {
+    const GalleryGrid = (await import("../GalleryGrid.vue")).default;
+    setActivePinia(createPinia());
+    const queryClient = createIsolatedQueryClient();
+    const wrapper = mount(GalleryGrid, {
+      props: { isMobile: false },
+      global: {
+        plugins: [[VueQueryPlugin, { queryClient }]],
+        stubs: {
+          AlbumCard: { template: "<div class='album-card' />" },
+          PhotoCard: { template: "<div class='photo-card' />" },
+          VideoCard: { template: "<div class='video-card' />" },
+          SkeletonLoader: { template: "<div class='skeleton-loader' />" },
+          Breadcrumb: { template: "<div class='breadcrumb-stub' />" },
+          EmptyState: { template: "<div class='empty-state' />" },
+          SortSelect: { template: "<select />" },
+          Button: { template: "<button><slot /></button>" },
+          Badge: { template: "<span><slot /></span>" },
+          Tooltip: { template: "<span><slot /></span>" },
+          TooltipTrigger: { template: "<span><slot /></span>" },
+          TooltipContent: { template: "<span><slot /></span>" },
+          DropdownMenu: { template: "<div><slot /></div>" },
+          DropdownMenuContent: { template: "<div><slot /></div>" },
+          DropdownMenuRadioGroup: { template: "<div><slot /></div>" },
+          DropdownMenuRadioItem: { template: "<div><slot /></div>" },
+          DropdownMenuTrigger: { template: "<div><slot /></div>" },
+        },
+      },
+    });
+    expect(wrapper.find("[aria-label='Go back']").exists()).toBe(true);
+  });
+
+  it("renders back and forward navigation buttons", async () => {
+    const GalleryGrid = (await import("../GalleryGrid.vue")).default;
+    setActivePinia(createPinia());
+    const queryClient = createIsolatedQueryClient();
+    const wrapper = mount(GalleryGrid, {
+      props: { isMobile: false },
+      global: {
+        plugins: [[VueQueryPlugin, { queryClient }]],
+        stubs: {
+          AlbumCard: { template: "<div class='album-card' />" },
+          PhotoCard: { template: "<div class='photo-card' />" },
+          VideoCard: { template: "<div class='video-card' />" },
+          SkeletonLoader: { template: "<div class='skeleton-loader' />" },
+          Breadcrumb: { template: "<div class='breadcrumb-stub' />" },
+          EmptyState: { template: "<div class='empty-state' />" },
+          SortSelect: { template: "<select />" },
+          Button: { template: "<button><slot /></button>" },
+          Badge: { template: "<span><slot /></span>" },
+          Tooltip: { template: "<span><slot /></span>" },
+          TooltipTrigger: { template: "<span><slot /></span>" },
+          TooltipContent: { template: "<span><slot /></span>" },
+          DropdownMenu: { template: "<div><slot /></div>" },
+          DropdownMenuContent: { template: "<div><slot /></div>" },
+          DropdownMenuRadioGroup: { template: "<div><slot /></div>" },
+          DropdownMenuRadioItem: { template: "<div><slot /></div>" },
+          DropdownMenuTrigger: { template: "<div><slot /></div>" },
+        },
+      },
+    });
+    const backBtn = wrapper.findAll("button").find((b) => b.attributes("aria-label") === "Go back");
+    const fwdBtn = wrapper.findAll("button").find((b) => b.attributes("aria-label") === "Go forward");
+    expect(backBtn).toBeDefined();
+    expect(fwdBtn).toBeDefined();
+  });
+
+  it("renders density trigger with column count", async () => {
+    const GalleryGrid = (await import("../GalleryGrid.vue")).default;
+    setActivePinia(createPinia());
+    const queryClient = createIsolatedQueryClient();
+    const wrapper = mount(GalleryGrid, {
+      props: { isMobile: false },
+      global: {
+        plugins: [[VueQueryPlugin, { queryClient }]],
+        stubs: {
+          AlbumCard: { template: "<div class='album-card' />" },
+          PhotoCard: { template: "<div class='photo-card' />" },
+          VideoCard: { template: "<div class='video-card' />" },
+          SkeletonLoader: { template: "<div class='skeleton-loader' />" },
+          Breadcrumb: { template: "<div class='breadcrumb-stub' />" },
+          EmptyState: { template: "<div class='empty-state' />" },
+          SortSelect: { template: "<select />" },
+          Button: { template: "<button><slot /></button>" },
+          Badge: { template: "<span><slot /></span>" },
+          Tooltip: { template: "<span><slot /></span>" },
+          TooltipTrigger: { template: "<span><slot /></span>" },
+          TooltipContent: { template: "<span><slot /></span>" },
+          DropdownMenu: { template: "<div><slot /></div>" },
+          DropdownMenuContent: { template: "<div><slot /></div>" },
+          DropdownMenuRadioGroup: { template: "<div><slot /></div>" },
+          DropdownMenuRadioItem: { template: "<div><slot /></div>" },
+          DropdownMenuTrigger: { template: "<div><slot /></div>" },
+        },
+      },
+    });
+    expect(wrapper.text()).toContain("cols");
+  });
+
+  it("renders Open in explorer button", async () => {
+    const GalleryGrid = (await import("../GalleryGrid.vue")).default;
+    setActivePinia(createPinia());
+    const queryClient = createIsolatedQueryClient();
+    const wrapper = mount(GalleryGrid, {
+      props: { isMobile: false },
+      global: {
+        plugins: [[VueQueryPlugin, { queryClient }]],
+        stubs: {
+          AlbumCard: { template: "<div class='album-card' />" },
+          PhotoCard: { template: "<div class='photo-card' />" },
+          VideoCard: { template: "<div class='video-card' />" },
+          SkeletonLoader: { template: "<div class='skeleton-loader' />" },
+          Breadcrumb: { template: "<div class='breadcrumb-stub' />" },
+          EmptyState: { template: "<div class='empty-state' />" },
+          SortSelect: { template: "<select />" },
+          Button: { template: "<button><slot /></button>" },
+          Badge: { template: "<span><slot /></span>" },
+          Tooltip: { template: "<span><slot /></span>" },
+          TooltipTrigger: { template: "<span><slot /></span>" },
+          TooltipContent: { template: "<span><slot /></span>" },
+          DropdownMenu: { template: "<div><slot /></div>" },
+          DropdownMenuContent: { template: "<div><slot /></div>" },
+          DropdownMenuRadioGroup: { template: "<div><slot /></div>" },
+          DropdownMenuRadioItem: { template: "<div><slot /></div>" },
+          DropdownMenuTrigger: { template: "<div><slot /></div>" },
+        },
+      },
+    });
+    expect(wrapper.text()).toContain("Open");
+  });
 });

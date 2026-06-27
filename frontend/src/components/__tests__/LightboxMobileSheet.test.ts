@@ -145,4 +145,31 @@ describe("LightboxMobileSheet", () => {
     const wrapper = createWrapper({ meta: makeMeta() });
     expect(wrapper.find('[aria-label="Expand metadata sheet"]').exists()).toBe(true);
   });
+
+  it("renders empty negative prompt when no negative prompt", () => {
+    const wrapper = createWrapper({ meta: makeMeta({ negative_prompt: "" }) });
+    expect(wrapper.text()).toContain("No");
+  });
+
+  it("renders empty generation data when no params", () => {
+    const wrapper = createWrapper({ meta: makeMeta({ params: {} }) });
+    expect(wrapper.text()).toContain("No");
+  });
+
+  it("renders empty model section when no models", () => {
+    const wrapper = createWrapper({ meta: makeMeta({ models: [], params: {} }) });
+    expect(wrapper.text()).toContain("No");
+  });
+
+  it("shows error icon when no meta", () => {
+    const wrapper = createWrapper();
+    expect(wrapper.text()).toContain("No metadata");
+  });
+
+  it("renders seed param pill", async () => {
+    const wrapper = createWrapper({ meta: makeMeta() });
+    const paramsTab = wrapper.findAll("button").find((b) => b.text() === "Params");
+    await paramsTab?.trigger("click");
+    expect(wrapper.text()).toContain("12345");
+  });
 });

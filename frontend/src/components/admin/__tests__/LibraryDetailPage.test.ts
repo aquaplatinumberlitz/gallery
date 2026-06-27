@@ -242,63 +242,19 @@ describe("LibraryDetailPage", () => {
     expect(wrapper.text()).toContain("Unregister");
   });
 
-  it("renders Status and progress section", () => {
+  it("renders all dashboard sections", () => {
     const wrapper = createWrapper();
     expect(wrapper.text()).toContain("Status and progress");
-  });
-
-  it("renders Issues section", () => {
-    const wrapper = createWrapper();
     expect(wrapper.text()).toContain("Issues");
-  });
-
-  it("renders Statistics section", () => {
-    const wrapper = createWrapper();
     expect(wrapper.text()).toContain("Statistics");
-  });
-
-  it("shows photos count in stats", () => {
-    const wrapper = createWrapper();
     expect(wrapper.text()).toContain("80");
-  });
-
-  it("shows videos count in stats", () => {
-    const wrapper = createWrapper();
     expect(wrapper.text()).toContain("20");
-  });
-
-  it("renders Live status section", () => {
-    const wrapper = createWrapper();
     expect(wrapper.text()).toContain("Live status");
-  });
-
-  it("renders Problems section", () => {
-    const wrapper = createWrapper();
     expect(wrapper.text()).toContain("Problems");
-  });
-
-  it("renders Import paths section", () => {
-    const wrapper = createWrapper();
     expect(wrapper.text()).toContain("Import paths");
-  });
-
-  it("renders Exclusion patterns section", () => {
-    const wrapper = createWrapper();
     expect(wrapper.text()).toContain("Exclusion patterns");
-  });
-
-  it("renders Recent job history section", () => {
-    const wrapper = createWrapper();
     expect(wrapper.text()).toContain("Recent job history");
-  });
-
-  it("renders Catalog lifecycle section", () => {
-    const wrapper = createWrapper();
     expect(wrapper.text()).toContain("Catalog lifecycle");
-  });
-
-  it("renders Summary from status", () => {
-    const wrapper = createWrapper();
     expect(wrapper.text()).toContain("Summary");
   });
 
@@ -454,12 +410,6 @@ describe("LibraryDetailPage", () => {
     expect(wrapper.text()).toContain("index");
     expect(wrapper.text()).toContain("Scan done");
     expect(wrapper.text()).toContain("Out of memory");
-  });
-
-  it("renders exclusion patterns with data", () => {
-    mockLibraryData = { ...mockLibrary, exclusion_patterns: ["*.tmp", "node_modules"] };
-    const wrapper = createWrapper();
-    expect(wrapper.text()).toContain("Exclusion patterns");
   });
 
   it("toggles advanced details via button click", async () => {

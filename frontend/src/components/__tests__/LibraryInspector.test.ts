@@ -386,4 +386,82 @@ describe("LibraryInspector", () => {
     });
     expect(wrapper.text()).toContain("All prompts");
   });
+
+  it("shows indexed photos count", async () => {
+    const LibraryInspector = (await import("../LibraryInspector.vue")).default;
+    setActivePinia(createPinia());
+    const queryClient = createIsolatedQueryClient();
+    const wrapper = mount(LibraryInspector, {
+      global: {
+        plugins: [[VueQueryPlugin, { queryClient }]],
+        stubs: {
+          RouterLink: { template: "<a><slot /></a>" },
+          ButtonLink: { template: "<a><slot /></a>" },
+          Button: { template: "<button><slot /></button>" },
+          Input: { template: "<input />" },
+          Badge: { template: "<span><slot /></span>" },
+          Skeleton: { template: "<div data-testid='skeleton' />" },
+          Select: { template: "<div><slot /></div>" },
+          SelectTrigger: { template: "<button><slot /></button>" },
+          SelectContent: { template: "<div><slot /></div>" },
+          SelectItem: { template: "<div><slot /></div>" },
+          SelectValue: { template: "<span><slot /></span>" },
+          SortSelect: { template: "<select />" },
+          Popover: { template: "<div><slot /></div>" },
+          PopoverTrigger: { template: "<div><slot /></div>" },
+          PopoverContent: { template: "<div><slot /></div>" },
+          Table: { template: "<table><slot /></table>" },
+          TableBody: { template: "<tbody><slot /></tbody>" },
+          TableCell: { template: "<td><slot /></td>" },
+          TableHead: { template: "<th><slot /></th>" },
+          TableHeader: { template: "<thead><slot /></thead>" },
+          TableRow: { template: "<tr><slot /></tr>" },
+          ArrowLeft: { template: "<span>arrow-left</span>" },
+          ArrowUpDown: { template: "<span>sort-icon</span>" },
+          Copy: { template: "<span>copy-icon</span>" },
+          Search: { template: "<span>search-icon</span>" },
+        },
+      },
+    });
+    expect(wrapper.text()).toContain("indexed photos");
+  });
+
+  it("renders page summary with root path", async () => {
+    const LibraryInspector = (await import("../LibraryInspector.vue")).default;
+    setActivePinia(createPinia());
+    const queryClient = createIsolatedQueryClient();
+    const wrapper = mount(LibraryInspector, {
+      global: {
+        plugins: [[VueQueryPlugin, { queryClient }]],
+        stubs: {
+          RouterLink: { template: "<a><slot /></a>" },
+          ButtonLink: { template: "<a><slot /></a>" },
+          Button: { template: "<button><slot /></button>" },
+          Input: { template: "<input />" },
+          Badge: { template: "<span><slot /></span>" },
+          Skeleton: { template: "<div data-testid='skeleton' />" },
+          Select: { template: "<div><slot /></div>" },
+          SelectTrigger: { template: "<button><slot /></button>" },
+          SelectContent: { template: "<div><slot /></div>" },
+          SelectItem: { template: "<div><slot /></div>" },
+          SelectValue: { template: "<span><slot /></span>" },
+          SortSelect: { template: "<select />" },
+          Popover: { template: "<div><slot /></div>" },
+          PopoverTrigger: { template: "<div><slot /></div>" },
+          PopoverContent: { template: "<div><slot /></div>" },
+          Table: { template: "<table><slot /></table>" },
+          TableBody: { template: "<tbody><slot /></tbody>" },
+          TableCell: { template: "<td><slot /></td>" },
+          TableHead: { template: "<th><slot /></th>" },
+          TableHeader: { template: "<thead><slot /></thead>" },
+          TableRow: { template: "<tr><slot /></tr>" },
+          ArrowLeft: { template: "<span>arrow-left</span>" },
+          ArrowUpDown: { template: "<span>sort-icon</span>" },
+          Copy: { template: "<span>copy-icon</span>" },
+          Search: { template: "<span>search-icon</span>" },
+        },
+      },
+    });
+    expect(wrapper.text()).toContain("Including subfolders");
+  });
 });

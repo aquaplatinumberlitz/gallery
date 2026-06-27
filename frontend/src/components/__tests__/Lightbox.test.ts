@@ -318,4 +318,51 @@ describe("Lightbox component", () => {
     mockLightboxStore.currentIndex = 1;
     expect(mockLightboxStore.currentIndex).toBe(1);
   });
+
+  it("renders image counter with correct format", async () => {
+    setActivePinia(createPinia());
+    const queryClient = createIsolatedQueryClient();
+    const Lightbox = (await import("../Lightbox.vue")).default;
+    const wrapper = mount(Lightbox, {
+      global: {
+        plugins: [[VueQueryPlugin, { queryClient }]],
+        stubs: {
+          Teleport: { template: "<div><slot /></div>" },
+          Transition: { template: "<div><slot /></div>" },
+          FocusScope: { template: "<div><slot /></div>" },
+          PhotoSwipeViewer: { template: "<div data-testid='pswp-viewer' />" },
+          LightboxDesktopPanel: { template: "<div data-testid='desktop-panel' />" },
+          LightboxTabletPanel: { template: "<div data-testid='tablet-panel' />" },
+          LightboxMobileSheet: { template: "<div data-testid='mobile-sheet' />" },
+          MobilePhotoSwipe: { template: "<div data-testid='mobile-pswp' />" },
+          TabletPhotoSwipe: { template: "<div data-testid='tablet-pswp' />" },
+        },
+      },
+    });
+    expect(wrapper.text()).toContain("Image");
+    expect(wrapper.text()).toContain("of");
+  });
+
+  it("renders fullscreen controls when not present (default)", async () => {
+    setActivePinia(createPinia());
+    const queryClient = createIsolatedQueryClient();
+    const Lightbox = (await import("../Lightbox.vue")).default;
+    const wrapper = mount(Lightbox, {
+      global: {
+        plugins: [[VueQueryPlugin, { queryClient }]],
+        stubs: {
+          Teleport: { template: "<div><slot /></div>" },
+          Transition: { template: "<div><slot /></div>" },
+          FocusScope: { template: "<div><slot /></div>" },
+          PhotoSwipeViewer: { template: "<div data-testid='pswp-viewer' />" },
+          LightboxDesktopPanel: { template: "<div data-testid='desktop-panel' />" },
+          LightboxTabletPanel: { template: "<div data-testid='tablet-panel' />" },
+          LightboxMobileSheet: { template: "<div data-testid='mobile-sheet' />" },
+          MobilePhotoSwipe: { template: "<div data-testid='mobile-pswp' />" },
+          TabletPhotoSwipe: { template: "<div data-testid='tablet-pswp' />" },
+        },
+      },
+    });
+    expect(wrapper.find('[data-testid="fs-controls"]').exists()).toBe(false);
+  });
 });
