@@ -80,8 +80,8 @@ Applied cleanup rules across all component tests under `frontend/src/components/
 | Replace CSS class selectors with semantic alternatives | `.ellipsis-btn` → `[aria-label$="more folders"]`, `.sort-select` → `[aria-label="Sort gallery"]` / `[aria-label="Sort metadata table"]`, `.sheet-expand-toggle` → `[aria-label="Expand metadata sheet"]`, `.advanced-search-drawer` → `[role="dialog"]` |
 | Remove redundant class fallback selectors | `.error-banner` / `.nav-btn` CSS fallbacks removed; kept only the semantic `role`/`aria-label` selectors |
 | Keep class assertions for layout contracts | `IndexProgressBar` fill width (`.index-progress-bar__fill` style), `EmptyState` `.compact` class and `.icon-spin` animation |
-| Add `data-testid` where no public selector existed | Home icon in Breadcrumb, overlay in AdvancedSearchDrawer, drawer div in AdvancedSearchDrawer |
-| Add `aria-selected` for tab selection testability | LightboxMobileSheet tab buttons now use `aria-selected` instead of `classes() active` |
+| Add `data-testid` where no public selector existed | Home icon in Breadcrumb, overlay in AdvancedSearchDrawer, drawer div in AdvancedSearchDrawer, tab buttons in LightboxMobileSheet |
+| Test active tab with specific `data-testid` + `classes() active` | LightboxMobileSheet tab test asserts exact active/inactive tab before and after click (Prompt active → click Params → Params active, Prompt not active) |
 | Replace `.lucide-spin` with text content check | `wrapper.find(".lucide-spin")` → `wrapper.text().toContain("Loading info...")` |
 
 ### Production code changes (semantically neutral)
@@ -90,7 +90,7 @@ Applied cleanup rules across all component tests under `frontend/src/components/
 |---|---|
 | `frontend/src/components/Breadcrumb.vue` | Added `data-testid="home-icon"` to Home icon |
 | `frontend/src/components/search/AdvancedSearchDrawer.vue` | Added `data-testid="advanced-search-overlay"` to overlay div and `data-testid="advanced-search-drawer"` to drawer div |
-| `frontend/src/components/LightboxMobileSheet.vue` | Added `role="tablist"` to tab container and `:aria-selected` to each tab button |
+| `frontend/src/components/LightboxMobileSheet.vue` | Added `data-testid` to each tab button; removed incomplete `role="tablist"` + `aria-selected` ARIA pattern |
 
 ### Acceptance Verification
 
