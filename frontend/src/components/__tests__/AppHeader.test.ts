@@ -116,7 +116,7 @@ function createWrapper(props: Record<string, unknown> = {}) {
         Input: { template: "<input :value='modelValue' @input='$emit(\"update:modelValue\", $event.target.value)' />" },
         DropdownMenu: { template: "<div><slot /></div>" },
         DropdownMenuContent: { template: "<div><slot /></div>" },
-        DropdownMenuItem: { template: "<div class='dropdown-item' @click='$emit(\"click\")'><slot /></div>" },
+        DropdownMenuItem: { template: "<div data-testid='dropdown-item' @click='$emit(\"click\")'><slot /></div>" },
         DropdownMenuTrigger: { template: "<div><slot /></div>" },
         Tooltip: { template: "<span><slot /></span>" },
         TooltipTrigger: { template: "<span><slot /></span>" },
@@ -311,16 +311,16 @@ describe("AppHeader", () => {
 
   it("calls setTheme with theme value from menu items", async () => {
     const wrapper = createWrapper();
-    const lightBtn = wrapper.findAll(".dropdown-item").find((el) => el.text().includes("Light"));
+    const lightBtn = wrapper.findAll('[data-testid="dropdown-item"]').find((el) => el.text().includes("Light"));
     expect(lightBtn).toBeDefined();
     await lightBtn!.trigger("click");
     expect(setThemeMock).toHaveBeenCalledWith("light");
 
-    const darkBtn = wrapper.findAll(".dropdown-item").find((el) => el.text().includes("Dark"));
+    const darkBtn = wrapper.findAll('[data-testid="dropdown-item"]').find((el) => el.text().includes("Dark"));
     await darkBtn!.trigger("click");
     expect(setThemeMock).toHaveBeenCalledWith("dark");
 
-    const systemBtn = wrapper.findAll(".dropdown-item").find((el) => el.text().includes("System"));
+    const systemBtn = wrapper.findAll('[data-testid="dropdown-item"]').find((el) => el.text().includes("System"));
     await systemBtn!.trigger("click");
     expect(setThemeMock).toHaveBeenCalledWith("system");
   });

@@ -161,7 +161,7 @@ describe("LibraryInspector", () => {
           ButtonLink: { template: "<a><slot /></a>" },
           Input: { template: "<input />" },
           Badge: { template: "<span><slot /></span>" },
-          Skeleton: { template: "<div class='skeleton' />" },
+          Skeleton: { template: "<div data-testid='skeleton' />" },
           Select: { template: "<div><slot /></div>" },
           SelectTrigger: { template: "<button><slot /></button>" },
           SelectContent: { template: "<div><slot /></div>" },
@@ -202,7 +202,7 @@ describe("LibraryInspector", () => {
           Button: { template: "<button><slot /></button>" },
           Input: { template: "<input />" },
           Badge: { template: "<span><slot /></span>" },
-          Skeleton: { template: "<div class='skeleton' />" },
+          Skeleton: { template: "<div data-testid='skeleton' />" },
           Select: { template: "<div><slot /></div>" },
           SelectTrigger: { template: "<button><slot /></button>" },
           SelectContent: { template: "<div><slot /></div>" },
@@ -236,7 +236,7 @@ describe("LibraryInspector", () => {
           Button: { template: "<button><slot /></button>" },
           Input: { template: "<input />" },
           Badge: { template: "<span><slot /></span>" },
-          Skeleton: { template: "<div class='skeleton'>skeleton</div>" },
+          Skeleton: { template: "<div data-testid='skeleton'>skeleton</div>" },
           Select: { template: "<div><slot /></div>" },
           SelectTrigger: { template: "<button><slot /></button>" },
           SelectContent: { template: "<div><slot /></div>" },
@@ -252,7 +252,7 @@ describe("LibraryInspector", () => {
         },
       },
     });
-    const skeletons = wrapper.findAll(".skeleton");
+    const skeletons = wrapper.findAll('[data-testid="skeleton"]');
     expect(skeletons.length).toBeGreaterThan(0);
   });
 
@@ -270,7 +270,7 @@ describe("LibraryInspector", () => {
           Button: { template: "<button><slot /></button>" },
           Input: { template: "<input />" },
           Badge: { template: "<span><slot /></span>" },
-          Skeleton: { template: "<div class='skeleton' />" },
+          Skeleton: { template: "<div data-testid='skeleton' />" },
           Select: { template: "<div><slot /></div>" },
           SelectTrigger: { template: "<button><slot /></button>" },
           SelectContent: { template: "<div><slot /></div>" },
@@ -304,7 +304,7 @@ describe("LibraryInspector", () => {
           Button: { template: "<button><slot /></button>" },
           Input: { template: "<input />" },
           Badge: { template: "<span><slot /></span>" },
-          Skeleton: { template: "<div class='skeleton' />" },
+          Skeleton: { template: "<div data-testid='skeleton' />" },
           Select: { template: "<div><slot /></div>" },
           SelectTrigger: { template: "<button><slot /></button>" },
           SelectContent: { template: "<div><slot /></div>" },
@@ -336,7 +336,7 @@ describe("LibraryInspector", () => {
           Button: { template: "<button><slot /></button>" },
           Input: { template: "<input />" },
           Badge: { template: "<span><slot /></span>" },
-          Skeleton: { template: "<div class='skeleton' />" },
+          Skeleton: { template: "<div data-testid='skeleton' />" },
           Select: { template: "<div class='select-mock'><slot /></div>" },
           SelectTrigger: { template: "<button class='select-trigger'><slot /></button>" },
           SelectContent: { template: "<div class='select-content'><slot /></div>" },
@@ -368,7 +368,7 @@ describe("LibraryInspector", () => {
           Button: { template: "<button><slot /></button>" },
           Input: { template: "<input />" },
           Badge: { template: "<span><slot /></span>" },
-          Skeleton: { template: "<div class='skeleton' />" },
+          Skeleton: { template: "<div data-testid='skeleton' />" },
           Select: { template: "<div class='select-mock'><slot /></div>" },
           SelectTrigger: { template: "<button class='select-trigger'><slot /></button>" },
           SelectContent: { template: "<div class='select-content'><slot /></div>" },

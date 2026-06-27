@@ -196,7 +196,7 @@ function createWrapper(propsId = 1) {
         RouterLink: { template: "<a><slot /></a>" },
         Button: { template: "<button v-bind='$attrs'><slot /></button>" },
         ButtonLink: { template: "<a :href='to' @click='$attrs.onClick?.()'><slot /></a>" },
-        Skeleton: { template: "<div class='skeleton' />" },
+        Skeleton: { template: "<div data-testid='skeleton' />" },
         Separator: { template: "<hr />" },
         LibraryProgressBar: { template: "<div class='library-progress' />" },
         LibraryStatusBadge: { template: "<span class='status-badge'><slot /></span>" },
@@ -324,7 +324,7 @@ describe("LibraryDetailPage", () => {
     mockLibraryData = null;
     mockLibraryIsPending = true;
     const wrapper = createWrapper();
-    expect(wrapper.find(".skeleton").exists()).toBe(true);
+    expect(wrapper.find('[data-testid="skeleton"]').exists()).toBe(true);
   });
 
   it("shows status contract error message", () => {

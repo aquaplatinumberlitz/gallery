@@ -193,7 +193,7 @@ Replaced brittle CSS class selectors in E2E workflow tests with `getByTestId` at
 | File | Waits before | After | Notes |
 |---|---|---|---|
 | `sidebar-trigger.spec.ts` | 4 | 0 | `expect.poll` for aria-label, localStorage, boundingBox |
-| `fault-injection.spec.ts` | 11 | 3 | 3 kept: debounce settling, PhotoSwipe animation |
+| `fault-injection.spec.ts` | 11 | 2 | 2 kept: debounce settling, PhotoSwipe animation |
 | `lightbox-loading-policy.spec.ts` | 3 | 1 | 1 kept: negative assertion window |
 | `responsive-breakpoints.spec.ts` | 2 | 0 | `toBeVisible` retries after viewport resize |
 | `library-inspector.spec.ts` | 2 | 2 | Both kept: debounce settling after lightbox nav |
@@ -202,8 +202,11 @@ Replaced brittle CSS class selectors in E2E workflow tests with `getByTestId` at
 
 | Selector | File | Replacement |
 |---|---|---|
-| `.gallery-grid` | `GalleryGrid.test.ts` | `[data-testid="gallery-grid"]` |
+| `.gallery-grid` | `GalleryGrid.test.ts`, `GalleryGrid.extra.test.ts` | `[data-testid="gallery-grid"]` |
 | `.status-card` | `IndexStatusPanel.test.ts`, `IndexStatusPanel.extra.test.ts` | `[data-testid="status-card"]` (stub) |
+| `.dropdown-item` | `AppHeader.test.ts` | `[data-testid="dropdown-item"]` (stub) |
+| `.skeleton` | `LibraryDetailPage.test.ts`, `LibraryInspector.test.ts`, `LibraryInspector.extra.test.ts` | `[data-testid="skeleton"]` (stub) |
+| `.fs-controls` | `Lightbox.extra.test.ts` | `[data-testid="fs-controls"]` |
 
 Kept as layout/visual contracts:
 - `IndexProgressBar` — `.index-progress-bar__fill` (fill width style)

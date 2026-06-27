@@ -93,7 +93,7 @@ describe("Lightbox extra", () => {
 
   it("renders fullscreen controls when not present (default)", () => {
     const wrapper = createWrapper();
-    expect(wrapper.find(".fs-controls").exists()).toBe(false);
+    expect(wrapper.find('[data-testid="fs-controls"]').exists()).toBe(false);
   });
 
   it("renders desktop panel with close button", () => {

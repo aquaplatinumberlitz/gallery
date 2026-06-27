@@ -287,7 +287,7 @@ function handleToggleFullscreen() {
               @toggle-fullscreen="handleToggleFullscreen"
             />
             <!-- Fullscreen overlay controls -->
-            <div v-if="isFullscreen" class="fs-controls">
+            <div v-if="isFullscreen" class="fs-controls" data-testid="fs-controls">
               <button class="fs-btn" @click="exitFullscreen" title="Exit fullscreen">
                 <Minimize class="gallery-icon-xl" :stroke-width="1.5" />
               </button>

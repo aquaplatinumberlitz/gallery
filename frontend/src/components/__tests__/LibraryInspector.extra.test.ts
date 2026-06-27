@@ -110,7 +110,7 @@ function createWrapper() {
             "<input :value='$attrs.modelValue ?? modelValue' @input='$emit(\"update:modelValue\", $event.target.value)' />",
         },
         Badge: { template: "<span class='badge'><slot /></span>" },
-        Skeleton: { template: "<div class='skeleton' />" },
+        Skeleton: { template: "<div data-testid='skeleton' />" },
         Select: { template: "<div class='select-mock'><slot /></div>" },
         SelectTrigger: { template: "<button class='select-trigger'><slot /></button>" },
         SelectContent: { template: "<div class='select-content'><slot /></div>" },

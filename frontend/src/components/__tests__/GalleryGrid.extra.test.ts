@@ -146,7 +146,7 @@ describe("GalleryGrid extra", () => {
 
   it("renders main grid container", () => {
     const wrapper = createWrapper();
-    expect(wrapper.find(".gallery-grid").exists()).toBe(true);
+    expect(wrapper.find('[data-testid="gallery-grid"]').exists()).toBe(true);
   });
 
   it("shows desktop toolbar", () => {
