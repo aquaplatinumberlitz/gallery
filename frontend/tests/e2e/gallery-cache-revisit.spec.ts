@@ -38,7 +38,7 @@ const stubLibrary = {
   last_error: null,
 };
 
-type ApiRequest = { pathname: string; path: string; cursor: string };
+type ApiRequest = { pathname: string; path: string; cursor: string; q: string };
 
 function requestsFor(requests: ApiRequest[], pathname: string) {
   return requests.filter((r) => r.pathname === pathname);
@@ -56,6 +56,7 @@ async function installStubbedGallery(page: Page) {
       pathname: url.pathname,
       path: url.searchParams.get("path") ?? "",
       cursor: url.searchParams.get("cursor") ?? "0",
+      q: url.searchParams.get("q") ?? "",
     };
     requests.push(req);
 

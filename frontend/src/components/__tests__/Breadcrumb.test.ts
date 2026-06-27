@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import Breadcrumb from "../Breadcrumb.vue";
 
+const clickOutsideHandlers = new WeakMap<HTMLElement, EventListener>();
+
 function createWrapper(props: Record<string, unknown> = {}) {
   return mount(Breadcrumb, {
     props,
@@ -20,16 +22,19 @@ function createWrapper(props: Record<string, unknown> = {}) {
       directives: {
         "click-outside": {
           mounted(el: HTMLElement, binding: { value: () => void }) {
-            el.__clickOutsideHandler = (event: Event) => {
+            const handler = (event: Event) => {
               if (!(el === event.target || el.contains(event.target as Node))) {
                 binding.value();
               }
             };
-            document.addEventListener("click", el.__clickOutsideHandler);
+            clickOutsideHandlers.set(el, handler);
+            document.addEventListener("click", handler);
           },
           unmounted(el: HTMLElement) {
-            if (el.__clickOutsideHandler) {
-              document.removeEventListener("click", el.__clickOutsideHandler);
+            const handler = clickOutsideHandlers.get(el);
+            if (handler) {
+              document.removeEventListener("click", handler);
+              clickOutsideHandlers.delete(el);
             }
           },
         },
