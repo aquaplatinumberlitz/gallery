@@ -188,6 +188,36 @@ Replaced brittle CSS class selectors in E2E workflow tests with `getByTestId` at
 | Matrix gaps | 0 |
 | `audit_test_matrix.py --fail-on-gaps` | ✅ Pass (exit 0) |
 
+## Phase 6 — Residual Playwright Wait Cleanup ✅
+
+| File | Waits before | After | Notes |
+|---|---|---|---|
+| `sidebar-trigger.spec.ts` | 4 | 0 | `expect.poll` for aria-label, localStorage, boundingBox |
+| `fault-injection.spec.ts` | 11 | 3 | 3 kept: debounce settling, PhotoSwipe animation |
+| `lightbox-loading-policy.spec.ts` | 3 | 1 | 1 kept: negative assertion window |
+| `responsive-breakpoints.spec.ts` | 2 | 0 | `toBeVisible` retries after viewport resize |
+| `library-inspector.spec.ts` | 2 | 2 | Both kept: debounce settling after lightbox nav |
+
+## Phase 7 — Residual Component Selector Cleanup ✅
+
+| Selector | File | Replacement |
+|---|---|---|
+| `.gallery-grid` | `GalleryGrid.test.ts` | `[data-testid="gallery-grid"]` |
+| `.status-card` | `IndexStatusPanel.test.ts`, `IndexStatusPanel.extra.test.ts` | `[data-testid="status-card"]` (stub) |
+
+Kept as layout/visual contracts:
+- `IndexProgressBar` — `.index-progress-bar__fill` (fill width style)
+- `EmptyState` — `.icon-spin` (animation), `classes() compact` (visual state)
+
+## Phase 8 — Final Documentation And Reports ✅
+
+All checks pass:
+- `pnpm lint:tests` — ✅ 0 errors
+- `pnpm test:unit` — ✅ 74 files, 938 tests
+- `audit_test_matrix.py --fail-on-gaps` — ✅ exit 0
+- `docs/testing/TEST_CATALOG.md` — aligned with disk
+- Gap reports regenerated
+
 ---
 
-All 6 phases (0–5) are complete. The frontend test quality refactor plan has been fully implemented.
+All 8 phases (0–8) are complete. The frontend test quality refactor plan has been fully implemented.
