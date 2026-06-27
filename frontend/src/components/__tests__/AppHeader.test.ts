@@ -11,7 +11,10 @@ const fieldedFiltersRef = ref<unknown[]>([]);
 const queryStringRef = ref("");
 let fieldedSearchIsActive = false;
 const applyFiltersMock = vi.fn();
-const removeFilterMock = vi.fn();
+const removeFilterMock = vi.fn((index: number) => {
+  fieldedFiltersRef.value.splice(index, 1);
+  queryStringRef.value = "";
+});
 const clearAllMock = vi.fn();
 
 vi.mock("vue-router", () => ({

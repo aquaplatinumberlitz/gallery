@@ -9,7 +9,7 @@ Commands run and recorded:
 | `git status --short` | 3 untracked `.extra.test.ts` files |
 | `pnpm lint:tests` | 1 error: unused `vi` in `Breadcrumb.extra.test.ts` |
 | `pnpm test:unit` | 77 files, 952 tests — all passed |
-| `audit_test_matrix.py --fail-on-gaps` | Exit 0 (pass); gap report warned 3 uncataloged extra files (informational, not a hard failure since `--fail-on-gaps` only fails on catalog → disk gaps) |
+| `audit_test_matrix.py --fail-on-gaps` | Exit 1 (failed) — 3 uncataloged extra files detected, matching Phase 1 plan expectation |
 
 ## Phase 1 — Normalize The Three Extra Component Tests ✅
 
@@ -33,7 +33,6 @@ Commands run and recorded:
   - Advanced Search drawer open/close/apply via interactive stub
   - Filter remove/clear via interactive SearchFilterChips stub
   - Theme switching via dropdown menu items
-  - Fielded search highlight
   - Maintenance route link
 - Replaced all `wrapper.vm` accesses (`isAdvancedSearchOpen`, `handleAdvancedSearchClose`, `handleAdvancedSearchApply`, `handleRemoveFilter`, `handleClearAll`) with DOM interactions
 - Made `AdvancedSearchDrawer` stub interactive (emits `close`/`apply`)
