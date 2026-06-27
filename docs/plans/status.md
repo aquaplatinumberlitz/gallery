@@ -237,7 +237,7 @@ All checks pass:
 |---|---|
 | No minimum test count required | ✅ 910 tests remain (70 files) |
 | Removed tests are duplicate/no-op/misleading/implementation-only | ✅ Verified |
-| Remaining `.extra.test.ts` files | 0 (all 4 deleted in Phase 1 + 4 more in Phase 9 = 8 total) |
+| Remaining Phase 9 targeted `.extra.test.ts` files | 0 (all 4 merged/deleted); 2 cataloged extras remain: `AdvancedSearchDrawer.extra.test.ts`, `IndexStatusPanel.extra.test.ts` |
 | `pnpm lint:tests` | ✅ Pass (0 errors) |
 | `pnpm test:unit` | ✅ 70 files, 910 tests — all passed |
 | `audit_test_matrix.py --fail-on-gaps` | ✅ Pass (exit 0) |
