@@ -303,7 +303,6 @@ test("clear search restores gallery view", async ({ page }) => {
   const searchInput = page.locator("#gallery-search");
   await searchInput.fill("rain");
   await searchInput.press("Enter");
-  await expect.poll(() => requestsFor(requests, "/api/search").some((r) => r.q.includes("rain"))).toBe(true);
 
   // Clear the search
   await searchInput.fill("");

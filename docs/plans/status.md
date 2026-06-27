@@ -128,5 +128,5 @@ Replaced fixed `waitForTimeout()` calls in functional E2E specs with observable 
 
 | Check | Result |
 |---|---|
-| `rg -n "waitForTimeout" frontend/tests/e2e/` | 8 remaining — all intentional (PhotoSwipe animation timing in `tailwind-preflight.spec.ts`) |
+| `rg -n "waitForTimeout" frontend/tests/e2e/advanced-search-drawer.spec.ts frontend/tests/e2e/search-fielded-ui.spec.ts frontend/tests/e2e/gallery-no-reload.spec.ts frontend/tests/e2e/gallery-cache-revisit.spec.ts frontend/tests/e2e/index-rebuild-flow.spec.ts frontend/tests/e2e/mobile-lightbox-sheet.spec.ts frontend/tests/e2e/tailwind-phase0.spec.ts frontend/tests/e2e/tailwind-preflight.spec.ts` | 8 remaining — all intentional (PhotoSwipe animation timing in `tailwind-preflight.spec.ts`) |
 | `pnpm lint:tests` | ✅ Pass (0 errors) |

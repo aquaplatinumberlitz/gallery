@@ -347,7 +347,7 @@ test.describe("AdvancedSearchDrawer", () => {
   });
 
   test("reset clears all fields and active filters", async ({ page }) => {
-    await installStubbedGallery(page);
+    const requests = await installStubbedGallery(page);
     await page.addInitScript(() => {
       localStorage.setItem("intro_mode", "disabled");
       localStorage.setItem("gallery-active-library-id", "1");
@@ -378,7 +378,7 @@ test.describe("AdvancedSearchDrawer", () => {
   });
 
   test("search filter chips render and remove", async ({ page }) => {
-    await installStubbedGallery(page);
+    const requests = await installStubbedGallery(page);
     await page.addInitScript(() => {
       localStorage.setItem("intro_mode", "disabled");
       localStorage.setItem("gallery-active-library-id", "1");
