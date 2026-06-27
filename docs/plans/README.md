@@ -9,6 +9,6 @@ plans.
 
 Active plans:
 
-- [Frontend Test Refactor Plan For opencode](FRONTEND_TEST_REFACTOR_OPENCODE_PLAN.md)
+(No active plans.)
 
 Completed or superseded plans live in [Archived Documentation](../archived/README.md).
