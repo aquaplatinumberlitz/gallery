@@ -1,29 +1,39 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { setActivePinia, createPinia } from "pinia";
 import { mount } from "@vue/test-utils";
+import { ref } from "vue";
 import AppHeader from "../AppHeader.vue";
 
+let currentRoutePath = "/gallery";
+let currentResolvedTheme = "light";
+const setThemeMock = vi.fn();
+const fieldedFiltersRef = ref<unknown[]>([]);
+let fieldedSearchIsActive = false;
+const applyFiltersMock = vi.fn();
+const removeFilterMock = vi.fn();
+const clearAllMock = vi.fn();
+
 vi.mock("vue-router", () => ({
-  useRoute: () => ({ path: "/gallery", meta: {} }),
+  useRoute: () => ({ path: currentRoutePath, meta: {} }),
   useRouter: () => ({ push: vi.fn() }),
 }));
 
 vi.mock("@/composables/useGalleryTheme", () => ({
   useGalleryTheme: () => ({
     mode: "light",
-    resolvedTheme: "light",
-    setTheme: vi.fn(),
+    resolvedTheme: currentResolvedTheme,
+    setTheme: setThemeMock,
   }),
 }));
 
 vi.mock("@/composables/useFieldedSearch", () => ({
   useFieldedSearch: () => ({
-    fieldedFilters: [],
-    isActive: false,
+    fieldedFilters: fieldedFiltersRef,
+    isActive: fieldedSearchIsActive,
     queryString: "",
-    applyFilters: vi.fn(),
-    removeFilter: vi.fn(),
-    clearAll: vi.fn(),
+    applyFilters: applyFiltersMock,
+    removeFilter: removeFilterMock,
+    clearAll: clearAllMock,
   }),
 }));
 
@@ -68,6 +78,21 @@ vi.mock("@/stores/gallery", () => ({
   }),
 }));
 
+vi.mock("lucide-vue-next", () => ({
+  Sun: { template: '<svg data-testid="sun-icon" />', props: ["class"] },
+  Moon: { template: '<svg data-testid="moon-icon" />', props: ["class"] },
+  Monitor: { template: '<svg data-testid="monitor-icon" />', props: ["class"] },
+  Search: { template: '<svg data-testid="search-icon" />', props: ["class"] },
+  X: { template: '<svg data-testid="x-icon" />', props: ["class"] },
+  SlidersHorizontal: { template: "<svg />", props: ["class"] },
+  Menu: { template: "<svg />", props: ["class"] },
+  Settings: { template: "<svg />", props: ["class"] },
+  Library: { template: "<svg />", props: ["class"] },
+  Table2: { template: "<svg />", props: ["class"] },
+  Wrench: { template: "<svg />", props: ["class"] },
+  Landmark: { template: "<svg />", props: ["class"] },
+}));
+
 function createWrapper(props: Record<string, unknown> = {}) {
   setActivePinia(createPinia());
   return mount(AppHeader, {
@@ -87,16 +112,29 @@ function createWrapper(props: Record<string, unknown> = {}) {
         Input: { template: "<input :value='modelValue' @input='$emit(\"update:modelValue\", $event.target.value)' />" },
         DropdownMenu: { template: "<div><slot /></div>" },
         DropdownMenuContent: { template: "<div><slot /></div>" },
-        DropdownMenuItem: { template: "<div @click='$emit(\"click\")'><slot /></div>" },
+        DropdownMenuItem: { template: "<div class='dropdown-item' @click='$emit(\"click\")'><slot /></div>" },
         DropdownMenuTrigger: { template: "<div><slot /></div>" },
         Tooltip: { template: "<span><slot /></span>" },
         TooltipTrigger: { template: "<span><slot /></span>" },
         TooltipContent: { template: "<span><slot /></span>" },
-        AdvancedSearchDrawer: { template: "<div data-testid='advanced-search-drawer' />" },
-        SearchFilterChips: { template: "<div data-testid='search-filter-chips' />" },
-        Sun: { template: "<span>sun-icon</span>" },
-        Moon: { template: "<span>moon-icon</span>" },
-        Monitor: { template: "<span>monitor-icon</span>" },
+        AdvancedSearchDrawer: {
+          props: ["isOpen", "initialFilters"],
+          template: `
+            <div data-testid="advanced-search-drawer">
+              <button v-if="isOpen" data-testid="adv-search-close" @click="$emit('close')">Close</button>
+              <button v-if="isOpen" data-testid="adv-search-apply" @click="$emit('apply', [])">Apply</button>
+            </div>
+          `,
+        },
+        SearchFilterChips: {
+          props: ["filters"],
+          template: `
+            <div data-testid="search-filter-chips">
+              <button v-for="(f, i) in (filters || [])" :key="i" :data-testid="'remove-filter-' + i" @click="$emit('remove', i)">Remove filter</button>
+              <button v-if="(filters || []).length" data-testid="clear-all" @click="$emit('clear-all')">Clear all</button>
+            </div>
+          `,
+        },
       },
     },
   });
@@ -105,6 +143,14 @@ function createWrapper(props: Record<string, unknown> = {}) {
 describe("AppHeader", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    currentRoutePath = "/gallery";
+    currentResolvedTheme = "light";
+    setThemeMock.mockClear();
+    fieldedFiltersRef.value = [];
+    fieldedSearchIsActive = false;
+    applyFiltersMock.mockClear();
+    removeFilterMock.mockClear();
+    clearAllMock.mockClear();
   });
 
   it("renders the brand hero on non-metadata routes", () => {
@@ -188,5 +234,102 @@ describe("AppHeader", () => {
     const wrapper = createWrapper();
     const advBtn = wrapper.findAll("button").find((b) => b.attributes("aria-label") === "Advanced Search");
     expect(advBtn).toBeDefined();
+  });
+
+  it("hides brand hero and search on metadata route", () => {
+    currentRoutePath = "/metadata";
+    const wrapper = createWrapper();
+    expect(wrapper.text()).not.toContain("Museum Art Gallery");
+    expect(wrapper.find("#gallery-search").exists()).toBe(false);
+  });
+
+  it("hides brand hero and search on admin route", () => {
+    currentRoutePath = "/admin/libraries";
+    const wrapper = createWrapper();
+    expect(wrapper.text()).not.toContain("Museum Art Gallery");
+    expect(wrapper.find("#gallery-search").exists()).toBe(false);
+  });
+
+  it("hides Metadata link and Maintenance link on mobile", () => {
+    const wrapper = createWrapper({ isMobile: true });
+    expect(wrapper.text()).not.toContain("Metadata");
+    expect(wrapper.text()).not.toContain("Maintenance");
+  });
+
+  it("shows Moon icon when dark theme", () => {
+    currentResolvedTheme = "dark";
+    const wrapper = createWrapper();
+    expect(wrapper.find('[aria-label="Theme"] [data-testid="moon-icon"]').exists()).toBe(true);
+    expect(wrapper.find('[aria-label="Theme"] [data-testid="sun-icon"]').exists()).toBe(false);
+  });
+
+  it("opens and closes advanced search drawer", async () => {
+    const wrapper = createWrapper();
+    const advBtn = wrapper.findAll("button").find((b) => b.attributes("aria-label") === "Advanced Search");
+    expect(advBtn).toBeDefined();
+    await advBtn!.trigger("click");
+    expect(wrapper.find('[data-testid="adv-search-close"]').exists()).toBe(true);
+
+    await wrapper.find('[data-testid="adv-search-close"]').trigger("click");
+    expect(wrapper.find('[data-testid="adv-search-close"]').exists()).toBe(false);
+  });
+
+  it("applies advanced search filters via drawer", async () => {
+    const wrapper = createWrapper();
+    await wrapper.findAll("button").find((b) => b.attributes("aria-label") === "Advanced Search")!.trigger("click");
+    await wrapper.find('[data-testid="adv-search-apply"]').trigger("click");
+    expect(wrapper.emitted("update:searchQuery")).toBeTruthy();
+  });
+
+  it("handles remove filter", async () => {
+    fieldedFiltersRef.value = [{ field: "model", operator: "eq", value: "v1" }];
+    const wrapper = createWrapper();
+    const removeBtn = wrapper.find('[data-testid="remove-filter-0"]');
+    expect(removeBtn.exists()).toBe(true);
+    await removeBtn.trigger("click");
+    expect(removeFilterMock).toHaveBeenCalledWith(0);
+  });
+
+  it("handles clear all filters", async () => {
+    fieldedFiltersRef.value = [{ field: "model", operator: "eq", value: "v1" }];
+    const wrapper = createWrapper();
+    const clearBtn = wrapper.find('[data-testid="clear-all"]');
+    expect(clearBtn.exists()).toBe(true);
+    await clearBtn.trigger("click");
+    expect(clearAllMock).toHaveBeenCalled();
+  });
+
+  it("calls setTheme with theme value from menu items", async () => {
+    const wrapper = createWrapper();
+    const lightBtn = wrapper.findAll(".dropdown-item").find((el) => el.text().includes("Light"));
+    expect(lightBtn).toBeDefined();
+    await lightBtn!.trigger("click");
+    expect(setThemeMock).toHaveBeenCalledWith("light");
+
+    const darkBtn = wrapper.findAll(".dropdown-item").find((el) => el.text().includes("Dark"));
+    await darkBtn!.trigger("click");
+    expect(setThemeMock).toHaveBeenCalledWith("dark");
+
+    const systemBtn = wrapper.findAll(".dropdown-item").find((el) => el.text().includes("System"));
+    await systemBtn!.trigger("click");
+    expect(setThemeMock).toHaveBeenCalledWith("system");
+  });
+
+  it("highlights advanced search button when fielded search is active", () => {
+    fieldedSearchIsActive = true;
+    const wrapper = createWrapper();
+    const advBtn = wrapper.findAll("button").find((b) => b.attributes("aria-label") === "Advanced Search");
+    expect(advBtn).toBeDefined();
+  });
+
+  it("shows Maintenance link on maintenance route", () => {
+    currentRoutePath = "/admin/maintenance";
+    const wrapper = createWrapper();
+    expect(wrapper.text()).toContain("Maintenance");
+  });
+
+  it("renders Sun icon on light theme button", () => {
+    const wrapper = createWrapper();
+    expect(wrapper.find('[aria-label="Theme"] [data-testid="sun-icon"]').exists()).toBe(true);
   });
 });

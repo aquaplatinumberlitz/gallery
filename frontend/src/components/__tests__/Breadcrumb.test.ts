@@ -18,7 +18,21 @@ function createWrapper(props: Record<string, unknown> = {}) {
         TooltipContent: { template: "<span><slot /></span>" },
       },
       directives: {
-        "click-outside": { mounted() {} },
+        "click-outside": {
+          mounted(el: HTMLElement, binding: { value: () => void }) {
+            el.__clickOutsideHandler = (event: Event) => {
+              if (!(el === event.target || el.contains(event.target as Node))) {
+                binding.value();
+              }
+            };
+            document.addEventListener("click", el.__clickOutsideHandler);
+          },
+          unmounted(el: HTMLElement) {
+            if (el.__clickOutsideHandler) {
+              document.removeEventListener("click", el.__clickOutsideHandler);
+            }
+          },
+        },
       },
     },
   });
@@ -63,12 +77,43 @@ describe("Breadcrumb", () => {
     expect(wrapper.find(".ellipsis-btn").exists()).toBe(true);
   });
 
-  it("renders collapse button when expanded", async () => {
+  it("opens ellipsis menu on button click", async () => {
     const wrapper = createWrapper({ path: "/a/b/c/d/e", maxVisible: 3 });
-    expect(wrapper.find(".collapse-btn").exists()).toBe(false);
-    wrapper.vm.isExpanded = true;
-    await wrapper.vm.$nextTick();
-    expect(wrapper.find(".collapse-btn").exists()).toBe(true);
+    const ellipsisBtn = wrapper.find('[aria-label$="more folders"]');
+    expect(ellipsisBtn.exists()).toBe(true);
+
+    await ellipsisBtn.trigger("click");
+    expect(wrapper.text()).toContain("Show full path");
+
+    await ellipsisBtn.trigger("click");
+    expect(wrapper.text()).not.toContain("Show full path");
+  });
+
+  it("navigates to hidden segment from ellipsis menu", async () => {
+    const wrapper = createWrapper({ path: "/a/b/c/d/e", maxVisible: 3 });
+    await wrapper.find('[aria-label$="more folders"]').trigger("click");
+
+    const hiddenBtns = wrapper.findAll("button").filter((b) => b.text() === "b");
+    expect(hiddenBtns.length).toBeGreaterThan(0);
+    await hiddenBtns[0].trigger("click");
+
+    expect(wrapper.emitted("navigate")).toBeTruthy();
+    expect(wrapper.emitted("navigate")![0][0]).toBe("/a/b");
+  });
+
+  it("expands and collapses full path", async () => {
+    const wrapper = createWrapper({ path: "/a/b/c/d/e", maxVisible: 3 });
+    await wrapper.find('[aria-label$="more folders"]').trigger("click");
+
+    const showFullPath = wrapper.findAll("button").find((b) => b.text() === "Show full path");
+    expect(showFullPath).toBeDefined();
+    await showFullPath!.trigger("click");
+
+    const collapseBtn = wrapper.find('[aria-label="Collapse path"]');
+    expect(collapseBtn.exists()).toBe(true);
+
+    await collapseBtn.trigger("click");
+    expect(wrapper.find('[aria-label="Collapse path"]').exists()).toBe(false);
   });
 
   it("handles Windows backslash paths", () => {
@@ -80,5 +125,18 @@ describe("Breadcrumb", () => {
   it("renders home icon", () => {
     const wrapper = createWrapper({ path: "/test" });
     expect(wrapper.find(".size-3\\.5").exists()).toBe(true);
+  });
+
+  it("does not collapse when path has exactly maxVisible segments", () => {
+    const wrapper = createWrapper({ path: "/a/b/c", maxVisible: 3 });
+    expect(wrapper.text()).toContain("a");
+    expect(wrapper.text()).toContain("b");
+    expect(wrapper.text()).toContain("c");
+    expect(wrapper.find('[aria-label$="more folders"]').exists()).toBe(false);
+  });
+
+  it("renders empty segments path gracefully", () => {
+    const wrapper = createWrapper({ path: "///" });
+    expect(wrapper.text()).toContain("No path");
   });
 });
