@@ -5,7 +5,7 @@ describe("formatBytes", () => {
   it.each([
     [0, "0 B"],
     [undefined, "\u2014"],
-    [null, "\u2014"],
+    [null as unknown as number, "\u2014"],
     [NaN, "\u2014"],
     [Infinity, "\u2014"],
     [-1, "\u2014"],
@@ -16,7 +16,7 @@ describe("formatBytes", () => {
     [1073741824, "1.0 GB"],
     [1099511627776, "1.0 TB"],
   ])("formatBytes(%s) => %s", (input, expected) => {
-    expect(formatBytes(input as number | undefined | null)).toBe(expected);
+    expect(formatBytes(input)).toBe(expected);
   });
 });
 

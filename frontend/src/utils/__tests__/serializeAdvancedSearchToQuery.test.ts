@@ -112,11 +112,10 @@ describe("parseFieldedQuery", () => {
     ["seed:>=100", ">="],
     ["seed:<100", "<"],
     ["seed:<=100", "<="],
-  ])("parses token with operator from %s", (query) => {
+  ])("parses token with operator from %s", (query, expectedOperator) => {
     const result = parseFieldedQuery(query);
     expect(result).toHaveLength(1);
-    expect(result[0].field).toBe("seed");
-    expect(result[0].value).toBe("100");
+    expect(result[0]).toEqual({ field: "seed", operator: expectedOperator, value: "100" });
   });
 
   it("parses multiple tokens separated by whitespace", () => {
