@@ -25,6 +25,11 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname as pathDirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+test.skip(
+  process.env.GALLERY_PERF_METADATA !== "1",
+  "Skipping: set GALLERY_PERF_METADATA=1 to run metadata performance tests",
+);
+
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = pathDirname(__filename);

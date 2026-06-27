@@ -20,12 +20,14 @@ Last verified against `.github/workflows/ci.yml` and `test.sh`: 2026-06-19.
 | Browser integration            | Playwright           |          Chromium          | ✅ full suite, 4 shards  | N/A (not configured) | critical UI workflows   |
 | Full-stack E2E                 | Playwright + FastAPI | deterministic temp fixture |      ✅ `test:e2e`       | N/A (not configured) | system wiring           |
 | Perf                           | Playwright           | deterministic temp fixture | ✅ `test:perf`, 1 worker | N/A (not configured) | performance budgets     |
+| Diagnostic E2E (env-gated)     | Playwright           | deterministic temp fixture |            —            | N/A (not configured) | env-gated diagnostics   |
 
 ## Test Selection Policy
 
 - **Push/PR CI**: full-codebase `lint`, `test:unit`, four `test:e2e` shards, and `test:perf`.
-- **`test:e2e` CI selection**: every top-level `frontend/tests/e2e/*.spec.ts` functional spec. Playwright shards the suite across four parallel jobs.
+- **`test:e2e` CI selection**: every top-level `frontend/tests/e2e/*.spec.ts` functional spec except env-gated diagnostic files. Playwright shards the suite across four parallel jobs.
 - **`test:perf` CI selection**: every spec under `frontend/tests/e2e/perf/`, with one worker and a separate deterministic fixture.
+- **Diagnostic env gates**: `metadata-performance.spec.ts` requires `GALLERY_PERF_METADATA=1`; `gallery-no-reload-real-backend.spec.ts` requires `GALLERY_E2E_DIAGNOSTICS=1`. These are not collected by default `test:e2e` CI shards.
 - **Functional E2E coverage instrumentation is disabled** so browser behavior and timing are not distorted. Frontend coverage comes from Vitest/V8.
 - **Nightly**: N/A (not configured).
 - **WebKit smoke**: N/A.

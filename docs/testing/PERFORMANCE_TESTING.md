@@ -17,7 +17,7 @@ is the canonical source for all numeric budgets consumed by:
 - `scripts/bench_thumbnail.py` — `[thumbnail]`
 - `frontend/tests/e2e/perf/album-open.perf.spec.ts` — `[album_open]`
 - `frontend/tests/e2e/perf/lightbox.perf.spec.ts` — `[lightbox]`
-- `frontend/tests/e2e/metadata-performance.spec.ts` (documented) — `[metadata_nav]`
+- `frontend/tests/e2e/metadata-performance.spec.ts` (env-gated, requires `GALLERY_PERF_METADATA=1`) — `[metadata_nav]`
 
 The Playwright specs read their budgets from
 `frontend/tests/e2e/perf/perf-budgets.json`, which mirrors the relevant TOML

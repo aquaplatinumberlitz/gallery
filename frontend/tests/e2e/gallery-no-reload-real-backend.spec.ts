@@ -13,6 +13,11 @@
 
 import { expect, test } from "./helpers/monitorErrors";
 
+test.skip(
+  process.env.GALLERY_E2E_DIAGNOSTICS !== "1",
+  "Skipping: set GALLERY_E2E_DIAGNOSTICS=1 to run real-backend diagnostic tests",
+);
+
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
 const pathSafetyRoot = process.env.PATH_SAFETY_ROOT_PATH ?? "/home/ubuntu/gallery-repo/test-images";
 
