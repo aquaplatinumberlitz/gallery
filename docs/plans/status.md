@@ -9,7 +9,7 @@ Commands run and recorded:
 | `git status --short` | 3 untracked `.extra.test.ts` files |
 | `pnpm lint:tests` | 1 error: unused `vi` in `Breadcrumb.extra.test.ts` |
 | `pnpm test:unit` | 77 files, 952 tests — all passed |
-| `audit_test_matrix.py --fail-on-gaps` | Passed (exit 0); gap report flagged 3 uncataloged extra files |
+| `audit_test_matrix.py --fail-on-gaps` | Exit 0 (pass); gap report warned 3 uncataloged extra files (informational, not a hard failure since `--fail-on-gaps` only fails on catalog → disk gaps) |
 
 ## Phase 1 — Normalize The Three Extra Component Tests ✅
 

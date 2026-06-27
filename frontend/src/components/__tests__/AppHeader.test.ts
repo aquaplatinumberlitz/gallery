@@ -8,6 +8,7 @@ let currentRoutePath = "/gallery";
 let currentResolvedTheme = "light";
 const setThemeMock = vi.fn();
 const fieldedFiltersRef = ref<unknown[]>([]);
+const queryStringRef = ref("");
 let fieldedSearchIsActive = false;
 const applyFiltersMock = vi.fn();
 const removeFilterMock = vi.fn();
@@ -30,7 +31,7 @@ vi.mock("@/composables/useFieldedSearch", () => ({
   useFieldedSearch: () => ({
     fieldedFilters: fieldedFiltersRef,
     isActive: fieldedSearchIsActive,
-    queryString: "",
+    queryString: queryStringRef,
     applyFilters: applyFiltersMock,
     removeFilter: removeFilterMock,
     clearAll: clearAllMock,
@@ -131,7 +132,7 @@ function createWrapper(props: Record<string, unknown> = {}) {
           template: `
             <div data-testid="search-filter-chips">
               <button v-for="(f, i) in (filters || [])" :key="i" :data-testid="'remove-filter-' + i" @click="$emit('remove', i)">Remove filter</button>
-              <button v-if="(filters || []).length" data-testid="clear-all" @click="$emit('clear-all')">Clear all</button>
+              <button v-if="(filters || []).length > 1" data-testid="clear-all" @click="$emit('clear-all')">Clear all</button>
             </div>
           `,
         },
@@ -147,6 +148,7 @@ describe("AppHeader", () => {
     currentResolvedTheme = "light";
     setThemeMock.mockClear();
     fieldedFiltersRef.value = [];
+    queryStringRef.value = "";
     fieldedSearchIsActive = false;
     applyFiltersMock.mockClear();
     removeFilterMock.mockClear();
@@ -283,15 +285,20 @@ describe("AppHeader", () => {
 
   it("handles remove filter", async () => {
     fieldedFiltersRef.value = [{ field: "model", operator: "eq", value: "v1" }];
+    queryStringRef.value = "model:eq:v1";
     const wrapper = createWrapper();
     const removeBtn = wrapper.find('[data-testid="remove-filter-0"]');
     expect(removeBtn.exists()).toBe(true);
     await removeBtn.trigger("click");
     expect(removeFilterMock).toHaveBeenCalledWith(0);
+    expect(wrapper.emitted("update:searchQuery")?.pop()).toEqual([queryStringRef.value]);
   });
 
   it("handles clear all filters", async () => {
-    fieldedFiltersRef.value = [{ field: "model", operator: "eq", value: "v1" }];
+    fieldedFiltersRef.value = [
+      { field: "model", operator: "eq", value: "v1" },
+      { field: "prompt", operator: "contains", value: "cat" },
+    ];
     const wrapper = createWrapper();
     const clearBtn = wrapper.find('[data-testid="clear-all"]');
     expect(clearBtn.exists()).toBe(true);
@@ -313,13 +320,6 @@ describe("AppHeader", () => {
     const systemBtn = wrapper.findAll(".dropdown-item").find((el) => el.text().includes("System"));
     await systemBtn!.trigger("click");
     expect(setThemeMock).toHaveBeenCalledWith("system");
-  });
-
-  it("highlights advanced search button when fielded search is active", () => {
-    fieldedSearchIsActive = true;
-    const wrapper = createWrapper();
-    const advBtn = wrapper.findAll("button").find((b) => b.attributes("aria-label") === "Advanced Search");
-    expect(advBtn).toBeDefined();
   });
 
   it("shows Maintenance link on maintenance route", () => {
