@@ -163,7 +163,7 @@ test("should have exactly one pswp root and no duplicate visible imgs", async ({
 
   await page.getByTestId("photo-card").first().click();
   await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(2000); // PhotoSwipe open animation + image decode settling
 
   const report = await page.evaluate(() => {
     const roots = document.querySelectorAll(".pswp");
@@ -229,17 +229,17 @@ test("should have exactly one pswp root after close and reopen", async ({ page }
   // Open
   await page.getByTestId("photo-card").first().click();
   await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
-  await page.waitForTimeout(1000);
+  await page.waitForTimeout(1000); // initial PhotoSwipe render settling
 
   // Close
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("lightbox")).not.toBeVisible({ timeout: 5000 });
-  await page.waitForTimeout(500);
+  await page.waitForTimeout(500); // PhotoSwipe close animation settle before reopening
 
   // Reopen
   await page.getByTestId("photo-card").first().click();
   await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(2000); // PhotoSwipe open animation + image decode settling
 
   const rootCount = await page.evaluate(() => document.querySelectorAll(".pswp").length);
   expect(rootCount).toBe(1);
@@ -398,11 +398,11 @@ test.describe("EXIF-rotated portrait JPEG", () => {
 
     // Close mobile sidebar before interacting with photo cards
     await page.keyboard.press("Escape");
-    await page.waitForTimeout(200);
+    await page.waitForTimeout(200); // sidebar close animation settle
 
     await page.getByTestId("photo-card").first().click();
     await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(3000); // PhotoSwipe open animation + portrait dimension settle
 
     const report = await page.evaluate(() => {
       const roots = document.querySelectorAll(".pswp");

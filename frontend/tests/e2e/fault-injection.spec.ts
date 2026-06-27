@@ -245,7 +245,7 @@ async function openGallery(page: Page, requests?: ApiRequest[]) {
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
 
   if (requests) {
-    await page.waitForTimeout(500); // debounce settling window before clearing request log
+    await expect.poll(() => requests.length).toBeGreaterThan(0);
     requests.length = 0;
   }
 }
