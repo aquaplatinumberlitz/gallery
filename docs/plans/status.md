@@ -64,6 +64,6 @@ Commands run and recorded:
 |---|---|
 | `rg -n "wrapper\\.vm" frontend/src -g '*.test.ts'` | No private state/method usage in touched files (only `$nextTick` calls remain) |
 | `pnpm lint:tests` | ✅ Pass (0 errors) |
-| `pnpm test:unit` | ✅ 74 files, 939 tests — all passed |
+| `pnpm test:unit` | ✅ 74 files, 938 tests — all passed (939 before removing redundant highlight test in round 2) |
 | `audit_test_matrix.py --fail-on-gaps` | ✅ Pass (exit 0) |
 | No uncataloged `.extra.test.ts` files | ✅ Files deleted |
