@@ -162,19 +162,16 @@ test.describe("SidebarTrigger", () => {
     const sidebarContainer = page.locator('[data-sidebar="sidebar"]');
     await expect(sidebarContainer).toBeVisible();
 
-    const desktopGroup = page.locator('[data-collapsible="icon"]');
-    const dataCollapsible = await desktopGroup.getAttribute("data-collapsible");
+    const dataCollapsible = await sidebarContainer.getAttribute("data-collapsible");
     expect(dataCollapsible).toBe("icon");
 
-    const dataState = await desktopGroup.getAttribute("data-state");
+    const dataState = await sidebarContainer.getAttribute("data-state");
     expect(dataState).toBe("collapsed");
 
     await trigger.click();
-    await page.waitForTimeout(500);
-
     await expect(trigger).toHaveAttribute("aria-label", "Collapse sidebar");
 
-    const dataStateAfterExpand = await desktopGroup.getAttribute("data-state");
+    const dataStateAfterExpand = await sidebarContainer.getAttribute("data-state");
     expect(dataStateAfterExpand).toBe("expanded");
   });
 

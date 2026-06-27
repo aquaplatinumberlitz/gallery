@@ -183,7 +183,7 @@ function formatCount(value: number) {
         aria-label="Catalog Status"
       >
         <span class="relative inline-flex">
-          <Database class="size-3.5" />
+          <Database class="size-3.5" data-testid="catalog-database-icon" />
           <span
             class="absolute -bottom-0.5 -right-0.5 size-1.5 rounded-full hidden group-data-[collapsible=icon]:block"
             :class="[
