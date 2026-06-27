@@ -289,7 +289,7 @@ test("seed query sends correct query string and shows results", async ({ page })
 });
 
 test("clear search restores gallery view", async ({ page }) => {
-  await installStubbedGallery(page);
+  const requests = await installStubbedGallery(page);
   await page.addInitScript(() => {
     localStorage.setItem("intro_mode", "disabled");
     localStorage.setItem("gallery-active-library-id", "1");
@@ -299,10 +299,11 @@ test("clear search restores gallery view", async ({ page }) => {
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
 
-  // Perform a search
+  // Perform a search — wait for request to confirm search executed
   const searchInput = page.locator("#gallery-search");
   await searchInput.fill("rain");
   await searchInput.press("Enter");
+  await expect.poll(() => requestsFor(requests, "/api/search").some((r) => r.q.includes("rain"))).toBe(true);
 
   // Clear the search
   await searchInput.fill("");
