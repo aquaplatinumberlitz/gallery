@@ -9,8 +9,8 @@ plans.
 
 Current plans:
 
-- [CI-First Test Coverage Hardening](ci-first-test-coverage-hardening.md)
-  — proposed plan for synchronizing CI/local test commands and raising backend
-  and frontend coverage quality gates.
+- [Frontend Test Quality Refactor](frontend-test-quality-refactor.md)
+  — proposed plan for refactoring frontend tests to match the documented Vue,
+  Pinia, Vue Test Utils, and Playwright testing principles.
 
 Completed or superseded plans live in [Archived Documentation](../archived/README.md).
