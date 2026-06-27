@@ -212,15 +212,36 @@ Kept as layout/visual contracts:
 - `IndexProgressBar` — `.index-progress-bar__fill` (fill width style)
 - `EmptyState` — `.icon-spin` (animation), `classes() compact` (visual state)
 
-## Phase 8 — Final Documentation And Reports ✅
+## Phase 8 — Documentation And Reports After Phases 6-7 ✅
 
 All checks pass:
 - `pnpm lint:tests` — ✅ 0 errors
-- `pnpm test:unit` — ✅ 74 files, 938 tests
+- `pnpm test:unit` — ✅ 74 files, 938 tests → **70 files, 910 tests** after Phase 9
 - `audit_test_matrix.py --fail-on-gaps` — ✅ exit 0
 - `docs/testing/TEST_CATALOG.md` — aligned with disk
 - Gap reports regenerated
 
+## Phase 9 — Frontend Test Diet And Signal Cleanup ✅
+
+| File | Before | After | Action |
+|---|---|---|---|
+| `GalleryGrid.extra.test.ts` | 6 tests | deleted | Merged 4 unique tests into `GalleryGrid.test.ts`; deleted empty tablet-toolbar test |
+| `Lightbox.extra.test.ts` | 7 tests | deleted | Merged 2 unique tests (counter, fullscreen controls) into `Lightbox.test.ts` |
+| `LightboxMobileSheet.extra.test.ts` | 11 tests | deleted | Merged 5 empty-state/seed tests into `LightboxMobileSheet.test.ts` |
+| `LibraryInspector.extra.test.ts` | 8 tests | deleted | Merged 2 unique tests (indexed count, page summary) into `LibraryInspector.test.ts` |
+| `LibraryDetailPage.test.ts` | 27 tests | 19 tests | Collapsed 12 section-smoke tests into 1 overview; kept all edge/action/watcher coverage |
+
+### Acceptance
+
+| Check | Result |
+|---|---|
+| No minimum test count required | ✅ 910 tests remain (70 files) |
+| Removed tests are duplicate/no-op/misleading/implementation-only | ✅ Verified |
+| Remaining `.extra.test.ts` files | 0 (all 4 deleted in Phase 1 + 4 more in Phase 9 = 8 total) |
+| `pnpm lint:tests` | ✅ Pass (0 errors) |
+| `pnpm test:unit` | ✅ 70 files, 910 tests — all passed |
+| `audit_test_matrix.py --fail-on-gaps` | ✅ Pass (exit 0) |
+
 ---
 
-All 8 phases (0–8) are complete. The frontend test quality refactor plan has been fully implemented.
+All 9 phases (0–9) are complete. The frontend test quality refactor plan has been fully implemented.
