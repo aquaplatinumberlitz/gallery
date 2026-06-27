@@ -6,12 +6,12 @@ Last verified against `.github/workflows/ci.yml` and `test.sh`: 2026-06-19.
 
 ## Stack
 
-- **Backend**: Python FastAPI + SQLite — test pyramid (nhiều unit, ít integration, rất ít E2E)
+- **Backend**: Python FastAPI + SQLite — test pyramid (many unit tests, fewer integration tests, very few E2E tests)
 - **Frontend**: Vue 3 + TypeScript — test trophy (static > unit/integration > E2E)
 
 ## Test Matrix
 
-| Layer                          | Tool                 |        Environment         |        PR/push CI        |       Nightly        | Mục tiêu                |
+| Layer                          | Tool                 |        Environment         |        PR/push CI        |       Nightly        | Goal                    |
 | ------------------------------ | -------------------- | :------------------------: | :----------------------: | :------------------: | ----------------------- |
 | Static                         | Ruff/ESLint/Prettier |            none            |        ✅ `lint`         | N/A (not configured) | syntax/style            |
 | Backend unit + API integration | pytest               |       SQLite/temp FS       |      ✅ `test:unit`      | N/A (not configured) | backend behavior        |
@@ -44,12 +44,12 @@ Last verified against `.github/workflows/ci.yml` and `test.sh`: 2026-06-19.
 
 ## Flaky Test Policy
 
-- Không có automation quarantine hoặc auto-create GitHub issue trong workflow hiện tại.
-- Test flaky phải được triage; không được mô tả là tự động skip nếu chưa có workflow/config thực hiện việc đó.
+- There is no automated quarantine or auto-created GitHub issue flow in the current workflow.
+- Flaky tests must be triaged; do not describe them as automatically skipped unless a workflow/config actually does that.
 
 ## When to Use What
 
-| Bạn muốn test                         | Dùng                                                     |
+| What you want to test                 | Use                                                      |
 | ------------------------------------- | -------------------------------------------------------- |
 | Pure function logic                   | Vitest unit (frontend) / pytest unit (backend)           |
 | Store / composable behavior           | Vitest (jsdom)                                           |

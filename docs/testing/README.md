@@ -7,6 +7,9 @@ Last reviewed: 2026-06-26
 This directory documents the test and debug surface for the gallery repo. Keep it focused on what each test protects, when to run it, and which debug helper to use before changing behavior.
 
 The repository-wide layer, CI selection, browser, coverage, and flaky-test policies are defined in [TESTING_STRATEGY.md](TESTING_STRATEGY.md).
+Frontend testing principles from the official Vue, Vue Test Utils, Pinia, and
+Playwright guidance are summarized in
+[FRONTEND_TESTING_PRINCIPLES.md](FRONTEND_TESTING_PRINCIPLES.md).
 Performance budgets and profiling workflows are documented in
 [PERFORMANCE_TESTING.md](PERFORMANCE_TESTING.md), and runtime diagnostics are
 documented in [DEBUG_TOOLS.md](DEBUG_TOOLS.md).
