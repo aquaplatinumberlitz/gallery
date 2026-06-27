@@ -146,7 +146,7 @@ Replaced brittle CSS class selectors in E2E workflow tests with `getByTestId` at
 | `index-status-panel.spec.ts` | `.lucide-database`, `.index-progress-bar`, `.index-status-badge` | `getByTestId(...)` | Brittle class selectors |
 | `library-inspector.spec.ts` | `.col-prompt .long-text-trigger`, `.col-prompt .long-text-preview`, `.col-name .thumb-button`, `.desktop-lightbox-counter` | `getByTestId(...)` | Brittle class selectors |
 | `mobile-lightbox-sheet.spec.ts` | `.mobile-photo-counter`, `.seed-row`, `.inline-copy-icon` | `getByTestId(...)` | Brittle class selectors |
-| `sidebar-trigger.spec.ts` | `locator("..").locator("..")` | `locator('[data-collapsible="icon"]')` | Fragile parent traversal |
+| `sidebar-trigger.spec.ts` | `locator("..").locator("..")` | `getByTestId("sidebar-group")` | Fragile parent traversal; replaced with stable testid on outer wrapper |
 | `tailwind-phase0.spec.ts` | `.gallery-grid, .gallery-scroll-container` | `getByTestId("gallery-grid")` | Utility classes |
 | `tailwind-preflight.spec.ts` | `.tablet-header` | `getByTestId("tablet-header")` | Brittle class selector |
 | `tailwind-phase0.spec.ts` | `.brand-title` | **Kept** | Visual/layout contract |
@@ -158,8 +158,8 @@ Replaced brittle CSS class selectors in E2E workflow tests with `getByTestId` at
 
 ### Production code changes (semantically neutral `data-testid` additions)
 
-13 Vue components received `data-testid` attributes where no `aria-label` or `role` existed:
-`SearchFilterChips`, `Breadcrumb`, `LightboxDesktopPanel`, `LightboxTabletPanel`, `LightboxMobileSheet`, `PhotoCard`, `GalleryGrid`, `LibraryInspector`, `IndexStatusCard`, `IndexProgressBar`, `IndexStatusBadge`, `Lightbox`, `TabletHeader`
+15 Vue components received `data-testid` attributes where no `aria-label` or `role` existed:
+`SearchFilterChips`, `Breadcrumb`, `LightboxDesktopPanel`, `LightboxTabletPanel`, `LightboxMobileSheet`, `PhotoCard`, `GalleryGrid`, `LibraryInspector`, `IndexStatusCard`, `IndexProgressBar`, `IndexStatusBadge`, `Lightbox`, `TabletHeader`, `IndexStatusPanel`, `Sidebar`
 
 ### Acceptance
 
