@@ -80,6 +80,7 @@ echo "==> Start backend fixture on $BACKEND_URL"
     GALLERY_THUMBNAIL_CACHE_DIR="$THUMBNAIL_CACHE" \
     FRONTEND_PORT="$FRONTEND_PORT" \
     ENABLE_METRICS=false \
+    GALLERY_INTEGRITY_CHECK_ENABLED="${GALLERY_INTEGRITY_CHECK_ENABLED:-false}" \
     "$PYTHON" -m uvicorn backend.main:app --host 127.0.0.1 --port "$BACKEND_PORT"
 ) >"$BACKEND_LOG" 2>&1 &
 BACKEND_PID=$!

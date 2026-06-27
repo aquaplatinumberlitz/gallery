@@ -17,9 +17,9 @@ documented in [DEBUG_TOOLS.md](DEBUG_TOOLS.md).
 ## Test Selection
 
 - Push/PR CI runs full-codebase static checks, backend and frontend unit/integration tests, the complete Chromium functional suite split into four shards, deterministic performance tests, and docs/test-catalog drift checks.
-- CI delegates to `./test.sh` for lint, unit, and docs checks so local and CI commands stay in sync. Docs/test inventory drift is guarded by `scripts/check_docs_staleness.py`, `scripts/check_test_docs.py`, and `scripts/audit_test_matrix.py --fail-on-gaps` (run via `./test.sh docs`).
+- CI delegates to `./test.sh` for lint, unit, docs, functional E2E, and performance checks so local and CI commands stay in sync. Docs/test inventory drift is guarded by `scripts/check_docs_staleness.py`, `scripts/check_test_docs.py`, and `scripts/audit_test_matrix.py --fail-on-gaps` (run via `./test.sh docs`).
 - Functional Playwright runs without Istanbul instrumentation. Frontend coverage is produced by Vitest/V8 in the unit job.
-- Backend line coverage has an enforced 85% baseline. Frontend Vitest coverage remains informational.
+- Backend line coverage has an enforced 90% baseline. Frontend Vitest coverage remains informational.
 - Nightly and WebKit jobs are not currently configured.
 
 ## Test Categories
@@ -208,7 +208,7 @@ Ruff, ESLint, and Prettier checks scan the full codebase locally and in CI.
 
 ### CI sync
 
-CI lint, unit, and docs jobs delegate to `./test.sh` rather than duplicating commands inline.
+CI lint, unit, docs, functional E2E, and performance jobs delegate to `./test.sh` rather than duplicating commands inline.
 Add new test commands to `test.sh` first, then wire them into CI.
 Docs/test inventory drift is caught by `./test.sh docs`:
 

@@ -18,7 +18,7 @@ Usage: ./test.sh <command> [test arguments]
 
 Primary commands:
   fast         Full lint/format, unit coverage, and frontend build
-  full         CI-equivalent: fast + functional E2E + performance tests
+  full         CI-equivalent: fast + docs + functional E2E + performance tests
 
 Focused commands:
   lint         Full-repository lint and format checks
@@ -112,6 +112,7 @@ case "$COMMAND" in
         export PLAYWRIGHT_RETRIES="${PLAYWRIGHT_RETRIES:-1}"
         run_lint
         run_unit
+        run_docs
         export GALLERY_TEST_SKIP_BUILD=1
         "$INTERNAL_DIR/test-playwright.sh" functional
         "$INTERNAL_DIR/test-playwright.sh" perf

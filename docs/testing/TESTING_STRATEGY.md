@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last verified against `.github/workflows/ci.yml` and `test.sh`: 2026-06-19.
+Last verified against `.github/workflows/ci.yml` and `test.sh`: 2026-06-27.
 
 ## Stack
 
@@ -31,11 +31,11 @@ Last verified against `.github/workflows/ci.yml` and `test.sh`: 2026-06-19.
 - **Functional E2E coverage instrumentation is disabled** so browser behavior and timing are not distorted. Frontend coverage comes from Vitest/V8.
 - **Nightly**: N/A (not configured).
 - **WebKit smoke**: N/A.
-- **Local parity**: `./test.sh full` runs the same full layers sequentially; `./test.sh fast` is the fast lint/unit/build gate.
+- **Local parity**: CI test execution delegates to `./test.sh`; `./test.sh full` runs the same full layers sequentially, including docs/test-catalog checks. `./test.sh fast` is the fast lint/unit/build gate.
 
 ## Coverage Baselines
 
-- **Backend**: 85% line coverage (enforced in CI)
+- **Backend**: 90% line coverage (enforced in CI and `./test.sh unit`)
 - **Frontend**: Vitest/V8 coverage is uploaded from `test:unit`; no numeric frontend threshold is enforced yet.
 
 ## Browser Matrix

@@ -93,7 +93,7 @@ Quality checks:
 ./test.sh fast
 ```
 
-Full CI-equivalent validation, including deterministic functional E2E and performance tests:
+Full CI-equivalent validation, including docs/test-catalog checks, deterministic functional E2E, and performance tests:
 
 ```bash
 ./test.sh full

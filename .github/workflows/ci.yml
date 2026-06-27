@@ -2,7 +2,7 @@
 #
 # Runs on push/PR to main.
 # All lint, format, unit, functional E2E, performance, and docs/test-catalog checks scan the full codebase.
-# Where practical, CI delegates to ./test.sh to keep local and CI commands in sync.
+# CI delegates test execution to ./test.sh to keep local and CI commands in sync.
 ---
 name: CI
 
@@ -163,40 +163,13 @@ jobs:
         working-directory: frontend
         run: pnpm exec playwright install chromium --with-deps
 
-      - name: Create deterministic gallery fixture
-        run: |
-          python scripts/create_perf_fixture.py \
-            --root "$RUNNER_TEMP/gallery-e2e-fixture" \
-            --album-name a1111 \
-            --images 30 \
-            --metadata-db "$RUNNER_TEMP/gallery-e2e.db" \
-            --thumbnail-cache "$RUNNER_TEMP/gallery-e2e-cache" \
-            --clean
-
-      - name: Start backend fixture
-        run: |
-          PATH_SAFETY_ROOT="$RUNNER_TEMP/gallery-e2e-fixture" \
-          GALLERY_METADATA_DB="$RUNNER_TEMP/gallery-e2e.db" \
-          GALLERY_THUMBNAIL_CACHE_DIR="$RUNNER_TEMP/gallery-e2e-cache" \
-          ENABLE_METRICS=false \
-          GALLERY_INTEGRITY_CHECK_ENABLED=false \
-          python -m uvicorn backend.main:app --host 127.0.0.1 --port 4180 \
-            >"$RUNNER_TEMP/gallery-e2e-backend.log" 2>&1 &
-          for attempt in {1..60}; do
-            if curl --fail --silent http://127.0.0.1:4180/api/health >/dev/null; then
-              exit 0
-            fi
-            sleep 0.5
-          done
-          cat "$RUNNER_TEMP/gallery-e2e-backend.log"
-          exit 1
-
-      - name: E2E / Integration Tests (all functional specs)
-        working-directory: frontend
-        run: pnpm exec playwright test tests/e2e/*.spec.ts --project=chromium --shard=${{ matrix.shard }}/4 --reporter=html
+      - name: E2E / Integration Tests (via test.sh)
+        run: ./test.sh e2e
         env:
-          VITE_API_URL: http://127.0.0.1:4180
-          PATH_SAFETY_ROOT_PATH: ${{ runner.temp }}/gallery-e2e-fixture
+          GALLERY_TEST_BACKEND_PORT: "4180"
+          GALLERY_TEST_SHARD: ${{ matrix.shard }}/4
+          GALLERY_TEST_SKIP_BUILD: "1"
+          GALLERY_TEST_TMPDIR: ${{ runner.temp }}/gallery-e2e-${{ matrix.shard }}
 
       - name: Upload Playwright report on failure
         if: failure()
@@ -211,7 +184,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: backend-log-functional-${{ matrix.shard }}
-          path: ${{ runner.temp }}/gallery-e2e-backend.log
+          path: ${{ runner.temp }}/gallery-e2e-${{ matrix.shard }}/backend.log
           retention-days: 7
 
   test-perf:
@@ -247,42 +220,12 @@ jobs:
         working-directory: frontend
         run: pnpm exec playwright install chromium --with-deps
 
-      - name: Validate performance budget registry
-        run: python scripts/check_perf_budgets.py
-
-      - name: Create deterministic performance fixture
-        run: |
-          python scripts/create_perf_fixture.py \
-            --root "$RUNNER_TEMP/gallery-perf-fixture" \
-            --album-name a1111 \
-            --images 30 \
-            --metadata-db "$RUNNER_TEMP/gallery-perf.db" \
-            --thumbnail-cache "$RUNNER_TEMP/gallery-perf-cache" \
-            --clean
-
-      - name: Start performance backend fixture
-        run: |
-          PATH_SAFETY_ROOT="$RUNNER_TEMP/gallery-perf-fixture" \
-          GALLERY_METADATA_DB="$RUNNER_TEMP/gallery-perf.db" \
-          GALLERY_THUMBNAIL_CACHE_DIR="$RUNNER_TEMP/gallery-perf-cache" \
-          ENABLE_METRICS=false \
-          python -m uvicorn backend.main:app --host 127.0.0.1 --port 4180 \
-            >"$RUNNER_TEMP/gallery-perf-backend.log" 2>&1 &
-          for attempt in {1..60}; do
-            if curl --fail --silent http://127.0.0.1:4180/api/health >/dev/null; then
-              exit 0
-            fi
-            sleep 0.5
-          done
-          cat "$RUNNER_TEMP/gallery-perf-backend.log"
-          exit 1
-
-      - name: Performance tests (all perf specs)
-        working-directory: frontend
-        run: pnpm exec playwright test tests/e2e/perf --project=chromium --workers=1 --reporter=html
+      - name: Performance tests (via test.sh)
+        run: ./test.sh perf
         env:
-          VITE_API_URL: http://127.0.0.1:4180
-          PATH_SAFETY_ROOT_PATH: ${{ runner.temp }}/gallery-perf-fixture
+          GALLERY_TEST_BACKEND_PORT: "4180"
+          GALLERY_TEST_SKIP_BUILD: "1"
+          GALLERY_TEST_TMPDIR: ${{ runner.temp }}/gallery-perf
 
       - name: Upload performance reports
         if: always()
@@ -299,5 +242,5 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: backend-log-performance
-          path: ${{ runner.temp }}/gallery-perf-backend.log
+          path: ${{ runner.temp }}/gallery-perf/backend.log
           retention-days: 7
