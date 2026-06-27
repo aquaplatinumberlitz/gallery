@@ -48,7 +48,7 @@
     "frontend_test_files": 24,
     "frontend_tests": 159,
     "important_files": 157,
-    "perf_reports": 3,
+    "perf_reports": 0,
     "vitest_test_files": 68,
     "vitest_tests": 900
   },
@@ -66,7 +66,7 @@
     },
     "frontend_summary_found": true
   },
-  "generated_at": "2026-06-27T07:06:29+00:00",
+  "generated_at": "2026-06-27T07:25:27+00:00",
   "matrix": [
     {
       "backend": "OK",
@@ -181,9 +181,5 @@
       "perf": "OK"
     }
   ],
-  "perf_reports": [
-    "frontend/test-results/perf/metadata-navigation-report.json",
-    "frontend/test-results/perf/metadata-search-report.json",
-    "frontend/test-results/perf/metadata-sort-report.json"
-  ]
+  "perf_reports": []
 }

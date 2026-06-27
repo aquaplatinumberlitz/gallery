@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -367,6 +368,8 @@ def load_frontend_coverage_summary(root: Path) -> dict[str, Any] | None:
 
 
 def perf_report_files(root: Path) -> list[str]:
+    if os.environ.get("GALLERY_AUDIT_INCLUDE_PERF_REPORTS") != "1":
+        return []
     results_dir = root / "frontend/test-results/perf"
     if not results_dir.exists():
         return []

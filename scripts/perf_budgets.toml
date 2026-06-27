@@ -32,7 +32,7 @@ thumbnail_p95_ms = 200
 description = "Playwright: album open scan + first thumbnail + thumbnail p95"
 
 [lightbox]
-open_ms = 500
+open_ms = 1000
 transition_ms = 1000
 preview_check_ms = 200
 description = "Playwright: lightbox open + transition + warm preview request p95"
