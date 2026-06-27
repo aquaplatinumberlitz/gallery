@@ -183,8 +183,7 @@ test("boot id does not change during album browse / lightbox / navigation", asyn
 
   // Scroll the grid
   await page.mouse.wheel(0, 500);
-  await page.waitForTimeout(300);
-  currentId = await page.evaluate(() => window.__galleryBootId);
+  await expect.poll(async () => page.evaluate(() => window.__galleryBootId)).toBe(bootId);
   expect(currentId).toBe(bootId);
 });
 
@@ -207,7 +206,7 @@ test("no unexpected full page reload during album browsing", async ({ page }) =>
 
   // Close lightbox - should not navigate
   await page.getByLabel("Close lightbox").click();
-  await page.waitForTimeout(500);
+  await expect(page.getByTestId("lightbox")).not.toBeVisible({ timeout: 5_000 });
   expect(navigations).toBe(baseline);
 });
 
@@ -216,7 +215,7 @@ test("/api/browse with cursor=0 is not duplicated unnecessarily", async ({ page 
   await openStubbedGallery(page);
 
   // Wait for initial browse requests to settle
-  await page.waitForTimeout(500);
+  await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 10_000 });
 
   const browseRequests = requestsFor(requests, "/api/browse");
   const cursorZeroRequests = cursorZeroBrowses(requests);
@@ -246,14 +245,14 @@ test("lightbox prev/next navigate without page reload", async ({ page }) => {
   const nextBtn = page.locator('[data-testid="lightbox-next"]');
   if (await nextBtn.isVisible()) {
     await nextBtn.click();
-    await page.waitForTimeout(300);
+    await expect(page.getByTestId("lightbox").locator("img").first()).toBeVisible({ timeout: 5_000 });
   }
 
   // Navigate prev in lightbox
   const prevBtn = page.locator('[data-testid="lightbox-prev"]');
   if (await prevBtn.isVisible()) {
     await prevBtn.click();
-    await page.waitForTimeout(300);
+    await expect(page.getByTestId("lightbox").locator("img").first()).toBeVisible({ timeout: 5_000 });
   }
 
   // Should not have triggered additional navigations

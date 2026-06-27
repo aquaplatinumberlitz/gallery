@@ -139,7 +139,7 @@ async function dismissMobileSidebar(page: Page) {
     const clickX = viewport ? viewport.width - 50 : 340;
     const clickY = viewport ? viewport.height / 2 : 400;
     await page.mouse.click(clickX, clickY);
-    await page.waitForTimeout(500);
+    await expect(sidebar).not.toBeVisible({ timeout: 3_000 });
   }
 }
 
@@ -214,14 +214,12 @@ test("lightbox opens on mobile, metadata sheet opens and closes repeatedly", asy
 
   // Assert seed param pill is visible (inside params tab)
   await page.locator("button.sheet-tab", { hasText: "Params" }).evaluate((el: HTMLElement) => el.click());
-  await page.waitForTimeout(500);
   const seedPill = page.locator(".seed-row");
   await expect(seedPill).toBeVisible({ timeout: 3000 });
   await expect(seedPill).toContainText("12345");
 
   // Switch back to prompt tab
   await page.locator("button.sheet-tab", { hasText: "Prompt" }).evaluate((el: HTMLElement) => el.click());
-  await page.waitForTimeout(300);
 
   // Close sheet — use the close mechanism exposed by the app's sheet.
   // Pointer events (mouse click) trigger PhotoSwipe closeOnVerticalDrag on mobile,
@@ -259,7 +257,6 @@ test("lightbox opens on mobile, metadata sheet opens and closes repeatedly", asy
       );
     }
   });
-  await page.waitForTimeout(800);
 
   // Sheet should be dismissed - copy prompt button should no longer be visible
   await expect(copyPromptBtn).not.toBeVisible({ timeout: 5000 });
@@ -294,9 +291,7 @@ test("lightbox opens on mobile, metadata sheet opens and closes repeatedly", asy
         }),
       );
     }, i);
-    await page.waitForTimeout(500);
     await expect(page.getByLabel("Copy prompt")).not.toBeVisible({ timeout: 5000 });
-    await page.waitForTimeout(300);
   }
 
   // Assert copy buttons don't crash: open sheet, click copy, verify check icon appears
@@ -304,7 +299,6 @@ test("lightbox opens on mobile, metadata sheet opens and closes repeatedly", asy
   await expect(page.locator("[data-vsbs-sheet]")).toBeVisible({ timeout: 10_000 });
   await expect(page.getByLabel("Copy prompt")).toBeVisible({ timeout: 5000 });
   await page.getByLabel("Copy prompt").evaluate((el: HTMLElement) => el.click());
-  await page.waitForTimeout(300);
   // Verify the check icon appeared (copy succeeded)
   const checkIcon = page.locator(".inline-copy-icon").first();
   await expect(checkIcon).toBeVisible({ timeout: 3000 });
@@ -334,9 +328,7 @@ test("metadata sheet can be opened via View info button on mobile", async ({ pag
 
   // Verify copy buttons work without crash
   await page.getByLabel("Copy prompt").evaluate((el: HTMLElement) => el.click());
-  await page.waitForTimeout(300);
   await page.getByLabel("Copy negative prompt").evaluate((el: HTMLElement) => el.click());
-  await page.waitForTimeout(300);
 
   // Page should still be functional
   await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 3000 });
@@ -353,20 +345,17 @@ test("mobile search works with fielded queries", async ({ page }) => {
   const openSearchBtn = page.getByLabel("Open search");
   await expect(openSearchBtn).toBeVisible({ timeout: 5000 });
   await openSearchBtn.evaluate((el: HTMLElement) => el.click());
-  await page.waitForTimeout(500);
 
   // Type fielded search query
   const searchInput = page.getByLabel("Search gallery");
   await expect(searchInput).toBeVisible({ timeout: 3000 });
   await searchInput.fill("prompt:mika");
   await searchInput.press("Enter");
-  await page.waitForTimeout(500);
 
   // Close search
   const closeSearchBtn = page.getByLabel("Close search");
   await expect(closeSearchBtn).toBeVisible({ timeout: 3000 });
   await closeSearchBtn.evaluate((el: HTMLElement) => el.click());
-  await page.waitForTimeout(300);
 
   // Photo cards should still be visible
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 10_000 });

@@ -300,10 +300,9 @@ test.describe("AdvancedSearchDrawer", () => {
 
     await drawer.getByRole("button", { name: "Apply" }).click();
     await expect(drawer).not.toBeVisible({ timeout: 5_000 });
-    await page.waitForTimeout(1500);
+    await expect.poll(() => requestsFor(requests, "/api/search").length).toBeGreaterThanOrEqual(1);
 
     const searchReqs = requestsFor(requests, "/api/search");
-    expect(searchReqs.length).toBeGreaterThanOrEqual(1);
     const lastSearch = searchReqs[searchReqs.length - 1]!;
     expect(lastSearch.q).toContain("prompt");
     expect(lastSearch.q).toContain("blue archive");
@@ -361,7 +360,7 @@ test.describe("AdvancedSearchDrawer", () => {
     const searchInput = page.locator("#gallery-search");
     await searchInput.fill("seed:12345");
     await searchInput.press("Enter");
-    await page.waitForTimeout(500);
+    await expect.poll(() => requestsFor(requests, "/api/search").some((r) => r.q.includes("seed"))).toBe(true);
 
     await page.getByLabel("Advanced Search").click();
     const drawer = page.getByRole("dialog", { name: "Advanced Search" });
@@ -397,7 +396,7 @@ test.describe("AdvancedSearchDrawer", () => {
     await drawerField(drawer, "advanced-search-prompt").fill("mika");
     await drawer.getByRole("button", { name: "Apply" }).click();
     await expect(drawer).not.toBeVisible({ timeout: 5_000 });
-    await page.waitForTimeout(1500);
+    await expect.poll(() => requestsFor(requests, "/api/search").length).toBeGreaterThanOrEqual(1);
 
     // Verify chip appears
     const chip = page.getByLabel(/Remove filter:/i);
@@ -409,7 +408,6 @@ test.describe("AdvancedSearchDrawer", () => {
 
     // Remove chip
     await chip.click();
-    await page.waitForTimeout(300);
     await expect(chip).not.toBeVisible({ timeout: 3_000 });
 
     // Verify search input cleared
@@ -440,7 +438,7 @@ test.describe("AdvancedSearchDrawer", () => {
 
     await drawer.getByRole("button", { name: "Apply" }).click();
     await expect(drawer).not.toBeVisible({ timeout: 5_000 });
-    await page.waitForTimeout(1500);
+    await expect.poll(() => requestsFor(requests, "/api/search").length).toBeGreaterThanOrEqual(1);
 
     const searchReqs = requestsFor(requests, "/api/search");
     const lastSearch = searchReqs[searchReqs.length - 1]!;
@@ -468,7 +466,6 @@ test.describe("AdvancedSearchDrawer", () => {
 
     // Click 16:9 preset button
     await drawer.getByRole("button", { name: "16:9" }).click();
-    await page.waitForTimeout(200);
 
     // Verify ratio input shows 16:9
     const ratioInput = drawerField(drawer, "advanced-search-ratio");
@@ -480,7 +477,7 @@ test.describe("AdvancedSearchDrawer", () => {
     // Apply
     await drawer.getByRole("button", { name: "Apply" }).click();
     await expect(drawer).not.toBeVisible({ timeout: 5_000 });
-    await page.waitForTimeout(1500);
+    await expect.poll(() => requestsFor(requests, "/api/search").length).toBeGreaterThanOrEqual(1);
 
     const searchReqs = requestsFor(requests, "/api/search");
     const lastSearch = searchReqs[searchReqs.length - 1]!;
@@ -502,7 +499,7 @@ test.describe("AdvancedSearchDrawer", () => {
     const searchInput = page.locator("#gallery-search");
     await searchInput.fill("rain");
     await searchInput.press("Enter");
-    await page.waitForTimeout(500);
+    await expect.poll(() => requestsFor(requests, "/api/search").some((r) => r.q === "rain")).toBe(true);
 
     const searchReqs = requestsFor(requests, "/api/search");
     expect(searchReqs.some((r) => r.q === "rain")).toBe(true);
@@ -520,7 +517,6 @@ test.describe("AdvancedSearchDrawer", () => {
     // Clear and verify gallery returns
     await searchInput.fill("");
     await searchInput.press("Enter");
-    await page.waitForTimeout(500);
     await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 10_000 });
   });
 });

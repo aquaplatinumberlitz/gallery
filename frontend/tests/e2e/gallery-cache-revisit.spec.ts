@@ -180,18 +180,17 @@ test("soft revisit via search UI does not trigger duplicate cursor=0 browse requ
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
 
   // Wait for initial browse request to settle, then clear request tracking
-  await page.waitForTimeout(500);
+  await expect.poll(() => requestsFor(requests, "/api/browse").length).toBeGreaterThanOrEqual(1);
   requests.length = 0;
 
   // Soft navigation: enter search (switches to search view)
   await page.locator("#gallery-search").fill("navigate-away");
   await page.locator("#gallery-search").press("Enter");
-  await page.waitForTimeout(500);
+  await expect.poll(() => requestsFor(requests, "/api/search").some((r) => r.q.includes("navigate-away"))).toBe(true);
 
   // Soft navigation back: clear search (restores gallery view)
   await page.locator("#gallery-search").fill("");
   await page.locator("#gallery-search").press("Enter");
-  await page.waitForTimeout(500);
 
   // Photo cards should reappear quickly (no skeleton/flicker)
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 10_000 });
@@ -219,14 +218,12 @@ test("revisit after browser back preserves gallery without duplicate browse requ
 
   // Navigate away — go to blank page on same origin to preserve localStorage access
   await page.goto(baseUrl.replace(/\/+$/, "") + "/blank-non-existent-path", { waitUntil: "domcontentloaded" });
-  await page.waitForTimeout(300);
 
   // Track requests after re-entry
   requests.length = 0;
 
   // Navigate back
   await page.goBack({ waitUntil: "networkidle" });
-  await page.waitForTimeout(1500);
 
   // Photo cards should be visible without excessive new browse requests
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });

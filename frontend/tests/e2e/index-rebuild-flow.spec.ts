@@ -84,7 +84,7 @@ test.describe("rebuild flow diagnostic", () => {
       localStorage.setItem("gallery-active-import-path-id", "10");
     });
     await page.goto(`${baseUrl}/`, { waitUntil: "load" });
-    await page.waitForTimeout(1500);
+    await expect(page.getByRole("link", { name: "Metadata" })).toBeVisible({ timeout: 10_000 });
 
     const initialInspectorPromise = page.waitForResponse(
       (r) => r.url().includes("/api/library/inspector") && r.status() === 200,
@@ -161,7 +161,7 @@ test.describe("rebuild flow diagnostic", () => {
       }),
     );
 
-    await page.waitForTimeout(3000);
+    await expect.poll(() => inspectorResponses.length).toBeGreaterThanOrEqual(1);
 
     const firstResp = inspectorResponses[0] ?? null;
     console.log("=== REBUILD TIMING REPORT ===");
@@ -250,7 +250,7 @@ test.describe("inspector stale notice (mocked)", () => {
 
   async function navigateToMetadata(page: Page) {
     await openMetadata(page);
-    await page.waitForTimeout(1500);
+    await expect(page.getByRole("link", { name: "Metadata" })).toBeVisible({ timeout: 10_000 });
   }
 
   test("fresh data without rebuild marker hides notice", async ({ page }) => {
@@ -327,7 +327,6 @@ test.describe("inspector stale notice (mocked)", () => {
       confirmBtn.click(),
     ]);
 
-    await page.waitForTimeout(1500);
     await expect(notice).toContainText("Refreshing photo details", { timeout: 5_000 });
   });
 });

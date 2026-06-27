@@ -100,3 +100,33 @@ Applied cleanup rules across all component tests under `frontend/src/components/
 | `pnpm lint:tests` | ✅ Pass (0 errors) |
 | `pnpm test:unit` | ✅ 74 files, 938 tests — all passed |
 | `audit_test_matrix.py --fail-on-gaps` | ✅ Pass (exit 0) |
+
+## Phase 3 — Playwright Wait Refactor ✅
+
+### Summary
+
+Replaced fixed `waitForTimeout()` calls in functional E2E specs with observable waits.
+
+| File | Sleeps removed | Replacement strategy |
+|---|---|---|
+| `advanced-search-drawer.spec.ts` | 10 → 0 | `expect.poll` waiting for `/api/search` requests array; removed redundant waits before web-first assertions |
+| `search-fielded-ui.spec.ts` | 10 → 0 | `expect.poll` for search request presence; `toBeVisible` for photo cards |
+| `gallery-no-reload.spec.ts` | 5 → 0 | `expect.poll` for bootId; `toBeVisible` for lightbox/image; `toBeVisible` for photo cards |
+| `gallery-cache-revisit.spec.ts` | 5 → 0 | `expect.poll` for browse/search requests; removed waits before `toBeVisible` assertions |
+| `index-rebuild-flow.spec.ts` | 4 → 0 | `expect.poll` for inspector responses; `toBeVisible` for Metadata link; `toContainText` with timeout instead of sleep |
+| `mobile-lightbox-sheet.spec.ts` | 13 → 0 | `expect(sidebar).not.toBeVisible()` for dismiss; `toBeVisible` for sheet/copy button; `expect.poll` for check icon |
+| `tailwind-phase0.spec.ts` | 12 → 0 | `expect.poll` for `data-theme` attribute after theme toggle; `expect(sidebar).toBeVisible()` for hamburger; `expect(sidebar).not.toBeVisible()` for dismiss |
+| `tailwind-preflight.spec.ts` | 27 → 8 | 19 replaced with web-first assertions / `expect.poll`; 8 kept with comments for PhotoSwipe animation timing (visual measurement) |
+
+**Replacement rules applied:**
+- After UI actions → `toBeVisible`/`not.toBeVisible` with timeout
+- After API-triggering actions → `expect.poll` checking request array or `waitForResponse`
+- For debounce behavior → `expect.poll` checking resulting UI state
+- Intentional sleeps in visual/performance tests → kept with explanatory comment
+
+### Acceptance
+
+| Check | Result |
+|---|---|
+| `rg -n "waitForTimeout" frontend/tests/e2e/` | 8 remaining — all intentional (PhotoSwipe animation timing in `tailwind-preflight.spec.ts`) |
+| `pnpm lint:tests` | ✅ Pass (0 errors) |

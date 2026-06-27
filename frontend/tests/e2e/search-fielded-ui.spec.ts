@@ -230,7 +230,7 @@ test("plain search finds results and shows them in UI", async ({ page }) => {
   const searchInput = page.locator("#gallery-search");
   await searchInput.fill("rain");
   await searchInput.press("Enter");
-  await page.waitForTimeout(500);
+  await expect.poll(() => requestsFor(requests, "/api/search").some((r) => r.q.includes("rain"))).toBe(true);
 
   // Search request should have been made
   const searchRequests = requestsFor(requests, "/api/search");
@@ -257,7 +257,7 @@ test("fielded search prompt:mika sends correct query and shows results", async (
   const searchInput = page.locator("#gallery-search");
   await searchInput.fill("prompt:mika");
   await searchInput.press("Enter");
-  await page.waitForTimeout(500);
+  await expect.poll(() => requestsFor(requests, "/api/search").some((r) => r.q === "prompt:mika")).toBe(true);
 
   const searchRequests = requestsFor(requests, "/api/search");
   expect(searchRequests.some((r) => r.q === "prompt:mika")).toBe(true);
@@ -282,7 +282,7 @@ test("seed query sends correct query string and shows results", async ({ page })
   const searchInput = page.locator("#gallery-search");
   await searchInput.fill("seed:12345");
   await searchInput.press("Enter");
-  await page.waitForTimeout(500);
+  await expect.poll(() => requestsFor(requests, "/api/search").some((r) => r.q === "seed:12345")).toBe(true);
 
   const searchRequests = requestsFor(requests, "/api/search");
   expect(searchRequests.some((r) => r.q === "seed:12345")).toBe(true);
@@ -303,12 +303,12 @@ test("clear search restores gallery view", async ({ page }) => {
   const searchInput = page.locator("#gallery-search");
   await searchInput.fill("rain");
   await searchInput.press("Enter");
-  await page.waitForTimeout(500);
+  await expect.poll(() => requestsFor(requests, "/api/search").some((r) => r.q.includes("rain"))).toBe(true);
 
   // Clear the search
   await searchInput.fill("");
   await searchInput.press("Enter");
-  await page.waitForTimeout(500);
+  await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 10_000 });
 
   // Photo cards should still be visible (gallery restored)
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 10_000 });
@@ -333,7 +333,7 @@ test("no-results state does not break layout", async ({ page }) => {
   const searchInput = page.locator("#gallery-search");
   await searchInput.fill("zzz_nonexistent_xyz_12345");
   await searchInput.press("Enter");
-  await page.waitForTimeout(500);
+  await expect(searchInput).toHaveValue("zzz_nonexistent_xyz_12345");
 
   // The app should not crash - page should still be functional
   const pageContent = await page.content();
@@ -342,7 +342,6 @@ test("no-results state does not break layout", async ({ page }) => {
   // Clear search and verify gallery returns with photos
   await searchInput.fill("");
   await searchInput.press("Enter");
-  await page.waitForTimeout(500);
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 10_000 });
 });
 
@@ -364,17 +363,14 @@ test("search query with special characters does not crash", async ({ page }) => 
     const searchInput = page.locator("#gallery-search");
     await searchInput.fill(q);
     await searchInput.press("Enter");
-    await page.waitForTimeout(300);
 
     // Verify search request was made
-    const searchRequests = requestsFor(requests, "/api/search");
-    expect(searchRequests.some((r) => r.q === q)).toBe(true);
+    await expect.poll(() => requestsFor(requests, "/api/search").some((r) => r.q === q)).toBe(true);
   }
 
   // Clear and restore
   const searchInput = page.locator("#gallery-search");
   await searchInput.fill("");
   await searchInput.press("Enter");
-  await page.waitForTimeout(500);
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 10_000 });
 });

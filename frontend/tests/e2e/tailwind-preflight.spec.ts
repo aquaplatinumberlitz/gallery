@@ -139,7 +139,7 @@ async function dismissMobileSidebar(page: Page) {
     const clickX = viewport ? viewport.width - 50 : 340;
     const clickY = viewport ? viewport.height / 2 : 400;
     await page.mouse.click(clickX, clickY);
-    await page.waitForTimeout(500);
+    await expect(sidebar).not.toBeVisible({ timeout: 3000 });
   }
 }
 
@@ -321,6 +321,7 @@ test.describe("Tailwind Preflight Regression", () => {
       // Open lightbox
       await page.getByTestId("photo-card").first().click();
       await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
+      // Visual timing: keep fixed wait for CSS transition to complete
       await page.waitForTimeout(1500);
 
       const imgStyles = await page.evaluate(() => {
@@ -374,6 +375,7 @@ test.describe("Tailwind Preflight Regression", () => {
       // Open lightbox
       await page.getByTestId("photo-card").first().click();
       await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
+      // Visual timing: keep fixed wait for CSS transition to complete
       await page.waitForTimeout(1000);
 
       const firstOpen = await page.evaluate(() => {
@@ -392,11 +394,13 @@ test.describe("Tailwind Preflight Regression", () => {
       // Close
       await page.keyboard.press("Escape");
       await expect(page.getByTestId("lightbox")).not.toBeVisible({ timeout: 5_000 });
+      // Visual timing: keep fixed wait for CSS transition to complete
       await page.waitForTimeout(500);
 
       // Reopen same image
       await page.getByTestId("photo-card").first().click();
       await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
+      // Visual timing: keep fixed wait for CSS transition to complete
       await page.waitForTimeout(1000);
 
       const secondOpen = await page.evaluate(() => {
@@ -429,6 +433,7 @@ test.describe("Tailwind Preflight Regression", () => {
 
       await page.getByTestId("photo-card").first().click();
       await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
+      // Visual timing: keep fixed wait for CSS transition to complete
       await page.waitForTimeout(1000);
 
       // Check that lightbox prev/next arrows are present.
@@ -572,12 +577,8 @@ test.describe("Tailwind Preflight Regression", () => {
       const hamburger = page.getByLabel("Toggle sidebar");
       await expect(hamburger).toBeVisible();
       await hamburger.click();
-      await page.waitForTimeout(300);
-
-      // Sidebar should be open
       const sidebar = page.locator('[data-sidebar="sidebar"][data-mobile="true"]');
-      const isOpen = await sidebar.isVisible({ timeout: 3000 }).catch(() => false);
-      expect(isOpen, "sidebar should open after hamburger click").toBe(true);
+      await expect(sidebar).toBeVisible({ timeout: 3000 });
 
       // Close sidebar via backdrop click
       await dismissMobileSidebar(page);
@@ -591,8 +592,6 @@ test.describe("Tailwind Preflight Regression", () => {
 
       // Open search
       await searchBtn.evaluate((el: HTMLElement) => el.click());
-      await page.waitForTimeout(500);
-
       const searchInput = page.getByLabel("Search gallery");
       await expect(searchInput).toBeVisible({ timeout: 3000 });
 
@@ -604,16 +603,13 @@ test.describe("Tailwind Preflight Regression", () => {
       const clearBtn = page.getByLabel("Clear search");
       if (await clearBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
         await clearBtn.evaluate((el: HTMLElement) => el.click());
-        await page.waitForTimeout(200);
+        await expect.poll(async () => searchInput.inputValue()).toBe("");
       }
 
       // Close search
       const closeBtn = page.getByLabel("Close search");
       await expect(closeBtn).toBeVisible();
       await closeBtn.evaluate((el: HTMLElement) => el.click());
-      await page.waitForTimeout(300);
-
-      // Search input should be hidden
       await expect(searchInput).not.toBeVisible({ timeout: 3000 });
     });
 
@@ -632,19 +628,13 @@ test.describe("Tailwind Preflight Regression", () => {
 
       // Toggle theme
       await themeBtn.evaluate((el: HTMLElement) => el.click());
-      await page.waitForTimeout(300);
-
-      const newTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
-      expect(newTheme).not.toBe(initialTheme);
-      expect(["light", "dark"]).toContain(newTheme);
+      await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).not.toBe(initialTheme);
+      expect(["light", "dark"]).toContain(await page.evaluate(() => document.documentElement.getAttribute("data-theme")));
 
       // Toggle back
       const themeBtn2 = page.getByLabel("Switch to light mode").or(page.getByLabel("Switch to dark mode"));
       await themeBtn2.evaluate((el: HTMLElement) => el.click());
-      await page.waitForTimeout(300);
-
-      const restoredTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
-      expect(restoredTheme).toBe(initialTheme);
+      await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe(initialTheme);
     });
 
     test("4e. mobile header buttons have correct computed styles", async ({ page }) => {
@@ -730,21 +720,14 @@ test.describe("Tailwind Preflight Regression", () => {
         const clickX = (viewport?.width ?? 768) - 50;
         const clickY = (viewport?.height ?? 1024) / 2;
         await page.mouse.click(clickX, clickY);
-        await page.waitForTimeout(500);
-        const closedAfterDismiss = await sidebar.isVisible({ timeout: 2000 }).catch(() => false);
-        if (!closedAfterDismiss) {
-          // Sidebar closed successfully — now reopen via hamburger
-          await hamburger.evaluate((el: HTMLElement) => el.click());
-          await page.waitForTimeout(300);
-          const reopened = await sidebar.isVisible({ timeout: 3000 }).catch(() => false);
-          expect(reopened, "sidebar should reopen after hamburger click").toBe(true);
-        }
+        await expect(sidebar).not.toBeVisible({ timeout: 2000 });
+        // Sidebar closed successfully — now reopen via hamburger
+        await hamburger.evaluate((el: HTMLElement) => el.click());
+        await expect(sidebar).toBeVisible({ timeout: 3000 });
       } else {
         // Sidebar not open — click hamburger to open
         await hamburger.evaluate((el: HTMLElement) => el.click());
-        await page.waitForTimeout(300);
-        const opened = await sidebar.isVisible({ timeout: 3000 }).catch(() => false);
-        expect(opened, "sidebar should open after hamburger click").toBe(true);
+        await expect(sidebar).toBeVisible({ timeout: 3000 });
       }
 
       // Close sidebar if open at end of test
@@ -757,8 +740,6 @@ test.describe("Tailwind Preflight Regression", () => {
 
       // Open search
       await searchBtn.evaluate((el: HTMLElement) => el.click());
-      await page.waitForTimeout(500);
-
       const searchInput = page.getByLabel("Search gallery");
       await expect(searchInput).toBeVisible({ timeout: 3000 });
 
@@ -770,7 +751,7 @@ test.describe("Tailwind Preflight Regression", () => {
       const closeBtn = page.getByLabel("Close search");
       if (await closeBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
         await closeBtn.evaluate((el: HTMLElement) => el.click());
-        await page.waitForTimeout(300);
+        await expect(searchInput).not.toBeVisible({ timeout: 3000 });
       }
     });
 
@@ -781,19 +762,13 @@ test.describe("Tailwind Preflight Regression", () => {
       const initialTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
 
       await themeBtn.evaluate((el: HTMLElement) => el.click());
-      await page.waitForTimeout(300);
-
-      const newTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
-      expect(newTheme).not.toBe(initialTheme);
-      expect(["light", "dark"]).toContain(newTheme);
+      await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).not.toBe(initialTheme);
+      expect(["light", "dark"]).toContain(await page.evaluate(() => document.documentElement.getAttribute("data-theme")));
 
       // Toggle back
       const themeBtn2 = page.getByLabel("Switch to light mode").or(page.getByLabel("Switch to dark mode"));
       await themeBtn2.evaluate((el: HTMLElement) => el.click());
-      await page.waitForTimeout(300);
-
-      const restoredTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
-      expect(restoredTheme).toBe(initialTheme);
+      await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe(initialTheme);
     });
 
     test("5e. tablet header buttons have correct computed styles", async ({ page }) => {
@@ -845,6 +820,7 @@ test.describe("Tailwind Preflight Regression", () => {
       // Open lightbox
       await page.getByTestId("photo-card").first().click();
       await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
+      // Visual timing: keep fixed wait for CSS transition to complete
       await page.waitForTimeout(1500);
 
       const pswpStyles = await page.evaluate(() => {
@@ -908,6 +884,7 @@ test.describe("Tailwind Preflight Regression", () => {
 
       await page.getByTestId("photo-card").first().click();
       await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
+      // Visual timing: keep fixed wait for CSS transition to complete
       await page.waitForTimeout(1000);
 
       const containerStyles = await page.evaluate(() => {
@@ -970,6 +947,7 @@ test.describe("Tailwind Preflight Regression", () => {
 
       await page.getByTestId("photo-card").first().click();
       await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
+      // Visual timing: keep fixed wait for CSS transition to complete
       await page.waitForTimeout(1000);
 
       const uiStyles = await page.evaluate(() => {
@@ -1022,7 +1000,6 @@ test.describe("Tailwind Preflight Regression", () => {
       // Interact: open/close lightbox
       await page.getByTestId("photo-card").first().click();
       await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
-      await page.waitForTimeout(500);
       await page.keyboard.press("Escape");
       await expect(page.getByTestId("lightbox")).not.toBeVisible({ timeout: 5_000 });
 
@@ -1039,10 +1016,10 @@ test.describe("Tailwind Preflight Regression", () => {
       // Interact with mobile header controls
       const searchBtn = page.getByLabel("Open search");
       await searchBtn.evaluate((el: HTMLElement) => el.click());
-      await page.waitForTimeout(300);
+      await expect(page.getByLabel("Search gallery")).toBeVisible({ timeout: 3000 });
       const closeBtn = page.getByLabel("Close search");
       await closeBtn.evaluate((el: HTMLElement) => el.click());
-      await page.waitForTimeout(300);
+      await expect(page.getByLabel("Search gallery")).not.toBeVisible({ timeout: 3000 });
 
       expect(monitoredErrors.consoleErrors).toEqual([]);
       expect(monitoredErrors.pageErrors).toEqual([]);
@@ -1056,11 +1033,11 @@ test.describe("Tailwind Preflight Regression", () => {
       // Interact with tablet controls
       const searchBtn = page.getByLabel("Open search");
       await searchBtn.evaluate((el: HTMLElement) => el.click());
-      await page.waitForTimeout(300);
+      await expect(page.getByLabel("Search gallery")).toBeVisible({ timeout: 3000 });
       const closeBtn = page.getByLabel("Close search");
       if (await closeBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
         await closeBtn.evaluate((el: HTMLElement) => el.click());
-        await page.waitForTimeout(300);
+        await expect(page.getByLabel("Search gallery")).not.toBeVisible({ timeout: 3000 });
       }
 
       expect(monitoredErrors.consoleErrors).toEqual([]);

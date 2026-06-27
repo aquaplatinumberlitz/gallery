@@ -139,7 +139,7 @@ async function dismissMobileSidebar(page: Page) {
     const clickX = viewport ? viewport.width - 50 : 340;
     const clickY = viewport ? viewport.height / 2 : 400;
     await page.mouse.click(clickX, clickY);
-    await page.waitForTimeout(500);
+    await expect(sidebar).not.toBeVisible({ timeout: 3_000 });
   }
 }
 
@@ -177,18 +177,12 @@ test.describe("Tailwind Phase 0 — Desktop (1440x900)", () => {
     // Open dropdown, then click Dark
     await themeToggle.click();
     await page.locator('[role="menuitem"]', { hasText: "Dark" }).click();
-    await page.waitForTimeout(300);
-
-    const newTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
-    expect(newTheme).toBe("dark");
+    await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("dark");
 
     // Open dropdown, then click Light
     await themeToggle.click();
     await page.locator('[role="menuitem"]', { hasText: "Light" }).click();
-    await page.waitForTimeout(300);
-
-    const restoredTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
-    expect(restoredTheme).toBe(initialTheme);
+    await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe(initialTheme);
   });
 
   test("1c. search input and sort control exist", async ({ page }) => {
@@ -247,12 +241,10 @@ test.describe("Tailwind Phase 0 — Mobile (390x844)", () => {
     const hamburger = page.getByLabel("Toggle sidebar");
     await expect(hamburger).toBeVisible();
     await hamburger.click();
-    await page.waitForTimeout(300);
 
     // Sidebar should be open now
     const sidebar = page.locator('[data-sidebar="sidebar"][data-mobile="true"]');
-    const isOpen = await sidebar.isVisible({ timeout: 3000 }).catch(() => false);
-    expect(isOpen).toBe(true);
+    await expect(sidebar).toBeVisible({ timeout: 3_000 });
 
     // Close it again
     await dismissMobileSidebar(page);
@@ -273,14 +265,11 @@ test.describe("Tailwind Phase 0 — Mobile (390x844)", () => {
     await expect(themeBtn).toBeVisible();
 
     await themeBtn.click();
-    await page.waitForTimeout(300);
-
-    const newTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
-    expect(newTheme).toBe("dark");
+    await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("dark");
 
     // Toggle back (mobile — single button click)
     await page.getByLabel("Switch to light mode").or(page.getByLabel("Switch to dark mode")).click();
-    await page.waitForTimeout(300);
+    await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("light");
   });
 
   test("2e. bottom navigation unchanged", async ({ page }) => {
@@ -353,15 +342,10 @@ test.describe("Tailwind Phase 0 — Theme smoke test", () => {
     const themeToggle = page.locator('[aria-label="Theme"]');
     await expect(themeToggle).toBeVisible();
 
-    // Start in light (default for intro_mode=disabled)
-    let currentTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
-
     // Open dropdown, then click Dark
     await themeToggle.click();
     await page.locator('[role="menuitem"]', { hasText: "Dark" }).click();
-    await page.waitForTimeout(500);
-    currentTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
-    expect(currentTheme).toBe("dark");
+    await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("dark");
 
     // Verify photo cards still visible with no shift
     const cards = page.getByTestId("photo-card");
@@ -372,9 +356,7 @@ test.describe("Tailwind Phase 0 — Theme smoke test", () => {
     // Open dropdown, then click Light
     await themeToggle.click();
     await page.locator('[role="menuitem"]', { hasText: "Light" }).click();
-    await page.waitForTimeout(500);
-    currentTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
-    expect(currentTheme).toBe("light");
+    await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("light");
 
     // Verify photo cards still present
     await expect(cards.first()).toBeVisible();
@@ -392,10 +374,7 @@ test.describe("Tailwind Phase 0 — Theme smoke test", () => {
 
     // Toggle to dark
     await themeBtn.click();
-    await page.waitForTimeout(500);
-
-    let currentTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
-    expect(currentTheme).toBe("dark");
+    await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("dark");
 
     // Verify cards still present
     const cards = page.getByTestId("photo-card");
@@ -405,9 +384,7 @@ test.describe("Tailwind Phase 0 — Theme smoke test", () => {
 
     // Toggle back
     await page.getByLabel("Switch to light mode").click();
-    await page.waitForTimeout(500);
-    currentTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
-    expect(currentTheme).toBe("light");
+    await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("light");
 
     await expect(cards.first()).toBeVisible();
     expect(await cards.count()).toBe(cardCount);
@@ -425,18 +402,12 @@ test.describe("Tailwind Phase 0 — Theme smoke test", () => {
     // Toggle to dark
     await themeToggle.click();
     await page.locator('[role="menuitem"]', { hasText: "Dark" }).click();
-    await page.waitForTimeout(500);
-
-    const isDark = await page.evaluate(() => document.documentElement.getAttribute("data-theme") === "dark");
-    expect(isDark).toBe(true);
+    await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("dark");
 
     // Toggle back to light
     await themeToggle.click();
     await page.locator('[role="menuitem"]', { hasText: "Light" }).click();
-    await page.waitForTimeout(500);
-
-    const isLight = await page.evaluate(() => document.documentElement.getAttribute("data-theme") === "light");
-    expect(isLight).toBe(true);
+    await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("light");
   });
 });
 
