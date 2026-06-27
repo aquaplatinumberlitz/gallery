@@ -176,8 +176,8 @@ Run from the repo root unless a command changes directory explicitly.
 | Frontend Playwright test                  | `cd frontend && corepack pnpm exec playwright test --project=chromium`                                                                                        |
 | Targeted Playwright test                  | `cd frontend && corepack pnpm exec playwright test tests/e2e/lightbox-loading-policy.spec.ts --project=chromium`                                              |
 | Metadata performance diagnostic           | `cd frontend && GALLERY_PERF_METADATA=1 GALLERY_BASE_URL=http://localhost:5173 corepack pnpm exec playwright test tests/e2e/metadata-performance.spec.ts --project=chromium --headed` |
-| Real-backend diagnostic E2E               | `cd frontend && GALLERY_E2E_DIAGNOSTICS=1 ./test.sh e2e frontend/tests/e2e/gallery-no-reload-real-backend.spec.ts`                                              |
-| Metadata performance strict gate          | `cd frontend && GALLERY_PERF_METADATA=1 GALLERY_PERF_METADATA_STRICT=1 corepack pnpm run perf:metadata`                                                         |
+| Real-backend diagnostic E2E               | `GALLERY_E2E_DIAGNOSTICS=1 ./test.sh e2e tests/e2e/gallery-no-reload-real-backend.spec.ts`                                                                      |
+| Metadata performance strict gate          | `GALLERY_PERF_METADATA_STRICT=1 ./test.sh e2e tests/e2e/metadata-performance.spec.ts`                                                                          |
 | Managed functional E2E suite              | `./test.sh e2e`                                                                                                                                               |
 | Managed performance suite                 | `./test.sh perf`                                                                                                                                              |
  | Lint and format checks                    | `./test.sh lint`              |

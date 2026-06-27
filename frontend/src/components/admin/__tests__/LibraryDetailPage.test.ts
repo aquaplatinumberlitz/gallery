@@ -185,7 +185,7 @@ vi.mock("@/composables/useClipboard", () => ({
   useClipboard: () => ({ copyText: copyTextMock }),
 }));
 
-function createWrapper(propsId = 1) {
+function mountSubject(propsId = 1) {
   setActivePinia(createPinia());
   const queryClient = createIsolatedQueryClient();
   return mount(LibraryDetailPage, {
@@ -225,17 +225,17 @@ describe("LibraryDetailPage", () => {
   });
 
   it("renders the library name", () => {
-    const wrapper = createWrapper();
+    const wrapper = mountSubject();
     expect(wrapper.text()).toContain("Test Library");
   });
 
   it("renders the import path", () => {
-    const wrapper = createWrapper();
+    const wrapper = mountSubject();
     expect(wrapper.text()).toContain("/photos");
   });
 
   it("renders action buttons", () => {
-    const wrapper = createWrapper();
+    const wrapper = mountSubject();
     expect(wrapper.text()).toContain("Use in gallery");
     expect(wrapper.text()).toContain("Edit");
     expect(wrapper.text()).toContain("Scan");
@@ -243,7 +243,7 @@ describe("LibraryDetailPage", () => {
   });
 
   it("renders all dashboard sections", () => {
-    const wrapper = createWrapper();
+    const wrapper = mountSubject();
     expect(wrapper.text()).toContain("Status and progress");
     expect(wrapper.text()).toContain("Issues");
     expect(wrapper.text()).toContain("Statistics");
@@ -259,33 +259,33 @@ describe("LibraryDetailPage", () => {
   });
 
   it("shows empty jobs state", () => {
-    const wrapper = createWrapper();
+    const wrapper = mountSubject();
     expect(wrapper.text()).toContain("No jobs recorded yet");
   });
 
   it("shows library not found when id is invalid", () => {
     mockLibraryData = null;
-    const wrapper = createWrapper(0);
+    const wrapper = mountSubject(0);
     expect(wrapper.text()).toContain("Library not found");
   });
 
   it("shows library not found when library query errors", () => {
     mockLibraryData = null;
     mockLibraryIsError = true;
-    const wrapper = createWrapper();
+    const wrapper = mountSubject();
     expect(wrapper.text()).toContain("Library not found");
   });
 
   it("shows loading skeleton when library is pending", () => {
     mockLibraryData = null;
     mockLibraryIsPending = true;
-    const wrapper = createWrapper();
+    const wrapper = mountSubject();
     expect(wrapper.find('[data-testid="skeleton"]').exists()).toBe(true);
   });
 
   it("shows status contract error message", () => {
     mockContractError = new Error("App updated, please reload");
-    const wrapper = createWrapper();
+    const wrapper = mountSubject();
     expect(wrapper.text()).toContain("App updated, please reload");
   });
 
@@ -303,31 +303,30 @@ describe("LibraryDetailPage", () => {
       },
       contract_version: 1,
     };
-    const wrapper = createWrapper();
+    const wrapper = mountSubject();
     expect(wrapper.text()).toContain("issue");
     expect(wrapper.text()).toContain("File not found");
     expect(wrapper.text()).toContain("/path/to/file");
   });
 
   it("copies import path on copy button click", async () => {
-    const wrapper = createWrapper();
-    const copyBtn = wrapper.findAll("button").find((b) => b.attributes("aria-label") === "Copy import path");
-    expect(copyBtn).toBeDefined();
-    await copyBtn!.trigger("click");
+    const wrapper = mountSubject();
+    const copyBtn = wrapper.get('[aria-label="Copy import path"]');
+    await copyBtn.trigger("click");
     expect(copyTextMock).toHaveBeenCalledWith("/photos", "path");
   });
 
   it("calls scan mutation on Scan button click", async () => {
-    const wrapper = createWrapper();
+    const wrapper = mountSubject();
     const scanBtn = wrapper.findAll("button").find((b) => b.text().includes("Scan"));
-    expect(scanBtn).toBeDefined();
+    expect(scanBtn).not.toBeUndefined();
     await scanBtn!.trigger("click");
     expect(scanMutateMock).toHaveBeenCalledWith({ id: 1 });
   });
 
   it("renders generated images with full data", () => {
     mockGeneratedImagesData = mockGeneratedImages;
-    const wrapper = createWrapper();
+    const wrapper = mountSubject();
     expect(wrapper.text()).toContain("Generated images");
     expect(wrapper.text()).toContain("Generate missing");
   });
@@ -345,7 +344,7 @@ describe("LibraryDetailPage", () => {
       metadata_lifecycle: null,
       contract_version: 1,
     };
-    const wrapper = createWrapper();
+    const wrapper = mountSubject();
     expect(wrapper.text()).toContain("Live status");
     expect(wrapper.text()).toContain("On");
   });
@@ -363,7 +362,7 @@ describe("LibraryDetailPage", () => {
       metadata_lifecycle: null,
       contract_version: 1,
     };
-    const wrapper = createWrapper();
+    const wrapper = mountSubject();
     expect(wrapper.text()).toContain("Needs attention");
   });
 
@@ -380,7 +379,7 @@ describe("LibraryDetailPage", () => {
       metadata_lifecycle: null,
       contract_version: 1,
     };
-    const wrapper = createWrapper();
+    const wrapper = mountSubject();
     expect(wrapper.text()).toContain("Off");
   });
 
@@ -397,7 +396,7 @@ describe("LibraryDetailPage", () => {
       metadata_lifecycle: mockLifecycle,
       contract_version: 1,
     };
-    const wrapper = createWrapper();
+    const wrapper = mountSubject();
     expect(wrapper.text()).toContain("Problems");
     expect(wrapper.text()).toContain("Waiting");
     expect(wrapper.text()).toContain("2");
@@ -405,7 +404,7 @@ describe("LibraryDetailPage", () => {
 
   it("renders jobs with actual data", () => {
     mockJobsData = mockJobs;
-    const wrapper = createWrapper();
+    const wrapper = mountSubject();
     expect(wrapper.text()).toContain("scan");
     expect(wrapper.text()).toContain("index");
     expect(wrapper.text()).toContain("Scan done");
@@ -425,9 +424,9 @@ describe("LibraryDetailPage", () => {
       metadata_lifecycle: mockLifecycle,
       contract_version: 1,
     };
-    const wrapper = createWrapper();
+    const wrapper = mountSubject();
     const advBtn = wrapper.findAll("button").find((b) => b.text().includes("Show advanced details"));
-    expect(advBtn).toBeDefined();
+    expect(advBtn).not.toBeUndefined();
     await advBtn!.trigger("click");
     await wrapper.vm.$nextTick();
 

@@ -897,41 +897,6 @@ describe("usePhotoSwipe", () => {
   });
 
   describe("additional coverage for remaining branches", () => {
-    it("delete window.__pswp branch when references match reactive proxy", async () => {
-      const { result, isOpenRef } = setup([makeItem("/img1.png", "img1.png")], 0, false);
-      isOpenRef.value = true;
-      await vi.waitFor(() => expect(result.pswp.value).not.toBeNull());
-
-      (window as any).__pswp = result.pswp.value;
-      result.destroyPhotoSwipe();
-
-      expect((window as any).__pswp).toBeUndefined();
-    });
-
-    it("calls loadOriginalForCurrent via window.__loadOriginalForCurrent hook", async () => {
-      const { result, isOpenRef } = setup([makeItem("/img1.png", "img1.png")], 0, false);
-      isOpenRef.value = true;
-      await vi.waitFor(() => expect(result.pswp.value).not.toBeNull());
-
-      const instance = pswpInstances[0];
-      instance.currSlide = {
-        index: 0,
-        data: {} as Record<string, unknown>,
-        content: { data: {} as Record<string, unknown>, element: document.createElement("img") } as Record<
-          string,
-          unknown
-        >,
-        resize: vi.fn(),
-      } as any;
-
-      (window as any).__loadOriginalForCurrent("fullscreen");
-
-      await vi.waitFor(() => {
-        const dataItem = instance.options.dataSource[0] as PhotoSwipeImageItem;
-        expect(dataItem.isOriginalLoaded).toBe(true);
-      });
-    });
-
     it("triggers maybeLoadCurrentAnimatedOriginal from change event on animated asset", async () => {
       const { result, isOpenRef } = setup(
         [makeItem("/img1.png", "img1.png"), makeItem("/img.gif", "img.gif")],

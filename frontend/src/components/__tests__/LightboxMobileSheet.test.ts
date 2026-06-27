@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import { nextTick } from "vue";
 import { mount } from "@vue/test-utils";
 import LightboxMobileSheet from "../LightboxMobileSheet.vue";
 import type { MetadataResponse } from "../../types";
@@ -74,37 +75,36 @@ describe("LightboxMobileSheet", () => {
 
   it("shows prompt text in Prompt tab", () => {
     const wrapper = createWrapper({ meta: makeMeta() });
-    expect(wrapper.element.innerHTML).toContain("A beautiful landscape");
+    expect(wrapper.text()).toContain("A beautiful landscape");
   });
 
   it("shows negative prompt text", () => {
     const wrapper = createWrapper({ meta: makeMeta() });
-    expect(wrapper.element.innerHTML).toContain("blurry, noise");
+    expect(wrapper.text()).toContain("blurry, noise");
   });
 
   it("shows generation data in Params tab", async () => {
     const wrapper = createWrapper({ meta: makeMeta() });
-    const paramsTab = wrapper.findAll("button").find((b) => b.text() === "Params");
-    await paramsTab?.trigger("click");
-    await wrapper.vm.$nextTick();
+    const paramsTab = wrapper.findAll("button").find((b) => b.text() === "Params")!;
+    await paramsTab.trigger("click");
+    await nextTick();
     expect(wrapper.text()).toContain("Seed");
     expect(wrapper.text()).toContain("12345");
   });
 
   it("shows model info in Model tab", async () => {
     const wrapper = createWrapper({ meta: makeMeta() });
-    const modelTab = wrapper.findAll("button").find((b) => b.text() === "Model");
-    await modelTab?.trigger("click");
-    await wrapper.vm.$nextTick();
+    const modelTab = wrapper.findAll("button").find((b) => b.text() === "Model")!;
+    await modelTab.trigger("click");
+    await nextTick();
     expect(wrapper.text()).toContain("SDXL 1.0");
   });
 
   it("calls copyText when clicking copy button", async () => {
     const copyText = vi.fn();
     const wrapper = createWrapper({ meta: makeMeta(), copyText });
-    const promptCopyBtn = wrapper.findAll("button").find((b) => b.attributes("aria-label") === "Copy prompt");
-    expect(promptCopyBtn).toBeDefined();
-    await promptCopyBtn!.trigger("click");
+    const promptCopyBtn = wrapper.findAll("button").find((b) => b.attributes("aria-label") === "Copy prompt")!;
+    await promptCopyBtn.trigger("click");
     expect(copyText).toHaveBeenCalledWith(makeMeta().prompt, "prompt");
   });
 
@@ -126,7 +126,7 @@ describe("LightboxMobileSheet", () => {
 
   it("renders hash for models", () => {
     const wrapper = createWrapper({ meta: makeMeta() });
-    expect(wrapper.element.innerHTML).toContain("abc123de");
+    expect(wrapper.text()).toContain("abc123de");
   });
 
   it("sets ActiveState change on the params button", async () => {
@@ -168,8 +168,8 @@ describe("LightboxMobileSheet", () => {
 
   it("renders seed param pill", async () => {
     const wrapper = createWrapper({ meta: makeMeta() });
-    const paramsTab = wrapper.findAll("button").find((b) => b.text() === "Params");
-    await paramsTab?.trigger("click");
+    const paramsTab = wrapper.findAll("button").find((b) => b.text() === "Params")!;
+    await paramsTab.trigger("click");
     expect(wrapper.text()).toContain("12345");
   });
 });

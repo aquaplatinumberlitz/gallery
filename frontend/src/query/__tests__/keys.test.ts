@@ -2,58 +2,76 @@ import { describe, it, expect } from "vitest";
 import { normalizeQueryPath, normalizeBrowsePath, queryKeys } from "../keys";
 
 describe("normalizeQueryPath", () => {
-  it("trims whitespace", () => expect(normalizeQueryPath(" /p ")).toBe("/p"));
-  it("normalizes backslashes", () => expect(normalizeQueryPath("\\p\\q")).toBe("/p/q"));
-  it("collapses duplicate slashes", () => expect(normalizeQueryPath("//p//q")).toBe("/p/q"));
-  it("preserves root slash", () => expect(normalizeQueryPath("/")).toBe("/"));
-  it("strips trailing slash", () => expect(normalizeQueryPath("/p/")).toBe("/p"));
-  it("handles null", () => expect(normalizeQueryPath(null)).toBe(""));
-  it("handles undefined", () => expect(normalizeQueryPath(undefined)).toBe(""));
+  it.each([
+    [" /p ", "/p"],
+    ["\\p\\q", "/p/q"],
+    ["//p//q", "/p/q"],
+    ["/", "/"],
+    ["/p/", "/p"],
+    [null, ""],
+    [undefined, ""],
+  ])("normalizeQueryPath(%j) => %j", (input, expected) => {
+    expect(normalizeQueryPath(input as string | null | undefined)).toBe(expected);
+  });
 });
 
 describe("normalizeBrowsePath", () => {
-  it("returns null for empty", () => expect(normalizeBrowsePath("")).toBeNull());
-  it("returns path for valid", () => expect(normalizeBrowsePath("/p")).toBe("/p"));
-  it("handles null", () => expect(normalizeBrowsePath(null)).toBeNull());
+  it.each([
+    ["", null],
+    ["/p", "/p"],
+    [null, null],
+  ])("normalizeBrowsePath(%j) => %j", (input, expected) => {
+    expect(normalizeBrowsePath(input as string | null)).toBe(expected);
+  });
 });
 
 describe("queryKeys", () => {
-  it("generatedImagesRoot", () => expect(queryKeys.generatedImagesRoot()).toEqual(["generated-images"]));
-  it("landingPages", () => expect(queryKeys.landingPages()).toEqual(["landing-pages"]));
-  it("librariesRoot", () => expect(queryKeys.librariesRoot()).toEqual(["libraries"]));
-  it("libraries", () => expect(queryKeys.libraries()).toEqual(["libraries", "list"]));
-  it("library", () => expect(queryKeys.library(5)).toEqual(["libraries", "detail", 5]));
-  it("libraryStats", () => expect(queryKeys.libraryStats(5)).toEqual(["libraries", "stats", 5]));
-  it("libraryJobs", () => expect(queryKeys.libraryJobs(5)).toEqual(["libraries", "jobs", 5]));
-  it("galleryStats", () => expect(queryKeys.galleryStats()).toEqual(["stats", "gallery"]));
-  it("jobsRoot", () => expect(queryKeys.jobsRoot()).toEqual(["jobs"]));
-  it("jobs", () => expect(queryKeys.jobs()).toEqual(["jobs", "list"]));
-  it("job", () => expect(queryKeys.job(9)).toEqual(["jobs", 9]));
-  it("browseAllRoot", () => expect(queryKeys.browseAllRoot()).toEqual(["browse"]));
-  it("browseRoot", () => expect(queryKeys.browseRoot(4)).toEqual(["browse", 4]));
-  it("folderChildren", () => expect(queryKeys.folderChildren("/p")).toEqual(["folder-children", "/p"]));
-  it("browseInfiniteAllRoot", () => expect(queryKeys.browseInfiniteAllRoot()).toEqual(["browse-infinite"]));
-  it("browseInfiniteRoot", () => expect(queryKeys.browseInfiniteRoot(4)).toEqual(["browse-infinite", 4]));
-  it("search", () => expect(queryKeys.search("cat", "all", "/p")).toEqual(["search", "cat", "all", "/p"]));
-  it("metadata", () => expect(queryKeys.metadata("/a.png")).toEqual(["metadata", "/a.png"]));
-  it("statusRoot", () => expect(queryKeys.statusRoot()).toEqual(["status"]));
-  it("statusBatch", () => expect(queryKeys.statusBatch()).toEqual(["status", "libraries", "batch"]));
-  it("statusLibrary", () => expect(queryKeys.statusLibrary(4)).toEqual(["status", "library", 4]));
-  it("statusPathRoot", () => expect(queryKeys.statusPathRoot(4)).toEqual(["status", "path", 4]));
-  it("libraryInspectorRoot", () => expect(queryKeys.libraryInspectorRoot()).toEqual(["library-inspector"]));
-  it("facets", () => expect(queryKeys.facets("/p")).toEqual(["facets", "/p"]));
-  it("maintenanceRoot", () => expect(queryKeys.maintenanceRoot()).toEqual(["maintenance"]));
-  it("maintenanceFileHealth", () => expect(queryKeys.maintenanceFileHealth()).toEqual(["maintenance", "file-health"]));
+  it.each([
+    ["generatedImagesRoot", [], ["generated-images"]],
+    ["landingPages", [], ["landing-pages"]],
+    ["librariesRoot", [], ["libraries"]],
+    ["libraries", [], ["libraries", "list"]],
+    ["library", [5], ["libraries", "detail", 5]],
+    ["libraryStats", [5], ["libraries", "stats", 5]],
+    ["libraryJobs", [5], ["libraries", "jobs", 5]],
+    ["galleryStats", [], ["stats", "gallery"]],
+    ["jobsRoot", [], ["jobs"]],
+    ["jobs", [], ["jobs", "list"]],
+    ["job", [9], ["jobs", 9]],
+    ["browseAllRoot", [], ["browse"]],
+    ["browseRoot", [4], ["browse", 4]],
+    ["folderChildren", ["/p"], ["folder-children", "/p"]],
+    ["browseInfiniteAllRoot", [], ["browse-infinite"]],
+    ["browseInfiniteRoot", [4], ["browse-infinite", 4]],
+    ["search", ["cat", "all", "/p"], ["search", "cat", "all", "/p"]],
+    ["metadata", ["/a.png"], ["metadata", "/a.png"]],
+    ["statusRoot", [], ["status"]],
+    ["statusBatch", [], ["status", "libraries", "batch"]],
+    ["statusLibrary", [4], ["status", "library", 4]],
+    ["statusPathRoot", [4], ["status", "path", 4]],
+    ["libraryInspectorRoot", [], ["library-inspector"]],
+    ["facets", ["/p"], ["facets", "/p"]],
+    ["maintenanceRoot", [], ["maintenance"]],
+    ["maintenanceFileHealth", [], ["maintenance", "file-health"]],
+  ] as const)("queryKeys.%s(%j) => %j", (method, args, expected) => {
+    expect((queryKeys as any)[method](...args)).toEqual(expected);
+  });
+
   it("browse with includeOffline", () => {
     expect(queryKeys.browse(4, "/p", 50, true)).toEqual(["browse", 4, "/p", 50, true]);
   });
+
   it("browseInfinite with includeOffline", () => {
     expect(queryKeys.browseInfinite(4, "/p", 50, true)).toEqual(["browse-infinite", 4, "/p", 50, true]);
   });
-  it("statusPath", () => {
-    expect(queryKeys.statusPath(4, "/p")).toEqual(["status", "path", 4, "/p"]);
-    expect(queryKeys.statusPath(4, "")).toEqual(["status", "path", 4, null]);
+
+  it.each([
+    [4, "/p", ["status", "path", 4, "/p"]],
+    [4, "", ["status", "path", 4, null]],
+  ] as const)("statusPath(%i, %j) => %j", (libraryId, path, expected) => {
+    expect(queryKeys.statusPath(libraryId, path)).toEqual(expected);
   });
+
   it("libraryInspector", () => {
     expect(queryKeys.libraryInspector("q", "all", "/p", 50, "date_desc")).toEqual([
       "library-inspector",

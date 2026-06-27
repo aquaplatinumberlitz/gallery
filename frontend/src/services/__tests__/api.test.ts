@@ -71,13 +71,34 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("GalleryAPIError", () => {
-  it("maps library error codes to user-friendly messages", () => {
+  it.each([
+    ["library_overlap", "library_overlap"],
+    ["library_busy", "library_busy"],
+    ["permission", "permission"],
+    ["invalid_file", "invalid_file"],
+    ["confirmation_required", "confirmation_required"],
+  ])("maps %s error", (errorCode, expectedType) => {
+    const err = { response: { data: { detail: { error: errorCode, message: "msg" } } } } as unknown as AxiosError;
+    expect(GalleryAPIError.fromAxiosError(err).type).toBe(expectedType);
+  });
+
+  it("maps library_not_registered to user-friendly message", () => {
     const error = {
       response: { data: { detail: { error: "library_not_registered", message: "msg" } } },
     } as unknown as AxiosError;
     const apiError = GalleryAPIError.fromAxiosError(error);
     expect(apiError.type).toBe("library_not_registered");
     expect(apiError.userMessage).toBe(LIBRARY_ERRORS.library_not_registered);
+  });
+
+  it("parses FastAPI detail wrapped error", () => {
+    const err = { response: { data: { detail: { error: "bad_request", message: "bad" } } } } as unknown as AxiosError;
+    expect(GalleryAPIError.fromAxiosError(err).type).toBe("bad_request");
+  });
+
+  it("handles data without detail wrapper", () => {
+    const err = { response: { data: { error: "not_found", message: "gone" } } } as unknown as AxiosError;
+    expect(GalleryAPIError.fromAxiosError(err).type).toBe("not_found");
   });
 
   it("returns timeout for ECONNABORTED", () => {
@@ -87,52 +108,15 @@ describe("GalleryAPIError", () => {
     expect(r.canRetry).toBe(true);
   });
 
-  it("returns network for no response", () => {
+  it("returns network for Network Error", () => {
     const err = { message: "Network Error" } as AxiosError;
     const r = GalleryAPIError.fromAxiosError(err);
     expect(r.type).toBe("network");
     expect(r.canRetry).toBe(true);
   });
 
-  it("parses FastAPI detail wrapped error", () => {
-    const err = { response: { data: { detail: { error: "bad_request", message: "bad" } } } } as AxiosError;
-    expect(GalleryAPIError.fromAxiosError(err).type).toBe("bad_request");
-  });
-
-  it("handles data without detail wrapper", () => {
-    const err = { response: { data: { error: "not_found", message: "gone" } } } as AxiosError;
-    expect(GalleryAPIError.fromAxiosError(err).type).toBe("not_found");
-  });
-
-  it("handles library_overlap", () => {
-    const err = { response: { data: { detail: { error: "library_overlap", message: "overlap" } } } } as AxiosError;
-    expect(GalleryAPIError.fromAxiosError(err).type).toBe("library_overlap");
-  });
-
-  it("handles library_busy", () => {
-    const err = { response: { data: { detail: { error: "library_busy", message: "busy" } } } } as AxiosError;
-    expect(GalleryAPIError.fromAxiosError(err).type).toBe("library_busy");
-  });
-
-  it("handles permission", () => {
-    const err = { response: { data: { detail: { error: "permission", message: "denied" } } } } as AxiosError;
-    expect(GalleryAPIError.fromAxiosError(err).type).toBe("permission");
-  });
-
-  it("handles invalid_file", () => {
-    const err = { response: { data: { detail: { error: "invalid_file", message: "bad" } } } } as AxiosError;
-    expect(GalleryAPIError.fromAxiosError(err).type).toBe("invalid_file");
-  });
-
-  it("handles confirmation_required", () => {
-    const err = {
-      response: { data: { detail: { error: "confirmation_required", message: "confirm" } } },
-    } as AxiosError;
-    expect(GalleryAPIError.fromAxiosError(err).type).toBe("confirmation_required");
-  });
-
   it("falls back to server_error for unknown types", () => {
-    const err = { response: { data: { detail: { error: "bogus", message: "?" } } } } as AxiosError;
+    const err = { response: { data: { detail: { error: "bogus", message: "?" } } } } as unknown as AxiosError;
     const r = GalleryAPIError.fromAxiosError(err);
     expect(r.type).toBe("server_error");
     expect(r.canRetry).toBe(true);
@@ -144,10 +128,16 @@ describe("GalleryAPIError", () => {
 // ---------------------------------------------------------------------------
 
 describe("URL helpers", () => {
-  it("getImageUrl", () => {
-    expect(getImageUrl("/a.jpg")).toBe("/api/image?path=%2Fa.jpg");
+  it.each([
+    ["getImageUrl", "/a.jpg", "/api/image?path=%2Fa.jpg"],
+    ["getVideoUrl", "/v.mp4", "/api/video?path=%2Fv.mp4"],
+    ["getVideoPosterUrl", "/v.mp4", "/api/video/poster?path=%2Fv.mp4"],
+    ["getLibraryEventsUrl", undefined, "/api/events"],
+  ] as const)("%s(%j) => %s", (fn, path, expected) => {
+    expect(({ getImageUrl, getVideoUrl, getVideoPosterUrl, getLibraryEventsUrl } as any)[fn](path)).toBe(expected);
   });
-  it("getThumbnailUrl", () => {
+
+  it("getThumbnailUrl default edge", () => {
     const url = getThumbnailUrl("/a.png");
     expect(url).toContain("/api/thumbnail");
     expect(url).toContain("max_long_edge=512");
@@ -159,15 +149,6 @@ describe("URL helpers", () => {
     const url = getPreviewUrl("/a.png");
     expect(url).toContain("/api/preview");
     expect(url).toContain("max_long_edge=1440");
-  });
-  it("getVideoUrl", () => {
-    expect(getVideoUrl("/v.mp4")).toBe("/api/video?path=%2Fv.mp4");
-  });
-  it("getVideoPosterUrl", () => {
-    expect(getVideoPosterUrl("/v.mp4")).toBe("/api/video/poster?path=%2Fv.mp4");
-  });
-  it("getLibraryEventsUrl", () => {
-    expect(getLibraryEventsUrl()).toBe("/api/events");
   });
 });
 

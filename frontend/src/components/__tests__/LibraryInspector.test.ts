@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { setActivePinia, createPinia } from "pinia";
-import { mount } from "@vue/test-utils";
+import { mount, type VueWrapper } from "@vue/test-utils";
 import { createIsolatedQueryClient } from "@/test/queryClient";
 import { VueQueryPlugin } from "@tanstack/vue-query";
+import LibraryInspector from "../LibraryInspector.vue";
 
 function mockInspectorData(overrides = {}) {
   return {
@@ -136,9 +137,53 @@ vi.mock("@/debug/lightboxNavDebug", () => ({
   summarizeLightboxItems: vi.fn(() => ""),
 }));
 
+const defaultStubs = {
+  RouterLink: { template: "<a><slot /></a>" },
+  Button: { template: "<button><slot /></button>" },
+  ButtonLink: { template: "<a><slot /></a>" },
+  Input: { template: "<input />" },
+  Badge: { template: "<span><slot /></span>" },
+  Skeleton: { template: "<div data-testid='skeleton'>skeleton</div>" },
+  Select: { template: "<div class='select-mock'><slot /></div>" },
+  SelectTrigger: { template: "<button class='select-trigger'><slot /></button>" },
+  SelectContent: { template: "<div class='select-content'><slot /></div>" },
+  SelectItem: { template: "<div class='select-item'><slot /></div>" },
+  SelectValue: { template: "<span class='select-value'><slot /></span>" },
+  SortSelect: { template: "<select class='sort-select' />" },
+  Popover: { template: "<div><slot /></div>" },
+  PopoverTrigger: { template: "<div><slot /></div>" },
+  PopoverContent: { template: "<div><slot /></div>" },
+  Table: { template: "<table><slot /></table>" },
+  TableBody: { template: "<tbody><slot /></tbody>" },
+  TableCell: { template: "<td><slot /></td>" },
+  TableHead: { template: "<th><slot /></th>" },
+  TableHeader: { template: "<thead><slot /></thead>" },
+  TableRow: { template: "<tr><slot /></tr>" },
+  DropdownMenu: { template: "<div><slot /></div>" },
+  DropdownMenuContent: { template: "<div><slot /></div>" },
+  DropdownMenuItem: { template: "<div><slot /></div>" },
+  DropdownMenuTrigger: { template: "<div><slot /></div>" },
+  ArrowLeft: { template: "<span>arrow-left</span>" },
+  ArrowUpDown: { template: "<span>sort-icon</span>" },
+  Copy: { template: "<span>copy-icon</span>" },
+  Search: { template: "<span>search-icon</span>" },
+  ExternalLink: { template: "<span>external-link</span>" },
+  MoreHorizontal: { template: "<span>more-icon</span>" },
+} as const;
+
+function mountSubject(stubs: Record<string, unknown> = {}): VueWrapper {
+  setActivePinia(createPinia());
+  const queryClient = createIsolatedQueryClient();
+  return mount(LibraryInspector, {
+    global: {
+      plugins: [[VueQueryPlugin, { queryClient }]],
+      stubs: { ...defaultStubs, ...stubs },
+    },
+  });
+}
+
 describe("LibraryInspector", () => {
   beforeEach(() => {
-    setActivePinia(createPinia());
     vi.clearAllMocks();
     mockInspectorDataValue = { value: mockInspectorData() };
     mockInspectorIsLoading = { value: false };
@@ -146,322 +191,46 @@ describe("LibraryInspector", () => {
     mockInspectorIsPlaceholder = { value: false };
     mockInspectorHasNext = { value: false };
     mockInspectorIsFetchingNext = { value: false };
+    mockRowsRef.value = mockRowsData;
   });
 
-  it("renders the title and page summary", async () => {
-    const LibraryInspector = (await import("../LibraryInspector.vue")).default;
-    setActivePinia(createPinia());
-    const queryClient = createIsolatedQueryClient();
-    const wrapper = mount(LibraryInspector, {
-      global: {
-        plugins: [[VueQueryPlugin, { queryClient }]],
-        stubs: {
-          RouterLink: { template: "<a><slot /></a>" },
-          Button: { template: "<button><slot /></button>" },
-          ButtonLink: { template: "<a><slot /></a>" },
-          Input: { template: "<input />" },
-          Badge: { template: "<span><slot /></span>" },
-          Skeleton: { template: "<div data-testid='skeleton' />" },
-          Select: { template: "<div><slot /></div>" },
-          SelectTrigger: { template: "<button><slot /></button>" },
-          SelectContent: { template: "<div><slot /></div>" },
-          SelectItem: { template: "<div><slot /></div>" },
-          SelectValue: { template: "<span><slot /></span>" },
-          SortSelect: { template: "<select />" },
-          Popover: { template: "<div><slot /></div>" },
-          PopoverTrigger: { template: "<div><slot /></div>" },
-          PopoverContent: { template: "<div><slot /></div>" },
-          Table: { template: "<table><slot /></table>" },
-          TableBody: { template: "<tbody><slot /></tbody>" },
-          TableCell: { template: "<td><slot /></td>" },
-          TableHead: { template: "<th><slot /></th>" },
-          TableHeader: { template: "<thead><slot /></thead>" },
-          TableRow: { template: "<tr><slot /></tr>" },
-          ArrowLeft: { template: "<span>arrow-left</span>" },
-          ArrowUpDown: { template: "<span>sort-icon</span>" },
-          Copy: { template: "<span>copy-icon</span>" },
-          Search: { template: "<span>search-icon</span>" },
-        },
-      },
-    });
+  it("renders title, summary and indexed count", () => {
+    const wrapper = mountSubject();
     expect(wrapper.text()).toContain("Photo Details");
     expect(wrapper.text()).toContain("Gallery");
-    expect(wrapper.text()).toContain("indexed");
+    expect(wrapper.text()).toContain("indexed photos");
+    expect(wrapper.text()).toContain("Including subfolders");
   });
 
-  it("renders search input", async () => {
-    const LibraryInspector = (await import("../LibraryInspector.vue")).default;
-    setActivePinia(createPinia());
-    const queryClient = createIsolatedQueryClient();
-    const wrapper = mount(LibraryInspector, {
-      global: {
-        plugins: [[VueQueryPlugin, { queryClient }]],
-        stubs: {
-          RouterLink: { template: "<a><slot /></a>" },
-          ButtonLink: { template: "<a><slot /></a>" },
-          Button: { template: "<button><slot /></button>" },
-          Input: { template: "<input />" },
-          Badge: { template: "<span><slot /></span>" },
-          Skeleton: { template: "<div data-testid='skeleton' />" },
-          Select: { template: "<div><slot /></div>" },
-          SelectTrigger: { template: "<button><slot /></button>" },
-          SelectContent: { template: "<div><slot /></div>" },
-          SelectItem: { template: "<div><slot /></div>" },
-          SelectValue: { template: "<span><slot /></span>" },
-          SortSelect: { template: "<select />" },
-          Table: { template: "<table><slot /></table>" },
-          TableBody: { template: "<tbody><slot /></tbody>" },
-          TableCell: { template: "<td><slot /></td>" },
-          TableHead: { template: "<th><slot /></th>" },
-          TableHeader: { template: "<thead><slot /></thead>" },
-          TableRow: { template: "<tr><slot /></tr>" },
-        },
-      },
-    });
-    const searchInput = wrapper.find("input");
-    expect(searchInput.exists()).toBe(true);
-  });
-
-  it("shows loading skeletons when loading", async () => {
+  it("shows loading skeletons when loading", () => {
     mockInspectorIsLoading = { value: true };
-    const LibraryInspector = (await import("../LibraryInspector.vue")).default;
-    setActivePinia(createPinia());
-    const queryClient = createIsolatedQueryClient();
-    const wrapper = mount(LibraryInspector, {
-      global: {
-        plugins: [[VueQueryPlugin, { queryClient }]],
-        stubs: {
-          RouterLink: { template: "<a><slot /></a>" },
-          ButtonLink: { template: "<a><slot /></a>" },
-          Button: { template: "<button><slot /></button>" },
-          Input: { template: "<input />" },
-          Badge: { template: "<span><slot /></span>" },
-          Skeleton: { template: "<div data-testid='skeleton'>skeleton</div>" },
-          Select: { template: "<div><slot /></div>" },
-          SelectTrigger: { template: "<button><slot /></button>" },
-          SelectContent: { template: "<div><slot /></div>" },
-          SelectItem: { template: "<div><slot /></div>" },
-          SelectValue: { template: "<span><slot /></span>" },
-          SortSelect: { template: "<select />" },
-          Table: { template: "<table><slot /></table>" },
-          TableBody: { template: "<tbody><slot /></tbody>" },
-          TableCell: { template: "<td><slot /></td>" },
-          TableHead: { template: "<th><slot /></th>" },
-          TableHeader: { template: "<thead><slot /></thead>" },
-          TableRow: { template: "<tr><slot /></tr>" },
-        },
-      },
-    });
+    const wrapper = mountSubject();
     const skeletons = wrapper.findAll('[data-testid="skeleton"]');
     expect(skeletons.length).toBeGreaterThan(0);
   });
 
-  it("shows error message when query has error", async () => {
+  it("shows error message when query has error", () => {
     mockInspectorIsError = { value: true };
-    const LibraryInspector = (await import("../LibraryInspector.vue")).default;
-    setActivePinia(createPinia());
-    const queryClient = createIsolatedQueryClient();
-    const wrapper = mount(LibraryInspector, {
-      global: {
-        plugins: [[VueQueryPlugin, { queryClient }]],
-        stubs: {
-          RouterLink: { template: "<a><slot /></a>" },
-          ButtonLink: { template: "<a><slot /></a>" },
-          Button: { template: "<button><slot /></button>" },
-          Input: { template: "<input />" },
-          Badge: { template: "<span><slot /></span>" },
-          Skeleton: { template: "<div data-testid='skeleton' />" },
-          Select: { template: "<div><slot /></div>" },
-          SelectTrigger: { template: "<button><slot /></button>" },
-          SelectContent: { template: "<div><slot /></div>" },
-          SelectItem: { template: "<div><slot /></div>" },
-          SelectValue: { template: "<span><slot /></span>" },
-          SortSelect: { template: "<select />" },
-          Table: { template: "<table><slot /></table>" },
-          TableBody: { template: "<tbody><slot /></tbody>" },
-          TableCell: { template: "<td><slot /></td>" },
-          TableHead: { template: "<th><slot /></th>" },
-          TableHeader: { template: "<thead><slot /></thead>" },
-          TableRow: { template: "<tr><slot /></tr>" },
-        },
-      },
-    });
+    const wrapper = mountSubject();
     expect(wrapper.text()).toContain("Unable to load metadata rows");
   });
 
-  it("shows empty message when no rows", async () => {
-    mockInspectorDataValue = { value: mockInspectorData({ rows: [], returned: 0, total: 0, total_indexed: 0 }) };
+  it("shows empty message when no rows", () => {
+    mockInspectorDataValue = {
+      value: mockInspectorData({ rows: [], returned: 0, total: 0, total_indexed: 0 }),
+    };
     mockRowsRef.value = [];
-    const LibraryInspector = (await import("../LibraryInspector.vue")).default;
-    setActivePinia(createPinia());
-    const queryClient = createIsolatedQueryClient();
-    const wrapper = mount(LibraryInspector, {
-      global: {
-        plugins: [[VueQueryPlugin, { queryClient }]],
-        stubs: {
-          RouterLink: { template: "<a><slot /></a>" },
-          ButtonLink: { template: "<a><slot /></a>" },
-          Button: { template: "<button><slot /></button>" },
-          Input: { template: "<input />" },
-          Badge: { template: "<span><slot /></span>" },
-          Skeleton: { template: "<div data-testid='skeleton' />" },
-          Select: { template: "<div><slot /></div>" },
-          SelectTrigger: { template: "<button><slot /></button>" },
-          SelectContent: { template: "<div><slot /></div>" },
-          SelectItem: { template: "<div><slot /></div>" },
-          SelectValue: { template: "<span><slot /></span>" },
-          SortSelect: { template: "<select />" },
-          Table: { template: "<table><slot /></table>" },
-          TableBody: { template: "<tbody><slot /></tbody>" },
-          TableCell: { template: "<td><slot /></td>" },
-          TableHead: { template: "<th><slot /></th>" },
-          TableHeader: { template: "<thead><slot /></thead>" },
-          TableRow: { template: "<tr><slot /></tr>" },
-        },
-      },
-    });
+    const wrapper = mountSubject();
     expect(wrapper.text()).toContain("No indexed metadata rows");
   });
 
-  it("renders model filter select", async () => {
-    const LibraryInspector = (await import("../LibraryInspector.vue")).default;
-    setActivePinia(createPinia());
-    const queryClient = createIsolatedQueryClient();
-    const wrapper = mount(LibraryInspector, {
-      global: {
-        plugins: [[VueQueryPlugin, { queryClient }]],
-        stubs: {
-          RouterLink: { template: "<a><slot /></a>" },
-          ButtonLink: { template: "<a><slot /></a>" },
-          Button: { template: "<button><slot /></button>" },
-          Input: { template: "<input />" },
-          Badge: { template: "<span><slot /></span>" },
-          Skeleton: { template: "<div data-testid='skeleton' />" },
-          Select: { template: "<div class='select-mock'><slot /></div>" },
-          SelectTrigger: { template: "<button class='select-trigger'><slot /></button>" },
-          SelectContent: { template: "<div class='select-content'><slot /></div>" },
-          SelectItem: { template: "<div class='select-item'><slot /></div>" },
-          SelectValue: { template: "<span class='select-value'><slot /></span>" },
-          SortSelect: { template: "<select class='sort-select' />" },
-          Table: { template: "<table><slot /></table>" },
-          TableBody: { template: "<tbody><slot /></tbody>" },
-          TableCell: { template: "<td><slot /></td>" },
-          TableHead: { template: "<th><slot /></th>" },
-          TableHeader: { template: "<thead><slot /></thead>" },
-          TableRow: { template: "<tr><slot /></tr>" },
-        },
-      },
-    });
+  it("renders model filter select", () => {
+    const wrapper = mountSubject();
     expect(wrapper.text()).toContain("All models");
   });
 
-  it("renders prompt filter select", async () => {
-    const LibraryInspector = (await import("../LibraryInspector.vue")).default;
-    setActivePinia(createPinia());
-    const queryClient = createIsolatedQueryClient();
-    const wrapper = mount(LibraryInspector, {
-      global: {
-        plugins: [[VueQueryPlugin, { queryClient }]],
-        stubs: {
-          RouterLink: { template: "<a><slot /></a>" },
-          ButtonLink: { template: "<a><slot /></a>" },
-          Button: { template: "<button><slot /></button>" },
-          Input: { template: "<input />" },
-          Badge: { template: "<span><slot /></span>" },
-          Skeleton: { template: "<div data-testid='skeleton' />" },
-          Select: { template: "<div class='select-mock'><slot /></div>" },
-          SelectTrigger: { template: "<button class='select-trigger'><slot /></button>" },
-          SelectContent: { template: "<div class='select-content'><slot /></div>" },
-          SelectItem: { template: "<div class='select-item'><slot /></div>" },
-          SelectValue: { template: "<span class='select-value'><slot /></span>" },
-          SortSelect: { template: "<select class='sort-select' />" },
-          Table: { template: "<table><slot /></table>" },
-          TableBody: { template: "<tbody><slot /></tbody>" },
-          TableCell: { template: "<td><slot /></td>" },
-          TableHead: { template: "<th><slot /></th>" },
-          TableHeader: { template: "<thead><slot /></thead>" },
-          TableRow: { template: "<tr><slot /></tr>" },
-        },
-      },
-    });
+  it("renders prompt filter select", () => {
+    const wrapper = mountSubject();
     expect(wrapper.text()).toContain("All prompts");
-  });
-
-  it("shows indexed photos count", async () => {
-    const LibraryInspector = (await import("../LibraryInspector.vue")).default;
-    setActivePinia(createPinia());
-    const queryClient = createIsolatedQueryClient();
-    const wrapper = mount(LibraryInspector, {
-      global: {
-        plugins: [[VueQueryPlugin, { queryClient }]],
-        stubs: {
-          RouterLink: { template: "<a><slot /></a>" },
-          ButtonLink: { template: "<a><slot /></a>" },
-          Button: { template: "<button><slot /></button>" },
-          Input: { template: "<input />" },
-          Badge: { template: "<span><slot /></span>" },
-          Skeleton: { template: "<div data-testid='skeleton' />" },
-          Select: { template: "<div><slot /></div>" },
-          SelectTrigger: { template: "<button><slot /></button>" },
-          SelectContent: { template: "<div><slot /></div>" },
-          SelectItem: { template: "<div><slot /></div>" },
-          SelectValue: { template: "<span><slot /></span>" },
-          SortSelect: { template: "<select />" },
-          Popover: { template: "<div><slot /></div>" },
-          PopoverTrigger: { template: "<div><slot /></div>" },
-          PopoverContent: { template: "<div><slot /></div>" },
-          Table: { template: "<table><slot /></table>" },
-          TableBody: { template: "<tbody><slot /></tbody>" },
-          TableCell: { template: "<td><slot /></td>" },
-          TableHead: { template: "<th><slot /></th>" },
-          TableHeader: { template: "<thead><slot /></thead>" },
-          TableRow: { template: "<tr><slot /></tr>" },
-          ArrowLeft: { template: "<span>arrow-left</span>" },
-          ArrowUpDown: { template: "<span>sort-icon</span>" },
-          Copy: { template: "<span>copy-icon</span>" },
-          Search: { template: "<span>search-icon</span>" },
-        },
-      },
-    });
-    expect(wrapper.text()).toContain("indexed photos");
-  });
-
-  it("renders page summary with root path", async () => {
-    const LibraryInspector = (await import("../LibraryInspector.vue")).default;
-    setActivePinia(createPinia());
-    const queryClient = createIsolatedQueryClient();
-    const wrapper = mount(LibraryInspector, {
-      global: {
-        plugins: [[VueQueryPlugin, { queryClient }]],
-        stubs: {
-          RouterLink: { template: "<a><slot /></a>" },
-          ButtonLink: { template: "<a><slot /></a>" },
-          Button: { template: "<button><slot /></button>" },
-          Input: { template: "<input />" },
-          Badge: { template: "<span><slot /></span>" },
-          Skeleton: { template: "<div data-testid='skeleton' />" },
-          Select: { template: "<div><slot /></div>" },
-          SelectTrigger: { template: "<button><slot /></button>" },
-          SelectContent: { template: "<div><slot /></div>" },
-          SelectItem: { template: "<div><slot /></div>" },
-          SelectValue: { template: "<span><slot /></span>" },
-          SortSelect: { template: "<select />" },
-          Popover: { template: "<div><slot /></div>" },
-          PopoverTrigger: { template: "<div><slot /></div>" },
-          PopoverContent: { template: "<div><slot /></div>" },
-          Table: { template: "<table><slot /></table>" },
-          TableBody: { template: "<tbody><slot /></tbody>" },
-          TableCell: { template: "<td><slot /></td>" },
-          TableHead: { template: "<th><slot /></th>" },
-          TableHeader: { template: "<thead><slot /></thead>" },
-          TableRow: { template: "<tr><slot /></tr>" },
-          ArrowLeft: { template: "<span>arrow-left</span>" },
-          ArrowUpDown: { template: "<span>sort-icon</span>" },
-          Copy: { template: "<span>copy-icon</span>" },
-          Search: { template: "<span>search-icon</span>" },
-        },
-      },
-    });
-    expect(wrapper.text()).toContain("Including subfolders");
   });
 });

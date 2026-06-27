@@ -93,48 +93,55 @@ vi.mock("@/utils/gallery", () => ({
   shouldLoadMoreImages: vi.fn(() => false),
 }));
 
-vi.mock("@/stores/gallery", () => {
-  const mockStore = {
-    activeLibraryId: 1,
-    activeImportPathId: 1,
-    activeLibraryHydrated: true,
-    hasEverLoaded: true,
-    currentBrowsePath: "/photos",
-    searchQuery: "",
-    searchScope: "current",
-    sortField: "date",
-    sortOrder: "desc",
-    isLoading: false,
+const mockStore: Record<string, any> = {
+  activeLibraryId: 1,
+  activeImportPathId: 1,
+  activeLibraryHydrated: true,
+  hasEverLoaded: true,
+  currentBrowsePath: "/photos",
+  searchQuery: "",
+  searchScope: "current",
+  sortField: "date",
+  sortOrder: "desc",
+  isLoading: false,
+  errorMessage: "",
+  errorType: null,
+  history: [],
+  historyIndex: 0,
+  metadataInspector: {
+    scope: "current",
+    query: "",
+    sort: "date_desc",
+    modelFilter: "all",
+    promptFilter: "all",
+    selectedPath: "",
+    scrollTop: 0,
+    scrollPath: "",
+  },
+  setSortField: vi.fn(),
+  setSortOrder: vi.fn(),
+  selectFolder: vi.fn(),
+  clearSearch: vi.fn(),
+  clearError: vi.fn(),
+  setSidebarTree: vi.fn(),
+  setActiveLibrary: vi.fn(),
+  openInExplorer: vi.fn(),
+  goBack: vi.fn(),
+  goForward: vi.fn(),
+  $id: "gallery",
+};
+
+vi.mock("@/stores/gallery", () => ({
+  useGalleryStore: () => mockStore,
+}));
+
+function defaultStoreValues() {
+  return {
     errorMessage: "",
     errorType: null,
-    history: [],
-    historyIndex: 0,
-    metadataInspector: {
-      scope: "current",
-      query: "",
-      sort: "date_desc",
-      modelFilter: "all",
-      promptFilter: "all",
-      selectedPath: "",
-      scrollTop: 0,
-      scrollPath: "",
-    },
-    setSortField: vi.fn(),
-    setSortOrder: vi.fn(),
-    selectFolder: vi.fn(),
-    clearSearch: vi.fn(),
-    clearError: vi.fn(),
-    setSidebarTree: vi.fn(),
-    setActiveLibrary: vi.fn(),
-    openInExplorer: vi.fn(),
-    goBack: vi.fn(),
-    goForward: vi.fn(),
-    $id: "gallery",
+    isLoading: false,
   };
-  return {
-    useGalleryStore: () => mockStore,
-  };
-});
+}
 
 describe("GalleryGrid", () => {
   beforeEach(() => {
@@ -150,14 +157,21 @@ describe("GalleryGrid", () => {
     mockFolders = { value: [] };
     mockMedia = { value: [] };
     mockActiveFolderPath = { value: null };
+    Object.assign(mockStore, defaultStoreValues());
   });
 
-  it("renders without crashing", async () => {
+  async function mountSubject(overrides?: {
+    props?: Record<string, any>;
+    store?: Record<string, any>;
+    stubs?: Record<string, any>;
+  }) {
+    if (overrides?.store) {
+      Object.assign(mockStore, overrides.store);
+    }
     const GalleryGrid = (await import("../GalleryGrid.vue")).default;
-    setActivePinia(createPinia());
     const queryClient = createIsolatedQueryClient();
-    const wrapper = mount(GalleryGrid, {
-      props: { isMobile: false },
+    return mount(GalleryGrid, {
+      props: { isMobile: false, ...overrides?.props },
       global: {
         plugins: [[VueQueryPlugin, { queryClient }]],
         stubs: {
@@ -178,336 +192,53 @@ describe("GalleryGrid", () => {
           DropdownMenuRadioGroup: { template: "<div><slot /></div>" },
           DropdownMenuRadioItem: { template: "<div><slot /></div>" },
           DropdownMenuTrigger: { template: "<div><slot /></div>" },
+          ...overrides?.stubs,
         },
       },
     });
-    expect(wrapper.find('[data-testid="gallery-grid"]').exists()).toBe(true);
-  });
+  }
 
   it("shows loading badge when loading", async () => {
     mockIsLoading = { value: true };
-    const GalleryGrid = (await import("../GalleryGrid.vue")).default;
-    setActivePinia(createPinia());
-    const queryClient = createIsolatedQueryClient();
-    const wrapper = mount(GalleryGrid, {
-      props: { isMobile: false },
-      global: {
-        plugins: [[VueQueryPlugin, { queryClient }]],
-        stubs: {
-          AlbumCard: { template: "<div class='album-card' />" },
-          PhotoCard: { template: "<div class='photo-card' />" },
-          VideoCard: { template: "<div class='video-card' />" },
-          SkeletonLoader: { template: "<div class='skeleton-loader' />" },
-          Breadcrumb: { template: "<div class='breadcrumb-stub' />" },
-          EmptyState: { template: "<div class='empty-state' />" },
-          SortSelect: { template: "<select />" },
-          Button: { template: "<button><slot /></button>" },
-          Badge: { template: "<span class='badge'><slot /></span>" },
-          Tooltip: { template: "<span><slot /></span>" },
-          TooltipTrigger: { template: "<span><slot /></span>" },
-          TooltipContent: { template: "<span><slot /></span>" },
-          DropdownMenu: { template: "<div><slot /></div>" },
-          DropdownMenuContent: { template: "<div><slot /></div>" },
-          DropdownMenuRadioGroup: { template: "<div><slot /></div>" },
-          DropdownMenuRadioItem: { template: "<div><slot /></div>" },
-          DropdownMenuTrigger: { template: "<div><slot /></div>" },
-        },
-      },
-    });
+    const wrapper = await mountSubject();
     expect(wrapper.text()).toContain("Loading");
   });
 
   it("shows error banner when error message exists", async () => {
-    const GalleryGridModule = await import("../GalleryGrid.vue");
-    const GalleryGrid = GalleryGridModule.default;
-    setActivePinia(createPinia());
-    const store = (await import("@/stores/gallery")).useGalleryStore();
-    store.errorMessage = "Failed to load";
-    const queryClient = createIsolatedQueryClient();
-    const wrapper = mount(GalleryGrid, {
-      props: { isMobile: false },
-      global: {
-        plugins: [[VueQueryPlugin, { queryClient }]],
-        stubs: {
-          AlbumCard: { template: "<div class='album-card' />" },
-          PhotoCard: { template: "<div class='photo-card' />" },
-          VideoCard: { template: "<div class='video-card' />" },
-          SkeletonLoader: { template: "<div class='skeleton-loader' />" },
-          Breadcrumb: { template: "<div class='breadcrumb-stub' />" },
-          EmptyState: { template: "<div class='empty-state' />" },
-          SortSelect: { template: "<select />" },
-          Button: { template: "<button><slot /></button>" },
-          Badge: { template: "<span class='badge'><slot /></span>" },
-          Tooltip: { template: "<span><slot /></span>" },
-          TooltipTrigger: { template: "<span><slot /></span>" },
-          TooltipContent: { template: "<span><slot /></span>" },
-          DropdownMenu: { template: "<div><slot /></div>" },
-          DropdownMenuContent: { template: "<div><slot /></div>" },
-          DropdownMenuRadioGroup: { template: "<div><slot /></div>" },
-          DropdownMenuRadioItem: { template: "<div><slot /></div>" },
-          DropdownMenuTrigger: { template: "<div><slot /></div>" },
-        },
-      },
-    });
+    const wrapper = await mountSubject({ store: { errorMessage: "Failed to load" } });
     expect(wrapper.find("[role='alert']").exists()).toBe(true);
   });
 
   it("renders breadcrumb on desktop", async () => {
-    const GalleryGrid = (await import("../GalleryGrid.vue")).default;
-    setActivePinia(createPinia());
-    const queryClient = createIsolatedQueryClient();
-    const wrapper = mount(GalleryGrid, {
-      props: { isMobile: false },
-      global: {
-        plugins: [[VueQueryPlugin, { queryClient }]],
-        stubs: {
-          AlbumCard: { template: "<div class='album-card' />" },
-          PhotoCard: { template: "<div class='photo-card' />" },
-          VideoCard: { template: "<div class='video-card' />" },
-          SkeletonLoader: { template: "<div class='skeleton-loader' />" },
-          Breadcrumb: { template: "<div class='breadcrumb-stub'>breadcrumb</div>" },
-          EmptyState: { template: "<div class='empty-state' />" },
-          SortSelect: { template: "<select />" },
-          Button: { template: "<button><slot /></button>" },
-          Badge: { template: "<span><slot /></span>" },
-          Tooltip: { template: "<span><slot /></span>" },
-          TooltipTrigger: { template: "<span><slot /></span>" },
-          TooltipContent: { template: "<span><slot /></span>" },
-          DropdownMenu: { template: "<div><slot /></div>" },
-          DropdownMenuContent: { template: "<div><slot /></div>" },
-          DropdownMenuRadioGroup: { template: "<div><slot /></div>" },
-          DropdownMenuRadioItem: { template: "<div><slot /></div>" },
-          DropdownMenuTrigger: { template: "<div><slot /></div>" },
-        },
-      },
+    const wrapper = await mountSubject({
+      stubs: { Breadcrumb: { template: "<div class='breadcrumb-stub'>breadcrumb</div>" } },
     });
     expect(wrapper.text()).toContain("breadcrumb");
   });
 
   it("shows density dropdown trigger on desktop", async () => {
-    const GalleryGrid = (await import("../GalleryGrid.vue")).default;
-    setActivePinia(createPinia());
-    const queryClient = createIsolatedQueryClient();
-    const wrapper = mount(GalleryGrid, {
-      props: { isMobile: false },
-      global: {
-        plugins: [[VueQueryPlugin, { queryClient }]],
-        stubs: {
-          AlbumCard: { template: "<div class='album-card' />" },
-          PhotoCard: { template: "<div class='photo-card' />" },
-          VideoCard: { template: "<div class='video-card' />" },
-          SkeletonLoader: { template: "<div class='skeleton-loader' />" },
-          Breadcrumb: { template: "<div class='breadcrumb-stub' />" },
-          EmptyState: { template: "<div class='empty-state' />" },
-          SortSelect: { template: "<select />" },
-          Button: { template: "<button><slot /></button>" },
-          Badge: { template: "<span><slot /></span>" },
-          Tooltip: { template: "<span><slot /></span>" },
-          TooltipTrigger: { template: "<span><slot /></span>" },
-          TooltipContent: { template: "<span><slot /></span>" },
-          DropdownMenu: { template: "<div><slot /></div>" },
-          DropdownMenuContent: { template: "<div><slot /></div>" },
-          DropdownMenuRadioGroup: { template: "<div><slot /></div>" },
-          DropdownMenuRadioItem: { template: "<div><slot /></div>" },
-          DropdownMenuTrigger: { template: "<div><slot /></div>" },
-        },
-      },
-    });
+    const wrapper = await mountSubject();
     expect(wrapper.text()).toContain("cols");
   });
 
   it("shows open-in-explorer button on desktop", async () => {
-    const GalleryGrid = (await import("../GalleryGrid.vue")).default;
-    setActivePinia(createPinia());
-    const queryClient = createIsolatedQueryClient();
-    const wrapper = mount(GalleryGrid, {
-      props: { isMobile: false },
-      global: {
-        plugins: [[VueQueryPlugin, { queryClient }]],
-        stubs: {
-          AlbumCard: { template: "<div class='album-card' />" },
-          PhotoCard: { template: "<div class='photo-card' />" },
-          VideoCard: { template: "<div class='video-card' />" },
-          SkeletonLoader: { template: "<div class='skeleton-loader' />" },
-          Breadcrumb: { template: "<div class='breadcrumb-stub' />" },
-          EmptyState: { template: "<div class='empty-state' />" },
-          SortSelect: { template: "<select />" },
-          Button: { template: "<button><slot /></button>" },
-          Badge: { template: "<span><slot /></span>" },
-          Tooltip: { template: "<span><slot /></span>" },
-          TooltipTrigger: { template: "<span><slot /></span>" },
-          TooltipContent: { template: "<span><slot /></span>" },
-          DropdownMenu: { template: "<div><slot /></div>" },
-          DropdownMenuContent: { template: "<div><slot /></div>" },
-          DropdownMenuRadioGroup: { template: "<div><slot /></div>" },
-          DropdownMenuRadioItem: { template: "<div><slot /></div>" },
-          DropdownMenuTrigger: { template: "<div><slot /></div>" },
-        },
-      },
-    });
+    const wrapper = await mountSubject();
     expect(wrapper.text()).toContain("Open");
   });
 
   it("shows SortSelect on desktop toolbar", async () => {
-    const GalleryGrid = (await import("../GalleryGrid.vue")).default;
-    setActivePinia(createPinia());
-    const queryClient = createIsolatedQueryClient();
-    const wrapper = mount(GalleryGrid, {
-      props: { isMobile: false },
-      global: {
-        plugins: [[VueQueryPlugin, { queryClient }]],
-        stubs: {
-          AlbumCard: { template: "<div class='album-card' />" },
-          PhotoCard: { template: "<div class='photo-card' />" },
-          VideoCard: { template: "<div class='video-card' />" },
-          SkeletonLoader: { template: "<div class='skeleton-loader' />" },
-          Breadcrumb: { template: "<div class='breadcrumb-stub' />" },
-          EmptyState: { template: "<div class='empty-state' />" },
-          SortSelect: { template: "<select class='sort-select'>Sort</select>" },
-          Button: { template: "<button><slot /></button>" },
-          Badge: { template: "<span><slot /></span>" },
-          Tooltip: { template: "<span><slot /></span>" },
-          TooltipTrigger: { template: "<span><slot /></span>" },
-          TooltipContent: { template: "<span><slot /></span>" },
-          DropdownMenu: { template: "<div><slot /></div>" },
-          DropdownMenuContent: { template: "<div><slot /></div>" },
-          DropdownMenuRadioGroup: { template: "<div><slot /></div>" },
-          DropdownMenuRadioItem: { template: "<div><slot /></div>" },
-          DropdownMenuTrigger: { template: "<div><slot /></div>" },
-        },
-      },
-    });
+    const wrapper = await mountSubject();
     expect(wrapper.find('[aria-label="Sort gallery"]').exists()).toBe(true);
   });
 
   it("shows desktop toolbar", async () => {
-    const GalleryGrid = (await import("../GalleryGrid.vue")).default;
-    setActivePinia(createPinia());
-    const queryClient = createIsolatedQueryClient();
-    const wrapper = mount(GalleryGrid, {
-      props: { isMobile: false },
-      global: {
-        plugins: [[VueQueryPlugin, { queryClient }]],
-        stubs: {
-          AlbumCard: { template: "<div class='album-card' />" },
-          PhotoCard: { template: "<div class='photo-card' />" },
-          VideoCard: { template: "<div class='video-card' />" },
-          SkeletonLoader: { template: "<div class='skeleton-loader' />" },
-          Breadcrumb: { template: "<div class='breadcrumb-stub' />" },
-          EmptyState: { template: "<div class='empty-state' />" },
-          SortSelect: { template: "<select />" },
-          Button: { template: "<button><slot /></button>" },
-          Badge: { template: "<span><slot /></span>" },
-          Tooltip: { template: "<span><slot /></span>" },
-          TooltipTrigger: { template: "<span><slot /></span>" },
-          TooltipContent: { template: "<span><slot /></span>" },
-          DropdownMenu: { template: "<div><slot /></div>" },
-          DropdownMenuContent: { template: "<div><slot /></div>" },
-          DropdownMenuRadioGroup: { template: "<div><slot /></div>" },
-          DropdownMenuRadioItem: { template: "<div><slot /></div>" },
-          DropdownMenuTrigger: { template: "<div><slot /></div>" },
-        },
-      },
-    });
+    const wrapper = await mountSubject();
     expect(wrapper.find("[aria-label='Go back']").exists()).toBe(true);
   });
 
   it("renders back and forward navigation buttons", async () => {
-    const GalleryGrid = (await import("../GalleryGrid.vue")).default;
-    setActivePinia(createPinia());
-    const queryClient = createIsolatedQueryClient();
-    const wrapper = mount(GalleryGrid, {
-      props: { isMobile: false },
-      global: {
-        plugins: [[VueQueryPlugin, { queryClient }]],
-        stubs: {
-          AlbumCard: { template: "<div class='album-card' />" },
-          PhotoCard: { template: "<div class='photo-card' />" },
-          VideoCard: { template: "<div class='video-card' />" },
-          SkeletonLoader: { template: "<div class='skeleton-loader' />" },
-          Breadcrumb: { template: "<div class='breadcrumb-stub' />" },
-          EmptyState: { template: "<div class='empty-state' />" },
-          SortSelect: { template: "<select />" },
-          Button: { template: "<button><slot /></button>" },
-          Badge: { template: "<span><slot /></span>" },
-          Tooltip: { template: "<span><slot /></span>" },
-          TooltipTrigger: { template: "<span><slot /></span>" },
-          TooltipContent: { template: "<span><slot /></span>" },
-          DropdownMenu: { template: "<div><slot /></div>" },
-          DropdownMenuContent: { template: "<div><slot /></div>" },
-          DropdownMenuRadioGroup: { template: "<div><slot /></div>" },
-          DropdownMenuRadioItem: { template: "<div><slot /></div>" },
-          DropdownMenuTrigger: { template: "<div><slot /></div>" },
-        },
-      },
-    });
-    const backBtn = wrapper.findAll("button").find((b) => b.attributes("aria-label") === "Go back");
-    const fwdBtn = wrapper.findAll("button").find((b) => b.attributes("aria-label") === "Go forward");
-    expect(backBtn).toBeDefined();
-    expect(fwdBtn).toBeDefined();
-  });
-
-  it("renders density trigger with column count", async () => {
-    const GalleryGrid = (await import("../GalleryGrid.vue")).default;
-    setActivePinia(createPinia());
-    const queryClient = createIsolatedQueryClient();
-    const wrapper = mount(GalleryGrid, {
-      props: { isMobile: false },
-      global: {
-        plugins: [[VueQueryPlugin, { queryClient }]],
-        stubs: {
-          AlbumCard: { template: "<div class='album-card' />" },
-          PhotoCard: { template: "<div class='photo-card' />" },
-          VideoCard: { template: "<div class='video-card' />" },
-          SkeletonLoader: { template: "<div class='skeleton-loader' />" },
-          Breadcrumb: { template: "<div class='breadcrumb-stub' />" },
-          EmptyState: { template: "<div class='empty-state' />" },
-          SortSelect: { template: "<select />" },
-          Button: { template: "<button><slot /></button>" },
-          Badge: { template: "<span><slot /></span>" },
-          Tooltip: { template: "<span><slot /></span>" },
-          TooltipTrigger: { template: "<span><slot /></span>" },
-          TooltipContent: { template: "<span><slot /></span>" },
-          DropdownMenu: { template: "<div><slot /></div>" },
-          DropdownMenuContent: { template: "<div><slot /></div>" },
-          DropdownMenuRadioGroup: { template: "<div><slot /></div>" },
-          DropdownMenuRadioItem: { template: "<div><slot /></div>" },
-          DropdownMenuTrigger: { template: "<div><slot /></div>" },
-        },
-      },
-    });
-    expect(wrapper.text()).toContain("cols");
-  });
-
-  it("renders Open in explorer button", async () => {
-    const GalleryGrid = (await import("../GalleryGrid.vue")).default;
-    setActivePinia(createPinia());
-    const queryClient = createIsolatedQueryClient();
-    const wrapper = mount(GalleryGrid, {
-      props: { isMobile: false },
-      global: {
-        plugins: [[VueQueryPlugin, { queryClient }]],
-        stubs: {
-          AlbumCard: { template: "<div class='album-card' />" },
-          PhotoCard: { template: "<div class='photo-card' />" },
-          VideoCard: { template: "<div class='video-card' />" },
-          SkeletonLoader: { template: "<div class='skeleton-loader' />" },
-          Breadcrumb: { template: "<div class='breadcrumb-stub' />" },
-          EmptyState: { template: "<div class='empty-state' />" },
-          SortSelect: { template: "<select />" },
-          Button: { template: "<button><slot /></button>" },
-          Badge: { template: "<span><slot /></span>" },
-          Tooltip: { template: "<span><slot /></span>" },
-          TooltipTrigger: { template: "<span><slot /></span>" },
-          TooltipContent: { template: "<span><slot /></span>" },
-          DropdownMenu: { template: "<div><slot /></div>" },
-          DropdownMenuContent: { template: "<div><slot /></div>" },
-          DropdownMenuRadioGroup: { template: "<div><slot /></div>" },
-          DropdownMenuRadioItem: { template: "<div><slot /></div>" },
-          DropdownMenuTrigger: { template: "<div><slot /></div>" },
-        },
-      },
-    });
-    expect(wrapper.text()).toContain("Open");
+    const wrapper = await mountSubject();
+    expect(wrapper.find('[aria-label="Go back"]').exists()).toBe(true);
+    expect(wrapper.find('[aria-label="Go forward"]').exists()).toBe(true);
   });
 });

@@ -170,39 +170,31 @@ describe("AppHeader", () => {
 
   it("emits toggle-sidebar when hamburger clicked", async () => {
     const wrapper = createWrapper({ isMobile: false });
-    const toggleBtn = wrapper.findAll("button").find((b) => b.attributes("aria-label") === "Toggle sidebar");
-    if (toggleBtn) {
-      await toggleBtn.trigger("click");
-      expect(wrapper.emitted("toggle-sidebar")?.length).toBeGreaterThan(0);
-    }
+    const toggleBtn = wrapper.findAll("button").find((b) => b.attributes("aria-label") === "Toggle sidebar")!;
+    await toggleBtn.trigger("click");
+    expect(wrapper.emitted("toggle-sidebar")?.length).toBeGreaterThan(0);
   });
 
   it("emits open-settings when settings button clicked", async () => {
     const wrapper = createWrapper();
-    const settingsBtn = wrapper.findAll("button").find((b) => b.attributes("aria-label") === "Change Intro Page");
-    if (settingsBtn) {
-      await settingsBtn.trigger("click");
-      expect(wrapper.emitted("open-settings")?.length).toBeGreaterThan(0);
-    }
+    const settingsBtn = wrapper.findAll("button").find((b) => b.attributes("aria-label") === "Change Intro Page")!;
+    await settingsBtn.trigger("click");
+    expect(wrapper.emitted("open-settings")?.length).toBeGreaterThan(0);
   });
 
   it("emits update:searchQuery on input change", async () => {
     const wrapper = createWrapper();
     const input = wrapper.find("#gallery-search");
-    if (input.exists()) {
-      await input.setValue("test query");
-      expect(wrapper.emitted("update:searchQuery")).toBeTruthy();
-    }
+    await input.setValue("test query");
+    expect(wrapper.emitted("update:searchQuery")).toBeTruthy();
   });
 
   it("emits scope-change when scope select changes", async () => {
     const wrapper = createWrapper();
     const select = wrapper.find("select.scope-select");
-    if (select.exists()) {
-      await select.setValue("all");
-      expect(wrapper.emitted("scope-change")).toBeTruthy();
-      expect(wrapper.emitted("scope-change")![0]).toEqual(["all"]);
-    }
+    await select.setValue("all");
+    expect(wrapper.emitted("scope-change")).toBeTruthy();
+    expect(wrapper.emitted("scope-change")![0]).toEqual(["all"]);
   });
 
   it("shows clear button when searchQuery has value", () => {
@@ -213,11 +205,9 @@ describe("AppHeader", () => {
 
   it("emits update:searchQuery empty string on clear", async () => {
     const wrapper = createWrapper({ searchQuery: "test" });
-    const clearBtn = wrapper.findAll("button").find((b) => b.attributes("aria-label") === "Clear search");
-    if (clearBtn) {
-      await clearBtn.trigger("click");
-      expect(wrapper.emitted("update:searchQuery")?.pop()).toEqual([""]);
-    }
+    const clearBtn = wrapper.findAll("button").find((b) => b.attributes("aria-label") === "Clear search")!;
+    await clearBtn.trigger("click");
+    expect(wrapper.emitted("update:searchQuery")?.pop()).toEqual([""]);
   });
 
   it("renders Libraries link", () => {

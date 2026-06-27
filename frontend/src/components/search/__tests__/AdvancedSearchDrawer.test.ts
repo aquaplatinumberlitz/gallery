@@ -122,6 +122,18 @@ describe("AdvancedSearchDrawer", () => {
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
   });
 
+  it("renders operator select for seed field", () => {
+    const wrapper = createWrapper();
+    const seedOps = wrapper.findAll("select").filter((s) => s.attributes("aria-label") === "Seed operator");
+    expect(seedOps.length).toBe(1);
+  });
+
+  it("renders operator select for steps field", () => {
+    const wrapper = createWrapper();
+    const stepsOps = wrapper.findAll("select").filter((s) => s.attributes("aria-label") === "Steps operator");
+    expect(stepsOps.length).toBe(1);
+  });
+
   it("renders sampler and scheduler fields", () => {
     const wrapper = createWrapper();
     expect(wrapper.text()).toContain("Sampler");

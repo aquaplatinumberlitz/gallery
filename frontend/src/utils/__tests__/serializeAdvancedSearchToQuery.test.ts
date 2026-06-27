@@ -15,32 +15,34 @@ describe("serializeAdvancedSearchToQuery", () => {
     expect(serializeAdvancedSearchToQuery([{ field: "model", value: "gpt" }])).toBe("model:gpt");
   });
 
-  it("serializes filters with explicit operators", () => {
-    expect(serializeAdvancedSearchToQuery([{ field: "model", operator: "=", value: "gpt" }])).toBe("model:=gpt");
-    expect(serializeAdvancedSearchToQuery([{ field: "seed", operator: ">", value: "100" }])).toBe("seed:>100");
-    expect(serializeAdvancedSearchToQuery([{ field: "seed", operator: ">=", value: "100" }])).toBe("seed:>=100");
-    expect(serializeAdvancedSearchToQuery([{ field: "seed", operator: "<", value: "100" }])).toBe("seed:<100");
-    expect(serializeAdvancedSearchToQuery([{ field: "seed", operator: "<=", value: "100" }])).toBe("seed:<=100");
+  it.each([
+    ["=", "seed:=100"],
+    [">", "seed:>100"],
+    [">=", "seed:>=100"],
+    ["<", "seed:<100"],
+    ["<=", "seed:<=100"],
+  ])("serializes filter with operator %s", (operator, expected) => {
+    expect(serializeAdvancedSearchToQuery([{ field: "seed", operator: operator as FieldFilter["operator"], value: "100" }])).toBe(expected);
   });
 
-  it("omits the operator for literal fields (ratio, size, date) regardless of case", () => {
-    expect(serializeAdvancedSearchToQuery([{ field: "ratio", operator: ">", value: "1.5" }])).toBe("ratio:1.5");
-    expect(serializeAdvancedSearchToQuery([{ field: "size", operator: "=", value: "1024" }])).toBe("size:1024");
-    expect(serializeAdvancedSearchToQuery([{ field: "date", operator: ">=", value: "2024-01-01" }])).toBe(
-      "date:2024-01-01",
-    );
-    expect(serializeAdvancedSearchToQuery([{ field: "RATIO", operator: ">", value: "1.5" }])).toBe("RATIO:1.5");
+  it.each([
+    ["ratio", ">", "1.5", "ratio:1.5"],
+    ["size", "=", "1024", "size:1024"],
+    ["date", ">=", "2024-01-01", "date:2024-01-01"],
+    ["RATIO", ">", "1.5", "RATIO:1.5"],
+  ])("omits operator for literal field %s", (field, operator, value, expected) => {
+    expect(serializeAdvancedSearchToQuery([{ field, operator: operator as FieldFilter["operator"], value }])).toBe(expected);
   });
 
-  it("quotes values that contain whitespace", () => {
+  it('quotes values that contain whitespace', () => {
     expect(serializeAdvancedSearchToQuery([{ field: "prompt", value: "hello world" }])).toBe('prompt:"hello world"');
   });
 
-  it("escapes and quotes values that contain double quotes", () => {
+  it('escapes and quotes values that contain double quotes', () => {
     expect(serializeAdvancedSearchToQuery([{ field: "prompt", value: 'say "hi"' }])).toBe('prompt:"say \\"hi\\""');
   });
 
-  it("quotes values that contain parentheses", () => {
+  it('quotes values that contain parentheses', () => {
     expect(serializeAdvancedSearchToQuery([{ field: "prompt", value: "(text)" }])).toBe('prompt:"(text)"');
   });
 
@@ -81,9 +83,8 @@ describe("filterToDisplayString", () => {
     expect(filterToDisplayString({ field: "ratio", operator: ">", value: "1.5" })).toBe("ratio:1.5");
   });
 
-  it("quotes values that need quoting (display path does NOT escape inner quotes)", () => {
+  it('quotes values that need quoting', () => {
     expect(filterToDisplayString({ field: "prompt", value: "hello world" })).toBe('prompt:"hello world"');
-    // Display variant wraps in quotes but does not escape inner double quotes.
     expect(filterToDisplayString({ field: "prompt", value: 'say "hi"' })).toBe('prompt:"say "hi""');
   });
 
@@ -105,12 +106,17 @@ describe("parseFieldedQuery", () => {
     expect(parseFieldedQuery("model:gpt")).toEqual([{ field: "model", operator: undefined, value: "gpt" }]);
   });
 
-  it("parses tokens with each operator", () => {
-    expect(parseFieldedQuery("seed:=100")).toEqual([{ field: "seed", operator: "=", value: "100" }]);
-    expect(parseFieldedQuery("seed:>100")).toEqual([{ field: "seed", operator: ">", value: "100" }]);
-    expect(parseFieldedQuery("seed:>=100")).toEqual([{ field: "seed", operator: ">=", value: "100" }]);
-    expect(parseFieldedQuery("seed:<100")).toEqual([{ field: "seed", operator: "<", value: "100" }]);
-    expect(parseFieldedQuery("seed:<=100")).toEqual([{ field: "seed", operator: "<=", value: "100" }]);
+  it.each([
+    ["seed:=100", "="],
+    ["seed:>100", ">"],
+    ["seed:>=100", ">="],
+    ["seed:<100", "<"],
+    ["seed:<=100", "<="],
+  ])("parses token with operator from %s", (query) => {
+    const result = parseFieldedQuery(query);
+    expect(result).toHaveLength(1);
+    expect(result[0].field).toBe("seed");
+    expect(result[0].value).toBe("100");
   });
 
   it("parses multiple tokens separated by whitespace", () => {
@@ -121,13 +127,13 @@ describe("parseFieldedQuery", () => {
     ]);
   });
 
-  it("parses quoted values that contain whitespace", () => {
+  it('parses quoted values that contain whitespace', () => {
     expect(parseFieldedQuery('prompt:"hello world"')).toEqual([
       { field: "prompt", operator: undefined, value: "hello world" },
     ]);
   });
 
-  it("unescapes double quotes inside quoted values", () => {
+  it('unescapes double quotes inside quoted values', () => {
     expect(parseFieldedQuery('prompt:"say \\"hi\\""')).toEqual([
       { field: "prompt", operator: undefined, value: 'say "hi"' },
     ]);
