@@ -290,8 +290,8 @@ test.describe("inspector stale notice (mocked)", () => {
 
     await navigateToMetadata(page);
 
-    await expect(page.locator(".rebuild-notice")).toBeHidden({ timeout: 3_000 });
-    const summary = page.locator(".library-inspector .text-muted-foreground").first();
+    await expect(page.getByTestId("rebuild-notice")).toBeHidden({ timeout: 3_000 });
+    const summary = page.getByTestId("inspector-summary");
     await expect(summary).toBeVisible({ timeout: 5_000 });
     await expect(summary).toContainText("5 indexed photos");
   });
@@ -311,7 +311,7 @@ test.describe("inspector stale notice (mocked)", () => {
     });
 
     await navigateToMetadata(page);
-    const notice = page.locator(".rebuild-notice");
+    const notice = page.getByTestId("rebuild-notice");
     await expect(notice).toBeHidden({ timeout: 3_000 });
 
     await page.getByRole("button", { name: "Catalog Status" }).click();
@@ -548,7 +548,7 @@ test.describe("metadata rebuild refresh regression", () => {
     ).toBeHidden();
     await expect(page.locator(".table-shell")).not.toHaveClass(/table-shell--rebuilding/);
     await expect(page.getByText("new-row-001.png")).toBeVisible();
-    await expect(page.locator(".index-status-card")).toContainText("205 photo details ready", { timeout: 5_000 });
+    await expect(page.getByTestId("index-status-card")).toContainText("205 photo details ready", { timeout: 5_000 });
 
     const inspectorRequests = requestTimeline.filter((entry) =>
       String(entry.requestUrl).startsWith("/api/library/inspector?"),

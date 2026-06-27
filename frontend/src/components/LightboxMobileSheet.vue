@@ -238,7 +238,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
       </div>
 
       <!-- Error state -->
-      <div v-else-if="!props.meta" class="meta-error">
+      <div v-else-if="!props.meta" class="meta-error" data-testid="meta-error">
         <TriangleAlert :size="24" :stroke-width="1.5" />
         <span>No metadata available</span>
       </div>
@@ -263,6 +263,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                   :stroke-width="1.5"
                   style="color: #4ade80"
                   class="inline-copy-icon"
+                  data-testid="copy-prompt-check"
                 />
                 <Copy v-else :size="14" :stroke-width="1.5" class="inline-copy-icon" />
               </button>
@@ -336,6 +337,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
             <div v-if="hasGenData" class="params-grid">
               <div
                 class="param-pill seed-row metadata-copyable"
+                data-testid="seed-row"
                 v-if="props.meta?.params?.Seed"
                 @click="props.copyText(String(props.meta.params.Seed), 'seed')"
                 title="Copy seed"

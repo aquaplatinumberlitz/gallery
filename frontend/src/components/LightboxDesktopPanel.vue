@@ -96,7 +96,7 @@ const modelCount = computed(() => {
       <span>Loading info...</span>
     </div>
 
-    <div v-else-if="!props.meta" class="meta-error">
+    <div v-else-if="!props.meta" class="meta-error" data-testid="meta-error">
       <TriangleAlert :stroke-width="1.5" class="icon-nav" />
       <span>No metadata available</span>
     </div>

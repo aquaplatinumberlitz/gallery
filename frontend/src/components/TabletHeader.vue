@@ -106,7 +106,7 @@ function onScopeChange(e: Event) {
 </script>
 
 <template>
-  <header class="tablet-header" :class="{ 'search-active': isSearchActive }">
+  <header class="tablet-header" :class="{ 'search-active': isSearchActive }" data-testid="tablet-header">
     <!-- Left: hamburger -->
     <Tooltip>
       <TooltipTrigger as-child>

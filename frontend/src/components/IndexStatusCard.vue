@@ -66,9 +66,9 @@ const bodyText = computed(() => {
 <template>
   <Popover>
     <PopoverTrigger as-child>
-      <button type="button" class="index-status-card group-data-[collapsible=icon]:hidden" aria-label="Catalog Status">
+      <button type="button" class="index-status-card group-data-[collapsible=icon]:hidden" aria-label="Catalog Status" data-testid="index-status-card">
         <span class="index-status-card__top">
-          <span class="index-status-card__title">
+          <span class="index-status-card__title" data-testid="catalog-database-icon">
             <Database class="size-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
             <span>Catalog</span>
           </span>

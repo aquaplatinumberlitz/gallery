@@ -139,7 +139,7 @@ onBeforeUnmount(() => {
 
     <div v-if="!props.src || hasError" class="placeholder">
       <Image class="gallery-icon-xl" />
-      <span class="placeholder-text">{{ hasError ? "Preview unavailable" : "" }}</span>
+      <span class="placeholder-text" data-testid="placeholder-text">{{ hasError ? "Preview unavailable" : "" }}</span>
     </div>
   </div>
 </template>

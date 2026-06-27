@@ -385,8 +385,8 @@ test.describe("LibraryInspector", () => {
 
     await page.goto(`${baseUrl}/metadata`, { waitUntil: "domcontentloaded" });
 
-    const promptTrigger = page.locator(".col-prompt .long-text-trigger").first();
-    const promptText = page.locator(".col-prompt .long-text-preview").first();
+    const promptTrigger = page.getByTestId("prompt-trigger").first();
+    const promptText = page.getByTestId("prompt-preview").first();
     await expect(promptTrigger).toBeVisible();
 
     await expect
@@ -466,20 +466,20 @@ test.describe("LibraryInspector", () => {
 
     await page.goto(`${baseUrl}/metadata`, { waitUntil: "domcontentloaded" });
 
-    await page.locator(".col-name .thumb-button").first().click();
+    await page.getByTestId("thumb-button").first().click();
     await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
     await expect.poll(() => photoMetadataPaths(requests).slice(-1)[0]).toBe(baseRows[0].path);
     await expect.poll(() => lightboxNavEvents.some((event) => event.event === "pswp-init-complete")).toBe(true);
 
     await page.keyboard.press("ArrowRight");
     await expect.poll(() => photoMetadataPaths(requests).slice(-1)[0]).toBe(baseRows[1].path);
-    await expect(page.locator(".desktop-lightbox-counter")).toContainText(`2 / ${baseRows.length}`);
+    await expect(page.getByTestId("desktop-lightbox-counter")).toContainText(`2 / ${baseRows.length}`);
     await page.waitForTimeout(100);
     expect(photoMetadataPaths(requests).slice(-1)[0]).toBe(baseRows[1].path);
 
     await page.keyboard.press("ArrowRight");
     await expect.poll(() => photoMetadataPaths(requests).slice(-1)[0]).toBe(baseRows[2].path);
-    await expect(page.locator(".desktop-lightbox-counter")).toContainText(`3 / ${baseRows.length}`);
+    await expect(page.getByTestId("desktop-lightbox-counter")).toContainText(`3 / ${baseRows.length}`);
     await page.waitForTimeout(100);
     expect(photoMetadataPaths(requests).slice(-1)[0]).toBe(baseRows[2].path);
 

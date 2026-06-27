@@ -17,7 +17,7 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div v-if="filters.length > 0" class="flex flex-wrap items-center gap-2">
+  <div v-if="filters.length > 0" class="flex flex-wrap items-center gap-2" data-testid="search-filter-chips">
     <Badge
       v-for="(filter, index) in filters"
       :key="index"

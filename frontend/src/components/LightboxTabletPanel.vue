@@ -87,7 +87,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
       </div>
 
       <!-- Error state -->
-      <div v-else-if="!props.meta" class="meta-error" style="flex: 1; min-height: 120px">
+      <div v-else-if="!props.meta" class="meta-error" style="flex: 1; min-height: 120px" data-testid="meta-error">
         <TriangleAlert :stroke-width="1.5" class="icon-nav" />
         <span>No metadata available</span>
       </div>

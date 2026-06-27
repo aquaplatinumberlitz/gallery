@@ -695,7 +695,7 @@ test.describe("Tailwind Preflight Regression", () => {
     });
 
     test("5a. tablet header is visible with correct layout", async ({ page }) => {
-      const header = page.locator(".tablet-header");
+      const header = page.getByTestId("tablet-header");
       await expect(header).toBeVisible();
 
       const headerBox = await header.boundingBox();

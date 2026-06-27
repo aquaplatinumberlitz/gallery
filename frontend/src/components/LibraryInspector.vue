@@ -595,7 +595,7 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
         </ButtonLink>
         <div class="min-w-0">
           <h2 id="library-inspector-title" class="truncate text-xl font-semibold tracking-normal">Photo Details</h2>
-          <p class="truncate text-sm text-muted-foreground">
+          <p class="truncate text-sm text-muted-foreground" data-testid="inspector-summary">
             {{ pageSummary }}
           </p>
         </div>
@@ -644,7 +644,7 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
       Unable to load metadata rows.
     </div>
 
-    <div v-if="isInspectorDataStale" class="rebuild-notice">
+    <div v-if="isInspectorDataStale" class="rebuild-notice" data-testid="rebuild-notice">
       Refreshing photo details. Previous results are shown until the latest snapshot arrives.
     </div>
 
@@ -731,6 +731,7 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                   <button
                     class="thumb-button"
                     type="button"
+                    data-testid="thumb-button"
                     @click.stop="openImage(visibleTableRows[virtualRow.index].original)"
                   >
                     <img
@@ -787,8 +788,8 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                     @update:open="(open) => openDetail(visibleTableRows[virtualRow.index].original.path, open)"
                   >
                     <PopoverTrigger as-child>
-                      <button class="long-text-trigger prompt-trigger" type="button" @click.stop>
-                        <span class="long-text-preview truncate whitespace-nowrap">{{
+                      <button class="long-text-trigger prompt-trigger" type="button" data-testid="prompt-trigger" @click.stop>
+                        <span class="long-text-preview truncate whitespace-nowrap" data-testid="prompt-preview">{{
                           visibleTableRows[virtualRow.index].original.prompt_preview || "No prompt metadata"
                         }}</span>
                       </button>

@@ -352,7 +352,7 @@ test.describe("Catalog Status panel", () => {
 
     const statusButton = page.getByLabel("Catalog Status");
     await expect(statusButton).toBeVisible({ timeout: 10_000 });
-    await expect(statusButton.locator(".lucide-database")).toBeVisible();
+    await expect(statusButton.getByTestId("catalog-database-icon")).toBeVisible();
 
     const buttonBox = await statusButton.boundingBox();
     expect(buttonBox).not.toBeNull();
@@ -383,7 +383,7 @@ test.describe("Catalog Status panel", () => {
 
     const popover = await openStatusPopover(page);
     await expect(popover).toContainText("Indexer working in another folder");
-    await expect(popover.locator(".index-progress-bar")).not.toBeVisible();
+    await expect(popover.getByTestId("index-progress-bar")).not.toBeVisible();
   });
 
   test("Needs update popover shows pending photo details", async ({ page }) => {
@@ -431,7 +431,7 @@ test.describe("Catalog Status panel", () => {
     await expect(popover).toContainText("Updating");
     await expect(popover).toContainText("Processing");
     await expect(popover).toContainText("49% details processed");
-    await expect(popover.locator(".index-progress-bar")).toHaveCount(1);
+    await expect(popover.getByTestId("index-progress-bar")).toHaveCount(1);
   });
 
   test("error state with zero issue count shows catalog attention fallback", async ({ page }) => {
@@ -469,7 +469,7 @@ test.describe("Catalog Status panel", () => {
     await expect(statusButton).toContainText("Offline");
     await expect(statusButton).not.toContainText("Warning");
 
-    const badge = statusButton.locator(".index-status-badge");
+    const badge = statusButton.getByTestId("index-status-badge");
     await expect(badge).toHaveClass(/index-status-badge--gray/);
     await expect(badge).not.toHaveClass(/index-status-badge--yellow/);
   });

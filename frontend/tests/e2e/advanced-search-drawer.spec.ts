@@ -402,7 +402,7 @@ test.describe("AdvancedSearchDrawer", () => {
     const chip = page.getByLabel(/Remove filter:/i);
     await expect(chip).toBeVisible({ timeout: 5_000 });
 
-    const chipText = await page.locator(".flex-wrap .gap-1").textContent();
+    const chipText = await page.getByTestId("search-filter-chips").textContent();
     expect(chipText).toContain("prompt");
     expect(chipText).toContain("mika");
 

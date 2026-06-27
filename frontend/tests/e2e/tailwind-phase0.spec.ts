@@ -195,7 +195,7 @@ test.describe("Tailwind Phase 0 — Desktop (1440x900)", () => {
 
   test("1d. content area and photo grid display correctly", async ({ page }) => {
     // The gallery content container should be present
-    const galleryGrid = page.locator(".gallery-grid, .gallery-scroll-container");
+    const galleryGrid = page.getByTestId("gallery-grid");
     await expect(galleryGrid.first()).toBeAttached({ timeout: 5000 });
 
     // Photo cards are visible (verified in 1e)

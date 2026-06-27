@@ -180,6 +180,7 @@ const closeMenu = () => {
                   <div
                     v-if="ellipsisMenuOpen"
                     class="ellipsis-menu"
+                    data-testid="ellipsis-menu"
                     :style="{ top: menuPosition.top + 'px', left: menuPosition.left + 'px' }"
                   >
                     <button

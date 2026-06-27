@@ -156,7 +156,7 @@ test.describe("Breadcrumb", () => {
 
     await ellipsisButton.click();
 
-    await expect(page.locator(".ellipsis-menu")).toBeVisible();
+    await expect(page.getByTestId("ellipsis-menu")).toBeVisible();
     await expect(page.getByRole("button", { name: "Show full path" })).toBeVisible();
     expect(
       monitoredErrors.consoleErrors.some(

@@ -299,7 +299,7 @@ test("metadata 500 shows placeholder in sidebar; lightbox still shows image", as
   await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 5000 });
 
   // Metadata panel should show error/placeholder state (meta-error class)
-  const metaError = page.locator(".meta-error");
+  const metaError = page.getByTestId("meta-error");
   const hasMetaError = await metaError.isVisible({ timeout: 3000 }).catch(() => false);
   // If the app has a meta-error display, it should show; if not, lightbox must still function
   if (hasMetaError) {
@@ -374,7 +374,7 @@ test("thumbnail 500 shows placeholder in grid; no page error", async ({ page }) 
   expect(count).toBeGreaterThanOrEqual(1);
 
   // Placeholder text or broken state should appear for cards with failed images
-  const placeholder = page.locator(".placeholder-text");
+  const placeholder = page.getByTestId("placeholder-text");
   const placeholderCount = await placeholder.count();
   expect(placeholderCount).toBeGreaterThanOrEqual(1);
 });
@@ -395,8 +395,8 @@ test("browse 500 shows error message; no page error", async ({ page }) => {
 
   // The app should show an error banner or error state (not a blank/white page)
   // Check for either error banner or empty-state with error type
-  const errorBanner = page.locator(".error-banner");
-  const emptyState = page.locator(".empty-state-container");
+  const errorBanner = page.getByTestId("error-banner");
+  const emptyState = page.getByTestId("empty-state-container");
   const pageContent = await page.content();
 
   const hasErrorBanner = await errorBanner.isVisible({ timeout: 3000 }).catch(() => false);

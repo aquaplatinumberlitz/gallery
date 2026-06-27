@@ -265,7 +265,7 @@ function handleToggleFullscreen() {
               @close="handleClose"
               @index-change="handleIndexChange"
             />
-            <div v-if="lightbox.galleryItems.length > 1" class="desktop-lightbox-counter">
+            <div v-if="lightbox.galleryItems.length > 1" class="desktop-lightbox-counter" data-testid="desktop-lightbox-counter">
               {{ lightbox.currentIndex + 1 }} / {{ lightbox.galleryItems.length }}
             </div>
             <!-- Image counter for screen readers -->
@@ -336,7 +336,7 @@ function handleToggleFullscreen() {
             @toggle-metadata="toggleSheet"
           />
           <template v-if="isMobile">
-            <div class="mobile-photo-counter">{{ lightbox.currentIndex + 1 }} / {{ lightbox.galleryItems.length }}</div>
+            <div class="mobile-photo-counter" data-testid="mobile-photo-counter">{{ lightbox.currentIndex + 1 }} / {{ lightbox.galleryItems.length }}</div>
             <LightboxMobileSheet
               v-if="showSheet && !isFullscreen"
               :meta="meta"

@@ -195,7 +195,7 @@ test("lightbox opens on mobile, metadata sheet opens and closes repeatedly", asy
   await expect(lightbox).toBeVisible({ timeout: 10_000 });
 
   // Assert image counter shows (PhotoSwipe is active)
-  const counter = lightbox.locator(".mobile-photo-counter");
+  const counter = lightbox.getByTestId("mobile-photo-counter");
   await expect(counter).toBeVisible({ timeout: 5000 });
 
   // --- Metadata sheet ---
@@ -214,7 +214,7 @@ test("lightbox opens on mobile, metadata sheet opens and closes repeatedly", asy
 
   // Assert seed param pill is visible (inside params tab)
   await page.locator("button.sheet-tab", { hasText: "Params" }).evaluate((el: HTMLElement) => el.click());
-  const seedPill = page.locator(".seed-row");
+  const seedPill = page.getByTestId("seed-row");
   await expect(seedPill).toBeVisible({ timeout: 3000 });
   await expect(seedPill).toContainText("12345");
 
@@ -300,7 +300,7 @@ test("lightbox opens on mobile, metadata sheet opens and closes repeatedly", asy
   await expect(page.getByLabel("Copy prompt")).toBeVisible({ timeout: 5000 });
   await page.getByLabel("Copy prompt").evaluate((el: HTMLElement) => el.click());
   // Verify the check icon appeared (copy succeeded)
-  const checkIcon = page.locator(".inline-copy-icon").first();
+  const checkIcon = page.getByTestId("copy-prompt-check");
   await expect(checkIcon).toBeVisible({ timeout: 3000 });
 });
 

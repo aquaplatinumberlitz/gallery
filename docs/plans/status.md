@@ -130,3 +130,41 @@ Replaced fixed `waitForTimeout()` calls in functional E2E specs with observable 
 |---|---|
 | `rg -n "waitForTimeout" frontend/tests/e2e/advanced-search-drawer.spec.ts frontend/tests/e2e/search-fielded-ui.spec.ts frontend/tests/e2e/gallery-no-reload.spec.ts frontend/tests/e2e/gallery-cache-revisit.spec.ts frontend/tests/e2e/index-rebuild-flow.spec.ts frontend/tests/e2e/mobile-lightbox-sheet.spec.ts frontend/tests/e2e/tailwind-phase0.spec.ts frontend/tests/e2e/tailwind-preflight.spec.ts` | 8 remaining — all intentional (PhotoSwipe animation timing in `tailwind-preflight.spec.ts`) |
 | `pnpm lint:tests` | ✅ Pass (0 errors) |
+
+## Phase 4 — Locator Refactor ✅
+
+### Summary
+
+Replaced brittle CSS class selectors in E2E workflow tests with `getByTestId` attributes.
+
+| File | Selector replaced | New locator | Reason |
+|---|---|---|---|
+| `advanced-search-drawer.spec.ts` | `.flex-wrap .gap-1` | `getByTestId("search-filter-chips")` | Utility classes — must replace |
+| `breadcrumb.spec.ts` | `.ellipsis-menu` | `getByTestId("ellipsis-menu")` | Brittle class selector |
+| `fault-injection.spec.ts` | `.meta-error`, `.placeholder-text`, `.error-banner`, `.empty-state-container` | `getByTestId(...)` | Brittle class selectors |
+| `index-rebuild-flow.spec.ts` | `.rebuild-notice`, `.library-inspector .text-muted-foreground`, `.index-status-card` | `getByTestId(...)` | Brittle class selectors |
+| `index-status-panel.spec.ts` | `.lucide-database`, `.index-progress-bar`, `.index-status-badge` | `getByTestId(...)` | Brittle class selectors |
+| `library-inspector.spec.ts` | `.col-prompt .long-text-trigger`, `.col-prompt .long-text-preview`, `.col-name .thumb-button`, `.desktop-lightbox-counter` | `getByTestId(...)` | Brittle class selectors |
+| `mobile-lightbox-sheet.spec.ts` | `.mobile-photo-counter`, `.seed-row`, `.inline-copy-icon` | `getByTestId(...)` | Brittle class selectors |
+| `sidebar-trigger.spec.ts` | `locator("..").locator("..")` | `locator('[data-collapsible="icon"]')` | Fragile parent traversal |
+| `tailwind-phase0.spec.ts` | `.gallery-grid, .gallery-scroll-container` | `getByTestId("gallery-grid")` | Utility classes |
+| `tailwind-preflight.spec.ts` | `.tablet-header` | `getByTestId("tablet-header")` | Brittle class selector |
+| `tailwind-phase0.spec.ts` | `.brand-title` | **Kept** | Visual/layout contract |
+| `tailwind-phase0.spec.ts` | `.pswp__*` | **Kept** | PhotoSwipe DOM internals |
+| `index-rebuild-flow.spec.ts` | `.table-shell` | **Kept** | Layout contract |
+| `library-inspector.spec.ts` | `.table-shell` | **Kept** | Layout contract |
+| `metadata-performance.spec.ts` | `.metadata-table-shell` | **Kept** | Layout contract |
+| `lightbox.perf.spec.ts` | `.pswp__img` | **Kept** | PhotoSwipe DOM internals |
+
+### Production code changes (semantically neutral `data-testid` additions)
+
+13 Vue components received `data-testid` attributes where no `aria-label` or `role` existed:
+`SearchFilterChips`, `Breadcrumb`, `LightboxDesktopPanel`, `LightboxTabletPanel`, `LightboxMobileSheet`, `PhotoCard`, `GalleryGrid`, `LibraryInspector`, `IndexStatusCard`, `IndexProgressBar`, `IndexStatusBadge`, `Lightbox`, `TabletHeader`
+
+### Acceptance
+
+| Check | Result |
+|---|---|
+| No workflow depends on utility class names (`.flex-wrap`, `.gap-1`, etc.) | ✅ Replaced |
+| `pnpm lint:tests` | ✅ Pass (0 errors) |
+| `pnpm test:unit` | ✅ 74 files, 938 tests — all passed |

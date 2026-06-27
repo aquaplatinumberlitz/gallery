@@ -162,7 +162,7 @@ test.describe("SidebarTrigger", () => {
     const sidebarContainer = page.locator('[data-sidebar="sidebar"]');
     await expect(sidebarContainer).toBeVisible();
 
-    const desktopGroup = sidebarContainer.locator("..").locator("..");
+    const desktopGroup = page.locator('[data-collapsible="icon"]');
     const dataCollapsible = await desktopGroup.getAttribute("data-collapsible");
     expect(dataCollapsible).toBe("icon");
 
