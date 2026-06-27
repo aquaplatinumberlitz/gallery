@@ -170,6 +170,6 @@ describe("LibraryInspector extra", () => {
 
   it("renders sort select", () => {
     const wrapper = createWrapper();
-    expect(wrapper.find(".sort-select").exists()).toBe(true);
+    expect(wrapper.find('[aria-label="Sort metadata table"]').exists()).toBe(true);
   });
 });

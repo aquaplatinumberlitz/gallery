@@ -133,11 +133,11 @@ describe("LightboxMobileSheet", () => {
     const wrapper = createWrapper({ meta: makeMeta() });
     const paramsTab = wrapper.findAll("button").find((b) => b.text() === "Params");
     await paramsTab?.trigger("click");
-    expect(paramsTab?.classes()).toContain("active");
+    expect(wrapper.find('[aria-selected="true"]').exists()).toBe(true);
   });
 
   it("shows expand/collapse chevron", () => {
     const wrapper = createWrapper({ meta: makeMeta() });
-    expect(wrapper.find(".sheet-expand-toggle").exists()).toBe(true);
+    expect(wrapper.find('[aria-label="Expand metadata sheet"]').exists()).toBe(true);
   });
 });

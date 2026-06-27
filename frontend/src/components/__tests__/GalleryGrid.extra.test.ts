@@ -151,7 +151,7 @@ describe("GalleryGrid extra", () => {
 
   it("shows desktop toolbar", () => {
     const wrapper = createWrapper();
-    expect(wrapper.find(".nav-btn").exists() || wrapper.find("[aria-label='Go back']").exists()).toBe(true);
+    expect(wrapper.find("[aria-label='Go back']").exists()).toBe(true);
   });
 
   it("renders back and forward navigation buttons", () => {

@@ -137,7 +137,7 @@ const closeMenu = () => {
   <BreadcrumbRoot v-click-outside="closeMenu" class="breadcrumb">
     <BreadcrumbList>
       <BreadcrumbItem>
-        <Home class="size-3.5 text-primary opacity-50 shrink-0" />
+        <Home class="size-3.5 text-primary opacity-50 shrink-0" data-testid="home-icon" />
       </BreadcrumbItem>
       <template v-if="allSegments.length">
         <template v-for="seg in visibleSegments" :key="seg.fullPath">

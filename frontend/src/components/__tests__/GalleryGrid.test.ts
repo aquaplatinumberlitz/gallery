@@ -249,7 +249,7 @@ describe("GalleryGrid", () => {
         },
       },
     });
-    expect(wrapper.find(".error-banner").exists() || wrapper.find("[role='alert']").exists()).toBe(true);
+    expect(wrapper.find("[role='alert']").exists()).toBe(true);
   });
 
   it("renders breadcrumb on desktop", async () => {
@@ -377,6 +377,6 @@ describe("GalleryGrid", () => {
         },
       },
     });
-    expect(wrapper.find(".sort-select").exists()).toBe(true);
+    expect(wrapper.find('[aria-label="Sort gallery"]').exists()).toBe(true);
   });
 });

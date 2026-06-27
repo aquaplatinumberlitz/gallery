@@ -74,7 +74,7 @@ describe("Breadcrumb", () => {
 
   it("renders ellipsis button when collapsed", () => {
     const wrapper = createWrapper({ path: "/a/b/c/d/e", maxVisible: 3 });
-    expect(wrapper.find(".ellipsis-btn").exists()).toBe(true);
+    expect(wrapper.find('[aria-label$="more folders"]').exists()).toBe(true);
   });
 
   it("opens ellipsis menu on button click", async () => {
@@ -124,7 +124,7 @@ describe("Breadcrumb", () => {
 
   it("renders home icon", () => {
     const wrapper = createWrapper({ path: "/test" });
-    expect(wrapper.find(".size-3\\.5").exists()).toBe(true);
+    expect(wrapper.find('[data-testid="home-icon"]').exists()).toBe(true);
   });
 
   it("does not collapse when path has exactly maxVisible segments", () => {

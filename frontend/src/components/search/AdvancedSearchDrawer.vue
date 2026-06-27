@@ -341,11 +341,12 @@ function applyAspectRatio(ratio: string) {
     <div
       v-if="isOpen"
       class="advanced-search-overlay"
+      data-testid="advanced-search-overlay"
       tabindex="-1"
       @click.self="handleCancel"
       @keydown.escape="handleCancel"
     >
-      <div class="advanced-search-drawer" role="dialog" aria-label="Advanced Search">
+      <div class="advanced-search-drawer" role="dialog" aria-label="Advanced Search" data-testid="advanced-search-drawer">
         <div class="advanced-search-header">
           <h2 class="text-base font-semibold">Advanced Search</h2>
           <Button variant="ghost" size="icon" type="button" aria-label="Close advanced search" @click="handleCancel">

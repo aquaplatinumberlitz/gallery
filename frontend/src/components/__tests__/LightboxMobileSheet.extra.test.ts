@@ -70,7 +70,7 @@ describe("LightboxMobileSheet extra", () => {
 
   it("shows loading spinner when loading", () => {
     const wrapper = createWrapper({ isLoading: true, meta: null });
-    expect(wrapper.find(".lucide-spin").exists()).toBe(true);
+    expect(wrapper.text()).toContain("Loading info...");
   });
 
   it("shows error icon when no meta", () => {
@@ -102,6 +102,6 @@ describe("LightboxMobileSheet extra", () => {
 
   it("renders expand toggle button", () => {
     const wrapper = createWrapper({ meta: makeMeta() });
-    expect(wrapper.find(".sheet-expand-toggle").exists()).toBe(true);
+    expect(wrapper.find('[aria-label="Expand metadata sheet"]').exists()).toBe(true);
   });
 });

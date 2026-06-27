@@ -48,7 +48,7 @@ describe("AdvancedSearchDrawer", () => {
 
   it("renders the drawer when isOpen is true", () => {
     const wrapper = createWrapper();
-    expect(wrapper.find(".advanced-search-drawer").exists()).toBe(true);
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(true);
   });
 
   it("renders the advanced search title", () => {
@@ -110,7 +110,7 @@ describe("AdvancedSearchDrawer", () => {
 
   it("emits close when cancel is clicked through overlay", async () => {
     const wrapper = createWrapper();
-    const overlay = wrapper.find(".advanced-search-overlay");
+    const overlay = wrapper.find('[data-testid="advanced-search-overlay"]');
     if (overlay.exists()) {
       await overlay.trigger("click");
       expect(wrapper.emitted("close")).toBeTruthy();
@@ -119,7 +119,7 @@ describe("AdvancedSearchDrawer", () => {
 
   it("does not render when isOpen is false", () => {
     const wrapper = createWrapper({ isOpen: false });
-    expect(wrapper.find(".advanced-search-drawer").exists()).toBe(false);
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
   });
 
   it("renders sampler and scheduler fields", () => {

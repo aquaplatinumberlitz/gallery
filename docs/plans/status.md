@@ -58,7 +58,7 @@ Commands run and recorded:
 - Made mock data mutable per-test via module-level variables
 - Deleted `LibraryDetailPage.extra.test.ts`
 
-### Acceptance Verification
+### Acceptance Verification (initial)
 
 | Check | Result |
 |---|---|
@@ -67,3 +67,36 @@ Commands run and recorded:
 | `pnpm test:unit` | ✅ 74 files, 938 tests — all passed (939 before removing redundant highlight test in round 2) |
 | `audit_test_matrix.py --fail-on-gaps` | ✅ Pass (exit 0) |
 | No uncataloged `.extra.test.ts` files | ✅ Files deleted |
+
+## Phase 2 — Component Test Cleanup ✅
+
+### Summary
+
+Applied cleanup rules across all component tests under `frontend/src/components/**`:
+
+| Rule | Action |
+|---|---|
+| Remove `wrapper.vm` private access | Only `$nextTick` calls remain (3 total, all allowed per plan) |
+| Replace CSS class selectors with semantic alternatives | `.ellipsis-btn` → `[aria-label$="more folders"]`, `.sort-select` → `[aria-label="Sort gallery"]` / `[aria-label="Sort metadata table"]`, `.sheet-expand-toggle` → `[aria-label="Expand metadata sheet"]`, `.advanced-search-drawer` → `[role="dialog"]` |
+| Remove redundant class fallback selectors | `.error-banner` / `.nav-btn` CSS fallbacks removed; kept only the semantic `role`/`aria-label` selectors |
+| Keep class assertions for layout contracts | `IndexProgressBar` fill width (`.index-progress-bar__fill` style), `EmptyState` `.compact` class and `.icon-spin` animation |
+| Add `data-testid` where no public selector existed | Home icon in Breadcrumb, overlay in AdvancedSearchDrawer, drawer div in AdvancedSearchDrawer |
+| Add `aria-selected` for tab selection testability | LightboxMobileSheet tab buttons now use `aria-selected` instead of `classes() active` |
+| Replace `.lucide-spin` with text content check | `wrapper.find(".lucide-spin")` → `wrapper.text().toContain("Loading info...")` |
+
+### Production code changes (semantically neutral)
+
+| File | Change |
+|---|---|
+| `frontend/src/components/Breadcrumb.vue` | Added `data-testid="home-icon"` to Home icon |
+| `frontend/src/components/search/AdvancedSearchDrawer.vue` | Added `data-testid="advanced-search-overlay"` to overlay div and `data-testid="advanced-search-drawer"` to drawer div |
+| `frontend/src/components/LightboxMobileSheet.vue` | Added `role="tablist"` to tab container and `:aria-selected` to each tab button |
+
+### Acceptance Verification
+
+| Check | Result |
+|---|---|
+| `rg -n "wrapper\\.vm" frontend/src -g '*.test.ts'` | No private state/method usage — only `$nextTick` calls in `LibraryDetailPage.test.ts` (1) and `LightboxMobileSheet.test.ts` (2) |
+| `pnpm lint:tests` | ✅ Pass (0 errors) |
+| `pnpm test:unit` | ✅ 74 files, 938 tests — all passed |
+| `audit_test_matrix.py --fail-on-gaps` | ✅ Pass (exit 0) |
