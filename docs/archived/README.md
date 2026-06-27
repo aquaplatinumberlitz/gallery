@@ -22,3 +22,4 @@ Notable groups include:
 - Utility Library Migration — 12-item, 6-phase migration (clipboard, debounce, device breakpoints, focus trap → Reka FocusScope, column resize, natural sort, Axios interceptor, event listeners, localStorage, formatBytes), plus follow-up deferred cleanups for GalleryGrid intersection observer and scroll visibility mechanics.
 - Historical performance comparison and deprecated testing strategy.
 - Evolution and upstream-adaptation roadmaps retained for design context.
+- Completed Frontend Test Quality Refactor — 9-phase plan covering: baseline audit, 3 extra test file merges (Phase 1), component test cleanup (Phase 2), Playwright wait refactor (86→8 sleeps, Phase 3), locator refactor with 15 data-testid additions (Phase 4), catalog alignment (Phase 5), residual wait cleanup (22→5, Phase 6), residual selector cleanup (Phase 7), final docs (Phase 8), and test diet (−4 files, −28 tests, Phase 9).
