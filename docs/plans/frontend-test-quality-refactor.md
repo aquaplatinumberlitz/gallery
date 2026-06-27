@@ -1,6 +1,6 @@
 # Frontend Test Quality Refactor Plan
 
-Status: Proposed
+Status: Active - follow-up phases proposed
 
 Last reviewed: 2026-06-27
 
@@ -13,7 +13,7 @@ The goal is not to increase test count. The goal is to keep useful regression
 coverage while making tests behavior-first, deterministic, and less coupled to
 component internals.
 
-Current audit findings:
+Original audit findings:
 
 - Three untracked component test files are not cataloged and currently make
   `python3 scripts/audit_test_matrix.py --fail-on-gaps` fail:
@@ -29,6 +29,19 @@ Current audit findings:
 - Large component tests sometimes mock too much of the app stack, creating
   brittle "mock universe" tests rather than integration tests around public
   behavior.
+
+Current follow-up audit after Phases 0-5:
+
+- `wrapper.vm` usage has been reduced to harmless `$nextTick` calls only; no
+  retained component test should read private state or call private methods.
+- The test catalog and generated gap reports are aligned: 0 uncataloged
+  important files, 0 missing catalog files, and 0 matrix gaps.
+- Several non-perf Playwright specs still contain `waitForTimeout()` calls that
+  should be replaced with observable UI, network, or polling waits where
+  possible.
+- A small set of CSS/class selectors remains in component and workflow tests.
+  Keep them only when they are explicit layout, visual, perf, or third-party DOM
+  contracts; otherwise replace them with role, label, text, or test id locators.
 
 ## Refactor Principles
 
@@ -230,6 +243,113 @@ Acceptance:
 - No uncataloged important frontend test files remain.
 - Test catalog entries match files on disk.
 
+### Phase 6 - Residual Playwright Wait Cleanup
+
+Clean up remaining fixed sleeps in non-perf, non-visual Playwright workflow
+tests. Do not chase a zero grep count; some visual, real-backend, and perf waits
+are intentional timing contracts.
+
+Priority files:
+
+- `frontend/tests/e2e/sidebar-trigger.spec.ts`
+- `frontend/tests/e2e/fault-injection.spec.ts`
+- `frontend/tests/e2e/lightbox-loading-policy.spec.ts`
+- `frontend/tests/e2e/responsive-breakpoints.spec.ts`
+- `frontend/tests/e2e/library-inspector.spec.ts`
+
+Replacement rules:
+
+- After sidebar toggle actions, wait on `aria-label`, `data-state`,
+  localStorage, or bounding-box changes with web-first assertions or
+  `expect.poll`.
+- After fault-injection actions, wait for request arrays, endpoint responses,
+  visible fallback UI, or stable lightbox/gallery state.
+- After lightbox loading policy actions, wait for endpoint request counts and
+  visible lightbox/image state.
+- After viewport changes, wait for observable layout/card metrics rather than a
+  fixed delay.
+- If a short sleep is intentionally a negative assertion window, debounce
+  settling window, or PhotoSwipe animation buffer, keep it with an inline comment
+  that names the timing contract.
+
+Keep fixed waits, with comments where practical, in:
+
+- `frontend/tests/e2e/metadata-performance.spec.ts`
+- `frontend/tests/e2e/lightbox-visual-layer.spec.ts`
+- `frontend/tests/e2e/tailwind-preflight.spec.ts` PhotoSwipe animation checks
+- `frontend/tests/e2e/gallery-no-reload-real-backend.spec.ts`
+- `frontend/tests/e2e/perf/**`
+
+Acceptance:
+
+- Touched non-perf/non-visual specs no longer use fixed sleeps when an
+  observable condition exists.
+- Any remaining `waitForTimeout()` in touched specs is documented as timing,
+  visual, perf, debounce, or negative-assertion behavior.
+- Touched Playwright specs pass individually on Chromium, run sequentially with
+  `--workers=1` when multiple specs are included.
+
+### Phase 7 - Residual Component Selector Cleanup
+
+Clean up remaining CSS/class selectors in component tests, while preserving
+explicit layout/style contracts.
+
+Priority replacements:
+
+- `.gallery-grid` -> `data-testid="gallery-grid"` in GalleryGrid tests.
+- Stub-only `.status-card` -> a stub `data-testid`, not a class selector.
+- `.dropdown-item` in AppHeader tests -> visible text, role, or test id exposed
+  by the menu stub.
+- `.skeleton` -> visible loading text, a stable loading container test id, or a
+  documented skeleton contract.
+- `.fs-controls` -> semantic fullscreen-control assertion, stable test id, or a
+  documented hidden-controls contract.
+
+Keep class selectors only when the class is the behavior under test, such as:
+
+- `IndexProgressBar` fill width (`.index-progress-bar__fill` style contract).
+- `EmptyState` compact/spin visual state.
+- Other explicitly documented layout/style contracts.
+
+Acceptance:
+
+- Remaining component-test class selectors are either removed or listed as
+  intentional layout/style contracts.
+- No component test reads private state or calls private methods through
+  `wrapper.vm`.
+- `cd frontend && pnpm lint:tests` and targeted Vitest files pass before broader
+  unit validation.
+
+### Phase 8 - Final Documentation And Reports
+
+Update documentation after Phases 6-7.
+
+Tasks:
+
+- Update `docs/plans/status.md` with Phase 6 and Phase 7 results, including any
+  intentional remaining waits or selector exceptions.
+- Update `docs/testing/TEST_CATALOG.md` only if files are retained, renamed,
+  merged, added, or removed.
+- Run:
+
+```bash
+cd frontend && pnpm lint:tests
+cd frontend && pnpm test:unit
+python3 scripts/audit_test_matrix.py --fail-on-gaps
+```
+
+- Commit regenerated `docs/testing/test-gap-report.md` and
+  `docs/testing/test-gap-report.json` only if `audit_test_matrix.py` is run to
+  final tracked outputs and passes.
+
+Acceptance:
+
+- `python3 scripts/audit_test_matrix.py --fail-on-gaps` exits 0.
+- `docs/plans/status.md` matches the actual remaining wait/selector exceptions.
+- Generated reports are updated only when intentionally regenerated.
+- `git status --short` contains only intentional plan, test, production-hook, or
+  generated-report changes.
+
 ## Validation Plan
 
 Component/unit validation:
@@ -248,6 +368,19 @@ cd frontend && corepack pnpm exec playwright test tests/e2e/gallery-no-reload.sp
 ```
 
 Add any other touched E2E specs to the targeted command.
+
+Phase 6 follow-up validation:
+
+```bash
+cd frontend && corepack pnpm exec playwright test tests/e2e/sidebar-trigger.spec.ts --project=chromium
+cd frontend && corepack pnpm exec playwright test tests/e2e/fault-injection.spec.ts --project=chromium
+cd frontend && corepack pnpm exec playwright test tests/e2e/lightbox-loading-policy.spec.ts --project=chromium
+cd frontend && corepack pnpm exec playwright test tests/e2e/responsive-breakpoints.spec.ts --project=chromium
+cd frontend && corepack pnpm exec playwright test tests/e2e/library-inspector.spec.ts --project=chromium
+```
+
+When combining multiple Playwright specs locally, run with `--workers=1` to
+avoid dev-server and shared-fixture races.
 
 Final validation:
 
@@ -276,6 +409,10 @@ If E2E helpers, route stubs, or broad user workflows changed, also run:
 - Selectors in touched workflow tests follow role/label/text/test-id preference.
 - Useful regression coverage is preserved; duplicate implementation-only tests
   are removed or rewritten.
+- Remaining `waitForTimeout()` calls are limited to documented timing, visual,
+  perf, real-backend, debounce, or negative-assertion contracts.
+- Remaining component-test class selectors are documented layout/style contracts
+  or are covered by a follow-up issue before the plan is closed.
 
 ## Notes For Opencode
 
