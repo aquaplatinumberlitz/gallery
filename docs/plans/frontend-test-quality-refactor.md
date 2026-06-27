@@ -13,6 +13,10 @@ The goal is not to increase test count. The goal is to keep useful regression
 coverage while making tests behavior-first, deterministic, and less coupled to
 component internals.
 
+Coverage percentage is informational for frontend tests. Do not add or keep
+tests just to raise Vitest line coverage; prefer fewer tests that protect
+observable behavior over many tests that only exercise render branches.
+
 Original audit findings:
 
 - Three untracked component test files are not cataloged and currently make
@@ -47,6 +51,8 @@ Current follow-up audit after Phases 0-5:
 
 - Preserve valuable behavior coverage; remove duplicate or implementation-only
   tests.
+- Optimize for regression signal, not test count or frontend coverage
+  percentage.
 - Test public behavior: visible DOM, accessible controls, props, emitted events,
   observable store/composable state, request shape, and user-visible effects.
 - Do not add `@pinia/testing`; keep the repo's current
@@ -320,7 +326,7 @@ Acceptance:
 - `cd frontend && pnpm lint:tests` and targeted Vitest files pass before broader
   unit validation.
 
-### Phase 8 - Final Documentation And Reports
+### Phase 8 - Documentation And Reports After Phases 6-7
 
 Update documentation after Phases 6-7.
 
@@ -349,6 +355,73 @@ Acceptance:
 - Generated reports are updated only when intentionally regenerated.
 - `git status --short` contains only intentional plan, test, production-hook, or
   generated-report changes.
+
+### Phase 9 - Frontend Test Diet And Signal Cleanup
+
+After the selector/wait cleanup, reduce low-signal frontend tests that were
+kept mainly for coverage completion. The purpose is to make the suite easier to
+maintain without reducing meaningful regression coverage.
+
+Tasks:
+
+- Delete or merge no-op tests, especially tests with empty bodies or comments
+  such as "skip this test for now".
+- Remove duplicate component tests that assert the same static render contract
+  already covered by a stronger component test or an E2E workflow.
+- Collapse repetitive section-heading smoke tests into one overview test unless
+  the section has distinct conditional behavior.
+- Rewrite misleading tests whose title claims a behavior but the assertion only
+  checks `wrapper.exists()` or element existence.
+- Replace broad `wrapper.element.innerHTML` assertions with `wrapper.text()`,
+  role/label/test-id queries, or a targeted DOM assertion only when HTML markup
+  itself is the contract.
+- Keep tests that cover user-visible state transitions, emitted events, store
+  calls, API request shape, error/loading/empty states, layout contracts, and
+  browser workflows.
+
+Priority component files:
+
+- `frontend/src/components/__tests__/GalleryGrid.extra.test.ts`: remove the
+  empty tablet-toolbar test and merge or delete duplicate grid/toolbar/density
+  smoke checks already covered by `GalleryGrid.test.ts`.
+- `frontend/src/components/__tests__/Lightbox.extra.test.ts`: delete or rewrite
+  tests that only assert wrapper/existence while claiming keyboard, sidebar, or
+  style behavior.
+- `frontend/src/components/__tests__/LightboxMobileSheet.extra.test.ts`: merge
+  unique empty-state coverage into `LightboxMobileSheet.test.ts`; delete
+  duplicate loading/error/tab assertions.
+- `frontend/src/components/__tests__/LibraryInspector.extra.test.ts`: keep only
+  unique user-visible metadata/filter behavior; collapse static text/option
+  smoke assertions if already covered elsewhere.
+- `frontend/src/components/admin/__tests__/LibraryDetailPage.test.ts`: keep
+  edge/action coverage such as not found, loading, contract error, latest issue,
+  runtime/lifecycle, jobs, copy path, and scan action; collapse repetitive
+  "renders section" checks into a small overview test.
+
+E2E guidance:
+
+- Do not trim Playwright workflow tests solely because they overlap with
+  component tests; the browser layer protects routing, focus, CSS, storage, and
+  network behavior that jsdom cannot.
+- Keep perf, visual, real-backend, and PhotoSwipe-internal tests as diagnostic
+  coverage, but move them to a separate CI tier only if runtime becomes a
+  problem.
+- When touching `tailwind-phase0.spec.ts`, replace `.brand-title` with a
+  semantic locator if a stable role/text target exists.
+
+Acceptance:
+
+- The frontend suite may have fewer tests after this phase; no minimum test
+  count or 90% frontend Vitest coverage target is required.
+- Removed tests are duplicate, no-op, misleading, or implementation-only; any
+  unique behavior coverage is merged into a stronger nearby test.
+- Remaining `.extra.test.ts` files have a clear reason to exist, or are merged
+  into the primary test file.
+- `cd frontend && pnpm lint:tests` passes.
+- Targeted Vitest files touched by this phase pass; run full `pnpm test:unit`
+  if shared helpers or broad component fixtures change.
+- `python3 scripts/audit_test_matrix.py --fail-on-gaps` passes after any file
+  removals, renames, or catalog changes.
 
 ## Validation Plan
 
@@ -382,6 +455,22 @@ cd frontend && corepack pnpm exec playwright test tests/e2e/library-inspector.sp
 When combining multiple Playwright specs locally, run with `--workers=1` to
 avoid dev-server and shared-fixture races.
 
+Phase 9 follow-up validation:
+
+```bash
+cd frontend && pnpm lint:tests
+cd frontend && pnpm test:unit -- \
+  src/components/__tests__/GalleryGrid*.test.ts \
+  src/components/__tests__/Lightbox*.test.ts \
+  src/components/__tests__/LibraryInspector*.test.ts \
+  src/components/admin/__tests__/LibraryDetailPage.test.ts
+python3 scripts/audit_test_matrix.py --fail-on-gaps
+```
+
+If Phase 9 only removes or merges narrow component tests, targeted Vitest plus
+the catalog audit is sufficient before broader CI. Run full `pnpm test:unit`
+when shared test helpers, production components, or common stubs change.
+
 Final validation:
 
 ```bash
@@ -409,6 +498,9 @@ If E2E helpers, route stubs, or broad user workflows changed, also run:
 - Selectors in touched workflow tests follow role/label/text/test-id preference.
 - Useful regression coverage is preserved; duplicate implementation-only tests
   are removed or rewritten.
+- Frontend test count and Vitest coverage percentage are not treated as success
+  metrics; tests are kept only when they protect behavior or an explicit
+  contract.
 - Remaining `waitForTimeout()` calls are limited to documented timing, visual,
   perf, real-backend, debounce, or negative-assertion contracts.
 - Remaining component-test class selectors are documented layout/style contracts
