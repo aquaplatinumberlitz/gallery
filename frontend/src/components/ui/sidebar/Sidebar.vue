@@ -45,6 +45,7 @@ const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
   <div
     v-else
     class="group peer hidden md:block"
+    data-testid="sidebar-group"
     :data-state="state"
     :data-collapsible="state === 'collapsed' ? collapsible : ''"
     :data-variant="variant"
