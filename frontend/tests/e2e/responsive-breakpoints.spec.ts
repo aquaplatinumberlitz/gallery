@@ -251,7 +251,6 @@ test.describe("Layout transitions", () => {
 
     // Resize to mobile
     await page.setViewportSize({ width: 375, height: 812 });
-    await page.waitForTimeout(500);
 
     // Photo cards should still be present
     const cards = page.getByTestId("photo-card");
@@ -269,7 +268,6 @@ test.describe("Layout transitions", () => {
 
     // Resize to desktop
     await page.setViewportSize({ width: 1280, height: 820 });
-    await page.waitForTimeout(500);
 
     // Photo cards should still be present
     const cards = page.getByTestId("photo-card");

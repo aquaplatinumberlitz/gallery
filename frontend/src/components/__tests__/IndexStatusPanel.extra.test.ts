@@ -103,7 +103,7 @@ function createWrapper(props: Record<string, unknown> = {}) {
         TooltipTrigger: { template: "<span><slot /></span>" },
         TooltipContent: { template: "<span><slot /></span>" },
         IndexStatusBadge: { template: "<span class='status-badge'><slot /></span>" },
-        IndexStatusCard: { template: "<div class='status-card'><slot /></div>" },
+        IndexStatusCard: { template: "<div data-testid='status-card'><slot /></div>" },
       },
     },
   });
@@ -121,7 +121,7 @@ describe("IndexStatusPanel extra", () => {
 
   it("renders card variant", () => {
     const wrapper = createWrapper({ variant: "card" });
-    expect(wrapper.find(".status-card").exists()).toBe(true);
+    expect(wrapper.find('[data-testid="status-card"]').exists()).toBe(true);
   });
 
   it("renders popover button with Database icon", () => {

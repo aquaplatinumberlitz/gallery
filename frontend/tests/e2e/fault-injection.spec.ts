@@ -245,7 +245,7 @@ async function openGallery(page: Page, requests?: ApiRequest[]) {
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
 
   if (requests) {
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(500); // debounce settling window before clearing request log
     requests.length = 0;
   }
 }
@@ -261,20 +261,15 @@ test("search 500 shows fallback; no page error", async ({ page, monitoredErrors:
   const searchInput = page.locator("#gallery-search");
   await searchInput.fill("test-query");
   await searchInput.press("Enter");
-  await page.waitForTimeout(800);
+  await expect.poll(() => requestsFor(requests, "/api/search").length).toBeGreaterThanOrEqual(1);
 
   // The app should not crash - page should still have content
   const pageContent = await page.content();
   expect(pageContent.length).toBeGreaterThan(0);
 
-  // Verify search request was made (it failed with 500)
-  const searchRequests = requestsFor(requests, "/api/search");
-  expect(searchRequests.length).toBeGreaterThanOrEqual(1);
-
   // Clear search - gallery should restore
   await searchInput.fill("");
   await searchInput.press("Enter");
-  await page.waitForTimeout(500);
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 10_000 });
 });
 
@@ -289,11 +284,7 @@ test("metadata 500 shows placeholder in sidebar; lightbox still shows image", as
   // Open lightbox
   await page.getByTestId("photo-card").first().click();
   await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
-  await page.waitForTimeout(800);
-
-  // Metadata request should have been made (and failed)
-  const metadataRequests = requestsFor(requests, "/api/metadata");
-  expect(metadataRequests.length).toBeGreaterThanOrEqual(1);
+  await expect.poll(() => requestsFor(requests, "/api/metadata").length).toBeGreaterThanOrEqual(1);
 
   // Lightbox itself should still be visible with the image shown
   await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 5000 });
@@ -318,11 +309,7 @@ test("preview 500 falls back to original; no page error", async ({ page }) => {
   // Open lightbox — preview will fail, app should fall back to original
   await page.getByTestId("photo-card").first().click();
   await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
-  await page.waitForTimeout(1000);
-
-  // Preview request should have been attempted
-  const previewRequests = requestsFor(requests, "/api/preview");
-  expect(previewRequests.length).toBeGreaterThanOrEqual(1);
+  await expect.poll(() => requestsFor(requests, "/api/preview").length).toBeGreaterThanOrEqual(1);
 
   // Original image should have been requested as fallback
   const imageRequests = requestsFor(requests, "/api/image");
@@ -337,7 +324,7 @@ test("image 500 during zoom does not crash lightbox", async ({ page }) => {
   // Open lightbox
   await page.getByTestId("photo-card").first().click();
   await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
-  await page.waitForTimeout(800);
+  await expect.poll(() => requestsFor(requests, "/api/preview").length).toBeGreaterThanOrEqual(1);
 
   requests.length = 0;
 
@@ -346,11 +333,7 @@ test("image 500 during zoom does not crash lightbox", async ({ page }) => {
   await page.keyboard.down("Control");
   await page.mouse.wheel(0, -600);
   await page.keyboard.up("Control");
-  await page.waitForTimeout(800);
-
-  // Image request should have been attempted
-  const imageRequests = requestsFor(requests, "/api/image");
-  expect(imageRequests.length).toBeGreaterThanOrEqual(1);
+  await expect.poll(() => requestsFor(requests, "/api/image").length).toBeGreaterThanOrEqual(1);
 
   // Lightbox must NOT have crashed
   await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 5000 });
@@ -361,12 +344,8 @@ test("thumbnail 500 shows placeholder in grid; no page error", async ({ page }) 
   const requests = await installGalleryWithFaults(page, { failThumbnail: true });
   await openGallery(page);
 
-  // Wait for thumbnails to be requested
-  await page.waitForTimeout(1000);
-
   // Thumbnail requests should have been made
-  const thumbnailRequests = requestsFor(requests, "/api/thumbnail");
-  expect(thumbnailRequests.length).toBeGreaterThanOrEqual(1);
+  await expect.poll(() => requestsFor(requests, "/api/thumbnail").length).toBeGreaterThanOrEqual(1);
 
   // Photo cards should still be present (with placeholder state)
   const cards = page.getByTestId("photo-card");
@@ -391,24 +370,13 @@ test("browse 500 shows error message; no page error", async ({ page }) => {
   });
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
-  await page.waitForTimeout(3000);
 
   // The app should show an error banner or error state (not a blank/white page)
-  // Check for either error banner or empty-state with error type
-  const errorBanner = page.getByTestId("error-banner");
-  const emptyState = page.getByTestId("empty-state-container");
-  const pageContent = await page.content();
-
-  const hasErrorBanner = await errorBanner.isVisible({ timeout: 3000 }).catch(() => false);
-  const hasEmptyState = await emptyState.isVisible({ timeout: 2000 }).catch(() => false);
+  await expect(page.getByTestId("error-banner").or(page.getByTestId("empty-state-container"))).toBeVisible({ timeout: 10_000 });
 
   // At minimum, the page must not be blank/crashed
+  const pageContent = await page.content();
   expect(pageContent.length).toBeGreaterThan(100);
-
-  // Verify either error banner, empty state, or error message is shown
-  const hasErrorMessage =
-    pageContent.includes("Unable to load") || pageContent.includes("An unexpected error occurred");
-  expect(hasErrorBanner || hasEmptyState || hasErrorMessage).toBe(true);
 });
 
 // ─── 2g: Network offline during lightbox ───
@@ -419,7 +387,7 @@ test("network offline during lightbox shows error state; no crash", async ({ pag
   // Open lightbox successfully
   await page.getByTestId("photo-card").first().click();
   await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
-  await page.waitForTimeout(500);
+  await page.waitForTimeout(500); // PhotoSwipe animation buffer before going offline
 
   // Go offline
   await page.context().setOffline(true);
@@ -429,7 +397,7 @@ test("network offline during lightbox shows error state; no crash", async ({ pag
   const nextBtn = page.locator('[data-testid="lightbox-next"]');
   if (await nextBtn.isVisible().catch(() => false)) {
     await nextBtn.click();
-    await page.waitForTimeout(1000);
+    await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 5000 });
   }
 
   // Lightbox must still be visible (not crashed)

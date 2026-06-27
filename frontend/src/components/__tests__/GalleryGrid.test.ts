@@ -181,7 +181,7 @@ describe("GalleryGrid", () => {
         },
       },
     });
-    expect(wrapper.find(".gallery-grid").exists()).toBe(true);
+    expect(wrapper.find('[data-testid="gallery-grid"]').exists()).toBe(true);
   });
 
   it("shows loading badge when loading", async () => {

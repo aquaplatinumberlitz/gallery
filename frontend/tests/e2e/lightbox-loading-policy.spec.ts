@@ -211,10 +211,9 @@ test.use({ viewport: { width: 1280, height: 820 } });
 test("grid requests 512 thumbnails only", async ({ page }) => {
   const requests = await installStubbedGallery(page);
   await openStubbedGallery(page, requests);
-  await page.waitForTimeout(300);
+  await expect.poll(() => requestsFor(requests, "/api/thumbnail").length).toBeGreaterThanOrEqual(3);
 
   const thumbnailRequests = requestsFor(requests, "/api/thumbnail");
-  expect(thumbnailRequests.length).toBeGreaterThanOrEqual(3);
   expect(thumbnailRequests.every((request) => request.maxLongEdge === "512")).toBe(true);
   expect(requestsFor(requests, "/api/preview")).toHaveLength(0);
   expect(requestsFor(requests, "/api/image")).toHaveLength(0);
@@ -225,9 +224,7 @@ test("normal lightbox open uses thumbnail and preview without original", async (
   await openStubbedGallery(page, requests);
   await openLightbox(page, requests);
   await expect.poll(() => requestsFor(requests, "/api/thumbnail").length).toBeGreaterThan(0);
-  await page.waitForTimeout(500);
-
-  expect(requestsFor(requests, "/api/preview").length).toBeGreaterThan(0);
+  await expect.poll(() => requestsFor(requests, "/api/preview").length).toBeGreaterThan(0);
   expect(requestsFor(requests, "/api/thumbnail").every((request) => request.maxLongEdge === "512")).toBe(true);
   expect(requestsFor(requests, "/api/preview").every((request) => request.maxLongEdge === "1440")).toBe(true);
   expect(requestsFor(requests, "/api/image")).toHaveLength(0);
@@ -347,7 +344,7 @@ test("next and previous preload thumbnail plus preview only", async ({ page }) =
   await expect.poll(() => requestedPath(requests, "/api/preview", imagePaths[2])).toBe(true);
   await expect.poll(() => requestedPath(requests, "/api/thumbnail", imagePaths[0])).toBe(true);
   await expect.poll(() => requestedPath(requests, "/api/thumbnail", imagePaths[2])).toBe(true);
-  await page.waitForTimeout(500);
+  await page.waitForTimeout(500); // negative assertion window: verify no original image requests during preload
 
   expect(requestsFor(requests, "/api/image")).toHaveLength(0);
 });

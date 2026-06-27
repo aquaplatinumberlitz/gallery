@@ -171,13 +171,13 @@ describe("IndexStatusPanel", () => {
       global: {
         plugins: [[VueQueryPlugin, { queryClient }]],
         stubs: {
-          IndexStatusCard: { template: "<div class='status-card'>Card Content</div>" },
+          IndexStatusCard: { template: "<div data-testid='status-card'>Card Content</div>" },
           Button: { template: "<button><slot /></button>" },
           Badge: { template: "<span><slot /></span>" },
         },
       },
     });
-    expect(wrapper.find(".status-card").exists()).toBe(true);
+    expect(wrapper.find('[data-testid="status-card"]').exists()).toBe(true);
   });
 
   it("shows loading state", async () => {

@@ -474,13 +474,13 @@ test.describe("LibraryInspector", () => {
     await page.keyboard.press("ArrowRight");
     await expect.poll(() => photoMetadataPaths(requests).slice(-1)[0]).toBe(baseRows[1].path);
     await expect(page.getByTestId("desktop-lightbox-counter")).toContainText(`2 / ${baseRows.length}`);
-    await page.waitForTimeout(100);
+    await page.waitForTimeout(100); // debounce settling window after lightbox navigation
     expect(photoMetadataPaths(requests).slice(-1)[0]).toBe(baseRows[1].path);
 
     await page.keyboard.press("ArrowRight");
     await expect.poll(() => photoMetadataPaths(requests).slice(-1)[0]).toBe(baseRows[2].path);
     await expect(page.getByTestId("desktop-lightbox-counter")).toContainText(`3 / ${baseRows.length}`);
-    await page.waitForTimeout(100);
+    await page.waitForTimeout(100); // debounce settling window after lightbox navigation
     expect(photoMetadataPaths(requests).slice(-1)[0]).toBe(baseRows[2].path);
 
     expect(lightboxNavEvents.some((event) => event.event === "lightbox-keyboard-next")).toBe(false);

@@ -155,8 +155,6 @@ test.describe("SidebarTrigger", () => {
     await expect(trigger).toHaveAttribute("aria-label", "Collapse sidebar");
 
     await trigger.click();
-    await page.waitForTimeout(500);
-
     await expect(trigger).toHaveAttribute("aria-label", "Expand sidebar");
 
     const sidebarContainer = page.locator('[data-sidebar="sidebar"]');
@@ -183,8 +181,6 @@ test.describe("SidebarTrigger", () => {
     await expect(trigger).toHaveAttribute("aria-label", "Collapse sidebar");
 
     await trigger.click();
-    await page.waitForTimeout(500);
-
     await expect(trigger).toHaveAttribute("aria-label", "Expand sidebar");
   });
 
@@ -192,14 +188,11 @@ test.describe("SidebarTrigger", () => {
     const trigger = page.locator('[data-sidebar="trigger"]');
     await expect(trigger).toBeVisible({ timeout: 5_000 });
 
-    let sidebarState = await page.evaluate(() => localStorage.getItem("gallery-sidebar-open"));
+    const sidebarState = await page.evaluate(() => localStorage.getItem("gallery-sidebar-open"));
     expect(sidebarState).toBe("true");
 
     await trigger.click();
-    await page.waitForTimeout(500);
-
-    sidebarState = await page.evaluate(() => localStorage.getItem("gallery-sidebar-open"));
-    expect(sidebarState).toBe("false");
+    await expect.poll(async () => page.evaluate(() => localStorage.getItem("gallery-sidebar-open"))).toBe("false");
 
     await expect(trigger).toHaveAttribute("aria-label", "Expand sidebar");
   });
@@ -214,10 +207,9 @@ test.describe("SidebarTrigger", () => {
     expect(initialBox!.width).toBeGreaterThan(100);
 
     await trigger.click();
-    await page.waitForTimeout(600);
-
-    const collapsedBox = await sidebarContainer.boundingBox();
-    expect(collapsedBox).not.toBeNull();
-    expect(collapsedBox!.width).toBeLessThan(100);
+    await expect.poll(async () => {
+      const box = await sidebarContainer.boundingBox();
+      return box?.width ?? 0;
+    }).toBeLessThan(100);
   });
 });
