@@ -26,6 +26,36 @@ For Vue/Vite code, use Vitest for fast unit and component coverage. Use
 Playwright for browser workflows, real DOM behavior, route navigation, and
 regression tests that need browser APIs beyond jsdom.
 
+## Tool Recommendations
+
+The Vue testing guide recommends different tools for different test layers:
+
+- Unit tests: use Vitest for Vue/Vite projects because it shares the same
+  Vite-powered transform pipeline and fits Vue Single-File Component projects.
+- Component tests in a headless DOM: use Vitest with Vue Test Utils when the
+  component can be verified in jsdom or happy-dom.
+- Component tests that depend on real browser rendering, native events, CSS, or
+  layout behavior: use a browser-based component test runner such as Cypress
+  Component Testing. This repo does not currently use Cypress component tests;
+  use Playwright E2E when real-browser confidence is needed.
+- Component mounting utilities: Vue Test Utils is the official low-level Vue
+  component testing library. `@testing-library/vue` is also available in this
+  repo for user-centric component assertions when its query style better fits
+  the test.
+- E2E tests: use a real browser runner. Vue lists Playwright and Cypress as
+  recommended modern options, with Nightwatch and WebdriverIO as additional
+  WebDriver-based alternatives. This repo standardizes on Playwright.
+
+Current repo choices:
+
+- Vitest + jsdom for `frontend/src/**/__tests__/**/*.test.ts`.
+- Vue Test Utils for most component mounting.
+- `@testing-library/vue` for small user-centric component tests where role/text
+  queries are clearer.
+- Pinia with `setActivePinia(createPinia())`; no `@pinia/testing` dependency.
+- Playwright Chromium for functional E2E and performance tests under
+  `frontend/tests/e2e`.
+
 Prefer tests that assert behavior and public interface:
 
 - visible DOM output
