@@ -131,9 +131,14 @@ describe("LightboxMobileSheet", () => {
 
   it("sets ActiveState change on the params button", async () => {
     const wrapper = createWrapper({ meta: makeMeta() });
-    const paramsTab = wrapper.findAll("button").find((b) => b.text() === "Params");
-    await paramsTab?.trigger("click");
-    expect(wrapper.find('[aria-selected="true"]').exists()).toBe(true);
+    const paramsTab = wrapper.find('[data-testid="tab-params"]');
+    const promptTab = wrapper.find('[data-testid="tab-prompt"]');
+    expect(promptTab.classes()).toContain("active");
+    expect(paramsTab.classes()).not.toContain("active");
+
+    await paramsTab.trigger("click");
+    expect(paramsTab.classes()).toContain("active");
+    expect(promptTab.classes()).not.toContain("active");
   });
 
   it("shows expand/collapse chevron", () => {
