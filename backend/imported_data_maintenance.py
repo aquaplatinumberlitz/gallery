@@ -2,32 +2,29 @@
 
 from __future__ import annotations
 
-import threading
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
+from .catalog_maintenance_gate import MaintenanceGateBusy, maintenance_gate
 from .derivative_scheduler import scheduler
 from .errors import APIError
 from .library_events import event_payload, publish
-from .metadata_store import _DB_LOCK, _connect, create_job, list_libraries, update_job_state
+from .metadata_store import _DB_LOCK, CatalogJobConflict, _connect, create_job, list_libraries, update_job_state
 from .metadata_store._schema import initialize_database
 from .scan_worker import queue_rebuild
 
-_MAINTENANCE_LOCK = threading.Lock()
 RESET_CONFIRM_PHRASE = "RESET CATALOG DATABASE"
 
 
 @contextmanager
 def _maintenance_operation() -> Iterator[None]:
-    acquired = _MAINTENANCE_LOCK.acquire(blocking=False)
-    if not acquired:
-        raise APIError(409, "maintenance_busy", "Another maintenance operation is active")
     try:
-        yield
-    finally:
-        _MAINTENANCE_LOCK.release()
+        with maintenance_gate():
+            yield
+    except MaintenanceGateBusy as exc:
+        raise APIError(409, "maintenance_busy", "Another maintenance operation is active") from exc
 
 
 def _require_confirm(confirm: bool) -> None:
@@ -176,7 +173,10 @@ def rebuild_imported_data(*, confirm: bool) -> dict[str, Any]:
 
         child_job_ids: list[int] = []
         for library in libraries:
-            job, _created = queue_rebuild(int(library["id"]), parent_job_id=int(parent["id"]))
+            try:
+                job, _created = queue_rebuild(int(library["id"]), parent_job_id=int(parent["id"]))
+            except CatalogJobConflict as exc:
+                raise APIError(409, "maintenance_busy", "Maintenance cannot run while jobs are active") from exc
             child_job_ids.append(int(job["id"]))
         running = update_job_state(
             int(parent["id"]),

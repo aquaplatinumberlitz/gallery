@@ -407,7 +407,7 @@ def test_asset_folder_metadata_excludes_offline_children(
     assert folder.cover_images == [str(visible.resolve())]
 
 
-def test_rebuild_api_returns_job_envelope(
+def test_rebuild_api_route_is_removed(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,
 ):
@@ -418,44 +418,7 @@ def test_rebuild_api_returns_job_envelope(
             f"/api/libraries/{library_id}/rebuild",
             json={"confirm": True},
         )
-    assert response.status_code == 202
-    body = response.json()
-    assert body["library_id"] == library_id
-    assert body["operation"] == "rebuild"
-    assert body["trigger"] == "manual"
-    assert body["state"] == "queued"
-    assert body["coalesced"] is False
-
-
-def test_rebuild_api_requires_confirmation(
-    isolated_metadata_db: Path,
-    isolated_gallery_root: Path,
-):
-    library_id = _register_library(isolated_gallery_root)
-    with TestClient(app) as client:
-        response = client.post(
-            f"/api/libraries/{library_id}/rebuild",
-            json={"confirm": False},
-        )
-    assert response.status_code == 400
-    assert response.json()["detail"]["error"] == "confirmation_required"
-
-
-def test_rebuild_api_rejects_out_of_library_scope(
-    isolated_metadata_db: Path,
-    isolated_gallery_root: Path,
-    tmp_path: Path,
-):
-    outside = tmp_path / "truly_outside"
-    outside.mkdir()
-    library_id = _register_library(isolated_gallery_root)
-    with TestClient(app) as client:
-        response = client.post(
-            f"/api/libraries/{library_id}/rebuild",
-            json={"confirm": True, "scope_path": str(outside)},
-        )
-    assert response.status_code == 400
-    assert response.json()["detail"]["error"] == "bad_request"
+    assert response.status_code in {404, 405}
 
 
 def test_manual_scan_partial_offline_returns_202(
@@ -480,37 +443,6 @@ def test_manual_scan_partial_offline_returns_202(
     assert response.status_code == 202
     body = response.json()
     assert body["operation"] == "scan"
-    assert body["state"] == "queued"
-    stored = get_library(library_id)
-    assert stored is not None
-    assert stored["state"] != "offline"
-
-
-def test_rebuild_partial_offline_returns_202(
-    isolated_metadata_db: Path,
-    isolated_gallery_root: Path,
-):
-    first = isolated_gallery_root / "first"
-    second = isolated_gallery_root / "second"
-    offline = isolated_gallery_root / "offline"
-    first.mkdir()
-    second.mkdir()
-    offline.mkdir()
-    create_test_png(first / "a.png")
-    create_test_png(second / "b.png")
-    library_id = _register_library(first)
-    update_library(library_id, import_paths=[first, second, offline])
-    offline.rmdir()
-
-    with TestClient(app) as client:
-        response = client.post(
-            f"/api/libraries/{library_id}/rebuild",
-            json={"confirm": True},
-        )
-
-    assert response.status_code == 202
-    body = response.json()
-    assert body["operation"] == "rebuild"
     assert body["state"] == "queued"
     stored = get_library(library_id)
     assert stored is not None

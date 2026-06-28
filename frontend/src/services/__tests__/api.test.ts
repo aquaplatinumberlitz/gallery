@@ -52,7 +52,6 @@ import {
   listFolderChildren,
   LIBRARY_ERRORS,
   openFolder,
-  rebuildLibrary,
   rebuildImportedData,
   resetCatalogDatabase,
   runFileHealthCheck,
@@ -372,22 +371,6 @@ describe("scanAllLibraries", () => {
     mockApi.post.mockResolvedValueOnce({ data: { libraries: [4] } });
     const r = await scanAllLibraries();
     expect(r).toEqual({ libraries: [4] });
-  });
-});
-
-describe("rebuildLibrary", () => {
-  it("without scope", async () => {
-    mockApi.post.mockResolvedValueOnce({ data: { state: "queued" } });
-    await rebuildLibrary(4);
-    expect(mockApi.post).toHaveBeenCalledWith("/api/libraries/4/rebuild", { confirm: true });
-  });
-  it("with scope", async () => {
-    mockApi.post.mockResolvedValueOnce({ data: { state: "queued" } });
-    await rebuildLibrary(4, "/p");
-    expect(mockApi.post).toHaveBeenCalledWith("/api/libraries/4/rebuild", {
-      confirm: true,
-      scope_path: "/p",
-    });
   });
 });
 

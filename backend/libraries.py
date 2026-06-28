@@ -15,6 +15,7 @@ from .errors import APIError, ErrorType
 from .library_events import event_payload, event_stream, publish
 from .metadata_store import (
     CatalogJobConflict,
+    CatalogMaintenanceBusy,
     LibraryOverlapError,
     catalog_path_contains,
     create_job,
@@ -35,7 +36,7 @@ from .metadata_store import (
 )
 from .metadata_store.status_store import CatalogStatusScopeError, build_catalog_status, build_library_status_batch
 from .paths import is_path_safe, resolve_path
-from .scan_worker import queue_initial_scan_job, queue_rebuild, queue_scan
+from .scan_worker import queue_initial_scan_job, queue_scan
 
 router = APIRouter()
 
@@ -67,15 +68,6 @@ class LibraryScanRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     scope_path: str | None = None
-
-
-class LibraryRebuildRequest(BaseModel):
-    """Confirmed manual catalog rebuild request."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    scope_path: str | None = None
-    confirm: bool = False
 
 
 def _trim_value(value: str) -> str:
@@ -374,7 +366,17 @@ async def api_scan_all_libraries():
         return {"job_id": parent["id"], "state": "succeeded", "child_job_ids": [], "count": 0}
     for library in libraries:
         library_id = int(library["id"])
-        job, created = await run_in_threadpool(_queue_scan, library_id, parent_job_id=parent["id"])
+        try:
+            job, created = await run_in_threadpool(_queue_scan, library_id, parent_job_id=parent["id"])
+        except CatalogMaintenanceBusy as exc:
+            await run_in_threadpool(
+                _set_job_state,
+                int(parent["id"]),
+                "failed",
+                message="Scan all not queued",
+                error="Maintenance operation is active",
+            )
+            raise APIError(409, "maintenance_busy", "Maintenance operation is active, try again later") from exc
         children.append((int(job["id"]), created))
     counters = {
         "total": len(children),
@@ -617,68 +619,8 @@ async def api_scan_library(library_id: int, payload: LibraryScanRequest | None =
                 },
             },
         ) from exc
-    if created:
-        await run_in_threadpool(update_library_state, library_id, "discovering")
-    return {
-        "job_id": job["id"],
-        "library_id": library_id,
-        "scope_path": job["scope_path"],
-        "operation": job["type"],
-        "trigger": job["trigger"],
-        "state": job["state"],
-        "coalesced": not created,
-    }
-
-
-@router.post("/api/libraries/{library_id}/rebuild", status_code=202)
-async def api_rebuild_library(library_id: int, payload: LibraryRebuildRequest | None = None):
-    """Queue a confirmed catalog rebuild that re-stages and atomically activates a scope."""
-    library = await run_in_threadpool(get_library, library_id)
-    if library is None:
-        raise APIError(404, ErrorType.NOT_FOUND, "Library not found")
-    confirm = payload.confirm if payload is not None else False
-    if not confirm:
-        raise APIError(400, "confirmation_required", "Rebuild requires explicit confirmation")
-    scope_path = payload.scope_path if payload is not None else None
-    import_paths = [str(Path(item["path"]).resolve()) for item in library["import_paths"]]
-    if scope_path is not None:
-        resolved_scope = str(Path(scope_path).resolve())
-        if not any(catalog_path_contains(root, resolved_scope) for root in import_paths):
-            raise APIError(400, ErrorType.BAD_REQUEST, "Rebuild scope is outside this library")
-    else:
-        resolved_scope = None
-    if resolved_scope is not None:
-        if not Path(resolved_scope).is_dir():
-            await run_in_threadpool(
-                update_library_state, library_id, "offline", last_error="Rebuild scope path is offline"
-            )
-            raise APIError(409, "library_offline", "Rebuild scope path is offline")
-    elif not any(Path(path).is_dir() for path in import_paths):
-        await run_in_threadpool(update_library_state, library_id, "offline", last_error="All import paths are offline")
-        raise APIError(409, "library_offline", "All library import paths are offline")
-    try:
-        job, created = await run_in_threadpool(
-            queue_rebuild,
-            library_id,
-            scope_path=resolved_scope,
-        )
-    except CatalogJobConflict as exc:
-        active = exc.active_job
-        raise APIError(
-            409,
-            "library_busy",
-            "Catalog work is already active for this library.",
-            extra={
-                "requested_operation": "rebuild",
-                "active_job": {
-                    "job_id": active["id"],
-                    "operation": active["type"],
-                    "trigger": active["trigger"],
-                    "state": active["state"],
-                    "scope_path": active["scope_path"],
-                },
-            },
-        ) from exc
+    except CatalogMaintenanceBusy as exc:
+        raise APIError(409, "maintenance_busy", "Maintenance operation is active, try again later") from exc
     if created:
         await run_in_threadpool(update_library_state, library_id, "discovering")
     return {
@@ -724,24 +666,3 @@ async def api_warm_derivatives(library_id: int = Query(..., ge=1)):
         raise APIError(404, ErrorType.NOT_FOUND, "Library not found")
     result = await run_in_threadpool(scheduler.warm_library, library_id)
     return {"library_id": library_id, "state": "queued", **result}
-
-
-@router.post("/api/derivatives/rebuild", status_code=202)
-async def api_rebuild_derivatives(
-    confirm: bool = Query(False, description="Must be true"),
-):
-    """Queue replacements for derivatives with changed source versions."""
-    if not confirm:
-        raise APIError(400, "confirmation_required", "Rebuild requires explicit confirmation")
-    stale = await run_in_threadpool(scheduler.rebuild_stale)
-    return {"stale_derivatives": stale, "state": "queued"}
-
-
-@router.post("/api/derivatives/clear")
-async def api_clear_derivatives(
-    confirm: bool = Query(False, description="Must be true"),
-):
-    """Clear the derivative catalog and persisted derivative files."""
-    if not confirm:
-        raise APIError(400, "confirmation_required", "Clear requires explicit confirmation")
-    return await run_in_threadpool(scheduler.clear_all)

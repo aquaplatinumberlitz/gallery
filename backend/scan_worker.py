@@ -8,10 +8,12 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+from .catalog_maintenance_gate import release_maintenance_gate, try_acquire_maintenance_gate
 from .config import GALLERY_CATALOG_JOB_MAX_QUEUE_WAIT_SECONDS, GALLERY_CATALOG_WORKERS
 from .indexer import dispatch_metadata_index_paths, rebuild_index_scope
 from .library_events import event_payload, publish
 from .metadata_store import (
+    CatalogMaintenanceBusy,
     activate_rebuild_staging,
     catalog_path_contains,
     claim_next_catalog_job,
@@ -91,20 +93,25 @@ def queue_scan(
     parent_job_id: int | None = None,
 ) -> tuple[dict[str, Any], bool]:
     """Create/coalesce a durable scan job and wake the worker."""
-    if trigger not in TRIGGER_PRIORITIES:
-        raise ValueError(f"Unsupported scan trigger: {trigger}")
-    job, created = create_or_coalesce_catalog_job(
-        library_id,
-        operation="scan",
-        trigger=trigger,
-        scope_path=scope_path,
-        priority=TRIGGER_PRIORITIES[trigger],
-        parent_job_id=parent_job_id,
-        message=f"{trigger.capitalize()} scan queued",
-    )
-    _emit_job(job)
-    notify_workers()
-    return job, created
+    if not try_acquire_maintenance_gate():
+        raise CatalogMaintenanceBusy()
+    try:
+        if trigger not in TRIGGER_PRIORITIES:
+            raise ValueError(f"Unsupported scan trigger: {trigger}")
+        job, created = create_or_coalesce_catalog_job(
+            library_id,
+            operation="scan",
+            trigger=trigger,
+            scope_path=scope_path,
+            priority=TRIGGER_PRIORITIES[trigger],
+            parent_job_id=parent_job_id,
+            message=f"{trigger.capitalize()} scan queued",
+        )
+        _emit_job(job)
+        notify_workers()
+        return job, created
+    finally:
+        release_maintenance_gate()
 
 
 def queue_rebuild(
@@ -118,18 +125,23 @@ def queue_rebuild(
     Raises ``CatalogJobConflict`` when catalog work is already running or
     another rebuild is queued/running for a covering scope.
     """
-    job, created = create_or_coalesce_catalog_job(
-        library_id,
-        operation="rebuild",
-        trigger="manual",
-        scope_path=scope_path,
-        priority=TRIGGER_PRIORITIES["manual"],
-        parent_job_id=parent_job_id,
-        message="Rebuild queued",
-    )
-    _emit_job(job)
-    notify_workers()
-    return job, created
+    if not try_acquire_maintenance_gate():
+        raise CatalogMaintenanceBusy()
+    try:
+        job, created = create_or_coalesce_catalog_job(
+            library_id,
+            operation="rebuild",
+            trigger="manual",
+            scope_path=scope_path,
+            priority=TRIGGER_PRIORITIES["manual"],
+            parent_job_id=parent_job_id,
+            message="Rebuild queued",
+        )
+        _emit_job(job)
+        notify_workers()
+        return job, created
+    finally:
+        release_maintenance_gate()
 
 
 def queue_initial_scan_job(job_id: int) -> None:
@@ -154,7 +166,11 @@ def queue_watcher_scan(scope_path: str | Path) -> dict[str, Any] | None:
     library = get_library_for_path(scope_path)
     if library is None:
         return None
-    job, _created = queue_scan(int(library["id"]), trigger="watcher", scope_path=scope_path)
+    try:
+        job, _created = queue_scan(int(library["id"]), trigger="watcher", scope_path=scope_path)
+    except CatalogMaintenanceBusy:
+        LOGGER.debug("Skipping watcher scan for %s while catalog maintenance is active", scope_path)
+        return None
     return job
 
 
@@ -162,7 +178,11 @@ def queue_scheduled_scans() -> list[dict[str, Any]]:
     """Queue one scheduled whole-library scan per registered library."""
     jobs: list[dict[str, Any]] = []
     for library in list_libraries():
-        job, _created = queue_scan(int(library["id"]), trigger="scheduled")
+        try:
+            job, _created = queue_scan(int(library["id"]), trigger="scheduled")
+        except CatalogMaintenanceBusy:
+            LOGGER.debug("Skipping scheduled scan for library %s while catalog maintenance is active", library["id"])
+            continue
         jobs.append(job)
     return jobs
 

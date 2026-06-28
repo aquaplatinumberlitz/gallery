@@ -2,15 +2,18 @@ import { useMutation, useQueryClient } from "@tanstack/vue-query";
 import { useToast } from "@/composables/useToast";
 import { queryKeys } from "@/query/keys";
 import { resetCatalogDatabase } from "@/services/api";
+import { useGalleryStore } from "@/stores/gallery";
 
 export function useCatalogResetMutation() {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const galleryStore = useGalleryStore();
 
   return useMutation({
     mutationFn: (confirmPhrase: string) => resetCatalogDatabase(confirmPhrase),
     onSuccess: () => {
       toast.success("Catalog database reset. Library registrations and imported data were removed.");
+      galleryStore.clearActiveLibrary();
       void Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.generatedImagesRoot() }),
         queryClient.invalidateQueries({ queryKey: queryKeys.librariesRoot() }),

@@ -53,6 +53,10 @@ class CatalogJobConflict(Exception):
         super().__init__("Catalog work is already active for this library.")
 
 
+class CatalogMaintenanceBusy(Exception):
+    """Raised when catalog work is requested during a maintenance operation."""
+
+
 class LibraryOverlapError(ValueError):
     """Raised when an import path overlaps another registered library."""
 

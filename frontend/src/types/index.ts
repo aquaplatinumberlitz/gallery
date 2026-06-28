@@ -323,16 +323,6 @@ export interface LibraryScanResponse {
   coalesced: boolean;
 }
 
-export interface LibraryRebuildResponse {
-  library_id: number;
-  job_id: number;
-  scope_path: string | null;
-  operation: "rebuild";
-  trigger: "manual";
-  state: "queued" | "running" | "succeeded" | "failed" | "cancelled";
-  coalesced: boolean;
-}
-
 export interface ScanAllLibrariesResponse {
   job_id: number;
   state: string;

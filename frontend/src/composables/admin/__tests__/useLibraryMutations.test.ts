@@ -7,7 +7,6 @@ import { queryKeys } from "@/query/keys";
 import {
   createLibrary,
   deleteLibrary,
-  rebuildLibrary,
   scanAllLibraries,
   scanLibrary,
   updateLibrary,
@@ -27,7 +26,6 @@ vi.mock("@/services/api", async () => {
     ...actual,
     createLibrary: vi.fn(),
     deleteLibrary: vi.fn(),
-    rebuildLibrary: vi.fn(),
     scanAllLibraries: vi.fn(),
     scanLibrary: vi.fn(),
     updateLibrary: vi.fn(),
@@ -61,15 +59,6 @@ beforeEach(() => {
     job_id: 8,
     scope_path: null,
     operation: "scan",
-    trigger: "manual",
-    state: "queued",
-    coalesced: false,
-  });
-  vi.mocked(rebuildLibrary).mockResolvedValue({
-    library_id: 3,
-    job_id: 14,
-    scope_path: null,
-    operation: "rebuild",
     trigger: "manual",
     state: "queued",
     coalesced: false,
@@ -108,19 +97,6 @@ describe("useLibraryMutations invalidation", () => {
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.libraryJobs(3) });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.jobsRoot() });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusLibrary(3) });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusPathRoot(3) });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusBatch() });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.browseRoot(3) });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.browseInfiniteRoot(3) });
-    wrapper.unmount();
-  });
-
-  it("invalidates status and browse queries after rebuild", async () => {
-    const { invalidate, mutations, wrapper } = setup();
-
-    await mutations.rebuildMutation.mutateAsync({ id: 3 });
-
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusLibrary(3) });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusPathRoot(3) });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusBatch() });

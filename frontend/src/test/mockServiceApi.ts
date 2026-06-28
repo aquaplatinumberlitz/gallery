@@ -73,7 +73,6 @@ export interface MockApiModule {
   updateLibrary: ReturnType<typeof vi.fn>;
   scanLibrary: ReturnType<typeof vi.fn>;
   scanAllLibraries: ReturnType<typeof vi.fn>;
-  rebuildLibrary: ReturnType<typeof vi.fn>;
   fetchCatalogStatus: ReturnType<typeof vi.fn>;
   fetchLibraryStatusBatch: ReturnType<typeof vi.fn>;
   deleteLibrary: ReturnType<typeof vi.fn>;
@@ -117,7 +116,6 @@ export function useMockApiModule(): { mockApiModule: MockApiModule } {
       updateLibrary: vi.fn(),
       scanLibrary: vi.fn(),
       scanAllLibraries: vi.fn(),
-      rebuildLibrary: vi.fn(),
       fetchCatalogStatus: vi.fn(),
       fetchLibraryStatusBatch: vi.fn(),
       deleteLibrary: vi.fn(),

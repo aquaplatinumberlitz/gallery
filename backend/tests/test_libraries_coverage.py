@@ -547,50 +547,13 @@ def test_api_scan_library_conflict_with_rebuild(isolated_app: TestClient, isolat
 
 
 # ---------------------------------------------------------------------------
-# API: rebuild library (lines 638, 651-655, 657-658, 665-667)
+# API: removed rebuild/derivative maintenance endpoints
 # ---------------------------------------------------------------------------
 
 
-def test_api_rebuild_library_not_found(isolated_app: TestClient):
+def test_removed_library_rebuild_endpoint_rejects_post(isolated_app: TestClient):
     response = isolated_app.post("/api/libraries/999999/rebuild", json={"confirm": True})
-    assert response.status_code == 404
-
-
-def test_api_rebuild_library_scope_offline(isolated_app: TestClient, isolated_gallery_root: Path):
-    root = isolated_gallery_root / "root"
-    root.mkdir()
-    sub = root / "sub"
-    sub.mkdir()
-    library_id = int(register_library(root)["id"])
-    sub.rmdir()
-    response = isolated_app.post(
-        f"/api/libraries/{library_id}/rebuild",
-        json={"confirm": True, "scope_path": str(sub)},
-    )
-    assert response.status_code == 409
-    assert response.json()["detail"]["error"] == "library_offline"
-
-
-def test_api_rebuild_library_all_paths_offline(isolated_app: TestClient, isolated_gallery_root: Path):
-    root = isolated_gallery_root / "root"
-    root.mkdir()
-    library_id = int(register_library(root)["id"])
-    root.rmdir()
-    response = isolated_app.post(f"/api/libraries/{library_id}/rebuild", json={"confirm": True})
-    assert response.status_code == 409
-    assert response.json()["detail"]["error"] == "library_offline"
-
-
-def test_api_rebuild_library_conflict_with_running_scan(isolated_app: TestClient, isolated_gallery_root: Path):
-    """CatalogJobConflict from rebuild while scan is running maps to 409 (lines 665-667)."""
-    root = isolated_gallery_root / "root"
-    root.mkdir()
-    library_id = int(register_library(root)["id"])
-    scan_job, _created = catalog_service.queue_scan(library_id, trigger="manual")
-    update_job_state(int(scan_job["id"]), "running")
-    response = isolated_app.post(f"/api/libraries/{library_id}/rebuild", json={"confirm": True})
-    assert response.status_code == 409
-    assert response.json()["detail"]["error"] == "library_busy"
+    assert response.status_code in {404, 405}
 
 
 # ---------------------------------------------------------------------------
@@ -646,28 +609,14 @@ def test_api_warm_derivatives_success(isolated_app: TestClient, isolated_gallery
     assert response.json()["state"] == "queued"
 
 
-def test_api_rebuild_derivatives_requires_confirmation(isolated_app: TestClient):
+def test_removed_rebuild_derivatives_endpoint_rejects_post(isolated_app: TestClient):
     response = isolated_app.post("/api/derivatives/rebuild")
-    assert response.status_code == 400
-    assert response.json()["detail"]["error"] == "confirmation_required"
+    assert response.status_code in {404, 405}
 
 
-def test_api_rebuild_derivatives_success(isolated_app: TestClient):
-    response = isolated_app.post("/api/derivatives/rebuild?confirm=true")
-    assert response.status_code == 202
-    assert response.json()["state"] == "queued"
-
-
-def test_api_clear_derivatives_requires_confirmation(isolated_app: TestClient):
+def test_removed_clear_derivatives_endpoint_rejects_post(isolated_app: TestClient):
     response = isolated_app.post("/api/derivatives/clear")
-    assert response.status_code == 400
-    assert response.json()["detail"]["error"] == "confirmation_required"
-
-
-def test_api_clear_derivatives_success(isolated_app: TestClient):
-    response = isolated_app.post("/api/derivatives/clear?confirm=true")
-    assert response.status_code == 200
-    assert "catalog_entries_cleared" in response.json()
+    assert response.status_code in {404, 405}
 
 
 # ---------------------------------------------------------------------------

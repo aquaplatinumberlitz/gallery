@@ -5,7 +5,6 @@ import {
   createLibrary,
   deleteLibrary,
   GalleryAPIError,
-  rebuildLibrary,
   scanAllLibraries,
   scanLibrary,
   updateLibrary,
@@ -123,29 +122,6 @@ export function useLibraryMutations() {
     onError: (error) => toast.error("Could not update libraries", errorMessage(error)),
   });
 
-  const rebuildMutation = useMutation({
-    mutationFn: ({ id, scopePath }: ScanVariables) => rebuildLibrary(id, scopePath ?? undefined),
-    onSuccess: async (_response, { id }) => {
-      toast.success("Library rebuild queued");
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.library(id) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.libraries() }),
-        // cleanup: remove after migration to unified status. Still consumed by
-        // useLibraryStatsQuery / LibraryDetailPage for storage usage stats.
-        queryClient.invalidateQueries({ queryKey: queryKeys.libraryStats(id) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.libraryJobs(id) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.jobsRoot() }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.galleryStats() }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.statusLibrary(id) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.statusPathRoot(id) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.statusBatch() }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.browseRoot(id) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.browseInfiniteRoot(id) }),
-      ]);
-    },
-    onError: (error) => toast.error("Could not rebuild library", errorMessage(error)),
-  });
-
   const unregisterMutation = useMutation({
     mutationFn: deleteLibrary,
     onSuccess: async (_response, id) => {
@@ -178,7 +154,6 @@ export function useLibraryMutations() {
     validateMutation,
     scanMutation,
     scanAllMutation,
-    rebuildMutation,
     unregisterMutation,
   };
 }

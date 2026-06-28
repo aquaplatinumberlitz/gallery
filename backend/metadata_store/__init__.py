@@ -314,6 +314,9 @@ from .types import (
     CatalogJobConflict as CatalogJobConflict,
 )
 from .types import (
+    CatalogMaintenanceBusy as CatalogMaintenanceBusy,
+)
+from .types import (
     LibraryOverlapError as LibraryOverlapError,
 )
 from .types import (

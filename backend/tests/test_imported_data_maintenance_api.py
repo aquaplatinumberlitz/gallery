@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 import backend.derivative_scheduler as derivative_scheduler_module
@@ -152,6 +153,68 @@ def _table_count(table: str) -> int:
         return int(conn.execute(f"SELECT count(*) FROM {table}").fetchone()[0])
 
 
+def _seed_active_work(kind: str, conn, library_id: int) -> None:
+    now = time.time()
+    if kind == "catalog":
+        create_job("scan", library_id=library_id)
+        return
+    if kind == "metadata":
+        image_path = Path(f"/tmp/maintenance-active-{library_id}.png")
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO metadata_index_jobs (
+              path, name, parent_path, folder_path, root_path, mtime, size,
+              state, queued_at, updated_at, library_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?)
+            """,
+            (
+                str(image_path),
+                image_path.name,
+                str(image_path.parent),
+                str(image_path.parent),
+                str(image_path.parent),
+                now,
+                1,
+                now,
+                now,
+                library_id,
+            ),
+        )
+        return
+    if kind == "derivative":
+        asset = conn.execute(
+            """
+            INSERT INTO assets (
+              library_id, path, parent_path, name, type, mtime_ns, size, indexed_at,
+              metadata_state, offline
+            ) VALUES (?, ?, ?, ?, 'image', ?, ?, ?, 'done', 0)
+            """,
+            (
+                library_id,
+                f"/tmp/maintenance-active-{library_id}.png",
+                "/tmp",
+                f"maintenance-active-{library_id}.png",
+                int(now * 1_000_000_000),
+                1,
+                now,
+            ),
+        )
+        derivative = conn.execute(
+            """
+            INSERT INTO asset_derivatives (
+              asset_id, kind, variant, source_mtime_ns, source_size, max_long_edge, status
+            ) VALUES (?, 'thumbnail', 'thumb_512', ?, 1, 512, 'pending')
+            """,
+            (int(asset.lastrowid), float(int(now * 1_000_000_000))),
+        )
+        conn.execute(
+            "INSERT INTO derivative_jobs (derivative_id, priority, state, created_at, updated_at) VALUES (?, 3, 'queued', ?, ?)",
+            (int(derivative.lastrowid), now, now),
+        )
+        return
+    raise ValueError(f"Unknown active work kind: {kind}")
+
+
 def test_clear_imported_data_preserves_libraries_import_paths_exclusions_and_clears_derived_rows_files(
     isolated_app: TestClient,
     isolated_gallery_root: Path,
@@ -227,6 +290,42 @@ def test_rebuild_imported_data_rejects_active_jobs(isolated_app: TestClient, iso
 
     assert response.status_code == 409
     assert response.json()["detail"]["error"] == "maintenance_busy"
+
+
+@pytest.mark.parametrize(
+    ("path", "payload"),
+    [
+        ("/api/maintenance/imported-data/clear", {"confirm": True}),
+        ("/api/maintenance/imported-data/rebuild", {"confirm": True}),
+        ("/api/maintenance/catalog/reset", {"confirm_phrase": "RESET CATALOG DATABASE"}),
+    ],
+)
+@pytest.mark.parametrize(
+    ("kind", "count_key"),
+    [
+        ("catalog", "catalog_jobs"),
+        ("metadata", "metadata_jobs"),
+        ("derivative", "derivative_jobs"),
+    ],
+)
+def test_maintenance_endpoints_reject_all_active_work_types(
+    isolated_app: TestClient,
+    isolated_gallery_root: Path,
+    path: str,
+    payload: dict[str, object],
+    kind: str,
+    count_key: str,
+) -> None:
+    library = create_library([isolated_gallery_root], name="Busy")
+    with _DB_LOCK, _connect() as conn:
+        _seed_active_work(kind, conn, int(library["id"]))
+
+    response = isolated_app.post(path, json=payload)
+
+    assert response.status_code == 409
+    detail = response.json()["detail"]
+    assert detail["error"] == "maintenance_busy"
+    assert detail[count_key] == 1
 
 
 def test_rebuild_imported_data_clears_and_queues_parent_and_child(

@@ -13,7 +13,6 @@ import type {
   LibraryJob,
   LibraryInspectorMetadataResponse,
   LibraryInspectorResponse,
-  LibraryRebuildResponse,
   LibraryScanResponse,
   LibraryStats,
   LibraryUpdateRequest,
@@ -412,13 +411,6 @@ export const scanLibrary = async (id: number, scopePath?: string | null): Promis
 
 export const scanAllLibraries = async (): Promise<ScanAllLibrariesResponse> => {
   const { data } = await api.post<ScanAllLibrariesResponse>("/api/libraries/scan-all");
-  return data;
-};
-
-export const rebuildLibrary = async (id: number, scopePath?: string | null): Promise<LibraryRebuildResponse> => {
-  const body: Record<string, unknown> = { confirm: true };
-  if (scopePath) body.scope_path = scopePath;
-  const { data } = await api.post<LibraryRebuildResponse>(`/api/libraries/${id}/rebuild`, body);
   return data;
 };
 

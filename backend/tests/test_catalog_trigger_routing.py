@@ -13,13 +13,16 @@ Run when:
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
 
 from backend import scan_worker as catalog_service
+from backend.catalog_maintenance_gate import maintenance_gate
 from backend.metadata_store import (
     CatalogJobConflict,
+    CatalogMaintenanceBusy,
     create_library,
     get_job,
     list_active_jobs,
@@ -66,6 +69,30 @@ def test_manual_scan_queues_durable_job(
     assert job["library_id"] == library_id
     assert job["trigger"] == "manual"
     assert job["priority"] == 100
+
+
+def test_queue_scan_rejects_while_maintenance_gate_is_held(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    library_id = int(register_library(isolated_gallery_root)["id"])
+
+    with maintenance_gate(), ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(catalog_service.queue_scan, library_id, trigger="manual")
+        with pytest.raises(CatalogMaintenanceBusy):
+            future.result()
+
+
+def test_queue_rebuild_rejects_while_maintenance_gate_is_held(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    library_id = int(register_library(isolated_gallery_root)["id"])
+
+    with maintenance_gate(), ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(catalog_service.queue_rebuild, library_id)
+        with pytest.raises(CatalogMaintenanceBusy):
+            future.result()
 
 
 def test_watcher_scan_resolves_owning_library_and_scope(
