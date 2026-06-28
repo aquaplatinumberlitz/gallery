@@ -261,9 +261,9 @@ describe("MaintenancePage", () => {
     expect(wrapper.text()).toContain("3");
     expect(wrapper.text()).toContain("Old or missing metadata");
     expect(wrapper.text()).toContain("9");
-    expect(wrapper.text()).toContain("Repairable");
+    expect(wrapper.text()).toContain("Can be repaired");
     expect(wrapper.text()).toContain("2");
-    expect(wrapper.text()).toContain("Jobs for missing files");
+    expect(wrapper.text()).toContain("Jobs without catalog item");
     expect(wrapper.text()).toContain("1");
   });
 });

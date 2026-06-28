@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Bug,
   FileWarning,
+  Info,
   Loader2,
   RefreshCw,
   ScanLine,
@@ -205,7 +206,7 @@ const needsRefreshCount = computed(() => {
             <TooltipContent>Rebuilds thumbnail/preview files only. It does not fix metadata job errors.</TooltipContent>
           </Tooltip>
           <Button variant="destructive" size="sm" :disabled="clearMutation.isPending.value" @click="clearOpen = true">
-            <Trash2 /> Clear generated files (all libraries)
+            <Trash2 /> Clear thumbnails &amp; previews
           </Button>
         </div>
       </section>
@@ -289,12 +290,17 @@ const needsRefreshCount = computed(() => {
                 <dd class="font-medium">{{ runtimeQuery.data.value.metadata_lifecycle.running_metadata_jobs }}</dd>
               </div>
               <div class="flex items-center justify-between gap-3">
-                <Tooltip>
-                  <TooltipTrigger as-child>
-                    <dt class="text-muted-foreground cursor-help">Failed jobs</dt>
-                  </TooltipTrigger>
-                  <TooltipContent>Metadata jobs that already failed. Rebuilding previews will not clear these.</TooltipContent>
-                </Tooltip>
+                <dt class="flex items-center gap-1 text-muted-foreground">
+                  Failed jobs
+                  <Tooltip>
+                    <TooltipTrigger as-child>
+                      <Button variant="ghost" size="icon" class="size-4 text-muted-foreground hover:text-foreground -my-1" aria-label="About Failed jobs">
+                        <Info class="size-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" align="start">Metadata jobs that already failed. Rebuilding previews will not clear these.</TooltipContent>
+                  </Tooltip>
+                </dt>
                 <dd
                   class="font-medium"
                   :class="runtimeQuery.data.value.metadata_lifecycle.failed_metadata_jobs > 0 ? 'text-destructive' : ''"
@@ -303,12 +309,17 @@ const needsRefreshCount = computed(() => {
                 </dd>
               </div>
               <div class="flex items-center justify-between gap-3">
-                <Tooltip>
-                  <TooltipTrigger as-child>
-                    <dt class="text-muted-foreground cursor-help">Old or missing metadata</dt>
-                  </TooltipTrigger>
-                  <TooltipContent>Files whose extracted metadata is stale or missing. This is separate from thumbnail/preview cache.</TooltipContent>
-                </Tooltip>
+                <dt class="flex items-center gap-1 text-muted-foreground">
+                  Old or missing metadata
+                  <Tooltip>
+                    <TooltipTrigger as-child>
+                      <Button variant="ghost" size="icon" class="size-4 text-muted-foreground hover:text-foreground -my-1" aria-label="About Old or missing metadata">
+                        <Info class="size-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" align="start">Files whose extracted metadata is stale or missing. This is separate from thumbnail/preview cache.</TooltipContent>
+                  </Tooltip>
+                </dt>
                 <dd
                   class="font-medium"
                   :class="needsRefreshCount > 0 ? 'text-amber-600' : ''"
@@ -317,7 +328,7 @@ const needsRefreshCount = computed(() => {
                 </dd>
               </div>
               <div class="flex items-center justify-between gap-3">
-                <dt class="text-muted-foreground">Repairable</dt>
+                <dt class="text-muted-foreground">Can be repaired</dt>
                 <dd
                   class="font-medium"
                   :class="runtimeQuery.data.value.metadata_lifecycle.repairable_metadata_assets > 0 ? 'text-amber-600' : ''"
@@ -326,12 +337,17 @@ const needsRefreshCount = computed(() => {
                 </dd>
               </div>
               <div class="flex items-center justify-between gap-3">
-                <Tooltip>
-                  <TooltipTrigger as-child>
-                    <dt class="text-muted-foreground cursor-help">Jobs for missing files</dt>
-                  </TooltipTrigger>
-                  <TooltipContent>Metadata jobs whose source file is no longer in the catalog.</TooltipContent>
-                </Tooltip>
+                <dt class="flex items-center gap-1 text-muted-foreground">
+                  Jobs without catalog item
+                  <Tooltip>
+                    <TooltipTrigger as-child>
+                      <Button variant="ghost" size="icon" class="size-4 text-muted-foreground hover:text-foreground -my-1" aria-label="About Jobs without catalog item">
+                        <Info class="size-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" align="start">Metadata index jobs with no matching catalog entry.</TooltipContent>
+                  </Tooltip>
+                </dt>
                 <dd class="font-medium">{{ runtimeQuery.data.value.metadata_lifecycle.metadata_jobs_without_matching_assets }}</dd>
               </div>
             </dl>
