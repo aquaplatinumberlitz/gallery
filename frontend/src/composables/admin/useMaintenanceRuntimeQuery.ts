@@ -4,7 +4,7 @@ import { fetchMaintenanceRuntime } from "@/services/api";
 import { ACTIVE_POLL_INTERVAL, STABLE_POLL_INTERVAL } from "@/lib/catalog/polling";
 import type { MaintenanceRuntimeResponse } from "@/services/api";
 
-function runtimeHasActiveWork(data: MaintenanceRuntimeResponse | undefined): boolean {
+export function runtimeHasActiveWork(data: MaintenanceRuntimeResponse | undefined): boolean {
   if (!data) return false;
   const gr = data.global_runtime;
   if (gr.catalog_active_jobs > 0 || gr.catalog_queue_depth > 0) return true;
