@@ -1,6 +1,25 @@
-import { describe, it, expect } from "vitest";
+import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
+import { mount } from "@vue/test-utils";
+import { defineComponent, h } from "vue";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { MaintenanceRuntimeResponse } from "@/services/api";
-import { runtimeHasActiveWork } from "../useMaintenanceRuntimeQuery";
+import { fetchMaintenanceRuntime } from "@/services/api";
+import { ACTIVE_POLL_INTERVAL, STABLE_POLL_INTERVAL } from "@/lib/catalog/polling";
+import { runtimeHasActiveWork, useMaintenanceRuntimeQuery } from "../useMaintenanceRuntimeQuery";
+
+vi.mock("@/services/api", () => ({ fetchMaintenanceRuntime: vi.fn() }));
+
+let capturedRefetchInterval: ((q: { state: { data: unknown } }) => number | false) | undefined;
+vi.mock("@tanstack/vue-query", async () => {
+  const actual = await vi.importActual<typeof import("@tanstack/vue-query")>("@tanstack/vue-query");
+  return {
+    ...actual,
+    useQuery: vi.fn((...args: any[]) => {
+      capturedRefetchInterval = args[0].refetchInterval;
+      return (actual.useQuery as any)(...args);
+    }),
+  };
+});
 
 const idleRuntime: MaintenanceRuntimeResponse = {
   global_runtime: {
@@ -83,5 +102,53 @@ describe("runtimeHasActiveWork", () => {
   it("returns false when lifecycle is null even with active work there", () => {
     const data = { ...idleRuntime, metadata_lifecycle: null };
     expect(runtimeHasActiveWork(data)).toBe(false);
+  });
+});
+
+const activeRuntime: MaintenanceRuntimeResponse = {
+  ...idleRuntime,
+  global_runtime: { ...idleRuntime.global_runtime, catalog_active_jobs: 1 },
+};
+
+function mountComposable() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { gcTime: 0, retry: false } } });
+  let result!: ReturnType<typeof useMaintenanceRuntimeQuery>;
+  const wrapper = mount(
+    defineComponent({
+      setup() {
+        result = useMaintenanceRuntimeQuery();
+        return () => h("div");
+      },
+    }),
+    { global: { plugins: [[VueQueryPlugin, { queryClient }]] } },
+  );
+  return { result, queryClient, wrapper };
+}
+
+describe("useMaintenanceRuntimeQuery", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    capturedRefetchInterval = undefined;
+  });
+
+  it("calls fetchMaintenanceRuntime on mount and returns data", async () => {
+    vi.mocked(fetchMaintenanceRuntime).mockResolvedValue(idleRuntime);
+    const { result } = mountComposable();
+    await vi.waitFor(() => expect(result.isSuccess.value).toBe(true));
+    expect(result.data.value).toEqual(idleRuntime);
+  });
+
+  it("uses ACTIVE_POLL_INTERVAL in refetchInterval when runtime has active work", async () => {
+    vi.mocked(fetchMaintenanceRuntime).mockResolvedValue(activeRuntime);
+    mountComposable();
+    await vi.waitFor(() => expect(capturedRefetchInterval).toBeDefined());
+    expect(capturedRefetchInterval!({ state: { data: activeRuntime } })).toBe(ACTIVE_POLL_INTERVAL);
+  });
+
+  it("uses STABLE_POLL_INTERVAL in refetchInterval when runtime is idle", async () => {
+    vi.mocked(fetchMaintenanceRuntime).mockResolvedValue(idleRuntime);
+    mountComposable();
+    await vi.waitFor(() => expect(capturedRefetchInterval).toBeDefined());
+    expect(capturedRefetchInterval!({ state: { data: idleRuntime } })).toBe(STABLE_POLL_INTERVAL);
   });
 });
