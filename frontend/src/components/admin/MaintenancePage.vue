@@ -343,9 +343,9 @@ const needsRefreshCount = computed(() => {
                         <Info class="size-3.5" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="top" align="start"
-                      >Files whose extracted metadata is stale or missing.</TooltipContent
-                    >
+                    <TooltipContent side="top" align="start">
+                      Files whose extracted metadata is stale or missing.
+                    </TooltipContent>
                   </Tooltip>
                 </dt>
                 <dd class="font-medium" :class="needsRefreshCount > 0 ? 'text-amber-600' : ''">
@@ -377,9 +377,9 @@ const needsRefreshCount = computed(() => {
                         <Info class="size-3.5" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="top" align="start"
-                      >Metadata index jobs with no matching catalog entry.</TooltipContent
-                    >
+                    <TooltipContent side="top" align="start">
+                      Metadata index jobs with no matching catalog entry.
+                    </TooltipContent>
                   </Tooltip>
                 </dt>
                 <dd class="font-medium">
