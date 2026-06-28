@@ -8,12 +8,10 @@ import Badge from "@/components/ui/Badge.vue";
 import IndexStatusBadge from "@/components/IndexStatusBadge.vue";
 import IndexStatusCard from "@/components/IndexStatusCard.vue";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { queryClient } from "@/query";
 import { queryKeys } from "@/query/keys";
-import { rebuildLibrary, scanLibrary } from "@/services/api";
-import { markScopeRebuildStarted } from "@/utils/indexMaintenance";
+import { scanLibrary } from "@/services/api";
 import { getCatalogStatusPresentation } from "@/lib/catalog/labels";
 import { STATUS_CONTRACT_ERROR_MESSAGE, isStatusContractError } from "@/lib/catalog/contractGuard";
 import { formatLibraryTimestamp } from "@/utils/libraryStatus";
@@ -60,8 +58,7 @@ const errorMessage = computed(() => {
 });
 
 const showDetails = ref(false);
-const showRebuildConfirm = ref(false);
-const actionPending = ref<"scan" | "rebuild" | null>(null);
+const actionPending = ref<"scan" | null>(null);
 const actionError = ref("");
 
 const scopeLabel = computed(() =>
@@ -73,9 +70,9 @@ const compactSummary = computed(() => {
   if (isScanning.value) {
     const completed = status.value.scan.completed_units ?? 0;
     if (status.value.scan.total_units !== null) {
-      return `${completed.toLocaleString()} / ${status.value.scan.total_units.toLocaleString()} units scanned`;
+      return `${completed.toLocaleString()} / ${status.value.scan.total_units.toLocaleString()} units updated`;
     }
-    return completed > 0 ? `${completed.toLocaleString()} units scanned` : "Scanning...";
+    return completed > 0 ? `${completed.toLocaleString()} units updated` : "Updating...";
   }
   if (isIndexing.value) {
     if (metadataProgress.value !== null) {
@@ -89,9 +86,11 @@ const compactSummary = computed(() => {
   }
   if (status.value.summary_state === "error") return "Catalog needs attention";
   if (status.value.summary_state === "offline") return "Offline";
-  if (status.value.summary_state === "needs_scan") return "Needs scan";
+  if (status.value.summary_state === "needs_scan") return "Needs update";
   return `${photoDetailsReady.value.toLocaleString()} photo details ready`;
 });
+
+const updateLabel = computed(() => (isVirtualRoot.value ? "Update library" : "Update current folder"));
 
 function onOpenChange(open: boolean) {
   if (!open) {
@@ -112,18 +111,13 @@ async function invalidateAfterAction(id: number) {
   await refetch();
 }
 
-async function triggerAction(action: "scan" | "rebuild") {
+async function triggerAction() {
   const id = libraryId.value;
   if (id === null || actionPending.value) return;
-  actionPending.value = action;
+  actionPending.value = "scan";
   actionError.value = "";
   try {
-    if (action === "rebuild") {
-      await rebuildLibrary(id, pathRef.value ?? undefined);
-      markScopeRebuildStarted(pathRef.value || "", Date.now());
-    } else {
-      await scanLibrary(id, pathRef.value ?? undefined);
-    }
+    await scanLibrary(id, pathRef.value ?? undefined);
     await invalidateAfterAction(id);
   } catch (err) {
     if (isStatusContractError(err)) {
@@ -134,20 +128,6 @@ async function triggerAction(action: "scan" | "rebuild") {
   } finally {
     actionPending.value = null;
   }
-}
-
-function onRebuildRequested() {
-  if (actionPending.value) return;
-  showRebuildConfirm.value = true;
-}
-
-function onRebuildConfirmed() {
-  showRebuildConfirm.value = false;
-  void triggerAction("rebuild");
-}
-
-function onRebuildCancelled() {
-  showRebuildConfirm.value = false;
 }
 
 function formatCount(value: number) {
@@ -170,8 +150,7 @@ function formatCount(value: number) {
     :action-pending="actionPending"
     :action-error="actionError"
     :contract-error="Boolean(contractError)"
-    @scan="triggerAction('scan')"
-    @rebuild="onRebuildRequested"
+    @scan="triggerAction"
   />
 
   <Popover v-else @update:open="onOpenChange">
@@ -317,7 +296,7 @@ function formatCount(value: number) {
           <div class="space-y-1.5">
             <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Timestamps</p>
             <div class="flex items-center justify-between text-xs">
-              <span class="text-muted-foreground">Last scan</span>
+              <span class="text-muted-foreground">Last update</span>
               <span class="text-right font-medium">{{ formatLibraryTimestamp(status.last_scan_at) }}</span>
             </div>
             <div class="flex items-center justify-between text-xs">
@@ -335,11 +314,8 @@ function formatCount(value: number) {
         <div v-if="actionError" class="text-xs text-destructive">{{ actionError }}</div>
 
         <div class="flex gap-2 pt-1">
-          <Button variant="outline" size="sm" :disabled="!!actionPending" @click="triggerAction('scan')">
-            {{ actionPending === "scan" ? "Scanning..." : "Scan" }}
-          </Button>
-          <Button variant="secondary" size="sm" :disabled="!!actionPending" @click="onRebuildRequested">
-            {{ actionPending === "rebuild" ? "Rebuilding..." : "Rebuild" }}
+          <Button variant="outline" size="sm" :disabled="!!actionPending" @click="triggerAction">
+            {{ actionPending === "scan" ? "Updating..." : updateLabel }}
           </Button>
         </div>
       </div>
@@ -347,17 +323,4 @@ function formatCount(value: number) {
       <div v-else class="text-sm text-muted-foreground text-center py-2">No catalog status available</div>
     </PopoverContent>
   </Popover>
-
-  <Dialog v-model:open="showRebuildConfirm">
-    <DialogContent role="alertdialog" aria-modal="true">
-      <DialogTitle>Rebuild?</DialogTitle>
-      <DialogDescription>
-        Rebuild will re-index this scope's files and re-extract metadata. Source image files are not deleted.
-      </DialogDescription>
-      <div class="flex justify-end gap-2 mt-4">
-        <Button variant="outline" size="sm" @click="onRebuildCancelled"> Cancel </Button>
-        <Button variant="secondary" size="sm" @click="onRebuildConfirmed"> Rebuild </Button>
-      </div>
-    </DialogContent>
-  </Dialog>
 </template>

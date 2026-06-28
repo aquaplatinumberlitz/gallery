@@ -97,7 +97,7 @@ describe("MaintenancePage", () => {
     mockGlobalSummaryData = null;
   });
 
-  it("renders System services", () => {
+  it("renders Catalogs diagnostics", () => {
     mockRuntimeData = {
       global_runtime: {
         catalog_worker_count: 1,
@@ -115,7 +115,15 @@ describe("MaintenancePage", () => {
       metadata_lifecycle: null,
     };
     const wrapper = mountSubject();
-    expect(wrapper.text()).toContain("System services");
+    expect(wrapper.text()).toContain("Catalogs");
+  });
+
+  it("shows imported-data actions and no preview-only maintenance actions", () => {
+    const wrapper = mountSubject();
+    expect(wrapper.text()).toContain("Rebuild");
+    expect(wrapper.text()).toContain("Clear");
+    expect(wrapper.text()).not.toContain("Rebuild outdated previews");
+    expect(wrapper.text()).not.toContain("Clear thumbnails");
   });
 
   it("renders watcher healthy and latest issue", () => {

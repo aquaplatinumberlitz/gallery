@@ -19,15 +19,16 @@ const props = defineProps<{
   isError?: boolean;
   errorMessage?: string;
   globalWorkOutsideScope?: boolean;
-  actionPending?: "scan" | "rebuild" | null;
+  actionPending?: "scan" | null;
   actionError?: string;
   contractError?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: "scan"): void;
-  (e: "rebuild"): void;
 }>();
+
+const updateLabel = computed(() => (props.isVirtualRoot ? "Update library" : "Update current folder"));
 
 const photosFound = computed(() => props.status?.metadata.total_assets ?? 0);
 const photoDetailsReady = computed(() => props.status?.metadata.ready_assets ?? 0);
@@ -129,7 +130,7 @@ function formatCount(value: number) {
       <div class="index-details__section">
         <p class="index-details__section-label">Timestamps</p>
         <div class="index-details__row">
-          <span class="index-details__row-key">Last scan</span>
+          <span class="index-details__row-key">Last update</span>
           <strong>{{ formatLibraryTimestamp(status.last_scan_at) }}</strong>
         </div>
         <div class="index-details__row">
@@ -148,10 +149,6 @@ function formatCount(value: number) {
       {{ actionError }}
     </div>
 
-    <p class="index-details__warning">
-      Warning: Rebuild will re-index this scope's files and re-extract metadata. Source image files are not deleted.
-    </p>
-
     <div class="index-details__actions">
       <Tooltip>
         <TooltipTrigger as-child>
@@ -162,26 +159,11 @@ function formatCount(value: number) {
               :disabled="(!path && !isVirtualRoot) || !!actionPending"
               @click="emit('scan')"
             >
-              {{ actionPending === "scan" ? "Scanning..." : "Scan" }}
+              {{ actionPending === "scan" ? "Updating..." : updateLabel }}
             </Button>
           </span>
         </TooltipTrigger>
         <TooltipContent> Refresh this scope and queue new metadata work. </TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger as-child>
-          <span class="inline-flex">
-            <Button
-              variant="secondary"
-              size="sm"
-              :disabled="(!path && !isVirtualRoot) || !!actionPending"
-              @click="emit('rebuild')"
-            >
-              {{ actionPending === "rebuild" ? "Rebuilding..." : "Rebuild" }}
-            </Button>
-          </span>
-        </TooltipTrigger>
-        <TooltipContent> Rebuild indexed files and extracted metadata for this scope. </TooltipContent>
       </Tooltip>
     </div>
   </div>

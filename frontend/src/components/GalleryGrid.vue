@@ -405,7 +405,7 @@ const errorActionConfig = computed(() => {
     case "library_discovering":
       return {
         title: "Library not imported yet",
-        label: "Start scan",
+        label: "Update library",
         icon: undefined,
         action: clearError,
       };

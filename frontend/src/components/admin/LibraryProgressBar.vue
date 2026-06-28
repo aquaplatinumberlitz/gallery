@@ -31,7 +31,7 @@ const indexedLabel = computed(() => {
   const ready = status.metadata.ready_assets ?? 0;
   const total = status.metadata.total_assets ?? 0;
   if (isScanning.value && total === 0) {
-    return `${formatAssetCount(status.scan.completed_units ?? 0)} scanned`;
+    return `${formatAssetCount(status.scan.completed_units ?? 0)} updated`;
   }
   if (total > 0) {
     return `${formatAssetCount(ready)} indexed / ${formatAssetCount(total)}`;

@@ -84,7 +84,6 @@ vi.mock("@/composables/useActiveLibrarySelection", () => ({
 }));
 
 vi.mock("@/services/api", () => ({
-  rebuildLibrary: vi.fn(),
   scanLibrary: vi.fn(),
 }));
 
@@ -102,10 +101,6 @@ vi.mock("@/query/keys", () => ({
     libraries: vi.fn(() => ["libraries"]),
     jobsRoot: vi.fn(() => ["jobs"]),
   },
-}));
-
-vi.mock("@/utils/indexMaintenance", () => ({
-  markScopeRebuildStarted: vi.fn(),
 }));
 
 describe("IndexStatusPanel", () => {

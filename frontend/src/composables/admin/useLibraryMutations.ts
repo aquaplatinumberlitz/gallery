@@ -89,7 +89,7 @@ export function useLibraryMutations() {
   const scanMutation = useMutation({
     mutationFn: ({ id, scopePath }: ScanVariables) => scanLibrary(id, scopePath ?? undefined),
     onSuccess: async (_response, { id }) => {
-      toast.success("Library scan queued");
+      toast.success("Library update queued");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.library(id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.libraries() }),
@@ -106,13 +106,13 @@ export function useLibraryMutations() {
         queryClient.invalidateQueries({ queryKey: queryKeys.browseInfiniteRoot(id) }),
       ]);
     },
-    onError: (error) => toast.error("Could not scan library", errorMessage(error)),
+    onError: (error) => toast.error("Could not update library", errorMessage(error)),
   });
 
   const scanAllMutation = useMutation({
     mutationFn: scanAllLibraries,
     onSuccess: async () => {
-      toast.success("Library scans queued");
+      toast.success("Library updates queued");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.librariesRoot() }),
         queryClient.invalidateQueries({ queryKey: queryKeys.galleryStats() }),
@@ -120,7 +120,7 @@ export function useLibraryMutations() {
         queryClient.invalidateQueries({ queryKey: queryKeys.statusRoot() }),
       ]);
     },
-    onError: (error) => toast.error("Could not scan libraries", errorMessage(error)),
+    onError: (error) => toast.error("Could not update libraries", errorMessage(error)),
   });
 
   const rebuildMutation = useMutation({

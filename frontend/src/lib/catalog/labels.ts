@@ -26,14 +26,14 @@ const PRESENTATIONS: Record<SummaryState, CatalogStatusPresentation> = {
     meaning: "All configured import paths are unavailable.",
   },
   needs_scan: {
-    label: "Needs scan",
+    label: "Needs update",
     variant: "secondary",
     tone: "yellow",
     showPulse: false,
-    meaning: "This scope has not been scanned yet.",
+    meaning: "This scope has not been updated yet.",
   },
   scanning: {
-    label: "Scanning",
+    label: "Updating",
     variant: "secondary",
     tone: "yellow",
     showPulse: true,

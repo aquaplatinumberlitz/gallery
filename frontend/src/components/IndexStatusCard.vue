@@ -18,14 +18,13 @@ const props = defineProps<{
   isError?: boolean;
   errorMessage?: string;
   globalWorkOutsideScope?: boolean;
-  actionPending?: "scan" | "rebuild" | null;
+  actionPending?: "scan" | null;
   actionError?: string;
   contractError?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: "scan"): void;
-  (e: "rebuild"): void;
 }>();
 
 const photosFound = computed(() => props.status?.metadata.total_assets ?? 0);
@@ -43,8 +42,8 @@ const bodyText = computed(() => {
   if (isScanning.value) {
     const completed = props.status.scan.completed_units ?? 0;
     const total = props.status.scan.total_units;
-    if (total !== null) return `${completed.toLocaleString()} / ${total.toLocaleString()} units scanned`;
-    return completed > 0 ? `${completed.toLocaleString()} units scanned` : "Scanning...";
+    if (total !== null) return `${completed.toLocaleString()} / ${total.toLocaleString()} units updated`;
+    return completed > 0 ? `${completed.toLocaleString()} units updated` : "Updating...";
   }
   if (isIndexing.value) {
     if (metadataProgress.value !== null) {
@@ -58,7 +57,7 @@ const bodyText = computed(() => {
   }
   if (summaryState.value === "error") return "Catalog needs attention";
   if (summaryState.value === "offline") return "Offline";
-  if (summaryState.value === "needs_scan") return "Needs scan";
+  if (summaryState.value === "needs_scan") return "Needs update";
   return `${photoDetailsReady.value.toLocaleString()} photo details ready`;
 });
 </script>
@@ -100,7 +99,6 @@ const bodyText = computed(() => {
         :action-error="actionError"
         :contract-error="contractError"
         @scan="emit('scan')"
-        @rebuild="emit('rebuild')"
       />
     </PopoverContent>
   </Popover>

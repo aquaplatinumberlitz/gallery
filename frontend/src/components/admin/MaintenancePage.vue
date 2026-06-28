@@ -109,8 +109,24 @@ const needsRefreshCount = computed(() => {
           <p class="text-sm font-medium text-muted-foreground">Administration</p>
           <h2 id="maintenance-heading" class="text-2xl font-semibold tracking-tight">Maintenance</h2>
           <p class="mt-1 text-sm text-muted-foreground">
-            File health checks, repair tracking, and storage consistency reports.
+            File health checks, repair tracking, and imported-data diagnostics.
           </p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <Button variant="outline" :disabled="rebuildMutation.isPending.value" @click="rebuildOpen = true">
+            <RefreshCw /> Rebuild
+          </Button>
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button variant="destructive" :disabled="clearMutation.isPending.value" @click="clearOpen = true">
+                <Trash2 /> Clear
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              Clears imported catalog data, extracted metadata, jobs, and generated previews while keeping libraries and
+              import paths.
+            </TooltipContent>
+          </Tooltip>
         </div>
       </header>
 
@@ -196,26 +212,13 @@ const needsRefreshCount = computed(() => {
         </div>
         <Skeleton v-else-if="globalSummaryQuery.isPending.value" class="mt-4 h-16 w-full" />
         <p v-else class="mt-4 text-sm text-muted-foreground">No data available.</p>
-        <div class="mt-4 flex flex-wrap gap-2">
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <Button variant="outline" size="sm" :disabled="rebuildMutation.isPending.value" @click="rebuildOpen = true">
-                <RefreshCw /> Rebuild outdated previews
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Rebuilds thumbnail/preview files only. It does not fix metadata job errors.</TooltipContent>
-          </Tooltip>
-          <Button variant="destructive" size="sm" :disabled="clearMutation.isPending.value" @click="clearOpen = true">
-            <Trash2 /> Clear thumbnails &amp; previews
-          </Button>
-        </div>
       </section>
 
       <div class="grid gap-4 md:grid-cols-2">
         <section class="rounded-md border bg-background p-5">
           <div class="flex items-center gap-3">
             <Activity class="size-5 text-muted-foreground" />
-            <h3 class="font-semibold">System services</h3>
+            <h3 class="font-semibold">Catalogs</h3>
           </div>
           <div v-if="runtimeQuery.data.value" class="mt-4">
             <dl class="grid gap-3 text-sm">
@@ -298,7 +301,7 @@ const needsRefreshCount = computed(() => {
                         <Info class="size-3.5" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="top" align="start">Metadata jobs that already failed. Rebuilding previews will not clear these.</TooltipContent>
+                    <TooltipContent side="top" align="start">Metadata jobs that already failed.</TooltipContent>
                   </Tooltip>
                 </dt>
                 <dd
@@ -317,7 +320,7 @@ const needsRefreshCount = computed(() => {
                         <Info class="size-3.5" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="top" align="start">Files whose extracted metadata is stale or missing. This is separate from thumbnail/preview cache.</TooltipContent>
+                    <TooltipContent side="top" align="start">Files whose extracted metadata is stale or missing.</TooltipContent>
                   </Tooltip>
                 </dt>
                 <dd
@@ -391,13 +394,11 @@ const needsRefreshCount = computed(() => {
     <GeneratedImagesRebuildDialog
       v-model:open="rebuildOpen"
       :pending="rebuildMutation.isPending.value"
-      scope-label=" across all libraries"
       @confirm="confirmRebuild"
     />
     <GeneratedImagesClearDialog
       v-model:open="clearOpen"
       :pending="clearMutation.isPending.value"
-      scope-label=" across all libraries"
       @confirm="confirmClear"
     />
   </main>

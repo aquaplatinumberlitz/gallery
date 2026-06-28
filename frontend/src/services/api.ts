@@ -62,11 +62,11 @@ const API_BASE = import.meta.env.VITE_API_URL || "";
 // Error types from backend
 export const LIBRARY_ERRORS = {
   library_not_registered: "Register this folder before browsing it",
-  library_not_indexed: "Library registered but not indexed yet. Start scan?",
-  library_discovering: "Library is currently being scanned",
+  library_not_indexed: "Library registered but not indexed yet. Update library?",
+  library_discovering: "Library is currently being updated",
   library_overlap: "This folder overlaps with an existing library",
   library_offline: "Library root is offline or unavailable",
-  library_error: "Library scan failed",
+  library_error: "Library update failed",
   library_busy: "Library is currently busy",
 } as const;
 

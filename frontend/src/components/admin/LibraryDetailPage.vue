@@ -7,7 +7,6 @@ import {
   Copy,
   Images,
   Pencil,
-  Play,
   RefreshCw,
   Trash2,
   ImageIcon,
@@ -97,7 +96,7 @@ const issueBreakdown = computed(() => {
   if (!issues) return [];
   return [
     { label: "Availability", count: issues.availability },
-    { label: "File scan", count: issues.scan },
+    { label: "File update", count: issues.scan },
     { label: "Metadata", count: issues.metadata },
   ];
 });
@@ -168,7 +167,7 @@ function estimatedAssets(): number | undefined {
             <Button variant="outline" @click="useInGallery"> <Images /> Use in gallery </Button>
             <Button variant="outline" @click="editOpen = true"> <Pencil /> Edit </Button>
             <Button variant="outline" :disabled="busy" @click="scanMutation.mutate({ id: library.id })">
-              <Play /> Scan
+              <RefreshCw /> Update library
             </Button>
             <Button variant="destructive" @click="deleteOpen = true"> <Trash2 /> Unregister </Button>
           </div>
@@ -222,7 +221,7 @@ function estimatedAssets(): number | undefined {
                   </dd>
                 </div>
                 <div class="flex items-center justify-between gap-3">
-                  <dt class="text-muted-foreground">File scan</dt>
+                  <dt class="text-muted-foreground">File update</dt>
                   <dd class="font-medium">
                     {{ scanStateLabel }}
                     <span v-if="scanProgressLabel" class="text-muted-foreground"> · {{ scanProgressLabel }}</span>
@@ -434,7 +433,7 @@ function estimatedAssets(): number | undefined {
               <dd class="mt-1">{{ formatLibraryTimestamp(library.updated_at) }}</dd>
             </div>
             <div>
-              <dt class="text-muted-foreground">Last scan</dt>
+              <dt class="text-muted-foreground">Last update</dt>
               <dd class="mt-1">{{ formatLibraryTimestamp(status?.last_scan_at ?? library.last_scan_at) }}</dd>
             </div>
             <div>

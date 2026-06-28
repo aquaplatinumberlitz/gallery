@@ -216,7 +216,7 @@ describe("LibraryDetailPage", () => {
     const wrapper = mountSubject();
     expect(wrapper.text()).toContain("Use in gallery");
     expect(wrapper.text()).toContain("Edit");
-    expect(wrapper.text()).toContain("Scan");
+    expect(wrapper.text()).toContain("Update library");
     expect(wrapper.text()).toContain("Unregister");
   });
 
@@ -274,7 +274,7 @@ describe("LibraryDetailPage", () => {
         scan: { state: "complete", operation: null, trigger: null, active_job_id: null, completed_units: null, total_units: null, progress_percent: null },
         metadata: { state: "complete", total_assets: 100, ready_assets: 95, not_ready_assets: 5, queued_assets: 0, running_assets: 0, stale_assets: 0, idle_pending_assets: 0, failed_assets: 0, progress_percent: 100, global_active_outside_scope: false },
         issue_count: 5, issues: { availability: 1, scan: 2, metadata: 2 },
-        latest_issue: { source: "File scan", message: "File not found", path: "/path/to/file" },
+        latest_issue: { source: "File update", message: "File not found", path: "/path/to/file" },
         last_scan_at: null, last_index_at: null,
       },
       contract_version: 1,
@@ -292,9 +292,9 @@ describe("LibraryDetailPage", () => {
     expect(copyTextMock).toHaveBeenCalledWith("/photos", "path");
   });
 
-  it("calls scan mutation on Scan button click", async () => {
+  it("calls scan mutation on Update library button click", async () => {
     const wrapper = mountSubject();
-    const scanBtn = wrapper.findAll("button").find((b) => b.text().includes("Scan"));
+    const scanBtn = wrapper.findAll("button").find((b) => b.text().includes("Update library"));
     expect(scanBtn).not.toBeUndefined();
     await scanBtn!.trigger("click");
     expect(scanMutateMock).toHaveBeenCalledWith({ id: 1 });

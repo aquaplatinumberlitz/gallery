@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { MoreHorizontal, Eye, Pencil, Play, Trash2, Images } from "lucide-vue-next";
+import { MoreHorizontal, Eye, Pencil, RefreshCw, Trash2, Images } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import {
   DropdownMenu,
@@ -29,7 +29,7 @@ const emit = defineEmits<{
       <DropdownMenuItem @select="emit('use')"><Images /> Use in gallery</DropdownMenuItem>
       <DropdownMenuItem @select="emit('edit')"><Pencil /> Edit</DropdownMenuItem>
       <DropdownMenuSeparator />
-      <DropdownMenuItem @select="emit('scan')"><Play /> Scan / Rescan</DropdownMenuItem>
+      <DropdownMenuItem @select="emit('scan')"><RefreshCw /> Update library</DropdownMenuItem>
       <DropdownMenuSeparator />
       <DropdownMenuItem class="text-destructive focus:text-destructive" @select="emit('unregister')">
         <Trash2 /> Unregister

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
-import { Library, Plus, RefreshCw, ScanLine, AlertTriangle } from "lucide-vue-next";
+import { Library, Plus, RefreshCw, AlertTriangle } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -100,7 +100,7 @@ function created(library: RegisteredLibrary) {
             :disabled="scanAllMutation.isPending.value || libraries.length === 0"
             @click="scanAllMutation.mutate()"
           >
-            <ScanLine /> {{ scanAllMutation.isPending.value ? "Queueing…" : "Scan all" }}
+            <RefreshCw /> {{ scanAllMutation.isPending.value ? "Queueing…" : "Update all libraries" }}
           </Button>
           <Button @click="createOpen = true"><Plus /> Add library</Button>
         </div>
@@ -169,7 +169,7 @@ function created(library: RegisteredLibrary) {
             <TableHeader>
               <TableRow>
                 <TableHead>Library</TableHead><TableHead>Import paths</TableHead><TableHead>Status</TableHead
-                ><TableHead>Assets / Stats</TableHead><TableHead>Last scan</TableHead><TableHead>Last index</TableHead
+                ><TableHead>Assets / Stats</TableHead><TableHead>Last update</TableHead><TableHead>Last index</TableHead
                 ><TableHead class="w-14"><span class="sr-only">Actions</span></TableHead>
               </TableRow>
             </TableHeader>
@@ -187,7 +187,7 @@ function created(library: RegisteredLibrary) {
                     class="mt-1 flex items-center gap-1 text-xs text-destructive"
                     :title="scanErrorMessage(library) ?? ''"
                   >
-                    <AlertTriangle class="size-3" /> Last scan failed
+                    <AlertTriangle class="size-3" /> Last update failed
                   </div>
                 </TableCell>
                 <TableCell>
@@ -252,7 +252,7 @@ function created(library: RegisteredLibrary) {
             </div>
             <div class="mt-4 flex items-center justify-between gap-3">
               <LibraryStatusBadge :status="statusFor(library)" /><span class="text-xs text-muted-foreground"
-                >Scanned {{ formatLibraryTimestamp(lastScanAt(library)) }}</span
+                >Updated {{ formatLibraryTimestamp(lastScanAt(library)) }}</span
               >
             </div>
             <div class="mt-4"><LibrarySummaryPanel :status="statusFor(library)" /></div>

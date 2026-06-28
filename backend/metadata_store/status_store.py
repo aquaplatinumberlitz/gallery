@@ -747,7 +747,7 @@ def _build_status(
         scan_issue = {
             "source": "scan",
             "path": latest_terminal["scope_path"],
-            "message": latest_terminal["message"] or latest_terminal["error"] or "Catalog scan failed",
+            "message": latest_terminal["message"] or latest_terminal["error"] or "Catalog update failed",
             "updated_at": _epoch_ms(latest_terminal["updated_at"]) or generated_at,
         }
 

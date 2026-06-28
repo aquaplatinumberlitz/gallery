@@ -5,8 +5,8 @@ import type { SummaryState } from "../status";
 const EXPECTED_LABELS: Record<SummaryState, string> = {
   unknown: "Unknown",
   offline: "Offline",
-  needs_scan: "Needs scan",
-  scanning: "Scanning",
+  needs_scan: "Needs update",
+  scanning: "Updating",
   indexing: "Updating",
   needs_update: "Needs update",
   ready_with_issues: "Ready with issues",
@@ -51,7 +51,7 @@ describe("CATALOG_STATUS_LABELS", () => {
 
 describe("getCatalogStatusLabel", () => {
   it("returns the label for a known state", () => {
-    expect(getCatalogStatusLabel("scanning")).toBe("Scanning");
+    expect(getCatalogStatusLabel("scanning")).toBe("Updating");
     expect(getCatalogStatusLabel("ready_with_issues")).toBe("Ready with issues");
   });
 

@@ -234,7 +234,7 @@ async function submit(scanAfterCreate = false) {
       <Button type="button" variant="ghost" :disabled="pending" @click="emit('cancel')">Cancel</Button>
       <Button type="button" variant="outline" :disabled="pending" @click="validate">Validate</Button>
       <Button v-if="!library" type="button" variant="secondary" :disabled="pending" @click="submit(true)">
-        {{ submitAndScan && pending ? "Adding…" : "Add and scan" }}
+        {{ submitAndScan && pending ? "Adding…" : "Add and update" }}
       </Button>
       <Button type="submit" :disabled="pending">
         {{ pending ? "Saving…" : library ? "Save changes" : "Add library" }}

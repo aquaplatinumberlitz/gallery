@@ -97,9 +97,9 @@ describe("LibraryForm", () => {
     expect(wrapper.text()).toContain("Save changes");
   });
 
-  it("shows Add and scan button when no library", () => {
+  it("shows Add and update button when no library", () => {
     const wrapper = createWrapper();
-    expect(wrapper.text()).toContain("Add and scan");
+    expect(wrapper.text()).toContain("Add and update");
   });
 
   it("renders Cancel and Validate buttons", () => {
