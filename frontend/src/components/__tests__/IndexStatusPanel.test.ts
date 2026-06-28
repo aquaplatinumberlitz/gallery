@@ -4,6 +4,7 @@ import { mount } from "@vue/test-utils";
 import { createIsolatedQueryClient } from "@/test/queryClient";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import type { StatusResponseEnvelope } from "@/lib/catalog/status";
+import { ref } from "vue";
 
 const mockStatus = {
   contract_version: 1 as const,
@@ -40,30 +41,28 @@ const mockStatus = {
   last_index_at: null,
 };
 
-let mockDataValue: { value: StatusResponseEnvelope | null } = {
-  value: {
-    status: mockStatus as StatusResponseEnvelope["status"],
-    contract_version: 1 as const,
-    global_runtime: {
-      catalog_worker_count: 1,
-      catalog_active_jobs: 0,
-      catalog_queue_depth: 0,
-      metadata_worker_count: 1,
-      metadata_active_jobs: 0,
-      metadata_queue_depth: 0,
-      metadata_staged_queue_depth: 0,
-      watcher_enabled: true,
-      watcher_healthy: true,
-      watcher_issue: null,
-      scheduled_reconciliation_enabled: false,
-    },
-    metadata_lifecycle: null,
+let mockDataValue = ref<StatusResponseEnvelope | null>({
+  status: mockStatus as StatusResponseEnvelope["status"],
+  contract_version: 1 as const,
+  global_runtime: {
+    catalog_worker_count: 1,
+    catalog_active_jobs: 0,
+    catalog_queue_depth: 0,
+    metadata_worker_count: 1,
+    metadata_active_jobs: 0,
+    metadata_queue_depth: 0,
+    metadata_staged_queue_depth: 0,
+    watcher_enabled: true,
+    watcher_healthy: true,
+    watcher_issue: null,
+    scheduled_reconciliation_enabled: false,
   },
-};
-let mockIsLoadingValue = { value: false };
-let mockIsErrorValue = { value: false };
-let mockErrorValue = { value: null };
-let mockContractErrorValue = { value: null };
+  metadata_lifecycle: null,
+});
+let mockIsLoadingValue = ref(false);
+let mockIsErrorValue = ref(false);
+let mockErrorValue = ref<Error | null>(null);
+let mockContractErrorValue = ref<Error | null>(null);
 const mockRefetch = vi.fn();
 
 vi.mock("@/composables/useCatalogStatusQuery", () => ({
@@ -107,30 +106,28 @@ describe("IndexStatusPanel", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
-    mockDataValue = {
-      value: {
-        status: mockStatus as StatusResponseEnvelope["status"],
-        contract_version: 1 as const,
-        global_runtime: {
-          catalog_worker_count: 1,
-          catalog_active_jobs: 0,
-          catalog_queue_depth: 0,
-          metadata_worker_count: 1,
-          metadata_active_jobs: 0,
-          metadata_queue_depth: 0,
-          metadata_staged_queue_depth: 0,
-          watcher_enabled: true,
-          watcher_healthy: true,
-          watcher_issue: null,
-          scheduled_reconciliation_enabled: false,
-        },
-        metadata_lifecycle: null,
+    mockDataValue.value = {
+      status: mockStatus as StatusResponseEnvelope["status"],
+      contract_version: 1 as const,
+      global_runtime: {
+        catalog_worker_count: 1,
+        catalog_active_jobs: 0,
+        catalog_queue_depth: 0,
+        metadata_worker_count: 1,
+        metadata_active_jobs: 0,
+        metadata_queue_depth: 0,
+        metadata_staged_queue_depth: 0,
+        watcher_enabled: true,
+        watcher_healthy: true,
+        watcher_issue: null,
+        scheduled_reconciliation_enabled: false,
       },
+      metadata_lifecycle: null,
     };
-    mockIsLoadingValue = { value: false };
-    mockIsErrorValue = { value: false };
-    mockErrorValue = { value: null };
-    mockContractErrorValue = { value: null };
+    mockIsLoadingValue.value = false;
+    mockIsErrorValue.value = false;
+    mockErrorValue.value = null;
+    mockContractErrorValue.value = null;
   });
 
   it("renders button with catalog status trigger", async () => {
@@ -176,8 +173,8 @@ describe("IndexStatusPanel", () => {
   });
 
   it("shows loading state", async () => {
-    mockIsLoadingValue = { value: true };
-    mockDataValue = { value: null };
+    mockIsLoadingValue.value = true;
+    mockDataValue.value = null;
     const IndexStatusPanel = (await import("../IndexStatusPanel.vue")).default;
     setActivePinia(createPinia());
     const queryClient = createIsolatedQueryClient();
@@ -199,5 +196,47 @@ describe("IndexStatusPanel", () => {
       },
     });
     expect(wrapper.text()).toBeTruthy();
+  });
+
+  it("shows Update library without a rebuild action and calls scanLibrary", async () => {
+    const IndexStatusPanel = (await import("../IndexStatusPanel.vue")).default;
+    const { scanLibrary } = await import("@/services/api");
+    vi.mocked(scanLibrary).mockResolvedValue({
+      library_id: 1,
+      job_id: 10,
+      scope_path: null,
+      operation: "scan",
+      trigger: "manual",
+      state: "queued",
+      coalesced: false,
+    });
+    const queryClient = createIsolatedQueryClient();
+    const wrapper = mount(IndexStatusPanel, {
+      global: {
+        plugins: [[VueQueryPlugin, { queryClient }]],
+        stubs: {
+          Button: { template: "<button v-bind='$attrs'><slot /></button>" },
+          Badge: { template: "<span><slot /></span>" },
+          Popover: { template: "<div><slot /></div>" },
+          PopoverTrigger: { template: "<div><slot /></div>" },
+          PopoverContent: { template: "<div class='popover-content'><slot /></div>" },
+          IndexStatusBadge: { template: "<span><slot /></span>" },
+          IndexStatusCard: { template: "<div class='status-card'><slot /></div>" },
+          Database: { template: "<span>db</span>" },
+          ChevronRight: { template: "<span />" },
+          ChevronDown: { template: "<span />" },
+        },
+      },
+    });
+
+    expect(wrapper.text()).toContain("Update library");
+    expect(wrapper.findAll("button").some((button) => button.text() === "Scan")).toBe(false);
+    expect(wrapper.findAll("button").some((button) => button.text() === "Rebuild")).toBe(false);
+
+    const updateButton = wrapper.findAll("button").find((button) => button.text() === "Update library");
+    expect(updateButton).toBeDefined();
+    await updateButton!.trigger("click");
+
+    expect(scanLibrary).toHaveBeenCalledWith(1, undefined);
   });
 });

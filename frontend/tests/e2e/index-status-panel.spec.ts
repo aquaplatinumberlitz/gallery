@@ -1,6 +1,6 @@
 /**
  * Purpose:
- * Verifies Catalog Status copy, status states, popover content, and rebuild actions.
+ * Verifies Catalog Status copy, status states, popover content, and update actions.
  *
  * Guarantees:
  * * catalog status counts and labels remain user-facing and stable
@@ -268,11 +268,9 @@ test.describe("Catalog Status panel", () => {
     await expect(popover).toContainText(rootPath);
     await expect(popover).toContainText("Including subfolders");
     await expect(popover).toContainText("Yes");
-    await expect(popover.getByRole("button", { name: "Scan" })).toBeVisible();
-    await expect(popover.getByRole("button", { name: "Rebuild" })).toBeVisible();
-    await expect(popover).toContainText(
-      "Rebuild will re-index this scope's files and re-extract metadata. Source image files are not deleted.",
-    );
+    await expect(popover.getByRole("button", { name: "Update current folder" })).toBeVisible();
+    await expect(popover.getByRole("button", { name: "Scan" })).toHaveCount(0);
+    await expect(popover.getByRole("button", { name: "Rebuild" })).toHaveCount(0);
   });
 
   test("catalog status shows loading state initially", async ({ page }) => {
@@ -300,7 +298,7 @@ test.describe("Catalog Status panel", () => {
     await expect(popover).toContainText(/Failed to load status|Status failed|Something went wrong/);
   });
 
-  test("Scan calls the library scan endpoint", async ({ page }) => {
+  test("Update current folder calls the library scan endpoint", async ({ page }) => {
     await installStubbedGallery(page);
     await openStubbedGallery(page, true);
 
@@ -308,37 +306,10 @@ test.describe("Catalog Status panel", () => {
     const scanPromise = page.waitForRequest((req) => new URL(req.url()).pathname === "/api/libraries/1/scan", {
       timeout: 5_000,
     });
-    await popover.getByRole("button", { name: "Scan" }).click();
+    await popover.getByRole("button", { name: "Update current folder" }).click();
     const scanReq = await scanPromise;
     expect(scanReq.method()).toBe("POST");
     expect(scanReq.postDataJSON()).toMatchObject({ scope_path: rootPath });
-  });
-
-  test("Rebuild shows confirmation dialog and calls the library rebuild endpoint after confirm", async ({ page }) => {
-    await installStubbedGallery(page);
-    await openStubbedGallery(page, true);
-
-    const popover = await openStatusPopover(page);
-    await popover.getByRole("button", { name: "Rebuild" }).click();
-
-    const dialog = page.getByRole("dialog", { name: "Rebuild?" });
-    await expect(dialog).toBeVisible({ timeout: 5_000 });
-    await expect(dialog).toContainText(
-      "Rebuild will re-index this scope's files and re-extract metadata. Source image files are not deleted.",
-    );
-
-    await dialog.getByRole("button", { name: "Cancel" }).click();
-    await expect(dialog).not.toBeVisible();
-
-    await popover.getByRole("button", { name: "Rebuild" }).click();
-    await expect(dialog).toBeVisible({ timeout: 5_000 });
-    const rebuildPromise = page.waitForRequest((req) => new URL(req.url()).pathname === "/api/libraries/1/rebuild", {
-      timeout: 5_000,
-    });
-    await dialog.getByRole("button", { name: "Rebuild" }).click();
-    const rebuildReq = await rebuildPromise;
-    expect(rebuildReq.method()).toBe("POST");
-    expect(rebuildReq.postDataJSON()).toMatchObject({ confirm: true, scope_path: rootPath });
   });
 
   test("collapsed desktop sidebar shows compact status button with dot", async ({ page }) => {

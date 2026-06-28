@@ -1,7 +1,7 @@
 /*
 Purpose:
 Cover responsive library management list/detail flows, create/update/delete,
-scan, rebuild, and scan-all actions.
+update, rebuild, and update-all actions.
 
 Guarantees:
 Library management remains usable on compact and desktop layouts, preserves
@@ -374,7 +374,7 @@ test("creates and scans a library from the compact layout", async ({ page }) => 
   await page.getByPlaceholder("/absolute/path/to/library").fill("/registered/trips");
   await page.getByRole("button", { name: "Add pattern" }).click();
   await page.getByPlaceholder("**/private/**").fill("**/private/**");
-  await page.getByRole("button", { name: "Add and scan" }).click();
+  await page.getByRole("button", { name: "Add and update" }).click();
 
   await expect(page).toHaveURL(/\/admin\/libraries\/2$/);
   await expect(page.getByRole("heading", { name: "Trips" })).toBeVisible();
@@ -392,7 +392,7 @@ test("runs detail actions, updates settings, and unregisters safely", async ({ p
   await expect(page.getByText("Recent job history")).toBeVisible();
   await expect(page.getByText("Scan complete")).toBeVisible();
 
-  await page.getByRole("button", { name: "Scan", exact: true }).click();
+  await page.getByRole("button", { name: "Update library", exact: true }).click();
   await expect.poll(() => matchingRequests(state, "POST", "/api/libraries/1/scan").length).toBe(1);
   await expect(page.getByRole("button", { name: "Repair", exact: true })).toHaveCount(0);
 
@@ -412,12 +412,12 @@ test("runs detail actions, updates settings, and unregisters safely", async ({ p
   expect(new URL(deleteRequest.url()).searchParams.get("confirm")).toBe("true");
 });
 
-test("scan-all and use-in-gallery stay available from the list", async ({ page }) => {
+test("update-all and use-in-gallery stay available from the list", async ({ page }) => {
   await preparePage(page);
   const state = await mockLibraryApi(page);
   await page.goto(`${baseUrl}/admin/libraries`);
 
-  await page.getByRole("button", { name: "Scan all" }).click();
+  await page.getByRole("button", { name: "Update all libraries" }).click();
   await expect.poll(() => matchingRequests(state, "POST", "/api/libraries/scan-all").length).toBe(1);
 
   await page.getByRole("button", { name: "Library actions" }).click();

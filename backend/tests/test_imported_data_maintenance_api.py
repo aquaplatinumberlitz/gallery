@@ -30,7 +30,15 @@ def _seed_imported_data(root: Path, cache_dir: Path, monkeypatch) -> int:
               metadata_state, offline
             ) VALUES (?, ?, ?, ?, 'image', ?, ?, ?, 'done', 0)
             """,
-            (library["id"], str(image), str(image.parent), image.name, image.stat().st_mtime_ns, image.stat().st_size, now),
+            (
+                library["id"],
+                str(image),
+                str(image.parent),
+                image.name,
+                image.stat().st_mtime_ns,
+                image.stat().st_size,
+                now,
+            ),
         )
         asset_id = int(cursor.lastrowid)
         conn.execute(
@@ -39,7 +47,15 @@ def _seed_imported_data(root: Path, cache_dir: Path, monkeypatch) -> int:
               path, name, parent_path, type, mtime_ns, size, indexed_at, library_id
             ) VALUES (?, ?, ?, 'image', ?, ?, ?, ?)
             """,
-            (str(image), image.name, str(image.parent), image.stat().st_mtime_ns, image.stat().st_size, now, library["id"]),
+            (
+                str(image),
+                image.name,
+                str(image.parent),
+                image.stat().st_mtime_ns,
+                image.stat().st_size,
+                now,
+                library["id"],
+            ),
         )
         conn.execute(
             "INSERT INTO file_index_fts(name, path, type, parent_path) VALUES (?, ?, 'image', ?)",
@@ -113,7 +129,13 @@ def _seed_imported_data(root: Path, cache_dir: Path, monkeypatch) -> int:
               cache_path, byte_size, max_long_edge, format, quality
             ) VALUES (?, 'thumbnail', 'thumb_512', ?, ?, 'ready', ?, ?, 512, 'webp', 85)
             """,
-            (asset_id, float(image.stat().st_mtime_ns), image.stat().st_size, str(cache_file), cache_file.stat().st_size),
+            (
+                asset_id,
+                float(image.stat().st_mtime_ns),
+                image.stat().st_size,
+                str(cache_file),
+                cache_file.stat().st_size,
+            ),
         )
         conn.execute(
             """
@@ -130,7 +152,7 @@ def _table_count(table: str) -> int:
         return int(conn.execute(f"SELECT count(*) FROM {table}").fetchone()[0])
 
 
-def test_clear_imported_data_preserves_libraries_and_clears_derived_rows(
+def test_clear_imported_data_preserves_libraries_import_paths_exclusions_and_clears_derived_rows_files(
     isolated_app: TestClient,
     isolated_gallery_root: Path,
     isolated_thumbnail_cache: Path,
@@ -149,20 +171,25 @@ def test_clear_imported_data_preserves_libraries_and_clears_derived_rows(
     assert _table_count("libraries") == 1
     assert _table_count("library_import_paths") == 1
     assert _table_count("library_exclusion_patterns") == 1
+    assert not (isolated_thumbnail_cache / "files" / "one.webp").exists()
     for table in (
         "assets",
         "file_index",
+        "file_index_fts",
         "image_metadata",
         "image_resources",
         "metadata_index_jobs",
         "library_jobs",
         "catalog_rebuild_entries",
+        "folder_index_state",
         "asset_derivatives",
         "derivative_jobs",
     ):
         assert _table_count(table) == 0, table
     with _DB_LOCK, _connect() as conn:
-        library = conn.execute("SELECT state, last_scan_at, last_error FROM libraries WHERE id = ?", (library_id,)).fetchone()
+        library = conn.execute(
+            "SELECT state, last_scan_at, last_error FROM libraries WHERE id = ?", (library_id,)
+        ).fetchone()
     assert library["state"] == "discovering"
     assert library["last_scan_at"] is None
     assert library["last_error"] is None
@@ -175,11 +202,28 @@ def test_clear_imported_data_requires_confirmation(isolated_app: TestClient) -> 
     assert response.json()["detail"]["error"] == "confirmation_required"
 
 
+def test_rebuild_imported_data_requires_confirmation(isolated_app: TestClient) -> None:
+    response = isolated_app.post("/api/maintenance/imported-data/rebuild", json={})
+
+    assert response.status_code == 400
+    assert response.json()["detail"]["error"] == "confirmation_required"
+
+
 def test_clear_imported_data_rejects_active_jobs(isolated_app: TestClient, isolated_gallery_root: Path) -> None:
     library = create_library([isolated_gallery_root], name="Busy")
     create_job("scan", library_id=library["id"])
 
     response = isolated_app.post("/api/maintenance/imported-data/clear", json={"confirm": True})
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["error"] == "maintenance_busy"
+
+
+def test_rebuild_imported_data_rejects_active_jobs(isolated_app: TestClient, isolated_gallery_root: Path) -> None:
+    library = create_library([isolated_gallery_root], name="Busy")
+    create_job("scan", library_id=library["id"])
+
+    response = isolated_app.post("/api/maintenance/imported-data/rebuild", json={"confirm": True})
 
     assert response.status_code == 409
     assert response.json()["detail"]["error"] == "maintenance_busy"
@@ -200,6 +244,14 @@ def test_rebuild_imported_data_clears_and_queues_parent_and_child(
     assert data["state"] == "running"
     assert data["count"] == 1
     assert len(data["child_job_ids"]) == 1
+    assert data["clear"]["assets_cleared"] == 1
+    assert data["clear"]["file_index_rows_cleared"] == 1
+    assert data["clear"]["image_metadata_rows_cleared"] == 1
+    assert data["clear"]["preview_files_deleted"] == 1
+    assert _table_count("assets") == 0
+    assert _table_count("file_index") == 0
+    assert _table_count("image_metadata") == 0
+    assert not (isolated_thumbnail_cache / "files" / "one.webp").exists()
     with _DB_LOCK, _connect() as conn:
         parent = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (data["job_id"],)).fetchone()
         child = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (data["child_job_ids"][0],)).fetchone()
@@ -253,6 +305,7 @@ def test_reset_catalog_database_deletes_libraries(
     assert _table_count("libraries") == 0
     assert _table_count("library_import_paths") == 0
     assert _table_count("library_exclusion_patterns") == 0
+    assert isolated_app.get("/api/libraries").json() == []
 
 
 def test_reset_catalog_database_requires_phrase(isolated_app: TestClient) -> None:
@@ -260,3 +313,17 @@ def test_reset_catalog_database_requires_phrase(isolated_app: TestClient) -> Non
 
     assert response.status_code == 400
     assert response.json()["detail"]["error"] == "confirmation_required"
+
+
+def test_reset_catalog_database_rejects_active_jobs(isolated_app: TestClient, isolated_gallery_root: Path) -> None:
+    library = create_library([isolated_gallery_root], name="Busy")
+    create_job("scan", library_id=library["id"])
+
+    response = isolated_app.post(
+        "/api/maintenance/catalog/reset",
+        json={"confirm_phrase": "RESET CATALOG DATABASE"},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["error"] == "maintenance_busy"
+    assert _table_count("libraries") == 1

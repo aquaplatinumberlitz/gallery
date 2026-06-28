@@ -118,12 +118,62 @@ describe("MaintenancePage", () => {
     expect(wrapper.text()).toContain("Catalogs");
   });
 
-  it("shows imported-data actions and no preview-only maintenance actions", () => {
+  it("shows only Rebuild and Clear imported-data action buttons", () => {
     const wrapper = mountSubject();
-    expect(wrapper.text()).toContain("Rebuild");
-    expect(wrapper.text()).toContain("Clear");
+    const actionLabels = wrapper
+      .get("header")
+      .findAll("button")
+      .map((button) => button.text().trim());
+    expect(actionLabels).toEqual(["Rebuild", "Clear"]);
     expect(wrapper.text()).not.toContain("Rebuild outdated previews");
     expect(wrapper.text()).not.toContain("Clear thumbnails");
+  });
+
+  it("keeps catalog, metadata, and thumbnail diagnostics read-only", () => {
+    mockRuntimeData = {
+      global_runtime: {
+        catalog_worker_count: 1,
+        catalog_active_jobs: 0,
+        catalog_queue_depth: 0,
+        metadata_worker_count: 1,
+        metadata_active_jobs: 0,
+        metadata_queue_depth: 0,
+        metadata_staged_queue_depth: 0,
+        watcher_enabled: true,
+        watcher_healthy: true,
+        watcher_issue: null,
+        scheduled_reconciliation_enabled: true,
+      },
+      metadata_lifecycle: {
+        queued_metadata_jobs: 0,
+        running_metadata_jobs: 0,
+        failed_metadata_jobs: 0,
+        stale_metadata_jobs: 0,
+        assets_done_but_metadata_missing_or_stale: 0,
+        repairable_metadata_assets: 0,
+        metadata_jobs_without_matching_assets: 0,
+      },
+    };
+    mockGlobalSummaryData = [{ ready_derivatives: 2, expected_derivatives: 2 }];
+    const wrapper = mountSubject();
+
+    const catalogSection = wrapper.findAll("section").find((section) => section.text().includes("Catalogs"));
+    const metadataSection = wrapper.findAll("section").find((section) => section.text().includes("Metadata jobs"));
+    const thumbnailsSection = wrapper
+      .findAll("section")
+      .find((section) => section.text().includes("Thumbnails & previews"));
+
+    expect(catalogSection?.findAll("button")).toHaveLength(0);
+    expect(metadataSection?.findAll("button").map((button) => button.attributes("aria-label"))).toEqual([
+      "About Failed jobs",
+      "About Old or missing metadata",
+      "About Jobs without catalog item",
+    ]);
+    expect(thumbnailsSection?.findAll("button").map((button) => button.attributes("aria-label"))).toEqual([
+      "Refresh summary",
+    ]);
+    expect(thumbnailsSection?.text()).not.toContain("Rebuild");
+    expect(thumbnailsSection?.text()).not.toContain("Clear");
   });
 
   it("renders watcher healthy and latest issue", () => {

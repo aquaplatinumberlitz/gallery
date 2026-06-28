@@ -129,4 +129,23 @@ describe("IndexStatusDetailsPopover edge states", () => {
     const { getByText } = renderPopover(null, { contractError: true });
     expect(getByText(STATUS_CONTRACT_ERROR_MESSAGE)).toBeVisible();
   });
+
+  it("uses Update vocabulary and does not show a rebuild action", () => {
+    const { getByRole, queryByRole } = renderPopover(makeStatus(), { isVirtualRoot: true });
+
+    expect(getByRole("button", { name: "Update library" })).toBeVisible();
+    expect(queryByRole("button", { name: "Scan" })).toBeNull();
+    expect(queryByRole("button", { name: "Rebuild" })).toBeNull();
+  });
+
+  it("uses current-folder Update vocabulary for scoped catalog status", () => {
+    const { getByRole } = renderPopover(
+      makeStatus({ scope: { kind: "path", library_id: 7, path: "/photos", import_path_count: 1 } }),
+      {
+        path: "/photos",
+      },
+    );
+
+    expect(getByRole("button", { name: "Update current folder" })).toBeVisible();
+  });
 });

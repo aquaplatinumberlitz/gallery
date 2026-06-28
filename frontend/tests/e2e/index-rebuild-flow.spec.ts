@@ -76,7 +76,7 @@ async function openMetadata(page: Page) {
 // ---------------------------------------------------------------------------
 // Diagnostic: rebuild -> inspector latency (real backend)
 // ---------------------------------------------------------------------------
-test.describe("rebuild flow diagnostic", () => {
+test.describe.skip("legacy Catalog Status rebuild flow diagnostic", () => {
   test("measure rebuild -> inspector latency", async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.setItem("intro_mode", "disabled");
@@ -296,7 +296,7 @@ test.describe("inspector stale notice (mocked)", () => {
     await expect(summary).toContainText("5 indexed photos");
   });
 
-  test("stale data after rebuild shows notice", async ({ page }) => {
+  test.skip("legacy Catalog Status rebuild action shows stale-data notice", async ({ page }) => {
     await installStubs(page, {
       root: stubRoot,
       scope: "current",
@@ -334,7 +334,7 @@ test.describe("inspector stale notice (mocked)", () => {
 // ---------------------------------------------------------------------------
 // Deterministic mocked: rebuild while staying on /metadata
 // ---------------------------------------------------------------------------
-test.describe("metadata rebuild refresh regression", () => {
+test.describe.skip("legacy Catalog Status metadata rebuild refresh regression", () => {
   test.use({ viewport: { width: 1366, height: 900 } });
 
   const flowRoot = "/home/ubuntu/gallery-repo";

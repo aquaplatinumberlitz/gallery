@@ -34,6 +34,7 @@ def reset_watcher_state(monkeypatch: pytest.MonkeyPatch):
 
 def test_watchdog_dependency_available():
     import importlib.util
+
     assert importlib.util.find_spec("watchdog") is not None
 
 
