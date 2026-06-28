@@ -78,6 +78,9 @@ function mountSubject() {
         Button: { template: "<button v-bind='$attrs'><slot /></button>" },
         Skeleton: { template: "<div data-testid='skeleton' />" },
         Separator: { template: "<hr />" },
+        Tooltip: { template: "<span><slot /></span>" },
+        TooltipContent: { template: "<span><slot /></span>" },
+        TooltipTrigger: { template: "<span><slot /></span>" },
       },
     },
   });
@@ -215,7 +218,7 @@ describe("MaintenancePage", () => {
     expect(wrapper.text()).toContain("7");
   });
 
-  it("renders Metadata lifecycle", () => {
+  it("renders Metadata jobs", () => {
     mockRuntimeData = {
       global_runtime: {
         catalog_worker_count: 1,
@@ -249,18 +252,18 @@ describe("MaintenancePage", () => {
       },
     };
     const wrapper = mountSubject();
-    expect(wrapper.text()).toContain("Metadata lifecycle");
-    expect(wrapper.text()).toContain("Waiting");
+    expect(wrapper.text()).toContain("Metadata jobs");
+    expect(wrapper.text()).toContain("Queued");
     expect(wrapper.text()).toContain("2");
-    expect(wrapper.text()).toContain("Processing");
+    expect(wrapper.text()).toContain("Running");
     expect(wrapper.text()).toContain("1");
-    expect(wrapper.text()).toContain("Failed");
+    expect(wrapper.text()).toContain("Failed jobs");
     expect(wrapper.text()).toContain("3");
-    expect(wrapper.text()).toContain("Needs refresh");
+    expect(wrapper.text()).toContain("Old or missing metadata");
     expect(wrapper.text()).toContain("9");
     expect(wrapper.text()).toContain("Repairable");
     expect(wrapper.text()).toContain("2");
-    expect(wrapper.text()).toContain("Orphaned jobs");
+    expect(wrapper.text()).toContain("Jobs for missing files");
     expect(wrapper.text()).toContain("1");
   });
 });

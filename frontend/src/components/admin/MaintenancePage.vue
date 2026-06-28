@@ -20,6 +20,7 @@ import { fetchJobs, fetchLibraries, fetchGeneratedImagesStatus } from "@/service
 import { useGeneratedImagesGlobalMutations } from "@/composables/admin/useGeneratedImagesGlobalMutations";
 import { useFileHealthQuery, useFileHealthMutation } from "@/composables/admin/useFileHealthQuery";
 import { useMaintenanceRuntimeQuery } from "@/composables/admin/useMaintenanceRuntimeQuery";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import GeneratedImagesClearDialog from "./dialogs/GeneratedImagesClearDialog.vue";
 import GeneratedImagesRebuildDialog from "./dialogs/GeneratedImagesRebuildDialog.vue";
 
@@ -175,7 +176,7 @@ const needsRefreshCount = computed(() => {
 
       <section class="rounded-md border bg-background p-5">
         <div class="flex items-center justify-between">
-          <h3 class="font-semibold">Generated files (all libraries)</h3>
+          <h3 class="font-semibold">Thumbnails &amp; previews</h3>
           <Button variant="ghost" size="icon" aria-label="Refresh summary" @click="globalSummaryQuery.refetch()">
             <RefreshCw />
           </Button>
@@ -183,11 +184,11 @@ const needsRefreshCount = computed(() => {
         <div v-if="globalSummaryQuery.data.value" class="mt-4">
           <dl class="grid gap-3 text-sm sm:grid-cols-2">
             <div class="flex items-center justify-between gap-3">
-              <dt class="text-muted-foreground">Ready</dt>
+              <dt class="text-muted-foreground">Ready files</dt>
               <dd class="font-medium">{{ totalReady ?? "\u2014" }}</dd>
             </div>
             <div class="flex items-center justify-between gap-3">
-              <dt class="text-muted-foreground">Expected</dt>
+              <dt class="text-muted-foreground">Expected files</dt>
               <dd class="font-medium">{{ totalExpected ?? "\u2014" }}</dd>
             </div>
           </dl>
@@ -195,9 +196,14 @@ const needsRefreshCount = computed(() => {
         <Skeleton v-else-if="globalSummaryQuery.isPending.value" class="mt-4 h-16 w-full" />
         <p v-else class="mt-4 text-sm text-muted-foreground">No data available.</p>
         <div class="mt-4 flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" :disabled="rebuildMutation.isPending.value" @click="rebuildOpen = true">
-            <RefreshCw /> Refresh stale (all libraries)
-          </Button>
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button variant="outline" size="sm" :disabled="rebuildMutation.isPending.value" @click="rebuildOpen = true">
+                <RefreshCw /> Rebuild outdated previews
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Rebuilds thumbnail/preview files only. It does not fix metadata job errors.</TooltipContent>
+          </Tooltip>
           <Button variant="destructive" size="sm" :disabled="clearMutation.isPending.value" @click="clearOpen = true">
             <Trash2 /> Clear generated files (all libraries)
           </Button>
@@ -270,20 +276,25 @@ const needsRefreshCount = computed(() => {
         <section class="rounded-md border bg-background p-5">
           <div class="flex items-center gap-3">
             <AlertTriangle class="size-5 text-muted-foreground" />
-            <h3 class="font-semibold">Metadata lifecycle</h3>
+            <h3 class="font-semibold">Metadata jobs</h3>
           </div>
           <div v-if="runtimeQuery.data.value?.metadata_lifecycle" class="mt-4 space-y-3">
             <dl class="grid gap-3 text-sm">
               <div class="flex items-center justify-between gap-3">
-                <dt class="text-muted-foreground">Waiting</dt>
+                <dt class="text-muted-foreground">Queued</dt>
                 <dd class="font-medium">{{ runtimeQuery.data.value.metadata_lifecycle.queued_metadata_jobs }}</dd>
               </div>
               <div class="flex items-center justify-between gap-3">
-                <dt class="text-muted-foreground">Processing</dt>
+                <dt class="text-muted-foreground">Running</dt>
                 <dd class="font-medium">{{ runtimeQuery.data.value.metadata_lifecycle.running_metadata_jobs }}</dd>
               </div>
               <div class="flex items-center justify-between gap-3">
-                <dt class="text-muted-foreground">Failed</dt>
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <dt class="text-muted-foreground cursor-help">Failed jobs</dt>
+                  </TooltipTrigger>
+                  <TooltipContent>Metadata jobs that already failed. Rebuilding previews will not clear these.</TooltipContent>
+                </Tooltip>
                 <dd
                   class="font-medium"
                   :class="runtimeQuery.data.value.metadata_lifecycle.failed_metadata_jobs > 0 ? 'text-destructive' : ''"
@@ -292,7 +303,12 @@ const needsRefreshCount = computed(() => {
                 </dd>
               </div>
               <div class="flex items-center justify-between gap-3">
-                <dt class="text-muted-foreground">Needs refresh</dt>
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <dt class="text-muted-foreground cursor-help">Old or missing metadata</dt>
+                  </TooltipTrigger>
+                  <TooltipContent>Files whose extracted metadata is stale or missing. This is separate from thumbnail/preview cache.</TooltipContent>
+                </Tooltip>
                 <dd
                   class="font-medium"
                   :class="needsRefreshCount > 0 ? 'text-amber-600' : ''"
@@ -310,13 +326,18 @@ const needsRefreshCount = computed(() => {
                 </dd>
               </div>
               <div class="flex items-center justify-between gap-3">
-                <dt class="text-muted-foreground">Orphaned jobs</dt>
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <dt class="text-muted-foreground cursor-help">Jobs for missing files</dt>
+                  </TooltipTrigger>
+                  <TooltipContent>Metadata jobs whose source file is no longer in the catalog.</TooltipContent>
+                </Tooltip>
                 <dd class="font-medium">{{ runtimeQuery.data.value.metadata_lifecycle.metadata_jobs_without_matching_assets }}</dd>
               </div>
             </dl>
           </div>
           <Skeleton v-else-if="runtimeQuery.isPending.value" class="mt-4 h-40 w-full" />
-          <p v-else class="mt-4 text-sm text-muted-foreground">Metadata lifecycle diagnostics unavailable.</p>
+          <p v-else class="mt-4 text-sm text-muted-foreground">Metadata jobs diagnostics unavailable.</p>
         </section>
       </div>
 
