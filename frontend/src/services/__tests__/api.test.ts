@@ -39,6 +39,7 @@ import {
   fetchLibraryJobs,
   fetchLibraryStats,
   fetchLibraryStatusBatch,
+  fetchMaintenanceRuntime,
   fetchMetadata,
   GalleryAPIError,
   generateMissingImages,
@@ -519,5 +520,24 @@ describe("runFileHealthCheck", () => {
     mockApi.post.mockResolvedValueOnce({ data: { run: { status: "ok" } } });
     const r = await runFileHealthCheck();
     expect(r).toEqual({ run: { status: "ok" } });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Maintenance / runtime
+// ---------------------------------------------------------------------------
+
+describe("fetchMaintenanceRuntime", () => {
+  it("GET /api/maintenance/runtime", async () => {
+    mockApi.get.mockResolvedValueOnce({
+      data: {
+        global_runtime: { catalog_worker_count: 1, catalog_active_jobs: 0, catalog_queue_depth: 0, metadata_worker_count: 2, metadata_active_jobs: 0, metadata_queue_depth: 0, metadata_staged_queue_depth: 0, watcher_enabled: true, watcher_healthy: true, watcher_issue: null, scheduled_reconciliation_enabled: true },
+        metadata_lifecycle: null,
+      },
+    });
+    const r = await fetchMaintenanceRuntime();
+    expect(r.global_runtime.catalog_worker_count).toBe(1);
+    expect(r.metadata_lifecycle).toBeNull();
+    expect(mockApi.get).toHaveBeenCalledWith("/api/maintenance/runtime");
   });
 });

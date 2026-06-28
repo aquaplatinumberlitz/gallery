@@ -81,4 +81,5 @@ export const queryKeys = {
 
   maintenanceRoot: () => ["maintenance"] as const,
   maintenanceFileHealth: () => ["maintenance", "file-health"] as const,
+  maintenanceRuntime: () => ["maintenance", "runtime"] as const,
 };

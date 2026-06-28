@@ -1,14 +1,35 @@
-"""File-health report API for the Maintenance page."""
+"""File-health report and runtime diagnostics API for the Maintenance page."""
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 
+from .indexer import get_metadata_lifecycle_status
 from .integrity_checker import integrity_checker
 from .metadata_store import _DB_LOCK, _connect
 from .metadata_store.maintenance_store import get_latest_run
+from .metadata_store.status_store import build_global_runtime
 
 router = APIRouter(prefix="/api/maintenance", tags=["maintenance"])
+
+
+class MaintenanceRuntimeResponse(BaseModel):
+    """Response envelope for the runtime diagnostics endpoint."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    global_runtime: dict
+    metadata_lifecycle: dict | None
+
+
+@router.get("/runtime")
+async def get_maintenance_runtime():
+    """Return global runtime diagnostics and metadata lifecycle counters."""
+    global_runtime = build_global_runtime()
+    try:
+        lifecycle = get_metadata_lifecycle_status()
+    except Exception:  # noqa: BLE001
+        lifecycle = None
+    return MaintenanceRuntimeResponse(global_runtime=global_runtime, metadata_lifecycle=lifecycle)
 
 
 class FileHealthIssues(BaseModel):

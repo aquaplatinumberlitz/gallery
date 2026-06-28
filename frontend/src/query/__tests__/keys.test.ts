@@ -53,6 +53,7 @@ describe("queryKeys", () => {
     ["facets", ["/p"], ["facets", "/p"]],
     ["maintenanceRoot", [], ["maintenance"]],
     ["maintenanceFileHealth", [], ["maintenance", "file-health"]],
+    ["maintenanceRuntime", [], ["maintenance", "runtime"]],
   ] as const)("queryKeys.%s(%j) => %j", (method, args, expected) => {
     expect((queryKeys as any)[method](...args)).toEqual(expected);
   });

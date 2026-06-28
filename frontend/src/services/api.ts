@@ -54,7 +54,7 @@ export interface FileHealthRun {
 export interface FileHealthResponse {
   run: FileHealthRun | null;
 }
-import type { LibraryStatusBatchResponse, StatusResponseEnvelope } from "../lib/catalog/status";
+import type { GlobalRuntime, LibraryStatusBatchResponse, MetadataLifecycle, StatusResponseEnvelope } from "../lib/catalog/status";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -479,5 +479,15 @@ export const fetchFileHealth = async (): Promise<FileHealthResponse> => {
 
 export const runFileHealthCheck = async (): Promise<FileHealthResponse> => {
   const { data } = await api.post<FileHealthResponse>("/api/maintenance/file-health/check");
+  return data;
+};
+
+export interface MaintenanceRuntimeResponse {
+  global_runtime: GlobalRuntime;
+  metadata_lifecycle: MetadataLifecycle | null;
+}
+
+export const fetchMaintenanceRuntime = async (): Promise<MaintenanceRuntimeResponse> => {
+  const { data } = await api.get<MaintenanceRuntimeResponse>("/api/maintenance/runtime");
   return data;
 };

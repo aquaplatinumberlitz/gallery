@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import {
+  AlertTriangle,
   ArrowLeft,
   Copy,
   Images,
@@ -9,11 +10,7 @@ import {
   Play,
   RefreshCw,
   Trash2,
-  AlertTriangle,
   ImageIcon,
-  Activity,
-  ChevronDown,
-  ChevronUp,
 } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import ButtonLink from "@/components/ui/ButtonLink.vue";
@@ -93,35 +90,7 @@ const scanProgressLabel = computed(() => {
   return "";
 });
 
-const runtime = computed(() => statusQuery.data.value?.global_runtime ?? null);
-const lifecycle = computed(() => statusQuery.data.value?.metadata_lifecycle ?? null);
-const advancedOpen = ref(false);
 
-const needsRefreshCount = computed(() => {
-  const lc = lifecycle.value;
-  if (!lc) return 0;
-  return (lc.stale_metadata_jobs ?? 0) + (lc.assets_done_but_metadata_missing_or_stale ?? 0);
-});
-
-const watcherLabel = computed(() => {
-  const r = runtime.value;
-  if (!r) return "Not available";
-  if (!r.watcher_enabled) return "Off";
-  return r.watcher_healthy ? "On" : "Needs attention";
-});
-
-const watcherClass = computed(() => {
-  const r = runtime.value;
-  if (!r) return "";
-  if (!r.watcher_enabled) return "";
-  return r.watcher_healthy ? "text-green-600" : "text-destructive";
-});
-
-const refreshLabel = computed(() => {
-  const r = runtime.value;
-  if (!r) return "Not available";
-  return r.scheduled_reconciliation_enabled ? "On" : "Off";
-});
 
 const issueBreakdown = computed(() => {
   const issues = status.value?.issues;
@@ -381,118 +350,6 @@ function estimatedAssets(): number | undefined {
               </div>
             </div>
             <Skeleton v-else class="mt-4 h-24 w-full" />
-          </section>
-
-          <section class="rounded-md border bg-background p-5">
-            <div class="flex items-center gap-3">
-              <Activity class="size-5 text-muted-foreground" />
-              <h3 class="font-semibold">Live status</h3>
-            </div>
-            <div v-if="runtime" class="mt-4">
-              <dl class="grid gap-3 text-sm">
-                <div class="flex items-center justify-between gap-3">
-                  <dt class="text-muted-foreground">Watching for changes</dt>
-                  <dd class="font-medium" :class="watcherClass">{{ watcherLabel }}</dd>
-                </div>
-                <div v-if="runtime.watcher_issue" class="flex items-center justify-between gap-3">
-                  <dt class="text-muted-foreground">Latest issue</dt>
-                  <dd class="max-w-48 truncate text-right text-sm text-destructive">{{ runtime.watcher_issue }}</dd>
-                </div>
-                <div class="flex items-center justify-between gap-3">
-                  <dt class="text-muted-foreground">Scheduled refresh</dt>
-                  <dd class="font-medium">{{ refreshLabel }}</dd>
-                </div>
-              </dl>
-            </div>
-            <p v-else-if="statusQuery.isPending.value" class="mt-4 text-sm text-muted-foreground">Loading…</p>
-            <p v-else class="mt-4 text-sm text-muted-foreground">Not available</p>
-          </section>
-
-          <section class="rounded-md border bg-background p-5">
-            <div class="flex items-center gap-3">
-              <AlertTriangle class="size-5 text-muted-foreground" />
-              <h3 class="font-semibold">Problems</h3>
-            </div>
-            <div v-if="lifecycle" class="mt-4 space-y-3">
-              <dl class="grid gap-3 text-sm">
-                <div class="flex items-center justify-between gap-3">
-                  <dt class="text-muted-foreground">Waiting</dt>
-                  <dd class="font-medium">{{ lifecycle.queued_metadata_jobs }}</dd>
-                </div>
-                <div class="flex items-center justify-between gap-3">
-                  <dt class="text-muted-foreground">Processing</dt>
-                  <dd class="font-medium">{{ lifecycle.running_metadata_jobs }}</dd>
-                </div>
-                <div class="flex items-center justify-between gap-3">
-                  <dt class="text-muted-foreground">Failed</dt>
-                  <dd class="font-medium" :class="lifecycle.failed_metadata_jobs > 0 ? 'text-destructive' : ''">
-                    {{ lifecycle.failed_metadata_jobs }}
-                  </dd>
-                </div>
-                <div class="flex items-center justify-between gap-3">
-                  <dt class="text-muted-foreground">Needs refresh</dt>
-                  <dd class="font-medium" :class="needsRefreshCount > 0 ? 'text-amber-600' : ''">
-                    {{ needsRefreshCount }}
-                  </dd>
-                </div>
-                <div class="flex items-center justify-between gap-3">
-                  <dt class="text-muted-foreground">Can be repaired</dt>
-                  <dd class="font-medium" :class="lifecycle.repairable_metadata_assets > 0 ? 'text-amber-600' : ''">
-                    {{ lifecycle.repairable_metadata_assets }}
-                  </dd>
-                </div>
-                <div class="flex items-center justify-between gap-3">
-                  <dt class="text-muted-foreground">Worker</dt>
-                  <dd
-                    class="font-medium"
-                    :class="lifecycle.metadata_worker_alive ? 'text-green-600' : 'text-destructive'"
-                  >
-                    {{ lifecycle.metadata_worker_alive ? "Active" : "Inactive" }}
-                  </dd>
-                </div>
-              </dl>
-              <div>
-                <Button variant="ghost" size="sm" class="gap-1 text-xs" @click="advancedOpen = !advancedOpen">
-                  {{ advancedOpen ? "Hide" : "Show" }} advanced details
-                  <ChevronDown v-if="!advancedOpen" class="size-3" />
-                  <ChevronUp v-else class="size-3" />
-                </Button>
-                <dl v-if="advancedOpen" class="mt-2 grid gap-2 text-xs text-muted-foreground">
-                  <div class="flex items-center justify-between gap-3">
-                    <dt>Done jobs</dt>
-                    <dd>{{ lifecycle.done_metadata_jobs }}</dd>
-                  </div>
-                  <div class="flex items-center justify-between gap-3">
-                    <dt>Stale jobs</dt>
-                    <dd>{{ lifecycle.stale_metadata_jobs }}</dd>
-                  </div>
-                  <div class="flex items-center justify-between gap-3">
-                    <dt>Skipped jobs</dt>
-                    <dd>{{ lifecycle.skipped_metadata_jobs }}</dd>
-                  </div>
-                  <div class="flex items-center justify-between gap-3">
-                    <dt>Done jobs with pending assets</dt>
-                    <dd>{{ lifecycle.done_jobs_with_pending_assets }}</dd>
-                  </div>
-                  <div class="flex items-center justify-between gap-3">
-                    <dt>Orphaned jobs</dt>
-                    <dd>{{ lifecycle.metadata_jobs_without_matching_assets }}</dd>
-                  </div>
-                  <div class="flex items-center justify-between gap-3">
-                    <dt>Oldest queued job</dt>
-                    <dd>
-                      {{
-                        lifecycle.oldest_queued_metadata_job_age != null
-                          ? `${(lifecycle.oldest_queued_metadata_job_age / 60).toFixed(0)} min`
-                          : "\u2014"
-                      }}
-                    </dd>
-                  </div>
-                </dl>
-              </div>
-            </div>
-            <p v-else-if="statusQuery.isPending.value" class="mt-4 text-sm text-muted-foreground">Loading…</p>
-            <p v-else class="mt-4 text-sm text-muted-foreground">No problem details available.</p>
           </section>
 
           <section class="rounded-md border bg-background p-5">

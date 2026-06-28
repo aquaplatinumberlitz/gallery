@@ -58,24 +58,6 @@ const baseMockStatus = {
   last_index_at: null,
 };
 
-const baseMockLifecycle = {
-  queued_metadata_jobs: 2,
-  running_metadata_jobs: 1,
-  failed_metadata_jobs: 3,
-  stale_metadata_jobs: 5,
-  skipped_metadata_jobs: 1,
-  done_metadata_jobs: 100,
-  done_jobs_with_pending_assets: 0,
-  metadata_jobs_without_matching_assets: 1,
-  assets_done_but_metadata_missing_or_stale: 4,
-  repairable_metadata_assets: 2,
-  metadata_worker_alive: true,
-  metadata_worker_last_claimed_at: null,
-  metadata_worker_last_completed_at: null,
-  current_image_metadata_with_pending_assets: 0,
-  oldest_queued_metadata_job_age: 300,
-};
-
 const mockStats = {
   photos: 80,
   videos: 20,
@@ -104,8 +86,6 @@ let mockLibraryIsPending = false;
 let mockLibraryIsError = false;
 let mockStatusData: Record<string, unknown> | null = { status: { ...mockLibrary, ...baseMockStatus }, contract_version: 1 };
 let mockContractError: Error | null = null;
-let mockRuntime: Record<string, unknown> | null = null;
-let mockLifecycle: Record<string, unknown> | null = null;
 let mockJobsData: unknown[] = [];
 let mockGeneratedImagesData: typeof mockGeneratedImages | null = null;
 let routerPushMock = vi.fn();
@@ -215,8 +195,6 @@ describe("LibraryDetailPage", () => {
     mockLibraryIsError = false;
     mockStatusData = { status: { ...mockLibrary, ...baseMockStatus }, contract_version: 1 };
     mockContractError = null;
-    mockRuntime = null;
-    mockLifecycle = null;
     mockJobsData = [];
     mockGeneratedImagesData = null;
     routerPushMock = vi.fn();
@@ -249,8 +227,6 @@ describe("LibraryDetailPage", () => {
     expect(wrapper.text()).toContain("Statistics");
     expect(wrapper.text()).toContain("80");
     expect(wrapper.text()).toContain("20");
-    expect(wrapper.text()).toContain("Live status");
-    expect(wrapper.text()).toContain("Problems");
     expect(wrapper.text()).toContain("Import paths");
     expect(wrapper.text()).toContain("Exclusion patterns");
     expect(wrapper.text()).toContain("Recent job history");
@@ -331,77 +307,6 @@ describe("LibraryDetailPage", () => {
     expect(wrapper.text()).toContain("Generate missing");
   });
 
-  it("renders runtime with watcher enabled and healthy", () => {
-    mockRuntime = { watcher_enabled: true, watcher_healthy: true, scheduled_reconciliation_enabled: true, watcher_issue: null };
-    mockStatusData = {
-      status: { contract_version: 1, generated_at: Date.now(), summary_state: "ready",
-        scope: { kind: "library", library_id: 1, path: null, import_path_count: 1 },
-        availability: { state: "available", available_paths: 1, total_paths: 1 },
-        scan: { state: "complete", operation: null, trigger: null, active_job_id: null, completed_units: null, total_units: null, progress_percent: null },
-        metadata: { state: "complete", total_assets: 100, ready_assets: 95, not_ready_assets: 5, queued_assets: 0, running_assets: 0, stale_assets: 0, idle_pending_assets: 0, failed_assets: 0, progress_percent: 100, global_active_outside_scope: false },
-        issue_count: 0, issues: { availability: 0, scan: 0, metadata: 0 }, latest_issue: null, last_scan_at: null, last_index_at: null },
-      global_runtime: mockRuntime,
-      metadata_lifecycle: null,
-      contract_version: 1,
-    };
-    const wrapper = mountSubject();
-    expect(wrapper.text()).toContain("Live status");
-    expect(wrapper.text()).toContain("On");
-  });
-
-  it("renders runtime with watcher unhealthy", () => {
-    mockRuntime = { watcher_enabled: true, watcher_healthy: false, scheduled_reconciliation_enabled: true, watcher_issue: "Something broke" };
-    mockStatusData = {
-      status: { contract_version: 1, generated_at: Date.now(), summary_state: "ready",
-        scope: { kind: "library", library_id: 1, path: null, import_path_count: 1 },
-        availability: { state: "available", available_paths: 1, total_paths: 1 },
-        scan: { state: "complete", operation: null, trigger: null, active_job_id: null, completed_units: null, total_units: null, progress_percent: null },
-        metadata: { state: "complete", total_assets: 100, ready_assets: 95, not_ready_assets: 5, queued_assets: 0, running_assets: 0, stale_assets: 0, idle_pending_assets: 0, failed_assets: 0, progress_percent: 100, global_active_outside_scope: false },
-        issue_count: 0, issues: { availability: 0, scan: 0, metadata: 0 }, latest_issue: null, last_scan_at: null, last_index_at: null },
-      global_runtime: mockRuntime,
-      metadata_lifecycle: null,
-      contract_version: 1,
-    };
-    const wrapper = mountSubject();
-    expect(wrapper.text()).toContain("Needs attention");
-  });
-
-  it("renders runtime with watcher disabled", () => {
-    mockRuntime = { watcher_enabled: false, watcher_healthy: false, scheduled_reconciliation_enabled: false, watcher_issue: null };
-    mockStatusData = {
-      status: { contract_version: 1, generated_at: Date.now(), summary_state: "ready",
-        scope: { kind: "library", library_id: 1, path: null, import_path_count: 1 },
-        availability: { state: "available", available_paths: 1, total_paths: 1 },
-        scan: { state: "complete", operation: null, trigger: null, active_job_id: null, completed_units: null, total_units: null, progress_percent: null },
-        metadata: { state: "complete", total_assets: 100, ready_assets: 95, not_ready_assets: 5, queued_assets: 0, running_assets: 0, stale_assets: 0, idle_pending_assets: 0, failed_assets: 0, progress_percent: 100, global_active_outside_scope: false },
-        issue_count: 0, issues: { availability: 0, scan: 0, metadata: 0 }, latest_issue: null, last_scan_at: null, last_index_at: null },
-      global_runtime: mockRuntime,
-      metadata_lifecycle: null,
-      contract_version: 1,
-    };
-    const wrapper = mountSubject();
-    expect(wrapper.text()).toContain("Off");
-  });
-
-  it("renders lifecycle data with problems", () => {
-    mockLifecycle = baseMockLifecycle;
-    mockStatusData = {
-      status: { contract_version: 1, generated_at: Date.now(), summary_state: "ready",
-        scope: { kind: "library", library_id: 1, path: null, import_path_count: 1 },
-        availability: { state: "available", available_paths: 1, total_paths: 1 },
-        scan: { state: "complete", operation: null, trigger: null, active_job_id: null, completed_units: null, total_units: null, progress_percent: null },
-        metadata: { state: "complete", total_assets: 100, ready_assets: 95, not_ready_assets: 5, queued_assets: 0, running_assets: 0, stale_assets: 0, idle_pending_assets: 0, failed_assets: 0, progress_percent: 100, global_active_outside_scope: false },
-        issue_count: 0, issues: { availability: 0, scan: 0, metadata: 0 }, latest_issue: null, last_scan_at: null, last_index_at: null },
-      global_runtime: null,
-      metadata_lifecycle: mockLifecycle,
-      contract_version: 1,
-    };
-    const wrapper = mountSubject();
-    expect(wrapper.text()).toContain("Problems");
-    expect(wrapper.text()).toContain("Waiting");
-    expect(wrapper.text()).toContain("2");
-  });
-
   it("renders jobs with actual data", () => {
     mockJobsData = mockJobs;
     const wrapper = mountSubject();
@@ -411,27 +316,4 @@ describe("LibraryDetailPage", () => {
     expect(wrapper.text()).toContain("Out of memory");
   });
 
-  it("toggles advanced details via button click", async () => {
-    mockLifecycle = baseMockLifecycle;
-    mockStatusData = {
-      status: { contract_version: 1, generated_at: Date.now(), summary_state: "ready",
-        scope: { kind: "library", library_id: 1, path: null, import_path_count: 1 },
-        availability: { state: "available", available_paths: 1, total_paths: 1 },
-        scan: { state: "complete", operation: null, trigger: null, active_job_id: null, completed_units: null, total_units: null, progress_percent: null },
-        metadata: { state: "complete", total_assets: 100, ready_assets: 95, not_ready_assets: 5, queued_assets: 0, running_assets: 0, stale_assets: 0, idle_pending_assets: 0, failed_assets: 0, progress_percent: 100, global_active_outside_scope: false },
-        issue_count: 0, issues: { availability: 0, scan: 0, metadata: 0 }, latest_issue: null, last_scan_at: null, last_index_at: null },
-      global_runtime: null,
-      metadata_lifecycle: mockLifecycle,
-      contract_version: 1,
-    };
-    const wrapper = mountSubject();
-    const advBtn = wrapper.findAll("button").find((b) => b.text().includes("Show advanced details"));
-    expect(advBtn).not.toBeUndefined();
-    await advBtn!.trigger("click");
-    await wrapper.vm.$nextTick();
-
-    expect(wrapper.text()).toContain("Hide advanced details");
-    expect(wrapper.text()).toContain("Done jobs");
-    expect(wrapper.text()).toContain("100");
-  });
 });

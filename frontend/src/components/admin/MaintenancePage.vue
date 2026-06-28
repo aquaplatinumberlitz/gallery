@@ -1,7 +1,17 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { useQuery } from "@tanstack/vue-query";
-import { FileWarning, ScanLine, Wrench, RefreshCw, Trash2, Bug, Loader2 } from "lucide-vue-next";
+import {
+  Activity,
+  AlertTriangle,
+  Bug,
+  FileWarning,
+  Loader2,
+  RefreshCw,
+  ScanLine,
+  Trash2,
+  Wrench,
+} from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import Skeleton from "@/components/ui/skeleton/Skeleton.vue";
 import Separator from "@/components/ui/Separator.vue";
@@ -9,6 +19,7 @@ import { queryKeys } from "@/query/keys";
 import { fetchJobs, fetchLibraries, fetchGeneratedImagesStatus } from "@/services/api";
 import { useGeneratedImagesGlobalMutations } from "@/composables/admin/useGeneratedImagesGlobalMutations";
 import { useFileHealthQuery, useFileHealthMutation } from "@/composables/admin/useFileHealthQuery";
+import { useMaintenanceRuntimeQuery } from "@/composables/admin/useMaintenanceRuntimeQuery";
 import GeneratedImagesClearDialog from "./dialogs/GeneratedImagesClearDialog.vue";
 import GeneratedImagesRebuildDialog from "./dialogs/GeneratedImagesRebuildDialog.vue";
 
@@ -78,6 +89,14 @@ async function confirmRebuild() {
     // toast handled in mutation onError
   }
 }
+
+const runtimeQuery = useMaintenanceRuntimeQuery();
+
+const needsRefreshCount = computed(() => {
+  const lc = runtimeQuery.data.value?.metadata_lifecycle;
+  if (!lc) return 0;
+  return (lc.stale_metadata_jobs ?? 0) + (lc.assets_done_but_metadata_missing_or_stale ?? 0);
+});
 </script>
 
 <template>
@@ -184,6 +203,122 @@ async function confirmRebuild() {
           </Button>
         </div>
       </section>
+
+      <div class="grid gap-4 md:grid-cols-2">
+        <section class="rounded-md border bg-background p-5">
+          <div class="flex items-center gap-3">
+            <Activity class="size-5 text-muted-foreground" />
+            <h3 class="font-semibold">System services</h3>
+          </div>
+          <div v-if="runtimeQuery.data.value" class="mt-4">
+            <dl class="grid gap-3 text-sm">
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-muted-foreground">Watching for changes</dt>
+                <dd
+                  class="font-medium"
+                  :class="runtimeQuery.data.value.global_runtime.watcher_healthy ? 'text-green-600' : 'text-destructive'"
+                >
+                  {{ runtimeQuery.data.value.global_runtime.watcher_enabled
+                    ? runtimeQuery.data.value.global_runtime.watcher_healthy ? "Healthy" : "Unhealthy"
+                    : "Off" }}
+                </dd>
+              </div>
+              <div v-if="runtimeQuery.data.value.global_runtime.watcher_issue" class="flex items-center justify-between gap-3">
+                <dt class="text-muted-foreground">Latest issue</dt>
+                <dd class="max-w-48 truncate text-right text-sm text-destructive">{{ runtimeQuery.data.value.global_runtime.watcher_issue }}</dd>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-muted-foreground">Scheduled refresh</dt>
+                <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.scheduled_reconciliation_enabled ? "On" : "Off" }}</dd>
+              </div>
+              <Separator />
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-muted-foreground">Catalog workers</dt>
+                <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.catalog_worker_count }}</dd>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-muted-foreground">Catalog active jobs</dt>
+                <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.catalog_active_jobs }}</dd>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-muted-foreground">Catalog queue depth</dt>
+                <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.catalog_queue_depth }}</dd>
+              </div>
+              <Separator />
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-muted-foreground">Metadata workers</dt>
+                <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.metadata_worker_count }}</dd>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-muted-foreground">Metadata active jobs</dt>
+                <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.metadata_active_jobs }}</dd>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-muted-foreground">Metadata queue depth</dt>
+                <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.metadata_queue_depth }}</dd>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-muted-foreground">Metadata staged queue depth</dt>
+                <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.metadata_staged_queue_depth }}</dd>
+              </div>
+            </dl>
+          </div>
+          <Skeleton v-else-if="runtimeQuery.isPending.value" class="mt-4 h-48 w-full" />
+          <p v-else class="mt-4 text-sm text-muted-foreground">Runtime diagnostics unavailable.</p>
+        </section>
+
+        <section class="rounded-md border bg-background p-5">
+          <div class="flex items-center gap-3">
+            <AlertTriangle class="size-5 text-muted-foreground" />
+            <h3 class="font-semibold">Metadata lifecycle</h3>
+          </div>
+          <div v-if="runtimeQuery.data.value?.metadata_lifecycle" class="mt-4 space-y-3">
+            <dl class="grid gap-3 text-sm">
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-muted-foreground">Waiting</dt>
+                <dd class="font-medium">{{ runtimeQuery.data.value.metadata_lifecycle.queued_metadata_jobs }}</dd>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-muted-foreground">Processing</dt>
+                <dd class="font-medium">{{ runtimeQuery.data.value.metadata_lifecycle.running_metadata_jobs }}</dd>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-muted-foreground">Failed</dt>
+                <dd
+                  class="font-medium"
+                  :class="runtimeQuery.data.value.metadata_lifecycle.failed_metadata_jobs > 0 ? 'text-destructive' : ''"
+                >
+                  {{ runtimeQuery.data.value.metadata_lifecycle.failed_metadata_jobs }}
+                </dd>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-muted-foreground">Needs refresh</dt>
+                <dd
+                  class="font-medium"
+                  :class="needsRefreshCount > 0 ? 'text-amber-600' : ''"
+                >
+                  {{ needsRefreshCount }}
+                </dd>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-muted-foreground">Repairable</dt>
+                <dd
+                  class="font-medium"
+                  :class="runtimeQuery.data.value.metadata_lifecycle.repairable_metadata_assets > 0 ? 'text-amber-600' : ''"
+                >
+                  {{ runtimeQuery.data.value.metadata_lifecycle.repairable_metadata_assets }}
+                </dd>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-muted-foreground">Orphaned jobs</dt>
+                <dd class="font-medium">{{ runtimeQuery.data.value.metadata_lifecycle.metadata_jobs_without_matching_assets }}</dd>
+              </div>
+            </dl>
+          </div>
+          <Skeleton v-else-if="runtimeQuery.isPending.value" class="mt-4 h-40 w-full" />
+          <p v-else class="mt-4 text-sm text-muted-foreground">Metadata lifecycle diagnostics unavailable.</p>
+        </section>
+      </div>
 
       <section class="rounded-md border bg-background p-5">
         <div class="flex items-center justify-between">
