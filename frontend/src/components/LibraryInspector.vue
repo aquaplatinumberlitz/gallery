@@ -788,7 +788,12 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                     @update:open="(open) => openDetail(visibleTableRows[virtualRow.index].original.path, open)"
                   >
                     <PopoverTrigger as-child>
-                      <button class="long-text-trigger prompt-trigger" type="button" data-testid="prompt-trigger" @click.stop>
+                      <button
+                        class="long-text-trigger prompt-trigger"
+                        type="button"
+                        data-testid="prompt-trigger"
+                        @click.stop
+                      >
                         <span class="long-text-preview truncate whitespace-nowrap" data-testid="prompt-preview">{{
                           visibleTableRows[virtualRow.index].original.prompt_preview || "No prompt metadata"
                         }}</span>

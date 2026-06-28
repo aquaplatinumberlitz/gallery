@@ -1,16 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
-import {
-  AlertTriangle,
-  ArrowLeft,
-  Copy,
-  Images,
-  Pencil,
-  RefreshCw,
-  Trash2,
-  ImageIcon,
-} from "lucide-vue-next";
+import { AlertTriangle, ArrowLeft, Copy, Images, Pencil, RefreshCw, Trash2, ImageIcon } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import ButtonLink from "@/components/ui/ButtonLink.vue";
 import Separator from "@/components/ui/Separator.vue";
@@ -105,8 +96,6 @@ const scanProgressLabel = computed(() => {
   }
   return "";
 });
-
-
 
 const issueBreakdown = computed(() => {
   const issues = status.value?.issues;

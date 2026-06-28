@@ -207,9 +207,11 @@ test.describe("SidebarTrigger", () => {
     expect(initialBox!.width).toBeGreaterThan(100);
 
     await trigger.click();
-    await expect.poll(async () => {
-      const box = await sidebarContainer.boundingBox();
-      return box?.width ?? 0;
-    }).toBeLessThan(100);
+    await expect
+      .poll(async () => {
+        const box = await sidebarContainer.boundingBox();
+        return box?.width ?? 0;
+      })
+      .toBeLessThan(100);
   });
 });

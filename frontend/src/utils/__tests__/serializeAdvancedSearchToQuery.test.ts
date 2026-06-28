@@ -22,7 +22,9 @@ describe("serializeAdvancedSearchToQuery", () => {
     ["<", "seed:<100"],
     ["<=", "seed:<=100"],
   ])("serializes filter with operator %s", (operator, expected) => {
-    expect(serializeAdvancedSearchToQuery([{ field: "seed", operator: operator as FieldFilter["operator"], value: "100" }])).toBe(expected);
+    expect(
+      serializeAdvancedSearchToQuery([{ field: "seed", operator: operator as FieldFilter["operator"], value: "100" }]),
+    ).toBe(expected);
   });
 
   it.each([
@@ -31,18 +33,20 @@ describe("serializeAdvancedSearchToQuery", () => {
     ["date", ">=", "2024-01-01", "date:2024-01-01"],
     ["RATIO", ">", "1.5", "RATIO:1.5"],
   ])("omits operator for literal field %s", (field, operator, value, expected) => {
-    expect(serializeAdvancedSearchToQuery([{ field, operator: operator as FieldFilter["operator"], value }])).toBe(expected);
+    expect(serializeAdvancedSearchToQuery([{ field, operator: operator as FieldFilter["operator"], value }])).toBe(
+      expected,
+    );
   });
 
-  it('quotes values that contain whitespace', () => {
+  it("quotes values that contain whitespace", () => {
     expect(serializeAdvancedSearchToQuery([{ field: "prompt", value: "hello world" }])).toBe('prompt:"hello world"');
   });
 
-  it('escapes and quotes values that contain double quotes', () => {
+  it("escapes and quotes values that contain double quotes", () => {
     expect(serializeAdvancedSearchToQuery([{ field: "prompt", value: 'say "hi"' }])).toBe('prompt:"say \\"hi\\""');
   });
 
-  it('quotes values that contain parentheses', () => {
+  it("quotes values that contain parentheses", () => {
     expect(serializeAdvancedSearchToQuery([{ field: "prompt", value: "(text)" }])).toBe('prompt:"(text)"');
   });
 
@@ -83,7 +87,7 @@ describe("filterToDisplayString", () => {
     expect(filterToDisplayString({ field: "ratio", operator: ">", value: "1.5" })).toBe("ratio:1.5");
   });
 
-  it('quotes values that need quoting', () => {
+  it("quotes values that need quoting", () => {
     expect(filterToDisplayString({ field: "prompt", value: "hello world" })).toBe('prompt:"hello world"');
     expect(filterToDisplayString({ field: "prompt", value: 'say "hi"' })).toBe('prompt:"say "hi""');
   });
@@ -126,13 +130,13 @@ describe("parseFieldedQuery", () => {
     ]);
   });
 
-  it('parses quoted values that contain whitespace', () => {
+  it("parses quoted values that contain whitespace", () => {
     expect(parseFieldedQuery('prompt:"hello world"')).toEqual([
       { field: "prompt", operator: undefined, value: "hello world" },
     ]);
   });
 
-  it('unescapes double quotes inside quoted values', () => {
+  it("unescapes double quotes inside quoted values", () => {
     expect(parseFieldedQuery('prompt:"say \\"hi\\""')).toEqual([
       { field: "prompt", operator: undefined, value: 'say "hi"' },
     ]);

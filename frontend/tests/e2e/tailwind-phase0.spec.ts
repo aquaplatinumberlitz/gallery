@@ -177,12 +177,16 @@ test.describe("Tailwind Phase 0 — Desktop (1440x900)", () => {
     // Open dropdown, then click Dark
     await themeToggle.click();
     await page.locator('[role="menuitem"]', { hasText: "Dark" }).click();
-    await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("dark");
+    await expect
+      .poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme")))
+      .toBe("dark");
 
     // Open dropdown, then click Light
     await themeToggle.click();
     await page.locator('[role="menuitem"]', { hasText: "Light" }).click();
-    await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe(initialTheme);
+    await expect
+      .poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme")))
+      .toBe(initialTheme);
   });
 
   test("1c. search input and sort control exist", async ({ page }) => {
@@ -265,11 +269,15 @@ test.describe("Tailwind Phase 0 — Mobile (390x844)", () => {
     await expect(themeBtn).toBeVisible();
 
     await themeBtn.click();
-    await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("dark");
+    await expect
+      .poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme")))
+      .toBe("dark");
 
     // Toggle back (mobile — single button click)
     await page.getByLabel("Switch to light mode").or(page.getByLabel("Switch to dark mode")).click();
-    await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("light");
+    await expect
+      .poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme")))
+      .toBe("light");
   });
 
   test("2e. bottom navigation unchanged", async ({ page }) => {
@@ -345,7 +353,9 @@ test.describe("Tailwind Phase 0 — Theme smoke test", () => {
     // Open dropdown, then click Dark
     await themeToggle.click();
     await page.locator('[role="menuitem"]', { hasText: "Dark" }).click();
-    await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("dark");
+    await expect
+      .poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme")))
+      .toBe("dark");
 
     // Verify photo cards still visible with no shift
     const cards = page.getByTestId("photo-card");
@@ -356,7 +366,9 @@ test.describe("Tailwind Phase 0 — Theme smoke test", () => {
     // Open dropdown, then click Light
     await themeToggle.click();
     await page.locator('[role="menuitem"]', { hasText: "Light" }).click();
-    await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("light");
+    await expect
+      .poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme")))
+      .toBe("light");
 
     // Verify photo cards still present
     await expect(cards.first()).toBeVisible();
@@ -374,7 +386,9 @@ test.describe("Tailwind Phase 0 — Theme smoke test", () => {
 
     // Toggle to dark
     await themeBtn.click();
-    await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("dark");
+    await expect
+      .poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme")))
+      .toBe("dark");
 
     // Verify cards still present
     const cards = page.getByTestId("photo-card");
@@ -384,7 +398,9 @@ test.describe("Tailwind Phase 0 — Theme smoke test", () => {
 
     // Toggle back
     await page.getByLabel("Switch to light mode").click();
-    await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("light");
+    await expect
+      .poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme")))
+      .toBe("light");
 
     await expect(cards.first()).toBeVisible();
     expect(await cards.count()).toBe(cardCount);
@@ -402,12 +418,16 @@ test.describe("Tailwind Phase 0 — Theme smoke test", () => {
     // Toggle to dark
     await themeToggle.click();
     await page.locator('[role="menuitem"]', { hasText: "Dark" }).click();
-    await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("dark");
+    await expect
+      .poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme")))
+      .toBe("dark");
 
     // Toggle back to light
     await themeToggle.click();
     await page.locator('[role="menuitem"]', { hasText: "Light" }).click();
-    await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("light");
+    await expect
+      .poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme")))
+      .toBe("light");
   });
 });
 

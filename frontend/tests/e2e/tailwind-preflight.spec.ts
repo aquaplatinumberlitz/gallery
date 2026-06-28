@@ -628,13 +628,19 @@ test.describe("Tailwind Preflight Regression", () => {
 
       // Toggle theme
       await themeBtn.evaluate((el: HTMLElement) => el.click());
-      await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).not.toBe(initialTheme);
-      expect(["light", "dark"]).toContain(await page.evaluate(() => document.documentElement.getAttribute("data-theme")));
+      await expect
+        .poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme")))
+        .not.toBe(initialTheme);
+      expect(["light", "dark"]).toContain(
+        await page.evaluate(() => document.documentElement.getAttribute("data-theme")),
+      );
 
       // Toggle back
       const themeBtn2 = page.getByLabel("Switch to light mode").or(page.getByLabel("Switch to dark mode"));
       await themeBtn2.evaluate((el: HTMLElement) => el.click());
-      await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe(initialTheme);
+      await expect
+        .poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme")))
+        .toBe(initialTheme);
     });
 
     test("4e. mobile header buttons have correct computed styles", async ({ page }) => {
@@ -762,13 +768,19 @@ test.describe("Tailwind Preflight Regression", () => {
       const initialTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
 
       await themeBtn.evaluate((el: HTMLElement) => el.click());
-      await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).not.toBe(initialTheme);
-      expect(["light", "dark"]).toContain(await page.evaluate(() => document.documentElement.getAttribute("data-theme")));
+      await expect
+        .poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme")))
+        .not.toBe(initialTheme);
+      expect(["light", "dark"]).toContain(
+        await page.evaluate(() => document.documentElement.getAttribute("data-theme")),
+      );
 
       // Toggle back
       const themeBtn2 = page.getByLabel("Switch to light mode").or(page.getByLabel("Switch to dark mode"));
       await themeBtn2.evaluate((el: HTMLElement) => el.click());
-      await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe(initialTheme);
+      await expect
+        .poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme")))
+        .toBe(initialTheme);
     });
 
     test("5e. tablet header buttons have correct computed styles", async ({ page }) => {

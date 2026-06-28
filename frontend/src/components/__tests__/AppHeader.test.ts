@@ -271,7 +271,10 @@ describe("AppHeader", () => {
 
   it("applies advanced search filters via drawer", async () => {
     const wrapper = createWrapper();
-    await wrapper.findAll("button").find((b) => b.attributes("aria-label") === "Advanced Search")!.trigger("click");
+    await wrapper
+      .findAll("button")
+      .find((b) => b.attributes("aria-label") === "Advanced Search")!
+      .trigger("click");
     await wrapper.find('[data-testid="adv-search-apply"]').trigger("click");
     expect(wrapper.emitted("update:searchQuery")).toBeTruthy();
   });

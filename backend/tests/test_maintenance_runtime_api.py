@@ -8,6 +8,9 @@ Guarantees:
 Endpoint is read-only, returns 200 with global_runtime and metadata_lifecycle
 keys. Global runtime includes catalog/metadata worker counts, queue depths,
 watcher fields, and scheduled refresh field.
+
+Run when:
+Maintenance runtime response fields or global diagnostic counters change.
 """
 
 from __future__ import annotations

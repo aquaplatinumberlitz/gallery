@@ -226,20 +226,33 @@ const needsRefreshCount = computed(() => {
                 <dt class="text-muted-foreground">Watching for changes</dt>
                 <dd
                   class="font-medium"
-                  :class="runtimeQuery.data.value.global_runtime.watcher_healthy ? 'text-green-600' : 'text-destructive'"
+                  :class="
+                    runtimeQuery.data.value.global_runtime.watcher_healthy ? 'text-green-600' : 'text-destructive'
+                  "
                 >
-                  {{ runtimeQuery.data.value.global_runtime.watcher_enabled
-                    ? runtimeQuery.data.value.global_runtime.watcher_healthy ? "Healthy" : "Unhealthy"
-                    : "Off" }}
+                  {{
+                    runtimeQuery.data.value.global_runtime.watcher_enabled
+                      ? runtimeQuery.data.value.global_runtime.watcher_healthy
+                        ? "Healthy"
+                        : "Unhealthy"
+                      : "Off"
+                  }}
                 </dd>
               </div>
-              <div v-if="runtimeQuery.data.value.global_runtime.watcher_issue" class="flex items-center justify-between gap-3">
+              <div
+                v-if="runtimeQuery.data.value.global_runtime.watcher_issue"
+                class="flex items-center justify-between gap-3"
+              >
                 <dt class="text-muted-foreground">Latest issue</dt>
-                <dd class="max-w-48 truncate text-right text-sm text-destructive">{{ runtimeQuery.data.value.global_runtime.watcher_issue }}</dd>
+                <dd class="max-w-48 truncate text-right text-sm text-destructive">
+                  {{ runtimeQuery.data.value.global_runtime.watcher_issue }}
+                </dd>
               </div>
               <div class="flex items-center justify-between gap-3">
                 <dt class="text-muted-foreground">Scheduled refresh</dt>
-                <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.scheduled_reconciliation_enabled ? "On" : "Off" }}</dd>
+                <dd class="font-medium">
+                  {{ runtimeQuery.data.value.global_runtime.scheduled_reconciliation_enabled ? "On" : "Off" }}
+                </dd>
               </div>
               <Separator />
               <div class="flex items-center justify-between gap-3">
@@ -297,7 +310,12 @@ const needsRefreshCount = computed(() => {
                   Failed jobs
                   <Tooltip>
                     <TooltipTrigger as-child>
-                      <Button variant="ghost" size="icon" class="size-4 text-muted-foreground hover:text-foreground -my-1" aria-label="About Failed jobs">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        class="size-4 text-muted-foreground hover:text-foreground -my-1"
+                        aria-label="About Failed jobs"
+                      >
                         <Info class="size-3.5" />
                       </Button>
                     </TooltipTrigger>
@@ -316,17 +334,21 @@ const needsRefreshCount = computed(() => {
                   Old or missing metadata
                   <Tooltip>
                     <TooltipTrigger as-child>
-                      <Button variant="ghost" size="icon" class="size-4 text-muted-foreground hover:text-foreground -my-1" aria-label="About Old or missing metadata">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        class="size-4 text-muted-foreground hover:text-foreground -my-1"
+                        aria-label="About Old or missing metadata"
+                      >
                         <Info class="size-3.5" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="top" align="start">Files whose extracted metadata is stale or missing.</TooltipContent>
+                    <TooltipContent side="top" align="start"
+                      >Files whose extracted metadata is stale or missing.</TooltipContent
+                    >
                   </Tooltip>
                 </dt>
-                <dd
-                  class="font-medium"
-                  :class="needsRefreshCount > 0 ? 'text-amber-600' : ''"
-                >
+                <dd class="font-medium" :class="needsRefreshCount > 0 ? 'text-amber-600' : ''">
                   {{ needsRefreshCount }}
                 </dd>
               </div>
@@ -334,7 +356,9 @@ const needsRefreshCount = computed(() => {
                 <dt class="text-muted-foreground">Can be repaired</dt>
                 <dd
                   class="font-medium"
-                  :class="runtimeQuery.data.value.metadata_lifecycle.repairable_metadata_assets > 0 ? 'text-amber-600' : ''"
+                  :class="
+                    runtimeQuery.data.value.metadata_lifecycle.repairable_metadata_assets > 0 ? 'text-amber-600' : ''
+                  "
                 >
                   {{ runtimeQuery.data.value.metadata_lifecycle.repairable_metadata_assets }}
                 </dd>
@@ -344,14 +368,23 @@ const needsRefreshCount = computed(() => {
                   Jobs without catalog item
                   <Tooltip>
                     <TooltipTrigger as-child>
-                      <Button variant="ghost" size="icon" class="size-4 text-muted-foreground hover:text-foreground -my-1" aria-label="About Jobs without catalog item">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        class="size-4 text-muted-foreground hover:text-foreground -my-1"
+                        aria-label="About Jobs without catalog item"
+                      >
                         <Info class="size-3.5" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="top" align="start">Metadata index jobs with no matching catalog entry.</TooltipContent>
+                    <TooltipContent side="top" align="start"
+                      >Metadata index jobs with no matching catalog entry.</TooltipContent
+                    >
                   </Tooltip>
                 </dt>
-                <dd class="font-medium">{{ runtimeQuery.data.value.metadata_lifecycle.metadata_jobs_without_matching_assets }}</dd>
+                <dd class="font-medium">
+                  {{ runtimeQuery.data.value.metadata_lifecycle.metadata_jobs_without_matching_assets }}
+                </dd>
               </div>
             </dl>
           </div>

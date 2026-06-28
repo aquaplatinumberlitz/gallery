@@ -209,13 +209,30 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
     <template #header>
       <div class="sheet-header" v-if="props.meta" data-vsbs-no-drag>
         <div class="sheet-tabs">
-          <button class="sheet-tab" :class="{ active: activeTab === 'prompt' }" data-testid="tab-prompt" @click="setTab('prompt')">
+          <button
+            class="sheet-tab"
+            :class="{ active: activeTab === 'prompt' }"
+            data-testid="tab-prompt"
+            @click="setTab('prompt')"
+          >
             Prompt
           </button>
-          <button class="sheet-tab" :class="{ active: activeTab === 'params' }" data-testid="tab-params" @click="setTab('params')">
+          <button
+            class="sheet-tab"
+            :class="{ active: activeTab === 'params' }"
+            data-testid="tab-params"
+            @click="setTab('params')"
+          >
             Params
           </button>
-          <button class="sheet-tab" :class="{ active: activeTab === 'model' }" data-testid="tab-model" @click="setTab('model')">Model</button>
+          <button
+            class="sheet-tab"
+            :class="{ active: activeTab === 'model' }"
+            data-testid="tab-model"
+            @click="setTab('model')"
+          >
+            Model
+          </button>
         </div>
         <button
           type="button"

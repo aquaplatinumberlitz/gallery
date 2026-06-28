@@ -620,7 +620,13 @@ watch(
 </script>
 
 <template>
-  <div class="gallery-grid" data-testid="gallery-grid" @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
+  <div
+    class="gallery-grid"
+    data-testid="gallery-grid"
+    @touchstart="onTouchStart"
+    @touchmove="onTouchMove"
+    @touchend="onTouchEnd"
+  >
     <!-- Pull-to-refresh indicator -->
     <div
       v-if="showPullIndicator"

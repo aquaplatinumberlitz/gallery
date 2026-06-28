@@ -69,8 +69,30 @@ const mockStats = {
 };
 
 const mockJobs = [
-  { id: 1, library_id: 1, type: "scan", state: "completed", progress_current: 50, progress_total: 100, updated_at: Date.now(), message: "Scan done", error: null, created_at: Date.now() },
-  { id: 2, library_id: 1, type: "index", state: "failed", progress_current: 10, progress_total: null, updated_at: Date.now(), message: null, error: "Out of memory", created_at: Date.now() },
+  {
+    id: 1,
+    library_id: 1,
+    type: "scan",
+    state: "completed",
+    progress_current: 50,
+    progress_total: 100,
+    updated_at: Date.now(),
+    message: "Scan done",
+    error: null,
+    created_at: Date.now(),
+  },
+  {
+    id: 2,
+    library_id: 1,
+    type: "index",
+    state: "failed",
+    progress_current: 10,
+    progress_total: null,
+    updated_at: Date.now(),
+    message: null,
+    error: "Out of memory",
+    created_at: Date.now(),
+  },
 ];
 
 const mockGeneratedImages = {
@@ -84,7 +106,10 @@ const mockGeneratedImages = {
 let mockLibraryData: typeof mockLibrary | null = mockLibrary;
 let mockLibraryIsPending = false;
 let mockLibraryIsError = false;
-let mockStatusData: Record<string, unknown> | null = { status: { ...mockLibrary, ...baseMockStatus }, contract_version: 1 };
+let mockStatusData: Record<string, unknown> | null = {
+  status: { ...mockLibrary, ...baseMockStatus },
+  contract_version: 1,
+};
 let mockContractError: Error | null = null;
 let mockJobsData: unknown[] = [];
 let mockGeneratedImagesData: typeof mockGeneratedImages | null = null;
@@ -268,14 +293,38 @@ describe("LibraryDetailPage", () => {
   it("displays latest issue with data", () => {
     mockStatusData = {
       status: {
-        contract_version: 1, generated_at: Date.now(), summary_state: "ready",
+        contract_version: 1,
+        generated_at: Date.now(),
+        summary_state: "ready",
         scope: { kind: "library", library_id: 1, path: null, import_path_count: 1 },
         availability: { state: "available", available_paths: 1, total_paths: 1 },
-        scan: { state: "complete", operation: null, trigger: null, active_job_id: null, completed_units: null, total_units: null, progress_percent: null },
-        metadata: { state: "complete", total_assets: 100, ready_assets: 95, not_ready_assets: 5, queued_assets: 0, running_assets: 0, stale_assets: 0, idle_pending_assets: 0, failed_assets: 0, progress_percent: 100, global_active_outside_scope: false },
-        issue_count: 5, issues: { availability: 1, scan: 2, metadata: 2 },
+        scan: {
+          state: "complete",
+          operation: null,
+          trigger: null,
+          active_job_id: null,
+          completed_units: null,
+          total_units: null,
+          progress_percent: null,
+        },
+        metadata: {
+          state: "complete",
+          total_assets: 100,
+          ready_assets: 95,
+          not_ready_assets: 5,
+          queued_assets: 0,
+          running_assets: 0,
+          stale_assets: 0,
+          idle_pending_assets: 0,
+          failed_assets: 0,
+          progress_percent: 100,
+          global_active_outside_scope: false,
+        },
+        issue_count: 5,
+        issues: { availability: 1, scan: 2, metadata: 2 },
         latest_issue: { source: "File update", message: "File not found", path: "/path/to/file" },
-        last_scan_at: null, last_index_at: null,
+        last_scan_at: null,
+        last_index_at: null,
       },
       contract_version: 1,
     };
@@ -315,5 +364,4 @@ describe("LibraryDetailPage", () => {
     expect(wrapper.text()).toContain("Scan done");
     expect(wrapper.text()).toContain("Out of memory");
   });
-
 });

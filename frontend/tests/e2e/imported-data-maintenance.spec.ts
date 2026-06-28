@@ -7,6 +7,9 @@
  * * Clear removes derived catalog data without unregistering libraries
  * * Rebuild repopulates derived catalog data from registered import paths
  * * Reset All requires the type-confirm phrase and returns the app to empty libraries state
+ *
+ * Run when:
+ * Imported-data maintenance endpoints, labels, or destructive action flows change.
  */
 
 import { browseResponse, statusBatch, statusEnvelope } from "./helpers/catalogFixtures";

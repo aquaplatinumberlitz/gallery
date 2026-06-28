@@ -1,4 +1,18 @@
-"""Tests for imported-data maintenance endpoints."""
+"""Tests for imported-data maintenance endpoints.
+
+Purpose:
+Validate update, clear, rebuild, and reset maintenance APIs for imported
+library data and their derivative/catalog side effects.
+
+Guarantees:
+Imported-data maintenance preserves registered library records when clearing
+derived data, rebuilds catalog state from import paths, and reports job state
+for destructive reset operations.
+
+Run when:
+Maintenance endpoint behavior, imported library metadata storage, or derivative
+cleanup/rebuild flows change.
+"""
 
 from __future__ import annotations
 

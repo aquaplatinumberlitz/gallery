@@ -4,13 +4,7 @@ import { defineComponent, h } from "vue";
 import { createPinia } from "pinia";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { queryKeys } from "@/query/keys";
-import {
-  createLibrary,
-  deleteLibrary,
-  scanAllLibraries,
-  scanLibrary,
-  updateLibrary,
-} from "@/services/api";
+import { createLibrary, deleteLibrary, scanAllLibraries, scanLibrary, updateLibrary } from "@/services/api";
 import { useLibraryMutations } from "../useLibraryMutations";
 
 const toast = {

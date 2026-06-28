@@ -373,7 +373,9 @@ test("browse 500 shows error message; no page error", async ({ page }) => {
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
 
   // The app should show an error banner or error state (not a blank/white page)
-  await expect(page.getByTestId("error-banner").or(page.getByTestId("empty-state-container"))).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId("error-banner").or(page.getByTestId("empty-state-container"))).toBeVisible({
+    timeout: 10_000,
+  });
 
   // At minimum, the page must not be blank/crashed
   const pageContent = await page.content();
