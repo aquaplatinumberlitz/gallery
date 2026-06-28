@@ -125,7 +125,7 @@ def index_file(
             name=name,
             parent_path=resolved_parent,
             type=normalized_type,
-            mtime_ns=mtime,
+            mtime_ns=mtime_ns,
             size=size,
             width=width,
             height=height,

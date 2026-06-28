@@ -38,6 +38,7 @@ from .metadata_store import (
     mark_metadata_job_stale,
     reconcile_library_assets,
     repair_inconsistent_asset_states,
+    repair_legacy_asset_mtime_ns,
     reset_running_jobs_to_queued,
 )
 
@@ -90,15 +91,81 @@ def _is_path_in_scope(path: str | Path | None, scope_root: str | Path | None) ->
     return path_text.startswith(f"{root_text.rstrip(os.sep)}{os.sep}")
 
 
+def _metadata_runtime_scope_sql(scope_path: str | Path | None) -> tuple[str, list[str]]:
+    if scope_path is None:
+        return "", []
+
+    scope_text = _normalized_path_text(scope_path)
+    if not scope_text or scope_text == os.sep:
+        return "", []
+
+    prefix = f"{scope_text.rstrip(os.sep)}{os.sep}%"
+    return " AND (path = ? OR path LIKE ?)", [scope_text, prefix]
+
+
 def get_indexer_runtime_status(scope_path: str | Path | None = None) -> dict[str, Any]:
-    """Return degraded runtime status. The in-memory queue bridge is deprecated."""
+    """Return runtime status from the SQLite metadata queue and worker pool."""
+    initialize_database()
+    scope_sql, scope_params = _metadata_runtime_scope_sql(scope_path)
+    with _DB_LOCK, _connect() as conn:
+        queued_count = int(
+            conn.execute(
+                f"SELECT count(*) FROM metadata_index_jobs WHERE state = 'queued'{scope_sql}",
+                scope_params,
+            ).fetchone()[0]
+        )
+        running_count = int(
+            conn.execute(
+                f"SELECT count(*) FROM metadata_index_jobs WHERE state = 'running'{scope_sql}",
+                scope_params,
+            ).fetchone()[0]
+        )
+        queued_rows = conn.execute(
+            f"""
+            SELECT path, priority, attempts, queued_at, updated_at, library_id
+            FROM metadata_index_jobs
+            WHERE state = 'queued'{scope_sql}
+            ORDER BY priority ASC, queued_at ASC, updated_at ASC
+            LIMIT 50
+            """,
+            scope_params,
+        ).fetchall()
+        running_rows = conn.execute(
+            f"""
+            SELECT path, started_at, attempts, updated_at, library_id
+            FROM metadata_index_jobs
+            WHERE state = 'running'{scope_sql}
+            ORDER BY started_at ASC, updated_at ASC
+            LIMIT 50
+            """,
+            scope_params,
+        ).fetchall()
+
     return {
-        "worker_count": 0,
-        "active_jobs": 0,
-        "runtime_queue_depth": 0,
+        "worker_count": metadata_worker.alive_worker_count(),
+        "active_jobs": running_count,
+        "runtime_queue_depth": queued_count,
         "coalesced_duplicates": 0,
-        "active_job_paths": {},
-        "queued_jobs": [],
+        "active_job_paths": {
+            str(row["path"]): {
+                "started_at": row["started_at"],
+                "attempts": int(row["attempts"] or 0),
+                "updated_at": row["updated_at"],
+                "library_id": row["library_id"],
+            }
+            for row in running_rows
+        },
+        "queued_jobs": [
+            {
+                "path": row["path"],
+                "priority": int(row["priority"] or 3),
+                "attempts": int(row["attempts"] or 0),
+                "queued_at": row["queued_at"],
+                "updated_at": row["updated_at"],
+                "library_id": row["library_id"],
+            }
+            for row in queued_rows
+        ],
         "staged_path_queue_depth": 0,
         "staged_path_coalesced": 0,
         "staged_path_failed": 0,
@@ -108,7 +175,7 @@ def get_indexer_runtime_status(scope_path: str | Path | None = None) -> dict[str
         "active_scan_roots": {},
         "staged_paths": [],
         "active_rebuild_roots": {},
-        "deprecated": True,
+        "deprecated": False,
     }
 
 
@@ -218,8 +285,12 @@ class MetadataLifecycleWorker:
 
     def is_running(self) -> bool:
         """Return whether at least one configured worker is alive."""
+        return self.alive_worker_count() > 0
+
+    def alive_worker_count(self) -> int:
+        """Return the number of metadata worker threads currently alive."""
         with self._lifecycle_lock:
-            return any(thread.is_alive() for thread in self._threads)
+            return sum(1 for thread in self._threads if thread.is_alive())
 
     def wake(self) -> None:
         """Wake workers to check for new queued jobs."""
@@ -349,6 +420,7 @@ def recover_metadata_index_jobs() -> dict[str, int]:
             else:
                 reset_paths.append((path, mtime, size, mtime_ns))
         reset_running_jobs_to_queued(conn, reset_paths)
+        mtime_repair_result = repair_legacy_asset_mtime_ns(conn)
         repair_result = repair_inconsistent_asset_states(conn)
 
     metadata_worker.wake()
@@ -359,11 +431,17 @@ def recover_metadata_index_jobs() -> dict[str, int]:
         "done_repaired": repair_result["repaired"],
         "done_demoted": repair_result["demoted"],
         "done_skipped": repair_result["skipped"],
+        "stale_repaired": repair_result["stale_repaired"],
+        "mtime_repaired_file_index": mtime_repair_result["file_index"],
+        "mtime_repaired_filesystem": mtime_repair_result["filesystem"],
+        "mtime_repair_skipped": mtime_repair_result["skipped"],
         "total": len(reset_paths)
         + len(exhausted_paths)
         + repair_result["repaired"]
         + repair_result["demoted"]
-        + repair_result["skipped"],
+        + repair_result["skipped"]
+        + mtime_repair_result["file_index"]
+        + mtime_repair_result["filesystem"],
     }
 
 

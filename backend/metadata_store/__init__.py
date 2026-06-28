@@ -266,6 +266,9 @@ from .metadata_queue import (
     repair_inconsistent_asset_states as repair_inconsistent_asset_states,
 )
 from .metadata_queue import (
+    repair_legacy_asset_mtime_ns as repair_legacy_asset_mtime_ns,
+)
+from .metadata_queue import (
     reset_running_jobs_to_queued as reset_running_jobs_to_queued,
 )
 from .path_utils import (

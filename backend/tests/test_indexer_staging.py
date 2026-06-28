@@ -4,7 +4,7 @@ Verifies metadata indexer dispatch, runtime status, and idempotent job persisten
 
 Guarantees:
 * dispatch_metadata_index_paths is the single scheduling entrypoint
-* get_indexer_runtime_status returns degraded/zero status (old bridge deprecated)
+* get_indexer_runtime_status reflects the durable SQLite metadata queue
 * _persist_metadata_index_jobs is idempotent and coalesces duplicates
 
 Run when:
@@ -21,14 +21,35 @@ import pytest
 from backend import indexer
 
 
-def test_runtime_status_reports_degraded():
+def test_runtime_status_reports_durable_queue(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    from backend.metadata_store import _persist_metadata_index_jobs, claim_next_metadata_job
+    from tests.conftest import create_test_png
+
+    root = isolated_gallery_root / "lib"
+    root.mkdir()
+    image = root / "test.png"
+    create_test_png(image)
+
+    _persist_metadata_index_jobs([image], root_path=root)
     status = indexer.get_indexer_runtime_status()
 
-    assert status["worker_count"] == 0
+    assert status["worker_count"] >= 0
     assert status["active_jobs"] == 0
-    assert status["runtime_queue_depth"] == 0
+    assert status["runtime_queue_depth"] == 1
+    assert status["queued_jobs"][0]["path"] == str(image.resolve())
     assert status["staged_path_queue_depth"] == 0
-    assert status["deprecated"] is True
+    assert status["deprecated"] is False
+
+    claimed = claim_next_metadata_job()
+    assert claimed is not None
+
+    status = indexer.get_indexer_runtime_status()
+    assert status["active_jobs"] == 1
+    assert status["runtime_queue_depth"] == 0
+    assert str(image.resolve()) in status["active_job_paths"]
 
 
 def test_scan_and_rebuild_both_call_dispatch_metadata_index_paths(

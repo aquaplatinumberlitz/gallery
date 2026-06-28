@@ -588,6 +588,115 @@ def test_repair_inconsistent_done_job(
     assert status["counts"].get("done", 0) == 1, "Job should remain 'done' after repair"
 
 
+def test_rebuild_metadata_worker_makes_library_status_ready(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    """End-to-end producer-to-status coverage for scan/rebuild metadata identity."""
+    from backend.indexer import MetadataLifecycleWorker, rebuild_index_scope
+    from backend.metadata_store import claim_next_metadata_job
+    from backend.metadata_store.status_store import build_catalog_status
+
+    root = isolated_gallery_root / "ready-lib"
+    root.mkdir()
+    image = root / "asset.png"
+    create_test_png(image)
+    library = create_library([root], name="ReadyLib")
+    library_id = int(library["id"])
+
+    rebuild_index_scope(root)
+    worker = MetadataLifecycleWorker()
+    while job := claim_next_metadata_job():
+        worker._run_job(job)
+
+    metadata = build_catalog_status(library_id)["status"]["metadata"]
+    assert metadata["total_assets"] == 1
+    assert metadata["ready_assets"] == 1
+    assert metadata["not_ready_assets"] == 0
+
+
+def test_recovery_repairs_legacy_seconds_asset_mtime_and_stale_job(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    """Legacy assets.mtime_ns seconds rows are backfilled and stale jobs restored."""
+    from backend.metadata_store.status_store import build_catalog_status
+
+    root = isolated_gallery_root / "legacy-lib"
+    root.mkdir()
+    image = root / "asset.png"
+    create_test_png(image)
+    stat = image.stat()
+    resolved = str(image.resolve())
+    library = create_library([root], name="LegacyLib")
+    library_id = int(library["id"])
+    now = time.time()
+
+    with _DB_LOCK, _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO file_index (
+              path, name, parent_path, type, mtime, mtime_ns, size,
+              width, height, indexed_at, library_id
+            ) VALUES (?, ?, ?, 'image', ?, ?, ?, NULL, NULL, ?, ?)
+            """,
+            (resolved, image.name, str(root.resolve()), stat.st_mtime, stat.st_mtime_ns, stat.st_size, now, library_id),
+        )
+        conn.execute(
+            """
+            INSERT INTO assets (
+              library_id, path, parent_path, name, type, mtime_ns, size,
+              width, height, indexed_at, metadata_state, offline, deleted_at
+            ) VALUES (?, ?, ?, ?, 'image', ?, ?, NULL, NULL, ?, 'pending', 0, NULL)
+            """,
+            (library_id, resolved, str(root.resolve()), image.name, stat.st_mtime, stat.st_size, now),
+        )
+        conn.execute(
+            """
+            INSERT INTO image_metadata (
+              path, name, mtime, mtime_ns, size, width, height, metadata_json, updated_at, indexed_at
+            ) VALUES (?, ?, ?, ?, ?, 64, 64, '{}', ?, ?)
+            """,
+            (resolved, image.name, stat.st_mtime, stat.st_mtime_ns, stat.st_size, now, now),
+        )
+        conn.execute(
+            """
+            INSERT INTO metadata_index_jobs (
+              path, name, parent_path, folder_path, root_path,
+              mtime, mtime_ns, size, state, queued_at, started_at, finished_at, updated_at,
+              library_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'stale', ?, ?, ?, ?, ?)
+            """,
+            (
+                resolved,
+                image.name,
+                str(root.resolve()),
+                str(root.resolve()),
+                str(root.resolve()),
+                stat.st_mtime,
+                stat.st_mtime_ns,
+                stat.st_size,
+                now,
+                now,
+                now,
+                now,
+                library_id,
+            ),
+        )
+
+    before = build_catalog_status(library_id)["status"]["metadata"]
+    assert before["ready_assets"] == 0
+    assert before["total_assets"] == 1
+
+    result = recover_metadata_index_jobs()
+
+    assert result["mtime_repaired_file_index"] == 1
+    assert result["stale_repaired"] == 1
+    after = build_catalog_status(library_id)["status"]["metadata"]
+    assert after["ready_assets"] == 1
+    assert after["not_ready_assets"] == 0
+
+
 # ---------------------------------------------------------------------------
 # Test 15: Crash between upsert and completion
 # ---------------------------------------------------------------------------

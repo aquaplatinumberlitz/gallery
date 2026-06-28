@@ -51,6 +51,7 @@ from backend.metadata_store import (
     _scan_folder_counts,
     cleanup_ignored_index,
     cleanup_stale_index,
+    create_library,
     get_folder_index_state,
     get_folder_indexed_paths,
     get_metadata_index_status,
@@ -66,6 +67,7 @@ from backend.metadata_store import (
     upsert_image_dimensions,
     upsert_metadata_result,
 )
+from tests.conftest import create_test_png
 
 
 @pytest.fixture(autouse=True)
@@ -756,6 +758,30 @@ def test_index_directory_tree_with_collected_image_paths(isolated_metadata_db: P
     assert indexed >= 2
     assert len(collected) == 2
     assert all(p.suffix == ".png" for p in collected)
+
+
+def test_index_directory_tree_writes_asset_mtime_ns_from_stat(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    root = isolated_gallery_root / "mtime_root"
+    root.mkdir()
+    image = root / "asset.png"
+    create_test_png(image)
+    stat = image.stat()
+    create_library([root], name="mtime")
+
+    index_directory_tree(root, include_metadata=False)
+
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT mtime_ns FROM assets WHERE path = ?",
+            (str(image.resolve()),),
+        ).fetchone()
+
+    assert row is not None
+    assert abs(row["mtime_ns"] - stat.st_mtime_ns) < 1000
+    assert row["mtime_ns"] != stat.st_mtime
 
 
 def test_index_directory_tree_skips_excluded_subdir(tmp_path: Path):

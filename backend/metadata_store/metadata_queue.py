@@ -17,6 +17,8 @@ from .identity import (
 )
 from .types import MetadataIndexJob, MetadataQueueResult
 
+_MIN_REASONABLE_MTIME_NS = 1_000_000_000_000
+
 
 def _initialize_database() -> None:
     from ._schema import initialize_database
@@ -771,6 +773,60 @@ def reset_running_jobs_to_queued(
             )
 
 
+def _metadata_scope_filter(alias: str, scope_path: str | Path | None) -> tuple[str, list[Any]]:
+    if scope_path is None:
+        return "", []
+    resolved = str(Path(scope_path).resolve())
+    prefix = f"{resolved.rstrip(os.sep)}{os.sep}"
+    return f"AND ({alias}.path = ? OR {alias}.path LIKE ? ESCAPE '\\')", [resolved, f"{_search_like_escape(prefix)}%"]
+
+
+def repair_legacy_asset_mtime_ns(
+    conn: sqlite3.Connection,
+    scope_path: str | Path | None = None,
+) -> dict[str, int]:
+    """Backfill asset mtimes that were accidentally stored as seconds."""
+    counters = {"file_index": 0, "filesystem": 0, "skipped": 0}
+    scope_where, scope_params = _metadata_scope_filter("a", scope_path)
+    now = time.time()
+    rows = conn.execute(
+        f"""
+        SELECT a.id, a.path, a.size, fi.mtime_ns AS file_index_mtime_ns
+        FROM assets AS a
+        LEFT JOIN file_index AS fi
+          ON fi.path = a.path
+         AND (fi.size = a.size OR (fi.size IS NULL AND a.size IS NULL))
+        WHERE a.mtime_ns IS NOT NULL
+          AND a.mtime_ns < ?
+          {scope_where}
+        ORDER BY a.id
+        """,
+        [_MIN_REASONABLE_MTIME_NS, *scope_params],
+    ).fetchall()
+
+    for row in rows:
+        file_index_mtime_ns = row["file_index_mtime_ns"]
+        source: str
+        if file_index_mtime_ns is not None and int(file_index_mtime_ns) >= _MIN_REASONABLE_MTIME_NS:
+            repaired_mtime_ns = int(file_index_mtime_ns)
+            source = "file_index"
+        else:
+            try:
+                repaired_mtime_ns = int(Path(row["path"]).stat().st_mtime_ns)
+            except OSError:
+                counters["skipped"] += 1
+                continue
+            source = "filesystem"
+
+        conn.execute(
+            "UPDATE assets SET mtime_ns = ?, indexed_at = ? WHERE id = ?",
+            (repaired_mtime_ns, now, row["id"]),
+        )
+        counters[source] += 1
+
+    return counters
+
+
 def repair_inconsistent_asset_states(
     conn: sqlite3.Connection,
     scope_path: str | Path | None = None,
@@ -787,25 +843,21 @@ def repair_inconsistent_asset_states(
 
     Returns counters ``{"repaired": N, "demoted": N, "skipped": N}``.
     """
-    counters: dict[str, int] = {"repaired": 0, "demoted": 0, "skipped": 0}
+    counters: dict[str, int] = {"repaired": 0, "demoted": 0, "skipped": 0, "stale_repaired": 0}
 
-    scope_where = ""
-    scope_params: list[Any] = []
-    if scope_path is not None:
-        resolved = str(Path(scope_path).resolve())
-        prefix = f"{resolved.rstrip(os.sep)}{os.sep}"
-        scope_where = "AND (mj.path = ? OR mj.path LIKE ? ESCAPE '\\')"
-        scope_params = [resolved, f"{_search_like_escape(prefix)}%"]
+    scope_where, scope_params = _metadata_scope_filter("mj", scope_path)
 
     rows = conn.execute(
         f"""
-        SELECT mj.path, mj.mtime, mj.mtime_ns, mj.size,
+        SELECT mj.path, mj.mtime, mj.mtime_ns, mj.size, mj.state,
                a.path IS NOT NULL AS has_asset,
                a.metadata_state AS asset_metadata_state
         FROM metadata_index_jobs mj
         LEFT JOIN assets a ON a.path = mj.path
-        WHERE mj.state = 'done'
-          AND (a.path IS NULL OR a.metadata_state IS NULL OR a.metadata_state != 'done')
+        WHERE (
+            (mj.state = 'done' AND (a.path IS NULL OR a.metadata_state IS NULL OR a.metadata_state != 'done'))
+            OR mj.state = 'stale'
+          )
           {scope_where}
         """,
         scope_params,
@@ -817,6 +869,7 @@ def repair_inconsistent_asset_states(
         mtime = row["mtime"]
         mtime_ns = row["mtime_ns"]
         size = row["size"]
+        state = row["state"]
         has_asset = bool(row["has_asset"])
 
         if not has_asset:
@@ -850,7 +903,20 @@ def repair_inconsistent_asset_states(
         im_exists = _image_metadata_exists_for_job(conn, path, mtime, size, mtime_ns)
 
         if im_exists:
-            # image_metadata is current — repair asset state
+            # image_metadata is current — repair job and asset state
+            conn.execute(
+                f"""
+                UPDATE metadata_index_jobs
+                SET state='done',
+                    error=NULL,
+                    finished_at=?,
+                    updated_at=?
+                WHERE path=?
+                  AND ({image_metadata_params_match_sql()})
+                  AND size=?
+                """,
+                (now, now, path, mtime_ns, mtime_ns, mtime_ns, mtime_ns, mtime_ns, mtime, size),
+            )
             if mtime_ns is not None:
                 conn.execute(
                     """
@@ -870,7 +936,11 @@ def repair_inconsistent_asset_states(
                     (path, mtime, size),
                 )
             counters["repaired"] += 1
+            if state == "stale":
+                counters["stale_repaired"] += 1
         else:
+            if state == "stale":
+                continue
             # image_metadata missing or stale — demote job to queued
             if mtime_ns is not None:
                 conn.execute(

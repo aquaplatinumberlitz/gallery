@@ -8,6 +8,19 @@ from pathlib import Path
 
 from ..files import is_index_excluded_path
 
+_MIN_REASONABLE_MTIME_NS = 1_000_000_000_000
+
+
+def _normalize_asset_mtime_ns(value: float | int | None) -> int | None:
+    """Return nanosecond mtimes only; reject legacy seconds-shaped values."""
+    if value is None:
+        return None
+    try:
+        normalized = int(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return normalized if normalized >= _MIN_REASONABLE_MTIME_NS else None
+
 
 def _upsert_asset_conn(
     conn: sqlite3.Connection,
@@ -40,6 +53,7 @@ def _upsert_asset_conn(
         _library_exclusion_patterns_conn(conn, library_id),
     ):
         return 0
+    normalized_mtime_ns = _normalize_asset_mtime_ns(mtime_ns)
     normalized_type = "image" if type in {"image", "photo", "file"} else "video" if type == "video" else "folder"
     conn.execute(
         """
@@ -71,7 +85,7 @@ def _upsert_asset_conn(
             str(Path(parent_path).resolve()),
             name,
             normalized_type,
-            mtime_ns,
+            normalized_mtime_ns,
             size,
             width,
             height,
