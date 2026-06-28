@@ -358,7 +358,7 @@ def create_library(
                 INSERT INTO library_jobs (
                   library_id, type, state, scope_path, trigger, priority,
                   progress_current, progress_total, message, counters, created_at, updated_at
-                ) VALUES (?, 'scan', 'queued', NULL, 'initial', 100, 0, NULL, 'Initial scan queued', '{}', ?, ?)
+                ) VALUES (?, 'scan', 'queued', NULL, 'initial', 100, 0, NULL, 'Initial update queued', '{}', ?, ?)
                 """,
                 (library_id, now, now),
             )

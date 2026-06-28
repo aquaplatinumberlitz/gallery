@@ -241,23 +241,6 @@ async function installStubbedInspector(page: Page) {
       return;
     }
 
-    if (url.pathname === "/api/libraries/1/rebuild") {
-      await route.fulfill({
-        status: 202,
-        contentType: "application/json",
-        body: JSON.stringify({
-          library_id: 1,
-          job_id: 77,
-          scope_path: url.searchParams.get("scope_path") ?? rootPath,
-          operation: "rebuild",
-          trigger: "manual",
-          state: "queued",
-          coalesced: false,
-        }),
-      });
-      return;
-    }
-
     if (url.pathname === "/api/library/inspector/metadata") {
       await route.fulfill({
         contentType: "application/json",
@@ -350,34 +333,6 @@ test.describe("LibraryInspector", () => {
     await expect(page).toHaveURL(`${baseUrl}/`);
     await expect(page.getByRole("heading", { name: "Museum Art Gallery" })).toBeVisible();
     await expect(page.locator("#gallery-search")).toBeVisible();
-  });
-
-  test.skip("legacy Catalog Status rebuild refetches active metadata records", async ({ page }) => {
-    const requests = await installStubbedInspector(page);
-    await page.addInitScript(() => {
-      localStorage.setItem("intro_mode", "disabled");
-      localStorage.setItem("gallery-active-library-id", "1");
-      localStorage.setItem("gallery-active-import-path-id", "10");
-      localStorage.setItem("gallery-sidebar-open", "true");
-    });
-
-    await page.goto(`${baseUrl}/metadata`, { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "Photo Details" })).toBeVisible();
-    await expect(page.getByText(`40 indexed photos · ${rootPath} · Including subfolders`)).toBeVisible();
-
-    const inspectorRequestsBefore = requests.filter((request) => request.startsWith("/api/library/inspector?")).length;
-    await page.getByLabel("Catalog Status").click();
-    const popover = page.getByRole("dialog").filter({ hasText: "Catalog" });
-    await expect(popover).toBeVisible({ timeout: 5_000 });
-    await popover.getByRole("button", { name: "Rebuild" }).click();
-
-    const dialog = page.getByRole("dialog", { name: "Rebuild?" });
-    await expect(dialog).toBeVisible({ timeout: 5_000 });
-    await dialog.getByRole("button", { name: "Rebuild" }).click();
-
-    await expect
-      .poll(() => requests.filter((request) => request.startsWith("/api/library/inspector?")).length)
-      .toBeGreaterThan(inspectorRequestsBefore);
   });
 
   test("keeps prompt preview constrained and makes the table the scroll owner", async ({ page }) => {

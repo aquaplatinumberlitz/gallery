@@ -467,7 +467,7 @@ def test_degraded_scan(isolated_metadata_db: Path, isolated_gallery_root: Path):
 
     finished = _run_scan(library_id)
     assert finished["state"] == "succeeded"
-    assert finished["message"] == "Scan completed with offline paths"
+    assert finished["message"] == "Update completed with offline paths"
     assert finished["progress_total"] == 2
     stored = get_library(library_id)
     assert stored is not None

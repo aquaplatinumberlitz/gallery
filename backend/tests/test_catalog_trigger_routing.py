@@ -95,6 +95,40 @@ def test_queue_rebuild_rejects_while_maintenance_gate_is_held(
             future.result()
 
 
+def test_initial_scan_wake_defers_while_maintenance_gate_is_held(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    library = create_library([isolated_gallery_root], queue_initial_scan=True)
+
+    def fail_notify() -> None:
+        raise AssertionError("initial scan worker wake should be deferred")
+
+    monkeypatch.setattr(catalog_service, "notify_workers", fail_notify)
+    with maintenance_gate(), ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(catalog_service.queue_initial_scan_job, int(library["initial_scan_job_id"]))
+        assert future.result() is None
+
+
+def test_startup_scans_defer_while_maintenance_gate_is_held(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    library_id = int(register_library(isolated_gallery_root)["id"])
+
+    def fail_notify() -> None:
+        raise AssertionError("startup scan worker wake should be deferred")
+
+    monkeypatch.setattr(catalog_service, "notify_workers", fail_notify)
+    with maintenance_gate(), ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(catalog_service.queue_startup_scans)
+        assert future.result() == []
+
+    assert list_active_jobs(library_id) == []
+
+
 def test_watcher_scan_resolves_owning_library_and_scope(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,
@@ -356,7 +390,7 @@ def test_run_once_marks_offline_scan_path_failed(isolated_metadata_db: Path, iso
     finished = get_job(job["id"])
     assert finished is not None
     assert finished["state"] == "failed"
-    assert finished["error"] == "All scan paths are offline"
+    assert finished["error"] == "All update paths are offline"
 
 
 def test_runtime_status_and_worker_lifecycle(isolated_metadata_db: Path):

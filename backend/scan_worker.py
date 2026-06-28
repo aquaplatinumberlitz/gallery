@@ -105,7 +105,7 @@ def queue_scan(
             scope_path=scope_path,
             priority=TRIGGER_PRIORITIES[trigger],
             parent_job_id=parent_job_id,
-            message=f"{trigger.capitalize()} scan queued",
+            message=f"{trigger.capitalize()} update queued",
         )
         _emit_job(job)
         notify_workers()
@@ -146,19 +146,31 @@ def queue_rebuild(
 
 def queue_initial_scan_job(job_id: int) -> None:
     """Wake the worker for an initial scan row created inside another transaction."""
-    job = get_job(job_id)
-    if job is not None:
-        _emit_job(job)
-    notify_workers()
+    if not try_acquire_maintenance_gate():
+        LOGGER.debug("Maintenance active, deferring initial scan")
+        return
+    try:
+        job = get_job(job_id)
+        if job is not None:
+            _emit_job(job)
+        notify_workers()
+    finally:
+        release_maintenance_gate()
 
 
 def queue_startup_scans() -> list[dict[str, Any]]:
     """Queue startup catch-up scans for all registered libraries."""
-    jobs = enqueue_startup_catalog_scans(priority=TRIGGER_PRIORITIES["startup"])
-    for job in jobs:
-        _emit_job(job)
-    notify_workers()
-    return jobs
+    if not try_acquire_maintenance_gate():
+        LOGGER.debug("Maintenance active, deferring startup scans")
+        return []
+    try:
+        jobs = enqueue_startup_catalog_scans(priority=TRIGGER_PRIORITIES["startup"])
+        for job in jobs:
+            _emit_job(job)
+        notify_workers()
+        return jobs
+    finally:
+        release_maintenance_gate()
 
 
 def queue_watcher_scan(scope_path: str | Path) -> dict[str, Any] | None:
@@ -197,7 +209,7 @@ def _scan_paths_for_job(job: dict[str, Any]) -> tuple[int, list[str]]:
     if scope_path is None:
         return library_id, import_paths
     if not any(catalog_path_contains(root, scope_path) for root in import_paths):
-        raise ValueError("Scan scope is outside this library's import paths")
+        raise ValueError("Update scope is outside this library's import paths")
     return library_id, [str(Path(scope_path).resolve())]
 
 
@@ -211,7 +223,7 @@ def execute_scan_job(job: dict[str, Any]) -> bool:
         offline_paths = [p for p in scan_paths if not Path(p).is_dir()]
         if not online_paths:
             update_library_state(library_id, "offline", last_error="All import paths are offline")
-            _transition_job(job_id, "failed", message="Scan failed", error="All scan paths are offline")
+            _transition_job(job_id, "failed", message="Update failed", error="All update paths are offline")
             return False
         if offline_paths:
             update_library_state(library_id, "degraded", last_error=f"{len(offline_paths)} import path(s) offline")
@@ -230,7 +242,7 @@ def execute_scan_job(job: dict[str, Any]) -> bool:
             "running",
             progress_current=0,
             progress_total=len(online_paths),
-            message="Scanning library",
+            message="Updating library",
             counters=counters,
         )
         for index, scan_path in enumerate(online_paths, start=1):
@@ -244,19 +256,19 @@ def execute_scan_job(job: dict[str, Any]) -> bool:
                 "running",
                 progress_current=index,
                 progress_total=len(online_paths),
-                message=f"Scanned {index} of {len(online_paths)} scan scopes",
+                message=f"Updated {index} of {len(online_paths)} update scopes",
                 counters=counters,
             )
         scan_completed = job.get("scope_path") is None
         if offline_paths:
             update_library_state(library_id, "degraded", scan_completed=scan_completed)
-            success_message = "Scan completed with offline paths"
+            success_message = "Update completed with offline paths"
         elif scan_completed:
             update_library_state(library_id, "ready", scan_completed=True)
-            success_message = "Scan completed"
+            success_message = "Update completed"
         else:
             update_library_state(library_id, "indexing", scan_completed=False)
-            success_message = "Scan completed"
+            success_message = "Update completed"
         _transition_job(
             job_id,
             "succeeded",
@@ -269,7 +281,7 @@ def execute_scan_job(job: dict[str, Any]) -> bool:
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("Catalog scan job %s failed: %s", job_id, exc)
         update_library_state(library_id, "error", last_error=str(exc), scan_completed=job.get("scope_path") is None)
-        _transition_job(job_id, "failed", message="Scan failed", error=str(exc))
+        _transition_job(job_id, "failed", message="Update failed", error=str(exc))
         return False
 
 

@@ -200,12 +200,12 @@ Backend modules are mostly flat, with selected domain packages.
 | `GET /api/libraries/{id}/status`          | Return unified status envelope for a library or path scope            | `libraries.py`      |
 | `GET /api/libraries/{id}/stats`           | Return aggregate media statistics for one library                     | `libraries.py`      |
 | `GET /api/libraries/{id}/jobs`            | Return recent jobs for one library                                    | `libraries.py`      |
-| `POST /api/libraries/{id}/rebuild`        | Rebuild catalog and metadata for a library scope                      | `libraries.py`      |
 | `DELETE /api/libraries/{id}?confirm=true` | Unregister catalog data without deleting source files                 | `libraries.py`      |
 | `GET /api/derivatives/status`             | Return derivative warm coverage and quota use for a library           | `libraries.py`      |
 | `POST /api/derivatives/warm`              | Queue default thumbnail and preview derivatives for a library         | `libraries.py`      |
-| `POST /api/derivatives/rebuild`           | Queue replacements for stale derivatives                              | `libraries.py`      |
-| `POST /api/derivatives/clear`             | Clear derivative catalog rows and persisted derivative files          | `libraries.py`      |
+| `POST /api/maintenance/imported-data/clear` | Clear imported catalog, metadata, and generated-image data          | `maintenance.py`    |
+| `POST /api/maintenance/imported-data/rebuild` | Clear imported data and queue whole-library rebuild jobs          | `maintenance.py`    |
+| `POST /api/maintenance/catalog/reset`     | Reset catalog database data, including registered libraries           | `maintenance.py`    |
 | `GET /` and `GET /{path:path}`            | Serve the built SPA in production mode                                | `static_files.py`   |
 
 ### Backend Behavior
@@ -314,8 +314,9 @@ Core keys:
 /admin/maintenance
 -> MaintenancePage.vue
 -> generated-image summary by querying registered libraries
--> POST /api/derivatives/rebuild?confirm=true for all-library stale generated files
--> POST /api/derivatives/clear?confirm=true for all-library generated-file clearing
+-> POST /api/maintenance/imported-data/rebuild for all-library imported-data rebuild
+-> POST /api/maintenance/imported-data/clear for all-library imported-data clearing
+-> POST /api/maintenance/catalog/reset from Settings Danger Zone
 -> GET /api/maintenance/file-health for latest File issues and Repair results
 -> POST /api/maintenance/file-health/check from Check files
 ```

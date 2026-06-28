@@ -587,11 +587,11 @@ async def api_scan_library(library_id: int, payload: LibraryScanRequest | None =
     import_paths = [str(Path(item["path"]).resolve()) for item in library["import_paths"]]
     scan_paths = [str(Path(scope_path).resolve())] if scope_path is not None else import_paths
     if scope_path is not None and not any(catalog_path_contains(root, scan_paths[0]) for root in import_paths):
-        raise APIError(400, ErrorType.BAD_REQUEST, "Scan scope is outside this library")
+        raise APIError(400, ErrorType.BAD_REQUEST, "Update scope is outside this library")
     if scope_path is not None:
         if not Path(scan_paths[0]).is_dir():
             await run_in_threadpool(update_library_state, library_id, "offline", last_error="Scope path is offline")
-            raise APIError(409, "library_offline", "Scan scope path is offline")
+            raise APIError(409, "library_offline", "Update scope path is offline")
     elif not any(Path(path).is_dir() for path in import_paths):
         await run_in_threadpool(update_library_state, library_id, "offline", last_error="All import paths are offline")
         raise APIError(409, "library_offline", "All library import paths are offline")

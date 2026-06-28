@@ -30,7 +30,7 @@ import { formatAssetCount, formatLibraryTimestamp } from "@/utils/libraryStatus"
 import { formatBytes, formatPercent } from "@/utils/format";
 import { getCatalogStatusPresentation } from "@/lib/catalog/labels";
 import { STATUS_CONTRACT_ERROR_MESSAGE } from "@/lib/catalog/contractGuard";
-import type { UnifiedStatus } from "@/lib/catalog/status";
+import type { MetadataState, ScanState, UnifiedStatus } from "@/lib/catalog/status";
 import LibraryProgressBar from "./LibraryProgressBar.vue";
 import LibraryStatusBadge from "./LibraryStatusBadge.vue";
 import LibraryEditDialog from "./dialogs/LibraryEditDialog.vue";
@@ -58,6 +58,23 @@ const status = computed<UnifiedStatus | null>(() => statusQuery.data.value?.stat
 const busy = computed(() => scanMutation.isPending.value);
 const statusContractError = computed(() => Boolean(statusQuery.contractError.value));
 
+const scanStateLabels: Record<ScanState, string> = {
+  never: "Never updated",
+  queued: "Queued",
+  scanning: "Updating",
+  complete: "Complete",
+  failed: "Failed",
+};
+
+const metadataStateLabels: Record<MetadataState, string> = {
+  disabled: "Disabled",
+  queued: "Queued",
+  indexing: "Updating metadata",
+  needs_update: "Needs update",
+  complete: "Complete",
+  failed: "Failed",
+};
+
 const availabilityLabel = computed(() => {
   const state = status.value?.availability.state;
   if (!state) return "Unknown";
@@ -67,13 +84,13 @@ const availabilityLabel = computed(() => {
 const scanStateLabel = computed(() => {
   const state = status.value?.scan.state;
   if (!state) return "Unknown";
-  return state.charAt(0).toUpperCase() + state.slice(1);
+  return scanStateLabels[state];
 });
 
 const metadataStateLabel = computed(() => {
   const state = status.value?.metadata.state;
   if (!state) return "Unknown";
-  return state.charAt(0).toUpperCase() + state.slice(1);
+  return metadataStateLabels[state];
 });
 
 const scanProgressLabel = computed(() => {

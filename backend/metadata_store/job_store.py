@@ -226,7 +226,7 @@ def create_or_coalesce_catalog_job(
                     requested_scope,
                     trigger,
                     priority,
-                    message or "Catalog scan queued",
+                    message or "Catalog update queued",
                     now,
                     now,
                 ),
@@ -301,7 +301,7 @@ def enqueue_startup_catalog_scans(*, priority: int = 10) -> list[dict[str, Any]]
             int(library["id"]),
             trigger="startup",
             priority=priority,
-            message="Startup catch-up scan queued",
+            message="Startup catch-up update queued",
         )
         jobs.append(job)
     return jobs

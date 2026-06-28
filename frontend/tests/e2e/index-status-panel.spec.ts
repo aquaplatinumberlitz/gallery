@@ -142,16 +142,6 @@ async function installStubbedGallery(
       return;
     }
 
-    if (url.pathname === "/api/libraries/1/rebuild" && method === "POST") {
-      const body = route.request().postDataJSON() as { scope_path?: string } | null;
-      await route.fulfill({
-        status: 202,
-        contentType: "application/json",
-        body: JSON.stringify(scanJob(body?.scope_path ?? null, "rebuild")),
-      });
-      return;
-    }
-
     if (url.pathname === "/api/metadata") {
       await route.fulfill({
         contentType: "application/json",
