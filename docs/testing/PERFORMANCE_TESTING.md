@@ -39,7 +39,7 @@ sections. The Python scripts read the TOML directly via `scripts/perf_lib.py`.
 
 ```bash
 python scripts/check_perf_budgets.py
-# perf budget coverage OK: 9 sections, 3 mirrored into perf-budgets.json
+# perf budget coverage OK: 8 sections, 3 mirrored into perf-budgets.json
 ```
 
 The validator checks that:
@@ -182,14 +182,14 @@ with cache-serving latency.
 ```bash
 # Install browser (one-time)
 cd frontend
-npm install
-npx playwright install chromium
+corepack pnpm install
+corepack pnpm exec playwright install chromium
 
 # Run perf test (headless)
-npm run perf:album
+corepack pnpm run perf:album
 
 # Run with browser visible (debug)
-npm run perf:album:headed
+corepack pnpm run perf:album:headed
 ```
 
 ### How the test works
@@ -218,7 +218,7 @@ GALLERY_PERF_ALBUM_SAMPLES=5 \
 GALLERY_PERF_SCAN_BUDGET_MS=500 \
 GALLERY_PERF_FIRST_THUMB_BUDGET_MS=1000 \
 GALLERY_PERF_THUMB_P95_BUDGET_MS=1200 \
-npm run perf:album
+corepack pnpm run perf:album
 ```
 
 Test measures (per iteration + p95 across iterations):
@@ -240,10 +240,10 @@ Measures lightbox open and transition performance with the derivative-first poli
 
 ```bash
 # Run lightbox perf tests (headless)
-npm run perf:lightbox
+corepack pnpm run perf:lightbox
 
 # Run with browser visible (debug)
-npm run perf:lightbox:headed
+corepack pnpm run perf:lightbox:headed
 ```
 
 ### How the tests work
@@ -278,7 +278,7 @@ GALLERY_PERF_LIGHTBOX_SAMPLES=5 \
 GALLERY_PERF_LIGHTBOX_OPEN_BUDGET_MS=800 \
 GALLERY_PERF_LIGHTBOX_PREVIEW_BUDGET_MS=1500 \
 GALLERY_PERF_LIGHTBOX_TRANSITION_BUDGET_MS=700 \
-npm run perf:lightbox
+corepack pnpm run perf:lightbox
 ```
 
 ### Budgets (from `scripts/perf_budgets.toml[lightbox]`)

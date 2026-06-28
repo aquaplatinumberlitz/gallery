@@ -36,7 +36,7 @@ Last verified against `.github/workflows/ci.yml` and `test.sh`: 2026-06-27.
 ## Coverage Baselines
 
 - **Backend**: 90% line coverage (enforced in CI and `./test.sh unit`)
-- **Frontend**: Vitest/V8 coverage is uploaded from `test:unit`; no numeric frontend threshold is enforced yet.
+- **Frontend**: Vitest/V8 coverage is uploaded from `test:unit`; `coverage:unit:check` enforces repository ratchet thresholds, while per-area frontend thresholds are advisory.
 
 ## Browser Matrix
 

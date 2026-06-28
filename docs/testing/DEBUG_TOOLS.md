@@ -263,7 +263,7 @@ Location: `frontend/src/debug/lifecycleDebug.ts`, installed from `frontend/src/m
 
 Purpose: Logs `pageshow`, `pagehide`, `visibilitychange`, `freeze`, and `resume` events in development builds.
 
-Enable: Run the Vite dev server (`cd frontend && npm run dev`).
+Enable: Run the Vite dev server (`cd frontend && corepack pnpm run dev`).
 
 Disable: Use a production build or remove the local dev investigation logging in a follow-up refactor.
 
@@ -335,7 +335,7 @@ Enable:
 
 ```bash
 cd frontend
-npx playwright test ../scripts/debug_lightbox_image_loads_playwright.ts --project=chromium
+corepack pnpm exec playwright test ../scripts/debug_lightbox_image_loads_playwright.ts --project=chromium
 ```
 
 Optional environment variables: `GALLERY_BASE_URL`, `PATH_SAFETY_ROOT_PATH`, `GALLERY_DEBUG_ALBUM`, `GALLERY_DEBUG_ALBUM_PATH`, `GALLERY_DEBUG_LIGHTBOX_WAIT_MS`, `GALLERY_DEBUG_OUTPUT`.

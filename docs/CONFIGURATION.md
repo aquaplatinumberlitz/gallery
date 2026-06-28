@@ -81,6 +81,7 @@ fallback for malformed numbers.
 | `VITE_COVERAGE`                   | boolean (`"true"`) | false                                                                          | Enables Istanbul instrumentation and coverage-specific test behavior. |
 | `VITE_MOBILE_NO_HMR`              | boolean (`"1"`)    | false                                                                          | Disables Vite HMR for the `dev:mobile` workflow.                      |
 | `VITE_EXPOSE_LIGHTBOX_TEST_HOOKS` | boolean (`"1"`)    | false                                                                          | Exposes lightbox test hooks outside Vite test mode.                   |
+| `VITE_DEVTOOLS`                   | boolean (`"true"`) | false                                                                          | Shows TanStack Query Devtools outside normal Vite dev mode.           |
 
 Vite built-ins such as `DEV` and `MODE` are read by the frontend but are supplied by
 Vite rather than configured by this repository.

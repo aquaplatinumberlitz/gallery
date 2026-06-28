@@ -276,8 +276,10 @@ Core keys:
 ["jobs"]
 ["jobs", "list"]
 ["jobs", id]
+["browse"]
 ["browse", libraryId]
 ["browse", libraryId, normalizedPath, limit, includeOffline]
+["browse-infinite"]
 ["browse-infinite", libraryId]
 ["browse-infinite", libraryId, normalizedPath, limit, includeOffline]
 ["folder-children", normalizedPath]
@@ -292,6 +294,8 @@ Core keys:
 ["library-inspector"]
 ["library-inspector", query, scope, normalizedPath, limit, sort]
 ["library-inspector-metadata", normalizedPath]
+["maintenance"]
+["maintenance", "file-health"]
 ```
 
 ### Admin Library Health

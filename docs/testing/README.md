@@ -17,9 +17,9 @@ documented in [DEBUG_TOOLS.md](DEBUG_TOOLS.md).
 ## Test Selection
 
 - Push/PR CI runs full-codebase static checks, backend and frontend unit/integration tests, the complete Chromium functional suite split into four shards, deterministic performance tests, and docs/test-catalog drift checks.
-- CI delegates to `./test.sh` for lint, unit, docs, functional E2E, and performance checks so local and CI commands stay in sync. Docs/test inventory drift is guarded by `scripts/check_docs_staleness.py`, `scripts/check_test_docs.py`, and `scripts/audit_test_matrix.py --fail-on-gaps` (run via `./test.sh docs`).
+- CI delegates to `./test.sh` for lint, unit, docs, functional E2E, and performance checks so local and CI commands stay in sync. Docs/test inventory drift and metadata lifecycle ownership are guarded by `scripts/check_docs_staleness.py`, `scripts/check_test_docs.py`, `scripts/audit_test_matrix.py --fail-on-gaps`, and `scripts/check_metadata_lifecycle_ownership.py` (run via `./test.sh docs`).
 - Functional Playwright runs without Istanbul instrumentation. Frontend coverage is produced by Vitest/V8 in the unit job.
-- Backend line coverage has an enforced 90% baseline. Frontend Vitest coverage remains informational.
+- Backend line coverage has an enforced 90% baseline. Frontend Vitest coverage has enforced ratchet thresholds through `cd frontend && corepack pnpm run coverage:unit:check`; per-area frontend coverage output remains advisory.
 - Nightly and WebKit jobs are not currently configured.
 
 ## Test Categories
@@ -120,7 +120,7 @@ Tier 3 — composables (mounted via `withSetup`, lifecycle + reactive state):
 | Run with v8 coverage             | `cd frontend && pnpm test:unit:coverage`                                |
 | Lint test files only             | `cd frontend && pnpm lint:tests`                                        |
 
-Coverage output is written to `frontend/coverage/vitest/` (text, html, lcov, json-summary). The coverage scope is `src/**/*.{ts,vue}` minus debug, test, and app-entry files. CI uploads this directory from the unit job. Functional Playwright does not use Istanbul instrumentation.
+Coverage output is written to `frontend/coverage/vitest/` (text, html, lcov, json-summary). The coverage scope is `src/**/*.{ts,vue}` minus debug, test, and app-entry files. CI uploads this directory from the unit job. `./test.sh unit` also runs `coverage:unit:check`, which enforces the repository's current frontend ratchet thresholds. Functional Playwright does not use Istanbul instrumentation.
 
 ## Performance Fixtures
 
@@ -252,5 +252,5 @@ Docs/test inventory drift is caught by `./test.sh docs`:
 
 Before committing a new important test or debug helper, add a file header with `Purpose:`, `Guarantees:`, and `Run when:`. The checker enforces this for Playwright specs, backend test modules, `backend/debug/**/*.py`, and `frontend/src/debug/**/*.ts`.
 
-Use `./test.sh docs` for the combined docs staleness, test header, and matrix catalog drift check (equivalent to `python scripts/check_docs_staleness.py && python scripts/check_test_docs.py && python scripts/audit_test_matrix.py --fail-on-gaps`).
+Use `./test.sh docs` for the combined docs staleness, test header, matrix catalog drift, and metadata lifecycle ownership checks (equivalent to `python scripts/check_docs_staleness.py && python scripts/check_test_docs.py && python scripts/audit_test_matrix.py --fail-on-gaps && python scripts/check_metadata_lifecycle_ownership.py`).
 Use `python3 scripts/audit_test_matrix.py` (without `--fail-on-gaps`) for a non-failing inventory that writes `docs/testing/test-gap-report.md` and `docs/testing/test-gap-report.json`.
