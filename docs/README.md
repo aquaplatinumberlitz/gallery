@@ -41,7 +41,7 @@ Main flow:
 
 ```text
 Register library
--> scan/rebuild queues catalog jobs
+-> update/rebuild queues catalog jobs
 -> catalog writes assets/folders
 -> metadata jobs extract prompts/models/resources
 -> derivatives warm thumbnail/preview cache

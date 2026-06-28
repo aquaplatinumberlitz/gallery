@@ -201,4 +201,4 @@ def test_scan_all_with_zero_libraries(isolated_metadata_db: Path, isolated_galle
 
     assert parent["type"] == "scan_all"
     assert parent["state"] == "succeeded"
-    assert parent["message"] == "No libraries to scan"
+    assert parent["message"] == "No libraries to update"

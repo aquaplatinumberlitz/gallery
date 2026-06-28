@@ -183,11 +183,12 @@ Backend modules are mostly flat, with selected domain packages.
 | `POST /api/open-folder`                   | Open a folder in the OS file explorer when enabled                    | `folders.py`        |
 | `GET /api/health`                         | Return service health and commit metadata                             | `health.py`         |
 | `GET /api/landing-pages`                  | List intro page HTML templates from `frontend/public/landpage/`       | `static_files.py`   |
+| `GET /api/maintenance/runtime`            | Return global runtime diagnostics and metadata lifecycle counters     | `maintenance.py`    |
 | `GET /api/libraries`                      | List libraries with ordered import paths and exclusions               | `libraries.py`      |
 | `GET /api/libraries/status`               | Return admin batch status for all libraries                           | `libraries.py`      |
 | `POST /api/libraries`                     | Register a library using import_paths                                 | `libraries.py`      |
 | `POST /api/libraries/validate`            | Validate create settings without writing                              | `libraries.py`      |
-| `POST /api/libraries/scan-all`            | Queue one scan job per registered library                             | `libraries.py`      |
+| `POST /api/libraries/scan-all`            | Queue one update job per registered library                           | `libraries.py`      |
 | `GET /api/stats`                          | Return aggregate statistics across registered libraries               | `libraries.py`      |
 | `GET /api/jobs`                           | Return recent library-management jobs                                 | `libraries.py`      |
 | `GET /api/jobs/{job_id}`                  | Return one library-management job                                     | `libraries.py`      |
@@ -196,7 +197,7 @@ Backend modules are mostly flat, with selected domain packages.
 | `GET /api/libraries/{id}`                 | Return library details                                                | `libraries.py`      |
 | `POST /api/libraries/{id}/validate`       | Validate update settings without writing                              | `libraries.py`      |
 | `GET /api/libraries/{id}/progress`        | Return progressive discovery and metadata coverage                    | `libraries.py`      |
-| `POST /api/libraries/{id}/scan`           | Scan every import path in one library                                 | `libraries.py`      |
+| `POST /api/libraries/{id}/scan`           | Update every import path in one library                               | `libraries.py`      |
 | `GET /api/libraries/{id}/status`          | Return unified status envelope for a library or path scope            | `libraries.py`      |
 | `GET /api/libraries/{id}/stats`           | Return aggregate media statistics for one library                     | `libraries.py`      |
 | `GET /api/libraries/{id}/jobs`            | Return recent jobs for one library                                    | `libraries.py`      |
@@ -219,7 +220,7 @@ Backend modules are mostly flat, with selected domain packages.
 - The metadata DB defaults to `backend/.cache/gallery_metadata.db` and can be overridden with `GALLERY_METADATA_DB`.
 - SQLite uses WAL mode and stores both file index rows and normalized metadata rows. FTS5 tables cover folder/photo names and metadata text.
 - Registered libraries store ordered roots in `library_import_paths`. Relative globstar exclusions live in `library_exclusion_patterns`.
-- `/api/browse` is the read-only catalog query endpoint. It accepts `library_id`, `path`, `cursor`, `limit`, and `include_offline`. The response contains `folders`, `media`, `next_cursor`, legacy alias `next_media_cursor`, `total_images`, `total_videos`, `total_assets`, `request_path`, `index_source`, `library_id`, and `path`. Image media rows also include `derivative_ready` for thumbnail/preview readiness; the frontend treats this as a loading/preload hint, not visible user-facing status. Scan, rebuild, and status are managed through library endpoints.
+- `/api/browse` is the read-only catalog query endpoint. It accepts `library_id`, `path`, `cursor`, `limit`, and `include_offline`. The response contains `folders`, `media`, `next_cursor`, legacy alias `next_media_cursor`, `total_images`, `total_videos`, `total_assets`, `request_path`, `index_source`, `library_id`, and `path`. Image media rows also include `derivative_ready` for thumbnail/preview readiness; the frontend treats this as a loading/preload hint, not visible user-facing status. Catalog update and status are managed through library endpoints; imported-data clear, rebuild, and catalog reset are managed through maintenance endpoints.
 - Catalog scan workers, the DB-claim metadata lifecycle worker, the derivative scheduler, and the integrity checker run as background services. The catalog watcher and scheduled reconciliation are enabled by default for registered libraries.
 
 ## Frontend
@@ -235,7 +236,7 @@ Key paths:
 | `frontend/src/components/GalleryGrid.vue`                 | Main gallery renderer, album/photo sections, infinite loading, search result rendering                                         |
 | `frontend/src/components/Lightbox.vue`                    | Device-dispatch lightbox orchestrator                                                                                          |
 | `frontend/src/components/LibraryInspector.vue`            | Desktop metadata inspection table at `/metadata`; TanStack Table for returned-row sorting plus TanStack Virtual for table rows |
-| `frontend/src/components/admin/LibraryListPage.vue`       | Admin registered-library list, scan-all entrypoint, status summaries, and navigation to library detail pages                    |
+| `frontend/src/components/admin/LibraryListPage.vue`       | Admin registered-library list, update-all entrypoint, status summaries, and navigation to library detail pages                  |
 | `frontend/src/components/admin/LibraryDetailPage.vue`     | Admin library detail with status/progress, generated-image coverage, live watcher/refresh state, problems, jobs, and dialogs   |
 | `frontend/src/components/admin/MaintenancePage.vue`       | Admin maintenance page with file-health sections, global generated-file actions, and active job visibility                      |
 | `frontend/src/components/SortSelect.vue`                  | shadcn-vue Select sort control used by gallery desktop/tablet toolbars and the Library Inspector                               |
@@ -303,13 +304,13 @@ Core keys:
 ```text
 /admin/libraries
 -> LibraryListPage.vue
--> library list, batch status, scan-all, and per-library navigation
+-> library list, batch status, update-all, and per-library navigation
 
 /admin/libraries/:id
 -> LibraryDetailPage.vue
 -> GET /api/libraries/{id}/status
 -> GET /api/derivatives/status?library_id=...
--> Generated images, Live status, Problems, jobs, stats, scan/edit/delete
+-> Generated images, Live status, Problems, jobs, stats, update/edit/delete
 
 /admin/maintenance
 -> MaintenancePage.vue

@@ -19,6 +19,7 @@ Notable groups include:
 - Completed lint/format adoption and frontend adaptation plans.
 - Completed Frontend Library Health and Generated Files UI plan — Admin library detail exposes generated-image coverage, live status, and problem counters; Admin Maintenance owns global generated-file actions.
 - Completed Immich Missing Adaptations Hardening plan — Gallery adapted the worker lifecycle, read-model/status, contract/UI, and migration/schema hardening gaps; Admin Maintenance now reads the backend file-health report API.
+- Completed Imported Data Maintenance UX Refactor plan — Admin update labels now keep scan endpoints behind update vocabulary, while imported-data clear/rebuild and catalog reset live under maintenance endpoints.
 - Utility Library Migration — 12-item, 6-phase migration (clipboard, debounce, device breakpoints, focus trap → Reka FocusScope, column resize, natural sort, Axios interceptor, event listeners, localStorage, formatBytes), plus follow-up deferred cleanups for GalleryGrid intersection observer and scroll visibility mechanics.
 - Historical performance comparison and deprecated testing strategy.
 - Evolution and upstream-adaptation roadmaps retained for design context.

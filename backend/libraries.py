@@ -342,7 +342,7 @@ async def api_scan_all_libraries():
         create_job,
         "scan_all",
         progress_total=len(libraries),
-        message="Scan all queued",
+        message="Update all libraries queued",
     )
     _emit_job(parent)
     children: list[tuple[int, bool]] = []
@@ -353,7 +353,7 @@ async def api_scan_all_libraries():
             "running",
             progress_current=0,
             progress_total=0,
-            message="No libraries to scan",
+            message="No libraries to update",
         )
         await run_in_threadpool(
             _set_job_state,
@@ -361,7 +361,7 @@ async def api_scan_all_libraries():
             "succeeded",
             progress_current=0,
             progress_total=0,
-            message="No libraries to scan",
+            message="No libraries to update",
         )
         return {"job_id": parent["id"], "state": "succeeded", "child_job_ids": [], "count": 0}
     for library in libraries:
@@ -373,7 +373,7 @@ async def api_scan_all_libraries():
                 _set_job_state,
                 int(parent["id"]),
                 "failed",
-                message="Scan all not queued",
+                message="Update all libraries not queued",
                 error="Maintenance operation is active",
             )
             raise APIError(409, "maintenance_busy", "Maintenance operation is active, try again later") from exc
@@ -390,7 +390,7 @@ async def api_scan_all_libraries():
         "running",
         progress_current=0,
         progress_total=len(children),
-        message="Queueing library scans",
+        message="Queueing library updates",
         counters=counters,
     )
     await run_in_threadpool(
@@ -399,7 +399,7 @@ async def api_scan_all_libraries():
         "running",
         progress_current=len(children),
         progress_total=len(children),
-        message="Queueing library scans",
+        message="Queueing library updates",
         counters=counters,
     )
     return {
@@ -487,7 +487,7 @@ async def _api_update_library(library_id: int, payload: LibraryUpdate):
     if {"import_paths", "exclusion_patterns"} & payload.model_fields_set:
         active = await run_in_threadpool(_active_library_job, library_id, "scan", "rebuild")
         if active is not None:
-            raise APIError(409, "library_busy", "Library scan or rebuild is active")
+            raise APIError(409, "library_busy", "Library update or rebuild is active")
     normalized_paths: list[str] | None = None
     normalized_patterns: list[str] | None = None
     if payload.import_paths is not None or payload.exclusion_patterns is not None:
@@ -644,7 +644,7 @@ async def api_unregister_library(
         raise APIError(400, "confirmation_required", "Unregister requires explicit confirmation")
     active = await run_in_threadpool(_active_library_job, library_id, "scan", "rebuild")
     if active is not None:
-        raise APIError(409, "library_busy", "Library scan or rebuild is active")
+        raise APIError(409, "library_busy", "Library update or rebuild is active")
     if not await run_in_threadpool(unregister_library, library_id):
         raise APIError(404, ErrorType.NOT_FOUND, "Library not found")
     return {"library_id": library_id, "unregistered": True, "source_files_deleted": False}

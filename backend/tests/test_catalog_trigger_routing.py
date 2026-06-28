@@ -421,4 +421,4 @@ def test_scan_all_zero_libraries_parent_succeeds(isolated_metadata_db: Path):
     job = get_job(int(body["job_id"]))
     assert job is not None
     assert job["state"] == "succeeded"
-    assert job["message"] == "No libraries to scan"
+    assert job["message"] == "No libraries to update"
