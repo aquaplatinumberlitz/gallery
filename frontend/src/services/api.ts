@@ -55,7 +55,12 @@ export interface FileHealthRun {
 export interface FileHealthResponse {
   run: FileHealthRun | null;
 }
-import type { GlobalRuntime, LibraryStatusBatchResponse, MetadataLifecycle, StatusResponseEnvelope } from "../lib/catalog/status";
+import type {
+  GlobalRuntime,
+  LibraryStatusBatchResponse,
+  MetadataLifecycle,
+  StatusResponseEnvelope,
+} from "../lib/catalog/status";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -473,9 +478,9 @@ export const rebuildImportedData = async (): Promise<ImportedDataRebuildResponse
   return data;
 };
 
-export const resetCatalogDatabase = async (): Promise<CatalogResetResponse> => {
+export const resetCatalogDatabase = async (confirmPhrase: string): Promise<CatalogResetResponse> => {
   const { data } = await api.post<CatalogResetResponse>("/api/maintenance/catalog/reset", {
-    confirm_phrase: "RESET CATALOG DATABASE",
+    confirm_phrase: confirmPhrase,
   });
   return data;
 };

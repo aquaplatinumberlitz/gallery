@@ -507,7 +507,7 @@ describe("clearImportedData", () => {
 describe("resetCatalogDatabase", () => {
   it("POST /api/maintenance/catalog/reset", async () => {
     mockApi.post.mockResolvedValueOnce({ data: { state: "reset" } });
-    const r = await resetCatalogDatabase();
+    const r = await resetCatalogDatabase("RESET CATALOG DATABASE");
     expect(r).toEqual({ state: "reset" });
     expect(mockApi.post).toHaveBeenCalledWith("/api/maintenance/catalog/reset", {
       confirm_phrase: "RESET CATALOG DATABASE",
@@ -543,7 +543,19 @@ describe("fetchMaintenanceRuntime", () => {
   it("GET /api/maintenance/runtime", async () => {
     mockApi.get.mockResolvedValueOnce({
       data: {
-        global_runtime: { catalog_worker_count: 1, catalog_active_jobs: 0, catalog_queue_depth: 0, metadata_worker_count: 2, metadata_active_jobs: 0, metadata_queue_depth: 0, metadata_staged_queue_depth: 0, watcher_enabled: true, watcher_healthy: true, watcher_issue: null, scheduled_reconciliation_enabled: true },
+        global_runtime: {
+          catalog_worker_count: 1,
+          catalog_active_jobs: 0,
+          catalog_queue_depth: 0,
+          metadata_worker_count: 2,
+          metadata_active_jobs: 0,
+          metadata_queue_depth: 0,
+          metadata_staged_queue_depth: 0,
+          watcher_enabled: true,
+          watcher_healthy: true,
+          watcher_issue: null,
+          scheduled_reconciliation_enabled: true,
+        },
         metadata_lifecycle: null,
       },
     });

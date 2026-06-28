@@ -2,11 +2,21 @@
 import { computed, ref, onMounted, watch } from "vue";
 import { useLandingPagesLiveQuery } from "../db/composables/useLandingPagesLiveQuery";
 import { LIGHTBOX_ALWAYS_LOAD_ORIGINAL_KEY } from "../utils/lightbox";
+import { AlertTriangle, Trash2 } from "lucide-vue-next";
+import { useCatalogResetMutation } from "@/composables/admin/useCatalogResetMutation";
+import Button from "@/components/ui/Button.vue";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
-defineProps<{
-  isOpen: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    isOpen: boolean;
+    canResetCatalogDatabase?: boolean;
+  }>(),
+  {
+    canResetCatalogDatabase: true,
+  },
+);
 
 const emit = defineEmits<{
   (e: "close"): void;
@@ -22,9 +32,13 @@ const isIntroMode = (value: string | null): value is IntroMode =>
 const introMode = ref<IntroMode>("auto");
 const selectedTheme = ref("");
 const alwaysLoadOriginal = ref(false);
+const resetConfirmPhrase = "RESET CATALOG DATABASE";
+const resetConfirmInput = ref("");
 const landingPagesQuery = useLandingPagesLiveQuery();
 const availableThemes = computed(() => (landingPagesQuery.data.value ?? []).map((page) => page.url));
 const isLoadingThemes = computed(() => landingPagesQuery.isLoading.value);
+const canSubmitReset = computed(() => resetConfirmInput.value === resetConfirmPhrase);
+const resetMutation = useCatalogResetMutation();
 
 const formatThemeName = (path: string) => {
   const parts = path.split("/").filter((p) => p && p !== "landpage" && !p.endsWith(".html"));
@@ -95,11 +109,22 @@ function onOpenChange(open: boolean) {
     emit("close");
   }
 }
+
+async function handleResetCatalog() {
+  if (!canSubmitReset.value || resetMutation.isPending.value) return;
+  try {
+    await resetMutation.mutateAsync(resetConfirmInput.value);
+    resetConfirmInput.value = "";
+    emit("close");
+  } catch {
+    // Toast handled by mutation onError.
+  }
+}
 </script>
 
 <template>
   <Dialog :open="isOpen" @update:open="onOpenChange">
-    <DialogContent class="sm:max-w-[400px]">
+    <DialogContent class="max-h-[min(90vh,720px)] overflow-y-auto sm:max-w-[440px]">
       <DialogHeader>
         <DialogTitle class="font-[Cinzel] tracking-wider uppercase text-base"> Settings </DialogTitle>
         <DialogDescription class="sr-only"> Configure gallery intro and viewer settings </DialogDescription>
@@ -178,6 +203,49 @@ function onOpenChange(open: boolean) {
               <span class="text-xs text-muted-foreground">Use source files immediately in the viewer</span>
             </div>
           </label>
+        </section>
+
+        <section
+          v-if="props.canResetCatalogDatabase"
+          class="space-y-4 rounded-md border border-destructive/40 bg-destructive/5 p-4"
+        >
+          <div class="flex items-start gap-3">
+            <AlertTriangle class="mt-0.5 size-4 shrink-0 text-destructive" />
+            <div class="min-w-0 space-y-1">
+              <h3 class="text-xs uppercase tracking-wider text-destructive font-semibold">Danger Zone</h3>
+              <p class="text-xs text-muted-foreground">
+                Reset deletes the catalog database state, registered libraries, import paths, extracted metadata, jobs,
+                thumbnails, and previews. Source files are not deleted.
+              </p>
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <label for="catalog-reset-confirm" class="text-xs font-medium text-muted-foreground">
+              Type {{ resetConfirmPhrase }} to confirm
+            </label>
+            <Input
+              id="catalog-reset-confirm"
+              v-model="resetConfirmInput"
+              autocomplete="off"
+              spellcheck="false"
+              :disabled="resetMutation.isPending.value"
+              aria-describedby="catalog-reset-help"
+            />
+            <p id="catalog-reset-help" class="text-xs text-muted-foreground">
+              This returns the gallery to an empty library setup state.
+            </p>
+          </div>
+
+          <Button
+            variant="destructive"
+            class="w-full"
+            :disabled="!canSubmitReset || resetMutation.isPending.value"
+            @click="handleResetCatalog"
+          >
+            <Trash2 />
+            {{ resetMutation.isPending.value ? "Resetting..." : "Reset All" }}
+          </Button>
         </section>
       </div>
     </DialogContent>
