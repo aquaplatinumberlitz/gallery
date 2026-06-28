@@ -41,7 +41,7 @@ const mockStatus = {
   last_index_at: null,
 };
 
-let mockDataValue = ref<StatusResponseEnvelope | null>({
+const mockDataValue = ref<StatusResponseEnvelope | null>({
   status: mockStatus as StatusResponseEnvelope["status"],
   contract_version: 1 as const,
   global_runtime: {
@@ -59,10 +59,10 @@ let mockDataValue = ref<StatusResponseEnvelope | null>({
   },
   metadata_lifecycle: null,
 });
-let mockIsLoadingValue = ref(false);
-let mockIsErrorValue = ref(false);
-let mockErrorValue = ref<Error | null>(null);
-let mockContractErrorValue = ref<Error | null>(null);
+const mockIsLoadingValue = ref(false);
+const mockIsErrorValue = ref(false);
+const mockErrorValue = ref<Error | null>(null);
+const mockContractErrorValue = ref<Error | null>(null);
 const mockRefetch = vi.fn();
 
 vi.mock("@/composables/useCatalogStatusQuery", () => ({
