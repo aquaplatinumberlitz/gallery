@@ -412,6 +412,66 @@ def list_active_jobs(library_id: int | None = None) -> list[dict[str, Any]]:
         return [_serialize_library_job(row) for row in conn.execute(query, params)]
 
 
+def update_parent_aggregate_job(parent_job_id: int) -> dict[str, Any] | None:
+    """Refresh aggregate parent job progress from child terminal states."""
+    _initialize_database()
+    now = time.time()
+    with _DB_LOCK, _connect() as conn:
+        parent = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (parent_job_id,)).fetchone()
+        if parent is None or parent["type"] not in {"rebuild_imported_data"}:
+            return None
+        children = conn.execute("SELECT state FROM library_jobs WHERE parent_job_id = ?", (parent_job_id,)).fetchall()
+        total = len(children)
+        succeeded = sum(1 for child in children if child["state"] == "succeeded")
+        failed = sum(1 for child in children if child["state"] == "failed")
+        cancelled = sum(1 for child in children if child["state"] == "cancelled")
+        finished = succeeded + failed + cancelled
+        if total == 0:
+            state = "succeeded"
+            message = "No libraries to rebuild"
+            finished_at = now
+        elif finished < total:
+            state = "running"
+            message = f"Rebuilt {finished} of {total} libraries"
+            finished_at = None
+        elif failed or cancelled:
+            state = "failed"
+            message = "Imported data rebuild completed with failures"
+            finished_at = now
+        else:
+            state = "succeeded"
+            message = "Imported data rebuild completed"
+            finished_at = now
+        conn.execute(
+            """
+            UPDATE library_jobs
+            SET state = ?,
+                progress_current = ?,
+                progress_total = ?,
+                message = ?,
+                counters = ?,
+                updated_at = ?,
+                started_at = COALESCE(started_at, ?),
+                finished_at = CASE WHEN ? IS NULL THEN finished_at ELSE ? END
+            WHERE id = ?
+            """,
+            (
+                state,
+                finished,
+                total,
+                message,
+                json.dumps({"total": total, "succeeded": succeeded, "failed": failed, "cancelled": cancelled}),
+                now,
+                now,
+                finished_at,
+                finished_at,
+                parent_job_id,
+            ),
+        )
+        row = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (parent_job_id,)).fetchone()
+        return _serialize_library_job(row)
+
+
 def create_or_get_active_scan_job(
     library_id: int,
     *,

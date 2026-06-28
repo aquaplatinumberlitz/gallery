@@ -3,7 +3,7 @@ import { mount } from "@vue/test-utils";
 import { defineComponent, h } from "vue";
 import { createPinia } from "pinia";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { clearGeneratedImages, refreshStaleGeneratedImages } from "@/services/api";
+import { clearImportedData, rebuildImportedData } from "@/services/api";
 import { queryKeys } from "@/query/keys";
 import { useGeneratedImagesGlobalMutations } from "../useGeneratedImagesGlobalMutations";
 
@@ -11,8 +11,8 @@ const toast = { success: vi.fn(), error: vi.fn(), warning: vi.fn() };
 
 vi.mock("@/composables/useToast", () => ({ useToast: () => toast }));
 vi.mock("@/services/api", () => ({
-  refreshStaleGeneratedImages: vi.fn(),
-  clearGeneratedImages: vi.fn(),
+  rebuildImportedData: vi.fn(),
+  clearImportedData: vi.fn(),
 }));
 
 function setup() {
@@ -33,13 +33,39 @@ function setup() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(refreshStaleGeneratedImages).mockResolvedValue({
-    stale_derivatives: 3,
-    state: "queued",
+  vi.mocked(rebuildImportedData).mockResolvedValue({
+    job_id: 3,
+    state: "running",
+    count: 2,
+    child_job_ids: [4, 5],
+    clear: {
+      assets_cleared: 0,
+      file_index_rows_cleared: 0,
+      image_metadata_rows_cleared: 0,
+      image_resource_rows_cleared: 0,
+      metadata_jobs_cleared: 0,
+      library_jobs_cleared: 0,
+      rebuild_staging_rows_cleared: 0,
+      folder_index_rows_cleared: 0,
+      integrity_runs_cleared: 0,
+      derivative_catalog_entries_cleared: 0,
+      preview_files_deleted: 0,
+    },
   });
-  vi.mocked(clearGeneratedImages).mockResolvedValue({
-    catalog_entries_cleared: 200,
-    files_deleted: 180,
+  vi.mocked(clearImportedData).mockResolvedValue({
+    state: "cleared",
+    libraries_preserved: 2,
+    assets_cleared: 200,
+    file_index_rows_cleared: 200,
+    image_metadata_rows_cleared: 180,
+    image_resource_rows_cleared: 0,
+    metadata_jobs_cleared: 180,
+    library_jobs_cleared: 3,
+    rebuild_staging_rows_cleared: 0,
+    folder_index_rows_cleared: 10,
+    integrity_runs_cleared: 0,
+    derivative_catalog_entries_cleared: 200,
+    preview_files_deleted: 180,
   });
 });
 
@@ -50,8 +76,12 @@ describe("useGeneratedImagesGlobalMutations", () => {
     await mutations.rebuildMutation.mutateAsync();
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.generatedImagesRoot() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.librariesRoot() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.galleryStats() });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.jobsRoot() });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusRoot() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.maintenanceRoot() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.browseAllRoot() });
     wrapper.unmount();
   });
 
@@ -68,30 +98,30 @@ describe("useGeneratedImagesGlobalMutations", () => {
     wrapper.unmount();
   });
 
-  it("rebuildMutation calls refreshStaleGeneratedImages (no library arg)", async () => {
+  it("rebuildMutation calls rebuildImportedData (no library arg)", async () => {
     const { mutations, wrapper } = setup();
 
     await mutations.rebuildMutation.mutateAsync();
 
-    expect(refreshStaleGeneratedImages).toHaveBeenCalled();
+    expect(rebuildImportedData).toHaveBeenCalled();
     wrapper.unmount();
   });
 
-  it("clearMutation calls clearGeneratedImages (no library arg)", async () => {
+  it("clearMutation calls clearImportedData (no library arg)", async () => {
     const { mutations, wrapper } = setup();
 
     await mutations.clearMutation.mutateAsync();
 
-    expect(clearGeneratedImages).toHaveBeenCalled();
+    expect(clearImportedData).toHaveBeenCalled();
     wrapper.unmount();
   });
 
-  it("rebuildMutation toast includes stale count", async () => {
+  it("rebuildMutation toast includes library count", async () => {
     const { mutations, wrapper } = setup();
 
     await mutations.rebuildMutation.mutateAsync();
 
-    expect(toast.success).toHaveBeenCalledWith("Refresh queued for 3 stale items across all libraries");
+    expect(toast.success).toHaveBeenCalledWith("Imported data rebuild queued for 2 libraries");
     wrapper.unmount();
   });
 
@@ -100,9 +130,7 @@ describe("useGeneratedImagesGlobalMutations", () => {
 
     await mutations.clearMutation.mutateAsync();
 
-    expect(toast.success).toHaveBeenCalledWith(
-      "Generated files cleared across all libraries. Source images are not affected.",
-    );
+    expect(toast.success).toHaveBeenCalledWith("Imported data cleared. Libraries and source files are not affected.");
     wrapper.unmount();
   });
 

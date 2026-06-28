@@ -62,6 +62,19 @@ def _transition_job(job_id: int, state: str, **changes: Any) -> dict[str, Any]:
     elif state == "cancelled":
         event_type = "job.cancelled"
     _emit_job(job, event_type)
+    if job.get("parent_job_id") is not None and job.get("type") in {"scan", "rebuild"}:
+        from .metadata_store.job_store import update_parent_aggregate_job
+
+        parent = update_parent_aggregate_job(int(job["parent_job_id"]))
+        if parent is not None:
+            parent_event = (
+                "job.completed"
+                if parent["state"] == "succeeded"
+                else "job.failed"
+                if parent["state"] == "failed"
+                else "job.updated"
+            )
+            _emit_job(parent, parent_event)
     return job
 
 
@@ -98,6 +111,7 @@ def queue_rebuild(
     library_id: int,
     *,
     scope_path: str | Path | None = None,
+    parent_job_id: int | None = None,
 ) -> tuple[dict[str, Any], bool]:
     """Create a durable rebuild job, cancelling queued scans it covers.
 
@@ -110,6 +124,7 @@ def queue_rebuild(
         trigger="manual",
         scope_path=scope_path,
         priority=TRIGGER_PRIORITIES["manual"],
+        parent_job_id=parent_job_id,
         message="Rebuild queued",
     )
     _emit_job(job)

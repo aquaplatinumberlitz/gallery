@@ -4,10 +4,11 @@ import type {
   FacetsResponse,
   FolderChildrenResponse,
   GalleryStats,
-  GeneratedImagesClearResponse,
-  GeneratedImagesRebuildResponse,
   GeneratedImagesStatus,
   GeneratedImagesWarmResponse,
+  CatalogResetResponse,
+  ImportedDataClearResponse,
+  ImportedDataRebuildResponse,
   LibraryCreateRequest,
   LibraryJob,
   LibraryInspectorMetadataResponse,
@@ -458,16 +459,23 @@ export const generateMissingImages = async (libraryId: number): Promise<Generate
   return data;
 };
 
-export const refreshStaleGeneratedImages = async (): Promise<GeneratedImagesRebuildResponse> => {
-  const { data } = await api.post<GeneratedImagesRebuildResponse>("/api/derivatives/rebuild", null, {
-    params: { confirm: true },
+export const clearImportedData = async (): Promise<ImportedDataClearResponse> => {
+  const { data } = await api.post<ImportedDataClearResponse>("/api/maintenance/imported-data/clear", {
+    confirm: true,
   });
   return data;
 };
 
-export const clearGeneratedImages = async (): Promise<GeneratedImagesClearResponse> => {
-  const { data } = await api.post<GeneratedImagesClearResponse>("/api/derivatives/clear", null, {
-    params: { confirm: true },
+export const rebuildImportedData = async (): Promise<ImportedDataRebuildResponse> => {
+  const { data } = await api.post<ImportedDataRebuildResponse>("/api/maintenance/imported-data/rebuild", {
+    confirm: true,
+  });
+  return data;
+};
+
+export const resetCatalogDatabase = async (): Promise<CatalogResetResponse> => {
+  const { data } = await api.post<CatalogResetResponse>("/api/maintenance/catalog/reset", {
+    confirm_phrase: "RESET CATALOG DATABASE",
   });
   return data;
 };

@@ -82,8 +82,9 @@ export interface MockApiModule {
   getLibraryEventsUrl: ReturnType<typeof vi.fn>;
   fetchGeneratedImagesStatus: ReturnType<typeof vi.fn>;
   generateMissingImages: ReturnType<typeof vi.fn>;
-  refreshStaleGeneratedImages: ReturnType<typeof vi.fn>;
-  clearGeneratedImages: ReturnType<typeof vi.fn>;
+  rebuildImportedData: ReturnType<typeof vi.fn>;
+  clearImportedData: ReturnType<typeof vi.fn>;
+  resetCatalogDatabase: ReturnType<typeof vi.fn>;
   fetchFileHealth: ReturnType<typeof vi.fn>;
   runFileHealthCheck: ReturnType<typeof vi.fn>;
 }
@@ -125,8 +126,9 @@ export function useMockApiModule(): { mockApiModule: MockApiModule } {
       getLibraryEventsUrl: vi.fn(),
       fetchGeneratedImagesStatus: vi.fn(),
       generateMissingImages: vi.fn(),
-      refreshStaleGeneratedImages: vi.fn(),
-      clearGeneratedImages: vi.fn(),
+      rebuildImportedData: vi.fn(),
+      clearImportedData: vi.fn(),
+      resetCatalogDatabase: vi.fn(),
       fetchFileHealth: vi.fn(),
       runFileHealthCheck: vi.fn(),
     } as MockApiModule,

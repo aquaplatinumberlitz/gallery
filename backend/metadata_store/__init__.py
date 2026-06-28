@@ -166,6 +166,9 @@ from .job_store import (
 from .job_store import (
     update_job_state as update_job_state,
 )
+from .job_store import (
+    update_parent_aggregate_job as update_parent_aggregate_job,
+)
 from .library_store import (
     create_library as create_library,
 )

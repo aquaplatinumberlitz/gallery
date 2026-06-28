@@ -1,9 +1,11 @@
 """File-health report and runtime diagnostics API for the Maintenance page."""
 
 from fastapi import APIRouter
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 
+from .imported_data_maintenance import clear_imported_data, rebuild_imported_data, reset_catalog_database
 from .indexer import get_metadata_lifecycle_status
 from .integrity_checker import integrity_checker
 from .metadata_store import _DB_LOCK, _connect
@@ -19,6 +21,20 @@ class MaintenanceRuntimeResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
     global_runtime: dict
     metadata_lifecycle: dict | None
+
+
+class ConfirmRequest(BaseModel):
+    """Confirmed maintenance operation request."""
+
+    model_config = ConfigDict(extra="forbid")
+    confirm: bool = False
+
+
+class ResetCatalogRequest(BaseModel):
+    """Destructive catalog reset request."""
+
+    model_config = ConfigDict(extra="forbid")
+    confirm_phrase: str = ""
 
 
 @router.get("/runtime")
@@ -113,3 +129,21 @@ async def post_file_health_check():
             repairs=FileHealthRepairs(**summary["repairs"]),
         )
     )
+
+
+@router.post("/imported-data/clear")
+async def post_imported_data_clear(payload: ConfirmRequest):
+    """Clear scan-derived catalog, metadata, and preview data."""
+    return await run_in_threadpool(clear_imported_data, confirm=payload.confirm)
+
+
+@router.post("/imported-data/rebuild", status_code=202)
+async def post_imported_data_rebuild(payload: ConfirmRequest):
+    """Clear scan-derived data and queue whole-library rebuild jobs."""
+    return await run_in_threadpool(rebuild_imported_data, confirm=payload.confirm)
+
+
+@router.post("/catalog/reset")
+async def post_catalog_reset(payload: ResetCatalogRequest):
+    """Reset all catalog database data, including registered libraries."""
+    return await run_in_threadpool(reset_catalog_database, confirm_phrase=payload.confirm_phrase)

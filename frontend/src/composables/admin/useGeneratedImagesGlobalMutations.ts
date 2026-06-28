@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/vue-query";
 import { useToast } from "@/composables/useToast";
 import { queryKeys } from "@/query/keys";
-import { clearGeneratedImages, refreshStaleGeneratedImages } from "@/services/api";
+import { clearImportedData, rebuildImportedData } from "@/services/api";
 
 export function useGeneratedImagesGlobalMutations() {
   const queryClient = useQueryClient();
@@ -10,8 +10,11 @@ export function useGeneratedImagesGlobalMutations() {
   function invalidate(clear = false) {
     const keys: Array<{ queryKey: readonly unknown[] }> = [
       { queryKey: queryKeys.generatedImagesRoot() },
+      { queryKey: queryKeys.librariesRoot() },
+      { queryKey: queryKeys.galleryStats() },
       { queryKey: queryKeys.jobsRoot() },
       { queryKey: queryKeys.statusRoot() },
+      { queryKey: queryKeys.maintenanceRoot() },
     ];
     if (clear) {
       keys.push({ queryKey: queryKeys.browseAllRoot() }, { queryKey: queryKeys.browseInfiniteAllRoot() });
@@ -20,21 +23,21 @@ export function useGeneratedImagesGlobalMutations() {
   }
 
   const rebuildMutation = useMutation({
-    mutationFn: refreshStaleGeneratedImages,
+    mutationFn: rebuildImportedData,
     onSuccess: (data) => {
-      toast.success(`Refresh queued for ${data.stale_derivatives} stale items across all libraries`);
-      invalidate();
+      toast.success(`Imported data rebuild queued for ${data.count} libraries`);
+      invalidate(true);
     },
-    onError: (error) => toast.error("Could not refresh generated images", String(error)),
+    onError: (error) => toast.error("Could not rebuild imported data", String(error)),
   });
 
   const clearMutation = useMutation({
-    mutationFn: clearGeneratedImages,
+    mutationFn: clearImportedData,
     onSuccess: () => {
-      toast.success("Generated files cleared across all libraries. Source images are not affected.");
+      toast.success("Imported data cleared. Libraries and source files are not affected.");
       invalidate(true);
     },
-    onError: (error) => toast.error("Could not clear generated images", String(error)),
+    onError: (error) => toast.error("Could not clear imported data", String(error)),
   });
 
   return { rebuildMutation, clearMutation };

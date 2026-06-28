@@ -21,7 +21,7 @@ vi.mock("axios", async () => {
 
 import {
   browseDirectory,
-  clearGeneratedImages,
+  clearImportedData,
   createLibrary,
   deleteLibrary,
   fetchCatalogStatus,
@@ -53,7 +53,8 @@ import {
   LIBRARY_ERRORS,
   openFolder,
   rebuildLibrary,
-  refreshStaleGeneratedImages,
+  rebuildImportedData,
+  resetCatalogDatabase,
   runFileHealthCheck,
   scanAllLibraries,
   scanLibrary,
@@ -485,21 +486,32 @@ describe("generateMissingImages", () => {
   });
 });
 
-describe("refreshStaleGeneratedImages", () => {
-  it("POST /api/derivatives/rebuild", async () => {
+describe("rebuildImportedData", () => {
+  it("POST /api/maintenance/imported-data/rebuild", async () => {
     mockApi.post.mockResolvedValueOnce({ data: { state: "queued" } });
-    const r = await refreshStaleGeneratedImages();
+    const r = await rebuildImportedData();
     expect(r).toEqual({ state: "queued" });
-    expect(mockApi.post).toHaveBeenCalledWith("/api/derivatives/rebuild", null, { params: { confirm: true } });
+    expect(mockApi.post).toHaveBeenCalledWith("/api/maintenance/imported-data/rebuild", { confirm: true });
   });
 });
 
-describe("clearGeneratedImages", () => {
-  it("POST /api/derivatives/clear", async () => {
+describe("clearImportedData", () => {
+  it("POST /api/maintenance/imported-data/clear", async () => {
     mockApi.post.mockResolvedValueOnce({ data: { catalog_entries_cleared: 0 } });
-    const r = await clearGeneratedImages();
+    const r = await clearImportedData();
     expect(r).toEqual({ catalog_entries_cleared: 0 });
-    expect(mockApi.post).toHaveBeenCalledWith("/api/derivatives/clear", null, { params: { confirm: true } });
+    expect(mockApi.post).toHaveBeenCalledWith("/api/maintenance/imported-data/clear", { confirm: true });
+  });
+});
+
+describe("resetCatalogDatabase", () => {
+  it("POST /api/maintenance/catalog/reset", async () => {
+    mockApi.post.mockResolvedValueOnce({ data: { state: "reset" } });
+    const r = await resetCatalogDatabase();
+    expect(r).toEqual({ state: "reset" });
+    expect(mockApi.post).toHaveBeenCalledWith("/api/maintenance/catalog/reset", {
+      confirm_phrase: "RESET CATALOG DATABASE",
+    });
   });
 });
 

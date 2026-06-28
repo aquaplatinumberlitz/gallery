@@ -365,14 +365,41 @@ export interface GeneratedImagesWarmResponse {
   derivatives_considered: number;
 }
 
-export interface GeneratedImagesRebuildResponse {
-  stale_derivatives: number;
-  state: string;
+export interface ImportedDataClearResponse {
+  state: "cleared";
+  libraries_preserved: number;
+  assets_cleared: number;
+  file_index_rows_cleared: number;
+  image_metadata_rows_cleared: number;
+  image_resource_rows_cleared: number;
+  metadata_jobs_cleared: number;
+  library_jobs_cleared: number;
+  rebuild_staging_rows_cleared: number;
+  folder_index_rows_cleared: number;
+  integrity_runs_cleared: number;
+  derivative_catalog_entries_cleared: number;
+  preview_files_deleted: number;
 }
 
-export interface GeneratedImagesClearResponse {
-  catalog_entries_cleared: number;
-  files_deleted: number;
+export interface ImportedDataRebuildResponse {
+  job_id: number;
+  state: "running" | "succeeded";
+  child_job_ids: number[];
+  count: number;
+  clear: Omit<ImportedDataClearResponse, "state" | "libraries_preserved">;
+}
+
+export interface CatalogResetResponse {
+  state: "reset";
+  libraries_deleted: number;
+  import_paths_deleted: number;
+  exclusion_patterns_deleted: number;
+  assets_deleted: number;
+  image_metadata_rows_deleted: number;
+  metadata_jobs_deleted: number;
+  library_jobs_deleted: number;
+  derivative_catalog_entries_cleared: number;
+  preview_files_deleted: number;
 }
 
 export interface LibraryInspectorMetadataResponse {
