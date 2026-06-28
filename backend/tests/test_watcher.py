@@ -32,6 +32,11 @@ def reset_watcher_state(monkeypatch: pytest.MonkeyPatch):
     yield
 
 
+def test_watchdog_dependency_available():
+    import importlib.util
+    assert importlib.util.find_spec("watchdog") is not None
+
+
 def test_enabled_by_default():
     assert ENABLE_FILE_WATCHER is True
 

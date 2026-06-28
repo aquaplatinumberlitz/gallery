@@ -177,6 +177,9 @@ def start_watcher() -> None:
     global _watcher_thread
     if not ENABLE_FILE_WATCHER:
         return
+    if not _HAS_WATCHDOG:
+        LOGGER.warning("watchdog not available; file watcher disabled. Install with: pip install watchdog")
+        return
     roots = _registered_watcher_roots()
     if not roots:
         LOGGER.info("File watcher skipped: no registered library roots")
