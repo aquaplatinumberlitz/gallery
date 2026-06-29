@@ -197,7 +197,6 @@ describe("LibraryInspector", () => {
   it("renders title, summary and indexed count", () => {
     const wrapper = mountSubject();
     expect(wrapper.text()).toContain("Photo Details");
-    expect(wrapper.text()).toContain("Gallery");
     expect(wrapper.text()).toContain("indexed photos");
     expect(wrapper.text()).toContain("Including subfolders");
   });

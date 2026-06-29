@@ -17,7 +17,7 @@ defineProps<{
   barsVisible: boolean;
   canBack: boolean;
   canForward: boolean;
-  isAdminRoute: boolean;
+  showBackToGallery: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -45,8 +45,8 @@ const emit = defineEmits<{
         :is-dark="theme === 'dark'"
         :search-query="searchQuery"
         :search-scope="searchScope"
-        :bars-visible="isAdminRoute || barsVisible"
-        :is-admin-route="isAdminRoute"
+        :bars-visible="showBackToGallery || barsVisible"
+        :show-back-to-gallery="showBackToGallery"
         @update:search-query="emit('update:searchQuery', $event)"
         @scope-change="emit('scope-change', $event)"
         @toggle-sidebar="emit('toggleSidebar')"
@@ -58,7 +58,7 @@ const emit = defineEmits<{
       </div>
 
       <MobileFloatingBottomBar
-        v-if="!isAdminRoute"
+        v-if="!showBackToGallery"
         :can-back="canBack"
         :can-forward="canForward"
         :current-path="currentPath"

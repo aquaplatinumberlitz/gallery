@@ -8,10 +8,9 @@ import {
   type SortingState,
 } from "@tanstack/vue-table";
 import { useVirtualizer } from "@tanstack/vue-virtual";
-import { ArrowLeft, ArrowUpDown, Copy, ExternalLink, MoreHorizontal, Search } from "lucide-vue-next";
+import { ArrowUpDown, Copy, ExternalLink, MoreHorizontal, Search } from "lucide-vue-next";
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
-import ButtonLink from "@/components/ui/ButtonLink.vue";
 import Input from "@/components/ui/Input.vue";
 import SortSelect from "@/components/SortSelect.vue";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -589,10 +588,6 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
   <section class="library-inspector" aria-labelledby="library-inspector-title">
     <div class="inspector-header">
       <div class="inspector-heading">
-        <ButtonLink to="/" variant="outline" size="sm" class="h-8 shrink-0 gap-1.5">
-          <ArrowLeft class="size-4" aria-hidden="true" />
-          Gallery
-        </ButtonLink>
         <div class="min-w-0">
           <h2 id="library-inspector-title" class="truncate text-xl font-semibold tracking-normal">Photo Details</h2>
           <p class="truncate text-sm text-muted-foreground" data-testid="inspector-summary">

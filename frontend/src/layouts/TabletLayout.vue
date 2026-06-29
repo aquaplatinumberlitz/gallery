@@ -13,7 +13,6 @@ defineProps<{
   currentPath: string;
   searchQuery: string;
   searchScope: "current" | "all";
-  isAdminRoute: boolean;
 }>();
 
 const emit = defineEmits<{

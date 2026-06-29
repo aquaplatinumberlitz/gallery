@@ -17,8 +17,26 @@ const removeFilterMock = vi.fn((index: number) => {
 });
 const clearAllMock = vi.fn();
 
+function routeMetaForPath(path: string) {
+  if (path === "/metadata") {
+    return { chromeSection: "metadata", chromeNav: "metadata", pageTitle: "Photo Details", showBackToGallery: true };
+  }
+  if (path.startsWith("/admin/libraries")) {
+    return {
+      chromeSection: "admin",
+      chromeNav: "libraries",
+      pageTitle: "Library administration",
+      showBackToGallery: true,
+    };
+  }
+  if (path.startsWith("/admin/maintenance")) {
+    return { chromeSection: "admin", chromeNav: "maintenance", pageTitle: "Maintenance", showBackToGallery: true };
+  }
+  return { chromeSection: "gallery", chromeNav: "gallery", pageTitle: "Gallery", showBackToGallery: false };
+}
+
 vi.mock("vue-router", () => ({
-  useRoute: () => ({ path: currentRoutePath, meta: {} }),
+  useRoute: () => ({ path: currentRoutePath, meta: routeMetaForPath(currentRoutePath) }),
   useRouter: () => ({ push: vi.fn() }),
 }));
 
@@ -95,6 +113,7 @@ vi.mock("lucide-vue-next", () => ({
   Table2: { template: "<svg />", props: ["class"] },
   Wrench: { template: "<svg />", props: ["class"] },
   Landmark: { template: "<svg />", props: ["class"] },
+  ArrowLeft: { template: "<svg />", props: ["class"] },
 }));
 
 function createWrapper(props: Record<string, unknown> = {}) {
@@ -236,6 +255,7 @@ describe("AppHeader", () => {
     const wrapper = createWrapper();
     expect(wrapper.text()).not.toContain("Museum Art Gallery");
     expect(wrapper.find("#gallery-search").exists()).toBe(false);
+    expect(wrapper.text()).toContain("Gallery");
   });
 
   it("hides brand hero and search on admin route", () => {
@@ -243,6 +263,7 @@ describe("AppHeader", () => {
     const wrapper = createWrapper();
     expect(wrapper.text()).not.toContain("Museum Art Gallery");
     expect(wrapper.find("#gallery-search").exists()).toBe(false);
+    expect(wrapper.text()).toContain("Gallery");
   });
 
   it("hides Metadata link and Maintenance link on mobile", () => {
@@ -321,6 +342,8 @@ describe("AppHeader", () => {
   it("shows Maintenance link on maintenance route", () => {
     currentRoutePath = "/admin/maintenance";
     const wrapper = createWrapper();
+    expect(wrapper.find("#gallery-search").exists()).toBe(false);
+    expect(wrapper.text()).toContain("Gallery");
     expect(wrapper.text()).toContain("Maintenance");
   });
 

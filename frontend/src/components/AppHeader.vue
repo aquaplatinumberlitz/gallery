@@ -13,8 +13,8 @@ import {
   Table2,
   Library,
   Wrench,
+  ArrowLeft,
 } from "lucide-vue-next";
-import { useRoute } from "vue-router";
 import Button from "@/components/ui/Button.vue";
 import ButtonLink from "@/components/ui/ButtonLink.vue";
 import Input from "@/components/ui/Input.vue";
@@ -36,6 +36,7 @@ import { useGalleryStore } from "@/stores/gallery";
 import { queryClient } from "@/query";
 import { normalizeQueryPath, queryKeys } from "@/query/keys";
 import { fetchLibraryInspector } from "@/services/api";
+import { useRouteChrome } from "@/composables/useRouteChrome";
 
 interface Props {
   isMobile: boolean;
@@ -63,12 +64,10 @@ const {
   removeFilter,
   clearAll,
 } = useFieldedSearch();
-const route = useRoute();
 const galleryStore = useGalleryStore();
-const isMetadataRoute = computed(() => route.path === "/metadata");
-const isLibrariesRoute = computed(() => route.path.startsWith("/admin/libraries"));
-const isMaintenanceRoute = computed(() => route.path.startsWith("/admin/maintenance"));
-const isAdminRoute = computed(() => isLibrariesRoute.value || isMaintenanceRoute.value);
+const { activeNav, isMetadataRoute, isAdminRoute, showBackToGallery } = useRouteChrome();
+const isLibrariesRoute = computed(() => activeNav.value === "libraries");
+const isMaintenanceRoute = computed(() => activeNav.value === "maintenance");
 
 const isAdvancedSearchOpen = ref(false);
 const advancedSearchInitialFilters = ref<FieldFilter[]>([]);
@@ -228,6 +227,17 @@ function handleClearAll() {
     </div>
     <div class="header-actions flex flex-col items-end gap-2">
       <div class="flex items-center gap-2">
+        <ButtonLink
+          v-if="showBackToGallery"
+          to="/"
+          variant="ghost"
+          size="sm"
+          class="h-8 text-xs"
+          aria-label="Back to gallery"
+        >
+          <ArrowLeft class="size-4" />
+          <span>Gallery</span>
+        </ButtonLink>
         <ButtonLink
           to="/admin/libraries"
           :variant="isLibrariesRoute ? 'secondary' : 'ghost'"

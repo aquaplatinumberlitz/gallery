@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { prefetchMetadataRoute, prefetchLibrariesRoute } from "../index";
+import { prefetchMetadataRoute, prefetchLibrariesRoute, router } from "../index";
 
 describe("router helpers", () => {
   // Dynamic imports may complete after environment teardown so we await them
@@ -31,5 +31,28 @@ describe("router helpers", () => {
 
   it("prefetchLibrariesRoute memoizes", () => {
     expect(prefetchLibrariesRoute()).toBe(prefetchLibrariesRoute());
+  });
+
+  it("declares route chrome metadata for gallery and tool routes", () => {
+    expect(router.resolve("/").meta).toMatchObject({
+      chromeSection: "gallery",
+      chromeNav: "gallery",
+      showBackToGallery: false,
+    });
+    expect(router.resolve("/metadata").meta).toMatchObject({
+      chromeSection: "metadata",
+      chromeNav: "metadata",
+      showBackToGallery: true,
+    });
+    expect(router.resolve("/admin/libraries").meta).toMatchObject({
+      chromeSection: "admin",
+      chromeNav: "libraries",
+      showBackToGallery: true,
+    });
+    expect(router.resolve("/admin/maintenance").meta).toMatchObject({
+      chromeSection: "admin",
+      chromeNav: "maintenance",
+      showBackToGallery: true,
+    });
   });
 });

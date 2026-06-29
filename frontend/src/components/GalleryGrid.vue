@@ -596,20 +596,9 @@ useIntersectionObserver(
 );
 
 watch(
-  () => infiniteBrowseQuery.folders.value,
-  (folders) => galleryStore.setSidebarTree(folders),
-  { immediate: true },
-);
-
-watch(
-  [() => infiniteBrowseQuery.isLoading.value, () => infiniteBrowseQuery.isFetching.value],
-  ([loading, fetching]) => {
-    galleryStore.isLoading = loading || fetching;
-    if (
-      !loading &&
-      infiniteBrowseQuery.isSuccess.value &&
-      (galleryStore.currentBrowsePath || galleryStore.activeLibraryId)
-    ) {
+  [() => infiniteBrowseQuery.isLoading.value, () => infiniteBrowseQuery.isSuccess.value],
+  ([loading, success]) => {
+    if (!loading && success && (galleryStore.currentBrowsePath || galleryStore.activeLibraryId)) {
       galleryStore.hasEverLoaded = true;
     }
   },

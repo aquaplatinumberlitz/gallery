@@ -11,7 +11,7 @@ interface Props {
   searchQuery: string;
   searchScope: "current" | "all";
   barsVisible: boolean;
-  isAdminRoute?: boolean;
+  showBackToGallery?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -138,11 +138,11 @@ const gallerySortValue = computed<SortValue>({
 
     <!-- Center: search area -->
     <div class="mh-search">
-      <RouterLink v-if="isAdminRoute" to="/" class="mh-btn mh-search-btn" aria-label="Back to gallery">
+      <RouterLink v-if="showBackToGallery" to="/" class="mh-btn mh-search-btn" aria-label="Back to gallery">
         <ArrowLeft />
       </RouterLink>
       <button
-        v-if="!isSearchActive && !isAdminRoute"
+        v-if="!isSearchActive && !showBackToGallery"
         class="mh-btn mh-search-btn"
         @click="openSearch"
         aria-label="Open search"
@@ -175,13 +175,18 @@ const gallerySortValue = computed<SortValue>({
       </div>
     </div>
 
-    <RouterLink v-if="!isSearchActive && !isAdminRoute" to="/admin/libraries" class="mh-btn" aria-label="Libraries">
+    <RouterLink
+      v-if="!isSearchActive && !showBackToGallery"
+      to="/admin/libraries"
+      class="mh-btn"
+      aria-label="Libraries"
+    >
       <Library />
     </RouterLink>
 
     <!-- Right: sort, theme & settings (hidden in search mode) -->
     <SortDropdown
-      v-if="!isSearchActive && !isAdminRoute"
+      v-if="!isSearchActive && !showBackToGallery"
       v-model="gallerySortValue"
       trigger-class="mh-sort-trigger"
       aria-label="Sort gallery"

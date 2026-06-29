@@ -14,8 +14,10 @@ import { useGalleryTheme } from "./composables/useGalleryTheme";
 import { galleryScrollContainerRefKey } from "./injectionKeys";
 import { closeSidebarKey } from "./injectionKeys";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { useRoute, useRouter } from "vue-router";
+import { useRouter } from "vue-router";
 import { useLibrariesQuery } from "./composables/admin/useLibrariesQuery";
+import { useRouteChrome } from "@/composables/useRouteChrome";
+import { useSidebarTreeQuery } from "./composables/useSidebarTreeQuery";
 
 const Lightbox = defineAsyncComponent(() => import("./components/Lightbox.vue"));
 const showDevtools = import.meta.env.DEV || import.meta.env.VITE_DEVTOOLS === "true";
@@ -24,14 +26,11 @@ const VueQueryDevtools = showDevtools
   : null;
 
 const { isMobile, isTablet } = useDevice();
-const route = useRoute();
 const router = useRouter();
-const isAdminLibraryRoute = computed(() => route.path.startsWith("/admin/libraries"));
+const { isMetadataRoute, isAdminRoute, isGalleryRoute, showBackToGallery } = useRouteChrome();
 
 // --- INTRO PAGE LOGIC ---
-const showIntro = ref(
-  !isMobile.value && !isTablet.value && route.path !== "/metadata" && !route.path.startsWith("/admin/libraries"),
-);
+const showIntro = ref(!isMobile.value && !isTablet.value && isGalleryRoute.value);
 const introPreviewUrl = ref<string | null>(null);
 const isSettingsOpen = ref(false);
 const handleIntroEnter = () => {
@@ -47,9 +46,9 @@ const handlePreviewIntro = (url: string) => {
 // ------------------------
 
 watch(
-  () => route.path,
-  (path) => {
-    if (path === "/metadata" || path.startsWith("/admin/libraries")) {
+  () => showBackToGallery.value,
+  (shouldShowBackToGallery) => {
+    if (shouldShowBackToGallery) {
       showIntro.value = false;
       introPreviewUrl.value = null;
     }
@@ -57,7 +56,7 @@ watch(
 );
 
 watch(
-  () => route.path === "/metadata" && (isMobile.value || isTablet.value),
+  () => isMetadataRoute.value && (isMobile.value || isTablet.value),
   (shouldRedirect) => {
     if (shouldRedirect) {
       router.replace("/");
@@ -86,7 +85,7 @@ const SIDEBAR_STATE_KEY = "gallery-sidebar-open";
 const isSidebarOpen = useStorage(SIDEBAR_STATE_KEY, true);
 
 watch(
-  [isAdminLibraryRoute, isMobile, isTablet],
+  [isAdminRoute, isMobile, isTablet],
   ([isAdminRoute, mobile, tablet]) => {
     if (isAdminRoute && (mobile || tablet)) {
       isSidebarOpen.value = false;
@@ -98,6 +97,8 @@ watch(
 const tree = computed(() => galleryStore.sidebarTree);
 const isLoading = computed(() => galleryStore.isLoading);
 const currentPath = computed(() => galleryStore.currentBrowsePath);
+const activeLibraryId = computed(() => galleryStore.activeLibraryId);
+useSidebarTreeQuery(activeLibraryId, currentPath);
 
 const scrollerRef = ref<HTMLElement | null>(null);
 provide(galleryScrollContainerRefKey, scrollerRef);
@@ -146,7 +147,7 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
       :bars-visible="barsVisible"
       :can-back="canBack"
       :can-forward="canForward"
-      :is-admin-route="isAdminLibraryRoute"
+      :show-back-to-gallery="showBackToGallery"
       @update:search-query="galleryStore.setSearchQuery($event)"
       @scope-change="galleryStore.setSearchScope($event)"
       @update:sidebar-open="isSidebarOpen = $event"
@@ -166,7 +167,6 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
       :current-path="currentPath"
       :search-query="galleryStore.searchQuery"
       :search-scope="galleryStore.searchScope"
-      :is-admin-route="isAdminLibraryRoute"
       @update:search-query="galleryStore.setSearchQuery($event)"
       @scope-change="galleryStore.setSearchScope($event)"
       @update:sidebar-open="isSidebarOpen = $event"

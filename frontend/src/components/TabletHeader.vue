@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ref, nextTick, onBeforeUnmount, watch, computed } from "vue";
 import { Menu, Search, X, ArrowLeft, Library } from "lucide-vue-next";
-import { RouterLink, useRoute } from "vue-router";
+import { RouterLink } from "vue-router";
 import Breadcrumb from "./Breadcrumb.vue";
 import { useGalleryStore } from "../stores/gallery";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useRouteChrome } from "@/composables/useRouteChrome";
 
 interface Props {
   isDark: boolean;
@@ -22,8 +23,7 @@ const emit = defineEmits<{
 }>();
 
 const galleryStore = useGalleryStore();
-const route = useRoute();
-const isAdminRoute = computed(() => route.path.startsWith("/admin/libraries"));
+const { pageTitle, showBackToGallery } = useRouteChrome();
 
 const handleBreadcrumbNavigate = (path: string) => {
   galleryStore.selectFolder(path);
@@ -134,8 +134,8 @@ function onScopeChange(e: Event) {
 
     <!-- Center: breadcrumb (hidden in search mode) -->
     <div v-show="!isSearchActive" class="th-center">
-      <Breadcrumb v-if="!isAdminRoute" :path="currentPath" @navigate="handleBreadcrumbNavigate" />
-      <span v-if="isAdminRoute" class="th-path-empty">Library administration</span>
+      <Breadcrumb v-if="!showBackToGallery" :path="currentPath" @navigate="handleBreadcrumbNavigate" />
+      <span v-if="showBackToGallery" class="th-path-empty">{{ pageTitle }}</span>
       <span v-else-if="!currentPath" class="th-path-empty">Gallery</span>
     </div>
 
@@ -168,15 +168,15 @@ function onScopeChange(e: Event) {
     <!-- Right: actions (hidden in search mode) -->
     <div v-show="!isSearchActive" class="th-actions">
       <RouterLink
-        :to="isAdminRoute ? '/' : '/admin/libraries'"
+        :to="showBackToGallery ? '/' : '/admin/libraries'"
         class="th-btn"
-        :aria-label="isAdminRoute ? 'Back to gallery' : 'Libraries'"
+        :aria-label="showBackToGallery ? 'Back to gallery' : 'Libraries'"
       >
-        <ArrowLeft v-if="isAdminRoute" class="th-header-icon" />
+        <ArrowLeft v-if="showBackToGallery" class="th-header-icon" />
         <Library v-else class="th-header-icon" />
       </RouterLink>
       <!-- Search trigger -->
-      <Tooltip v-if="!isAdminRoute">
+      <Tooltip v-if="!showBackToGallery">
         <TooltipTrigger as-child>
           <button class="th-btn" @click="openSearch" aria-label="Open search">
             <Search class="th-header-icon" />
