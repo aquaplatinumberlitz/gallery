@@ -135,7 +135,7 @@ const needsRefreshCount = computed(() => {
           <div>
             <h3 class="text-sm font-semibold">Imported data flow</h3>
             <p class="mt-1 text-sm text-muted-foreground">
-              Files are discovered first, then details are extracted, then previews are cached.
+              Files are discovered first, then details are extracted, then thumbnails are cached.
             </p>
           </div>
           <ol class="flex flex-wrap items-center gap-2 text-sm" aria-label="Imported data flow">
@@ -143,7 +143,7 @@ const needsRefreshCount = computed(() => {
             <li class="text-muted-foreground" aria-hidden="true">-&gt;</li>
             <li class="font-medium">Metadata extraction</li>
             <li class="text-muted-foreground" aria-hidden="true">-&gt;</li>
-            <li class="font-medium">Preview cache</li>
+            <li class="font-medium">Thumbnails cache</li>
           </ol>
         </div>
       </section>
@@ -212,7 +212,7 @@ const needsRefreshCount = computed(() => {
       <section class="rounded-md border bg-background p-5">
         <div class="flex items-center justify-between">
           <div>
-            <h3 class="font-semibold">Preview cache</h3>
+            <h3 class="font-semibold">Thumbnails cache</h3>
             <p class="mt-1 text-sm text-muted-foreground">
               Generated thumbnails and previews used for faster browsing.
             </p>

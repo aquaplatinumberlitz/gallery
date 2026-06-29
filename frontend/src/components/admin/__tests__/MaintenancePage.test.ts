@@ -135,11 +135,11 @@ describe("MaintenancePage", () => {
 
     expect(wrapper.text()).toContain("Imported data flow");
     expect(wrapper.text()).toContain(
-      "Files are discovered first, then details are extracted, then previews are cached.",
+      "Files are discovered first, then details are extracted, then thumbnails are cached.",
     );
     expect(wrapper.text()).toContain("File catalog");
     expect(wrapper.text()).toContain("Metadata extraction");
-    expect(wrapper.text()).toContain("Preview cache");
+    expect(wrapper.text()).toContain("Thumbnails cache");
   });
 
   it("keeps catalog, metadata, and preview diagnostics read-only", () => {
