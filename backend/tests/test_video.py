@@ -57,6 +57,13 @@ def video_file(isolated_gallery_root: Path) -> Path:
     return path
 
 
+@pytest.fixture
+def simple_video_file(isolated_gallery_root: Path) -> Path:
+    path = isolated_gallery_root / "sample.mp4"
+    path.write_bytes(b"0123456789abcdefghijklmnopqrstuvwxyz")
+    return path
+
+
 def test_video_indexing_and_library_stats(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,
@@ -85,35 +92,51 @@ def test_video_indexing_and_library_stats(
     assert stats["total_assets"] == 2
 
 
-def test_video_full_response(isolated_app, video_file: Path):
-    response = isolated_app.get("/api/video", params={"path": str(video_file)})
+def test_video_full_response(isolated_app, simple_video_file: Path):
+    response = isolated_app.get("/api/video", params={"path": str(simple_video_file)})
 
     assert response.status_code == 200
-    assert response.content == video_file.read_bytes()
+    assert response.content == simple_video_file.read_bytes()
     assert response.headers["content-type"] == "video/mp4"
     assert response.headers["accept-ranges"] == "bytes"
-    assert int(response.headers["content-length"]) == video_file.stat().st_size
+    assert int(response.headers["content-length"]) == simple_video_file.stat().st_size
 
 
-def test_video_byte_range(isolated_app, video_file: Path):
+def test_video_byte_range(isolated_app, simple_video_file: Path):
     response = isolated_app.get(
         "/api/video",
-        params={"path": str(video_file)},
+        params={"path": str(simple_video_file)},
         headers={"Range": "bytes=4-15"},
     )
 
     assert response.status_code == 206
-    assert response.content == video_file.read_bytes()[4:16]
-    assert response.headers["content-range"] == f"bytes 4-15/{video_file.stat().st_size}"
+    assert response.content == simple_video_file.read_bytes()[4:16]
+    assert response.headers["content-range"] == f"bytes 4-15/{simple_video_file.stat().st_size}"
     assert response.headers["content-length"] == "12"
 
 
-def test_video_unsatisfiable_range(isolated_app, video_file: Path):
-    size = video_file.stat().st_size
+def test_video_suffix_range(isolated_app, simple_video_file: Path):
     response = isolated_app.get(
         "/api/video",
-        params={"path": str(video_file)},
-        headers={"Range": f"bytes={size}-"},
+        params={"path": str(simple_video_file)},
+        headers={"Range": "bytes=-6"},
+    )
+
+    assert response.status_code == 206
+    assert response.content == simple_video_file.read_bytes()[-6:]
+    assert response.headers["content-range"] == f"bytes 30-35/{simple_video_file.stat().st_size}"
+    assert response.headers["content-length"] == "6"
+
+
+@pytest.mark.parametrize(
+    "range_header", ["bytes=36-", "bytes=10-2", "bytes=-0", "bytes=-", "bytes=1-2,4-5", "items=1-2"]
+)
+def test_video_unsatisfiable_ranges(isolated_app, simple_video_file: Path, range_header: str):
+    size = simple_video_file.stat().st_size
+    response = isolated_app.get(
+        "/api/video",
+        params={"path": str(simple_video_file)},
+        headers={"Range": range_header},
     )
 
     assert response.status_code == 416
