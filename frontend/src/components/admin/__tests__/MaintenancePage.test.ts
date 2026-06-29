@@ -9,7 +9,6 @@ let mockFileHealthData: Record<string, unknown> | null = { run: null };
 let mockFileHealthIsPending = false;
 let mockRuntimeData: Record<string, unknown> | null = null;
 let mockRuntimeIsPending = false;
-let mockRuntimeRefetch = vi.fn();
 let mockJobsData: unknown[] = [];
 let mockGlobalSummaryData: unknown[] | null = null;
 
@@ -24,19 +23,12 @@ vi.mock("@/composables/admin/useFileHealthQuery", () => ({
   }),
 }));
 
-vi.mock("@/composables/admin/useMaintenanceRuntimeQuery", async () => {
-  const actual = await vi.importActual<typeof import("@/composables/admin/useMaintenanceRuntimeQuery")>(
-    "@/composables/admin/useMaintenanceRuntimeQuery",
-  );
-  return {
-    ...actual,
-    useMaintenanceRuntimeQuery: () => ({
-      data: { value: mockRuntimeData },
-      isPending: { value: mockRuntimeIsPending },
-      refetch: mockRuntimeRefetch,
-    }),
-  };
-});
+vi.mock("@/composables/admin/useMaintenanceRuntimeQuery", () => ({
+  useMaintenanceRuntimeQuery: () => ({
+    data: { value: mockRuntimeData },
+    isPending: { value: mockRuntimeIsPending },
+  }),
+}));
 
 vi.mock("@tanstack/vue-query", async () => {
   const actual = await vi.importActual<typeof import("@tanstack/vue-query")>("@tanstack/vue-query");
@@ -61,8 +53,6 @@ vi.mock("@/services/api", async () => {
     fetchJobs: vi.fn(),
     fetchLibraries: vi.fn().mockResolvedValue([]),
     fetchGeneratedImagesStatus: vi.fn(),
-    clearImportedData: vi.fn(),
-    rebuildImportedData: vi.fn(),
   };
 });
 
@@ -71,27 +61,11 @@ vi.mock("@/composables/useToast", () => ({
 }));
 
 vi.mock("../dialogs/GeneratedImagesClearDialog.vue", () => ({
-  default: {
-    props: ["open", "pending", "blocked", "blockMessage"],
-    emits: ["update:open", "confirm"],
-    template: `
-      <div class="clear-dialog" :data-blocked="String(Boolean(blocked))" :data-message="blockMessage || ''">
-        <button class="clear-dialog-confirm" :disabled="pending || blocked" @click="$emit('confirm')">Confirm clear</button>
-      </div>
-    `,
-  },
+  default: { template: "<div class='clear-dialog' />" },
 }));
 
 vi.mock("../dialogs/GeneratedImagesRebuildDialog.vue", () => ({
-  default: {
-    props: ["open", "pending", "blocked", "blockMessage"],
-    emits: ["update:open", "confirm"],
-    template: `
-      <div class="rebuild-dialog" :data-blocked="String(Boolean(blocked))" :data-message="blockMessage || ''">
-        <button class="rebuild-dialog-confirm" :disabled="pending || blocked" @click="$emit('confirm')">Confirm rebuild</button>
-      </div>
-    `,
-  },
+  default: { template: "<div class='rebuild-dialog' />" },
 }));
 
 function mountSubject() {
@@ -112,10 +86,6 @@ function mountSubject() {
   });
 }
 
-function findSectionByHeading(wrapper: ReturnType<typeof mountSubject>, heading: string) {
-  return wrapper.findAll("section").find((section) => section.find("h3").text() === heading);
-}
-
 describe("MaintenancePage", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -123,12 +93,11 @@ describe("MaintenancePage", () => {
     mockFileHealthIsPending = false;
     mockRuntimeData = null;
     mockRuntimeIsPending = false;
-    mockRuntimeRefetch = vi.fn(async () => ({ data: mockRuntimeData }));
     mockJobsData = [];
     mockGlobalSummaryData = null;
   });
 
-  it("renders file catalog diagnostics with imported data flow context", () => {
+  it("renders Catalogs diagnostics", () => {
     mockRuntimeData = {
       global_runtime: {
         catalog_worker_count: 1,
@@ -138,8 +107,6 @@ describe("MaintenancePage", () => {
         metadata_active_jobs: 1,
         metadata_queue_depth: 3,
         metadata_staged_queue_depth: 0,
-        derivative_active_jobs: 0,
-        derivative_queue_depth: 0,
         watcher_enabled: true,
         watcher_healthy: true,
         watcher_issue: null,
@@ -148,11 +115,7 @@ describe("MaintenancePage", () => {
       metadata_lifecycle: null,
     };
     const wrapper = mountSubject();
-    expect(wrapper.text()).toContain("Imported data flow");
-    expect(wrapper.text()).toContain("File catalog");
-    expect(wrapper.text()).toContain("Metadata extraction");
-    expect(wrapper.text()).toContain("Preview cache");
-    expect(wrapper.text()).toContain("Tracks which source files exist in registered libraries.");
+    expect(wrapper.text()).toContain("Catalogs");
   });
 
   it("shows only Rebuild and Clear imported-data action buttons", () => {
@@ -166,98 +129,6 @@ describe("MaintenancePage", () => {
     expect(wrapper.text()).not.toContain("Clear thumbnails");
   });
 
-  it("disables destructive imported-data actions while preview jobs are active", () => {
-    mockRuntimeData = {
-      global_runtime: {
-        catalog_worker_count: 1,
-        catalog_active_jobs: 0,
-        catalog_queue_depth: 0,
-        metadata_worker_count: 1,
-        metadata_active_jobs: 0,
-        metadata_queue_depth: 0,
-        metadata_staged_queue_depth: 0,
-        derivative_active_jobs: 1,
-        derivative_queue_depth: 2,
-        watcher_enabled: true,
-        watcher_healthy: true,
-        watcher_issue: null,
-        scheduled_reconciliation_enabled: true,
-      },
-      metadata_lifecycle: null,
-    };
-    const wrapper = mountSubject();
-    const buttons = wrapper.get("header").findAll("button");
-
-    expect(buttons.map((button) => button.attributes("disabled"))).toEqual(["", ""]);
-    expect(wrapper.text()).toContain(
-      "Maintenance actions are locked while catalog, metadata, or preview cache jobs are running.",
-    );
-    expect(wrapper.text()).toContain("Preview active jobs");
-    expect(wrapper.text()).toContain("Preview queue depth");
-  });
-
-  it("also disables the clear confirmation while maintenance is locked", () => {
-    mockRuntimeData = {
-      global_runtime: {
-        catalog_worker_count: 1,
-        catalog_active_jobs: 0,
-        catalog_queue_depth: 0,
-        metadata_worker_count: 1,
-        metadata_active_jobs: 0,
-        metadata_queue_depth: 0,
-        metadata_staged_queue_depth: 0,
-        derivative_active_jobs: 1,
-        derivative_queue_depth: 0,
-        watcher_enabled: true,
-        watcher_healthy: true,
-        watcher_issue: null,
-        scheduled_reconciliation_enabled: true,
-      },
-      metadata_lifecycle: null,
-    };
-    const wrapper = mountSubject();
-
-    expect(wrapper.get(".clear-dialog").attributes("data-blocked")).toBe("true");
-    expect(wrapper.get(".clear-dialog-confirm").attributes("disabled")).toBe("");
-  });
-
-  it("refetches runtime before clear and skips the mutation if work became active", async () => {
-    const idleRuntime = {
-      global_runtime: {
-        catalog_worker_count: 1,
-        catalog_active_jobs: 0,
-        catalog_queue_depth: 0,
-        metadata_worker_count: 1,
-        metadata_active_jobs: 0,
-        metadata_queue_depth: 0,
-        metadata_staged_queue_depth: 0,
-        derivative_active_jobs: 0,
-        derivative_queue_depth: 0,
-        watcher_enabled: true,
-        watcher_healthy: true,
-        watcher_issue: null,
-        scheduled_reconciliation_enabled: true,
-      },
-      metadata_lifecycle: null,
-    };
-    mockRuntimeData = idleRuntime;
-    const activeRuntime = {
-      global_runtime: {
-        ...idleRuntime.global_runtime,
-        derivative_active_jobs: 1,
-      },
-      metadata_lifecycle: null,
-    };
-    mockRuntimeRefetch = vi.fn(async () => ({ data: activeRuntime }));
-    const { clearImportedData } = await import("@/services/api");
-    const wrapper = mountSubject();
-
-    await wrapper.get(".clear-dialog-confirm").trigger("click");
-
-    expect(mockRuntimeRefetch).toHaveBeenCalled();
-    expect(clearImportedData).not.toHaveBeenCalled();
-  });
-
   it("keeps catalog, metadata, and thumbnail diagnostics read-only", () => {
     mockRuntimeData = {
       global_runtime: {
@@ -268,8 +139,6 @@ describe("MaintenancePage", () => {
         metadata_active_jobs: 0,
         metadata_queue_depth: 0,
         metadata_staged_queue_depth: 0,
-        derivative_active_jobs: 0,
-        derivative_queue_depth: 0,
         watcher_enabled: true,
         watcher_healthy: true,
         watcher_issue: null,
@@ -288,22 +157,20 @@ describe("MaintenancePage", () => {
     mockGlobalSummaryData = [{ ready_derivatives: 2, expected_derivatives: 2 }];
     const wrapper = mountSubject();
 
-    const catalogSection = findSectionByHeading(wrapper, "File catalog");
-    const metadataSection = findSectionByHeading(wrapper, "Metadata extraction");
-    const thumbnailsSection = findSectionByHeading(wrapper, "Preview cache");
+    const catalogSection = wrapper.findAll("section").find((section) => section.text().includes("Catalogs"));
+    const metadataSection = wrapper.findAll("section").find((section) => section.text().includes("Metadata jobs"));
+    const thumbnailsSection = wrapper
+      .findAll("section")
+      .find((section) => section.text().includes("Thumbnails & previews"));
 
-    expect(catalogSection?.findAll("button").map((button) => button.attributes("aria-label"))).toEqual([
-      "About Catalog queue depth",
-    ]);
+    expect(catalogSection?.findAll("button")).toHaveLength(0);
     expect(metadataSection?.findAll("button").map((button) => button.attributes("aria-label"))).toEqual([
-      "About Metadata queue depth",
-      "About Metadata staged queue depth",
+      "About Failed jobs",
       "About Old or missing metadata",
       "About Jobs without catalog item",
     ]);
     expect(thumbnailsSection?.findAll("button").map((button) => button.attributes("aria-label"))).toEqual([
       "Refresh summary",
-      "About Expected files",
     ]);
     expect(thumbnailsSection?.text()).not.toContain("Rebuild");
     expect(thumbnailsSection?.text()).not.toContain("Clear");
@@ -319,8 +186,6 @@ describe("MaintenancePage", () => {
         metadata_active_jobs: 0,
         metadata_queue_depth: 0,
         metadata_staged_queue_depth: 0,
-        derivative_active_jobs: 0,
-        derivative_queue_depth: 0,
         watcher_enabled: true,
         watcher_healthy: true,
         watcher_issue: null,
@@ -343,8 +208,6 @@ describe("MaintenancePage", () => {
         metadata_active_jobs: 0,
         metadata_queue_depth: 0,
         metadata_staged_queue_depth: 0,
-        derivative_active_jobs: 0,
-        derivative_queue_depth: 0,
         watcher_enabled: true,
         watcher_healthy: false,
         watcher_issue: "Something broke",
@@ -367,8 +230,6 @@ describe("MaintenancePage", () => {
         metadata_active_jobs: 0,
         metadata_queue_depth: 0,
         metadata_staged_queue_depth: 0,
-        derivative_active_jobs: 0,
-        derivative_queue_depth: 0,
         watcher_enabled: true,
         watcher_healthy: true,
         watcher_issue: null,
@@ -391,8 +252,6 @@ describe("MaintenancePage", () => {
         metadata_active_jobs: 2,
         metadata_queue_depth: 10,
         metadata_staged_queue_depth: 7,
-        derivative_active_jobs: 0,
-        derivative_queue_depth: 0,
         watcher_enabled: true,
         watcher_healthy: true,
         watcher_issue: null,
@@ -401,27 +260,23 @@ describe("MaintenancePage", () => {
       metadata_lifecycle: null,
     };
     const wrapper = mountSubject();
-    const catalogSection = findSectionByHeading(wrapper, "File catalog");
-    const metadataSection = findSectionByHeading(wrapper, "Metadata extraction");
-
     expect(wrapper.text()).toContain("Catalog workers");
     expect(wrapper.text()).toContain("3");
     expect(wrapper.text()).toContain("Catalog active jobs");
     expect(wrapper.text()).toContain("1");
     expect(wrapper.text()).toContain("Catalog queue depth");
     expect(wrapper.text()).toContain("5");
-    expect(catalogSection?.text()).not.toContain("Metadata workers");
-    expect(metadataSection?.text()).toContain("Metadata workers");
-    expect(metadataSection?.text()).toContain("4");
-    expect(metadataSection?.text()).toContain("Metadata active jobs");
-    expect(metadataSection?.text()).toContain("2");
-    expect(metadataSection?.text()).toContain("Metadata queue depth");
-    expect(metadataSection?.text()).toContain("10");
-    expect(metadataSection?.text()).toContain("Metadata staged queue depth");
-    expect(metadataSection?.text()).toContain("7");
+    expect(wrapper.text()).toContain("Metadata workers");
+    expect(wrapper.text()).toContain("4");
+    expect(wrapper.text()).toContain("Metadata active jobs");
+    expect(wrapper.text()).toContain("2");
+    expect(wrapper.text()).toContain("Metadata queue depth");
+    expect(wrapper.text()).toContain("10");
+    expect(wrapper.text()).toContain("Metadata staged queue depth");
+    expect(wrapper.text()).toContain("7");
   });
 
-  it("renders Metadata extraction lifecycle diagnostics", () => {
+  it("renders Metadata jobs", () => {
     mockRuntimeData = {
       global_runtime: {
         catalog_worker_count: 1,
@@ -431,8 +286,6 @@ describe("MaintenancePage", () => {
         metadata_active_jobs: 0,
         metadata_queue_depth: 0,
         metadata_staged_queue_depth: 0,
-        derivative_active_jobs: 0,
-        derivative_queue_depth: 0,
         watcher_enabled: true,
         watcher_healthy: true,
         watcher_issue: null,
@@ -457,8 +310,7 @@ describe("MaintenancePage", () => {
       },
     };
     const wrapper = mountSubject();
-    expect(wrapper.text()).toContain("Metadata extraction");
-    expect(wrapper.text()).toContain("Reads file details after files are cataloged.");
+    expect(wrapper.text()).toContain("Metadata jobs");
     expect(wrapper.text()).toContain("Queued");
     expect(wrapper.text()).toContain("2");
     expect(wrapper.text()).toContain("Running");

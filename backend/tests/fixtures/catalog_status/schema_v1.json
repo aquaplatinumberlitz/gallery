@@ -288,8 +288,6 @@
         "metadata_active_jobs",
         "metadata_queue_depth",
         "metadata_staged_queue_depth",
-        "derivative_active_jobs",
-        "derivative_queue_depth",
         "watcher_enabled",
         "watcher_healthy",
         "watcher_issue",
@@ -321,14 +319,6 @@
           "minimum": 0
         },
         "metadata_staged_queue_depth": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "derivative_active_jobs": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "derivative_queue_depth": {
           "type": "integer",
           "minimum": 0
         },

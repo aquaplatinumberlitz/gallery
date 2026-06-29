@@ -30,8 +30,6 @@ const idleRuntime: MaintenanceRuntimeResponse = {
     metadata_active_jobs: 0,
     metadata_queue_depth: 0,
     metadata_staged_queue_depth: 0,
-    derivative_active_jobs: 0,
-    derivative_queue_depth: 0,
     watcher_enabled: true,
     watcher_healthy: true,
     watcher_issue: null,
@@ -70,9 +68,9 @@ describe("runtimeHasActiveWork", () => {
     expect(runtimeHasActiveWork(data)).toBe(true);
   });
 
-  it("returns false when only catalog_queue_depth > 0", () => {
+  it("returns true when catalog_queue_depth > 0", () => {
     const data = { ...idleRuntime, global_runtime: { ...idleRuntime.global_runtime, catalog_queue_depth: 3 } };
-    expect(runtimeHasActiveWork(data)).toBe(false);
+    expect(runtimeHasActiveWork(data)).toBe(true);
   });
 
   it("returns true when metadata_active_jobs > 0", () => {
@@ -80,27 +78,17 @@ describe("runtimeHasActiveWork", () => {
     expect(runtimeHasActiveWork(data)).toBe(true);
   });
 
-  it("returns false when only metadata_queue_depth > 0", () => {
+  it("returns true when metadata_queue_depth > 0", () => {
     const data = { ...idleRuntime, global_runtime: { ...idleRuntime.global_runtime, metadata_queue_depth: 5 } };
-    expect(runtimeHasActiveWork(data)).toBe(false);
-  });
-
-  it("returns true when derivative_active_jobs > 0", () => {
-    const data = { ...idleRuntime, global_runtime: { ...idleRuntime.global_runtime, derivative_active_jobs: 1 } };
     expect(runtimeHasActiveWork(data)).toBe(true);
   });
 
-  it("returns false when only derivative_queue_depth > 0", () => {
-    const data = { ...idleRuntime, global_runtime: { ...idleRuntime.global_runtime, derivative_queue_depth: 2 } };
-    expect(runtimeHasActiveWork(data)).toBe(false);
-  });
-
-  it("returns false when only lifecycle queued_metadata_jobs > 0", () => {
+  it("returns true when lifecycle queued_metadata_jobs > 0", () => {
     const data = {
       ...idleRuntime,
       metadata_lifecycle: { ...idleRuntime.metadata_lifecycle!, queued_metadata_jobs: 4 },
     };
-    expect(runtimeHasActiveWork(data)).toBe(false);
+    expect(runtimeHasActiveWork(data)).toBe(true);
   });
 
   it("returns true when lifecycle running_metadata_jobs > 0", () => {

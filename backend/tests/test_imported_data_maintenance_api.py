@@ -170,8 +170,7 @@ def _table_count(table: str) -> int:
 def _seed_active_work(kind: str, conn, library_id: int) -> None:
     now = time.time()
     if kind == "catalog":
-        job = create_job("scan", library_id=library_id)
-        update_job_state(int(job["id"]), "running", message="Scan running")
+        create_job("scan", library_id=library_id)
         return
     if kind == "metadata":
         image_path = Path(f"/tmp/maintenance-active-{library_id}.png")
@@ -180,7 +179,7 @@ def _seed_active_work(kind: str, conn, library_id: int) -> None:
             INSERT OR REPLACE INTO metadata_index_jobs (
               path, name, parent_path, folder_path, root_path, mtime, size,
               state, queued_at, updated_at, library_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'running', ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?)
             """,
             (
                 str(image_path),
@@ -223,7 +222,7 @@ def _seed_active_work(kind: str, conn, library_id: int) -> None:
             (int(asset.lastrowid), float(int(now * 1_000_000_000))),
         )
         conn.execute(
-            "INSERT INTO derivative_jobs (derivative_id, priority, state, created_at, updated_at) VALUES (?, 3, 'running', ?, ?)",
+            "INSERT INTO derivative_jobs (derivative_id, priority, state, created_at, updated_at) VALUES (?, 3, 'queued', ?, ?)",
             (int(derivative.lastrowid), now, now),
         )
         return
@@ -289,8 +288,7 @@ def test_rebuild_imported_data_requires_confirmation(isolated_app: TestClient) -
 
 def test_clear_imported_data_rejects_active_jobs(isolated_app: TestClient, isolated_gallery_root: Path) -> None:
     library = create_library([isolated_gallery_root], name="Busy")
-    job = create_job("scan", library_id=library["id"])
-    update_job_state(int(job["id"]), "running", message="Scan running")
+    create_job("scan", library_id=library["id"])
 
     response = isolated_app.post("/api/maintenance/imported-data/clear", json={"confirm": True})
 
@@ -298,23 +296,9 @@ def test_clear_imported_data_rejects_active_jobs(isolated_app: TestClient, isola
     assert response.json()["detail"]["error"] == "maintenance_busy"
 
 
-def test_clear_imported_data_clears_queued_jobs(isolated_app: TestClient, isolated_gallery_root: Path) -> None:
-    library = create_library([isolated_gallery_root], name="Queued")
-    create_job("scan", library_id=library["id"], message="Watcher update queued")
-
-    response = isolated_app.post("/api/maintenance/imported-data/clear", json={"confirm": True})
-
-    assert response.status_code == 200
-    data = response.json()
-    assert data["state"] == "cleared"
-    assert data["library_jobs_cleared"] == 1
-    assert _table_count("library_jobs") == 0
-
-
 def test_rebuild_imported_data_rejects_active_jobs(isolated_app: TestClient, isolated_gallery_root: Path) -> None:
     library = create_library([isolated_gallery_root], name="Busy")
-    job = create_job("scan", library_id=library["id"])
-    update_job_state(int(job["id"]), "running", message="Scan running")
+    create_job("scan", library_id=library["id"])
 
     response = isolated_app.post("/api/maintenance/imported-data/rebuild", json={"confirm": True})
 
@@ -446,8 +430,7 @@ def test_reset_catalog_database_requires_phrase(isolated_app: TestClient) -> Non
 
 def test_reset_catalog_database_rejects_active_jobs(isolated_app: TestClient, isolated_gallery_root: Path) -> None:
     library = create_library([isolated_gallery_root], name="Busy")
-    job = create_job("scan", library_id=library["id"])
-    update_job_state(int(job["id"]), "running", message="Scan running")
+    create_job("scan", library_id=library["id"])
 
     response = isolated_app.post(
         "/api/maintenance/catalog/reset",

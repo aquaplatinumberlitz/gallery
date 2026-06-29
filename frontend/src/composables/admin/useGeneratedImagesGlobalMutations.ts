@@ -1,14 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/vue-query";
 import { useToast } from "@/composables/useToast";
 import { queryKeys } from "@/query/keys";
-import { clearImportedData, GalleryAPIError, rebuildImportedData } from "@/services/api";
-
-function maintenanceMutationErrorMessage(error: unknown): string {
-  if (error instanceof GalleryAPIError) {
-    return error.suggestion || error.userMessage;
-  }
-  return error instanceof Error ? error.message : String(error);
-}
+import { clearImportedData, rebuildImportedData } from "@/services/api";
 
 export function useGeneratedImagesGlobalMutations() {
   const queryClient = useQueryClient();
@@ -35,7 +28,7 @@ export function useGeneratedImagesGlobalMutations() {
       toast.success(`Imported data rebuild queued for ${data.count} libraries`);
       invalidate(true);
     },
-    onError: (error) => toast.error("Could not rebuild imported data", maintenanceMutationErrorMessage(error)),
+    onError: (error) => toast.error("Could not rebuild imported data", String(error)),
   });
 
   const clearMutation = useMutation({
@@ -44,7 +37,7 @@ export function useGeneratedImagesGlobalMutations() {
       toast.success("Imported data cleared. Libraries and source files are not affected.");
       invalidate(true);
     },
-    onError: (error) => toast.error("Could not clear imported data", maintenanceMutationErrorMessage(error)),
+    onError: (error) => toast.error("Could not clear imported data", String(error)),
   });
 
   return { rebuildMutation, clearMutation };

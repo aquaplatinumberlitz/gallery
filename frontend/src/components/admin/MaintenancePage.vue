@@ -20,7 +20,7 @@ import { queryKeys } from "@/query/keys";
 import { fetchJobs, fetchLibraries, fetchGeneratedImagesStatus } from "@/services/api";
 import { useGeneratedImagesGlobalMutations } from "@/composables/admin/useGeneratedImagesGlobalMutations";
 import { useFileHealthQuery, useFileHealthMutation } from "@/composables/admin/useFileHealthQuery";
-import { runtimeHasActiveWork, useMaintenanceRuntimeQuery } from "@/composables/admin/useMaintenanceRuntimeQuery";
+import { useMaintenanceRuntimeQuery } from "@/composables/admin/useMaintenanceRuntimeQuery";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import GeneratedImagesClearDialog from "./dialogs/GeneratedImagesClearDialog.vue";
 import GeneratedImagesRebuildDialog from "./dialogs/GeneratedImagesRebuildDialog.vue";
@@ -74,28 +74,8 @@ const repairKeys = [
   { key: "unchanged" as const, label: "Skipped / unchanged" },
 ] as const;
 
-const runtimeQuery = useMaintenanceRuntimeQuery();
-const maintenanceBusy = computed(() => runtimeHasActiveWork(runtimeQuery.data.value));
-const maintenanceLockMessage = computed(() => {
-  if (runtimeQuery.isPending.value) return "Checking active jobs before maintenance actions are available.";
-  if (maintenanceBusy.value) {
-    return "Maintenance actions are locked while catalog, metadata, or preview cache jobs are running.";
-  }
-  return "";
-});
-const canRunMaintenanceActions = computed(() => !runtimeQuery.isPending.value && !maintenanceBusy.value);
-const maintenanceActionBlocked = computed(() => !canRunMaintenanceActions.value);
-const rebuildActionDisabled = computed(() => rebuildMutation.isPending.value || maintenanceActionBlocked.value);
-const clearActionDisabled = computed(() => clearMutation.isPending.value || maintenanceActionBlocked.value);
-
-async function refreshMaintenanceLock() {
-  const result = await runtimeQuery.refetch();
-  return runtimeHasActiveWork(result.data ?? runtimeQuery.data.value);
-}
-
 async function confirmClear() {
   try {
-    if (await refreshMaintenanceLock()) return;
     await clearMutation.mutateAsync();
     clearOpen.value = false;
   } catch {
@@ -105,13 +85,14 @@ async function confirmClear() {
 
 async function confirmRebuild() {
   try {
-    if (await refreshMaintenanceLock()) return;
     await rebuildMutation.mutateAsync();
     rebuildOpen.value = false;
   } catch {
     // toast handled in mutation onError
   }
 }
+
+const runtimeQuery = useMaintenanceRuntimeQuery();
 
 const needsRefreshCount = computed(() => {
   const lc = runtimeQuery.data.value?.metadata_lifecycle;
@@ -132,52 +113,22 @@ const needsRefreshCount = computed(() => {
           </p>
         </div>
         <div class="flex flex-wrap gap-2">
-          <Button variant="outline" :disabled="rebuildActionDisabled" @click="rebuildOpen = true">
+          <Button variant="outline" :disabled="rebuildMutation.isPending.value" @click="rebuildOpen = true">
             <RefreshCw /> Rebuild
           </Button>
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button variant="destructive" :disabled="clearActionDisabled" @click="clearOpen = true">
+              <Button variant="destructive" :disabled="clearMutation.isPending.value" @click="clearOpen = true">
                 <Trash2 /> Clear
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              <span v-if="maintenanceLockMessage">{{ maintenanceLockMessage }}</span>
-              <span v-else>
-                Clears imported catalog data, extracted metadata, jobs, and generated previews while keeping libraries
-                and import paths.
-              </span>
+              Clears imported catalog data, extracted metadata, jobs, and generated previews while keeping libraries and
+              import paths.
             </TooltipContent>
           </Tooltip>
         </div>
       </header>
-
-      <div
-        v-if="maintenanceLockMessage"
-        class="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
-        role="status"
-      >
-        <AlertTriangle class="mt-0.5 size-4 shrink-0" />
-        <p>{{ maintenanceLockMessage }}</p>
-      </div>
-
-      <section class="rounded-md border bg-background p-4">
-        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 class="text-sm font-semibold">Imported data flow</h3>
-            <p class="mt-1 text-sm text-muted-foreground">
-              Files are discovered first, then details are extracted, then previews are cached.
-            </p>
-          </div>
-          <ol class="flex flex-wrap items-center gap-2 text-sm" aria-label="Imported data flow">
-            <li class="font-medium">File catalog</li>
-            <li class="text-muted-foreground" aria-hidden="true">-&gt;</li>
-            <li class="font-medium">Metadata extraction</li>
-            <li class="text-muted-foreground" aria-hidden="true">-&gt;</li>
-            <li class="font-medium">Preview cache</li>
-          </ol>
-        </div>
-      </section>
 
       <div class="grid gap-4 md:grid-cols-2">
         <section class="rounded-md border bg-background p-5">
@@ -242,57 +193,24 @@ const needsRefreshCount = computed(() => {
 
       <section class="rounded-md border bg-background p-5">
         <div class="flex items-center justify-between">
-          <div>
-            <h3 class="font-semibold">Preview cache</h3>
-            <p class="mt-1 text-sm text-muted-foreground">
-              Generated thumbnails and previews used for faster browsing.
-            </p>
-          </div>
+          <h3 class="font-semibold">Thumbnails &amp; previews</h3>
           <Button variant="ghost" size="icon" aria-label="Refresh summary" @click="globalSummaryQuery.refetch()">
             <RefreshCw />
           </Button>
         </div>
-        <div v-if="globalSummaryQuery.data.value || runtimeQuery.data.value" class="mt-4">
+        <div v-if="globalSummaryQuery.data.value" class="mt-4">
           <dl class="grid gap-3 text-sm sm:grid-cols-2">
-            <div v-if="globalSummaryQuery.data.value" class="flex items-center justify-between gap-3">
+            <div class="flex items-center justify-between gap-3">
               <dt class="text-muted-foreground">Ready files</dt>
               <dd class="font-medium">{{ totalReady ?? "\u2014" }}</dd>
             </div>
-            <div v-if="globalSummaryQuery.data.value" class="flex items-center justify-between gap-3">
-              <dt class="flex items-center gap-1 text-muted-foreground">
-                Expected files
-                <Tooltip>
-                  <TooltipTrigger as-child>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      class="size-4 text-muted-foreground hover:text-foreground -my-1"
-                      aria-label="About Expected files"
-                    >
-                      <Info class="size-3.5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" align="start" class="max-w-[220px]">
-                    Total derivative files expected from cataloged image assets and configured preview variants.
-                  </TooltipContent>
-                </Tooltip>
-              </dt>
+            <div class="flex items-center justify-between gap-3">
+              <dt class="text-muted-foreground">Expected files</dt>
               <dd class="font-medium">{{ totalExpected ?? "\u2014" }}</dd>
-            </div>
-            <div v-if="runtimeQuery.data.value" class="flex items-center justify-between gap-3">
-              <dt class="text-muted-foreground">Preview active jobs</dt>
-              <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.derivative_active_jobs }}</dd>
-            </div>
-            <div v-if="runtimeQuery.data.value" class="flex items-center justify-between gap-3">
-              <dt class="text-muted-foreground">Preview queue depth</dt>
-              <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.derivative_queue_depth }}</dd>
             </div>
           </dl>
         </div>
-        <Skeleton
-          v-else-if="globalSummaryQuery.isPending.value || runtimeQuery.isPending.value"
-          class="mt-4 h-16 w-full"
-        />
+        <Skeleton v-else-if="globalSummaryQuery.isPending.value" class="mt-4 h-16 w-full" />
         <p v-else class="mt-4 text-sm text-muted-foreground">No data available.</p>
       </section>
 
@@ -300,10 +218,7 @@ const needsRefreshCount = computed(() => {
         <section class="rounded-md border bg-background p-5">
           <div class="flex items-center gap-3">
             <Activity class="size-5 text-muted-foreground" />
-            <div>
-              <h3 class="font-semibold">File catalog</h3>
-              <p class="mt-1 text-sm text-muted-foreground">Tracks which source files exist in registered libraries.</p>
-            </div>
+            <h3 class="font-semibold">Catalogs</h3>
           </div>
           <div v-if="runtimeQuery.data.value" class="mt-4">
             <dl class="grid gap-3 text-sm">
@@ -349,42 +264,10 @@ const needsRefreshCount = computed(() => {
                 <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.catalog_active_jobs }}</dd>
               </div>
               <div class="flex items-center justify-between gap-3">
-                <dt class="flex items-center gap-1 text-muted-foreground">
-                  Catalog queue depth
-                  <Tooltip>
-                    <TooltipTrigger as-child>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        class="size-4 text-muted-foreground hover:text-foreground -my-1"
-                        aria-label="About Catalog queue depth"
-                      >
-                        <Info class="size-3.5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" align="start">
-                      Catalog scan or rebuild jobs waiting to run.
-                    </TooltipContent>
-                  </Tooltip>
-                </dt>
+                <dt class="text-muted-foreground">Catalog queue depth</dt>
                 <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.catalog_queue_depth }}</dd>
               </div>
-            </dl>
-          </div>
-          <Skeleton v-else-if="runtimeQuery.isPending.value" class="mt-4 h-32 w-full" />
-          <p v-else class="mt-4 text-sm text-muted-foreground">Runtime diagnostics unavailable.</p>
-        </section>
-
-        <section class="rounded-md border bg-background p-5">
-          <div class="flex items-center gap-3">
-            <AlertTriangle class="size-5 text-muted-foreground" />
-            <div>
-              <h3 class="font-semibold">Metadata extraction</h3>
-              <p class="mt-1 text-sm text-muted-foreground">Reads file details after files are cataloged.</p>
-            </div>
-          </div>
-          <div v-if="runtimeQuery.data.value" class="mt-4 space-y-3">
-            <dl class="grid gap-3 text-sm">
+              <Separator />
               <div class="flex items-center justify-between gap-3">
                 <dt class="text-muted-foreground">Metadata workers</dt>
                 <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.metadata_worker_count }}</dd>
@@ -394,69 +277,56 @@ const needsRefreshCount = computed(() => {
                 <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.metadata_active_jobs }}</dd>
               </div>
               <div class="flex items-center justify-between gap-3">
-                <dt class="flex items-center gap-1 text-muted-foreground">
-                  Metadata queue depth
-                  <Tooltip>
-                    <TooltipTrigger as-child>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        class="size-4 text-muted-foreground hover:text-foreground -my-1"
-                        aria-label="About Metadata queue depth"
-                      >
-                        <Info class="size-3.5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" align="start">Metadata extraction jobs waiting to run.</TooltipContent>
-                  </Tooltip>
-                </dt>
+                <dt class="text-muted-foreground">Metadata queue depth</dt>
                 <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.metadata_queue_depth }}</dd>
               </div>
               <div class="flex items-center justify-between gap-3">
+                <dt class="text-muted-foreground">Metadata staged queue depth</dt>
+                <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.metadata_staged_queue_depth }}</dd>
+              </div>
+            </dl>
+          </div>
+          <Skeleton v-else-if="runtimeQuery.isPending.value" class="mt-4 h-48 w-full" />
+          <p v-else class="mt-4 text-sm text-muted-foreground">Runtime diagnostics unavailable.</p>
+        </section>
+
+        <section class="rounded-md border bg-background p-5">
+          <div class="flex items-center gap-3">
+            <AlertTriangle class="size-5 text-muted-foreground" />
+            <h3 class="font-semibold">Metadata jobs</h3>
+          </div>
+          <div v-if="runtimeQuery.data.value?.metadata_lifecycle" class="mt-4 space-y-3">
+            <dl class="grid gap-3 text-sm">
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-muted-foreground">Queued</dt>
+                <dd class="font-medium">{{ runtimeQuery.data.value.metadata_lifecycle.queued_metadata_jobs }}</dd>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-muted-foreground">Running</dt>
+                <dd class="font-medium">{{ runtimeQuery.data.value.metadata_lifecycle.running_metadata_jobs }}</dd>
+              </div>
+              <div class="flex items-center justify-between gap-3">
                 <dt class="flex items-center gap-1 text-muted-foreground">
-                  Metadata staged queue depth
+                  Failed jobs
                   <Tooltip>
                     <TooltipTrigger as-child>
                       <Button
                         variant="ghost"
                         size="icon"
                         class="size-4 text-muted-foreground hover:text-foreground -my-1"
-                        aria-label="About Metadata staged queue depth"
+                        aria-label="About Failed jobs"
                       >
                         <Info class="size-3.5" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="top" align="start" class="max-w-[220px]">
-                      Metadata paths staged before they become durable extraction jobs.
-                    </TooltipContent>
+                    <TooltipContent side="top" align="start">Metadata jobs that already failed.</TooltipContent>
                   </Tooltip>
                 </dt>
-                <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.metadata_staged_queue_depth }}</dd>
-              </div>
-              <Separator v-if="runtimeQuery.data.value.metadata_lifecycle" />
-              <div class="flex items-center justify-between gap-3">
-                <dt class="text-muted-foreground">Queued</dt>
-                <dd class="font-medium">
-                  {{ runtimeQuery.data.value.metadata_lifecycle?.queued_metadata_jobs ?? "\u2014" }}
-                </dd>
-              </div>
-              <div class="flex items-center justify-between gap-3">
-                <dt class="text-muted-foreground">Running</dt>
-                <dd class="font-medium">
-                  {{ runtimeQuery.data.value.metadata_lifecycle?.running_metadata_jobs ?? "\u2014" }}
-                </dd>
-              </div>
-              <div class="flex items-center justify-between gap-3">
-                <dt class="text-muted-foreground">Failed jobs</dt>
                 <dd
                   class="font-medium"
-                  :class="
-                    (runtimeQuery.data.value.metadata_lifecycle?.failed_metadata_jobs ?? 0) > 0
-                      ? 'text-destructive'
-                      : ''
-                  "
+                  :class="runtimeQuery.data.value.metadata_lifecycle.failed_metadata_jobs > 0 ? 'text-destructive' : ''"
                 >
-                  {{ runtimeQuery.data.value.metadata_lifecycle?.failed_metadata_jobs ?? "\u2014" }}
+                  {{ runtimeQuery.data.value.metadata_lifecycle.failed_metadata_jobs }}
                 </dd>
               </div>
               <div class="flex items-center justify-between gap-3">
@@ -479,7 +349,7 @@ const needsRefreshCount = computed(() => {
                   </Tooltip>
                 </dt>
                 <dd class="font-medium" :class="needsRefreshCount > 0 ? 'text-amber-600' : ''">
-                  {{ runtimeQuery.data.value.metadata_lifecycle ? needsRefreshCount : "\u2014" }}
+                  {{ needsRefreshCount }}
                 </dd>
               </div>
               <div class="flex items-center justify-between gap-3">
@@ -487,12 +357,10 @@ const needsRefreshCount = computed(() => {
                 <dd
                   class="font-medium"
                   :class="
-                    (runtimeQuery.data.value.metadata_lifecycle?.repairable_metadata_assets ?? 0) > 0
-                      ? 'text-amber-600'
-                      : ''
+                    runtimeQuery.data.value.metadata_lifecycle.repairable_metadata_assets > 0 ? 'text-amber-600' : ''
                   "
                 >
-                  {{ runtimeQuery.data.value.metadata_lifecycle?.repairable_metadata_assets ?? "\u2014" }}
+                  {{ runtimeQuery.data.value.metadata_lifecycle.repairable_metadata_assets }}
                 </dd>
               </div>
               <div class="flex items-center justify-between gap-3">
@@ -515,16 +383,13 @@ const needsRefreshCount = computed(() => {
                   </Tooltip>
                 </dt>
                 <dd class="font-medium">
-                  {{ runtimeQuery.data.value.metadata_lifecycle?.metadata_jobs_without_matching_assets ?? "\u2014" }}
+                  {{ runtimeQuery.data.value.metadata_lifecycle.metadata_jobs_without_matching_assets }}
                 </dd>
               </div>
             </dl>
-            <p v-if="!runtimeQuery.data.value.metadata_lifecycle" class="text-sm text-muted-foreground">
-              Metadata lifecycle diagnostics unavailable.
-            </p>
           </div>
-          <Skeleton v-else-if="runtimeQuery.isPending.value" class="mt-4 h-48 w-full" />
-          <p v-else class="mt-4 text-sm text-muted-foreground">Metadata extraction diagnostics unavailable.</p>
+          <Skeleton v-else-if="runtimeQuery.isPending.value" class="mt-4 h-40 w-full" />
+          <p v-else class="mt-4 text-sm text-muted-foreground">Metadata jobs diagnostics unavailable.</p>
         </section>
       </div>
 
@@ -562,15 +427,11 @@ const needsRefreshCount = computed(() => {
     <GeneratedImagesRebuildDialog
       v-model:open="rebuildOpen"
       :pending="rebuildMutation.isPending.value"
-      :blocked="maintenanceActionBlocked"
-      :block-message="maintenanceLockMessage"
       @confirm="confirmRebuild"
     />
     <GeneratedImagesClearDialog
       v-model:open="clearOpen"
       :pending="clearMutation.isPending.value"
-      :blocked="maintenanceActionBlocked"
-      :block-message="maintenanceLockMessage"
       @confirm="confirmClear"
     />
   </main>

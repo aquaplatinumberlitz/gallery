@@ -3,21 +3,17 @@ import { mount } from "@vue/test-utils";
 import { defineComponent, h } from "vue";
 import { createPinia } from "pinia";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { clearImportedData, GalleryAPIError, rebuildImportedData } from "@/services/api";
+import { clearImportedData, rebuildImportedData } from "@/services/api";
 import { queryKeys } from "@/query/keys";
 import { useGeneratedImagesGlobalMutations } from "../useGeneratedImagesGlobalMutations";
 
 const toast = { success: vi.fn(), error: vi.fn(), warning: vi.fn() };
 
 vi.mock("@/composables/useToast", () => ({ useToast: () => toast }));
-vi.mock("@/services/api", async () => {
-  const actual = await vi.importActual<typeof import("@/services/api")>("@/services/api");
-  return {
-    ...actual,
-    rebuildImportedData: vi.fn(),
-    clearImportedData: vi.fn(),
-  };
-});
+vi.mock("@/services/api", () => ({
+  rebuildImportedData: vi.fn(),
+  clearImportedData: vi.fn(),
+}));
 
 function setup() {
   const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
@@ -135,25 +131,6 @@ describe("useGeneratedImagesGlobalMutations", () => {
     await mutations.clearMutation.mutateAsync();
 
     expect(toast.success).toHaveBeenCalledWith("Imported data cleared. Libraries and source files are not affected.");
-    wrapper.unmount();
-  });
-
-  it("clearMutation toast uses GalleryAPIError suggestion", async () => {
-    vi.mocked(clearImportedData).mockRejectedValue(
-      new GalleryAPIError(
-        "maintenance_busy",
-        "Maintenance is busy",
-        "Wait for catalog, metadata, or preview jobs to finish, then try again.",
-      ),
-    );
-    const { mutations, wrapper } = setup();
-
-    await expect(mutations.clearMutation.mutateAsync()).rejects.toBeInstanceOf(GalleryAPIError);
-
-    expect(toast.error).toHaveBeenCalledWith(
-      "Could not clear imported data",
-      "Wait for catalog, metadata, or preview jobs to finish, then try again.",
-    );
     wrapper.unmount();
   });
 

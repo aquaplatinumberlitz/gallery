@@ -35,52 +35,20 @@ def _require_confirm(confirm: bool) -> None:
 def _active_work_counts_conn(conn: Any) -> dict[str, int]:
     return {
         "catalog_jobs": int(
-            conn.execute("SELECT count(*) FROM library_jobs WHERE state = 'running'").fetchone()[0]
+            conn.execute("SELECT count(*) FROM library_jobs WHERE state IN ('queued', 'running')").fetchone()[0]
         ),
         "metadata_jobs": int(
-            conn.execute("SELECT count(*) FROM metadata_index_jobs WHERE state = 'running'").fetchone()[0]
+            conn.execute("SELECT count(*) FROM metadata_index_jobs WHERE state IN ('queued', 'running')").fetchone()[0]
         ),
         "derivative_jobs": int(
-            conn.execute("SELECT count(*) FROM derivative_jobs WHERE state = 'running'").fetchone()[0]
+            conn.execute("SELECT count(*) FROM derivative_jobs WHERE state IN ('queued', 'running')").fetchone()[0]
         ),
     }
-
-
-def _cancel_queued_work_conn(conn: Any) -> None:
-    now = time.time()
-    conn.execute(
-        """
-        UPDATE library_jobs
-        SET state = 'cancelled',
-            message = COALESCE(message, 'Cancelled by maintenance'),
-            updated_at = ?
-        WHERE state = 'queued'
-        """,
-        (now,),
-    )
-    conn.execute(
-        """
-        UPDATE metadata_index_jobs
-        SET state = 'skipped',
-            updated_at = ?
-        WHERE state = 'queued'
-        """,
-        (now,),
-    )
-    conn.execute(
-        """
-        UPDATE derivative_jobs
-        SET state = 'cancelled',
-            updated_at = julianday('now')
-        WHERE state = 'queued'
-        """
-    )
 
 
 def _raise_if_active_work() -> None:
     initialize_database()
     with _DB_LOCK, _connect() as conn:
-        _cancel_queued_work_conn(conn)
         counts = _active_work_counts_conn(conn)
     if any(counts.values()):
         raise APIError(409, "maintenance_busy", "Maintenance cannot run while jobs are active", extra=counts)

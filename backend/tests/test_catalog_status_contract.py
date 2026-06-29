@@ -63,8 +63,6 @@ def _global_runtime() -> dict[str, Any]:
         "metadata_active_jobs": 0,
         "metadata_queue_depth": 0,
         "metadata_staged_queue_depth": 0,
-        "derivative_active_jobs": 0,
-        "derivative_queue_depth": 0,
         "watcher_enabled": True,
         "watcher_healthy": True,
         "watcher_issue": None,
