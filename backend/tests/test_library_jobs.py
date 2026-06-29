@@ -91,13 +91,14 @@ def test_scan_all_creates_parent_and_linked_children(
     response = isolated_app.post("/api/libraries/scan-all")
     assert response.status_code == 202
     body = response.json()
+    assert body["state"] == "succeeded"
     assert body["count"] == 2
     assert len(body["child_job_ids"]) == 2
     parent = isolated_app.get(f"/api/jobs/{body['job_id']}").json()
     children = [isolated_app.get(f"/api/jobs/{job_id}").json() for job_id in body["child_job_ids"]]
 
     assert parent["type"] == "scan_all"
-    assert parent["state"] == "running"
+    assert parent["state"] == "succeeded"
     assert parent["counters"] == {"total": 2, "succeeded": 0, "failed": 0, "coalesced": 0}
     assert {job["library_id"] for job in children} == {first_id, second_id}
     assert all(job["parent_job_id"] == parent["id"] for job in children)

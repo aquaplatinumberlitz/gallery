@@ -26,7 +26,9 @@ from backend.metadata_store import (
     _DB_LOCK,
     _connect,
     claim_next_catalog_job,
+    create_job,
     recover_stale_jobs,
+    update_job_state,
 )
 from backend.metadata_store.job_store import _initialize_database
 
@@ -102,6 +104,44 @@ def test_recover_stale_jobs_leaves_non_catalog_jobs(
     with _DB_LOCK, _connect() as conn:
         row = conn.execute("SELECT state FROM library_jobs WHERE type = 'maintenance'").fetchone()
         assert row["state"] == "running"  # untouched
+
+
+def test_recover_stale_scan_all_parent_with_terminal_children(
+    isolated_metadata_db: Path,
+):
+    """A scan_all command parent left running is reconciled from child results."""
+    _initialize_database()
+    now = time.time()
+    with _DB_LOCK, _connect() as conn:
+        _insert_library(conn, 1, now)
+    parent = create_job("scan_all", progress_total=1, message="Update all libraries queued")
+    child = create_job("scan", library_id=1, parent_job_id=int(parent["id"]))
+    update_job_state(int(parent["id"]), "running", progress_total=1)
+    update_job_state(int(child["id"]), "running")
+    update_job_state(int(child["id"]), "succeeded")
+
+    recovered = recover_stale_jobs()
+    recovered_by_id = {job["id"]: job for job in recovered}
+
+    assert recovered_by_id[parent["id"]]["state"] == "succeeded"
+    assert recovered_by_id[parent["id"]]["message"] == "Update all libraries completed"
+
+
+@pytest.mark.parametrize("parent_type", ["scan_all", "rebuild_imported_data"])
+def test_recover_stale_parent_without_children_fails(
+    isolated_metadata_db: Path,
+    parent_type: str,
+):
+    """Queued/running parent jobs with no children cannot represent active work after restart."""
+    _initialize_database()
+    parent = create_job(parent_type, progress_total=1, message="Parent queued")
+    update_job_state(int(parent["id"]), "running", progress_total=1)
+
+    recovered = recover_stale_jobs()
+    recovered_by_id = {job["id"]: job for job in recovered}
+
+    assert recovered_by_id[parent["id"]]["state"] == "failed"
+    assert recovered_by_id[parent["id"]]["message"] == "Interrupted by server restart"
 
 
 def test_recover_stale_jobs_leaves_terminal_states(

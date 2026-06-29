@@ -306,6 +306,22 @@ def test_rebuild_imported_data_rejects_active_jobs(isolated_app: TestClient, iso
     assert response.json()["detail"]["error"] == "maintenance_busy"
 
 
+@pytest.mark.parametrize("parent_type", ["scan_all", "rebuild_imported_data"])
+def test_clear_imported_data_ignores_stale_parent_jobs(
+    isolated_app: TestClient,
+    isolated_gallery_root: Path,
+    parent_type: str,
+) -> None:
+    create_library([isolated_gallery_root], name="Stale Parent")
+    parent = create_job(parent_type, progress_total=1)
+    update_job_state(int(parent["id"]), "running", progress_total=1)
+
+    response = isolated_app.post("/api/maintenance/imported-data/clear", json={"confirm": True})
+
+    assert response.status_code == 200
+    assert response.json()["state"] == "cleared"
+
+
 @pytest.mark.parametrize(
     ("path", "payload"),
     [

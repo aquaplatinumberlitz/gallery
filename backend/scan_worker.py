@@ -429,7 +429,14 @@ def start() -> None:
         recovered_jobs = recover_stale_jobs()
         for job in recovered_jobs:
             LOGGER.warning("Recovered orphaned catalog job %s after server restart", job["id"])
-            _emit_job(job, event_type="job.failed")
+            event_type = "job.updated"
+            if job["state"] == "succeeded":
+                event_type = "job.completed"
+            elif job["state"] == "failed":
+                event_type = "job.failed"
+            elif job["state"] == "cancelled":
+                event_type = "job.cancelled"
+            _emit_job(job, event_type=event_type)
 
         _stop_event.clear()
         for index in range(GALLERY_CATALOG_WORKERS):

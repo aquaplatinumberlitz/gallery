@@ -372,6 +372,12 @@ async def api_scan_all_libraries():
             await run_in_threadpool(
                 _set_job_state,
                 int(parent["id"]),
+                "running",
+                message="Update all libraries not queued",
+            )
+            await run_in_threadpool(
+                _set_job_state,
+                int(parent["id"]),
                 "failed",
                 message="Update all libraries not queued",
                 error="Maintenance operation is active",
@@ -396,15 +402,15 @@ async def api_scan_all_libraries():
     await run_in_threadpool(
         _set_job_state,
         int(parent["id"]),
-        "running",
+        "succeeded",
         progress_current=len(children),
         progress_total=len(children),
-        message="Queueing library updates",
+        message="Update all libraries queued",
         counters=counters,
     )
     return {
         "job_id": parent["id"],
-        "state": "running",
+        "state": "succeeded",
         "child_job_ids": [child[0] for child in children],
         "count": len(children),
     }

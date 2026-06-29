@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.metadata_store import initialize_database
+from backend.metadata_store import create_job, create_library, initialize_database, update_job_state
 
 
 @pytest.fixture(autouse=True)
@@ -57,3 +57,19 @@ class TestGetMaintenanceRuntime:
         assert "metadata_worker_count" in gr
         assert "metadata_queue_depth" in gr
         assert "metadata_staged_queue_depth" in gr
+
+    def test_global_runtime_counts_executable_catalog_jobs_only(
+        self,
+        isolated_app: TestClient,
+        isolated_gallery_root: Path,
+    ) -> None:
+        library = create_library([isolated_gallery_root], name="Runtime")
+        parent = create_job("scan_all", progress_total=1)
+        update_job_state(int(parent["id"]), "running", progress_total=1)
+        create_job("scan", library_id=int(library["id"]))
+
+        resp = isolated_app.get("/api/maintenance/runtime")
+
+        gr = resp.json()["global_runtime"]
+        assert gr["catalog_active_jobs"] == 0
+        assert gr["catalog_queue_depth"] == 1

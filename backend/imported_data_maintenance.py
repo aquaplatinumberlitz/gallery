@@ -35,7 +35,12 @@ def _require_confirm(confirm: bool) -> None:
 def _active_work_counts_conn(conn: Any) -> dict[str, int]:
     return {
         "catalog_jobs": int(
-            conn.execute("SELECT count(*) FROM library_jobs WHERE state IN ('queued', 'running')").fetchone()[0]
+            conn.execute(
+                """
+                SELECT count(*) FROM library_jobs
+                WHERE type IN ('scan', 'rebuild') AND state IN ('queued', 'running')
+                """
+            ).fetchone()[0]
         ),
         "metadata_jobs": int(
             conn.execute("SELECT count(*) FROM metadata_index_jobs WHERE state IN ('queued', 'running')").fetchone()[0]
@@ -176,6 +181,25 @@ def rebuild_imported_data(*, confirm: bool) -> dict[str, Any]:
             try:
                 job, _created = queue_rebuild(int(library["id"]), parent_job_id=int(parent["id"]))
             except CatalogJobConflict as exc:
+                running = update_job_state(
+                    int(parent["id"]),
+                    "running",
+                    progress_current=0,
+                    progress_total=len(child_job_ids),
+                    message="Imported data rebuild not queued",
+                )
+                if running is not None:
+                    _emit_job(running)
+                failed = update_job_state(
+                    int(parent["id"]),
+                    "failed",
+                    progress_current=0,
+                    progress_total=len(child_job_ids),
+                    message="Imported data rebuild not queued",
+                    error="Maintenance cannot run while jobs are active",
+                )
+                if failed is not None:
+                    _emit_job(failed, "job.failed")
                 raise APIError(409, "maintenance_busy", "Maintenance cannot run while jobs are active") from exc
             child_job_ids.append(int(job["id"]))
         running = update_job_state(

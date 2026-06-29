@@ -13,6 +13,9 @@ from .library_store import list_libraries
 from .path_utils import canonicalize_catalog_path, catalog_path_contains
 from .types import CatalogJobConflict
 
+CATALOG_WORK_JOB_TYPES = ("scan", "rebuild")
+CATALOG_PARENT_JOB_TYPES = ("scan_all", "rebuild_imported_data")
+
 
 def _initialize_database() -> None:
     from ._schema import initialize_database
@@ -418,7 +421,9 @@ def update_parent_aggregate_job(parent_job_id: int) -> dict[str, Any] | None:
     now = time.time()
     with _DB_LOCK, _connect() as conn:
         parent = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (parent_job_id,)).fetchone()
-        if parent is None or parent["type"] not in {"rebuild_imported_data"}:
+        if parent is None or parent["type"] not in CATALOG_PARENT_JOB_TYPES:
+            return None
+        if parent["state"] not in {"queued", "running"}:
             return None
         children = conn.execute("SELECT state FROM library_jobs WHERE parent_job_id = ?", (parent_job_id,)).fetchall()
         total = len(children)
@@ -426,22 +431,39 @@ def update_parent_aggregate_job(parent_job_id: int) -> dict[str, Any] | None:
         failed = sum(1 for child in children if child["state"] == "failed")
         cancelled = sum(1 for child in children if child["state"] == "cancelled")
         finished = succeeded + failed + cancelled
+        parent_type = str(parent["type"])
+        try:
+            existing_counters = json.loads(parent["counters"] or "{}")
+        except (TypeError, json.JSONDecodeError):
+            existing_counters = {}
         if total == 0:
-            state = "succeeded"
-            message = "No libraries to rebuild"
+            state = "failed"
+            message = "Interrupted by server restart"
             finished_at = now
         elif finished < total:
             state = "running"
-            message = f"Rebuilt {finished} of {total} libraries"
+            if parent_type == "scan_all":
+                message = f"Updated {finished} of {total} libraries"
+            else:
+                message = f"Rebuilt {finished} of {total} libraries"
             finished_at = None
         elif failed or cancelled:
             state = "failed"
-            message = "Imported data rebuild completed with failures"
+            if parent_type == "scan_all":
+                message = "Update all libraries completed with failures"
+            else:
+                message = "Imported data rebuild completed with failures"
             finished_at = now
         else:
             state = "succeeded"
-            message = "Imported data rebuild completed"
+            if parent_type == "scan_all":
+                message = "Update all libraries completed"
+            else:
+                message = "Imported data rebuild completed"
             finished_at = now
+        counters = {"total": total, "succeeded": succeeded, "failed": failed, "cancelled": cancelled}
+        if parent_type == "scan_all":
+            counters["coalesced"] = int(existing_counters.get("coalesced", 0))
         conn.execute(
             """
             UPDATE library_jobs
@@ -452,7 +474,7 @@ def update_parent_aggregate_job(parent_job_id: int) -> dict[str, Any] | None:
                 counters = ?,
                 updated_at = ?,
                 started_at = COALESCE(started_at, ?),
-                finished_at = CASE WHEN ? IS NULL THEN finished_at ELSE ? END
+                finished_at = CASE WHEN ? IS NULL THEN NULL ELSE ? END
             WHERE id = ?
             """,
             (
@@ -460,7 +482,7 @@ def update_parent_aggregate_job(parent_job_id: int) -> dict[str, Any] | None:
                 finished,
                 total,
                 message,
-                json.dumps({"total": total, "succeeded": succeeded, "failed": failed, "cancelled": cancelled}),
+                json.dumps(counters),
                 now,
                 now,
                 finished_at,
@@ -504,14 +526,32 @@ def recover_stale_jobs() -> list[dict[str, Any]]:
     """
     _initialize_database()
     with _DB_LOCK, _connect() as conn:
-        running_ids = [
-            int(row["id"])
+        running_rows = [
+            (int(row["id"]), int(row["parent_job_id"]) if row["parent_job_id"] is not None else None)
             for row in conn.execute(
-                "SELECT id FROM library_jobs WHERE state = 'running' AND type IN ('scan', 'rebuild')"
+                """
+                SELECT id, parent_job_id
+                FROM library_jobs
+                WHERE state = 'running' AND type IN (?, ?)
+                """,
+                CATALOG_WORK_JOB_TYPES,
             )
         ]
+        parent_ids = {
+            int(row["id"])
+            for row in conn.execute(
+                """
+                SELECT id
+                FROM library_jobs
+                WHERE state IN ('queued', 'running')
+                  AND type IN (?, ?)
+                """,
+                CATALOG_PARENT_JOB_TYPES,
+            )
+        }
     recovered: list[dict[str, Any]] = []
-    for job_id in running_ids:
+    touched_parent_ids = {parent_id for _job_id, parent_id in running_rows if parent_id is not None}
+    for job_id, _parent_job_id in running_rows:
         job = update_job_state(
             job_id,
             "failed",
@@ -520,4 +560,10 @@ def recover_stale_jobs() -> list[dict[str, Any]]:
         )
         if job is not None:
             recovered.append(job)
+    seen_ids = {int(job["id"]) for job in recovered}
+    for parent_id in sorted(parent_ids | touched_parent_ids):
+        job = update_parent_aggregate_job(parent_id)
+        if job is not None and int(job["id"]) not in seen_ids:
+            recovered.append(job)
+            seen_ids.add(int(job["id"]))
     return recovered
