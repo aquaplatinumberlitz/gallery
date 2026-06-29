@@ -509,6 +509,20 @@ def test_stop_watcher_sets_stop_and_clears_thread(monkeypatch: pytest.MonkeyPatc
 # ---------------------------------------------------------------------------
 
 
+class _StopAfterFirstWait:
+    def __init__(self) -> None:
+        self._is_set = False
+
+    def is_set(self) -> bool:
+        return self._is_set
+
+    def wait(self, timeout: float) -> None:
+        self._is_set = True
+
+    def set(self) -> None:
+        pass
+
+
 def test_stale_cleanup_removes_very_old_entries(monkeypatch: pytest.MonkeyPatch):
     """Cover the stale-cleanup path (line 116) when entries are not debounce-ready
     but older than 300 seconds."""
@@ -570,12 +584,8 @@ def test_watcher_loop_processes_ready_folders(monkeypatch: pytest.MonkeyPatch):
     handler = watcher._DebouncedHandler(roots=["/test"])
     handler.affected_folders = {"/test/a": time.time() - 10}
     monkeypatch.setattr(watcher, "_DebouncedHandler", lambda roots: handler)
-    monkeypatch.setattr(watcher, "_watcher_stop", threading.Event())
+    monkeypatch.setattr(watcher, "_watcher_stop", _StopAfterFirstWait())
 
-    def stop():
-        watcher._watcher_stop.set()
-
-    threading.Timer(0.05, stop).start()
     watcher._watcher_loop()
     assert len(queued) >= 1
 
@@ -623,12 +633,8 @@ def test_watcher_loop_respects_max_events_per_tick(monkeypatch: pytest.MonkeyPat
     handler = watcher._DebouncedHandler(roots=["/test"])
     handler.affected_folders = {"/test/a": time.time() - 10, "/test/b": time.time() - 10}
     monkeypatch.setattr(watcher, "_DebouncedHandler", lambda roots: handler)
-    monkeypatch.setattr(watcher, "_watcher_stop", threading.Event())
+    monkeypatch.setattr(watcher, "_watcher_stop", _StopAfterFirstWait())
 
-    def stop():
-        watcher._watcher_stop.set()
-
-    threading.Timer(0.05, stop).start()
     watcher._watcher_loop()
     assert len(queued) == 1
 
@@ -673,11 +679,7 @@ def test_watcher_loop_logs_and_continues_on_exception(monkeypatch: pytest.Monkey
     handler = watcher._DebouncedHandler(roots=["/test"])
     handler.affected_folders = {"/test/a": time.time() - 10}
     monkeypatch.setattr(watcher, "_DebouncedHandler", lambda roots: handler)
-    monkeypatch.setattr(watcher, "_watcher_stop", threading.Event())
+    monkeypatch.setattr(watcher, "_watcher_stop", _StopAfterFirstWait())
     monkeypatch.setattr(watcher, "queue_watcher_scan", lambda folder: (_ for _ in ()).throw(RuntimeError("boom")))
 
-    def stop():
-        watcher._watcher_stop.set()
-
-    threading.Timer(0.05, stop).start()
     watcher._watcher_loop()
