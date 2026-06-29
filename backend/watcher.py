@@ -15,7 +15,7 @@ from .config import (
     WATCHER_MAX_EVENTS_PER_TICK,
     WATCHER_ROOTS,
 )
-from .files import is_image_path
+from .files import is_asset_path, is_index_excluded_path
 from .scan_worker import queue_watcher_scan
 
 try:
@@ -75,6 +75,26 @@ class _DebouncedHandler:
         self.roots = roots
         self._last_cleanup = 0.0
 
+    def _record_path(self, path_str: str, *, is_directory: bool, event_type: str) -> None:
+        path = Path(path_str)
+        if is_index_excluded_path(path):
+            return
+        if is_directory:
+            if event_type == "modified":
+                return
+            folder = str(path.parent)
+            image_path: str | None = None
+        elif is_asset_path(path):
+            folder = str(path.parent)
+            image_path = path_str
+        else:
+            return
+        now = time.time()
+        with self.lock:
+            self.affected_folders[folder] = now
+            if image_path is not None:
+                self.affected_image_paths[image_path] = now
+
     def handle_event(self, event: Any) -> None:
         kind = "unknown"
         try:
@@ -85,23 +105,31 @@ class _DebouncedHandler:
         except Exception:  # noqa: BLE001
             pass
 
-        path_str = None
+        is_directory = False
+        try:
+            is_directory = bool(getattr(event, "is_directory", False))
+        except Exception:  # noqa: BLE001
+            pass
+
+        path_strings: list[str] = []
         try:
             if hasattr(event, "src_path"):
-                path_str = event.src_path
+                path_strings.append(str(event.src_path))
             elif hasattr(event, "path"):
-                path_str = str(event.path)
+                path_strings.append(str(event.path))
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            dest_path = getattr(event, "dest_path", None)
+            if dest_path:
+                path_strings.append(str(dest_path))
         except Exception:  # noqa: BLE001
             pass
 
         _record_event(kind)
 
-        if path_str:
-            folder = str(Path(path_str).parent)
-            with self.lock:
-                self.affected_folders[folder] = time.time()
-                if is_image_path(Path(path_str)):
-                    self.affected_image_paths[path_str] = time.time()
+        for path_str in path_strings:
+            self._record_path(path_str, is_directory=is_directory, event_type=kind)
 
     def get_and_clear_debounced(self) -> list[str]:
         now = time.time()

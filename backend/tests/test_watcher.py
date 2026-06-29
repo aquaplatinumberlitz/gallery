@@ -233,7 +233,7 @@ def test_handle_event_properties_raise_exceptions_silently(monkeypatch: pytest.M
     assert "/test/folder" in ready
 
 
-def test_non_image_path_records_only_folder(monkeypatch: pytest.MonkeyPatch):
+def test_non_asset_path_is_ignored(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 0.01)
     handler = watcher._DebouncedHandler(roots=["/test"])
 
@@ -243,8 +243,51 @@ def test_non_image_path_records_only_folder(monkeypatch: pytest.MonkeyPatch):
 
     handler.handle_event(FakeTxtEvent())
     time.sleep(0.02)
-    ready = handler.get_and_clear_debounced_image_paths()
-    assert "/test/readme.txt" not in ready
+    ready_folders = handler.get_and_clear_debounced()
+    ready_paths = handler.get_and_clear_debounced_image_paths()
+    assert "/test" not in ready_folders
+    assert "/test/readme.txt" not in ready_paths
+
+
+def test_excluded_paths_are_ignored(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 0.01)
+    handler = watcher._DebouncedHandler(roots=["/test"])
+
+    class FakeCacheEvent:
+        src_path = "/test/backend/.cache/thumb.jpg"
+        event_type = "created"
+
+    handler.handle_event(FakeCacheEvent())
+    time.sleep(0.02)
+    assert handler.get_and_clear_debounced() == []
+
+
+def test_directory_modified_event_is_ignored(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 0.01)
+    handler = watcher._DebouncedHandler(roots=["/test"])
+
+    class FakeDirModifiedEvent:
+        src_path = "/test/album"
+        event_type = "modified"
+        is_directory = True
+
+    handler.handle_event(FakeDirModifiedEvent())
+    time.sleep(0.02)
+    assert handler.get_and_clear_debounced() == []
+
+
+def test_directory_create_event_marks_parent(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 0.01)
+    handler = watcher._DebouncedHandler(roots=["/test"])
+
+    class FakeDirCreatedEvent:
+        src_path = "/test/album"
+        event_type = "created"
+        is_directory = True
+
+    handler.handle_event(FakeDirCreatedEvent())
+    time.sleep(0.02)
+    assert "/test" in handler.get_and_clear_debounced()
 
 
 # ---------------------------------------------------------------------------

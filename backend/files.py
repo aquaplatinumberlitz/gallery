@@ -15,6 +15,10 @@ VIDEO_EXTENSIONS = {".mp4", ".m4v", ".mov", ".webm", ".mkv", ".avi"}
 DEFAULT_INDEX_EXCLUDED_DIR_NAMES = frozenset(
     {
         ".git",
+        ".cache",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
         "node_modules",
         "__pycache__",
         ".venv",
