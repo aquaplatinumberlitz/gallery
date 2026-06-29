@@ -330,7 +330,7 @@ test.describe("imported-data maintenance verification", () => {
     await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
     await page.getByLabel("Catalog Status").click();
     const popover = page.getByRole("dialog").filter({ hasText: "Catalog" });
-    await popover.getByRole("button", { name: "Update current folder" }).click();
+    await popover.getByRole("button", { name: "Update library" }).click();
     await expect.poll(() => matchingRequests(state, "POST", "/api/libraries/1/scan").length).toBe(1);
 
     await page.goto(`${baseUrl}/admin/libraries`, { waitUntil: "domcontentloaded" });

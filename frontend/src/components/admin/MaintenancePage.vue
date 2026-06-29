@@ -60,18 +60,54 @@ const fileHealthQuery = useFileHealthQuery();
 const fileHealthMutation = useFileHealthMutation();
 
 const fileIssueKeys = [
-  { key: "missing_source_files" as const, label: "Missing source files" },
-  { key: "generated_image_missing" as const, label: "Generated image missing" },
-  { key: "metadata_mismatch" as const, label: "Metadata mismatch" },
-  { key: "orphaned_work_item" as const, label: "Orphaned work item" },
-  { key: "generated_image_job_mismatch" as const, label: "Generated image job mismatch" },
+  {
+    key: "missing_source_files" as const,
+    label: "Missing source files",
+    description: "Queued or running metadata jobs whose source file no longer exists on disk.",
+  },
+  {
+    key: "generated_image_missing" as const,
+    label: "Generated image missing",
+    description: "Thumbnail or preview records marked ready while the cached file is missing.",
+  },
+  {
+    key: "metadata_mismatch" as const,
+    label: "Metadata mismatch",
+    description: "Cataloged assets marked done but missing a matching extracted metadata row.",
+  },
+  {
+    key: "orphaned_work_item" as const,
+    label: "Orphaned work item",
+    description: "Metadata jobs that no longer have a matching catalog asset.",
+  },
+  {
+    key: "generated_image_job_mismatch" as const,
+    label: "Generated image job mismatch",
+    description: "Finished thumbnail jobs whose derivative record is not ready.",
+  },
 ] as const;
 
 const repairKeys = [
-  { key: "repaired" as const, label: "Repaired" },
-  { key: "requeued" as const, label: "Requeued" },
-  { key: "failed" as const, label: "Marked failed" },
-  { key: "unchanged" as const, label: "Skipped / unchanged" },
+  {
+    key: "repaired" as const,
+    label: "Repaired",
+    description: "Rows corrected immediately because the expected catalog or cache state could be confirmed.",
+  },
+  {
+    key: "requeued" as const,
+    label: "Requeued",
+    description: "Work sent back to metadata extraction or thumbnail generation.",
+  },
+  {
+    key: "failed" as const,
+    label: "Marked failed",
+    description: "Work items marked failed because the source asset or generated file could not be found.",
+  },
+  {
+    key: "unchanged" as const,
+    label: "Skipped / unchanged",
+    description: "Issues that were counted but did not need a state change in this run.",
+  },
 ] as const;
 
 async function confirmClear() {
@@ -152,12 +188,34 @@ const needsRefreshCount = computed(() => {
         <section class="rounded-md border bg-background p-5">
           <div class="flex items-center gap-3">
             <FileWarning class="size-5 text-muted-foreground" />
-            <h3 class="font-semibold">File issues</h3>
+            <div>
+              <h3 class="font-semibold">File issues</h3>
+              <p class="mt-1 text-sm text-muted-foreground">
+                Counts consistency problems found in catalog, metadata, and thumbnail records.
+              </p>
+            </div>
           </div>
           <div class="mt-4 space-y-3">
             <dl class="grid gap-3 text-sm">
               <div v-for="item in fileIssueKeys" :key="item.key" class="flex items-center justify-between gap-3">
-                <dt class="text-muted-foreground">{{ item.label }}</dt>
+                <dt class="flex flex-wrap items-center gap-1 text-muted-foreground">
+                  {{ item.label }}
+                  <Tooltip>
+                    <TooltipTrigger as-child>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        class="size-4 text-muted-foreground hover:text-foreground -my-1"
+                        :aria-label="`About ${item.label}`"
+                      >
+                        <Info class="size-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" align="start" class="max-w-[240px]">
+                      {{ item.description }}
+                    </TooltipContent>
+                  </Tooltip>
+                </dt>
                 <dd class="font-medium">{{ fileHealthQuery.data.value?.run?.issues[item.key] ?? "—" }}</dd>
               </div>
             </dl>
@@ -177,10 +235,16 @@ const needsRefreshCount = computed(() => {
         <section class="rounded-md border bg-background p-5">
           <div class="flex items-center gap-3">
             <ScanLine class="size-5 text-muted-foreground" />
-            <h3 class="font-semibold">Check files</h3>
+            <div>
+              <h3 class="font-semibold">Check files</h3>
+              <p class="mt-1 text-sm text-muted-foreground">
+                Runs the same backend integrity pass used by the scheduled checker.
+              </p>
+            </div>
           </div>
           <p class="mt-4 text-sm text-muted-foreground">
-            Verify cross-table consistency and storage integrity across all registered libraries.
+            Verifies source files, extracted metadata, queued work, and thumbnail cache state across all registered
+            libraries.
           </p>
           <div class="mt-4">
             <Button
@@ -192,18 +256,58 @@ const needsRefreshCount = computed(() => {
               <Bug v-else /> Run checks
             </Button>
           </div>
-          <p class="mt-2 text-xs text-muted-foreground">Checks verify cross-table consistency and storage integrity.</p>
+          <p class="mt-2 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+            May repair confirmed mismatches, requeue stale work, or mark invalid jobs failed.
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  class="size-4 text-muted-foreground hover:text-foreground -my-1"
+                  aria-label="About file checks"
+                >
+                  <Info class="size-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top" align="start" class="max-w-[260px]">
+                The check persists a summary run and updates repair counters shown below. It does not remove registered
+                libraries or source files.
+              </TooltipContent>
+            </Tooltip>
+          </p>
         </section>
       </div>
 
       <section class="rounded-md border bg-background p-5">
         <div class="flex items-center gap-3">
           <Wrench class="size-5 text-muted-foreground" />
-          <h3 class="font-semibold">Repair results</h3>
+          <div>
+            <h3 class="font-semibold">Repair results</h3>
+            <p class="mt-1 text-sm text-muted-foreground">
+              Shows what the latest file-health run changed or left untouched.
+            </p>
+          </div>
         </div>
         <div class="mt-4 grid gap-4 text-sm sm:grid-cols-4">
           <div v-for="item in repairKeys" :key="item.key">
-            <p class="text-xs text-muted-foreground">{{ item.label }}</p>
+            <p class="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+              {{ item.label }}
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    class="size-4 text-muted-foreground hover:text-foreground -my-1"
+                    :aria-label="`About ${item.label}`"
+                  >
+                    <Info class="size-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" align="start" class="max-w-[240px]">
+                  {{ item.description }}
+                </TooltipContent>
+              </Tooltip>
+            </p>
             <p class="text-xl font-semibold">{{ fileHealthQuery.data.value?.run?.repairs[item.key] ?? "—" }}</p>
           </div>
         </div>
@@ -217,9 +321,22 @@ const needsRefreshCount = computed(() => {
               Generated thumbnails and previews used for faster browsing.
             </p>
           </div>
-          <Button variant="ghost" size="icon" aria-label="Refresh summary" @click="globalSummaryQuery.refetch()">
-            <RefreshCw />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Refresh thumbnails summary"
+                :disabled="globalSummaryQuery.isFetching.value"
+                @click="globalSummaryQuery.refetch()"
+              >
+                <RefreshCw :class="globalSummaryQuery.isFetching.value ? 'animate-spin' : ''" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top" align="end" class="max-w-[220px]">
+              Reload ready and expected thumbnail cache counts.
+            </TooltipContent>
+          </Tooltip>
         </div>
         <div v-if="globalSummaryQuery.data.value" class="mt-4">
           <dl class="grid gap-3 text-sm sm:grid-cols-2">
@@ -503,9 +620,22 @@ const needsRefreshCount = computed(() => {
       <section class="rounded-md border bg-background p-5">
         <div class="flex items-center justify-between">
           <h3 class="font-semibold">Active jobs</h3>
-          <Button variant="ghost" size="icon" aria-label="Refresh jobs" @click="jobsQuery.refetch()">
-            <RefreshCw />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Refresh active jobs"
+                :disabled="jobsQuery.isFetching.value"
+                @click="jobsQuery.refetch()"
+              >
+                <RefreshCw :class="jobsQuery.isFetching.value ? 'animate-spin' : ''" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top" align="end" class="max-w-[220px]">
+              Reload currently active catalog, metadata, and thumbnail jobs.
+            </TooltipContent>
+          </Tooltip>
         </div>
         <div v-if="jobsQuery.data.value?.length" class="mt-4 divide-y">
           <div

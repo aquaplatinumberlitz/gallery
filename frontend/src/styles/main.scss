@@ -385,6 +385,21 @@ pre {
   }
 }
 
+/* Interactive cursor baseline */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+a[href],
+summary,
+select,
+label[for] {
+  cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
 /* Ensure interactive elements have adequate touch targets (44x44px min) */
 @media (pointer: coarse) {
   button,

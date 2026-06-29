@@ -136,6 +136,7 @@ vi.mock("@/composables/useCatalogStatusQuery", () => ({
     isPending: { value: false },
     isError: { value: false },
     error: { value: mockContractError },
+    isFetching: { value: false },
     refetch: vi.fn(),
     contractError: { value: mockContractError },
   }),
@@ -151,6 +152,7 @@ vi.mock("@/composables/admin/useLibraryStatsQuery", () => ({
 vi.mock("@/composables/admin/useLibraryJobsQuery", () => ({
   useLibraryJobsQuery: () => ({
     data: { value: mockJobsData },
+    isFetching: { value: false },
     refetch: vi.fn(),
   }),
 }));
@@ -176,6 +178,7 @@ vi.mock("@/composables/admin/useGeneratedImagesStatusQuery", () => ({
   useGeneratedImagesStatusQuery: () => ({
     data: { value: mockGeneratedImagesData },
     isPending: { value: false },
+    isFetching: { value: false },
     refetch: vi.fn(),
   }),
 }));
@@ -203,6 +206,9 @@ function mountSubject(propsId = 1) {
         ButtonLink: { template: "<a :href='to' @click='$attrs.onClick?.()'><slot /></a>" },
         Skeleton: { template: "<div data-testid='skeleton' />" },
         Separator: { template: "<hr />" },
+        Tooltip: { template: "<span><slot /></span>" },
+        TooltipContent: { template: "<span><slot /></span>" },
+        TooltipTrigger: { template: "<span><slot /></span>" },
         LibraryProgressBar: { template: "<div class='library-progress' />" },
         LibraryStatusBadge: { template: "<span class='status-badge'><slot /></span>" },
         LibraryEditDialog: { template: "<div class='edit-dialog' />" },

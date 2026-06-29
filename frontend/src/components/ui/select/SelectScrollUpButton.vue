@@ -16,7 +16,7 @@ const forwardedProps = useForwardProps(delegatedProps);
 <template>
   <SelectScrollUpButton
     v-bind="forwardedProps"
-    :class="cn('flex cursor-default items-center justify-center py-1', props.class)"
+    :class="cn('flex cursor-pointer items-center justify-center py-1', props.class)"
   >
     <slot>
       <ChevronUp class="h-4 w-4" />

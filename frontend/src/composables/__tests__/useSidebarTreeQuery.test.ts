@@ -69,7 +69,7 @@ describe("useSidebarTreeQuery", () => {
 
     await vi.waitFor(() => expect(result.isSuccess.value).toBe(true));
 
-    expect(browseDirectory).toHaveBeenCalledWith(1, "/photos", { limit: IMAGE_PAGE_SIZE });
+    expect(browseDirectory).toHaveBeenCalledWith(1, "/photos", { cursor: 0, limit: IMAGE_PAGE_SIZE });
     expect(store.sidebarTree).toEqual([
       expect.objectContaining({
         name: "Imports",

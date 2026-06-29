@@ -97,34 +97,27 @@ class _DebouncedHandler:
 
     def handle_event(self, event: Any) -> None:
         kind = "unknown"
-        try:
+        with suppress(Exception):
             if hasattr(event, "event_type"):
                 kind = event.event_type
             elif hasattr(event, "key"):
                 kind = str(event.key)
-        except Exception:  # noqa: BLE001
-            pass
 
         is_directory = False
-        try:
+        with suppress(Exception):
             is_directory = bool(getattr(event, "is_directory", False))
-        except Exception:  # noqa: BLE001
-            pass
 
         path_strings: list[str] = []
-        try:
+        with suppress(Exception):
             if hasattr(event, "src_path"):
                 path_strings.append(str(event.src_path))
             elif hasattr(event, "path"):
                 path_strings.append(str(event.path))
-        except Exception:  # noqa: BLE001
-            pass
-        try:
+
+        with suppress(Exception):
             dest_path = getattr(event, "dest_path", None)
             if dest_path:
                 path_strings.append(str(dest_path))
-        except Exception:  # noqa: BLE001
-            pass
 
         _record_event(kind)
 

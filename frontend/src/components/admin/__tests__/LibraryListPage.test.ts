@@ -116,4 +116,12 @@ describe("LibraryListPage", () => {
 
     expect(scanAllMutateMock).toHaveBeenCalledOnce();
   });
+
+  it("shows the library name as a clickable target", () => {
+    const wrapper = mountSubject();
+
+    const libraryButton = wrapper.findAll("button").find((button) => button.text().includes(mockLibrary.name));
+
+    expect(libraryButton?.classes()).toContain("cursor-pointer");
+  });
 });

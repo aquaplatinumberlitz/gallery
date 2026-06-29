@@ -257,8 +257,8 @@ test.describe("Catalog Status panel", () => {
     await expect(popover).toContainText("Location");
     await expect(popover).toContainText(rootPath);
     await expect(popover).toContainText("Including subfolders");
-    await expect(popover).toContainText("Yes");
-    await expect(popover.getByRole("button", { name: "Update current folder" })).toBeVisible();
+    await expect(popover).toContainText("All paths");
+    await expect(popover.getByRole("button", { name: "Update library" })).toBeVisible();
     await expect(popover.getByRole("button", { name: "Scan" })).toHaveCount(0);
     await expect(popover.getByRole("button", { name: "Rebuild" })).toHaveCount(0);
   });
@@ -288,7 +288,7 @@ test.describe("Catalog Status panel", () => {
     await expect(popover).toContainText(/Failed to load status|Status failed|Something went wrong/);
   });
 
-  test("Update current folder calls the library scan endpoint", async ({ page }) => {
+  test("Update library calls the library scan endpoint", async ({ page }) => {
     await installStubbedGallery(page);
     await openStubbedGallery(page, true);
 
@@ -296,10 +296,10 @@ test.describe("Catalog Status panel", () => {
     const scanPromise = page.waitForRequest((req) => new URL(req.url()).pathname === "/api/libraries/1/scan", {
       timeout: 5_000,
     });
-    await popover.getByRole("button", { name: "Update current folder" }).click();
+    await popover.getByRole("button", { name: "Update library" }).click();
     const scanReq = await scanPromise;
     expect(scanReq.method()).toBe("POST");
-    expect(scanReq.postDataJSON()).toMatchObject({ scope_path: rootPath });
+    expect(scanReq.postData()).toBeNull();
   });
 
   test("collapsed desktop sidebar shows compact status button with dot", async ({ page }) => {

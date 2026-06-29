@@ -177,7 +177,7 @@ function created(library: RegisteredLibrary) {
               <TableRow v-for="library in libraries" :key="library.id">
                 <TableCell>
                   <button
-                    class="text-left font-medium hover:underline"
+                    class="cursor-pointer text-left font-medium hover:underline"
                     @click="router.push(`/admin/libraries/${library.id}`)"
                   >
                     {{ library.name }}
@@ -229,7 +229,7 @@ function created(library: RegisteredLibrary) {
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
                 <button
-                  class="truncate text-left font-semibold hover:underline"
+                  class="cursor-pointer truncate text-left font-semibold hover:underline"
                   @click="router.push(`/admin/libraries/${library.id}`)"
                 >
                   {{ library.name }}

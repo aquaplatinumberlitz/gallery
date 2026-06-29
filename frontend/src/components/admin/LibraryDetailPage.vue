@@ -21,6 +21,7 @@ import { formatAssetCount, formatLibraryTimestamp } from "@/utils/libraryStatus"
 import { formatBytes, formatPercent } from "@/utils/format";
 import { getCatalogStatusPresentation } from "@/lib/catalog/labels";
 import { STATUS_CONTRACT_ERROR_MESSAGE } from "@/lib/catalog/contractGuard";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { MetadataState, ScanState, UnifiedStatus } from "@/lib/catalog/status";
 import LibraryProgressBar from "./LibraryProgressBar.vue";
 import LibraryStatusBadge from "./LibraryStatusBadge.vue";
@@ -207,9 +208,22 @@ function estimatedAssets(): number | undefined {
           <section class="rounded-md border bg-background p-5">
             <div class="flex items-center justify-between gap-3">
               <h3 class="font-semibold">Status and progress</h3>
-              <Button variant="ghost" size="icon" aria-label="Refresh status" @click="statusQuery.refetch()">
-                <RefreshCw />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Refresh status"
+                    :disabled="statusQuery.isFetching.value"
+                    @click="statusQuery.refetch()"
+                  >
+                    <RefreshCw :class="statusQuery.isFetching.value ? 'animate-spin' : ''" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" align="end" class="max-w-[220px]">
+                  Reload this library's availability, update progress, and metadata state.
+                </TooltipContent>
+              </Tooltip>
             </div>
             <div class="mt-5 space-y-4">
               <dl class="grid gap-3 text-sm">
@@ -295,14 +309,22 @@ function estimatedAssets(): number | undefined {
           <section class="rounded-md border bg-background p-5">
             <div class="flex items-center justify-between">
               <h3 class="font-semibold">Generated images</h3>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Refresh generated images"
-                @click="generatedImagesQuery.refetch()"
-              >
-                <RefreshCw />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Refresh generated images"
+                    :disabled="generatedImagesQuery.isFetching.value"
+                    @click="generatedImagesQuery.refetch()"
+                  >
+                    <RefreshCw :class="generatedImagesQuery.isFetching.value ? 'animate-spin' : ''" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" align="end" class="max-w-[220px]">
+                  Reload ready, expected, progress, and cache usage counts for generated thumbnails.
+                </TooltipContent>
+              </Tooltip>
             </div>
             <div v-if="generatedImagesQuery.data.value" class="mt-4 space-y-4">
               <dl class="grid gap-3 text-sm">
@@ -396,9 +418,22 @@ function estimatedAssets(): number | undefined {
         <section class="rounded-md border bg-background p-5">
           <div class="flex items-center justify-between">
             <h3 class="font-semibold">Recent job history</h3>
-            <Button variant="ghost" size="icon" aria-label="Refresh jobs" @click="jobsQuery.refetch()">
-              <RefreshCw />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Refresh recent jobs"
+                  :disabled="jobsQuery.isFetching.value"
+                  @click="jobsQuery.refetch()"
+                >
+                  <RefreshCw :class="jobsQuery.isFetching.value ? 'animate-spin' : ''" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top" align="end" class="max-w-[220px]">
+                Reload this library's recent scan, metadata, and generated-image jobs.
+              </TooltipContent>
+            </Tooltip>
           </div>
           <div v-if="jobsQuery.data.value?.length" class="mt-4 divide-y">
             <div

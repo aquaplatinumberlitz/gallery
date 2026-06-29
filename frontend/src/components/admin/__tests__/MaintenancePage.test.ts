@@ -36,12 +36,27 @@ vi.mock("@tanstack/vue-query", async () => {
     ...actual,
     useQuery: vi.fn((opts: { queryKey: string[] }) => {
       if (opts.queryKey[0] === "jobs") {
-        return { data: { value: mockJobsData }, isPending: { value: false }, refetch: vi.fn() };
+        return {
+          data: { value: mockJobsData },
+          isPending: { value: false },
+          isFetching: { value: false },
+          refetch: vi.fn(),
+        };
       }
       if (opts.queryKey[0] === "generated-images") {
-        return { data: { value: mockGlobalSummaryData }, isPending: { value: false }, refetch: vi.fn() };
+        return {
+          data: { value: mockGlobalSummaryData },
+          isPending: { value: false },
+          isFetching: { value: false },
+          refetch: vi.fn(),
+        };
       }
-      return { data: { value: null }, isPending: { value: false }, refetch: vi.fn() };
+      return {
+        data: { value: null },
+        isPending: { value: false },
+        isFetching: { value: false },
+        refetch: vi.fn(),
+      };
     }),
   };
 });
@@ -185,7 +200,7 @@ describe("MaintenancePage", () => {
       "About Jobs without catalog item",
     ]);
     expect(thumbnailsSection?.findAll("button").map((button) => button.attributes("aria-label"))).toEqual([
-      "Refresh summary",
+      "Refresh thumbnails summary",
       "About Expected files",
     ]);
     expect(thumbnailsSection?.text()).not.toContain("Rebuild");
