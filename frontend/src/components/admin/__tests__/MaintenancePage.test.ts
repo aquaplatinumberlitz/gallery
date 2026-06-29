@@ -97,7 +97,7 @@ describe("MaintenancePage", () => {
     mockGlobalSummaryData = null;
   });
 
-  it("renders Catalogs diagnostics", () => {
+  it("renders File catalog diagnostics", () => {
     mockRuntimeData = {
       global_runtime: {
         catalog_worker_count: 1,
@@ -115,7 +115,8 @@ describe("MaintenancePage", () => {
       metadata_lifecycle: null,
     };
     const wrapper = mountSubject();
-    expect(wrapper.text()).toContain("Catalogs");
+    expect(wrapper.text()).toContain("File catalog");
+    expect(wrapper.text()).toContain("Tracks which source files exist in registered libraries.");
   });
 
   it("shows only Rebuild and Clear imported-data action buttons", () => {
@@ -129,7 +130,19 @@ describe("MaintenancePage", () => {
     expect(wrapper.text()).not.toContain("Clear thumbnails");
   });
 
-  it("keeps catalog, metadata, and thumbnail diagnostics read-only", () => {
+  it("explains the imported data flow", () => {
+    const wrapper = mountSubject();
+
+    expect(wrapper.text()).toContain("Imported data flow");
+    expect(wrapper.text()).toContain(
+      "Files are discovered first, then details are extracted, then previews are cached.",
+    );
+    expect(wrapper.text()).toContain("File catalog");
+    expect(wrapper.text()).toContain("Metadata extraction");
+    expect(wrapper.text()).toContain("Preview cache");
+  });
+
+  it("keeps catalog, metadata, and preview diagnostics read-only", () => {
     mockRuntimeData = {
       global_runtime: {
         catalog_worker_count: 1,
@@ -157,20 +170,23 @@ describe("MaintenancePage", () => {
     mockGlobalSummaryData = [{ ready_derivatives: 2, expected_derivatives: 2 }];
     const wrapper = mountSubject();
 
-    const catalogSection = wrapper.findAll("section").find((section) => section.text().includes("Catalogs"));
-    const metadataSection = wrapper.findAll("section").find((section) => section.text().includes("Metadata jobs"));
-    const thumbnailsSection = wrapper
-      .findAll("section")
-      .find((section) => section.text().includes("Thumbnails & previews"));
+    const catalogSection = wrapper.findAll("section").find((section) => section.text().includes("Catalog workers"));
+    const metadataSection = wrapper.findAll("section").find((section) => section.text().includes("Metadata workers"));
+    const thumbnailsSection = wrapper.findAll("section").find((section) => section.text().includes("Ready files"));
 
-    expect(catalogSection?.findAll("button")).toHaveLength(0);
+    expect(catalogSection?.findAll("button").map((button) => button.attributes("aria-label"))).toEqual([
+      "About Catalog queue depth",
+    ]);
     expect(metadataSection?.findAll("button").map((button) => button.attributes("aria-label"))).toEqual([
+      "About Metadata queue depth",
+      "About Metadata staged queue depth",
       "About Failed jobs",
       "About Old or missing metadata",
       "About Jobs without catalog item",
     ]);
     expect(thumbnailsSection?.findAll("button").map((button) => button.attributes("aria-label"))).toEqual([
       "Refresh summary",
+      "About Expected files",
     ]);
     expect(thumbnailsSection?.text()).not.toContain("Rebuild");
     expect(thumbnailsSection?.text()).not.toContain("Clear");
@@ -276,7 +292,7 @@ describe("MaintenancePage", () => {
     expect(wrapper.text()).toContain("7");
   });
 
-  it("renders Metadata jobs", () => {
+  it("renders Metadata extraction", () => {
     mockRuntimeData = {
       global_runtime: {
         catalog_worker_count: 1,
@@ -310,7 +326,12 @@ describe("MaintenancePage", () => {
       },
     };
     const wrapper = mountSubject();
-    expect(wrapper.text()).toContain("Metadata jobs");
+    expect(wrapper.text()).toContain("Metadata extraction");
+    expect(wrapper.text()).toContain("Reads file details after files are cataloged.");
+    expect(wrapper.text()).toContain("Metadata workers");
+    expect(wrapper.text()).toContain("Metadata active jobs");
+    expect(wrapper.text()).toContain("Metadata queue depth");
+    expect(wrapper.text()).toContain("Metadata staged queue depth");
     expect(wrapper.text()).toContain("Queued");
     expect(wrapper.text()).toContain("2");
     expect(wrapper.text()).toContain("Running");

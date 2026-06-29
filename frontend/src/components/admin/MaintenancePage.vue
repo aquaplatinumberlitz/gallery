@@ -130,6 +130,24 @@ const needsRefreshCount = computed(() => {
         </div>
       </header>
 
+      <section class="rounded-md border bg-background p-4">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 class="text-sm font-semibold">Imported data flow</h3>
+            <p class="mt-1 text-sm text-muted-foreground">
+              Files are discovered first, then details are extracted, then previews are cached.
+            </p>
+          </div>
+          <ol class="flex flex-wrap items-center gap-2 text-sm" aria-label="Imported data flow">
+            <li class="font-medium">File catalog</li>
+            <li class="text-muted-foreground" aria-hidden="true">-&gt;</li>
+            <li class="font-medium">Metadata extraction</li>
+            <li class="text-muted-foreground" aria-hidden="true">-&gt;</li>
+            <li class="font-medium">Preview cache</li>
+          </ol>
+        </div>
+      </section>
+
       <div class="grid gap-4 md:grid-cols-2">
         <section class="rounded-md border bg-background p-5">
           <div class="flex items-center gap-3">
@@ -193,7 +211,12 @@ const needsRefreshCount = computed(() => {
 
       <section class="rounded-md border bg-background p-5">
         <div class="flex items-center justify-between">
-          <h3 class="font-semibold">Thumbnails &amp; previews</h3>
+          <div>
+            <h3 class="font-semibold">Preview cache</h3>
+            <p class="mt-1 text-sm text-muted-foreground">
+              Generated thumbnails and previews used for faster browsing.
+            </p>
+          </div>
           <Button variant="ghost" size="icon" aria-label="Refresh summary" @click="globalSummaryQuery.refetch()">
             <RefreshCw />
           </Button>
@@ -205,7 +228,24 @@ const needsRefreshCount = computed(() => {
               <dd class="font-medium">{{ totalReady ?? "\u2014" }}</dd>
             </div>
             <div class="flex items-center justify-between gap-3">
-              <dt class="text-muted-foreground">Expected files</dt>
+              <dt class="flex items-center gap-1 text-muted-foreground">
+                Expected files
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="size-4 text-muted-foreground hover:text-foreground -my-1"
+                      aria-label="About Expected files"
+                    >
+                      <Info class="size-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" align="start" class="max-w-[220px]">
+                    Total derivative files expected from cataloged image assets and configured preview variants.
+                  </TooltipContent>
+                </Tooltip>
+              </dt>
               <dd class="font-medium">{{ totalExpected ?? "\u2014" }}</dd>
             </div>
           </dl>
@@ -218,7 +258,10 @@ const needsRefreshCount = computed(() => {
         <section class="rounded-md border bg-background p-5">
           <div class="flex items-center gap-3">
             <Activity class="size-5 text-muted-foreground" />
-            <h3 class="font-semibold">Catalogs</h3>
+            <div>
+              <h3 class="font-semibold">File catalog</h3>
+              <p class="mt-1 text-sm text-muted-foreground">Tracks which source files exist in registered libraries.</p>
+            </div>
           </div>
           <div v-if="runtimeQuery.data.value" class="mt-4">
             <dl class="grid gap-3 text-sm">
@@ -264,10 +307,42 @@ const needsRefreshCount = computed(() => {
                 <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.catalog_active_jobs }}</dd>
               </div>
               <div class="flex items-center justify-between gap-3">
-                <dt class="text-muted-foreground">Catalog queue depth</dt>
+                <dt class="flex items-center gap-1 text-muted-foreground">
+                  Catalog queue depth
+                  <Tooltip>
+                    <TooltipTrigger as-child>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        class="size-4 text-muted-foreground hover:text-foreground -my-1"
+                        aria-label="About Catalog queue depth"
+                      >
+                        <Info class="size-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" align="start">
+                      Catalog scan or rebuild jobs waiting to run.
+                    </TooltipContent>
+                  </Tooltip>
+                </dt>
                 <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.catalog_queue_depth }}</dd>
               </div>
-              <Separator />
+            </dl>
+          </div>
+          <Skeleton v-else-if="runtimeQuery.isPending.value" class="mt-4 h-32 w-full" />
+          <p v-else class="mt-4 text-sm text-muted-foreground">Runtime diagnostics unavailable.</p>
+        </section>
+
+        <section class="rounded-md border bg-background p-5">
+          <div class="flex items-center gap-3">
+            <AlertTriangle class="size-5 text-muted-foreground" />
+            <div>
+              <h3 class="font-semibold">Metadata extraction</h3>
+              <p class="mt-1 text-sm text-muted-foreground">Reads file details after files are cataloged.</p>
+            </div>
+          </div>
+          <div v-if="runtimeQuery.data.value" class="mt-4 space-y-3">
+            <dl class="grid gap-3 text-sm">
               <div class="flex items-center justify-between gap-3">
                 <dt class="text-muted-foreground">Metadata workers</dt>
                 <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.metadata_worker_count }}</dd>
@@ -277,33 +352,57 @@ const needsRefreshCount = computed(() => {
                 <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.metadata_active_jobs }}</dd>
               </div>
               <div class="flex items-center justify-between gap-3">
-                <dt class="text-muted-foreground">Metadata queue depth</dt>
+                <dt class="flex items-center gap-1 text-muted-foreground">
+                  Metadata queue depth
+                  <Tooltip>
+                    <TooltipTrigger as-child>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        class="size-4 text-muted-foreground hover:text-foreground -my-1"
+                        aria-label="About Metadata queue depth"
+                      >
+                        <Info class="size-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" align="start">Metadata extraction jobs waiting to run.</TooltipContent>
+                  </Tooltip>
+                </dt>
                 <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.metadata_queue_depth }}</dd>
               </div>
               <div class="flex items-center justify-between gap-3">
-                <dt class="text-muted-foreground">Metadata staged queue depth</dt>
+                <dt class="flex items-center gap-1 text-muted-foreground">
+                  Metadata staged queue depth
+                  <Tooltip>
+                    <TooltipTrigger as-child>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        class="size-4 text-muted-foreground hover:text-foreground -my-1"
+                        aria-label="About Metadata staged queue depth"
+                      >
+                        <Info class="size-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" align="start" class="max-w-[220px]">
+                      Metadata paths staged before they become durable extraction jobs.
+                    </TooltipContent>
+                  </Tooltip>
+                </dt>
                 <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.metadata_staged_queue_depth }}</dd>
               </div>
-            </dl>
-          </div>
-          <Skeleton v-else-if="runtimeQuery.isPending.value" class="mt-4 h-48 w-full" />
-          <p v-else class="mt-4 text-sm text-muted-foreground">Runtime diagnostics unavailable.</p>
-        </section>
-
-        <section class="rounded-md border bg-background p-5">
-          <div class="flex items-center gap-3">
-            <AlertTriangle class="size-5 text-muted-foreground" />
-            <h3 class="font-semibold">Metadata jobs</h3>
-          </div>
-          <div v-if="runtimeQuery.data.value?.metadata_lifecycle" class="mt-4 space-y-3">
-            <dl class="grid gap-3 text-sm">
+              <Separator v-if="runtimeQuery.data.value.metadata_lifecycle" />
               <div class="flex items-center justify-between gap-3">
                 <dt class="text-muted-foreground">Queued</dt>
-                <dd class="font-medium">{{ runtimeQuery.data.value.metadata_lifecycle.queued_metadata_jobs }}</dd>
+                <dd class="font-medium">
+                  {{ runtimeQuery.data.value.metadata_lifecycle?.queued_metadata_jobs ?? "\u2014" }}
+                </dd>
               </div>
               <div class="flex items-center justify-between gap-3">
                 <dt class="text-muted-foreground">Running</dt>
-                <dd class="font-medium">{{ runtimeQuery.data.value.metadata_lifecycle.running_metadata_jobs }}</dd>
+                <dd class="font-medium">
+                  {{ runtimeQuery.data.value.metadata_lifecycle?.running_metadata_jobs ?? "\u2014" }}
+                </dd>
               </div>
               <div class="flex items-center justify-between gap-3">
                 <dt class="flex items-center gap-1 text-muted-foreground">
@@ -319,14 +418,20 @@ const needsRefreshCount = computed(() => {
                         <Info class="size-3.5" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="top" align="start">Metadata jobs that already failed.</TooltipContent>
+                    <TooltipContent side="top" align="start">
+                      Metadata extraction jobs that already failed.
+                    </TooltipContent>
                   </Tooltip>
                 </dt>
                 <dd
                   class="font-medium"
-                  :class="runtimeQuery.data.value.metadata_lifecycle.failed_metadata_jobs > 0 ? 'text-destructive' : ''"
+                  :class="
+                    (runtimeQuery.data.value.metadata_lifecycle?.failed_metadata_jobs ?? 0) > 0
+                      ? 'text-destructive'
+                      : ''
+                  "
                 >
-                  {{ runtimeQuery.data.value.metadata_lifecycle.failed_metadata_jobs }}
+                  {{ runtimeQuery.data.value.metadata_lifecycle?.failed_metadata_jobs ?? "\u2014" }}
                 </dd>
               </div>
               <div class="flex items-center justify-between gap-3">
@@ -349,7 +454,7 @@ const needsRefreshCount = computed(() => {
                   </Tooltip>
                 </dt>
                 <dd class="font-medium" :class="needsRefreshCount > 0 ? 'text-amber-600' : ''">
-                  {{ needsRefreshCount }}
+                  {{ runtimeQuery.data.value.metadata_lifecycle ? needsRefreshCount : "\u2014" }}
                 </dd>
               </div>
               <div class="flex items-center justify-between gap-3">
@@ -357,10 +462,12 @@ const needsRefreshCount = computed(() => {
                 <dd
                   class="font-medium"
                   :class="
-                    runtimeQuery.data.value.metadata_lifecycle.repairable_metadata_assets > 0 ? 'text-amber-600' : ''
+                    (runtimeQuery.data.value.metadata_lifecycle?.repairable_metadata_assets ?? 0) > 0
+                      ? 'text-amber-600'
+                      : ''
                   "
                 >
-                  {{ runtimeQuery.data.value.metadata_lifecycle.repairable_metadata_assets }}
+                  {{ runtimeQuery.data.value.metadata_lifecycle?.repairable_metadata_assets ?? "\u2014" }}
                 </dd>
               </div>
               <div class="flex items-center justify-between gap-3">
@@ -383,13 +490,13 @@ const needsRefreshCount = computed(() => {
                   </Tooltip>
                 </dt>
                 <dd class="font-medium">
-                  {{ runtimeQuery.data.value.metadata_lifecycle.metadata_jobs_without_matching_assets }}
+                  {{ runtimeQuery.data.value.metadata_lifecycle?.metadata_jobs_without_matching_assets ?? "\u2014" }}
                 </dd>
               </div>
             </dl>
           </div>
           <Skeleton v-else-if="runtimeQuery.isPending.value" class="mt-4 h-40 w-full" />
-          <p v-else class="mt-4 text-sm text-muted-foreground">Metadata jobs diagnostics unavailable.</p>
+          <p v-else class="mt-4 text-sm text-muted-foreground">Metadata extraction diagnostics unavailable.</p>
         </section>
       </div>
 
