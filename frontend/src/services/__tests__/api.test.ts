@@ -78,6 +78,7 @@ describe("GalleryAPIError", () => {
     ["permission", "permission"],
     ["invalid_file", "invalid_file"],
     ["confirmation_required", "confirmation_required"],
+    ["maintenance_busy", "maintenance_busy"],
   ])("maps %s error", (errorCode, expectedType) => {
     const err = { response: { data: { detail: { error: errorCode, message: "msg" } } } } as unknown as AxiosError;
     expect(GalleryAPIError.fromAxiosError(err).type).toBe(expectedType);
@@ -100,6 +101,19 @@ describe("GalleryAPIError", () => {
   it("handles data without detail wrapper", () => {
     const err = { response: { data: { error: "not_found", message: "gone" } } } as unknown as AxiosError;
     expect(GalleryAPIError.fromAxiosError(err).type).toBe("not_found");
+  });
+
+  it("maps maintenance_busy to an actionable message", () => {
+    const err = {
+      response: {
+        data: { detail: { error: "maintenance_busy", message: "Maintenance cannot run while jobs are active" } },
+      },
+    } as unknown as AxiosError;
+    const apiError = GalleryAPIError.fromAxiosError(err);
+    expect(apiError.type).toBe("maintenance_busy");
+    expect(apiError.userMessage).toBe("Maintenance is busy");
+    expect(apiError.suggestion).toBe("Maintenance cannot run while jobs are active");
+    expect(apiError.canRetry).toBe(false);
   });
 
   it("returns timeout for ECONNABORTED", () => {
@@ -534,6 +548,8 @@ describe("fetchMaintenanceRuntime", () => {
           metadata_active_jobs: 0,
           metadata_queue_depth: 0,
           metadata_staged_queue_depth: 0,
+          derivative_active_jobs: 0,
+          derivative_queue_depth: 0,
           watcher_enabled: true,
           watcher_healthy: true,
           watcher_issue: null,

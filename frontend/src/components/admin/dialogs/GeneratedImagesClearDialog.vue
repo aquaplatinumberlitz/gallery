@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-defineProps<{ open: boolean; pending: boolean; scopeLabel?: string }>();
+defineProps<{ open: boolean; pending: boolean; blocked?: boolean; blockMessage?: string; scopeLabel?: string }>();
 const emit = defineEmits<{ "update:open": [value: boolean]; confirm: [] }>();
 </script>
 
@@ -23,9 +23,12 @@ const emit = defineEmits<{ "update:open": [value: boolean]; confirm: [] }>();
           import paths, exclusion patterns, and source image files are not deleted.
         </DialogDescription>
       </DialogHeader>
+      <p v-if="blockMessage" class="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+        {{ blockMessage }}
+      </p>
       <DialogFooter>
         <Button variant="outline" :disabled="pending" @click="emit('update:open', false)">Cancel</Button>
-        <Button variant="destructive" :disabled="pending" @click="emit('confirm')">
+        <Button variant="destructive" :disabled="pending || blocked" @click="emit('confirm')">
           {{ pending ? "Clearing\u2026" : "Clear" }}
         </Button>
       </DialogFooter>

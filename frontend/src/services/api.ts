@@ -85,6 +85,7 @@ export type ErrorType =
   | "timeout"
   | "server_error"
   | "confirmation_required"
+  | "maintenance_busy"
   | "network"
   | LibraryErrorType;
 
@@ -198,6 +199,14 @@ export class GalleryAPIError extends Error {
           "confirmation_required",
           "Confirmation required",
           "This action requires explicit confirmation.",
+          false,
+        );
+
+      case "maintenance_busy":
+        return new GalleryAPIError(
+          "maintenance_busy",
+          "Maintenance is busy",
+          parsed?.message || "Wait for catalog, metadata, or preview jobs to finish, then try again.",
           false,
         );
 

@@ -145,6 +145,8 @@ class GlobalRuntime(TypedDict):
     metadata_active_jobs: int
     metadata_queue_depth: int
     metadata_staged_queue_depth: int
+    derivative_active_jobs: int
+    derivative_queue_depth: int
     watcher_enabled: bool
     watcher_healthy: bool
     watcher_issue: str | None
@@ -821,6 +823,22 @@ def build_global_runtime() -> GlobalRuntime:
                 """
             ).fetchone()[0]
         )
+        derivative_running = int(
+            conn.execute(
+                """
+                SELECT count(*) FROM derivative_jobs
+                WHERE state = 'running'
+                """
+            ).fetchone()[0]
+        )
+        derivative_queued = int(
+            conn.execute(
+                """
+                SELECT count(*) FROM derivative_jobs
+                WHERE state = 'queued'
+                """
+            ).fetchone()[0]
+        )
 
     from ..indexer import get_indexer_runtime_status
     from ..refresh import get_refresh_status
@@ -850,6 +868,8 @@ def build_global_runtime() -> GlobalRuntime:
         "metadata_active_jobs": int(metadata_runtime["active_jobs"]),
         "metadata_queue_depth": int(metadata_runtime["runtime_queue_depth"]),
         "metadata_staged_queue_depth": int(metadata_runtime["staged_path_queue_depth"]),
+        "derivative_active_jobs": derivative_running,
+        "derivative_queue_depth": derivative_queued,
         "watcher_enabled": watcher_enabled,
         "watcher_healthy": watcher_healthy,
         "watcher_issue": watcher_issue,

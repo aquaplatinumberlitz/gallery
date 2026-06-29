@@ -90,6 +90,8 @@ export interface GlobalRuntime {
   metadata_active_jobs: number;
   metadata_queue_depth: number;
   metadata_staged_queue_depth: number;
+  derivative_active_jobs: number;
+  derivative_queue_depth: number;
   watcher_enabled: boolean;
   watcher_healthy: boolean;
   watcher_issue: string | null;
