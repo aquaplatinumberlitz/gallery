@@ -12,7 +12,7 @@ const props = defineProps<{
   status: UnifiedStatus | null;
   presentation: CatalogStatusPresentation;
   path?: string;
-  isVirtualRoot?: boolean;
+  isLibraryScope?: boolean;
   scopeLabel?: string;
   isLoading?: boolean;
   isError?: boolean;
@@ -94,7 +94,7 @@ const bodyText = computed(() => {
         :status="status"
         :presentation="presentation"
         :path="path"
-        :is-virtual-root="isVirtualRoot"
+        :is-library-scope="isLibraryScope"
         :scope-label="scopeLabel"
         :is-loading="isLoading"
         :is-error="isError"

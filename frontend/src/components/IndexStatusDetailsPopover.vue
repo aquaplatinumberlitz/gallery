@@ -13,7 +13,7 @@ const props = defineProps<{
   status: UnifiedStatus | null;
   presentation: CatalogStatusPresentation;
   path?: string;
-  isVirtualRoot?: boolean;
+  isLibraryScope?: boolean;
   scopeLabel?: string;
   isLoading?: boolean;
   isError?: boolean;
@@ -28,7 +28,7 @@ const emit = defineEmits<{
   (e: "scan"): void;
 }>();
 
-const updateLabel = computed(() => (props.isVirtualRoot ? "Update library" : "Update current folder"));
+const updateLabel = computed(() => (props.isLibraryScope ? "Update library" : "Update current folder"));
 
 const photosFound = computed(() => props.status?.metadata.total_assets ?? 0);
 const photoDetailsReady = computed(() => props.status?.metadata.ready_assets ?? 0);
@@ -111,7 +111,7 @@ function formatCount(value: number) {
 
         <div class="index-details__row">
           <span class="index-details__row-key">Including subfolders</span>
-          <strong>{{ isVirtualRoot ? "All paths" : "Yes" }}</strong>
+          <strong>{{ isLibraryScope ? "All paths" : "Yes" }}</strong>
         </div>
       </div>
 
@@ -156,7 +156,7 @@ function formatCount(value: number) {
             <Button
               variant="outline"
               size="sm"
-              :disabled="(!path && !isVirtualRoot) || !!actionPending"
+              :disabled="(!path && !isLibraryScope) || !!actionPending"
               @click="emit('scan')"
             >
               {{ actionPending === "scan" ? "Updating..." : updateLabel }}

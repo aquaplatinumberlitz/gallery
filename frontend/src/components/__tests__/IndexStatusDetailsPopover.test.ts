@@ -131,7 +131,7 @@ describe("IndexStatusDetailsPopover edge states", () => {
   });
 
   it("uses Update vocabulary and does not show a rebuild action", () => {
-    const { getByRole, queryByRole } = renderPopover(makeStatus(), { isVirtualRoot: true });
+    const { getByRole, queryByRole } = renderPopover(makeStatus(), { isLibraryScope: true });
 
     expect(getByRole("button", { name: "Update library" })).toBeVisible();
     expect(queryByRole("button", { name: "Scan" })).toBeNull();

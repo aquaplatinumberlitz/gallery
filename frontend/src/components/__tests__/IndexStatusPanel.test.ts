@@ -6,6 +6,15 @@ import { VueQueryPlugin } from "@tanstack/vue-query";
 import type { StatusResponseEnvelope } from "@/lib/catalog/status";
 import { ref } from "vue";
 
+const testState = vi.hoisted(() => ({
+  activeLibrary: {
+    id: 1,
+    name: "Test",
+    import_paths: [{ id: 1, library_id: 1, path: "/photos", position: 0 }],
+  },
+  catalogStatusCalls: [] as Array<{ scopePath: { value: string | null } }>,
+}));
+
 const mockStatus = {
   contract_version: 1 as const,
   generated_at: Date.now(),
@@ -52,6 +61,8 @@ const mockDataValue = ref<StatusResponseEnvelope | null>({
     metadata_active_jobs: 0,
     metadata_queue_depth: 0,
     metadata_staged_queue_depth: 0,
+    derivative_active_jobs: 0,
+    derivative_queue_depth: 0,
     watcher_enabled: true,
     watcher_healthy: true,
     watcher_issue: null,
@@ -66,19 +77,26 @@ const mockContractErrorValue = ref<Error | null>(null);
 const mockRefetch = vi.fn();
 
 vi.mock("@/composables/useCatalogStatusQuery", () => ({
-  useCatalogStatusQuery: () => ({
-    data: mockDataValue,
-    isLoading: mockIsLoadingValue,
-    isError: mockIsErrorValue,
-    error: mockErrorValue,
-    refetch: mockRefetch,
-    contractError: mockContractErrorValue,
+  useCatalogStatusQuery: vi.fn((_libraryId, scopePath: { value: string | null }) => {
+    testState.catalogStatusCalls.push({ scopePath });
+    return {
+      data: mockDataValue,
+      isLoading: mockIsLoadingValue,
+      isError: mockIsErrorValue,
+      error: mockErrorValue,
+      refetch: mockRefetch,
+      contractError: mockContractErrorValue,
+    };
   }),
 }));
 
 vi.mock("@/composables/useActiveLibrarySelection", () => ({
   useActiveLibrarySelection: () => ({
-    activeLibrary: { value: { id: 1, name: "Test" } },
+    activeLibrary: {
+      get value() {
+        return testState.activeLibrary;
+      },
+    },
   }),
 }));
 
@@ -91,6 +109,10 @@ vi.mock("@/query", () => ({
 }));
 
 vi.mock("@/query/keys", () => ({
+  normalizeQueryPath: (path: string | null | undefined) => {
+    const normalized = (path ?? "").trim().replace(/\\/g, "/").replace(/\/+/g, "/");
+    return normalized === "/" ? normalized : normalized.replace(/\/$/, "");
+  },
   queryKeys: {
     statusLibrary: vi.fn(() => ["status", "library", 1]),
     statusPathRoot: vi.fn(() => ["status", "path", 1]),
@@ -106,6 +128,12 @@ describe("IndexStatusPanel", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
+    testState.activeLibrary = {
+      id: 1,
+      name: "Test",
+      import_paths: [{ id: 1, library_id: 1, path: "/photos", position: 0 }],
+    };
+    testState.catalogStatusCalls = [];
     mockDataValue.value = {
       status: mockStatus as StatusResponseEnvelope["status"],
       contract_version: 1 as const,
@@ -117,6 +145,8 @@ describe("IndexStatusPanel", () => {
         metadata_active_jobs: 0,
         metadata_queue_depth: 0,
         metadata_staged_queue_depth: 0,
+        derivative_active_jobs: 0,
+        derivative_queue_depth: 0,
         watcher_enabled: true,
         watcher_healthy: true,
         watcher_issue: null,
@@ -238,5 +268,133 @@ describe("IndexStatusPanel", () => {
     await updateButton!.trigger("click");
 
     expect(scanLibrary).toHaveBeenCalledWith(1, undefined);
+  });
+
+  it("treats a single import-path root as library scope", async () => {
+    const IndexStatusPanel = (await import("../IndexStatusPanel.vue")).default;
+    const { scanLibrary } = await import("@/services/api");
+    vi.mocked(scanLibrary).mockResolvedValue({
+      library_id: 1,
+      job_id: 10,
+      scope_path: null,
+      operation: "scan",
+      trigger: "manual",
+      state: "queued",
+      coalesced: false,
+    });
+    const queryClient = createIsolatedQueryClient();
+    const wrapper = mount(IndexStatusPanel, {
+      props: { path: "/photos" },
+      global: {
+        plugins: [[VueQueryPlugin, { queryClient }]],
+        stubs: {
+          Button: { template: "<button v-bind='$attrs'><slot /></button>" },
+          Badge: { template: "<span><slot /></span>" },
+          Popover: { template: "<div><slot /></div>" },
+          PopoverTrigger: { template: "<div><slot /></div>" },
+          PopoverContent: { template: "<div class='popover-content'><slot /></div>" },
+          IndexStatusBadge: { template: "<span><slot /></span>" },
+          IndexStatusCard: { template: "<div class='status-card'><slot /></div>" },
+          Database: { template: "<span>db</span>" },
+          ChevronRight: { template: "<span />" },
+          ChevronDown: { template: "<span />" },
+        },
+      },
+    });
+
+    expect(testState.catalogStatusCalls.at(-1)?.scopePath.value).toBeNull();
+    const updateButton = wrapper.findAll("button").find((button) => button.text() === "Update library");
+    expect(updateButton).toBeDefined();
+    await updateButton!.trigger("click");
+
+    expect(scanLibrary).toHaveBeenCalledWith(1, undefined);
+  });
+
+  it("keeps nested folders scoped to the current folder", async () => {
+    const IndexStatusPanel = (await import("../IndexStatusPanel.vue")).default;
+    const { scanLibrary } = await import("@/services/api");
+    vi.mocked(scanLibrary).mockResolvedValue({
+      library_id: 1,
+      job_id: 10,
+      scope_path: "/photos/trip",
+      operation: "scan",
+      trigger: "manual",
+      state: "queued",
+      coalesced: false,
+    });
+    const queryClient = createIsolatedQueryClient();
+    const wrapper = mount(IndexStatusPanel, {
+      props: { path: "/photos/trip" },
+      global: {
+        plugins: [[VueQueryPlugin, { queryClient }]],
+        stubs: {
+          Button: { template: "<button v-bind='$attrs'><slot /></button>" },
+          Badge: { template: "<span><slot /></span>" },
+          Popover: { template: "<div><slot /></div>" },
+          PopoverTrigger: { template: "<div><slot /></div>" },
+          PopoverContent: { template: "<div class='popover-content'><slot /></div>" },
+          IndexStatusBadge: { template: "<span><slot /></span>" },
+          IndexStatusCard: { template: "<div class='status-card'><slot /></div>" },
+          Database: { template: "<span>db</span>" },
+          ChevronRight: { template: "<span />" },
+          ChevronDown: { template: "<span />" },
+        },
+      },
+    });
+
+    expect(testState.catalogStatusCalls.at(-1)?.scopePath.value).toBe("/photos/trip");
+    const updateButton = wrapper.findAll("button").find((button) => button.text() === "Update current folder");
+    expect(updateButton).toBeDefined();
+    await updateButton!.trigger("click");
+
+    expect(scanLibrary).toHaveBeenCalledWith(1, "/photos/trip");
+  });
+
+  it("does not call one import path the whole library when multiple import paths exist", async () => {
+    testState.activeLibrary = {
+      id: 1,
+      name: "Test",
+      import_paths: [
+        { id: 1, library_id: 1, path: "/photos", position: 0 },
+        { id: 2, library_id: 1, path: "/camera", position: 1 },
+      ],
+    };
+    const IndexStatusPanel = (await import("../IndexStatusPanel.vue")).default;
+    const { scanLibrary } = await import("@/services/api");
+    vi.mocked(scanLibrary).mockResolvedValue({
+      library_id: 1,
+      job_id: 10,
+      scope_path: "/photos",
+      operation: "scan",
+      trigger: "manual",
+      state: "queued",
+      coalesced: false,
+    });
+    const queryClient = createIsolatedQueryClient();
+    const wrapper = mount(IndexStatusPanel, {
+      props: { path: "/photos" },
+      global: {
+        plugins: [[VueQueryPlugin, { queryClient }]],
+        stubs: {
+          Button: { template: "<button v-bind='$attrs'><slot /></button>" },
+          Badge: { template: "<span><slot /></span>" },
+          Popover: { template: "<div><slot /></div>" },
+          PopoverTrigger: { template: "<div><slot /></div>" },
+          PopoverContent: { template: "<div class='popover-content'><slot /></div>" },
+          IndexStatusBadge: { template: "<span><slot /></span>" },
+          IndexStatusCard: { template: "<div class='status-card'><slot /></div>" },
+          Database: { template: "<span>db</span>" },
+          ChevronRight: { template: "<span />" },
+          ChevronDown: { template: "<span />" },
+        },
+      },
+    });
+
+    expect(testState.catalogStatusCalls.at(-1)?.scopePath.value).toBe("/photos");
+    const updateButton = wrapper.findAll("button").find((button) => button.text() === "Update current folder");
+    expect(updateButton).toBeDefined();
+    await updateButton!.trigger("click");
+
+    expect(scanLibrary).toHaveBeenCalledWith(1, "/photos");
   });
 });

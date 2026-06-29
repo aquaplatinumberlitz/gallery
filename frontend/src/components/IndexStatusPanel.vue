@@ -10,7 +10,7 @@ import IndexStatusCard from "@/components/IndexStatusCard.vue";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { queryClient } from "@/query";
-import { queryKeys } from "@/query/keys";
+import { normalizeQueryPath, queryKeys } from "@/query/keys";
 import { scanLibrary } from "@/services/api";
 import { getCatalogStatusPresentation } from "@/lib/catalog/labels";
 import { STATUS_CONTRACT_ERROR_MESSAGE, isStatusContractError } from "@/lib/catalog/contractGuard";
@@ -31,17 +31,24 @@ const props = withDefaults(
 const { activeLibrary } = useActiveLibrarySelection();
 const libraryId = computed(() => activeLibrary.value?.id ?? null);
 const pathRef = computed(() => props.path || null);
+const normalizedPath = computed(() => normalizeQueryPath(pathRef.value));
+const importPaths = computed(() => activeLibrary.value?.import_paths ?? []);
+const isSingleImportPathRoot = computed(() => {
+  if (!normalizedPath.value || importPaths.value.length !== 1) return false;
+  return normalizeQueryPath(importPaths.value[0]?.path) === normalizedPath.value;
+});
+const isLibraryScope = computed(() => !normalizedPath.value || isSingleImportPathRoot.value);
+const statusScopePath = computed(() => (isLibraryScope.value ? null : pathRef.value));
 const queryEnabled = computed(() => Boolean(libraryId.value));
 
 const { data, isLoading, isError, error, refetch, contractError } = useCatalogStatusQuery(
   libraryId,
-  pathRef,
+  statusScopePath,
   queryEnabled,
 );
 
 const status = computed<UnifiedStatus | null>(() => data.value?.status ?? null);
 const presentation = computed(() => getCatalogStatusPresentation(status.value?.summary_state ?? null));
-const isVirtualRoot = computed(() => !pathRef.value);
 const globalWorkOutsideScope = computed(() => status.value?.metadata.global_active_outside_scope ?? false);
 const photosFound = computed(() => status.value?.metadata.total_assets ?? 0);
 const photoDetailsReady = computed(() => status.value?.metadata.ready_assets ?? 0);
@@ -62,7 +69,7 @@ const actionPending = ref<"scan" | null>(null);
 const actionError = ref("");
 
 const scopeLabel = computed(() =>
-  isVirtualRoot.value ? "Entire library · All import paths" : "Current folder · Including subfolders",
+  isLibraryScope.value ? "Entire library · All import paths" : "Current folder · Including subfolders",
 );
 
 const compactSummary = computed(() => {
@@ -90,7 +97,7 @@ const compactSummary = computed(() => {
   return `${photoDetailsReady.value.toLocaleString()} photo details ready`;
 });
 
-const updateLabel = computed(() => (isVirtualRoot.value ? "Update library" : "Update current folder"));
+const updateLabel = computed(() => (isLibraryScope.value ? "Update library" : "Update current folder"));
 
 function onOpenChange(open: boolean) {
   if (!open) {
@@ -117,7 +124,7 @@ async function triggerAction() {
   actionPending.value = "scan";
   actionError.value = "";
   try {
-    await scanLibrary(id, pathRef.value ?? undefined);
+    await scanLibrary(id, statusScopePath.value ?? undefined);
     await invalidateAfterAction(id);
   } catch (err) {
     if (isStatusContractError(err)) {
@@ -141,7 +148,7 @@ function formatCount(value: number) {
     :status="status"
     :presentation="presentation"
     :path="path"
-    :is-virtual-root="isVirtualRoot"
+    :is-library-scope="isLibraryScope"
     :scope-label="scopeLabel"
     :is-loading="isLoading"
     :is-error="isError"
@@ -281,7 +288,7 @@ function formatCount(value: number) {
             </div>
             <div class="flex items-center justify-between text-xs">
               <span class="text-muted-foreground">Including subfolders</span>
-              <span class="text-right font-medium">{{ isVirtualRoot ? "All paths" : "Yes" }}</span>
+              <span class="text-right font-medium">{{ isLibraryScope ? "All paths" : "Yes" }}</span>
             </div>
           </div>
 
