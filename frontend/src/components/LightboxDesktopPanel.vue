@@ -32,6 +32,8 @@ import {
   getExtraParamKeys,
   EMPTY_SECTION_TEXT,
 } from "../composables/useMetadataSections";
+import OverflowTooltip from "@/components/ui/OverflowTooltip.vue";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const props = defineProps<{
   meta: MetadataResponse | null;
@@ -104,23 +106,31 @@ const modelCount = computed(() => {
     <template v-else>
       <header class="meta-header">
         <div class="header-top">
-          <h3 id="lightbox-image-name" :title="props.imageName">
+          <OverflowTooltip as="h3" id="lightbox-image-name" :text="props.imageName" align="start">
             {{ props.imageName }}
-          </h3>
+          </OverflowTooltip>
           <div class="header-actions">
-            <button
-              v-if="props.canFullscreen"
-              class="close-btn-mini fullscreen-btn"
-              @click="emit('toggle-fullscreen')"
-              :title="props.isFullscreen ? 'Exit fullscreen' : 'Fullscreen'"
-              aria-label="Toggle fullscreen"
-            >
-              <Minimize v-if="props.isFullscreen" :stroke-width="1.5" class="icon-lg" />
-              <Maximize v-else :stroke-width="1.5" class="icon-lg" />
-            </button>
-            <button class="close-btn-mini" @click="emit('close')" title="Close (Escape)" aria-label="Close lightbox">
-              <X :stroke-width="1.5" class="icon-lg" />
-            </button>
+            <Tooltip v-if="props.canFullscreen">
+              <TooltipTrigger as-child>
+                <button
+                  class="close-btn-mini fullscreen-btn"
+                  :aria-label="props.isFullscreen ? 'Exit fullscreen' : 'Fullscreen'"
+                  @click="emit('toggle-fullscreen')"
+                >
+                  <Minimize v-if="props.isFullscreen" :stroke-width="1.5" class="icon-lg" />
+                  <Maximize v-else :stroke-width="1.5" class="icon-lg" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>{{ props.isFullscreen ? "Exit fullscreen" : "Fullscreen" }}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <button class="close-btn-mini" aria-label="Close lightbox" @click="emit('close')">
+                  <X :stroke-width="1.5" class="icon-lg" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Close</TooltipContent>
+            </Tooltip>
           </div>
         </div>
         <div class="header-meta">
@@ -213,14 +223,24 @@ const modelCount = computed(() => {
               <div class="param-pill" v-if="props.meta?.params?.Seed">
                 <span class="label">Seed</span>
                 <span class="value">{{ props.meta.params.Seed }}</span>
-                <button
-                  class="icon-btn"
-                  @click="props.copyText(String(props.meta.params.Seed), 'seed')"
-                  title="Copy Seed"
-                >
-                  <Check v-if="props.copyStatus['seed']" :stroke-width="1.5" class="icon-xs" style="color: #4ade80" />
-                  <Sprout v-else :stroke-width="1.5" class="icon-xs" />
-                </button>
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <button
+                      class="icon-btn"
+                      aria-label="Copy seed"
+                      @click="props.copyText(String(props.meta.params.Seed), 'seed')"
+                    >
+                      <Check
+                        v-if="props.copyStatus['seed']"
+                        :stroke-width="1.5"
+                        class="icon-xs"
+                        style="color: #4ade80"
+                      />
+                      <Sprout v-else :stroke-width="1.5" class="icon-xs" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>Copy seed</TooltipContent>
+                </Tooltip>
               </div>
               <div class="param-pill" v-if="props.meta?.params?.Steps">
                 <span class="label">Steps</span>
@@ -308,7 +328,12 @@ const modelCount = computed(() => {
                   <span class="res-type">{{ m.param || "Model" }}</span>
                   <span class="res-name">
                     {{ m.name }}
-                    <span v-if="m.hash" class="res-hash" :title="'Hash: ' + m.hash">#{{ m.hash.substring(0, 8) }}</span>
+                    <Tooltip v-if="m.hash">
+                      <TooltipTrigger as-child>
+                        <span class="res-hash">#{{ m.hash.substring(0, 8) }}</span>
+                      </TooltipTrigger>
+                      <TooltipContent class="max-w-[260px] break-all">Hash: {{ m.hash }}</TooltipContent>
+                    </Tooltip>
                   </span>
                 </div>
               </div>

@@ -4,6 +4,7 @@ import { FolderOpen, Library, Settings2 } from "lucide-vue-next";
 import LibrarySelectorSheet from "@/components/LibrarySelectorSheet.vue";
 import Button from "@/components/ui/Button.vue";
 import ButtonLink from "@/components/ui/ButtonLink.vue";
+import OverflowTooltip from "@/components/ui/OverflowTooltip.vue";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -96,13 +97,15 @@ function selectImportPath(value: unknown) {
             </SelectItem>
           </SelectContent>
         </Select>
-        <p
+        <OverflowTooltip
           v-else-if="activeImportPath"
-          class="truncate font-mono text-[11px] text-muted-foreground"
-          :title="activeImportPath.path"
+          as="p"
+          :text="activeImportPath.path"
+          class="font-mono text-[11px] text-muted-foreground"
+          align="start"
         >
           {{ activeImportPath.path }}
-        </p>
+        </OverflowTooltip>
       </template>
       <ButtonLink v-if="eligibleLibraries.length" to="/admin/libraries" variant="ghost" size="sm" class="w-full">
         <Settings2 class="size-4" /> Manage Libraries

@@ -16,6 +16,7 @@ import {
   getExtraParamKeys,
   EMPTY_SECTION_TEXT,
 } from "../composables/useMetadataSections";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const { light: hapticLight } = useHaptic();
 
@@ -266,24 +267,27 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
           <div class="meta-section" :class="{ 'is-empty': !props.meta?.prompt }">
             <div class="section-top" :class="{ 'metadata-copyable': props.meta?.prompt }">
               <label class="sheet-label">Prompt</label>
-              <button
-                v-if="props.meta?.prompt"
-                type="button"
-                class="inline-copy-button"
-                title="Copy prompt"
-                aria-label="Copy prompt"
-                @click.stop="props.copyText(props.meta?.prompt, 'prompt')"
-              >
-                <Check
-                  v-if="props.copyStatus['prompt']"
-                  :size="14"
-                  :stroke-width="1.5"
-                  style="color: #4ade80"
-                  class="inline-copy-icon"
-                  data-testid="copy-prompt-check"
-                />
-                <Copy v-else :size="14" :stroke-width="1.5" class="inline-copy-icon" />
-              </button>
+              <Tooltip v-if="props.meta?.prompt">
+                <TooltipTrigger as-child>
+                  <button
+                    type="button"
+                    class="inline-copy-button"
+                    aria-label="Copy prompt"
+                    @click.stop="props.copyText(props.meta?.prompt, 'prompt')"
+                  >
+                    <Check
+                      v-if="props.copyStatus['prompt']"
+                      :size="14"
+                      :stroke-width="1.5"
+                      style="color: #4ade80"
+                      class="inline-copy-icon"
+                      data-testid="copy-prompt-check"
+                    />
+                    <Copy v-else :size="14" :stroke-width="1.5" class="inline-copy-icon" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Copy prompt</TooltipContent>
+              </Tooltip>
             </div>
             <div v-if="props.meta?.prompt" class="sheet-text">
               <ExpandableText
@@ -303,23 +307,26 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
           <div class="meta-section" :class="{ 'is-empty': !props.meta?.negative_prompt }">
             <div class="section-top" :class="{ 'metadata-copyable': props.meta?.negative_prompt }">
               <label class="sheet-label negative-label">Negative Prompt</label>
-              <button
-                v-if="props.meta?.negative_prompt"
-                type="button"
-                class="inline-copy-button"
-                title="Copy negative prompt"
-                aria-label="Copy negative prompt"
-                @click.stop="props.copyText(props.meta?.negative_prompt, 'neg')"
-              >
-                <Check
-                  v-if="props.copyStatus['neg']"
-                  :size="14"
-                  :stroke-width="1.5"
-                  style="color: #4ade80"
-                  class="inline-copy-icon"
-                />
-                <Copy v-else :size="14" :stroke-width="1.5" class="inline-copy-icon" />
-              </button>
+              <Tooltip v-if="props.meta?.negative_prompt">
+                <TooltipTrigger as-child>
+                  <button
+                    type="button"
+                    class="inline-copy-button"
+                    aria-label="Copy negative prompt"
+                    @click.stop="props.copyText(props.meta?.negative_prompt, 'neg')"
+                  >
+                    <Check
+                      v-if="props.copyStatus['neg']"
+                      :size="14"
+                      :stroke-width="1.5"
+                      style="color: #4ade80"
+                      class="inline-copy-icon"
+                    />
+                    <Copy v-else :size="14" :stroke-width="1.5" class="inline-copy-icon" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Copy negative prompt</TooltipContent>
+              </Tooltip>
             </div>
             <div v-if="props.meta?.negative_prompt" class="sheet-text">
               <ExpandableText
@@ -352,24 +359,31 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
           <div class="meta-section" :class="{ 'is-empty': !hasGenData }">
             <label class="sheet-label">Generation Data</label>
             <div v-if="hasGenData" class="params-grid">
-              <div
-                class="param-pill seed-row metadata-copyable"
-                data-testid="seed-row"
-                v-if="props.meta?.params?.Seed"
-                @click="props.copyText(String(props.meta.params.Seed), 'seed')"
-                title="Copy seed"
-              >
-                <span class="label">Seed</span>
-                <span class="value">{{ props.meta.params.Seed }}</span>
-                <Check
-                  v-if="props.copyStatus['seed']"
-                  :size="14"
-                  :stroke-width="1.5"
-                  style="color: #4ade80"
-                  class="inline-copy-icon"
-                />
-                <Copy v-else :size="14" :stroke-width="1.5" class="inline-copy-icon" />
-              </div>
+              <Tooltip v-if="props.meta?.params?.Seed">
+                <TooltipTrigger as-child>
+                  <div
+                    class="param-pill seed-row metadata-copyable"
+                    data-testid="seed-row"
+                    role="button"
+                    tabindex="0"
+                    @click="props.copyText(String(props.meta.params.Seed), 'seed')"
+                    @keydown.enter.prevent="props.copyText(String(props.meta.params.Seed), 'seed')"
+                    @keydown.space.prevent="props.copyText(String(props.meta.params.Seed), 'seed')"
+                  >
+                    <span class="label">Seed</span>
+                    <span class="value">{{ props.meta.params.Seed }}</span>
+                    <Check
+                      v-if="props.copyStatus['seed']"
+                      :size="14"
+                      :stroke-width="1.5"
+                      style="color: #4ade80"
+                      class="inline-copy-icon"
+                    />
+                    <Copy v-else :size="14" :stroke-width="1.5" class="inline-copy-icon" />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>Copy seed</TooltipContent>
+              </Tooltip>
               <div class="param-pill" v-if="props.meta?.params?.Steps">
                 <span class="label">Steps</span><span class="value">{{ props.meta.params.Steps }}</span>
               </div>

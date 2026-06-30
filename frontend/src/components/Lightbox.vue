@@ -14,6 +14,7 @@ import LightboxMobileSheet from "./LightboxMobileSheet.vue";
 import MobilePhotoSwipe from "./MobilePhotoSwipe.vue";
 import TabletPhotoSwipe from "./TabletPhotoSwipe.vue";
 import PhotoSwipeViewer from "./PhotoSwipeViewer.vue";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const { isDesktop, isTablet, isMobile, isWide } = useDevice();
 
@@ -292,12 +293,22 @@ function handleToggleFullscreen() {
             />
             <!-- Fullscreen overlay controls -->
             <div v-if="isFullscreen" class="fs-controls" data-testid="fs-controls">
-              <button class="fs-btn" @click="exitFullscreen" title="Exit fullscreen">
-                <Minimize class="gallery-icon-xl" :stroke-width="1.5" />
-              </button>
-              <button class="fs-btn" @click="handleClose" title="Close">
-                <X class="gallery-icon-xl" :stroke-width="1.5" />
-              </button>
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <button class="fs-btn" aria-label="Exit fullscreen" @click="exitFullscreen">
+                    <Minimize class="gallery-icon-xl" :stroke-width="1.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Exit fullscreen</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <button class="fs-btn" aria-label="Close" @click="handleClose">
+                    <X class="gallery-icon-xl" :stroke-width="1.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Close</TooltipContent>
+              </Tooltip>
             </div>
           </template>
 

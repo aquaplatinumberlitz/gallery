@@ -13,6 +13,8 @@ import {
   getExtraParamKeys,
   EMPTY_SECTION_TEXT,
 } from "../composables/useMetadataSections";
+import OverflowTooltip from "@/components/ui/OverflowTooltip.vue";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const props = defineProps<{
   meta: MetadataResponse | null;
@@ -96,12 +98,17 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
         <!-- Header -->
         <header class="tablet-header">
           <div class="header-row">
-            <h3 :title="props.imageName">
+            <OverflowTooltip as="h3" :text="props.imageName" align="start">
               {{ props.imageName }}
-            </h3>
-            <button class="tablet-close-btn" @click="closeSheet" title="Close">
-              <X :stroke-width="1.5" class="icon-lg" />
-            </button>
+            </OverflowTooltip>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <button class="tablet-close-btn" aria-label="Close" @click="closeSheet">
+                  <X :stroke-width="1.5" class="icon-lg" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Close</TooltipContent>
+            </Tooltip>
           </div>
           <div class="header-meta">
             <span v-if="props.sizeText" class="meta-tag"
@@ -128,22 +135,29 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
             <div class="tablet-section" :class="{ 'is-empty': !hasGenData }">
               <label class="tablet-label">Generation Data</label>
               <div v-if="hasGenData" class="tablet-pills">
-                <div
-                  class="param-pill metadata-copyable"
-                  v-if="props.meta?.params?.Seed"
-                  @click="props.copyText(String(props.meta.params.Seed), 'seed')"
-                  title="Copy seed"
-                >
-                  <span class="value">{{ props.meta.params.Seed }}</span>
-                  <Check
-                    v-if="props.copyStatus['seed']"
-                    :stroke-width="1.5"
-                    :size="14"
-                    style="color: #4ade80"
-                    class="inline-copy-icon"
-                  />
-                  <Copy v-else :stroke-width="1.5" :size="14" class="inline-copy-icon" />
-                </div>
+                <Tooltip v-if="props.meta?.params?.Seed">
+                  <TooltipTrigger as-child>
+                    <div
+                      class="param-pill metadata-copyable"
+                      role="button"
+                      tabindex="0"
+                      @click="props.copyText(String(props.meta.params.Seed), 'seed')"
+                      @keydown.enter.prevent="props.copyText(String(props.meta.params.Seed), 'seed')"
+                      @keydown.space.prevent="props.copyText(String(props.meta.params.Seed), 'seed')"
+                    >
+                      <span class="value">{{ props.meta.params.Seed }}</span>
+                      <Check
+                        v-if="props.copyStatus['seed']"
+                        :stroke-width="1.5"
+                        :size="14"
+                        style="color: #4ade80"
+                        class="inline-copy-icon"
+                      />
+                      <Copy v-else :stroke-width="1.5" :size="14" class="inline-copy-icon" />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>Copy seed</TooltipContent>
+                </Tooltip>
                 <div class="param-pill" v-if="props.meta?.params?.Steps">
                   <span class="label">Steps</span><span class="value">{{ props.meta.params.Steps }}</span>
                 </div>
@@ -192,9 +206,12 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                   <span class="tablet-model-type">{{ m.param || "Model" }}</span>
                   <span class="tablet-model-name">
                     {{ m.name }}
-                    <span v-if="m.hash" class="tablet-hash" :title="'Hash: ' + m.hash"
-                      >#{{ m.hash.substring(0, 8) }}</span
-                    >
+                    <Tooltip v-if="m.hash">
+                      <TooltipTrigger as-child>
+                        <span class="tablet-hash">#{{ m.hash.substring(0, 8) }}</span>
+                      </TooltipTrigger>
+                      <TooltipContent class="max-w-[260px] break-all">Hash: {{ m.hash }}</TooltipContent>
+                    </Tooltip>
                   </span>
                 </div>
               </div>
@@ -232,23 +249,31 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
           <!-- Right column: Prompts -->
           <div class="tablet-col">
             <div class="tablet-section" :class="{ 'is-empty': !props.meta?.prompt }">
-              <div
-                class="tablet-section-top"
-                :class="{ 'metadata-copyable': props.meta?.prompt }"
-                @click="props.meta?.prompt && props.copyText(props.meta?.prompt, 'prompt')"
-                :title="props.meta?.prompt ? 'Copy prompt' : undefined"
-              >
+              <Tooltip v-if="props.meta?.prompt">
+                <TooltipTrigger as-child>
+                  <div
+                    class="tablet-section-top metadata-copyable"
+                    role="button"
+                    tabindex="0"
+                    @click="props.copyText(props.meta?.prompt, 'prompt')"
+                    @keydown.enter.prevent="props.copyText(props.meta?.prompt, 'prompt')"
+                    @keydown.space.prevent="props.copyText(props.meta?.prompt, 'prompt')"
+                  >
+                    <label class="tablet-label">Prompt</label>
+                    <Check
+                      v-if="props.copyStatus['prompt']"
+                      :stroke-width="1.5"
+                      :size="14"
+                      style="color: #4ade80"
+                      class="inline-copy-icon"
+                    />
+                    <Copy v-else :stroke-width="1.5" :size="14" class="inline-copy-icon" />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>Copy prompt</TooltipContent>
+              </Tooltip>
+              <div v-else class="tablet-section-top">
                 <label class="tablet-label">Prompt</label>
-                <template v-if="props.meta?.prompt">
-                  <Check
-                    v-if="props.copyStatus['prompt']"
-                    :stroke-width="1.5"
-                    :size="14"
-                    style="color: #4ade80"
-                    class="inline-copy-icon"
-                  />
-                  <Copy v-else :stroke-width="1.5" :size="14" class="inline-copy-icon" />
-                </template>
               </div>
               <div v-if="props.meta?.prompt" class="tablet-text">
                 <ExpandableText :collapsed-lines="6" :text="props.meta.prompt">
@@ -261,23 +286,31 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
             </div>
 
             <div class="tablet-section" :class="{ 'is-empty': !props.meta?.negative_prompt }">
-              <div
-                class="tablet-section-top"
-                :class="{ 'metadata-copyable': props.meta?.negative_prompt }"
-                @click="props.meta?.negative_prompt && props.copyText(props.meta?.negative_prompt, 'neg')"
-                :title="props.meta?.negative_prompt ? 'Copy negative prompt' : undefined"
-              >
+              <Tooltip v-if="props.meta?.negative_prompt">
+                <TooltipTrigger as-child>
+                  <div
+                    class="tablet-section-top metadata-copyable"
+                    role="button"
+                    tabindex="0"
+                    @click="props.copyText(props.meta?.negative_prompt, 'neg')"
+                    @keydown.enter.prevent="props.copyText(props.meta?.negative_prompt, 'neg')"
+                    @keydown.space.prevent="props.copyText(props.meta?.negative_prompt, 'neg')"
+                  >
+                    <label class="tablet-label negative-label">Negative Prompt</label>
+                    <Check
+                      v-if="props.copyStatus['neg']"
+                      :stroke-width="1.5"
+                      :size="14"
+                      style="color: #4ade80"
+                      class="inline-copy-icon"
+                    />
+                    <Copy v-else :stroke-width="1.5" :size="14" class="inline-copy-icon" />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>Copy negative prompt</TooltipContent>
+              </Tooltip>
+              <div v-else class="tablet-section-top">
                 <label class="tablet-label negative-label">Negative Prompt</label>
-                <template v-if="props.meta?.negative_prompt">
-                  <Check
-                    v-if="props.copyStatus['neg']"
-                    :stroke-width="1.5"
-                    :size="14"
-                    style="color: #4ade80"
-                    class="inline-copy-icon"
-                  />
-                  <Copy v-else :stroke-width="1.5" :size="14" class="inline-copy-icon" />
-                </template>
               </div>
               <div v-if="props.meta?.negative_prompt" class="tablet-text">
                 <ExpandableText :collapsed-lines="6" :text="props.meta.negative_prompt">

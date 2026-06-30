@@ -45,6 +45,7 @@ import {
   FolderOpen,
 } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
+import OverflowTooltip from "@/components/ui/OverflowTooltip.vue";
 import Badge from "./ui/Badge.vue";
 import {
   DropdownMenu,
@@ -809,14 +810,18 @@ watch(
               @keydown.enter="handleOpenImage(img.path, img.name)"
               @keydown.space.prevent="handleOpenImage(img.path, img.name)"
             />
-            <span class="search-result-name file-name-display" :title="img.name">
+            <OverflowTooltip :text="img.name" class="search-result-name file-name-display">
               <span class="file-name-base">{{ displayFilenameParts(img.name).base }}</span>
               <span class="file-name-ext">{{ displayFilenameParts(img.name).ext }}</span>
-            </span>
-            <span v-if="searchResultFolderPath(img)" class="search-result-path" :title="searchResultFolderPath(img)">
+            </OverflowTooltip>
+            <OverflowTooltip
+              v-if="searchResultFolderPath(img)"
+              :text="searchResultFolderPath(img)"
+              class="search-result-path"
+            >
               <Folder class="search-result-path-icon" />
-              <span :title="searchResultFolderPath(img)">{{ searchResultFolderPath(img) }}</span>
-            </span>
+              <span>{{ searchResultFolderPath(img) }}</span>
+            </OverflowTooltip>
           </div>
         </div>
       </section>
@@ -837,10 +842,10 @@ watch(
               :duration-ms="video.duration_ms"
               @click="handleOpenVideo(video)"
             />
-            <span class="search-result-name file-name-display" :title="video.name">
+            <OverflowTooltip :text="video.name" class="search-result-name file-name-display">
               <span class="file-name-base">{{ displayFilenameParts(video.name).base }}</span>
               <span class="file-name-ext">{{ displayFilenameParts(video.name).ext }}</span>
-            </span>
+            </OverflowTooltip>
           </div>
         </div>
       </section>
@@ -863,14 +868,18 @@ watch(
               @keydown.enter="handleOpenImage(img.path, img.name)"
               @keydown.space.prevent="handleOpenImage(img.path, img.name)"
             />
-            <span class="search-result-name file-name-display" :title="img.name">
+            <OverflowTooltip :text="img.name" class="search-result-name file-name-display">
               <span class="file-name-base">{{ displayFilenameParts(img.name).base }}</span>
               <span class="file-name-ext">{{ displayFilenameParts(img.name).ext }}</span>
-            </span>
-            <span v-if="searchResultFolderPath(img)" class="search-result-path" :title="searchResultFolderPath(img)">
+            </OverflowTooltip>
+            <OverflowTooltip
+              v-if="searchResultFolderPath(img)"
+              :text="searchResultFolderPath(img)"
+              class="search-result-path"
+            >
               <Folder class="search-result-path-icon" />
-              <span :title="searchResultFolderPath(img)">{{ searchResultFolderPath(img) }}</span>
-            </span>
+              <span>{{ searchResultFolderPath(img) }}</span>
+            </OverflowTooltip>
           </div>
         </div>
       </section>

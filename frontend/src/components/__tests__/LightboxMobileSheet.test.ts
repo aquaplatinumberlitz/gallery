@@ -50,6 +50,9 @@ function createWrapper(props: Record<string, unknown> = {}) {
       stubs: {
         BottomSheet: { template: "<div data-testid='bottom-sheet'><slot name='header' /><slot /></div>" },
         ExpandableText: { template: "<span><slot /></span>" },
+        Tooltip: { template: "<span><slot /></span>" },
+        TooltipTrigger: { template: "<span><slot /></span>" },
+        TooltipContent: { template: "<span><slot /></span>" },
       },
     },
   });

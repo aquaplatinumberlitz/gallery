@@ -22,6 +22,7 @@ import { createPinia, setActivePinia } from "pinia";
 import { createRouter, createMemoryHistory } from "vue-router";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { defineComponent, h, type Component, type DefineComponent } from "vue";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { createIsolatedQueryClient } from "./queryClient";
 
 /** Common options shared between sync and async render helpers. */
@@ -77,7 +78,7 @@ export function renderWithApp(
 
   const App = defineComponent({
     setup() {
-      return () => h(component, options.props ?? {}, options.slots ?? {});
+      return () => h(TooltipProvider, null, { default: () => h(component, options.props ?? {}, options.slots ?? {}) });
     },
   });
 
@@ -120,7 +121,7 @@ export async function renderWithAppAsync(
 
   const App = defineComponent({
     setup() {
-      return () => h(component, options.props ?? {}, options.slots ?? {});
+      return () => h(TooltipProvider, null, { default: () => h(component, options.props ?? {}, options.slots ?? {}) });
     },
   });
 

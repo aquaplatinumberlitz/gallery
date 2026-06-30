@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { Check, FolderOpen, Library } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import ButtonLink from "@/components/ui/ButtonLink.vue";
+import OverflowTooltip from "@/components/ui/OverflowTooltip.vue";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useActiveLibrarySelection } from "@/composables/useActiveLibrarySelection";
 import { useGalleryStore } from "@/stores/gallery";
@@ -55,9 +56,9 @@ function select(library: RegisteredLibrary, importPath: LibraryImportPath) {
             @click="select(library, importPath)"
           >
             <FolderOpen class="size-4 shrink-0 text-primary" />
-            <span class="min-w-0 flex-1 truncate font-mono text-xs" :title="importPath.path">{{
-              importPath.path
-            }}</span>
+            <OverflowTooltip :text="importPath.path" class="min-w-0 flex-1 font-mono text-xs" align="start">
+              {{ importPath.path }}
+            </OverflowTooltip>
             <Check
               v-if="galleryStore.activeLibraryId === library.id && galleryStore.activeImportPathId === importPath.id"
               class="size-4 shrink-0"

@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useClipboard } from "@/composables/useClipboard";
 import { useCatalogStatusQuery } from "@/composables/useCatalogStatusQuery";
 import { useToast } from "@/composables/useToast";
@@ -667,22 +668,25 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                     : undefined
               "
             >
-              <button
-                v-if="header.column.getCanSort()"
-                type="button"
-                class="metadata-header-control"
-                :aria-label="sortAriaLabel(header.column.id, header.column.columnDef.header)"
-                :title="sortAriaLabel(header.column.id, header.column.columnDef.header)"
-                @click="onHeaderSort(header.column.id, $event)"
-              >
-                <span class="metadata-header-label">
-                  {{ header.column.columnDef.header }}
-                </span>
-                <span v-if="header.column.getIsSorted()" class="metadata-header-sort-indicator" aria-hidden="true">
-                  {{ header.column.getIsSorted() === "asc" ? "↑" : "↓" }}
-                </span>
-                <ArrowUpDown v-else class="metadata-header-icon" aria-hidden="true" />
-              </button>
+              <Tooltip v-if="header.column.getCanSort()">
+                <TooltipTrigger as-child>
+                  <button
+                    type="button"
+                    class="metadata-header-control"
+                    :aria-label="sortAriaLabel(header.column.id, header.column.columnDef.header)"
+                    @click="onHeaderSort(header.column.id, $event)"
+                  >
+                    <span class="metadata-header-label">
+                      {{ header.column.columnDef.header }}
+                    </span>
+                    <span v-if="header.column.getIsSorted()" class="metadata-header-sort-indicator" aria-hidden="true">
+                      {{ header.column.getIsSorted() === "asc" ? "↑" : "↓" }}
+                    </span>
+                    <ArrowUpDown v-else class="metadata-header-icon" aria-hidden="true" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>{{ sortAriaLabel(header.column.id, header.column.columnDef.header) }}</TooltipContent>
+              </Tooltip>
               <span v-else class="metadata-header-control metadata-header-control--static">
                 <span class="metadata-header-label">
                   {{ header.column.columnDef.header }}
@@ -939,17 +943,20 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                 </div>
               </TableCell>
               <TableCell class="table-cell col-seed">
-                <button
-                  v-if="visibleTableRows[virtualRow.index].original.seed"
-                  class="inline-flex cursor-copy items-center gap-1 rounded-sm font-mono text-xs hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  type="button"
-                  :aria-label="`Copy seed ${visibleTableRows[virtualRow.index].original.seed}`"
-                  title="Copy seed"
-                  @click.stop="copyText(visibleTableRows[virtualRow.index].original.seed, 'seed')"
-                >
-                  <span>{{ visibleTableRows[virtualRow.index].original.seed }}</span>
-                  <Copy class="seed-copy-icon size-3" aria-hidden="true" />
-                </button>
+                <Tooltip v-if="visibleTableRows[virtualRow.index].original.seed">
+                  <TooltipTrigger as-child>
+                    <button
+                      class="inline-flex cursor-copy items-center gap-1 rounded-sm font-mono text-xs hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      type="button"
+                      :aria-label="`Copy seed ${visibleTableRows[virtualRow.index].original.seed}`"
+                      @click.stop="copyText(visibleTableRows[virtualRow.index].original.seed, 'seed')"
+                    >
+                      <span>{{ visibleTableRows[virtualRow.index].original.seed }}</span>
+                      <Copy class="seed-copy-icon size-3" aria-hidden="true" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>Copy seed</TooltipContent>
+                </Tooltip>
                 <span v-else class="text-muted-foreground">-</span>
               </TableCell>
               <TableCell class="table-cell col-dimensions whitespace-nowrap">

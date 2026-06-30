@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 import { AlertTriangle, ArrowLeft, Copy, Images, Pencil, RefreshCw, Trash2, ImageIcon } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import ButtonLink from "@/components/ui/ButtonLink.vue";
+import OverflowTooltip from "@/components/ui/OverflowTooltip.vue";
 import Separator from "@/components/ui/Separator.vue";
 import Skeleton from "@/components/ui/skeleton/Skeleton.vue";
 import { useLibrariesQuery } from "@/composables/admin/useLibrariesQuery";
@@ -166,9 +167,14 @@ function estimatedAssets(): number | undefined {
               <h2 id="library-heading" class="truncate text-2xl font-semibold tracking-tight">{{ library.name }}</h2>
               <LibraryStatusBadge :status="status" />
             </div>
-            <p class="mt-1 truncate font-mono text-xs text-muted-foreground" :title="library.import_paths[0]?.path">
+            <OverflowTooltip
+              as="p"
+              :text="library.import_paths[0]?.path ?? library.root_path"
+              class="mt-1 font-mono text-xs text-muted-foreground"
+              align="start"
+            >
               {{ library.import_paths[0]?.path ?? library.root_path }}
-            </p>
+            </OverflowTooltip>
           </div>
           <div class="flex flex-wrap gap-2">
             <Button variant="outline" @click="useInGallery"> <Images /> Use in gallery </Button>
@@ -390,8 +396,10 @@ function estimatedAssets(): number | undefined {
                 :key="path.id"
                 class="flex items-center gap-2 rounded-md border p-3"
               >
-                <span class="min-w-0 flex-1 truncate font-mono text-xs" :title="path.path">{{ path.path }}</span
-                ><Button variant="ghost" size="icon" aria-label="Copy import path" @click="copyPath(path.path)">
+                <OverflowTooltip :text="path.path" class="min-w-0 flex-1 font-mono text-xs" align="start">
+                  {{ path.path }}
+                </OverflowTooltip>
+                <Button variant="ghost" size="icon" aria-label="Copy import path" @click="copyPath(path.path)">
                   <Copy />
                 </Button>
               </div>

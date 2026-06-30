@@ -3,8 +3,10 @@ import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { Library, Plus, RefreshCw, AlertTriangle } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
+import OverflowTooltip from "@/components/ui/OverflowTooltip.vue";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useLibrariesQuery } from "@/composables/admin/useLibrariesQuery";
 import { useGalleryStatsQuery } from "@/composables/admin/useGalleryStatsQuery";
 import { useJobsQuery } from "@/composables/admin/useJobsQuery";
@@ -183,24 +185,29 @@ function created(library: RegisteredLibrary) {
                   >
                     {{ library.name }}
                   </button>
-                  <div
-                    v-if="scanErrorMessage(library)"
-                    class="mt-1 flex items-center gap-1 text-xs text-destructive"
-                    :title="scanErrorMessage(library) ?? ''"
-                  >
-                    <AlertTriangle class="size-3" /> Catalog update failed
-                  </div>
+                  <Tooltip v-if="scanErrorMessage(library)">
+                    <TooltipTrigger as-child>
+                      <div class="mt-1 flex items-center gap-1 text-xs text-destructive">
+                        <AlertTriangle class="size-3" /> Catalog update failed
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" align="start" class="max-w-[260px]">
+                      {{ scanErrorMessage(library) }}
+                    </TooltipContent>
+                  </Tooltip>
                 </TableCell>
                 <TableCell>
                   <div class="max-w-72 space-y-1">
-                    <p
+                    <OverflowTooltip
                       v-for="path in library.import_paths.slice(0, 2)"
                       :key="path.id"
-                      class="truncate font-mono text-xs"
-                      :title="path.path"
+                      as="p"
+                      :text="path.path"
+                      class="font-mono text-xs"
+                      align="start"
                     >
                       {{ path.path }}
-                    </p>
+                    </OverflowTooltip>
                     <p v-if="library.import_paths.length > 2" class="text-xs text-muted-foreground">
                       +{{ library.import_paths.length - 2 }} paths
                     </p>
@@ -235,9 +242,14 @@ function created(library: RegisteredLibrary) {
                 >
                   {{ library.name }}
                 </button>
-                <p class="mt-1 truncate font-mono text-xs text-muted-foreground" :title="library.import_paths[0]?.path">
+                <OverflowTooltip
+                  as="p"
+                  :text="library.import_paths[0]?.path"
+                  class="mt-1 font-mono text-xs text-muted-foreground"
+                  align="start"
+                >
                   {{ library.import_paths[0]?.path }}
-                </p>
+                </OverflowTooltip>
                 <p v-if="library.import_paths.length > 1" class="text-xs text-muted-foreground">
                   +{{ library.import_paths.length - 1 }} paths
                 </p>

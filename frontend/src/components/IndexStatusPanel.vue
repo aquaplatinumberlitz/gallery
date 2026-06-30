@@ -5,6 +5,7 @@ import { useCatalogStatusQuery } from "@/composables/useCatalogStatusQuery";
 import { useActiveLibrarySelection } from "@/composables/useActiveLibrarySelection";
 import Button from "@/components/ui/Button.vue";
 import Badge from "@/components/ui/Badge.vue";
+import OverflowTooltip from "@/components/ui/OverflowTooltip.vue";
 import IndexStatusBadge from "@/components/IndexStatusBadge.vue";
 import IndexStatusCard from "@/components/IndexStatusCard.vue";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -286,9 +287,13 @@ function formatCount(value: number) {
             <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Location</p>
             <div class="flex items-center justify-between text-xs">
               <span class="text-muted-foreground">Scope</span>
-              <span class="text-right font-medium truncate ml-2 max-w-[150px]" :title="path || 'Library root'">{{
-                path || "Library root"
-              }}</span>
+              <OverflowTooltip
+                :text="path || 'Library root'"
+                class="ml-2 max-w-[150px] text-right font-medium"
+                align="end"
+              >
+                {{ path || "Library root" }}
+              </OverflowTooltip>
             </div>
             <div class="flex items-center justify-between text-xs">
               <span class="text-muted-foreground">Including subfolders</span>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import Button from "@/components/ui/Button.vue";
+import OverflowTooltip from "@/components/ui/OverflowTooltip.vue";
 import IndexStatusBadge from "@/components/IndexStatusBadge.vue";
 import IndexProgressBar from "@/components/IndexProgressBar.vue";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -106,7 +107,9 @@ function formatCount(value: number) {
 
         <div class="index-details__row index-details__row--path">
           <span class="index-details__row-key">Scope</span>
-          <strong :title="path || 'Library root'">{{ path || "Library root" }}</strong>
+          <OverflowTooltip as="strong" :text="path || 'Library root'" align="end">
+            {{ path || "Library root" }}
+          </OverflowTooltip>
         </div>
 
         <div class="index-details__row">
