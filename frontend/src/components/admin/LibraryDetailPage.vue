@@ -1,12 +1,28 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
-import { AlertTriangle, ArrowLeft, Copy, Images, Pencil, RefreshCw, Trash2, ImageIcon } from "lucide-vue-next";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Copy,
+  Images,
+  MoreHorizontal,
+  Pencil,
+  RefreshCw,
+  Trash2,
+  ImageIcon,
+} from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import ButtonLink from "@/components/ui/ButtonLink.vue";
 import OverflowTooltip from "@/components/ui/OverflowTooltip.vue";
 import Separator from "@/components/ui/Separator.vue";
 import Skeleton from "@/components/ui/skeleton/Skeleton.vue";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useLibrariesQuery } from "@/composables/admin/useLibrariesQuery";
 import { useLibraryEvents } from "@/composables/admin/useLibraryEvents";
 import { useLibraryJobsQuery } from "@/composables/admin/useLibraryJobsQuery";
@@ -50,6 +66,7 @@ const library = computed(() => libraryQuery.data.value ?? null);
 const status = computed<UnifiedStatus | null>(() => statusQuery.data.value?.status ?? null);
 const busy = computed(() => scanMutation.isPending.value);
 const statusContractError = computed(() => Boolean(statusQuery.contractError.value));
+const statusPresentation = computed(() => getCatalogStatusPresentation(status.value?.summary_state ?? null));
 
 const scanStateLabels: Record<ScanState, string> = {
   never: "Never updated",
@@ -86,6 +103,27 @@ const metadataStateLabel = computed(() => {
   return metadataStateLabels[state];
 });
 
+const metadataDisplayStateLabel = computed(() =>
+  status.value?.metadata.state === "complete" ? "Ready" : metadataStateLabel.value,
+);
+
+const metadataReadyLabel = computed(() => {
+  const metadata = status.value?.metadata;
+  if (!metadata || metadata.total_assets === null) return metadataDisplayStateLabel.value;
+
+  return `${metadataDisplayStateLabel.value} · ${formatAssetCount(metadata.ready_assets ?? 0)}/${formatAssetCount(
+    metadata.total_assets,
+  )}`;
+});
+
+const showStatusProgress = computed(() => {
+  const currentStatus = status.value;
+  if (!currentStatus) return false;
+  if (currentStatus.scan.state === "queued" || currentStatus.scan.state === "scanning") return true;
+  if (currentStatus.metadata.state === "queued" || currentStatus.metadata.state === "indexing") return true;
+  return currentStatus.metadata.state !== "complete" && currentStatus.metadata.progress_percent !== 100;
+});
+
 const scanProgressLabel = computed(() => {
   const scan = status.value?.scan;
   if (!scan) return "";
@@ -110,6 +148,20 @@ const issueBreakdown = computed(() => {
 });
 
 const latestIssue = computed(() => status.value?.latest_issue ?? null);
+const hasHealthIssues = computed(() => (status.value?.issue_count ?? 0) > 0);
+
+const thumbnails = computed(() => generatedImagesQuery.data.value ?? null);
+const thumbnailReady = computed(() => thumbnails.value?.ready_derivatives ?? 0);
+const thumbnailExpected = computed(() => thumbnails.value?.expected_derivatives ?? 0);
+const thumbnailMissing = computed(() => Math.max(0, thumbnailExpected.value - thumbnailReady.value));
+const thumbnailCoverageRatio = computed(() => {
+  if (!thumbnailExpected.value) return 0;
+  return thumbnailReady.value / thumbnailExpected.value;
+});
+const thumbnailCoverageLabel = computed(() => formatPercent(thumbnailCoverageRatio.value));
+const thumbnailSummaryLabel = computed(
+  () => `${formatAssetCount(thumbnailReady.value)}/${formatAssetCount(thumbnailExpected.value)} cached`,
+);
 
 async function useInGallery() {
   if (library.value && galleryStore.setActiveLibrary(library.value)) await router.push("/");
@@ -177,12 +229,24 @@ function estimatedAssets(): number | undefined {
             </OverflowTooltip>
           </div>
           <div class="flex flex-wrap gap-2">
-            <Button variant="outline" @click="useInGallery"> <Images /> Use in gallery </Button>
-            <Button variant="outline" @click="editOpen = true"> <Pencil /> Edit </Button>
+            <Button variant="outline" @click="useInGallery"> <Images /> Open gallery </Button>
             <Button variant="outline" :disabled="busy" @click="scanMutation.mutate({ id: library.id })">
               <RefreshCw /> Update library
             </Button>
-            <Button variant="destructive" @click="deleteOpen = true"> <Trash2 /> Unregister </Button>
+            <Button variant="outline" @click="editOpen = true"> <Pencil /> Edit </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger as-child>
+                <Button variant="outline" size="icon" aria-label="More actions"><MoreHorizontal /></Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem @select="copyPath(library.import_paths[0]?.path ?? library.root_path)">
+                  <Copy /> Copy folder path
+                </DropdownMenuItem>
+                <DropdownMenuItem @select="generatedImagesQuery.refetch()">
+                  <RefreshCw /> Refresh thumbnails cache
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
 
@@ -210,10 +274,38 @@ function estimatedAssets(): number | undefined {
           </div>
         </section>
 
-        <div class="grid gap-4 md:grid-cols-2">
-          <section class="rounded-md border bg-background p-5">
+        <Separator />
+
+        <section class="space-y-4">
+          <h3 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Overview</h3>
+          <dl v-if="statsQuery.data.value" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <dt class="text-sm text-muted-foreground">Photos</dt>
+              <dd class="mt-1 text-2xl font-semibold">{{ formatAssetCount(statsQuery.data.value.photos) }}</dd>
+            </div>
+            <div>
+              <dt class="text-sm text-muted-foreground">Videos</dt>
+              <dd class="mt-1 text-2xl font-semibold">{{ formatAssetCount(statsQuery.data.value.videos) }}</dd>
+            </div>
+            <div>
+              <dt class="text-sm text-muted-foreground">Storage</dt>
+              <dd class="mt-1 text-2xl font-semibold">{{ formatBytes(statsQuery.data.value.usage_bytes) }}</dd>
+            </div>
+            <div>
+              <dt class="text-sm text-muted-foreground">Files</dt>
+              <dd class="mt-1 text-lg font-semibold">
+                {{ formatAssetCount(statsQuery.data.value.active_assets) }} active ·
+                {{ formatAssetCount(statsQuery.data.value.offline_assets) }} offline
+              </dd>
+            </div>
+          </dl>
+          <Skeleton v-else class="h-24 w-full" />
+        </section>
+
+        <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.9fr)]">
+          <section class="space-y-4">
             <div class="flex items-center justify-between gap-3">
-              <h3 class="font-semibold">Status and progress</h3>
+              <h3 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Status</h3>
               <Tooltip>
                 <TooltipTrigger as-child>
                   <Button
@@ -231,90 +323,37 @@ function estimatedAssets(): number | undefined {
                 </TooltipContent>
               </Tooltip>
             </div>
-            <div class="mt-5 space-y-4">
+            <div class="space-y-4 rounded-md border bg-background p-5">
+              <p class="text-lg font-semibold">{{ statusPresentation.label }}</p>
               <dl class="grid gap-3 text-sm">
                 <div class="flex items-center justify-between gap-3">
-                  <dt class="text-muted-foreground">Summary</dt>
-                  <dd class="font-medium">{{ getCatalogStatusPresentation(status?.summary_state ?? null).label }}</dd>
-                </div>
-                <div class="flex items-center justify-between gap-3">
                   <dt class="text-muted-foreground">Availability</dt>
-                  <dd class="font-medium">
+                  <dd class="text-right font-medium">
                     {{ availabilityLabel }}
                     <span v-if="status" class="text-muted-foreground">
-                      ({{ status.availability.available_paths }}/{{ status.availability.total_paths }} paths)
+                      · {{ status.availability.available_paths }}/{{ status.availability.total_paths }} folders
                     </span>
                   </dd>
                 </div>
                 <div class="flex items-center justify-between gap-3">
                   <dt class="text-muted-foreground">File update</dt>
-                  <dd class="font-medium">
+                  <dd class="text-right font-medium">
                     {{ scanStateLabel }}
                     <span v-if="scanProgressLabel" class="text-muted-foreground"> · {{ scanProgressLabel }}</span>
                   </dd>
                 </div>
                 <div class="flex items-center justify-between gap-3">
                   <dt class="text-muted-foreground">Metadata</dt>
-                  <dd class="font-medium">
-                    {{ metadataStateLabel }}
-                    <span v-if="status && status.metadata.total_assets !== null" class="text-muted-foreground">
-                      · {{ formatAssetCount(status.metadata.ready_assets ?? 0) }} /
-                      {{ formatAssetCount(status.metadata.total_assets) }} ready
-                    </span>
-                  </dd>
+                  <dd class="text-right font-medium">{{ metadataReadyLabel }}</dd>
                 </div>
               </dl>
-              <LibraryProgressBar :status="status" />
+              <LibraryProgressBar v-if="showStatusProgress" :status="status" />
             </div>
           </section>
 
-          <section class="rounded-md border bg-background p-5">
-            <h3 class="font-semibold">Health</h3>
-            <div v-if="status" class="mt-4 space-y-3">
-              <div class="grid grid-cols-3 gap-4 text-sm">
-                <div v-for="issue in issueBreakdown" :key="issue.label">
-                  <p class="text-xs text-muted-foreground">{{ issue.label }}</p>
-                  <p class="text-xl font-semibold" :class="issue.count > 0 ? 'text-destructive' : ''">
-                    {{ issue.count }}
-                  </p>
-                </div>
-              </div>
-              <p class="text-xs text-muted-foreground">
-                Total issues: <span class="font-medium text-foreground">{{ status.issue_count }}</span>
-              </p>
-            </div>
-            <Skeleton v-else class="mt-4 h-24 w-full" />
-          </section>
-
-          <section class="rounded-md border bg-background p-5">
-            <h3 class="font-semibold">Statistics</h3>
-            <div v-if="statsQuery.data.value" class="mt-4 grid grid-cols-2 gap-4">
-              <div>
-                <p class="text-xs text-muted-foreground">Photos</p>
-                <p class="text-xl font-semibold">{{ formatAssetCount(statsQuery.data.value.photos) }}</p>
-              </div>
-              <div>
-                <p class="text-xs text-muted-foreground">Videos</p>
-                <p class="text-xl font-semibold">{{ formatAssetCount(statsQuery.data.value.videos) }}</p>
-              </div>
-              <div>
-                <p class="text-xs text-muted-foreground">Active / Offline</p>
-                <p class="text-lg font-semibold">
-                  {{ formatAssetCount(statsQuery.data.value.active_assets) }} /
-                  {{ formatAssetCount(statsQuery.data.value.offline_assets) }}
-                </p>
-              </div>
-              <div>
-                <p class="text-xs text-muted-foreground">Storage used</p>
-                <p class="text-lg font-semibold">{{ formatBytes(statsQuery.data.value.usage_bytes) }}</p>
-              </div>
-            </div>
-            <Skeleton v-else class="mt-4 h-24 w-full" />
-          </section>
-
-          <section class="rounded-md border bg-background p-5">
-            <div class="flex items-center justify-between">
-              <h3 class="font-semibold">Thumbnails cache</h3>
+          <section class="space-y-4">
+            <div class="flex items-center justify-between gap-3">
+              <h3 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Thumbnails</h3>
               <Tooltip>
                 <TooltipTrigger as-child>
                   <Button
@@ -332,96 +371,111 @@ function estimatedAssets(): number | undefined {
                 </TooltipContent>
               </Tooltip>
             </div>
-            <div v-if="generatedImagesQuery.data.value" class="mt-4 space-y-4">
+            <div v-if="thumbnails" class="space-y-4 rounded-md border border-primary/20 bg-background p-5">
+              <div>
+                <p class="text-lg font-semibold">{{ thumbnailSummaryLabel }} · {{ thumbnailCoverageLabel }}</p>
+                <p class="mt-1 text-sm text-muted-foreground">
+                  {{ formatAssetCount(thumbnailMissing) }} thumbnails missing
+                </p>
+              </div>
+              <div
+                class="h-2 overflow-hidden rounded-full bg-muted"
+                role="progressbar"
+                :aria-valuenow="Math.round(thumbnailCoverageRatio * 100)"
+              >
+                <div class="h-full rounded-full bg-primary" :style="{ width: thumbnailCoverageLabel }" />
+              </div>
               <dl class="grid gap-3 text-sm">
                 <div class="flex items-center justify-between gap-3">
-                  <dt class="text-muted-foreground">Cached files</dt>
-                  <dd class="font-medium">{{ formatAssetCount(generatedImagesQuery.data.value.ready_derivatives) }}</dd>
-                </div>
-                <div class="flex items-center justify-between gap-3">
-                  <dt class="text-muted-foreground">Required files</dt>
-                  <dd class="font-medium">
-                    {{ formatAssetCount(generatedImagesQuery.data.value.expected_derivatives) }}
-                  </dd>
-                </div>
-                <div class="flex items-center justify-between gap-3">
-                  <dt class="text-muted-foreground">Coverage</dt>
-                  <dd class="font-medium">
-                    {{
-                      formatPercent(
-                        generatedImagesQuery.data.value.expected_derivatives > 0
-                          ? generatedImagesQuery.data.value.ready_derivatives /
-                              generatedImagesQuery.data.value.expected_derivatives
-                          : 0,
-                      )
-                    }}
-                  </dd>
-                </div>
-                <div class="flex items-center justify-between gap-3">
                   <dt class="text-muted-foreground">Cache size</dt>
-                  <dd class="font-medium">{{ formatBytes(generatedImagesQuery.data.value.quota_used_bytes) }}</dd>
+                  <dd class="font-medium">{{ formatBytes(thumbnails.quota_used_bytes) }}</dd>
                 </div>
                 <div class="flex items-center justify-between gap-3">
-                  <dt class="text-muted-foreground">Cache limit</dt>
-                  <dd class="font-medium">{{ formatBytes(generatedImagesQuery.data.value.quota_bytes) }}</dd>
-                </div>
-                <div class="flex items-center justify-between gap-3">
-                  <dt class="text-muted-foreground">Cache used</dt>
-                  <dd class="font-medium">{{ formatPercent(generatedImagesQuery.data.value.quota_utilization) }}</dd>
+                  <dt class="text-muted-foreground">Limit</dt>
+                  <dd class="font-medium">{{ formatBytes(thumbnails.quota_bytes) }}</dd>
                 </div>
               </dl>
-              <Separator />
-              <div class="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  :disabled="warmMutation.isPending.value"
-                  @click="warmMutation.mutate()"
-                >
-                  <ImageIcon /> Build missing thumbnails
-                </Button>
-              </div>
+              <Button
+                v-if="thumbnailMissing > 0"
+                variant="outline"
+                size="sm"
+                :disabled="warmMutation.isPending.value"
+                @click="warmMutation.mutate()"
+              >
+                <ImageIcon /> Build missing thumbnails
+              </Button>
             </div>
-            <Skeleton v-else class="mt-4 h-24 w-full" />
+            <Skeleton v-else class="h-40 w-full" />
           </section>
+        </div>
 
-          <section class="rounded-md border bg-background p-5">
-            <div class="flex items-center justify-between">
-              <h3 class="font-semibold">Folders</h3>
-              <Button variant="ghost" size="sm" @click="editOpen = true">Edit</Button>
+        <section class="space-y-4">
+          <h3 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Health</h3>
+          <div v-if="status" class="rounded-md border bg-background p-5">
+            <p v-if="!hasHealthIssues" class="text-sm font-medium">No issues found</p>
+            <div v-else class="space-y-3">
+              <div class="grid gap-3 text-sm sm:grid-cols-3">
+                <div v-for="issue in issueBreakdown" :key="issue.label">
+                  <p class="text-xs text-muted-foreground">{{ issue.label }}</p>
+                  <p class="text-lg font-semibold" :class="issue.count > 0 ? 'text-destructive' : ''">
+                    {{ issue.count }}
+                  </p>
+                </div>
+              </div>
+              <p class="text-xs text-muted-foreground">
+                Total issues: <span class="font-medium text-foreground">{{ status.issue_count }}</span>
+              </p>
             </div>
-            <div class="mt-4 space-y-3">
+          </div>
+          <Skeleton v-else class="h-20 w-full" />
+        </section>
+
+        <Separator />
+
+        <section class="space-y-5">
+          <div class="flex items-center justify-between gap-3">
+            <h3 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Configuration</h3>
+            <Button variant="ghost" size="sm" @click="editOpen = true">Edit</Button>
+          </div>
+          <div class="grid gap-6 md:grid-cols-2">
+            <section class="space-y-3">
+              <h4 class="font-semibold">Folders</h4>
               <div
                 v-for="path in library.import_paths"
                 :key="path.id"
-                class="flex items-center gap-2 rounded-md border p-3"
+                class="flex items-center gap-2 rounded-md border bg-background p-3"
               >
                 <OverflowTooltip :text="path.path" class="min-w-0 flex-1 font-mono text-xs" align="start">
                   {{ path.path }}
                 </OverflowTooltip>
-                <Button variant="ghost" size="icon" aria-label="Copy import path" @click="copyPath(path.path)">
+                <Button variant="ghost" size="icon" aria-label="Copy folder path" @click="copyPath(path.path)">
                   <Copy />
                 </Button>
               </div>
-            </div>
-          </section>
+            </section>
 
-          <section class="rounded-md border bg-background p-5">
-            <div class="flex items-center justify-between">
-              <h3 class="font-semibold">Exclusion patterns</h3>
-              <Button variant="ghost" size="sm" @click="editOpen = true">Edit</Button>
-            </div>
-            <div v-if="library.exclusion_patterns.length" class="mt-4 flex flex-wrap gap-2">
-              <code
-                v-for="pattern in library.exclusion_patterns"
-                :key="pattern"
-                class="rounded bg-muted px-2 py-1 text-xs"
-                >{{ pattern }}</code
-              >
-            </div>
-            <p v-else class="mt-4 text-sm text-muted-foreground">No exclusion patterns.</p>
-          </section>
-        </div>
+            <section class="space-y-3">
+              <h4 class="font-semibold">Exclusion patterns</h4>
+              <div v-if="library.exclusion_patterns.length" class="flex flex-wrap gap-2">
+                <code
+                  v-for="pattern in library.exclusion_patterns"
+                  :key="pattern"
+                  class="rounded bg-muted px-2 py-1 text-xs"
+                  >{{ pattern }}</code
+                >
+              </div>
+              <p v-else class="text-sm text-muted-foreground">No exclusion patterns.</p>
+            </section>
+          </div>
+        </section>
+
+        <section class="space-y-3 rounded-md border border-destructive/30 bg-background p-5">
+          <h3 class="text-sm font-semibold uppercase tracking-wide text-destructive">Danger zone</h3>
+          <p class="text-sm text-muted-foreground">
+            Unregistering removes this library from the catalog. Files are not deleted.
+          </p>
+          <Button variant="destructive" @click="deleteOpen = true"><Trash2 /> Unregister library</Button>
+        </section>
 
         <section class="rounded-md border bg-background p-5">
           <div class="flex items-center justify-between">

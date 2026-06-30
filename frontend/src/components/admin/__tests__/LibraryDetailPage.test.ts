@@ -209,6 +209,10 @@ function mountSubject(propsId = 1) {
         Tooltip: { template: "<span><slot /></span>" },
         TooltipContent: { template: "<span><slot /></span>" },
         TooltipTrigger: { template: "<span><slot /></span>" },
+        DropdownMenu: { template: "<span><slot /></span>" },
+        DropdownMenuContent: { template: "<span><slot /></span>" },
+        DropdownMenuItem: { template: "<button><slot /></button>" },
+        DropdownMenuTrigger: { template: "<span><slot /></span>" },
         LibraryProgressBar: { template: "<div class='library-progress' />" },
         LibraryStatusBadge: { template: "<span class='status-badge'><slot /></span>" },
         LibraryEditDialog: { template: "<div class='edit-dialog' />" },
@@ -245,24 +249,26 @@ describe("LibraryDetailPage", () => {
 
   it("renders action buttons", () => {
     const wrapper = mountSubject();
-    expect(wrapper.text()).toContain("Use in gallery");
+    expect(wrapper.text()).toContain("Open gallery");
     expect(wrapper.text()).toContain("Edit");
     expect(wrapper.text()).toContain("Update library");
-    expect(wrapper.text()).toContain("Unregister");
+    expect(wrapper.text()).toContain("Unregister library");
   });
 
   it("renders all dashboard sections", () => {
     const wrapper = mountSubject();
-    expect(wrapper.text()).toContain("Status and progress");
+    expect(wrapper.text()).toContain("Overview");
+    expect(wrapper.text()).toContain("Status");
+    expect(wrapper.text()).toContain("Thumbnails");
     expect(wrapper.text()).toContain("Health");
-    expect(wrapper.text()).toContain("Statistics");
+    expect(wrapper.text()).toContain("No issues found");
     expect(wrapper.text()).toContain("80");
     expect(wrapper.text()).toContain("20");
-    expect(wrapper.text()).toContain("Folders");
-    expect(wrapper.text()).toContain("Exclusion patterns");
+    expect(wrapper.text()).toContain("Configuration");
+    expect(wrapper.text()).toContain("Danger zone");
     expect(wrapper.text()).toContain("Recent job history");
     expect(wrapper.text()).toContain("Catalog lifecycle");
-    expect(wrapper.text()).toContain("Summary");
+    expect(wrapper.find(".library-progress").exists()).toBe(false);
   });
 
   it("shows empty jobs state", () => {
@@ -342,7 +348,7 @@ describe("LibraryDetailPage", () => {
 
   it("copies import path on copy button click", async () => {
     const wrapper = mountSubject();
-    const copyBtn = wrapper.get('[aria-label="Copy import path"]');
+    const copyBtn = wrapper.get('[aria-label="Copy folder path"]');
     await copyBtn.trigger("click");
     expect(copyTextMock).toHaveBeenCalledWith("/photos", "path");
   });
@@ -358,7 +364,9 @@ describe("LibraryDetailPage", () => {
   it("renders thumbnails cache with full data", () => {
     mockGeneratedImagesData = mockGeneratedImages;
     const wrapper = mountSubject();
-    expect(wrapper.text()).toContain("Thumbnails cache");
+    expect(wrapper.text()).toContain("Thumbnails");
+    expect(wrapper.text()).toContain("75/100 cached");
+    expect(wrapper.text()).toContain("25 thumbnails missing");
     expect(wrapper.text()).toContain("Build missing thumbnails");
   });
 
