@@ -115,6 +115,7 @@ let mockJobsData: unknown[] = [];
 let mockGeneratedImagesData: typeof mockGeneratedImages | null = null;
 let routerPushMock = vi.fn();
 let copyTextMock = vi.fn();
+let copyStatusMock: Record<string, boolean> = {};
 let scanMutateMock = vi.fn();
 
 vi.mock("vue-router", () => ({
@@ -190,7 +191,7 @@ vi.mock("@/composables/admin/useGeneratedImagesMutations", () => ({
 }));
 
 vi.mock("@/composables/useClipboard", () => ({
-  useClipboard: () => ({ copyText: copyTextMock }),
+  useClipboard: () => ({ copyStatus: { value: copyStatusMock }, copyText: copyTextMock }),
 }));
 
 function mountSubject(propsId = 1) {
@@ -234,6 +235,7 @@ describe("LibraryDetailPage", () => {
     mockGeneratedImagesData = null;
     routerPushMock = vi.fn();
     copyTextMock = vi.fn();
+    copyStatusMock = {};
     scanMutateMock = vi.fn();
   });
 
@@ -351,6 +353,12 @@ describe("LibraryDetailPage", () => {
     const copyBtn = wrapper.get('[aria-label="Copy folder path"]');
     await copyBtn.trigger("click");
     expect(copyTextMock).toHaveBeenCalledWith("/photos", "path");
+  });
+
+  it("shows copied state on the folder path copy button", () => {
+    copyStatusMock = { path: true };
+    const wrapper = mountSubject();
+    expect(wrapper.find('[aria-label="Folder path copied"]').exists()).toBe(true);
   });
 
   it("calls scan mutation on Update library button click", async () => {

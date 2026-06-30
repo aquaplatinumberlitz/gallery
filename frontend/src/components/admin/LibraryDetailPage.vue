@@ -14,6 +14,7 @@ import {
 } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import ButtonLink from "@/components/ui/ButtonLink.vue";
+import CopyButton from "@/components/ui/CopyButton.vue";
 import OverflowTooltip from "@/components/ui/OverflowTooltip.vue";
 import Separator from "@/components/ui/Separator.vue";
 import Skeleton from "@/components/ui/skeleton/Skeleton.vue";
@@ -448,9 +449,12 @@ function estimatedAssets(): number | undefined {
                 <OverflowTooltip :text="path.path" class="min-w-0 flex-1 font-mono text-xs" align="start">
                   {{ path.path }}
                 </OverflowTooltip>
-                <Button variant="ghost" size="icon" aria-label="Copy folder path" @click="copyPath(path.path)">
-                  <Copy />
-                </Button>
+                <CopyButton
+                  :text="path.path"
+                  copy-id="path"
+                  label="Copy folder path"
+                  copied-label="Folder path copied"
+                />
               </div>
             </section>
 
