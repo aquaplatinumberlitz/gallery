@@ -346,7 +346,7 @@ test.describe("imported-data maintenance verification", () => {
     await page.getByRole("button", { name: "Clear", exact: true }).first().click();
     const dialog = page.getByRole("dialog", { name: "Clear imported data?" });
     await expect(dialog).toContainText(
-      "Libraries, import paths, exclusion patterns, and source image files are not deleted.",
+      "Libraries, folders, exclusion patterns, and source image files are not deleted.",
     );
     await dialog.getByRole("button", { name: "Clear" }).click();
 
@@ -376,7 +376,7 @@ test.describe("imported-data maintenance verification", () => {
     await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
     await page.getByLabel("Catalog Status").click();
     const statusDialog = page.getByRole("dialog").filter({ hasText: "Catalog" });
-    await expect(statusDialog).toContainText("Photo details ready");
+    await expect(statusDialog).toContainText("Metadata ready");
     await expect(statusDialog.getByText("1").first()).toBeVisible();
   });
 

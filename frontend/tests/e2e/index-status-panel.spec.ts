@@ -247,17 +247,17 @@ test.describe("Catalog Status panel", () => {
 
     const statusButton = page.getByLabel("Catalog Status");
     await expect(statusButton).toContainText("Ready");
-    await expect(statusButton).toContainText("150 photo details ready");
+    await expect(statusButton).toContainText("All metadata ready");
     await expect(statusButton).toContainText("Details");
 
     const popover = await openStatusPopover(page);
     await expect(popover).toContainText("Ready");
-    await expect(popover).toContainText("Photo details ready");
+    await expect(popover).toContainText("Metadata ready");
     await expect(popover).toContainText("150");
     await expect(popover).toContainText("Location");
     await expect(popover).toContainText(rootPath);
     await expect(popover).toContainText("Including subfolders");
-    await expect(popover).toContainText("All paths");
+    await expect(popover).toContainText("All folders");
     await expect(popover.getByRole("button", { name: "Update library" })).toBeVisible();
     await expect(popover.getByRole("button", { name: "Scan" })).toHaveCount(0);
     await expect(popover.getByRole("button", { name: "Rebuild" })).toHaveCount(0);
@@ -277,7 +277,7 @@ test.describe("Catalog Status panel", () => {
     await expect(page.getByRole("dialog")).toContainText("Loading catalog status", { timeout: 5_000 });
 
     resolveStatus(null);
-    await expect(page.getByRole("dialog")).toContainText("Photo details ready", { timeout: 5_000 });
+    await expect(page.getByRole("dialog")).toContainText("Metadata ready", { timeout: 5_000 });
   });
 
   test("catalog status shows error state when API fails", async ({ page }) => {
@@ -339,11 +339,11 @@ test.describe("Catalog Status panel", () => {
 
     const statusButton = page.getByLabel("Catalog Status");
     await expect(statusButton).toContainText("Ready");
-    await expect(statusButton).toContainText("Indexer working in another folder");
+    await expect(statusButton).toContainText("Metadata extraction running in another folder");
     await expect(statusButton).not.toContainText("Updating");
 
     const popover = await openStatusPopover(page);
-    await expect(popover).toContainText("Indexer working in another folder");
+    await expect(popover).toContainText("Metadata extraction running in another folder");
     await expect(popover.getByTestId("index-progress-bar")).not.toBeVisible();
   });
 
@@ -361,14 +361,14 @@ test.describe("Catalog Status panel", () => {
 
     const statusButton = page.getByLabel("Catalog Status");
     await expect(statusButton).toContainText("Needs update");
-    await expect(statusButton).toContainText("5 photo details need updating");
+    await expect(statusButton).toContainText("5 photos need metadata updates");
 
     const popover = await openStatusPopover(page);
-    await expect(popover).toContainText("Photos found");
+    await expect(popover).toContainText("Photos");
     await expect(popover).toContainText("205");
-    await expect(popover).toContainText("Photo details ready");
+    await expect(popover).toContainText("Metadata ready");
     await expect(popover).toContainText("200");
-    await expect(popover).not.toContainText("200 / 205 photo details ready");
+    await expect(popover).not.toContainText("200 / 205 metadata ready");
   });
 
   test("Updating popover shows compact progress", async ({ page }) => {
@@ -386,12 +386,12 @@ test.describe("Catalog Status panel", () => {
 
     const statusButton = page.getByLabel("Catalog Status");
     await expect(statusButton).toContainText("Updating");
-    await expect(statusButton).toContainText("256 / 522 photo details ready");
+    await expect(statusButton).toContainText("256 / 522 metadata ready");
 
     const popover = await openStatusPopover(page);
     await expect(popover).toContainText("Updating");
     await expect(popover).toContainText("Processing");
-    await expect(popover).toContainText("49% details processed");
+    await expect(popover).toContainText("49% metadata processed");
     await expect(popover.getByTestId("index-progress-bar")).toHaveCount(1);
   });
 

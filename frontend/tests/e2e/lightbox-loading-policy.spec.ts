@@ -315,10 +315,10 @@ test("explicit fullscreen action requests original for the current image", async
   const requests = await installStubbedGallery(page);
   await openStubbedGallery(page, requests);
   await openLightbox(page, requests);
-  await expect(page.getByLabel("Toggle fullscreen")).toBeVisible();
+  await expect(page.getByLabel("Fullscreen")).toBeVisible();
 
   requests.length = 0;
-  await page.getByLabel("Toggle fullscreen").click();
+  await page.getByLabel("Fullscreen").click();
 
   await expect.poll(() => requestedPath(requests, "/api/image", imagePaths[0])).toBe(true);
   expect(requestsFor(requests, "/api/image").every((request) => request.path === imagePaths[0])).toBe(true);

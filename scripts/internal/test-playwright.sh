@@ -112,6 +112,9 @@ export PATH_SAFETY_ROOT_PATH="$FIXTURE_ROOT"
 export GALLERY_BASE_URL="$FRONTEND_URL"
 export VITE_PORT="$FRONTEND_PORT"
 export PLAYWRIGHT_HTML_OPEN=never
+if [[ "$SUITE" == "perf" ]]; then
+    export GALLERY_PERF_E2E=1
+fi
 
 if [[ "$SUITE" == "functional" ]]; then
     if [[ $# -gt 0 ]]; then

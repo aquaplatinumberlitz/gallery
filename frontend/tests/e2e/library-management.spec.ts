@@ -340,7 +340,7 @@ test("renders the responsive library list on desktop and mobile", async ({ page 
   await expect(page.getByRole("heading", { name: "Libraries", exact: true })).toBeVisible();
   await expect(page.getByRole("table")).toBeVisible();
   await expect(page.getByRole("table").getByRole("button", { name: "Family photos" })).toBeVisible();
-  await expect(page.getByRole("table").getByText("12 assets")).toBeVisible();
+  await expect(page.getByRole("table").getByText("12 photos")).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page).toHaveURL(/\/admin\/libraries$/);
@@ -403,7 +403,7 @@ test("runs detail actions, updates settings, and unregisters safely", async ({ p
   expect(matchingRequests(state, "POST", "/api/libraries/1/validate")).toHaveLength(1);
   expect(matchingRequests(state, "PATCH", "/api/libraries/1")).toHaveLength(1);
 
-  await page.getByRole("button", { name: "Unregister", exact: true }).click();
+  await page.getByRole("button", { name: "Unregister library", exact: true }).click();
   await expect(page.getByText("Source files will not be deleted.")).toBeVisible();
   await page.getByRole("button", { name: "Unregister library" }).click();
   await expect(page).toHaveURL(/\/admin\/libraries$/);

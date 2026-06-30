@@ -19,6 +19,7 @@ BACKEND_PORT="${GALLERY_PERF_BACKEND_PORT:-4180}"
 export GALLERY_API_BASE_URL="${GALLERY_API_BASE_URL:-http://127.0.0.1:$BACKEND_PORT}"
 export VITE_API_URL="${VITE_API_URL:-$GALLERY_API_BASE_URL}"
 export GALLERY_BASE_URL="${GALLERY_BASE_URL:-http://localhost:5173}"
+export GALLERY_PERF_E2E=1
 if [[ -n "${GALLERY_PERF_PYTHON:-}" ]]; then
     PERF_PYTHON="$GALLERY_PERF_PYTHON"
 elif [[ -x "$REPO_ROOT/backend/.venv_linux/bin/python" ]]; then

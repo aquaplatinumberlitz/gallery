@@ -29,8 +29,17 @@ const albumPath = process.env.GALLERY_PERF_ALBUM_PATH ?? "";
 
 const SAMPLE_COUNT = Number(process.env.GALLERY_PERF_LIGHTBOX_SAMPLES ?? "5");
 const budgets = loadBudgets();
+const perfE2EEnabled =
+  process.env.GALLERY_PERF_E2E === "1" ||
+  process.env.GALLERY_PERF_USE_FIXTURE === "1" ||
+  Boolean(process.env.GALLERY_PERF_ALBUM_PATH);
 
-if (!Number.isInteger(SAMPLE_COUNT) || SAMPLE_COUNT < 2) {
+test.skip(
+  !perfE2EEnabled,
+  "Set GALLERY_PERF_E2E=1 with a real gallery backend or fixture to run lightbox performance diagnostics.",
+);
+
+if (perfE2EEnabled && (!Number.isInteger(SAMPLE_COUNT) || SAMPLE_COUNT < 2)) {
   throw new Error("GALLERY_PERF_LIGHTBOX_SAMPLES must be an integer >= 2 so warm-cache p95 is meaningful.");
 }
 

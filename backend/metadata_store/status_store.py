@@ -811,10 +811,7 @@ def build_global_runtime() -> GlobalRuntime:
     from ..scan_worker import ensure_running, runtime_status
     from ..watcher import get_watcher_status
 
-    if GALLERY_CATALOG_SERVICE_ENABLED:
-        catalog_runtime = ensure_running(service_enabled=True)
-    else:
-        catalog_runtime = runtime_status()
+    catalog_runtime = ensure_running(service_enabled=True) if GALLERY_CATALOG_SERVICE_ENABLED else runtime_status()
 
     with _DB_LOCK, _connect() as conn:
         catalog_running = int(
