@@ -263,7 +263,7 @@ function estimatedAssets(): number | undefined {
           </section>
 
           <section class="rounded-md border bg-background p-5">
-            <h3 class="font-semibold">Issues</h3>
+            <h3 class="font-semibold">Health</h3>
             <div v-if="status" class="mt-4 space-y-3">
               <div class="grid grid-cols-3 gap-4 text-sm">
                 <div v-for="issue in issueBreakdown" :key="issue.label">
@@ -299,7 +299,7 @@ function estimatedAssets(): number | undefined {
                 </p>
               </div>
               <div>
-                <p class="text-xs text-muted-foreground">Usage</p>
+                <p class="text-xs text-muted-foreground">Storage used</p>
                 <p class="text-lg font-semibold">{{ formatBytes(statsQuery.data.value.usage_bytes) }}</p>
               </div>
             </div>
@@ -308,13 +308,13 @@ function estimatedAssets(): number | undefined {
 
           <section class="rounded-md border bg-background p-5">
             <div class="flex items-center justify-between">
-              <h3 class="font-semibold">Generated images</h3>
+              <h3 class="font-semibold">Thumbnails cache</h3>
               <Tooltip>
                 <TooltipTrigger as-child>
                   <Button
                     variant="ghost"
                     size="icon"
-                    aria-label="Refresh generated images"
+                    aria-label="Refresh thumbnails cache"
                     :disabled="generatedImagesQuery.isFetching.value"
                     @click="generatedImagesQuery.refetch()"
                   >
@@ -322,24 +322,24 @@ function estimatedAssets(): number | undefined {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="top" align="end" class="max-w-[220px]">
-                  Reload ready, expected, progress, and cache usage counts for generated thumbnails.
+                  Reload cached, required, coverage, and cache usage counts.
                 </TooltipContent>
               </Tooltip>
             </div>
             <div v-if="generatedImagesQuery.data.value" class="mt-4 space-y-4">
               <dl class="grid gap-3 text-sm">
                 <div class="flex items-center justify-between gap-3">
-                  <dt class="text-muted-foreground">Ready</dt>
+                  <dt class="text-muted-foreground">Cached files</dt>
                   <dd class="font-medium">{{ formatAssetCount(generatedImagesQuery.data.value.ready_derivatives) }}</dd>
                 </div>
                 <div class="flex items-center justify-between gap-3">
-                  <dt class="text-muted-foreground">Expected</dt>
+                  <dt class="text-muted-foreground">Required files</dt>
                   <dd class="font-medium">
                     {{ formatAssetCount(generatedImagesQuery.data.value.expected_derivatives) }}
                   </dd>
                 </div>
                 <div class="flex items-center justify-between gap-3">
-                  <dt class="text-muted-foreground">Progress</dt>
+                  <dt class="text-muted-foreground">Coverage</dt>
                   <dd class="font-medium">
                     {{
                       formatPercent(
@@ -352,7 +352,7 @@ function estimatedAssets(): number | undefined {
                   </dd>
                 </div>
                 <div class="flex items-center justify-between gap-3">
-                  <dt class="text-muted-foreground">Cache usage</dt>
+                  <dt class="text-muted-foreground">Cache size</dt>
                   <dd class="font-medium">{{ formatBytes(generatedImagesQuery.data.value.quota_used_bytes) }}</dd>
                 </div>
                 <div class="flex items-center justify-between gap-3">
@@ -372,7 +372,7 @@ function estimatedAssets(): number | undefined {
                   :disabled="warmMutation.isPending.value"
                   @click="warmMutation.mutate()"
                 >
-                  <ImageIcon /> Generate missing
+                  <ImageIcon /> Build missing thumbnails
                 </Button>
               </div>
             </div>

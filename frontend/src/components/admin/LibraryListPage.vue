@@ -112,18 +112,18 @@ function created(library: RegisteredLibrary) {
           <p class="mt-1 text-2xl font-semibold">{{ statsQuery.data.value?.library_count ?? libraries.length }}</p>
         </div>
         <div class="rounded-md border bg-background p-4">
-          <p class="text-xs text-muted-foreground">Photos</p>
-          <p class="mt-1 text-2xl font-semibold">{{ formatAssetCount(statsQuery.data.value?.photos) }}</p>
-        </div>
-        <div class="rounded-md border bg-background p-4">
-          <p class="text-xs text-muted-foreground">Videos / Usage</p>
+          <p class="text-xs text-muted-foreground">Media files</p>
           <p class="mt-1 text-lg font-semibold">
-            {{ formatAssetCount(statsQuery.data.value?.videos) }} ·
-            {{ formatBytes(statsQuery.data.value?.usage_bytes) }}
+            {{ formatAssetCount(statsQuery.data.value?.photos) }} photos ·
+            {{ formatAssetCount(statsQuery.data.value?.videos) }} videos
           </p>
         </div>
         <div class="rounded-md border bg-background p-4">
-          <p class="text-xs text-muted-foreground">Active queue</p>
+          <p class="text-xs text-muted-foreground">Storage used</p>
+          <p class="mt-1 text-2xl font-semibold">{{ formatBytes(statsQuery.data.value?.usage_bytes) }}</p>
+        </div>
+        <div class="rounded-md border bg-background p-4">
+          <p class="text-xs text-muted-foreground">Queued jobs</p>
           <p class="mt-1 text-2xl font-semibold">{{ activeJobs }}</p>
         </div>
       </section>

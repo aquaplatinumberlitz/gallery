@@ -32,8 +32,8 @@ const countCopy = computed(() =>
       <DialogHeader>
         <DialogTitle>Unregister {{ library?.name }}?</DialogTitle>
         <DialogDescription>
-          Source files will not be deleted. Catalog rows, metadata records, and generated derivatives for this library
-          may be removed.{{ countCopy }}
+          Source files will not be deleted. Catalog rows, metadata records, and cached thumbnails for this library may
+          be removed.{{ countCopy }}
         </DialogDescription>
       </DialogHeader>
       <DialogFooter>

@@ -187,7 +187,7 @@ describe("MaintenancePage", () => {
 
     const catalogSection = wrapper.findAll("section").find((section) => section.text().includes("Catalog workers"));
     const metadataSection = wrapper.findAll("section").find((section) => section.text().includes("Metadata workers"));
-    const thumbnailsSection = wrapper.findAll("section").find((section) => section.text().includes("Ready files"));
+    const thumbnailsSection = wrapper.findAll("section").find((section) => section.text().includes("Cached files"));
 
     expect(catalogSection?.findAll("button").map((button) => button.attributes("aria-label"))).toEqual([
       "About Catalog queue depth",
@@ -201,7 +201,7 @@ describe("MaintenancePage", () => {
     ]);
     expect(thumbnailsSection?.findAll("button").map((button) => button.attributes("aria-label"))).toEqual([
       "Refresh thumbnails summary",
-      "About Expected files",
+      "About required files",
     ]);
     expect(thumbnailsSection?.text()).not.toContain("Rebuild");
     expect(thumbnailsSection?.text()).not.toContain("Clear");

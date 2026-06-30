@@ -19,7 +19,7 @@ const emit = defineEmits<{ "update:open": [value: boolean]; confirm: [] }>();
       <DialogHeader>
         <DialogTitle>Rebuild imported data?</DialogTitle>
         <DialogDescription>
-          Clears imported catalog data, extracted metadata, jobs, and generated previews{{ scopeLabel }}, then rebuilds
+          Clears imported catalog data, extracted metadata, jobs, and cached thumbnails{{ scopeLabel }}, then rebuilds
           from registered libraries. Source image files and library registrations are not deleted.
         </DialogDescription>
       </DialogHeader>

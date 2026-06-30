@@ -254,7 +254,7 @@ describe("LibraryDetailPage", () => {
   it("renders all dashboard sections", () => {
     const wrapper = mountSubject();
     expect(wrapper.text()).toContain("Status and progress");
-    expect(wrapper.text()).toContain("Issues");
+    expect(wrapper.text()).toContain("Health");
     expect(wrapper.text()).toContain("Statistics");
     expect(wrapper.text()).toContain("80");
     expect(wrapper.text()).toContain("20");
@@ -355,11 +355,11 @@ describe("LibraryDetailPage", () => {
     expect(scanMutateMock).toHaveBeenCalledWith({ id: 1 });
   });
 
-  it("renders generated images with full data", () => {
+  it("renders thumbnails cache with full data", () => {
     mockGeneratedImagesData = mockGeneratedImages;
     const wrapper = mountSubject();
-    expect(wrapper.text()).toContain("Generated images");
-    expect(wrapper.text()).toContain("Generate missing");
+    expect(wrapper.text()).toContain("Thumbnails cache");
+    expect(wrapper.text()).toContain("Build missing thumbnails");
   });
 
   it("renders jobs with actual data", () => {

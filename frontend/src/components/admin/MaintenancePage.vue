@@ -67,8 +67,8 @@ const fileIssueKeys = [
   },
   {
     key: "generated_image_missing" as const,
-    label: "Generated image missing",
-    description: "Thumbnail or preview records marked ready while the cached file is missing.",
+    label: "Missing thumbnail file",
+    description: "Thumbnail cache records marked ready while the cached file is missing.",
   },
   {
     key: "metadata_mismatch" as const,
@@ -82,8 +82,8 @@ const fileIssueKeys = [
   },
   {
     key: "generated_image_job_mismatch" as const,
-    label: "Generated image job mismatch",
-    description: "Finished thumbnail jobs whose derivative record is not ready.",
+    label: "Thumbnail job mismatch",
+    description: "Finished thumbnail jobs whose cache record is not ready.",
   },
 ] as const;
 
@@ -96,7 +96,7 @@ const repairKeys = [
   {
     key: "requeued" as const,
     label: "Requeued",
-    description: "Work sent back to metadata extraction or thumbnail generation.",
+    description: "Work sent back to metadata extraction or thumbnail building.",
   },
   {
     key: "failed" as const,
@@ -106,7 +106,7 @@ const repairKeys = [
   {
     key: "unchanged" as const,
     label: "Skipped / unchanged",
-    description: "Issues that were counted but did not need a state change in this run.",
+    description: "Problems that were counted but did not need a state change in this run.",
   },
 ] as const;
 
@@ -159,7 +159,7 @@ const needsRefreshCount = computed(() => {
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              Clears imported catalog data, extracted metadata, jobs, and generated previews while keeping libraries and
+              Clears imported catalog data, extracted metadata, jobs, and cached thumbnails while keeping libraries and
               import paths.
             </TooltipContent>
           </Tooltip>
@@ -317,9 +317,7 @@ const needsRefreshCount = computed(() => {
         <div class="flex items-center justify-between">
           <div>
             <h3 class="font-semibold">Thumbnails cache</h3>
-            <p class="mt-1 text-sm text-muted-foreground">
-              Generated thumbnails and previews used for faster browsing.
-            </p>
+            <p class="mt-1 text-sm text-muted-foreground">Cached thumbnails and previews used for faster browsing.</p>
           </div>
           <Tooltip>
             <TooltipTrigger as-child>
@@ -334,32 +332,32 @@ const needsRefreshCount = computed(() => {
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top" align="end" class="max-w-[220px]">
-              Reload ready and expected thumbnail cache counts.
+              Reload cached and required thumbnail cache counts.
             </TooltipContent>
           </Tooltip>
         </div>
         <div v-if="globalSummaryQuery.data.value" class="mt-4">
           <dl class="grid gap-3 text-sm sm:grid-cols-2">
             <div class="flex items-center justify-between gap-3">
-              <dt class="text-muted-foreground">Ready files</dt>
+              <dt class="text-muted-foreground">Cached files</dt>
               <dd class="font-medium">{{ totalReady ?? "\u2014" }}</dd>
             </div>
             <div class="flex items-center justify-between gap-3">
               <dt class="flex items-center gap-1 text-muted-foreground">
-                Expected files
+                Required files
                 <Tooltip>
                   <TooltipTrigger as-child>
                     <Button
                       variant="ghost"
                       size="icon"
                       class="size-4 text-muted-foreground hover:text-foreground -my-1"
-                      aria-label="About Expected files"
+                      aria-label="About required files"
                     >
                       <Info class="size-3.5" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="top" align="start" class="max-w-[220px]">
-                    Total derivative files expected from cataloged image assets and configured preview variants.
+                    Total thumbnail and preview files required for cataloged photos.
                   </TooltipContent>
                 </Tooltip>
               </dt>
