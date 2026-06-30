@@ -290,3 +290,62 @@ def test_scan_worker_start_calls_recovery_before_worker_claim(
             assert "Interrupted by server restart" in row["message"]
     finally:
         stop()
+
+
+def test_scan_worker_ensure_running_does_not_recover_when_service_disabled(
+    isolated_metadata_db: Path,
+):
+    """Runtime health checks are passive when the catalog service is disabled."""
+    _initialize_database()
+    now = time.time()
+    with _DB_LOCK, _connect() as conn:
+        _insert_library(conn, 1, now)
+        conn.execute(
+            """INSERT INTO library_jobs
+               (library_id, type, state, created_at, updated_at)
+               VALUES (?, ?, 'running', ?, ?)""",
+            (1, "scan", now, now),
+        )
+
+    from backend.scan_worker import ensure_running, stop
+
+    stop()
+    status = ensure_running(service_enabled=False)
+
+    assert status["alive_workers"] == 0
+    assert status["recovered_jobs"] == 0
+    with _DB_LOCK, _connect() as conn:
+        row = conn.execute("SELECT state FROM library_jobs WHERE type = 'scan'").fetchone()
+        assert row["state"] == "running"
+
+
+def test_scan_worker_ensure_running_recovers_running_job_when_workers_dead(
+    isolated_metadata_db: Path,
+):
+    """If no worker is alive, runtime recovery fails orphaned running work and restarts the pool."""
+    _initialize_database()
+    now = time.time()
+    with _DB_LOCK, _connect() as conn:
+        _insert_library(conn, 1, now)
+        conn.execute(
+            """INSERT INTO library_jobs
+               (library_id, type, state, created_at, updated_at)
+               VALUES (?, ?, 'running', ?, ?)""",
+            (1, "scan", now, now),
+        )
+
+    from backend.scan_worker import ensure_running, stop
+
+    stop()
+    try:
+        status = ensure_running(service_enabled=True)
+
+        assert status["alive_workers"] > 0
+        assert status["recovered_jobs"] == 1
+        with _DB_LOCK, _connect() as conn:
+            row = conn.execute("SELECT state, message, error FROM library_jobs WHERE type = 'scan'").fetchone()
+            assert row["state"] == "failed"
+            assert row["message"] == "Catalog worker stopped before completing the job"
+            assert row["error"] == "Catalog worker stopped before completing the job"
+    finally:
+        stop()

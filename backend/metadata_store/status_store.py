@@ -139,6 +139,7 @@ class GlobalRuntime(TypedDict):
     """Process-wide runtime counters included once per response."""
 
     catalog_worker_count: int
+    catalog_alive_workers: int
     catalog_active_jobs: int
     catalog_queue_depth: int
     metadata_worker_count: int
@@ -804,6 +805,17 @@ def _build_status(
 def build_global_runtime() -> GlobalRuntime:
     """Return process and durable-queue runtime status for one response envelope."""
     initialize_database()
+    from ..config import GALLERY_CATALOG_SERVICE_ENABLED
+    from ..indexer import get_indexer_runtime_status
+    from ..refresh import get_refresh_status
+    from ..scan_worker import ensure_running, runtime_status
+    from ..watcher import get_watcher_status
+
+    if GALLERY_CATALOG_SERVICE_ENABLED:
+        catalog_runtime = ensure_running(service_enabled=True)
+    else:
+        catalog_runtime = runtime_status()
+
     with _DB_LOCK, _connect() as conn:
         catalog_running = int(
             conn.execute(
@@ -822,12 +834,6 @@ def build_global_runtime() -> GlobalRuntime:
             ).fetchone()[0]
         )
 
-    from ..indexer import get_indexer_runtime_status
-    from ..refresh import get_refresh_status
-    from ..scan_worker import runtime_status
-    from ..watcher import get_watcher_status
-
-    catalog_runtime = runtime_status()
     metadata_runtime = get_indexer_runtime_status()
     watcher = get_watcher_status()
     refresh = get_refresh_status()
@@ -844,6 +850,7 @@ def build_global_runtime() -> GlobalRuntime:
 
     return {
         "catalog_worker_count": int(catalog_runtime["worker_count"]),
+        "catalog_alive_workers": int(catalog_runtime["alive_workers"]),
         "catalog_active_jobs": catalog_running,
         "catalog_queue_depth": catalog_queued,
         "metadata_worker_count": int(metadata_runtime["worker_count"]),

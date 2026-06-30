@@ -9,7 +9,11 @@ from pathlib import Path
 from typing import Any
 
 from .catalog_maintenance_gate import release_maintenance_gate, try_acquire_maintenance_gate
-from .config import GALLERY_CATALOG_JOB_MAX_QUEUE_WAIT_SECONDS, GALLERY_CATALOG_WORKERS
+from .config import (
+    GALLERY_CATALOG_JOB_MAX_QUEUE_WAIT_SECONDS,
+    GALLERY_CATALOG_SERVICE_ENABLED,
+    GALLERY_CATALOG_WORKERS,
+)
 from .indexer import dispatch_metadata_index_paths, rebuild_index_scope
 from .library_events import event_payload, publish
 from .metadata_store import (
@@ -78,6 +82,43 @@ def _transition_job(job_id: int, state: str, **changes: Any) -> dict[str, Any]:
             )
             _emit_job(parent, parent_event)
     return job
+
+
+def _event_type_for_state(state: str) -> str:
+    if state == "succeeded":
+        return "job.completed"
+    if state == "failed":
+        return "job.failed"
+    if state == "cancelled":
+        return "job.cancelled"
+    return "job.updated"
+
+
+def _emit_recovered_jobs(jobs: list[dict[str, Any]]) -> None:
+    for job in jobs:
+        _emit_job(job, event_type=_event_type_for_state(str(job["state"])))
+
+
+def _prune_worker_threads_locked() -> list[threading.Thread]:
+    alive = [thread for thread in _worker_threads if thread.is_alive()]
+    _worker_threads[:] = alive
+    return alive
+
+
+def _spawn_missing_workers_locked() -> None:
+    missing = max(0, GALLERY_CATALOG_WORKERS - len(_worker_threads))
+    if missing == 0:
+        return
+    _stop_event.clear()
+    start_index = len(_worker_threads)
+    for offset in range(missing):
+        thread = threading.Thread(
+            target=_worker_loop,
+            name=f"gallery-catalog-worker-{start_index + offset + 1}",
+            daemon=True,
+        )
+        _worker_threads.append(thread)
+        thread.start()
 
 
 def notify_workers() -> None:
@@ -421,32 +462,48 @@ def _worker_loop() -> None:
 def start() -> None:
     """Start bounded in-process catalog workers."""
     with _service_lock:
-        alive = [thread for thread in _worker_threads if thread.is_alive()]
-        _worker_threads[:] = alive
+        alive = _prune_worker_threads_locked()
         if alive:
+            _spawn_missing_workers_locked()
             return
         # Recover orphaned running jobs before spawning workers
         recovered_jobs = recover_stale_jobs()
         for job in recovered_jobs:
             LOGGER.warning("Recovered orphaned catalog job %s after server restart", job["id"])
-            event_type = "job.updated"
-            if job["state"] == "succeeded":
-                event_type = "job.completed"
-            elif job["state"] == "failed":
-                event_type = "job.failed"
-            elif job["state"] == "cancelled":
-                event_type = "job.cancelled"
-            _emit_job(job, event_type=event_type)
+        _emit_recovered_jobs(recovered_jobs)
+        _spawn_missing_workers_locked()
+        notify_workers()
 
-        _stop_event.clear()
-        for index in range(GALLERY_CATALOG_WORKERS):
-            thread = threading.Thread(
-                target=_worker_loop,
-                name=f"gallery-catalog-worker-{index + 1}",
-                daemon=True,
-            )
-            _worker_threads.append(thread)
-            thread.start()
+
+def ensure_running(*, service_enabled: bool = GALLERY_CATALOG_SERVICE_ENABLED) -> dict[str, int]:
+    """Repair the in-process worker pool and unblock orphaned running jobs.
+
+    Startup recovery handles jobs left running by a prior process. This runtime
+    guard covers the same failure shape inside the current process: if no
+    catalog worker thread is alive, no thread can finish the durable running
+    job, so mark it failed before starting a replacement worker.
+    """
+    with _service_lock:
+        alive = _prune_worker_threads_locked()
+        recovered_count = 0
+        if service_enabled and not alive:
+            recovered_jobs = recover_stale_jobs(reason="Catalog worker stopped before completing the job")
+            recovered_count = len(recovered_jobs)
+            for job in recovered_jobs:
+                LOGGER.warning("Recovered orphaned catalog job %s after worker stopped", job["id"])
+            _emit_recovered_jobs(recovered_jobs)
+            _spawn_missing_workers_locked()
+            notify_workers()
+            alive = _prune_worker_threads_locked()
+        elif service_enabled and len(alive) < GALLERY_CATALOG_WORKERS:
+            _spawn_missing_workers_locked()
+            notify_workers()
+            alive = _prune_worker_threads_locked()
+        return {
+            "worker_count": GALLERY_CATALOG_WORKERS,
+            "alive_workers": len(alive),
+            "recovered_jobs": recovered_count,
+        }
 
 
 def stop() -> None:
@@ -462,8 +519,9 @@ def stop() -> None:
 
 def runtime_status() -> dict[str, int]:
     """Return catalog worker runtime counts."""
-    active = [thread for thread in _worker_threads if thread.is_alive()]
-    return {
-        "worker_count": GALLERY_CATALOG_WORKERS,
-        "alive_workers": len(active),
-    }
+    with _service_lock:
+        active = _prune_worker_threads_locked()
+        return {
+            "worker_count": GALLERY_CATALOG_WORKERS,
+            "alive_workers": len(active),
+        }

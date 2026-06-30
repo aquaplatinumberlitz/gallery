@@ -56,6 +56,7 @@ const expectTimestampMs = (value: number | null): void => {
 
 const globalRuntime = {
   catalog_worker_count: 1,
+  catalog_alive_workers: 1,
   catalog_active_jobs: 0,
   catalog_queue_depth: 0,
   metadata_worker_count: 2,

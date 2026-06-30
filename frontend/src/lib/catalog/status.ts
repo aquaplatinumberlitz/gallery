@@ -84,6 +84,7 @@ export interface UnifiedStatus {
 
 export interface GlobalRuntime {
   catalog_worker_count: number;
+  catalog_alive_workers?: number;
   catalog_active_jobs: number;
   catalog_queue_depth: number;
   metadata_worker_count: number;

@@ -48,6 +48,7 @@ class TestGetMaintenanceRuntime:
         data = resp.json()
         gr = data["global_runtime"]
         assert "catalog_worker_count" in gr
+        assert "catalog_alive_workers" in gr
         assert "catalog_active_jobs" in gr
         assert "catalog_queue_depth" in gr
         assert "watcher_enabled" in gr

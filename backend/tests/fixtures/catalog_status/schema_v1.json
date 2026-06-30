@@ -282,6 +282,7 @@
       "additionalProperties": false,
       "required": [
         "catalog_worker_count",
+        "catalog_alive_workers",
         "catalog_active_jobs",
         "catalog_queue_depth",
         "metadata_worker_count",
@@ -295,6 +296,10 @@
       ],
       "properties": {
         "catalog_worker_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "catalog_alive_workers": {
           "type": "integer",
           "minimum": 0
         },

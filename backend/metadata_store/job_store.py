@@ -518,7 +518,7 @@ def create_or_get_active_scan_job(
     )
 
 
-def recover_stale_jobs() -> list[dict[str, Any]]:
+def recover_stale_jobs(*, reason: str = "Interrupted by server restart") -> list[dict[str, Any]]:
     """Fail jobs left running by a previous server process.
 
     Queued durable jobs remain queued so startup can resume them or coalesce a
@@ -555,8 +555,8 @@ def recover_stale_jobs() -> list[dict[str, Any]]:
         job = update_job_state(
             job_id,
             "failed",
-            message="Interrupted by server restart",
-            error="Interrupted by server restart",
+            message=reason,
+            error=reason,
         )
         if job is not None:
             recovered.append(job)
