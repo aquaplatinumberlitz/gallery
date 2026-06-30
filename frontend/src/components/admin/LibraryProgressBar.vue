@@ -42,9 +42,9 @@ const indexedLabel = computed(() => {
 
 <template>
   <div v-if="status" class="space-y-1.5">
-    <div class="flex justify-between gap-3 text-xs text-muted-foreground">
+    <div v-if="!compact" class="flex justify-between gap-3 text-xs text-muted-foreground">
       <span>{{ indexedLabel }}</span>
-      <span v-if="!compact && !indeterminate">{{ percent }}%</span>
+      <span v-if="!indeterminate">{{ percent }}%</span>
     </div>
     <div
       class="h-2 overflow-hidden rounded-full bg-muted"
