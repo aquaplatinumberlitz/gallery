@@ -75,7 +75,7 @@ describe("IndexStatusDetailsPopover edge states", () => {
     });
     const { getByText } = renderPopover(status);
     expect(getByText("Ready with issues")).toBeVisible();
-    expect(getByText("Total issues")).toBeVisible();
+    expect(getByText("Total health issues")).toBeVisible();
     expect(getByText("3")).toBeVisible();
   });
 
@@ -105,7 +105,7 @@ describe("IndexStatusDetailsPopover edge states", () => {
       },
     });
     const { getByText } = renderPopover(status, { globalWorkOutsideScope: true });
-    expect(getByText("Indexer working in another folder")).toBeVisible();
+    expect(getByText("Metadata extraction running in another folder")).toBeVisible();
   });
 
   it("renders the latest issue message when latest_issue is non-null", () => {

@@ -42,23 +42,25 @@ const bodyText = computed(() => {
   if (isScanning.value) {
     const completed = props.status.scan.completed_units ?? 0;
     const total = props.status.scan.total_units;
-    if (total !== null) return `${completed.toLocaleString()} / ${total.toLocaleString()} units updated`;
-    return completed > 0 ? `${completed.toLocaleString()} units updated` : "Updating...";
+    if (total !== null) return `${completed.toLocaleString()} / ${total.toLocaleString()} catalog items updated`;
+    return completed > 0 ? `${completed.toLocaleString()} catalog items updated` : "Updating catalog...";
   }
   if (isIndexing.value) {
     if (metadataProgress.value !== null) {
-      return `${photoDetailsReady.value.toLocaleString()} / ${photosFound.value.toLocaleString()} photo details ready`;
+      return `${photoDetailsReady.value.toLocaleString()} / ${photosFound.value.toLocaleString()} metadata ready`;
     }
-    return "Updating photo details...";
+    return "Updating metadata...";
   }
-  if (props.globalWorkOutsideScope) return "Indexer working in another folder";
+  if (props.globalWorkOutsideScope) return "Metadata extraction running in another folder";
   if (summaryState.value === "needs_update" && notReadyAssets.value > 0) {
-    return `${notReadyAssets.value.toLocaleString()} photo details need updating`;
+    return `${notReadyAssets.value.toLocaleString()} photos need metadata updates`;
   }
   if (summaryState.value === "error") return "Catalog needs attention";
   if (summaryState.value === "offline") return "Offline";
   if (summaryState.value === "needs_scan") return "Needs update";
-  return `${photoDetailsReady.value.toLocaleString()} photo details ready`;
+  return photoDetailsReady.value >= photosFound.value && photosFound.value > 0
+    ? "All metadata ready"
+    : `${photoDetailsReady.value.toLocaleString()} / ${photosFound.value.toLocaleString()} metadata ready`;
 });
 </script>
 

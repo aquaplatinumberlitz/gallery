@@ -53,7 +53,7 @@ function formatCount(value: number) {
       <IndexStatusBadge :presentation="presentation" />
     </div>
     <p v-if="globalWorkOutsideScope" class="index-details__muted" style="margin: 0; font-size: 12px">
-      Indexer working in another folder
+      Metadata extraction running in another folder
     </p>
 
     <div v-if="contractError" class="index-details__error">{{ STATUS_CONTRACT_ERROR_MESSAGE }}</div>
@@ -71,24 +71,24 @@ function formatCount(value: number) {
         <Tooltip :delay-duration="800">
           <TooltipTrigger as-child>
             <div class="index-details__row has-tooltip">
-              <span class="index-details__row-key">Photos found</span>
+              <span class="index-details__row-key">Photos</span>
               <strong>{{ formatCount(photosFound) }}</strong>
             </div>
           </TooltipTrigger>
           <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
-            Online image and video assets found in this scope.
+            Cataloged photos in this scope.
           </TooltipContent>
         </Tooltip>
 
         <Tooltip :delay-duration="800">
           <TooltipTrigger as-child>
             <div class="index-details__row has-tooltip">
-              <span class="index-details__row-key">Photo details ready</span>
+              <span class="index-details__row-key">Metadata ready</span>
               <strong>{{ formatCount(photoDetailsReady) }}</strong>
             </div>
           </TooltipTrigger>
           <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
-            Assets with current metadata ready for search and inspection.
+            Photos with current metadata ready for search and inspection.
           </TooltipContent>
         </Tooltip>
       </div>
@@ -96,7 +96,7 @@ function formatCount(value: number) {
       <div v-if="isIndexing && metadataProgress !== null" class="index-details__section">
         <p class="index-details__section-label">Processing</p>
         <p class="index-details__muted" style="margin: 0; font-size: 12px">
-          {{ Math.round(metadataProgress) }}% details processed
+          {{ Math.round(metadataProgress) }}% metadata processed
         </p>
         <IndexProgressBar :percent="Math.round(metadataProgress)" />
       </div>
@@ -111,18 +111,18 @@ function formatCount(value: number) {
 
         <div class="index-details__row">
           <span class="index-details__row-key">Including subfolders</span>
-          <strong>{{ isLibraryScope ? "All paths" : "Yes" }}</strong>
+          <strong>{{ isLibraryScope ? "All folders" : "Yes" }}</strong>
         </div>
       </div>
 
       <div v-if="failedAssets > 0 || issueCount > 0" class="index-details__section">
-        <p class="index-details__section-label">Issues</p>
+        <p class="index-details__section-label">Health</p>
         <div v-if="failedAssets > 0" class="index-details__row">
-          <span class="index-details__row-key index-details__row-key--error">Failed assets</span>
+          <span class="index-details__row-key index-details__row-key--error">Failed metadata</span>
           <strong>{{ formatCount(failedAssets) }}</strong>
         </div>
         <div class="index-details__row">
-          <span class="index-details__row-key">Total issues</span>
+          <span class="index-details__row-key">Total health issues</span>
           <strong>{{ formatCount(issueCount) }}</strong>
         </div>
       </div>
@@ -130,11 +130,11 @@ function formatCount(value: number) {
       <div class="index-details__section">
         <p class="index-details__section-label">Timestamps</p>
         <div class="index-details__row">
-          <span class="index-details__row-key">Last update</span>
+          <span class="index-details__row-key">Catalog updated</span>
           <strong>{{ formatLibraryTimestamp(status.last_scan_at) }}</strong>
         </div>
         <div class="index-details__row">
-          <span class="index-details__row-key">Last index</span>
+          <span class="index-details__row-key">Metadata updated</span>
           <strong>{{ formatLibraryTimestamp(status.last_index_at) }}</strong>
         </div>
       </div>
