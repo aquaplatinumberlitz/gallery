@@ -15,9 +15,9 @@ const issueCount = computed(() => props.status?.issue_count ?? 0);
 <template>
   <div class="min-w-40 space-y-2">
     <template v-if="status">
-      <div class="text-sm font-medium">{{ formatAssetCount(totalAssets ?? 0) }} assets</div>
+      <div class="text-sm font-medium">{{ formatAssetCount(totalAssets ?? 0) }} photos</div>
       <div class="text-xs text-muted-foreground">
-        {{ formatAssetCount(readyAssets ?? 0) }} ready<span v-if="failedAssets > 0">
+        {{ formatAssetCount(readyAssets ?? 0) }} metadata ready<span v-if="failedAssets > 0">
           · {{ formatAssetCount(failedAssets) }} failed</span
         >
       </div>

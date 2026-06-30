@@ -21,7 +21,7 @@ const props = defineProps<{
 const emit = defineEmits<{ "update:open": [value: boolean]; confirm: [] }>();
 const countCopy = computed(() =>
   props.estimatedAssets && props.estimatedAssets > 0
-    ? ` This library currently contains approximately ${formatAssetCount(props.estimatedAssets)} assets.`
+    ? ` This library currently contains approximately ${formatAssetCount(props.estimatedAssets)} media files.`
     : "",
 );
 </script>

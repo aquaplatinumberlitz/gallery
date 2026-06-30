@@ -20,7 +20,7 @@ const emit = defineEmits<{ "update:open": [value: boolean]; confirm: [] }>();
         <DialogTitle>Clear imported data{{ scopeLabel }}?</DialogTitle>
         <DialogDescription>
           Clears imported catalog data, extracted metadata, jobs, and cached thumbnails{{ scopeLabel }}. Libraries,
-          import paths, exclusion patterns, and source image files are not deleted.
+          folders, exclusion patterns, and source image files are not deleted.
         </DialogDescription>
       </DialogHeader>
       <DialogFooter>

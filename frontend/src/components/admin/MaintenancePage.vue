@@ -160,7 +160,7 @@ const needsRefreshCount = computed(() => {
             </TooltipTrigger>
             <TooltipContent>
               Clears imported catalog data, extracted metadata, jobs, and cached thumbnails while keeping libraries and
-              import paths.
+              folders.
             </TooltipContent>
           </Tooltip>
         </div>

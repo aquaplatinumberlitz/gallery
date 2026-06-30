@@ -59,9 +59,9 @@ describe("LibraryForm", () => {
     expect(wrapper.text()).toContain("Display name");
   });
 
-  it("renders import paths section", () => {
+  it("renders folders section", () => {
     const wrapper = createWrapper();
-    expect(wrapper.text()).toContain("Import paths");
+    expect(wrapper.text()).toContain("Folders");
   });
 
   it("renders exclusion patterns section", () => {

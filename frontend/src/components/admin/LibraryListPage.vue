@@ -158,7 +158,7 @@ function created(library: RegisteredLibrary) {
         <div class="max-w-md space-y-3">
           <Library class="mx-auto size-10 text-muted-foreground" />
           <h3 class="text-lg font-semibold">No libraries registered</h3>
-          <p class="text-sm text-muted-foreground">Register a library before browsing or indexing local assets.</p>
+          <p class="text-sm text-muted-foreground">Register a library before browsing or indexing local media.</p>
           <Button @click="createOpen = true"><Plus /> Add library</Button>
         </div>
       </section>
@@ -168,8 +168,9 @@ function created(library: RegisteredLibrary) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Library</TableHead><TableHead>Import paths</TableHead><TableHead>Status</TableHead
-                ><TableHead>Assets / Stats</TableHead><TableHead>Last update</TableHead><TableHead>Last index</TableHead
+                <TableHead>Library</TableHead><TableHead>Folder</TableHead><TableHead>Status</TableHead
+                ><TableHead>Catalog</TableHead><TableHead>Catalog updated</TableHead
+                ><TableHead>Metadata updated</TableHead
                 ><TableHead class="w-14"><span class="sr-only">Actions</span></TableHead>
               </TableRow>
             </TableHeader>
@@ -187,7 +188,7 @@ function created(library: RegisteredLibrary) {
                     class="mt-1 flex items-center gap-1 text-xs text-destructive"
                     :title="scanErrorMessage(library) ?? ''"
                   >
-                    <AlertTriangle class="size-3" /> Last update failed
+                    <AlertTriangle class="size-3" /> Catalog update failed
                   </div>
                 </TableCell>
                 <TableCell>
@@ -252,7 +253,7 @@ function created(library: RegisteredLibrary) {
             </div>
             <div class="mt-4 flex items-center justify-between gap-3">
               <LibraryStatusBadge :status="statusFor(library)" /><span class="text-xs text-muted-foreground"
-                >Updated {{ formatLibraryTimestamp(lastScanAt(library)) }}</span
+                >Catalog updated {{ formatLibraryTimestamp(lastScanAt(library)) }}</span
               >
             </div>
             <div class="mt-4"><LibrarySummaryPanel :status="statusFor(library)" /></div>

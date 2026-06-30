@@ -85,7 +85,7 @@ function mountSubject() {
           template: "<button type='button' @click=\"$emit('scan')\">Update library</button>",
         },
         LibraryStatusBadge: { template: "<span />" },
-        LibrarySummaryPanel: { template: "<span>12 assets</span>" },
+        LibrarySummaryPanel: { template: "<span>12 photos</span>" },
         LibraryCreateDialog: { template: "<div />" },
         LibraryEditDialog: { template: "<div />" },
         LibraryDeleteConfirmDialog: { template: "<div />" },

@@ -381,7 +381,7 @@ function estimatedAssets(): number | undefined {
 
           <section class="rounded-md border bg-background p-5">
             <div class="flex items-center justify-between">
-              <h3 class="font-semibold">Import paths</h3>
+              <h3 class="font-semibold">Folders</h3>
               <Button variant="ghost" size="sm" @click="editOpen = true">Edit</Button>
             </div>
             <div class="mt-4 space-y-3">
@@ -474,11 +474,11 @@ function estimatedAssets(): number | undefined {
               <dd class="mt-1">{{ formatLibraryTimestamp(library.updated_at) }}</dd>
             </div>
             <div>
-              <dt class="text-muted-foreground">Last update</dt>
+              <dt class="text-muted-foreground">Catalog updated</dt>
               <dd class="mt-1">{{ formatLibraryTimestamp(status?.last_scan_at ?? library.last_scan_at) }}</dd>
             </div>
             <div>
-              <dt class="text-muted-foreground">Last index</dt>
+              <dt class="text-muted-foreground">Metadata updated</dt>
               <dd class="mt-1">{{ formatLibraryTimestamp(status?.last_index_at ?? null) }}</dd>
             </div>
           </dl>

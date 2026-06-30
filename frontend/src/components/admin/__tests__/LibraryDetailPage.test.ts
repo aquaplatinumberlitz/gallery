@@ -258,7 +258,7 @@ describe("LibraryDetailPage", () => {
     expect(wrapper.text()).toContain("Statistics");
     expect(wrapper.text()).toContain("80");
     expect(wrapper.text()).toContain("20");
-    expect(wrapper.text()).toContain("Import paths");
+    expect(wrapper.text()).toContain("Folders");
     expect(wrapper.text()).toContain("Exclusion patterns");
     expect(wrapper.text()).toContain("Recent job history");
     expect(wrapper.text()).toContain("Catalog lifecycle");

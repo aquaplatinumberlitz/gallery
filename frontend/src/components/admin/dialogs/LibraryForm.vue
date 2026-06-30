@@ -57,7 +57,7 @@ const clientErrors = computed(() => {
   if (normalizedPaths.value.some((path) => !path.startsWith("/") && !/^[A-Za-z]:[\\/]/.test(path))) {
     errors.push("Every import path must be absolute.");
   }
-  if (new Set(normalizedPaths.value).size !== normalizedPaths.value.length) errors.push("Import paths must be unique.");
+  if (new Set(normalizedPaths.value).size !== normalizedPaths.value.length) errors.push("Folders must be unique.");
   if (normalizedPatterns.value.length > 128) errors.push("Use no more than 128 exclusion patterns.");
   if (new Set(normalizedPatterns.value).size !== normalizedPatterns.value.length) {
     errors.push("Exclusion patterns must be unique.");
@@ -149,8 +149,8 @@ async function submit(scanAfterCreate = false) {
 
     <fieldset class="space-y-3">
       <div class="flex items-center justify-between gap-3">
-        <legend class="text-sm font-medium">Import paths</legend>
-        <Button type="button" variant="outline" size="sm" @click="addPath"><Plus /> Add path</Button>
+        <legend class="text-sm font-medium">Folders</legend>
+        <Button type="button" variant="outline" size="sm" @click="addPath"><Plus /> Add folder</Button>
       </div>
       <div v-for="(_path, index) in importPaths" :key="index" class="flex items-center gap-2">
         <Input v-model="importPaths[index]" class="font-mono text-xs" placeholder="/absolute/path/to/library" />
@@ -159,7 +159,7 @@ async function submit(scanAfterCreate = false) {
           variant="ghost"
           size="icon"
           :disabled="index === 0"
-          aria-label="Move path up"
+          aria-label="Move folder up"
           @click="movePath(index, -1)"
         >
           <ArrowUp />
@@ -169,7 +169,7 @@ async function submit(scanAfterCreate = false) {
           variant="ghost"
           size="icon"
           :disabled="index === importPaths.length - 1"
-          aria-label="Move path down"
+          aria-label="Move folder down"
           @click="movePath(index, 1)"
         >
           <ArrowDown />
@@ -179,7 +179,7 @@ async function submit(scanAfterCreate = false) {
           variant="ghost"
           size="icon"
           :disabled="importPaths.length === 1"
-          aria-label="Remove path"
+          aria-label="Remove folder"
           @click="removePath(index)"
         >
           <Trash2 />
