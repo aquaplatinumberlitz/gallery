@@ -137,6 +137,52 @@ def test_ready_derivative_lookup_warming_and_clear(
     scheduler.release_serving(str(cache_file))
 
 
+def test_library_status_excludes_legacy_variants(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+    tmp_path: Path,
+):
+    image, asset_id = _catalog_image(isolated_gallery_root)
+    stat = image.stat()
+    cache_dir = tmp_path / "derivatives"
+    cache_dir.mkdir()
+    scheduler = DerivativeScheduler(quota_bytes=1024 * 1024)
+
+    current_bytes = 0
+    current_rows: list[tuple[str, int, int]] = []
+    for kind, variants in DERIVATIVE_VARIANTS.items():
+        for variant in variants:
+            cache_file = cache_dir / f"{kind}-{variant['name']}.webp"
+            cache_file.write_bytes(b"current")
+            current_bytes += cache_file.stat().st_size
+            derivative_id = scheduler.schedule_derivative(asset_id, kind, str(variant["name"]))
+            current_rows.append((str(cache_file), cache_file.stat().st_size, derivative_id))
+
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.executemany(
+            "UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = ? WHERE id = ?",
+            current_rows,
+        )
+
+        legacy_file = cache_dir / "edge-128-q-78-webp.webp"
+        legacy_file.write_bytes(b"legacy")
+        conn.execute(
+            """
+            INSERT INTO asset_derivatives (
+              asset_id, kind, variant, source_mtime_ns, source_size, format, quality,
+              max_long_edge, status, cache_path, byte_size
+            ) VALUES (?, 'thumbnail', 'edge-128-q-78-webp', ?, ?, 'webp', 78, 128, 'ready', ?, ?)
+            """,
+            (asset_id, float(stat.st_mtime_ns), stat.st_size, str(legacy_file), legacy_file.stat().st_size),
+        )
+
+    status = scheduler.library_status(list_libraries()[0]["id"])
+
+    assert status["expected_derivatives"] == sum(len(variants) for variants in DERIVATIVE_VARIANTS.values())
+    assert status["ready_derivatives"] == status["expected_derivatives"]
+    assert status["quota_used_bytes"] == current_bytes
+
+
 def test_derivative_variant_uses_named_and_custom_variants():
     thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
     assert (

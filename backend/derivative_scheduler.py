@@ -298,6 +298,10 @@ class DerivativeScheduler:
     def library_status(self, library_id: int) -> dict[str, int | float]:
         """Return warm coverage and quota utilization for one library."""
         _ensure_database()
+        configured_variants = [
+            (kind, str(variant["name"])) for kind, variants in DERIVATIVE_VARIANTS.items() for variant in variants
+        ]
+        expected_derivatives_per_asset = len(configured_variants)
         with _connect() as conn:
             if conn.execute("SELECT 1 FROM libraries WHERE id = ?", (library_id,)).fetchone() is None:
                 raise KeyError(library_id)
@@ -307,17 +311,23 @@ class DerivativeScheduler:
                     (library_id,),
                 ).fetchone()[0]
             )
-            ready_rows = conn.execute(
-                """
-                SELECT d.cache_path, d.byte_size
-                FROM asset_derivatives d JOIN assets a ON a.id = d.asset_id
-                WHERE a.library_id = ? AND d.status = 'ready'
-                  AND d.source_mtime_ns = a.mtime_ns
-                  AND d.source_size = a.size
-                  AND d.cache_path IS NOT NULL
-                """,
-                (library_id,),
-            ).fetchall()
+            if configured_variants:
+                variant_filter = " OR ".join("(d.kind = ? AND d.variant = ?)" for _ in configured_variants)
+                variant_params = [value for pair in configured_variants for value in pair]
+                ready_rows = conn.execute(
+                    f"""
+                    SELECT d.cache_path, d.byte_size
+                    FROM asset_derivatives d JOIN assets a ON a.id = d.asset_id
+                    WHERE a.library_id = ? AND d.status = 'ready'
+                      AND d.source_mtime_ns = a.mtime_ns
+                      AND d.source_size = a.size
+                      AND d.cache_path IS NOT NULL
+                      AND ({variant_filter})
+                    """,
+                    (library_id, *variant_params),
+                ).fetchall()
+            else:
+                ready_rows = []
             ready = 0
             used = 0
             for row in ready_rows:
@@ -328,7 +338,7 @@ class DerivativeScheduler:
             "library_id": library_id,
             "total_assets": total_assets,
             "ready_derivatives": ready,
-            "expected_derivatives": total_assets * sum(len(variants) for variants in DERIVATIVE_VARIANTS.values()),
+            "expected_derivatives": total_assets * expected_derivatives_per_asset,
             "quota_bytes": self.quota_bytes,
             "quota_used_bytes": used,
             "quota_utilization": used / self.quota_bytes if self.quota_bytes else 0.0,
