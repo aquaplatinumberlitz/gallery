@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/vue-query";
 import {
   Activity,
   AlertTriangle,
+  ArrowRight,
   Bug,
   FileWarning,
   Info,
@@ -14,25 +15,25 @@ import {
   Wrench,
 } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
+import ButtonLink from "@/components/ui/ButtonLink.vue";
 import Skeleton from "@/components/ui/skeleton/Skeleton.vue";
 import Separator from "@/components/ui/Separator.vue";
 import { queryKeys } from "@/query/keys";
-import { fetchJobs, fetchLibraries, fetchGeneratedImagesStatus } from "@/services/api";
+import { fetchLibraries, fetchGeneratedImagesStatus } from "@/services/api";
 import { useGeneratedImagesGlobalMutations } from "@/composables/admin/useGeneratedImagesGlobalMutations";
 import { useFileHealthQuery, useFileHealthMutation } from "@/composables/admin/useFileHealthQuery";
+import { useJobsQuery } from "@/composables/admin/useJobsQuery";
 import { useMaintenanceRuntimeQuery } from "@/composables/admin/useMaintenanceRuntimeQuery";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import JobList from "./JobList.vue";
 import GeneratedImagesClearDialog from "./dialogs/GeneratedImagesClearDialog.vue";
 import GeneratedImagesRebuildDialog from "./dialogs/GeneratedImagesRebuildDialog.vue";
 
+const RECENT_JOB_LIMIT = 8;
 const rebuildOpen = ref(false);
 const clearOpen = ref(false);
 const { rebuildMutation, clearMutation } = useGeneratedImagesGlobalMutations();
-
-const jobsQuery = useQuery({
-  queryKey: queryKeys.jobs(),
-  queryFn: fetchJobs,
-});
+const jobsQuery = useJobsQuery(RECENT_JOB_LIMIT);
 
 const globalSummaryQuery = useQuery({
   queryKey: [...queryKeys.generatedImagesRoot(), "global-summary"],
@@ -616,46 +617,38 @@ const needsRefreshCount = computed(() => {
       </div>
 
       <section class="rounded-md border bg-background p-5">
-        <div class="flex items-center justify-between">
-          <h3 class="font-semibold">Active jobs</h3>
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Refresh active jobs"
-                :disabled="jobsQuery.isFetching.value"
-                @click="jobsQuery.refetch()"
-              >
-                <RefreshCw :class="jobsQuery.isFetching.value ? 'animate-spin' : ''" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top" align="end" class="max-w-[220px]">
-              Reload currently active catalog, metadata, and thumbnail jobs.
-            </TooltipContent>
-          </Tooltip>
-        </div>
-        <div v-if="jobsQuery.data.value?.length" class="mt-4 divide-y">
-          <div
-            v-for="job in jobsQuery.data.value"
-            :key="job.id"
-            class="grid gap-2 py-3 text-sm sm:grid-cols-[minmax(0,1fr)_auto]"
-          >
-            <div>
-              <p class="font-medium capitalize">
-                {{ job.type.replaceAll("_", " ") }} <span class="text-muted-foreground">#{{ job.id }}</span>
-              </p>
-              <p v-if="job.message || job.error" :class="job.error ? 'text-destructive' : 'text-muted-foreground'">
-                {{ job.error || job.message }}
-              </p>
-            </div>
-            <span :class="job.state === 'failed' ? 'text-destructive' : 'text-muted-foreground'" class="capitalize">{{
-              job.state
-            }}</span>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 class="font-semibold">Recent job history</h3>
+            <p class="mt-1 text-sm text-muted-foreground">
+              Latest {{ RECENT_JOB_LIMIT }} catalog, metadata, and thumbnail jobs.
+            </p>
+          </div>
+          <div class="flex items-center gap-2">
+            <ButtonLink :to="{ name: 'admin-jobs' }" variant="outline" size="sm">
+              View all jobs <ArrowRight />
+            </ButtonLink>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Refresh recent jobs"
+                  :disabled="jobsQuery.isFetching.value"
+                  @click="jobsQuery.refetch()"
+                >
+                  <RefreshCw :class="jobsQuery.isFetching.value ? 'animate-spin' : ''" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top" align="end" class="max-w-[220px]">
+                Reload recent catalog, metadata, and thumbnail jobs.
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
+        <JobList v-if="jobsQuery.data.value?.length" class="mt-4" :jobs="jobsQuery.data.value" show-library />
         <Skeleton v-else-if="jobsQuery.isPending.value" class="mt-4 h-24 w-full" />
-        <p v-else class="mt-4 text-sm text-muted-foreground">No active jobs.</p>
+        <p v-else class="mt-4 text-sm text-muted-foreground">No jobs recorded yet.</p>
       </section>
     </div>
 

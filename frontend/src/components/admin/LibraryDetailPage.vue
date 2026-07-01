@@ -24,6 +24,7 @@ import { getCatalogStatusPresentation } from "@/lib/catalog/labels";
 import { STATUS_CONTRACT_ERROR_MESSAGE } from "@/lib/catalog/contractGuard";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { MetadataState, ScanState, UnifiedStatus } from "@/lib/catalog/status";
+import JobList from "./JobList.vue";
 import LibraryProgressBar from "./LibraryProgressBar.vue";
 import LibraryStatusBadge from "./LibraryStatusBadge.vue";
 import LibraryEditDialog from "./dialogs/LibraryEditDialog.vue";
@@ -161,10 +162,6 @@ async function confirmUnregister() {
   } catch {
     // Error is already handled by the mutation's onError handler (toast)
   }
-}
-
-function jobProgress(current: number, total: number | null): string {
-  return total && total > 0 ? `${formatAssetCount(current)} / ${formatAssetCount(total)}` : formatAssetCount(current);
 }
 
 function estimatedAssets(): number | undefined {
@@ -490,30 +487,7 @@ function estimatedAssets(): number | undefined {
               </Tooltip>
             </div>
           </div>
-          <div v-if="jobsQuery.data.value?.length" class="mt-4 divide-y">
-            <div
-              v-for="job in jobsQuery.data.value"
-              :key="job.id"
-              class="grid gap-2 py-3 text-sm sm:grid-cols-[minmax(0,1fr)_auto_auto]"
-            >
-              <div>
-                <p class="font-medium capitalize">
-                  {{ job.type.replaceAll("_", " ") }} <span class="text-muted-foreground">#{{ job.id }}</span>
-                </p>
-                <p v-if="job.message || job.error" :class="job.error ? 'text-destructive' : 'text-muted-foreground'">
-                  {{ job.error || job.message }}
-                </p>
-              </div>
-              <span class="capitalize" :class="job.state === 'failed' ? 'text-destructive' : 'text-muted-foreground'">{{
-                job.state
-              }}</span
-              ><span class="text-muted-foreground"
-                >{{ jobProgress(job.progress_current, job.progress_total) }} ·
-                {{ formatLibraryTimestamp(job.updated_at) }}</span
-              >
-            </div>
-          </div>
-          <p v-else class="mt-4 text-sm text-muted-foreground">No jobs recorded yet.</p>
+          <JobList class="mt-4" :jobs="jobsQuery.data.value ?? []" />
         </section>
 
         <section class="rounded-md border bg-background p-5">

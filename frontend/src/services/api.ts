@@ -371,8 +371,11 @@ export const fetchGalleryStats = async (): Promise<GalleryStats> => {
   return data;
 };
 
-export const fetchJobs = async (): Promise<LibraryJob[]> => {
-  const { data } = await api.get<LibraryJob[]>("/api/jobs");
+export const fetchJobs = async (limit?: number): Promise<LibraryJob[]> => {
+  const { data } =
+    typeof limit === "number"
+      ? await api.get<LibraryJob[]>("/api/jobs", { params: { limit } })
+      : await api.get<LibraryJob[]>("/api/jobs");
   return data;
 };
 

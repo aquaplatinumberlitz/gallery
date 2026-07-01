@@ -35,7 +35,8 @@ export const queryKeys = {
 
   jobsRoot: () => ["jobs"] as const,
 
-  jobs: () => ["jobs", "list"] as const,
+  jobs: (limit?: number) =>
+    typeof limit === "number" ? (["jobs", "list", limit] as const) : (["jobs", "list"] as const),
 
   job: (id: number) => ["jobs", id] as const,
 

@@ -54,6 +54,11 @@ describe("router helpers", () => {
       chromeNav: "libraries",
       showBackToGallery: true,
     });
+    expect(router.resolve("/admin/jobs").meta).toMatchObject({
+      chromeSection: "admin",
+      chromeNav: "maintenance",
+      showBackToGallery: true,
+    });
     expect(router.resolve("/admin/maintenance").meta).toMatchObject({
       chromeSection: "admin",
       chromeNav: "maintenance",

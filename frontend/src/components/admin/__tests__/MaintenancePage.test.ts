@@ -34,8 +34,9 @@ vi.mock("@tanstack/vue-query", async () => {
   const actual = await vi.importActual<typeof import("@tanstack/vue-query")>("@tanstack/vue-query");
   return {
     ...actual,
-    useQuery: vi.fn((opts: { queryKey: string[] }) => {
-      if (opts.queryKey[0] === "jobs") {
+    useQuery: vi.fn((opts: { queryKey: string[] | { value: string[] } }) => {
+      const queryKey = "value" in opts.queryKey ? opts.queryKey.value : opts.queryKey;
+      if (queryKey[0] === "jobs") {
         return {
           data: { value: mockJobsData },
           isPending: { value: false },
@@ -43,7 +44,7 @@ vi.mock("@tanstack/vue-query", async () => {
           refetch: vi.fn(),
         };
       }
-      if (opts.queryKey[0] === "generated-images") {
+      if (queryKey[0] === "generated-images") {
         return {
           data: { value: mockGlobalSummaryData },
           isPending: { value: false },
@@ -91,6 +92,7 @@ function mountSubject() {
       plugins: [[VueQueryPlugin, { queryClient }]],
       stubs: {
         Button: { template: "<button v-bind='$attrs'><slot /></button>" },
+        ButtonLink: { template: "<a><slot /></a>" },
         Skeleton: { template: "<div data-testid='skeleton' />" },
         Separator: { template: "<hr />" },
         Tooltip: { template: "<span><slot /></span>" },
@@ -143,6 +145,34 @@ describe("MaintenancePage", () => {
     expect(actionLabels).toEqual(["Rebuild", "Clear"]);
     expect(wrapper.text()).not.toContain("Rebuild outdated previews");
     expect(wrapper.text()).not.toContain("Clear thumbnails");
+  });
+
+  it("renders recent job history with compact rows", () => {
+    mockJobsData = [
+      {
+        id: 12,
+        library_id: 4,
+        parent_job_id: null,
+        type: "scan",
+        state: "running",
+        progress_current: 5,
+        progress_total: 10,
+        message: "Scanning",
+        error: null,
+        created_at: Date.now(),
+        updated_at: Date.now(),
+        started_at: null,
+        finished_at: null,
+      },
+    ];
+    const wrapper = mountSubject();
+    expect(wrapper.text()).toContain("Recent job history");
+    expect(wrapper.text()).toContain("Latest 8 catalog, metadata, and thumbnail jobs.");
+    expect(wrapper.text()).toContain("View all jobs");
+    expect(wrapper.text()).toContain("scan #12");
+    expect(wrapper.text()).toContain("Library #4");
+    expect(wrapper.text()).toContain("5 / 10");
+    expect(wrapper.text()).not.toContain("Active jobs");
   });
 
   it("explains the imported data flow", () => {
