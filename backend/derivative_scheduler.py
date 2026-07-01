@@ -381,15 +381,20 @@ class DerivativeScheduler:
     def clear_all(self) -> dict[str, int]:
         """Clear derivative jobs/catalog rows and delete unserved cache files."""
         _ensure_database()
+        from .thumbnails import clear_thumbnail_disk_cache
+
         with _connect() as conn:
             paths = [
                 row[0] for row in conn.execute("SELECT cache_path FROM asset_derivatives WHERE cache_path IS NOT NULL")
             ]
             catalog_entries = int(conn.execute("SELECT count(*) FROM asset_derivatives").fetchone()[0])
+            jobs = int(conn.execute("SELECT count(*) FROM derivative_jobs").fetchone()[0])
             conn.execute("DELETE FROM derivative_jobs")
             conn.execute("DELETE FROM asset_derivatives")
         files_dir = THUMBNAIL_CACHE_DIR / "files"
         paths.extend(str(path) for path in files_dir.iterdir() if path.is_file()) if files_dir.is_dir() else None
+        poster_dir = THUMBNAIL_CACHE_DIR / "video_posters"
+        paths.extend(str(path) for path in poster_dir.iterdir() if path.is_file()) if poster_dir.is_dir() else None
         paths = list(dict.fromkeys(paths))
         deleted = 0
         with self._file_lock:
@@ -400,7 +405,13 @@ class DerivativeScheduler:
                 with suppress(OSError):
                     Path(path).unlink()
                     deleted += 1
-        return {"catalog_entries_cleared": catalog_entries, "files_deleted": deleted}
+        disk_entries = clear_thumbnail_disk_cache()
+        return {
+            "catalog_entries_cleared": catalog_entries,
+            "jobs_cleared": jobs,
+            "files_deleted": deleted,
+            "disk_entries_cleared": disk_entries,
+        }
 
     def _claim_job(self) -> sqlite3.Row | None:
         _ensure_database()

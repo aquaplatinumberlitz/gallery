@@ -36,6 +36,9 @@ def _seed_imported_data(root: Path, cache_dir: Path, monkeypatch) -> int:
     cache_file = cache_dir / "files" / "one.webp"
     cache_file.parent.mkdir(parents=True, exist_ok=True)
     cache_file.write_bytes(b"preview")
+    poster_file = cache_dir / "video_posters" / "one.webp"
+    poster_file.parent.mkdir(parents=True, exist_ok=True)
+    poster_file.write_bytes(b"poster")
     now = time.time()
     with _DB_LOCK, _connect() as conn:
         cursor = conn.execute(
@@ -244,11 +247,14 @@ def test_clear_imported_data_preserves_libraries_import_paths_exclusions_and_cle
     data = response.json()
     assert data["state"] == "cleared"
     assert data["libraries_preserved"] == 1
-    assert data["preview_files_deleted"] == 1
+    assert data["derivative_jobs_cleared"] == 1
+    assert data["thumbnail_disk_cache_entries_cleared"] >= 0
+    assert data["preview_files_deleted"] == 2
     assert _table_count("libraries") == 1
     assert _table_count("library_import_paths") == 1
     assert _table_count("library_exclusion_patterns") == 1
     assert not (isolated_thumbnail_cache / "files" / "one.webp").exists()
+    assert not (isolated_thumbnail_cache / "video_posters" / "one.webp").exists()
     for table in (
         "assets",
         "file_index",
@@ -376,11 +382,12 @@ def test_rebuild_imported_data_clears_and_queues_parent_and_child(
     assert data["clear"]["assets_cleared"] == 1
     assert data["clear"]["file_index_rows_cleared"] == 1
     assert data["clear"]["image_metadata_rows_cleared"] == 1
-    assert data["clear"]["preview_files_deleted"] == 1
+    assert data["clear"]["preview_files_deleted"] == 2
     assert _table_count("assets") == 0
     assert _table_count("file_index") == 0
     assert _table_count("image_metadata") == 0
     assert not (isolated_thumbnail_cache / "files" / "one.webp").exists()
+    assert not (isolated_thumbnail_cache / "video_posters" / "one.webp").exists()
     with _DB_LOCK, _connect() as conn:
         parent = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (data["job_id"],)).fetchone()
         child = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (data["child_job_ids"][0],)).fetchone()
@@ -430,10 +437,22 @@ def test_reset_catalog_database_deletes_libraries(
     )
 
     assert response.status_code == 200
-    assert response.json()["state"] == "reset"
+    data = response.json()
+    assert data["state"] == "reset"
+    assert data["libraries_deleted"] == 1
+    assert data["assets_deleted"] == 1
+    assert data["library_jobs_deleted"] == 1
+    assert data["derivative_catalog_entries_cleared"] == 1
+    assert data["derivative_jobs_cleared"] == 1
+    assert data["thumbnail_disk_cache_entries_cleared"] >= 0
+    assert data["preview_files_deleted"] == 2
+    assert data["sequences_reset"] >= 1
+    assert "libraries" in data["sequence_tables_reset"]
     assert _table_count("libraries") == 0
     assert _table_count("library_import_paths") == 0
     assert _table_count("library_exclusion_patterns") == 0
+    assert not (isolated_thumbnail_cache / "files" / "one.webp").exists()
+    assert not (isolated_thumbnail_cache / "video_posters" / "one.webp").exists()
     assert isolated_app.get("/api/libraries").json() == []
 
 

@@ -53,7 +53,8 @@ describe("SettingsModal", () => {
     const wrapper = mountSubject();
 
     expect(wrapper.text()).toContain("Danger Zone");
-    expect(wrapper.text()).toContain("Reset All");
+    expect(wrapper.text()).toContain("Reset app data");
+    expect(wrapper.text()).toContain("Source photos and videos are not deleted.");
     expect(wrapper.text()).toContain("RESET CATALOG DATABASE");
   });
 
@@ -61,12 +62,12 @@ describe("SettingsModal", () => {
     const wrapper = mountSubject({ canResetCatalogDatabase: false });
 
     expect(wrapper.text()).not.toContain("Danger Zone");
-    expect(wrapper.text()).not.toContain("Reset All");
+    expect(wrapper.text()).not.toContain("Reset app data");
   });
 
-  it("keeps Reset All disabled until the confirmation phrase matches", async () => {
+  it("keeps Reset app data disabled until the confirmation phrase matches", async () => {
     const wrapper = mountSubject();
-    const button = wrapper.findAll("button").find((candidate) => candidate.text().includes("Reset All"));
+    const button = wrapper.findAll("button").find((candidate) => candidate.text().includes("Reset app data"));
 
     expect(button?.attributes("disabled")).toBeDefined();
 
@@ -82,7 +83,7 @@ describe("SettingsModal", () => {
     await wrapper.find("#catalog-reset-confirm").setValue("RESET CATALOG DATABASE");
     await wrapper
       .findAll("button")
-      .find((candidate) => candidate.text().includes("Reset All"))!
+      .find((candidate) => candidate.text().includes("Reset app data"))!
       .trigger("click");
 
     expect(mutateAsync).toHaveBeenCalledWith("RESET CATALOG DATABASE");

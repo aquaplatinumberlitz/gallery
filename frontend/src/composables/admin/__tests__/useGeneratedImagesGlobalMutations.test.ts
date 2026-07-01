@@ -49,6 +49,8 @@ beforeEach(() => {
       folder_index_rows_cleared: 0,
       integrity_runs_cleared: 0,
       derivative_catalog_entries_cleared: 0,
+      derivative_jobs_cleared: 0,
+      thumbnail_disk_cache_entries_cleared: 0,
       preview_files_deleted: 0,
     },
   });
@@ -65,6 +67,8 @@ beforeEach(() => {
     folder_index_rows_cleared: 10,
     integrity_runs_cleared: 0,
     derivative_catalog_entries_cleared: 200,
+    derivative_jobs_cleared: 2,
+    thumbnail_disk_cache_entries_cleared: 4,
     preview_files_deleted: 180,
   });
 });

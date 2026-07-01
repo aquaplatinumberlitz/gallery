@@ -368,6 +368,8 @@ export interface ImportedDataClearResponse {
   folder_index_rows_cleared: number;
   integrity_runs_cleared: number;
   derivative_catalog_entries_cleared: number;
+  derivative_jobs_cleared: number;
+  thumbnail_disk_cache_entries_cleared: number;
   preview_files_deleted: number;
 }
 
@@ -389,7 +391,11 @@ export interface CatalogResetResponse {
   metadata_jobs_deleted: number;
   library_jobs_deleted: number;
   derivative_catalog_entries_cleared: number;
+  derivative_jobs_cleared: number;
+  thumbnail_disk_cache_entries_cleared: number;
   preview_files_deleted: number;
+  sequences_reset: number;
+  sequence_tables_reset: string[];
 }
 
 export interface LibraryInspectorMetadataResponse {

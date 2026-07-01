@@ -6,7 +6,7 @@
  * * Update buttons still call the existing scan endpoints
  * * Clear removes derived catalog data without unregistering libraries
  * * Rebuild repopulates derived catalog data from registered import paths
- * * Reset All requires the type-confirm phrase and returns the app to empty libraries state
+ * * Reset app data requires the type-confirm phrase and returns the app to empty libraries state
  *
  * Run when:
  * Imported-data maintenance endpoints, labels, or destructive action flows change.
@@ -43,6 +43,8 @@ interface MockState {
   libraries: (typeof registeredLibrary)[];
   assets: string[];
   requests: Request[];
+  nextLibraryId: number;
+  nextImportPathId: number;
 }
 
 async function installImportedDataApi(page: Page): Promise<MockState> {
@@ -50,6 +52,8 @@ async function installImportedDataApi(page: Page): Promise<MockState> {
     libraries: [structuredClone(registeredLibrary)],
     assets: [imagePath],
     requests: [],
+    nextLibraryId: 2,
+    nextImportPathId: 11,
   };
 
   await page.route("**/api/**", async (route) => {
@@ -67,6 +71,58 @@ async function installImportedDataApi(page: Page): Promise<MockState> {
       await route.fulfill({
         json: state.libraries.map((library) => ({ ...library, asset_count: state.assets.length })),
       });
+      return;
+    }
+
+    if (url.pathname === "/api/libraries/validate" && method === "POST") {
+      const payload = request.postDataJSON() as { import_paths: string[]; exclusion_patterns: string[] };
+      await route.fulfill({
+        json: {
+          is_valid: true,
+          import_paths: payload.import_paths.map((value) => ({
+            value,
+            normalized_value: value,
+            is_valid: true,
+            message: null,
+            warnings: [],
+          })),
+          exclusion_patterns: payload.exclusion_patterns.map((value) => ({
+            value,
+            normalized_value: value,
+            is_valid: true,
+            message: null,
+            warnings: [],
+          })),
+        },
+      });
+      return;
+    }
+
+    if (url.pathname === "/api/libraries" && method === "POST") {
+      const payload = request.postDataJSON() as {
+        name?: string;
+        import_paths: string[];
+        exclusion_patterns: string[];
+      };
+      const libraryId = state.nextLibraryId++;
+      const created = {
+        ...registeredLibrary,
+        id: libraryId,
+        name: payload.name || "New Library",
+        root_path: payload.import_paths[0],
+        import_paths: payload.import_paths.map((path, index) => ({
+          id: state.nextImportPathId++,
+          library_id: libraryId,
+          path,
+          position: index,
+          created_at: 1_718_000_200,
+          updated_at: 1_718_000_200,
+        })),
+        exclusion_patterns: payload.exclusion_patterns,
+        asset_count: 0,
+      };
+      state.libraries.push(created);
+      await route.fulfill({ status: 201, json: created });
       return;
     }
 
@@ -183,6 +239,7 @@ async function installImportedDataApi(page: Page): Promise<MockState> {
           state: "cleared",
           libraries_preserved: state.libraries.length,
           assets_cleared: 1,
+          thumbnail_disk_cache_entries_cleared: 0,
           preview_files_deleted: 1,
         },
       });
@@ -198,7 +255,7 @@ async function installImportedDataApi(page: Page): Promise<MockState> {
           state: "running",
           child_job_ids: [41],
           count: state.libraries.length,
-          clear: { assets_cleared: 0, preview_files_deleted: 0 },
+          clear: { assets_cleared: 0, thumbnail_disk_cache_entries_cleared: 0, preview_files_deleted: 0 },
         },
       });
       return;
@@ -207,7 +264,26 @@ async function installImportedDataApi(page: Page): Promise<MockState> {
     if (url.pathname === "/api/maintenance/catalog/reset" && method === "POST") {
       state.assets = [];
       state.libraries = [];
-      await route.fulfill({ json: { state: "reset", libraries_deleted: 1 } });
+      state.nextLibraryId = 1;
+      state.nextImportPathId = 1;
+      await route.fulfill({
+        json: {
+          state: "reset",
+          libraries_deleted: 1,
+          import_paths_deleted: 1,
+          exclusion_patterns_deleted: 1,
+          assets_deleted: 1,
+          image_metadata_rows_deleted: 1,
+          metadata_jobs_deleted: 1,
+          library_jobs_deleted: 1,
+          derivative_catalog_entries_cleared: 1,
+          derivative_jobs_cleared: 1,
+          thumbnail_disk_cache_entries_cleared: 0,
+          preview_files_deleted: 1,
+          sequences_reset: 8,
+          sequence_tables_reset: ["libraries"],
+        },
+      });
       return;
     }
 
@@ -380,15 +456,33 @@ test.describe("imported-data maintenance verification", () => {
     await expect(statusDialog.getByText("1").first()).toBeVisible();
   });
 
-  test("Reset All requires type-confirm and returns to empty libraries state", async ({ page }) => {
+  test("Reset app data clears handoff state and restarts library ids", async ({ page }) => {
     await prepare(page);
     const state = await installImportedDataApi(page);
-    await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+    state.libraries = [
+      {
+        ...registeredLibrary,
+        id: 11,
+        import_paths: [{ ...registeredLibrary.import_paths[0], id: 110, library_id: 11 }],
+      },
+    ];
+    state.nextLibraryId = 12;
+    state.nextImportPathId = 111;
+    await page.addInitScript(() => {
+      localStorage.setItem("gallery-active-library-id", "11");
+      localStorage.setItem("gallery-active-import-path-id", "110");
+      localStorage.setItem("gallery-root-path", "/registered/imports");
+      localStorage.setItem("gallery-sort-preference", JSON.stringify({ field: "date", order: "desc" }));
+      localStorage.setItem("gallery-grid-size", "5");
+      localStorage.setItem("gallery-lightbox-always-load-original", "true");
+    });
+    await page.goto(`${baseUrl}/admin/libraries/11`, { waitUntil: "domcontentloaded" });
 
     await page.getByLabel("Change Intro Page").click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toContainText("Danger Zone");
-    const resetButton = dialog.getByRole("button", { name: "Reset All" });
+    await expect(dialog).toContainText("Source photos and videos are not deleted.");
+    const resetButton = dialog.getByRole("button", { name: "Reset app data" });
     await expect(resetButton).toBeDisabled();
 
     await dialog.locator("#catalog-reset-confirm").fill("RESET CATALOG DATABASE");
@@ -396,8 +490,29 @@ test.describe("imported-data maintenance verification", () => {
     await resetButton.click();
 
     await expect.poll(() => state.libraries.length).toBe(0);
+    await expect(page).toHaveURL(/\/admin\/libraries$/);
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          [
+            "gallery-active-library-id",
+            "gallery-active-import-path-id",
+            "gallery-root-path",
+            "gallery-sort-preference",
+            "gallery-grid-size",
+            "gallery-lightbox-always-load-original",
+          ].map((key) => localStorage.getItem(key)),
+        ),
+      )
+      .toEqual([null, null, null, null, null, null]);
     await page.goto(`${baseUrl}/admin/libraries`, { waitUntil: "domcontentloaded" });
     await expect(page.getByText("No libraries registered")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Add library" }).last()).toBeVisible();
+    await page.getByRole("button", { name: "Add library" }).last().click();
+    await page.getByLabel("Display name").fill("Fresh Library");
+    await page.getByPlaceholder("/absolute/path/to/library").fill("/handoff/fresh");
+    await page.getByRole("button", { name: "Add and update" }).click();
+
+    await expect(page).toHaveURL(/\/admin\/libraries\/1$/);
+    await expect(page.getByRole("heading", { name: "Fresh Library" })).toBeVisible();
   });
 });

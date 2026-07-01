@@ -73,9 +73,10 @@ def _count_rows_conn(conn: Any, table: str) -> int:
     return int(conn.execute(f"SELECT count(*) FROM {table}").fetchone()[0])
 
 
-def _reset_autoincrement_sequences_conn(conn: Any) -> None:
+def _reset_autoincrement_sequences_conn(conn: Any) -> int:
     placeholders = ",".join("?" for _ in RESET_AUTOINCREMENT_TABLES)
-    conn.execute(f"DELETE FROM sqlite_sequence WHERE name IN ({placeholders})", RESET_AUTOINCREMENT_TABLES)
+    cursor = conn.execute(f"DELETE FROM sqlite_sequence WHERE name IN ({placeholders})", RESET_AUTOINCREMENT_TABLES)
+    return int(cursor.rowcount if cursor.rowcount is not None and cursor.rowcount >= 0 else 0)
 
 
 def _clear_imported_data_rows() -> dict[str, int]:
@@ -125,6 +126,8 @@ def _clear_imported_data_rows() -> dict[str, int]:
 def _derivative_clear_counts(result: dict[str, int]) -> dict[str, int]:
     return {
         "derivative_catalog_entries_cleared": int(result.get("catalog_entries_cleared", 0)),
+        "derivative_jobs_cleared": int(result.get("jobs_cleared", 0)),
+        "thumbnail_disk_cache_entries_cleared": int(result.get("disk_entries_cleared", 0)),
         "preview_files_deleted": int(result.get("files_deleted", 0)),
     }
 
@@ -269,9 +272,15 @@ def reset_catalog_database(*, confirm_phrase: str) -> dict[str, Any]:
                 conn.execute("DELETE FROM library_import_paths")
                 conn.execute("DELETE FROM libraries")
                 conn.execute("DELETE FROM integrity_check_runs")
-                _reset_autoincrement_sequences_conn(conn)
+                sequences_reset = _reset_autoincrement_sequences_conn(conn)
                 conn.execute("COMMIT")
             except Exception:
                 conn.execute("ROLLBACK")
                 raise
-        return {"state": "reset", **counts, **_derivative_clear_counts(derivative_result)}
+        return {
+            "state": "reset",
+            **counts,
+            **_derivative_clear_counts(derivative_result),
+            "sequences_reset": sequences_reset,
+            "sequence_tables_reset": list(RESET_AUTOINCREMENT_TABLES),
+        }

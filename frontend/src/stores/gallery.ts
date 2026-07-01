@@ -16,7 +16,7 @@ import { normalizeQueryPath } from "../query/keys";
 export const ACTIVE_LIBRARY_STORAGE_KEY = "gallery-active-library-id";
 export const ACTIVE_IMPORT_PATH_STORAGE_KEY = "gallery-active-import-path-id";
 export const LEGACY_ROOT_PATH_STORAGE_KEY = "gallery-root-path";
-const SORT_STORAGE_KEY = "gallery-sort-preference";
+export const SORT_STORAGE_KEY = "gallery-sort-preference";
 
 const readStoredPositiveId = (key: string): number | null => {
   if (typeof window === "undefined") return null;

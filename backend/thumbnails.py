@@ -137,6 +137,13 @@ def _persist_derivative_file(cache_key: str, derivative_bytes: bytes, format: st
     return derivative_path
 
 
+def clear_thumbnail_disk_cache() -> int:
+    """Clear cached derivative bytes stored by diskcache."""
+    count = len(_thumbnail_disk_cache)
+    _thumbnail_disk_cache.clear()
+    return int(count)
+
+
 def _render_derivative_impl(
     path: Path,
     *,

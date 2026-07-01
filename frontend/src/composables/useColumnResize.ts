@@ -2,7 +2,7 @@ import { computed, ref, watch, type ComponentPublicInstance, type Ref } from "vu
 import { useResizeObserver, useLocalStorage } from "@vueuse/core";
 
 const GAP = 20;
-const GRID_SIZE_KEY = "gallery-grid-size";
+export const GRID_SIZE_KEY = "gallery-grid-size";
 
 /**
  * Apple HIG-inspired 5-level thumbnail size / grid density mapping.

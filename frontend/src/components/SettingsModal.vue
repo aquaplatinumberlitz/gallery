@@ -214,8 +214,8 @@ async function handleResetCatalog() {
             <div class="min-w-0 space-y-1">
               <h3 class="text-xs uppercase tracking-wider text-destructive font-semibold">Danger Zone</h3>
               <p class="text-xs text-muted-foreground">
-                Reset deletes the catalog database state, registered libraries, import paths, extracted metadata, jobs,
-                thumbnails, and previews. Source files are not deleted.
+                Reset app data removes library registrations, imported catalog data, extracted metadata, thumbnails,
+                previews, job history, and local gallery state. Source photos and videos are not deleted.
               </p>
             </div>
           </div>
@@ -233,7 +233,8 @@ async function handleResetCatalog() {
               aria-describedby="catalog-reset-help"
             />
             <p id="catalog-reset-help" class="text-xs text-muted-foreground">
-              This returns the gallery to an empty library setup state.
+              Use this before handing the app to another user. Embedded metadata remains in any source files you keep or
+              share.
             </p>
           </div>
 
@@ -244,7 +245,7 @@ async function handleResetCatalog() {
             @click="handleResetCatalog"
           >
             <Trash2 />
-            {{ resetMutation.isPending.value ? "Resetting..." : "Reset All" }}
+            {{ resetMutation.isPending.value ? "Resetting..." : "Reset app data" }}
           </Button>
         </section>
       </div>
