@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { formatAssetCount } from "@/utils/libraryStatus";
+import { formatLibraryProgressLabel } from "@/utils/libraryProgress";
 import type { UnifiedStatus } from "@/lib/catalog/status";
 
 const props = defineProps<{ status?: UnifiedStatus | null; compact?: boolean }>();
@@ -28,15 +28,7 @@ const indeterminate = computed(() => Boolean(isActive.value && percent.value ===
 const indexedLabel = computed(() => {
   const status = props.status;
   if (!status) return "";
-  const ready = status.metadata.ready_assets ?? 0;
-  const total = status.metadata.total_assets ?? 0;
-  if (isScanning.value && total === 0) {
-    return `${formatAssetCount(status.scan.completed_units ?? 0)} updated`;
-  }
-  if (total > 0) {
-    return `Metadata ${formatAssetCount(ready)} / ${formatAssetCount(total)}`;
-  }
-  return `Metadata ${formatAssetCount(ready)}`;
+  return formatLibraryProgressLabel(status);
 });
 </script>
 

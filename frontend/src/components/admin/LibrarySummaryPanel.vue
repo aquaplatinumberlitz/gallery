@@ -1,21 +1,18 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { formatAssetCount } from "@/utils/libraryStatus";
+import { formatLibraryProgressLabel } from "@/utils/libraryProgress";
 import LibraryProgressBar from "./LibraryProgressBar.vue";
 import type { UnifiedStatus } from "@/lib/catalog/status";
 
 const props = defineProps<{ status?: UnifiedStatus | null }>();
 
 const totalAssets = computed(() => props.status?.metadata.total_assets ?? null);
-const readyAssets = computed(() => props.status?.metadata.ready_assets ?? null);
 const failedAssets = computed(() => props.status?.metadata.failed_assets ?? 0);
 const issueCount = computed(() => props.status?.issue_count ?? 0);
 const metadataReadyLabel = computed(() => {
-  const total = totalAssets.value ?? 0;
-  const ready = readyAssets.value ?? 0;
-  if (total === 0) return failedAssets.value > 0 ? `${formatAssetCount(failedAssets.value)} failed` : "No photos";
-  const base =
-    ready >= total ? "All metadata ready" : `${formatAssetCount(ready)} / ${formatAssetCount(total)} metadata ready`;
+  if (!props.status) return "";
+  const base = formatLibraryProgressLabel(props.status, { completeLabel: true });
   return failedAssets.value > 0 ? `${base} · ${formatAssetCount(failedAssets.value)} failed` : base;
 });
 </script>

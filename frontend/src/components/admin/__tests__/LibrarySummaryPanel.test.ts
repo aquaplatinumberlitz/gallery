@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 import type { UnifiedStatus } from "@/lib/catalog/status";
 import LibrarySummaryPanel from "../LibrarySummaryPanel.vue";
 
-function makeStatus(metadata: Partial<UnifiedStatus["metadata"]> = {}): UnifiedStatus {
+function makeStatus(
+  metadata: Partial<UnifiedStatus["metadata"]> = {},
+  scan: Partial<UnifiedStatus["scan"]> = {},
+): UnifiedStatus {
   return {
     contract_version: 1,
     generated_at: Date.now(),
@@ -18,6 +21,7 @@ function makeStatus(metadata: Partial<UnifiedStatus["metadata"]> = {}): UnifiedS
       completed_units: null,
       total_units: null,
       progress_percent: null,
+      ...scan,
     },
     metadata: {
       state: "complete",
@@ -56,5 +60,20 @@ describe("LibrarySummaryPanel", () => {
     });
 
     expect(wrapper.text()).toContain("187 / 209 metadata ready");
+  });
+
+  it("uses folder-scan wording during catalog updates", () => {
+    const wrapper = mount(LibrarySummaryPanel, {
+      props: {
+        status: makeStatus(
+          { total_assets: 0, ready_assets: 0, not_ready_assets: 0, progress_percent: null },
+          { state: "scanning", operation: "scan", trigger: "manual", total_units: 1, completed_units: 0 },
+        ),
+      },
+    });
+
+    expect(wrapper.text()).toContain("Scanning 1 folder");
+    expect(wrapper.text()).not.toContain("0 / 1");
+    expect(wrapper.text()).not.toContain("No photos");
   });
 });
