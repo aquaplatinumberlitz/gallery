@@ -340,6 +340,20 @@ def test_api_register_library_create_overlap_409(
     assert response.json()["detail"]["error"] == "library_overlap"
 
 
+def test_api_register_library_reconciles_watcher(
+    isolated_app: TestClient, isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch
+):
+    root = isolated_gallery_root / "root"
+    root.mkdir()
+    calls: list[int] = []
+    monkeypatch.setattr(libraries_module.file_watcher, "reconcile_watcher", lambda: calls.append(1))
+
+    response = isolated_app.post("/api/libraries", json={"import_paths": [str(root)]})
+
+    assert response.status_code == 201
+    assert calls == [1]
+
+
 def test_api_validate_create_with_both_root_and_import(isolated_app: TestClient):
     """Validate endpoint returns structured error when both root_path and import_paths given (lines 334-337)."""
     response = isolated_app.post("/api/libraries/validate", json={"root_path": "/tmp", "import_paths": ["/tmp"]})

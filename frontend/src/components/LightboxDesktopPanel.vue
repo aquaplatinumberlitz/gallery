@@ -155,15 +155,20 @@ const modelCount = computed(() => {
         <section class="prompt-box" :class="{ 'is-empty': !props.meta?.prompt }">
           <div class="section-top">
             <h4><MessageSquareText :stroke-width="1.5" class="icon-sm" /> Prompt</h4>
-            <button
-              v-if="props.meta?.prompt"
-              type="button"
-              class="copy-btn"
-              @click="props.copyText(props.meta?.prompt, 'prompt')"
-            >
-              <Check v-if="props.copyStatus['prompt']" :stroke-width="1.5" class="icon-sm" style="color: #4ade80" />
-              <Copy v-else :stroke-width="1.5" class="icon-sm" />
-            </button>
+            <Tooltip v-if="props.meta?.prompt">
+              <TooltipTrigger as-child>
+                <button
+                  type="button"
+                  class="copy-btn"
+                  aria-label="Copy prompt"
+                  @click="props.copyText(props.meta?.prompt, 'prompt')"
+                >
+                  <Check v-if="props.copyStatus['prompt']" :stroke-width="1.5" class="icon-sm" style="color: #4ade80" />
+                  <Copy v-else :stroke-width="1.5" class="icon-sm" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Copy prompt</TooltipContent>
+            </Tooltip>
           </div>
           <div v-if="props.meta?.prompt" class="prompt-body">
             <ExpandableText :collapsed-lines="8" :text="props.meta.prompt">
@@ -179,15 +184,20 @@ const modelCount = computed(() => {
         <section class="prompt-box negative" :class="{ 'is-empty': !props.meta?.negative_prompt }">
           <div class="section-top">
             <h4><MessageSquareOff :stroke-width="1.5" class="icon-sm" /> Negative</h4>
-            <button
-              v-if="props.meta?.negative_prompt"
-              type="button"
-              class="copy-btn"
-              @click="props.copyText(props.meta?.negative_prompt, 'neg')"
-            >
-              <Check v-if="props.copyStatus['neg']" :stroke-width="1.5" class="icon-sm" style="color: #4ade80" />
-              <Copy v-else :stroke-width="1.5" class="icon-sm" />
-            </button>
+            <Tooltip v-if="props.meta?.negative_prompt">
+              <TooltipTrigger as-child>
+                <button
+                  type="button"
+                  class="copy-btn"
+                  aria-label="Copy negative prompt"
+                  @click="props.copyText(props.meta?.negative_prompt, 'neg')"
+                >
+                  <Check v-if="props.copyStatus['neg']" :stroke-width="1.5" class="icon-sm" style="color: #4ade80" />
+                  <Copy v-else :stroke-width="1.5" class="icon-sm" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Copy negative prompt</TooltipContent>
+            </Tooltip>
           </div>
           <div v-if="props.meta?.negative_prompt" class="prompt-body">
             <ExpandableText :collapsed-lines="8" :text="props.meta.negative_prompt">

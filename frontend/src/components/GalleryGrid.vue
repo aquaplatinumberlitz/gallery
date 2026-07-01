@@ -769,9 +769,14 @@ watch(
         <TriangleAlert class="gallery-icon-md" />
         <span>{{ errorMessage }}</span>
       </div>
-      <button class="error-close" type="button" @click="galleryStore.clearError()">
-        <X class="gallery-icon-sm" />
-      </button>
+      <Tooltip>
+        <TooltipTrigger as-child>
+          <button class="error-close" type="button" aria-label="Dismiss error" @click="galleryStore.clearError()">
+            <X class="gallery-icon-sm" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>Dismiss error</TooltipContent>
+      </Tooltip>
     </div>
 
     <div v-if="showGallerySkeleton || showSearchSkeleton" class="skeleton-container">

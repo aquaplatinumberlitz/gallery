@@ -4,6 +4,7 @@ import "photoswipe/dist/photoswipe.css";
 import { X, ZoomIn, ZoomOut, Info } from "lucide-vue-next";
 import type { FileNode } from "../types";
 import { usePhotoSwipe } from "../composables/usePhotoSwipe";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const props = defineProps<{
   items: FileNode[];
@@ -62,29 +63,44 @@ function toggleZoom() {
   </div>
 
   <div class="tablet-photoswipe-bar">
-    <button
-      class="lightbox-floating-control lightbox-floating-control--tablet"
-      aria-label="Close"
-      @click="emit('close')"
-    >
-      <X :size="22" :stroke-width="2.2" />
-    </button>
-    <button
-      class="lightbox-floating-control lightbox-floating-control--tablet"
-      :aria-label="isZoomed ? 'Zoom out' : 'Zoom in'"
-      @click="toggleZoom"
-    >
-      <ZoomOut v-if="isZoomed" :size="22" :stroke-width="2.2" />
-      <ZoomIn v-else :size="22" :stroke-width="2.2" />
-    </button>
-    <button
-      class="lightbox-floating-control lightbox-floating-control--tablet"
-      :class="{ active: metadataOpen }"
-      :aria-label="metadataOpen ? 'Close image info' : 'View image info'"
-      @click="emit('toggleMetadata')"
-    >
-      <Info :size="22" :stroke-width="2.2" />
-    </button>
+    <Tooltip>
+      <TooltipTrigger as-child>
+        <button
+          class="lightbox-floating-control lightbox-floating-control--tablet"
+          aria-label="Close"
+          @click="emit('close')"
+        >
+          <X :size="22" :stroke-width="2.2" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>Close</TooltipContent>
+    </Tooltip>
+    <Tooltip>
+      <TooltipTrigger as-child>
+        <button
+          class="lightbox-floating-control lightbox-floating-control--tablet"
+          :aria-label="isZoomed ? 'Zoom out' : 'Zoom in'"
+          @click="toggleZoom"
+        >
+          <ZoomOut v-if="isZoomed" :size="22" :stroke-width="2.2" />
+          <ZoomIn v-else :size="22" :stroke-width="2.2" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>{{ isZoomed ? "Zoom out" : "Zoom in" }}</TooltipContent>
+    </Tooltip>
+    <Tooltip>
+      <TooltipTrigger as-child>
+        <button
+          class="lightbox-floating-control lightbox-floating-control--tablet"
+          :class="{ active: metadataOpen }"
+          :aria-label="metadataOpen ? 'Close image info' : 'View image info'"
+          @click="emit('toggleMetadata')"
+        >
+          <Info :size="22" :stroke-width="2.2" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>{{ metadataOpen ? "Close image info" : "View image info" }}</TooltipContent>
+    </Tooltip>
   </div>
 </template>
 

@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.responses import StreamingResponse
 from wcmatch import glob
 
+from . import watcher as file_watcher
 from .derivative_scheduler import scheduler
 from .errors import APIError, ErrorType
 from .library_events import event_payload, event_stream, publish
@@ -315,6 +316,7 @@ async def api_register_library(payload: LibraryCreate):
     initial_scan_job_id = library.get("initial_scan_job_id")
     if initial_scan_job_id is not None:
         await run_in_threadpool(queue_initial_scan_job, int(initial_scan_job_id))
+    await run_in_threadpool(file_watcher.reconcile_watcher)
     return library
 
 
@@ -531,6 +533,8 @@ async def _api_update_library(library_id: int, payload: LibraryUpdate):
         raise APIError(409, "library_overlap", str(exc)) from exc
     if updated is None:
         raise APIError(404, ErrorType.NOT_FOUND, "Library not found")
+    if payload.import_paths is not None:
+        await run_in_threadpool(file_watcher.reconcile_watcher)
     return updated
 
 
@@ -653,6 +657,7 @@ async def api_unregister_library(
         raise APIError(409, "library_busy", "Library update or rebuild is active")
     if not await run_in_threadpool(unregister_library, library_id):
         raise APIError(404, ErrorType.NOT_FOUND, "Library not found")
+    await run_in_threadpool(file_watcher.reconcile_watcher)
     return {"library_id": library_id, "unregistered": True, "source_files_deleted": False}
 
 

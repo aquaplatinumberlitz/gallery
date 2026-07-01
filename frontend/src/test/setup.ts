@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
+import { config } from "@vue/test-utils";
 
 /**
  * Vitest global setup.
@@ -26,6 +27,13 @@ type WriteableWindow = Window & {
   MutationObserver?: typeof MutationObserver;
   EventSource?: typeof EventSource;
   PointerEvent?: typeof PointerEvent;
+};
+
+config.global.stubs = {
+  ...(config.global.stubs ?? {}),
+  Tooltip: { template: "<span><slot /></span>" },
+  TooltipTrigger: { template: "<slot />" },
+  TooltipContent: { template: "<span><slot /></span>" },
 };
 
 const ResizeObserverShim = class {

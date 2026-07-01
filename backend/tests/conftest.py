@@ -224,6 +224,7 @@ def disable_background_services(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr("backend.refresh.start_refresh", _noop)
     monkeypatch.setattr("backend.watcher.start_watcher", _noop)
+    monkeypatch.setattr("backend.watcher.reconcile_watcher", _noop)
     monkeypatch.setattr("backend.app._start_refresh", _noop)
     monkeypatch.setattr("backend.app._start_watcher", _noop)
     monkeypatch.setattr("backend.scan_worker.start", _noop)

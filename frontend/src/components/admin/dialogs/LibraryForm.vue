@@ -2,6 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
+import IconTooltipButton from "@/components/ui/IconTooltipButton.vue";
 import Input from "@/components/ui/Input.vue";
 import { useLibraryMutations } from "@/composables/admin/useLibraryMutations";
 import { GalleryAPIError } from "@/services/api";
@@ -154,36 +155,36 @@ async function submit(scanAfterCreate = false) {
       </div>
       <div v-for="(_path, index) in importPaths" :key="index" class="flex items-center gap-2">
         <Input v-model="importPaths[index]" class="font-mono text-xs" placeholder="/absolute/path/to/library" />
-        <Button
+        <IconTooltipButton
           type="button"
           variant="ghost"
           size="icon"
           :disabled="index === 0"
-          aria-label="Move folder up"
+          label="Move folder up"
           @click="movePath(index, -1)"
         >
           <ArrowUp />
-        </Button>
-        <Button
+        </IconTooltipButton>
+        <IconTooltipButton
           type="button"
           variant="ghost"
           size="icon"
           :disabled="index === importPaths.length - 1"
-          aria-label="Move folder down"
+          label="Move folder down"
           @click="movePath(index, 1)"
         >
           <ArrowDown />
-        </Button>
-        <Button
+        </IconTooltipButton>
+        <IconTooltipButton
           type="button"
           variant="ghost"
           size="icon"
           :disabled="importPaths.length === 1"
-          aria-label="Remove folder"
+          label="Remove folder"
           @click="removePath(index)"
         >
           <Trash2 />
-        </Button>
+        </IconTooltipButton>
       </div>
     </fieldset>
 
@@ -195,15 +196,15 @@ async function submit(scanAfterCreate = false) {
       <p class="text-xs text-muted-foreground">Relative glob patterns, for example <code>**/.cache/**</code>.</p>
       <div v-for="(_pattern, index) in exclusionPatterns" :key="index" class="flex items-center gap-2">
         <Input v-model="exclusionPatterns[index]" class="font-mono text-xs" placeholder="**/private/**" />
-        <Button
+        <IconTooltipButton
           type="button"
           variant="ghost"
           size="icon"
-          aria-label="Remove pattern"
+          label="Remove pattern"
           @click="exclusionPatterns.splice(index, 1)"
         >
           <Trash2 />
-        </Button>
+        </IconTooltipButton>
       </div>
     </fieldset>
 

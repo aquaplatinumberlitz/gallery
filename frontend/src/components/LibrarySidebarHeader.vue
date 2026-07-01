@@ -4,6 +4,7 @@ import { FolderOpen, Library, Settings2 } from "lucide-vue-next";
 import LibrarySelectorSheet from "@/components/LibrarySelectorSheet.vue";
 import Button from "@/components/ui/Button.vue";
 import ButtonLink from "@/components/ui/ButtonLink.vue";
+import IconTooltipButton from "@/components/ui/IconTooltipButton.vue";
 import OverflowTooltip from "@/components/ui/OverflowTooltip.vue";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
@@ -40,15 +41,16 @@ function selectImportPath(value: unknown) {
     <SidebarTrigger
       class="absolute right-2 top-2 z-20 size-7 group-data-[collapsible=icon]:static group-data-[collapsible=icon]:mx-auto"
     />
-    <Button
+    <IconTooltipButton
       variant="ghost"
       size="icon"
       class="hidden size-8 group-data-[collapsible=icon]:flex"
-      aria-label="Select library"
+      label="Select library"
+      side="right"
       @click="setOpen(true)"
     >
       <Library class="size-4" />
-    </Button>
+    </IconTooltipButton>
 
     <div class="space-y-3 group-data-[collapsible=icon]:hidden">
       <p class="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Active library</p>

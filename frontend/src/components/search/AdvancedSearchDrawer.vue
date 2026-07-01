@@ -3,6 +3,7 @@ import { computed, watch } from "vue";
 import { useForm, useStore } from "@tanstack/vue-form";
 import { X, Search, RotateCcw } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
+import IconTooltipButton from "@/components/ui/IconTooltipButton.vue";
 import Input from "@/components/ui/Input.vue";
 import { useFacetsQuery } from "@/composables/useFacetsQuery";
 import { useActiveLibrarySelection } from "@/composables/useActiveLibrarySelection";
@@ -354,9 +355,15 @@ function applyAspectRatio(ratio: string) {
       >
         <div class="advanced-search-header">
           <h2 class="text-base font-semibold">Advanced Search</h2>
-          <Button variant="ghost" size="icon" type="button" aria-label="Close advanced search" @click="handleCancel">
+          <IconTooltipButton
+            variant="ghost"
+            size="icon"
+            type="button"
+            label="Close advanced search"
+            @click="handleCancel"
+          >
             <X class="size-4" />
-          </Button>
+          </IconTooltipButton>
         </div>
 
         <div class="advanced-search-body">

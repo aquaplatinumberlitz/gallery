@@ -5,6 +5,7 @@ import type { FileNode } from "../types";
 import { ArrowLeft, ArrowRight } from "lucide-vue-next";
 import AlbumCardMobile from "./AlbumCardMobile.vue";
 import AlbumCardTablet from "./AlbumCardTablet.vue";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useDevice } from "../composables/useDevice";
 
 const props = defineProps<{
@@ -89,26 +90,36 @@ useEventListener(window, "resize", () => {
 
 <template>
   <div class="album-grid-wrapper" :class="{ 'has-overflow': showLeftArrow || showRightArrow }">
-    <button
-      v-show="showLeftArrow"
-      class="album-scroll-btn album-scroll-btn--left"
-      :class="{ 'album-scroll-btn--disabled': !showLeftArrow }"
-      :disabled="!showLeftArrow"
-      @click="scrollAlbums(-1)"
-      aria-label="Scroll left"
-    >
-      <ArrowLeft class="gallery-icon-nav" />
-    </button>
-    <button
-      v-show="showRightArrow"
-      class="album-scroll-btn album-scroll-btn--right"
-      :class="{ 'album-scroll-btn--disabled': !showRightArrow }"
-      :disabled="!showRightArrow"
-      @click="scrollAlbums(1)"
-      aria-label="Scroll right"
-    >
-      <ArrowRight class="gallery-icon-nav" />
-    </button>
+    <Tooltip>
+      <TooltipTrigger as-child>
+        <button
+          v-show="showLeftArrow"
+          class="album-scroll-btn album-scroll-btn--left"
+          :class="{ 'album-scroll-btn--disabled': !showLeftArrow }"
+          :disabled="!showLeftArrow"
+          @click="scrollAlbums(-1)"
+          aria-label="Scroll albums left"
+        >
+          <ArrowLeft class="gallery-icon-nav" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>Scroll albums left</TooltipContent>
+    </Tooltip>
+    <Tooltip>
+      <TooltipTrigger as-child>
+        <button
+          v-show="showRightArrow"
+          class="album-scroll-btn album-scroll-btn--right"
+          :class="{ 'album-scroll-btn--disabled': !showRightArrow }"
+          :disabled="!showRightArrow"
+          @click="scrollAlbums(1)"
+          aria-label="Scroll albums right"
+        >
+          <ArrowRight class="gallery-icon-nav" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>Scroll albums right</TooltipContent>
+    </Tooltip>
     <div ref="gridRef" class="album-grid" @scroll="onGridScroll">
       <component
         :is="isMobile ? AlbumCardMobile : AlbumCardTablet"

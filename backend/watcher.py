@@ -32,6 +32,7 @@ except Exception:  # noqa: BLE001
 LOGGER = logging.getLogger(__name__)
 
 _watcher_thread: threading.Thread | None = None
+_watcher_roots: list[str] = []
 _watcher_lock = threading.RLock()
 _watcher_stop = threading.Event()
 
@@ -195,7 +196,7 @@ def _watcher_loop(roots: list[str] | None = None) -> None:
 
 def start_watcher() -> None:
     """Start the file watcher worker when enabled and dependencies are available."""
-    global _watcher_thread
+    global _watcher_thread, _watcher_roots
     if not ENABLE_FILE_WATCHER:
         return
     if not _HAS_WATCHDOG:
@@ -209,6 +210,7 @@ def start_watcher() -> None:
         if _watcher_thread and _watcher_thread.is_alive():
             return
         _watcher_stop.clear()
+        _watcher_roots = list(roots)
         _watcher_thread = threading.Thread(
             target=lambda: _watcher_loop(roots),
             name="gallery-file-watcher",
@@ -218,12 +220,52 @@ def start_watcher() -> None:
         LOGGER.info("File watcher started: roots=%s, debounce=%ss", roots, WATCHER_DEBOUNCE_SECONDS)
 
 
-def stop_watcher() -> None:
+def stop_watcher(join_timeout: float = 5.0) -> bool:
     """Signal the file watcher worker to stop and clear its thread handle."""
-    global _watcher_thread
+    global _watcher_thread, _watcher_roots
     _watcher_stop.set()
+    thread = _watcher_thread
+    if thread and thread is not threading.current_thread() and hasattr(thread, "join"):
+        with suppress(Exception):
+            thread.join(timeout=join_timeout)
+
+    alive = False
+    if thread and hasattr(thread, "is_alive"):
+        with suppress(Exception):
+            alive = bool(thread.is_alive())
+
     with _watcher_lock:
-        _watcher_thread = None
+        if not alive:
+            _watcher_thread = None
+            _watcher_roots = []
+    return not alive
+
+
+def reconcile_watcher() -> None:
+    """Start, stop, or restart the watcher so its roots match registered libraries."""
+    if not ENABLE_FILE_WATCHER:
+        stop_watcher()
+        return
+    if not _HAS_WATCHDOG:
+        LOGGER.warning("watchdog not available; file watcher disabled. Install with: pip install watchdog")
+        stop_watcher()
+        return
+
+    roots = _registered_watcher_roots()
+    if not roots:
+        LOGGER.info("File watcher skipped: no registered library roots")
+        stop_watcher()
+        return
+
+    with _watcher_lock:
+        alive = bool(_watcher_thread and _watcher_thread.is_alive())
+        active_roots = list(_watcher_roots)
+    if alive and active_roots == roots:
+        return
+    if alive and not stop_watcher():
+        LOGGER.warning("File watcher restart skipped: existing watcher did not stop")
+        return
+    start_watcher()
 
 
 def get_watcher_status() -> dict[str, Any]:

@@ -28,6 +28,7 @@ from backend.metadata_store import get_folder_index_state, update_folder_index_s
 @pytest.fixture(autouse=True)
 def reset_watcher_state(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(watcher, "_watcher_thread", None)
+    monkeypatch.setattr(watcher, "_watcher_roots", [])
     watcher._watcher_stop.clear()
     yield
 
@@ -502,6 +503,81 @@ def test_stop_watcher_sets_stop_and_clears_thread(monkeypatch: pytest.MonkeyPatc
     watcher.stop_watcher()
     assert e.is_set()
     assert watcher._watcher_thread is None
+
+
+def test_reconcile_watcher_starts_after_roots_appear(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(watcher, "ENABLE_FILE_WATCHER", True)
+    monkeypatch.setattr(watcher, "_HAS_WATCHDOG", True)
+    monkeypatch.setattr(watcher, "_registered_watcher_roots", lambda: ["/registered"])
+
+    threads = []
+
+    class FakeThread:
+        def __init__(self, target=None, name=None, daemon=None):
+            self.target = target
+            self.name = name
+            self.daemon = daemon
+            self.started = False
+
+        def start(self):
+            self.started = True
+            threads.append(self)
+
+        def is_alive(self):
+            return self.started
+
+    monkeypatch.setattr(threading, "Thread", FakeThread)
+
+    watcher.reconcile_watcher()
+
+    assert len(threads) == 1
+    assert threads[0].name == "gallery-file-watcher"
+    assert watcher._watcher_roots == ["/registered"]
+
+
+def test_reconcile_watcher_restarts_when_roots_change(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(watcher, "ENABLE_FILE_WATCHER", True)
+    monkeypatch.setattr(watcher, "_HAS_WATCHDOG", True)
+    monkeypatch.setattr(watcher, "_registered_watcher_roots", lambda: ["/new"])
+    monkeypatch.setattr(watcher, "_watcher_roots", ["/old"])
+
+    class OldThread:
+        def __init__(self):
+            self.alive = True
+            self.joined = False
+
+        def is_alive(self):
+            return self.alive
+
+        def join(self, timeout=None):
+            self.joined = True
+            self.alive = False
+
+    old_thread = OldThread()
+    monkeypatch.setattr(watcher, "_watcher_thread", old_thread)
+    threads = []
+
+    class NewThread:
+        def __init__(self, target=None, name=None, daemon=None):
+            self.target = target
+            self.name = name
+            self.daemon = daemon
+            self.started = False
+
+        def start(self):
+            self.started = True
+            threads.append(self)
+
+        def is_alive(self):
+            return self.started
+
+    monkeypatch.setattr(threading, "Thread", NewThread)
+
+    watcher.reconcile_watcher()
+
+    assert old_thread.joined is True
+    assert len(threads) == 1
+    assert watcher._watcher_roots == ["/new"]
 
 
 # ---------------------------------------------------------------------------

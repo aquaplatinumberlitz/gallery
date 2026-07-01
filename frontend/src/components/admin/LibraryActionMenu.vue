@@ -8,6 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 defineProps<{ disabled?: boolean }>();
 const emit = defineEmits<{
@@ -21,9 +22,16 @@ const emit = defineEmits<{
 
 <template>
   <DropdownMenu>
-    <DropdownMenuTrigger as-child>
-      <Button variant="ghost" size="icon" :disabled="disabled" aria-label="Library actions"><MoreHorizontal /></Button>
-    </DropdownMenuTrigger>
+    <Tooltip>
+      <TooltipTrigger as-child>
+        <DropdownMenuTrigger as-child>
+          <Button variant="ghost" size="icon" :disabled="disabled" aria-label="Library actions">
+            <MoreHorizontal />
+          </Button>
+        </DropdownMenuTrigger>
+      </TooltipTrigger>
+      <TooltipContent>Library actions</TooltipContent>
+    </Tooltip>
     <DropdownMenuContent align="end">
       <DropdownMenuItem @select="emit('view')"><Eye /> View details</DropdownMenuItem>
       <DropdownMenuItem @select="emit('use')"><Images /> Use in gallery</DropdownMenuItem>
