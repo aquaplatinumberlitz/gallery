@@ -4,7 +4,6 @@ import { useQuery } from "@tanstack/vue-query";
 import {
   Activity,
   AlertTriangle,
-  ArrowRight,
   Bug,
   FileWarning,
   Info,
@@ -625,9 +624,7 @@ const needsRefreshCount = computed(() => {
             </p>
           </div>
           <div class="flex items-center gap-2">
-            <ButtonLink :to="{ name: 'admin-jobs' }" variant="outline" size="sm">
-              View all jobs <ArrowRight />
-            </ButtonLink>
+            <ButtonLink :to="{ name: 'admin-jobs' }" variant="outline" size="sm"> View all jobs </ButtonLink>
             <Tooltip>
               <TooltipTrigger as-child>
                 <Button
