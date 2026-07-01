@@ -76,7 +76,10 @@ describe("Breadcrumb", () => {
     expect(buttonTexts).not.toContain("ubuntu");
     expect(buttonTexts).toContain("gallery-repo");
 
-    await wrapper.findAll("button").find((button) => button.text() === "gallery-repo")!.trigger("click");
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text() === "gallery-repo")!
+      .trigger("click");
 
     expect(wrapper.emitted("navigate")![0]).toEqual(["/home/ubuntu/gallery-repo"]);
   });

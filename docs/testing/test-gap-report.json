@@ -35,7 +35,9 @@
         "pnpm",
         "exec",
         "vitest",
-        "list"
+        "list",
+        "--run",
+        "--staticParse"
       ],
       "cwd": "frontend",
       "returncode": 0
@@ -43,14 +45,14 @@
   },
   "counts": {
     "backend_test_files": 53,
-    "backend_tests": 904,
-    "catalog_entries": 166,
+    "backend_tests": 908,
+    "catalog_entries": 167,
     "frontend_test_files": 25,
     "frontend_tests": 158,
-    "important_files": 168,
+    "important_files": 169,
     "perf_reports": 0,
-    "vitest_test_files": 76,
-    "vitest_tests": 941
+    "vitest_test_files": 77,
+    "vitest_tests": 889
   },
   "coverage": {
     "backend_modules_below_threshold": [],
@@ -66,7 +68,7 @@
     },
     "frontend_summary_found": true
   },
-  "generated_at": "2026-06-30T13:51:28+00:00",
+  "generated_at": "2026-07-01T16:19:54+00:00",
   "matrix": [
     {
       "backend": "OK",

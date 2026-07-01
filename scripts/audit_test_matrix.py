@@ -42,6 +42,8 @@ SUPPORT_TEST_FILES = {
     "frontend/src/test/withSetup.ts",
 }
 
+COLLECT_TIMEOUT_SECONDS = int(os.environ.get("GALLERY_AUDIT_COLLECT_TIMEOUT_SECONDS", "60"))
+
 FEATURE_MATRIX: list[dict[str, Any]] = [
     {
         "feature": "Library Inspector",
@@ -193,11 +195,32 @@ def rel(path: Path, root: Path) -> str:
     return path.resolve().relative_to(root.resolve()).as_posix()
 
 
+def _timeout_output(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode(errors="replace")
+    return value
+
+
 def run_command(command: list[str], cwd: Path) -> CommandResult:
     try:
-        completed = subprocess.run(command, cwd=cwd, capture_output=True, text=True, check=False)
+        completed = subprocess.run(
+            command,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=COLLECT_TIMEOUT_SECONDS,
+        )
     except FileNotFoundError as exc:
         return CommandResult(command, rel(cwd, repo_root()), 127, "", str(exc))
+    except subprocess.TimeoutExpired as exc:
+        stderr = _timeout_output(exc.stderr)
+        if stderr:
+            stderr += "\n"
+        stderr += f"Command timed out after {COLLECT_TIMEOUT_SECONDS} seconds."
+        return CommandResult(command, rel(cwd, repo_root()), 124, _timeout_output(exc.stdout), stderr)
     return CommandResult(command, rel(cwd, repo_root()), completed.returncode, completed.stdout, completed.stderr)
 
 
@@ -312,7 +335,7 @@ def collect_vitest_tests(root: Path) -> tuple[CommandResult, list[str], set[str]
     `src/<path>.test.ts > <describe> > <test name>`.
     """
     frontend_dir = root / "frontend"
-    result = run_command(["corepack", "pnpm", "exec", "vitest", "list"], frontend_dir)
+    result = run_command(["corepack", "pnpm", "exec", "vitest", "list", "--run", "--staticParse"], frontend_dir)
 
     tests: list[str] = []
     files: set[str] = set()
