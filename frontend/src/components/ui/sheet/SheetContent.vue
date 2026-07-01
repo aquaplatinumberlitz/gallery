@@ -6,8 +6,8 @@ import { reactiveOmit } from "@vueuse/core";
 import { X } from "lucide-vue-next";
 import { DialogClose, DialogContent, DialogOverlay, DialogPortal, useForwardPropsEmits } from "reka-ui";
 import { cn } from "@/lib/utils";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { sheetVariants } from ".";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface SheetContentProps extends DialogContentProps {
   class?: HTMLAttributes["class"];
@@ -37,13 +37,15 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits);
 
       <Tooltip>
         <TooltipTrigger as-child>
-          <DialogClose
-            class="absolute right-4 top-4 cursor-pointer rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary"
-            aria-label="Close"
-          >
-            <X class="w-4 h-4 text-muted-foreground" />
-            <span class="sr-only">Close</span>
-          </DialogClose>
+          <span class="absolute right-4 top-4 inline-flex">
+            <DialogClose
+              class="cursor-pointer rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary"
+              aria-label="Close"
+            >
+              <X class="w-4 h-4 text-muted-foreground" />
+              <span class="sr-only">Close</span>
+            </DialogClose>
+          </span>
         </TooltipTrigger>
         <TooltipContent>Close</TooltipContent>
       </Tooltip>

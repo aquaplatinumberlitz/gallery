@@ -10,6 +10,7 @@ defineProps<{
   isSidebarOpen: boolean;
   tree: FolderTreeNode[];
   isLoading: boolean;
+  hasActiveLibrary: boolean;
   currentPath: string;
   searchQuery: string;
   searchScope: "current" | "all";
@@ -29,7 +30,12 @@ const emit = defineEmits<{
   <SidebarProvider :open="isSidebarOpen" @update:open="emit('update:sidebarOpen', $event)">
     <Sidebar side="left" variant="sidebar" collapsible="icon">
       <div class="flex h-full w-full flex-col group-data-[collapsible=icon]:items-center">
-        <GallerySidebarContent :tree="tree" :is-loading="isLoading" :current-path="currentPath" />
+        <GallerySidebarContent
+          :tree="tree"
+          :is-loading="isLoading"
+          :has-active-library="hasActiveLibrary"
+          :current-path="currentPath"
+        />
       </div>
       <SidebarRail />
     </Sidebar>

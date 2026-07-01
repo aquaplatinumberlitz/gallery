@@ -178,6 +178,52 @@ describe("sidebar tree", () => {
     expect(store.sidebarTree[0].children).toBeUndefined();
     expect(store.sidebarTree.length).toBe(1);
   });
+
+  it("preserves normalized children for pinned import-root trees", () => {
+    const store = useGalleryStore();
+    store.setSidebarTree(
+      [
+        {
+          type: "folder",
+          path: "/root",
+          name: "root",
+          children: [{ type: "folder", path: "/root/a", name: "A", children: [] }],
+        },
+      ] as any,
+      { preserveChildren: true },
+    );
+    expect(store.sidebarTree[0].children).toEqual([expect.objectContaining({ path: "/root/a", children: undefined })]);
+  });
+
+  it("auto-expands the active root and selected folder ancestors", () => {
+    const lib = makeLib(1, [{ id: 10, path: "/home/ubuntu/gallery-repo", position: 0 }]);
+    const store = useGalleryStore();
+    store.setActiveLibrary(lib);
+
+    store.selectFolder("/home/ubuntu/gallery-repo/frontend/src");
+
+    expect(store.isFolderExpanded("/home/ubuntu/gallery-repo")).toBe(true);
+    expect(store.isFolderExpanded("/home/ubuntu/gallery-repo/frontend")).toBe(true);
+    expect(store.isFolderExpanded("/home/ubuntu/gallery-repo/frontend/src")).toBe(true);
+  });
+
+  it("persists expanded folders by active library and import path", () => {
+    const libOne = makeLib(1, [{ id: 10, path: "/one", position: 0 }]);
+    const libTwo = makeLib(2, [{ id: 20, path: "/two", position: 0 }]);
+
+    const store = useGalleryStore();
+    store.setActiveLibrary(libOne);
+    store.selectFolder("/one/a/b");
+    expect(store.isFolderExpanded("/one/a")).toBe(true);
+
+    store.setActiveLibrary(libTwo);
+    expect(store.isFolderExpanded("/one/a")).toBe(false);
+    expect(store.isFolderExpanded("/two")).toBe(true);
+
+    store.setActiveLibrary(libOne);
+    expect(store.isFolderExpanded("/one/a")).toBe(true);
+    expect(store.isFolderExpanded("/one/a/b")).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------

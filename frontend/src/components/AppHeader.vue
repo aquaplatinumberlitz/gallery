@@ -275,17 +275,19 @@ function handleClearAll() {
           <span>Maintenance</span>
         </ButtonLink>
         <DropdownMenu>
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <DropdownMenuTrigger as-child>
-                <Button variant="ghost" size="icon" aria-label="Theme">
-                  <Sun v-if="resolvedTheme === 'light'" class="size-4" />
-                  <Moon v-else class="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-            </TooltipTrigger>
-            <TooltipContent>Theme</TooltipContent>
-          </Tooltip>
+          <DropdownMenuTrigger as-child>
+            <span class="inline-flex">
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <Button variant="ghost" size="icon" aria-label="Theme">
+                    <Sun v-if="resolvedTheme === 'light'" class="size-4" />
+                    <Moon v-else class="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Theme</TooltipContent>
+              </Tooltip>
+            </span>
+          </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem @click="setTheme('light')" :class="{ 'bg-accent': mode === 'light' }">
               <Sun class="mr-2 size-4" /> Light

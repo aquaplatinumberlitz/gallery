@@ -17,6 +17,7 @@ export const ACTIVE_LIBRARY_STORAGE_KEY = "gallery-active-library-id";
 export const ACTIVE_IMPORT_PATH_STORAGE_KEY = "gallery-active-import-path-id";
 export const LEGACY_ROOT_PATH_STORAGE_KEY = "gallery-root-path";
 export const SORT_STORAGE_KEY = "gallery-sort-preference";
+export const EXPANDED_FOLDER_PATHS_STORAGE_KEY = "gallery-expanded-folder-paths";
 
 const readStoredPositiveId = (key: string): number | null => {
   if (typeof window === "undefined") return null;
@@ -110,6 +111,102 @@ const normalizeNodes = (nodes: FolderTreeNode[]): FolderTreeNode[] =>
       ...n,
       children: undefined,
     }));
+
+const normalizeTreeNodes = (nodes: FolderTreeNode[], preserveChildren = false): FolderTreeNode[] =>
+  nodes
+    .filter((node) => node.type === "folder")
+    .map((node) => ({
+      ...node,
+      children: preserveChildren && node.children ? normalizeTreeNodes(node.children) : undefined,
+    }));
+
+const getExpansionScopeKey = (libraryId: number | null, importPathId: number | null): string | null => {
+  if (!libraryId) return null;
+  return `${libraryId}:${importPathId ?? "all"}`;
+};
+
+const readExpandedFolderPathScopes = (): Record<string, string[]> => {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(EXPANDED_FOLDER_PATHS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    return Object.entries(parsed).reduce<Record<string, string[]>>((acc, [key, value]) => {
+      if (Array.isArray(value)) {
+        acc[key] = value.filter(
+          (path): path is string => typeof path === "string" && Boolean(normalizeQueryPath(path)),
+        );
+      }
+      return acc;
+    }, {});
+  } catch {
+    localStorage.removeItem(EXPANDED_FOLDER_PATHS_STORAGE_KEY);
+    return {};
+  }
+};
+
+const writeExpandedFolderPathScope = (
+  libraryId: number | null,
+  importPathId: number | null,
+  expandedFolderPaths: Record<string, boolean>,
+) => {
+  const scopeKey = getExpansionScopeKey(libraryId, importPathId);
+  if (typeof window === "undefined" || !scopeKey) return;
+  const scopes = readExpandedFolderPathScopes();
+  scopes[scopeKey] = Object.entries(expandedFolderPaths)
+    .filter(([, expanded]) => expanded)
+    .map(([path]) => path)
+    .sort();
+  localStorage.setItem(EXPANDED_FOLDER_PATHS_STORAGE_KEY, JSON.stringify(scopes));
+};
+
+const readExpandedFolderPathScope = (
+  libraryId: number | null,
+  importPathId: number | null,
+): Record<string, boolean> => {
+  const scopeKey = getExpansionScopeKey(libraryId, importPathId);
+  if (!scopeKey) return {};
+  return (readExpandedFolderPathScopes()[scopeKey] ?? []).reduce<Record<string, boolean>>((acc, path) => {
+    const normalizedPath = normalizeQueryPath(path);
+    if (normalizedPath) acc[normalizedPath] = true;
+    return acc;
+  }, {});
+};
+
+const getPathAncestorChain = (root: string, path: string): string[] => {
+  const normalizedRoot = normalizeQueryPath(root);
+  const normalizedPath = normalizeQueryPath(path);
+  if (!normalizedRoot || !normalizedPath || !pathContains(normalizedRoot, normalizedPath)) return [];
+  if (normalizedRoot === normalizedPath) return [normalizedRoot];
+
+  if (normalizedRoot === "/") {
+    const segments = normalizedPath
+      .split("/")
+      .map((segment) => segment.trim())
+      .filter(Boolean);
+    return segments.reduce<string[]>(
+      (paths, segment) => {
+        const previous = paths[paths.length - 1] ?? "";
+        paths.push(`${previous}/${segment}`.replace(/\/{2,}/g, "/"));
+        return paths;
+      },
+      ["/"],
+    );
+  }
+
+  const relativeSegments = normalizedPath
+    .slice(normalizedRoot.length + 1)
+    .split("/")
+    .filter(Boolean);
+  return relativeSegments.reduce<string[]>(
+    (paths, segment) => {
+      paths.push(`${paths[paths.length - 1]}/${segment}`.replace(/\/{2,}/g, "/"));
+      return paths;
+    },
+    [normalizedRoot],
+  );
+};
 
 interface ErrorMessageStore {
   errorMessage: string | null;
@@ -301,7 +398,8 @@ export const useGalleryStore = defineStore("gallery", {
       const safeRootPath = this.clampToActiveImportRoot(rootPath);
       this.currentBrowsePath = safeRootPath;
       this.sidebarTree = [];
-      this.expandedFolderPaths = {};
+      this.expandedFolderPaths = readExpandedFolderPathScope(this.activeLibraryId, this.activeImportPathId);
+      this.expandPathAncestors(safeRootPath || this.activeImportRootPath);
       this.history = safeRootPath ? [safeRootPath] : [];
       this.historyIndex = safeRootPath ? 0 : -1;
       this.hasEverLoaded = false;
@@ -335,8 +433,8 @@ export const useGalleryStore = defineStore("gallery", {
       }
     },
 
-    setSidebarTree(nodes: FolderTreeNode[]) {
-      this.sidebarTree = normalizeNodes(nodes);
+    setSidebarTree(nodes: FolderTreeNode[], options?: { preserveChildren?: boolean }) {
+      this.sidebarTree = options?.preserveChildren ? normalizeTreeNodes(nodes, true) : normalizeNodes(nodes);
     },
 
     isFolderExpanded(path: string): boolean {
@@ -348,12 +446,27 @@ export const useGalleryStore = defineStore("gallery", {
       const normalizedPath = normalizeQueryPath(path);
       if (!normalizedPath) return;
       this.expandedFolderPaths[normalizedPath] = !this.expandedFolderPaths[normalizedPath];
+      writeExpandedFolderPathScope(this.activeLibraryId, this.activeImportPathId, this.expandedFolderPaths);
     },
 
     setFolderExpanded(path: string, expanded: boolean) {
       const normalizedPath = normalizeQueryPath(path);
       if (!normalizedPath) return;
       this.expandedFolderPaths[normalizedPath] = expanded;
+      writeExpandedFolderPathScope(this.activeLibraryId, this.activeImportPathId, this.expandedFolderPaths);
+    },
+
+    loadPersistedExpandedFolders() {
+      this.expandedFolderPaths = readExpandedFolderPathScope(this.activeLibraryId, this.activeImportPathId);
+      this.expandPathAncestors(this.currentBrowsePath || this.activeImportRootPath);
+    },
+
+    expandPathAncestors(path: string) {
+      const chain = getPathAncestorChain(this.activeImportRootPath, path);
+      for (const ancestorPath of chain) {
+        this.expandedFolderPaths[ancestorPath] = true;
+      }
+      writeExpandedFolderPathScope(this.activeLibraryId, this.activeImportPathId, this.expandedFolderPaths);
     },
 
     toggleFolder(node: FileNode) {
@@ -364,6 +477,7 @@ export const useGalleryStore = defineStore("gallery", {
       const path = typeof nodeOrPath === "string" ? nodeOrPath : nodeOrPath.path;
       const safePath = this.clampToActiveImportRoot(path);
       this.currentBrowsePath = safePath;
+      this.expandPathAncestors(safePath);
       this.pushHistory(safePath);
       this.hasEverLoaded = true;
     },
@@ -394,6 +508,7 @@ export const useGalleryStore = defineStore("gallery", {
         this.historyIndex -= 1;
         const path = this.history[this.historyIndex];
         this.currentBrowsePath = path;
+        this.expandPathAncestors(path);
         this.hasEverLoaded = true;
       }
     },
@@ -404,6 +519,7 @@ export const useGalleryStore = defineStore("gallery", {
         this.historyIndex += 1;
         const path = this.history[this.historyIndex];
         this.currentBrowsePath = path;
+        this.expandPathAncestors(path);
         this.hasEverLoaded = true;
       }
     },

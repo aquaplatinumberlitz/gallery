@@ -29,13 +29,15 @@ const closeSidebar = inject(closeSidebarKey, () => {});
 
 const isActive = computed(() => props.activePath === props.node.path);
 const isOpen = computed(() => galleryStore.isFolderExpanded(props.node.path));
-const childrenQueryEnabled = computed(() => isOpen.value && !!props.node.has_children);
+const hasInlineChildren = computed(() => props.node.children !== undefined);
+const childrenQueryEnabled = computed(() => isOpen.value && !!props.node.has_children && !hasInlineChildren.value);
 const folderChildrenQuery = useFolderChildrenQuery(
   computed(() => props.node.path),
   childrenQueryEnabled,
 );
 const visibleChildren = computed(() => {
   if (!isOpen.value || !props.node.has_children) return [];
+  if (hasInlineChildren.value) return props.node.children ?? [];
   if (folderChildrenQuery.isFetched.value && !folderChildrenQuery.isError.value) {
     return folderChildrenQuery.folders.value;
   }

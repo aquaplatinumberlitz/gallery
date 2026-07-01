@@ -64,7 +64,7 @@ beforeEach(() => {
 });
 
 describe("useSidebarTreeQuery", () => {
-  it("loads the current browse folders into the gallery sidebar store", async () => {
+  it("pins the active import root and loads its folders into the gallery sidebar store", async () => {
     const { result, store } = setup(1, "/photos");
 
     await vi.waitFor(() => expect(result.isSuccess.value).toBe(true));
@@ -72,10 +72,18 @@ describe("useSidebarTreeQuery", () => {
     expect(browseDirectory).toHaveBeenCalledWith(1, "/photos", { cursor: 0, limit: IMAGE_PAGE_SIZE });
     expect(store.sidebarTree).toEqual([
       expect.objectContaining({
-        name: "Imports",
-        path: "/photos/imports",
+        name: "photos",
+        path: "/photos",
         type: "folder",
-        children: undefined,
+        entry_kind: "import_root",
+        children: [
+          expect.objectContaining({
+            name: "Imports",
+            path: "/photos/imports",
+            type: "folder",
+            children: undefined,
+          }),
+        ],
       }),
     ]);
   });

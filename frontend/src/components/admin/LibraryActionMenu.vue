@@ -22,16 +22,18 @@ const emit = defineEmits<{
 
 <template>
   <DropdownMenu>
-    <Tooltip>
-      <TooltipTrigger as-child>
-        <DropdownMenuTrigger as-child>
-          <Button variant="ghost" size="icon" :disabled="disabled" aria-label="Library actions">
-            <MoreHorizontal />
-          </Button>
-        </DropdownMenuTrigger>
-      </TooltipTrigger>
-      <TooltipContent>Library actions</TooltipContent>
-    </Tooltip>
+    <DropdownMenuTrigger as-child :disabled="disabled">
+      <span class="inline-flex">
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button variant="ghost" size="icon" :disabled="disabled" aria-label="Library actions">
+              <MoreHorizontal />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Library actions</TooltipContent>
+        </Tooltip>
+      </span>
+    </DropdownMenuTrigger>
     <DropdownMenuContent align="end">
       <DropdownMenuItem @select="emit('view')"><Eye /> View details</DropdownMenuItem>
       <DropdownMenuItem @select="emit('use')"><Images /> Use in gallery</DropdownMenuItem>

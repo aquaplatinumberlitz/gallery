@@ -98,7 +98,9 @@ const tree = computed(() => galleryStore.sidebarTree);
 const isLoading = computed(() => galleryStore.isLoading);
 const currentPath = computed(() => galleryStore.currentBrowsePath);
 const activeLibraryId = computed(() => galleryStore.activeLibraryId);
-useSidebarTreeQuery(activeLibraryId, currentPath);
+const activeImportRootPath = computed(() => galleryStore.activeImportRootPath || null);
+const hasActiveLibrary = computed(() => galleryStore.activeLibraryId !== null);
+useSidebarTreeQuery(activeLibraryId, activeImportRootPath);
 
 const scrollerRef = ref<HTMLElement | null>(null);
 provide(galleryScrollContainerRefKey, scrollerRef);
@@ -141,6 +143,7 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
       :is-sidebar-open="isSidebarOpen"
       :tree="tree"
       :is-loading="isLoading"
+      :has-active-library="hasActiveLibrary"
       :current-path="currentPath"
       :search-query="galleryStore.searchQuery"
       :search-scope="galleryStore.searchScope"
@@ -164,6 +167,7 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
       :is-sidebar-open="isSidebarOpen"
       :tree="tree"
       :is-loading="isLoading"
+      :has-active-library="hasActiveLibrary"
       :current-path="currentPath"
       :search-query="galleryStore.searchQuery"
       :search-scope="galleryStore.searchScope"
@@ -181,6 +185,7 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
       :is-sidebar-open="isSidebarOpen"
       :tree="tree"
       :is-loading="isLoading"
+      :has-active-library="hasActiveLibrary"
       :current-path="currentPath"
       :search-query="galleryStore.searchQuery"
       :search-scope="galleryStore.searchScope"

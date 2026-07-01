@@ -18,6 +18,7 @@ import type { FolderTreeNode } from "@/types";
 defineProps<{
   tree: FolderTreeNode[];
   isLoading: boolean;
+  hasActiveLibrary: boolean;
   currentPath: string;
 }>();
 
@@ -40,8 +41,11 @@ const indexStatusVariant = computed(() => (isMobile.value || isCollapsed.value ?
 
       <SidebarGroupContent>
         <div class="tree-container">
-          <p v-if="!isLoading && !tree.length" class="empty-state group-data-[collapsible=icon]:hidden">
+          <p v-if="!hasActiveLibrary" class="empty-state group-data-[collapsible=icon]:hidden">
             Select a registered library to start browsing.
+          </p>
+          <p v-else-if="!isLoading && !tree.length" class="empty-state group-data-[collapsible=icon]:hidden">
+            No folders available for this library.
           </p>
           <FolderTreeItem v-for="node in tree" :key="node.path" :node="node" :active-path="currentPath" :level="1" />
         </div>

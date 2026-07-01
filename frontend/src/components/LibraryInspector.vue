@@ -967,16 +967,18 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
               </TableCell>
               <TableCell class="table-cell col-actions">
                 <DropdownMenu v-model:open="rowMenuOpen[visibleTableRows[virtualRow.index].original.path]">
-                  <Tooltip>
-                    <TooltipTrigger as-child>
-                      <DropdownMenuTrigger as-child>
-                        <Button variant="ghost" size="icon-sm" aria-label="Row actions" @click.stop>
-                          <MoreHorizontal class="size-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                    </TooltipTrigger>
-                    <TooltipContent>Row actions</TooltipContent>
-                  </Tooltip>
+                  <DropdownMenuTrigger as-child>
+                    <span class="inline-flex">
+                      <Tooltip>
+                        <TooltipTrigger as-child>
+                          <Button variant="ghost" size="icon-sm" aria-label="Row actions" @click.stop>
+                            <MoreHorizontal class="size-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Row actions</TooltipContent>
+                      </Tooltip>
+                    </span>
+                  </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem @click="openImage(visibleTableRows[virtualRow.index].original)">
                       <ExternalLink class="size-4" /> Open image

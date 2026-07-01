@@ -164,49 +164,51 @@ function formatCount(value: number) {
   />
 
   <Popover v-else @update:open="onOpenChange">
-    <Tooltip>
-      <TooltipTrigger as-child>
-        <PopoverTrigger as-child>
-          <Button
-            variant="outline"
-            size="sm"
-            class="h-8 gap-1.5 px-2.5 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center"
-            aria-label="Catalog Status"
-          >
-            <span class="relative inline-flex">
-              <Database class="size-3.5" data-testid="catalog-database-icon" />
-              <span
-                class="absolute -bottom-0.5 -right-0.5 size-1.5 rounded-full hidden group-data-[collapsible=icon]:block"
-                :class="[
-                  presentation.tone === 'green'
-                    ? 'bg-green-500'
-                    : presentation.tone === 'yellow'
-                      ? 'bg-amber-500'
-                      : presentation.tone === 'red'
-                        ? 'bg-red-500'
-                        : 'bg-gray-400',
-                  presentation.showPulse ? 'animate-pulse' : '',
-                ]"
-                aria-hidden="true"
-              />
-            </span>
-            <Badge
-              :variant="
-                presentation.variant === 'destructive'
-                  ? 'destructive'
-                  : presentation.variant === 'default'
-                    ? 'outline'
-                    : 'secondary'
-              "
-              class="px-1.5 py-0 text-[10px] leading-none group-data-[collapsible=icon]:hidden"
+    <PopoverTrigger as-child>
+      <span class="inline-flex">
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button
+              variant="outline"
+              size="sm"
+              class="h-8 gap-1.5 px-2.5 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center"
+              aria-label="Catalog Status"
             >
-              {{ presentation.label }}
-            </Badge>
-          </Button>
-        </PopoverTrigger>
-      </TooltipTrigger>
-      <TooltipContent side="right">Catalog status</TooltipContent>
-    </Tooltip>
+              <span class="relative inline-flex">
+                <Database class="size-3.5" data-testid="catalog-database-icon" />
+                <span
+                  class="absolute -bottom-0.5 -right-0.5 size-1.5 rounded-full hidden group-data-[collapsible=icon]:block"
+                  :class="[
+                    presentation.tone === 'green'
+                      ? 'bg-green-500'
+                      : presentation.tone === 'yellow'
+                        ? 'bg-amber-500'
+                        : presentation.tone === 'red'
+                          ? 'bg-red-500'
+                          : 'bg-gray-400',
+                    presentation.showPulse ? 'animate-pulse' : '',
+                  ]"
+                  aria-hidden="true"
+                />
+              </span>
+              <Badge
+                :variant="
+                  presentation.variant === 'destructive'
+                    ? 'destructive'
+                    : presentation.variant === 'default'
+                      ? 'outline'
+                      : 'secondary'
+                "
+                class="px-1.5 py-0 text-[10px] leading-none group-data-[collapsible=icon]:hidden"
+              >
+                {{ presentation.label }}
+              </Badge>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">Catalog status</TooltipContent>
+        </Tooltip>
+      </span>
+    </PopoverTrigger>
     <PopoverContent class="w-72 p-4" align="end" :side-offset="8">
       <div v-if="isLoading" class="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader class="size-4 animate-spin" />
