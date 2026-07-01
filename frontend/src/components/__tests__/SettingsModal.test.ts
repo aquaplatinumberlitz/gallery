@@ -1,6 +1,7 @@
 import { mount } from "@vue/test-utils";
-import { ref } from "vue";
+import { nextTick, ref } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { LIGHTBOX_ALWAYS_LOAD_ORIGINAL_KEY } from "@/utils/lightbox";
 import SettingsModal from "../SettingsModal.vue";
 
 const mutateAsync = vi.fn();
@@ -45,6 +46,7 @@ function mountSubject(props: { isOpen?: boolean; canResetCatalogDatabase?: boole
 
 beforeEach(() => {
   vi.clearAllMocks();
+  window.localStorage.clear();
   isPending.value = false;
 });
 
@@ -88,5 +90,24 @@ describe("SettingsModal", () => {
 
     expect(mutateAsync).toHaveBeenCalledWith("RESET CATALOG DATABASE");
     expect(wrapper.emitted("close")).toHaveLength(1);
+  });
+
+  it("reloads persisted settings when reopened after reset clears local state", async () => {
+    window.localStorage.setItem(LIGHTBOX_ALWAYS_LOAD_ORIGINAL_KEY, "true");
+    const wrapper = mountSubject();
+    const alwaysLoadOriginal = () => wrapper.find<HTMLInputElement>('input[type="checkbox"]');
+
+    expect(alwaysLoadOriginal().element.checked).toBe(true);
+
+    window.localStorage.removeItem(LIGHTBOX_ALWAYS_LOAD_ORIGINAL_KEY);
+    await wrapper.setProps({ isOpen: false });
+    await wrapper.setProps({ isOpen: true });
+    await nextTick();
+
+    expect(alwaysLoadOriginal().element.checked).toBe(false);
+
+    await wrapper.find<HTMLInputElement>('input[type="radio"][value="manual"]').setValue(true);
+
+    expect(window.localStorage.getItem(LIGHTBOX_ALWAYS_LOAD_ORIGINAL_KEY)).not.toBe("true");
   });
 });

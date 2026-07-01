@@ -77,13 +77,13 @@ describe("useCatalogResetMutation", () => {
     wrapper.unmount();
   });
 
-  it("clears cached queries and redirects to libraries", async () => {
+  it("clears cached queries and redirects to the gallery", async () => {
     const { clear, mutation, wrapper } = setup();
 
     await mutation.mutateAsync("RESET CATALOG DATABASE");
 
     expect(clear).toHaveBeenCalledOnce();
-    expect(routerReplace).toHaveBeenCalledWith({ name: "admin-libraries" });
+    expect(routerReplace).toHaveBeenCalledWith({ name: "gallery" });
     wrapper.unmount();
   });
 

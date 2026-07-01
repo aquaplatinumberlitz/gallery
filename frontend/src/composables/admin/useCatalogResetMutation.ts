@@ -39,8 +39,10 @@ export function useCatalogResetMutation() {
       clearHandoffLocalState();
       galleryStore.$reset();
       galleryStore.clearActiveLibrary();
+      galleryStore.activeLibraryHydrated = true;
       queryClient.clear();
-      await router.replace({ name: "admin-libraries" });
+      await router.replace({ name: "gallery" });
+      clearHandoffLocalState();
       toast.success("App data reset. Source files were not touched.");
     },
     onError: (error) => toast.error("Could not reset catalog database", String(error)),

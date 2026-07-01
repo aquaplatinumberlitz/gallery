@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useLandingPagesLiveQuery } from "../db/composables/useLandingPagesLiveQuery";
 import { LIGHTBOX_ALWAYS_LOAD_ORIGINAL_KEY } from "../utils/lightbox";
 import { AlertTriangle, Trash2 } from "lucide-vue-next";
@@ -54,14 +54,10 @@ const formatThemeName = (path: string) => {
 
 const loadSettings = () => {
   const savedMode = localStorage.getItem("intro_mode");
-  if (isIntroMode(savedMode)) {
-    introMode.value = savedMode;
-  }
+  introMode.value = isIntroMode(savedMode) ? savedMode : "auto";
 
   const savedTheme = localStorage.getItem("intro_theme");
-  if (savedTheme) {
-    selectedTheme.value = savedTheme;
-  }
+  selectedTheme.value = savedTheme || availableThemes.value[0] || "";
 
   alwaysLoadOriginal.value = localStorage.getItem(LIGHTBOX_ALWAYS_LOAD_ORIGINAL_KEY) === "true";
 };
@@ -74,9 +70,15 @@ const saveSettings = () => {
   localStorage.setItem(LIGHTBOX_ALWAYS_LOAD_ORIGINAL_KEY, String(alwaysLoadOriginal.value));
 };
 
-onMounted(() => {
-  loadSettings();
-});
+watch(
+  () => props.isOpen,
+  (open) => {
+    if (open) {
+      loadSettings();
+    }
+  },
+  { immediate: true },
+);
 
 watch([introMode, selectedTheme, alwaysLoadOriginal], () => {
   saveSettings();

@@ -490,7 +490,8 @@ test.describe("imported-data maintenance verification", () => {
     await resetButton.click();
 
     await expect.poll(() => state.libraries.length).toBe(0);
-    await expect(page).toHaveURL(/\/admin\/libraries$/);
+    await expect.poll(() => page.evaluate(() => window.location.pathname)).toBe("/");
+    await expect(page.getByText("No library selected")).toBeVisible();
     await expect
       .poll(() =>
         page.evaluate(() =>
@@ -505,7 +506,8 @@ test.describe("imported-data maintenance verification", () => {
         ),
       )
       .toEqual([null, null, null, null, null, null]);
-    await page.goto(`${baseUrl}/admin/libraries`, { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Manage Libraries" }).click();
+    await expect(page).toHaveURL(/\/admin\/libraries$/);
     await expect(page.getByText("No libraries registered")).toBeVisible();
     await page.getByRole("button", { name: "Add library" }).last().click();
     await page.getByLabel("Display name").fill("Fresh Library");
