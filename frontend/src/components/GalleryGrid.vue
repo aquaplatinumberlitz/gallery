@@ -319,6 +319,7 @@ const isSearchLoading = computed(
   () => hasSearchQuery.value && (unifiedSearchQuery.isLoading.value || unifiedSearchQuery.isFetching.value),
 );
 const currentPath = computed(() => galleryStore.currentBrowsePath);
+const activeImportRootPath = computed(() => galleryStore.activeImportRootPath);
 const canBack = computed(() => galleryStore.historyIndex > 0);
 const canForward = computed(() => galleryStore.historyIndex < galleryStore.history.length - 1);
 const hasMoreImages = computed(() => !hasSearchQuery.value && infiniteBrowseQuery.hasNextPage.value);
@@ -678,6 +679,7 @@ watch(
         v-if="showToolbarBreadcrumb"
         class="breadcrumb-wrap"
         :path="currentPath"
+        :root-path="activeImportRootPath"
         @navigate="handleOpenFolder"
       />
 

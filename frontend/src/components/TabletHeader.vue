@@ -134,7 +134,12 @@ function onScopeChange(e: Event) {
 
     <!-- Center: breadcrumb (hidden in search mode) -->
     <div v-show="!isSearchActive" class="th-center">
-      <Breadcrumb v-if="!showBackToGallery" :path="currentPath" @navigate="handleBreadcrumbNavigate" />
+      <Breadcrumb
+        v-if="!showBackToGallery"
+        :path="currentPath"
+        :root-path="galleryStore.activeImportRootPath"
+        @navigate="handleBreadcrumbNavigate"
+      />
       <span v-if="showBackToGallery" class="th-path-empty">{{ pageTitle }}</span>
       <span v-else-if="!currentPath" class="th-path-empty">Gallery</span>
     </div>

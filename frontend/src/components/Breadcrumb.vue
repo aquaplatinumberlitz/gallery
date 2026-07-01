@@ -9,9 +9,11 @@ import BreadcrumbLink from "./ui/BreadcrumbLink.vue";
 import BreadcrumbPage from "./ui/BreadcrumbPage.vue";
 import BreadcrumbSeparator from "./ui/BreadcrumbSeparator.vue";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { pathContains } from "../stores/gallery";
 
 const props = defineProps<{
   path?: string;
+  rootPath?: string;
   maxVisible?: number;
 }>();
 
@@ -61,6 +63,9 @@ onBeforeUnmount(() => {
 
 const separator = computed(() => (props.path?.includes("\\") ? "\\" : "/"));
 const maxSegments = computed(() => props.maxVisible ?? 4);
+const rootPath = computed(() => props.rootPath?.trim() ?? "");
+
+type Segment = { name: string; fullPath: string; isLast: boolean; index: number };
 
 const allSegments = computed(() => {
   const raw = props.path || "";
@@ -68,7 +73,7 @@ const allSegments = computed(() => {
   const prefix = raw.startsWith("\\\\") ? "\\\\" : raw.startsWith(sep) ? sep : "";
   const parts = raw.split(/[\\/]+/).filter(Boolean);
 
-  const result: { name: string; fullPath: string; isLast: boolean; index: number }[] = [];
+  const result: Segment[] = [];
   let current = prefix;
 
   parts.forEach((part, idx) => {
@@ -113,8 +118,10 @@ const showEllipsisAfter = (segmentIndex: number) => {
   return shouldCollapse.value && segmentIndex === 0 && hiddenSegments.value.length > 0;
 };
 
-const onNavigate = (segment: { fullPath: string; isLast: boolean }) => {
-  if (segment.isLast) return;
+const canNavigateToSegment = (segment: Segment) => !rootPath.value || pathContains(rootPath.value, segment.fullPath);
+
+const onNavigate = (segment: Segment) => {
+  if (segment.isLast || !canNavigateToSegment(segment)) return;
   ellipsisMenuOpen.value = false;
   emit("navigate", segment.fullPath);
 };
@@ -144,8 +151,8 @@ const closeMenu = () => {
           <BreadcrumbSeparator />
           <BreadcrumbItem>
             <BreadcrumbLink
-              v-if="!seg.isLast"
-              :disabled="seg.isLast"
+              v-if="!seg.isLast && canNavigateToSegment(seg)"
+              :disabled="false"
               as="button"
               type="button"
               @click="onNavigate(seg)"
@@ -187,6 +194,7 @@ const closeMenu = () => {
                       v-for="hidden in hiddenSegments"
                       :key="hidden.fullPath"
                       class="ellipsis-menu-item"
+                      :disabled="!canNavigateToSegment(hidden)"
                       @click="onNavigate(hidden)"
                     >
                       <Folder class="size-3.5" />
@@ -349,6 +357,15 @@ const closeMenu = () => {
 
 .ellipsis-menu-item:hover {
   background: var(--accent, rgba(0, 0, 0, 0.05));
+}
+
+.ellipsis-menu-item:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.ellipsis-menu-item:disabled:hover {
+  background: transparent;
 }
 
 .ellipsis-menu-item:focus-visible {

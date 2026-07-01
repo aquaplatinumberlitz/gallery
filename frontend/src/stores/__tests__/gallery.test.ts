@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { setActivePinia, createPinia } from "pinia";
-import { useGalleryStore, findImportPathForPath, resolveActiveImportPath } from "../gallery";
+import { useGalleryStore, findImportPathForPath, pathContains, resolveActiveImportPath } from "../gallery";
 import type { RegisteredLibrary } from "../../types";
 
 vi.mock("../../services/api", async () => {
@@ -67,6 +67,7 @@ describe("initial state", () => {
     expect(store.searchScope).toBe("current");
     expect(store.sortField).toBe("name");
     expect(store.sortOrder).toBe("asc");
+    expect(store.activeImportRootPath).toBe("");
     expect(store.activeLibraryHydrated).toBe(false);
     expect(store.hasEverLoaded).toBe(false);
     expect(store.historyIndex).toBe(-1);
@@ -237,6 +238,33 @@ describe("browse navigation", () => {
     store.goForward();
     expect(store.historyIndex).toBe(-1);
   });
+
+  it("clamps folder navigation to the active import root", () => {
+    const lib = makeLib(1, [{ id: 10, path: "/home/ubuntu/gallery-repo", position: 0 }]);
+    const store = useGalleryStore();
+    store.setActiveLibrary(lib);
+
+    store.selectFolder("/home/ubuntu");
+
+    expect(store.currentBrowsePath).toBe("/home/ubuntu/gallery-repo");
+    expect(store.history).toEqual(["/home/ubuntu/gallery-repo"]);
+  });
+
+  it("sanitizes stale history entries before back navigation", () => {
+    const root = "/home/ubuntu/gallery-repo";
+    const lib = makeLib(1, [{ id: 10, path: root, position: 0 }]);
+    const store = useGalleryStore();
+    store.setActiveLibrary(lib);
+    store.history = [root, "/home/ubuntu", `${root}/frontend`];
+    store.historyIndex = 2;
+    store.currentBrowsePath = `${root}/frontend`;
+
+    store.goBack();
+
+    expect(store.currentBrowsePath).toBe(root);
+    expect(store.history).toEqual([root, `${root}/frontend`]);
+    expect(store.historyIndex).toBe(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -279,6 +307,7 @@ describe("hydrateActiveLibrary", () => {
     store.hydrateActiveLibrary([lib]);
     expect(store.activeLibraryId).toBe(1);
     expect(store.activeImportPathId).toBe(10);
+    expect(store.activeImportRootPath).toBe("/photos");
     expect(store.activeLibraryHydrated).toBe(true);
     expect(store.currentBrowsePath).toBe(lib.import_paths[0].path);
   });
@@ -291,6 +320,7 @@ describe("hydrateActiveLibrary", () => {
     store.hydrateActiveLibrary([lib]);
     expect(store.activeLibraryId).toBe(1);
     expect(store.activeImportPathId).toBe(10);
+    expect(store.activeImportRootPath).toBe("/photos");
     expect(store.currentBrowsePath).toBe("/photos/album");
     expect(localStorage.getItem("gallery-root-path")).toBeNull();
   });
@@ -334,6 +364,7 @@ describe("setActiveLibrary", () => {
     expect(ok).toBe(true);
     expect(store.activeLibraryId).toBe(1);
     expect(store.activeImportPathId).toBe(10);
+    expect(store.activeImportRootPath).toBe("/p");
   });
 
   it("returns false when import path not in library", () => {
@@ -397,6 +428,7 @@ describe("clearActiveLibrary", () => {
     store.clearActiveLibrary();
     expect(store.activeLibraryId).toBeNull();
     expect(store.activeImportPathId).toBeNull();
+    expect(store.activeImportRootPath).toBe("");
     expect(store.currentBrowsePath).toBe("");
   });
 });
@@ -412,7 +444,16 @@ describe("applyActiveSelection", () => {
     store.applyActiveSelection(lib, lib.import_paths[0]);
     expect(store.activeLibraryId).toBe(1);
     expect(store.activeImportPathId).toBe(10);
+    expect(store.activeImportRootPath).toBe("/p");
     expect(localStorage.getItem("gallery-active-library-id")).toBe("1");
+  });
+});
+
+describe("pathContains", () => {
+  it("requires a path boundary match", () => {
+    expect(pathContains("/home/ubuntu/gallery-repo", "/home/ubuntu/gallery-repo/frontend")).toBe(true);
+    expect(pathContains("/home/ubuntu/gallery-repo", "/home/ubuntu/gallery-repo-other")).toBe(false);
+    expect(pathContains("/home/ubuntu/gallery-repo", "/home/ubuntu")).toBe(false);
   });
 });
 

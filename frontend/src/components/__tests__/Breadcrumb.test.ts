@@ -65,6 +65,22 @@ describe("Breadcrumb", () => {
     expect(wrapper.emitted("navigate")![0]).toEqual(["/parent"]);
   });
 
+  it("does not allow navigation above the configured root path", async () => {
+    const wrapper = createWrapper({
+      path: "/home/ubuntu/gallery-repo/frontend",
+      rootPath: "/home/ubuntu/gallery-repo",
+    });
+    const buttonTexts = wrapper.findAll("button").map((button) => button.text());
+
+    expect(buttonTexts).not.toContain("home");
+    expect(buttonTexts).not.toContain("ubuntu");
+    expect(buttonTexts).toContain("gallery-repo");
+
+    await wrapper.findAll("button").find((button) => button.text() === "gallery-repo")!.trigger("click");
+
+    expect(wrapper.emitted("navigate")![0]).toEqual(["/home/ubuntu/gallery-repo"]);
+  });
+
   it("renders last segment as page (not link)", () => {
     const wrapper = createWrapper({ path: "/only" });
     expect(wrapper.text()).toContain("only");
@@ -104,6 +120,17 @@ describe("Breadcrumb", () => {
 
     expect(wrapper.emitted("navigate")).toBeTruthy();
     expect(wrapper.emitted("navigate")![0][0]).toBe("/a/b");
+  });
+
+  it("disables hidden ellipsis ancestors above the root path", async () => {
+    const wrapper = createWrapper({ path: "/a/b/c/d/e/f", rootPath: "/a/b/c", maxVisible: 3 });
+    await wrapper.find('[aria-label$="more folders"]').trigger("click");
+
+    const hiddenB = wrapper.findAll("button").find((button) => button.text() === "b");
+    const hiddenC = wrapper.findAll("button").find((button) => button.text() === "c");
+
+    expect(hiddenB?.attributes("disabled")).toBeDefined();
+    expect(hiddenC?.attributes("disabled")).toBeUndefined();
   });
 
   it("expands and collapses full path", async () => {

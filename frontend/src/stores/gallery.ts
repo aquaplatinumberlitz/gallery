@@ -45,7 +45,7 @@ const comparablePath = (path: string): string => {
   return normalized === "/" ? normalized : normalized.replace(/\/$/, "");
 };
 
-const pathContains = (root: string, candidate: string): boolean => {
+export const pathContains = (root: string, candidate: string): boolean => {
   const normalizedRoot = comparablePath(root);
   const normalizedCandidate = comparablePath(candidate);
   return (
@@ -162,6 +162,7 @@ export const useGalleryStore = defineStore("gallery", {
     return {
       activeLibraryId: null as number | null,
       activeImportPathId: null as number | null,
+      activeImportRootPath: "",
       activeLibraryHydrated: false,
       sidebarTree: [] as FolderTreeNode[],
       expandedFolderPaths: {} as Record<string, boolean>,
@@ -258,6 +259,7 @@ export const useGalleryStore = defineStore("gallery", {
     applyActiveSelection(library: RegisteredLibrary, importPath: LibraryImportPath, browsePath = importPath.path) {
       this.activeLibraryId = library.id;
       this.activeImportPathId = importPath.id;
+      this.activeImportRootPath = importPath.path;
       if (typeof window !== "undefined") {
         localStorage.setItem(ACTIVE_LIBRARY_STORAGE_KEY, String(library.id));
         localStorage.setItem(ACTIVE_IMPORT_PATH_STORAGE_KEY, String(importPath.id));
@@ -287,6 +289,7 @@ export const useGalleryStore = defineStore("gallery", {
     clearActiveLibrary() {
       this.activeLibraryId = null;
       this.activeImportPathId = null;
+      this.activeImportRootPath = "";
       if (typeof window !== "undefined") {
         localStorage.removeItem(ACTIVE_LIBRARY_STORAGE_KEY);
         localStorage.removeItem(ACTIVE_IMPORT_PATH_STORAGE_KEY);
@@ -295,15 +298,41 @@ export const useGalleryStore = defineStore("gallery", {
     },
 
     resetBrowseState(rootPath = "") {
-      this.currentBrowsePath = rootPath;
+      const safeRootPath = this.clampToActiveImportRoot(rootPath);
+      this.currentBrowsePath = safeRootPath;
       this.sidebarTree = [];
       this.expandedFolderPaths = {};
-      this.history = rootPath ? [rootPath] : [];
-      this.historyIndex = rootPath ? 0 : -1;
+      this.history = safeRootPath ? [safeRootPath] : [];
+      this.historyIndex = safeRootPath ? 0 : -1;
       this.hasEverLoaded = false;
       this.isLoading = false;
       this.clearSearch();
       this.clearError();
+    },
+
+    isPathInActiveImportRoot(path: string): boolean {
+      return !this.activeImportRootPath || pathContains(this.activeImportRootPath, path);
+    },
+
+    clampToActiveImportRoot(path: string): string {
+      if (!path) return "";
+      return this.isPathInActiveImportRoot(path) ? path : this.activeImportRootPath;
+    },
+
+    sanitizeBrowseHistory() {
+      if (!this.activeImportRootPath || !this.history.length) return;
+      const currentHistoryPath = this.historyIndex >= 0 ? this.history[this.historyIndex] : "";
+      const currentSafePath = this.clampToActiveImportRoot(currentHistoryPath);
+      const safeHistory = this.history
+        .map((path) => this.clampToActiveImportRoot(path))
+        .filter((path): path is string => Boolean(path))
+        .filter((path, index, paths) => index === 0 || path !== paths[index - 1]);
+
+      this.history = safeHistory;
+      this.historyIndex = currentSafePath ? safeHistory.lastIndexOf(currentSafePath) : -1;
+      if (this.historyIndex < 0 && safeHistory.length) {
+        this.historyIndex = 0;
+      }
     },
 
     setSidebarTree(nodes: FolderTreeNode[]) {
@@ -333,8 +362,9 @@ export const useGalleryStore = defineStore("gallery", {
 
     selectFolder(nodeOrPath: FileNode | string) {
       const path = typeof nodeOrPath === "string" ? nodeOrPath : nodeOrPath.path;
-      this.currentBrowsePath = path;
-      this.pushHistory(path);
+      const safePath = this.clampToActiveImportRoot(path);
+      this.currentBrowsePath = safePath;
+      this.pushHistory(safePath);
       this.hasEverLoaded = true;
     },
 
@@ -349,14 +379,17 @@ export const useGalleryStore = defineStore("gallery", {
     },
 
     pushHistory(path: string) {
-      if (!path) return;
-      if (this.historyIndex >= 0 && this.history[this.historyIndex] === path) return;
+      const safePath = this.clampToActiveImportRoot(path);
+      if (!safePath) return;
+      this.sanitizeBrowseHistory();
+      if (this.historyIndex >= 0 && this.history[this.historyIndex] === safePath) return;
       this.history = this.history.slice(0, this.historyIndex + 1);
-      this.history.push(path);
+      this.history.push(safePath);
       this.historyIndex = this.history.length - 1;
     },
 
     goBack() {
+      this.sanitizeBrowseHistory();
       if (this.historyIndex > 0) {
         this.historyIndex -= 1;
         const path = this.history[this.historyIndex];
@@ -366,6 +399,7 @@ export const useGalleryStore = defineStore("gallery", {
     },
 
     goForward() {
+      this.sanitizeBrowseHistory();
       if (this.historyIndex < this.history.length - 1) {
         this.historyIndex += 1;
         const path = this.history[this.historyIndex];
