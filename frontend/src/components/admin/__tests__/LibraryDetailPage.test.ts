@@ -117,6 +117,7 @@ let routerPushMock = vi.fn();
 let copyTextMock = vi.fn();
 let copyStatusMock: Record<string, boolean> = {};
 let scanMutateMock = vi.fn();
+let mockLibraryJobsQueryArgs: unknown[][] = [];
 
 vi.mock("vue-router", () => ({
   useRouter: () => ({ push: routerPushMock }),
@@ -151,11 +152,14 @@ vi.mock("@/composables/admin/useLibraryStatsQuery", () => ({
 }));
 
 vi.mock("@/composables/admin/useLibraryJobsQuery", () => ({
-  useLibraryJobsQuery: () => ({
-    data: { value: mockJobsData },
-    isFetching: { value: false },
-    refetch: vi.fn(),
-  }),
+  useLibraryJobsQuery: (...args: unknown[]) => {
+    mockLibraryJobsQueryArgs.push(args);
+    return {
+      data: { value: mockJobsData },
+      isFetching: { value: false },
+      refetch: vi.fn(),
+    };
+  },
 }));
 
 vi.mock("@/composables/admin/useLibrariesQuery", () => ({
@@ -210,10 +214,6 @@ function mountSubject(propsId = 1) {
         Tooltip: { template: "<span><slot /></span>" },
         TooltipContent: { template: "<span><slot /></span>" },
         TooltipTrigger: { template: "<span><slot /></span>" },
-        DropdownMenu: { template: "<span><slot /></span>" },
-        DropdownMenuContent: { template: "<span><slot /></span>" },
-        DropdownMenuItem: { template: "<button><slot /></button>" },
-        DropdownMenuTrigger: { template: "<span><slot /></span>" },
         LibraryProgressBar: { template: "<div class='library-progress' />" },
         LibraryStatusBadge: { template: "<span class='status-badge'><slot /></span>" },
         LibraryEditDialog: { template: "<div class='edit-dialog' />" },
@@ -229,6 +229,8 @@ describe("LibraryDetailPage", () => {
     mockLibraryData = mockLibrary;
     mockLibraryIsPending = false;
     mockLibraryIsError = false;
+    mockStats.active_assets = 95;
+    mockStats.offline_assets = 5;
     mockStatusData = { status: { ...mockLibrary, ...baseMockStatus }, contract_version: 1 };
     mockContractError = null;
     mockJobsData = [];
@@ -237,6 +239,7 @@ describe("LibraryDetailPage", () => {
     copyTextMock = vi.fn();
     copyStatusMock = {};
     scanMutateMock = vi.fn();
+    mockLibraryJobsQueryArgs = [];
   });
 
   it("renders the library name", () => {
@@ -266,11 +269,37 @@ describe("LibraryDetailPage", () => {
     expect(wrapper.text()).toContain("No issues found");
     expect(wrapper.text()).toContain("80");
     expect(wrapper.text()).toContain("20");
+    expect(wrapper.text()).toContain("95 available");
+    expect(wrapper.text()).toContain("5 unavailable");
+    expect(wrapper.text()).toContain("Available: indexed images/videos currently available on disk.");
+    expect(wrapper.text()).toContain(
+      "Unavailable: cataloged files not available in the latest scan or under unavailable import paths.",
+    );
     expect(wrapper.text()).toContain("Configuration");
     expect(wrapper.text()).toContain("Danger zone");
     expect(wrapper.text()).toContain("Recent job history");
+    expect(wrapper.text()).toContain("Latest 8 jobs");
+    expect(wrapper.text()).toContain("View all jobs");
     expect(wrapper.text()).toContain("Catalog lifecycle");
     expect(wrapper.find(".library-progress").exists()).toBe(false);
+  });
+
+  it("places danger zone after history and lifecycle details", () => {
+    const text = mountSubject().text();
+    expect(text.indexOf("Recent job history")).toBeLessThan(text.indexOf("Catalog lifecycle"));
+    expect(text.indexOf("Catalog lifecycle")).toBeLessThan(text.indexOf("Danger zone"));
+  });
+
+  it("limits the embedded job history", () => {
+    mountSubject();
+    expect(mockLibraryJobsQueryArgs[0]?.[1]).toBe(8);
+  });
+
+  it("hides unavailable file count when there are no unavailable files", () => {
+    mockStats.offline_assets = 0;
+    const wrapper = mountSubject();
+    expect(wrapper.text()).toContain("95 available");
+    expect(wrapper.text()).not.toContain("0 unavailable");
   });
 
   it("shows empty jobs state", () => {

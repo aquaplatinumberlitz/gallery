@@ -15,6 +15,7 @@ const loadLibraryInspector = () => import("@/components/LibraryInspector.vue");
 const LibraryInspector = loadLibraryInspector;
 const loadLibraryListPage = () => import("@/components/admin/LibraryListPage.vue");
 const loadLibraryDetailPage = () => import("@/components/admin/LibraryDetailPage.vue");
+const loadLibraryJobsPage = () => import("@/components/admin/LibraryJobsPage.vue");
 const loadMaintenancePage = () => import("@/components/admin/MaintenancePage.vue");
 
 let metadataRoutePrefetch: Promise<unknown> | null = null;
@@ -53,6 +54,18 @@ export const router = createRouter({
         chromeSection: "admin",
         chromeNav: "libraries",
         pageTitle: "Library administration",
+        showBackToGallery: true,
+      },
+    },
+    {
+      path: "/admin/libraries/:id/jobs",
+      name: "admin-library-jobs",
+      component: loadLibraryJobsPage,
+      props: (route) => ({ id: Number(route.params.id) }),
+      meta: {
+        chromeSection: "admin",
+        chromeNav: "libraries",
+        pageTitle: "Library job history",
         showBackToGallery: true,
       },
     },

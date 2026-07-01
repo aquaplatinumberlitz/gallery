@@ -66,6 +66,10 @@ describe("queryKeys", () => {
     expect(queryKeys.browseInfinite(4, "/p", 50, true)).toEqual(["browse-infinite", 4, "/p", 50, true]);
   });
 
+  it("libraryJobs includes limit when provided", () => {
+    expect(queryKeys.libraryJobs(5, 8)).toEqual(["libraries", "jobs", 5, 8]);
+  });
+
   it.each([
     [4, "/p", ["status", "path", 4, "/p"]],
     [4, "", ["status", "path", 4, null]],

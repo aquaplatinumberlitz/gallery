@@ -358,8 +358,11 @@ export const fetchLibraryStats = async (id: number): Promise<LibraryStats> => {
   return data;
 };
 
-export const fetchLibraryJobs = async (id: number): Promise<LibraryJob[]> => {
-  const { data } = await api.get<LibraryJob[]>(`/api/libraries/${id}/jobs`);
+export const fetchLibraryJobs = async (id: number, limit?: number): Promise<LibraryJob[]> => {
+  const { data } =
+    typeof limit === "number"
+      ? await api.get<LibraryJob[]>(`/api/libraries/${id}/jobs`, { params: { limit } })
+      : await api.get<LibraryJob[]>(`/api/libraries/${id}/jobs`);
   return data;
 };
 

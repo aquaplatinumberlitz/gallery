@@ -428,6 +428,13 @@ describe("fetchLibraryJobs", () => {
     expect(r).toEqual([]);
     expect(mockApi.get).toHaveBeenCalledWith("/api/libraries/4/jobs");
   });
+
+  it("GET /api/libraries/:id/jobs with limit", async () => {
+    mockApi.get.mockResolvedValueOnce({ data: [] });
+    const r = await fetchLibraryJobs(4, 8);
+    expect(r).toEqual([]);
+    expect(mockApi.get).toHaveBeenCalledWith("/api/libraries/4/jobs", { params: { limit: 8 } });
+  });
 });
 
 describe("fetchJobs", () => {

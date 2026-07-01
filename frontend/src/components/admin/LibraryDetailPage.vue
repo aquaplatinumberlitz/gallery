@@ -1,29 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
-import {
-  AlertTriangle,
-  ArrowLeft,
-  Copy,
-  Images,
-  MoreHorizontal,
-  Pencil,
-  RefreshCw,
-  Trash2,
-  ImageIcon,
-} from "lucide-vue-next";
+import { AlertTriangle, ArrowLeft, Images, Pencil, RefreshCw, Trash2, ImageIcon, Info } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import ButtonLink from "@/components/ui/ButtonLink.vue";
 import CopyButton from "@/components/ui/CopyButton.vue";
 import OverflowTooltip from "@/components/ui/OverflowTooltip.vue";
 import Separator from "@/components/ui/Separator.vue";
 import Skeleton from "@/components/ui/skeleton/Skeleton.vue";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { useLibrariesQuery } from "@/composables/admin/useLibrariesQuery";
 import { useLibraryEvents } from "@/composables/admin/useLibraryEvents";
 import { useLibraryJobsQuery } from "@/composables/admin/useLibraryJobsQuery";
@@ -33,7 +17,6 @@ import { useLibraryQuery } from "@/composables/admin/useLibraryQuery";
 import { useLibraryStatsQuery } from "@/composables/admin/useLibraryStatsQuery";
 import { useGeneratedImagesStatusQuery } from "@/composables/admin/useGeneratedImagesStatusQuery";
 import { useGeneratedImagesMutations } from "@/composables/admin/useGeneratedImagesMutations";
-import { useClipboard } from "@/composables/useClipboard";
 import { useGalleryStore } from "@/stores/gallery";
 import { formatAssetCount, formatLibraryTimestamp } from "@/utils/libraryStatus";
 import { formatBytes, formatPercent } from "@/utils/format";
@@ -47,14 +30,14 @@ import LibraryEditDialog from "./dialogs/LibraryEditDialog.vue";
 import LibraryDeleteConfirmDialog from "./dialogs/LibraryDeleteConfirmDialog.vue";
 
 const props = defineProps<{ id: number }>();
+const RECENT_JOB_LIMIT = 8;
 const router = useRouter();
 const galleryStore = useGalleryStore();
-const { copyText } = useClipboard();
 const libraryId = computed(() => (Number.isFinite(props.id) && props.id > 0 ? props.id : null));
 const libraryQuery = useLibraryQuery(libraryId);
 const statusQuery = useCatalogStatusQuery(libraryId);
 const statsQuery = useLibraryStatsQuery(libraryId);
-const jobsQuery = useLibraryJobsQuery(libraryId);
+const jobsQuery = useLibraryJobsQuery(libraryId, RECENT_JOB_LIMIT);
 const librariesQuery = useLibrariesQuery();
 const { scanMutation, unregisterMutation } = useLibraryMutations();
 useLibraryEvents();
@@ -163,13 +146,10 @@ const thumbnailCoverageLabel = computed(() => formatPercent(thumbnailCoverageRat
 const thumbnailSummaryLabel = computed(
   () => `${formatAssetCount(thumbnailReady.value)}/${formatAssetCount(thumbnailExpected.value)} cached`,
 );
+const hasUnavailableFiles = computed(() => (statsQuery.data.value?.offline_assets ?? 0) > 0);
 
 async function useInGallery() {
   if (library.value && galleryStore.setActiveLibrary(library.value)) await router.push("/");
-}
-
-async function copyPath(path: string) {
-  await copyText(path, "path");
 }
 
 async function confirmUnregister() {
@@ -235,19 +215,6 @@ function estimatedAssets(): number | undefined {
               <RefreshCw /> Update library
             </Button>
             <Button variant="outline" @click="editOpen = true"> <Pencil /> Edit </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger as-child>
-                <Button variant="outline" size="icon" aria-label="More actions"><MoreHorizontal /></Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem @select="copyPath(library.import_paths[0]?.path ?? library.root_path)">
-                  <Copy /> Copy folder path
-                </DropdownMenuItem>
-                <DropdownMenuItem @select="generatedImagesQuery.refetch()">
-                  <RefreshCw /> Refresh thumbnails cache
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
         </header>
 
@@ -293,10 +260,32 @@ function estimatedAssets(): number | undefined {
               <dd class="mt-1 text-2xl font-semibold">{{ formatBytes(statsQuery.data.value.usage_bytes) }}</dd>
             </div>
             <div>
-              <dt class="text-sm text-muted-foreground">Files</dt>
+              <dt class="flex items-center gap-1 text-sm text-muted-foreground">
+                Files
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="-my-1 size-5 text-muted-foreground hover:text-foreground"
+                      aria-label="About file availability"
+                    >
+                      <Info class="size-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" align="start" class="max-w-[260px]">
+                    <p>Available: indexed images/videos currently available on disk.</p>
+                    <p class="mt-1">
+                      Unavailable: cataloged files not available in the latest scan or under unavailable import paths.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </dt>
               <dd class="mt-1 text-lg font-semibold">
-                {{ formatAssetCount(statsQuery.data.value.active_assets) }} active ·
-                {{ formatAssetCount(statsQuery.data.value.offline_assets) }} offline
+                {{ formatAssetCount(statsQuery.data.value.active_assets) }} available
+                <span v-if="hasUnavailableFiles">
+                  · {{ formatAssetCount(statsQuery.data.value.offline_assets) }} unavailable
+                </span>
               </dd>
             </div>
           </dl>
@@ -473,33 +462,33 @@ function estimatedAssets(): number | undefined {
           </div>
         </section>
 
-        <section class="space-y-3 rounded-md border border-destructive/30 bg-background p-5">
-          <h3 class="text-sm font-semibold uppercase tracking-wide text-destructive">Danger zone</h3>
-          <p class="text-sm text-muted-foreground">
-            Unregistering removes this library from the catalog. Files are not deleted.
-          </p>
-          <Button variant="destructive" @click="deleteOpen = true"><Trash2 /> Unregister library</Button>
-        </section>
-
         <section class="rounded-md border bg-background p-5">
-          <div class="flex items-center justify-between">
-            <h3 class="font-semibold">Recent job history</h3>
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Refresh recent jobs"
-                  :disabled="jobsQuery.isFetching.value"
-                  @click="jobsQuery.refetch()"
-                >
-                  <RefreshCw :class="jobsQuery.isFetching.value ? 'animate-spin' : ''" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top" align="end" class="max-w-[220px]">
-                Reload this library's recent scan, metadata, and generated-image jobs.
-              </TooltipContent>
-            </Tooltip>
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 class="font-semibold">Recent job history</h3>
+              <p class="mt-1 text-sm text-muted-foreground">Latest {{ RECENT_JOB_LIMIT }} jobs for this library.</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <ButtonLink :to="{ name: 'admin-library-jobs', params: { id: library.id } }" variant="outline" size="sm">
+                View all jobs
+              </ButtonLink>
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Refresh recent jobs"
+                    :disabled="jobsQuery.isFetching.value"
+                    @click="jobsQuery.refetch()"
+                  >
+                    <RefreshCw :class="jobsQuery.isFetching.value ? 'animate-spin' : ''" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" align="end" class="max-w-[220px]">
+                  Reload this library's recent scan, metadata, and generated-image jobs.
+                </TooltipContent>
+              </Tooltip>
+            </div>
           </div>
           <div v-if="jobsQuery.data.value?.length" class="mt-4 divide-y">
             <div
@@ -548,6 +537,14 @@ function estimatedAssets(): number | undefined {
               <dd class="mt-1">{{ formatLibraryTimestamp(status?.last_index_at ?? null) }}</dd>
             </div>
           </dl>
+        </section>
+
+        <section class="space-y-3 rounded-md border border-destructive/30 bg-background p-5">
+          <h3 class="text-sm font-semibold uppercase tracking-wide text-destructive">Danger zone</h3>
+          <p class="text-sm text-muted-foreground">
+            Unregistering removes this library from the catalog. Files are not deleted.
+          </p>
+          <Button variant="destructive" @click="deleteOpen = true"><Trash2 /> Unregister library</Button>
         </section>
       </template>
     </div>
