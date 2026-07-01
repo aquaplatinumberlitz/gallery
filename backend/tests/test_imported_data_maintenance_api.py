@@ -437,6 +437,26 @@ def test_reset_catalog_database_deletes_libraries(
     assert isolated_app.get("/api/libraries").json() == []
 
 
+def test_reset_catalog_database_resets_catalog_ids(
+    isolated_app: TestClient,
+    isolated_gallery_root: Path,
+    isolated_thumbnail_cache: Path,
+    monkeypatch,
+) -> None:
+    first_library_id = _seed_imported_data(isolated_gallery_root, isolated_thumbnail_cache, monkeypatch)
+    assert first_library_id == 1
+
+    response = isolated_app.post(
+        "/api/maintenance/catalog/reset",
+        json={"confirm_phrase": "RESET CATALOG DATABASE"},
+    )
+
+    assert response.status_code == 200
+    library = create_library([isolated_gallery_root], name="Fresh")
+    assert library["id"] == 1
+    assert library["import_paths"][0]["id"] == 1
+
+
 def test_reset_catalog_database_requires_phrase(isolated_app: TestClient) -> None:
     response = isolated_app.post("/api/maintenance/catalog/reset", json={"confirm_phrase": "wrong"})
 

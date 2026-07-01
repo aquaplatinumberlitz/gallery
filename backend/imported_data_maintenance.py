@@ -16,6 +16,16 @@ from .metadata_store._schema import initialize_database
 from .scan_worker import queue_rebuild
 
 RESET_CONFIRM_PHRASE = "RESET CATALOG DATABASE"
+RESET_AUTOINCREMENT_TABLES = (
+    "libraries",
+    "library_import_paths",
+    "library_exclusion_patterns",
+    "library_jobs",
+    "assets",
+    "asset_derivatives",
+    "derivative_jobs",
+    "integrity_check_runs",
+)
 
 
 @contextmanager
@@ -61,6 +71,11 @@ def _raise_if_active_work() -> None:
 
 def _count_rows_conn(conn: Any, table: str) -> int:
     return int(conn.execute(f"SELECT count(*) FROM {table}").fetchone()[0])
+
+
+def _reset_autoincrement_sequences_conn(conn: Any) -> None:
+    placeholders = ",".join("?" for _ in RESET_AUTOINCREMENT_TABLES)
+    conn.execute(f"DELETE FROM sqlite_sequence WHERE name IN ({placeholders})", RESET_AUTOINCREMENT_TABLES)
 
 
 def _clear_imported_data_rows() -> dict[str, int]:
@@ -254,6 +269,7 @@ def reset_catalog_database(*, confirm_phrase: str) -> dict[str, Any]:
                 conn.execute("DELETE FROM library_import_paths")
                 conn.execute("DELETE FROM libraries")
                 conn.execute("DELETE FROM integrity_check_runs")
+                _reset_autoincrement_sequences_conn(conn)
                 conn.execute("COMMIT")
             except Exception:
                 conn.execute("ROLLBACK")
