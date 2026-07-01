@@ -2,12 +2,49 @@
 
 Status: Maintained
 
-Last verified against `backend/config.py`, `frontend/vite.config.ts`, and
-frontend environment reads: 2026-06-25.
+Last verified against `backend/config.py`, `frontend/vite.config.ts`, frontend
+environment reads, and the server nginx site config: 2026-07-01.
 
 Boolean flags parsed by `_env_flag()` treat `0`, `false`, `no`, and `off`
 case-insensitively as false; any other provided value is true. Flags documented as
 `== "1"` or `== "true"` use the stricter comparison shown.
+
+## Server runtime topology
+
+The VPS public entrypoint is nginx on `150.230.56.153:80`.
+
+| Public path | nginx upstream        | Service  | Standard purpose                                |
+| ----------- | --------------------- | -------- | ----------------------------------------------- |
+| `/api`      | `http://127.0.0.1:4180` | Backend  | FastAPI/uvicorn API server for `backend.main:app`. |
+| `/`         | `http://127.0.0.1:4173` | Frontend | Vite frontend server.                           |
+
+Standard backend command from the repo root:
+
+```bash
+cd /home/ubuntu/gallery-repo
+PORT=4180 FRONTEND_PORT=4173 backend/.venv_linux/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 4180
+```
+
+Standard frontend command from `frontend/`:
+
+```bash
+cd /home/ubuntu/gallery-repo/frontend
+VITE_PORT=4173 corepack pnpm exec vite --host 127.0.0.1 --port 4173
+```
+
+Do not set `VITE_API_URL` for the public VPS nginx path unless deliberately
+bypassing same-origin routing. With `VITE_API_URL` unset, browser API calls use
+same-origin `/api`, and nginx forwards them to `127.0.0.1:4180`. The Vite dev
+proxy also defaults `/api` to `http://localhost:4180` for direct local access to
+the frontend server.
+
+Useful health checks:
+
+```bash
+curl http://127.0.0.1:4180/api/health
+curl http://150.230.56.153/api/health
+curl -I http://150.230.56.153/
+```
 
 ## Backend environment variables
 
