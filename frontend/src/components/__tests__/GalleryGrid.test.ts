@@ -14,6 +14,7 @@ let mockError = { value: null };
 let mockFolders: any = { value: [] };
 let mockMedia: any = { value: [] };
 let mockActiveFolderPath: any = { value: null };
+let mockHasActivePage = { value: true };
 const mockRefetch = vi.fn();
 const mockFetchNextPage = vi.fn();
 
@@ -31,6 +32,7 @@ vi.mock("@/composables/useInfiniteBrowseQuery", () => ({
     folders: mockFolders,
     media: mockMedia,
     activeFolderPath: mockActiveFolderPath,
+    hasActivePage: mockHasActivePage,
   }),
 }));
 
@@ -157,6 +159,7 @@ describe("GalleryGrid", () => {
     mockFolders = { value: [] };
     mockMedia = { value: [] };
     mockActiveFolderPath = { value: null };
+    mockHasActivePage = { value: true };
     Object.assign(mockStore, defaultStoreValues());
   });
 

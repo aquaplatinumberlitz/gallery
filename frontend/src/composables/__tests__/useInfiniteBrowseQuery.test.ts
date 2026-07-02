@@ -123,4 +123,12 @@ describe("useInfiniteBrowseQuery", () => {
     await vi.waitFor(() => expect(result.isSuccess.value).toBe(true));
     expect(result.nextMediaCursor.value).toBeNull();
   });
+
+  it("reports active page only when the response matches the active library and path", async () => {
+    vi.mocked(browseDirectory).mockResolvedValue(makeMockBrowseResponse({ library_id: 2, request_path: "/other" }));
+    const { result } = setup(1, "/photos");
+    await vi.waitFor(() => expect(result.isSuccess.value).toBe(true));
+
+    expect(result.hasActivePage.value).toBe(false);
+  });
 });

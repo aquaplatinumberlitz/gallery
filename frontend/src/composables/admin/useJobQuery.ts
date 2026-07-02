@@ -6,7 +6,10 @@ import { fetchJob } from "@/services/api";
 export function useJobQuery(id: MaybeRefOrGetter<number | null | undefined>) {
   return useQuery({
     queryKey: computed(() => queryKeys.job(toValue(id) || 0)),
-    queryFn: () => fetchJob(toValue(id) || 0),
+    queryFn: ({ queryKey }) => {
+      const [, requestJobId] = queryKey as ReturnType<typeof queryKeys.job>;
+      return fetchJob(requestJobId);
+    },
     enabled: computed(() => Boolean(toValue(id))),
   });
 }

@@ -8,7 +8,10 @@ export function usePhotoMetadataQuery(isOpen: Ref<boolean>, path: Ref<string>) {
 
   return useQuery({
     queryKey: computed(() => (metadataPath.value ? queryKeys.metadata(metadataPath.value) : [])),
-    queryFn: () => fetchMetadata(metadataPath.value),
+    queryFn: ({ queryKey }) => {
+      const [, requestPath] = queryKey as ReturnType<typeof queryKeys.metadata>;
+      return fetchMetadata(requestPath);
+    },
     enabled: computed(() => isOpen.value && metadataPath.value.length > 0),
     staleTime: 10 * 60_000,
     gcTime: 30 * 60_000,

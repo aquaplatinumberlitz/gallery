@@ -84,6 +84,14 @@ export function useInfiniteBrowseQuery(
   const totalImages = computed(() => firstPage.value?.total_images ?? 0);
   const totalVideos = computed(() => firstPage.value?.total_videos ?? 0);
   const totalAssets = computed(() => firstPage.value?.total_assets ?? 0);
+  const hasActivePage = computed(() => {
+    const page = firstPage.value;
+    if (!page || !activeLibraryId.value) return false;
+    return (
+      page.library_id === activeLibraryId.value &&
+      normalizeBrowsePath(page.request_path ?? page.path) === normalizedPath.value
+    );
+  });
   const nextMediaCursor = computed(() => {
     if (!pages.value.length) return null;
     return pages.value[pages.value.length - 1].next_media_cursor;
@@ -99,6 +107,7 @@ export function useInfiniteBrowseQuery(
     totalImages,
     totalVideos,
     totalAssets,
+    hasActivePage,
     nextMediaCursor,
   };
 }

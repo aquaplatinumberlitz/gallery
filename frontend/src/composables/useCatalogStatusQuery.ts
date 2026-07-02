@@ -25,12 +25,15 @@ export function useCatalogStatusQuery(
 
   const query = useQuery({
     queryKey,
-    queryFn: () => {
-      const id = resolvedLibraryId.value;
-      if (id === null) {
+    queryFn: ({ queryKey }) => {
+      const [, kind, id, path] = queryKey as
+        | ReturnType<typeof queryKeys.statusLibrary>
+        | ReturnType<typeof queryKeys.statusPath>
+        | readonly ["status", "disabled"];
+      if (kind === "disabled" || typeof id !== "number") {
         throw new Error("Catalog status requires a library id");
       }
-      return fetchCatalogStatus(id, normalizedPath.value).then((value) => {
+      return fetchCatalogStatus(id, kind === "path" ? (path as string | null) : null).then((value) => {
         assertStatusEnvelope(value);
         return value;
       });

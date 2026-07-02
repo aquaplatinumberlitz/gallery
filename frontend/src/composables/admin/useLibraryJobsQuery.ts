@@ -9,7 +9,10 @@ export function useLibraryJobsQuery(
 ) {
   return useQuery({
     queryKey: computed(() => queryKeys.libraryJobs(toValue(id) || 0, toValue(limit))),
-    queryFn: () => fetchLibraryJobs(toValue(id) || 0, toValue(limit)),
+    queryFn: ({ queryKey }) => {
+      const [, , requestLibraryId, requestLimit] = queryKey as ReturnType<typeof queryKeys.libraryJobs>;
+      return fetchLibraryJobs(requestLibraryId, requestLimit);
+    },
     enabled: computed(() => Boolean(toValue(id))),
   });
 }

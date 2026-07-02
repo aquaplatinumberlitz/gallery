@@ -42,17 +42,21 @@ export function useInfiniteLibraryInspectorQuery(
     string | undefined
   >({
     queryKey: computed(() =>
-      queryKeys.libraryInspector(debouncedQuery.value, scope.value, requestPath.value, limit.value, sort.value),
+      queryKeys.libraryInspector(debouncedQuery.value, scope.value, requestPath.value, requestLimit.value, sort.value),
     ),
-    queryFn: ({ pageParam }) =>
-      fetchLibraryInspector({
-        q: debouncedQuery.value,
-        scope: scope.value,
-        path: requestPath.value,
-        limit: requestLimit.value,
-        sort: sort.value,
+    queryFn: ({ queryKey, pageParam }) => {
+      const [, requestQuery, requestScope, pathForRequest, requestLimit, requestSort] = queryKey as ReturnType<
+        typeof queryKeys.libraryInspector
+      >;
+      return fetchLibraryInspector({
+        q: requestQuery,
+        scope: requestScope as SearchScope,
+        path: pathForRequest,
+        limit: Math.max(1, requestLimit),
+        sort: requestSort,
         cursor: pageParam,
-      }),
+      });
+    },
     initialPageParam: undefined,
     getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
     enabled,

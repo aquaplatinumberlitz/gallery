@@ -598,9 +598,15 @@ useIntersectionObserver(
 );
 
 watch(
-  [() => infiniteBrowseQuery.isLoading.value, () => infiniteBrowseQuery.isSuccess.value],
-  ([loading, success]) => {
-    if (!loading && success && (galleryStore.currentBrowsePath || galleryStore.activeLibraryId)) {
+  [
+    () => infiniteBrowseQuery.isLoading.value,
+    () => infiniteBrowseQuery.isSuccess.value,
+    () => infiniteBrowseQuery.hasActivePage.value,
+    activeLibraryId,
+    activeBrowsePath,
+  ],
+  ([loading, success, hasActivePage]) => {
+    if (!loading && success && hasActivePage && (galleryStore.currentBrowsePath || galleryStore.activeLibraryId)) {
       galleryStore.hasEverLoaded = true;
     }
   },

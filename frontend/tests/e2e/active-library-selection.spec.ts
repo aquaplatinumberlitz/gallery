@@ -18,6 +18,10 @@ import { browseResponse, statusEnvelope } from "./helpers/catalogFixtures";
 const rootPath = "/registered/photos";
 const nestedPath = `${rootPath}/events`;
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://127.0.0.1:5173";
+const png1x1 = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/luz4nQAAAABJRU5ErkJggg==",
+  "base64",
+);
 const library = {
   id: 7,
   root_path: rootPath,
@@ -27,6 +31,21 @@ const library = {
   ],
   exclusion_patterns: [],
   name: "Photos",
+  state: "ready",
+  watch_enabled: 1,
+  warm_enabled: 1,
+  asset_count: 0,
+  created_at: 1,
+  updated_at: 1,
+  last_scan_at: null,
+  last_error: null,
+};
+const immichLibrary = {
+  id: 8,
+  root_path: "/registered/immich",
+  import_paths: [{ id: 80, library_id: 8, path: "/registered/immich", position: 0, created_at: 1, updated_at: 1 }],
+  exclusion_patterns: [],
+  name: "Immich",
   state: "ready",
   watch_enabled: 1,
   warm_enabled: 1,
@@ -115,4 +134,82 @@ test("no-library state provides a management CTA without arbitrary path entry", 
       .first(),
   ).toBeVisible();
   await expect(page.getByRole("textbox")).toHaveCount(0);
+});
+
+test("desktop library switch can return to a cached active library", async ({ page }) => {
+  await page.route("**/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    const libraryId = Number(url.searchParams.get("library_id") ?? library.id);
+    const path = url.searchParams.get("path") ?? (libraryId === immichLibrary.id ? immichLibrary.root_path : rootPath);
+    const activeRoot = libraryId === immichLibrary.id ? immichLibrary.root_path : rootPath;
+
+    if (url.pathname === "/api/libraries") {
+      await route.fulfill({ json: [library, immichLibrary] });
+      return;
+    }
+    if (url.pathname === "/api/browse") {
+      await route.fulfill({
+        json: browseResponse({
+          libraryId,
+          path,
+          media: [
+            {
+              name: libraryId === immichLibrary.id ? "immich.png" : "gallery-repo.png",
+              path: `${activeRoot}/${libraryId === immichLibrary.id ? "immich.png" : "gallery-repo.png"}`,
+              type: "image",
+              has_children: false,
+              cover_images: [],
+              mtime: 1000,
+              image_count: 0,
+              width: 1600,
+              height: 1000,
+            },
+          ],
+        }),
+      });
+      return;
+    }
+    if (url.pathname === "/api/search") {
+      await route.fulfill({
+        json: { query: "", scope: "current", root: activeRoot, albums: [], photos: [], videos: [], prompt: [] },
+      });
+      return;
+    }
+    if (/^\/api\/libraries\/\d+\/status$/.test(url.pathname)) {
+      const statusLibraryId = Number(url.pathname.match(/^\/api\/libraries\/(\d+)\/status$/)?.[1] ?? library.id);
+      await route.fulfill({
+        json: statusEnvelope({
+          libraryId: statusLibraryId,
+          path:
+            url.searchParams.get("scope_path") ??
+            (statusLibraryId === immichLibrary.id ? immichLibrary.root_path : rootPath),
+          totalAssets: 1,
+        }),
+      });
+      return;
+    }
+    if (["/api/thumbnail", "/api/preview", "/api/image"].includes(url.pathname)) {
+      await route.fulfill({ contentType: "image/png", body: png1x1 });
+      return;
+    }
+    await route.fulfill({ json: [] });
+  });
+  await disableIntro(page);
+  await page.addInitScript(() => {
+    localStorage.setItem("gallery-active-library-id", "7");
+    localStorage.setItem("gallery-active-import-path-id", "70");
+  });
+
+  await page.goto(baseUrl);
+  await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByAltText("gallery-repo.png").first()).toBeVisible();
+
+  await page.getByLabel("Active library").click();
+  await page.getByRole("option", { name: "Immich" }).click();
+  await expect(page.getByAltText("immich.png").first()).toBeVisible({ timeout: 15_000 });
+
+  await page.getByLabel("Active library").click();
+  await page.getByRole("option", { name: "Photos" }).click();
+  await expect(page.getByAltText("gallery-repo.png").first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("photo-card").first()).toBeVisible();
 });

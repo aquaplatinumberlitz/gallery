@@ -6,6 +6,9 @@ import { fetchJobs } from "@/services/api";
 export function useJobsQuery(limit?: MaybeRefOrGetter<number | undefined>) {
   return useQuery({
     queryKey: computed(() => queryKeys.jobs(toValue(limit))),
-    queryFn: () => fetchJobs(toValue(limit)),
+    queryFn: ({ queryKey }) => {
+      const [, , requestLimit] = queryKey as ReturnType<typeof queryKeys.jobs>;
+      return fetchJobs(requestLimit);
+    },
   });
 }
