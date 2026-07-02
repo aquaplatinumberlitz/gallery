@@ -95,27 +95,33 @@ const { resolvedTheme } = useGalleryTheme();
   flex-shrink: 0 !important;
 }
 
-.gallery-toast__close {
-  position: absolute !important;
-  top: 8px !important;
-  right: 8px !important;
-  height: 28px !important;
-  width: 28px !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  border: none !important;
-  background: transparent !important;
-  color: var(--gallery-toast-dismiss, #9ca3af) !important;
-  cursor: pointer !important;
-  border-radius: 6px !important;
-  padding: 0 !important;
-  transition: all 0.15s ease !important;
+[data-sonner-toast][data-styled="true"] .gallery-toast__close[data-close-button] {
+  position: static;
+  inset: auto;
+  order: 10;
+  align-self: flex-start;
+  margin-left: auto;
+  height: 28px;
+  width: 28px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--gallery-toast-dismiss, #9ca3af);
+  transform: none;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
 
-.gallery-toast__close:hover {
-  background: rgba(0, 0, 0, 0.05) !important;
-  color: var(--gallery-toast-title, #1f2937) !important;
+[data-sonner-toast][data-styled="true"]:hover .gallery-toast__close[data-close-button]:hover {
+  background: color-mix(in srgb, var(--foreground, #111827) 7%, transparent);
+  color: var(--gallery-toast-title, #1f2937);
+}
+
+[data-sonner-toast][data-styled="true"] .gallery-toast__close[data-close-button]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring, #3b82f6) 22%, transparent);
 }
 
 .gallery-toast__action {
@@ -174,9 +180,11 @@ const { resolvedTheme } = useGalleryTheme();
     0 0 1px rgba(0, 0, 0, 0.2) !important;
 }
 
-[data-sonner-toaster][data-sonner-theme="dark"] .gallery-toast__close:hover {
-  background: rgba(255, 255, 255, 0.1) !important;
-  color: var(--foreground, #f9fafb) !important;
+[data-sonner-toaster][data-sonner-theme="dark"]
+  [data-sonner-toast][data-styled="true"]:hover
+  .gallery-toast__close[data-close-button]:hover {
+  background: color-mix(in srgb, var(--foreground, #f9fafb) 10%, transparent);
+  color: var(--foreground, #f9fafb);
 }
 
 /* High contrast mode */

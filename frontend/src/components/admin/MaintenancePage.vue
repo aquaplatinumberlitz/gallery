@@ -2,10 +2,12 @@
 import { ref, computed } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import {
-  Activity,
-  AlertTriangle,
+  ArrowRight,
   Bug,
+  File,
+  FileChartColumn,
   FileWarning,
+  HardDrive,
   Info,
   Loader2,
   RefreshCw,
@@ -175,25 +177,38 @@ const needsRefreshCount = computed(() => {
             </p>
           </div>
           <ol class="flex flex-wrap items-center gap-2 text-sm" aria-label="Imported data flow">
-            <li class="font-medium">File catalog</li>
-            <li class="text-muted-foreground" aria-hidden="true">-&gt;</li>
-            <li class="font-medium">Metadata extraction</li>
-            <li class="text-muted-foreground" aria-hidden="true">-&gt;</li>
-            <li class="font-medium">Thumbnails cache</li>
+            <li class="inline-flex items-center gap-1.5 font-medium">
+              <File class="size-4 text-muted-foreground" />
+              File catalog
+            </li>
+            <li class="text-muted-foreground" aria-hidden="true">
+              <ArrowRight class="size-4" />
+            </li>
+            <li class="inline-flex items-center gap-1.5 font-medium">
+              <FileChartColumn class="size-4 text-muted-foreground" />
+              Metadata extraction
+            </li>
+            <li class="text-muted-foreground" aria-hidden="true">
+              <ArrowRight class="size-4" />
+            </li>
+            <li class="inline-flex items-center gap-1.5 font-medium">
+              <HardDrive class="size-4 text-muted-foreground" />
+              Thumbnails cache
+            </li>
           </ol>
         </div>
       </section>
 
       <div class="grid gap-4 md:grid-cols-2">
         <section class="rounded-md border bg-background p-5">
-          <div class="flex items-center gap-3">
-            <FileWarning class="size-5 text-muted-foreground" />
-            <div>
+          <div class="space-y-1">
+            <div class="flex items-center gap-2">
+              <FileWarning class="size-5 text-muted-foreground" />
               <h3 class="font-semibold">File issues</h3>
-              <p class="mt-1 text-sm text-muted-foreground">
-                Counts consistency problems found in catalog, metadata, and thumbnail records.
-              </p>
             </div>
+            <p class="text-sm text-muted-foreground">
+              Counts consistency problems found in catalog, metadata, and thumbnail records.
+            </p>
           </div>
           <div class="mt-4 space-y-3">
             <dl class="grid gap-3 text-sm">
@@ -233,14 +248,14 @@ const needsRefreshCount = computed(() => {
         </section>
 
         <section class="rounded-md border bg-background p-5">
-          <div class="flex items-center gap-3">
-            <ScanLine class="size-5 text-muted-foreground" />
-            <div>
+          <div class="space-y-1">
+            <div class="flex items-center gap-2">
+              <ScanLine class="size-5 text-muted-foreground" />
               <h3 class="font-semibold">Check files</h3>
-              <p class="mt-1 text-sm text-muted-foreground">
-                Runs the same backend integrity pass used by the scheduled checker.
-              </p>
             </div>
+            <p class="text-sm text-muted-foreground">
+              Runs the same backend integrity pass used by the scheduled checker.
+            </p>
           </div>
           <p class="mt-4 text-sm text-muted-foreground">
             Verifies source files, extracted metadata, queued work, and thumbnail cache state across all registered
@@ -279,14 +294,12 @@ const needsRefreshCount = computed(() => {
       </div>
 
       <section class="rounded-md border bg-background p-5">
-        <div class="flex items-center gap-3">
-          <Wrench class="size-5 text-muted-foreground" />
-          <div>
+        <div class="space-y-1">
+          <div class="flex items-center gap-2">
+            <Wrench class="size-5 text-muted-foreground" />
             <h3 class="font-semibold">Repair results</h3>
-            <p class="mt-1 text-sm text-muted-foreground">
-              Shows what the latest file-health run changed or left untouched.
-            </p>
           </div>
+          <p class="text-sm text-muted-foreground">Shows what the latest file-health run changed or left untouched.</p>
         </div>
         <div class="mt-4 grid gap-4 text-sm sm:grid-cols-4">
           <div v-for="item in repairKeys" :key="item.key">
@@ -315,9 +328,12 @@ const needsRefreshCount = computed(() => {
 
       <section class="rounded-md border bg-background p-5">
         <div class="flex items-center justify-between">
-          <div>
-            <h3 class="font-semibold">Thumbnails cache</h3>
-            <p class="mt-1 text-sm text-muted-foreground">Cached thumbnails and previews used for faster browsing.</p>
+          <div class="space-y-1">
+            <div class="flex items-center gap-2">
+              <HardDrive class="size-5 text-muted-foreground" />
+              <h3 class="font-semibold">Thumbnails cache</h3>
+            </div>
+            <p class="text-sm text-muted-foreground">Cached thumbnails and previews used for faster browsing.</p>
           </div>
           <Tooltip>
             <TooltipTrigger as-child>
@@ -371,12 +387,12 @@ const needsRefreshCount = computed(() => {
 
       <div class="grid gap-4 md:grid-cols-2">
         <section class="rounded-md border bg-background p-5">
-          <div class="flex items-center gap-3">
-            <Activity class="size-5 text-muted-foreground" />
-            <div>
+          <div class="space-y-1">
+            <div class="flex items-center gap-2">
+              <File class="size-5 text-muted-foreground" />
               <h3 class="font-semibold">File catalog</h3>
-              <p class="mt-1 text-sm text-muted-foreground">Tracks which source files exist in registered libraries.</p>
             </div>
+            <p class="text-sm text-muted-foreground">Tracks which source files exist in registered libraries.</p>
           </div>
           <div v-if="runtimeQuery.data.value" class="mt-4">
             <dl class="grid gap-3 text-sm">
@@ -449,12 +465,12 @@ const needsRefreshCount = computed(() => {
         </section>
 
         <section class="rounded-md border bg-background p-5">
-          <div class="flex items-center gap-3">
-            <AlertTriangle class="size-5 text-muted-foreground" />
-            <div>
+          <div class="space-y-1">
+            <div class="flex items-center gap-2">
+              <FileChartColumn class="size-5 text-muted-foreground" />
               <h3 class="font-semibold">Metadata extraction</h3>
-              <p class="mt-1 text-sm text-muted-foreground">Reads file details after files are cataloged.</p>
             </div>
+            <p class="text-sm text-muted-foreground">Reads file details after files are cataloged.</p>
           </div>
           <div v-if="runtimeQuery.data.value" class="mt-4 space-y-3">
             <dl class="grid gap-3 text-sm">

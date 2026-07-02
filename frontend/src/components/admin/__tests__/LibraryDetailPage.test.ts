@@ -216,7 +216,7 @@ function mountSubject(propsId = 1) {
         TooltipTrigger: { template: "<span><slot /></span>" },
         LibraryProgressBar: { template: "<div class='library-progress' />" },
         LibraryStatusBadge: { template: "<span class='status-badge'><slot /></span>" },
-        LibraryEditDialog: { template: "<div class='edit-dialog' />" },
+        LibraryEditDialog: { props: ["open"], template: "<div class='edit-dialog' :data-open='open' />" },
         LibraryDeleteConfirmDialog: { template: "<div class='delete-dialog' />" },
       },
     },
@@ -265,7 +265,7 @@ describe("LibraryDetailPage", () => {
     expect(wrapper.text()).toContain("Overview");
     expect(wrapper.text()).toContain("Status");
     expect(wrapper.text()).toContain("Thumbnails");
-    expect(wrapper.text()).toContain("Health");
+    expect(wrapper.text()).toContain("Healthy");
     expect(wrapper.text()).toContain("No issues found");
     expect(wrapper.text()).toContain("80");
     expect(wrapper.text()).toContain("20");
@@ -276,6 +276,10 @@ describe("LibraryDetailPage", () => {
       "Unavailable: cataloged files not available in the latest scan or under unavailable import paths.",
     );
     expect(wrapper.text()).toContain("Configuration");
+    expect(wrapper.text()).toContain("Library folder");
+    expect(wrapper.text()).toContain("Excluded paths");
+    expect(wrapper.text()).toContain("None configured");
+    expect(wrapper.text()).toContain("Add pattern");
     expect(wrapper.text()).toContain("Danger zone");
     expect(wrapper.text()).toContain("Recent job history");
     expect(wrapper.text()).toContain("Latest 8 jobs");
@@ -333,7 +337,7 @@ describe("LibraryDetailPage", () => {
     expect(wrapper.text()).toContain("App updated, please reload");
   });
 
-  it("displays latest issue with data", () => {
+  it("displays latest issue details after review", async () => {
     mockStatusData = {
       status: {
         contract_version: 1,
@@ -372,14 +376,40 @@ describe("LibraryDetailPage", () => {
       contract_version: 1,
     };
     const wrapper = mountSubject();
-    expect(wrapper.text()).toContain("issue");
+    expect(wrapper.text()).toContain("5 issues need attention");
+    expect(wrapper.text()).not.toContain("File not found");
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("Review"))!
+      .trigger("click");
+    expect(wrapper.text()).toContain("Hide details");
     expect(wrapper.text()).toContain("File not found");
     expect(wrapper.text()).toContain("/path/to/file");
   });
 
+  it("shows fix action when the library is unavailable", async () => {
+    mockStatusData = {
+      status: {
+        ...baseMockStatus,
+        availability: { state: "unavailable", available_paths: 0, total_paths: 1 },
+        issue_count: 1,
+        issues: { availability: 1, scan: 0, metadata: 0 },
+        latest_issue: { source: "Availability", message: "Library path unavailable", path: "/photos" },
+      },
+      contract_version: 1,
+    };
+    const wrapper = mountSubject();
+    expect(wrapper.text()).toContain("Error");
+    expect(wrapper.text()).toContain("Library unavailable");
+    const fixButton = wrapper.findAll("button").find((button) => button.text().includes("Fix now"));
+    expect(fixButton).not.toBeUndefined();
+    await fixButton!.trigger("click");
+    expect(scanMutateMock).toHaveBeenCalledWith({ id: 1 });
+  });
+
   it("copies import path on copy button click", async () => {
     const wrapper = mountSubject();
-    const copyBtn = wrapper.get('[aria-label="Copy folder path"]');
+    const copyBtn = wrapper.get('[aria-label="Copy path"]');
     await copyBtn.trigger("click");
     expect(copyTextMock).toHaveBeenCalledWith("/photos", "path");
   });
@@ -387,7 +417,16 @@ describe("LibraryDetailPage", () => {
   it("shows copied state on the folder path copy button", () => {
     copyStatusMock = { path: true };
     const wrapper = mountSubject();
-    expect(wrapper.find('[aria-label="Folder path copied"]').exists()).toBe(true);
+    expect(wrapper.find('[aria-label="Path copied"]').exists()).toBe(true);
+  });
+
+  it("opens edit dialog from configuration actions", async () => {
+    const wrapper = mountSubject();
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("Add pattern"))!
+      .trigger("click");
+    expect(wrapper.find(".edit-dialog").attributes("data-open")).toBe("true");
   });
 
   it("calls scan mutation on Update library button click", async () => {
