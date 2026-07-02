@@ -65,6 +65,7 @@ describe("initial state", () => {
     expect(store.activeLibraryId).toBeNull();
     expect(store.searchQuery).toBe("");
     expect(store.searchScope).toBe("current");
+    expect(store.searchLoading).toBe(false);
     expect(store.sortField).toBe("name");
     expect(store.sortOrder).toBe("asc");
     expect(store.activeImportRootPath).toBe("");
@@ -91,6 +92,14 @@ describe("search and sort", () => {
     const store = useGalleryStore();
     store.setSearchScope("all");
     expect(store.searchScope).toBe("all");
+  });
+
+  it("setSearchLoading", () => {
+    const store = useGalleryStore();
+    store.setSearchLoading(true);
+    expect(store.searchLoading).toBe(true);
+    store.setSearchLoading(false);
+    expect(store.searchLoading).toBe(false);
   });
 
   it("setSortField and setSortOrder", () => {

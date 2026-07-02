@@ -142,7 +142,7 @@ const closeMenu = () => {
 
 <template>
   <BreadcrumbRoot v-click-outside="closeMenu" class="breadcrumb">
-    <BreadcrumbList>
+    <BreadcrumbList class="breadcrumb-list">
       <BreadcrumbItem>
         <Home class="size-3.5 text-primary opacity-50 shrink-0" data-testid="home-icon" />
       </BreadcrumbItem>
@@ -222,14 +222,18 @@ const closeMenu = () => {
       </template>
     </BreadcrumbList>
 
-    <Tooltip v-if="isExpanded && allSegments.length > maxSegments">
-      <TooltipTrigger as-child>
-        <button class="collapse-btn" type="button" aria-label="Collapse path" @click="isExpanded = false">
-          <Minimize class="size-3.5" />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent>Collapse path</TooltipContent>
-    </Tooltip>
+    <div v-if="$slots.actions || (isExpanded && allSegments.length > maxSegments)" class="breadcrumb-actions">
+      <slot name="actions" />
+
+      <Tooltip v-if="isExpanded && allSegments.length > maxSegments">
+        <TooltipTrigger as-child>
+          <button class="collapse-btn" type="button" aria-label="Collapse path" @click="isExpanded = false">
+            <Minimize class="size-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>Collapse path</TooltipContent>
+      </Tooltip>
+    </div>
   </BreadcrumbRoot>
 </template>
 
@@ -240,7 +244,21 @@ const closeMenu = () => {
   align-items: center;
   min-width: 0;
   max-width: 100%;
-  gap: 1.5rem;
+  gap: 0.5rem;
+}
+
+.breadcrumb-list {
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.breadcrumb-actions {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 4px;
 }
 
 /* Ellipsis button */

@@ -109,6 +109,7 @@ vi.mock("lucide-vue-next", () => ({
   SlidersHorizontal: { template: "<svg />", props: ["class"] },
   Menu: { template: "<svg />", props: ["class"] },
   Settings: { template: "<svg />", props: ["class"] },
+  Loader2: { template: "<svg data-testid='loader-icon' />", props: ["class"] },
   Library: { template: "<svg />", props: ["class"] },
   Table2: { template: "<svg />", props: ["class"] },
   Wrench: { template: "<svg />", props: ["class"] },
@@ -125,6 +126,7 @@ function createWrapper(props: Record<string, unknown> = {}) {
       isDark: false,
       searchQuery: "",
       searchScope: "current",
+      searchLoading: false,
       ...props,
     },
     global: {
@@ -185,6 +187,11 @@ describe("AppHeader", () => {
   it("renders search box on non-metadata routes", () => {
     const wrapper = createWrapper();
     expect(wrapper.find("#gallery-search").exists()).toBe(true);
+  });
+
+  it("shows loader icon while search is loading", () => {
+    const wrapper = createWrapper({ searchLoading: true });
+    expect(wrapper.find("[data-testid='loader-icon']").exists()).toBe(true);
   });
 
   it("emits toggle-sidebar when hamburger clicked", async () => {

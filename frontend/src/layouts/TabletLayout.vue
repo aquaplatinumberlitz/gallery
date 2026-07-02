@@ -14,6 +14,7 @@ defineProps<{
   currentPath: string;
   searchQuery: string;
   searchScope: "current" | "all";
+  searchLoading: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -44,6 +45,7 @@ const emit = defineEmits<{
         :is-dark="theme === 'dark'"
         :search-query="searchQuery"
         :search-scope="searchScope"
+        :search-loading="searchLoading"
         :current-path="currentPath"
         @update:search-query="emit('update:searchQuery', $event)"
         @scope-change="emit('scope-change', $event)"

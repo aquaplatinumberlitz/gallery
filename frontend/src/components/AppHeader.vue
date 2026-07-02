@@ -5,6 +5,7 @@ import {
   Search,
   X,
   Settings,
+  Loader2,
   Menu,
   Sun,
   Moon,
@@ -44,6 +45,7 @@ interface Props {
   isDark: boolean;
   searchQuery: string;
   searchScope: "current" | "all";
+  searchLoading: boolean;
 }
 const props = defineProps<Props>();
 
@@ -303,19 +305,14 @@ function handleClearAll() {
       </div>
       <div v-if="!isMetadataRoute && !isAdminRoute" class="header-search-area">
         <div class="search-box">
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <Button variant="ghost" size="icon" class="search-icon-btn" type="button" aria-label="Search">
-                <Search class="gallery-icon-toolbar" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Search</TooltipContent>
-          </Tooltip>
+          <Loader2 v-if="searchLoading" class="search-leading-icon search-leading-loading" aria-hidden="true" />
+          <Search v-else class="search-leading-icon" aria-hidden="true" />
           <Input
             id="gallery-search"
             :model-value="searchQuery"
             @update:model-value="(v: string) => emit('update:searchQuery', v)"
             type="search"
+            variant="ghost"
             placeholder="Photos, albums, prompts"
             autocomplete="off"
             class="search-input"
@@ -325,7 +322,7 @@ function handleClearAll() {
               <Button
                 variant="ghost"
                 size="icon"
-                class="clear-btn"
+                class="clear-btn search-action-btn"
                 type="button"
                 aria-label="Clear search"
                 @click="clearSearch"
@@ -344,7 +341,7 @@ function handleClearAll() {
               <Button
                 variant="ghost"
                 size="icon"
-                class="advanced-search-btn"
+                class="advanced-search-btn search-action-btn"
                 type="button"
                 :class="{ 'text-primary': isFieldedSearchActive }"
                 aria-label="Advanced Search"
@@ -505,9 +502,23 @@ h1 {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
-  min-width: 220px;
+  gap: 8px;
+  min-width: 360px;
+  width: min(520px, 52vw);
   height: 40px;
+  padding: 0 6px 0 12px;
+  border: 1px solid var(--input);
+  border-radius: 12px;
+  background: var(--background);
+  box-shadow: 0 1px 2px color-mix(in srgb, black 6%, transparent);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.search-box:focus-within {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 20%, transparent);
 }
 
 .header-search-area {
@@ -517,17 +528,49 @@ h1 {
   align-items: flex-end;
 }
 
-.advanced-search-btn {
-  flex-shrink: 0;
-}
-
 .search-input {
+  flex: 1;
   min-width: 0;
 }
 
-.search-icon-btn,
-.clear-btn {
+.search-input:focus-visible {
+  box-shadow: none;
+}
+
+.search-leading-icon {
   flex-shrink: 0;
+  width: var(--gallery-icon-toolbar);
+  height: var(--gallery-icon-toolbar);
+  color: var(--muted-foreground);
+}
+
+.search-leading-loading {
+  animation: searchLeadingSpin 1s linear infinite;
+}
+
+@keyframes searchLeadingSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.search-action-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--muted-foreground);
+  background: transparent;
+  box-shadow: none;
+}
+
+.search-box .search-action-btn:hover {
+  background: color-mix(in srgb, var(--foreground) 7%, transparent);
+  color: var(--foreground);
+}
+
+.search-box .search-action-btn:active {
+  background: color-mix(in srgb, var(--foreground) 10%, transparent);
 }
 
 /* Input and clear-btn styling handled by shadcn Button variant="ghost" size="icon" */
@@ -535,7 +578,7 @@ h1 {
 
 .scope-select {
   border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
-  background: color-mix(in srgb, var(--muted-foreground) 4%, var(--card));
+  background: color-mix(in srgb, var(--muted-foreground) 5%, var(--background));
   color: var(--muted-foreground);
   border-radius: 999px;
   height: 28px;
@@ -544,6 +587,12 @@ h1 {
   font-weight: 600;
   cursor: pointer;
   outline: none;
+  flex-shrink: 0;
+}
+
+.scope-select:focus-visible {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 18%, transparent);
 }
 
 /* Icon sizes using design tokens */
@@ -845,6 +894,12 @@ h1 {
   .settings-btn svg {
     width: 14px;
     height: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-leading-loading {
+    animation: none;
   }
 }
 </style>

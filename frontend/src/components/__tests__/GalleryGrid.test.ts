@@ -182,9 +182,12 @@ describe("GalleryGrid", () => {
           PhotoCard: { template: "<div class='photo-card' />" },
           VideoCard: { template: "<div class='video-card' />" },
           SkeletonLoader: { template: "<div class='skeleton-loader' />" },
-          Breadcrumb: { template: "<div class='breadcrumb-stub' />" },
+          Breadcrumb: { template: "<div class='breadcrumb-stub'><slot /><slot name='actions' /></div>" },
           EmptyState: { template: "<div class='empty-state' />" },
-          SortSelect: { template: "<select />" },
+          SortSelect: {
+            props: ["modelValue", "ariaLabel", "prefix", "triggerLabel", "triggerClass"],
+            template: "<select :aria-label='ariaLabel' />",
+          },
           Button: { template: "<button><slot /></button>" },
           Badge: { template: "<span><slot /></span>" },
           Tooltip: { template: "<span><slot /></span>" },
@@ -221,12 +224,12 @@ describe("GalleryGrid", () => {
 
   it("shows density dropdown trigger on desktop", async () => {
     const wrapper = await mountSubject();
-    expect(wrapper.text()).toContain("cols");
+    expect(wrapper.text()).toContain("View");
   });
 
   it("shows open-in-explorer button on desktop", async () => {
     const wrapper = await mountSubject();
-    expect(wrapper.text()).toContain("Open");
+    expect(wrapper.find('[aria-label="Open current folder in file explorer"]').exists()).toBe(true);
   });
 
   it("shows SortSelect on desktop toolbar", async () => {

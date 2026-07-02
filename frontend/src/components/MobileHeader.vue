@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, nextTick, onBeforeUnmount, computed, watch } from "vue";
-import { Menu, Search, X, ArrowLeft, Library } from "lucide-vue-next";
+import { Menu, Search, X, ArrowLeft, Library, Loader2 } from "lucide-vue-next";
 import { RouterLink } from "vue-router";
 import { useGalleryStore } from "../stores/gallery";
 import SortDropdown from "./SortDropdown.vue";
@@ -10,6 +10,7 @@ interface Props {
   isDark: boolean;
   searchQuery: string;
   searchScope: "current" | "all";
+  searchLoading: boolean;
   barsVisible: boolean;
   showBackToGallery?: boolean;
 }
@@ -151,13 +152,14 @@ const gallerySortValue = computed<SortValue>({
       </button>
       <div v-else class="search-focus-bar">
         <div class="search-focus-input-wrap">
-          <Search class="search-focus-input-icon" />
+          <Loader2 v-if="searchLoading" class="search-focus-input-icon search-focus-loading" />
+          <Search v-else class="search-focus-input-icon" />
           <input
             ref="searchInputRef"
             :value="searchQuery"
             @input="onSearchInput"
             @keydown="onInputKeydown"
-            type="text"
+            type="search"
             placeholder="Search gallery"
             autocomplete="off"
             spellcheck="false"
@@ -370,14 +372,14 @@ const gallerySortValue = computed<SortValue>({
 .search-focus-input-wrap {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex: 1;
-  background: var(--card);
-  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
-  border-radius: var(--gallery-radius-full, 9999px);
-  padding: 0 12px;
   height: 42px;
-  box-shadow: var(--gallery-shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.08));
+  padding: 0 6px 0 12px;
+  border: 1px solid var(--input);
+  border-radius: 12px;
+  background: var(--background);
+  box-shadow: 0 1px 2px color-mix(in srgb, black 6%, transparent);
   transition:
     box-shadow 0.2s ease,
     border-color 0.2s ease;
@@ -386,9 +388,7 @@ const gallerySortValue = computed<SortValue>({
 /* When input is focused, subtle ring */
 .search-focus-input-wrap:focus-within {
   border-color: var(--ring);
-  box-shadow:
-    0 0 0 1px var(--ring),
-    var(--gallery-shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.08));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 20%, transparent);
 }
 
 .search-focus-input-icon {
@@ -396,6 +396,16 @@ const gallerySortValue = computed<SortValue>({
   flex-shrink: 0;
   width: var(--gallery-icon-md);
   height: var(--gallery-icon-md);
+}
+
+.search-focus-loading {
+  animation: searchFocusSpin 1s linear infinite;
+}
+
+@keyframes searchFocusSpin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ============================================================
@@ -468,15 +478,20 @@ const gallerySortValue = computed<SortValue>({
 .search-scope-chip {
   max-width: 104px;
   height: 28px;
-  border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--muted-foreground) 4%, var(--card));
+  background: color-mix(in srgb, var(--muted-foreground) 5%, var(--background));
   color: var(--muted-foreground);
   font-size: 12px;
   font-weight: 600;
-  padding: 0 8px;
+  padding: 0 10px;
   flex-shrink: 0;
   outline: none;
+}
+
+.search-scope-chip:focus-visible {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 18%, transparent);
 }
 
 /* ============================================================
@@ -586,6 +601,10 @@ const gallerySortValue = computed<SortValue>({
   }
 
   .search-focus-back {
+    animation: none;
+  }
+
+  .search-focus-loading {
     animation: none;
   }
 

@@ -15,6 +15,7 @@ defineProps<{
   currentPath: string;
   searchQuery: string;
   searchScope: "current" | "all";
+  searchLoading: boolean;
   barsVisible: boolean;
   canBack: boolean;
   canForward: boolean;
@@ -51,6 +52,7 @@ const emit = defineEmits<{
         :is-dark="theme === 'dark'"
         :search-query="searchQuery"
         :search-scope="searchScope"
+        :search-loading="searchLoading"
         :bars-visible="showBackToGallery || barsVisible"
         :show-back-to-gallery="showBackToGallery"
         @update:search-query="emit('update:searchQuery', $event)"

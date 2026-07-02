@@ -106,8 +106,7 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
             @click="selectDensity(option.level)"
           >
             <LayoutGrid class="tgt-option-icon" />
-            <span>{{ option.label }}</span>
-            <span class="density-cols">{{ option.columns }} cols</span>
+            <span>{{ option.columns }} columns</span>
             <Check v-if="sliderLevel === option.level" class="density-check tgt-check-icon" />
           </button>
         </div>
@@ -311,15 +310,6 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
   background: color-mix(in srgb, var(--primary) 10%, transparent);
   color: var(--primary);
   font-weight: 500;
-}
-
-.density-cols {
-  opacity: 0.6;
-  font-weight: 400;
-}
-
-.density-option.active .density-cols {
-  opacity: 0.8;
 }
 
 /* Dropdown animation */

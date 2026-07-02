@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, inject, ref, watch, type ComponentPublicInstance } from "vue";
+import { computed, inject, onBeforeUnmount, ref, watch, type ComponentPublicInstance } from "vue";
 import { useIntersectionObserver } from "@vueuse/core";
 import { useVirtualizer } from "@tanstack/vue-virtual";
 import { useGalleryStore } from "../stores/gallery";
@@ -318,6 +318,13 @@ const isRefetching = computed(
 const isSearchLoading = computed(
   () => hasSearchQuery.value && (unifiedSearchQuery.isLoading.value || unifiedSearchQuery.isFetching.value),
 );
+const isSearchIndicatorActive = computed(
+  () =>
+    hasSearchQuery.value &&
+    (trimmedSearchQuery.value !== unifiedSearchQuery.debouncedQuery.value ||
+      unifiedSearchQuery.isLoading.value ||
+      unifiedSearchQuery.isFetching.value),
+);
 const currentPath = computed(() => galleryStore.currentBrowsePath);
 const activeImportRootPath = computed(() => galleryStore.activeImportRootPath);
 const canBack = computed(() => galleryStore.historyIndex > 0);
@@ -346,6 +353,12 @@ const showEmptyFolder = computed(
 );
 
 const showEmptyFolderDelayed = useDelayedBoolean(showEmptyFolder, 250);
+
+watch(isSearchIndicatorActive, (loading) => galleryStore.setSearchLoading(loading), { immediate: true });
+
+onBeforeUnmount(() => {
+  galleryStore.setSearchLoading(false);
+});
 
 const hasNoPath = computed(() => galleryStore.activeLibraryHydrated && !galleryStore.activeImportPathId);
 const hasNotLoaded = computed(() => !galleryStore.hasEverLoaded && Boolean(galleryStore.currentBrowsePath));
@@ -488,7 +501,7 @@ const { columnCount, sliderLevel, rowHeight, setGridRef } = useColumnResize(devi
 
 // Density dropdown options
 const densityOptions = computed(() => {
-  if (deviceCategory.value !== "tablet") return PHOTO_GRID_LEVELS;
+  if (deviceCategory.value !== "tablet") return [...PHOTO_GRID_LEVELS].sort((a, b) => a.columns - b.columns);
   const map = GRID_COLUMN_MAP.tablet;
   const seen = new Set<number>();
   const result: Array<{ level: number; label: string; columns: number }> = [];
@@ -499,7 +512,7 @@ const densityOptions = computed(() => {
       result.push({ ...PHOTO_GRID_LEVELS[i], columns: cols });
     }
   }
-  return result;
+  return result.sort((a, b) => a.columns - b.columns);
 });
 
 const selectDensity = (level: number) => {
@@ -645,14 +658,14 @@ watch(
          ============================================================ -->
     <div
       v-if="deviceCategory === 'desktop'"
-      class="grid-header grid grid-cols-[auto_1fr_auto_auto_auto_auto] items-center gap-3 shrink-0"
+      class="grid-header grid grid-cols-[auto_1fr_auto_auto_auto] items-center gap-3 shrink-0"
     >
       <div class="nav-group inline-flex items-center gap-2">
         <Tooltip>
           <TooltipTrigger as-child>
             <Button
               variant="ghost"
-              size="icon"
+              size="icon-sm"
               class="nav-btn"
               :disabled="!canBack"
               type="button"
@@ -668,7 +681,7 @@ watch(
           <TooltipTrigger as-child>
             <Button
               variant="ghost"
-              size="icon"
+              size="icon-sm"
               class="nav-btn"
               :disabled="!canForward"
               type="button"
@@ -687,26 +700,31 @@ watch(
         :path="currentPath"
         :root-path="activeImportRootPath"
         @navigate="handleOpenFolder"
+      >
+        <template #actions>
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                type="button"
+                aria-label="Open current folder in file explorer"
+                @click="openFolder"
+              >
+                <ArrowUpRight data-icon="inline-start" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Open current folder in file explorer</TooltipContent>
+          </Tooltip>
+        </template>
+      </Breadcrumb>
+
+      <SortSelect
+        v-model="gallerySortValue"
+        aria-label="Sort gallery"
+        trigger-label="Sort"
+        trigger-class="h-9 w-[96px] gap-2 py-0 font-normal shadow-none"
       />
-
-      <Tooltip>
-        <TooltipTrigger as-child>
-          <Button
-            variant="outline"
-            size="sm"
-            class="open-folder-btn"
-            type="button"
-            aria-label="Open current folder in file explorer"
-            @click="openFolder"
-          >
-            <ArrowUpRight class="gallery-icon-sm" />
-            <span>Open</span>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Open current folder in file explorer</TooltipContent>
-      </Tooltip>
-
-      <SortSelect v-model="gallerySortValue" aria-label="Sort gallery" />
 
       <!-- Density Dropdown -->
       <DropdownMenu>
@@ -714,11 +732,10 @@ watch(
           <Button
             variant="outline"
             type="button"
-            class="h-9 justify-between gap-2 px-3 text-sm font-normal text-foreground shadow-none gallery-density-trigger"
+            class="h-9 w-[96px] justify-between gap-2 px-3 text-sm font-normal text-foreground shadow-none gallery-density-trigger"
           >
-            <LayoutGrid class="size-4" />
-            <span>{{ columnCount }} cols</span>
-            <ChevronDown class="size-4 shrink-0 opacity-50" />
+            <span class="truncate">View</span>
+            <ChevronDown data-icon="inline-end" class="opacity-50" />
           </Button>
         </DropdownMenuTrigger>
 
@@ -734,8 +751,7 @@ watch(
               class="gap-2"
             >
               <LayoutGrid class="gallery-icon-sm" />
-              <span class="flex-1">{{ option.label }}</span>
-              <span class="text-xs text-muted-foreground">{{ option.columns }} cols</span>
+              <span class="flex-1">{{ option.columns }} columns</span>
             </DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
@@ -1371,12 +1387,11 @@ watch(
   /* Layout hook only — visual styling owned by shadcn Button */
 }
 
-.open-folder-btn {
-  /* Layout hook only — visual styling owned by shadcn Button */
-}
-
 .breadcrumb-wrap {
+  justify-self: start;
+  width: fit-content;
   min-width: 0;
+  max-width: 100%;
 }
 
 /* loading-badge base styles handled by shadcn Badge variant="loading" */

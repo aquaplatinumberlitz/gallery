@@ -272,6 +272,7 @@ export const useGalleryStore = defineStore("gallery", {
       errorType: null as string | null,
       searchQuery: "",
       searchScope: "current" as SearchScope,
+      searchLoading: false,
       sortField: storedSort.field as SortField,
       sortOrder: storedSort.order as SortOrder,
       metadataInspector: {
@@ -303,6 +304,10 @@ export const useGalleryStore = defineStore("gallery", {
 
     setSearchScope(scope: SearchScope) {
       this.searchScope = scope;
+    },
+
+    setSearchLoading(loading: boolean) {
+      this.searchLoading = loading;
     },
 
     setSortField(field: SortField) {
