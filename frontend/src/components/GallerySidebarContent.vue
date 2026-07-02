@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import LibrarySidebarHeader from "@/components/LibrarySidebarHeader.vue";
-import FolderTreeItem from "@/components/FolderTreeItem.vue";
+import FolderTree from "@/components/FolderTree.vue";
 import { Loader } from "lucide-vue-next";
 import {
   SidebarHeader as ShadSidebarHeader,
@@ -33,7 +33,7 @@ const indexStatusVariant = computed(() => (isMobile.value || isCollapsed.value ?
   </ShadSidebarHeader>
 
   <SidebarContent>
-    <SidebarGroup>
+    <SidebarGroup class="min-h-0">
       <SidebarGroupLabel as="div" class="sidebar-title" id="folder-tree-label">
         <span>Folder Tree</span>
         <span v-if="isLoading" class="loading-pill"> <Loader class="gallery-icon-md lucide-spin" /> Loading </span>
@@ -47,7 +47,7 @@ const indexStatusVariant = computed(() => (isMobile.value || isCollapsed.value ?
           <p v-else-if="!isLoading && !tree.length" class="empty-state group-data-[collapsible=icon]:hidden">
             No folders available for this library.
           </p>
-          <FolderTreeItem v-for="node in tree" :key="node.path" :node="node" :active-path="currentPath" :level="1" />
+          <FolderTree :tree="tree" :active-path="currentPath" />
         </div>
       </SidebarGroupContent>
     </SidebarGroup>
@@ -81,22 +81,11 @@ const indexStatusVariant = computed(() => (isMobile.value || isCollapsed.value ?
 }
 
 .tree-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   flex: 1;
-  overflow-y: auto;
   padding-right: 4px;
-}
-
-.tree-container::-webkit-scrollbar {
-  width: 6px;
-}
-
-.tree-container::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.12);
-  border-radius: 6px;
-}
-
-.tree-container::-webkit-scrollbar-track {
-  background: transparent;
 }
 
 .empty-state {
