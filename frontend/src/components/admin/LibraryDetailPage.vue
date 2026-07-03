@@ -587,7 +587,7 @@ function estimatedAssets(): number | undefined {
         </section>
 
         <section class="rounded-md border bg-background p-5">
-          <h3 class="font-semibold">Catalog lifecycle</h3>
+          <h3 class="font-semibold">File catalog lifecycle</h3>
           <Separator class="my-4" />
           <dl class="grid gap-4 text-sm sm:grid-cols-4">
             <div>
@@ -599,7 +599,7 @@ function estimatedAssets(): number | undefined {
               <dd class="mt-1">{{ formatLibraryTimestamp(library.updated_at) }}</dd>
             </div>
             <div>
-              <dt class="text-muted-foreground">Catalog updated</dt>
+              <dt class="text-muted-foreground">File catalog updated</dt>
               <dd class="mt-1">{{ formatLibraryTimestamp(status?.last_scan_at ?? library.last_scan_at) }}</dd>
             </div>
             <div>

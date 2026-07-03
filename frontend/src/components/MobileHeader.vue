@@ -4,6 +4,7 @@ import { Menu, Search, X, ArrowLeft, Library, Loader2 } from "lucide-vue-next";
 import { RouterLink } from "vue-router";
 import { useGalleryStore } from "../stores/gallery";
 import SortDropdown from "./SortDropdown.vue";
+import SearchScopeSelect from "./SearchScopeSelect.vue";
 import type { SortValue } from "../types";
 
 interface Props {
@@ -99,11 +100,6 @@ function onSearchInput(e: Event) {
   emit("update:searchQuery", target.value);
 }
 
-function onScopeChange(e: Event) {
-  const target = e.target as HTMLSelectElement;
-  emit("scope-change", target.value as "current" | "all");
-}
-
 const galleryStore = useGalleryStore();
 
 const sortField = computed(() => galleryStore.sortField);
@@ -169,10 +165,11 @@ const gallerySortValue = computed<SortValue>({
           <button v-if="hasQuery" class="search-focus-clear" @click="clearSearch" aria-label="Clear search">
             <X />
           </button>
-          <select class="search-scope-chip" :value="searchScope" aria-label="Search scope" @change="onScopeChange">
-            <option value="current">This folder</option>
-            <option value="all">All indexed</option>
-          </select>
+          <SearchScopeSelect
+            :model-value="searchScope"
+            size="compact"
+            @update:model-value="emit('scope-change', $event)"
+          />
         </div>
       </div>
     </div>
@@ -473,25 +470,6 @@ const gallerySortValue = computed<SortValue>({
 .search-focus-clear svg {
   width: var(--gallery-icon-md);
   height: var(--gallery-icon-md);
-}
-
-.search-scope-chip {
-  max-width: 104px;
-  height: 28px;
-  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--muted-foreground) 5%, var(--background));
-  color: var(--muted-foreground);
-  font-size: 12px;
-  font-weight: 600;
-  padding: 0 10px;
-  flex-shrink: 0;
-  outline: none;
-}
-
-.search-scope-chip:focus-visible {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 18%, transparent);
 }
 
 /* ============================================================

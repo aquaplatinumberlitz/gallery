@@ -3,6 +3,7 @@ import { ref, nextTick, onBeforeUnmount, watch, computed } from "vue";
 import { Menu, Search, X, ArrowLeft, Library, Loader2 } from "lucide-vue-next";
 import { RouterLink } from "vue-router";
 import Breadcrumb from "./Breadcrumb.vue";
+import SearchScopeSelect from "./SearchScopeSelect.vue";
 import { useGalleryStore } from "../stores/gallery";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useRouteChrome } from "@/composables/useRouteChrome";
@@ -100,10 +101,6 @@ function onSearchInput(e: Event) {
   emit("update:searchQuery", target.value);
 }
 
-function onScopeChange(e: Event) {
-  const target = e.target as HTMLSelectElement;
-  emit("scope-change", target.value as "current" | "all");
-}
 </script>
 
 <template>
@@ -165,10 +162,11 @@ function onScopeChange(e: Event) {
         <button v-if="hasQuery" class="th-search-clear" @click="clearSearch" aria-label="Clear search">
           <X />
         </button>
-        <select class="th-search-scope" :value="searchScope" aria-label="Search scope" @change="onScopeChange">
-          <option value="current">This folder</option>
-          <option value="all">All indexed</option>
-        </select>
+        <SearchScopeSelect
+          :model-value="searchScope"
+          size="compact"
+          @update:model-value="emit('scope-change', $event)"
+        />
       </div>
     </div>
 
@@ -436,24 +434,6 @@ function onScopeChange(e: Event) {
 .th-search-clear svg {
   width: var(--gallery-icon-md);
   height: var(--gallery-icon-md);
-}
-
-.th-search-scope {
-  height: 28px;
-  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--muted-foreground) 5%, var(--background));
-  color: var(--muted-foreground);
-  font-size: 12px;
-  font-weight: 600;
-  padding: 0 10px;
-  flex-shrink: 0;
-  outline: none;
-}
-
-.th-search-scope:focus-visible {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 18%, transparent);
 }
 
 /* ============================================================

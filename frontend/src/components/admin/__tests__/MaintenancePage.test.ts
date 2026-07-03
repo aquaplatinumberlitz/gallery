@@ -167,7 +167,7 @@ describe("MaintenancePage", () => {
     ];
     const wrapper = mountSubject();
     expect(wrapper.text()).toContain("Recent job history");
-    expect(wrapper.text()).toContain("Latest 8 catalog, metadata, and thumbnail jobs.");
+    expect(wrapper.text()).toContain("Latest 8 file catalog, metadata, and thumbnail jobs.");
     expect(wrapper.text()).toContain("View all jobs");
     expect(wrapper.text()).toContain("scan #12");
     expect(wrapper.text()).toContain("Library #4");
@@ -215,12 +215,14 @@ describe("MaintenancePage", () => {
     mockGlobalSummaryData = [{ ready_derivatives: 2, expected_derivatives: 2 }];
     const wrapper = mountSubject();
 
-    const catalogSection = wrapper.findAll("section").find((section) => section.text().includes("Catalog workers"));
+    const catalogSection = wrapper
+      .findAll("section")
+      .find((section) => section.text().includes("File catalog workers"));
     const metadataSection = wrapper.findAll("section").find((section) => section.text().includes("Metadata workers"));
     const thumbnailsSection = wrapper.findAll("section").find((section) => section.text().includes("Cached files"));
 
     expect(catalogSection?.findAll("button").map((button) => button.attributes("aria-label"))).toEqual([
-      "About Catalog queue depth",
+      "About File catalog queue depth",
     ]);
     expect(metadataSection?.findAll("button").map((button) => button.attributes("aria-label"))).toEqual([
       "About Metadata queue depth",
@@ -321,11 +323,11 @@ describe("MaintenancePage", () => {
       metadata_lifecycle: null,
     };
     const wrapper = mountSubject();
-    expect(wrapper.text()).toContain("Catalog workers");
+    expect(wrapper.text()).toContain("File catalog workers");
     expect(wrapper.text()).toContain("3");
-    expect(wrapper.text()).toContain("Catalog active jobs");
+    expect(wrapper.text()).toContain("File catalog active jobs");
     expect(wrapper.text()).toContain("1");
-    expect(wrapper.text()).toContain("Catalog queue depth");
+    expect(wrapper.text()).toContain("File catalog queue depth");
     expect(wrapper.text()).toContain("5");
     expect(wrapper.text()).toContain("Metadata workers");
     expect(wrapper.text()).toContain("4");

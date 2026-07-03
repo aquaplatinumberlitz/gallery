@@ -45,6 +45,6 @@ export function useCatalogResetMutation() {
       clearHandoffLocalState();
       toast.success("App data reset. Source files were not touched.");
     },
-    onError: (error) => toast.error("Could not reset catalog database", String(error)),
+    onError: (error) => toast.error("Could not reset file catalog database", String(error)),
   });
 }

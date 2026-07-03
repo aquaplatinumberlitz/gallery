@@ -137,6 +137,14 @@ function createWrapper(props: Record<string, unknown> = {}) {
         Tooltip: { template: "<span><slot /></span>" },
         TooltipTrigger: { template: "<span><slot /></span>" },
         TooltipContent: { template: "<span><slot /></span>" },
+        SearchScopeSelect: {
+          props: ["modelValue"],
+          template: `
+            <button type="button" class="scope-select" aria-label="Search scope" @click="$emit('update:modelValue', 'all')">
+              {{ modelValue }}
+            </button>
+          `,
+        },
         AdvancedSearchDrawer: {
           props: ["isOpen", "initialFilters"],
           template: `
@@ -212,8 +220,8 @@ describe("AppHeader", () => {
 
   it("emits scope-change when scope select changes", async () => {
     const wrapper = createWrapper();
-    const select = wrapper.find("select.scope-select");
-    await select.setValue("all");
+    const select = wrapper.find('[aria-label="Search scope"]');
+    await select.trigger("click");
     expect(wrapper.emitted("scope-change")).toBeTruthy();
     expect(wrapper.emitted("scope-change")![0]).toEqual(["all"]);
   });

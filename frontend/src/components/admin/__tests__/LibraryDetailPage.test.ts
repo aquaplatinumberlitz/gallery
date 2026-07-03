@@ -284,14 +284,14 @@ describe("LibraryDetailPage", () => {
     expect(wrapper.text()).toContain("Recent job history");
     expect(wrapper.text()).toContain("Latest 8 jobs");
     expect(wrapper.text()).toContain("View all jobs");
-    expect(wrapper.text()).toContain("Catalog lifecycle");
+    expect(wrapper.text()).toContain("File catalog lifecycle");
     expect(wrapper.find(".library-progress").exists()).toBe(false);
   });
 
   it("places danger zone after history and lifecycle details", () => {
     const text = mountSubject().text();
-    expect(text.indexOf("Recent job history")).toBeLessThan(text.indexOf("Catalog lifecycle"));
-    expect(text.indexOf("Catalog lifecycle")).toBeLessThan(text.indexOf("Danger zone"));
+    expect(text.indexOf("Recent job history")).toBeLessThan(text.indexOf("File catalog lifecycle"));
+    expect(text.indexOf("File catalog lifecycle")).toBeLessThan(text.indexOf("Danger zone"));
   });
 
   it("limits the embedded job history", () => {

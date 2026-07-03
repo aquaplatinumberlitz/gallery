@@ -133,7 +133,7 @@ async function triggerAction() {
     if (isStatusContractError(err)) {
       actionError.value = STATUS_CONTRACT_ERROR_MESSAGE;
     } else {
-      actionError.value = err instanceof Error ? err.message : "Unable to update the catalog.";
+      actionError.value = err instanceof Error ? err.message : "Unable to update the file catalog.";
     }
   } finally {
     actionPending.value = null;
@@ -343,7 +343,7 @@ function formatCount(value: number) {
         </div>
       </div>
 
-      <div v-else class="text-sm text-muted-foreground text-center py-2">No catalog status available</div>
+      <div v-else class="text-sm text-muted-foreground text-center py-2">No file catalog status available</div>
     </PopoverContent>
   </Popover>
 </template>

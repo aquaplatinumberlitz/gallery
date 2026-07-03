@@ -22,6 +22,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useGalleryTheme } from "@/composables/useGalleryTheme";
 import { useFieldedSearch } from "@/composables/useFieldedSearch";
 import AdvancedSearchDrawer from "@/components/search/AdvancedSearchDrawer.vue";
+import SearchScopeSelect from "@/components/SearchScopeSelect.vue";
 import SearchFilterChips from "@/components/SearchFilterChips.vue";
 import type { FieldFilter } from "@/types";
 import { parseFieldedQuery, serializeAdvancedSearchToQuery } from "@/utils/serializeAdvancedSearchToQuery";
@@ -143,11 +144,6 @@ function openAdvancedSearch() {
 function clearSearch() {
   clearAll();
   emit("update:searchQuery", "");
-}
-
-function onScopeChange(e: Event) {
-  const target = e.target as HTMLSelectElement;
-  emit("scope-change", target.value as "current" | "all");
 }
 
 function handleAdvancedSearchApply(filters: FieldFilter[]) {
@@ -318,10 +314,7 @@ function handleClearAll() {
             </TooltipTrigger>
             <TooltipContent>Clear search</TooltipContent>
           </Tooltip>
-          <select class="scope-select" :value="searchScope" aria-label="Search scope" @change="onScopeChange">
-            <option value="current">This folder</option>
-            <option value="all">All indexed</option>
-          </select>
+          <SearchScopeSelect :model-value="searchScope" @update:model-value="emit('scope-change', $event)" />
           <Tooltip>
             <TooltipTrigger as-child>
               <Button
@@ -387,8 +380,8 @@ h1 {
   border-radius: 999px;
   cursor: pointer;
   transition:
-    border-color 300ms cubic-bezier(0.68, -0.55, 0.265, 1.55),
-    background-color 300ms cubic-bezier(0.68, -0.55, 0.265, 1.55),
+    border-color 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 240ms cubic-bezier(0.22, 1, 0.36, 1),
     transform 160ms ease;
 }
 
@@ -423,8 +416,8 @@ h1 {
   color: #fff;
   transform: translate3d(0, -50%, 0);
   transition:
-    transform 300ms cubic-bezier(0.68, -0.55, 0.265, 1.55),
-    background-color 300ms cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .theme-pill-toggle.is-dark .theme-pill-thumb {
@@ -441,8 +434,8 @@ h1 {
   height: 16px;
   transform-origin: center;
   transition:
-    opacity 300ms cubic-bezier(0.68, -0.55, 0.265, 1.55),
-    transform 300ms cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    opacity 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .theme-pill-icon-sun {
@@ -550,25 +543,6 @@ h1 {
 
 /* Input and clear-btn styling handled by shadcn Button variant="ghost" size="icon" */
 /* Only responsive rules remain */
-
-.scope-select {
-  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
-  background: color-mix(in srgb, var(--muted-foreground) 5%, var(--background));
-  color: var(--muted-foreground);
-  border-radius: 999px;
-  height: 28px;
-  padding: 0 10px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  outline: none;
-  flex-shrink: 0;
-}
-
-.scope-select:focus-visible {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 18%, transparent);
-}
 
 /* Icon sizes using design tokens */
 .gallery-icon-toolbar {

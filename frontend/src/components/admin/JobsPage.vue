@@ -40,7 +40,7 @@ useLibraryEvents();
             </Button>
           </TooltipTrigger>
           <TooltipContent side="top" align="end" class="max-w-[220px]">
-            Reload recent catalog, metadata, and thumbnail jobs.
+            Reload recent file catalog, metadata, and thumbnail jobs.
           </TooltipContent>
         </Tooltip>
       </header>

@@ -42,8 +42,8 @@ const bodyText = computed(() => {
   if (isScanning.value) {
     const completed = props.status.scan.completed_units ?? 0;
     const total = props.status.scan.total_units;
-    if (total !== null) return `${completed.toLocaleString()} / ${total.toLocaleString()} catalog items updated`;
-    return completed > 0 ? `${completed.toLocaleString()} catalog items updated` : "Updating catalog...";
+    if (total !== null) return `${completed.toLocaleString()} / ${total.toLocaleString()} file catalog items updated`;
+    return completed > 0 ? `${completed.toLocaleString()} file catalog items updated` : "Updating file catalog...";
   }
   if (isIndexing.value) {
     if (metadataProgress.value !== null) {

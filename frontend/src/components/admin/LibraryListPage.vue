@@ -94,7 +94,9 @@ function created(library: RegisteredLibrary) {
         <div>
           <p class="text-sm font-medium text-muted-foreground">Administration</p>
           <h2 id="libraries-heading" class="text-2xl font-semibold tracking-tight">Libraries</h2>
-          <p class="mt-1 text-sm text-muted-foreground">Register folders, monitor imports, and maintain the catalog.</p>
+          <p class="mt-1 text-sm text-muted-foreground">
+            Register folders, monitor imports, and maintain the file catalog.
+          </p>
         </div>
         <div class="flex flex-wrap gap-2">
           <Button
@@ -171,7 +173,7 @@ function created(library: RegisteredLibrary) {
             <TableHeader>
               <TableRow>
                 <TableHead>Library</TableHead><TableHead>Folder</TableHead><TableHead>Status</TableHead
-                ><TableHead>Catalog</TableHead><TableHead>Catalog updated</TableHead
+                ><TableHead>File catalog</TableHead><TableHead>File catalog updated</TableHead
                 ><TableHead>Metadata updated</TableHead
                 ><TableHead class="w-14"><span class="sr-only">Actions</span></TableHead>
               </TableRow>
@@ -188,7 +190,7 @@ function created(library: RegisteredLibrary) {
                   <Tooltip v-if="scanErrorMessage(library)">
                     <TooltipTrigger as-child>
                       <div class="mt-1 flex items-center gap-1 text-xs text-destructive">
-                        <AlertTriangle class="size-3" /> Catalog update failed
+                        <AlertTriangle class="size-3" /> File catalog update failed
                       </div>
                     </TooltipTrigger>
                     <TooltipContent side="top" align="start" class="max-w-[260px]">
@@ -265,7 +267,7 @@ function created(library: RegisteredLibrary) {
             </div>
             <div class="mt-4 flex items-center justify-between gap-3">
               <LibraryStatusBadge :status="statusFor(library)" /><span class="text-xs text-muted-foreground"
-                >Catalog updated {{ formatLibraryTimestamp(lastScanAt(library)) }}</span
+                >File catalog updated {{ formatLibraryTimestamp(lastScanAt(library)) }}</span
               >
             </div>
             <div class="mt-4"><LibrarySummaryPanel :status="statusFor(library)" /></div>

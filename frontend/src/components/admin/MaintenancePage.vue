@@ -430,29 +430,29 @@ const needsRefreshCount = computed(() => {
               </div>
               <Separator />
               <div class="flex items-center justify-between gap-3">
-                <dt class="text-muted-foreground">Catalog workers</dt>
+                <dt class="text-muted-foreground">File catalog workers</dt>
                 <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.catalog_worker_count }}</dd>
               </div>
               <div class="flex items-center justify-between gap-3">
-                <dt class="text-muted-foreground">Catalog active jobs</dt>
+                <dt class="text-muted-foreground">File catalog active jobs</dt>
                 <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.catalog_active_jobs }}</dd>
               </div>
               <div class="flex items-center justify-between gap-3">
                 <dt class="flex items-center gap-1 text-muted-foreground">
-                  Catalog queue depth
+                  File catalog queue depth
                   <Tooltip>
                     <TooltipTrigger as-child>
                       <Button
                         variant="ghost"
                         size="icon"
                         class="size-4 text-muted-foreground hover:text-foreground -my-1"
-                        aria-label="About Catalog queue depth"
+                        aria-label="About File catalog queue depth"
                       >
                         <Info class="size-3.5" />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="top" align="start">
-                      Catalog scan or rebuild jobs waiting to run.
+                      File catalog scan or rebuild jobs waiting to run.
                     </TooltipContent>
                   </Tooltip>
                 </dt>
@@ -636,7 +636,7 @@ const needsRefreshCount = computed(() => {
           <div>
             <h3 class="font-semibold">Recent job history</h3>
             <p class="mt-1 text-sm text-muted-foreground">
-              Latest {{ RECENT_JOB_LIMIT }} catalog, metadata, and thumbnail jobs.
+              Latest {{ RECENT_JOB_LIMIT }} file catalog, metadata, and thumbnail jobs.
             </p>
           </div>
           <div class="flex items-center gap-2">
@@ -654,7 +654,7 @@ const needsRefreshCount = computed(() => {
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="top" align="end" class="max-w-[220px]">
-                Reload recent catalog, metadata, and thumbnail jobs.
+                Reload recent file catalog, metadata, and thumbnail jobs.
               </TooltipContent>
             </Tooltip>
           </div>
