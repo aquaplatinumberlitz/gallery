@@ -42,7 +42,7 @@ function createWrapper(props: Record<string, unknown> = {}) {
         Button: { template: "<button :disabled='disabled' @click='$attrs.onClick?.()'><slot /></button>" },
         Input: {
           template:
-            "<input :value='$attrs.modelValue ?? modelValue' @input='$emit(\"update:modelValue\", $event.target.value)' />",
+            "<input v-bind='$attrs' :value='$attrs.modelValue ?? modelValue' @input='$emit(\"update:modelValue\", $event.target.value)' />",
         },
       },
     },
@@ -62,6 +62,30 @@ describe("LibraryForm", () => {
   it("renders folders section", () => {
     const wrapper = createWrapper();
     expect(wrapper.text()).toContain("Folders");
+  });
+
+  it("shows visible labels for each folder row", async () => {
+    const wrapper = createWrapper();
+    expect(wrapper.text()).toContain("Folder 1");
+
+    const addFolder = wrapper.findAll("button").find((button) => button.text().includes("Add folder"));
+    await addFolder?.trigger("click");
+
+    expect(wrapper.text()).toContain("Folder 1");
+    expect(wrapper.text()).toContain("Folder 2");
+  });
+
+  it("marks only the invalid folder row as aria-invalid", async () => {
+    const wrapper = createWrapper();
+    const addFolder = wrapper.findAll("button").find((button) => button.text().includes("Add folder"));
+    await addFolder?.trigger("click");
+
+    await wrapper.find("#library-import-path-0").setValue("/photos");
+    await wrapper.find("#library-import-path-1").setValue("relative/path");
+
+    expect(wrapper.find("#library-import-path-0").attributes("aria-invalid")).toBe("false");
+    expect(wrapper.find("#library-import-path-1").attributes("aria-invalid")).toBe("true");
+    expect(wrapper.text()).toContain("Use an absolute folder path.");
   });
 
   it("renders exclusion patterns section", () => {

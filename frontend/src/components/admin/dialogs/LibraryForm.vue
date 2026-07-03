@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-vue-next";
+import { ArrowDown, ArrowUp, CircleCheck, Info, Plus, TriangleAlert, Trash2 } from "lucide-vue-next";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Button from "@/components/ui/Button.vue";
 import IconTooltipButton from "@/components/ui/IconTooltipButton.vue";
 import Input from "@/components/ui/Input.vue";
+import { Separator } from "@/components/ui/separator";
+import { Field, FieldContent, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { useLibraryMutations } from "@/composables/admin/useLibraryMutations";
 import { GalleryAPIError } from "@/services/api";
 import type { LibraryUpdateRequest, LibraryValidationResult, RegisteredLibrary } from "@/types";
@@ -52,37 +55,123 @@ function cleanValue(value: string): string {
 
 const normalizedPaths = computed(() => importPaths.value.map(cleanValue).filter(Boolean));
 const normalizedPatterns = computed(() => exclusionPatterns.value.map(cleanValue).filter(Boolean));
-const clientErrors = computed(() => {
+const normalizedPathRows = computed(() => importPaths.value.map(cleanValue));
+const normalizedPatternRows = computed(() => exclusionPatterns.value.map(cleanValue));
+
+interface RowIssue {
+  message: string;
+  tone: "error" | "warning" | "muted";
+}
+
+function duplicateValues(values: string[]): Set<string> {
+  const counts = new Map<string, number>();
+  for (const value of values.filter(Boolean)) counts.set(value, (counts.get(value) ?? 0) + 1);
+  return new Set([...counts.entries()].filter(([, count]) => count > 1).map(([value]) => value));
+}
+
+function isAbsolutePath(value: string): boolean {
+  return value.startsWith("/") || /^[A-Za-z]:[\\/]/.test(value);
+}
+
+const importPathErrors = computed(() => {
   const errors: string[] = [];
   if (normalizedPaths.value.length === 0) errors.push("Add at least one import path.");
-  if (normalizedPaths.value.some((path) => !path.startsWith("/") && !/^[A-Za-z]:[\\/]/.test(path))) {
+  if (normalizedPaths.value.some((path) => !isAbsolutePath(path))) {
     errors.push("Every import path must be absolute.");
   }
   if (new Set(normalizedPaths.value).size !== normalizedPaths.value.length) errors.push("Folders must be unique.");
+  return errors;
+});
+const exclusionPatternErrors = computed(() => {
+  const errors: string[] = [];
   if (normalizedPatterns.value.length > 128) errors.push("Use no more than 128 exclusion patterns.");
   if (new Set(normalizedPatterns.value).size !== normalizedPatterns.value.length) {
     errors.push("Exclusion patterns must be unique.");
   }
   return errors;
 });
+const exclusionPatternGroupErrors = computed(() =>
+  normalizedPatterns.value.length > 128 ? ["Use no more than 128 exclusion patterns."] : [],
+);
+const clientErrors = computed(() => [...importPathErrors.value, ...exclusionPatternErrors.value]);
 
-const overlapWarnings = computed(() => {
+function pathOverlapWarnings(path: string): string[] {
   const warnings: string[] = [];
   const normalize = (value: string) => value.replace(/\\/g, "/").replace(/\/+$/, "");
-  for (const path of normalizedPaths.value) {
-    const candidate = normalize(path);
-    for (const library of props.libraries ?? []) {
-      if (library.id === props.library?.id) continue;
-      for (const item of library.import_paths) {
-        const existing = normalize(item.path);
-        if (candidate === existing || candidate.startsWith(`${existing}/`) || existing.startsWith(`${candidate}/`)) {
-          warnings.push(`${path} overlaps ${library.name}: ${item.path}`);
-        }
+  const candidate = normalize(path);
+  for (const library of props.libraries ?? []) {
+    if (library.id === props.library?.id) continue;
+    for (const item of library.import_paths) {
+      const existing = normalize(item.path);
+      if (candidate === existing || candidate.startsWith(`${existing}/`) || existing.startsWith(`${candidate}/`)) {
+        warnings.push(`${path} overlaps ${library.name}: ${item.path}`);
       }
     }
   }
   return warnings;
-});
+}
+
+const importPathValidationIssues = computed(
+  () => validation.value?.import_paths.filter((item) => !item.is_valid || item.warnings.length) ?? [],
+);
+const exclusionPatternValidationIssues = computed(
+  () => validation.value?.exclusion_patterns.filter((item) => !item.is_valid || item.warnings.length) ?? [],
+);
+const duplicatePathValues = computed(() => duplicateValues(normalizedPathRows.value));
+const duplicatePatternValues = computed(() => duplicateValues(normalizedPatternRows.value));
+
+const importPathRowIssues = computed(() =>
+  normalizedPathRows.value.map((path) => {
+    const issues: RowIssue[] = [];
+    if (!path) {
+      if (normalizedPaths.value.length === 0) issues.push({ message: "Folder path is required.", tone: "error" });
+      return issues;
+    }
+    if (!isAbsolutePath(path)) issues.push({ message: "Use an absolute folder path.", tone: "error" });
+    if (duplicatePathValues.value.has(path)) issues.push({ message: "This folder is duplicated.", tone: "error" });
+    for (const warning of pathOverlapWarnings(path)) issues.push({ message: warning, tone: "warning" });
+    for (const item of importPathValidationIssues.value.filter((issue) => issue.value === path)) {
+      if (!item.is_valid && item.message) issues.push({ message: item.message, tone: "error" });
+      for (const warning of item.warnings) issues.push({ message: warning, tone: "warning" });
+    }
+    return issues;
+  }),
+);
+
+const exclusionPatternRowIssues = computed(() =>
+  normalizedPatternRows.value.map((pattern) => {
+    const issues: RowIssue[] = [];
+    if (!pattern) return issues;
+    if (duplicatePatternValues.value.has(pattern)) {
+      issues.push({ message: "This exclusion pattern is duplicated.", tone: "error" });
+    }
+    for (const item of exclusionPatternValidationIssues.value.filter((issue) => issue.value === pattern)) {
+      if (!item.is_valid && item.message) issues.push({ message: item.message, tone: "error" });
+      for (const warning of item.warnings) issues.push({ message: warning, tone: "warning" });
+    }
+    return issues;
+  }),
+);
+
+function rowIssueClass(issue: RowIssue): string | undefined {
+  if (issue.tone === "warning") return "text-amber-700 dark:text-amber-400";
+  if (issue.tone === "muted") return "text-muted-foreground";
+  return undefined;
+}
+
+function importPathIssues(index: number): RowIssue[] {
+  return importPathRowIssues.value[index] ?? [];
+}
+
+function exclusionPatternIssues(index: number): RowIssue[] {
+  return exclusionPatternRowIssues.value[index] ?? [];
+}
+
+function hasRowError(issues: RowIssue[]): boolean {
+  return issues.some((issue) => issue.tone === "error");
+}
+
+const validationHasIssues = computed(() => validation.value?.is_valid === false);
 
 function addPath() {
   importPaths.value.push("");
@@ -142,104 +231,250 @@ async function submit(scanAfterCreate = false) {
 </script>
 
 <template>
-  <form class="space-y-5" @submit.prevent="submit(false)">
-    <div class="space-y-2">
-      <label class="text-sm font-medium" for="library-name">Display name</label>
-      <Input id="library-name" v-model="name" placeholder="Derived from the first path when empty" />
-    </div>
+  <form @submit.prevent="submit(false)">
+    <FieldGroup class="gap-6">
+      <Field>
+        <div class="flex items-center gap-2">
+          <FieldLabel for="library-name">Display name</FieldLabel>
+          <IconTooltipButton
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            class="-my-1 text-muted-foreground"
+            label="Display name help"
+            tooltip="Optional. Leave empty to use the first folder name."
+          >
+            <Info />
+          </IconTooltipButton>
+        </div>
+        <Input id="library-name" v-model="name" placeholder="Derived from the first folder when empty" />
+      </Field>
 
-    <fieldset class="space-y-3">
-      <div class="flex items-center justify-between gap-3">
-        <legend class="text-sm font-medium">Folders</legend>
-        <Button type="button" variant="outline" size="sm" @click="addPath"><Plus /> Add folder</Button>
-      </div>
-      <div v-for="(_path, index) in importPaths" :key="index" class="flex items-center gap-2">
-        <Input v-model="importPaths[index]" class="font-mono text-xs" placeholder="/absolute/path/to/library" />
-        <IconTooltipButton
-          type="button"
-          variant="ghost"
-          size="icon"
-          :disabled="index === 0"
-          label="Move folder up"
-          @click="movePath(index, -1)"
-        >
-          <ArrowUp />
-        </IconTooltipButton>
-        <IconTooltipButton
-          type="button"
-          variant="ghost"
-          size="icon"
-          :disabled="index === importPaths.length - 1"
-          label="Move folder down"
-          @click="movePath(index, 1)"
-        >
-          <ArrowDown />
-        </IconTooltipButton>
-        <IconTooltipButton
-          type="button"
-          variant="ghost"
-          size="icon"
-          :disabled="importPaths.length === 1"
-          label="Remove folder"
-          @click="removePath(index)"
-        >
-          <Trash2 />
-        </IconTooltipButton>
-      </div>
-    </fieldset>
+      <Separator />
 
-    <fieldset class="space-y-3">
-      <div class="flex items-center justify-between gap-3">
-        <legend class="text-sm font-medium">Exclusion patterns</legend>
-        <Button type="button" variant="outline" size="sm" @click="addPattern"><Plus /> Add pattern</Button>
-      </div>
-      <p class="text-xs text-muted-foreground">Relative glob patterns, for example <code>**/.cache/**</code>.</p>
-      <div v-for="(_pattern, index) in exclusionPatterns" :key="index" class="flex items-center gap-2">
-        <Input v-model="exclusionPatterns[index]" class="font-mono text-xs" placeholder="**/private/**" />
-        <IconTooltipButton
+      <FieldSet>
+        <FieldLegend variant="label" class="flex items-center gap-2">
+          Folders
+          <IconTooltipButton
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            class="-my-1 text-muted-foreground"
+            label="Folders help"
+            tooltip="Use absolute paths. Folder order controls the import priority."
+          >
+            <Info />
+          </IconTooltipButton>
+        </FieldLegend>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            class="h-8 gap-1.5 self-start px-2.5 sm:self-auto"
+            @click="addPath"
+          >
+            <Plus data-icon="inline-start" class="-ms-1 opacity-60" /> Add folder
+          </Button>
+        </div>
+        <FieldGroup class="gap-3">
+          <Field
+            v-for="(_path, index) in importPaths"
+            :key="index"
+            :data-invalid="hasRowError(importPathIssues(index))"
+          >
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-start">
+              <FieldLabel
+                :for="`library-import-path-${index}`"
+                class="pt-2 text-muted-foreground tabular-nums sm:w-20 sm:shrink-0"
+              >
+                Folder {{ index + 1 }}
+              </FieldLabel>
+              <FieldContent class="min-w-0 gap-2">
+                <div class="flex min-w-0 items-center gap-2">
+                  <Input
+                    :id="`library-import-path-${index}`"
+                    v-model="importPaths[index]"
+                    class="min-w-0 flex-1 font-mono text-xs"
+                    placeholder="/absolute/path/to/library"
+                    :aria-invalid="hasRowError(importPathIssues(index))"
+                  />
+                  <div class="flex shrink-0 items-center gap-1">
+                    <div class="flex items-center gap-0.5">
+                      <IconTooltipButton
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        class="text-foreground"
+                        :disabled="index === 0"
+                        label="Move folder up"
+                        @click="movePath(index, -1)"
+                      >
+                        <ArrowUp />
+                      </IconTooltipButton>
+                      <IconTooltipButton
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        class="text-foreground"
+                        :disabled="index === importPaths.length - 1"
+                        label="Move folder down"
+                        @click="movePath(index, 1)"
+                      >
+                        <ArrowDown />
+                      </IconTooltipButton>
+                    </div>
+                    <IconTooltipButton
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      class="text-destructive hover:text-destructive"
+                      :disabled="importPaths.length === 1"
+                      label="Remove folder"
+                      @click="removePath(index)"
+                    >
+                      <Trash2 />
+                    </IconTooltipButton>
+                  </div>
+                </div>
+                <FieldError v-for="issue in importPathIssues(index)" :key="issue.message" :class="rowIssueClass(issue)">
+                  {{ issue.message }}
+                </FieldError>
+              </FieldContent>
+            </div>
+          </Field>
+        </FieldGroup>
+      </FieldSet>
+
+      <Separator />
+
+      <FieldSet>
+        <FieldLegend variant="label" class="flex items-center gap-2">
+          Exclusion patterns
+          <IconTooltipButton
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            class="-my-1 text-muted-foreground"
+            label="Exclusion patterns help"
+            tooltip="Relative glob patterns, for example **/.cache/**."
+          >
+            <Info />
+          </IconTooltipButton>
+        </FieldLegend>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            class="h-8 gap-1.5 self-start px-2.5 sm:self-auto"
+            @click="addPattern"
+          >
+            <Plus data-icon="inline-start" class="-ms-1 opacity-60" /> Add pattern
+          </Button>
+        </div>
+        <FieldGroup class="gap-3">
+          <Field
+            v-for="(_pattern, index) in exclusionPatterns"
+            :key="index"
+            :data-invalid="hasRowError(exclusionPatternIssues(index))"
+          >
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-start">
+              <FieldLabel
+                :for="`library-exclusion-pattern-${index}`"
+                class="pt-2 text-muted-foreground tabular-nums sm:w-32 sm:shrink-0"
+              >
+                Pattern {{ index + 1 }}
+              </FieldLabel>
+              <FieldContent class="min-w-0 gap-2">
+                <div class="flex min-w-0 items-center gap-2">
+                  <Input
+                    :id="`library-exclusion-pattern-${index}`"
+                    v-model="exclusionPatterns[index]"
+                    class="min-w-0 flex-1 font-mono text-xs"
+                    placeholder="**/private/**"
+                    :aria-invalid="hasRowError(exclusionPatternIssues(index))"
+                  />
+                  <IconTooltipButton
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    class="text-destructive hover:text-destructive"
+                    label="Remove pattern"
+                    @click="exclusionPatterns.splice(index, 1)"
+                  >
+                    <Trash2 />
+                  </IconTooltipButton>
+                </div>
+                <FieldError
+                  v-for="issue in exclusionPatternIssues(index)"
+                  :key="issue.message"
+                  :class="rowIssueClass(issue)"
+                >
+                  {{ issue.message }}
+                </FieldError>
+              </FieldContent>
+            </div>
+          </Field>
+        </FieldGroup>
+        <FieldError v-for="error in exclusionPatternGroupErrors" :key="error">{{ error }}</FieldError>
+      </FieldSet>
+
+      <Alert v-if="serverError" variant="destructive">
+        <TriangleAlert class="size-4" />
+        <AlertTitle>Request failed</AlertTitle>
+        <AlertDescription>{{ serverError }}</AlertDescription>
+      </Alert>
+      <Alert
+        v-else-if="validation"
+        :variant="validationHasIssues ? 'destructive' : 'default'"
+        :class="!validationHasIssues ? 'border-success/40 bg-success-bg text-success [&>svg]:text-success' : undefined"
+      >
+        <TriangleAlert v-if="validationHasIssues" class="size-4" />
+        <CircleCheck v-else class="size-4" />
+        <AlertTitle>
+          {{ validationHasIssues ? "Server validation found errors" : "Server validation passed" }}
+        </AlertTitle>
+        <AlertDescription>
+          {{
+            validationHasIssues
+              ? "Review the highlighted folder or pattern rows before saving."
+              : "These library settings are ready to save."
+          }}
+        </AlertDescription>
+      </Alert>
+
+      <Separator />
+
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Button
           type="button"
-          variant="ghost"
-          size="icon"
-          label="Remove pattern"
-          @click="exclusionPatterns.splice(index, 1)"
+          variant="outline"
+          :disabled="pending"
+          class="self-start sm:min-w-24"
+          @click="emit('cancel')"
         >
-          <Trash2 />
-        </IconTooltipButton>
+          Cancel
+        </Button>
+        <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button type="button" variant="outline" :disabled="pending" class="sm:min-w-24" @click="validate">
+            Validate
+          </Button>
+          <Button
+            v-if="!library"
+            type="button"
+            variant="secondary"
+            :disabled="pending"
+            class="sm:min-w-32"
+            @click="submit(true)"
+          >
+            {{ submitAndScan && pending ? "Adding…" : "Add and update" }}
+          </Button>
+          <Button type="submit" :disabled="pending" class="sm:min-w-32">
+            {{ pending ? "Saving…" : library ? "Save changes" : "Add library" }}
+          </Button>
+        </div>
       </div>
-    </fieldset>
-
-    <div v-if="clientErrors.length || overlapWarnings.length || validation || serverError" class="space-y-2 text-sm">
-      <p v-for="error in clientErrors" :key="error" class="text-destructive">{{ error }}</p>
-      <p v-for="warning in overlapWarnings" :key="warning" class="text-amber-700 dark:text-amber-400">{{ warning }}</p>
-      <template v-if="validation">
-        <p :class="validation.is_valid ? 'text-emerald-700 dark:text-emerald-400' : 'text-destructive'">
-          {{ validation.is_valid ? "Server validation passed." : "Server validation found errors." }}
-        </p>
-        <p
-          v-for="item in [...validation.import_paths, ...validation.exclusion_patterns].filter(
-            (item) => !item.is_valid || item.warnings.length,
-          )"
-          :key="item.value"
-          class="text-muted-foreground"
-        >
-          <span class="font-mono">{{ item.value }}</span
-          >: {{ item.message || item.warnings.join(" ") }}
-        </p>
-      </template>
-      <p v-if="serverError" class="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-destructive">
-        {{ serverError }}
-      </p>
-    </div>
-
-    <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-      <Button type="button" variant="ghost" :disabled="pending" @click="emit('cancel')">Cancel</Button>
-      <Button type="button" variant="outline" :disabled="pending" @click="validate">Validate</Button>
-      <Button v-if="!library" type="button" variant="secondary" :disabled="pending" @click="submit(true)">
-        {{ submitAndScan && pending ? "Adding…" : "Add and update" }}
-      </Button>
-      <Button type="submit" :disabled="pending">
-        {{ pending ? "Saving…" : library ? "Save changes" : "Add library" }}
-      </Button>
-    </div>
+    </FieldGroup>
   </form>
 </template>

@@ -10,8 +10,8 @@ const emit = defineEmits<{ "update:open": [value: boolean]; updated: [library: R
 <template>
   <Dialog :open="open" @update:open="emit('update:open', $event)">
     <DialogScrollContent class="max-h-[95svh] max-w-2xl overflow-y-auto">
-      <DialogHeader>
-        <DialogTitle>Edit {{ library?.name }}</DialogTitle>
+      <DialogHeader class="gap-2">
+        <DialogTitle class="text-2xl font-semibold tracking-tight">Edit {{ library?.name }}</DialogTitle>
         <DialogDescription>
           Changes to paths and exclusions reconcile the catalog without deleting source files.
         </DialogDescription>
