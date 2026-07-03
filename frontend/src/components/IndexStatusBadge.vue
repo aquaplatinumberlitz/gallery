@@ -1,119 +1,63 @@
 <script setup lang="ts">
+import { computed } from "vue";
+import Badge from "@/components/ui/Badge.vue";
+import PillIndicator from "@/components/ui/PillIndicator.vue";
 import type { CatalogStatusPresentation } from "@/lib/catalog/labels";
+import { cn } from "@/lib/utils";
 
-defineProps<{
-  presentation: CatalogStatusPresentation;
-}>();
+const props = withDefaults(
+  defineProps<{
+    presentation: CatalogStatusPresentation;
+    size?: "default" | "compact";
+    class?: string;
+  }>(),
+  {
+    size: "default",
+    class: undefined,
+  },
+);
+
+const badgeVariant = computed(() => {
+  if (props.presentation.variant === "destructive") return "destructive";
+  if (props.presentation.variant === "default") return "outline";
+  return "secondary";
+});
+
+const sizeClass = computed(() =>
+  props.size === "compact"
+    ? "gap-1 px-1.5 py-0 text-[10px] leading-none"
+    : "gap-1.5 px-2 py-1 text-[11px] leading-none",
+);
+
+const toneClass = computed(() => {
+  if (props.presentation.tone === "green") {
+    return "border-[rgba(34,197,94,0.18)] bg-[rgba(34,197,94,0.10)] text-[#15803d] hover:bg-[rgba(34,197,94,0.10)] dark:text-[#86efac]";
+  }
+  if (props.presentation.tone === "yellow") {
+    return "border-[rgba(245,158,11,0.20)] bg-[rgba(245,158,11,0.12)] text-[#a16207] hover:bg-[rgba(245,158,11,0.12)] dark:text-[#fde68a]";
+  }
+  if (props.presentation.tone === "red") {
+    return "border-[rgba(239,68,68,0.20)] bg-[rgba(239,68,68,0.10)] text-[#b91c1c] hover:bg-[rgba(239,68,68,0.10)] dark:text-[#fca5a5]";
+  }
+  return "border-[rgba(107,114,128,0.18)] bg-[rgba(107,114,128,0.10)] text-[#4b5563] hover:bg-[rgba(107,114,128,0.10)] dark:text-[#d1d5db]";
+});
 </script>
 
 <template>
-  <span class="index-status-badge" :class="`index-status-badge--${presentation.tone}`" data-testid="index-status-badge">
-    <span
-      class="index-status-badge__dot"
-      :class="{ 'index-status-badge__dot--pulse': presentation.showPulse }"
-      aria-hidden="true"
-    />
-    <span>{{ presentation.label }}</span>
-  </span>
+  <Badge
+    :variant="badgeVariant"
+    :class="
+      cn(
+        'index-status-badge min-w-0 whitespace-nowrap',
+        `index-status-badge--${presentation.tone}`,
+        sizeClass,
+        toneClass,
+        props.class,
+      )
+    "
+    data-testid="index-status-badge"
+  >
+    <PillIndicator :variant="presentation.indicator" :pulse="presentation.showPulse" aria-hidden="true" />
+    <span class="truncate">{{ presentation.label }}</span>
+  </Badge>
 </template>
-
-<style scoped>
-.index-status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  border: 1px solid transparent;
-  border-radius: var(--gallery-radius-full);
-  padding: 3px 8px;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.index-status-badge__dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  flex: 0 0 auto;
-}
-
-.index-status-badge--green {
-  border-color: rgba(34, 197, 94, 0.18);
-  background: rgba(34, 197, 94, 0.1);
-  color: #15803d;
-}
-
-.index-status-badge--green .index-status-badge__dot {
-  background: #16a34a;
-}
-
-.index-status-badge--yellow {
-  border-color: rgba(245, 158, 11, 0.2);
-  background: rgba(245, 158, 11, 0.12);
-  color: #a16207;
-}
-
-.index-status-badge--yellow .index-status-badge__dot {
-  background: #d97706;
-}
-
-.index-status-badge--red {
-  border-color: rgba(239, 68, 68, 0.2);
-  background: rgba(239, 68, 68, 0.1);
-  color: #b91c1c;
-}
-
-.index-status-badge--red .index-status-badge__dot {
-  background: #dc2626;
-}
-
-.index-status-badge--gray {
-  border-color: rgba(107, 114, 128, 0.18);
-  background: rgba(107, 114, 128, 0.1);
-  color: #4b5563;
-}
-
-.index-status-badge--gray .index-status-badge__dot {
-  background: #6b7280;
-}
-
-.index-status-badge__dot--pulse {
-  animation: index-status-dot-pulse 1.8s ease-in-out infinite;
-}
-
-@keyframes index-status-dot-pulse {
-  0%,
-  100% {
-    opacity: 1;
-    box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.28);
-  }
-  50% {
-    opacity: 0.72;
-    box-shadow: 0 0 0 4px rgba(217, 119, 6, 0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .index-status-badge__dot--pulse {
-    animation: none;
-  }
-}
-
-:global(:root[data-theme="dark"]) .index-status-badge--green {
-  color: #86efac;
-}
-
-:global(:root[data-theme="dark"]) .index-status-badge--yellow {
-  color: #fde68a;
-}
-
-:global(:root[data-theme="dark"]) .index-status-badge--red {
-  color: #fca5a5;
-}
-
-:global(:root[data-theme="dark"]) .index-status-badge--gray {
-  color: #d1d5db;
-}
-</style>

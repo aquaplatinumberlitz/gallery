@@ -4,10 +4,10 @@ import { Database, Loader, AlertCircle, ChevronDown, ChevronRight } from "lucide
 import { useCatalogStatusQuery } from "@/composables/useCatalogStatusQuery";
 import { useActiveLibrarySelection } from "@/composables/useActiveLibrarySelection";
 import Button from "@/components/ui/Button.vue";
-import Badge from "@/components/ui/Badge.vue";
 import OverflowTooltip from "@/components/ui/OverflowTooltip.vue";
 import IndexStatusBadge from "@/components/IndexStatusBadge.vue";
 import IndexStatusCard from "@/components/IndexStatusCard.vue";
+import PillIndicator from "@/components/ui/PillIndicator.vue";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { queryClient } from "@/query";
@@ -176,33 +176,19 @@ function formatCount(value: number) {
             >
               <span class="relative inline-flex">
                 <Database class="size-3.5" data-testid="catalog-database-icon" />
-                <span
-                  class="absolute -bottom-0.5 -right-0.5 size-1.5 rounded-full hidden group-data-[collapsible=icon]:block"
-                  :class="[
-                    presentation.tone === 'green'
-                      ? 'bg-green-500'
-                      : presentation.tone === 'yellow'
-                        ? 'bg-amber-500'
-                        : presentation.tone === 'red'
-                          ? 'bg-red-500'
-                          : 'bg-gray-400',
-                    presentation.showPulse ? 'animate-pulse' : '',
-                  ]"
+                <PillIndicator
+                  :variant="presentation.indicator"
+                  :pulse="presentation.showPulse"
+                  class="absolute -bottom-0.5 -right-0.5 hidden group-data-[collapsible=icon]:flex"
                   aria-hidden="true"
+                  data-testid="catalog-status-icon-indicator"
                 />
               </span>
-              <Badge
-                :variant="
-                  presentation.variant === 'destructive'
-                    ? 'destructive'
-                    : presentation.variant === 'default'
-                      ? 'outline'
-                      : 'secondary'
-                "
-                class="px-1.5 py-0 text-[10px] leading-none group-data-[collapsible=icon]:hidden"
-              >
-                {{ presentation.label }}
-              </Badge>
+              <IndexStatusBadge
+                :presentation="presentation"
+                size="compact"
+                class="group-data-[collapsible=icon]:hidden"
+              />
             </Button>
           </TooltipTrigger>
           <TooltipContent side="right">File catalog status</TooltipContent>

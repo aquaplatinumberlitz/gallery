@@ -320,12 +320,17 @@ test.describe("File catalog status panel", () => {
     expect(buttonBox!.width).toBeLessThanOrEqual(40);
     expect(buttonBox!.height).toBeLessThanOrEqual(40);
 
-    const dot = statusButton.locator("span.relative span.absolute");
-    await expect(dot).toBeAttached();
-    await expect(dot).toHaveAttribute("aria-hidden", "true");
-    await expect(dot).toHaveClass(/size-1\.5/);
+    const indicator = statusButton.getByTestId("catalog-status-icon-indicator");
+    await expect(indicator).toBeAttached();
+    await expect(indicator).toHaveAttribute("aria-hidden", "true");
+    await expect(indicator).toHaveClass(/size-\[6\.8px\]/);
+
+    const ping = indicator.locator("span.absolute");
+    await expect(ping).toHaveClass(/animate-ping/);
+
+    const dot = indicator.locator("span.relative");
     await expect(dot).toHaveClass(/rounded-full/);
-    await expect(dot).toHaveClass(/(bg-green-500|bg-amber-500|bg-red-500|bg-gray-400)/);
+    await expect(dot).toHaveClass(/(bg-emerald-500|bg-amber-500|bg-rose-500|bg-gray-500)/);
   });
 
   test("global activity outside scope does not force current scope Updating", async ({ page }) => {

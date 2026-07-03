@@ -26,10 +26,10 @@ describe("getCatalogStatusPresentation", () => {
     expect(getCatalogStatusPresentation(undefined).label).toBe("Unknown");
   });
 
-  it("marks scanning and indexing with showPulse", () => {
+  it("marks ready, scanning, and indexing with showPulse", () => {
+    expect(getCatalogStatusPresentation("ready").showPulse).toBe(true);
     expect(getCatalogStatusPresentation("scanning").showPulse).toBe(true);
     expect(getCatalogStatusPresentation("indexing").showPulse).toBe(true);
-    expect(getCatalogStatusPresentation("ready").showPulse).toBe(false);
   });
 
   it("uses destructive variant for offline and error states", () => {
@@ -40,6 +40,14 @@ describe("getCatalogStatusPresentation", () => {
   it("uses green tone for ready and red tone for error", () => {
     expect(getCatalogStatusPresentation("ready").tone).toBe("green");
     expect(getCatalogStatusPresentation("error").tone).toBe("red");
+  });
+
+  it("maps summary states to shared indicator variants", () => {
+    expect(getCatalogStatusPresentation("ready").indicator).toBe("success");
+    expect(getCatalogStatusPresentation("scanning").indicator).toBe("warning");
+    expect(getCatalogStatusPresentation("indexing").indicator).toBe("warning");
+    expect(getCatalogStatusPresentation("error").indicator).toBe("error");
+    expect(getCatalogStatusPresentation("unknown").indicator).toBe("muted");
   });
 });
 
