@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { Progress } from "@/components/ui/progress";
 import { formatLibraryProgressLabel } from "@/utils/libraryProgress";
 import type { UnifiedStatus } from "@/lib/catalog/status";
 
@@ -38,16 +39,10 @@ const indexedLabel = computed(() => {
       <span>{{ indexedLabel }}</span>
       <span v-if="!indeterminate">{{ percent }}%</span>
     </div>
-    <div
-      class="h-2 overflow-hidden rounded-full bg-muted"
-      role="progressbar"
-      :aria-valuenow="indeterminate ? undefined : percent"
-    >
-      <div
-        class="h-full rounded-full bg-success transition-[width]"
-        :class="{ 'animate-pulse': indeterminate }"
-        :style="{ width: indeterminate ? '40%' : `${percent}%` }"
-      />
-    </div>
+    <Progress
+      :model-value="indeterminate ? 40 : percent"
+      class="h-2 bg-muted"
+      :indicator-class="[indeterminate ? 'animate-pulse' : '', percent >= 100 ? 'bg-success' : 'bg-warning']"
+    />
   </div>
 </template>

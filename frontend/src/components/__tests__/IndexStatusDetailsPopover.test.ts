@@ -1,6 +1,8 @@
 import { render } from "@testing-library/vue";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "reka-ui";
+import { mount } from "@vue/test-utils";
+import { nextTick } from "vue";
 import IndexStatusDetailsPopover from "../IndexStatusDetailsPopover.vue";
 import { getCatalogStatusPresentation } from "@/lib/catalog/labels";
 import { STATUS_CONTRACT_ERROR_MESSAGE } from "@/lib/catalog/contractGuard";
@@ -59,6 +61,45 @@ function renderPopover(status: UnifiedStatus | null, extra: Record<string, unkno
     },
     { global: { components: { TooltipProvider } } },
   );
+}
+
+function indexingStatus(): UnifiedStatus {
+  return makeStatus({
+    summary_state: "indexing",
+    metadata: {
+      state: "indexing",
+      total_assets: 10,
+      ready_assets: 5,
+      not_ready_assets: 5,
+      queued_assets: 5,
+      running_assets: 0,
+      stale_assets: 0,
+      idle_pending_assets: 0,
+      failed_assets: 0,
+      progress_percent: 50,
+      global_active_outside_scope: false,
+    },
+  });
+}
+
+function mountPopover(status: UnifiedStatus) {
+  return mount(IndexStatusDetailsPopover, {
+    props: {
+      status,
+      presentation: getCatalogStatusPresentation(status.summary_state),
+    },
+    global: {
+      stubs: {
+        Button: { template: "<button><slot /></button>" },
+        IndexStatusBadge: { template: "<span />" },
+        IndexProgressBar: { props: ["percent"], template: '<div data-testid="index-progress-bar">{{ percent }}</div>' },
+        OverflowTooltip: { template: "<strong><slot /></strong>" },
+        Tooltip: { template: "<div><slot /></div>" },
+        TooltipTrigger: { template: "<div><slot /></div>" },
+        TooltipContent: { template: "<div><slot /></div>" },
+      },
+    },
+  });
 }
 
 describe("IndexStatusDetailsPopover edge states", () => {
@@ -147,5 +188,44 @@ describe("IndexStatusDetailsPopover edge states", () => {
     );
 
     expect(getByRole("button", { name: "Update current folder" })).toBeVisible();
+  });
+
+  it("middle-truncates long scope paths while keeping the full path in a tooltip", () => {
+    const path = "/home/ubuntu/gallery-repo/frontend/place/to/folder";
+    const { getByText } = renderPopover(
+      makeStatus({ scope: { kind: "path", library_id: 7, path, import_path_count: 1 } }),
+      { path },
+    );
+
+    expect(getByText("/home/ubuntu/.../place/to/folder")).toBeVisible();
+    expect(getByText(path)).toBeInTheDocument();
+  });
+
+  it("lingers at 100% briefly after indexing completes", async () => {
+    vi.useFakeTimers();
+    try {
+      const wrapper = mountPopover(indexingStatus());
+      expect(wrapper.get('[data-testid="index-progress-bar"]').text()).toBe("50");
+      expect(wrapper.text()).toContain("50% metadata processed");
+
+      const completeStatus = makeStatus();
+      await wrapper.setProps({
+        status: completeStatus,
+        presentation: getCatalogStatusPresentation(completeStatus.summary_state),
+      });
+
+      expect(wrapper.get('[data-testid="index-progress-bar"]').text()).toBe("100");
+      expect(wrapper.text()).toContain("100% metadata processed");
+
+      await vi.advanceTimersByTimeAsync(899);
+      await nextTick();
+      expect(wrapper.find('[data-testid="index-progress-bar"]').exists()).toBe(true);
+
+      await vi.advanceTimersByTimeAsync(1);
+      await nextTick();
+      expect(wrapper.find('[data-testid="index-progress-bar"]').exists()).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -91,7 +91,34 @@ describe("LibraryProgressBar", () => {
       props: { status: makeStatus() },
     });
 
-    expect(wrapper.find(".bg-success").exists()).toBe(true);
-    expect(wrapper.find(".bg-primary").exists()).toBe(false);
+    expect(wrapper.findComponent({ name: "Progress" }).props("indicatorClass")).toContain("bg-success");
+    expect(wrapper.findComponent({ name: "Progress" }).props("indicatorClass")).not.toContain("bg-primary");
+  });
+
+  it("uses the gallery warning color while progress is incomplete", () => {
+    const wrapper = mount(LibraryProgressBar, {
+      props: {
+        status: makeStatus({
+          metadata: {
+            state: "indexing",
+            total_assets: 209,
+            ready_assets: 51,
+            not_ready_assets: 158,
+            progress_percent: 24.4,
+          },
+        }),
+      },
+    });
+
+    expect(wrapper.findComponent({ name: "Progress" }).props("indicatorClass")).toContain("bg-warning");
+    expect(wrapper.findComponent({ name: "Progress" }).props("indicatorClass")).not.toContain("bg-success");
+  });
+
+  it("uses the muted color for progress track", () => {
+    const wrapper = mount(LibraryProgressBar, {
+      props: { status: makeStatus() },
+    });
+
+    expect(wrapper.findComponent({ name: "Progress" }).props("class")).toContain("bg-muted");
   });
 });

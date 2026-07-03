@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { Database } from "lucide-vue-next";
 import IndexStatusBadge from "@/components/IndexStatusBadge.vue";
 import IndexStatusDetailsPopover from "@/components/IndexStatusDetailsPopover.vue";
@@ -27,6 +27,8 @@ const emit = defineEmits<{
   (e: "scan"): void;
 }>();
 
+const COMPLETION_LINGER_MS = 900;
+
 const mediaFilesFound = computed(() => props.status?.metadata.total_assets ?? 0);
 const mediaMetadataReady = computed(() => props.status?.metadata.ready_assets ?? 0);
 const metadataProgress = computed(() => props.status?.metadata.progress_percent ?? null);
@@ -36,6 +38,54 @@ const isIndexing = computed(
 const isScanning = computed(() => props.status?.scan.state === "queued" || props.status?.scan.state === "scanning");
 const notReadyAssets = computed(() => props.status?.metadata.not_ready_assets ?? 0);
 const summaryState = computed(() => props.status?.summary_state ?? null);
+const hasLiveProgress = computed(() => isIndexing.value && metadataProgress.value !== null);
+const showCompletionProgress = ref(false);
+let sawLiveProgress = false;
+let completionTimer: ReturnType<typeof setTimeout> | undefined;
+
+function clearCompletionTimer() {
+  if (completionTimer) {
+    clearTimeout(completionTimer);
+    completionTimer = undefined;
+  }
+}
+
+function stopCompletionLinger() {
+  clearCompletionTimer();
+  showCompletionProgress.value = false;
+}
+
+function startCompletionLinger() {
+  clearCompletionTimer();
+  showCompletionProgress.value = true;
+  completionTimer = setTimeout(() => {
+    showCompletionProgress.value = false;
+    completionTimer = undefined;
+  }, COMPLETION_LINGER_MS);
+}
+
+watch(
+  hasLiveProgress,
+  (isLive, wasLive) => {
+    if (isLive) {
+      sawLiveProgress = true;
+      stopCompletionLinger();
+      return;
+    }
+
+    if (wasLive && sawLiveProgress && props.status?.metadata.state === "complete") {
+      startCompletionLinger();
+    }
+  },
+  { immediate: true },
+);
+
+onBeforeUnmount(clearCompletionTimer);
+
+const showProcessingProgress = computed(() => hasLiveProgress.value || showCompletionProgress.value);
+const processingProgressPercent = computed(() =>
+  hasLiveProgress.value ? Math.round(metadataProgress.value ?? 0) : 100,
+);
 
 const bodyText = computed(() => {
   if (!props.status) return "Loading...";
@@ -85,7 +135,9 @@ const bodyText = computed(() => {
           {{ bodyText }}
         </span>
 
-        <IndexProgressBar v-if="isIndexing && metadataProgress !== null" :percent="Math.round(metadataProgress)" />
+        <Transition name="index-progress-linger">
+          <IndexProgressBar v-if="showProcessingProgress" :percent="processingProgressPercent" />
+        </Transition>
 
         <span class="index-status-card__details">Details</span>
       </button>
@@ -166,5 +218,20 @@ const bodyText = computed(() => {
   font-size: 12px;
   font-weight: 600;
   line-height: 1.2;
+}
+
+.index-progress-linger-enter-active,
+.index-progress-linger-leave-active {
+  max-height: 8px;
+  overflow: hidden;
+  transition:
+    opacity 180ms ease,
+    max-height 180ms ease;
+}
+
+.index-progress-linger-enter-from,
+.index-progress-linger-leave-to {
+  max-height: 0;
+  opacity: 0;
 }
 </style>

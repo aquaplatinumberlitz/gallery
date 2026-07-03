@@ -715,7 +715,7 @@ useIntersectionObserver(
         v-model="gallerySortValue"
         aria-label="Sort gallery"
         trigger-label="Sort"
-        trigger-class="h-9 w-[96px] gap-2 py-0 font-normal shadow-none"
+        trigger-class="h-8 w-[74px] gap-1.5 px-2 py-0 text-xs font-normal shadow-none"
       />
 
       <!-- Density Dropdown -->
@@ -724,7 +724,7 @@ useIntersectionObserver(
           <Button
             variant="outline"
             type="button"
-            class="h-9 w-[96px] justify-between gap-2 px-3 text-sm font-normal text-foreground shadow-none gallery-density-trigger"
+            class="h-8 w-[74px] justify-between gap-1.5 px-2 text-xs font-normal text-foreground shadow-none gallery-density-trigger"
           >
             <span class="truncate">View</span>
             <ChevronDown data-icon="inline-end" class="opacity-50" />

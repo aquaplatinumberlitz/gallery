@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import Button from "@/components/ui/Button.vue";
-import OverflowTooltip from "@/components/ui/OverflowTooltip.vue";
 import IndexStatusBadge from "@/components/IndexStatusBadge.vue";
 import IndexProgressBar from "@/components/IndexProgressBar.vue";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -29,6 +28,8 @@ const emit = defineEmits<{
   (e: "scan"): void;
 }>();
 
+const COMPLETION_LINGER_MS = 900;
+
 const updateLabel = computed(() => (props.isLibraryScope ? "Update library" : "Update current folder"));
 
 const mediaFilesFound = computed(() => props.status?.metadata.total_assets ?? 0);
@@ -39,9 +40,80 @@ const isIndexing = computed(
 );
 const failedAssets = computed(() => props.status?.metadata.failed_assets ?? 0);
 const issueCount = computed(() => props.status?.issue_count ?? 0);
+const scopePathText = computed(() => props.path || "Library root");
+const scopePathDisplay = computed(() => formatMiddlePath(scopePathText.value));
+const hasLiveProgress = computed(() => isIndexing.value && metadataProgress.value !== null);
+const showCompletionProgress = ref(false);
+let sawLiveProgress = false;
+let completionTimer: ReturnType<typeof setTimeout> | undefined;
+
+function clearCompletionTimer() {
+  if (completionTimer) {
+    clearTimeout(completionTimer);
+    completionTimer = undefined;
+  }
+}
+
+function stopCompletionLinger() {
+  clearCompletionTimer();
+  showCompletionProgress.value = false;
+}
+
+function startCompletionLinger() {
+  clearCompletionTimer();
+  showCompletionProgress.value = true;
+  completionTimer = setTimeout(() => {
+    showCompletionProgress.value = false;
+    completionTimer = undefined;
+  }, COMPLETION_LINGER_MS);
+}
+
+watch(
+  hasLiveProgress,
+  (isLive, wasLive) => {
+    if (isLive) {
+      sawLiveProgress = true;
+      stopCompletionLinger();
+      return;
+    }
+
+    if (wasLive && sawLiveProgress && props.status?.metadata.state === "complete") {
+      startCompletionLinger();
+    }
+  },
+  { immediate: true },
+);
+
+onBeforeUnmount(clearCompletionTimer);
+
+const showProcessingProgress = computed(() => hasLiveProgress.value || showCompletionProgress.value);
+const processingProgressPercent = computed(() =>
+  hasLiveProgress.value ? Math.round(metadataProgress.value ?? 0) : 100,
+);
 
 function formatCount(value: number) {
   return value.toLocaleString();
+}
+
+function formatMiddlePath(value: string, maxLength = 34) {
+  if (value.length <= maxLength || value === "Library root") return value;
+
+  const normalized = value.replace(/\\/g, "/");
+  const segments = normalized.split("/").filter(Boolean);
+  const leadingSlash = normalized.startsWith("/") ? "/" : "";
+
+  if (segments.length >= 6) {
+    const head = `${leadingSlash}${segments.slice(0, 2).join("/")}`;
+    for (const tailCount of [4, 3, 2, 1]) {
+      const tail = segments.slice(-tailCount).join("/");
+      const result = `${head}/.../${tail}`;
+      if (result.length <= maxLength) return result;
+    }
+  }
+
+  const startLength = Math.max(10, Math.floor((maxLength - 3) * 0.38));
+  const endLength = maxLength - startLength - 3;
+  return `${value.slice(0, startLength)}...${value.slice(-endLength)}`;
 }
 </script>
 
@@ -94,22 +166,29 @@ function formatCount(value: number) {
         </Tooltip>
       </div>
 
-      <div v-if="isIndexing && metadataProgress !== null" class="index-details__section">
-        <p class="index-details__section-label">Processing</p>
-        <p class="index-details__muted" style="margin: 0; font-size: 12px">
-          {{ Math.round(metadataProgress) }}% metadata processed
-        </p>
-        <IndexProgressBar :percent="Math.round(metadataProgress)" />
-      </div>
+      <Transition name="index-details-progress-linger">
+        <div v-if="showProcessingProgress" class="index-details__section">
+          <p class="index-details__section-label">Processing</p>
+          <p class="index-details__muted" style="margin: 0; font-size: 12px">
+            {{ processingProgressPercent }}% metadata processed
+          </p>
+          <IndexProgressBar :percent="processingProgressPercent" />
+        </div>
+      </Transition>
 
       <div class="index-details__section">
         <p class="index-details__section-label">Location</p>
 
         <div class="index-details__row index-details__row--path">
           <span class="index-details__row-key">Scope</span>
-          <OverflowTooltip as="strong" :text="path || 'Library root'" align="end">
-            {{ path || "Library root" }}
-          </OverflowTooltip>
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <strong class="index-details__scope-path">{{ scopePathDisplay }}</strong>
+            </TooltipTrigger>
+            <TooltipContent side="left" align="end" class="max-w-[320px] break-all text-xs">
+              {{ scopePathText }}
+            </TooltipContent>
+          </Tooltip>
         </div>
 
         <div class="index-details__row">
@@ -225,6 +304,13 @@ function formatCount(value: number) {
   color: var(--gallery-error);
 }
 
+.index-details__row .index-details__scope-path {
+  direction: ltr;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
 .index-details__section {
   display: grid;
   gap: 7px;
@@ -302,5 +388,20 @@ function formatCount(value: number) {
 
 .index-details__actions {
   padding-top: 2px;
+}
+
+.index-details-progress-linger-enter-active,
+.index-details-progress-linger-leave-active {
+  max-height: 72px;
+  overflow: hidden;
+  transition:
+    opacity 180ms ease,
+    max-height 180ms ease;
+}
+
+.index-details-progress-linger-enter-from,
+.index-details-progress-linger-leave-to {
+  max-height: 0;
+  opacity: 0;
 }
 </style>

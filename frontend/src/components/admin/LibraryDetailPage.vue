@@ -20,6 +20,7 @@ import OverflowTooltip from "@/components/ui/OverflowTooltip.vue";
 import Separator from "@/components/ui/Separator.vue";
 import Skeleton from "@/components/ui/skeleton/Skeleton.vue";
 import { Card, CardContent } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { useLibrariesQuery } from "@/composables/admin/useLibrariesQuery";
 import { useLibraryEvents } from "@/composables/admin/useLibraryEvents";
 import { useLibraryJobsQuery } from "@/composables/admin/useLibraryJobsQuery";
@@ -502,13 +503,11 @@ function estimatedAssets(): number | undefined {
                   <p class="mt-1 text-sm text-muted-foreground">
                     {{ formatAssetCount(thumbnailMissing) }} thumbnails missing
                   </p>
-                  <div
-                    class="h-2 overflow-hidden rounded-full bg-muted"
-                    role="progressbar"
-                    :aria-valuenow="Math.round(thumbnailCoverageRatio * 100)"
-                  >
-                    <div class="h-full rounded-full bg-success" :style="{ width: thumbnailCoverageLabel }" />
-                  </div>
+                  <Progress
+                    :model-value="Math.round(thumbnailCoverageRatio * 100)"
+                    class="h-2 bg-muted"
+                    :indicator-class="thumbnailCoverageRatio >= 1 ? 'bg-success' : 'bg-warning'"
+                  />
                   <dl class="grid gap-3 text-sm">
                     <div class="flex items-center justify-between gap-3">
                       <dt class="text-muted-foreground">Cache size</dt>
