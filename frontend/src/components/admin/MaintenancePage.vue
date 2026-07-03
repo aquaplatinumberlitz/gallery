@@ -159,7 +159,7 @@ const needsRefreshCount = computed(() => {
         <div class="flex flex-wrap gap-2">
           <Button
             variant="outline"
-            class="border-border/80 bg-card text-foreground shadow-sm hover:bg-muted/70"
+            class="h-9 border-border/80 bg-card px-4 py-2 text-sm text-foreground shadow-sm transition-all has-[>svg]:px-3 hover:bg-muted/70"
             :disabled="rebuildMutation.isPending.value"
             @click="rebuildOpen = true"
           >
@@ -167,8 +167,13 @@ const needsRefreshCount = computed(() => {
           </Button>
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button variant="destructive" :disabled="clearMutation.isPending.value" @click="clearOpen = true">
-                <Trash2 /> Clear
+              <Button
+                variant="destructive"
+                class="[--destructive:oklch(63.7%_.237_25.331)] h-9 border border-transparent px-4 py-2 text-white shadow-none transition-all has-[>svg]:px-3 hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:[--destructive:oklch(39.6%_.141_25.723)] dark:bg-destructive/60 dark:focus-visible:ring-destructive/40"
+                :disabled="clearMutation.isPending.value"
+                @click="clearOpen = true"
+              >
+                <Trash2 class="-ms-1 opacity-60" :size="16" aria-hidden="true" /> Clear
               </Button>
             </TooltipTrigger>
             <TooltipContent>
@@ -325,7 +330,7 @@ const needsRefreshCount = computed(() => {
             </p>
           </div>
           <div class="mt-4 grid gap-4 text-sm sm:grid-cols-4">
-            <div v-for="item in repairKeys" :key="item.key" class="rounded-md bg-muted/40 p-3">
+            <div v-for="item in repairKeys" :key="item.key" class="rounded-md border border-border/70 bg-muted/60 p-3">
               <p class="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
                 {{ item.label }}
                 <Tooltip>

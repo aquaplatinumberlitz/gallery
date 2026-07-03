@@ -46,6 +46,7 @@ export function useLibraryEvents() {
         // cleanup: remove after migration to unified status. Still consumed by
         // useLibraryStatsQuery / LibraryDetailPage for storage usage stats.
         queryClient.invalidateQueries({ queryKey: queryKeys.libraryStats(payload.library_id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.generatedImages(payload.library_id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.libraryJobs(payload.library_id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.browseRoot(payload.library_id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.browseInfiniteRoot(payload.library_id) }),

@@ -37,6 +37,7 @@ import { getCatalogStatusPresentation } from "@/lib/catalog/labels";
 import { STATUS_CONTRACT_ERROR_MESSAGE } from "@/lib/catalog/contractGuard";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { MetadataState, ScanState, UnifiedStatus } from "@/lib/catalog/status";
+import IndexStatusBadge from "@/components/IndexStatusBadge.vue";
 import JobList from "./JobList.vue";
 import LibraryProgressBar from "./LibraryProgressBar.vue";
 import LibraryStatusBadge from "./LibraryStatusBadge.vue";
@@ -93,11 +94,28 @@ const availabilityLabel = computed(() => {
   if (!state) return "Unknown";
   return state.charAt(0).toUpperCase() + state.slice(1);
 });
+const availabilityDisplayLabel = computed(() =>
+  status.value?.availability.state === "available" ? "Available" : availabilityLabel.value,
+);
+const availabilityDetailLabel = computed(() => {
+  const availability = status.value?.availability;
+  if (!availability) return "—";
+  return `${availability.available_paths}/${availability.total_paths} folders`;
+});
 
 const scanStateLabel = computed(() => {
   const state = status.value?.scan.state;
   if (!state) return "Unknown";
   return scanStateLabels[state];
+});
+const scanDisplayStateLabel = computed(() => (status.value?.scan.state === "complete" ? "Ready" : scanStateLabel.value));
+const scanDetailLabel = computed(() => {
+  const scan = status.value?.scan;
+  if (!scan) return "—";
+  if (scanProgressLabel.value) return scanProgressLabel.value;
+  if (scan.state === "never") return "Run update to scan files";
+  if (scan.state === "complete") return "File catalog is current";
+  return scanStateLabel.value;
 });
 
 const metadataStateLabel = computed(() => {
@@ -107,16 +125,18 @@ const metadataStateLabel = computed(() => {
 });
 
 const metadataDisplayStateLabel = computed(() =>
-  status.value?.metadata.state === "complete" ? "Ready" : metadataStateLabel.value,
+  status.value?.scan.state === "never"
+    ? "Not measured"
+    : status.value?.metadata.state === "complete"
+      ? "Ready"
+      : metadataStateLabel.value,
 );
 
-const metadataReadyLabel = computed(() => {
+const metadataDetailLabel = computed(() => {
+  if (status.value?.scan.state === "never") return "Run update to discover assets";
   const metadata = status.value?.metadata;
-  if (!metadata || metadata.total_assets === null) return metadataDisplayStateLabel.value;
-
-  return `${metadataDisplayStateLabel.value} · ${formatAssetCount(metadata.ready_assets ?? 0)}/${formatAssetCount(
-    metadata.total_assets,
-  )}`;
+  if (!metadata || metadata.total_assets === null) return metadataStateLabel.value;
+  return `${formatAssetCount(metadata.ready_assets ?? 0)}/${formatAssetCount(metadata.total_assets)} assets`;
 });
 
 const showStatusProgress = computed(() => {
@@ -157,34 +177,112 @@ const healthSeverity = computed<"healthy" | "warning" | "error">(() => {
   if (!currentStatus || currentStatus.availability.state === "unavailable" || currentStatus.summary_state === "error") {
     return "error";
   }
+  if (currentStatus.summary_state !== "ready") return "warning";
   return hasHealthIssues.value ? "warning" : "healthy";
 });
 const healthIssueLabel = computed(() => {
   const count = status.value?.issue_count ?? 0;
   return `${formatAssetCount(count)} ${count === 1 ? "issue needs" : "issues need"} attention`;
 });
-const healthTitle = computed(() => {
-  if (healthSeverity.value === "healthy") return "Healthy";
-  if (healthSeverity.value === "warning") return "Warning";
-  return "Error";
-});
 const healthMessage = computed(() => {
-  if (healthSeverity.value === "healthy") return "No issues found";
+  if (healthSeverity.value === "healthy") return "All systems available";
   if (healthSeverity.value === "error") return "Library unavailable";
+  if (!hasHealthIssues.value) return statusPresentation.value.meaning;
   return healthIssueLabel.value;
 });
+const canUpdateFromStatus = computed(() => {
+  const summary = status.value?.summary_state;
+  return summary === "needs_scan" || summary === "needs_update";
+});
+type StatusTileTone = "healthy" | "warning" | "error";
+const statusTileTone: Record<StatusTileTone, string> = {
+  healthy: "text-success",
+  warning: "text-warning",
+  error: "text-destructive",
+};
+const statusTiles = computed<Array<{ key: string; label: string; value: string; detail: string; tone: StatusTileTone }>>(
+  () => {
+    const currentStatus = status.value;
+    const availabilityTone: StatusTileTone =
+      !currentStatus || currentStatus.availability.state === "unavailable" ? "error" : "healthy";
+    const scanTone: StatusTileTone =
+      !currentStatus || currentStatus.scan.state === "failed"
+        ? "error"
+        : currentStatus.scan.state === "complete"
+          ? "healthy"
+          : "warning";
+    const metadataTone: StatusTileTone =
+      !currentStatus || currentStatus.metadata.state === "failed"
+        ? "error"
+        : currentStatus.scan.state === "never" || currentStatus.metadata.state !== "complete"
+          ? "warning"
+          : "healthy";
+
+    return [
+      {
+        key: "availability",
+        label: "Availability",
+        value: availabilityDisplayLabel.value,
+        detail: availabilityDetailLabel.value,
+        tone: availabilityTone,
+      },
+      {
+        key: "scan",
+        label: "File update",
+        value: scanDisplayStateLabel.value,
+        detail: scanDetailLabel.value,
+        tone: scanTone,
+      },
+      {
+        key: "metadata",
+        label: "Metadata",
+        value: metadataDisplayStateLabel.value,
+        detail: metadataDetailLabel.value,
+        tone: metadataTone,
+      },
+    ];
+  },
+);
 
 const thumbnails = computed(() => generatedImagesQuery.data.value ?? null);
 const thumbnailReady = computed(() => thumbnails.value?.ready_derivatives ?? 0);
 const thumbnailExpected = computed(() => thumbnails.value?.expected_derivatives ?? 0);
 const thumbnailMissing = computed(() => Math.max(0, thumbnailExpected.value - thumbnailReady.value));
+const hasThumbnailExpectation = computed(() => thumbnailExpected.value > 0);
 const thumbnailCoverageRatio = computed(() => {
   if (!thumbnailExpected.value) return 0;
   return thumbnailReady.value / thumbnailExpected.value;
 });
-const thumbnailCoverageLabel = computed(() => formatPercent(thumbnailCoverageRatio.value));
+const thumbnailCoverageLabel = computed(() =>
+  hasThumbnailExpectation.value ? formatPercent(thumbnailCoverageRatio.value) : "Not measured",
+);
 const thumbnailSummaryLabel = computed(
-  () => `${formatAssetCount(thumbnailReady.value)}/${formatAssetCount(thumbnailExpected.value)} cached`,
+  () =>
+    hasThumbnailExpectation.value
+      ? `${formatAssetCount(thumbnailReady.value)}/${formatAssetCount(thumbnailExpected.value)} cached`
+      : "Not measured yet",
+);
+const thumbnailCacheState = computed(() =>
+  !hasThumbnailExpectation.value
+    ? {
+        label: "Cache state",
+        value: "Unknown",
+        detail: "Run a scan to measure thumbnail needs",
+        tone: "text-muted-foreground",
+      }
+    : thumbnailMissing.value > 0
+      ? {
+          label: "Missing",
+          value: `${formatAssetCount(thumbnailMissing.value)} thumbnails`,
+          detail: "Build required",
+          tone: "text-warning",
+        }
+    : {
+        label: "Cache state",
+        value: "Complete",
+        detail: "No missing thumbnails",
+        tone: "text-success",
+      },
 );
 const hasUnavailableFiles = computed(() => (statsQuery.data.value?.offline_assets ?? 0) > 0);
 
@@ -354,7 +452,10 @@ function estimatedAssets(): number | undefined {
               <div class="space-y-4">
                 <div class="flex items-start justify-between gap-3">
                   <div>
-                    <h3 class="text-sm font-semibold text-foreground">Status</h3>
+                    <div class="flex flex-wrap items-center gap-2">
+                      <h3 class="text-sm font-semibold text-foreground">Status</h3>
+                      <IndexStatusBadge v-if="status" :presentation="statusPresentation" />
+                    </div>
                     <p class="mt-1 text-sm text-muted-foreground">
                       Availability, update progress, and metadata readiness.
                     </p>
@@ -377,7 +478,6 @@ function estimatedAssets(): number | undefined {
                   </Tooltip>
                 </div>
 
-                <p class="text-sm font-semibold text-foreground">{{ statusPresentation.label }}</p>
                 <div
                   v-if="status"
                   class="rounded-md border p-3"
@@ -400,13 +500,22 @@ function estimatedAssets(): number | undefined {
                         aria-hidden="true"
                       />
                       <CircleX v-else class="mt-0.5 size-5 shrink-0 text-destructive" aria-hidden="true" />
-                      <div class="min-w-0">
-                        <p class="font-medium">{{ healthTitle }}</p>
-                        <p class="text-sm text-muted-foreground">{{ healthMessage }}</p>
+                      <div class="flex min-w-0 flex-wrap items-center gap-2">
+                        <p class="font-medium">{{ healthMessage }}</p>
+                        <Button
+                          v-if="canUpdateFromStatus"
+                          variant="outline"
+                          size="sm"
+                          class="h-7 px-2 text-xs"
+                          :disabled="busy"
+                          @click="scanMutation.mutate({ id: library.id })"
+                        >
+                          <RefreshCw data-icon="inline-start" /> Update
+                        </Button>
                       </div>
                     </div>
                     <Button
-                      v-if="healthSeverity === 'warning'"
+                      v-if="healthSeverity === 'warning' && hasHealthIssues"
                       variant="outline"
                       size="sm"
                       class="shrink-0"
@@ -426,7 +535,7 @@ function estimatedAssets(): number | undefined {
                     </Button>
                   </div>
 
-                  <div v-if="healthSeverity === 'warning' && healthDetailsOpen" class="mt-3 border-t pt-3">
+                  <div v-if="healthSeverity === 'warning' && hasHealthIssues && healthDetailsOpen" class="mt-3 border-t pt-3">
                     <div class="grid gap-3 text-sm sm:grid-cols-3">
                       <div v-for="issue in issueBreakdown" :key="issue.label">
                         <p class="text-xs text-muted-foreground">{{ issue.label }}</p>
@@ -443,28 +552,22 @@ function estimatedAssets(): number | undefined {
                     </div>
                   </div>
                 </div>
-                <dl class="grid gap-3 text-sm">
-                  <div class="flex items-center justify-between gap-3">
-                    <dt class="text-muted-foreground">Availability</dt>
-                    <dd class="text-right font-medium">
-                      {{ availabilityLabel }}
-                      <span v-if="status" class="text-muted-foreground">
-                        · {{ status.availability.available_paths }}/{{ status.availability.total_paths }} folders
-                      </span>
-                    </dd>
+                <div v-if="status" class="grid gap-3 text-sm sm:grid-cols-3">
+                  <div
+                    v-for="tile in statusTiles"
+                    :key="tile.key"
+                    class="rounded-md border border-border/70 bg-muted/60 p-3"
+                  >
+                    <p class="text-xs font-medium text-muted-foreground">{{ tile.label }}</p>
+                    <p class="mt-1 flex items-center gap-1.5 font-semibold" :class="statusTileTone[tile.tone]">
+                      <CircleCheck v-if="tile.tone === 'healthy'" class="size-4 shrink-0" aria-hidden="true" />
+                      <AlertTriangle v-else-if="tile.tone === 'warning'" class="size-4 shrink-0" aria-hidden="true" />
+                      <CircleX v-else class="size-4 shrink-0" aria-hidden="true" />
+                      <span>{{ tile.value }}</span>
+                    </p>
+                    <p class="mt-1 text-xs text-muted-foreground">{{ tile.detail }}</p>
                   </div>
-                  <div class="flex items-center justify-between gap-3">
-                    <dt class="text-muted-foreground">File update</dt>
-                    <dd class="text-right font-medium">
-                      {{ scanStateLabel }}
-                      <span v-if="scanProgressLabel" class="text-muted-foreground"> · {{ scanProgressLabel }}</span>
-                    </dd>
-                  </div>
-                  <div class="flex items-center justify-between gap-3">
-                    <dt class="text-muted-foreground">Metadata</dt>
-                    <dd class="text-right font-medium">{{ metadataReadyLabel }}</dd>
-                  </div>
-                </dl>
+                </div>
                 <LibraryProgressBar v-if="showStatusProgress" :status="status" />
               </div>
             </CardContent>
@@ -497,27 +600,53 @@ function estimatedAssets(): number | undefined {
                 </div>
 
                 <template v-if="thumbnails">
-                  <p class="text-sm font-semibold text-foreground">
-                    {{ thumbnailSummaryLabel }} · {{ thumbnailCoverageLabel }}
-                  </p>
-                  <p class="mt-1 text-sm text-muted-foreground">
-                    {{ formatAssetCount(thumbnailMissing) }} thumbnails missing
-                  </p>
+                  <div class="rounded-md border border-border/70 bg-muted/60 p-3">
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="min-w-0">
+                        <div class="flex min-w-0 items-center gap-2.5">
+                          <ImageIcon class="size-4 shrink-0 text-foreground/70" aria-hidden="true" />
+                          <p class="font-semibold text-foreground">{{ thumbnailSummaryLabel }}</p>
+                        </div>
+                        <p v-if="thumbnailMissing > 0" class="mt-1 text-sm text-muted-foreground">
+                          {{ formatAssetCount(thumbnailMissing) }} thumbnails missing
+                        </p>
+                      </div>
+                      <p
+                        class="shrink-0 text-sm font-semibold tabular-nums"
+                        :class="[
+                          hasThumbnailExpectation
+                            ? thumbnailCoverageRatio >= 1
+                              ? 'text-success'
+                              : 'text-warning'
+                            : 'text-muted-foreground',
+                        ]"
+                      >
+                        {{ thumbnailCoverageLabel }}
+                      </p>
+                    </div>
+                  </div>
                   <Progress
                     :model-value="Math.round(thumbnailCoverageRatio * 100)"
                     class="h-2 bg-muted"
-                    :indicator-class="thumbnailCoverageRatio >= 1 ? 'bg-success' : 'bg-warning'"
+                    :indicator-class="
+                      hasThumbnailExpectation ? (thumbnailCoverageRatio >= 1 ? 'bg-success' : 'bg-warning') : 'bg-muted'
+                    "
                   />
-                  <dl class="grid gap-3 text-sm">
-                    <div class="flex items-center justify-between gap-3">
-                      <dt class="text-muted-foreground">Cache size</dt>
-                      <dd class="font-medium">{{ formatBytes(thumbnails.quota_used_bytes) }}</dd>
+                  <div class="grid gap-3 text-sm sm:grid-cols-3">
+                    <div class="rounded-md border border-border/70 bg-muted/60 p-3">
+                      <p class="text-xs font-medium text-muted-foreground">Cache size</p>
+                      <p class="mt-1 font-semibold text-foreground">{{ formatBytes(thumbnails.quota_used_bytes) }}</p>
                     </div>
-                    <div class="flex items-center justify-between gap-3">
-                      <dt class="text-muted-foreground">Limit</dt>
-                      <dd class="font-medium">{{ formatBytes(thumbnails.quota_bytes) }}</dd>
+                    <div class="rounded-md border border-border/70 bg-muted/60 p-3">
+                      <p class="text-xs font-medium text-muted-foreground">Limit</p>
+                      <p class="mt-1 font-semibold text-foreground">{{ formatBytes(thumbnails.quota_bytes) }}</p>
                     </div>
-                  </dl>
+                    <div class="rounded-md border border-border/70 bg-muted/60 p-3">
+                      <p class="text-xs font-medium text-muted-foreground">{{ thumbnailCacheState.label }}</p>
+                      <p class="mt-1 font-semibold" :class="thumbnailCacheState.tone">{{ thumbnailCacheState.value }}</p>
+                      <p class="mt-1 text-xs text-muted-foreground">{{ thumbnailCacheState.detail }}</p>
+                    </div>
+                  </div>
                   <Button
                     v-if="thumbnailMissing > 0"
                     variant="outline"
@@ -563,7 +692,7 @@ function estimatedAssets(): number | undefined {
                   <div
                     v-for="path in library.import_paths"
                     :key="path.id"
-                    class="flex min-w-0 items-center gap-2 rounded-md bg-muted/50 px-3 py-2"
+                    class="flex min-w-0 items-center gap-2 rounded-md border border-border/70 bg-muted/60 px-3 py-2"
                   >
                     <OverflowTooltip :text="path.path" class="min-w-0 flex-1 font-mono text-xs" align="start">
                       {{ path.path }}

@@ -95,6 +95,7 @@ export function useLibraryMutations() {
         // cleanup: remove after migration to unified status. Still consumed by
         // useLibraryStatsQuery / LibraryDetailPage for storage usage stats.
         queryClient.invalidateQueries({ queryKey: queryKeys.libraryStats(id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.generatedImages(id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.libraryJobs(id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.jobsRoot() }),
         queryClient.invalidateQueries({ queryKey: queryKeys.galleryStats() }),
@@ -116,6 +117,7 @@ export function useLibraryMutations() {
         queryClient.invalidateQueries({ queryKey: queryKeys.librariesRoot() }),
         queryClient.invalidateQueries({ queryKey: queryKeys.galleryStats() }),
         queryClient.invalidateQueries({ queryKey: queryKeys.jobsRoot() }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.generatedImagesRoot() }),
         queryClient.invalidateQueries({ queryKey: queryKeys.statusRoot() }),
       ]);
     },

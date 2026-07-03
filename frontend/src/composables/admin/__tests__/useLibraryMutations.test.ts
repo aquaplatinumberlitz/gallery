@@ -90,6 +90,7 @@ describe("useLibraryMutations invalidation", () => {
     await mutations.scanMutation.mutateAsync({ id: 3 });
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.libraryJobs(3) });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.generatedImages(3) });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.jobsRoot() });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusLibrary(3) });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusPathRoot(3) });
@@ -105,6 +106,7 @@ describe("useLibraryMutations invalidation", () => {
     await mutations.scanAllMutation.mutateAsync();
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.jobsRoot() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.generatedImagesRoot() });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusRoot() });
     wrapper.unmount();
   });

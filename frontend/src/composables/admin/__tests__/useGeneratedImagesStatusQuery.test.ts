@@ -3,7 +3,7 @@ import { mount } from "@vue/test-utils";
 import { defineComponent, h } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchGeneratedImagesStatus } from "@/services/api";
-import { useGeneratedImagesStatusQuery } from "../useGeneratedImagesStatusQuery";
+import { generatedImagesNeedActivePolling, useGeneratedImagesStatusQuery } from "../useGeneratedImagesStatusQuery";
 
 vi.mock("@/services/api", () => ({
   fetchGeneratedImagesStatus: vi.fn(),
@@ -40,6 +40,13 @@ beforeEach(() => {
 });
 
 describe("useGeneratedImagesStatusQuery", () => {
+  it("polls only while derivative coverage is incomplete", () => {
+    expect(generatedImagesNeedActivePolling(undefined)).toBe(false);
+    expect(generatedImagesNeedActivePolling({ ...mockStatus, expected_derivatives: 0, ready_derivatives: 0 })).toBe(false);
+    expect(generatedImagesNeedActivePolling({ ...mockStatus, expected_derivatives: 200, ready_derivatives: 45 })).toBe(true);
+    expect(generatedImagesNeedActivePolling({ ...mockStatus, expected_derivatives: 200, ready_derivatives: 200 })).toBe(false);
+  });
+
   it("fetches status when library id is provided", async () => {
     const { result } = setup(1);
     await vi.waitFor(() => expect(result.data.value).toEqual(mockStatus));

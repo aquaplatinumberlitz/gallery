@@ -113,6 +113,7 @@ async function invalidateAfterAction(id: number) {
     queryClient.invalidateQueries({ queryKey: queryKeys.statusLibrary(id) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.statusPathRoot(id) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.statusBatch() }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.generatedImages(id) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.browseRoot(id) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.browseInfiniteRoot(id) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.libraries() }),
