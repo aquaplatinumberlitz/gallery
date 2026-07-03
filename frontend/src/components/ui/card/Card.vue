@@ -9,12 +9,9 @@ const props = defineProps<{
 
 <template>
   <div
-    data-sidebar="content"
+    data-slot="card"
     :class="
-      cn(
-        'flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden',
-        props.class,
-      )
+      cn('flex flex-col gap-6 rounded-xl border border-border bg-card py-6 text-card-foreground shadow-sm', props.class)
     "
   >
     <slot />

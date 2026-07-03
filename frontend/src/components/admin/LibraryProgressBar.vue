@@ -44,7 +44,7 @@ const indexedLabel = computed(() => {
       :aria-valuenow="indeterminate ? undefined : percent"
     >
       <div
-        class="h-full rounded-full bg-primary transition-[width]"
+        class="h-full rounded-full bg-success transition-[width]"
         :class="{ 'animate-pulse': indeterminate }"
         :style="{ width: indeterminate ? '40%' : `${percent}%` }"
       />

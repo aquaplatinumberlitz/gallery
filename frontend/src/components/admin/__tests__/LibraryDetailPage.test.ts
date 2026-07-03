@@ -444,6 +444,8 @@ describe("LibraryDetailPage", () => {
     expect(wrapper.text()).toContain("75/100 cached");
     expect(wrapper.text()).toContain("25 thumbnails missing");
     expect(wrapper.text()).toContain("Build missing thumbnails");
+    expect(wrapper.find(".bg-success").exists()).toBe(true);
+    expect(wrapper.find(".bg-primary").exists()).toBe(false);
   });
 
   it("renders jobs with actual data", () => {

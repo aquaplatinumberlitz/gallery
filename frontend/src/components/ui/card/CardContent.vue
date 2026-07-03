@@ -8,15 +8,7 @@ const props = defineProps<{
 </script>
 
 <template>
-  <div
-    data-sidebar="content"
-    :class="
-      cn(
-        'flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden',
-        props.class,
-      )
-    "
-  >
+  <div data-slot="card-content" :class="cn('px-6', props.class)">
     <slot />
   </div>
 </template>

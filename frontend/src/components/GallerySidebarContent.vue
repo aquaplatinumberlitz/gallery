@@ -32,7 +32,7 @@ const indexStatusVariant = computed(() => (isMobile.value || isCollapsed.value ?
     <LibrarySidebarHeader />
   </ShadSidebarHeader>
 
-  <SidebarContent class="border-t border-sidebar-border/55 pt-2">
+  <SidebarContent class="border-t border-sidebar-border/55 pt-2 group-data-[collapsible=icon]:border-t-0">
     <SidebarGroup class="min-h-0 px-3 pb-3 pt-1 group-data-[collapsible=icon]:px-2">
       <SidebarGroupLabel as="div" class="sidebar-title" id="folder-tree-label">
         <span>Folder Tree</span>

@@ -85,4 +85,13 @@ describe("LibraryProgressBar", () => {
     expect(wrapper.text()).toContain("51 / 209 metadata ready");
     expect(wrapper.text()).toContain("24%");
   });
+
+  it("uses the gallery success color for progress fill", () => {
+    const wrapper = mount(LibraryProgressBar, {
+      props: { status: makeStatus() },
+    });
+
+    expect(wrapper.find(".bg-success").exists()).toBe(true);
+    expect(wrapper.find(".bg-primary").exists()).toBe(false);
+  });
 });
