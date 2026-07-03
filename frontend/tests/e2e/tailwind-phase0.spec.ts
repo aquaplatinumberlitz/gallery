@@ -146,6 +146,7 @@ async function dismissMobileSidebar(page: Page) {
 async function openStubbedGallery(page: Page) {
   await page.addInitScript(() => {
     localStorage.setItem("intro_mode", "disabled");
+    localStorage.setItem("gallery-theme", "light");
     localStorage.setItem("gallery-active-library-id", "1");
     localStorage.setItem("gallery-active-import-path-id", "10");
   });
@@ -169,21 +170,19 @@ test.describe("Tailwind Phase 0 — Desktop (1440x900)", () => {
   });
 
   test("1b. theme toggle works and changes data-theme", async ({ page }) => {
-    const themeToggle = page.locator('[aria-label="Theme"]');
+    const themeToggle = page.getByLabel(/Switch to (dark|light) mode/);
     await expect(themeToggle).toBeVisible();
 
     const initialTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
 
-    // Open dropdown, then click Dark
+    // Toggle directly to dark
     await themeToggle.click();
-    await page.locator('[role="menuitem"]', { hasText: "Dark" }).click();
     await expect
       .poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme")))
       .toBe("dark");
 
-    // Open dropdown, then click Light
+    // Toggle directly back to light
     await themeToggle.click();
-    await page.locator('[role="menuitem"]', { hasText: "Light" }).click();
     await expect
       .poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme")))
       .toBe(initialTheme);
@@ -193,7 +192,7 @@ test.describe("Tailwind Phase 0 — Desktop (1440x900)", () => {
     const searchInput = page.locator("#gallery-search");
     await expect(searchInput).toBeVisible({ timeout: 5000 });
 
-    const sortBtn = page.getByRole("combobox", { name: "Sort gallery" });
+    const sortBtn = page.getByRole("button", { name: "Sort gallery" });
     await expect(sortBtn).toBeVisible({ timeout: 5000 });
   });
 
@@ -347,12 +346,11 @@ test.describe("Tailwind Phase 0 — Theme smoke test", () => {
     await installStubbedGallery(page);
     await openStubbedGallery(page);
 
-    const themeToggle = page.locator('[aria-label="Theme"]');
+    const themeToggle = page.getByLabel(/Switch to (dark|light) mode/);
     await expect(themeToggle).toBeVisible();
 
-    // Open dropdown, then click Dark
+    // Toggle directly to dark
     await themeToggle.click();
-    await page.locator('[role="menuitem"]', { hasText: "Dark" }).click();
     await expect
       .poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme")))
       .toBe("dark");
@@ -363,9 +361,8 @@ test.describe("Tailwind Phase 0 — Theme smoke test", () => {
     const cardCount = await cards.count();
     expect(cardCount).toBeGreaterThanOrEqual(1);
 
-    // Open dropdown, then click Light
+    // Toggle directly back to light
     await themeToggle.click();
-    await page.locator('[role="menuitem"]', { hasText: "Light" }).click();
     await expect
       .poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme")))
       .toBe("light");
@@ -413,18 +410,16 @@ test.describe("Tailwind Phase 0 — Theme smoke test", () => {
 
     // The @custom-variant dark selector uses data-theme="dark"
     // Verify it's present and functioning by checking a dark-mode CSS variable
-    const themeToggle = page.locator('[aria-label="Theme"]');
+    const themeToggle = page.getByLabel(/Switch to (dark|light) mode/);
 
     // Toggle to dark
     await themeToggle.click();
-    await page.locator('[role="menuitem"]', { hasText: "Dark" }).click();
     await expect
       .poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme")))
       .toBe("dark");
 
     // Toggle back to light
     await themeToggle.click();
-    await page.locator('[role="menuitem"]', { hasText: "Light" }).click();
     await expect
       .poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme")))
       .toBe("light");

@@ -6,7 +6,7 @@ import AppHeader from "../AppHeader.vue";
 
 let currentRoutePath = "/gallery";
 let currentResolvedTheme = "light";
-const setThemeMock = vi.fn();
+const toggleThemeMock = vi.fn();
 const fieldedFiltersRef = ref<unknown[]>([]);
 const queryStringRef = ref("");
 let fieldedSearchIsActive = false;
@@ -44,7 +44,7 @@ vi.mock("@/composables/useGalleryTheme", () => ({
   useGalleryTheme: () => ({
     mode: "light",
     resolvedTheme: currentResolvedTheme,
-    setTheme: setThemeMock,
+    toggleTheme: toggleThemeMock,
   }),
 }));
 
@@ -103,7 +103,6 @@ vi.mock("@/stores/gallery", () => ({
 vi.mock("lucide-vue-next", () => ({
   Sun: { template: '<svg data-testid="sun-icon" />', props: ["class"] },
   Moon: { template: '<svg data-testid="moon-icon" />', props: ["class"] },
-  Monitor: { template: '<svg data-testid="monitor-icon" />', props: ["class"] },
   Search: { template: '<svg data-testid="search-icon" />', props: ["class"] },
   X: { template: '<svg data-testid="x-icon" />', props: ["class"] },
   SlidersHorizontal: { template: "<svg />", props: ["class"] },
@@ -135,10 +134,6 @@ function createWrapper(props: Record<string, unknown> = {}) {
         Button: { template: "<button @click='$emit(\"click\")'><slot /></button>" },
         ButtonLink: { template: "<a :href='to' @click='$emit(\"click\")'><slot /></a>" },
         Input: { template: "<input :value='modelValue' @input='$emit(\"update:modelValue\", $event.target.value)' />" },
-        DropdownMenu: { template: "<div><slot /></div>" },
-        DropdownMenuContent: { template: "<div><slot /></div>" },
-        DropdownMenuItem: { template: "<div data-testid='dropdown-item' @click='$emit(\"click\")'><slot /></div>" },
-        DropdownMenuTrigger: { template: "<div><slot /></div>" },
         Tooltip: { template: "<span><slot /></span>" },
         TooltipTrigger: { template: "<span><slot /></span>" },
         TooltipContent: { template: "<span><slot /></span>" },
@@ -170,7 +165,7 @@ describe("AppHeader", () => {
     setActivePinia(createPinia());
     currentRoutePath = "/gallery";
     currentResolvedTheme = "light";
-    setThemeMock.mockClear();
+    toggleThemeMock.mockClear();
     fieldedFiltersRef.value = [];
     queryStringRef.value = "";
     fieldedSearchIsActive = false;
@@ -279,11 +274,12 @@ describe("AppHeader", () => {
     expect(wrapper.text()).not.toContain("Maintenance");
   });
 
-  it("shows Moon icon when dark theme", () => {
+  it("shows the light-mode action when dark theme is active", () => {
     currentResolvedTheme = "dark";
     const wrapper = createWrapper();
-    expect(wrapper.find('[aria-label="Theme"] [data-testid="moon-icon"]').exists()).toBe(true);
-    expect(wrapper.find('[aria-label="Theme"] [data-testid="sun-icon"]').exists()).toBe(false);
+    const themeButton = wrapper.find('[aria-label="Switch to light mode"]');
+    expect(themeButton.exists()).toBe(true);
+    expect(themeButton.classes()).toContain("is-dark");
   });
 
   it("opens and closes advanced search drawer", async () => {
@@ -330,20 +326,15 @@ describe("AppHeader", () => {
     expect(clearAllMock).toHaveBeenCalled();
   });
 
-  it("calls setTheme with theme value from menu items", async () => {
+  it("toggles theme from the pill button", async () => {
     const wrapper = createWrapper();
-    const lightBtn = wrapper.findAll('[data-testid="dropdown-item"]').find((el) => el.text().includes("Light"));
-    expect(lightBtn).toBeDefined();
-    await lightBtn!.trigger("click");
-    expect(setThemeMock).toHaveBeenCalledWith("light");
+    await wrapper.find('[aria-label="Switch to dark mode"]').trigger("click");
+    expect(toggleThemeMock).toHaveBeenCalledTimes(1);
+  });
 
-    const darkBtn = wrapper.findAll('[data-testid="dropdown-item"]').find((el) => el.text().includes("Dark"));
-    await darkBtn!.trigger("click");
-    expect(setThemeMock).toHaveBeenCalledWith("dark");
-
-    const systemBtn = wrapper.findAll('[data-testid="dropdown-item"]').find((el) => el.text().includes("System"));
-    await systemBtn!.trigger("click");
-    expect(setThemeMock).toHaveBeenCalledWith("system");
+  it("does not render a native title tooltip on the theme button", () => {
+    const wrapper = createWrapper();
+    expect(wrapper.find('[aria-label="Switch to dark mode"]').attributes("title")).toBeUndefined();
   });
 
   it("shows Maintenance link on maintenance route", () => {
@@ -356,6 +347,6 @@ describe("AppHeader", () => {
 
   it("renders Sun icon on light theme button", () => {
     const wrapper = createWrapper();
-    expect(wrapper.find('[aria-label="Theme"] [data-testid="sun-icon"]').exists()).toBe(true);
+    expect(wrapper.find('[aria-label="Switch to dark mode"] [data-testid="sun-icon"]').exists()).toBe(true);
   });
 });

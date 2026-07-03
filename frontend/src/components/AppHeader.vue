@@ -9,7 +9,6 @@ import {
   Menu,
   Sun,
   Moon,
-  Monitor,
   SlidersHorizontal,
   Table2,
   Library,
@@ -19,12 +18,6 @@ import {
 import Button from "@/components/ui/Button.vue";
 import ButtonLink from "@/components/ui/ButtonLink.vue";
 import Input from "@/components/ui/Input.vue";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useGalleryTheme } from "@/composables/useGalleryTheme";
 import { useFieldedSearch } from "@/composables/useFieldedSearch";
@@ -57,7 +50,7 @@ const emit = defineEmits<{
   "open-settings": [];
 }>();
 
-const { mode, resolvedTheme, setTheme } = useGalleryTheme();
+const { resolvedTheme, toggleTheme } = useGalleryTheme();
 const {
   fieldedFilters,
   isActive: isFieldedSearchActive,
@@ -276,32 +269,25 @@ function handleClearAll() {
           <Wrench class="size-4" />
           <span>Maintenance</span>
         </ButtonLink>
-        <DropdownMenu>
-          <DropdownMenuTrigger as-child>
-            <span class="inline-flex">
-              <Tooltip>
-                <TooltipTrigger as-child>
-                  <Button variant="ghost" size="icon" aria-label="Theme">
-                    <Sun v-if="resolvedTheme === 'light'" class="size-4" />
-                    <Moon v-else class="size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Theme</TooltipContent>
-              </Tooltip>
-            </span>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem @click="setTheme('light')" :class="{ 'bg-accent': mode === 'light' }">
-              <Sun class="mr-2 size-4" /> Light
-            </DropdownMenuItem>
-            <DropdownMenuItem @click="setTheme('dark')" :class="{ 'bg-accent': mode === 'dark' }">
-              <Moon class="mr-2 size-4" /> Dark
-            </DropdownMenuItem>
-            <DropdownMenuItem @click="setTheme('system')" :class="{ 'bg-accent': mode === 'system' }">
-              <Monitor class="mr-2 size-4" /> System
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <button
+              type="button"
+              class="theme-pill-toggle"
+              :class="{ 'is-dark': resolvedTheme === 'dark' }"
+              :aria-label="resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
+              @click="toggleTheme"
+            >
+              <span class="theme-pill-thumb" aria-hidden="true">
+                <Sun class="theme-pill-icon theme-pill-icon-sun" />
+                <Moon class="theme-pill-icon theme-pill-icon-moon" />
+              </span>
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {{ resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode" }}
+          </TooltipContent>
+        </Tooltip>
       </div>
       <div v-if="!isMetadataRoute && !isAdminRoute" class="header-search-area">
         <div class="search-box">
@@ -391,111 +377,100 @@ h1 {
   color: var(--foreground);
 }
 
-.theme-toggle {
+.theme-pill-toggle {
   position: relative;
-  width: 72px;
-  height: 36px;
-  border: none;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  width: 56px;
+  height: 32px;
+  border: 2px solid #e8d5b7;
+  background: #fef3c7;
   padding: 0;
-  border-radius: 50px;
+  border-radius: 999px;
   cursor: pointer;
-  transition: all 0.4s cubic-bezier(0.68, -0.15, 0.265, 1.35);
-  box-shadow:
-    inset 0 2px 4px rgba(0, 0, 0, 0.2),
-    0 4px 12px rgba(102, 126, 234, 0.3);
+  transition:
+    border-color 300ms cubic-bezier(0.68, -0.55, 0.265, 1.55),
+    background-color 300ms cubic-bezier(0.68, -0.55, 0.265, 1.55),
+    transform 160ms ease;
 }
 
-.theme-toggle.is-dark {
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-  box-shadow:
-    inset 0 2px 4px rgba(0, 0, 0, 0.4),
-    0 4px 12px rgba(0, 0, 0, 0.4);
+.theme-pill-toggle.is-dark {
+  border-color: #2d2a4e;
+  background: #1a1838;
 }
 
-.toggle-track {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  height: 100%;
-  padding: 0 10px;
+.theme-pill-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring-shadow);
 }
 
-.toggle-thumb {
+.theme-pill-toggle:hover {
+  transform: translateY(-1px);
+}
+
+.theme-pill-toggle:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.theme-pill-thumb {
   position: absolute;
-  left: 4px;
   top: 50%;
-  transform: translateY(-50%);
-  width: 28px;
-  height: 28px;
-  background: var(--card);
+  left: 2px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.4s cubic-bezier(0.68, -0.15, 0.265, 1.35);
-  box-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.2),
-    0 1px 2px rgba(0, 0, 0, 0.1);
-  z-index: 2;
+  background: #ff9500;
+  color: #fff;
+  transform: translate3d(0, -50%, 0);
+  transition:
+    transform 300ms cubic-bezier(0.68, -0.55, 0.265, 1.55),
+    background-color 300ms cubic-bezier(0.68, -0.55, 0.265, 1.55);
 }
 
-.theme-toggle.is-dark .toggle-thumb {
-  left: calc(100% - 32px);
-  background: linear-gradient(180deg, #ffd54f 0%, #ffb300 100%);
-  box-shadow:
-    0 2px 8px rgba(255, 213, 79, 0.4),
-    0 0 20px rgba(255, 213, 79, 0.3);
+.theme-pill-toggle.is-dark .theme-pill-thumb {
+  background: #e8e6f0;
+  color: #1a1838;
+  transform: translate3d(24px, -50%, 0);
 }
 
-.toggle-thumb svg {
-  width: 18px;
-  height: 18px;
-  color: #764ba2;
-  transition: all 0.3s ease;
-}
-
-.theme-toggle.is-dark .toggle-thumb svg {
-  color: #1a1a2e;
-}
-
-.icon-left,
-.icon-right {
+.theme-pill-icon {
+  grid-column: 1;
+  grid-row: 1;
+  display: block;
   width: 16px;
   height: 16px;
-  opacity: 0.6;
-  transition: all 0.3s ease;
-  z-index: 1;
+  transform-origin: center;
+  transition:
+    opacity 300ms cubic-bezier(0.68, -0.55, 0.265, 1.55),
+    transform 300ms cubic-bezier(0.68, -0.55, 0.265, 1.55);
 }
 
-.icon-left {
-  color: #ffd54f;
+.theme-pill-icon-sun {
+  opacity: 1;
+  transform: rotate(0deg) scale(1);
 }
 
-.icon-right {
-  color: #fff;
+.theme-pill-icon-moon {
+  opacity: 0;
+  transform: rotate(-90deg) scale(0.5);
 }
 
-.theme-toggle:hover {
-  transform: scale(1.05);
+.theme-pill-toggle.is-dark .theme-pill-icon-sun {
+  opacity: 0;
+  transform: rotate(90deg) scale(0.5);
 }
 
-.theme-toggle:hover .toggle-thumb {
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.25),
-    0 2px 4px rgba(0, 0, 0, 0.15);
+.theme-pill-toggle.is-dark .theme-pill-icon-moon {
+  opacity: 1;
+  transform: rotate(0deg) scale(1);
 }
 
-.theme-toggle.is-dark:hover .toggle-thumb {
-  box-shadow:
-    0 4px 16px rgba(255, 213, 79, 0.5),
-    0 0 30px rgba(255, 213, 79, 0.4);
-}
-
-.theme-toggle:active {
-  transform: scale(0.98);
+@media (prefers-reduced-motion: reduce) {
+  .theme-pill-toggle,
+  .theme-pill-thumb,
+  .theme-pill-icon {
+    transition: none;
+  }
 }
 
 .search-box {
@@ -844,7 +819,7 @@ h1 {
     color: var(--foreground);
   }
 
-  .theme-toggle {
+  .theme-pill-toggle {
     display: none;
   }
 
