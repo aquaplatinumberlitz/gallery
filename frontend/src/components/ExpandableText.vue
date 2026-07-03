@@ -202,8 +202,8 @@ watch(
 }
 
 .expandable-text__toggle:focus-visible {
-  outline: 2px solid rgba(96, 190, 255, 0.75);
-  outline-offset: 2px;
+  outline: none;
   border-radius: 4px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
 }
 </style>

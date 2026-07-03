@@ -121,7 +121,7 @@ const { resolvedTheme } = useGalleryTheme();
 
 [data-sonner-toast][data-styled="true"] .gallery-toast__close[data-close-button]:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring, #3b82f6) 22%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring, #3b82f6) 50%, transparent);
 }
 
 .gallery-toast__action {

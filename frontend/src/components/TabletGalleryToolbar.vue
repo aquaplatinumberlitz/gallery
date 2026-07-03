@@ -331,7 +331,7 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
 .sort-option:focus-visible,
 .density-option:focus-visible {
   outline: none;
-  box-shadow: var(--focus-ring-shadow);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
 }
 
 /* Dark mode support: surface adjustments */

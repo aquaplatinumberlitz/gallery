@@ -385,7 +385,7 @@ const gallerySortValue = computed<SortValue>({
 /* When input is focused, subtle ring */
 .search-focus-input-wrap:focus-within {
   border-color: var(--ring);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 20%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
 }
 
 .search-focus-input-icon {

@@ -105,7 +105,7 @@
 
   --font-body: "InterVariable", "Segoe UI", "SF Pro Display", system-ui, -apple-system, sans-serif;
   --font-code: "JetBrains Mono", monospace;
-  --focus-ring-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring);
+  --focus-ring-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
 
   /* Legacy shadow tokens (giữ tương thích) */
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px 1px rgba(0, 0, 0, 0.15);
@@ -150,7 +150,7 @@
   --brand-section-muted: #b0b3b8;
   --brand-neon-color: #d6a15d;
   --brand-neon-border-color: #08f;
-  --focus-ring-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring);
+  --focus-ring-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
 
   /* Legacy shadow tokens (dark mode) */
   --shadow-card: 0 1px 3px 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.7);

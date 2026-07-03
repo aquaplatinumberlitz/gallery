@@ -14,7 +14,7 @@ const delegatedProps = reactiveOmit(props, "class");
   <TabsContent
     :class="
       cn(
-        'mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        'mt-2 focus-visible:outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
         props.class,
       )
     "

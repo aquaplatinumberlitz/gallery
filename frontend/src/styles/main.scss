@@ -201,7 +201,7 @@ html[data-theme="dark"] .search-box {
 
 html[data-theme="dark"] .search-box:focus-within {
   border-color: var(--ring);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 35%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
 }
 
 /* Dark mode neon effect for sidebar field-container */
@@ -212,7 +212,7 @@ html[data-theme="dark"] .field-container {
 
 html[data-theme="dark"] .field-container:focus-within {
   border-color: var(--ring);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 35%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
 }
 
 /* Dark mode neon effect for theme-toggle button */

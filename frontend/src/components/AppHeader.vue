@@ -392,7 +392,7 @@ h1 {
 
 .theme-pill-toggle:focus-visible {
   outline: none;
-  box-shadow: var(--focus-ring-shadow);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
 }
 
 .theme-pill-toggle:hover {
@@ -486,7 +486,7 @@ h1 {
 
 .search-box:focus-within {
   border-color: var(--ring);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 20%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
 }
 
 .header-search-area {
@@ -535,6 +535,11 @@ h1 {
 .search-box .search-action-btn:hover {
   background: color-mix(in srgb, var(--foreground) 7%, transparent);
   color: var(--foreground);
+}
+
+.search-box .search-action-btn:focus-visible {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
 }
 
 .search-box .search-action-btn:active {

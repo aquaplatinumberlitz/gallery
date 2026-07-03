@@ -434,7 +434,7 @@ const actionIconComponent = computed(() => {
 
 .action-btn:focus-visible {
   outline: none;
-  box-shadow: var(--focus-ring-shadow);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
 }
 
 .action-btn:active {

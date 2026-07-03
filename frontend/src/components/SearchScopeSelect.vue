@@ -123,9 +123,8 @@ function handleUpdate(value: unknown) {
 }
 
 .search-scope-select-trigger:focus-visible {
-  box-shadow:
-    0 0 0 2px color-mix(in srgb, var(--background) 90%, transparent),
-    0 0 0 4px color-mix(in srgb, var(--ring) 24%, transparent);
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
 }
 
 .search-scope-select-trigger-compact {

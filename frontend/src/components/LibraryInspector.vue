@@ -6,20 +6,25 @@ import {
   getSortedRowModel,
   useVueTable,
   type SortingState,
+  type VisibilityState,
 } from "@tanstack/vue-table";
 import { useVirtualizer } from "@tanstack/vue-virtual";
-import { ArrowUpDown, Copy, ExternalLink, MoreHorizontal, Search } from "lucide-vue-next";
+import { ArrowUpDown, Columns3, Copy, ExternalLink, MoreHorizontal, Search, X } from "lucide-vue-next";
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
 import Input from "@/components/ui/Input.vue";
 import SortSelect from "@/components/SortSelect.vue";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -81,6 +86,7 @@ const tableStateToSortValue = (id: string, desc: boolean): SortValue | null => {
   return null;
 };
 const sorting = ref<SortingState>(sortValueToTableState(inspectorSort.value));
+const columnVisibility = ref<VisibilityState>({});
 const modelFilter = computed({
   get: () => galleryStore.metadataInspector.modelFilter,
   set: (value: string) => {
@@ -292,6 +298,18 @@ const columns = [
   columnHelper.accessor("mtime", { id: "mtime", header: "Modified", enableSorting: true }),
   columnHelper.display({ id: "actions", header: "", enableSorting: false }),
 ];
+type HideableColumnId = "prompt" | "model" | "seed" | "dimensions" | "mtime";
+
+const HIDEABLE_COLUMNS: { id: HideableColumnId; label: string; width: number }[] = [
+  { id: "prompt", label: "Prompt", width: 390 },
+  { id: "model", label: "Model", width: 150 },
+  { id: "seed", label: "Seed", width: 110 },
+  { id: "dimensions", label: "Size", width: 96 },
+  { id: "mtime", label: "Modified", width: 160 },
+];
+
+const PINNED_COLUMN_MIN_WIDTH = 416;
+const MIN_METADATA_TABLE_WIDTH = 720;
 
 const modelOptions = computed(() => {
   const options = new Set<string>();
@@ -316,6 +334,7 @@ const filteredRows = computed(() =>
     return true;
   }),
 );
+const activeFilterCount = computed(() => Number(modelFilter.value !== "all") + Number(promptFilter.value !== "all"));
 watch(inspectorSort, (value) => {
   const next = sortValueToTableState(value);
   if (sorting.value[0]?.id !== next[0]?.id || sorting.value[0]?.desc !== next[0]?.desc) {
@@ -340,14 +359,31 @@ const table = useVueTable({
     get sorting() {
       return sorting.value;
     },
+    get columnVisibility() {
+      return columnVisibility.value;
+    },
   },
   onSortingChange(updater) {
     const next = typeof updater === "function" ? updater(sorting.value) : updater;
     sorting.value = next;
   },
+  onColumnVisibilityChange(updater) {
+    columnVisibility.value = typeof updater === "function" ? updater(columnVisibility.value) : updater;
+  },
   enableSortingRemoval: false,
   getCoreRowModel: getCoreRowModel(),
   getSortedRowModel: getSortedRowModel(),
+});
+const hiddenColumnCount = computed(
+  () => HIDEABLE_COLUMNS.filter((column) => table.getColumn(column.id)?.getIsVisible() === false).length,
+);
+const visibleColumnSpan = computed(() => 2 + HIDEABLE_COLUMNS.length - hiddenColumnCount.value);
+const metadataTableMinWidth = computed(() => {
+  const visibleColumnsWidth = HIDEABLE_COLUMNS.reduce(
+    (total, column) => total + (table.getColumn(column.id)?.getIsVisible() === false ? 0 : column.width),
+    0,
+  );
+  return Math.max(MIN_METADATA_TABLE_WIDTH, PINNED_COLUMN_MIN_WIDTH + visibleColumnsWidth);
 });
 
 const visibleTableRows = computed(() => table.getRowModel().rows);
@@ -600,37 +636,95 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
 
     <div class="table-toolbar">
       <div class="inspector-search relative">
-        <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/80" />
         <Input
           v-model="query"
           type="search"
-          class="h-9 pl-9"
-          placeholder="Search/filter metadata table... prompt:ancient door, model:sdxl, seed:123456"
+          class="h-10 pl-9 pr-9 shadow-sm focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          placeholder="Search metadata, prompt, model, seed..."
           aria-label="Search metadata table"
         />
+        <button
+          v-if="query"
+          type="button"
+          class="search-clear-button"
+          aria-label="Clear metadata search"
+          @click="query = ''"
+        >
+          <X class="size-4" aria-hidden="true" />
+        </button>
       </div>
+      <Badge v-if="activeFilterCount" variant="secondary" class="filter-count-badge">
+        {{ activeFilterCount }} {{ activeFilterCount === 1 ? "filter" : "filters" }}
+      </Badge>
       <Select v-model="modelFilter">
-        <SelectTrigger class="toolbar-select">
+        <SelectTrigger
+          class="metadata-toolbar-trigger toolbar-select h-10 border-input bg-background text-sm font-normal text-foreground shadow-sm"
+        >
           <SelectValue placeholder="Model" />
         </SelectTrigger>
         <SelectContent align="end">
-          <SelectItem value="all"> All models </SelectItem>
-          <SelectItem v-for="model in modelOptions" :key="model" :value="model">
-            {{ model }}
-          </SelectItem>
+          <SelectGroup>
+            <SelectItem value="all"> All models </SelectItem>
+            <SelectItem v-for="model in modelOptions" :key="model" :value="model">
+              {{ model }}
+            </SelectItem>
+          </SelectGroup>
         </SelectContent>
       </Select>
       <Select v-model="promptFilter">
-        <SelectTrigger class="toolbar-select">
+        <SelectTrigger
+          class="metadata-toolbar-trigger toolbar-select h-10 border-input bg-background text-sm font-normal text-foreground shadow-sm"
+        >
           <SelectValue placeholder="Has prompt" />
         </SelectTrigger>
         <SelectContent align="end">
-          <SelectItem value="all"> All prompts </SelectItem>
-          <SelectItem value="has_prompt"> Has prompt </SelectItem>
-          <SelectItem value="no_prompt"> No prompt </SelectItem>
+          <SelectGroup>
+            <SelectItem value="all"> All prompts </SelectItem>
+            <SelectItem value="has_prompt"> Has prompt </SelectItem>
+            <SelectItem value="no_prompt"> No prompt </SelectItem>
+          </SelectGroup>
         </SelectContent>
       </Select>
-      <SortSelect v-model="inspectorSort" aria-label="Sort metadata table" />
+      <SortSelect
+        v-model="inspectorSort"
+        aria-label="Sort metadata table"
+        trigger-class="h-10 w-[150px] border-input bg-background text-sm font-normal text-foreground shadow-sm"
+      />
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <Button
+            variant="outline"
+            type="button"
+            class="metadata-toolbar-trigger toolbar-view-button"
+            aria-label="Toggle metadata table columns"
+          >
+            <span class="inline-flex min-w-0 items-center gap-2">
+              <Columns3 class="size-4 opacity-60" aria-hidden="true" />
+              <span class="truncate">View</span>
+            </span>
+            <span v-if="hiddenColumnCount" class="toolbar-count-pill" aria-hidden="true">
+              {{ hiddenColumnCount }}
+            </span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" class="w-44">
+          <DropdownMenuLabel class="text-xs text-muted-foreground">Columns</DropdownMenuLabel>
+          <DropdownMenuGroup>
+            <DropdownMenuCheckboxItem
+              v-for="column in HIDEABLE_COLUMNS"
+              :key="column.id"
+              :model-value="table.getColumn(column.id)?.getIsVisible() !== false"
+              @update:model-value="
+                (value: boolean | 'indeterminate') => table.getColumn(column.id)?.toggleVisibility(!!value)
+              "
+              @select="(event: Event) => event.preventDefault()"
+            >
+              {{ column.label }}
+            </DropdownMenuCheckboxItem>
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
 
     <div
@@ -649,7 +743,7 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
       :class="['metadata-table-shell table-shell', isInspectorDataStale && 'table-shell--rebuilding']"
       @scroll.passive="saveInspectorScroll"
     >
-      <Table class="inspector-table w-full table-fixed">
+      <Table class="inspector-table w-full table-fixed" :style="{ minWidth: `${metadataTableMinWidth}px` }">
         <TableHeader class="table-header bg-muted">
           <TableRow
             v-for="headerGroup in table.getHeaderGroups()"
@@ -697,14 +791,14 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
         </TableHeader>
         <TableBody>
           <TableRow v-if="inspectorQuery.isLoading.value">
-            <TableCell colspan="7" class="p-4">
+            <TableCell :colspan="visibleColumnSpan" class="p-4">
               <div class="space-y-2">
                 <Skeleton v-for="idx in 8" :key="idx" class="h-10 w-full" />
               </div>
             </TableCell>
           </TableRow>
           <TableRow v-else-if="visibleTableRows.length === 0">
-            <TableCell colspan="7" class="p-8 text-center text-sm text-muted-foreground">
+            <TableCell :colspan="visibleColumnSpan" class="p-8 text-center text-sm text-muted-foreground">
               {{ isInspectorDataStale ? "Refreshing metadata rows…" : "No indexed metadata rows." }}
             </TableCell>
           </TableRow>
@@ -715,7 +809,7 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
               class="virtual-spacer-row"
               :style="{ height: `${virtualPaddingTop}px` }"
             >
-              <TableCell colspan="7" class="p-0" />
+              <TableCell :colspan="visibleColumnSpan" class="p-0" />
             </TableRow>
             <TableRow
               v-for="virtualRow in virtualRows"
@@ -777,7 +871,7 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                   </div>
                 </div>
               </TableCell>
-              <TableCell class="table-cell col-prompt">
+              <TableCell v-if="table.getColumn('prompt')?.getIsVisible()" class="table-cell col-prompt">
                 <div class="prompt-cell min-w-0 overflow-hidden">
                   <Popover
                     v-if="
@@ -863,7 +957,7 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                   >
                 </div>
               </TableCell>
-              <TableCell class="table-cell col-model">
+              <TableCell v-if="table.getColumn('model')?.getIsVisible()" class="table-cell col-model">
                 <div class="space-y-1">
                   <span
                     :class="[
@@ -942,11 +1036,11 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                   </Popover>
                 </div>
               </TableCell>
-              <TableCell class="table-cell col-seed">
+              <TableCell v-if="table.getColumn('seed')?.getIsVisible()" class="table-cell col-seed">
                 <Tooltip v-if="visibleTableRows[virtualRow.index].original.seed">
                   <TooltipTrigger as-child>
                     <button
-                      class="inline-flex cursor-copy items-center gap-1 rounded-sm font-mono text-xs hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      class="inline-flex cursor-copy items-center gap-1 rounded-sm font-mono text-xs hover:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                       type="button"
                       :aria-label="`Copy seed ${visibleTableRows[virtualRow.index].original.seed}`"
                       @click.stop="copyText(visibleTableRows[virtualRow.index].original.seed, 'seed')"
@@ -959,19 +1053,25 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                 </Tooltip>
                 <span v-else class="text-muted-foreground">-</span>
               </TableCell>
-              <TableCell class="table-cell col-dimensions whitespace-nowrap">
+              <TableCell
+                v-if="table.getColumn('dimensions')?.getIsVisible()"
+                class="table-cell col-dimensions whitespace-nowrap"
+              >
                 {{ formatDimensions(visibleTableRows[virtualRow.index].original) }}
               </TableCell>
-              <TableCell class="table-cell col-mtime whitespace-nowrap">
+              <TableCell
+                v-if="table.getColumn('mtime')?.getIsVisible()"
+                class="table-cell col-mtime whitespace-nowrap"
+              >
                 {{ formatDate(visibleTableRows[virtualRow.index].original.mtime) }}
               </TableCell>
               <TableCell class="table-cell col-actions">
                 <DropdownMenu v-model:open="rowMenuOpen[visibleTableRows[virtualRow.index].original.path]">
                   <DropdownMenuTrigger as-child>
-                    <span class="inline-flex">
+                    <span class="inline-flex" @click.stop>
                       <Tooltip>
                         <TooltipTrigger as-child>
-                          <Button variant="ghost" size="icon-sm" aria-label="Row actions" @click.stop>
+                          <Button variant="ghost" size="icon-sm" aria-label="Row actions">
                             <MoreHorizontal class="size-4" />
                           </Button>
                         </TooltipTrigger>
@@ -979,54 +1079,64 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                       </Tooltip>
                     </span>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem @click="openImage(visibleTableRows[virtualRow.index].original)">
-                      <ExternalLink class="size-4" /> Open image
-                    </DropdownMenuItem>
-                    <DropdownMenuItem @click="copyText(visibleTableRows[virtualRow.index].original.path, 'path')">
-                      <Copy class="size-4" /> Copy path
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      v-if="visibleTableRows[virtualRow.index].original.seed"
-                      @click="copyText(visibleTableRows[virtualRow.index].original.seed, 'seed')"
-                    >
-                      <Copy class="size-4" /> Copy seed
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      v-if="visibleTableRows[virtualRow.index].original.has_prompt"
-                      @select="
-                        (event: Event) =>
-                          handleCopyDetailSelect(event, visibleTableRows[virtualRow.index].original, 'prompt')
-                      "
-                    >
-                      <Copy class="size-4" /> Copy prompt
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      v-if="visibleTableRows[virtualRow.index].original.has_negative"
-                      @select="
-                        (event: Event) =>
-                          handleCopyDetailSelect(event, visibleTableRows[virtualRow.index].original, 'negative')
-                      "
-                    >
-                      <Copy class="size-4" /> Copy negative
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      v-if="visibleTableRows[virtualRow.index].original.has_lora"
-                      @select="
-                        (event: Event) =>
-                          handleCopyDetailSelect(event, visibleTableRows[virtualRow.index].original, 'loras')
-                      "
-                    >
-                      <Copy class="size-4" /> Copy LoRA list
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      @select="
-                        (event: Event) =>
-                          handleCopyDetailSelect(event, visibleTableRows[virtualRow.index].original, 'metadata')
-                      "
-                    >
-                      <Copy class="size-4" /> Copy full metadata
-                    </DropdownMenuItem>
+                  <DropdownMenuContent align="end" class="w-56">
+                    <DropdownMenuGroup>
+                      <DropdownMenuItem @click="openImage(visibleTableRows[virtualRow.index].original)">
+                        <ExternalLink class="size-4" /> Open image
+                      </DropdownMenuItem>
+                    </DropdownMenuGroup>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel class="text-xs text-muted-foreground">Copy basic</DropdownMenuLabel>
+                    <DropdownMenuGroup>
+                      <DropdownMenuItem @click="copyText(visibleTableRows[virtualRow.index].original.path, 'path')">
+                        <Copy class="size-4" /> Copy path
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        v-if="visibleTableRows[virtualRow.index].original.seed"
+                        @click="copyText(visibleTableRows[virtualRow.index].original.seed, 'seed')"
+                      >
+                        <Copy class="size-4" /> Copy seed
+                      </DropdownMenuItem>
+                    </DropdownMenuGroup>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel class="text-xs text-muted-foreground">Copy metadata detail</DropdownMenuLabel>
+                    <DropdownMenuGroup>
+                      <DropdownMenuItem
+                        v-if="visibleTableRows[virtualRow.index].original.has_prompt"
+                        @select="
+                          (event: Event) =>
+                            handleCopyDetailSelect(event, visibleTableRows[virtualRow.index].original, 'prompt')
+                        "
+                      >
+                        <Copy class="size-4" /> Copy prompt
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        v-if="visibleTableRows[virtualRow.index].original.has_negative"
+                        @select="
+                          (event: Event) =>
+                            handleCopyDetailSelect(event, visibleTableRows[virtualRow.index].original, 'negative')
+                        "
+                      >
+                        <Copy class="size-4" /> Copy negative
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        v-if="visibleTableRows[virtualRow.index].original.has_lora"
+                        @select="
+                          (event: Event) =>
+                            handleCopyDetailSelect(event, visibleTableRows[virtualRow.index].original, 'loras')
+                        "
+                      >
+                        <Copy class="size-4" /> Copy LoRA list
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        @select="
+                          (event: Event) =>
+                            handleCopyDetailSelect(event, visibleTableRows[virtualRow.index].original, 'metadata')
+                        "
+                      >
+                        <Copy class="size-4" /> Copy full metadata
+                      </DropdownMenuItem>
+                    </DropdownMenuGroup>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </TableCell>
@@ -1037,10 +1147,10 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
               class="virtual-spacer-row"
               :style="{ height: `${virtualPaddingBottom}px` }"
             >
-              <TableCell colspan="7" class="p-0" />
+              <TableCell :colspan="visibleColumnSpan" class="p-0" />
             </TableRow>
             <TableRow v-if="inspectorQuery.isFetchingNextPage.value" class="load-more-row">
-              <TableCell colspan="7" class="px-4 py-3 text-center text-xs text-muted-foreground">
+              <TableCell :colspan="visibleColumnSpan" class="px-4 py-3 text-center text-xs text-muted-foreground">
                 Loading more metadata rows...
               </TableCell>
             </TableRow>
@@ -1077,21 +1187,97 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
 }
 
 .inspector-search {
-  min-width: 280px;
+  min-width: 240px;
   flex: 1 1 420px;
+  margin-block: 3px;
+  margin-left: 3px;
 }
 
 .table-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   min-width: 0;
 }
 
 .toolbar-select {
-  height: 36px;
+  height: 40px;
   width: 150px;
   flex: 0 0 auto;
+}
+
+.metadata-toolbar-trigger {
+  height: 40px;
+  border-color: var(--input);
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 400;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+.metadata-toolbar-trigger:hover,
+.metadata-toolbar-trigger[data-state="open"] {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.search-clear-button {
+  position: absolute;
+  inset-block: 0;
+  right: 0;
+  display: inline-flex;
+  width: 40px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0 6px 6px 0;
+  background: transparent;
+  color: color-mix(in srgb, var(--muted-foreground) 80%, transparent);
+}
+
+.search-clear-button:hover {
+  color: var(--foreground);
+}
+
+.search-clear-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
+}
+
+.filter-count-badge {
+  height: 20px;
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--background);
+  color: color-mix(in srgb, var(--muted-foreground) 70%, transparent);
+  padding-inline: 4px;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.toolbar-view-button {
+  width: auto;
+  justify-content: space-between;
+  padding-inline: 12px;
+}
+
+.toolbar-count-pill {
+  display: inline-flex;
+  min-width: 18px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--background);
+  color: color-mix(in srgb, var(--muted-foreground) 70%, transparent);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1;
+  padding-inline: 4px;
 }
 
 .gallery-icon-sm {
@@ -1199,7 +1385,7 @@ button.metadata-header-control:hover {
 
 button.metadata-header-control:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 1px var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
 }
 
 .metadata-header-label {

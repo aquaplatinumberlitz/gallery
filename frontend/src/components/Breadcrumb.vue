@@ -285,7 +285,7 @@ const closeMenu = () => {
 
 .ellipsis-btn:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
 }
 
 :root[data-theme="dark"] .ellipsis-btn {
@@ -321,7 +321,7 @@ const closeMenu = () => {
 
 .collapse-btn:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
 }
 
 :root[data-theme="dark"] .collapse-btn {
@@ -388,7 +388,7 @@ const closeMenu = () => {
 
 .ellipsis-menu-item:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
 }
 
 .ellipsis-menu-divider {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Check, ChevronDown } from "lucide-vue-next";
+import { Check, ChevronDown, ChevronUp } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import {
   DropdownMenu,
@@ -31,8 +31,8 @@ const modelValue = defineModel<SortValue>({ required: true });
 
 const activeField = computed<SortField>(() => (modelValue.value.startsWith("name") ? "name" : "date"));
 const activeDirection = computed<SortDirection>(() => (modelValue.value.endsWith("_asc") ? "asc" : "desc"));
-const activeArrow = computed(() => (activeDirection.value === "asc" ? "↑" : "↓"));
-const selectedLabel = computed(() => `${activeField.value === "name" ? "Name" : "Modified"} ${activeArrow.value}`);
+const activeDirectionLabel = computed(() => (activeDirection.value === "asc" ? "ascending" : "descending"));
+const selectedLabel = computed(() => (activeField.value === "name" ? "Name" : "Modified"));
 
 function defaultDirectionFor(field: SortField): SortDirection {
   return field === "name" ? "asc" : "desc";
@@ -57,10 +57,16 @@ function selectField(field: SortField) {
         variant="outline"
         type="button"
         :class="cn('h-9 w-[150px] justify-between px-3 text-sm font-normal text-foreground shadow-none', triggerClass)"
-        :aria-label="ariaLabel || 'Sort'"
+        :aria-label="ariaLabel || `Sort by ${selectedLabel} ${activeDirectionLabel}`"
       >
         <span class="truncate">{{ triggerLabel ?? (prefix ? `${prefix} ${selectedLabel}` : selectedLabel) }}</span>
-        <ChevronDown data-icon="inline-end" class="opacity-50" aria-hidden="true" />
+        <ChevronUp
+          v-if="activeDirection === 'asc'"
+          data-icon="inline-end"
+          class="opacity-60"
+          aria-hidden="true"
+        />
+        <ChevronDown v-else data-icon="inline-end" class="opacity-60" aria-hidden="true" />
       </Button>
     </DropdownMenuTrigger>
 
@@ -78,9 +84,16 @@ function selectField(field: SortField) {
             aria-hidden="true"
           />
           <span class="flex-1">{{ option.label }}</span>
-          <span v-if="option.field === activeField" class="text-muted-foreground" aria-hidden="true">
-            {{ activeArrow }}
-          </span>
+          <ChevronUp
+            v-if="option.field === activeField && activeDirection === 'asc'"
+            class="gallery-icon-sm text-muted-foreground"
+            aria-hidden="true"
+          />
+          <ChevronDown
+            v-else-if="option.field === activeField"
+            class="gallery-icon-sm text-muted-foreground"
+            aria-hidden="true"
+          />
         </DropdownMenuItem>
       </DropdownMenuGroup>
     </DropdownMenuContent>

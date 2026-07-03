@@ -381,8 +381,8 @@ onMounted(() => {
 
 /* Focus state for accessibility */
 .enter-btn:focus-visible {
-  outline: 2px solid #c9a962;
-  outline-offset: 4px;
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
 }
 
 .intro-fallback {
