@@ -37,7 +37,7 @@ function selectImportPath(value: unknown) {
 </script>
 
 <template>
-  <div class="relative border-b bg-surface p-4 group-data-[collapsible=icon]:p-1">
+  <div class="relative bg-sidebar p-4 pb-3 group-data-[collapsible=icon]:p-1">
     <SidebarTrigger
       class="absolute right-2 top-2 z-20 size-7 group-data-[collapsible=icon]:static group-data-[collapsible=icon]:mx-auto"
     />
@@ -59,14 +59,17 @@ function selectImportPath(value: unknown) {
         <p class="text-xs text-destructive">Could not load libraries.</p>
         <Button size="sm" variant="outline" @click="librariesQuery.refetch()">Retry</Button>
       </div>
-      <div v-else-if="!eligibleLibraries.length" class="space-y-3 rounded-md border border-dashed p-3 text-center">
+      <div
+        v-else-if="!eligibleLibraries.length"
+        class="space-y-3 rounded-lg border border-dashed border-sidebar-border/70 bg-sidebar-accent/35 p-3 text-center"
+      >
         <p class="text-sm font-medium">No libraries registered</p>
         <ButtonLink to="/admin/libraries" size="sm">Add Library</ButtonLink>
       </div>
       <template v-else-if="isMobile">
         <button
           type="button"
-          class="flex w-full items-center gap-2 rounded-md border p-3 text-left"
+          class="flex w-full items-center gap-2 rounded-lg bg-sidebar-accent/45 p-3 text-left shadow-sm ring-1 ring-sidebar-border/55 transition-colors hover:bg-sidebar-accent/70"
           @click="sheetOpen = true"
         >
           <FolderOpen class="size-4 shrink-0 text-primary" />

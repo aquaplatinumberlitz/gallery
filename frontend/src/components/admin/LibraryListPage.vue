@@ -88,7 +88,7 @@ function created(library: RegisteredLibrary) {
 </script>
 
 <template>
-  <main class="h-full overflow-y-auto rounded-xl border bg-card p-4 sm:p-6" aria-labelledby="libraries-heading">
+  <main class="h-full overflow-y-auto rounded-xl bg-muted/20 p-4 sm:p-6" aria-labelledby="libraries-heading">
     <div class="mx-auto max-w-7xl space-y-6">
       <header class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -111,24 +111,26 @@ function created(library: RegisteredLibrary) {
       </header>
 
       <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Gallery statistics">
-        <div class="rounded-md border bg-background p-4">
-          <p class="text-xs text-muted-foreground">Libraries</p>
-          <p class="mt-1 text-2xl font-semibold">{{ statsQuery.data.value?.library_count ?? libraries.length }}</p>
+        <div class="rounded-lg bg-card p-4 shadow-sm ring-1 ring-border/40">
+          <p class="text-xs font-medium text-muted-foreground">Libraries</p>
+          <p class="mt-1 text-2xl font-semibold tabular-nums">
+            {{ statsQuery.data.value?.library_count ?? libraries.length }}
+          </p>
         </div>
-        <div class="rounded-md border bg-background p-4">
-          <p class="text-xs text-muted-foreground">Media files</p>
-          <p class="mt-1 text-lg font-semibold">
+        <div class="rounded-lg bg-card p-4 shadow-sm ring-1 ring-border/40">
+          <p class="text-xs font-medium text-muted-foreground">Media files</p>
+          <p class="mt-1 text-lg font-semibold tabular-nums">
             {{ formatAssetCount(statsQuery.data.value?.photos) }} photos ·
             {{ formatAssetCount(statsQuery.data.value?.videos) }} videos
           </p>
         </div>
-        <div class="rounded-md border bg-background p-4">
-          <p class="text-xs text-muted-foreground">Storage used</p>
-          <p class="mt-1 text-2xl font-semibold">{{ formatBytes(statsQuery.data.value?.usage_bytes) }}</p>
+        <div class="rounded-lg bg-card p-4 shadow-sm ring-1 ring-border/40">
+          <p class="text-xs font-medium text-muted-foreground">Storage used</p>
+          <p class="mt-1 text-2xl font-semibold tabular-nums">{{ formatBytes(statsQuery.data.value?.usage_bytes) }}</p>
         </div>
-        <div class="rounded-md border bg-background p-4">
-          <p class="text-xs text-muted-foreground">Queued jobs</p>
-          <p class="mt-1 text-2xl font-semibold">{{ activeJobs }}</p>
+        <div class="rounded-lg bg-card p-4 shadow-sm ring-1 ring-border/40">
+          <p class="text-xs font-medium text-muted-foreground">Queued jobs</p>
+          <p class="mt-1 text-2xl font-semibold tabular-nums">{{ activeJobs }}</p>
         </div>
       </section>
 
@@ -157,7 +159,7 @@ function created(library: RegisteredLibrary) {
 
       <section
         v-else-if="libraries.length === 0"
-        class="grid min-h-72 place-items-center rounded-md border border-dashed p-8 text-center"
+        class="grid min-h-72 place-items-center rounded-lg border border-dashed border-border/60 bg-card p-8 text-center shadow-sm"
       >
         <div class="max-w-md space-y-3">
           <Library class="mx-auto size-10 text-muted-foreground" />
@@ -168,10 +170,10 @@ function created(library: RegisteredLibrary) {
       </section>
 
       <template v-else>
-        <div class="hidden overflow-hidden rounded-md border lg:block">
+        <div class="hidden overflow-hidden rounded-lg bg-card shadow-sm ring-1 ring-border/50 lg:block">
           <Table>
             <TableHeader>
-              <TableRow>
+              <TableRow class="bg-muted/45 hover:bg-muted/45">
                 <TableHead>Library</TableHead><TableHead>Folder</TableHead><TableHead>Status</TableHead
                 ><TableHead>File catalog</TableHead><TableHead>File catalog updated</TableHead
                 ><TableHead>Metadata updated</TableHead
@@ -235,7 +237,11 @@ function created(library: RegisteredLibrary) {
         </div>
 
         <div class="grid gap-3 lg:hidden">
-          <article v-for="library in libraries" :key="library.id" class="rounded-md border bg-background p-4">
+          <article
+            v-for="library in libraries"
+            :key="library.id"
+            class="rounded-lg bg-card p-4 shadow-sm ring-1 ring-border/45"
+          >
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
                 <button

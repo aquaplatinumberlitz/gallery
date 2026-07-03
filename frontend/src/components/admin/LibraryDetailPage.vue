@@ -207,13 +207,13 @@ function estimatedAssets(): number | undefined {
 </script>
 
 <template>
-  <main class="h-full overflow-y-auto rounded-xl border bg-card p-4 sm:p-6" aria-labelledby="library-heading">
+  <main class="h-full overflow-y-auto rounded-xl bg-muted/20 p-4 sm:p-6" aria-labelledby="library-heading">
     <div class="mx-auto max-w-6xl space-y-6">
       <ButtonLink to="/admin/libraries" variant="ghost" class="-ml-3"><ArrowLeft /> Libraries</ButtonLink>
 
       <div
         v-if="!libraryId || libraryQuery.isError.value"
-        class="grid min-h-72 place-items-center rounded-md border border-dashed p-8 text-center"
+        class="grid min-h-72 place-items-center rounded-lg border border-dashed border-border/60 bg-card p-8 text-center shadow-sm"
       >
         <div class="space-y-3">
           <h2 class="text-xl font-semibold">Library not found</h2>
@@ -265,19 +265,25 @@ function estimatedAssets(): number | undefined {
         <section class="space-y-4">
           <h3 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Overview</h3>
           <dl v-if="statsQuery.data.value" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div>
+            <div class="rounded-lg bg-card p-4 shadow-sm ring-1 ring-border/40">
               <dt class="text-sm text-muted-foreground">Photos</dt>
-              <dd class="mt-1 text-2xl font-semibold">{{ formatAssetCount(statsQuery.data.value.photos) }}</dd>
+              <dd class="mt-1 text-2xl font-semibold tabular-nums">
+                {{ formatAssetCount(statsQuery.data.value.photos) }}
+              </dd>
             </div>
-            <div>
+            <div class="rounded-lg bg-card p-4 shadow-sm ring-1 ring-border/40">
               <dt class="text-sm text-muted-foreground">Videos</dt>
-              <dd class="mt-1 text-2xl font-semibold">{{ formatAssetCount(statsQuery.data.value.videos) }}</dd>
+              <dd class="mt-1 text-2xl font-semibold tabular-nums">
+                {{ formatAssetCount(statsQuery.data.value.videos) }}
+              </dd>
             </div>
-            <div>
+            <div class="rounded-lg bg-card p-4 shadow-sm ring-1 ring-border/40">
               <dt class="text-sm text-muted-foreground">Storage</dt>
-              <dd class="mt-1 text-2xl font-semibold">{{ formatBytes(statsQuery.data.value.usage_bytes) }}</dd>
+              <dd class="mt-1 text-2xl font-semibold tabular-nums">
+                {{ formatBytes(statsQuery.data.value.usage_bytes) }}
+              </dd>
             </div>
-            <div>
+            <div class="rounded-lg bg-card p-4 shadow-sm ring-1 ring-border/40">
               <dt class="flex items-center gap-1 text-sm text-muted-foreground">
                 Files
                 <Tooltip>
@@ -299,7 +305,7 @@ function estimatedAssets(): number | undefined {
                   </TooltipContent>
                 </Tooltip>
               </dt>
-              <dd class="mt-1 text-lg font-semibold">
+              <dd class="mt-1 text-lg font-semibold tabular-nums">
                 {{ formatAssetCount(statsQuery.data.value.active_assets) }} available
                 <span v-if="hasUnavailableFiles">
                   · {{ formatAssetCount(statsQuery.data.value.offline_assets) }} unavailable
@@ -311,7 +317,7 @@ function estimatedAssets(): number | undefined {
         </section>
 
         <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.9fr)]">
-          <section class="rounded-md border bg-background p-5">
+          <section class="rounded-lg bg-card p-5 shadow-sm ring-1 ring-border/45">
             <div class="space-y-4">
               <div class="flex items-start justify-between gap-3">
                 <div>
@@ -430,7 +436,7 @@ function estimatedAssets(): number | undefined {
             </div>
           </section>
 
-          <section class="rounded-md border bg-background p-5">
+          <section class="rounded-lg bg-card p-5 shadow-sm ring-1 ring-border/45">
             <div class="space-y-4">
               <div class="flex items-start justify-between gap-3">
                 <div>
@@ -506,7 +512,7 @@ function estimatedAssets(): number | undefined {
             </Button>
           </div>
           <div class="grid gap-4 md:grid-cols-2">
-            <section class="rounded-md border bg-background p-4">
+            <section class="rounded-lg bg-card p-4 shadow-sm ring-1 ring-border/40">
               <div class="flex items-center justify-between gap-3">
                 <h4 class="text-sm font-semibold">{{ libraryFolderLabel }}</h4>
                 <span class="text-xs text-muted-foreground">{{ library.import_paths.length }}</span>
@@ -533,7 +539,7 @@ function estimatedAssets(): number | undefined {
               </div>
             </section>
 
-            <section class="rounded-md border bg-background p-4">
+            <section class="rounded-lg bg-card p-4 shadow-sm ring-1 ring-border/40">
               <div class="flex items-center justify-between gap-3">
                 <h4 class="text-sm font-semibold">Excluded paths</h4>
                 <span class="text-xs text-muted-foreground">{{ library.exclusion_patterns.length }}</span>
@@ -555,7 +561,7 @@ function estimatedAssets(): number | undefined {
           </div>
         </section>
 
-        <section class="rounded-md border bg-background p-5">
+        <section class="rounded-lg bg-card p-5 shadow-sm ring-1 ring-border/45">
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 class="font-semibold">Recent job history</h3>
@@ -586,7 +592,7 @@ function estimatedAssets(): number | undefined {
           <JobList class="mt-4" :jobs="jobsQuery.data.value ?? []" />
         </section>
 
-        <section class="rounded-md border bg-background p-5">
+        <section class="rounded-lg bg-card p-5 shadow-sm ring-1 ring-border/45">
           <h3 class="font-semibold">File catalog lifecycle</h3>
           <Separator class="my-4" />
           <dl class="grid gap-4 text-sm sm:grid-cols-4">
@@ -609,7 +615,7 @@ function estimatedAssets(): number | undefined {
           </dl>
         </section>
 
-        <section class="space-y-3 rounded-md border border-destructive/30 bg-background p-5">
+        <section class="space-y-3 rounded-lg bg-card p-5 shadow-sm ring-1 ring-destructive/30">
           <h3 class="text-sm font-semibold uppercase tracking-wide text-destructive">Danger zone</h3>
           <p class="text-sm text-muted-foreground">
             Unregistering removes this library from the catalog. Files are not deleted.

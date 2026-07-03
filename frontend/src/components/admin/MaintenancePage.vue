@@ -140,7 +140,7 @@ const needsRefreshCount = computed(() => {
 </script>
 
 <template>
-  <main class="h-full overflow-y-auto rounded-xl border bg-card p-4 sm:p-6" aria-labelledby="maintenance-heading">
+  <main class="h-full overflow-y-auto rounded-xl bg-muted/20 p-4 sm:p-6" aria-labelledby="maintenance-heading">
     <div class="mx-auto max-w-6xl space-y-6">
       <header class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -168,7 +168,7 @@ const needsRefreshCount = computed(() => {
         </div>
       </header>
 
-      <section class="rounded-md border bg-background p-4">
+      <section class="rounded-lg bg-card p-4 shadow-sm ring-1 ring-border/40">
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 class="text-sm font-semibold">Imported data flow</h3>
@@ -200,7 +200,7 @@ const needsRefreshCount = computed(() => {
       </section>
 
       <div class="grid gap-4 md:grid-cols-2">
-        <section class="rounded-md border bg-background p-5">
+        <section class="rounded-lg bg-card p-5 shadow-sm ring-1 ring-border/45">
           <div class="space-y-1">
             <div class="flex items-center gap-2">
               <FileWarning class="size-5 text-muted-foreground" />
@@ -231,7 +231,9 @@ const needsRefreshCount = computed(() => {
                     </TooltipContent>
                   </Tooltip>
                 </dt>
-                <dd class="font-medium">{{ fileHealthQuery.data.value?.run?.issues[item.key] ?? "—" }}</dd>
+                <dd class="font-medium tabular-nums">
+                  {{ fileHealthQuery.data.value?.run?.issues[item.key] ?? "—" }}
+                </dd>
               </div>
             </dl>
             <Separator />
@@ -247,7 +249,7 @@ const needsRefreshCount = computed(() => {
           <p v-if="!fileHealthQuery.data.value?.run" class="mt-4 text-sm text-muted-foreground">No run yet.</p>
         </section>
 
-        <section class="rounded-md border bg-background p-5">
+        <section class="rounded-lg bg-card p-5 shadow-sm ring-1 ring-border/45">
           <div class="space-y-1">
             <div class="flex items-center gap-2">
               <ScanLine class="size-5 text-muted-foreground" />
@@ -293,7 +295,7 @@ const needsRefreshCount = computed(() => {
         </section>
       </div>
 
-      <section class="rounded-md border bg-background p-5">
+      <section class="rounded-lg bg-card p-5 shadow-sm ring-1 ring-border/45">
         <div class="space-y-1">
           <div class="flex items-center gap-2">
             <Wrench class="size-5 text-muted-foreground" />
@@ -321,12 +323,14 @@ const needsRefreshCount = computed(() => {
                 </TooltipContent>
               </Tooltip>
             </p>
-            <p class="text-xl font-semibold">{{ fileHealthQuery.data.value?.run?.repairs[item.key] ?? "—" }}</p>
+            <p class="text-xl font-semibold tabular-nums">
+              {{ fileHealthQuery.data.value?.run?.repairs[item.key] ?? "—" }}
+            </p>
           </div>
         </div>
       </section>
 
-      <section class="rounded-md border bg-background p-5">
+      <section class="rounded-lg bg-card p-5 shadow-sm ring-1 ring-border/45">
         <div class="flex items-center justify-between">
           <div class="space-y-1">
             <div class="flex items-center gap-2">
@@ -356,7 +360,7 @@ const needsRefreshCount = computed(() => {
           <dl class="grid gap-3 text-sm sm:grid-cols-2">
             <div class="flex items-center justify-between gap-3">
               <dt class="text-muted-foreground">Cached files</dt>
-              <dd class="font-medium">{{ totalReady ?? "\u2014" }}</dd>
+              <dd class="font-medium tabular-nums">{{ totalReady ?? "\u2014" }}</dd>
             </div>
             <div class="flex items-center justify-between gap-3">
               <dt class="flex items-center gap-1 text-muted-foreground">
@@ -377,7 +381,7 @@ const needsRefreshCount = computed(() => {
                   </TooltipContent>
                 </Tooltip>
               </dt>
-              <dd class="font-medium">{{ totalExpected ?? "\u2014" }}</dd>
+              <dd class="font-medium tabular-nums">{{ totalExpected ?? "\u2014" }}</dd>
             </div>
           </dl>
         </div>
@@ -386,7 +390,7 @@ const needsRefreshCount = computed(() => {
       </section>
 
       <div class="grid gap-4 md:grid-cols-2">
-        <section class="rounded-md border bg-background p-5">
+        <section class="rounded-lg bg-card p-5 shadow-sm ring-1 ring-border/45">
           <div class="space-y-1">
             <div class="flex items-center gap-2">
               <File class="size-5 text-muted-foreground" />
@@ -431,11 +435,15 @@ const needsRefreshCount = computed(() => {
               <Separator />
               <div class="flex items-center justify-between gap-3">
                 <dt class="text-muted-foreground">File catalog workers</dt>
-                <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.catalog_worker_count }}</dd>
+                <dd class="font-medium tabular-nums">
+                  {{ runtimeQuery.data.value.global_runtime.catalog_worker_count }}
+                </dd>
               </div>
               <div class="flex items-center justify-between gap-3">
                 <dt class="text-muted-foreground">File catalog active jobs</dt>
-                <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.catalog_active_jobs }}</dd>
+                <dd class="font-medium tabular-nums">
+                  {{ runtimeQuery.data.value.global_runtime.catalog_active_jobs }}
+                </dd>
               </div>
               <div class="flex items-center justify-between gap-3">
                 <dt class="flex items-center gap-1 text-muted-foreground">
@@ -456,7 +464,9 @@ const needsRefreshCount = computed(() => {
                     </TooltipContent>
                   </Tooltip>
                 </dt>
-                <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.catalog_queue_depth }}</dd>
+                <dd class="font-medium tabular-nums">
+                  {{ runtimeQuery.data.value.global_runtime.catalog_queue_depth }}
+                </dd>
               </div>
             </dl>
           </div>
@@ -464,7 +474,7 @@ const needsRefreshCount = computed(() => {
           <p v-else class="mt-4 text-sm text-muted-foreground">Runtime diagnostics unavailable.</p>
         </section>
 
-        <section class="rounded-md border bg-background p-5">
+        <section class="rounded-lg bg-card p-5 shadow-sm ring-1 ring-border/45">
           <div class="space-y-1">
             <div class="flex items-center gap-2">
               <FileChartColumn class="size-5 text-muted-foreground" />
@@ -476,11 +486,15 @@ const needsRefreshCount = computed(() => {
             <dl class="grid gap-3 text-sm">
               <div class="flex items-center justify-between gap-3">
                 <dt class="text-muted-foreground">Metadata workers</dt>
-                <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.metadata_worker_count }}</dd>
+                <dd class="font-medium tabular-nums">
+                  {{ runtimeQuery.data.value.global_runtime.metadata_worker_count }}
+                </dd>
               </div>
               <div class="flex items-center justify-between gap-3">
                 <dt class="text-muted-foreground">Metadata active jobs</dt>
-                <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.metadata_active_jobs }}</dd>
+                <dd class="font-medium tabular-nums">
+                  {{ runtimeQuery.data.value.global_runtime.metadata_active_jobs }}
+                </dd>
               </div>
               <div class="flex items-center justify-between gap-3">
                 <dt class="flex items-center gap-1 text-muted-foreground">
@@ -499,7 +513,9 @@ const needsRefreshCount = computed(() => {
                     <TooltipContent side="top" align="start">Metadata extraction jobs waiting to run.</TooltipContent>
                   </Tooltip>
                 </dt>
-                <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.metadata_queue_depth }}</dd>
+                <dd class="font-medium tabular-nums">
+                  {{ runtimeQuery.data.value.global_runtime.metadata_queue_depth }}
+                </dd>
               </div>
               <div class="flex items-center justify-between gap-3">
                 <dt class="flex items-center gap-1 text-muted-foreground">
@@ -520,18 +536,20 @@ const needsRefreshCount = computed(() => {
                     </TooltipContent>
                   </Tooltip>
                 </dt>
-                <dd class="font-medium">{{ runtimeQuery.data.value.global_runtime.metadata_staged_queue_depth }}</dd>
+                <dd class="font-medium tabular-nums">
+                  {{ runtimeQuery.data.value.global_runtime.metadata_staged_queue_depth }}
+                </dd>
               </div>
               <Separator v-if="runtimeQuery.data.value.metadata_lifecycle" />
               <div class="flex items-center justify-between gap-3">
                 <dt class="text-muted-foreground">Queued</dt>
-                <dd class="font-medium">
+                <dd class="font-medium tabular-nums">
                   {{ runtimeQuery.data.value.metadata_lifecycle?.queued_metadata_jobs ?? "\u2014" }}
                 </dd>
               </div>
               <div class="flex items-center justify-between gap-3">
                 <dt class="text-muted-foreground">Running</dt>
-                <dd class="font-medium">
+                <dd class="font-medium tabular-nums">
                   {{ runtimeQuery.data.value.metadata_lifecycle?.running_metadata_jobs ?? "\u2014" }}
                 </dd>
               </div>
@@ -555,7 +573,7 @@ const needsRefreshCount = computed(() => {
                   </Tooltip>
                 </dt>
                 <dd
-                  class="font-medium"
+                  class="font-medium tabular-nums"
                   :class="
                     (runtimeQuery.data.value.metadata_lifecycle?.failed_metadata_jobs ?? 0) > 0
                       ? 'text-destructive'
@@ -584,14 +602,14 @@ const needsRefreshCount = computed(() => {
                     </TooltipContent>
                   </Tooltip>
                 </dt>
-                <dd class="font-medium" :class="needsRefreshCount > 0 ? 'text-amber-600' : ''">
+                <dd class="font-medium tabular-nums" :class="needsRefreshCount > 0 ? 'text-amber-600' : ''">
                   {{ runtimeQuery.data.value.metadata_lifecycle ? needsRefreshCount : "\u2014" }}
                 </dd>
               </div>
               <div class="flex items-center justify-between gap-3">
                 <dt class="text-muted-foreground">Can be repaired</dt>
                 <dd
-                  class="font-medium"
+                  class="font-medium tabular-nums"
                   :class="
                     (runtimeQuery.data.value.metadata_lifecycle?.repairable_metadata_assets ?? 0) > 0
                       ? 'text-amber-600'
@@ -620,7 +638,7 @@ const needsRefreshCount = computed(() => {
                     </TooltipContent>
                   </Tooltip>
                 </dt>
-                <dd class="font-medium">
+                <dd class="font-medium tabular-nums">
                   {{ runtimeQuery.data.value.metadata_lifecycle?.metadata_jobs_without_matching_assets ?? "\u2014" }}
                 </dd>
               </div>
@@ -631,7 +649,7 @@ const needsRefreshCount = computed(() => {
         </section>
       </div>
 
-      <section class="rounded-md border bg-background p-5">
+      <section class="rounded-lg bg-card p-5 shadow-sm ring-1 ring-border/45">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 class="font-semibold">Recent job history</h3>
