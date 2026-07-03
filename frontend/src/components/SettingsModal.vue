@@ -2,11 +2,15 @@
 import { computed, ref, watch } from "vue";
 import { useLandingPagesLiveQuery } from "../db/composables/useLandingPagesLiveQuery";
 import { LIGHTBOX_ALWAYS_LOAD_ORIGINAL_KEY } from "../utils/lightbox";
-import { AlertTriangle, Trash2 } from "lucide-vue-next";
+import { AlertTriangle, ArrowUpRight, Trash2 } from "lucide-vue-next";
 import { useCatalogResetMutation } from "@/composables/admin/useCatalogResetMutation";
 import Button from "@/components/ui/Button.vue";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Field, FieldDescription, FieldGroup, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 const props = withDefaults(
   defineProps<{
@@ -106,6 +110,18 @@ const handlePreview = () => {
   }
 };
 
+const optionCardClass = (active: boolean) =>
+  cn(
+    "group relative flex cursor-pointer items-start gap-3 rounded-xl border bg-card/80 p-4 shadow-sm transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] hover:-translate-y-0.5 hover:border-primary/35 hover:bg-accent/40",
+    active && "border-primary/70 bg-primary/10 shadow-sm",
+  );
+
+const optionMarkClass = (active: boolean) =>
+  cn(
+    "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border border-border bg-background transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]",
+    active && "border-primary bg-primary/15 shadow-[0_0_0_4px_hsl(var(--primary)/0.10)]",
+  );
+
 function onOpenChange(open: boolean) {
   if (!open) {
     emit("close");
@@ -126,130 +142,169 @@ async function handleResetCatalog() {
 
 <template>
   <Dialog :open="isOpen" @update:open="onOpenChange">
-    <DialogContent class="max-h-[min(90vh,720px)] overflow-y-auto sm:max-w-[440px]">
-      <DialogHeader>
-        <DialogTitle class="font-[Cinzel] tracking-wider uppercase text-base"> Settings </DialogTitle>
+    <DialogContent
+      class="max-h-[min(92dvh,760px)] gap-0 overflow-hidden border-border/70 bg-background p-0 shadow-xl sm:max-w-[620px] sm:rounded-2xl"
+    >
+      <DialogHeader class="border-b border-border/70 bg-muted/25 px-5 py-4 text-left sm:px-6">
+        <div class="flex items-start justify-between gap-4 pr-9">
+          <div class="flex min-w-0 flex-col">
+            <DialogTitle class="font-[Cinzel] text-xl leading-tight tracking-normal text-foreground">
+              Settings
+            </DialogTitle>
+          </div>
+        </div>
         <DialogDescription class="sr-only"> Configure gallery intro and viewer settings </DialogDescription>
       </DialogHeader>
 
-      <div class="space-y-6">
-        <section class="space-y-4">
-          <h3 class="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Intro Screen</h3>
+      <div class="flex max-h-[calc(min(92dvh,760px)-74px)] flex-col gap-4 overflow-y-auto px-4 py-4 sm:px-5">
+        <FieldSet class="gap-4 rounded-xl border border-border/70 bg-card/65 p-4 shadow-sm">
+          <div class="flex flex-col gap-1.5">
+            <FieldLegend class="mb-0 text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
+              Landing Page
+            </FieldLegend>
+            <FieldDescription class="text-xs">
+              Configure the landing page shown before entering the main gallery.
+            </FieldDescription>
+          </div>
 
-          <div class="flex flex-col gap-2">
-            <label
-              class="flex items-center rounded-md border px-4 py-3 cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground"
-              :class="{ 'border-primary bg-accent text-accent-foreground': introMode === 'auto' }"
-            >
+          <FieldGroup class="gap-3">
+            <label :class="optionCardClass(introMode === 'auto')">
               <input type="radio" v-model="introMode" value="auto" class="sr-only" />
-              <div class="flex flex-col gap-0.5">
-                <span class="text-sm font-medium">Automatic</span>
+              <span :class="optionMarkClass(introMode === 'auto')" aria-hidden="true">
+                <span v-if="introMode === 'auto'" class="size-2 rounded-full bg-primary"></span>
+              </span>
+              <span class="flex min-w-0 flex-col gap-1">
+                <span class="text-sm font-semibold text-foreground">Automatic</span>
                 <span class="text-xs text-muted-foreground">Random themes, prioritizing holidays</span>
-              </div>
+              </span>
             </label>
 
-            <label
-              class="flex items-center rounded-md border px-4 py-3 cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground"
-              :class="{ 'border-primary bg-accent text-accent-foreground': introMode === 'disabled' }"
-            >
+            <label :class="optionCardClass(introMode === 'disabled')">
               <input type="radio" v-model="introMode" value="disabled" class="sr-only" />
-              <div class="flex flex-col gap-0.5">
-                <span class="text-sm font-medium">Disabled</span>
+              <span :class="optionMarkClass(introMode === 'disabled')" aria-hidden="true">
+                <span v-if="introMode === 'disabled'" class="size-2 rounded-full bg-primary"></span>
+              </span>
+              <span class="flex min-w-0 flex-col gap-1">
+                <span class="text-sm font-semibold text-foreground">Disabled</span>
                 <span class="text-xs text-muted-foreground">Skip intro and enter gallery directly</span>
-              </div>
+              </span>
             </label>
 
-            <label
-              class="flex items-center rounded-md border px-4 py-3 cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground"
-              :class="{ 'border-primary bg-accent text-accent-foreground': introMode === 'manual' }"
-            >
+            <label :class="optionCardClass(introMode === 'manual')">
               <input type="radio" v-model="introMode" value="manual" class="sr-only" />
-              <div class="flex flex-col gap-0.5">
-                <span class="text-sm font-medium">Manual Selection</span>
+              <span :class="optionMarkClass(introMode === 'manual')" aria-hidden="true">
+                <span v-if="introMode === 'manual'" class="size-2 rounded-full bg-primary"></span>
+              </span>
+              <span class="flex min-w-0 flex-col gap-1">
+                <span class="text-sm font-semibold text-foreground">Manual Selection</span>
                 <span class="text-xs text-muted-foreground">Always show a specific theme</span>
+              </span>
+            </label>
+          </FieldGroup>
+
+          <div
+            v-if="introMode === 'manual'"
+            class="rounded-xl border border-primary/20 bg-primary/5 p-4 shadow-[inset_0_1px_0_hsl(var(--background)/0.72)]"
+          >
+            <div class="flex flex-col gap-3">
+              <div class="flex flex-col gap-1">
+                <span class="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">Theme Override</span>
+                <span class="text-xs text-muted-foreground">Preview before applying it to launch.</span>
               </div>
-            </label>
-          </div>
-
-          <div v-if="introMode === 'manual'" class="space-y-3 pt-3 border-t">
-            <div v-if="isLoadingThemes" class="text-sm text-muted-foreground">Loading themes...</div>
-            <div v-else class="flex flex-col gap-3">
-              <select
-                v-model="selectedTheme"
-                class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
-              >
-                <option v-for="theme in availableThemes" :key="theme" :value="theme">
-                  {{ formatThemeName(theme) }}
-                </option>
-              </select>
-              <button
-                class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring h-9 px-4 py-2 border border-primary text-primary hover:bg-primary hover:text-primary-foreground uppercase tracking-wider"
-                @click="handlePreview"
-              >
-                Preview
-              </button>
+              <div v-if="isLoadingThemes" class="text-sm text-muted-foreground">Loading themes...</div>
+              <div v-else class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+                <Select v-model="selectedTheme">
+                  <SelectTrigger class="h-11 rounded-lg bg-background/80 px-4 shadow-sm">
+                    <SelectValue placeholder="Select intro theme" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem v-for="theme in availableThemes" :key="theme" :value="theme">
+                        {{ formatThemeName(theme) }}
+                      </SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <Button
+                  class="h-11 rounded-lg px-5 uppercase tracking-[0.14em] transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] hover:-translate-y-0.5"
+                  @click="handlePreview"
+                >
+                  Preview
+                  <ArrowUpRight data-icon="inline-end" />
+                </Button>
+              </div>
             </div>
           </div>
-        </section>
+        </FieldSet>
 
-        <section class="space-y-4">
-          <h3 class="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Viewer Images</h3>
+        <FieldSet class="gap-4 rounded-xl border border-border/70 bg-card/65 p-4 shadow-sm">
+          <div class="flex flex-col gap-1.5">
+            <FieldLegend class="mb-0 text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
+              Viewer Images
+            </FieldLegend>
+            <FieldDescription class="text-xs">Control the image source used inside the lightbox.</FieldDescription>
+          </div>
 
-          <label
-            class="flex items-center rounded-md border px-4 py-3 cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground"
-            :class="{ 'border-primary bg-accent text-accent-foreground': alwaysLoadOriginal }"
-          >
+          <label :class="optionCardClass(alwaysLoadOriginal)">
             <input type="checkbox" v-model="alwaysLoadOriginal" class="sr-only" />
-            <div class="flex flex-col gap-0.5">
-              <span class="text-sm font-medium">Always load original</span>
+            <span :class="optionMarkClass(alwaysLoadOriginal)" aria-hidden="true">
+              <span v-if="alwaysLoadOriginal" class="size-2 rounded-full bg-primary"></span>
+            </span>
+            <span class="flex min-w-0 flex-col gap-1">
+              <span class="text-sm font-semibold text-foreground">Always load original</span>
               <span class="text-xs text-muted-foreground">Use source files immediately in the viewer</span>
-            </div>
+            </span>
           </label>
-        </section>
+        </FieldSet>
 
-        <section
+        <Alert
           v-if="props.canResetCatalogDatabase"
-          class="space-y-4 rounded-md border border-destructive/40 bg-destructive/5 p-4"
+          variant="destructive"
+          class="rounded-xl border-destructive/45 bg-destructive/5 p-4"
         >
-          <div class="flex items-start gap-3">
-            <AlertTriangle class="mt-0.5 size-4 shrink-0 text-destructive" />
-            <div class="min-w-0 space-y-1">
-              <h3 class="text-xs uppercase tracking-wider text-destructive font-semibold">Danger Zone</h3>
-              <p class="text-xs text-muted-foreground">
-                Reset app data removes library registrations, imported catalog data, extracted metadata, thumbnails,
-                previews, job history, and local gallery state. Source photos and videos are not deleted.
-              </p>
+          <div class="flex min-w-0 flex-1 flex-col gap-4">
+            <div class="flex items-start gap-3">
+              <AlertTriangle class="size-4 shrink-0 text-destructive" aria-hidden="true" />
+              <AlertTitle class="mb-0 text-xs font-bold leading-4 uppercase tracking-[0.18em]">
+                Danger Zone
+              </AlertTitle>
             </div>
-          </div>
 
-          <div class="space-y-2">
-            <label for="catalog-reset-confirm" class="text-xs font-medium text-muted-foreground">
-              Type {{ resetConfirmPhrase }} to confirm
-            </label>
-            <Input
-              id="catalog-reset-confirm"
-              v-model="resetConfirmInput"
-              autocomplete="off"
-              spellcheck="false"
-              :disabled="resetMutation.isPending.value"
-              aria-describedby="catalog-reset-help"
-            />
-            <p id="catalog-reset-help" class="text-xs text-muted-foreground">
-              Use this before handing the app to another user. Embedded metadata remains in any source files you keep or
-              share.
-            </p>
-          </div>
+            <AlertDescription class="text-xs text-muted-foreground">
+              Reset app data removes library registrations, imported catalog data, extracted metadata, thumbnails,
+              previews, job history, and local gallery state. Source photos and videos are not deleted.
+            </AlertDescription>
 
-          <Button
-            variant="destructive"
-            class="w-full"
-            :disabled="!canSubmitReset || resetMutation.isPending.value"
-            @click="handleResetCatalog"
-          >
-            <Trash2 />
-            {{ resetMutation.isPending.value ? "Resetting..." : "Reset app data" }}
-          </Button>
-        </section>
+            <Field class="gap-2">
+              <label for="catalog-reset-confirm" class="text-xs font-medium text-muted-foreground">
+                Type <strong class="font-bold text-destructive">{{ resetConfirmPhrase }}</strong> to confirm
+              </label>
+              <Input
+                id="catalog-reset-confirm"
+                v-model="resetConfirmInput"
+                autocomplete="off"
+                spellcheck="false"
+                :disabled="resetMutation.isPending.value"
+                aria-describedby="catalog-reset-help"
+                class="h-11 rounded-lg bg-background/80"
+              />
+              <p id="catalog-reset-help" class="text-xs text-muted-foreground">
+                Use this before handing the app to another user. Embedded metadata remains in any source files you keep
+                or share.
+              </p>
+            </Field>
+
+            <Button
+              variant="destructive"
+              class="h-11 w-full rounded-lg"
+              :disabled="!canSubmitReset || resetMutation.isPending.value"
+              @click="handleResetCatalog"
+            >
+              <Trash2 data-icon="inline-start" />
+              {{ resetMutation.isPending.value ? "Resetting..." : "Reset app data" }}
+            </Button>
+          </div>
+        </Alert>
       </div>
     </DialogContent>
   </Dialog>
