@@ -163,8 +163,10 @@ const modelCount = computed(() => {
                   aria-label="Copy prompt"
                   @click="props.copyText(props.meta?.prompt, 'prompt')"
                 >
-                  <Check v-if="props.copyStatus['prompt']" :stroke-width="1.5" class="icon-sm" style="color: #4ade80" />
-                  <Copy v-else :stroke-width="1.5" class="icon-sm" />
+                  <span class="copy-icon-stack" :class="{ 'is-copied': props.copyStatus['prompt'] }">
+                    <Check :stroke-width="1.5" class="copy-icon copy-icon-check icon-sm" aria-hidden="true" />
+                    <Copy :stroke-width="1.5" class="copy-icon copy-icon-copy icon-sm" aria-hidden="true" />
+                  </span>
                 </button>
               </TooltipTrigger>
               <TooltipContent>Copy prompt</TooltipContent>
@@ -192,8 +194,10 @@ const modelCount = computed(() => {
                   aria-label="Copy negative prompt"
                   @click="props.copyText(props.meta?.negative_prompt, 'neg')"
                 >
-                  <Check v-if="props.copyStatus['neg']" :stroke-width="1.5" class="icon-sm" style="color: #4ade80" />
-                  <Copy v-else :stroke-width="1.5" class="icon-sm" />
+                  <span class="copy-icon-stack" :class="{ 'is-copied': props.copyStatus['neg'] }">
+                    <Check :stroke-width="1.5" class="copy-icon copy-icon-check icon-sm" aria-hidden="true" />
+                    <Copy :stroke-width="1.5" class="copy-icon copy-icon-copy icon-sm" aria-hidden="true" />
+                  </span>
                 </button>
               </TooltipTrigger>
               <TooltipContent>Copy negative prompt</TooltipContent>
@@ -240,13 +244,14 @@ const modelCount = computed(() => {
                       aria-label="Copy seed"
                       @click="props.copyText(String(props.meta.params.Seed), 'seed')"
                     >
-                      <Check
-                        v-if="props.copyStatus['seed']"
-                        :stroke-width="1.5"
-                        class="icon-xs"
-                        style="color: #4ade80"
-                      />
-                      <Sprout v-else :stroke-width="1.5" class="icon-xs" />
+                      <span
+                        class="copy-icon-stack"
+                        style="--copy-icon-stack-size: var(--gallery-icon-xs)"
+                        :class="{ 'is-copied': props.copyStatus['seed'] }"
+                      >
+                        <Check :stroke-width="1.5" class="copy-icon copy-icon-check icon-xs" aria-hidden="true" />
+                        <Sprout :stroke-width="1.5" class="copy-icon copy-icon-copy icon-xs" aria-hidden="true" />
+                      </span>
                     </button>
                   </TooltipTrigger>
                   <TooltipContent>Copy seed</TooltipContent>

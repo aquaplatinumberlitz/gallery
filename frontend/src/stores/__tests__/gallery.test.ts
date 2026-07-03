@@ -70,7 +70,6 @@ describe("initial state", () => {
     expect(store.sortOrder).toBe("asc");
     expect(store.activeImportRootPath).toBe("");
     expect(store.activeLibraryHydrated).toBe(false);
-    expect(store.hasEverLoaded).toBe(false);
     expect(store.historyIndex).toBe(-1);
   });
 });
@@ -175,35 +174,10 @@ describe("folder expansion", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Sidebar tree
+// Browse expansion
 // ---------------------------------------------------------------------------
 
-describe("sidebar tree", () => {
-  it("setSidebarTree normalizes nodes", () => {
-    const store = useGalleryStore();
-    store.setSidebarTree([
-      { type: "folder", path: "/a", name: "A", children: [{ type: "folder", path: "/a/b", name: "B" }] },
-    ] as any);
-    expect(store.sidebarTree[0].children).toBeUndefined();
-    expect(store.sidebarTree.length).toBe(1);
-  });
-
-  it("preserves normalized children for pinned import-root trees", () => {
-    const store = useGalleryStore();
-    store.setSidebarTree(
-      [
-        {
-          type: "folder",
-          path: "/root",
-          name: "root",
-          children: [{ type: "folder", path: "/root/a", name: "A", children: [] }],
-        },
-      ] as any,
-      { preserveChildren: true },
-    );
-    expect(store.sidebarTree[0].children).toEqual([expect.objectContaining({ path: "/root/a", children: undefined })]);
-  });
-
+describe("browse expansion", () => {
   it("auto-expands the active root and selected folder ancestors", () => {
     const lib = makeLib(1, [{ id: 10, path: "/home/ubuntu/gallery-repo", position: 0 }]);
     const store = useGalleryStore();
@@ -244,7 +218,6 @@ describe("browse navigation", () => {
     const store = useGalleryStore();
     store.selectFolder("/path");
     expect(store.currentBrowsePath).toBe("/path");
-    expect(store.hasEverLoaded).toBe(true);
     expect(store.history).toContain("/path");
   });
 
@@ -334,7 +307,6 @@ describe("resetBrowseState", () => {
     expect(store.currentBrowsePath).toBe("");
     expect(store.history).toEqual([]);
     expect(store.historyIndex).toBe(-1);
-    expect(store.hasEverLoaded).toBe(false);
     expect(store.isLoading).toBe(false);
     expect(store.searchQuery).toBe("");
   });

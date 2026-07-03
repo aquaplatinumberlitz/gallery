@@ -31,8 +31,8 @@ const emit = defineEmits<{
 
 const updateLabel = computed(() => (props.isLibraryScope ? "Update library" : "Update current folder"));
 
-const photosFound = computed(() => props.status?.metadata.total_assets ?? 0);
-const photoDetailsReady = computed(() => props.status?.metadata.ready_assets ?? 0);
+const mediaFilesFound = computed(() => props.status?.metadata.total_assets ?? 0);
+const mediaMetadataReady = computed(() => props.status?.metadata.ready_assets ?? 0);
 const metadataProgress = computed(() => props.status?.metadata.progress_percent ?? null);
 const isIndexing = computed(
   () => props.status?.metadata.state === "queued" || props.status?.metadata.state === "indexing",
@@ -46,10 +46,10 @@ function formatCount(value: number) {
 </script>
 
 <template>
-  <div class="index-details" aria-label="Catalog Status">
+  <div class="index-details" aria-label="File catalog status">
     <div class="index-details__header">
       <div>
-        <p class="index-details__eyebrow">Catalog</p>
+        <p class="index-details__eyebrow">File catalog</p>
       </div>
       <IndexStatusBadge :presentation="presentation" />
     </div>
@@ -59,7 +59,7 @@ function formatCount(value: number) {
 
     <div v-if="contractError" class="index-details__error">{{ STATUS_CONTRACT_ERROR_MESSAGE }}</div>
 
-    <div v-else-if="isLoading" class="index-details__muted">Loading catalog status...</div>
+    <div v-else-if="isLoading" class="index-details__muted">Loading file catalog status...</div>
 
     <div v-else-if="isError" class="index-details__error">
       {{ errorMessage || "Failed to load status" }}
@@ -72,12 +72,12 @@ function formatCount(value: number) {
         <Tooltip :delay-duration="800">
           <TooltipTrigger as-child>
             <div class="index-details__row has-tooltip">
-              <span class="index-details__row-key">Photos</span>
-              <strong>{{ formatCount(photosFound) }}</strong>
+              <span class="index-details__row-key">Media files</span>
+              <strong>{{ formatCount(mediaFilesFound) }}</strong>
             </div>
           </TooltipTrigger>
           <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
-            Cataloged photos in this scope.
+            Cataloged image and video files in this scope.
           </TooltipContent>
         </Tooltip>
 
@@ -85,11 +85,11 @@ function formatCount(value: number) {
           <TooltipTrigger as-child>
             <div class="index-details__row has-tooltip">
               <span class="index-details__row-key">Metadata ready</span>
-              <strong>{{ formatCount(photoDetailsReady) }}</strong>
+              <strong>{{ formatCount(mediaMetadataReady) }}</strong>
             </div>
           </TooltipTrigger>
           <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
-            Photos with current metadata ready for search and inspection.
+            Media files with current metadata ready for search and inspection.
           </TooltipContent>
         </Tooltip>
       </div>
@@ -133,7 +133,7 @@ function formatCount(value: number) {
       <div class="index-details__section">
         <p class="index-details__section-label">Timestamps</p>
         <div class="index-details__row">
-          <span class="index-details__row-key">Catalog updated</span>
+          <span class="index-details__row-key">Media files updated</span>
           <strong>{{ formatLibraryTimestamp(status.last_scan_at) }}</strong>
         </div>
         <div class="index-details__row">

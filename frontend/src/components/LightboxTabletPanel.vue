@@ -146,14 +146,10 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                       @keydown.space.prevent="props.copyText(String(props.meta.params.Seed), 'seed')"
                     >
                       <span class="value">{{ props.meta.params.Seed }}</span>
-                      <Check
-                        v-if="props.copyStatus['seed']"
-                        :stroke-width="1.5"
-                        :size="14"
-                        style="color: #4ade80"
-                        class="inline-copy-icon"
-                      />
-                      <Copy v-else :stroke-width="1.5" :size="14" class="inline-copy-icon" />
+                      <span class="copy-icon-stack inline-copy-icon" :class="{ 'is-copied': props.copyStatus['seed'] }">
+                        <Check :stroke-width="1.5" :size="14" class="copy-icon copy-icon-check" aria-hidden="true" />
+                        <Copy :stroke-width="1.5" :size="14" class="copy-icon copy-icon-copy" aria-hidden="true" />
+                      </span>
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>Copy seed</TooltipContent>
@@ -260,14 +256,10 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                     @keydown.space.prevent="props.copyText(props.meta?.prompt, 'prompt')"
                   >
                     <label class="tablet-label">Prompt</label>
-                    <Check
-                      v-if="props.copyStatus['prompt']"
-                      :stroke-width="1.5"
-                      :size="14"
-                      style="color: #4ade80"
-                      class="inline-copy-icon"
-                    />
-                    <Copy v-else :stroke-width="1.5" :size="14" class="inline-copy-icon" />
+                    <span class="copy-icon-stack inline-copy-icon" :class="{ 'is-copied': props.copyStatus['prompt'] }">
+                      <Check :stroke-width="1.5" :size="14" class="copy-icon copy-icon-check" aria-hidden="true" />
+                      <Copy :stroke-width="1.5" :size="14" class="copy-icon copy-icon-copy" aria-hidden="true" />
+                    </span>
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>Copy prompt</TooltipContent>
@@ -297,14 +289,10 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                     @keydown.space.prevent="props.copyText(props.meta?.negative_prompt, 'neg')"
                   >
                     <label class="tablet-label negative-label">Negative Prompt</label>
-                    <Check
-                      v-if="props.copyStatus['neg']"
-                      :stroke-width="1.5"
-                      :size="14"
-                      style="color: #4ade80"
-                      class="inline-copy-icon"
-                    />
-                    <Copy v-else :stroke-width="1.5" :size="14" class="inline-copy-icon" />
+                    <span class="copy-icon-stack inline-copy-icon" :class="{ 'is-copied': props.copyStatus['neg'] }">
+                      <Check :stroke-width="1.5" :size="14" class="copy-icon copy-icon-check" aria-hidden="true" />
+                      <Copy :stroke-width="1.5" :size="14" class="copy-icon copy-icon-copy" aria-hidden="true" />
+                    </span>
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>Copy negative prompt</TooltipContent>

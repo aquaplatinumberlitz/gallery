@@ -35,12 +35,11 @@ const makeBrowseResponse = (overrides?: Partial<BrowseResponse>): BrowseResponse
   ...overrides,
 });
 
-function setup(libraryId: number | null | undefined, path: string | null | undefined, seedSidebar = false) {
+function setup(libraryId: number | null | undefined, path: string | null | undefined) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   const pinia = createPinia();
   setActivePinia(pinia);
   const store = useGalleryStore();
-  if (seedSidebar) store.setSidebarTree([{ name: "stale", path: "/stale", type: "folder" }]);
 
   const libraryIdRef = ref(libraryId);
   const pathRef = ref(path);
@@ -64,13 +63,13 @@ beforeEach(() => {
 });
 
 describe("useSidebarTreeQuery", () => {
-  it("pins the active import root and loads its folders into the gallery sidebar store", async () => {
-    const { result, store } = setup(1, "/photos");
+  it("pins the active import root and exposes normalized query-backed tree nodes", async () => {
+    const { result } = setup(1, "/photos");
 
     await vi.waitFor(() => expect(result.isSuccess.value).toBe(true));
 
     expect(browseDirectory).toHaveBeenCalledWith(1, "/photos", { cursor: 0, limit: IMAGE_PAGE_SIZE });
-    expect(store.sidebarTree).toEqual([
+    expect(result.tree.value).toEqual([
       expect.objectContaining({
         name: "photos",
         path: "/photos",
@@ -88,13 +87,13 @@ describe("useSidebarTreeQuery", () => {
     ]);
   });
 
-  it("does not fetch and clears the sidebar when no active library is selected", async () => {
-    const { store } = setup(null, "/photos", true);
+  it("does not fetch and exposes an empty tree when no active library is selected", async () => {
+    const { result, store } = setup(null, "/photos");
 
     await nextTick();
 
     expect(browseDirectory).not.toHaveBeenCalled();
-    expect(store.sidebarTree).toEqual([]);
+    expect(result.tree.value).toEqual([]);
     expect(store.isLoading).toBe(false);
   });
 

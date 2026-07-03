@@ -94,13 +94,13 @@ watch(
   { immediate: true },
 );
 
-const tree = computed(() => galleryStore.sidebarTree);
 const isLoading = computed(() => galleryStore.isLoading);
 const currentPath = computed(() => galleryStore.currentBrowsePath);
 const activeLibraryId = computed(() => galleryStore.activeLibraryId);
 const activeImportRootPath = computed(() => galleryStore.activeImportRootPath || null);
 const hasActiveLibrary = computed(() => galleryStore.activeLibraryId !== null);
-useSidebarTreeQuery(activeLibraryId, activeImportRootPath);
+const sidebarTreeQuery = useSidebarTreeQuery(activeLibraryId, activeImportRootPath);
+const tree = computed(() => sidebarTreeQuery.tree.value);
 
 const scrollerRef = ref<HTMLElement | null>(null);
 provide(galleryScrollContainerRefKey, scrollerRef);

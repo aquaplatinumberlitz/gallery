@@ -122,16 +122,16 @@ See [Third-Party Libraries](THIRD_PARTY_LIBRARIES.md) for VSBS and PhotoSwipe in
 
 The gallery distinguishes:
 
-| State            | Condition                            |
-| ---------------- | ------------------------------------ |
-| No path selected | `!rootPath`                          |
-| Not loaded yet   | `rootPath && !hasEverLoaded`         |
-| Loading          | `isLoading`                          |
-| Empty folder     | loaded with no folders and no images |
-| Folders only     | loaded with folders and no images    |
-| Has images       | loaded with images                   |
+| State            | Condition                                             |
+| ---------------- | ----------------------------------------------------- |
+| No path selected | `!rootPath`                                           |
+| Not loaded yet   | active browse scope without an active query page      |
+| Loading          | active browse scope with pending/fetching query state |
+| Empty folder     | active query page with no folders and no images       |
+| Folders only     | active query page with folders and no images          |
+| Has images       | active query page with images                         |
 
-The `hasEverLoaded` guard prevents a false "empty" state before the first successful scan.
+The active query page must match the current library and browse path before gallery data is rendered or considered empty.
 
 ## Theme and Tokens
 

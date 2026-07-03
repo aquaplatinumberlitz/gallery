@@ -51,8 +51,8 @@ const { data, isLoading, isError, error, refetch, contractError } = useCatalogSt
 const status = computed<UnifiedStatus | null>(() => data.value?.status ?? null);
 const presentation = computed(() => getCatalogStatusPresentation(status.value?.summary_state ?? null));
 const globalWorkOutsideScope = computed(() => status.value?.metadata.global_active_outside_scope ?? false);
-const photosFound = computed(() => status.value?.metadata.total_assets ?? 0);
-const photoDetailsReady = computed(() => status.value?.metadata.ready_assets ?? 0);
+const mediaFilesFound = computed(() => status.value?.metadata.total_assets ?? 0);
+const mediaMetadataReady = computed(() => status.value?.metadata.ready_assets ?? 0);
 const failedAssets = computed(() => status.value?.metadata.failed_assets ?? 0);
 const notReadyAssets = computed(() => status.value?.metadata.not_ready_assets ?? 0);
 const metadataProgress = computed(() => status.value?.metadata.progress_percent ?? null);
@@ -78,26 +78,26 @@ const compactSummary = computed(() => {
   if (isScanning.value) {
     const completed = status.value.scan.completed_units ?? 0;
     if (status.value.scan.total_units !== null) {
-      return `${completed.toLocaleString()} / ${status.value.scan.total_units.toLocaleString()} catalog items updated`;
+      return `${completed.toLocaleString()} / ${status.value.scan.total_units.toLocaleString()} file catalog items updated`;
     }
-    return completed > 0 ? `${completed.toLocaleString()} catalog items updated` : "Updating catalog...";
+    return completed > 0 ? `${completed.toLocaleString()} file catalog items updated` : "Updating file catalog...";
   }
   if (isIndexing.value) {
     if (metadataProgress.value !== null) {
-      return `${photoDetailsReady.value.toLocaleString()} / ${photosFound.value.toLocaleString()} metadata ready`;
+      return `${mediaMetadataReady.value.toLocaleString()} / ${mediaFilesFound.value.toLocaleString()} metadata ready`;
     }
     return "Updating metadata...";
   }
   if (globalWorkOutsideScope.value) return "Metadata extraction running in another folder";
   if (status.value.summary_state === "needs_update" && notReadyAssets.value > 0) {
-    return `${notReadyAssets.value.toLocaleString()} photos need metadata updates`;
+    return `${notReadyAssets.value.toLocaleString()} media files need metadata updates`;
   }
-  if (status.value.summary_state === "error") return "Catalog needs attention";
+  if (status.value.summary_state === "error") return "File catalog needs attention";
   if (status.value.summary_state === "offline") return "Offline";
   if (status.value.summary_state === "needs_scan") return "Needs update";
-  return photoDetailsReady.value >= photosFound.value && photosFound.value > 0
+  return mediaMetadataReady.value >= mediaFilesFound.value && mediaFilesFound.value > 0
     ? "All metadata ready"
-    : `${photoDetailsReady.value.toLocaleString()} / ${photosFound.value.toLocaleString()} metadata ready`;
+    : `${mediaMetadataReady.value.toLocaleString()} / ${mediaFilesFound.value.toLocaleString()} metadata ready`;
 });
 
 const updateLabel = computed(() => (isLibraryScope.value ? "Update library" : "Update current folder"));
@@ -172,7 +172,7 @@ function formatCount(value: number) {
               variant="outline"
               size="sm"
               class="h-8 gap-1.5 px-2.5 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center"
-              aria-label="Catalog Status"
+              aria-label="File catalog status"
             >
               <span class="relative inline-flex">
                 <Database class="size-3.5" data-testid="catalog-database-icon" />
@@ -205,14 +205,14 @@ function formatCount(value: number) {
               </Badge>
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="right">Catalog status</TooltipContent>
+          <TooltipContent side="right">File catalog status</TooltipContent>
         </Tooltip>
       </span>
     </PopoverTrigger>
     <PopoverContent class="w-72 p-4" align="end" :side-offset="8">
       <div v-if="isLoading" class="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader class="size-4 animate-spin" />
-        Loading catalog status...
+        Loading file catalog status...
       </div>
 
       <div v-else-if="contractError" class="flex items-start gap-2 text-sm">
@@ -229,7 +229,7 @@ function formatCount(value: number) {
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
             <Database class="size-4 text-muted-foreground" />
-            <span class="text-sm font-medium">Catalog</span>
+            <span class="text-sm font-medium">File catalog</span>
           </div>
           <IndexStatusBadge :presentation="presentation" />
         </div>
@@ -260,12 +260,12 @@ function formatCount(value: number) {
             <Tooltip :delay-duration="800">
               <TooltipTrigger as-child>
                 <div class="flex items-center justify-between text-xs">
-                  <span class="text-muted-foreground cursor-default">Photos</span>
-                  <span class="text-right font-medium">{{ formatCount(photosFound) }}</span>
+                  <span class="text-muted-foreground cursor-default">Media files</span>
+                  <span class="text-right font-medium">{{ formatCount(mediaFilesFound) }}</span>
                 </div>
               </TooltipTrigger>
               <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
-                Cataloged photos in this scope.
+                Cataloged image and video files in this scope.
               </TooltipContent>
             </Tooltip>
 
@@ -274,13 +274,13 @@ function formatCount(value: number) {
                 <div class="flex items-center justify-between text-xs">
                   <span class="text-muted-foreground cursor-default">Metadata ready</span>
                   <span class="text-right font-medium">
-                    {{ formatCount(photoDetailsReady) }}
-                    <template v-if="isIndexing"> / {{ formatCount(photosFound) }}</template>
+                    {{ formatCount(mediaMetadataReady) }}
+                    <template v-if="isIndexing"> / {{ formatCount(mediaFilesFound) }}</template>
                   </span>
                 </div>
               </TooltipTrigger>
               <TooltipContent side="left" align="start" class="max-w-[220px] text-xs whitespace-pre-line">
-                Photos with current metadata ready for search and inspection.
+                Media files with current metadata ready for search and inspection.
               </TooltipContent>
             </Tooltip>
           </div>
@@ -319,7 +319,7 @@ function formatCount(value: number) {
           <div class="space-y-1.5">
             <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Timestamps</p>
             <div class="flex items-center justify-between text-xs">
-              <span class="text-muted-foreground">Catalog updated</span>
+              <span class="text-muted-foreground">Media files updated</span>
               <span class="text-right font-medium">{{ formatLibraryTimestamp(status.last_scan_at) }}</span>
             </div>
             <div class="flex items-center justify-between text-xs">

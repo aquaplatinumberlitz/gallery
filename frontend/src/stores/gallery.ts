@@ -1,7 +1,6 @@
 import { defineStore } from "pinia";
 import type {
   FileNode,
-  FolderTreeNode,
   LibraryImportPath,
   RegisteredLibrary,
   SearchScope,
@@ -103,22 +102,6 @@ const saveSort = (field: SortField, order: SortOrder) => {
   if (typeof window === "undefined") return;
   localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify({ field, order }));
 };
-
-const normalizeNodes = (nodes: FolderTreeNode[]): FolderTreeNode[] =>
-  nodes
-    .filter((n) => n.type === "folder")
-    .map((n) => ({
-      ...n,
-      children: undefined,
-    }));
-
-const normalizeTreeNodes = (nodes: FolderTreeNode[], preserveChildren = false): FolderTreeNode[] =>
-  nodes
-    .filter((node) => node.type === "folder")
-    .map((node) => ({
-      ...node,
-      children: preserveChildren && node.children ? normalizeTreeNodes(node.children) : undefined,
-    }));
 
 const getExpansionScopeKey = (libraryId: number | null, importPathId: number | null): string | null => {
   if (!libraryId) return null;
@@ -261,13 +244,11 @@ export const useGalleryStore = defineStore("gallery", {
       activeImportPathId: null as number | null,
       activeImportRootPath: "",
       activeLibraryHydrated: false,
-      sidebarTree: [] as FolderTreeNode[],
       expandedFolderPaths: {} as Record<string, boolean>,
       currentBrowsePath: "",
       isLoading: false,
       history: [] as string[],
       historyIndex: -1,
-      hasEverLoaded: false,
       errorMessage: "" as string | null,
       errorType: null as string | null,
       searchQuery: "",
@@ -402,12 +383,10 @@ export const useGalleryStore = defineStore("gallery", {
     resetBrowseState(rootPath = "") {
       const safeRootPath = this.clampToActiveImportRoot(rootPath);
       this.currentBrowsePath = safeRootPath;
-      this.sidebarTree = [];
       this.expandedFolderPaths = readExpandedFolderPathScope(this.activeLibraryId, this.activeImportPathId);
       this.expandPathAncestors(safeRootPath || this.activeImportRootPath);
       this.history = safeRootPath ? [safeRootPath] : [];
       this.historyIndex = safeRootPath ? 0 : -1;
-      this.hasEverLoaded = false;
       this.isLoading = false;
       this.clearSearch();
       this.clearError();
@@ -436,10 +415,6 @@ export const useGalleryStore = defineStore("gallery", {
       if (this.historyIndex < 0 && safeHistory.length) {
         this.historyIndex = 0;
       }
-    },
-
-    setSidebarTree(nodes: FolderTreeNode[], options?: { preserveChildren?: boolean }) {
-      this.sidebarTree = options?.preserveChildren ? normalizeTreeNodes(nodes, true) : normalizeNodes(nodes);
     },
 
     isFolderExpanded(path: string): boolean {
@@ -484,7 +459,6 @@ export const useGalleryStore = defineStore("gallery", {
       this.currentBrowsePath = safePath;
       this.expandPathAncestors(safePath);
       this.pushHistory(safePath);
-      this.hasEverLoaded = true;
     },
 
     async openInExplorer() {
@@ -514,7 +488,6 @@ export const useGalleryStore = defineStore("gallery", {
         const path = this.history[this.historyIndex];
         this.currentBrowsePath = path;
         this.expandPathAncestors(path);
-        this.hasEverLoaded = true;
       }
     },
 
@@ -525,7 +498,6 @@ export const useGalleryStore = defineStore("gallery", {
         const path = this.history[this.historyIndex];
         this.currentBrowsePath = path;
         this.expandPathAncestors(path);
-        this.hasEverLoaded = true;
       }
     },
   },

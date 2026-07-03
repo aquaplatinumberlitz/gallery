@@ -163,8 +163,14 @@ const sortItems = <T extends { name: string; mtime?: number }>(items: T[]): T[] 
   return sorted;
 };
 
-const scanFolders = computed(() => infiniteBrowseQuery.folders.value);
-const scanMedia = computed(() => infiniteBrowseQuery.media.value);
+const hasBrowseScope = computed(() =>
+  Boolean(activeLibraryId.value && (activeBrowsePath.value || galleryStore.activeImportPathId)),
+);
+const hasActiveBrowsePage = computed(
+  () => infiniteBrowseQuery.isSuccess.value && infiniteBrowseQuery.hasActivePage.value,
+);
+const scanFolders = computed(() => (hasActiveBrowsePage.value ? infiniteBrowseQuery.folders.value : []));
+const scanMedia = computed(() => (hasActiveBrowsePage.value ? infiniteBrowseQuery.media.value : []));
 const scanImages = computed(() => scanMedia.value.filter((item) => item.type === "image"));
 
 const folders = computed(() =>
@@ -332,11 +338,16 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
 const hasMoreImages = computed(() => !hasSearchQuery.value && infiniteBrowseQuery.hasNextPage.value);
 const hasAnyItems = computed(() => scanFolders.value.length + scanMedia.value.length > 0);
 
-const pathReady = computed(() =>
-  Boolean(
-    infiniteBrowseQuery.activeFolderPath.value || galleryStore.activeImportPathId || galleryStore.activeLibraryId,
-  ),
+const browseLoading = computed(
+  () =>
+    hasBrowseScope.value &&
+    !hasActiveBrowsePage.value &&
+    !errorMessage.value &&
+    (infiniteBrowseQuery.isPending.value ||
+      infiniteBrowseQuery.isLoading.value ||
+      infiniteBrowseQuery.isFetching.value),
 );
+const browsePreparing = computed(() => hasBrowseScope.value && !hasActiveBrowsePage.value && !errorMessage.value);
 
 const hasAlbums = computed(() => folders.value.length > 0);
 const hasMedia = computed(() => media.value.length > 0);
@@ -344,8 +355,7 @@ const hasContent = computed(() => hasAlbums.value || hasMedia.value);
 
 const showEmptyFolder = computed(
   () =>
-    pathReady.value &&
-    infiniteBrowseQuery.isSuccess.value &&
+    hasActiveBrowsePage.value &&
     !infiniteBrowseQuery.isPending.value &&
     !infiniteBrowseQuery.isFetching.value &&
     !hasContent.value &&
@@ -361,10 +371,8 @@ onBeforeUnmount(() => {
 });
 
 const hasNoPath = computed(() => galleryStore.activeLibraryHydrated && !galleryStore.activeImportPathId);
-const hasNotLoaded = computed(() => !galleryStore.hasEverLoaded && Boolean(galleryStore.currentBrowsePath));
-const showGallerySkeleton = computed(
-  () => !hasSearchQuery.value && (hasNotLoaded.value || (isLoading.value && !galleryStore.hasEverLoaded)),
-);
+const showBrowsePreparingEmpty = computed(() => !hasSearchQuery.value && browsePreparing.value && !browseLoading.value);
+const showGallerySkeleton = computed(() => !hasSearchQuery.value && browseLoading.value);
 const showSearchSkeleton = computed(
   () =>
     hasSearchQuery.value &&
@@ -608,22 +616,6 @@ useIntersectionObserver(
     rootMargin: "400px",
     threshold: 0,
   },
-);
-
-watch(
-  [
-    () => infiniteBrowseQuery.isLoading.value,
-    () => infiniteBrowseQuery.isSuccess.value,
-    () => infiniteBrowseQuery.hasActivePage.value,
-    activeLibraryId,
-    activeBrowsePath,
-  ],
-  ([loading, success, hasActivePage]) => {
-    if (!loading && success && hasActivePage && (galleryStore.currentBrowsePath || galleryStore.activeLibraryId)) {
-      galleryStore.hasEverLoaded = true;
-    }
-  },
-  { immediate: true },
 );
 
 // ── Album Horizontal Scroll (handled by AlbumScroller component) ──
@@ -1096,7 +1088,7 @@ watch(
 
       <!-- Not Loaded Yet -->
       <EmptyState
-        v-else-if="hasNotLoaded"
+        v-else-if="showBrowsePreparingEmpty"
         type="not-loaded"
         title="Loading library"
         description="Preparing the selected import path."

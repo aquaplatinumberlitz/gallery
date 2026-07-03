@@ -18,17 +18,26 @@ const getImportRootName = (path: string) => {
   return parts[parts.length - 1] || normalizedPath;
 };
 
+const normalizeRootChildren = (nodes: FolderTreeNode[]): FolderTreeNode[] =>
+  nodes
+    .filter((node) => node.type === "folder")
+    .map((node) => ({
+      ...node,
+      children: undefined,
+    }));
+
 const makeImportRootNode = (path: string, folders: FolderTreeNode[], isLoaded: boolean): FolderTreeNode | null => {
   const normalizedPath = normalizeBrowsePath(path);
   if (!normalizedPath) return null;
+  const children = isLoaded ? normalizeRootChildren(folders) : undefined;
   return {
     name: getImportRootName(normalizedPath),
     display_label: normalizedPath,
     path: normalizedPath,
     type: "folder",
     entry_kind: "import_root",
-    has_children: isLoaded ? folders.length > 0 : false,
-    children: isLoaded ? folders : undefined,
+    has_children: children ? children.length > 0 : false,
+    children,
   };
 };
 
@@ -67,14 +76,6 @@ export function useSidebarTreeQuery(
     const rootNode = makeImportRootNode(normalizedRootPath.value, folders.value, query.isSuccess.value);
     return rootNode ? [rootNode] : [];
   });
-
-  watch(
-    tree,
-    (nodes) => {
-      galleryStore.setSidebarTree(nodes, { preserveChildren: true });
-    },
-    { immediate: true },
-  );
 
   watch(
     [

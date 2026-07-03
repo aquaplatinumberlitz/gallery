@@ -1,6 +1,6 @@
 /**
  * Purpose:
- * Verifies Catalog Status copy, status states, popover content, and update actions.
+ * Verifies File catalog status copy, status states, popover content, and update actions.
  *
  * Guarantees:
  * * catalog status counts and labels remain user-facing and stable
@@ -201,15 +201,15 @@ async function openStubbedGallery(page: Page, withLibrary = true) {
 }
 
 async function openStatusPopover(page: Page) {
-  const statusButton = page.getByLabel("Catalog Status");
+  const statusButton = page.getByLabel("File catalog status");
   await expect(statusButton).toBeVisible({ timeout: 10_000 });
   await statusButton.click();
-  const popover = page.getByRole("dialog").filter({ hasText: "Catalog" });
+  const popover = page.getByRole("dialog").filter({ hasText: "File catalog" });
   await expect(popover).toBeVisible({ timeout: 5_000 });
   return popover;
 }
 
-test.describe("Catalog Status panel", () => {
+test.describe("File catalog status panel", () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 
   test.beforeEach(() => {
@@ -236,7 +236,7 @@ test.describe("Catalog Status panel", () => {
     });
 
     await openStubbedGallery(page, false);
-    const statusButton = page.getByLabel("Catalog Status");
+    const statusButton = page.getByLabel("File catalog status");
     await expect(statusButton).toBeVisible({ timeout: 10_000 });
     await expect(statusButton).toContainText("Unknown");
   });
@@ -245,7 +245,7 @@ test.describe("Catalog Status panel", () => {
     await installStubbedGallery(page);
     await openStubbedGallery(page, true);
 
-    const statusButton = page.getByLabel("Catalog Status");
+    const statusButton = page.getByLabel("File catalog status");
     await expect(statusButton).toContainText("Ready");
     await expect(statusButton).toContainText("All metadata ready");
     await expect(statusButton).toContainText("Details");
@@ -272,9 +272,9 @@ test.describe("Catalog Status panel", () => {
     await installStubbedGallery(page, { delayStatus: delayedStatus });
     await openStubbedGallery(page, true);
 
-    const statusButton = page.getByLabel("Catalog Status");
+    const statusButton = page.getByLabel("File catalog status");
     await statusButton.click();
-    await expect(page.getByRole("dialog")).toContainText("Loading catalog status", { timeout: 5_000 });
+    await expect(page.getByRole("dialog")).toContainText("Loading file catalog status", { timeout: 5_000 });
 
     resolveStatus(null);
     await expect(page.getByRole("dialog")).toContainText("Metadata ready", { timeout: 5_000 });
@@ -311,7 +311,7 @@ test.describe("Catalog Status panel", () => {
     await trigger.click();
     await expect(trigger).toHaveAttribute("aria-label", "Expand sidebar");
 
-    const statusButton = page.getByLabel("Catalog Status");
+    const statusButton = page.getByLabel("File catalog status");
     await expect(statusButton).toBeVisible({ timeout: 10_000 });
     await expect(statusButton.getByTestId("catalog-database-icon")).toBeVisible();
 
@@ -337,7 +337,7 @@ test.describe("Catalog Status panel", () => {
     await installStubbedGallery(page);
     await openStubbedGallery(page, true);
 
-    const statusButton = page.getByLabel("Catalog Status");
+    const statusButton = page.getByLabel("File catalog status");
     await expect(statusButton).toContainText("Ready");
     await expect(statusButton).toContainText("Metadata extraction running in another folder");
     await expect(statusButton).not.toContainText("Updating");
@@ -359,12 +359,12 @@ test.describe("Catalog Status panel", () => {
     await installStubbedGallery(page);
     await openStubbedGallery(page, true);
 
-    const statusButton = page.getByLabel("Catalog Status");
+    const statusButton = page.getByLabel("File catalog status");
     await expect(statusButton).toContainText("Needs update");
-    await expect(statusButton).toContainText("5 photos need metadata updates");
+    await expect(statusButton).toContainText("5 media files need metadata updates");
 
     const popover = await openStatusPopover(page);
-    await expect(popover).toContainText("Photos");
+    await expect(popover).toContainText("Media files");
     await expect(popover).toContainText("205");
     await expect(popover).toContainText("Metadata ready");
     await expect(popover).toContainText("200");
@@ -384,7 +384,7 @@ test.describe("Catalog Status panel", () => {
     await installStubbedGallery(page);
     await openStubbedGallery(page, true);
 
-    const statusButton = page.getByLabel("Catalog Status");
+    const statusButton = page.getByLabel("File catalog status");
     await expect(statusButton).toContainText("Updating");
     await expect(statusButton).toContainText("256 / 522 metadata ready");
 
@@ -406,8 +406,8 @@ test.describe("Catalog Status panel", () => {
     await installStubbedGallery(page);
     await openStubbedGallery(page, true);
 
-    const statusButton = page.getByLabel("Catalog Status");
-    await expect(statusButton).toContainText("Catalog needs attention");
+    const statusButton = page.getByLabel("File catalog status");
+    await expect(statusButton).toContainText("File catalog needs attention");
 
     const popover = await openStatusPopover(page);
     await expect(popover).toContainText("Error");
@@ -426,7 +426,7 @@ test.describe("Catalog Status panel", () => {
     await installStubbedGallery(page);
     await openStubbedGallery(page, true);
 
-    const statusButton = page.getByLabel("Catalog Status");
+    const statusButton = page.getByLabel("File catalog status");
     await expect(statusButton).toContainText("Offline");
     await expect(statusButton).not.toContainText("Warning");
 

@@ -86,7 +86,9 @@
     color: #666;
     cursor: pointer;
     padding: 0;
-    display: flex;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font-size: 12px;
     flex-shrink: 0;
     &:hover {
@@ -116,6 +118,50 @@
   outline: none;
   box-shadow: var(--focus-ring-shadow);
   border-radius: 4px;
+}
+
+.copy-icon-stack {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: var(--copy-icon-stack-size, var(--gallery-icon-sm));
+  height: var(--copy-icon-stack-size, var(--gallery-icon-sm));
+
+  .copy-icon {
+    grid-area: 1 / 1;
+    margin: 0;
+    color: currentColor;
+    opacity: 1;
+    transform: scale(1);
+    transition:
+      color var(--gallery-timing-normal) ease,
+      opacity var(--gallery-timing-normal) ease,
+      transform var(--gallery-timing-normal) ease;
+  }
+
+  .copy-icon-check {
+    color: var(--gallery-success);
+    opacity: 0;
+    transform: scale(0.7);
+  }
+
+  &.is-copied {
+    .copy-icon-copy {
+      opacity: 0;
+      transform: scale(0.7);
+    }
+
+    .copy-icon-check {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .copy-icon-stack .copy-icon {
+    transition: none;
+  }
 }
 
 /* Collapsible group headers — legacy (non-accordion) */

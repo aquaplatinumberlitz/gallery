@@ -404,8 +404,8 @@ test.describe("imported-data maintenance verification", () => {
     await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
 
     await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
-    await page.getByLabel("Catalog Status").click();
-    const popover = page.getByRole("dialog").filter({ hasText: "Catalog" });
+    await page.getByLabel("File catalog status").click();
+    const popover = page.getByRole("dialog").filter({ hasText: "File catalog" });
     await popover.getByRole("button", { name: "Update library" }).click();
     await expect.poll(() => matchingRequests(state, "POST", "/api/libraries/1/scan").length).toBe(1);
 
@@ -450,8 +450,8 @@ test.describe("imported-data maintenance verification", () => {
     await expect.poll(() => state.assets).toEqual([imagePath]);
     await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
-    await page.getByLabel("Catalog Status").click();
-    const statusDialog = page.getByRole("dialog").filter({ hasText: "Catalog" });
+    await page.getByLabel("File catalog status").click();
+    const statusDialog = page.getByRole("dialog").filter({ hasText: "File catalog" });
     await expect(statusDialog).toContainText("Metadata ready");
     await expect(statusDialog.getByText("1").first()).toBeVisible();
   });

@@ -40,8 +40,22 @@ async function handleCopy() {
   <Tooltip>
     <TooltipTrigger as-child>
       <Button :variant="variant" :size="size" :class="props.class" :aria-label="ariaLabel" @click="handleCopy">
-        <Check v-if="copied" class="text-emerald-500" />
-        <Copy v-else />
+        <span class="relative inline-grid size-4 place-items-center">
+          <Check
+            aria-hidden="true"
+            :class="[
+              'col-start-1 row-start-1 text-[var(--gallery-success)] transition-all duration-200',
+              copied ? 'scale-100 opacity-100' : 'scale-75 opacity-0',
+            ]"
+          />
+          <Copy
+            aria-hidden="true"
+            :class="[
+              'col-start-1 row-start-1 transition-all duration-200',
+              copied ? 'scale-75 opacity-0' : 'scale-100 opacity-100',
+            ]"
+          />
+        </span>
         <slot v-if="$slots.default" :copied="copied">
           {{ copied ? copiedLabel : label }}
         </slot>

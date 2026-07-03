@@ -148,10 +148,21 @@ test("desktop library switch can return to a cached active library", async ({ pa
       return;
     }
     if (url.pathname === "/api/browse") {
+      const folderName = libraryId === immichLibrary.id ? "immich-folder" : "gallery-repo-folder";
       await route.fulfill({
         json: browseResponse({
           libraryId,
           path,
+          folders: [
+            {
+              name: folderName,
+              path: `${activeRoot}/${folderName}`,
+              type: "folder",
+              has_children: false,
+              cover_images: [],
+              image_count: 0,
+            },
+          ],
           media: [
             {
               name: libraryId === immichLibrary.id ? "immich.png" : "gallery-repo.png",
@@ -203,13 +214,22 @@ test("desktop library switch can return to a cached active library", async ({ pa
   await page.goto(baseUrl);
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
   await expect(page.getByAltText("gallery-repo.png").first()).toBeVisible();
-
-  await page.getByLabel("Active library").click();
-  await page.getByRole("option", { name: "Immich" }).click();
-  await expect(page.getByAltText("immich.png").first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("gallery-repo-folder").first()).toBeVisible();
 
   await page.getByLabel("Active library").click();
   await page.getByRole("option", { name: "Photos" }).click();
   await expect(page.getByAltText("gallery-repo.png").first()).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("photo-card").first()).toBeVisible();
+  await expect(page.getByText("gallery-repo-folder").first()).toBeVisible();
+
+  await page.getByLabel("Active library").click();
+  await page.getByRole("option", { name: "Immich" }).click();
+  await expect(page.getByAltText("immich.png").first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("immich-folder").first()).toBeVisible();
+
+  await page.getByLabel("Active library").click();
+  await page.getByRole("option", { name: "Photos" }).click();
+  await expect(page.getByAltText("gallery-repo.png").first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("photo-card").first()).toBeVisible();
+  await expect(page.getByText("gallery-repo-folder").first()).toBeVisible();
 });

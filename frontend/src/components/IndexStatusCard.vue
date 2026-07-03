@@ -27,8 +27,8 @@ const emit = defineEmits<{
   (e: "scan"): void;
 }>();
 
-const photosFound = computed(() => props.status?.metadata.total_assets ?? 0);
-const photoDetailsReady = computed(() => props.status?.metadata.ready_assets ?? 0);
+const mediaFilesFound = computed(() => props.status?.metadata.total_assets ?? 0);
+const mediaMetadataReady = computed(() => props.status?.metadata.ready_assets ?? 0);
 const metadataProgress = computed(() => props.status?.metadata.progress_percent ?? null);
 const isIndexing = computed(
   () => props.status?.metadata.state === "queued" || props.status?.metadata.state === "indexing",
@@ -47,20 +47,20 @@ const bodyText = computed(() => {
   }
   if (isIndexing.value) {
     if (metadataProgress.value !== null) {
-      return `${photoDetailsReady.value.toLocaleString()} / ${photosFound.value.toLocaleString()} metadata ready`;
+      return `${mediaMetadataReady.value.toLocaleString()} / ${mediaFilesFound.value.toLocaleString()} metadata ready`;
     }
     return "Updating metadata...";
   }
   if (props.globalWorkOutsideScope) return "Metadata extraction running in another folder";
   if (summaryState.value === "needs_update" && notReadyAssets.value > 0) {
-    return `${notReadyAssets.value.toLocaleString()} photos need metadata updates`;
+    return `${notReadyAssets.value.toLocaleString()} media files need metadata updates`;
   }
-  if (summaryState.value === "error") return "Catalog needs attention";
+  if (summaryState.value === "error") return "File catalog needs attention";
   if (summaryState.value === "offline") return "Offline";
   if (summaryState.value === "needs_scan") return "Needs update";
-  return photoDetailsReady.value >= photosFound.value && photosFound.value > 0
+  return mediaMetadataReady.value >= mediaFilesFound.value && mediaFilesFound.value > 0
     ? "All metadata ready"
-    : `${photoDetailsReady.value.toLocaleString()} / ${photosFound.value.toLocaleString()} metadata ready`;
+    : `${mediaMetadataReady.value.toLocaleString()} / ${mediaFilesFound.value.toLocaleString()} metadata ready`;
 });
 </script>
 
@@ -70,13 +70,13 @@ const bodyText = computed(() => {
       <button
         type="button"
         class="index-status-card group-data-[collapsible=icon]:hidden"
-        aria-label="Catalog Status"
+        aria-label="File catalog status"
         data-testid="index-status-card"
       >
         <span class="index-status-card__top">
           <span class="index-status-card__title" data-testid="catalog-database-icon">
             <Database class="size-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
-            <span>Catalog</span>
+            <span>File catalog</span>
           </span>
           <IndexStatusBadge :presentation="presentation" />
         </span>
@@ -91,7 +91,7 @@ const bodyText = computed(() => {
       </button>
     </PopoverTrigger>
 
-    <PopoverContent class="w-80 p-4" align="end" :side-offset="8" aria-label="Catalog Status">
+    <PopoverContent class="w-80 p-4" align="end" :side-offset="8" aria-label="File catalog status">
       <IndexStatusDetailsPopover
         :status="status"
         :presentation="presentation"

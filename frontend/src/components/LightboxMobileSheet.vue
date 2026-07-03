@@ -275,15 +275,16 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                     aria-label="Copy prompt"
                     @click.stop="props.copyText(props.meta?.prompt, 'prompt')"
                   >
-                    <Check
-                      v-if="props.copyStatus['prompt']"
-                      :size="14"
-                      :stroke-width="1.5"
-                      style="color: #4ade80"
-                      class="inline-copy-icon"
-                      data-testid="copy-prompt-check"
-                    />
-                    <Copy v-else :size="14" :stroke-width="1.5" class="inline-copy-icon" />
+                    <span class="copy-icon-stack inline-copy-icon" :class="{ 'is-copied': props.copyStatus['prompt'] }">
+                      <Check
+                        :size="14"
+                        :stroke-width="1.5"
+                        class="copy-icon copy-icon-check"
+                        data-testid="copy-prompt-check"
+                        aria-hidden="true"
+                      />
+                      <Copy :size="14" :stroke-width="1.5" class="copy-icon copy-icon-copy" aria-hidden="true" />
+                    </span>
                   </button>
                 </TooltipTrigger>
                 <TooltipContent>Copy prompt</TooltipContent>
@@ -315,14 +316,10 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                     aria-label="Copy negative prompt"
                     @click.stop="props.copyText(props.meta?.negative_prompt, 'neg')"
                   >
-                    <Check
-                      v-if="props.copyStatus['neg']"
-                      :size="14"
-                      :stroke-width="1.5"
-                      style="color: #4ade80"
-                      class="inline-copy-icon"
-                    />
-                    <Copy v-else :size="14" :stroke-width="1.5" class="inline-copy-icon" />
+                    <span class="copy-icon-stack inline-copy-icon" :class="{ 'is-copied': props.copyStatus['neg'] }">
+                      <Check :size="14" :stroke-width="1.5" class="copy-icon copy-icon-check" aria-hidden="true" />
+                      <Copy :size="14" :stroke-width="1.5" class="copy-icon copy-icon-copy" aria-hidden="true" />
+                    </span>
                   </button>
                 </TooltipTrigger>
                 <TooltipContent>Copy negative prompt</TooltipContent>
@@ -372,14 +369,10 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                   >
                     <span class="label">Seed</span>
                     <span class="value">{{ props.meta.params.Seed }}</span>
-                    <Check
-                      v-if="props.copyStatus['seed']"
-                      :size="14"
-                      :stroke-width="1.5"
-                      style="color: #4ade80"
-                      class="inline-copy-icon"
-                    />
-                    <Copy v-else :size="14" :stroke-width="1.5" class="inline-copy-icon" />
+                    <span class="copy-icon-stack inline-copy-icon" :class="{ 'is-copied': props.copyStatus['seed'] }">
+                      <Check :size="14" :stroke-width="1.5" class="copy-icon copy-icon-check" aria-hidden="true" />
+                      <Copy :size="14" :stroke-width="1.5" class="copy-icon copy-icon-copy" aria-hidden="true" />
+                    </span>
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>Copy seed</TooltipContent>

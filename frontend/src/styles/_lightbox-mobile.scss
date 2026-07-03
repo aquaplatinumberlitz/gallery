@@ -208,6 +208,14 @@
   color: currentColor;
 }
 
+.copy-icon-stack.inline-copy-icon {
+  margin-left: 6px;
+}
+
+.inline-copy-button .copy-icon-stack.inline-copy-icon {
+  margin-left: 0;
+}
+
 /* Copyable chip/field — whole element is tappable */
 .metadata-copyable {
   &.section-top {
