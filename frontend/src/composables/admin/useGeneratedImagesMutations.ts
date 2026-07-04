@@ -3,6 +3,7 @@ import { computed, type MaybeRefOrGetter, toValue } from "vue";
 import { useToast } from "@/composables/useToast";
 import { queryKeys } from "@/query/keys";
 import { generateMissingImages } from "@/services/api";
+import type { GeneratedImageKind } from "@/types";
 
 export function useGeneratedImagesMutations(libraryId: MaybeRefOrGetter<number | null | undefined>) {
   const queryClient = useQueryClient();
@@ -10,7 +11,7 @@ export function useGeneratedImagesMutations(libraryId: MaybeRefOrGetter<number |
   const resolvedId = computed(() => toValue(libraryId) ?? 0);
 
   const warmMutation = useMutation({
-    mutationFn: () => generateMissingImages(resolvedId.value),
+    mutationFn: (kind: GeneratedImageKind = "thumbnail") => generateMissingImages(resolvedId.value, kind),
     onSuccess: () => {
       toast.success("Thumbnails queued");
       void Promise.all([

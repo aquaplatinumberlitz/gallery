@@ -4,6 +4,7 @@ import type {
   FacetsResponse,
   FolderChildrenResponse,
   GalleryStats,
+  GeneratedImageKind,
   GeneratedImagesStatus,
   GeneratedImagesWarmResponse,
   CatalogResetResponse,
@@ -455,9 +456,12 @@ export const fetchGeneratedImagesStatus = async (libraryId: number): Promise<Gen
   return data;
 };
 
-export const generateMissingImages = async (libraryId: number): Promise<GeneratedImagesWarmResponse> => {
+export const generateMissingImages = async (
+  libraryId: number,
+  kind?: GeneratedImageKind,
+): Promise<GeneratedImagesWarmResponse> => {
   const { data } = await api.post<GeneratedImagesWarmResponse>("/api/derivatives/warm", null, {
-    params: { library_id: libraryId },
+    params: { library_id: libraryId, ...(kind ? { kind } : {}) },
   });
   return data;
 };

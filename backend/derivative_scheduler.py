@@ -266,8 +266,14 @@ class DerivativeScheduler:
         with self._file_lock:
             self._served_paths.discard(cache_path)
 
-    def warm_library(self, library_id: int) -> dict[str, int]:
-        """Schedule default thumbnail and preview derivatives for a library."""
+    def warm_library(self, library_id: int, kind: str | None = None) -> dict[str, int | str | None]:
+        """Schedule default derivative variants for a library.
+
+        When ``kind`` is provided, only variants for that derivative kind are queued.
+        """
+        if kind is not None and kind not in DERIVATIVE_VARIANTS:
+            raise ValueError(f"Unsupported derivative kind: {kind}")
+        selected_variants = {kind: DERIVATIVE_VARIANTS[kind]} if kind is not None else DERIVATIVE_VARIANTS
         _ensure_database()
         with _connect() as conn:
             assets = conn.execute(
@@ -279,12 +285,12 @@ class DerivativeScheduler:
             ).fetchall()
         scheduled = 0
         for asset in assets:
-            for kind, variants in DERIVATIVE_VARIANTS.items():
+            for derivative_kind, variants in selected_variants.items():
                 for variant in variants:
                     try:
                         self.schedule_derivative(
                             int(asset["id"]),
-                            kind,
+                            derivative_kind,
                             str(variant["name"]),
                             priority=3,
                             max_long_edge=int(variant["max_long_edge"]),
@@ -293,7 +299,10 @@ class DerivativeScheduler:
                         scheduled += 1
                     except OSError:
                         continue
-        return {"assets": len(assets), "derivatives_considered": scheduled}
+        result: dict[str, int | str] = {"assets": len(assets), "derivatives_considered": scheduled}
+        if kind is not None:
+            result["kind"] = kind
+        return result
 
     def library_status(self, library_id: int) -> dict[str, int | float]:
         """Return warm coverage and quota utilization for one library."""
@@ -301,6 +310,9 @@ class DerivativeScheduler:
         configured_variants = [
             (kind, str(variant["name"])) for kind, variants in DERIVATIVE_VARIANTS.items() for variant in variants
         ]
+        by_kind: dict[str, dict[str, int]] = {
+            kind: {"ready_derivatives": 0, "expected_derivatives": 0} for kind in DERIVATIVE_VARIANTS
+        }
         expected_derivatives_per_asset = len(configured_variants)
         with _connect() as conn:
             if conn.execute("SELECT 1 FROM libraries WHERE id = ?", (library_id,)).fetchone() is None:
@@ -316,7 +328,7 @@ class DerivativeScheduler:
                 variant_params = [value for pair in configured_variants for value in pair]
                 ready_rows = conn.execute(
                     f"""
-                    SELECT d.cache_path, d.byte_size
+                    SELECT d.kind, d.cache_path, d.byte_size
                     FROM asset_derivatives d JOIN assets a ON a.id = d.asset_id
                     WHERE a.library_id = ? AND d.status = 'ready'
                       AND d.source_mtime_ns = a.mtime_ns
@@ -330,15 +342,20 @@ class DerivativeScheduler:
                 ready_rows = []
             ready = 0
             used = 0
+            for kind, variants in DERIVATIVE_VARIANTS.items():
+                by_kind[kind]["expected_derivatives"] = total_assets * len(variants)
             for row in ready_rows:
                 if Path(row["cache_path"]).is_file():
                     ready += 1
                     used += row["byte_size"] or 0
+                    if row["kind"] in by_kind:
+                        by_kind[str(row["kind"])]["ready_derivatives"] += 1
         return {
             "library_id": library_id,
             "total_assets": total_assets,
             "ready_derivatives": ready,
             "expected_derivatives": total_assets * expected_derivatives_per_asset,
+            "by_kind": by_kind,
             "quota_bytes": self.quota_bytes,
             "quota_used_bytes": used,
             "quota_utilization": used / self.quota_bytes if self.quota_bytes else 0.0,

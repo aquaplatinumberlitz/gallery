@@ -482,6 +482,15 @@ describe("generateMissingImages", () => {
     expect(r).toEqual({ state: "queued" });
     expect(mockApi.post).toHaveBeenCalledWith("/api/derivatives/warm", null, { params: { library_id: 4 } });
   });
+
+  it("POST /api/derivatives/warm with derivative kind", async () => {
+    mockApi.post.mockResolvedValueOnce({ data: { state: "queued", kind: "thumbnail" } });
+    const r = await generateMissingImages(4, "thumbnail");
+    expect(r).toEqual({ state: "queued", kind: "thumbnail" });
+    expect(mockApi.post).toHaveBeenCalledWith("/api/derivatives/warm", null, {
+      params: { library_id: 4, kind: "thumbnail" },
+    });
+  });
 });
 
 describe("rebuildImportedData", () => {

@@ -671,9 +671,15 @@ async def api_derivative_status(library_id: int = Query(..., ge=1)):
 
 
 @router.post("/api/derivatives/warm", status_code=202)
-async def api_warm_derivatives(library_id: int = Query(..., ge=1)):
-    """Queue default thumbnail and preview derivatives for a library."""
+async def api_warm_derivatives(
+    library_id: int = Query(..., ge=1),
+    kind: str | None = Query(None, pattern="^(thumbnail|preview)$"),
+):
+    """Queue default derivatives for a library."""
     if await run_in_threadpool(get_library, library_id) is None:
         raise APIError(404, ErrorType.NOT_FOUND, "Library not found")
-    result = await run_in_threadpool(scheduler.warm_library, library_id)
+    try:
+        result = await run_in_threadpool(scheduler.warm_library, library_id, kind)
+    except ValueError as exc:
+        raise APIError(400, ErrorType.BAD_REQUEST, str(exc)) from exc
     return {"library_id": library_id, "state": "queued", **result}

@@ -37,6 +37,7 @@ beforeEach(() => {
     state: "queued",
     assets: 50,
     derivatives_considered: 100,
+    kind: "thumbnail",
   });
 });
 
@@ -44,7 +45,7 @@ describe("useGeneratedImagesMutations", () => {
   it("invalidates generated-images and related queries after warm", async () => {
     const { invalidate, mutations, wrapper } = setup(1);
 
-    await mutations.warmMutation.mutateAsync();
+    await mutations.warmMutation.mutateAsync("thumbnail");
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.generatedImages(1) });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusLibrary(1) });
@@ -56,7 +57,7 @@ describe("useGeneratedImagesMutations", () => {
   it("calls toast.success on warm success", async () => {
     const { mutations, wrapper } = setup(1);
 
-    await mutations.warmMutation.mutateAsync();
+    await mutations.warmMutation.mutateAsync("thumbnail");
 
     expect(toast.success).toHaveBeenCalledWith("Thumbnails queued");
     wrapper.unmount();
@@ -65,9 +66,18 @@ describe("useGeneratedImagesMutations", () => {
   it("warmMutation calls generateMissingImages with library id (library-scoped)", async () => {
     const { mutations, wrapper } = setup(42);
 
-    await mutations.warmMutation.mutateAsync();
+    await mutations.warmMutation.mutateAsync("thumbnail");
 
-    expect(generateMissingImages).toHaveBeenCalledWith(42);
+    expect(generateMissingImages).toHaveBeenCalledWith(42, "thumbnail");
+    wrapper.unmount();
+  });
+
+  it("passes through an explicit derivative kind", async () => {
+    const { mutations, wrapper } = setup(42);
+
+    await mutations.warmMutation.mutateAsync("preview");
+
+    expect(generateMissingImages).toHaveBeenCalledWith(42, "preview");
     wrapper.unmount();
   });
 

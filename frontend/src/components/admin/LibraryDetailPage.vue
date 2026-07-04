@@ -247,8 +247,13 @@ const statusTiles = computed<
 });
 
 const thumbnails = computed(() => generatedImagesQuery.data.value ?? null);
-const thumbnailReady = computed(() => thumbnails.value?.ready_derivatives ?? 0);
-const thumbnailExpected = computed(() => thumbnails.value?.expected_derivatives ?? 0);
+const thumbnailDerivativeStatus = computed(() => thumbnails.value?.by_kind?.thumbnail ?? null);
+const thumbnailReady = computed(
+  () => thumbnailDerivativeStatus.value?.ready_derivatives ?? thumbnails.value?.ready_derivatives ?? 0,
+);
+const thumbnailExpected = computed(
+  () => thumbnailDerivativeStatus.value?.expected_derivatives ?? thumbnails.value?.expected_derivatives ?? 0,
+);
 const thumbnailMissing = computed(() => Math.max(0, thumbnailExpected.value - thumbnailReady.value));
 const hasThumbnailExpectation = computed(() => thumbnailExpected.value > 0);
 const thumbnailCoverageRatio = computed(() => {
@@ -658,9 +663,11 @@ function estimatedAssets(): number | undefined {
                     variant="outline"
                     size="sm"
                     :disabled="warmMutation.isPending.value"
-                    @click="warmMutation.mutate()"
+                    @click="warmMutation.mutate('thumbnail')"
                   >
-                    <ImageIcon data-icon="inline-start" /> Build missing thumbnails
+                    <RefreshCw v-if="warmMutation.isPending.value" class="animate-spin" data-icon="inline-start" />
+                    <ImageIcon v-else data-icon="inline-start" />
+                    {{ warmMutation.isPending.value ? "Queuing thumbnails..." : "Build missing thumbnails" }}
                   </Button>
                 </template>
                 <Skeleton v-else class="h-32 w-full" />

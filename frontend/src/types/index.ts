@@ -343,16 +343,28 @@ export interface GeneratedImagesStatus {
   total_assets: number;
   ready_derivatives: number;
   expected_derivatives: number;
+  by_kind?: Partial<
+    Record<
+      "thumbnail" | "preview",
+      {
+        ready_derivatives: number;
+        expected_derivatives: number;
+      }
+    >
+  >;
   quota_bytes: number;
   quota_used_bytes: number;
   quota_utilization: number;
 }
+
+export type GeneratedImageKind = "thumbnail" | "preview";
 
 export interface GeneratedImagesWarmResponse {
   library_id: number;
   state: string;
   assets: number;
   derivatives_considered: number;
+  kind?: GeneratedImageKind | null;
 }
 
 export interface ImportedDataClearResponse {

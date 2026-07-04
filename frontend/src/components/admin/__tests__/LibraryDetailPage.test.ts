@@ -98,6 +98,16 @@ const mockJobs = [
 const mockGeneratedImages = {
   ready_derivatives: 75,
   expected_derivatives: 100,
+  by_kind: {
+    thumbnail: {
+      ready_derivatives: 45,
+      expected_derivatives: 50,
+    },
+    preview: {
+      ready_derivatives: 30,
+      expected_derivatives: 50,
+    },
+  },
   quota_used_bytes: 524288000,
   quota_bytes: 1073741824,
   quota_utilization: 0.488,
@@ -117,6 +127,7 @@ let routerPushMock = vi.fn();
 let copyTextMock = vi.fn();
 let copyStatusMock: Record<string, boolean> = {};
 let scanMutateMock = vi.fn();
+let warmMutateMock = vi.fn();
 let mockLibraryJobsQueryArgs: unknown[][] = [];
 
 vi.mock("vue-router", () => ({
@@ -190,7 +201,7 @@ vi.mock("@/composables/admin/useGeneratedImagesStatusQuery", () => ({
 
 vi.mock("@/composables/admin/useGeneratedImagesMutations", () => ({
   useGeneratedImagesMutations: () => ({
-    warmMutation: { isPending: { value: false }, mutate: vi.fn() },
+    warmMutation: { isPending: { value: false }, mutate: warmMutateMock },
   }),
 }));
 
@@ -239,6 +250,7 @@ describe("LibraryDetailPage", () => {
     copyTextMock = vi.fn();
     copyStatusMock = {};
     scanMutateMock = vi.fn();
+    warmMutateMock = vi.fn();
     mockLibraryJobsQueryArgs = [];
   });
 
@@ -442,11 +454,22 @@ describe("LibraryDetailPage", () => {
     mockGeneratedImagesData = mockGeneratedImages;
     const wrapper = mountSubject();
     expect(wrapper.text()).toContain("Thumbnails");
-    expect(wrapper.text()).toContain("75/100 cached");
-    expect(wrapper.text()).toContain("25 thumbnails missing");
+    expect(wrapper.text()).toContain("45/50 cached");
+    expect(wrapper.text()).toContain("5 thumbnails missing");
     expect(wrapper.text()).toContain("Build missing thumbnails");
     expect(wrapper.find(".bg-warning").exists()).toBe(true);
     expect(wrapper.find(".bg-primary").exists()).toBe(false);
+  });
+
+  it("queues only thumbnail derivatives from the thumbnail action", async () => {
+    mockGeneratedImagesData = mockGeneratedImages;
+    const wrapper = mountSubject();
+    const buildButton = wrapper.findAll("button").find((button) => button.text().includes("Build missing thumbnails"));
+    expect(buildButton).not.toBeUndefined();
+
+    await buildButton!.trigger("click");
+
+    expect(warmMutateMock).toHaveBeenCalledWith("thumbnail");
   });
 
   it("renders jobs with actual data", () => {

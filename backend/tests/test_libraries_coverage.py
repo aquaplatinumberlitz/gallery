@@ -607,6 +607,7 @@ def test_api_derivative_status_success(isolated_app: TestClient, isolated_galler
     response = isolated_app.get("/api/derivatives/status", params={"library_id": library_id})
     assert response.status_code == 200
     assert "quota_bytes" in response.json()
+    assert "thumbnail" in response.json()["by_kind"]
 
 
 def test_api_warm_derivatives_not_found(isolated_app: TestClient):
@@ -621,6 +622,16 @@ def test_api_warm_derivatives_success(isolated_app: TestClient, isolated_gallery
     response = isolated_app.post("/api/derivatives/warm", params={"library_id": library_id})
     assert response.status_code == 202
     assert response.json()["state"] == "queued"
+
+
+def test_api_warm_derivatives_accepts_kind(isolated_app: TestClient, isolated_gallery_root: Path):
+    root = isolated_gallery_root / "root"
+    root.mkdir()
+    library_id = int(register_library(root)["id"])
+    response = isolated_app.post("/api/derivatives/warm", params={"library_id": library_id, "kind": "thumbnail"})
+    assert response.status_code == 202
+    assert response.json()["state"] == "queued"
+    assert response.json()["kind"] == "thumbnail"
 
 
 def test_removed_rebuild_derivatives_endpoint_rejects_post(isolated_app: TestClient):

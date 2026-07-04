@@ -80,6 +80,10 @@ def test_schedule_coalesces_jobs_and_reports_library_status(
         "total_assets": 1,
         "ready_derivatives": 0,
         "expected_derivatives": sum(len(variants) for variants in DERIVATIVE_VARIANTS.values()),
+        "by_kind": {
+            "thumbnail": {"ready_derivatives": 0, "expected_derivatives": len(DERIVATIVE_VARIANTS["thumbnail"])},
+            "preview": {"ready_derivatives": 0, "expected_derivatives": len(DERIVATIVE_VARIANTS["preview"])},
+        },
         "quota_bytes": 1024,
         "quota_used_bytes": 0,
         "quota_utilization": 0.0,
@@ -180,6 +184,10 @@ def test_library_status_excludes_legacy_variants(
 
     assert status["expected_derivatives"] == sum(len(variants) for variants in DERIVATIVE_VARIANTS.values())
     assert status["ready_derivatives"] == status["expected_derivatives"]
+    assert status["by_kind"]["thumbnail"]["expected_derivatives"] == len(DERIVATIVE_VARIANTS["thumbnail"])
+    assert status["by_kind"]["thumbnail"]["ready_derivatives"] == len(DERIVATIVE_VARIANTS["thumbnail"])
+    assert status["by_kind"]["preview"]["expected_derivatives"] == len(DERIVATIVE_VARIANTS["preview"])
+    assert status["by_kind"]["preview"]["ready_derivatives"] == len(DERIVATIVE_VARIANTS["preview"])
     assert status["quota_used_bytes"] == current_bytes
 
 
