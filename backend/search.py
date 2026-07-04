@@ -23,6 +23,28 @@ from .metadata_store import (
 from .paths import is_path_safe, resolve_path
 
 router = APIRouter()
+MIN_PLAIN_SEARCH_QUERY_LENGTH = 2
+
+
+def _empty_search_response(q: str, scope: str, root: Path | None) -> dict:
+    return {
+        "query": q,
+        "scope": scope,
+        "root": str(root) if root is not None else "/",
+        "albums": [],
+        "photos": [],
+        "videos": [],
+        "prompt": [],
+    }
+
+
+def _is_executable_search_query(q: str) -> bool:
+    trimmed = q.strip()
+    if not trimmed:
+        return False
+    if parse_fielded_query(trimmed).fields:
+        return True
+    return len(trimmed) >= MIN_PLAIN_SEARCH_QUERY_LENGTH
 
 
 def _registered_or_requested_root(path: str | None) -> Path:
@@ -97,19 +119,11 @@ async def api_search(
     limit: int = Query(50, ge=1, le=200, description="Maximum results per section"),
 ):
     """Search albums, photos, and prompts in either current folder or all indexed files."""
-    if not q.strip():
+    if not _is_executable_search_query(q):
         root = _registered_or_requested_root(path) if scope == "current" else None
         if root is not None:
             await run_in_threadpool(_require_visible_registered_path, root)
-        return {
-            "query": q,
-            "scope": scope,
-            "root": str(root) if root is not None else "/",
-            "albums": [],
-            "photos": [],
-            "videos": [],
-            "prompt": [],
-        }
+        return _empty_search_response(q, scope, root)
 
     root_path: Path | None = None
     if scope == "current":

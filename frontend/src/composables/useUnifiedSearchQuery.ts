@@ -4,6 +4,16 @@ import { refDebounced } from "@vueuse/core";
 import { normalizeQueryPath, queryKeys } from "../query/keys";
 import { unifiedSearch } from "../services/api";
 import type { SearchScope, UnifiedSearchResults } from "../types";
+import { parseFieldedQuery } from "../utils/serializeAdvancedSearchToQuery";
+
+export const MIN_PLAIN_SEARCH_QUERY_LENGTH = 2;
+
+export function isExecutableSearchQuery(query: string): boolean {
+  const trimmed = query.trim();
+  if (!trimmed) return false;
+  if (parseFieldedQuery(trimmed).length > 0) return true;
+  return trimmed.length >= MIN_PLAIN_SEARCH_QUERY_LENGTH;
+}
 
 const EMPTY_SEARCH_RESULTS: UnifiedSearchResults = {
   albums: [],
@@ -15,7 +25,9 @@ const EMPTY_SEARCH_RESULTS: UnifiedSearchResults = {
 export function useUnifiedSearchQuery(query: Ref<string>, scope: Ref<SearchScope>, path: Ref<string>) {
   const trimmedQuery = computed(() => query.value.trim());
   const trimmedDebounced = refDebounced(trimmedQuery, 300);
-  const debouncedQuery = computed(() => (trimmedQuery.value ? trimmedDebounced.value : ""));
+  const debouncedQuery = computed(() =>
+    isExecutableSearchQuery(trimmedDebounced.value) ? trimmedDebounced.value : "",
+  );
 
   const normalizedPath = computed(() => normalizeQueryPath(path.value || ""));
   const requestPath = computed(() => (scope.value === "current" ? normalizedPath.value : ""));

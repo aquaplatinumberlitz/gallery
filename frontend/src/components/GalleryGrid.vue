@@ -24,7 +24,7 @@ import { useDevice } from "../composables/useDevice";
 import { usePullToRefresh } from "../composables/usePullToRefresh";
 import { useDelayedBoolean } from "../composables/useDelayedBoolean";
 import { useInfiniteBrowseQuery } from "../composables/useInfiniteBrowseQuery";
-import { useUnifiedSearchQuery } from "../composables/useUnifiedSearchQuery";
+import { isExecutableSearchQuery, useUnifiedSearchQuery } from "../composables/useUnifiedSearchQuery";
 import { galleryScrollContainerRefKey } from "../injectionKeys";
 import type { ErrorType } from "../services/api";
 import { fuzzySearchFileNodes } from "../utils/fuzzySearch";
@@ -123,7 +123,7 @@ const setVirtualScrollContainerRef = (target: Element | ComponentPublicInstance 
 
 const searchQuery = computed(() => galleryStore.searchQuery);
 const trimmedSearchQuery = computed(() => searchQuery.value.trim());
-const hasSearchQuery = computed(() => trimmedSearchQuery.value.length > 0);
+const hasSearchQuery = computed(() => isExecutableSearchQuery(trimmedSearchQuery.value));
 const searchScope = computed(() => galleryStore.searchScope);
 const searchContextPath = computed(() => infiniteBrowseQuery.activeFolderPath.value);
 const unifiedSearchQuery = useUnifiedSearchQuery(searchQuery, searchScope, searchContextPath);

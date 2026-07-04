@@ -3,7 +3,7 @@ import { mount } from "@vue/test-utils";
 import { defineComponent, h, ref } from "vue";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { unifiedSearch } from "@/services/api";
-import { useUnifiedSearchQuery } from "../useUnifiedSearchQuery";
+import { isExecutableSearchQuery, useUnifiedSearchQuery } from "../useUnifiedSearchQuery";
 import type { SearchScope, UnifiedSearchResponse, UnifiedSearchResult } from "@/types";
 
 vi.mock("@/services/api", () => ({
@@ -69,6 +69,24 @@ afterEach(() => {
 });
 
 describe("useUnifiedSearchQuery", () => {
+  it("requires at least two plain-text characters before search executes", async () => {
+    setup("a", "all", "");
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(isExecutableSearchQuery("a")).toBe(false);
+    expect(unifiedSearch).not.toHaveBeenCalled();
+  });
+
+  it("allows fielded searches below the plain-text minimum", async () => {
+    vi.mocked(unifiedSearch).mockResolvedValue(makeMockResults());
+    const { result } = setup("seed:1", "all", "");
+    await vi.advanceTimersByTimeAsync(300);
+
+    await vi.waitFor(() => expect(result.data.value).toEqual(makeMockResults()));
+    expect(isExecutableSearchQuery("seed:1")).toBe(true);
+    expect(unifiedSearch).toHaveBeenCalledWith("seed:1", { scope: "all", path: "", limit: 100 });
+  });
+
   it("fetches search results when query is non-empty after debounce", async () => {
     vi.mocked(unifiedSearch).mockResolvedValue(makeMockResults());
     const { result } = setup("cat", "all", "");
