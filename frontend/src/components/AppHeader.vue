@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, inject, onMounted, ref } from "vue";
 import {
   Landmark,
   Search,
@@ -46,6 +46,7 @@ import { normalizeQueryPath, queryKeys } from "@/query/keys";
 import { fetchLibraryInspector } from "@/services/api";
 import { useRouteChrome } from "@/composables/useRouteChrome";
 import { galleryScrollContainerRefKey } from "@/injectionKeys";
+import { useCollapsibleHeader } from "@/composables/useCollapsibleHeader";
 
 interface Props {
   isMobile: boolean;
@@ -82,15 +83,10 @@ const showGalleryHeader = computed(() => !isMetadataRoute.value && !isAdminRoute
 
 const isAdvancedSearchOpen = ref(false);
 const advancedSearchInitialFilters = ref<FieldFilter[]>([]);
-const isHeaderCollapsed = ref(false);
 let metadataDataPrefetchStarted = false;
-let cleanupScrollListener: (() => void) | null = null;
-let scrollRafId = 0;
-
-const COLLAPSE_SCROLL_Y = 120;
-const EXPAND_SCROLL_Y = 48;
 
 const injectedScrollContainerRef = inject(galleryScrollContainerRefKey, null);
+const { isHeaderCollapsed } = useCollapsibleHeader(injectedScrollContainerRef, { enabled: showGalleryHeader });
 
 const currentPath = computed(() => galleryStore.currentBrowsePath);
 const activeImportRootPath = computed(() => galleryStore.activeImportRootPath);
@@ -129,42 +125,6 @@ function handleOpenFolder(path: string) {
 
 function openFolder() {
   galleryStore.openInExplorer();
-}
-
-function updateHeaderCollapse(scrollY: number) {
-  if (!showGalleryHeader.value) {
-    isHeaderCollapsed.value = false;
-    return;
-  }
-
-  if (!isHeaderCollapsed.value && scrollY > COLLAPSE_SCROLL_Y) {
-    isHeaderCollapsed.value = true;
-  } else if (isHeaderCollapsed.value && scrollY <= EXPAND_SCROLL_Y) {
-    isHeaderCollapsed.value = false;
-  }
-}
-
-function readScrollTop(el: HTMLElement | null) {
-  return el?.scrollTop ?? (typeof window === "undefined" ? 0 : window.scrollY);
-}
-
-function attachCollapseListener(el: HTMLElement | null) {
-  cleanupScrollListener?.();
-  cleanupScrollListener = null;
-
-  updateHeaderCollapse(readScrollTop(el));
-  if (!el || typeof window === "undefined") return;
-
-  const handleScroll = () => {
-    if (scrollRafId) return;
-    scrollRafId = window.requestAnimationFrame(() => {
-      scrollRafId = 0;
-      updateHeaderCollapse(el.scrollTop);
-    });
-  };
-
-  el.addEventListener("scroll", handleScroll, { passive: true });
-  cleanupScrollListener = () => el.removeEventListener("scroll", handleScroll);
 }
 
 function requestIdle(callback: () => void) {
@@ -211,37 +171,6 @@ onMounted(() => {
   requestIdle(() => {
     if (!isMetadataRoute.value) void prefetchMetadataRoute();
   });
-
-  if (!injectedScrollContainerRef) {
-    attachCollapseListener(null);
-  }
-});
-
-if (injectedScrollContainerRef) {
-  watch(
-    injectedScrollContainerRef,
-    (el) => {
-      attachCollapseListener(el);
-    },
-    { immediate: true },
-  );
-}
-
-watch(showGalleryHeader, (isGallery) => {
-  if (!isGallery) {
-    isHeaderCollapsed.value = false;
-    return;
-  }
-  updateHeaderCollapse(readScrollTop(injectedScrollContainerRef?.value ?? null));
-});
-
-onBeforeUnmount(() => {
-  cleanupScrollListener?.();
-  cleanupScrollListener = null;
-  if (scrollRafId) {
-    window.cancelAnimationFrame(scrollRafId);
-    scrollRafId = 0;
-  }
 });
 
 function getFilterFieldKey(filter: FieldFilter) {
@@ -710,74 +639,74 @@ function handleClearAll() {
       </div>
 
       <div class="header-actions flex flex-col items-end gap-2">
-      <div class="flex items-center gap-2">
-        <ButtonLink
-          v-if="showBackToGallery"
-          to="/"
-          variant="ghost"
-          size="sm"
-          class="h-8 text-xs"
-          aria-label="Back to gallery"
-        >
-          <ArrowLeft class="size-4" />
-          <span>Gallery</span>
-        </ButtonLink>
-        <ButtonLink
-          to="/admin/libraries"
-          :variant="isLibrariesRoute ? 'secondary' : 'ghost'"
-          size="sm"
-          :aria-current="isLibrariesRoute ? 'page' : undefined"
-          class="h-8 text-xs"
-          @pointerenter="prefetchLibrariesRoute"
-          @focus="prefetchLibrariesRoute"
-        >
-          <Library class="size-4" />
-          <span>Libraries</span>
-        </ButtonLink>
-        <ButtonLink
-          v-if="!isMobile"
-          to="/metadata"
-          :variant="isMetadataRoute ? 'secondary' : 'ghost'"
-          size="sm"
-          :aria-current="isMetadataRoute ? 'page' : undefined"
-          class="metadata-link h-8 text-xs"
-          @pointerenter="prefetchMetadataResources"
-          @focus="prefetchMetadataResources"
-        >
-          <Table2 class="size-4" />
-          <span>Metadata</span>
-        </ButtonLink>
-        <ButtonLink
-          v-if="!isMobile"
-          to="/admin/maintenance"
-          :variant="isMaintenanceRoute ? 'secondary' : 'ghost'"
-          size="sm"
-          :aria-current="isMaintenanceRoute ? 'page' : undefined"
-          class="h-8 text-xs"
-        >
-          <Wrench class="size-4" />
-          <span>Maintenance</span>
-        </ButtonLink>
-        <Tooltip>
-          <TooltipTrigger as-child>
-            <button
-              type="button"
-              class="theme-pill-toggle"
-              :class="{ 'is-dark': resolvedTheme === 'dark' }"
-              :aria-label="resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
-              @click="toggleTheme"
-            >
-              <span class="theme-pill-thumb" aria-hidden="true">
-                <Sun class="theme-pill-icon theme-pill-icon-sun" />
-                <Moon class="theme-pill-icon theme-pill-icon-moon" />
-              </span>
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>
-            {{ resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode" }}
-          </TooltipContent>
-        </Tooltip>
-      </div>
+        <div class="flex items-center gap-2">
+          <ButtonLink
+            v-if="showBackToGallery"
+            to="/"
+            variant="ghost"
+            size="sm"
+            class="h-8 text-xs"
+            aria-label="Back to gallery"
+          >
+            <ArrowLeft class="size-4" />
+            <span>Gallery</span>
+          </ButtonLink>
+          <ButtonLink
+            to="/admin/libraries"
+            :variant="isLibrariesRoute ? 'secondary' : 'ghost'"
+            size="sm"
+            :aria-current="isLibrariesRoute ? 'page' : undefined"
+            class="h-8 text-xs"
+            @pointerenter="prefetchLibrariesRoute"
+            @focus="prefetchLibrariesRoute"
+          >
+            <Library class="size-4" />
+            <span>Libraries</span>
+          </ButtonLink>
+          <ButtonLink
+            v-if="!isMobile"
+            to="/metadata"
+            :variant="isMetadataRoute ? 'secondary' : 'ghost'"
+            size="sm"
+            :aria-current="isMetadataRoute ? 'page' : undefined"
+            class="metadata-link h-8 text-xs"
+            @pointerenter="prefetchMetadataResources"
+            @focus="prefetchMetadataResources"
+          >
+            <Table2 class="size-4" />
+            <span>Metadata</span>
+          </ButtonLink>
+          <ButtonLink
+            v-if="!isMobile"
+            to="/admin/maintenance"
+            :variant="isMaintenanceRoute ? 'secondary' : 'ghost'"
+            size="sm"
+            :aria-current="isMaintenanceRoute ? 'page' : undefined"
+            class="h-8 text-xs"
+          >
+            <Wrench class="size-4" />
+            <span>Maintenance</span>
+          </ButtonLink>
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <button
+                type="button"
+                class="theme-pill-toggle"
+                :class="{ 'is-dark': resolvedTheme === 'dark' }"
+                :aria-label="resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
+                @click="toggleTheme"
+              >
+                <span class="theme-pill-thumb" aria-hidden="true">
+                  <Sun class="theme-pill-icon theme-pill-icon-sun" />
+                  <Moon class="theme-pill-icon theme-pill-icon-moon" />
+                </span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {{ resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode" }}
+            </TooltipContent>
+          </Tooltip>
+        </div>
       </div>
     </template>
 
