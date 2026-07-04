@@ -304,7 +304,7 @@ class DerivativeScheduler:
             result["kind"] = kind
         return result
 
-    def library_status(self, library_id: int) -> dict[str, int | float]:
+    def library_status(self, library_id: int) -> dict[str, int | float | dict[str, dict[str, int]]]:
         """Return warm coverage and quota utilization for one library."""
         _ensure_database()
         configured_variants = [

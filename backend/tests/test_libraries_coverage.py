@@ -39,7 +39,9 @@ from backend.libraries import (
 )
 from backend.metadata_store import (
     LibraryOverlapError,
+    _connect,
     create_job,
+    index_file,
     register_library,
     update_job_state,
 )
@@ -627,11 +629,27 @@ def test_api_warm_derivatives_success(isolated_app: TestClient, isolated_gallery
 def test_api_warm_derivatives_accepts_kind(isolated_app: TestClient, isolated_gallery_root: Path):
     root = isolated_gallery_root / "root"
     root.mkdir()
+    image = root / "source.png"
+    create_test_png(image, size=(80, 60))
+    image_stat = image.stat()
     library_id = int(register_library(root)["id"])
+    assert index_file(image, image.name, image.parent, "photo", image_stat.st_mtime, image_stat.st_size, 80, 60)
+
     response = isolated_app.post("/api/derivatives/warm", params={"library_id": library_id, "kind": "thumbnail"})
+
     assert response.status_code == 202
     assert response.json()["state"] == "queued"
+    assert response.json()["assets"] == 1
+    assert response.json()["derivatives_considered"] == 1
     assert response.json()["kind"] == "thumbnail"
+    with _connect() as conn:
+        kinds = [
+            row["kind"]
+            for row in conn.execute(
+                "SELECT DISTINCT kind FROM asset_derivatives ORDER BY kind",
+            ).fetchall()
+        ]
+    assert kinds == ["thumbnail"]
 
 
 def test_removed_rebuild_derivatives_endpoint_rejects_post(isolated_app: TestClient):
