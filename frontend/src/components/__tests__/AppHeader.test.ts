@@ -16,6 +16,13 @@ const removeFilterMock = vi.fn((index: number) => {
   queryStringRef.value = "";
 });
 const clearAllMock = vi.fn();
+const goBackMock = vi.fn();
+const goForwardMock = vi.fn();
+const browseIsLoadingRef = ref(false);
+const browseIsFetchingRef = ref(false);
+const browseIsFetchingNextPageRef = ref(false);
+let galleryHistoryIndex = 0;
+let galleryHistory = [""];
 
 function routeMetaForPath(path: string) {
   if (path === "/metadata") {
@@ -59,6 +66,14 @@ vi.mock("@/composables/useFieldedSearch", () => ({
   }),
 }));
 
+vi.mock("@/composables/useInfiniteBrowseQuery", () => ({
+  useInfiniteBrowseQuery: () => ({
+    isLoading: browseIsLoadingRef,
+    isFetching: browseIsFetchingRef,
+    isFetchingNextPage: browseIsFetchingNextPageRef,
+  }),
+}));
+
 vi.mock("@/utils/serializeAdvancedSearchToQuery", () => ({
   parseFieldedQuery: vi.fn(() => []),
   serializeAdvancedSearchToQuery: vi.fn(() => ""),
@@ -87,8 +102,8 @@ vi.mock("@/stores/gallery", () => ({
     activeLibraryId: null,
     currentBrowsePath: "",
     activeImportRootPath: "",
-    historyIndex: 0,
-    history: [""],
+    historyIndex: galleryHistoryIndex,
+    history: galleryHistory,
     sortField: "date",
     sortOrder: "desc",
     metadataInspector: {
@@ -101,7 +116,8 @@ vi.mock("@/stores/gallery", () => ({
       scrollTop: 0,
       scrollPath: "",
     },
-    goBack: vi.fn(),
+    goBack: goBackMock,
+    goForward: goForwardMock,
     selectFolder: vi.fn(),
     clearSearch: vi.fn(),
     openInExplorer: vi.fn(),
@@ -125,6 +141,7 @@ vi.mock("lucide-vue-next", () => ({
   Wrench: { template: "<svg />", props: ["class"] },
   Landmark: { template: "<svg />", props: ["class"] },
   ArrowLeft: { template: "<svg />", props: ["class"] },
+  ArrowRight: { template: "<svg />", props: ["class"] },
   ArrowUpRight: { template: "<svg />", props: ["class"] },
   ChevronDown: { template: "<svg />", props: ["class"] },
   LayoutGrid: { template: "<svg />", props: ["class"] },
@@ -147,6 +164,7 @@ function createWrapper(props: Record<string, unknown> = {}) {
         RouterLink: { template: "<a><slot /></a>" },
         Button: { template: "<button @click='$emit(\"click\")'><slot /></button>" },
         ButtonLink: { template: "<a :href='to' @click='$emit(\"click\")'><slot /></a>" },
+        Badge: { template: "<span><slot /></span>" },
         Input: { template: "<input :value='modelValue' @input='$emit(\"update:modelValue\", $event.target.value)' />" },
         Tooltip: { template: "<span><slot /></span>" },
         TooltipTrigger: { template: "<span><slot /></span>" },
@@ -201,6 +219,13 @@ describe("AppHeader", () => {
     applyFiltersMock.mockClear();
     removeFilterMock.mockClear();
     clearAllMock.mockClear();
+    goBackMock.mockClear();
+    goForwardMock.mockClear();
+    browseIsLoadingRef.value = false;
+    browseIsFetchingRef.value = false;
+    browseIsFetchingNextPageRef.value = false;
+    galleryHistoryIndex = 0;
+    galleryHistory = [""];
   });
 
   it("renders the brand hero on non-metadata routes", () => {
@@ -279,6 +304,33 @@ describe("AppHeader", () => {
     const wrapper = createWrapper();
     const advBtn = wrapper.findAll("button").find((b) => b.attributes("aria-label") === "Advanced Search");
     expect(advBtn).toBeDefined();
+  });
+
+  it("restores forward navigation in the desktop gallery header", async () => {
+    galleryHistory = ["/library", "/library/album"];
+    galleryHistoryIndex = 0;
+    const wrapper = createWrapper();
+    const forwardBtn = wrapper.findAll("button").find((b) => b.attributes("aria-label") === "Go forward");
+
+    expect(forwardBtn).toBeDefined();
+    expect(forwardBtn!.attributes("disabled")).toBeUndefined();
+    await forwardBtn!.trigger("click");
+    expect(goForwardMock).toHaveBeenCalled();
+  });
+
+  it("marks the inactive compact header inert while expanded", () => {
+    const wrapper = createWrapper();
+    const compactHeader = wrapper.find(".compact-header");
+
+    expect(compactHeader.attributes("aria-hidden")).toBe("true");
+    expect(compactHeader.attributes("inert")).toBeDefined();
+  });
+
+  it("shows the browse loading badge in the desktop gallery header", () => {
+    browseIsLoadingRef.value = true;
+    const wrapper = createWrapper();
+
+    expect(wrapper.text()).toContain("Loading");
   });
 
   it("hides brand hero and search on metadata route", () => {

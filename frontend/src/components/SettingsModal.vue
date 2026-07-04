@@ -112,7 +112,7 @@ const handlePreview = () => {
 
 const optionCardClass = (active: boolean) =>
   cn(
-    "group relative flex cursor-pointer items-start gap-3 rounded-xl border bg-card/80 p-4 shadow-sm transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] hover:-translate-y-0.5 hover:border-primary/35 hover:bg-accent/40",
+    "group relative flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-card/80 p-4 shadow-sm transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] hover:-translate-y-0.5 hover:border-primary/35 hover:bg-accent/40",
     active && "border-primary/70 bg-primary/10 shadow-sm",
   );
 

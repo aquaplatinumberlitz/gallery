@@ -481,7 +481,7 @@ function estimatedAssets(): number | undefined {
 
                 <div
                   v-if="status"
-                  class="rounded-md border p-3"
+                  class="rounded-md border border-border p-3"
                   :class="{
                     'border-success/20 bg-success-bg': healthSeverity === 'healthy',
                     'border-warning/30 bg-warning-bg': healthSeverity === 'warning',
@@ -732,7 +732,7 @@ function estimatedAssets(): number | undefined {
                     {{ pattern }}
                   </code>
                 </div>
-                <div v-else class="mt-3 rounded-md border border-dashed bg-muted/30 p-3">
+                <div v-else class="mt-3 rounded-md border border-dashed border-border/70 bg-muted/30 p-3">
                   <p class="text-sm text-muted-foreground">None configured</p>
                   <Button variant="ghost" size="sm" class="mt-2 h-8 px-2" @click="editOpen = true">Add pattern</Button>
                 </div>

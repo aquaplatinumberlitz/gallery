@@ -708,7 +708,7 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
             </span>
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" class="w-44">
+        <DropdownMenuContent align="end">
           <DropdownMenuLabel class="text-xs text-muted-foreground">Columns</DropdownMenuLabel>
           <DropdownMenuGroup>
             <DropdownMenuCheckboxItem
@@ -1076,7 +1076,7 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                       </Tooltip>
                     </span>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" class="w-56">
+                  <DropdownMenuContent align="end">
                     <DropdownMenuGroup>
                       <DropdownMenuItem @click="openImage(visibleTableRows[virtualRow.index].original)">
                         <ExternalLink class="size-4" /> Open image

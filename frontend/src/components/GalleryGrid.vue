@@ -733,7 +733,7 @@ useIntersectionObserver(
           </Button>
         </DropdownMenuTrigger>
 
-        <DropdownMenuContent align="end" class="w-48">
+        <DropdownMenuContent align="end">
           <DropdownMenuRadioGroup
             :model-value="String(sliderLevel)"
             @update:model-value="(value: unknown) => selectDensity(Number(value))"

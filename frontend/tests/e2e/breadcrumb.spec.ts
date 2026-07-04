@@ -151,13 +151,15 @@ test.describe("Breadcrumb", () => {
     await installStubbedGallery(page);
     await openStubbedGallery(page);
 
-    const ellipsisButton = page.getByLabel(/more folders/);
+    const activeHeader = page.locator(".expanded-header:not([inert]), .compact-header:not([inert])");
+    const ellipsisButton = activeHeader.locator('button[aria-label$="more folders"]');
     await expect(ellipsisButton).toBeVisible();
 
     await ellipsisButton.click();
 
-    await expect(page.getByTestId("ellipsis-menu")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Show full path" })).toBeVisible();
+    const menu = page.getByRole("menu");
+    await expect(menu).toBeVisible();
+    await expect(menu.getByRole("menuitem", { name: "Show full path" })).toBeVisible();
     expect(
       monitoredErrors.consoleErrors.some(
         (message) =>

@@ -14,6 +14,7 @@ import {
   Library,
   Wrench,
   ArrowLeft,
+  ArrowRight,
   ArrowUpRight,
   ChevronDown,
   LayoutGrid,
@@ -21,6 +22,7 @@ import {
 import Button from "@/components/ui/Button.vue";
 import ButtonLink from "@/components/ui/ButtonLink.vue";
 import Input from "@/components/ui/Input.vue";
+import Badge from "@/components/ui/Badge.vue";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import Breadcrumb from "@/components/Breadcrumb.vue";
 import SortSelect from "@/components/SortSelect.vue";
@@ -47,6 +49,7 @@ import { fetchLibraryInspector } from "@/services/api";
 import { useRouteChrome } from "@/composables/useRouteChrome";
 import { galleryScrollContainerRefKey } from "@/injectionKeys";
 import { useCollapsibleHeader } from "@/composables/useCollapsibleHeader";
+import { useInfiniteBrowseQuery } from "@/composables/useInfiniteBrowseQuery";
 
 interface Props {
   isMobile: boolean;
@@ -88,9 +91,21 @@ let metadataDataPrefetchStarted = false;
 const injectedScrollContainerRef = inject(galleryScrollContainerRefKey, null);
 const { isHeaderCollapsed } = useCollapsibleHeader(injectedScrollContainerRef, { enabled: showGalleryHeader });
 
+const activeLibraryId = computed(() => (showGalleryHeader.value ? galleryStore.activeLibraryId : null));
+const activeBrowsePath = computed(() => galleryStore.currentBrowsePath || null);
+const infiniteBrowseQuery = useInfiniteBrowseQuery(activeLibraryId, activeBrowsePath);
 const currentPath = computed(() => galleryStore.currentBrowsePath);
 const activeImportRootPath = computed(() => galleryStore.activeImportRootPath);
 const canBack = computed(() => galleryStore.historyIndex > 0);
+const canForward = computed(() => galleryStore.historyIndex < galleryStore.history.length - 1);
+const isBrowseLoading = computed(() => showGalleryHeader.value && infiniteBrowseQuery.isLoading.value);
+const isBrowseRefetching = computed(
+  () =>
+    showGalleryHeader.value &&
+    infiniteBrowseQuery.isFetching.value &&
+    !infiniteBrowseQuery.isLoading.value &&
+    !infiniteBrowseQuery.isFetchingNextPage.value,
+);
 const compactBreadcrumbMaxVisible = computed(() => (isHeaderCollapsed.value ? 2 : 4));
 const gallerySortValue = computed<SortValue>({
   get() {
@@ -116,6 +131,10 @@ function selectDensity(level: number) {
 
 function goBack() {
   galleryStore.goBack();
+}
+
+function goForward() {
+  galleryStore.goForward();
 }
 
 function handleOpenFolder(path: string) {
@@ -235,7 +254,7 @@ function handleClearAll() {
     }"
   >
     <template v-if="showGalleryHeader">
-      <div class="expanded-header" :aria-hidden="isHeaderCollapsed">
+      <div class="expanded-header" :aria-hidden="isHeaderCollapsed" :inert="isHeaderCollapsed">
         <div class="expanded-primary">
           <div class="header-left flex items-center gap-3">
             <Tooltip>
@@ -405,22 +424,40 @@ function handleClearAll() {
         </div>
 
         <div class="gallery-toolbar expanded-gallery-toolbar">
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                class="nav-btn"
-                :disabled="!canBack"
-                type="button"
-                aria-label="Go back"
-                @click="goBack"
-              >
-                <ArrowLeft class="gallery-icon-toolbar" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Back</TooltipContent>
-          </Tooltip>
+          <div class="nav-group inline-flex items-center gap-2">
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  class="nav-btn"
+                  :disabled="!canBack"
+                  type="button"
+                  aria-label="Go back"
+                  @click="goBack"
+                >
+                  <ArrowLeft class="gallery-icon-toolbar" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Back</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  class="nav-btn"
+                  :disabled="!canForward"
+                  type="button"
+                  aria-label="Go forward"
+                  @click="goForward"
+                >
+                  <ArrowRight class="gallery-icon-toolbar" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Forward</TooltipContent>
+            </Tooltip>
+          </div>
 
           <Breadcrumb
             class="breadcrumb-wrap"
@@ -450,7 +487,7 @@ function handleClearAll() {
             v-model="gallerySortValue"
             aria-label="Sort gallery"
             trigger-label="Sort"
-            trigger-class="h-8 w-[74px] gap-1.5 px-2 py-0 text-xs font-normal shadow-none"
+            trigger-class="sort-trigger h-8 w-[74px] gap-1.5 px-2 py-0 text-xs font-normal shadow-none"
           />
 
           <DropdownMenu>
@@ -466,7 +503,7 @@ function handleClearAll() {
               </Button>
             </DropdownMenuTrigger>
 
-            <DropdownMenuContent align="end" class="w-48">
+            <DropdownMenuContent align="end">
               <DropdownMenuRadioGroup
                 :model-value="String(sliderLevel)"
                 @update:model-value="(value: unknown) => selectDensity(Number(value))"
@@ -483,26 +520,54 @@ function handleClearAll() {
               </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          <Badge
+            v-if="isBrowseLoading || isBrowseRefetching"
+            variant="loading"
+            :class="{ 'opacity-70': isBrowseRefetching && !isBrowseLoading }"
+            class="loading-badge"
+          >
+            <Loader2 class="gallery-icon-md search-leading-loading" />
+            <span>{{ isBrowseRefetching && !isBrowseLoading ? "Refreshing" : "Loading" }}</span>
+          </Badge>
         </div>
       </div>
 
-      <div class="compact-header" :aria-hidden="!isHeaderCollapsed">
-        <Tooltip>
-          <TooltipTrigger as-child>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              class="nav-btn compact-back-btn"
-              :disabled="!canBack"
-              type="button"
-              aria-label="Go back"
-              @click="goBack"
-            >
-              <ArrowLeft class="gallery-icon-toolbar" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Back</TooltipContent>
-        </Tooltip>
+      <div class="compact-header" :aria-hidden="!isHeaderCollapsed" :inert="!isHeaderCollapsed">
+        <div class="nav-group inline-flex items-center gap-2">
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                class="nav-btn compact-back-btn"
+                :disabled="!canBack"
+                type="button"
+                aria-label="Go back"
+                @click="goBack"
+              >
+                <ArrowLeft class="gallery-icon-toolbar" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Back</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                class="nav-btn compact-forward-btn"
+                :disabled="!canForward"
+                type="button"
+                aria-label="Go forward"
+                @click="goForward"
+              >
+                <ArrowRight class="gallery-icon-toolbar" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Forward</TooltipContent>
+          </Tooltip>
+        </div>
 
         <Breadcrumb
           class="breadcrumb-wrap compact-breadcrumb"
@@ -512,96 +577,70 @@ function handleClearAll() {
           @navigate="handleOpenFolder"
         />
 
-        <div class="search-box compact-search-box">
-          <Loader2 v-if="searchLoading" class="search-leading-icon search-leading-loading" aria-hidden="true" />
-          <Search v-else class="search-leading-icon" aria-hidden="true" />
-          <Input
-            id="gallery-search-compact"
-            :model-value="searchQuery"
-            @update:model-value="(v: string) => emit('update:searchQuery', v)"
-            type="search"
-            variant="ghost"
-            placeholder="Search"
-            autocomplete="off"
-            class="search-input"
+        <div class="compact-controls">
+          <div class="search-box compact-search-box">
+            <Loader2 v-if="searchLoading" class="search-leading-icon search-leading-loading" aria-hidden="true" />
+            <Search v-else class="search-leading-icon" aria-hidden="true" />
+            <Input
+              id="gallery-search-compact"
+              :model-value="searchQuery"
+              @update:model-value="(v: string) => emit('update:searchQuery', v)"
+              type="search"
+              variant="ghost"
+              placeholder="Search"
+              autocomplete="off"
+              class="search-input"
+            />
+          </div>
+
+          <SortSelect
+            v-model="gallerySortValue"
+            aria-label="Sort gallery"
+            trigger-label="Sort"
+            trigger-class="sort-trigger h-8 w-[74px] gap-1.5 px-2 py-0 text-xs font-normal shadow-none"
           />
-          <Tooltip v-if="searchQuery">
-            <TooltipTrigger as-child>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
               <Button
-                variant="ghost"
-                size="icon"
-                class="clear-btn search-action-btn"
+                variant="outline"
                 type="button"
-                aria-label="Clear search"
-                @click="clearSearch"
+                class="gallery-density-trigger h-8 w-[74px] justify-between gap-1.5 px-2 text-xs font-normal text-foreground shadow-none"
+                aria-label="View density"
               >
-                <X class="gallery-icon-xs" />
+                <span class="truncate">View</span>
+                <ChevronDown data-icon="inline-end" class="opacity-50" />
               </Button>
-            </TooltipTrigger>
-            <TooltipContent>Clear search</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <Button
-                variant="ghost"
-                size="icon"
-                class="advanced-search-btn search-action-btn"
-                type="button"
-                :class="{ 'text-primary': isFieldedSearchActive }"
-                aria-label="Advanced Search"
-                @click="openAdvancedSearch"
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent align="end">
+              <DropdownMenuRadioGroup
+                :model-value="String(sliderLevel)"
+                @update:model-value="(value: unknown) => selectDensity(Number(value))"
               >
-                <SlidersHorizontal class="gallery-icon-toolbar" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Advanced Search</TooltipContent>
-          </Tooltip>
+                <DropdownMenuRadioItem
+                  v-for="option in densityOptions"
+                  :key="option.level"
+                  :value="String(option.level)"
+                  class="gap-2"
+                >
+                  <LayoutGrid class="gallery-icon-sm" />
+                  <span class="flex-1">{{ option.columns }} columns</span>
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Badge
+            v-if="isBrowseLoading || isBrowseRefetching"
+            variant="loading"
+            :class="{ 'opacity-70': isBrowseRefetching && !isBrowseLoading }"
+            class="loading-badge compact-loading-badge"
+          >
+            <Loader2 class="gallery-icon-md search-leading-loading" />
+            <span>{{ isBrowseRefetching && !isBrowseLoading ? "Refreshing" : "Loading" }}</span>
+          </Badge>
         </div>
-
-        <SearchScopeSelect
-          :model-value="searchScope"
-          size="compact"
-          class="compact-scope-pill"
-          @update:model-value="emit('scope-change', $event)"
-        />
-
-        <SortSelect
-          v-model="gallerySortValue"
-          aria-label="Sort gallery"
-          trigger-label="Sort"
-          trigger-class="h-8 w-[74px] gap-1.5 px-2 py-0 text-xs font-normal shadow-none"
-        />
-
-        <DropdownMenu>
-          <DropdownMenuTrigger as-child>
-            <Button
-              variant="outline"
-              type="button"
-              class="gallery-density-trigger h-8 w-[74px] justify-between gap-1.5 px-2 text-xs font-normal text-foreground shadow-none"
-              aria-label="View density"
-            >
-              <span class="truncate">View</span>
-              <ChevronDown data-icon="inline-end" class="opacity-50" />
-            </Button>
-          </DropdownMenuTrigger>
-
-          <DropdownMenuContent align="end" class="w-48">
-            <DropdownMenuRadioGroup
-              :model-value="String(sliderLevel)"
-              @update:model-value="(value: unknown) => selectDensity(Number(value))"
-            >
-              <DropdownMenuRadioItem
-                v-for="option in densityOptions"
-                :key="option.level"
-                :value="String(option.level)"
-                class="gap-2"
-              >
-                <LayoutGrid class="gallery-icon-sm" />
-                <span class="flex-1">{{ option.columns }} columns</span>
-              </DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
     </template>
 
@@ -733,6 +772,7 @@ function handleClearAll() {
 
 .gallery-header.is-gallery-header {
   display: block;
+  container: gallery-header / inline-size;
   overflow: hidden;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   background: color-mix(in srgb, var(--background) 80%, transparent);
@@ -783,9 +823,11 @@ function handleClearAll() {
 
 .compact-header {
   display: grid;
-  grid-template-columns: auto minmax(120px, 1fr) minmax(180px, 360px) auto auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  width: 100%;
   height: 0;
   max-height: 0;
   opacity: 0;
@@ -809,26 +851,75 @@ function handleClearAll() {
 
 .gallery-toolbar {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 10px;
   min-width: 0;
 }
 
-.compact-breadcrumb {
+.breadcrumb-wrap {
+  justify-self: start;
+  width: fit-content;
   min-width: 0;
   max-width: 100%;
 }
 
-.compact-search-box {
-  min-width: 180px;
+.compact-breadcrumb {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.compact-controls {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) auto auto auto;
+  align-items: center;
+  justify-self: end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.search-box.compact-search-box {
+  min-width: 0;
   width: 100%;
   height: 34px;
+  padding-right: 10px;
   border-radius: 9px;
 }
 
-.compact-scope-pill {
-  max-width: 132px;
+.compact-header :deep(.sort-trigger),
+.compact-header :where(.gallery-density-trigger) {
+  flex: 0 0 auto;
+}
+
+.loading-badge {
+  justify-self: end;
+  white-space: nowrap;
+}
+
+.compact-loading-badge {
+  max-width: 112px;
+}
+
+.gallery-icon-md {
+  width: var(--gallery-icon-md);
+  height: var(--gallery-icon-md);
+}
+
+@container gallery-header (max-width: 980px) {
+  .compact-controls {
+    grid-template-columns: minmax(140px, 180px) auto auto auto;
+  }
+}
+
+@container gallery-header (max-width: 860px) {
+  .compact-header {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .compact-breadcrumb {
+    display: none;
+  }
 }
 
 /* Hamburger: hidden on desktop, shown on tablet/mobile */
@@ -1172,6 +1263,11 @@ h1 {
   .search-box {
     min-width: 180px;
   }
+
+  .compact-search-box {
+    min-width: 0;
+    width: 100%;
+  }
 }
 
 /* Tablet range (768-1199px) — sidebar 240px persistent + hamburger always visible, edge-toggle hidden */
@@ -1322,6 +1418,11 @@ h1 {
   .search-box {
     width: 30px;
     height: 30px;
+  }
+
+  .compact-search-box {
+    width: 100%;
+    min-width: 0;
   }
 
   .hamburger-btn {

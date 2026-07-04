@@ -1,43 +1,100 @@
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
+import { defineComponent, h, inject, nextTick, provide, ref, watch, type Ref } from "vue";
 import Breadcrumb from "../Breadcrumb.vue";
 
-const clickOutsideHandlers = new WeakMap<HTMLElement, EventListener>();
+const dropdownContextKey = Symbol("dropdown-test-context");
 
-function createWrapper(props: Record<string, unknown> = {}) {
+interface DropdownTestContext {
+  open: Ref<boolean>;
+  toggle: () => void;
+}
+
+const DropdownMenuStub = defineComponent({
+  props: { open: { type: Boolean, default: false } },
+  emits: ["update:open"],
+  setup(props, { emit, slots }) {
+    const open = ref(props.open);
+
+    watch(
+      () => props.open,
+      (value) => {
+        open.value = value;
+      },
+    );
+
+    const toggle = () => {
+      open.value = !open.value;
+      emit("update:open", open.value);
+    };
+
+    provide(dropdownContextKey, { open, toggle });
+    return () => h("div", slots.default?.());
+  },
+});
+
+const DropdownMenuTriggerStub = defineComponent({
+  setup(_, { slots }) {
+    const context = inject<DropdownTestContext>(dropdownContextKey);
+    return () => h("span", { onClick: () => context?.toggle() }, slots.default?.());
+  },
+});
+
+const DropdownMenuContentStub = defineComponent({
+  setup(_, { slots, attrs }) {
+    const context = inject<DropdownTestContext>(dropdownContextKey);
+    return () => (context?.open.value ? h("div", attrs, slots.default?.()) : null);
+  },
+});
+
+const DropdownMenuItemStub = defineComponent({
+  props: { disabled: { type: Boolean, default: false } },
+  emits: ["select"],
+  setup(props, { emit, slots, attrs }) {
+    return () =>
+      h(
+        "button",
+        {
+          ...attrs,
+          disabled: props.disabled,
+          onClick: () => {
+            if (!props.disabled) emit("select");
+          },
+        },
+        slots.default?.(),
+      );
+  },
+});
+
+function createWrapper(props: Record<string, unknown> = {}, options: { realDropdown?: boolean } = {}) {
+  const dropdownStubs: Record<string, unknown> = options.realDropdown
+    ? {}
+    : {
+        DropdownMenu: DropdownMenuStub,
+        DropdownMenuContent: DropdownMenuContentStub,
+        DropdownMenuItem: DropdownMenuItemStub,
+        DropdownMenuSeparator: { template: "<hr />" },
+        DropdownMenuTrigger: DropdownMenuTriggerStub,
+      };
+
   return mount(Breadcrumb, {
     props,
+    attachTo: options.realDropdown ? document.body : undefined,
     global: {
       stubs: {
         BreadcrumbRoot: { template: "<div><slot /></div>" },
         BreadcrumbList: { template: "<ol><slot /></ol>" },
         BreadcrumbItem: { template: "<li><slot /></li>" },
-        BreadcrumbLink: { template: "<button :disabled='disabled' @click='$emit(\"click\")'><slot /></button>" },
+        BreadcrumbLink: {
+          props: ["disabled"],
+          template: "<button :disabled='disabled' @click='$emit(\"click\")'><slot /></button>",
+        },
         BreadcrumbPage: { template: "<span><slot /></span>" },
         BreadcrumbSeparator: { template: "<span>/</span>" },
+        ...dropdownStubs,
         Tooltip: { template: "<span><slot /></span>" },
         TooltipTrigger: { template: "<span><slot /></span>" },
         TooltipContent: { template: "<span><slot /></span>" },
-      },
-      directives: {
-        "click-outside": {
-          mounted(el: HTMLElement, binding: { value: () => void }) {
-            const handler = (event: Event) => {
-              if (!(el === event.target || el.contains(event.target as Node))) {
-                binding.value();
-              }
-            };
-            clickOutsideHandlers.set(el, handler);
-            document.addEventListener("click", handler);
-          },
-          unmounted(el: HTMLElement) {
-            const handler = clickOutsideHandlers.get(el);
-            if (handler) {
-              document.removeEventListener("click", handler);
-              clickOutsideHandlers.delete(el);
-            }
-          },
-        },
       },
     },
   });
@@ -111,6 +168,18 @@ describe("Breadcrumb", () => {
 
     await ellipsisBtn.trigger("click");
     expect(wrapper.text()).not.toContain("Show full path");
+  });
+
+  it("opens the real portal dropdown from the ellipsis trigger", async () => {
+    const wrapper = createWrapper({ path: "/a/b/c/d/e", maxVisible: 3 }, { realDropdown: true });
+    const ellipsisBtn = wrapper.find('[aria-label$="more folders"]');
+
+    await ellipsisBtn.trigger("click");
+    await nextTick();
+
+    expect(document.body.textContent).toContain("Show full path");
+
+    wrapper.unmount();
   });
 
   it("navigates to hidden segment from ellipsis menu", async () => {

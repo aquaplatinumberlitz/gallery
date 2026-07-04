@@ -24,7 +24,10 @@ const jobs = computed(() => jobsQuery.data.value ?? []);
 </script>
 
 <template>
-  <main class="h-full overflow-y-auto rounded-xl border bg-card p-4 sm:p-6" aria-labelledby="library-jobs-heading">
+  <main
+    class="h-full overflow-y-auto rounded-xl border border-border bg-card p-4 sm:p-6"
+    aria-labelledby="library-jobs-heading"
+  >
     <div class="mx-auto max-w-6xl space-y-6">
       <ButtonLink :to="{ name: 'admin-library-detail', params: { id } }" variant="ghost" class="-ml-3">
         <ArrowLeft /> Library details
@@ -32,7 +35,7 @@ const jobs = computed(() => jobsQuery.data.value ?? []);
 
       <div
         v-if="!libraryId || libraryQuery.isError.value"
-        class="grid min-h-72 place-items-center rounded-md border border-dashed p-8 text-center"
+        class="grid min-h-72 place-items-center rounded-md border border-dashed border-border p-8 text-center"
       >
         <div class="space-y-3">
           <h2 class="text-xl font-semibold">Library not found</h2>
@@ -68,7 +71,7 @@ const jobs = computed(() => jobsQuery.data.value ?? []);
           </Tooltip>
         </header>
 
-        <section class="rounded-md border bg-background p-5">
+        <section class="rounded-md border border-border bg-background p-5">
           <div v-if="libraryQuery.isPending.value || jobsQuery.isPending.value" class="space-y-3">
             <Skeleton v-for="item in 8" :key="item" class="h-16 w-full" />
           </div>

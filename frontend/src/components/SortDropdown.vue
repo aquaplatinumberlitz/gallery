@@ -85,7 +85,7 @@ function selectField(field: SortField) {
       </Button>
     </DropdownMenuTrigger>
 
-    <DropdownMenuContent align="end" :class="['w-40', contentClass]">
+    <DropdownMenuContent align="end" :class="contentClass">
       <DropdownMenuGroup>
         <DropdownMenuItem
           v-for="option in SORT_FIELDS"

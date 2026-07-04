@@ -52,7 +52,7 @@ function select(library: RegisteredLibrary, importPath: LibraryImportPath) {
             v-for="importPath in library.import_paths"
             :key="importPath.id"
             type="button"
-            class="flex w-full items-center gap-3 rounded-md border p-3 text-left hover:bg-accent"
+            class="flex w-full items-center gap-3 rounded-md border border-border p-3 text-left hover:bg-accent"
             @click="select(library, importPath)"
           >
             <FolderOpen class="size-4 shrink-0 text-primary" />

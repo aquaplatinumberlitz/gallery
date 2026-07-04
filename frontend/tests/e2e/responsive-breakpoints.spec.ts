@@ -16,7 +16,7 @@ import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
 const rootPath = "/gallery-responsive-test";
-const imagePaths = Array.from({ length: 6 }, (_, i) => `${rootPath}/image_${i + 1}.png`);
+const imagePaths = Array.from({ length: 72 }, (_, i) => `${rootPath}/image_${i + 1}.png`);
 const png1x1 = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/luz4nQAAAABJRU5ErkJggg==",
   "base64",
@@ -128,6 +128,16 @@ async function openStubbedGallery(page: Page) {
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
 }
 
+async function collapseDesktopHeader(page: Page) {
+  const scroller = page.locator(".tanstack-scroller").first();
+  await expect(scroller).toBeVisible({ timeout: 15_000 });
+  await scroller.evaluate((element) => {
+    element.scrollTop = 180;
+    element.dispatchEvent(new Event("scroll", { bubbles: true }));
+  });
+  await expect(page.locator(".compact-header:not([inert])")).toBeVisible({ timeout: 5_000 });
+}
+
 test.describe("Mobile layout (375px)", () => {
   test.use({ viewport: { width: 375, height: 812 } });
 
@@ -224,6 +234,44 @@ test.describe("Desktop layout (1200px+)", () => {
     await expect(page.getByRole("searchbox", { name: "Photos, albums, prompts" })).toBeVisible({ timeout: 5000 });
     await expect(page.getByText("Folder Tree")).toBeVisible({ timeout: 5000 });
     await expect(page.getByRole("button", { name: /toggle sidebar/i })).toBeAttached();
+  });
+});
+
+test.describe("Desktop compact header (1200px edge)", () => {
+  test.use({ viewport: { width: 1200, height: 820 } });
+
+  test("keeps collapsed search, sort, and view controls from overlapping", async ({ page }) => {
+    await installStubbedGallery(page);
+    await openStubbedGallery(page);
+    await collapseDesktopHeader(page);
+
+    const metrics = await page.locator(".compact-header:not([inert])").evaluate((header) => {
+      const box = (selector: string) => {
+        const element = header.querySelector<HTMLElement>(selector);
+        if (!element) throw new Error(`Missing compact header element: ${selector}`);
+        const rect = element.getBoundingClientRect();
+        return {
+          left: rect.left,
+          right: rect.right,
+          width: rect.width,
+          display: getComputedStyle(element).display,
+        };
+      };
+
+      return {
+        search: box(".compact-search-box"),
+        sort: box(".sort-trigger"),
+        view: box(".gallery-density-trigger"),
+        hasScope: Boolean(header.querySelector(".compact-scope-pill")),
+        hasAdvancedSearch: Boolean(header.querySelector(".advanced-search-btn")),
+      };
+    });
+
+    expect(metrics.search.width).toBeGreaterThanOrEqual(140);
+    expect(metrics.search.right).toBeLessThanOrEqual(metrics.sort.left);
+    expect(metrics.sort.right).toBeLessThanOrEqual(metrics.view.left);
+    expect(metrics.hasScope).toBe(false);
+    expect(metrics.hasAdvancedSearch).toBe(false);
   });
 });
 
