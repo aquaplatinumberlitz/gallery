@@ -33,6 +33,8 @@ export const GRID_COLUMN_MAP = {
 
 export type DeviceCategory = keyof typeof GRID_COLUMN_MAP;
 
+let sharedSliderLevel: Ref<number> | null = null;
+
 /**
  * Migrate old localStorage value (1–8 raw column count) to new level-based value.
  * Old values 1,2,3 → default level 3 (6 cols, Medium).
@@ -46,31 +48,44 @@ function migrateColumnsToLevel(stored: number): number {
   return entry?.level ?? DEFAULT_PHOTO_GRID_LEVEL;
 }
 
-export function useColumnResize(deviceCategory: DeviceCategory | Ref<DeviceCategory> = "desktop") {
-  // Read raw value with migration + Safari Private Browsing safety
+function readInitialLevel(): PhotoGridLevel {
   let initialLevel: PhotoGridLevel = DEFAULT_PHOTO_GRID_LEVEL;
-  if (typeof window !== "undefined") {
-    try {
-      const rawStored = localStorage.getItem(GRID_SIZE_KEY);
-      if (rawStored !== null) {
-        const num = Number(rawStored);
-        if (!Number.isNaN(num)) {
-          if (num >= 1 && num <= PHOTO_GRID_LEVELS.length) {
-            initialLevel = num as PhotoGridLevel;
-          } else {
-            initialLevel = migrateColumnsToLevel(num) as PhotoGridLevel;
-          }
-        }
-      }
-      // Clear so useLocalStorage uses our computed initialLevel
+  if (typeof window === "undefined") return initialLevel;
+
+  try {
+    const rawStored = localStorage.getItem(GRID_SIZE_KEY);
+    if (rawStored === null) return initialLevel;
+
+    const num = Number(rawStored);
+    if (Number.isNaN(num)) {
       localStorage.removeItem(GRID_SIZE_KEY);
-    } catch {
-      // Safari Private Browsing — localStorage throws; use default
+      return initialLevel;
     }
+
+    initialLevel =
+      num >= 1 && num <= PHOTO_GRID_LEVELS.length
+        ? (num as PhotoGridLevel)
+        : (migrateColumnsToLevel(num) as PhotoGridLevel);
+    localStorage.setItem(GRID_SIZE_KEY, String(initialLevel));
+  } catch {
+    // Safari Private Browsing — localStorage throws; use default
   }
 
-  // useLocalStorage syncs changes back automatically, wraps try/catch for Safari
-  const sliderLevel = useLocalStorage<number>(GRID_SIZE_KEY, initialLevel);
+  return initialLevel;
+}
+
+function useSharedSliderLevel() {
+  const initialLevel = readInitialLevel();
+  if (!sharedSliderLevel) {
+    sharedSliderLevel = useLocalStorage<number>(GRID_SIZE_KEY, initialLevel);
+  } else if (sharedSliderLevel.value !== initialLevel) {
+    sharedSliderLevel.value = initialLevel;
+  }
+  return sharedSliderLevel;
+}
+
+export function useColumnResize(deviceCategory: DeviceCategory | Ref<DeviceCategory> = "desktop") {
+  const sliderLevel = useSharedSliderLevel();
 
   const rowHeight = ref(0);
   const gridRef = ref<HTMLElement | null>(null);
@@ -121,6 +136,13 @@ export function useColumnResize(deviceCategory: DeviceCategory | Ref<DeviceCateg
   };
 
   watch(sliderLevel, (_val: number) => {
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(GRID_SIZE_KEY, String(sliderLevel.value));
+      } catch {
+        // Safari Private Browsing — keep the in-memory setting for this session.
+      }
+    }
     if (lastGridWidth.value) {
       recomputeRowHeight(lastGridWidth.value);
     }

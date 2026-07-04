@@ -6,5 +6,5 @@ const { isMobile } = useDevice();
 </script>
 
 <template>
-  <GalleryGrid :is-mobile="isMobile" :bars-visible="isMobile" />
+  <GalleryGrid :is-mobile="isMobile" :bars-visible="isMobile" :show-desktop-toolbar="isMobile" />
 </template>

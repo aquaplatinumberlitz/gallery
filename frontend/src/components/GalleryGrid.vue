@@ -84,11 +84,13 @@ interface Props {
   isMobile: boolean;
   barsVisible?: boolean;
   showToolbarBreadcrumb?: boolean;
+  showDesktopToolbar?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   barsVisible: true,
   showToolbarBreadcrumb: true,
+  showDesktopToolbar: true,
 });
 const injectedScrollContainerRef = inject(galleryScrollContainerRefKey, null);
 const scrollParentRef = ref<HTMLElement | null>(null);
@@ -649,7 +651,7 @@ useIntersectionObserver(
          Desktop toolbar
          ============================================================ -->
     <div
-      v-if="deviceCategory === 'desktop'"
+      v-if="deviceCategory === 'desktop' && showDesktopToolbar"
       class="grid-header grid grid-cols-[auto_1fr_auto_auto_auto] items-center gap-3 shrink-0"
     >
       <div class="nav-group inline-flex items-center gap-2">

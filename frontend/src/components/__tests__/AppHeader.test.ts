@@ -86,6 +86,11 @@ vi.mock("@/stores/gallery", () => ({
   useGalleryStore: () => ({
     activeLibraryId: null,
     currentBrowsePath: "",
+    activeImportRootPath: "",
+    historyIndex: 0,
+    history: [""],
+    sortField: "date",
+    sortOrder: "desc",
     metadataInspector: {
       scope: "current",
       query: "",
@@ -96,6 +101,12 @@ vi.mock("@/stores/gallery", () => ({
       scrollTop: 0,
       scrollPath: "",
     },
+    goBack: vi.fn(),
+    selectFolder: vi.fn(),
+    clearSearch: vi.fn(),
+    openInExplorer: vi.fn(),
+    setSortField: vi.fn(),
+    setSortOrder: vi.fn(),
     $id: "gallery",
   }),
 }));
@@ -114,6 +125,9 @@ vi.mock("lucide-vue-next", () => ({
   Wrench: { template: "<svg />", props: ["class"] },
   Landmark: { template: "<svg />", props: ["class"] },
   ArrowLeft: { template: "<svg />", props: ["class"] },
+  ArrowUpRight: { template: "<svg />", props: ["class"] },
+  ChevronDown: { template: "<svg />", props: ["class"] },
+  LayoutGrid: { template: "<svg />", props: ["class"] },
 }));
 
 function createWrapper(props: Record<string, unknown> = {}) {
@@ -145,6 +159,13 @@ function createWrapper(props: Record<string, unknown> = {}) {
             </button>
           `,
         },
+        Breadcrumb: { template: "<nav class='breadcrumb-stub'><slot /><slot name='actions' /></nav>" },
+        SortSelect: { template: "<button type='button' aria-label='Sort gallery'>Sort</button>" },
+        DropdownMenu: { template: "<div><slot /></div>" },
+        DropdownMenuTrigger: { template: "<div><slot /></div>" },
+        DropdownMenuContent: { template: "<div><slot /></div>" },
+        DropdownMenuRadioGroup: { template: "<div><slot /></div>" },
+        DropdownMenuRadioItem: { template: "<div><slot /></div>" },
         AdvancedSearchDrawer: {
           props: ["isOpen", "initialFilters"],
           template: `

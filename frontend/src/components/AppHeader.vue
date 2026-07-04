@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
   Landmark,
   Search,
@@ -14,17 +14,30 @@ import {
   Library,
   Wrench,
   ArrowLeft,
+  ArrowUpRight,
+  ChevronDown,
+  LayoutGrid,
 } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import ButtonLink from "@/components/ui/ButtonLink.vue";
 import Input from "@/components/ui/Input.vue";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import Breadcrumb from "@/components/Breadcrumb.vue";
+import SortSelect from "@/components/SortSelect.vue";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useGalleryTheme } from "@/composables/useGalleryTheme";
 import { useFieldedSearch } from "@/composables/useFieldedSearch";
+import { useColumnResize, PHOTO_GRID_LEVELS, GRID_COLUMN_MAP } from "@/composables/useColumnResize";
 import AdvancedSearchDrawer from "@/components/search/AdvancedSearchDrawer.vue";
 import SearchScopeSelect from "@/components/SearchScopeSelect.vue";
 import SearchFilterChips from "@/components/SearchFilterChips.vue";
-import type { FieldFilter } from "@/types";
+import type { FieldFilter, SortValue } from "@/types";
 import { parseFieldedQuery, serializeAdvancedSearchToQuery } from "@/utils/serializeAdvancedSearchToQuery";
 import { prefetchLibrariesRoute, prefetchMetadataRoute } from "@/router";
 import { useGalleryStore } from "@/stores/gallery";
@@ -32,6 +45,7 @@ import { queryClient } from "@/query";
 import { normalizeQueryPath, queryKeys } from "@/query/keys";
 import { fetchLibraryInspector } from "@/services/api";
 import { useRouteChrome } from "@/composables/useRouteChrome";
+import { galleryScrollContainerRefKey } from "@/injectionKeys";
 
 interface Props {
   isMobile: boolean;
@@ -64,10 +78,94 @@ const galleryStore = useGalleryStore();
 const { activeNav, isMetadataRoute, isAdminRoute, showBackToGallery } = useRouteChrome();
 const isLibrariesRoute = computed(() => activeNav.value === "libraries");
 const isMaintenanceRoute = computed(() => activeNav.value === "maintenance");
+const showGalleryHeader = computed(() => !isMetadataRoute.value && !isAdminRoute.value);
 
 const isAdvancedSearchOpen = ref(false);
 const advancedSearchInitialFilters = ref<FieldFilter[]>([]);
+const isHeaderCollapsed = ref(false);
 let metadataDataPrefetchStarted = false;
+let cleanupScrollListener: (() => void) | null = null;
+let scrollRafId = 0;
+
+const COLLAPSE_SCROLL_Y = 120;
+const EXPAND_SCROLL_Y = 48;
+
+const injectedScrollContainerRef = inject(galleryScrollContainerRefKey, null);
+
+const currentPath = computed(() => galleryStore.currentBrowsePath);
+const activeImportRootPath = computed(() => galleryStore.activeImportRootPath);
+const canBack = computed(() => galleryStore.historyIndex > 0);
+const compactBreadcrumbMaxVisible = computed(() => (isHeaderCollapsed.value ? 2 : 4));
+const gallerySortValue = computed<SortValue>({
+  get() {
+    return `${galleryStore.sortField === "name" ? "name" : "date"}_${galleryStore.sortOrder}` as SortValue;
+  },
+  set(value) {
+    const [field, order] = value.split("_") as ["date" | "name", "asc" | "desc"];
+    galleryStore.setSortField(field);
+    galleryStore.setSortOrder(order);
+  },
+});
+const { sliderLevel } = useColumnResize("desktop");
+
+const densityOptions = computed(() =>
+  [...PHOTO_GRID_LEVELS]
+    .map((option, index) => ({ ...option, columns: GRID_COLUMN_MAP.desktop[index] }))
+    .sort((a, b) => a.columns - b.columns),
+);
+
+function selectDensity(level: number) {
+  sliderLevel.value = level;
+}
+
+function goBack() {
+  galleryStore.goBack();
+}
+
+function handleOpenFolder(path: string) {
+  galleryStore.selectFolder(path);
+  galleryStore.clearSearch();
+}
+
+function openFolder() {
+  galleryStore.openInExplorer();
+}
+
+function updateHeaderCollapse(scrollY: number) {
+  if (!showGalleryHeader.value) {
+    isHeaderCollapsed.value = false;
+    return;
+  }
+
+  if (!isHeaderCollapsed.value && scrollY > COLLAPSE_SCROLL_Y) {
+    isHeaderCollapsed.value = true;
+  } else if (isHeaderCollapsed.value && scrollY <= EXPAND_SCROLL_Y) {
+    isHeaderCollapsed.value = false;
+  }
+}
+
+function readScrollTop(el: HTMLElement | null) {
+  return el?.scrollTop ?? (typeof window === "undefined" ? 0 : window.scrollY);
+}
+
+function attachCollapseListener(el: HTMLElement | null) {
+  cleanupScrollListener?.();
+  cleanupScrollListener = null;
+
+  updateHeaderCollapse(readScrollTop(el));
+  if (!el || typeof window === "undefined") return;
+
+  const handleScroll = () => {
+    if (scrollRafId) return;
+    scrollRafId = window.requestAnimationFrame(() => {
+      scrollRafId = 0;
+      updateHeaderCollapse(el.scrollTop);
+    });
+  };
+
+  el.addEventListener("scroll", handleScroll, { passive: true });
+  cleanupScrollListener = () => el.removeEventListener("scroll", handleScroll);
+}
 
 function requestIdle(callback: () => void) {
   if (typeof window === "undefined") return;
@@ -113,6 +211,37 @@ onMounted(() => {
   requestIdle(() => {
     if (!isMetadataRoute.value) void prefetchMetadataRoute();
   });
+
+  if (!injectedScrollContainerRef) {
+    attachCollapseListener(null);
+  }
+});
+
+if (injectedScrollContainerRef) {
+  watch(
+    injectedScrollContainerRef,
+    (el) => {
+      attachCollapseListener(el);
+    },
+    { immediate: true },
+  );
+}
+
+watch(showGalleryHeader, (isGallery) => {
+  if (!isGallery) {
+    isHeaderCollapsed.value = false;
+    return;
+  }
+  updateHeaderCollapse(readScrollTop(injectedScrollContainerRef?.value ?? null));
+});
+
+onBeforeUnmount(() => {
+  cleanupScrollListener?.();
+  cleanupScrollListener = null;
+  if (scrollRafId) {
+    window.cancelAnimationFrame(scrollRafId);
+    scrollRafId = 0;
+  }
 });
 
 function getFilterFieldKey(filter: FieldFilter) {
@@ -167,56 +296,420 @@ function handleClearAll() {
 </script>
 
 <template>
-  <header role="banner" class="content-header grid grid-cols-[auto_1fr_auto] items-start gap-3 shrink-0">
-    <div class="header-left flex items-center gap-3">
-      <Tooltip>
-        <TooltipTrigger as-child>
-          <Button
-            v-if="!isMobile"
-            variant="ghost"
-            size="icon"
-            class="hamburger-btn"
-            aria-label="Toggle sidebar"
-            @click="emit('toggle-sidebar')"
+  <header
+    role="banner"
+    class="content-header gallery-header"
+    :class="{
+      'is-gallery-header': showGalleryHeader,
+      'is-collapsed': isHeaderCollapsed,
+      'is-expanded': !isHeaderCollapsed,
+    }"
+  >
+    <template v-if="showGalleryHeader">
+      <div class="expanded-header" :aria-hidden="isHeaderCollapsed">
+        <div class="expanded-primary">
+          <div class="header-left flex items-center gap-3">
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button
+                  v-if="!isMobile"
+                  variant="ghost"
+                  size="icon"
+                  class="hamburger-btn"
+                  aria-label="Toggle sidebar"
+                  @click="emit('toggle-sidebar')"
+                >
+                  <Menu class="gallery-icon-toolbar" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Toggle sidebar</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  class="settings-btn"
+                  aria-label="Change Intro Page"
+                  @click="emit('open-settings')"
+                >
+                  <Settings class="gallery-icon-toolbar" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Change Intro Page</TooltipContent>
+            </Tooltip>
+          </div>
+
+          <div class="brand-hero flex items-center justify-center gap-3 text-center">
+            <div class="brand-icon flicker-effect">
+              <Landmark :size="40" />
+            </div>
+            <div class="brand-text text-left">
+              <p class="eyebrow">Local collections</p>
+              <h1 class="brand-title">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 640 640"
+                  width="18"
+                  height="18"
+                  class="title-sparkle"
+                >
+                  <path
+                    fill="currentColor"
+                    d="M480 96L512 24L544 96L616 128L544 160L512 232L480 160L408 128L480 96zM160 256L224 112L288 256L432 320L288 384L224 528L160 384L16 320L160 256zM480 408L512 480L584 512L512 544L480 616L448 544L376 512L448 480L480 408z"
+                  />
+                </svg>
+                Museum Art Gallery
+              </h1>
+            </div>
+          </div>
+
+          <div class="header-actions flex flex-col items-end gap-2">
+            <div class="flex items-center gap-2">
+              <ButtonLink
+                to="/admin/libraries"
+                :variant="isLibrariesRoute ? 'secondary' : 'ghost'"
+                size="sm"
+                :aria-current="isLibrariesRoute ? 'page' : undefined"
+                class="h-8 text-xs"
+                @pointerenter="prefetchLibrariesRoute"
+                @focus="prefetchLibrariesRoute"
+              >
+                <Library class="size-4" />
+                <span>Libraries</span>
+              </ButtonLink>
+              <ButtonLink
+                v-if="!isMobile"
+                to="/metadata"
+                :variant="isMetadataRoute ? 'secondary' : 'ghost'"
+                size="sm"
+                :aria-current="isMetadataRoute ? 'page' : undefined"
+                class="metadata-link h-8 text-xs"
+                @pointerenter="prefetchMetadataResources"
+                @focus="prefetchMetadataResources"
+              >
+                <Table2 class="size-4" />
+                <span>Metadata</span>
+              </ButtonLink>
+              <ButtonLink
+                v-if="!isMobile"
+                to="/admin/maintenance"
+                :variant="isMaintenanceRoute ? 'secondary' : 'ghost'"
+                size="sm"
+                :aria-current="isMaintenanceRoute ? 'page' : undefined"
+                class="h-8 text-xs"
+              >
+                <Wrench class="size-4" />
+                <span>Maintenance</span>
+              </ButtonLink>
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <button
+                    type="button"
+                    class="theme-pill-toggle"
+                    :class="{ 'is-dark': resolvedTheme === 'dark' }"
+                    :aria-label="resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
+                    @click="toggleTheme"
+                  >
+                    <span class="theme-pill-thumb" aria-hidden="true">
+                      <Sun class="theme-pill-icon theme-pill-icon-sun" />
+                      <Moon class="theme-pill-icon theme-pill-icon-moon" />
+                    </span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {{ resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode" }}
+                </TooltipContent>
+              </Tooltip>
+            </div>
+
+            <div class="header-search-area">
+              <div class="search-box">
+                <Loader2 v-if="searchLoading" class="search-leading-icon search-leading-loading" aria-hidden="true" />
+                <Search v-else class="search-leading-icon" aria-hidden="true" />
+                <Input
+                  id="gallery-search"
+                  :model-value="searchQuery"
+                  @update:model-value="(v: string) => emit('update:searchQuery', v)"
+                  type="search"
+                  variant="ghost"
+                  placeholder="Photos, albums, prompts"
+                  autocomplete="off"
+                  class="search-input"
+                />
+                <Tooltip v-if="searchQuery">
+                  <TooltipTrigger as-child>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="clear-btn search-action-btn"
+                      type="button"
+                      aria-label="Clear search"
+                      @click="clearSearch"
+                    >
+                      <X class="gallery-icon-xs" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Clear search</TooltipContent>
+                </Tooltip>
+                <SearchScopeSelect :model-value="searchScope" @update:model-value="emit('scope-change', $event)" />
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="advanced-search-btn search-action-btn"
+                      type="button"
+                      :class="{ 'text-primary': isFieldedSearchActive }"
+                      aria-label="Advanced Search"
+                      @click="openAdvancedSearch"
+                    >
+                      <SlidersHorizontal class="gallery-icon-toolbar" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Advanced Search</TooltipContent>
+                </Tooltip>
+              </div>
+              <SearchFilterChips :filters="fieldedFilters" @remove="handleRemoveFilter" @clear-all="handleClearAll" />
+            </div>
+          </div>
+        </div>
+
+        <div class="gallery-toolbar expanded-gallery-toolbar">
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                class="nav-btn"
+                :disabled="!canBack"
+                type="button"
+                aria-label="Go back"
+                @click="goBack"
+              >
+                <ArrowLeft class="gallery-icon-toolbar" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Back</TooltipContent>
+          </Tooltip>
+
+          <Breadcrumb
+            class="breadcrumb-wrap"
+            :path="currentPath"
+            :root-path="activeImportRootPath"
+            @navigate="handleOpenFolder"
           >
-            <Menu class="gallery-icon-toolbar" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Toggle sidebar</TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger as-child>
-          <Button
+            <template #actions>
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    type="button"
+                    aria-label="Open current folder in file explorer"
+                    @click="openFolder"
+                  >
+                    <ArrowUpRight data-icon="inline-start" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Open current folder in file explorer</TooltipContent>
+              </Tooltip>
+            </template>
+          </Breadcrumb>
+
+          <SortSelect
+            v-model="gallerySortValue"
+            aria-label="Sort gallery"
+            trigger-label="Sort"
+            trigger-class="h-8 w-[74px] gap-1.5 px-2 py-0 text-xs font-normal shadow-none"
+          />
+
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <Button
+                variant="outline"
+                type="button"
+                class="gallery-density-trigger h-8 w-[74px] justify-between gap-1.5 px-2 text-xs font-normal text-foreground shadow-none"
+                aria-label="View density"
+              >
+                <span class="truncate">View</span>
+                <ChevronDown data-icon="inline-end" class="opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent align="end" class="w-48">
+              <DropdownMenuRadioGroup
+                :model-value="String(sliderLevel)"
+                @update:model-value="(value: unknown) => selectDensity(Number(value))"
+              >
+                <DropdownMenuRadioItem
+                  v-for="option in densityOptions"
+                  :key="option.level"
+                  :value="String(option.level)"
+                  class="gap-2"
+                >
+                  <LayoutGrid class="gallery-icon-sm" />
+                  <span class="flex-1">{{ option.columns }} columns</span>
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      <div class="compact-header" :aria-hidden="!isHeaderCollapsed">
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              class="nav-btn compact-back-btn"
+              :disabled="!canBack"
+              type="button"
+              aria-label="Go back"
+              @click="goBack"
+            >
+              <ArrowLeft class="gallery-icon-toolbar" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Back</TooltipContent>
+        </Tooltip>
+
+        <Breadcrumb
+          class="breadcrumb-wrap compact-breadcrumb"
+          :path="currentPath"
+          :root-path="activeImportRootPath"
+          :max-visible="compactBreadcrumbMaxVisible"
+          @navigate="handleOpenFolder"
+        />
+
+        <div class="search-box compact-search-box">
+          <Loader2 v-if="searchLoading" class="search-leading-icon search-leading-loading" aria-hidden="true" />
+          <Search v-else class="search-leading-icon" aria-hidden="true" />
+          <Input
+            id="gallery-search-compact"
+            :model-value="searchQuery"
+            @update:model-value="(v: string) => emit('update:searchQuery', v)"
+            type="search"
             variant="ghost"
-            size="icon"
-            class="settings-btn"
-            aria-label="Change Intro Page"
-            @click="emit('open-settings')"
-          >
-            <Settings class="gallery-icon-toolbar" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Change Intro Page</TooltipContent>
-      </Tooltip>
-    </div>
-    <div v-if="!isMetadataRoute && !isAdminRoute" class="brand-hero flex items-center justify-center gap-3 text-center">
-      <div class="brand-icon flicker-effect">
-        <Landmark :size="40" />
+            placeholder="Search"
+            autocomplete="off"
+            class="search-input"
+          />
+          <Tooltip v-if="searchQuery">
+            <TooltipTrigger as-child>
+              <Button
+                variant="ghost"
+                size="icon"
+                class="clear-btn search-action-btn"
+                type="button"
+                aria-label="Clear search"
+                @click="clearSearch"
+              >
+                <X class="gallery-icon-xs" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Clear search</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button
+                variant="ghost"
+                size="icon"
+                class="advanced-search-btn search-action-btn"
+                type="button"
+                :class="{ 'text-primary': isFieldedSearchActive }"
+                aria-label="Advanced Search"
+                @click="openAdvancedSearch"
+              >
+                <SlidersHorizontal class="gallery-icon-toolbar" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Advanced Search</TooltipContent>
+          </Tooltip>
+        </div>
+
+        <SearchScopeSelect
+          :model-value="searchScope"
+          size="compact"
+          class="compact-scope-pill"
+          @update:model-value="emit('scope-change', $event)"
+        />
+
+        <SortSelect
+          v-model="gallerySortValue"
+          aria-label="Sort gallery"
+          trigger-label="Sort"
+          trigger-class="h-8 w-[74px] gap-1.5 px-2 py-0 text-xs font-normal shadow-none"
+        />
+
+        <DropdownMenu>
+          <DropdownMenuTrigger as-child>
+            <Button
+              variant="outline"
+              type="button"
+              class="gallery-density-trigger h-8 w-[74px] justify-between gap-1.5 px-2 text-xs font-normal text-foreground shadow-none"
+              aria-label="View density"
+            >
+              <span class="truncate">View</span>
+              <ChevronDown data-icon="inline-end" class="opacity-50" />
+            </Button>
+          </DropdownMenuTrigger>
+
+          <DropdownMenuContent align="end" class="w-48">
+            <DropdownMenuRadioGroup
+              :model-value="String(sliderLevel)"
+              @update:model-value="(value: unknown) => selectDensity(Number(value))"
+            >
+              <DropdownMenuRadioItem
+                v-for="option in densityOptions"
+                :key="option.level"
+                :value="String(option.level)"
+                class="gap-2"
+              >
+                <LayoutGrid class="gallery-icon-sm" />
+                <span class="flex-1">{{ option.columns }} columns</span>
+              </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
-      <div class="brand-text text-left">
-        <p class="eyebrow">Local collections</p>
-        <h1 class="brand-title">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="18" height="18" class="title-sparkle">
-            <path
-              fill="currentColor"
-              d="M480 96L512 24L544 96L616 128L544 160L512 232L480 160L408 128L480 96zM160 256L224 112L288 256L432 320L288 384L224 528L160 384L16 320L160 256zM480 408L512 480L584 512L512 544L480 616L448 544L376 512L448 480L480 408z"
-            />
-          </svg>
-          Museum Art Gallery
-        </h1>
+    </template>
+
+    <template v-else>
+      <div class="header-left flex items-center gap-3">
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button
+              v-if="!isMobile"
+              variant="ghost"
+              size="icon"
+              class="hamburger-btn"
+              aria-label="Toggle sidebar"
+              @click="emit('toggle-sidebar')"
+            >
+              <Menu class="gallery-icon-toolbar" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Toggle sidebar</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="settings-btn"
+              aria-label="Change Intro Page"
+              @click="emit('open-settings')"
+            >
+              <Settings class="gallery-icon-toolbar" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Change Intro Page</TooltipContent>
+        </Tooltip>
       </div>
-    </div>
-    <div class="header-actions flex flex-col items-end gap-2">
+
+      <div class="header-actions flex flex-col items-end gap-2">
       <div class="flex items-center gap-2">
         <ButtonLink
           v-if="showBackToGallery"
@@ -285,68 +778,129 @@ function handleClearAll() {
           </TooltipContent>
         </Tooltip>
       </div>
-      <div v-if="!isMetadataRoute && !isAdminRoute" class="header-search-area">
-        <div class="search-box">
-          <Loader2 v-if="searchLoading" class="search-leading-icon search-leading-loading" aria-hidden="true" />
-          <Search v-else class="search-leading-icon" aria-hidden="true" />
-          <Input
-            id="gallery-search"
-            :model-value="searchQuery"
-            @update:model-value="(v: string) => emit('update:searchQuery', v)"
-            type="search"
-            variant="ghost"
-            placeholder="Photos, albums, prompts"
-            autocomplete="off"
-            class="search-input"
-          />
-          <Tooltip v-if="searchQuery">
-            <TooltipTrigger as-child>
-              <Button
-                variant="ghost"
-                size="icon"
-                class="clear-btn search-action-btn"
-                type="button"
-                aria-label="Clear search"
-                @click="clearSearch"
-              >
-                <X class="gallery-icon-xs" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Clear search</TooltipContent>
-          </Tooltip>
-          <SearchScopeSelect :model-value="searchScope" @update:model-value="emit('scope-change', $event)" />
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <Button
-                variant="ghost"
-                size="icon"
-                class="advanced-search-btn search-action-btn"
-                type="button"
-                :class="{ 'text-primary': isFieldedSearchActive }"
-                aria-label="Advanced Search"
-                @click="openAdvancedSearch"
-              >
-                <SlidersHorizontal class="gallery-icon-toolbar" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Advanced Search</TooltipContent>
-          </Tooltip>
-        </div>
-        <SearchFilterChips :filters="fieldedFilters" @remove="handleRemoveFilter" @clear-all="handleClearAll" />
       </div>
-      <AdvancedSearchDrawer
-        :is-open="isAdvancedSearchOpen"
-        :initial-filters="advancedSearchInitialFilters"
-        @close="handleAdvancedSearchClose"
-        @apply="handleAdvancedSearchApply"
-      />
-    </div>
+    </template>
+
+    <AdvancedSearchDrawer
+      :is-open="isAdvancedSearchOpen"
+      :initial-filters="advancedSearchInitialFilters"
+      @close="handleAdvancedSearchClose"
+      @apply="handleAdvancedSearchApply"
+    />
   </header>
 </template>
 
 <style scoped lang="scss">
 /* brand-hero, header-left, header-actions, content-header layout handled by Tailwind utilities */
 /* Only visual effects, animations, and responsive overrides remain */
+
+.gallery-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.gallery-header.is-gallery-header {
+  display: block;
+  overflow: hidden;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  background: color-mix(in srgb, var(--background) 80%, transparent);
+  box-shadow: 0 2px 8px color-mix(in srgb, black 5%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  transition:
+    min-height 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.gallery-header.is-expanded {
+  min-height: 130px;
+}
+
+.gallery-header.is-collapsed {
+  min-height: 54px;
+}
+
+.expanded-header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 180px;
+  overflow: hidden;
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    max-height 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms ease,
+    transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.is-collapsed .expanded-header {
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-8px);
+}
+
+.expanded-primary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+}
+
+.compact-header {
+  display: grid;
+  grid-template-columns: auto minmax(120px, 1fr) minmax(180px, 360px) auto auto auto;
+  align-items: center;
+  gap: 8px;
+  height: 0;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transform: translateY(8px);
+  transition:
+    height 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    max-height 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms ease,
+    transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.is-collapsed .compact-header {
+  height: 54px;
+  max-height: 56px;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.gallery-toolbar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.compact-breadcrumb {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.compact-search-box {
+  min-width: 180px;
+  width: 100%;
+  height: 34px;
+  border-radius: 9px;
+}
+
+.compact-scope-pill {
+  max-width: 132px;
+}
 
 /* Hamburger: hidden on desktop, shown on tablet/mobile */
 .hamburger-btn {
@@ -459,6 +1013,12 @@ h1 {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .gallery-header.is-gallery-header,
+  .expanded-header,
+  .compact-header {
+    transition: none;
+  }
+
   .theme-pill-toggle,
   .theme-pill-thumb,
   .theme-pill-icon {
