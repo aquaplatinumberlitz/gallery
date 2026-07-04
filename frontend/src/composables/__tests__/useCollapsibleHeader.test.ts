@@ -39,6 +39,9 @@ function mountComposable(scrollerRef: Ref<HTMLElement | null>, enabled: Ref<bool
 async function scrollTo(scroller: HTMLElement, scrollTop: number) {
   scroller.scrollTop = scrollTop;
   scroller.dispatchEvent(new Event("scroll"));
+  if (typeof window.requestAnimationFrame === "function") {
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+  }
   await nextTick();
 }
 
@@ -89,12 +92,12 @@ describe("useCollapsibleHeader", () => {
     wrapper.unmount();
   });
 
-  it("expands again below 48px", async () => {
+  it("expands again at 48px", async () => {
     const scroller = makeScroller(0);
     const { wrapper, isHeaderCollapsed } = mountComposable(ref(scroller));
 
     await scrollTo(scroller, COLLAPSE_SCROLL_Y + 1);
-    await scrollTo(scroller, EXPAND_SCROLL_Y - 1);
+    await scrollTo(scroller, EXPAND_SCROLL_Y);
 
     expect(isHeaderCollapsed.value).toBe(false);
     wrapper.unmount();
