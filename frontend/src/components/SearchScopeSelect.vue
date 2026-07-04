@@ -62,11 +62,7 @@ function handleUpdate(value: unknown) {
     <SelectTrigger
       aria-label="Search scope"
       :class="
-        cn(
-          'search-scope-select-trigger',
-          size === 'compact' && 'search-scope-select-trigger-compact',
-          props.class,
-        )
+        cn('search-scope-select-trigger', size === 'compact' && 'search-scope-select-trigger-compact', props.class)
       "
     >
       <span class="search-scope-select-inner">

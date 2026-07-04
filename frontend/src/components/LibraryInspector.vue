@@ -1059,10 +1059,7 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
               >
                 {{ formatDimensions(visibleTableRows[virtualRow.index].original) }}
               </TableCell>
-              <TableCell
-                v-if="table.getColumn('mtime')?.getIsVisible()"
-                class="table-cell col-mtime whitespace-nowrap"
-              >
+              <TableCell v-if="table.getColumn('mtime')?.getIsVisible()" class="table-cell col-mtime whitespace-nowrap">
                 {{ formatDate(visibleTableRows[virtualRow.index].original.mtime) }}
               </TableCell>
               <TableCell class="table-cell col-actions">

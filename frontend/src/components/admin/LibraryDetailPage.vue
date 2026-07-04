@@ -108,7 +108,9 @@ const scanStateLabel = computed(() => {
   if (!state) return "Unknown";
   return scanStateLabels[state];
 });
-const scanDisplayStateLabel = computed(() => (status.value?.scan.state === "complete" ? "Ready" : scanStateLabel.value));
+const scanDisplayStateLabel = computed(() =>
+  status.value?.scan.state === "complete" ? "Ready" : scanStateLabel.value,
+);
 const scanDetailLabel = computed(() => {
   const scan = status.value?.scan;
   if (!scan) return "—";
@@ -200,49 +202,49 @@ const statusTileTone: Record<StatusTileTone, string> = {
   warning: "text-warning",
   error: "text-destructive",
 };
-const statusTiles = computed<Array<{ key: string; label: string; value: string; detail: string; tone: StatusTileTone }>>(
-  () => {
-    const currentStatus = status.value;
-    const availabilityTone: StatusTileTone =
-      !currentStatus || currentStatus.availability.state === "unavailable" ? "error" : "healthy";
-    const scanTone: StatusTileTone =
-      !currentStatus || currentStatus.scan.state === "failed"
-        ? "error"
-        : currentStatus.scan.state === "complete"
-          ? "healthy"
-          : "warning";
-    const metadataTone: StatusTileTone =
-      !currentStatus || currentStatus.metadata.state === "failed"
-        ? "error"
-        : currentStatus.scan.state === "never" || currentStatus.metadata.state !== "complete"
-          ? "warning"
-          : "healthy";
+const statusTiles = computed<
+  Array<{ key: string; label: string; value: string; detail: string; tone: StatusTileTone }>
+>(() => {
+  const currentStatus = status.value;
+  const availabilityTone: StatusTileTone =
+    !currentStatus || currentStatus.availability.state === "unavailable" ? "error" : "healthy";
+  const scanTone: StatusTileTone =
+    !currentStatus || currentStatus.scan.state === "failed"
+      ? "error"
+      : currentStatus.scan.state === "complete"
+        ? "healthy"
+        : "warning";
+  const metadataTone: StatusTileTone =
+    !currentStatus || currentStatus.metadata.state === "failed"
+      ? "error"
+      : currentStatus.scan.state === "never" || currentStatus.metadata.state !== "complete"
+        ? "warning"
+        : "healthy";
 
-    return [
-      {
-        key: "availability",
-        label: "Availability",
-        value: availabilityDisplayLabel.value,
-        detail: availabilityDetailLabel.value,
-        tone: availabilityTone,
-      },
-      {
-        key: "scan",
-        label: "File update",
-        value: scanDisplayStateLabel.value,
-        detail: scanDetailLabel.value,
-        tone: scanTone,
-      },
-      {
-        key: "metadata",
-        label: "Metadata",
-        value: metadataDisplayStateLabel.value,
-        detail: metadataDetailLabel.value,
-        tone: metadataTone,
-      },
-    ];
-  },
-);
+  return [
+    {
+      key: "availability",
+      label: "Availability",
+      value: availabilityDisplayLabel.value,
+      detail: availabilityDetailLabel.value,
+      tone: availabilityTone,
+    },
+    {
+      key: "scan",
+      label: "File update",
+      value: scanDisplayStateLabel.value,
+      detail: scanDetailLabel.value,
+      tone: scanTone,
+    },
+    {
+      key: "metadata",
+      label: "Metadata",
+      value: metadataDisplayStateLabel.value,
+      detail: metadataDetailLabel.value,
+      tone: metadataTone,
+    },
+  ];
+});
 
 const thumbnails = computed(() => generatedImagesQuery.data.value ?? null);
 const thumbnailReady = computed(() => thumbnails.value?.ready_derivatives ?? 0);
@@ -256,11 +258,10 @@ const thumbnailCoverageRatio = computed(() => {
 const thumbnailCoverageLabel = computed(() =>
   hasThumbnailExpectation.value ? formatPercent(thumbnailCoverageRatio.value) : "Not measured",
 );
-const thumbnailSummaryLabel = computed(
-  () =>
-    hasThumbnailExpectation.value
-      ? `${formatAssetCount(thumbnailReady.value)}/${formatAssetCount(thumbnailExpected.value)} cached`
-      : "Not measured yet",
+const thumbnailSummaryLabel = computed(() =>
+  hasThumbnailExpectation.value
+    ? `${formatAssetCount(thumbnailReady.value)}/${formatAssetCount(thumbnailExpected.value)} cached`
+    : "Not measured yet",
 );
 const thumbnailCacheState = computed(() =>
   !hasThumbnailExpectation.value
@@ -277,12 +278,12 @@ const thumbnailCacheState = computed(() =>
           detail: "Build required",
           tone: "text-warning",
         }
-    : {
-        label: "Cache state",
-        value: "Complete",
-        detail: "No missing thumbnails",
-        tone: "text-success",
-      },
+      : {
+          label: "Cache state",
+          value: "Complete",
+          detail: "No missing thumbnails",
+          tone: "text-success",
+        },
 );
 const hasUnavailableFiles = computed(() => (statsQuery.data.value?.offline_assets ?? 0) > 0);
 
@@ -535,7 +536,10 @@ function estimatedAssets(): number | undefined {
                     </Button>
                   </div>
 
-                  <div v-if="healthSeverity === 'warning' && hasHealthIssues && healthDetailsOpen" class="mt-3 border-t pt-3">
+                  <div
+                    v-if="healthSeverity === 'warning' && hasHealthIssues && healthDetailsOpen"
+                    class="mt-3 border-t pt-3"
+                  >
                     <div class="grid gap-3 text-sm sm:grid-cols-3">
                       <div v-for="issue in issueBreakdown" :key="issue.label">
                         <p class="text-xs text-muted-foreground">{{ issue.label }}</p>
@@ -643,7 +647,9 @@ function estimatedAssets(): number | undefined {
                     </div>
                     <div class="rounded-md border border-border/70 bg-muted/60 p-3">
                       <p class="text-xs font-medium text-muted-foreground">{{ thumbnailCacheState.label }}</p>
-                      <p class="mt-1 font-semibold" :class="thumbnailCacheState.tone">{{ thumbnailCacheState.value }}</p>
+                      <p class="mt-1 font-semibold" :class="thumbnailCacheState.tone">
+                        {{ thumbnailCacheState.value }}
+                      </p>
                       <p class="mt-1 text-xs text-muted-foreground">{{ thumbnailCacheState.detail }}</p>
                     </div>
                   </div>

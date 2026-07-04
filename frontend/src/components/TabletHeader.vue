@@ -100,7 +100,6 @@ function onSearchInput(e: Event) {
   const target = e.target as HTMLInputElement;
   emit("update:searchQuery", target.value);
 }
-
 </script>
 
 <template>

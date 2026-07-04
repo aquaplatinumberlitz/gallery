@@ -42,9 +42,15 @@ beforeEach(() => {
 describe("useGeneratedImagesStatusQuery", () => {
   it("polls only while derivative coverage is incomplete", () => {
     expect(generatedImagesNeedActivePolling(undefined)).toBe(false);
-    expect(generatedImagesNeedActivePolling({ ...mockStatus, expected_derivatives: 0, ready_derivatives: 0 })).toBe(false);
-    expect(generatedImagesNeedActivePolling({ ...mockStatus, expected_derivatives: 200, ready_derivatives: 45 })).toBe(true);
-    expect(generatedImagesNeedActivePolling({ ...mockStatus, expected_derivatives: 200, ready_derivatives: 200 })).toBe(false);
+    expect(generatedImagesNeedActivePolling({ ...mockStatus, expected_derivatives: 0, ready_derivatives: 0 })).toBe(
+      false,
+    );
+    expect(generatedImagesNeedActivePolling({ ...mockStatus, expected_derivatives: 200, ready_derivatives: 45 })).toBe(
+      true,
+    );
+    expect(generatedImagesNeedActivePolling({ ...mockStatus, expected_derivatives: 200, ready_derivatives: 200 })).toBe(
+      false,
+    );
   });
 
   it("fetches status when library id is provided", async () => {

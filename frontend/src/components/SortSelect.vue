@@ -60,12 +60,7 @@ function selectField(field: SortField) {
         :aria-label="ariaLabel || `Sort by ${selectedLabel} ${activeDirectionLabel}`"
       >
         <span class="truncate">{{ triggerLabel ?? (prefix ? `${prefix} ${selectedLabel}` : selectedLabel) }}</span>
-        <ChevronUp
-          v-if="activeDirection === 'asc'"
-          data-icon="inline-end"
-          class="opacity-60"
-          aria-hidden="true"
-        />
+        <ChevronUp v-if="activeDirection === 'asc'" data-icon="inline-end" class="opacity-60" aria-hidden="true" />
         <ChevronDown v-else data-icon="inline-end" class="opacity-60" aria-hidden="true" />
       </Button>
     </DropdownMenuTrigger>

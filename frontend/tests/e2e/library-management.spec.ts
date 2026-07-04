@@ -345,7 +345,7 @@ test("renders the responsive library list on desktop and mobile", async ({ page 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page).toHaveURL(/\/admin\/libraries$/);
   await expect(page.getByRole("table")).toBeHidden();
-  await expect(page.getByRole("article").filter({ hasText: "Family photos" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Family photos" })).toBeVisible();
 });
 
 test("renders empty and recoverable error states", async ({ page }) => {

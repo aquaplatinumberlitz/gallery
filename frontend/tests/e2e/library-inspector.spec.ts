@@ -379,7 +379,7 @@ test.describe("LibraryInspector", () => {
     await page.goto(`${baseUrl}/metadata`, { waitUntil: "domcontentloaded" });
 
     await expect(page.locator("tbody tr").first()).toContainText("zeta-arch.png");
-    await page.getByRole("button", { name: /File/ }).click();
+    await page.locator("thead").getByRole("button", { name: "File, not sorted" }).click();
     await expect(page.locator("tbody tr").first()).toContainText("ancient-door.png");
 
     const promptTrigger = page.getByText("cinematic warm light, old wooden door", { exact: false });
