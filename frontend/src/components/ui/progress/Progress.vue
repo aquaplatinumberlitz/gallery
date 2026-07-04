@@ -9,6 +9,8 @@ const props = withDefaults(
   defineProps<ProgressRootProps & { class?: HTMLAttributes["class"]; indicatorClass?: HTMLAttributes["class"] }>(),
   {
     modelValue: 0,
+    class: "",
+    indicatorClass: "",
   },
 );
 

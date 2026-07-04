@@ -265,12 +265,13 @@ describe("LibraryDetailPage", () => {
     expect(wrapper.text()).toContain("Overview");
     expect(wrapper.text()).toContain("Status");
     expect(wrapper.text()).toContain("Thumbnails");
-    expect(wrapper.text()).toContain("Healthy");
-    expect(wrapper.text()).toContain("No issues found");
+    expect(wrapper.text()).toContain("All systems available");
+    expect(wrapper.text()).toContain("File catalog is current");
     expect(wrapper.text()).toContain("80");
     expect(wrapper.text()).toContain("20");
     expect(wrapper.text()).toContain("95 available");
     expect(wrapper.text()).toContain("5 unavailable");
+    expect(wrapper.text()).toContain("95/100 assets");
     expect(wrapper.text()).toContain("Available: indexed images/videos currently available on disk.");
     expect(wrapper.text()).toContain(
       "Unavailable: cataloged files not available in the latest scan or under unavailable import paths.",
@@ -399,7 +400,7 @@ describe("LibraryDetailPage", () => {
       contract_version: 1,
     };
     const wrapper = mountSubject();
-    expect(wrapper.text()).toContain("Error");
+    expect(wrapper.text()).toContain("Unavailable");
     expect(wrapper.text()).toContain("Library unavailable");
     const fixButton = wrapper.findAll("button").find((button) => button.text().includes("Fix now"));
     expect(fixButton).not.toBeUndefined();
@@ -444,7 +445,7 @@ describe("LibraryDetailPage", () => {
     expect(wrapper.text()).toContain("75/100 cached");
     expect(wrapper.text()).toContain("25 thumbnails missing");
     expect(wrapper.text()).toContain("Build missing thumbnails");
-    expect(wrapper.find(".bg-success").exists()).toBe(true);
+    expect(wrapper.find(".bg-warning").exists()).toBe(true);
     expect(wrapper.find(".bg-primary").exists()).toBe(false);
   });
 

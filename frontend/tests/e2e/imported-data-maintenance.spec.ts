@@ -510,7 +510,7 @@ test.describe("imported-data maintenance verification", () => {
     await expect(page).toHaveURL(/\/admin\/libraries$/);
     await expect(page.getByText("No libraries registered")).toBeVisible();
     await page.getByRole("button", { name: "Add library" }).last().click();
-    await page.getByLabel("Display name").fill("Fresh Library");
+    await page.getByRole("textbox", { name: "Display name" }).fill("Fresh Library");
     await page.getByPlaceholder("/absolute/path/to/library").fill("/handoff/fresh");
     await page.getByRole("button", { name: "Add and update" }).click();
 

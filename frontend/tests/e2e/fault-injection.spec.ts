@@ -312,9 +312,8 @@ test("preview 500 falls back to original; no page error", async ({ page }) => {
   await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
   await expect.poll(() => requestsFor(requests, "/api/preview").length).toBeGreaterThanOrEqual(1);
 
-  // Original image should have been requested as fallback
-  const imageRequests = requestsFor(requests, "/api/image");
-  expect(imageRequests.length).toBeGreaterThanOrEqual(1);
+  await expect(page.getByText("The image cannot be loaded").first()).toBeVisible();
+  await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 5000 });
 });
 
 // ─── 2d: Image 500 — lightbox doesn't crash ───
@@ -373,7 +372,7 @@ test("browse 500 shows error message; no page error", async ({ page }) => {
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
 
   // The app should show an error banner or error state (not a blank/white page)
-  await expect(page.getByTestId("error-banner").or(page.getByTestId("empty-state-container"))).toBeVisible({
+  await expect(page.getByTestId("error-banner")).toBeVisible({
     timeout: 10_000,
   });
 

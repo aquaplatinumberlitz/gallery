@@ -370,7 +370,7 @@ test("creates and scans a library from the compact layout", async ({ page }) => 
   await page.goto(`${baseUrl}/admin/libraries`);
   await page.locator("button:visible").filter({ hasText: "Add library" }).first().click();
 
-  await page.getByLabel("Display name").fill("Trips");
+  await page.getByRole("textbox", { name: "Display name" }).fill("Trips");
   await page.getByPlaceholder("/absolute/path/to/library").fill("/registered/trips");
   await page.getByRole("button", { name: "Add pattern" }).click();
   await page.getByPlaceholder("**/private/**").fill("**/private/**");
@@ -397,7 +397,7 @@ test("runs detail actions, updates settings, and unregisters safely", async ({ p
   await expect(page.getByRole("button", { name: "Repair", exact: true })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Edit", exact: true }).first().click();
-  await page.getByLabel("Display name").fill("Family archive");
+  await page.getByRole("textbox", { name: "Display name" }).fill("Family archive");
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.getByRole("heading", { name: "Family archive" })).toBeVisible();
   expect(matchingRequests(state, "POST", "/api/libraries/1/validate")).toHaveLength(1);

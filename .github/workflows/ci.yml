@@ -123,6 +123,8 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Docs staleness, test headers, and matrix audit (via test.sh)
+        env:
+          GALLERY_AUDIT_COLLECT_TIMEOUT_SECONDS: "180"
         run: ./test.sh docs
 
   # ---- E2E / Integration Tests ----

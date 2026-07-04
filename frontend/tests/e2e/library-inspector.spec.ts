@@ -313,7 +313,7 @@ test.describe("LibraryInspector", () => {
     await expect(page.getByLabel("Search metadata table")).toBeVisible();
     await expect(page.getByRole("combobox").filter({ hasText: "All models" })).toBeVisible();
     await expect(page.getByRole("combobox").filter({ hasText: "All prompts" })).toBeVisible();
-    await expect(page.getByRole("combobox", { name: "Sort metadata table" })).toContainText("Date modified");
+    await expect(page.getByRole("button", { name: "Sort metadata table" })).toContainText("Modified");
 
     const galleryLink = page.getByRole("link", { name: "Gallery" });
     await expect(galleryLink).toBeVisible();

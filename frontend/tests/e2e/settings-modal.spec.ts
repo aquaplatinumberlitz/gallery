@@ -160,7 +160,7 @@ test.describe("SettingsModal", () => {
 
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
 
-    await expect(dialog).toContainText("Intro Screen");
+    await expect(dialog).toContainText("Landing Page");
     await expect(dialog).toContainText("Automatic");
     await expect(dialog).toContainText("Disabled");
     await expect(dialog).toContainText("Manual Selection");
@@ -231,7 +231,7 @@ test.describe("SettingsModal", () => {
     const manualOption = dialog.locator("label").filter({ hasText: "Manual Selection" });
     await manualOption.click();
 
-    await expect(dialog.locator("select")).toBeVisible({ timeout: 3_000 });
+    await expect(dialog.getByRole("combobox")).toBeVisible({ timeout: 3_000 });
     await expect(dialog.getByRole("button", { name: "Preview" })).toBeVisible();
   });
 
@@ -242,9 +242,7 @@ test.describe("SettingsModal", () => {
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible({ timeout: 5_000 });
 
-    const viewerSection = dialog.locator("section").filter({ hasText: "Viewer Images" });
-    const alwaysLoadLabel = viewerSection.locator("label").filter({ hasText: "Always load original" });
-    await alwaysLoadLabel.click();
+    await dialog.locator("label").filter({ hasText: "Always load original" }).click();
 
     await page.keyboard.press("Escape");
     await expect(dialog).not.toBeVisible({ timeout: 5_000 });
@@ -256,12 +254,7 @@ test.describe("SettingsModal", () => {
     const reopenedDialog = page.getByRole("dialog");
     await expect(reopenedDialog).toBeVisible({ timeout: 5_000 });
 
-    const checkbox = reopenedDialog
-      .locator("section")
-      .filter({ hasText: "Viewer Images" })
-      .locator('input[type="checkbox"]');
-    const isChecked = await checkbox.isChecked();
-    expect(isChecked).toBe(true);
+    await expect(reopenedDialog.getByRole("checkbox", { name: /Always load original/ })).toBeChecked();
   });
 
   test("settings dialog has accessibility features", async ({ page }) => {

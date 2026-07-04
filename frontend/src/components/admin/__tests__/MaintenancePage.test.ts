@@ -215,11 +215,10 @@ describe("MaintenancePage", () => {
     mockGlobalSummaryData = [{ ready_derivatives: 2, expected_derivatives: 2 }];
     const wrapper = mountSubject();
 
-    const catalogSection = wrapper
-      .findAll("section")
-      .find((section) => section.text().includes("File catalog workers"));
-    const metadataSection = wrapper.findAll("section").find((section) => section.text().includes("Metadata workers"));
-    const thumbnailsSection = wrapper.findAll("section").find((section) => section.text().includes("Cached files"));
+    const cards = wrapper.findAll('[data-slot="card"]');
+    const catalogSection = cards.find((section) => section.text().includes("File catalog queue depth"));
+    const metadataSection = cards.find((section) => section.text().includes("Metadata workers"));
+    const thumbnailsSection = cards.find((section) => section.text().includes("Cached files"));
 
     expect(catalogSection?.findAll("button").map((button) => button.attributes("aria-label"))).toEqual([
       "About File catalog queue depth",
