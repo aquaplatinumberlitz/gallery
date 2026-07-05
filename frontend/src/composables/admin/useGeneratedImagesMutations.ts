@@ -10,10 +10,10 @@ export function useGeneratedImagesMutations(libraryId: MaybeRefOrGetter<number |
   const toast = useToast();
   const resolvedId = computed(() => toValue(libraryId) ?? 0);
 
-  const warmMutation = useMutation({
-    mutationFn: (kind: GeneratedImageKind = "thumbnail") => generateMissingImages(resolvedId.value, kind),
+  const baseWarmMutation = useMutation({
+    mutationFn: (kind: GeneratedImageKind | undefined) => generateMissingImages(resolvedId.value, kind),
     onSuccess: () => {
-      toast.success("Thumbnails queued");
+      toast.success("Derivatives queued");
       void Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.generatedImages(resolvedId.value) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.statusLibrary(resolvedId.value) }),
@@ -21,8 +21,13 @@ export function useGeneratedImagesMutations(libraryId: MaybeRefOrGetter<number |
         queryClient.invalidateQueries({ queryKey: queryKeys.jobsRoot() }),
       ]);
     },
-    onError: (error) => toast.error("Could not queue thumbnails", String(error)),
+    onError: (error) => toast.error("Could not queue derivatives", String(error)),
   });
+  const warmMutation = {
+    ...baseWarmMutation,
+    mutate: (kind?: GeneratedImageKind) => baseWarmMutation.mutate(kind),
+    mutateAsync: (kind?: GeneratedImageKind) => baseWarmMutation.mutateAsync(kind),
+  };
 
   return { warmMutation };
 }

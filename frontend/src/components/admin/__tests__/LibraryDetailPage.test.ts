@@ -276,7 +276,7 @@ describe("LibraryDetailPage", () => {
     const wrapper = mountSubject();
     expect(wrapper.text()).toContain("Overview");
     expect(wrapper.text()).toContain("Status");
-    expect(wrapper.text()).toContain("Thumbnails");
+    expect(wrapper.text()).toContain("Derivatives");
     expect(wrapper.text()).toContain("All systems available");
     expect(wrapper.text()).toContain("File catalog is current");
     expect(wrapper.text()).toContain("80");
@@ -450,26 +450,26 @@ describe("LibraryDetailPage", () => {
     expect(scanMutateMock).toHaveBeenCalledWith({ id: 1 });
   });
 
-  it("renders thumbnails cache with full data", () => {
+  it("renders derivative cache with full data", () => {
     mockGeneratedImagesData = mockGeneratedImages;
     const wrapper = mountSubject();
-    expect(wrapper.text()).toContain("Thumbnails");
-    expect(wrapper.text()).toContain("45/50 cached");
-    expect(wrapper.text()).toContain("5 thumbnails missing");
-    expect(wrapper.text()).toContain("Build missing thumbnails");
+    expect(wrapper.text()).toContain("Derivatives");
+    expect(wrapper.text()).toContain("75/100 cached");
+    expect(wrapper.text()).toContain("25 derivatives missing");
+    expect(wrapper.text()).toContain("Generate missing derivatives");
     expect(wrapper.find(".bg-warning").exists()).toBe(true);
     expect(wrapper.find(".bg-primary").exists()).toBe(false);
   });
 
-  it("queues only thumbnail derivatives from the thumbnail action", async () => {
+  it("queues all missing derivatives from the derivative action", async () => {
     mockGeneratedImagesData = mockGeneratedImages;
     const wrapper = mountSubject();
-    const buildButton = wrapper.findAll("button").find((button) => button.text().includes("Build missing thumbnails"));
+    const buildButton = wrapper.findAll("button").find((button) => button.text().includes("Generate missing derivatives"));
     expect(buildButton).not.toBeUndefined();
 
     await buildButton!.trigger("click");
 
-    expect(warmMutateMock).toHaveBeenCalledWith("thumbnail");
+    expect(warmMutateMock).toHaveBeenCalledWith();
   });
 
   it("renders jobs with actual data", () => {
