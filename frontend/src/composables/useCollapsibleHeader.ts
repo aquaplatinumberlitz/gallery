@@ -1,4 +1,5 @@
-import { computed, onScopeDispose, readonly, ref, toValue, watch, type MaybeRefOrGetter, type Ref } from "vue";
+import { computed, readonly, ref, toValue, watch, type MaybeRefOrGetter, type Ref } from "vue";
+import { useScroll } from "@vueuse/core";
 
 export const COLLAPSE_SCROLL_Y = 120;
 export const EXPAND_SCROLL_Y = 48;
@@ -34,73 +35,39 @@ export function useCollapsibleHeader(
     return typeof window === "undefined" ? null : window;
   });
 
-  let cleanupScrollListener: (() => void) | null = null;
-  let scrollRafId = 0;
+  const { y, measure } = useScroll(scrollTarget, {
+    eventListenerOptions: { passive: true },
+  });
 
   function updateCollapseState(scrollY: number) {
     if (!isEnabled.value) {
-      if (isHeaderCollapsed.value) {
-        isHeaderCollapsed.value = false;
-      }
+      isHeaderCollapsed.value = false;
       return;
     }
 
     if (!isHeaderCollapsed.value && scrollY > collapseScrollY) {
       isHeaderCollapsed.value = true;
-    } else if (isHeaderCollapsed.value && scrollY <= expandScrollY) {
+    } else if (isHeaderCollapsed.value && scrollY < expandScrollY) {
       isHeaderCollapsed.value = false;
     }
   }
 
-  function cancelScrollFrame() {
-    if (!scrollRafId || typeof window === "undefined") return;
-    window.cancelAnimationFrame(scrollRafId);
-    scrollRafId = 0;
-  }
-
-  function queueCollapseUpdate(target: HeaderScrollTarget) {
-    if (scrollRafId) return;
-
-    if (typeof window === "undefined" || typeof window.requestAnimationFrame !== "function") {
-      updateCollapseState(readScrollY(target));
-      return;
-    }
-
-    scrollRafId = window.requestAnimationFrame(() => {
-      scrollRafId = 0;
-      updateCollapseState(readScrollY(target));
-    });
-  }
-
-  function attachCollapseListener(target: HeaderScrollTarget) {
-    cleanupScrollListener?.();
-    cleanupScrollListener = null;
-    cancelScrollFrame();
-
-    updateCollapseState(readScrollY(target));
-    if (!target) return;
-
-    const handleScroll = () => {
-      queueCollapseUpdate(target);
-    };
-
-    target.addEventListener("scroll", handleScroll, { passive: true });
-    cleanupScrollListener = () => target.removeEventListener("scroll", handleScroll);
-  }
+  watch(
+    y,
+    (scrollY) => {
+      updateCollapseState(scrollY);
+    },
+    { immediate: true },
+  );
 
   watch(
     [scrollTarget, isEnabled],
     () => {
-      attachCollapseListener(scrollTarget.value);
+      measure();
+      updateCollapseState(readScrollY(scrollTarget.value));
     },
     { immediate: true, flush: "post" },
   );
-
-  onScopeDispose(() => {
-    cleanupScrollListener?.();
-    cleanupScrollListener = null;
-    cancelScrollFrame();
-  });
 
   return {
     isHeaderCollapsed: readonly(isHeaderCollapsed),
