@@ -94,6 +94,7 @@ const props = withDefaults(defineProps<Props>(), {
 });
 const injectedScrollContainerRef = inject(galleryScrollContainerRefKey, null);
 const scrollParentRef = ref<HTMLElement | null>(null);
+const searchScrollParentRef = ref<HTMLElement | null>(null);
 
 const resolveTemplateRefElement = (target: Element | ComponentPublicInstance | null) => {
   if (!target) return null;
@@ -509,6 +510,13 @@ const { isTablet } = useDevice();
 const deviceCategory = computed(() => (props.isMobile ? "mobile" : isTablet.value ? "tablet" : "desktop"));
 const { columnCount, sliderLevel, rowHeight, setGridRef } = useColumnResize(deviceCategory);
 
+const setSearchScrollContainerRef = (target: Element | ComponentPublicInstance | null) => {
+  const el = resolveTemplateRefElement(target);
+  searchScrollParentRef.value = el;
+  setScrollContainerRef(target);
+  setGridRef(target);
+};
+
 // Density dropdown options
 const densityOptions = computed(() => {
   if (deviceCategory.value !== "tablet") return [...PHOTO_GRID_LEVELS].sort((a, b) => a.columns - b.columns);
@@ -558,38 +566,108 @@ watch(
   { flush: "post" },
 );
 
-const searchPhotoRows = computed(() => {
-  const rows: { id: string; items: typeof searchPhotos.value }[] = [];
-  for (let i = 0; i < searchPhotos.value.length; i += columnCount.value) {
-    rows.push({
-      id: `photo-row-${columnCount.value}-${i}`,
-      items: searchPhotos.value.slice(i, i + columnCount.value),
+type SearchSection = "albums" | "photos" | "videos" | "prompt";
+type SearchVirtualRow =
+  | { id: string; kind: "header"; section: SearchSection; count: number }
+  | { id: string; kind: "albums"; items: FileNode[] }
+  | { id: string; kind: "photos"; items: UnifiedSearchResult[] }
+  | { id: string; kind: "videos"; items: FileNode[] }
+  | { id: string; kind: "prompt"; items: UnifiedSearchResult[] };
+
+const chunkItems = <T,>(items: T[], chunkSize: number): T[][] => {
+  const size = Math.max(1, chunkSize);
+  const rows: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    rows.push(items.slice(i, i + size));
+  }
+  return rows;
+};
+
+const searchAlbumColumnCount = computed(() => {
+  if (props.isMobile) return 1;
+  if (isTablet.value) return Math.min(3, columnCount.value);
+  return Math.max(3, Math.min(5, columnCount.value - 1));
+});
+
+const searchVirtualRows = computed<SearchVirtualRow[]>(() => {
+  const rows: SearchVirtualRow[] = [];
+
+  if (searchAlbums.value.length) {
+    rows.push({ id: "header-albums", kind: "header", section: "albums", count: searchAlbums.value.length });
+    chunkItems(searchAlbumNodesRef.value, searchAlbumColumnCount.value).forEach((items, index) => {
+      rows.push({ id: `albums-${searchAlbumColumnCount.value}-${index}`, kind: "albums", items });
     });
   }
+
+  if (searchPhotos.value.length) {
+    rows.push({ id: "header-photos", kind: "header", section: "photos", count: searchPhotos.value.length });
+    chunkItems(searchPhotos.value, columnCount.value).forEach((items, index) => {
+      rows.push({ id: `photos-${columnCount.value}-${index}`, kind: "photos", items });
+    });
+  }
+
+  if (searchVideos.value.length) {
+    rows.push({ id: "header-videos", kind: "header", section: "videos", count: searchVideos.value.length });
+    chunkItems(searchVideoNodes.value, columnCount.value).forEach((items, index) => {
+      rows.push({ id: `videos-${columnCount.value}-${index}`, kind: "videos", items });
+    });
+  }
+
+  if (searchPrompt.value.length) {
+    rows.push({ id: "header-prompt", kind: "header", section: "prompt", count: searchPrompt.value.length });
+    chunkItems(searchPrompt.value, columnCount.value).forEach((items, index) => {
+      rows.push({ id: `prompt-${columnCount.value}-${index}`, kind: "prompt", items });
+    });
+  }
+
   return rows;
 });
 
-const searchPromptRows = computed(() => {
-  const rows: { id: string; items: typeof searchPrompt.value }[] = [];
-  for (let i = 0; i < searchPrompt.value.length; i += columnCount.value) {
-    rows.push({
-      id: `prompt-row-${columnCount.value}-${i}`,
-      items: searchPrompt.value.slice(i, i + columnCount.value),
-    });
+const searchHeaderTitle = (section: SearchSection) => {
+  switch (section) {
+    case "albums":
+      return "Album suggestions";
+    case "photos":
+      return "Photos";
+    case "videos":
+      return "Videos";
+    case "prompt":
+      return "Prompt";
   }
-  return rows;
-});
+};
 
-const searchVideoRows = computed(() => {
-  const rows: { id: string; items: typeof searchVideoNodes.value }[] = [];
-  for (let i = 0; i < searchVideoNodes.value.length; i += columnCount.value) {
-    rows.push({
-      id: `video-row-${columnCount.value}-${i}`,
-      items: searchVideoNodes.value.slice(i, i + columnCount.value),
-    });
-  }
-  return rows;
-});
+const searchHeaderIcon = (section: SearchSection) => {
+  if (section === "albums") return FolderOpen;
+  if (section === "videos") return Clapperboard;
+  return Images;
+};
+
+const estimateSearchRowSize = (index: number) => {
+  const row = searchVirtualRows.value[index];
+  if (!row) return rowHeight.value || 220;
+  if (row.kind === "header") return 48;
+  if (row.kind === "albums") return props.isMobile ? 178 : isTablet.value ? 226 : 280;
+  const mediaHeight = rowHeight.value || (props.isMobile ? 150 : isTablet.value ? 190 : 220);
+  return mediaHeight + (row.kind === "videos" ? 28 : 48);
+};
+
+const searchVirtualizer = useVirtualizer<HTMLElement, HTMLElement>(
+  computed(() => ({
+    count: searchVirtualRows.value.length,
+    getScrollElement: () => searchScrollParentRef.value,
+    estimateSize: estimateSearchRowSize,
+    overscan: 4,
+    getItemKey: (index: number) => searchVirtualRows.value[index]?.id ?? index,
+  })),
+);
+
+watch(
+  [rowHeight, columnCount, searchAlbumColumnCount, () => searchVirtualRows.value.length],
+  () => {
+    searchVirtualizer.value.measure();
+  },
+  { flush: "post" },
+);
 
 const skeletonItems = computed(() => Array.from({ length: 12 }, (_, i) => i));
 
@@ -802,110 +880,152 @@ useIntersectionObserver(
     </div>
 
     <!-- Search results: backend indexed albums, photos, and prompt matches -->
-    <div v-else-if="hasSearchQuery" :ref="setScrollContainerRef" class="search-results-container">
-      <section v-if="searchAlbums.length" class="search-photo-section">
-        <GallerySectionHeader title="Album suggestions" :count="searchAlbums.length" :badge-icon="FolderOpen" />
-        <div class="search-album-grid">
-          <AlbumCard
-            v-for="(album, index) in searchAlbums"
-            :key="album.path"
-            :node="searchAlbumNodesRef[index]"
-            @click="handleOpenFolder(album.path)"
-          />
-        </div>
-      </section>
-
-      <section v-if="searchPhotos.length" class="search-photo-section">
-        <GallerySectionHeader title="Photos" :count="searchPhotos.length" :badge-icon="Images" />
-
-        <div
-          v-for="row in searchPhotoRows"
-          :key="row.id"
-          class="virtual-row"
-          :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }"
-        >
-          <div v-for="img in row.items" :key="img.path" class="search-result-card">
-            <PhotoCard
-              :src="img.path"
-              :name="img.name"
-              @dimensions="handlePhotoDimensions"
-              @click="handleOpenImage(img.path, img.name)"
-              @keydown.enter="handleOpenImage(img.path, img.name)"
-              @keydown.space.prevent="handleOpenImage(img.path, img.name)"
-            />
-            <OverflowTooltip :text="img.name" class="search-result-name file-name-display">
-              <span class="file-name-base">{{ displayFilenameParts(img.name).base }}</span>
-              <span class="file-name-ext">{{ displayFilenameParts(img.name).ext }}</span>
-            </OverflowTooltip>
-            <OverflowTooltip
-              v-if="searchResultFolderPath(img)"
-              :text="searchResultFolderPath(img)"
-              class="search-result-path"
+    <div v-else-if="hasSearchQuery" :ref="setSearchScrollContainerRef" class="search-results-container">
+      <div
+        v-if="searchVirtualRows.length"
+        class="search-virtual-spacer"
+        :style="{ height: `${searchVirtualizer.getTotalSize()}px`, position: 'relative' }"
+      >
+        <template v-for="virtualRow in searchVirtualizer.getVirtualItems()" :key="String(virtualRow.key)">
+          <template v-for="row in [searchVirtualRows[virtualRow.index]]" :key="row?.id ?? String(virtualRow.key)">
+            <div
+              v-if="row?.kind === 'header'"
+              class="search-virtual-row search-virtual-row--header"
+              :style="{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: `translateY(${virtualRow.start}px)`,
+              }"
             >
-              <Folder class="search-result-path-icon" />
-              <span>{{ searchResultFolderPath(img) }}</span>
-            </OverflowTooltip>
-          </div>
-        </div>
-      </section>
+              <GallerySectionHeader
+                :title="searchHeaderTitle(row.section)"
+                :count="row.count"
+                :badge-icon="searchHeaderIcon(row.section)"
+              />
+            </div>
 
-      <section v-if="searchVideos.length" class="search-photo-section">
-        <GallerySectionHeader title="Videos" :count="searchVideos.length" :badge-icon="Clapperboard" />
-
-        <div
-          v-for="row in searchVideoRows"
-          :key="row.id"
-          class="virtual-row"
-          :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }"
-        >
-          <div v-for="video in row.items" :key="video.path" class="search-result-card">
-            <VideoCard
-              :src="video.path"
-              :name="video.name"
-              :duration-ms="video.duration_ms"
-              @click="handleOpenVideo(video)"
-            />
-            <OverflowTooltip :text="video.name" class="search-result-name file-name-display">
-              <span class="file-name-base">{{ displayFilenameParts(video.name).base }}</span>
-              <span class="file-name-ext">{{ displayFilenameParts(video.name).ext }}</span>
-            </OverflowTooltip>
-          </div>
-        </div>
-      </section>
-
-      <section v-if="searchPrompt.length" class="search-photo-section">
-        <GallerySectionHeader title="Prompt" :count="searchPrompt.length" :badge-icon="Images" />
-
-        <div
-          v-for="row in searchPromptRows"
-          :key="row.id"
-          class="virtual-row"
-          :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }"
-        >
-          <div v-for="img in row.items" :key="img.path" class="search-result-card">
-            <PhotoCard
-              :src="img.path"
-              :name="img.name"
-              @dimensions="handlePhotoDimensions"
-              @click="handleOpenImage(img.path, img.name)"
-              @keydown.enter="handleOpenImage(img.path, img.name)"
-              @keydown.space.prevent="handleOpenImage(img.path, img.name)"
-            />
-            <OverflowTooltip :text="img.name" class="search-result-name file-name-display">
-              <span class="file-name-base">{{ displayFilenameParts(img.name).base }}</span>
-              <span class="file-name-ext">{{ displayFilenameParts(img.name).ext }}</span>
-            </OverflowTooltip>
-            <OverflowTooltip
-              v-if="searchResultFolderPath(img)"
-              :text="searchResultFolderPath(img)"
-              class="search-result-path"
+            <div
+              v-else-if="row?.kind === 'albums'"
+              class="search-virtual-row search-album-grid"
+              :style="{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: `translateY(${virtualRow.start}px)`,
+                gridTemplateColumns: `repeat(${searchAlbumColumnCount}, minmax(0, 1fr))`,
+              }"
             >
-              <Folder class="search-result-path-icon" />
-              <span>{{ searchResultFolderPath(img) }}</span>
-            </OverflowTooltip>
-          </div>
-        </div>
-      </section>
+              <AlbumCard
+                v-for="album in row.items"
+                :key="album.path"
+                :node="album"
+                @click="handleOpenFolder(album.path)"
+              />
+            </div>
+
+            <div
+              v-else-if="row?.kind === 'photos'"
+              class="search-virtual-row virtual-row"
+              :style="{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: `translateY(${virtualRow.start}px)`,
+                gridTemplateColumns: `repeat(${columnCount}, 1fr)`,
+              }"
+            >
+              <div v-for="img in row.items" :key="img.path" class="search-result-card">
+                <PhotoCard
+                  :src="img.path"
+                  :name="img.name"
+                  @dimensions="handlePhotoDimensions"
+                  @click="handleOpenImage(img.path, img.name)"
+                  @keydown.enter="handleOpenImage(img.path, img.name)"
+                  @keydown.space.prevent="handleOpenImage(img.path, img.name)"
+                />
+                <OverflowTooltip :text="img.name" class="search-result-name file-name-display">
+                  <span class="file-name-base">{{ displayFilenameParts(img.name).base }}</span>
+                  <span class="file-name-ext">{{ displayFilenameParts(img.name).ext }}</span>
+                </OverflowTooltip>
+                <OverflowTooltip
+                  v-if="searchResultFolderPath(img)"
+                  :text="searchResultFolderPath(img)"
+                  class="search-result-path"
+                >
+                  <Folder class="search-result-path-icon" />
+                  <span>{{ searchResultFolderPath(img) }}</span>
+                </OverflowTooltip>
+              </div>
+            </div>
+
+            <div
+              v-else-if="row?.kind === 'videos'"
+              class="search-virtual-row virtual-row"
+              :style="{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: `translateY(${virtualRow.start}px)`,
+                gridTemplateColumns: `repeat(${columnCount}, 1fr)`,
+              }"
+            >
+              <div v-for="video in row.items" :key="video.path" class="search-result-card">
+                <VideoCard
+                  :src="video.path"
+                  :name="video.name"
+                  :duration-ms="video.duration_ms"
+                  @click="handleOpenVideo(video)"
+                />
+                <OverflowTooltip :text="video.name" class="search-result-name file-name-display">
+                  <span class="file-name-base">{{ displayFilenameParts(video.name).base }}</span>
+                  <span class="file-name-ext">{{ displayFilenameParts(video.name).ext }}</span>
+                </OverflowTooltip>
+              </div>
+            </div>
+
+            <div
+              v-else-if="row?.kind === 'prompt'"
+              class="search-virtual-row virtual-row"
+              :style="{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: `translateY(${virtualRow.start}px)`,
+                gridTemplateColumns: `repeat(${columnCount}, 1fr)`,
+              }"
+            >
+              <div v-for="img in row.items" :key="img.path" class="search-result-card">
+                <PhotoCard
+                  :src="img.path"
+                  :name="img.name"
+                  @dimensions="handlePhotoDimensions"
+                  @click="handleOpenImage(img.path, img.name)"
+                  @keydown.enter="handleOpenImage(img.path, img.name)"
+                  @keydown.space.prevent="handleOpenImage(img.path, img.name)"
+                />
+                <OverflowTooltip :text="img.name" class="search-result-name file-name-display">
+                  <span class="file-name-base">{{ displayFilenameParts(img.name).base }}</span>
+                  <span class="file-name-ext">{{ displayFilenameParts(img.name).ext }}</span>
+                </OverflowTooltip>
+                <OverflowTooltip
+                  v-if="searchResultFolderPath(img)"
+                  :text="searchResultFolderPath(img)"
+                  class="search-result-path"
+                >
+                  <Folder class="search-result-path-icon" />
+                  <span>{{ searchResultFolderPath(img) }}</span>
+                </OverflowTooltip>
+              </div>
+            </div>
+          </template>
+        </template>
+      </div>
 
       <div v-if="noSearchResults" class="search-empty-wrap">
         <EmptyState
@@ -1183,24 +1303,22 @@ useIntersectionObserver(
   scrollbar-width: thin;
 }
 
-.search-photo-section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 12px;
-}
-
 .search-album-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 24px;
-  padding: 12px 12px;
+  display: grid;
+  gap: 20px;
+  padding: 0 8px;
 }
 
 .search-album-grid > * {
-  flex-shrink: 0;
-  min-width: 180px;
-  max-width: 240px;
+  min-width: 0;
+}
+
+.search-virtual-row {
+  contain: layout style;
+}
+
+.search-virtual-row--header {
+  padding: 10px 8px 0;
 }
 
 .search-result-card {
@@ -1442,13 +1560,8 @@ useIntersectionObserver(
     padding-right: 8px;
   }
 
-  .search-photo-section {
-    gap: 10px;
-  }
-
   .search-album-grid {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 8px;
+    gap: 12px;
   }
 
   .search-result-name {
@@ -1546,14 +1659,8 @@ useIntersectionObserver(
     padding-right: 4px;
   }
 
-  .search-photo-section {
-    gap: 8px;
-    margin-top: 10px;
-  }
-
   .search-album-grid {
-    grid-template-columns: 1fr;
-    gap: 7px;
+    gap: 8px;
   }
 
   .search-result-card {
