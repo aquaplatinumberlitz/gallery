@@ -13,7 +13,7 @@ export function useGeneratedImagesMutations(libraryId: MaybeRefOrGetter<number |
   const baseWarmMutation = useMutation({
     mutationFn: (kind: GeneratedImageKind | undefined) => generateMissingImages(resolvedId.value, kind),
     onSuccess: () => {
-      toast.success("Derivatives queued");
+      toast.success("Thumbnails queued");
       void Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.generatedImages(resolvedId.value) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.statusLibrary(resolvedId.value) }),
@@ -21,7 +21,7 @@ export function useGeneratedImagesMutations(libraryId: MaybeRefOrGetter<number |
         queryClient.invalidateQueries({ queryKey: queryKeys.jobsRoot() }),
       ]);
     },
-    onError: (error) => toast.error("Could not queue derivatives", String(error)),
+    onError: (error) => toast.error("Could not queue thumbnails", String(error)),
   });
   const warmMutation = {
     ...baseWarmMutation,

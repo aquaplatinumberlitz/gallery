@@ -96,16 +96,16 @@ const mockJobs = [
 ];
 
 const mockGeneratedImages = {
-  ready_derivatives: 75,
-  expected_derivatives: 100,
+  ready_derivatives: 149,
+  expected_derivatives: 200,
   by_kind: {
     thumbnail: {
-      ready_derivatives: 45,
-      expected_derivatives: 50,
+      ready_derivatives: 75,
+      expected_derivatives: 100,
     },
     preview: {
-      ready_derivatives: 30,
-      expected_derivatives: 50,
+      ready_derivatives: 74,
+      expected_derivatives: 100,
     },
   },
   quota_used_bytes: 524288000,
@@ -276,7 +276,7 @@ describe("LibraryDetailPage", () => {
     const wrapper = mountSubject();
     expect(wrapper.text()).toContain("Overview");
     expect(wrapper.text()).toContain("Status");
-    expect(wrapper.text()).toContain("Derivatives");
+    expect(wrapper.text()).toContain("Thumbnails");
     expect(wrapper.text()).toContain("All systems available");
     expect(wrapper.text()).toContain("File catalog is current");
     expect(wrapper.text()).toContain("80");
@@ -453,18 +453,18 @@ describe("LibraryDetailPage", () => {
   it("renders derivative cache with full data", () => {
     mockGeneratedImagesData = mockGeneratedImages;
     const wrapper = mountSubject();
-    expect(wrapper.text()).toContain("Derivatives");
-    expect(wrapper.text()).toContain("75/100 cached");
-    expect(wrapper.text()).toContain("25 derivatives missing");
-    expect(wrapper.text()).toContain("Generate missing derivatives");
+    expect(wrapper.text()).toContain("Thumbnails");
+    expect(wrapper.text()).toContain("74/100 cached");
+    expect(wrapper.text()).toContain("26 thumbnails missing");
+    expect(wrapper.text()).toContain("Build missing thumbnails");
     expect(wrapper.find(".bg-warning").exists()).toBe(true);
     expect(wrapper.find(".bg-primary").exists()).toBe(false);
   });
 
-  it("queues all missing derivatives from the derivative action", async () => {
+  it("queues all missing thumbnails from the thumbnail action", async () => {
     mockGeneratedImagesData = mockGeneratedImages;
     const wrapper = mountSubject();
-    const buildButton = wrapper.findAll("button").find((button) => button.text().includes("Generate missing derivatives"));
+    const buildButton = wrapper.findAll("button").find((button) => button.text().includes("Build missing thumbnails"));
     expect(buildButton).not.toBeUndefined();
 
     await buildButton!.trigger("click");

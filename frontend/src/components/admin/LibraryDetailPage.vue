@@ -247,20 +247,41 @@ const statusTiles = computed<
 });
 
 const thumbnails = computed(() => generatedImagesQuery.data.value ?? null);
-const derivativeReady = computed(() => thumbnails.value?.ready_derivatives ?? 0);
-const derivativeExpected = computed(() => thumbnails.value?.expected_derivatives ?? 0);
-const derivativeMissing = computed(() => Math.max(0, derivativeExpected.value - derivativeReady.value));
-const hasDerivativeExpectation = computed(() => derivativeExpected.value > 0);
+const thumbnailDerivativeStatus = computed(() => {
+  const currentStatus = thumbnails.value;
+  if (!currentStatus) return { ready: 0, expected: 0 };
+
+  const byKind = currentStatus.by_kind
+    ? Object.values(currentStatus.by_kind).filter(
+        (kind): kind is { ready_derivatives: number; expected_derivatives: number } => Boolean(kind),
+      )
+    : [];
+  if (byKind.length === 0) {
+    return {
+      ready: currentStatus.ready_derivatives,
+      expected: currentStatus.expected_derivatives,
+    };
+  }
+
+  return {
+    ready: Math.min(...byKind.map((kind) => kind.ready_derivatives)),
+    expected: byKind[0]?.expected_derivatives ?? 0,
+  };
+});
+const thumbnailReady = computed(() => thumbnailDerivativeStatus.value.ready);
+const thumbnailExpected = computed(() => thumbnailDerivativeStatus.value.expected);
+const thumbnailMissing = computed(() => Math.max(0, thumbnailExpected.value - thumbnailReady.value));
+const hasDerivativeExpectation = computed(() => thumbnailExpected.value > 0);
 const derivativeCoverageRatio = computed(() => {
-  if (!derivativeExpected.value) return 0;
-  return derivativeReady.value / derivativeExpected.value;
+  if (!thumbnailExpected.value) return 0;
+  return thumbnailReady.value / thumbnailExpected.value;
 });
 const derivativeCoverageLabel = computed(() =>
   hasDerivativeExpectation.value ? formatPercent(derivativeCoverageRatio.value) : "Not measured",
 );
 const derivativeSummaryLabel = computed(() =>
   hasDerivativeExpectation.value
-    ? `${formatAssetCount(derivativeReady.value)}/${formatAssetCount(derivativeExpected.value)} cached`
+    ? `${formatAssetCount(thumbnailReady.value)}/${formatAssetCount(thumbnailExpected.value)} cached`
     : "Not measured yet",
 );
 const derivativeCacheState = computed(() =>
@@ -268,20 +289,20 @@ const derivativeCacheState = computed(() =>
     ? {
         label: "Cache state",
         value: "Unknown",
-        detail: "Run a scan to measure derivative needs",
+        detail: "Run a scan to measure thumbnail needs",
         tone: "text-muted-foreground",
       }
-    : derivativeMissing.value > 0
+    : thumbnailMissing.value > 0
       ? {
           label: "Missing",
-          value: `${formatAssetCount(derivativeMissing.value)} derivatives`,
+          value: `${formatAssetCount(thumbnailMissing.value)} thumbnails`,
           detail: "Build required",
           tone: "text-warning",
         }
       : {
           label: "Cache state",
           value: "Complete",
-          detail: "No missing derivatives",
+          detail: "No missing thumbnails",
           tone: "text-success",
         },
 );
@@ -582,15 +603,15 @@ function estimatedAssets(): number | undefined {
               <div class="space-y-4">
                 <div class="flex items-start justify-between gap-3">
                   <div>
-                    <h3 class="text-sm font-semibold text-foreground">Derivatives</h3>
-                    <p class="mt-1 text-sm text-muted-foreground">Cached derivatives used for faster browsing.</p>
+                    <h3 class="text-sm font-semibold text-foreground">Thumbnails</h3>
+                    <p class="mt-1 text-sm text-muted-foreground">Cached previews used for faster browsing.</p>
                   </div>
                   <Tooltip>
                     <TooltipTrigger as-child>
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        aria-label="Refresh derivative cache"
+                        aria-label="Refresh thumbnails cache"
                         :disabled="generatedImagesQuery.isFetching.value"
                         @click="generatedImagesQuery.refetch()"
                       >
@@ -611,8 +632,8 @@ function estimatedAssets(): number | undefined {
                           <ImageIcon class="size-4 shrink-0 text-foreground/70" aria-hidden="true" />
                           <p class="font-semibold text-foreground">{{ derivativeSummaryLabel }}</p>
                         </div>
-                        <p v-if="derivativeMissing > 0" class="mt-1 text-sm text-muted-foreground">
-                          {{ formatAssetCount(derivativeMissing) }} derivatives missing
+                        <p v-if="thumbnailMissing > 0" class="mt-1 text-sm text-muted-foreground">
+                          {{ formatAssetCount(thumbnailMissing) }} thumbnails missing
                         </p>
                       </div>
                       <p
@@ -658,7 +679,7 @@ function estimatedAssets(): number | undefined {
                     </div>
                   </div>
                   <Button
-                    v-if="derivativeMissing > 0"
+                    v-if="thumbnailMissing > 0"
                     variant="outline"
                     size="sm"
                     :disabled="warmMutation.isPending.value"
@@ -666,7 +687,7 @@ function estimatedAssets(): number | undefined {
                   >
                     <RefreshCw v-if="warmMutation.isPending.value" class="animate-spin" data-icon="inline-start" />
                     <ImageIcon v-else data-icon="inline-start" />
-                    {{ warmMutation.isPending.value ? "Queuing..." : "Generate missing derivatives" }}
+                    {{ warmMutation.isPending.value ? "Queuing thumbnails..." : "Build missing thumbnails" }}
                   </Button>
                 </template>
                 <Skeleton v-else class="h-32 w-full" />
