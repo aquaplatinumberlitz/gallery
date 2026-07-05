@@ -21,7 +21,6 @@ def _metadata_store_build_album_metadata(path: Path) -> dict[str, Any]:
 
 SEARCH_FIELDS = ("name", "prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
 PROMPT_SEARCH_FIELDS = ("prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
-MIN_PLAIN_SEARCH_QUERY_LENGTH = 2
 
 
 def _escape_fts_token(token: str) -> str:
@@ -399,7 +398,7 @@ def search_index(query: str, scope: str, root_path: str | Path | None = None, li
     root = Path(root_path).resolve() if normalized_scope == "current" and root_path else None
     display_root = root if root is not None else Path(os.sep)
 
-    if not trimmed or len(trimmed) < MIN_PLAIN_SEARCH_QUERY_LENGTH:
+    if not trimmed:
         return {
             "query": query,
             "scope": normalized_scope,
@@ -586,16 +585,6 @@ def search_index_fielded(
         }
 
     parsed = parse_fielded_query(trimmed)
-    if not parsed.fields and len(trimmed) < MIN_PLAIN_SEARCH_QUERY_LENGTH:
-        return {
-            "query": query,
-            "scope": normalized_scope,
-            "root": str(display_root),
-            "albums": [],
-            "photos": [],
-            "videos": [],
-            "prompt": [],
-        }
 
     # ── Albums section ──────────────────────────────────────────────────
     # Albums use ONLY residual_text (plain text outside field tokens like

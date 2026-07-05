@@ -94,27 +94,6 @@ def test_search_failure_returns_500(isolated_app: TestClient, monkeypatch: pytes
     assert resp.status_code == 500
 
 
-def test_search_one_character_plain_query_returns_empty_without_backend_search(
-    isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch
-):
-    def boom(*args, **kwargs):  # noqa: ANN002, ANN003
-        raise AssertionError("short search should not call indexed search")
-
-    monkeypatch.setattr(search_module, "search_index", boom)
-    resp = isolated_app.get("/api/search", params={"q": "a", "scope": "all"})
-
-    assert resp.status_code == 200
-    assert resp.json() == {
-        "query": "a",
-        "scope": "all",
-        "root": "/",
-        "albums": [],
-        "photos": [],
-        "videos": [],
-        "prompt": [],
-    }
-
-
 # ---------------------------------------------------------------------------
 # /api/search stale row handling
 # ---------------------------------------------------------------------------
