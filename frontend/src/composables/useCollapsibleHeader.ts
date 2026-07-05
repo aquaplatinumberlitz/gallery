@@ -1,4 +1,3 @@
-import { useEventListener } from "@vueuse/core";
 import { computed, onScopeDispose, readonly, ref, toValue, watch, type MaybeRefOrGetter, type Ref } from "vue";
 
 export const COLLAPSE_SCROLL_Y = 120;
@@ -35,6 +34,7 @@ export function useCollapsibleHeader(
     return typeof window === "undefined" ? null : window;
   });
 
+  let cleanupScrollListener: (() => void) | null = null;
   let scrollRafId = 0;
 
   function updateCollapseState(scrollY: number) {
@@ -72,22 +72,33 @@ export function useCollapsibleHeader(
     });
   }
 
-  function syncCollapseState(target: HeaderScrollTarget) {
+  function attachCollapseListener(target: HeaderScrollTarget) {
+    cleanupScrollListener?.();
+    cleanupScrollListener = null;
     cancelScrollFrame();
-    updateCollapseState(readScrollY(target));
-  }
 
-  useEventListener(scrollTarget, "scroll", () => queueCollapseUpdate(scrollTarget.value), { passive: true });
+    updateCollapseState(readScrollY(target));
+    if (!target) return;
+
+    const handleScroll = () => {
+      queueCollapseUpdate(target);
+    };
+
+    target.addEventListener("scroll", handleScroll, { passive: true });
+    cleanupScrollListener = () => target.removeEventListener("scroll", handleScroll);
+  }
 
   watch(
     [scrollTarget, isEnabled],
     () => {
-      syncCollapseState(scrollTarget.value);
+      attachCollapseListener(scrollTarget.value);
     },
     { immediate: true, flush: "post" },
   );
 
   onScopeDispose(() => {
+    cleanupScrollListener?.();
+    cleanupScrollListener = null;
     cancelScrollFrame();
   });
 
