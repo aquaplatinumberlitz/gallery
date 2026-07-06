@@ -7,10 +7,22 @@ import { Image } from "lucide-vue-next";
 // Persists across virtualized mount/unmount cycles so shimmer doesn't re-appear
 const loadedImages = new Set<string>();
 
-const props = defineProps<{
-  src?: string;
-  name?: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    src?: string;
+    name?: string;
+    thumbnailSize?: number;
+    fetchPriority?: "auto" | "high" | "low";
+    loadDelayMs?: number;
+  }>(),
+  {
+    src: undefined,
+    name: undefined,
+    thumbnailSize: 512,
+    fetchPriority: "auto",
+    loadDelayMs: 0,
+  },
+);
 
 const emit = defineEmits<{
   (e: "click"): void;
@@ -20,7 +32,9 @@ const emit = defineEmits<{
 const isLoaded = ref(props.src ? loadedImages.has(props.src) : false);
 const hasError = ref(false);
 const isHovering = ref(false);
+const thumbnailSrc = ref("");
 let hoverTimer: ReturnType<typeof setTimeout> | null = null;
+let thumbnailTimer: ReturnType<typeof setTimeout> | null = null;
 
 // Check if image is potentially animated based on extension
 const isAnimated = computed(() => {
@@ -31,6 +45,29 @@ const isAnimated = computed(() => {
 
 const shouldPlay = ref(false);
 const previewSrc = ref("");
+
+const clearThumbnailTimer = () => {
+  if (thumbnailTimer) {
+    clearTimeout(thumbnailTimer);
+    thumbnailTimer = null;
+  }
+};
+
+const queueThumbnailLoad = () => {
+  clearThumbnailTimer();
+  thumbnailSrc.value = "";
+  if (!props.src) return;
+
+  const load = () => {
+    thumbnailSrc.value = props.src ? getThumbnailUrl(props.src, props.thumbnailSize) : "";
+  };
+
+  if (props.loadDelayMs > 0) {
+    thumbnailTimer = setTimeout(load, props.loadDelayMs);
+  } else {
+    load();
+  }
+};
 
 const onMouseEnter = () => {
   // Guard: skip hover animation on touch devices (prevents sticky hover state)
@@ -77,8 +114,8 @@ const onImageError = () => {
 };
 
 watch(
-  () => props.src,
-  (newSrc) => {
+  () => [props.src, props.thumbnailSize, props.loadDelayMs] as const,
+  ([newSrc]) => {
     hasError.value = false;
     shouldPlay.value = false;
     previewSrc.value = "";
@@ -88,10 +125,13 @@ watch(
     } else {
       isLoaded.value = false;
     }
+    queueThumbnailLoad();
   },
+  { immediate: true },
 );
 
 onBeforeUnmount(() => {
+  clearThumbnailTimer();
   if (hoverTimer) {
     clearTimeout(hoverTimer);
     hoverTimer = null;
@@ -117,9 +157,11 @@ onBeforeUnmount(() => {
 
     <!-- Static Thumbnail (Always visible initially) -->
     <img
-      v-if="props.src && !hasError"
-      :src="getThumbnailUrl(props.src)"
+      v-if="thumbnailSrc && !hasError"
+      :src="thumbnailSrc"
       loading="lazy"
+      decoding="async"
+      :fetchpriority="props.fetchPriority"
       @load="onImageLoad"
       @error="onImageError"
       :alt="props.name || 'Gallery image'"

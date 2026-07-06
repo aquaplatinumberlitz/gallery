@@ -10,13 +10,15 @@ const emit = defineEmits<{
   (e: "click"): void;
 }>();
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     node: FileNode;
     compact?: boolean;
+    thumbnailSize?: number;
   }>(),
   {
     compact: false,
+    thumbnailSize: 512,
   },
 );
 </script>
@@ -33,11 +35,23 @@ withDefaults(
   >
     <div class="album-cover-diagonal">
       <div class="album-layer album-layer-back">
-        <img v-if="node.cover_images?.[1]" :src="getThumbnailUrl(node.cover_images[1])" loading="lazy" alt="" />
+        <img
+          v-if="node.cover_images?.[1]"
+          :src="getThumbnailUrl(node.cover_images[1], props.thumbnailSize)"
+          loading="lazy"
+          decoding="async"
+          alt=""
+        />
         <div v-else class="placeholder" />
       </div>
       <div class="album-layer album-layer-front">
-        <img v-if="node.cover_images?.[0]" :src="getThumbnailUrl(node.cover_images[0])" loading="lazy" alt="" />
+        <img
+          v-if="node.cover_images?.[0]"
+          :src="getThumbnailUrl(node.cover_images[0], props.thumbnailSize)"
+          loading="lazy"
+          decoding="async"
+          alt=""
+        />
         <div v-else class="placeholder flex-center">
           <span class="fa-placeholder-svg" v-html="placeholderSvg" />
         </div>

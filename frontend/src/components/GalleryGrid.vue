@@ -92,6 +92,8 @@ const props = withDefaults(defineProps<Props>(), {
   showToolbarBreadcrumb: true,
   showDesktopToolbar: true,
 });
+const SEARCH_RESULT_THUMBNAIL_EDGE = 256;
+const SEARCH_RESULT_THUMBNAIL_STAGGER_MS = 80;
 const injectedScrollContainerRef = inject(galleryScrollContainerRefKey, null);
 const scrollParentRef = ref<HTMLElement | null>(null);
 const searchScrollParentRef = ref<HTMLElement | null>(null);
@@ -562,9 +564,9 @@ type SearchSection = "albums" | "photos" | "videos" | "prompt";
 type SearchVirtualRow =
   | { id: string; kind: "header"; section: SearchSection; count: number }
   | { id: string; kind: "albums"; items: FileNode[] }
-  | { id: string; kind: "photos"; items: UnifiedSearchResult[] }
+  | { id: string; kind: "photos"; items: UnifiedSearchResult[]; rowIndex: number }
   | { id: string; kind: "videos"; items: FileNode[] }
-  | { id: string; kind: "prompt"; items: UnifiedSearchResult[] };
+  | { id: string; kind: "prompt"; items: UnifiedSearchResult[]; rowIndex: number };
 
 const searchAlbumColumnCount = computed(() => {
   if (props.isMobile) return 1;
@@ -585,7 +587,7 @@ const searchVirtualRows = computed<SearchVirtualRow[]>(() => {
   if (searchPhotos.value.length) {
     rows.push({ id: "header-photos", kind: "header", section: "photos", count: searchPhotos.value.length });
     chunkItems(searchPhotos.value, columnCount.value).forEach((items, index) => {
-      rows.push({ id: `photos-${columnCount.value}-${index}`, kind: "photos", items });
+      rows.push({ id: `photos-${columnCount.value}-${index}`, kind: "photos", items, rowIndex: index });
     });
   }
 
@@ -599,7 +601,7 @@ const searchVirtualRows = computed<SearchVirtualRow[]>(() => {
   if (searchPrompt.value.length) {
     rows.push({ id: "header-prompt", kind: "header", section: "prompt", count: searchPrompt.value.length });
     chunkItems(searchPrompt.value, columnCount.value).forEach((items, index) => {
-      rows.push({ id: `prompt-${columnCount.value}-${index}`, kind: "prompt", items });
+      rows.push({ id: `prompt-${columnCount.value}-${index}`, kind: "prompt", items, rowIndex: index });
     });
   }
 
@@ -638,7 +640,7 @@ const searchVirtualGrid = useVirtualGridRows({
   rows: searchVirtualRows,
   scrollElement: searchScrollParentRef,
   estimateSize: estimateSearchRowSize,
-  overscan: 4,
+  overscan: 1,
   measureDeps: [rowHeight, columnCount, searchAlbumColumnCount],
 });
 
@@ -892,6 +894,7 @@ useIntersectionObserver(
                 v-for="album in row.items"
                 :key="album.path"
                 :node="album"
+                :thumbnail-size="SEARCH_RESULT_THUMBNAIL_EDGE"
                 @click="handleOpenFolder(album.path)"
               />
             </div>
@@ -901,10 +904,13 @@ useIntersectionObserver(
               class="search-virtual-row virtual-row"
               :style="getSearchMediaVirtualRowStyle(virtualRow.start)"
             >
-              <div v-for="img in row.items" :key="img.path" class="search-result-card">
+              <div v-for="(img, itemIndex) in row.items" :key="img.path" class="search-result-card">
                 <PhotoCard
                   :src="img.path"
                   :name="img.name"
+                  :thumbnail-size="SEARCH_RESULT_THUMBNAIL_EDGE"
+                  :load-delay-ms="(row.rowIndex * columnCount + itemIndex) * SEARCH_RESULT_THUMBNAIL_STAGGER_MS"
+                  fetch-priority="low"
                   @dimensions="handlePhotoDimensions"
                   @click="handleOpenImage(img.path, img.name)"
                   @keydown.enter="handleOpenImage(img.path, img.name)"
@@ -949,10 +955,13 @@ useIntersectionObserver(
               class="search-virtual-row virtual-row"
               :style="getSearchMediaVirtualRowStyle(virtualRow.start)"
             >
-              <div v-for="img in row.items" :key="img.path" class="search-result-card">
+              <div v-for="(img, itemIndex) in row.items" :key="img.path" class="search-result-card">
                 <PhotoCard
                   :src="img.path"
                   :name="img.name"
+                  :thumbnail-size="SEARCH_RESULT_THUMBNAIL_EDGE"
+                  :load-delay-ms="(row.rowIndex * columnCount + itemIndex) * SEARCH_RESULT_THUMBNAIL_STAGGER_MS"
+                  fetch-priority="low"
                   @dimensions="handlePhotoDimensions"
                   @click="handleOpenImage(img.path, img.name)"
                   @keydown.enter="handleOpenImage(img.path, img.name)"
