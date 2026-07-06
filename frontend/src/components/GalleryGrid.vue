@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, inject, onBeforeUnmount, ref, watch, type ComponentPublicInstance } from "vue";
 import { useIntersectionObserver } from "@vueuse/core";
-import { useVirtualizer } from "@tanstack/vue-virtual";
 import { useGalleryStore } from "../stores/gallery";
 import { useLightboxStore } from "../stores/lightbox";
 import type { FileNode, SortValue, UnifiedSearchResult } from "../types";
@@ -25,6 +24,7 @@ import { usePullToRefresh } from "../composables/usePullToRefresh";
 import { useDelayedBoolean } from "../composables/useDelayedBoolean";
 import { useInfiniteBrowseQuery } from "../composables/useInfiniteBrowseQuery";
 import { useUnifiedSearchQuery } from "../composables/useUnifiedSearchQuery";
+import { chunkGridRows, chunkItems, useVirtualGridRows } from "../composables/useVirtualGridRows";
 import { galleryScrollContainerRefKey } from "../injectionKeys";
 import type { ErrorType } from "../services/api";
 import { fuzzySearchFileNodes } from "../utils/fuzzySearch";
@@ -537,34 +537,26 @@ const selectDensity = (level: number) => {
   sliderLevel.value = level;
 };
 
-const mediaRows = computed(() => {
-  const rows: { id: string; items: typeof media.value }[] = [];
-  for (let i = 0; i < media.value.length; i += columnCount.value) {
-    rows.push({
-      id: `row-${columnCount.value}-${i}`,
-      items: media.value.slice(i, i + columnCount.value),
-    });
-  }
-  return rows;
+const mediaRows = computed(() =>
+  chunkGridRows(
+    media.value,
+    columnCount.value,
+    (_items, _rowIndex, startIndex) => `row-${columnCount.value}-${startIndex}`,
+  ),
+);
+
+const browseVirtualGrid = useVirtualGridRows({
+  rows: mediaRows,
+  scrollElement: scrollParentRef,
+  estimateSize: () => rowHeight.value || 1,
+  overscan: 5,
+  measureDeps: [rowHeight, columnCount],
 });
 
-const rowVirtualizer = useVirtualizer<HTMLElement, HTMLElement>(
-  computed(() => ({
-    count: mediaRows.value.length,
-    getScrollElement: () => scrollParentRef.value,
-    estimateSize: () => rowHeight.value || 1,
-    overscan: 5,
-    getItemKey: (index: number) => mediaRows.value[index]?.id ?? index,
-  })),
-);
-
-watch(
-  [rowHeight, columnCount, () => mediaRows.value.length],
-  () => {
-    rowVirtualizer.value.measure();
-  },
-  { flush: "post" },
-);
+const browseVirtualItems = browseVirtualGrid.virtualItems;
+const browseVirtualSpacerStyle = browseVirtualGrid.virtualSpacerStyle;
+const getBrowseVirtualRowStyle = (start: number) =>
+  browseVirtualGrid.getVirtualRowStyle(start, { gridTemplateColumns: `repeat(${columnCount.value}, 1fr)` });
 
 type SearchSection = "albums" | "photos" | "videos" | "prompt";
 type SearchVirtualRow =
@@ -573,15 +565,6 @@ type SearchVirtualRow =
   | { id: string; kind: "photos"; items: UnifiedSearchResult[] }
   | { id: string; kind: "videos"; items: FileNode[] }
   | { id: string; kind: "prompt"; items: UnifiedSearchResult[] };
-
-const chunkItems = <T,>(items: T[], chunkSize: number): T[][] => {
-  const size = Math.max(1, chunkSize);
-  const rows: T[][] = [];
-  for (let i = 0; i < items.length; i += size) {
-    rows.push(items.slice(i, i + size));
-  }
-  return rows;
-};
 
 const searchAlbumColumnCount = computed(() => {
   if (props.isMobile) return 1;
@@ -651,23 +634,23 @@ const estimateSearchRowSize = (index: number) => {
   return mediaHeight + (row.kind === "videos" ? 28 : 48);
 };
 
-const searchVirtualizer = useVirtualizer<HTMLElement, HTMLElement>(
-  computed(() => ({
-    count: searchVirtualRows.value.length,
-    getScrollElement: () => searchScrollParentRef.value,
-    estimateSize: estimateSearchRowSize,
-    overscan: 4,
-    getItemKey: (index: number) => searchVirtualRows.value[index]?.id ?? index,
-  })),
-);
+const searchVirtualGrid = useVirtualGridRows({
+  rows: searchVirtualRows,
+  scrollElement: searchScrollParentRef,
+  estimateSize: estimateSearchRowSize,
+  overscan: 4,
+  measureDeps: [rowHeight, columnCount, searchAlbumColumnCount],
+});
 
-watch(
-  [rowHeight, columnCount, searchAlbumColumnCount, () => searchVirtualRows.value.length],
-  () => {
-    searchVirtualizer.value.measure();
-  },
-  { flush: "post" },
-);
+const searchVirtualItems = searchVirtualGrid.virtualItems;
+const searchVirtualSpacerStyle = searchVirtualGrid.virtualSpacerStyle;
+const getSearchVirtualRowStyle = (start: number) => searchVirtualGrid.getVirtualRowStyle(start);
+const getSearchAlbumVirtualRowStyle = (start: number) =>
+  searchVirtualGrid.getVirtualRowStyle(start, {
+    gridTemplateColumns: `repeat(${searchAlbumColumnCount.value}, minmax(0, 1fr))`,
+  });
+const getSearchMediaVirtualRowStyle = (start: number) =>
+  searchVirtualGrid.getVirtualRowStyle(start, { gridTemplateColumns: `repeat(${columnCount.value}, 1fr)` });
 
 const skeletonItems = computed(() => Array.from({ length: 12 }, (_, i) => i));
 
@@ -884,20 +867,14 @@ useIntersectionObserver(
       <div
         v-if="searchVirtualRows.length"
         class="search-virtual-spacer"
-        :style="{ height: `${searchVirtualizer.getTotalSize()}px`, position: 'relative' }"
+        :style="searchVirtualSpacerStyle"
       >
-        <template v-for="virtualRow in searchVirtualizer.getVirtualItems()" :key="String(virtualRow.key)">
+        <template v-for="virtualRow in searchVirtualItems" :key="String(virtualRow.key)">
           <template v-for="row in [searchVirtualRows[virtualRow.index]]" :key="row?.id ?? String(virtualRow.key)">
             <div
               v-if="row?.kind === 'header'"
               class="search-virtual-row search-virtual-row--header"
-              :style="{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                transform: `translateY(${virtualRow.start}px)`,
-              }"
+              :style="getSearchVirtualRowStyle(virtualRow.start)"
             >
               <GallerySectionHeader
                 :title="searchHeaderTitle(row.section)"
@@ -909,14 +886,7 @@ useIntersectionObserver(
             <div
               v-else-if="row?.kind === 'albums'"
               class="search-virtual-row search-album-grid"
-              :style="{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                transform: `translateY(${virtualRow.start}px)`,
-                gridTemplateColumns: `repeat(${searchAlbumColumnCount}, minmax(0, 1fr))`,
-              }"
+              :style="getSearchAlbumVirtualRowStyle(virtualRow.start)"
             >
               <AlbumCard
                 v-for="album in row.items"
@@ -929,14 +899,7 @@ useIntersectionObserver(
             <div
               v-else-if="row?.kind === 'photos'"
               class="search-virtual-row virtual-row"
-              :style="{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                transform: `translateY(${virtualRow.start}px)`,
-                gridTemplateColumns: `repeat(${columnCount}, 1fr)`,
-              }"
+              :style="getSearchMediaVirtualRowStyle(virtualRow.start)"
             >
               <div v-for="img in row.items" :key="img.path" class="search-result-card">
                 <PhotoCard
@@ -965,14 +928,7 @@ useIntersectionObserver(
             <div
               v-else-if="row?.kind === 'videos'"
               class="search-virtual-row virtual-row"
-              :style="{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                transform: `translateY(${virtualRow.start}px)`,
-                gridTemplateColumns: `repeat(${columnCount}, 1fr)`,
-              }"
+              :style="getSearchMediaVirtualRowStyle(virtualRow.start)"
             >
               <div v-for="video in row.items" :key="video.path" class="search-result-card">
                 <VideoCard
@@ -991,14 +947,7 @@ useIntersectionObserver(
             <div
               v-else-if="row?.kind === 'prompt'"
               class="search-virtual-row virtual-row"
-              :style="{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                transform: `translateY(${virtualRow.start}px)`,
-                gridTemplateColumns: `repeat(${columnCount}, 1fr)`,
-              }"
+              :style="getSearchMediaVirtualRowStyle(virtualRow.start)"
             >
               <div v-for="img in row.items" :key="img.path" class="search-result-card">
                 <PhotoCard
@@ -1057,20 +1006,13 @@ useIntersectionObserver(
 
           <div
             class="tanstack-virtual-spacer"
-            :style="{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }"
+            :style="browseVirtualSpacerStyle"
           >
             <div
-              v-for="virtualRow in rowVirtualizer.getVirtualItems()"
+              v-for="virtualRow in browseVirtualItems"
               :key="String(virtualRow.key)"
               class="virtual-row tanstack-virtual-row"
-              :style="{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                transform: `translateY(${virtualRow.start}px)`,
-                gridTemplateColumns: `repeat(${columnCount}, 1fr)`,
-              }"
+              :style="getBrowseVirtualRowStyle(virtualRow.start)"
             >
               <template v-for="item in mediaRows[virtualRow.index]?.items ?? []" :key="item.path">
                 <VideoCard
