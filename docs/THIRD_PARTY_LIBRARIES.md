@@ -109,10 +109,15 @@ Important tables:
 
 Search behavior:
 
-- `/api/search` returns grouped `albums`, `photos`, and `prompt` sections.
+- `/api/search` returns a bounded, cursor-paginated `media` stream and
+  first-page `albums` suggestions. Legacy grouped `photos`, `videos`, and
+  `prompt` fields remain in the response for compatibility.
 - `scope=current` searches the current folder recursively.
 - `scope=all` searches all indexed files under `PATH_SAFETY_ROOT`.
-- Fielded queries are parsed by `fielded_search_parser.py` and executed by metadata-store search helpers.
+- Fielded queries are parsed by `fielded_search_parser.py` and executed by
+  metadata-store search helpers. Metadata predicates apply only to
+  filterable image/prompt media; filename-only videos are excluded from
+  fielded media results until video metadata predicates are supported.
 - `/api/library/inspector` returns bounded DB-backed metadata rows; detail popovers call `/api/library/inspector/metadata`.
 - `/api/facets` derives counts from indexed DB metadata.
 
@@ -357,7 +362,7 @@ Integration files:
 
 Fuse.js remains a local fuzzy filtering helper for already loaded folder/media rows. Backend `/api/search` owns active recursive indexed search and metadata/prompt search.
 
-Do not use Fuse for the main unified search result set or indexed metadata search.
+Do not use Fuse for the main unified search media stream or indexed metadata search.
 
 ### embla-carousel-vue
 

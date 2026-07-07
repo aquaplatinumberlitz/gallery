@@ -129,6 +129,10 @@ describe("useUnifiedSearchQuery", () => {
     // Keep second fetch pending so we can observe the new-key loading state.
     vi.mocked(unifiedSearch).mockReturnValue(new Promise(() => {}));
     queryRef.value = "dog";
+    await vi.advanceTimersByTimeAsync(299);
+
+    expect(result.results.value).toEqual({ albums: [], photos: [], videos: [], prompt: [], media: [] });
+
     await vi.advanceTimersByTimeAsync(300);
 
     expect(result.results.value).toEqual({ albums: [], photos: [], videos: [], prompt: [], media: [] });

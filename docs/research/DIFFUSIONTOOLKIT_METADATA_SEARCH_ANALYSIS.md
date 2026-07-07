@@ -3,7 +3,7 @@
 > **Status:** Research snapshot. Upstream findings are retained for reference;
 > use [Architecture](../ARCHITECTURE.md) for the current gallery implementation.
 
-Last reviewed: 2026-06-09
+Last reviewed: 2026-07-07
 
 ## Purpose
 
@@ -25,22 +25,29 @@ FastAPI/Vue search pipeline.
 
 gallery-repo exposes two search endpoints:
 
-- `GET /api/search`: active frontend search. It returns grouped Albums, Photos,
-  and Prompt sections.
+- `GET /api/search`: active frontend search. It returns a cursor-paginated
+  `media` stream, first-page Album suggestions, and legacy grouped
+  `photos`/`videos`/`prompt` compatibility fields.
 - `GET /api/search-metadata`: legacy metadata-only search. The frontend no
   longer uses it for main gallery search.
 
 Current behavior:
 
 1. Frontend debounces search input by 300 ms.
-2. `GET /api/search` passes query, scope, current path, and limit.
-3. Album/photo filename search uses `file_index_fts`.
-4. Prompt search uses `image_metadata_fts` or `image_metadata_fts_trigram`.
-5. CJK queries use trigram FTS when length is at least three characters.
-6. FTS failures or misses fall back to `LIKE`.
-7. Prompt matches are scope-filtered by joining `image_metadata` to
+2. `useUnifiedSearchQuery()` uses TanStack `useInfiniteQuery`; changing
+   query, scope, or path resets visible search media.
+3. `GET /api/search` passes query, scope, current path, page size, and numeric
+   cursor.
+4. Album/photo/video filename search uses `file_index_fts` with `LIKE`
+   fallback.
+5. Prompt search uses `image_metadata_fts` or `image_metadata_fts_trigram`.
+6. CJK queries use trigram FTS when length is at least three characters.
+7. FTS failures or misses fall back to `LIKE`.
+8. Prompt matches are scope-filtered by joining `image_metadata` to
    `file_index`.
-8. API output is path-safety filtered and stale rows trigger stale-index
+9. Media results are SQL-paged, deduped by path, and returned with
+   `next_cursor` / `has_more`.
+10. API output is path-safety filtered and stale rows trigger stale-index
    cleanup.
 
 Strengths:
@@ -48,20 +55,18 @@ Strengths:
 - Good default text search with SQLite FTS5 and BM25 ordering.
 - CJK substring handling through trigram FTS.
 - Web-safe path checks and current-folder/all-indexed scoping.
-- Grouped search results match the existing gallery UX.
-- Backend search is simple and predictable.
+- The active gallery UI consumes one appendable media stream instead of
+  merging grouped sections client-side.
+- Fielded query parsing supports common metadata predicates while preserving
+  plain text residual search.
 
 Current gaps:
 
-- No fielded metadata query language, so users cannot search precisely by
-  `seed:`, `steps:`, `cfg:`, `sampler:`, `model:`, or negative prompt.
-- Structured fields already present in `image_metadata` are not exposed as
-  filters in the unified search box.
-- The query parser cannot split residual prompt text from structured metadata
-  filters.
 - There is no prompt usage/grouping view.
 - ComfyUI node/property values are not indexed separately.
 - Raw workflow search is not available as an explicit opt-in mode.
+- Fielded media currently excludes filename-only videos because video metadata
+  predicates are not indexed with image metadata semantics.
 
 ## DiffusionToolkit search architecture
 
@@ -249,9 +254,9 @@ Parsing rule:
 
 | Task                                               | Files likely affected                                                                   | Risk       | Test plan                                                                                |
 | -------------------------------------------------- | --------------------------------------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------- |
-| Add metadata query parser                          | New backend parser module, `backend/metadata_store/`, `backend/search.py`             | Medium     | Unit tests for tokenization, quoted values, malformed filters, plain text compatibility. |
-| Add SQL predicate builder                          | `backend/metadata_store/`                                                             | Medium     | SQL builder tests with in-memory SQLite fixtures.                                        |
-| Integrate facets into `/api/search` prompt section | `backend/metadata_store/`, maybe response types only if exposing parsed filters       | Medium     | Existing search tests plus scope/current folder tests.                                   |
+| Add metadata query parser                          | Implemented in `backend/fielded_search_parser.py`                                      | Done       | Covered by parser and search tests.                                                       |
+| Add SQL predicate builder                          | Implemented in metadata-store search helpers                                           | Done       | Covered by SQL builder and search tests.                                                  |
+| Add paginated `/api/search` media stream           | Implemented in `backend/search.py`, metadata-store search helpers, and frontend query composable | Done       | Cursor, dedupe, debounce reset, and fielded media regression tests.                       |
 | Keep `/api/search-metadata` compatible             | `backend/metadata_store/`                                                             | Low        | Legacy endpoint still returns old shape for plain queries.                               |
 | Add prompt usage endpoint                          | New route or `search.py`                                                                | Low-medium | Group-by tests and pagination tests.                                                     |
 | Add richer metadata columns                        | `backend/metadata_parse.py`, `backend/metadata_extract.py`, `backend/metadata_store/` | Medium     | Parser fixtures and migration/backfill tests.                                            |

@@ -56,7 +56,9 @@ export function useUnifiedSearchQuery(query: Ref<string>, scope: Ref<SearchScope
 
   const pages = computed(() => searchQuery.data.value?.pages ?? []);
   const results = computed<UnifiedSearchResults>(() => {
-    if (!debouncedQuery.value || !pages.value.length) return EMPTY_SEARCH_RESULTS;
+    if (!debouncedQuery.value || trimmedQuery.value !== debouncedQuery.value || !pages.value.length) {
+      return EMPTY_SEARCH_RESULTS;
+    }
     const [firstPage] = pages.value;
     const media = dedupeByPath(pages.value.flatMap((page) => page.media ?? []));
     return {

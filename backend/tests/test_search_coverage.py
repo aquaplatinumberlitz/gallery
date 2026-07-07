@@ -201,6 +201,37 @@ def test_search_albums_only_return_on_first_page(isolated_app: TestClient, isola
     assert second.json()["albums"] == []
 
 
+def test_fielded_search_media_excludes_unfiltered_filename_videos(
+    isolated_app: TestClient, isolated_gallery_root: Path
+):
+    import time
+
+    from backend.metadata_store import index_file, register_library, upsert_metadata_result
+
+    register_library(isolated_gallery_root)
+    image = isolated_gallery_root / "rain_seed_image.png"
+    image.write_bytes(b"image")
+    video = isolated_gallery_root / "rain_seed_clip.mp4"
+    video.write_bytes(b"video")
+    index_file(str(image), image.name, str(isolated_gallery_root), "photo", time.time(), 5, 1, 1)
+    index_file(str(video), video.name, str(isolated_gallery_root), "video", time.time(), 5, None, None)
+    assert upsert_metadata_result(
+        image,
+        {
+            "prompt": "rain portrait",
+            "params": {"Seed": "123"},
+            "width": 1,
+            "height": 1,
+        },
+    )
+
+    resp = isolated_app.get("/api/search", params={"q": "rain seed:123", "scope": "all"})
+    assert resp.status_code == 200
+    names = [item["name"] for item in resp.json()["media"]]
+    assert image.name in names
+    assert video.name not in names
+
+
 # ---------------------------------------------------------------------------
 # /api/library/inspector error paths
 # ---------------------------------------------------------------------------

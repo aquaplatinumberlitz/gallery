@@ -189,122 +189,6 @@ def _search_file_index_fts(
     return rows, root
 
 
-def _search_prompt_rows(
-    conn: sqlite3.Connection,
-    query: str,
-    scope: str,
-    root_path: str | Path | None,
-    limit: int,
-) -> tuple[list[sqlite3.Row], Path]:
-    scope_sql, scope_params, root = _scope_clause(scope, root_path, "fi")
-    rows: list[sqlite3.Row] = []
-    try:
-        if contains_cjk(query) and len(query) >= 3:
-            rows = list(
-                conn.execute(
-                    f"""
-                    SELECT m.*, fi.parent_path, fi.type AS file_type, bm25(image_metadata_fts_trigram) AS rank
-                    FROM image_metadata_fts_trigram fts
-                    JOIN image_metadata m ON m.id = fts.rowid
-                    JOIN file_index fi ON fi.path = m.path
-                    WHERE image_metadata_fts_trigram MATCH ? {scope_sql}
-                    ORDER BY rank ASC, m.mtime DESC, m.name ASC
-                    LIMIT ?
-                    """,
-                    [_trigram_match_query(query), *scope_params, limit],
-                )
-            )
-        elif not contains_cjk(query):
-            rows = list(
-                conn.execute(
-                    f"""
-                    SELECT m.*, fi.parent_path, fi.type AS file_type, bm25(image_metadata_fts) AS rank
-                    FROM image_metadata_fts fts
-                    JOIN image_metadata m ON m.id = fts.rowid
-                    JOIN file_index fi ON fi.path = m.path
-                    WHERE image_metadata_fts MATCH ? {scope_sql}
-                    ORDER BY rank ASC, m.mtime DESC, m.name ASC
-                    LIMIT ?
-                    """,
-                    [_unicode_match_query(query), *scope_params, limit],
-                )
-            )
-    except sqlite3.OperationalError:
-        rows = []
-
-    if rows:
-        return rows, root
-
-    pattern = _like_pattern(query)
-    where = " OR ".join(f"m.{field} LIKE ? ESCAPE '\\'" for field in PROMPT_SEARCH_FIELDS)
-    rows = list(
-        conn.execute(
-            f"""
-            SELECT m.*, fi.parent_path, fi.type AS file_type
-            FROM image_metadata m
-            JOIN file_index fi ON fi.path = m.path
-            WHERE ({where}) {scope_sql}
-            ORDER BY m.mtime DESC, m.name ASC
-            LIMIT ?
-            """,
-            [*([pattern] * len(PROMPT_SEARCH_FIELDS)), *scope_params, limit],
-        )
-    )
-    return rows, root
-
-
-def _format_prompt_rows(rows: list[sqlite3.Row], root: Path) -> list[dict[str, Any]]:
-    seen: set[str] = set()
-    results: list[dict[str, Any]] = []
-    for row in rows:
-        if row["path"] in seen:
-            continue
-        seen.add(row["path"])
-        results.append(
-            {
-                "name": row["name"],
-                "path": row["path"],
-                "type": "photo",
-                "parent_path": row["parent_path"],
-                "relative_path": _folder_relative_path(row["parent_path"], root),
-                "mtime": row["mtime"],
-                "width": row["width"],
-                "height": row["height"],
-                "match_type": "prompt",
-                "prompt_snippet": _snippet(row),
-                "model": row["model"] or "",
-                "sampler": row["sampler"] or "",
-                "seed": row["seed"] or "",
-            }
-        )
-    return results
-
-
-def _normalized_result_path(result: dict[str, Any]) -> str:
-    return str(Path(result["path"]).resolve()).casefold()
-
-
-def _merge_media_results(
-    photos: list[dict[str, Any]],
-    videos: list[dict[str, Any]],
-    prompt: list[dict[str, Any]],
-    cursor: int,
-    limit: int,
-) -> tuple[list[dict[str, Any]], int | None]:
-    merged: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for result in [*photos, *videos, *prompt]:
-        key = _normalized_result_path(result)
-        if key in seen:
-            continue
-        seen.add(key)
-        merged.append(result)
-
-    page = merged[cursor : cursor + limit]
-    next_cursor = cursor + len(page) if len(merged) > cursor + len(page) else None
-    return page, next_cursor
-
-
 def _partition_media_page(
     media: list[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
@@ -341,6 +225,31 @@ def _empty_search_response(
         "returned": 0,
         "limit": limit,
     }
+
+
+def _format_media_rows(rows: list[sqlite3.Row], root: Path) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
+    for row in rows:
+        results.append(
+            {
+                "name": row["name"],
+                "path": row["path"],
+                "type": row["type"],
+                "parent_path": row["parent_path"],
+                "relative_path": _folder_relative_path(row["parent_path"], root),
+                "mtime": row["mtime"],
+                "width": row["width"],
+                "height": row["height"],
+                "duration_ms": _optional_row_value(row, "duration_ms"),
+                "mime_type": _optional_row_value(row, "mime_type"),
+                "match_type": row["match_type"],
+                "prompt_snippet": row["prompt_snippet"] or "",
+                "model": row["model"] or "",
+                "sampler": row["sampler"] or "",
+                "seed": row["seed"] or "",
+            }
+        )
+    return results
 
 
 def _snippet(row: sqlite3.Row) -> str:
@@ -411,6 +320,372 @@ def _count_like(conn: sqlite3.Connection, query: str) -> int:
     return int(row["total"] if row else 0)
 
 
+def _media_file_select(
+    *,
+    query_kind: str,
+    file_type: str,
+    section_order: int,
+    scope_sql: str,
+    extra_join: str = "",
+    extra_where: str = "",
+) -> str:
+    type_sql = "fi.type IN ('image', 'photo')" if file_type in {"image", "photo"} else "fi.type = 'video'"
+    if query_kind == "fts":
+        source_sql = f"""
+            FROM file_index_fts fts
+            JOIN file_index fi ON fi.path = fts.path
+            {extra_join}
+            WHERE fts MATCH :filename_match
+              AND {type_sql}
+              {scope_sql}
+              {extra_where}
+        """
+        rank_sql = "bm25(file_index_fts)"
+    else:
+        source_sql = f"""
+            FROM file_index fi
+            {extra_join}
+            WHERE fi.name LIKE :filename_like ESCAPE '\\'
+              AND {type_sql}
+              {scope_sql}
+              {extra_where}
+        """
+        rank_sql = "0.0"
+
+    return f"""
+        SELECT
+          fi.path AS path,
+          fi.name AS name,
+          fi.type AS type,
+          fi.parent_path AS parent_path,
+          fi.mtime AS mtime,
+          fi.width AS width,
+          fi.height AS height,
+          (SELECT a.duration_ms FROM assets a
+           WHERE a.path = fi.path AND a.duration_ms IS NOT NULL
+           LIMIT 1) AS duration_ms,
+          (SELECT a.mime_type FROM assets a
+           WHERE a.path = fi.path AND a.mime_type IS NOT NULL
+           LIMIT 1) AS mime_type,
+          {section_order} AS section_order,
+          {rank_sql} AS rank,
+          'filename' AS match_type,
+          '' AS prompt_snippet,
+          '' AS model,
+          '' AS sampler,
+          '' AS seed
+        {source_sql}
+    """
+
+
+def _media_prompt_select(
+    *,
+    query_kind: str,
+    section_order: int,
+    scope_sql: str,
+    extra_where: str = "",
+) -> str:
+    if query_kind == "fts":
+        source_sql = f"""
+            FROM image_metadata_fts fts
+            JOIN image_metadata m ON m.id = fts.rowid
+            JOIN file_index fi ON fi.path = m.path
+            WHERE image_metadata_fts MATCH :prompt_match
+              {scope_sql}
+              {extra_where}
+        """
+        rank_sql = "bm25(image_metadata_fts)"
+    elif query_kind == "trigram":
+        source_sql = f"""
+            FROM image_metadata_fts_trigram fts
+            JOIN image_metadata m ON m.id = fts.rowid
+            JOIN file_index fi ON fi.path = m.path
+            WHERE image_metadata_fts_trigram MATCH :prompt_match
+              {scope_sql}
+              {extra_where}
+        """
+        rank_sql = "bm25(image_metadata_fts_trigram)"
+    elif query_kind == "fielded":
+        source_sql = f"""
+            FROM image_metadata m
+            JOIN file_index fi ON fi.path = m.path
+            WHERE 1=1
+              {scope_sql}
+              {extra_where}
+        """
+        rank_sql = "0.0"
+    else:
+        prompt_where = " OR ".join(f"m.{field} LIKE :prompt_like ESCAPE '\\'" for field in PROMPT_SEARCH_FIELDS)
+        source_sql = f"""
+            FROM image_metadata m
+            JOIN file_index fi ON fi.path = m.path
+            WHERE ({prompt_where})
+              {scope_sql}
+              {extra_where}
+        """
+        rank_sql = "0.0"
+
+    return f"""
+        SELECT
+          m.path AS path,
+          m.name AS name,
+          fi.type AS type,
+          fi.parent_path AS parent_path,
+          m.mtime AS mtime,
+          m.width AS width,
+          m.height AS height,
+          NULL AS duration_ms,
+          NULL AS mime_type,
+          {section_order} AS section_order,
+          {rank_sql} AS rank,
+          'prompt' AS match_type,
+          substr(
+            trim(
+              coalesce(nullif(m.prompt, ''), nullif(m.negative_prompt, ''), nullif(m.raw_metadata_text, ''),
+                       nullif(m.model, ''), nullif(m.sampler, ''), nullif(m.name, ''), '')
+            ),
+            1,
+            240
+          ) AS prompt_snippet,
+          coalesce(m.model, '') AS model,
+          coalesce(m.sampler, '') AS sampler,
+          coalesce(m.seed, '') AS seed
+        {source_sql}
+    """
+
+
+def _count_filename_matches(
+    conn: sqlite3.Connection,
+    query: str,
+    file_type: str,
+    scope: str,
+    root_path: str | Path | None,
+) -> tuple[str, int]:
+    scope_sql, scope_params, _root = _scope_clause(scope, root_path, "fi")
+    type_sql = "fi.type IN ('image', 'photo')" if file_type in {"image", "photo"} else "fi.type = ?"
+    type_params = [] if file_type in {"image", "photo"} else [file_type]
+    try:
+        match_query = _unicode_match_query(query)
+        row = conn.execute(
+            f"""
+            SELECT count(*) AS total
+            FROM file_index_fts fts
+            JOIN file_index fi ON fi.path = fts.path
+            WHERE fts MATCH ? AND {type_sql} {scope_sql}
+            """,
+            [match_query, *type_params, *scope_params],
+        ).fetchone()
+        total = int(row["total"] if row else 0)
+        if total:
+            return "fts", total
+    except sqlite3.OperationalError:
+        pass
+
+    pattern = _like_pattern(query)
+    row = conn.execute(
+        f"""
+        SELECT count(*) AS total
+        FROM file_index fi
+        WHERE fi.name LIKE ? ESCAPE '\\' AND {type_sql} {scope_sql}
+        """,
+        [pattern, *type_params, *scope_params],
+    ).fetchone()
+    return "like", int(row["total"] if row else 0)
+
+
+def _prompt_match_kind(conn: sqlite3.Connection, query: str, scope: str, root_path: str | Path | None) -> str:
+    scope_sql, scope_params, _root = _scope_clause(scope, root_path, "fi")
+    try:
+        if contains_cjk(query) and len(query) >= 3:
+            row = conn.execute(
+                f"""
+                SELECT count(*) AS total
+                FROM image_metadata_fts_trigram fts
+                JOIN image_metadata m ON m.id = fts.rowid
+                JOIN file_index fi ON fi.path = m.path
+                WHERE image_metadata_fts_trigram MATCH ? {scope_sql}
+                """,
+                [_trigram_match_query(query), *scope_params],
+            ).fetchone()
+            if int(row["total"] if row else 0):
+                return "trigram"
+        elif not contains_cjk(query):
+            row = conn.execute(
+                f"""
+                SELECT count(*) AS total
+                FROM image_metadata_fts fts
+                JOIN image_metadata m ON m.id = fts.rowid
+                JOIN file_index fi ON fi.path = m.path
+                WHERE image_metadata_fts MATCH ? {scope_sql}
+                """,
+                [_unicode_match_query(query), *scope_params],
+            ).fetchone()
+            if int(row["total"] if row else 0):
+                return "fts"
+    except sqlite3.OperationalError:
+        pass
+    return "like"
+
+
+def _paged_media_query(selects: list[str]) -> str:
+    union_sql = "\nUNION ALL\n".join(selects)
+    return f"""
+        WITH candidates AS (
+            {union_sql}
+        ),
+        deduped AS (
+            SELECT
+              *,
+              row_number() OVER (
+                PARTITION BY path
+                ORDER BY section_order ASC, rank ASC, mtime DESC, name ASC, path ASC
+              ) AS path_rank
+            FROM candidates
+        ),
+        ordered AS (
+            SELECT *
+            FROM deduped
+            WHERE path_rank = 1
+            ORDER BY section_order ASC, rank ASC, mtime DESC, name ASC, path ASC
+            LIMIT :page_limit OFFSET :page_offset
+        )
+        SELECT *
+        FROM ordered
+        ORDER BY section_order ASC, rank ASC, mtime DESC, name ASC, path ASC
+    """
+
+
+def _search_media_page(
+    conn: sqlite3.Connection,
+    query: str,
+    scope: str,
+    root_path: str | Path | None,
+    limit: int,
+    cursor: int,
+) -> tuple[list[sqlite3.Row], Path, bool]:
+    scope_sql, scope_params, root = _scope_clause(scope, root_path, "fi")
+    filename_kind, _filename_count = _count_filename_matches(conn, query, "photo", scope, root_path)
+    video_kind, _video_count = _count_filename_matches(conn, query, "video", scope, root_path)
+    prompt_kind = _prompt_match_kind(conn, query, scope, root_path)
+    params: dict[str, Any] = {
+        "filename_match": _unicode_match_query(query),
+        "filename_like": _like_pattern(query),
+        "prompt_match": _trigram_match_query(query) if prompt_kind == "trigram" else _unicode_match_query(query),
+        "prompt_like": _like_pattern(query),
+        "page_limit": limit + 1,
+        "page_offset": cursor,
+    }
+    params.update({f"scope_{idx}": value for idx, value in enumerate(scope_params)})
+    named_scope_sql = ""
+    if scope_params:
+        named_scope_sql = " AND (fi.path = :scope_0 OR fi.path LIKE :scope_1 ESCAPE '\\')"
+
+    rows = list(
+        conn.execute(
+            _paged_media_query(
+                [
+                    _media_file_select(
+                        query_kind=filename_kind,
+                        file_type="photo",
+                        section_order=0,
+                        scope_sql=named_scope_sql,
+                    ),
+                    _media_file_select(
+                        query_kind=video_kind,
+                        file_type="video",
+                        section_order=1,
+                        scope_sql=named_scope_sql,
+                    ),
+                    _media_prompt_select(
+                        query_kind=prompt_kind,
+                        section_order=2,
+                        scope_sql=named_scope_sql,
+                    ),
+                ]
+            ),
+            params,
+        )
+    )
+    return rows[:limit], root, len(rows) > limit
+
+
+def _prefix_sql_params(sql: str, params: dict[str, Any], prefix: str) -> tuple[str, dict[str, Any]]:
+    prefixed = sql
+    prefixed_params: dict[str, Any] = {}
+    for name in sorted(params, key=len, reverse=True):
+        new_name = f"{prefix}{name}"
+        prefixed = prefixed.replace(f":{name}", f":{new_name}")
+        prefixed_params[new_name] = params[name]
+    return prefixed, prefixed_params
+
+
+def _search_fielded_media_page(
+    conn: sqlite3.Connection,
+    parsed: Any,
+    scope: str,
+    root_path: str | Path | None,
+    limit: int,
+    cursor: int,
+) -> tuple[list[sqlite3.Row], Path, bool]:
+    from ..fielded_search_parser import ParsedQuery, build_fielded_conditions
+
+    scope_sql, scope_params, root = _scope_clause(scope, root_path, "fi")
+    named_scope_sql = ""
+    params: dict[str, Any] = {"page_limit": limit + 1, "page_offset": cursor}
+    if scope_params:
+        named_scope_sql = " AND (fi.path = :scope_0 OR fi.path LIKE :scope_1 ESCAPE '\\')"
+        params.update({f"scope_{idx}": value for idx, value in enumerate(scope_params)})
+
+    selects: list[str] = []
+    ctes: list[str] = []
+    residual = (parsed.residual_text or "").strip()
+    if residual:
+        field_parsed = ParsedQuery(residual_text="", fields=parsed.fields)
+        field_conditions, field_params = build_fielded_conditions(field_parsed)
+        field_where = " AND ".join(field_conditions) if field_conditions else "1=1"
+        field_where, prefixed_params = _prefix_sql_params(field_where, field_params, "fp_")
+        params.update(prefixed_params)
+        ctes.append(
+            """
+            field_paths AS (
+                SELECT m.path
+                FROM image_metadata m
+                JOIN file_index fi ON fi.path = m.path
+                WHERE __FIELD_WHERE__
+            )
+            """.replace("__FIELD_WHERE__", field_where)
+        )
+        params["filename_like"] = _like_pattern(residual)
+        selects.append(
+            _media_file_select(
+                query_kind="like",
+                file_type="photo",
+                section_order=0,
+                scope_sql=named_scope_sql,
+                extra_join="JOIN field_paths fp ON fp.path = fi.path",
+            )
+        )
+
+    prompt_conditions, prompt_params = build_fielded_conditions(parsed)
+    prompt_where = " AND ".join(prompt_conditions) if prompt_conditions else "1=1"
+    prompt_where, prefixed_prompt_params = _prefix_sql_params(prompt_where, prompt_params, "pm_")
+    params.update(prefixed_prompt_params)
+    selects.append(
+        _media_prompt_select(
+            query_kind="fielded",
+            section_order=2,
+            scope_sql=named_scope_sql,
+            extra_where=f" AND {prompt_where}",
+        )
+    )
+    query = _paged_media_query(selects)
+    if ctes:
+        query = query.replace("WITH candidates AS (", "WITH " + ",\n".join(ctes) + ",\ncandidates AS (", 1)
+
+    rows = list(conn.execute(query, params))
+    return rows[:limit], root, len(rows) > limit
+
+
 def search_metadata(query: str, limit: int = 100, offset: int = 0) -> dict[str, Any]:
     """Search extracted metadata text with FTS and LIKE fallbacks."""
     initialize_database()
@@ -466,7 +741,6 @@ def search_index(
     normalized_scope = "all" if scope == "all" else "current"
     limit = max(1, min(limit, 200))
     cursor = max(0, int(cursor))
-    candidate_limit = max(cursor + limit + 1, limit)
     root = Path(root_path).resolve() if normalized_scope == "current" and root_path else None
     display_root = root if root is not None else Path(os.sep)
 
@@ -483,16 +757,12 @@ def search_index(
             )
         else:
             album_rows = []
-        photo_rows, root = _search_file_index_fts(conn, trimmed, "photo", normalized_scope, root_path, candidate_limit)
-        video_rows, root = _search_file_index_fts(conn, trimmed, "video", normalized_scope, root_path, candidate_limit)
-        prompt_rows, root = _search_prompt_rows(conn, trimmed, normalized_scope, root_path, candidate_limit)
+        media_rows, root, has_more = _search_media_page(conn, trimmed, normalized_scope, root_path, limit, cursor)
 
     format_root = root if root is not None else Path(os.sep)
-    photos = _format_file_index_rows(photo_rows, format_root, "filename")
-    videos = _format_file_index_rows(video_rows, format_root, "filename")
-    prompt = _format_prompt_rows(prompt_rows, format_root)
-    media, next_cursor = _merge_media_results(photos, videos, prompt, cursor, limit)
+    media = _format_media_rows(media_rows, format_root)
     page_photos, page_videos, page_prompt = _partition_media_page(media)
+    next_cursor = cursor + len(media) if has_more else None
     return {
         "query": query,
         "scope": normalized_scope,
@@ -519,104 +789,6 @@ def _build_scope_named(scope: str, root_path: str | Path | None, alias: str = "f
     return cond, {"scope_root": root_str, "scope_prefix": root_prefix}
 
 
-def _search_fielded_photos(
-    conn: sqlite3.Connection,
-    parsed: Any,
-    scope: str,
-    root_path: str | Path | None,
-    root: Path,
-    limit: int,
-) -> tuple[list[sqlite3.Row], Path]:
-    """Intersect filename matches with field-filtered paths using a CTE.
-
-    NOTE: This function is used ONLY for the Photos (and indirectly Prompt) result
-    sections.  It applies field filters (seed:, model:, etc.) to narrow results.
-    The Albums section does NOT call this function — albums are folder suggestions
-    based solely on residual text and are intentionally not field-filtered.
-
-    WITH field_paths AS (
-      SELECT m.path FROM image_metadata m JOIN file_index fi ON fi.path = m.path
-      WHERE <field conditions>
-    )
-    SELECT fi.*
-    FROM file_index_fts fts
-    JOIN file_index fi ON fi.path = fts.path
-    JOIN field_paths fp ON fp.path = fi.path
-    WHERE fts MATCH <residual> AND fi.type = 'photo' <scope>
-    ORDER BY ...
-
-    Falls back to LIKE on fi.name when FTS returns zero rows.
-    """
-    from ..fielded_search_parser import (
-        ParsedQuery,
-        build_fielded_conditions,
-    )
-
-    photo_query = (parsed.residual_text or "").strip()
-    if not photo_query:
-        return [], root
-
-    scope_cond, scope_params = _build_scope_named(scope, root_path, "fi")
-
-    field_parsed = ParsedQuery(residual_text="", fields=parsed.fields)
-    field_conditions, field_params = build_fielded_conditions(field_parsed)
-    field_where = " AND ".join(field_conditions) if field_conditions else "1=1"
-
-    def _build_params(**extra: Any) -> dict[str, Any]:
-        p = dict(scope_params)
-        p.update(field_params)
-        p.update(extra)
-        return p
-
-    try:
-        fts_query = _unicode_match_query(photo_query)
-        params = _build_params(fts_query=fts_query, limit=limit)
-        sql = f"""
-            WITH field_paths AS (
-                SELECT m.path
-                FROM image_metadata m
-                JOIN file_index fi ON fi.path = m.path
-                WHERE {field_where}
-            )
-            SELECT fi.*
-            FROM file_index_fts fts
-            JOIN file_index fi ON fi.path = fts.path
-            JOIN field_paths fp ON fp.path = fi.path
-            WHERE fts MATCH :fts_query
-              AND fi.type IN ('image', 'photo')
-              {scope_cond}
-            ORDER BY bm25(file_index_fts), fi.mtime DESC, fi.name ASC
-            LIMIT :limit
-        """
-        rows = list(conn.execute(sql, params))
-    except sqlite3.OperationalError:
-        rows = []
-
-    if rows:
-        return rows, root
-
-    pattern = _like_pattern(photo_query)
-    params = _build_params(like_pattern=pattern, limit=limit)
-    sql = f"""
-        WITH field_paths AS (
-            SELECT m.path
-            FROM image_metadata m
-            JOIN file_index fi ON fi.path = m.path
-            WHERE {field_where}
-        )
-        SELECT fi.*
-        FROM file_index fi
-        JOIN field_paths fp ON fp.path = fi.path
-        WHERE fi.name LIKE :like_pattern ESCAPE '\\'
-          AND fi.type IN ('image', 'photo')
-          {scope_cond}
-        ORDER BY fi.mtime DESC, fi.name ASC
-        LIMIT :limit
-    """
-    rows = list(conn.execute(sql, params))
-    return rows, root
-
-
 def search_index_fielded(
     query: str,
     scope: str,
@@ -626,7 +798,6 @@ def search_index_fielded(
 ) -> dict[str, Any]:
     """Search indexed albums and photos with structured field filters."""
     from ..fielded_search_parser import (
-        build_fielded_search_sql,
         parse_fielded_query,
     )
 
@@ -635,7 +806,6 @@ def search_index_fielded(
     normalized_scope = "all" if scope == "all" else "current"
     limit = max(1, min(limit, 200))
     cursor = max(0, int(cursor))
-    candidate_limit = max(cursor + limit + 1, limit)
     root = Path(root_path).resolve() if normalized_scope == "current" and root_path else None
     display_root = root if root is not None else Path(os.sep)
 
@@ -657,65 +827,18 @@ def search_index_fielded(
     album_query = parsed.residual_text if parsed.residual_text else ""
 
     with _DB_LOCK, _connect() as conn:
-        video_query = parsed.residual_text if parsed.residual_text else trimmed
-        video_rows, root = _search_file_index_fts(
-            conn, video_query, "video", normalized_scope, root_path, candidate_limit
-        )
         if album_query and cursor == 0:
             album_rows, root = _search_file_index_fts(
                 conn, album_query, "folder", normalized_scope, root_path, ALBUM_SUGGESTION_LIMIT
             )
         else:
             album_rows = []
-
-        if parsed.fields:
-            # ── Photos & Prompt sections (field-filtered) ──────────────
-            # Photos intersect residual-text filename matches with
-            # metadata field filters (seed:, model:, etc.) via a CTE.
-            # Prompt/image-result rows are also narrowed by field filters.
-            # These sections ARE guaranteed to satisfy metadata filters.
-            # ───────────────────────────────────────────────────────────
-            photo_rows, root = _search_fielded_photos(conn, parsed, normalized_scope, root_path, root, candidate_limit)
-
-            if parsed.fields or parsed.residual_text:
-                sql, sql_params = build_fielded_search_sql(parsed, candidate_limit)
-                if normalized_scope == "current":
-                    root_str, root_prefix = _path_prefix(root)
-                    if "WHERE" in sql:
-                        sql = sql.replace(
-                            "WHERE ", "WHERE (fi.path = :scope_root OR fi.path LIKE :scope_prefix ESCAPE '\\') AND "
-                        )
-                    else:
-                        sql = sql.replace(
-                            "ORDER BY",
-                            "WHERE (fi.path = :scope_root OR fi.path LIKE :scope_prefix ESCAPE '\\') ORDER BY",
-                        )
-                    sql_params["scope_root"] = root_str
-                    sql_params["scope_prefix"] = root_prefix
-                try:
-                    prompt_rows = list(conn.execute(sql, sql_params))
-                except Exception:  # noqa: BLE001
-                    prompt_rows = []
-            else:
-                prompt_rows = []
-        elif parsed.residual_text:
-            # No fields, residual only — plain filename + metadata search
-            photo_rows, root = _search_file_index_fts(
-                conn, parsed.residual_text, "photo", normalized_scope, root_path, candidate_limit
-            )
-            prompt_rows, root = _search_prompt_rows(
-                conn, parsed.residual_text, normalized_scope, root_path, candidate_limit
-            )
-        else:
-            photo_rows = []
-            prompt_rows = []
+        media_rows, root, has_more = _search_fielded_media_page(conn, parsed, normalized_scope, root_path, limit, cursor)
 
     format_root = root if root is not None else Path(os.sep)
-    photos = _format_file_index_rows(photo_rows, format_root, "filename")
-    videos = _format_file_index_rows(video_rows, format_root, "filename")
-    prompt = _format_prompt_rows(prompt_rows, format_root)
-    media, next_cursor = _merge_media_results(photos, videos, prompt, cursor, limit)
+    media = _format_media_rows(media_rows, format_root)
     page_photos, page_videos, page_prompt = _partition_media_page(media)
+    next_cursor = cursor + len(media) if has_more else None
     return {
         "query": query,
         "scope": normalized_scope,

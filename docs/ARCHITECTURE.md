@@ -175,7 +175,7 @@ Backend modules are mostly flat, with selected domain packages.
 | `GET /api/video`                          | Stream an original video with HTTP Range support                      | `video.py`          |
 | `GET /api/video/poster`                   | Serve a cached WebP poster generated with ffmpeg                      | `video.py`          |
 | `GET /api/metadata`                       | Extract and normalize AI generation metadata for one image            | `metadata_parse.py` |
-| `GET /api/search`                         | Unified album/photo/prompt search, including fielded metadata queries | `search.py`         |
+| `GET /api/search`                         | Cursor-paginated unified search media stream plus first-page album suggestions, including fielded metadata queries | `search.py`         |
 | `GET /api/search-metadata`                | Legacy metadata-only search endpoint                                  | `search.py`         |
 | `GET /api/library/inspector`              | Bounded read-only rows for the desktop metadata inspector             | `search.py`         |
 | `GET /api/library/inspector/metadata`     | DB-first full metadata detail for one inspector row                   | `search.py`         |
@@ -370,13 +370,21 @@ IntersectionObserver sees load-more sentinel
 Header search or AdvancedSearchDrawer
 -> Pinia stores search text/scope
 -> useUnifiedSearchQuery()
--> GET /api/search
--> GalleryGrid renders Albums, Photos, and Prompt sections
+-> GET /api/search?cursor=...
+-> GalleryGrid renders first-page Album suggestions and an appended Media stream
 ```
 
 - Default scope is `current`, meaning the current folder recursively.
 - `all` searches indexed assets from explicit registered libraries.
+- `/api/search` returns bounded `media` pages with `next_cursor`, `has_more`,
+  `returned`, and `limit`. Legacy `albums`, `photos`, `videos`, and `prompt`
+  fields remain for compatibility; the active gallery search UI renders
+  `media`.
+- Album suggestions are returned only on the first search page.
 - Fielded queries are parsed server-side, for example `prompt:"blue hair"`, `seed:12345`, `model:pony`, `steps:>25`, `width:>=1024`.
+- Fielded search keeps metadata filters scoped to filterable image/prompt
+  media; filename-only videos are not returned for fielded queries unless a
+  future video metadata index supports the same predicates.
 - The Advanced Search drawer uses TanStack Form and `/api/facets` to build the same fielded query syntax.
 - `GET /api/search-metadata` remains available for older callers, but the main gallery UI uses `/api/search`.
 - Desktop/tablet gallery sorting uses `SortSelect.vue`, a local shadcn-vue Select wrapper. `MobileHeader.vue` still uses `SortDropdown.vue`.

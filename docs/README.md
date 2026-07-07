@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-06-28
+Last reviewed: 2026-07-07
 
 Use this page as the entry point for project documentation. It gives the
 project mental model first, then points to maintained references for details.

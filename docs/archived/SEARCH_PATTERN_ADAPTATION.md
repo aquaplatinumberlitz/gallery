@@ -1,8 +1,9 @@
 # Search Pattern Adaptation
 
-Status: Implemented
+Status: Implemented and archived
 
 Last reviewed: 2026-07-07
+Archived: 2026-07-07
 
 Implementation notes:
 
@@ -13,6 +14,9 @@ Implementation notes:
   appends search pages through a search-mode sentinel.
 - Fielded search supports comma-AND prompt semantics and OR values for
   supported indexed fields.
+- Follow-up audit fixes apply SQL-level media paging, clear stale search
+  results during the debounce window, and prevent fielded media from returning
+  filename-only videos that do not satisfy metadata filters.
 
 ## Summary
 
