@@ -40,7 +40,6 @@ import {
   X,
   ArrowDownToLine,
   Images,
-  Clapperboard,
   Folder,
   FolderOpen,
 } from "lucide-vue-next";
@@ -271,20 +270,7 @@ const searchResultFolderPath = (result: UnifiedSearchResult): string => {
 };
 
 const searchAlbums = computed(() => unifiedSearchQuery.albums.value);
-const searchPhotos = computed(() => unifiedSearchQuery.photos.value);
-const searchVideos = computed(() => unifiedSearchQuery.videos.value);
-const searchPhotoPathSet = computed(
-  () => new Set(searchPhotos.value.map((result) => normalizeSearchPath(result.path))),
-);
-const searchPrompt = computed(() => {
-  const seen = new Set<string>();
-  return unifiedSearchQuery.prompt.value.filter((result) => {
-    const normalizedPath = normalizeSearchPath(result.path);
-    if (searchPhotoPathSet.value.has(normalizedPath) || seen.has(normalizedPath)) return false;
-    seen.add(normalizedPath);
-    return true;
-  });
-});
+const searchMediaResults = computed(() => unifiedSearchQuery.media.value);
 const searchAlbumNodesRef = computed(() =>
   searchAlbums.value.map((album) => {
     const node = searchResultToFileNode(album);
@@ -302,22 +288,13 @@ const searchAlbumNodesRef = computed(() =>
     return node;
   }),
 );
-const searchPhotoNodes = computed(() => searchPhotos.value.map(searchResultToFileNode));
-const searchVideoNodes = computed(() => searchVideos.value.map(searchResultToFileNode));
-const searchPromptNodes = computed(() => searchPrompt.value.map(searchResultToFileNode));
-const allSearchImageNodes = computed(() => {
-  const seen = new Set<string>();
-  return [...searchPhotoNodes.value, ...searchPromptNodes.value].filter((image) => {
-    if (seen.has(image.path)) return false;
-    seen.add(image.path);
-    return true;
-  });
-});
-
-const images = computed(() => (hasSearchQuery.value ? allSearchImageNodes.value : filenameImages.value));
-const media = computed(() =>
-  hasSearchQuery.value ? [...allSearchImageNodes.value, ...searchVideoNodes.value] : filenameMedia.value,
+const searchImageNodes = computed(() =>
+  searchMediaResults.value.filter((result) => normalizeAssetType(result.type) !== "video").map(searchResultToFileNode),
 );
+const searchMediaNodes = computed(() => searchMediaResults.value.map(searchResultToFileNode));
+
+const images = computed(() => (hasSearchQuery.value ? searchImageNodes.value : filenameImages.value));
+const media = computed(() => (hasSearchQuery.value ? searchMediaNodes.value : filenameMedia.value));
 
 const isLoading = computed(() => infiniteBrowseQuery.isLoading.value);
 const isRefetching = computed(
@@ -383,9 +360,7 @@ const showSearchSkeleton = computed(
     hasSearchQuery.value &&
     isSearchLoading.value &&
     !searchAlbums.value.length &&
-    !searchPhotos.value.length &&
-    !searchVideos.value.length &&
-    !searchPrompt.value.length,
+    !searchMediaResults.value.length,
 );
 const noSearchResults = computed(
   () =>
@@ -394,9 +369,7 @@ const noSearchResults = computed(
     unifiedSearchQuery.isSuccess.value &&
     !unifiedSearchQuery.isFetching.value &&
     searchAlbums.value.length === 0 &&
-    searchPhotos.value.length === 0 &&
-    searchVideos.value.length === 0 &&
-    searchPrompt.value.length === 0,
+    searchMediaResults.value.length === 0,
 );
 const scanQueryErrorMessage = computed(() => {
   const error = infiniteBrowseQuery.error.value;
@@ -506,6 +479,7 @@ const goBack = () => galleryStore.goBack();
 const goForward = () => galleryStore.goForward();
 const openFolder = () => galleryStore.openInExplorer();
 const isLoadingMore = computed(() => infiniteBrowseQuery.isFetchingNextPage.value);
+const isSearchFetchingNextPage = computed(() => unifiedSearchQuery.isFetchingNextPage.value);
 
 // --- Virtual scroller state ---
 const { isTablet } = useDevice();
@@ -560,13 +534,11 @@ const browseVirtualSpacerStyle = browseVirtualGrid.virtualSpacerStyle;
 const getBrowseVirtualRowStyle = (start: number) =>
   browseVirtualGrid.getVirtualRowStyle(start, { gridTemplateColumns: `repeat(${columnCount.value}, 1fr)` });
 
-type SearchSection = "albums" | "photos" | "videos" | "prompt";
+type SearchSection = "albums" | "media";
 type SearchVirtualRow =
   | { id: string; kind: "header"; section: SearchSection; count: number }
   | { id: string; kind: "albums"; items: FileNode[] }
-  | { id: string; kind: "photos"; items: UnifiedSearchResult[]; rowIndex: number }
-  | { id: string; kind: "videos"; items: FileNode[] }
-  | { id: string; kind: "prompt"; items: UnifiedSearchResult[]; rowIndex: number };
+  | { id: string; kind: "media"; items: UnifiedSearchResult[]; rowIndex: number };
 
 const searchAlbumColumnCount = computed(() => {
   if (props.isMobile) return 1;
@@ -584,24 +556,10 @@ const searchVirtualRows = computed<SearchVirtualRow[]>(() => {
     });
   }
 
-  if (searchPhotos.value.length) {
-    rows.push({ id: "header-photos", kind: "header", section: "photos", count: searchPhotos.value.length });
-    chunkItems(searchPhotos.value, columnCount.value).forEach((items, index) => {
-      rows.push({ id: `photos-${columnCount.value}-${index}`, kind: "photos", items, rowIndex: index });
-    });
-  }
-
-  if (searchVideos.value.length) {
-    rows.push({ id: "header-videos", kind: "header", section: "videos", count: searchVideos.value.length });
-    chunkItems(searchVideoNodes.value, columnCount.value).forEach((items, index) => {
-      rows.push({ id: `videos-${columnCount.value}-${index}`, kind: "videos", items });
-    });
-  }
-
-  if (searchPrompt.value.length) {
-    rows.push({ id: "header-prompt", kind: "header", section: "prompt", count: searchPrompt.value.length });
-    chunkItems(searchPrompt.value, columnCount.value).forEach((items, index) => {
-      rows.push({ id: `prompt-${columnCount.value}-${index}`, kind: "prompt", items, rowIndex: index });
+  if (searchMediaResults.value.length) {
+    rows.push({ id: "header-media", kind: "header", section: "media", count: searchMediaResults.value.length });
+    chunkItems(searchMediaResults.value, columnCount.value).forEach((items, index) => {
+      rows.push({ id: `media-${columnCount.value}-${index}`, kind: "media", items, rowIndex: index });
     });
   }
 
@@ -612,18 +570,13 @@ const searchHeaderTitle = (section: SearchSection) => {
   switch (section) {
     case "albums":
       return "Album suggestions";
-    case "photos":
-      return "Photos";
-    case "videos":
-      return "Videos";
-    case "prompt":
-      return "Prompt";
+    case "media":
+      return "Media";
   }
 };
 
 const searchHeaderIcon = (section: SearchSection) => {
   if (section === "albums") return FolderOpen;
-  if (section === "videos") return Clapperboard;
   return Images;
 };
 
@@ -633,7 +586,7 @@ const estimateSearchRowSize = (index: number) => {
   if (row.kind === "header") return 48;
   if (row.kind === "albums") return props.isMobile ? 178 : isTablet.value ? 226 : 280;
   const mediaHeight = rowHeight.value || (props.isMobile ? 150 : isTablet.value ? 190 : 220);
-  return mediaHeight + (row.kind === "videos" ? 28 : 48);
+  return mediaHeight + 48;
 };
 
 const searchVirtualGrid = useVirtualGridRows({
@@ -658,6 +611,7 @@ const skeletonItems = computed(() => Array.from({ length: 12 }, (_, i) => i));
 
 // Infinite load sentinel
 const loadMoreSentinel = ref<HTMLElement | null>(null);
+const searchLoadMoreSentinel = ref<HTMLElement | null>(null);
 
 const canLoadMoreImages = computed(() =>
   shouldLoadMoreImages({
@@ -679,6 +633,29 @@ useIntersectionObserver(
   {
     root: null,
     rootMargin: "400px",
+    threshold: 0,
+  },
+);
+
+const canLoadMoreSearch = computed(
+  () =>
+    hasSearchQuery.value &&
+    unifiedSearchQuery.hasNextPage.value &&
+    !unifiedSearchQuery.isFetchingNextPage.value &&
+    !unifiedSearchQuery.isFetching.value,
+);
+
+useIntersectionObserver(
+  searchLoadMoreSentinel,
+  ([entry]) => {
+    if (!entry?.isIntersecting) return;
+    if (!canLoadMoreSearch.value) return;
+
+    unifiedSearchQuery.fetchNextPage();
+  },
+  {
+    root: null,
+    rootMargin: "500px",
     threshold: 0,
   },
 );
@@ -900,89 +877,50 @@ useIntersectionObserver(
             </div>
 
             <div
-              v-else-if="row?.kind === 'photos'"
+              v-else-if="row?.kind === 'media'"
               class="search-virtual-row virtual-row"
               :style="getSearchMediaVirtualRowStyle(virtualRow.start)"
             >
-              <div v-for="(img, itemIndex) in row.items" :key="img.path" class="search-result-card">
-                <PhotoCard
-                  :src="img.path"
-                  :name="img.name"
-                  :thumbnail-size="SEARCH_RESULT_THUMBNAIL_EDGE"
-                  :load-delay-ms="(row.rowIndex * columnCount + itemIndex) * SEARCH_RESULT_THUMBNAIL_STAGGER_MS"
-                  fetch-priority="low"
-                  @dimensions="handlePhotoDimensions"
-                  @click="handleOpenImage(img.path, img.name)"
-                  @keydown.enter="handleOpenImage(img.path, img.name)"
-                  @keydown.space.prevent="handleOpenImage(img.path, img.name)"
-                />
-                <OverflowTooltip :text="img.name" class="search-result-name file-name-display">
-                  <span class="file-name-base">{{ displayFilenameParts(img.name).base }}</span>
-                  <span class="file-name-ext">{{ displayFilenameParts(img.name).ext }}</span>
-                </OverflowTooltip>
-                <OverflowTooltip
-                  v-if="searchResultFolderPath(img)"
-                  :text="searchResultFolderPath(img)"
-                  class="search-result-path"
-                >
-                  <Folder class="search-result-path-icon" />
-                  <span>{{ searchResultFolderPath(img) }}</span>
-                </OverflowTooltip>
-              </div>
-            </div>
-
-            <div
-              v-else-if="row?.kind === 'videos'"
-              class="search-virtual-row virtual-row"
-              :style="getSearchMediaVirtualRowStyle(virtualRow.start)"
-            >
-              <div v-for="video in row.items" :key="video.path" class="search-result-card">
+              <div v-for="(item, itemIndex) in row.items" :key="item.path" class="search-result-card">
                 <VideoCard
-                  :src="video.path"
-                  :name="video.name"
-                  :duration-ms="video.duration_ms"
-                  @click="handleOpenVideo(video)"
+                  v-if="normalizeAssetType(item.type) === 'video'"
+                  :src="item.path"
+                  :name="item.name"
+                  :duration-ms="item.duration_ms"
+                  @click="handleOpenVideo(searchResultToFileNode(item))"
                 />
-                <OverflowTooltip :text="video.name" class="search-result-name file-name-display">
-                  <span class="file-name-base">{{ displayFilenameParts(video.name).base }}</span>
-                  <span class="file-name-ext">{{ displayFilenameParts(video.name).ext }}</span>
-                </OverflowTooltip>
-              </div>
-            </div>
-
-            <div
-              v-else-if="row?.kind === 'prompt'"
-              class="search-virtual-row virtual-row"
-              :style="getSearchMediaVirtualRowStyle(virtualRow.start)"
-            >
-              <div v-for="(img, itemIndex) in row.items" :key="img.path" class="search-result-card">
                 <PhotoCard
-                  :src="img.path"
-                  :name="img.name"
+                  v-else
+                  :src="item.path"
+                  :name="item.name"
                   :thumbnail-size="SEARCH_RESULT_THUMBNAIL_EDGE"
                   :load-delay-ms="(row.rowIndex * columnCount + itemIndex) * SEARCH_RESULT_THUMBNAIL_STAGGER_MS"
                   fetch-priority="low"
                   @dimensions="handlePhotoDimensions"
-                  @click="handleOpenImage(img.path, img.name)"
-                  @keydown.enter="handleOpenImage(img.path, img.name)"
-                  @keydown.space.prevent="handleOpenImage(img.path, img.name)"
+                  @click="handleOpenImage(item.path, item.name)"
+                  @keydown.enter="handleOpenImage(item.path, item.name)"
+                  @keydown.space.prevent="handleOpenImage(item.path, item.name)"
                 />
-                <OverflowTooltip :text="img.name" class="search-result-name file-name-display">
-                  <span class="file-name-base">{{ displayFilenameParts(img.name).base }}</span>
-                  <span class="file-name-ext">{{ displayFilenameParts(img.name).ext }}</span>
+                <OverflowTooltip :text="item.name" class="search-result-name file-name-display">
+                  <span class="file-name-base">{{ displayFilenameParts(item.name).base }}</span>
+                  <span class="file-name-ext">{{ displayFilenameParts(item.name).ext }}</span>
                 </OverflowTooltip>
                 <OverflowTooltip
-                  v-if="searchResultFolderPath(img)"
-                  :text="searchResultFolderPath(img)"
+                  v-if="searchResultFolderPath(item)"
+                  :text="searchResultFolderPath(item)"
                   class="search-result-path"
                 >
                   <Folder class="search-result-path-icon" />
-                  <span>{{ searchResultFolderPath(img) }}</span>
+                  <span>{{ searchResultFolderPath(item) }}</span>
                 </OverflowTooltip>
               </div>
             </div>
           </template>
         </template>
+      </div>
+
+      <div ref="searchLoadMoreSentinel" class="search-load-more-sentinel">
+        <span v-if="isSearchFetchingNextPage">Loading more...</span>
       </div>
 
       <div v-if="noSearchResults" class="search-empty-wrap">
@@ -1270,6 +1208,15 @@ useIntersectionObserver(
 
 .search-virtual-row--header {
   padding: 10px 8px 0;
+}
+
+.search-load-more-sentinel {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted-foreground);
+  font-size: 13px;
 }
 
 .search-result-card {

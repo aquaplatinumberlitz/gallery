@@ -276,7 +276,7 @@ export const fetchMetadata = async (path: string, signal?: AbortSignal): Promise
 
 export const unifiedSearch = async (
   query: string,
-  opts?: { scope?: SearchScope; path?: string; limit?: number },
+  opts?: { scope?: SearchScope; path?: string; limit?: number; cursor?: number },
 ): Promise<UnifiedSearchResponse> => {
   const { data } = await api.get<UnifiedSearchResponse>("/api/search", {
     params: {
@@ -284,6 +284,7 @@ export const unifiedSearch = async (
       scope: opts?.scope ?? "current",
       path: opts?.path,
       limit: opts?.limit ?? 50,
+      cursor: opts?.cursor ?? 0,
     },
   });
   return data;

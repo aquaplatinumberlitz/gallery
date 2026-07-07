@@ -35,9 +35,14 @@ const makeMockResults = (overrides?: Partial<UnifiedSearchResponse>): UnifiedSea
   photos: [makeSearchResult("1.png")],
   videos: [],
   prompt: [],
+  media: [makeSearchResult("1.png")],
   query: "",
   scope: "all" as const,
   root: "",
+  next_cursor: null,
+  has_more: false,
+  returned: 1,
+  limit: 60,
   ...overrides,
 });
 
@@ -74,8 +79,8 @@ describe("useUnifiedSearchQuery", () => {
     const { result } = setup("cat", "all", "");
     await vi.advanceTimersByTimeAsync(300);
 
-    await vi.waitFor(() => expect(result.data.value).toEqual(makeMockResults()));
-    expect(unifiedSearch).toHaveBeenCalledWith("cat", { scope: "all", path: "", limit: 100 });
+    await vi.waitFor(() => expect(result.results.value.media).toEqual([makeSearchResult("1.png")]));
+    expect(unifiedSearch).toHaveBeenCalledWith("cat", { scope: "all", path: "", limit: 60, cursor: 0 });
   });
 
   it("does not fetch when query is empty", () => {
@@ -90,13 +95,13 @@ describe("useUnifiedSearchQuery", () => {
 
   it("returns empty results when query is empty", () => {
     const { result } = setup("", "all", "");
-    expect(result.results.value).toEqual({ albums: [], photos: [], videos: [], prompt: [] });
+    expect(result.results.value).toEqual({ albums: [], photos: [], videos: [], prompt: [], media: [] });
   });
 
   it("returns empty results before debounce settles", () => {
     vi.mocked(unifiedSearch).mockResolvedValue(makeMockResults());
     const { result } = setup("cat", "all", "");
-    expect(result.results.value).toEqual({ albums: [], photos: [], videos: [], prompt: [] });
+    expect(result.results.value).toEqual({ albums: [], photos: [], videos: [], prompt: [], media: [] });
   });
 
   it("debounces query changes before fetching", async () => {
@@ -115,19 +120,18 @@ describe("useUnifiedSearchQuery", () => {
     await vi.waitFor(() => expect(unifiedSearch).toHaveBeenCalledWith("cat", expect.anything()));
   });
 
-  it("uses placeholder data from previous query", async () => {
+  it("clears previous results for a new query while the next fetch is pending", async () => {
     vi.mocked(unifiedSearch).mockResolvedValue(makeMockResults());
     const { result, queryRef } = setup("cat", "all", "");
     await vi.advanceTimersByTimeAsync(300);
-    await vi.waitFor(() => expect(result.data.value).toEqual(makeMockResults()));
+    await vi.waitFor(() => expect(result.results.value.media).toEqual([makeSearchResult("1.png")]));
 
-    // Keep second fetch pending so we can observe placeholder data
+    // Keep second fetch pending so we can observe the new-key loading state.
     vi.mocked(unifiedSearch).mockReturnValue(new Promise(() => {}));
     queryRef.value = "dog";
     await vi.advanceTimersByTimeAsync(300);
 
-    // placeholderData keeps the previous result while refetching
-    expect(result.data.value).toEqual(makeMockResults());
+    expect(result.results.value).toEqual({ albums: [], photos: [], videos: [], prompt: [], media: [] });
   });
 
   it("uses scope current to scope search within path", async () => {
@@ -135,8 +139,22 @@ describe("useUnifiedSearchQuery", () => {
     const { result } = setup("cat", "current", "/photos");
     await vi.advanceTimersByTimeAsync(300);
 
-    await vi.waitFor(() => expect(result.data.value).toEqual(makeMockResults()));
-    expect(unifiedSearch).toHaveBeenCalledWith("cat", { scope: "current", path: "/photos", limit: 100 });
+    await vi.waitFor(() => expect(result.results.value.media).toEqual([makeSearchResult("1.png")]));
+    expect(unifiedSearch).toHaveBeenCalledWith("cat", { scope: "current", path: "/photos", limit: 60, cursor: 0 });
+  });
+
+  it("fetches the next page with the previous next_cursor", async () => {
+    vi.mocked(unifiedSearch)
+      .mockResolvedValueOnce(makeMockResults({ media: [makeSearchResult("1.png")], next_cursor: 1, has_more: true }))
+      .mockResolvedValueOnce(makeMockResults({ media: [makeSearchResult("2.png")], next_cursor: null }));
+    const { result } = setup("cat", "all", "");
+    await vi.advanceTimersByTimeAsync(300);
+    await vi.waitFor(() => expect(result.hasNextPage.value).toBe(true));
+
+    await result.fetchNextPage();
+
+    await vi.waitFor(() => expect(result.results.value.media?.map((item) => item.name)).toEqual(["1.png", "2.png"]));
+    expect(unifiedSearch).toHaveBeenLastCalledWith("cat", { scope: "all", path: "", limit: 60, cursor: 1 });
   });
 
   it("has isPending true while loading", () => {

@@ -215,6 +215,11 @@ class TestParseFieldedQuery:
         result = parse_fielded_query('sampler:"Euler a"')
         assert result.fields[0].field == "sampler"
 
+    def test_model_or_values_parse_as_single_field_value(self):
+        result = parse_fielded_query("model:pony|sdxl")
+        assert result.fields[0].field == "model"
+        assert result.fields[0].value == "pony|sdxl"
+
     def test_scheduler_field(self):
         result = parse_fielded_query('scheduler:"karras"')
         assert result.fields[0].field == "scheduler"
@@ -477,6 +482,21 @@ class TestBuildFieldedSearchSql:
         sql, params = build_fielded_search_sql(parsed, limit=10)
         assert "LIKE" in sql
         assert "%pony%" in str(params)
+
+    def test_model_field_sql_or_values(self):
+        parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="model", value="pony|sdxl")])
+        sql, params = build_fielded_search_sql(parsed, limit=10)
+        assert " OR " in sql
+        assert "%pony%" in str(params)
+        assert "%sdxl%" in str(params)
+
+    def test_seed_field_sql_or_values(self):
+        parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="seed", value="1|2")])
+        sql, params = build_fielded_search_sql(parsed, limit=10)
+        assert "m.seed =" in sql
+        assert " OR " in sql
+        assert "1" in str(params)
+        assert "2" in str(params)
 
     def test_name_field_sql_like(self):
         """name:cat should use LIKE %%cat%%."""

@@ -1,15 +1,28 @@
-import { useQuery } from "@tanstack/vue-query";
+import { useInfiniteQuery } from "@tanstack/vue-query";
 import { computed, type Ref } from "vue";
 import { refDebounced } from "@vueuse/core";
 import { normalizeQueryPath, queryKeys } from "../query/keys";
 import { unifiedSearch } from "../services/api";
-import type { SearchScope, UnifiedSearchResults } from "../types";
+import type { SearchScope, UnifiedSearchResponse, UnifiedSearchResult, UnifiedSearchResults } from "../types";
+
+export const SEARCH_PAGE_SIZE = 60;
 
 const EMPTY_SEARCH_RESULTS: UnifiedSearchResults = {
   albums: [],
   photos: [],
   videos: [],
   prompt: [],
+  media: [],
+};
+
+const dedupeByPath = (results: UnifiedSearchResult[]) => {
+  const seen = new Set<string>();
+  return results.filter((result) => {
+    const key = result.path.trim().toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 };
 
 export function useUnifiedSearchQuery(query: Ref<string>, scope: Ref<SearchScope>, path: Ref<string>) {
@@ -20,34 +33,47 @@ export function useUnifiedSearchQuery(query: Ref<string>, scope: Ref<SearchScope
   const normalizedPath = computed(() => normalizeQueryPath(path.value || ""));
   const requestPath = computed(() => (scope.value === "current" ? normalizedPath.value : ""));
 
-  const searchQuery = useQuery({
+  const searchQuery = useInfiniteQuery({
     queryKey: computed(() => {
       const requestQuery = debouncedQuery.value;
       const requestScope = scope.value;
       const pathForRequest = requestPath.value;
-      return requestQuery ? queryKeys.search(requestQuery, requestScope, pathForRequest) : [];
+      return queryKeys.search(requestQuery, requestScope, pathForRequest, SEARCH_PAGE_SIZE);
     }),
-    queryFn: ({ queryKey }) => {
-      const [, requestQuery, requestScope, pathForRequest] = queryKey as ReturnType<typeof queryKeys.search>;
+    queryFn: ({ queryKey, pageParam }) => {
+      const [, requestQuery, requestScope, pathForRequest, limit] = queryKey as ReturnType<typeof queryKeys.search>;
       return unifiedSearch(requestQuery, {
         scope: requestScope as SearchScope,
         path: pathForRequest,
-        limit: 100,
+        limit,
+        cursor: pageParam,
       });
     },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage: UnifiedSearchResponse) => lastPage.next_cursor ?? undefined,
     enabled: computed(() => debouncedQuery.value.length > 0),
-    placeholderData: (previousData) => previousData,
   });
 
-  const results = computed<UnifiedSearchResults>(() =>
-    debouncedQuery.value ? (searchQuery.data.value ?? EMPTY_SEARCH_RESULTS) : EMPTY_SEARCH_RESULTS,
-  );
+  const pages = computed(() => searchQuery.data.value?.pages ?? []);
+  const results = computed<UnifiedSearchResults>(() => {
+    if (!debouncedQuery.value || !pages.value.length) return EMPTY_SEARCH_RESULTS;
+    const [firstPage] = pages.value;
+    const media = dedupeByPath(pages.value.flatMap((page) => page.media ?? []));
+    return {
+      albums: firstPage?.albums ?? [],
+      photos: dedupeByPath(pages.value.flatMap((page) => page.photos ?? [])),
+      videos: dedupeByPath(pages.value.flatMap((page) => page.videos ?? [])),
+      prompt: dedupeByPath(pages.value.flatMap((page) => page.prompt ?? [])),
+      media,
+    };
+  });
 
   return {
     ...searchQuery,
     debouncedQuery,
     results,
     albums: computed(() => results.value.albums),
+    media: computed(() => results.value.media ?? []),
     photos: computed(() => results.value.photos),
     videos: computed(() => results.value.videos ?? []),
     prompt: computed(() => results.value.prompt),

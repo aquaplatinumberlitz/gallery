@@ -212,6 +212,8 @@ TEXT_LIKE_FIELDS: set[str] = {
     "generation_time",
 }
 
+OR_VALUE_FIELDS: set[str] = {"model", "sampler", "seed", "path"}
+
 COLUMN_MAP: dict[str, str] = {
     "prompt": "prompt",
     "negative": "negative_prompt",
@@ -249,6 +251,48 @@ def _unicode_match_query(query: str) -> str:
     if not tokens:
         return _escape_fts_token(query)
     return " AND ".join(_escape_fts_token(token) for token in tokens)
+
+
+def _split_unquoted(value: str, delimiter: str) -> list[str]:
+    parts: list[str] = []
+    current: list[str] = []
+    quote = ""
+    escaped = False
+    for ch in value:
+        if escaped:
+            current.append(ch)
+            escaped = False
+            continue
+        if ch == "\\":
+            current.append(ch)
+            escaped = True
+            continue
+        if quote:
+            if ch == quote:
+                quote = ""
+            current.append(ch)
+            continue
+        if ch in ('"', "'"):
+            quote = ch
+            current.append(ch)
+            continue
+        if ch == delimiter:
+            part = "".join(current).strip()
+            if part:
+                parts.append(part)
+            current = []
+            continue
+        current.append(ch)
+    part = "".join(current).strip()
+    if part:
+        parts.append(part)
+    return parts
+
+
+def _or_values(ft: FieldToken) -> list[str]:
+    if ft.field not in OR_VALUE_FIELDS or ft.operator != "=" or ft.quote_char or "|" not in ft.value:
+        return []
+    return _split_unquoted(ft.value, "|")
 
 
 def build_fielded_conditions(parsed: ParsedQuery) -> tuple[list[str], dict[str, Any]]:
@@ -337,8 +381,12 @@ def build_fielded_conditions(parsed: ParsedQuery) -> tuple[list[str], dict[str, 
             continue
 
         if ft.field == "path":
-            like_val = _like_value(ft.value)
-            conditions.append(f"m.path LIKE {next_param(f'%{like_val}%')} ESCAPE '\\'")
+            values = _or_values(ft) or [ft.value]
+            path_conditions = []
+            for value in values:
+                like_val = _like_value(value)
+                path_conditions.append(f"m.path LIKE {next_param(f'%{like_val}%')} ESCAPE '\\'")
+            conditions.append("(" + " OR ".join(path_conditions) + ")")
             continue
 
         if ft.field == "resource_hash":
@@ -393,13 +441,19 @@ def build_fielded_conditions(parsed: ParsedQuery) -> tuple[list[str], dict[str, 
                     likes.append(f"m.{col} LIKE {next_param(f'%{escaped}%')} ESCAPE '\\'")
                 conditions.append("(" + " AND ".join(likes) + ")")
             else:
-                escaped = ft.value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-                conditions.append(f"m.{col} LIKE {next_param(f'%{escaped}%')} ESCAPE '\\'")
+                values = _or_values(ft) or [ft.value]
+                likes = []
+                for value in values:
+                    escaped = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+                    likes.append(f"m.{col} LIKE {next_param(f'%{escaped}%')} ESCAPE '\\'")
+                conditions.append("(" + " OR ".join(likes) + ")")
         elif _like_value(ft.value) != ft.value or "*" in ft.value:
             like_val = _like_value(ft.value)
             conditions.append(f"m.{col} LIKE {next_param(like_val)} ESCAPE '\\'")
         else:
-            conditions.append(f"m.{col} = {next_param(ft.value)}")
+            values = _or_values(ft) or [ft.value]
+            equals = [f"m.{col} = {next_param(value)}" for value in values]
+            conditions.append("(" + " OR ".join(equals) + ")")
 
     return conditions, params
 

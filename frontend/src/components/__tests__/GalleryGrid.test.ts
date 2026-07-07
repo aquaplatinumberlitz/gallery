@@ -40,11 +40,15 @@ vi.mock("@/composables/useUnifiedSearchQuery", () => ({
   useUnifiedSearchQuery: () => ({
     isLoading: { value: false },
     isFetching: { value: false },
+    isFetchingNextPage: { value: false },
     isSuccess: { value: true },
+    hasNextPage: { value: false },
+    fetchNextPage: vi.fn(),
     albums: { value: [] },
     photos: { value: [] },
     videos: { value: [] },
     prompt: { value: [] },
+    media: { value: [] },
   }),
 }));
 

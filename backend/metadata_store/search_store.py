@@ -21,6 +21,7 @@ def _metadata_store_build_album_metadata(path: Path) -> dict[str, Any]:
 
 SEARCH_FIELDS = ("name", "prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
 PROMPT_SEARCH_FIELDS = ("prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
+ALBUM_SUGGESTION_LIMIT = 12
 
 
 def _escape_fts_token(token: str) -> str:
@@ -279,6 +280,69 @@ def _format_prompt_rows(rows: list[sqlite3.Row], root: Path) -> list[dict[str, A
     return results
 
 
+def _normalized_result_path(result: dict[str, Any]) -> str:
+    return str(Path(result["path"]).resolve()).casefold()
+
+
+def _merge_media_results(
+    photos: list[dict[str, Any]],
+    videos: list[dict[str, Any]],
+    prompt: list[dict[str, Any]],
+    cursor: int,
+    limit: int,
+) -> tuple[list[dict[str, Any]], int | None]:
+    merged: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for result in [*photos, *videos, *prompt]:
+        key = _normalized_result_path(result)
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(result)
+
+    page = merged[cursor : cursor + limit]
+    next_cursor = cursor + len(page) if len(merged) > cursor + len(page) else None
+    return page, next_cursor
+
+
+def _partition_media_page(
+    media: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    photos: list[dict[str, Any]] = []
+    videos: list[dict[str, Any]] = []
+    prompt: list[dict[str, Any]] = []
+    for result in media:
+        if result.get("match_type") == "prompt":
+            prompt.append(result)
+        elif result.get("type") == "video":
+            videos.append(result)
+        else:
+            photos.append(result)
+    return photos, videos, prompt
+
+
+def _empty_search_response(
+    query: str,
+    scope: str,
+    root: Path | str,
+    limit: int,
+) -> dict[str, Any]:
+    return {
+        "query": query,
+        "scope": scope,
+        "root": str(root),
+        "albums": [],
+        "photos": [],
+        "videos": [],
+        "prompt": [],
+        "media": [],
+        "next_cursor": None,
+        "has_more": False,
+        "returned": 0,
+        "limit": limit,
+    }
+
+
 def _snippet(row: sqlite3.Row) -> str:
     for field in ("prompt", "negative_prompt", "raw_metadata_text", "model", "sampler", "name"):
         text = row[field] or ""
@@ -389,52 +453,59 @@ def search_metadata(query: str, limit: int = 100, offset: int = 0) -> dict[str, 
         }
 
 
-def search_index(query: str, scope: str, root_path: str | Path | None = None, limit: int = 50) -> dict[str, Any]:
+def search_index(
+    query: str,
+    scope: str,
+    root_path: str | Path | None = None,
+    limit: int = 50,
+    cursor: int = 0,
+) -> dict[str, Any]:
     """Search indexed albums, photos, and prompts using free-text query semantics."""
     initialize_database()
     trimmed = query.strip()
     normalized_scope = "all" if scope == "all" else "current"
     limit = max(1, min(limit, 200))
+    cursor = max(0, int(cursor))
+    candidate_limit = max(cursor + limit + 1, limit)
     root = Path(root_path).resolve() if normalized_scope == "current" and root_path else None
     display_root = root if root is not None else Path(os.sep)
 
     if not trimmed:
-        return {
-            "query": query,
-            "scope": normalized_scope,
-            "root": str(display_root),
-            "albums": [],
-            "photos": [],
-            "videos": [],
-            "prompt": [],
-        }
+        return _empty_search_response(query, normalized_scope, display_root, limit)
 
     if normalized_scope == "current" and root is None:
-        return {
-            "query": query,
-            "scope": normalized_scope,
-            "root": "",
-            "albums": [],
-            "photos": [],
-            "videos": [],
-            "prompt": [],
-        }
+        return _empty_search_response(query, normalized_scope, "", limit)
 
     with _DB_LOCK, _connect() as conn:
-        album_rows, root = _search_file_index_fts(conn, trimmed, "folder", normalized_scope, root_path, limit)
-        photo_rows, root = _search_file_index_fts(conn, trimmed, "photo", normalized_scope, root_path, limit)
-        video_rows, root = _search_file_index_fts(conn, trimmed, "video", normalized_scope, root_path, limit)
-        prompt_rows, root = _search_prompt_rows(conn, trimmed, normalized_scope, root_path, limit)
+        if cursor == 0:
+            album_rows, root = _search_file_index_fts(
+                conn, trimmed, "folder", normalized_scope, root_path, ALBUM_SUGGESTION_LIMIT
+            )
+        else:
+            album_rows = []
+        photo_rows, root = _search_file_index_fts(conn, trimmed, "photo", normalized_scope, root_path, candidate_limit)
+        video_rows, root = _search_file_index_fts(conn, trimmed, "video", normalized_scope, root_path, candidate_limit)
+        prompt_rows, root = _search_prompt_rows(conn, trimmed, normalized_scope, root_path, candidate_limit)
 
     format_root = root if root is not None else Path(os.sep)
+    photos = _format_file_index_rows(photo_rows, format_root, "filename")
+    videos = _format_file_index_rows(video_rows, format_root, "filename")
+    prompt = _format_prompt_rows(prompt_rows, format_root)
+    media, next_cursor = _merge_media_results(photos, videos, prompt, cursor, limit)
+    page_photos, page_videos, page_prompt = _partition_media_page(media)
     return {
         "query": query,
         "scope": normalized_scope,
         "root": str(format_root),
         "albums": _format_file_index_rows(album_rows, format_root, "filename"),
-        "photos": _format_file_index_rows(photo_rows, format_root, "filename"),
-        "videos": _format_file_index_rows(video_rows, format_root, "filename"),
-        "prompt": _format_prompt_rows(prompt_rows, format_root),
+        "photos": page_photos,
+        "videos": page_videos,
+        "prompt": page_prompt,
+        "media": media,
+        "next_cursor": next_cursor,
+        "has_more": next_cursor is not None,
+        "returned": len(media),
+        "limit": limit,
     }
 
 
@@ -547,7 +618,11 @@ def _search_fielded_photos(
 
 
 def search_index_fielded(
-    query: str, scope: str, root_path: str | Path | None = None, limit: int = 50
+    query: str,
+    scope: str,
+    root_path: str | Path | None = None,
+    limit: int = 50,
+    cursor: int = 0,
 ) -> dict[str, Any]:
     """Search indexed albums and photos with structured field filters."""
     from ..fielded_search_parser import (
@@ -559,30 +634,16 @@ def search_index_fielded(
     trimmed = query.strip()
     normalized_scope = "all" if scope == "all" else "current"
     limit = max(1, min(limit, 200))
+    cursor = max(0, int(cursor))
+    candidate_limit = max(cursor + limit + 1, limit)
     root = Path(root_path).resolve() if normalized_scope == "current" and root_path else None
     display_root = root if root is not None else Path(os.sep)
 
     if not trimmed:
-        return {
-            "query": query,
-            "scope": normalized_scope,
-            "root": str(display_root),
-            "albums": [],
-            "photos": [],
-            "videos": [],
-            "prompt": [],
-        }
+        return _empty_search_response(query, normalized_scope, display_root, limit)
 
     if normalized_scope == "current" and root is None:
-        return {
-            "query": query,
-            "scope": normalized_scope,
-            "root": "",
-            "albums": [],
-            "photos": [],
-            "videos": [],
-            "prompt": [],
-        }
+        return _empty_search_response(query, normalized_scope, "", limit)
 
     parsed = parse_fielded_query(trimmed)
 
@@ -597,9 +658,13 @@ def search_index_fielded(
 
     with _DB_LOCK, _connect() as conn:
         video_query = parsed.residual_text if parsed.residual_text else trimmed
-        video_rows, root = _search_file_index_fts(conn, video_query, "video", normalized_scope, root_path, limit)
-        if album_query:
-            album_rows, root = _search_file_index_fts(conn, album_query, "folder", normalized_scope, root_path, limit)
+        video_rows, root = _search_file_index_fts(
+            conn, video_query, "video", normalized_scope, root_path, candidate_limit
+        )
+        if album_query and cursor == 0:
+            album_rows, root = _search_file_index_fts(
+                conn, album_query, "folder", normalized_scope, root_path, ALBUM_SUGGESTION_LIMIT
+            )
         else:
             album_rows = []
 
@@ -610,10 +675,10 @@ def search_index_fielded(
             # Prompt/image-result rows are also narrowed by field filters.
             # These sections ARE guaranteed to satisfy metadata filters.
             # ───────────────────────────────────────────────────────────
-            photo_rows, root = _search_fielded_photos(conn, parsed, normalized_scope, root_path, root, limit)
+            photo_rows, root = _search_fielded_photos(conn, parsed, normalized_scope, root_path, root, candidate_limit)
 
             if parsed.fields or parsed.residual_text:
-                sql, sql_params = build_fielded_search_sql(parsed, limit)
+                sql, sql_params = build_fielded_search_sql(parsed, candidate_limit)
                 if normalized_scope == "current":
                     root_str, root_prefix = _path_prefix(root)
                     if "WHERE" in sql:
@@ -636,20 +701,32 @@ def search_index_fielded(
         elif parsed.residual_text:
             # No fields, residual only — plain filename + metadata search
             photo_rows, root = _search_file_index_fts(
-                conn, parsed.residual_text, "photo", normalized_scope, root_path, limit
+                conn, parsed.residual_text, "photo", normalized_scope, root_path, candidate_limit
             )
-            prompt_rows, root = _search_prompt_rows(conn, parsed.residual_text, normalized_scope, root_path, limit)
+            prompt_rows, root = _search_prompt_rows(
+                conn, parsed.residual_text, normalized_scope, root_path, candidate_limit
+            )
         else:
             photo_rows = []
             prompt_rows = []
 
     format_root = root if root is not None else Path(os.sep)
+    photos = _format_file_index_rows(photo_rows, format_root, "filename")
+    videos = _format_file_index_rows(video_rows, format_root, "filename")
+    prompt = _format_prompt_rows(prompt_rows, format_root)
+    media, next_cursor = _merge_media_results(photos, videos, prompt, cursor, limit)
+    page_photos, page_videos, page_prompt = _partition_media_page(media)
     return {
         "query": query,
         "scope": normalized_scope,
         "root": str(format_root),
         "albums": _format_file_index_rows(album_rows, format_root, "filename"),
-        "photos": _format_file_index_rows(photo_rows, format_root, "filename"),
-        "videos": _format_file_index_rows(video_rows, format_root, "filename"),
-        "prompt": _format_prompt_rows(prompt_rows, format_root),
+        "photos": page_photos,
+        "videos": page_videos,
+        "prompt": page_prompt,
+        "media": media,
+        "next_cursor": next_cursor,
+        "has_more": next_cursor is not None,
+        "returned": len(media),
+        "limit": limit,
     }

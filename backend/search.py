@@ -95,6 +95,7 @@ async def api_search(
     ),
     path: str | None = Query(None, description="Current folder path when scope=current"),
     limit: int = Query(50, ge=1, le=200, description="Maximum results per section"),
+    cursor: int = Query(0, ge=0, description="Result cursor for the merged media stream"),
 ):
     """Search albums, photos, and prompts in either current folder or all indexed files."""
     if not q.strip():
@@ -109,6 +110,11 @@ async def api_search(
             "photos": [],
             "videos": [],
             "prompt": [],
+            "media": [],
+            "next_cursor": None,
+            "has_more": False,
+            "returned": 0,
+            "limit": limit,
         }
 
     root_path: Path | None = None
@@ -123,9 +129,9 @@ async def api_search(
     try:
         parsed = parse_fielded_query(q)
         if parsed.fields:
-            data = await run_in_threadpool(search_index_fielded, q, scope, root_path, limit)
+            data = await run_in_threadpool(search_index_fielded, q, scope, root_path, limit, cursor)
         else:
-            data = await run_in_threadpool(search_index, q, scope, root_path, limit)
+            data = await run_in_threadpool(search_index, q, scope, root_path, limit, cursor)
     except Exception as exc:  # noqa: BLE001
         raise APIError(500, ErrorType.SERVER_ERROR, f"Search failed: {exc}") from exc
 
@@ -150,6 +156,7 @@ async def api_search(
     photos = safe_section(data["photos"])
     videos = safe_section(data.get("videos", []))
     prompt = safe_section(data["prompt"])
+    media = safe_section(data.get("media", []))
 
     if stale_detected:
         await run_in_threadpool(_cleanup_registered_library_roots)
@@ -162,6 +169,11 @@ async def api_search(
         "photos": photos,
         "videos": videos,
         "prompt": prompt,
+        "media": media,
+        "next_cursor": data.get("next_cursor"),
+        "has_more": data.get("next_cursor") is not None,
+        "returned": len(media),
+        "limit": data.get("limit", limit),
     }
 
 

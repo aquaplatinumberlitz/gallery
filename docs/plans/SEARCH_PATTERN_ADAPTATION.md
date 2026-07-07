@@ -1,8 +1,18 @@
 # Search Pattern Adaptation
 
-Status: Proposed implementation plan
+Status: Implemented
 
 Last reviewed: 2026-07-07
+
+Implementation notes:
+
+- `/api/search` now returns a bounded `media` stream with numeric cursor
+  pagination while keeping legacy `albums`, `photos`, `videos`, and `prompt`
+  fields.
+- The frontend search composable uses infinite query paging and GalleryGrid
+  appends search pages through a search-mode sentinel.
+- Fielded search supports comma-AND prompt semantics and OR values for
+  supported indexed fields.
 
 ## Summary
 

@@ -130,6 +130,77 @@ def test_search_filters_stale_rows_and_triggers_cleanup(
     assert len(cleanup_called) >= 1
 
 
+def test_search_empty_query_returns_paginated_media_shape(isolated_app: TestClient):
+    resp = isolated_app.get("/api/search", params={"q": "", "scope": "all"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["albums"] == []
+    assert data["media"] == []
+    assert data["next_cursor"] is None
+    assert data["has_more"] is False
+    assert data["returned"] == 0
+
+
+def test_search_media_pages_do_not_duplicate_paths(isolated_app: TestClient, isolated_gallery_root: Path):
+    import time
+
+    from backend.metadata_store import index_file, register_library
+
+    register_library(isolated_gallery_root)
+    for index in range(5):
+        image = isolated_gallery_root / f"page_asset_{index}.png"
+        image.write_bytes(b"data")
+        index_file(
+            str(image),
+            image.name,
+            str(isolated_gallery_root),
+            "photo",
+            time.time() + index,
+            4,
+            1,
+            1,
+        )
+
+    first = isolated_app.get("/api/search", params={"q": "page_asset", "scope": "all", "limit": 2})
+    assert first.status_code == 200
+    first_data = first.json()
+    assert first_data["returned"] == 2
+    assert first_data["next_cursor"] == 2
+
+    second = isolated_app.get(
+        "/api/search",
+        params={"q": "page_asset", "scope": "all", "limit": 2, "cursor": first_data["next_cursor"]},
+    )
+    assert second.status_code == 200
+    second_data = second.json()
+    first_paths = {item["path"] for item in first_data["media"]}
+    second_paths = {item["path"] for item in second_data["media"]}
+    assert first_paths.isdisjoint(second_paths)
+
+
+def test_search_albums_only_return_on_first_page(isolated_app: TestClient, isolated_gallery_root: Path):
+    import time
+
+    from backend.metadata_store import index_file, register_library
+
+    register_library(isolated_gallery_root)
+    album = isolated_gallery_root / "page_album"
+    album.mkdir()
+    index_file(str(album), album.name, str(isolated_gallery_root), "folder", time.time(), 0, None, None)
+    for index in range(3):
+        image = isolated_gallery_root / f"page_album_asset_{index}.png"
+        image.write_bytes(b"data")
+        index_file(str(image), image.name, str(isolated_gallery_root), "photo", time.time() + index, 4, 1, 1)
+
+    first = isolated_app.get("/api/search", params={"q": "page_album", "scope": "all", "limit": 1})
+    assert first.status_code == 200
+    assert first.json()["albums"]
+
+    second = isolated_app.get("/api/search", params={"q": "page_album", "scope": "all", "limit": 1, "cursor": 1})
+    assert second.status_code == 200
+    assert second.json()["albums"] == []
+
+
 # ---------------------------------------------------------------------------
 # /api/library/inspector error paths
 # ---------------------------------------------------------------------------

@@ -148,12 +148,18 @@ export interface UnifiedSearchResults {
   photos: UnifiedSearchResult[];
   videos?: UnifiedSearchResult[];
   prompt: UnifiedSearchResult[];
+  media?: UnifiedSearchResult[];
 }
 
 export interface UnifiedSearchResponse extends UnifiedSearchResults {
   query: string;
   scope: SearchScope;
   root: string;
+  media: UnifiedSearchResult[];
+  next_cursor: number | null;
+  has_more: boolean;
+  returned: number;
+  limit: number;
 }
 
 export interface FieldFilter {

@@ -56,8 +56,8 @@ export const queryKeys = {
   browseInfinite: (libraryId: number, path: string | null | undefined, limit: number, includeOffline = false) =>
     ["browse-infinite", libraryId, normalizeBrowsePath(path), limit, includeOffline] as const,
 
-  search: (query: string, scope: string, path: string) =>
-    ["search", query.trim(), scope, normalizeQueryPath(path)] as const,
+  search: (query: string, scope: string, path: string, limit: number) =>
+    ["search", query.trim(), scope, normalizeQueryPath(path), limit] as const,
 
   metadata: (path: string) => ["metadata", normalizeQueryPath(path)] as const,
 

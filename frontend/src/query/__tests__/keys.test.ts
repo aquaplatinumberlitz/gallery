@@ -43,7 +43,7 @@ describe("queryKeys", () => {
     ["folderChildren", ["/p"], ["folder-children", "/p"]],
     ["browseInfiniteAllRoot", [], ["browse-infinite"]],
     ["browseInfiniteRoot", [4], ["browse-infinite", 4]],
-    ["search", ["cat", "all", "/p"], ["search", "cat", "all", "/p"]],
+    ["search", ["cat", "all", "/p", 60], ["search", "cat", "all", "/p", 60]],
     ["metadata", ["/a.png"], ["metadata", "/a.png"]],
     ["statusRoot", [], ["status"]],
     ["statusBatch", [], ["status", "libraries", "batch"]],
