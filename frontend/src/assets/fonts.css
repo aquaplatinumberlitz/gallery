@@ -1,9 +1,9 @@
 /* Google Fonts: InterVariable + JetBrains Mono + Cinzel */
-/* Uses CDN delivery — font files are automatically served and cached */
-@import url("https://fonts.googleapis.com/css2?family=Cinzel:wght@400..700&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap");
+/* Loaded via <link> in index.html with preconnect for parallel fetch.
+   The CSS @import previously serialized font discovery behind main CSS parse. */
 
 /*
- * Local font-face declarations (uncomment + place font files in src/assets/fonts/ to use offline):
+ * Local font-face declarations (uncomment + place font files in src/assets/fonts/ to self-host):
  *
  * @font-face {
  *   font-family: "Cinzel";

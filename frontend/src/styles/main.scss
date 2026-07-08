@@ -290,13 +290,13 @@ pre {
 
 .sidebar ::-webkit-scrollbar-thumb,
 .tree-container ::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.18);
+  background: color-mix(in srgb, var(--foreground) 18%, transparent);
   border-radius: 6px;
 }
 
 .sidebar ::-webkit-scrollbar-track,
 .tree-container ::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.04);
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
 }
 
 /* ==========================================================================

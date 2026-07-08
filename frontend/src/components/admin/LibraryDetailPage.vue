@@ -398,7 +398,7 @@ function estimatedAssets(): number | undefined {
 
         <div
           v-if="statusContractError"
-          class="rounded-md border border-amber-500/40 bg-amber-500/10 p-4 text-sm"
+          class="rounded-md border border-warning/40 bg-warning/10 p-4 text-sm"
           role="status"
         >
           {{ STATUS_CONTRACT_ERROR_MESSAGE }}
