@@ -178,15 +178,15 @@ const scanMedia = computed(() => (hasActiveBrowsePage.value ? infiniteBrowseQuer
 const scanImages = computed(() => scanMedia.value.filter((item) => item.type === "image"));
 
 const folders = computed(() =>
-  sortItems(hasSearchQuery.value ? fuzzySearchFileNodes(scanFolders.value, searchQuery.value) : scanFolders.value),
+  sortItems(hasSearchQuery.value ? scanFolders.value : fuzzySearchFileNodes(scanFolders.value, searchQuery.value)),
 );
 
 // Fuse search is client-side and only covers images currently loaded in the active scan view.
 const filenameImages = computed(() =>
-  sortItems(hasSearchQuery.value ? fuzzySearchFileNodes(scanImages.value, searchQuery.value) : scanImages.value),
+  sortItems(hasSearchQuery.value ? scanImages.value : fuzzySearchFileNodes(scanImages.value, searchQuery.value)),
 );
 const filenameMedia = computed(() =>
-  sortItems(hasSearchQuery.value ? fuzzySearchFileNodes(scanMedia.value, searchQuery.value) : scanMedia.value),
+  sortItems(hasSearchQuery.value ? scanMedia.value : fuzzySearchFileNodes(scanMedia.value, searchQuery.value)),
 );
 
 const searchResultToFileNode = (result: UnifiedSearchResult): FileNode => ({

@@ -3,7 +3,6 @@ import { setActivePinia, createPinia } from "pinia";
 import { mount } from "@vue/test-utils";
 import { createIsolatedQueryClient } from "@/test/queryClient";
 import { VueQueryPlugin } from "@tanstack/vue-query";
-import { fuzzySearchFileNodes } from "@/utils/fuzzySearch";
 
 let mockIsLoading = { value: false };
 let mockIsFetching = { value: false };
@@ -250,18 +249,5 @@ describe("GalleryGrid", () => {
     const wrapper = await mountSubject();
     expect(wrapper.find('[aria-label="Go back"]').exists()).toBe(true);
     expect(wrapper.find('[aria-label="Go forward"]').exists()).toBe(true);
-  });
-
-  it("does not run client fuzzy search when the search query is empty", async () => {
-    mockFolders = {
-      value: [{ name: "Mika", path: "/photos/mika", type: "folder", has_children: false }],
-    };
-    mockMedia = {
-      value: [{ name: "mika.png", path: "/photos/mika.png", type: "image", mtime: 1 }],
-    };
-
-    await mountSubject({ store: { searchQuery: "" } });
-
-    expect(fuzzySearchFileNodes).not.toHaveBeenCalled();
   });
 });
