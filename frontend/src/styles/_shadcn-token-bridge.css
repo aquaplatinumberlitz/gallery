@@ -44,7 +44,7 @@
 
   --border: oklch(0.923 0.003 48.717);
   --input: oklch(0.923 0.003 48.717);
-  --ring: oklch(0.45 0.01 56.259);
+  --ring: oklch(0.709 0.01 56.259);
 
   --radius: 0.625rem;
 
@@ -63,7 +63,7 @@
   --sidebar-accent: oklch(0.97 0.001 106.424);
   --sidebar-accent-foreground: oklch(0.216 0.006 56.043);
   --sidebar-border: oklch(0.923 0.003 48.717);
-  --sidebar-ring: oklch(0.45 0.01 56.259);
+  --sidebar-ring: oklch(0.709 0.01 56.259);
 }
 
 [data-theme="dark"] {
@@ -103,7 +103,7 @@
   --chart-5: oklch(0.645 0.246 16.439);
 
   /* shadcn sidebar-* tokens (dark) */
-  --sidebar: oklch(0.216 0.006 56.043);
+  --sidebar: oklch(0.165 0.005 49.25);
   --sidebar-foreground: oklch(0.985 0.001 106.423);
   --sidebar-primary: oklch(0.488 0.243 264.376);
   --sidebar-primary-foreground: oklch(0.985 0.001 106.423);

@@ -112,7 +112,13 @@ function selectImportPath(value: unknown) {
           {{ activeImportPath.path }}
         </OverflowTooltip>
       </template>
-      <ButtonLink v-if="eligibleLibraries.length" to="/admin/libraries" variant="ghost" size="sm" class="w-full">
+      <ButtonLink
+        v-if="eligibleLibraries.length"
+        to="/admin/libraries"
+        variant="outline"
+        size="sm"
+        class="w-full border-sidebar-border bg-sidebar hover:bg-sidebar-accent/70"
+      >
         <Settings2 class="size-4" /> Manage Libraries
       </ButtonLink>
     </div>

@@ -238,6 +238,7 @@ function formatMiddlePath(value: string, maxLength = 34) {
             <Button
               variant="outline"
               size="sm"
+              class="bg-popover hover:bg-accent"
               :disabled="(!path && !isLibraryScope) || !!actionPending"
               @click="emit('scan')"
             >
