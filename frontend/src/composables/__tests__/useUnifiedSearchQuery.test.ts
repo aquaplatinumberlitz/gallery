@@ -4,6 +4,7 @@ import { defineComponent, h, ref } from "vue";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { unifiedSearch } from "@/services/api";
 import { useUnifiedSearchQuery } from "../useUnifiedSearchQuery";
+import { GALLERY_SEARCH_DEBOUNCE_MS } from "@/constants";
 import type { SearchScope, UnifiedSearchResponse, UnifiedSearchResult } from "@/types";
 
 vi.mock("@/services/api", () => ({
@@ -77,7 +78,7 @@ describe("useUnifiedSearchQuery", () => {
   it("fetches search results when query is non-empty after debounce", async () => {
     vi.mocked(unifiedSearch).mockResolvedValue(makeMockResults());
     const { result } = setup("cat", "all", "");
-    await vi.advanceTimersByTimeAsync(300);
+    await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
 
     await vi.waitFor(() => expect(result.results.value.media).toEqual([makeSearchResult("1.png")]));
     expect(unifiedSearch).toHaveBeenCalledWith("cat", { scope: "all", path: "", limit: 60, cursor: 0 });
@@ -109,11 +110,11 @@ describe("useUnifiedSearchQuery", () => {
     const { queryRef } = setup("ca", "all", "");
     // On mount, trimmedDebounced = "ca" and debouncedQuery = "ca" (initial value)
     // So the query fires on mount. Let's first wait for that.
-    await vi.advanceTimersByTimeAsync(300);
+    await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
     vi.mocked(unifiedSearch).mockClear();
 
     queryRef.value = "cat";
-    await vi.advanceTimersByTimeAsync(299);
+    await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS - 1);
     expect(unifiedSearch).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(1);
@@ -123,17 +124,17 @@ describe("useUnifiedSearchQuery", () => {
   it("clears previous results for a new query while the next fetch is pending", async () => {
     vi.mocked(unifiedSearch).mockResolvedValue(makeMockResults());
     const { result, queryRef } = setup("cat", "all", "");
-    await vi.advanceTimersByTimeAsync(300);
+    await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
     await vi.waitFor(() => expect(result.results.value.media).toEqual([makeSearchResult("1.png")]));
 
     // Keep second fetch pending so we can observe the new-key loading state.
     vi.mocked(unifiedSearch).mockReturnValue(new Promise(() => {}));
     queryRef.value = "dog";
-    await vi.advanceTimersByTimeAsync(299);
+    await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS - 1);
 
     expect(result.results.value).toEqual({ albums: [], photos: [], videos: [], prompt: [], media: [] });
 
-    await vi.advanceTimersByTimeAsync(300);
+    await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
 
     expect(result.results.value).toEqual({ albums: [], photos: [], videos: [], prompt: [], media: [] });
   });
@@ -141,7 +142,7 @@ describe("useUnifiedSearchQuery", () => {
   it("uses scope current to scope search within path", async () => {
     vi.mocked(unifiedSearch).mockResolvedValue(makeMockResults());
     const { result } = setup("cat", "current", "/photos");
-    await vi.advanceTimersByTimeAsync(300);
+    await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
 
     await vi.waitFor(() => expect(result.results.value.media).toEqual([makeSearchResult("1.png")]));
     expect(unifiedSearch).toHaveBeenCalledWith("cat", { scope: "current", path: "/photos", limit: 60, cursor: 0 });
@@ -152,7 +153,7 @@ describe("useUnifiedSearchQuery", () => {
       .mockResolvedValueOnce(makeMockResults({ media: [makeSearchResult("1.png")], next_cursor: 1, has_more: true }))
       .mockResolvedValueOnce(makeMockResults({ media: [makeSearchResult("2.png")], next_cursor: null }));
     const { result } = setup("cat", "all", "");
-    await vi.advanceTimersByTimeAsync(300);
+    await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
     await vi.waitFor(() => expect(result.hasNextPage.value).toBe(true));
 
     await result.fetchNextPage();
@@ -170,7 +171,7 @@ describe("useUnifiedSearchQuery", () => {
   it("sets isError on fetch failure", async () => {
     vi.mocked(unifiedSearch).mockRejectedValue(new Error("network error"));
     const { result } = setup("cat", "all", "");
-    await vi.advanceTimersByTimeAsync(300);
+    await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
     await vi.waitFor(() => expect(result.isError.value).toBe(true));
   });
 });

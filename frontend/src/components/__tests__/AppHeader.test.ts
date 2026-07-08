@@ -120,6 +120,7 @@ vi.mock("@/stores/gallery", () => ({
     goForward: goForwardMock,
     selectFolder: vi.fn(),
     clearSearch: vi.fn(),
+    submitSearch: vi.fn(),
     openInExplorer: vi.fn(),
     setSortField: vi.fn(),
     setSortOrder: vi.fn(),
@@ -278,10 +279,31 @@ describe("AppHeader", () => {
     expect(clearBtn).toBeDefined();
   });
 
+  it("shows clear buttons in both expanded and compact gallery search boxes", () => {
+    const wrapper = createWrapper({ searchQuery: "test" });
+    const clearButtons = wrapper.findAll("button").filter((b) => b.attributes("aria-label") === "Clear search");
+    const expandedClear = clearButtons.find((b) => b.element.closest(".header-search-area"));
+    const compactClear = clearButtons.find((b) => b.element.closest(".compact-search-box"));
+
+    expect(expandedClear).toBeDefined();
+    expect(compactClear).toBeDefined();
+  });
+
   it("emits update:searchQuery empty string on clear", async () => {
     const wrapper = createWrapper({ searchQuery: "test" });
     const clearBtn = wrapper.findAll("button").find((b) => b.attributes("aria-label") === "Clear search")!;
     await clearBtn.trigger("click");
+    expect(wrapper.emitted("update:searchQuery")?.pop()).toEqual([""]);
+  });
+
+  it("emits update:searchQuery empty string from compact clear", async () => {
+    const wrapper = createWrapper({ searchQuery: "test" });
+    const compactClearBtn = wrapper
+      .findAll("button")
+      .find((b) => b.attributes("aria-label") === "Clear search" && b.element.closest(".compact-search-box"))!;
+
+    await compactClearBtn.trigger("click");
+
     expect(wrapper.emitted("update:searchQuery")?.pop()).toEqual([""]);
   });
 

@@ -252,6 +252,7 @@ export const useGalleryStore = defineStore("gallery", {
       errorMessage: "" as string | null,
       errorType: null as string | null,
       searchQuery: "",
+      submittedSearchQuery: "",
       searchScope: "current" as SearchScope,
       searchLoading: false,
       sortField: storedSort.field as SortField,
@@ -277,10 +278,18 @@ export const useGalleryStore = defineStore("gallery", {
 
     setSearchQuery(query: string) {
       this.searchQuery = query;
+      if (query.trim() !== this.submittedSearchQuery) {
+        this.submittedSearchQuery = "";
+      }
     },
 
     clearSearch() {
       this.searchQuery = "";
+      this.submittedSearchQuery = "";
+    },
+
+    submitSearch() {
+      this.submittedSearchQuery = this.searchQuery.trim();
     },
 
     setSearchScope(scope: SearchScope) {

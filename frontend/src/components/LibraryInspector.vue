@@ -640,7 +640,7 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
         <Input
           v-model="query"
           type="search"
-          class="h-10 pl-9 pr-9 shadow-sm focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          class="inspector-search-input h-10 pl-9 pr-9 shadow-sm focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
           placeholder="Search metadata, prompt, model, seed..."
           aria-label="Search metadata table"
         />
@@ -1232,6 +1232,15 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
   border-radius: 0 6px 6px 0;
   background: transparent;
   color: color-mix(in srgb, var(--muted-foreground) 80%, transparent);
+}
+
+.inspector-search-input::-webkit-search-decoration,
+.inspector-search-input::-webkit-search-cancel-button,
+.inspector-search-input::-webkit-search-results-button,
+.inspector-search-input::-webkit-search-results-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
 }
 
 .search-clear-button:hover {

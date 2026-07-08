@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, inject, onBeforeUnmount, ref, watch, type ComponentPublicInstance } from "vue";
-import { useIntersectionObserver } from "@vueuse/core";
+import { useIntersectionObserver, useResizeObserver } from "@vueuse/core";
 import { useGalleryStore } from "../stores/gallery";
 import { useLightboxStore } from "../stores/lightbox";
 import type { FileNode, SortValue, UnifiedSearchResult } from "../types";
@@ -46,6 +46,7 @@ import {
 import Button from "@/components/ui/Button.vue";
 import OverflowTooltip from "@/components/ui/OverflowTooltip.vue";
 import Badge from "./ui/Badge.vue";
+import { GALLERY_SEARCH_MIN_CHARS } from "@/constants";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -91,11 +92,14 @@ const props = withDefaults(defineProps<Props>(), {
   showToolbarBreadcrumb: true,
   showDesktopToolbar: true,
 });
-const SEARCH_RESULT_THUMBNAIL_EDGE = 256;
-const SEARCH_RESULT_THUMBNAIL_STAGGER_MS = 80;
+const SEARCH_ALBUM_CARD_DESKTOP_WIDTH = 240;
+const SEARCH_ALBUM_CARD_TABLET_WIDTH = 180;
+const SEARCH_ALBUM_GRID_GAP = 20;
+const SEARCH_ALBUM_ROW_HORIZONTAL_PADDING = 16;
 const injectedScrollContainerRef = inject(galleryScrollContainerRefKey, null);
 const scrollParentRef = ref<HTMLElement | null>(null);
 const searchScrollParentRef = ref<HTMLElement | null>(null);
+const searchScrollContentWidth = ref(0);
 
 const resolveTemplateRefElement = (target: Element | ComponentPublicInstance | null) => {
   if (!target) return null;
@@ -125,10 +129,25 @@ const setVirtualScrollContainerRef = (target: Element | ComponentPublicInstance 
 
 const searchQuery = computed(() => galleryStore.searchQuery);
 const trimmedSearchQuery = computed(() => searchQuery.value.trim());
-const hasSearchQuery = computed(() => trimmedSearchQuery.value.length > 0);
+const submittedSearchQuery = computed(() => galleryStore.submittedSearchQuery.trim());
+const isSubmittedSearchQuery = computed(
+  () => submittedSearchQuery.value.length > 0 && submittedSearchQuery.value === trimmedSearchQuery.value,
+);
+const effectiveSearchQuery = computed(() =>
+  trimmedSearchQuery.value.length >= GALLERY_SEARCH_MIN_CHARS || isSubmittedSearchQuery.value
+    ? trimmedSearchQuery.value
+    : "",
+);
 const searchScope = computed(() => galleryStore.searchScope);
 const searchContextPath = computed(() => infiniteBrowseQuery.activeFolderPath.value);
-const unifiedSearchQuery = useUnifiedSearchQuery(searchQuery, searchScope, searchContextPath);
+const unifiedSearchQuery = useUnifiedSearchQuery(effectiveSearchQuery, searchScope, searchContextPath);
+const settledSearchQuery = computed(() => unifiedSearchQuery.debouncedQuery.value);
+const hasSearchQuery = computed(
+  () =>
+    isSubmittedSearchQuery.value ||
+    (settledSearchQuery.value.length > 0 && settledSearchQuery.value === effectiveSearchQuery.value),
+);
+const showSearchWarmupHint = computed(() => trimmedSearchQuery.value.length > 0 && !hasSearchQuery.value);
 const sortField = computed(() => galleryStore.sortField);
 const sortOrder = computed(() => galleryStore.sortOrder);
 
@@ -178,15 +197,19 @@ const scanMedia = computed(() => (hasActiveBrowsePage.value ? infiniteBrowseQuer
 const scanImages = computed(() => scanMedia.value.filter((item) => item.type === "image"));
 
 const folders = computed(() =>
-  sortItems(hasSearchQuery.value ? fuzzySearchFileNodes(scanFolders.value, searchQuery.value) : scanFolders.value),
+  sortItems(
+    hasSearchQuery.value ? fuzzySearchFileNodes(scanFolders.value, effectiveSearchQuery.value) : scanFolders.value,
+  ),
 );
 
 // Fuse search is client-side and only covers images currently loaded in the active scan view.
 const filenameImages = computed(() =>
-  sortItems(hasSearchQuery.value ? fuzzySearchFileNodes(scanImages.value, searchQuery.value) : scanImages.value),
+  sortItems(
+    hasSearchQuery.value ? fuzzySearchFileNodes(scanImages.value, effectiveSearchQuery.value) : scanImages.value,
+  ),
 );
 const filenameMedia = computed(() =>
-  sortItems(hasSearchQuery.value ? fuzzySearchFileNodes(scanMedia.value, searchQuery.value) : scanMedia.value),
+  sortItems(hasSearchQuery.value ? fuzzySearchFileNodes(scanMedia.value, effectiveSearchQuery.value) : scanMedia.value),
 );
 
 const searchResultToFileNode = (result: UnifiedSearchResult): FileNode => ({
@@ -295,6 +318,12 @@ const searchMediaNodes = computed(() => searchMediaResults.value.map(searchResul
 
 const images = computed(() => (hasSearchQuery.value ? searchImageNodes.value : filenameImages.value));
 const media = computed(() => (hasSearchQuery.value ? searchMediaNodes.value : filenameMedia.value));
+const isSearchSettling = computed(
+  () =>
+    hasSearchQuery.value &&
+    effectiveSearchQuery.value.length > 0 &&
+    settledSearchQuery.value !== effectiveSearchQuery.value,
+);
 
 const isLoading = computed(() => infiniteBrowseQuery.isLoading.value);
 const isRefetching = computed(
@@ -304,14 +333,14 @@ const isRefetching = computed(
     !infiniteBrowseQuery.isFetchingNextPage.value,
 );
 const isSearchLoading = computed(
-  () => hasSearchQuery.value && (unifiedSearchQuery.isLoading.value || unifiedSearchQuery.isFetching.value),
+  () =>
+    hasSearchQuery.value &&
+    (isSearchSettling.value || unifiedSearchQuery.isLoading.value || unifiedSearchQuery.isFetching.value),
 );
 const isSearchIndicatorActive = computed(
   () =>
     hasSearchQuery.value &&
-    (trimmedSearchQuery.value !== unifiedSearchQuery.debouncedQuery.value ||
-      unifiedSearchQuery.isLoading.value ||
-      unifiedSearchQuery.isFetching.value),
+    (isSearchSettling.value || unifiedSearchQuery.isLoading.value || unifiedSearchQuery.isFetching.value),
 );
 const currentPath = computed(() => galleryStore.currentBrowsePath);
 const activeImportRootPath = computed(() => galleryStore.activeImportRootPath);
@@ -356,16 +385,13 @@ const hasNoPath = computed(() => galleryStore.activeLibraryHydrated && !galleryS
 const showBrowsePreparingEmpty = computed(() => !hasSearchQuery.value && browsePreparing.value && !browseLoading.value);
 const showGallerySkeleton = computed(() => !hasSearchQuery.value && browseLoading.value);
 const showSearchSkeleton = computed(
-  () =>
-    hasSearchQuery.value &&
-    isSearchLoading.value &&
-    !searchAlbums.value.length &&
-    !searchMediaResults.value.length,
+  () => hasSearchQuery.value && isSearchLoading.value && !searchAlbums.value.length && !searchMediaResults.value.length,
 );
 const noSearchResults = computed(
   () =>
     hasSearchQuery.value &&
     !isSearchLoading.value &&
+    !isSearchSettling.value &&
     unifiedSearchQuery.isSuccess.value &&
     !unifiedSearchQuery.isFetching.value &&
     searchAlbums.value.length === 0 &&
@@ -486,12 +512,28 @@ const { isTablet } = useDevice();
 const deviceCategory = computed(() => (props.isMobile ? "mobile" : isTablet.value ? "tablet" : "desktop"));
 const { columnCount, sliderLevel, rowHeight, setGridRef } = useColumnResize(deviceCategory);
 
+const updateSearchScrollContentWidth = (el: HTMLElement | null) => {
+  if (!el) {
+    searchScrollContentWidth.value = 0;
+    return;
+  }
+
+  const style = window.getComputedStyle(el);
+  searchScrollContentWidth.value =
+    el.clientWidth - Number.parseFloat(style.paddingLeft || "0") - Number.parseFloat(style.paddingRight || "0");
+};
+
 const setSearchScrollContainerRef = (target: Element | ComponentPublicInstance | null) => {
   const el = resolveTemplateRefElement(target);
   searchScrollParentRef.value = el;
+  updateSearchScrollContentWidth(el);
   setScrollContainerRef(target);
   setGridRef(target);
 };
+
+useResizeObserver(searchScrollParentRef, ([entry]) => {
+  updateSearchScrollContentWidth(entry?.target instanceof HTMLElement ? entry.target : searchScrollParentRef.value);
+});
 
 // Density dropdown options
 const densityOptions = computed(() => {
@@ -542,9 +584,28 @@ type SearchVirtualRow =
 
 const searchAlbumColumnCount = computed(() => {
   if (props.isMobile) return 1;
-  if (isTablet.value) return Math.min(3, columnCount.value);
-  return Math.max(3, Math.min(5, columnCount.value - 1));
+
+  const cardWidth = isTablet.value ? SEARCH_ALBUM_CARD_TABLET_WIDTH : SEARCH_ALBUM_CARD_DESKTOP_WIDTH;
+  const maxColumns = isTablet.value ? 3 : 5;
+  const availableWidth = Math.max(0, searchScrollContentWidth.value - SEARCH_ALBUM_ROW_HORIZONTAL_PADDING);
+
+  if (!availableWidth) {
+    return isTablet.value ? Math.min(3, columnCount.value) : Math.max(3, Math.min(5, columnCount.value - 1));
+  }
+
+  return Math.max(
+    1,
+    Math.min(maxColumns, Math.floor((availableWidth + SEARCH_ALBUM_GRID_GAP) / (cardWidth + SEARCH_ALBUM_GRID_GAP))),
+  );
 });
+
+const searchAlbumCardWidth = computed(() =>
+  props.isMobile ? undefined : isTablet.value ? SEARCH_ALBUM_CARD_TABLET_WIDTH : SEARCH_ALBUM_CARD_DESKTOP_WIDTH,
+);
+
+const searchAlbumGridTemplateColumns = computed(() =>
+  props.isMobile ? "minmax(0, 1fr)" : `repeat(${searchAlbumColumnCount.value}, ${searchAlbumCardWidth.value}px)`,
+);
 
 const searchVirtualRows = computed<SearchVirtualRow[]>(() => {
   const rows: SearchVirtualRow[] = [];
@@ -593,8 +654,8 @@ const searchVirtualGrid = useVirtualGridRows({
   rows: searchVirtualRows,
   scrollElement: searchScrollParentRef,
   estimateSize: estimateSearchRowSize,
-  overscan: 1,
-  measureDeps: [rowHeight, columnCount, searchAlbumColumnCount],
+  overscan: 5,
+  measureDeps: [rowHeight, columnCount, searchAlbumColumnCount, searchAlbumCardWidth],
 });
 
 const searchVirtualItems = searchVirtualGrid.virtualItems;
@@ -602,7 +663,8 @@ const searchVirtualSpacerStyle = searchVirtualGrid.virtualSpacerStyle;
 const getSearchVirtualRowStyle = (start: number) => searchVirtualGrid.getVirtualRowStyle(start);
 const getSearchAlbumVirtualRowStyle = (start: number) =>
   searchVirtualGrid.getVirtualRowStyle(start, {
-    gridTemplateColumns: `repeat(${searchAlbumColumnCount.value}, minmax(0, 1fr))`,
+    gap: `${SEARCH_ALBUM_GRID_GAP}px`,
+    gridTemplateColumns: searchAlbumGridTemplateColumns.value,
   });
 const getSearchMediaVirtualRowStyle = (start: number) =>
   searchVirtualGrid.getVirtualRowStyle(start, { gridTemplateColumns: `repeat(${columnCount.value}, 1fr)` });
@@ -835,6 +897,10 @@ useIntersectionObserver(
       </Tooltip>
     </div>
 
+    <div v-if="showSearchWarmupHint" class="search-warmup-hint" role="status">
+      Keep typing to search, or press Enter.
+    </div>
+
     <div v-if="showGallerySkeleton || showSearchSkeleton" class="skeleton-container">
       <div class="skeleton-grid" :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }">
         <SkeletonLoader v-for="i in skeletonItems" :key="i" type="photo" />
@@ -843,11 +909,7 @@ useIntersectionObserver(
 
     <!-- Search results: backend indexed albums, photos, and prompt matches -->
     <div v-else-if="hasSearchQuery" :ref="setSearchScrollContainerRef" class="search-results-container">
-      <div
-        v-if="searchVirtualRows.length"
-        class="search-virtual-spacer"
-        :style="searchVirtualSpacerStyle"
-      >
+      <div v-if="searchVirtualRows.length" class="search-virtual-spacer" :style="searchVirtualSpacerStyle">
         <template v-for="virtualRow in searchVirtualItems" :key="String(virtualRow.key)">
           <template v-for="row in [searchVirtualRows[virtualRow.index]]" :key="row?.id ?? String(virtualRow.key)">
             <div
@@ -871,7 +933,6 @@ useIntersectionObserver(
                 v-for="album in row.items"
                 :key="album.path"
                 :node="album"
-                :thumbnail-size="SEARCH_RESULT_THUMBNAIL_EDGE"
                 @click="handleOpenFolder(album.path)"
               />
             </div>
@@ -881,7 +942,7 @@ useIntersectionObserver(
               class="search-virtual-row virtual-row"
               :style="getSearchMediaVirtualRowStyle(virtualRow.start)"
             >
-              <div v-for="(item, itemIndex) in row.items" :key="item.path" class="search-result-card">
+              <div v-for="item in row.items" :key="item.path" class="search-result-card">
                 <VideoCard
                   v-if="normalizeAssetType(item.type) === 'video'"
                   :src="item.path"
@@ -893,9 +954,6 @@ useIntersectionObserver(
                   v-else
                   :src="item.path"
                   :name="item.name"
-                  :thumbnail-size="SEARCH_RESULT_THUMBNAIL_EDGE"
-                  :load-delay-ms="(row.rowIndex * columnCount + itemIndex) * SEARCH_RESULT_THUMBNAIL_STAGGER_MS"
-                  fetch-priority="low"
                   @dimensions="handlePhotoDimensions"
                   @click="handleOpenImage(item.path, item.name)"
                   @keydown.enter="handleOpenImage(item.path, item.name)"
@@ -951,10 +1009,7 @@ useIntersectionObserver(
 
           <GallerySectionHeader v-if="media.length" title="Media" :count="media.length" :badge-icon="Images" />
 
-          <div
-            class="tanstack-virtual-spacer"
-            :style="browseVirtualSpacerStyle"
-          >
+          <div class="tanstack-virtual-spacer" :style="browseVirtualSpacerStyle">
             <div
               v-for="virtualRow in browseVirtualItems"
               :key="String(virtualRow.key)"
@@ -1190,6 +1245,17 @@ useIntersectionObserver(
   padding-right: 14px;
   padding-left: 10px;
   scrollbar-width: thin;
+}
+
+.search-warmup-hint {
+  align-self: flex-start;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card) 92%, var(--foreground) 8%);
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.2;
+  padding: 6px 10px;
 }
 
 .search-album-grid {

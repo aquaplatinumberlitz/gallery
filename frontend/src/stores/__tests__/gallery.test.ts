@@ -85,6 +85,17 @@ describe("search and sort", () => {
     expect(store.searchQuery).toBe("cat");
     store.clearSearch();
     expect(store.searchQuery).toBe("");
+    expect(store.submittedSearchQuery).toBe("");
+  });
+
+  it("submits and resets explicit short search queries", () => {
+    const store = useGalleryStore();
+    store.setSearchQuery("m");
+    store.submitSearch();
+    expect(store.submittedSearchQuery).toBe("m");
+
+    store.setSearchQuery("mi");
+    expect(store.submittedSearchQuery).toBe("");
   });
 
   it("setSearchScope", () => {

@@ -73,6 +73,7 @@ function onInputKeydown(e: KeyboardEvent) {
     e.preventDefault();
     closeSearch();
   } else if (e.key === "Enter") {
+    galleryStore.submitSearch();
     searchInputRef.value?.blur();
   }
 }

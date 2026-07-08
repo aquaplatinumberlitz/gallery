@@ -1,2 +1,4 @@
 export const IMAGE_PAGE_SIZE = 200;
 export const DESKTOP_METADATA_WIDTH = 400;
+export const GALLERY_SEARCH_MIN_CHARS = 2;
+export const GALLERY_SEARCH_DEBOUNCE_MS = 650;

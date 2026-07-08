@@ -2,8 +2,6 @@
 import { computed, inject, onMounted, ref } from "vue";
 import {
   Landmark,
-  Search,
-  X,
   Settings,
   Loader2,
   Menu,
@@ -21,11 +19,11 @@ import {
 } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import ButtonLink from "@/components/ui/ButtonLink.vue";
-import Input from "@/components/ui/Input.vue";
 import Badge from "@/components/ui/Badge.vue";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import Breadcrumb from "@/components/Breadcrumb.vue";
 import SortSelect from "@/components/SortSelect.vue";
+import HeaderSearchBox from "@/components/HeaderSearchBox.vue";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -223,6 +221,10 @@ function clearSearch() {
   emit("update:searchQuery", "");
 }
 
+function submitSearch() {
+  galleryStore.submitSearch();
+}
+
 function handleAdvancedSearchApply(filters: FieldFilter[]) {
   applyFilters(filters);
   emit("update:searchQuery", serializeAdvancedSearchToQuery(filters));
@@ -372,52 +374,35 @@ function handleClearAll() {
             </div>
 
             <div class="header-search-area">
-              <div class="search-box">
-                <Loader2 v-if="searchLoading" class="search-leading-icon search-leading-loading" aria-hidden="true" />
-                <Search v-else class="search-leading-icon" aria-hidden="true" />
-                <Input
-                  id="gallery-search"
-                  :model-value="searchQuery"
-                  @update:model-value="(v: string) => emit('update:searchQuery', v)"
-                  type="search"
-                  variant="ghost"
-                  placeholder="Photos, albums, prompts"
-                  autocomplete="off"
-                  class="search-input"
-                />
-                <Tooltip v-if="searchQuery">
-                  <TooltipTrigger as-child>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      class="clear-btn search-action-btn"
-                      type="button"
-                      aria-label="Clear search"
-                      @click="clearSearch"
-                    >
-                      <X class="gallery-icon-xs" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Clear search</TooltipContent>
-                </Tooltip>
-                <SearchScopeSelect :model-value="searchScope" @update:model-value="emit('scope-change', $event)" />
-                <Tooltip>
-                  <TooltipTrigger as-child>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      class="advanced-search-btn search-action-btn"
-                      type="button"
-                      :class="{ 'text-primary': isFieldedSearchActive }"
-                      aria-label="Advanced Search"
-                      @click="openAdvancedSearch"
-                    >
-                      <SlidersHorizontal class="gallery-icon-toolbar" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Advanced Search</TooltipContent>
-                </Tooltip>
-              </div>
+              <HeaderSearchBox
+                id="gallery-search"
+                :model-value="searchQuery"
+                :loading="searchLoading"
+                placeholder="Photos, albums, prompts"
+                @update:model-value="emit('update:searchQuery', $event)"
+                @submit="submitSearch"
+                @clear="clearSearch"
+              >
+                <template #actions>
+                  <SearchScopeSelect :model-value="searchScope" @update:model-value="emit('scope-change', $event)" />
+                  <Tooltip>
+                    <TooltipTrigger as-child>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        class="advanced-search-btn search-action-btn"
+                        type="button"
+                        :class="{ 'text-primary': isFieldedSearchActive }"
+                        aria-label="Advanced Search"
+                        @click="openAdvancedSearch"
+                      >
+                        <SlidersHorizontal class="gallery-icon-toolbar" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Advanced Search</TooltipContent>
+                  </Tooltip>
+                </template>
+              </HeaderSearchBox>
               <SearchFilterChips :filters="fieldedFilters" @remove="handleRemoveFilter" @clear-all="handleClearAll" />
             </div>
           </div>
@@ -578,20 +563,17 @@ function handleClearAll() {
         />
 
         <div class="compact-controls">
-          <div class="search-box compact-search-box">
-            <Loader2 v-if="searchLoading" class="search-leading-icon search-leading-loading" aria-hidden="true" />
-            <Search v-else class="search-leading-icon" aria-hidden="true" />
-            <Input
-              id="gallery-search-compact"
-              :model-value="searchQuery"
-              @update:model-value="(v: string) => emit('update:searchQuery', v)"
-              type="search"
-              variant="ghost"
-              placeholder="Search"
-              autocomplete="off"
-              class="search-input"
-            />
-          </div>
+          <HeaderSearchBox
+            id="gallery-search-compact"
+            class="compact-search-box"
+            compact
+            :model-value="searchQuery"
+            :loading="searchLoading"
+            placeholder="Search"
+            @update:model-value="emit('update:searchQuery', $event)"
+            @submit="submitSearch"
+            @clear="clearSearch"
+          />
 
           <SortSelect
             v-model="gallerySortValue"
@@ -879,14 +861,6 @@ function handleClearAll() {
   min-width: 0;
 }
 
-.search-box.compact-search-box {
-  min-width: 0;
-  width: 100%;
-  height: 34px;
-  padding-right: 10px;
-  border-radius: 9px;
-}
-
 .compact-header :deep(.sort-trigger),
 .compact-header :where(.gallery-density-trigger) {
   flex: 0 0 auto;
@@ -926,9 +900,6 @@ function handleClearAll() {
 .hamburger-btn {
   display: none;
 }
-
-/* Search box container (visual shell - border, background, rounded, padding) */
-/* Input and clear-btn styling handled by shadcn components */
 
 .eyebrow {
   margin: 0;
@@ -1046,50 +1017,11 @@ h1 {
   }
 }
 
-.search-box {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 360px;
-  width: min(520px, 52vw);
-  height: 40px;
-  padding: 0 6px 0 12px;
-  border: 1px solid var(--input);
-  border-radius: 12px;
-  background: var(--background);
-  box-shadow: 0 1px 2px color-mix(in srgb, black 6%, transparent);
-  transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease;
-}
-
-.search-box:focus-within {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
-}
-
 .header-search-area {
   display: flex;
   flex-direction: column;
   gap: 6px;
   align-items: flex-end;
-}
-
-.search-input {
-  flex: 1;
-  min-width: 0;
-}
-
-.search-input:focus-visible {
-  box-shadow: none;
-}
-
-.search-leading-icon {
-  flex-shrink: 0;
-  width: var(--gallery-icon-toolbar);
-  height: var(--gallery-icon-toolbar);
-  color: var(--muted-foreground);
 }
 
 .search-leading-loading {
@@ -1102,41 +1034,10 @@ h1 {
   }
 }
 
-.search-action-btn {
-  flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  color: var(--muted-foreground);
-  background: transparent;
-  box-shadow: none;
-}
-
-.search-box .search-action-btn:hover {
-  background: color-mix(in srgb, var(--foreground) 7%, transparent);
-  color: var(--foreground);
-}
-
-.search-box .search-action-btn:focus-visible {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
-}
-
-.search-box .search-action-btn:active {
-  background: color-mix(in srgb, var(--foreground) 10%, transparent);
-}
-
-/* Input and clear-btn styling handled by shadcn Button variant="ghost" size="icon" */
-/* Only responsive rules remain */
-
 /* Icon sizes using design tokens */
 .gallery-icon-toolbar {
   width: var(--gallery-icon-toolbar);
   height: var(--gallery-icon-toolbar);
-}
-.gallery-icon-xs {
-  width: var(--gallery-icon-xs);
-  height: var(--gallery-icon-xs);
 }
 
 /* brand-hero and brand-text layout handled by Tailwind utilities */
@@ -1259,15 +1160,6 @@ h1 {
   .brand-title {
     font-size: clamp(22px, 4vw, 32px) !important;
   }
-
-  .search-box {
-    min-width: 180px;
-  }
-
-  .compact-search-box {
-    min-width: 0;
-    width: 100%;
-  }
 }
 
 /* Tablet range (768-1199px) — sidebar 240px persistent + hamburger always visible, edge-toggle hidden */
@@ -1323,66 +1215,6 @@ h1 {
     margin-left: auto;
   }
 
-  /* Mobile full-width search bar */
-  .search-box {
-    flex: 1;
-    min-width: 0;
-    height: 36px;
-    padding: 0 10px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    border-radius: 10px;
-    border: 1px solid rgba(0, 0, 0, 0.12);
-    background: var(--card);
-    transition:
-      border-color 0.2s,
-      box-shadow 0.2s;
-  }
-
-  .search-box:hover {
-    border-color: var(--primary);
-    box-shadow: 0 4px 12px color-mix(in srgb, var(--ring) 25%, transparent);
-  }
-
-  .search-box:focus-within {
-    border-color: var(--primary);
-    box-shadow: 0 4px 12px color-mix(in srgb, var(--ring) 25%, transparent);
-  }
-
-  .search-box input {
-    flex: 1;
-    border: none;
-    background: transparent;
-    padding: 0;
-    font-size: 14px;
-    color: var(--foreground);
-    outline: none;
-    min-width: 0;
-  }
-
-  .search-box input::placeholder {
-    color: var(--muted-foreground);
-  }
-
-  .search-box .clear-btn {
-    background: transparent;
-    border: none;
-    color: var(--muted-foreground);
-    cursor: pointer;
-    padding: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-
-  .search-box .clear-btn:hover {
-    background: rgba(0, 0, 0, 0.05);
-    color: var(--foreground);
-  }
-
   .theme-pill-toggle {
     display: none;
   }
@@ -1413,16 +1245,6 @@ h1 {
     padding: 4px 12px;
     min-height: 44px;
     gap: 4px;
-  }
-
-  .search-box {
-    width: 30px;
-    height: 30px;
-  }
-
-  .compact-search-box {
-    width: 100%;
-    min-width: 0;
   }
 
   .hamburger-btn {

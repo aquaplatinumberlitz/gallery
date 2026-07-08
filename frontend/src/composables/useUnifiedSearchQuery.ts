@@ -4,6 +4,7 @@ import { refDebounced } from "@vueuse/core";
 import { normalizeQueryPath, queryKeys } from "../query/keys";
 import { unifiedSearch } from "../services/api";
 import type { SearchScope, UnifiedSearchResponse, UnifiedSearchResult, UnifiedSearchResults } from "../types";
+import { GALLERY_SEARCH_DEBOUNCE_MS } from "../constants";
 
 export const SEARCH_PAGE_SIZE = 60;
 
@@ -27,7 +28,7 @@ const dedupeByPath = (results: UnifiedSearchResult[]) => {
 
 export function useUnifiedSearchQuery(query: Ref<string>, scope: Ref<SearchScope>, path: Ref<string>) {
   const trimmedQuery = computed(() => query.value.trim());
-  const trimmedDebounced = refDebounced(trimmedQuery, 300);
+  const trimmedDebounced = refDebounced(trimmedQuery, GALLERY_SEARCH_DEBOUNCE_MS);
   const debouncedQuery = computed(() => (trimmedQuery.value ? trimmedDebounced.value : ""));
 
   const normalizedPath = computed(() => normalizeQueryPath(path.value || ""));

@@ -18,6 +18,7 @@ let mockActiveFolderPath: any = { value: null };
 let mockHasActivePage = { value: true };
 const mockRefetch = vi.fn();
 const mockFetchNextPage = vi.fn();
+const mockUseUnifiedSearchQuery = vi.hoisted(() => vi.fn());
 
 vi.mock("@/composables/useInfiniteBrowseQuery", () => ({
   useInfiniteBrowseQuery: () => ({
@@ -38,19 +39,22 @@ vi.mock("@/composables/useInfiniteBrowseQuery", () => ({
 }));
 
 vi.mock("@/composables/useUnifiedSearchQuery", () => ({
-  useUnifiedSearchQuery: () => ({
-    isLoading: { value: false },
-    isFetching: { value: false },
-    isFetchingNextPage: { value: false },
-    isSuccess: { value: true },
-    hasNextPage: { value: false },
-    fetchNextPage: vi.fn(),
-    albums: { value: [] },
-    photos: { value: [] },
-    videos: { value: [] },
-    prompt: { value: [] },
-    media: { value: [] },
-  }),
+  useUnifiedSearchQuery: mockUseUnifiedSearchQuery,
+}));
+
+mockUseUnifiedSearchQuery.mockImplementation(() => ({
+  isLoading: { value: false },
+  isFetching: { value: false },
+  isFetchingNextPage: { value: false },
+  isSuccess: { value: true },
+  hasNextPage: { value: false },
+  fetchNextPage: vi.fn(),
+  debouncedQuery: { value: "" },
+  albums: { value: [] },
+  photos: { value: [] },
+  videos: { value: [] },
+  prompt: { value: [] },
+  media: { value: [] },
 }));
 
 vi.mock("@/composables/useColumnResize", () => ({
@@ -106,6 +110,7 @@ const mockStore: Record<string, any> = {
   activeLibraryHydrated: true,
   currentBrowsePath: "/photos",
   searchQuery: "",
+  submittedSearchQuery: "",
   searchScope: "current",
   sortField: "date",
   sortOrder: "desc",
@@ -146,6 +151,8 @@ function defaultStoreValues() {
     errorMessage: "",
     errorType: null,
     isLoading: false,
+    searchQuery: "",
+    submittedSearchQuery: "",
   };
 }
 
@@ -164,6 +171,7 @@ describe("GalleryGrid", () => {
     mockMedia = { value: [] };
     mockActiveFolderPath = { value: null };
     mockHasActivePage = { value: true };
+    mockUseUnifiedSearchQuery.mockClear();
     Object.assign(mockStore, defaultStoreValues());
   });
 
@@ -263,5 +271,49 @@ describe("GalleryGrid", () => {
     await mountSubject({ store: { searchQuery: "" } });
 
     expect(fuzzySearchFileNodes).not.toHaveBeenCalled();
+  });
+
+  it("does not switch to search filtering for a one-character draft query", async () => {
+    mockFolders = {
+      value: [{ name: "Mika", path: "/photos/mika", type: "folder", has_children: false }],
+    };
+    mockMedia = {
+      value: [{ name: "mika.png", path: "/photos/mika.png", type: "image", mtime: 1 }],
+    };
+
+    const wrapper = await mountSubject({ store: { searchQuery: "m", submittedSearchQuery: "" } });
+
+    expect(fuzzySearchFileNodes).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain("Keep typing to search, or press Enter.");
+  });
+
+  it("keeps a two-character query as draft until debounce settles", async () => {
+    mockFolders = {
+      value: [{ name: "Mika", path: "/photos/mika", type: "folder", has_children: false }],
+    };
+    mockMedia = {
+      value: [{ name: "mika.png", path: "/photos/mika.png", type: "image", mtime: 1 }],
+    };
+
+    const wrapper = await mountSubject({ store: { searchQuery: "mi", submittedSearchQuery: "" } });
+
+    expect(mockUseUnifiedSearchQuery).toHaveBeenCalled();
+    expect(mockUseUnifiedSearchQuery.mock.calls[0][0].value).toBe("mi");
+    expect(fuzzySearchFileNodes).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain("Keep typing to search, or press Enter.");
+  });
+
+  it("allows a one-character query after explicit submit", async () => {
+    mockFolders = {
+      value: [{ name: "Mika", path: "/photos/mika", type: "folder", has_children: false }],
+    };
+    mockMedia = {
+      value: [{ name: "mika.png", path: "/photos/mika.png", type: "image", mtime: 1 }],
+    };
+
+    await mountSubject({ store: { searchQuery: "m", submittedSearchQuery: "m" } });
+
+    expect(mockUseUnifiedSearchQuery).toHaveBeenCalled();
+    expect(mockUseUnifiedSearchQuery.mock.calls[0][0].value).toBe("m");
   });
 });
