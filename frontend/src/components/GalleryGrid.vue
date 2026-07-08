@@ -26,7 +26,7 @@ import { useInfiniteBrowseQuery } from "../composables/useInfiniteBrowseQuery";
 import { useUnifiedSearchQuery } from "../composables/useUnifiedSearchQuery";
 import { chunkGridRows, chunkItems, useVirtualGridRows } from "../composables/useVirtualGridRows";
 import { galleryScrollContainerRefKey } from "../injectionKeys";
-import type { ErrorType } from "../services/api";
+import { getThumbnailUrl, type ErrorType } from "../services/api";
 import { fuzzySearchFileNodes } from "../utils/fuzzySearch";
 import { shouldLoadMoreImages } from "../utils/gallery";
 import {
@@ -44,7 +44,6 @@ import {
   FolderOpen,
 } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
-import OverflowTooltip from "@/components/ui/OverflowTooltip.vue";
 import Badge from "./ui/Badge.vue";
 import {
   DropdownMenu,
@@ -92,7 +91,6 @@ const props = withDefaults(defineProps<Props>(), {
   showDesktopToolbar: true,
 });
 const SEARCH_RESULT_THUMBNAIL_EDGE = 256;
-const SEARCH_RESULT_THUMBNAIL_STAGGER_MS = 80;
 const injectedScrollContainerRef = inject(galleryScrollContainerRefKey, null);
 const scrollParentRef = ref<HTMLElement | null>(null);
 const searchScrollParentRef = ref<HTMLElement | null>(null);
@@ -881,7 +879,7 @@ useIntersectionObserver(
               class="search-virtual-row virtual-row"
               :style="getSearchMediaVirtualRowStyle(virtualRow.start)"
             >
-              <div v-for="(item, itemIndex) in row.items" :key="item.path" class="search-result-card">
+              <div v-for="item in row.items" :key="item.path" class="search-result-card">
                 <VideoCard
                   v-if="normalizeAssetType(item.type) === 'video'"
                   :src="item.path"
@@ -889,30 +887,34 @@ useIntersectionObserver(
                   :duration-ms="item.duration_ms"
                   @click="handleOpenVideo(searchResultToFileNode(item))"
                 />
-                <PhotoCard
+                <button
                   v-else
-                  :src="item.path"
-                  :name="item.name"
-                  :thumbnail-size="SEARCH_RESULT_THUMBNAIL_EDGE"
-                  :load-delay-ms="(row.rowIndex * columnCount + itemIndex) * SEARCH_RESULT_THUMBNAIL_STAGGER_MS"
-                  fetch-priority="low"
-                  @dimensions="handlePhotoDimensions"
+                  type="button"
+                  class="search-result-thumb"
                   @click="handleOpenImage(item.path, item.name)"
                   @keydown.enter="handleOpenImage(item.path, item.name)"
                   @keydown.space.prevent="handleOpenImage(item.path, item.name)"
-                />
-                <OverflowTooltip :text="item.name" class="search-result-name file-name-display">
+                >
+                  <img
+                    :src="getThumbnailUrl(item.path, SEARCH_RESULT_THUMBNAIL_EDGE)"
+                    loading="lazy"
+                    decoding="async"
+                    fetchpriority="low"
+                    :alt="item.name"
+                  />
+                </button>
+                <span class="search-result-name file-name-display" :title="item.name">
                   <span class="file-name-base">{{ displayFilenameParts(item.name).base }}</span>
                   <span class="file-name-ext">{{ displayFilenameParts(item.name).ext }}</span>
-                </OverflowTooltip>
-                <OverflowTooltip
+                </span>
+                <div
                   v-if="searchResultFolderPath(item)"
-                  :text="searchResultFolderPath(item)"
                   class="search-result-path"
+                  :title="searchResultFolderPath(item)"
                 >
                   <Folder class="search-result-path-icon" />
                   <span>{{ searchResultFolderPath(item) }}</span>
-                </OverflowTooltip>
+                </div>
               </div>
             </div>
           </template>
@@ -1224,6 +1226,34 @@ useIntersectionObserver(
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.search-result-thumb {
+  width: 100%;
+  aspect-ratio: 1;
+  display: block;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--card);
+  cursor: pointer;
+  contain: layout paint style;
+}
+
+.search-result-thumb img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.search-result-thumb:focus {
+  outline: none;
+}
+
+.search-result-thumb:focus-visible {
+  box-shadow: var(--focus-ring-shadow);
 }
 
 .search-result-name {
