@@ -31,14 +31,14 @@ sections. The Python scripts read the TOML directly via `scripts/perf_lib.py`.
    `frontend/tests/e2e/perf/perf-budgets.json`.
 3. Register the consumer in `BUDGET_CONSUMERS` inside
    `scripts/check_perf_budgets.py`.
-4. Run `python scripts/check_perf_budgets.py` — it must pass. The validator
+4. Run `python3 scripts/check_perf_budgets.py` — it must pass. The validator
    enforces both directions: every TOML section needs a consumer, and every
    perf test's budget env vars need a TOML entry.
 
 ### Validating budget coverage
 
 ```bash
-python scripts/check_perf_budgets.py
+python3 scripts/check_perf_budgets.py
 # perf budget coverage OK: 8 sections, 3 mirrored into perf-budgets.json
 ```
 
@@ -135,28 +135,28 @@ Response shape:
 ### Library Inspector Perf Script
 
 ```bash
-python scripts/perf_library_inspector.py
+python3 scripts/perf_library_inspector.py
 # budget: scripts/perf_budgets.toml[inspector].p95_ms (default 500)
 ```
 
 ### Warm Listing Perf Script
 
 ```bash
-python scripts/perf_warm_listing.py --images 5000
+python3 scripts/perf_warm_listing.py --images 5000
 # budget: scripts/perf_budgets.toml[warm_listing].budget_ms (default 500)
 ```
 
 ### Search Bench
 
 ```bash
-python scripts/bench_search.py
+python3 scripts/bench_search.py
 # budgets: [search].p95_ms (default 300) + [inspector_metadata].p95_ms (default 200)
 ```
 
 ### Thumbnail Cold/Warm Bench
 
 ```bash
-python scripts/bench_thumbnail.py
+python3 scripts/bench_thumbnail.py
 # budgets: [thumbnail].cold_p95_ms (default 1000) + [thumbnail].warm_p95_ms (default 50)
 # samples 5 distinct images from test-images/a1111 by default
 ```

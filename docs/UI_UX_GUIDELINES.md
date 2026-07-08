@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-06-23
+Last reviewed: 2026-07-08
 
 ## Breakpoints
 
@@ -84,7 +84,7 @@ Mobile:
 - Use `MobilePhotoSwipe.vue` with a floating info button.
 - Hide the info button while `LightboxMobileSheet.vue` is open.
 - Use `@douxcode/vue-spring-bottom-sheet` for the mobile metadata sheet.
-- Keep the sheet at 44dvh collapsed and 80dvh expanded unless changing the full interaction model.
+- Keep the VSBS snap points at `44%` collapsed and `80%` expanded unless changing the full interaction model.
 - Let VSBS handle drag, snap, and scroll behavior. Do not restore the old `.sheet-panel` pointer-drag implementation.
 - Keep VSBS `blocking=false` so its focus trap does not conflict with PhotoSwipe focus management.
 - Keep VSBS width and background overrides in a non-scoped global style block because the library teleports its DOM to `<body>`.

@@ -2,7 +2,7 @@
 
 Status: Maintained catalog
 
-Last reviewed: 2026-06-26
+Last reviewed: 2026-07-08
 
 Catalog entries summarize the regression or contract each important test file
 protects. File-level headers in tests provide the same purpose fields close to
@@ -31,7 +31,7 @@ the code.
 | `backend/tests/test_fielded_search_parser.py` | Backend unit | Fielded query parsing and SQL builder behavior. | Field aliases, comparisons, quoted values, and residual terms remain stable. | Changing parser syntax. | Fielded search |
 | `backend/tests/test_folders.py` | Backend integration | Folder listing and open-folder route edge cases. | Folder APIs handle hidden/excluded dirs and filesystem errors safely. | Changing folder routes or ignore logic. | Folders |
 | `backend/tests/test_identity_helper.py` | Backend unit | Shared metadata identity SQL fragments and tolerance constants. | Asset/metadata/job matching keeps canonical tolerant `mtime_ns` behavior, legacy seconds bridge, alias substitution, and exported tolerance constants. | Changing metadata identity predicates or freshness joins. | Metadata identity |
-| `backend/tests/test_indexer_staging.py` | Backend unit/integration | Metadata indexer staging, dedupe, flush, retry, and scoped runtime counters. | Scan-time enqueueing and runtime attribution stay stable. | Changing metadata indexer queues. | Metadata indexer |
+| `backend/tests/test_indexer_staging.py` | Backend unit/integration | Metadata indexer dispatch, durable runtime status, idempotent persistence, and coalescing. | Scan/rebuild scheduling, runtime attribution, and duplicate job handling stay stable. | Changing metadata indexer dispatch or job persistence. | Metadata indexer |
 | `backend/tests/test_integrity_checker_contract.py` | Backend contract | IntegrityChecker per-check behavior, file-health summary mapping, run persistence, and schema-check edge cases. | Checks repair only intended rows; `run_all_checks` exposes the expected eight keys; persisted summaries map to five issue and four repair keys. | Changing integrity checker checks, maintenance run mapping, or schema_check behavior. | Integrity checker |
 | `backend/tests/test_libraries_catalog.py` | Backend integration | Library registration, catalog asset writes, migrations, and management API behavior. | Libraries, import paths, file index rows, and asset rows stay consistent. | Changing library CRUD or catalog writes. | Library catalog |
 | `backend/tests/test_libraries_coverage.py` | Backend coverage | Edge/error branches in `backend/libraries.py`. | Validation, scan/rebuild, derivative, event, and error branches remain covered. | Changing library route helpers. | Library management backend |

@@ -1,6 +1,6 @@
 # AI Art Gallery
 
-Last reviewed: 2026-06-23
+Last reviewed: 2026-07-08
 
 A local-first web gallery for browsing AI-generated image and video collections. It pairs a FastAPI backend for registered-library management, mixed-media scanning, image derivatives, video streaming/posters, indexed metadata search, and read-only metadata inspection with a Vue 3 frontend that provides a responsive TanStack Virtual gallery, PhotoSwipe-based image lightbox, native video player, and virtualized desktop Library Inspector.
 
@@ -18,7 +18,7 @@ Designed for local/personal use. It is not intended as a hardened public deploym
 - WebP thumbnail generation with diskcache persistent caching
 - Light and dark themes using gallery design tokens
 - Mobile/tablet debugging helpers for Safari and icon sizing
-- Background metadata indexer with coalesced job queue and batched SQLite writer, exposing an index status endpoint
+- Durable background metadata indexer with coalesced SQLite jobs and lifecycle/runtime status in library and maintenance status APIs
 - Fielded metadata search (`prompt:`, `seed:`, `model:`, `steps:`, etc.) with a dedicated parser; warm metadata reads from SQLite without re-parsing PNG chunks
 - Warm indexed folder listing (SQLite-first, `os.stat` + SQLite only) with optional scheduled refresh and file-watcher support
 - DB-derived faceted aggregation endpoint (`/api/facets`) for tool, model, sampler, and other metadata dimensions
@@ -140,9 +140,7 @@ gallery-repo/
 │       ├── conftest.py
 │       ├── test_api_integration_derivatives.py
 │       ├── test_api_integration_health_and_safety.py
-│       ├── test_api_integration_index_status.py
 │       ├── test_api_integration_metadata_search_facets.py
-│       ├── test_api_integration_scan.py
 │       ├── test_app.py
 │       ├── test_derivatives.py
 │       ├── test_facets.py
@@ -151,7 +149,7 @@ gallery-repo/
 │       ├── test_library_inspector.py
 │       ├── test_metadata_binary_sanitizer.py
 │       ├── test_scan_folder_counts.py
-│       ├── test_scan_hot_path.py
+│       ├── test_scan_worker.py
 │       ├── test_scheduled_refresh.py
 │       ├── test_warm_folder_listing.py
 │       └── test_watcher.py
@@ -213,11 +211,13 @@ gallery-repo/
 | `GET`                  | `/api/library/inspector`                        | Bounded read-only metadata inspection rows; empty `q` returns latest indexed metadata           |
 | `GET`                  | `/api/library/inspector/metadata?path=...`      | DB-first full prompt/negative/LoRA/resource metadata detail for inspector popovers/copy actions |
 | `GET`                  | `/api/facets`                                   | Faceted aggregation counts (tool, model, sampler, etc.)                                         |
-| `GET`                  | `/api/index/status`                             | Metadata indexer queue/runtime status                                                           |
+| `GET`                  | `/api/maintenance/runtime`                      | Global catalog, metadata, watcher, refresh, and lifecycle runtime diagnostics                    |
 | `POST`                 | `/api/open-folder`                              | Open a folder in the OS file explorer when enabled                                              |
 | `GET`                  | `/api/health`                                   | Health check                                                                                    |
 | `GET`                  | `/api/landing-pages`                            | List intro page templates                                                                       |
 | `GET/POST`             | `/api/libraries`                                | List or register libraries                                                                      |
+| `GET`                  | `/api/libraries/{id}/status`                    | Unified catalog status for a library or scoped path                                             |
+| `POST`                 | `/api/libraries/{id}/scan`                      | Queue a background update for a registered library                                              |
 | `GET/PATCH/PUT/DELETE` | `/api/libraries/{id}`                           | Read, update, or unregister a library                                                           |
 
 `GET /api/browse` accepts only `library_id`, `path`, `cursor`, `limit`, and

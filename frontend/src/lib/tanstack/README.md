@@ -8,11 +8,13 @@ This frontend uses TanStack libraries for state management, data display, and fo
 |---------|---------|--------------------------------------|---------|
 | `@tanstack/vue-query` | ^5.x | ✅ Active | Server-state caching for scan/infinite pages, folder children, search, metadata, and background refetch. Setup in `src/query/index.ts`. |
 | `@tanstack/vue-virtual` | ^3.x | ✅ Active | Row-based virtual scrolling for desktop/tablet photo grid. Uses `useVirtualizer` in `GalleryGrid.vue`. |
-| `@tanstack/vue-form` | latest | 🟡 Foundation | Installed but NOT used in any production component yet. Available for future metadata forms, batch editor, settings. See notes below. |
+| `@tanstack/vue-form` | latest | ✅ Active | Advanced fielded search form in `src/components/search/AdvancedSearchDrawer.vue`. See notes below. |
 | `@tanstack/vue-table` | latest | ✅ Active | Sortable metadata table in `LibraryInspector.vue`. Uses `useVueTable`, `createColumnHelper`, `getCoreRowModel`, `getSortedRowModel` with shadcn-vue `<Table>` primitives. Paired with `@tanstack/vue-virtual` for virtual scrolling. See notes below for planned expansions. |
 | `@tanstack/vue-query-devtools` | ^6.x | ✅ Active | Lazy-loaded in dev mode only (`isDev` guard in `App.vue`). Not bundled in production build. Provides Query dev panel for inspecting cache, mutations, and refetch triggers. |
 
-## @tanstack/vue-form — Installed (Not Yet Used in Production)
+## @tanstack/vue-form — Active in Advanced Search
+
+Currently used in `AdvancedSearchDrawer.vue` to manage fielded-search form state and validation, then serialize structured controls to the backend fielded query syntax.
 
 ### Planned components
 - **Add/Edit photo metadata form** — title, description, tags, source URL, album selection, AI metadata fields
@@ -21,7 +23,7 @@ This frontend uses TanStack libraries for state management, data display, and fo
 - **Validation** — use TanStack Form's built-in validation for required fields, URL format, tag constraints
 
 ### Migration rule
-Do NOT replace current v-model forms until a dedicated metadata editing feature is being built. Current forms are minimal (search, path entry) and work fine with v-model.
+Do NOT replace every small `v-model` form by default. Use TanStack Form when validation, touched/dirty state, submit modes, or structured serialization would otherwise become bespoke component state.
 
 ## @tanstack/vue-table — Active in LibraryInspector, Planned Expansions
 

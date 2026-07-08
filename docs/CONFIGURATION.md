@@ -3,7 +3,7 @@
 Status: Maintained
 
 Last verified against `backend/config.py`, `frontend/vite.config.ts`, frontend
-environment reads, and the server nginx site config: 2026-07-01.
+environment reads, and the server nginx site config: 2026-07-08.
 
 Boolean flags parsed by `_env_flag()` treat `0`, `false`, `no`, and `off`
 case-insensitively as false; any other provided value is true. Flags documented as
@@ -11,12 +11,17 @@ case-insensitively as false; any other provided value is true. Flags documented 
 
 ## Server runtime topology
 
-The VPS public entrypoint is nginx on `150.230.56.153:80`.
+The VPS public entrypoint is nginx on `150.230.56.153`. Port 80 redirects to
+HTTPS. In production, nginx serves the built SPA from `frontend/dist/` and
+proxies only API traffic to FastAPI.
 
-| Public path | nginx upstream        | Service  | Standard purpose                                |
-| ----------- | --------------------- | -------- | ----------------------------------------------- |
-| `/api`      | `http://127.0.0.1:4180` | Backend  | FastAPI/uvicorn API server for `backend.main:app`. |
-| `/`         | `http://127.0.0.1:4173` | Frontend | Vite frontend server.                           |
+| Public path | nginx behavior | Service | Standard purpose |
+| ----------- | -------------- | ------- | ---------------- |
+| `/api` | Proxy to `http://127.0.0.1:4180` | Backend | FastAPI/uvicorn API server for `backend.main:app`. |
+| `/` | Serve `frontend/dist/` with SPA fallback | Frontend | Production Vue build. |
+
+For development-only Vite access, run the frontend on `127.0.0.1:4173` or the
+default Vite port and let the Vite dev proxy forward `/api` to the backend.
 
 Standard backend command from the repo root:
 
@@ -25,7 +30,7 @@ cd /home/ubuntu/gallery-repo
 PORT=4180 FRONTEND_PORT=4173 backend/.venv_linux/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 4180
 ```
 
-Standard frontend command from `frontend/`:
+Development frontend command from `frontend/`:
 
 ```bash
 cd /home/ubuntu/gallery-repo/frontend
@@ -36,14 +41,14 @@ Do not set `VITE_API_URL` for the public VPS nginx path unless deliberately
 bypassing same-origin routing. With `VITE_API_URL` unset, browser API calls use
 same-origin `/api`, and nginx forwards them to `127.0.0.1:4180`. The Vite dev
 proxy also defaults `/api` to `http://localhost:4180` for direct local access to
-the frontend server.
+the frontend dev server.
 
 Useful health checks:
 
 ```bash
 curl http://127.0.0.1:4180/api/health
-curl http://150.230.56.153/api/health
-curl -I http://150.230.56.153/
+curl https://150.230.56.153/api/health
+curl -I https://150.230.56.153/
 ```
 
 ## Backend environment variables
@@ -67,22 +72,22 @@ curl -I http://150.230.56.153/
 | `GALLERY_METADATA_DB`                                  | path                    | `backend/.cache/gallery_metadata.db`                  | SQLite metadata/index database.                                                                          |
 | `GALLERY_INDEX_EXCLUDE_DIRS`                           | comma-separated names   | unset                                                 | Additional directory names excluded from indexing.                                                       |
 | `GALLERY_INDEX_EXCLUDE_PATTERNS`                       | comma-separated globs   | unset                                                 | Additional path/name patterns excluded from indexing.                                                    |
-| `GALLERY_METADATA_INDEXER_ENABLED`                     | boolean flag            | true                                                  | Enables metadata path staging and worker processing.                                                     |
-| `GALLERY_METADATA_INDEXER_BATCH_SIZE`                  | integer, clamped 1–64   | `8`                                                   | Metadata worker batch size.                                                                              |
+| `GALLERY_METADATA_INDEXER_ENABLED`                     | boolean flag            | true                                                  | Enables durable metadata job dispatch and worker processing.                                             |
+| `GALLERY_METADATA_INDEXER_BATCH_SIZE`                  | integer, clamped 1–64   | `8`                                                   | Legacy metadata batch-size setting; the current DB-claim worker processes one claimed job per worker loop. |
 | `GALLERY_METADATA_INDEXER_WORKER_SLEEP_SECONDS`        | float, minimum 0        | `0.01`                                                | Worker sleep interval.                                                                                   |
-| `GALLERY_METADATA_INDEXER_STAGE_BATCH_SIZE`            | integer, clamped 1–1000 | `100`                                                 | Staged-path batch size. Falls back to `METADATA_INDEXER_STAGE_BATCH_SIZE`.                               |
+| `GALLERY_METADATA_INDEXER_STAGE_BATCH_SIZE`            | integer, clamped 1–1000 | `100`                                                 | Parsed compatibility setting from the removed staged-path worker. Falls back to `METADATA_INDEXER_STAGE_BATCH_SIZE`. |
 | `METADATA_INDEXER_STAGE_BATCH_SIZE`                    | integer                 | `100`                                                 | Legacy fallback for the prefixed stage batch variable.                                                   |
-| `GALLERY_METADATA_INDEXER_STAGE_SLEEP_SECONDS`         | float, minimum 0        | `0.2`                                                 | Staging idle/yield interval. Falls back to `METADATA_INDEXER_STAGE_SLEEP_SECONDS`.                       |
+| `GALLERY_METADATA_INDEXER_STAGE_SLEEP_SECONDS`         | float, minimum 0        | `0.2`                                                 | Parsed compatibility setting from the removed staged-path worker. Falls back to `METADATA_INDEXER_STAGE_SLEEP_SECONDS`. |
 | `METADATA_INDEXER_STAGE_SLEEP_SECONDS`                 | float                   | `0.2`                                                 | Legacy fallback for the prefixed stage sleep variable.                                                   |
-| `GALLERY_METADATA_INDEXER_STAGE_MAX_WAIT_SECONDS`      | float, minimum 0        | `5.0`                                                 | Maximum staging wait before a forced flush. Falls back to `METADATA_INDEXER_STAGE_MAX_WAIT_SECONDS`.     |
+| `GALLERY_METADATA_INDEXER_STAGE_MAX_WAIT_SECONDS`      | float, minimum 0        | `5.0`                                                 | Parsed compatibility setting from the removed staged-path worker. Falls back to `METADATA_INDEXER_STAGE_MAX_WAIT_SECONDS`. |
 | `METADATA_INDEXER_STAGE_MAX_WAIT_SECONDS`              | float                   | `5.0`                                                 | Legacy fallback for the prefixed stage max-wait variable.                                                |
-| `GALLERY_METADATA_INDEXER_SCAN_YIELD_SECONDS`          | float, minimum 0        | `0.05`                                                | SQLite retry/yield delay while scan work is active. Falls back to `METADATA_INDEXER_SCAN_YIELD_SECONDS`. |
+| `GALLERY_METADATA_INDEXER_SCAN_YIELD_SECONDS`          | float, minimum 0        | `0.05`                                                | Parsed compatibility setting from the removed scan-yield path. Falls back to `METADATA_INDEXER_SCAN_YIELD_SECONDS`. |
 | `METADATA_INDEXER_SCAN_YIELD_SECONDS`                  | float                   | `0.05`                                                | Legacy fallback for the prefixed scan-yield variable.                                                    |
-| `GALLERY_METADATA_INDEXER_SCAN_YIELD_MAX_SECONDS`      | float, minimum 0        | `1.0`                                                 | Maximum cumulative scan-yield duration. Falls back to `METADATA_INDEXER_SCAN_YIELD_MAX_SECONDS`.         |
+| `GALLERY_METADATA_INDEXER_SCAN_YIELD_MAX_SECONDS`      | float, minimum 0        | `1.0`                                                 | Parsed compatibility setting from the removed scan-yield path. Falls back to `METADATA_INDEXER_SCAN_YIELD_MAX_SECONDS`. |
 | `METADATA_INDEXER_SCAN_YIELD_MAX_SECONDS`              | float                   | `1.0`                                                 | Legacy fallback for the prefixed scan-yield maximum.                                                     |
-| `GALLERY_METADATA_INDEXER_SQLITE_BUSY_RETRIES`         | integer, minimum 0      | `3`                                                   | SQLite busy retry count. Falls back to `METADATA_INDEXER_SQLITE_BUSY_RETRIES`.                           |
+| `GALLERY_METADATA_INDEXER_SQLITE_BUSY_RETRIES`         | integer, minimum 0      | `3`                                                   | Parsed compatibility setting from the removed staged writer. Falls back to `METADATA_INDEXER_SQLITE_BUSY_RETRIES`. |
 | `METADATA_INDEXER_SQLITE_BUSY_RETRIES`                 | integer                 | `3`                                                   | Legacy fallback for the prefixed busy-retry variable.                                                    |
-| `GALLERY_METADATA_INDEXER_SQLITE_BUSY_BACKOFF_SECONDS` | float, minimum 0        | `0.1`                                                 | SQLite busy retry backoff. Falls back to `METADATA_INDEXER_SQLITE_BUSY_BACKOFF_SECONDS`.                 |
+| `GALLERY_METADATA_INDEXER_SQLITE_BUSY_BACKOFF_SECONDS` | float, minimum 0        | `0.1`                                                 | Parsed compatibility setting from the removed staged writer. Falls back to `METADATA_INDEXER_SQLITE_BUSY_BACKOFF_SECONDS`. |
 | `METADATA_INDEXER_SQLITE_BUSY_BACKOFF_SECONDS`         | float                   | `0.1`                                                 | Legacy fallback for the prefixed busy-backoff variable.                                                  |
 | `GALLERY_INTEGRITY_CHECK_ENABLED`                      | boolean flag            | true                                                  | Starts the periodic cross-table integrity checker during backend startup.                                |
 | `GALLERY_INTEGRITY_CHECK_INTERVAL_SECONDS`             | integer, minimum 60     | `3600`                                                | Integrity checker interval in seconds.                                                                  |

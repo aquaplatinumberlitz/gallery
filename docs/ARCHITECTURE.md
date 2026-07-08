@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-06-26
+Last reviewed: 2026-07-08
 
 Historical Library Management V1 handoff context is retained in the
 [archived implementation status](archived/CODEX_LIBRARY_MANAGEMENT_IMPLEMENTATION_STATUS.md).
@@ -128,7 +128,7 @@ Backend modules are mostly flat, with selected domain packages.
 | `fielded_search_parser.py` | Parser for `prompt:`, `seed:`, `model:`, numeric operators, quoted values, and related fielded search syntax                               |
 | `search.py`                | `/api/search`, `/api/search-metadata`, `/api/library/inspector`, `/api/library/inspector/metadata`                                         |
 | `facets.py`                | `/api/facets` aggregation over indexed metadata                                                                                            |
-| `indexer.py`               | DB-claim metadata lifecycle worker, durable scheduling, startup recovery, diagnostics, staged path batching, scan worker rebuild helpers    |
+| `indexer.py`               | DB-claim metadata lifecycle worker, durable scheduling, startup recovery, diagnostics, and scan worker rebuild helpers                      |
 | `integrity_checker.py`     | Periodic cross-table consistency checker for metadata jobs, assets, image metadata, derivatives, and derivative jobs                       |
 | `refresh.py`               | Optional scheduled refresh loop                                                                                                            |
 | `watcher.py`               | Optional filesystem watcher loop                                                                                                           |
