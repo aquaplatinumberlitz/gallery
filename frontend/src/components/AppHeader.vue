@@ -767,11 +767,11 @@ function handleClearAll() {
     box-shadow 200ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.gallery-header.is-expanded {
+.gallery-header.is-gallery-header.is-expanded {
   min-height: 130px;
 }
 
-.gallery-header.is-collapsed {
+.gallery-header.is-gallery-header.is-collapsed {
   min-height: 54px;
 }
 

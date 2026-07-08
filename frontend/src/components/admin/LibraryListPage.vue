@@ -94,15 +94,14 @@ function created(library: RegisteredLibrary) {
     aria-labelledby="libraries-heading"
   >
     <div class="mx-auto max-w-7xl space-y-6">
-      <header class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Administration</p>
-          <h2 id="libraries-heading" class="mt-1 text-xl font-semibold tracking-normal text-foreground">Libraries</h2>
-          <p class="mt-1 text-sm text-muted-foreground">
+      <header class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="min-w-0">
+          <h2 id="libraries-heading" class="text-xl font-semibold tracking-normal text-foreground">Libraries</h2>
+          <p class="mt-0.5 text-sm text-muted-foreground">
             Register folders, monitor imports, and maintain the file catalog.
           </p>
         </div>
-        <div class="flex flex-wrap gap-2">
+        <div class="flex flex-shrink-0 flex-wrap gap-2">
           <Button
             variant="outline"
             class="border-border bg-card text-foreground shadow-sm hover:bg-muted/70"
@@ -118,38 +117,39 @@ function created(library: RegisteredLibrary) {
         </div>
       </header>
 
-      <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Gallery statistics">
-        <Card class="gap-0 py-0">
-          <CardContent class="p-4">
-            <p class="text-sm text-muted-foreground">Libraries</p>
-            <p class="mt-1 text-sm font-semibold tabular-nums text-foreground">
+      <section aria-label="Gallery statistics">
+        <dl
+          class="grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-border ring-1 ring-border sm:grid-cols-4"
+        >
+          <div class="bg-card p-3">
+            <dt class="text-xs text-muted-foreground">Libraries</dt>
+            <dd class="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
               {{ statsQuery.data.value?.library_count ?? libraries.length }}
-            </p>
-          </CardContent>
-        </Card>
-        <Card class="gap-0 py-0">
-          <CardContent class="p-4">
-            <p class="text-sm text-muted-foreground">Media files</p>
-            <p class="mt-1 text-sm font-semibold tabular-nums text-foreground">
+            </dd>
+          </div>
+          <div class="bg-card p-3">
+            <dt class="text-xs text-muted-foreground">Media files</dt>
+            <dd class="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
               {{ formatAssetCount(statsQuery.data.value?.photos) }} photos ·
               {{ formatAssetCount(statsQuery.data.value?.videos) }} videos
-            </p>
-          </CardContent>
-        </Card>
-        <Card class="gap-0 py-0">
-          <CardContent class="p-4">
-            <p class="text-sm text-muted-foreground">Storage used</p>
-            <p class="mt-1 text-sm font-semibold tabular-nums text-foreground">
+            </dd>
+          </div>
+          <div class="bg-card p-3">
+            <dt class="text-xs text-muted-foreground">Storage used</dt>
+            <dd class="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
               {{ formatBytes(statsQuery.data.value?.usage_bytes) }}
-            </p>
-          </CardContent>
-        </Card>
-        <Card class="gap-0 py-0">
-          <CardContent class="p-4">
-            <p class="text-sm text-muted-foreground">Queued jobs</p>
-            <p class="mt-1 text-sm font-semibold tabular-nums text-foreground">{{ activeJobs }}</p>
-          </CardContent>
-        </Card>
+            </dd>
+          </div>
+          <div class="bg-card p-3">
+            <dt class="text-xs text-muted-foreground">Queued jobs</dt>
+            <dd
+              class="mt-0.5 text-sm font-semibold tabular-nums"
+              :class="activeJobs > 0 ? 'text-warning-fg' : 'text-foreground'"
+            >
+              {{ activeJobs }}
+            </dd>
+          </div>
+        </dl>
       </section>
 
       <div

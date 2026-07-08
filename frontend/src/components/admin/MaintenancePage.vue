@@ -146,17 +146,14 @@ const needsRefreshCount = computed(() => {
     aria-labelledby="maintenance-heading"
   >
     <div class="mx-auto max-w-6xl space-y-6">
-      <header class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Administration</p>
-          <h2 id="maintenance-heading" class="mt-1 text-xl font-semibold tracking-normal text-foreground">
-            Maintenance
-          </h2>
-          <p class="mt-1 text-sm text-muted-foreground">
+      <header class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="min-w-0">
+          <h2 id="maintenance-heading" class="text-xl font-semibold tracking-normal text-foreground">Maintenance</h2>
+          <p class="mt-0.5 text-sm text-muted-foreground">
             File health checks, repair tracking, and imported-data diagnostics.
           </p>
         </div>
-        <div class="flex flex-wrap gap-2">
+        <div class="flex flex-shrink-0 flex-wrap gap-2">
           <Button
             variant="outline"
             class="h-9 border-border bg-card px-4 py-2 text-sm text-foreground shadow-sm transition-all has-[>svg]:px-3 hover:bg-muted/70"
