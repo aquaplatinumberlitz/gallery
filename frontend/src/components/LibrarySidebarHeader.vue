@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { FolderOpen, Library, Settings2 } from "lucide-vue-next";
-import LibrarySelectorSheet from "@/components/LibrarySelectorSheet.vue";
+import ResponsiveLibrarySelector from "@/components/ResponsiveLibrarySelector.vue";
 import Button from "@/components/ui/Button.vue";
 import ButtonLink from "@/components/ui/ButtonLink.vue";
 import IconTooltipButton from "@/components/ui/IconTooltipButton.vue";
@@ -122,6 +122,6 @@ function selectImportPath(value: unknown) {
         <Settings2 class="size-4" /> Manage Libraries
       </ButtonLink>
     </div>
-    <LibrarySelectorSheet v-model="sheetOpen" />
+    <ResponsiveLibrarySelector v-model="sheetOpen" />
   </div>
 </template>

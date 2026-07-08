@@ -15,6 +15,7 @@ import VideoPlayerDialog from "./VideoPlayerDialog.vue";
 import SkeletonLoader from "./SkeletonLoader.vue";
 import Breadcrumb from "./Breadcrumb.vue";
 import EmptyState from "./EmptyState.vue";
+import ResponsiveLibrarySelector from "./ResponsiveLibrarySelector.vue";
 import TabletGalleryToolbar from "./TabletGalleryToolbar.vue";
 import SortSelect from "./SortSelect.vue";
 import { compareNatural } from "../composables/useNaturalSort";
@@ -60,6 +61,7 @@ import { useRouter } from "vue-router";
 const galleryStore = useGalleryStore();
 const router = useRouter();
 const lightboxStore = useLightboxStore();
+const librarySelectorOpen = ref(false);
 const activeLibraryId = computed(() => galleryStore.activeLibraryId);
 const activeBrowsePath = computed(() => galleryStore.currentBrowsePath || null);
 const infiniteBrowseQuery = useInfiniteBrowseQuery(activeLibraryId, activeBrowsePath);
@@ -397,6 +399,11 @@ const noSearchResults = computed(
     searchAlbums.value.length === 0 &&
     searchMediaResults.value.length === 0,
 );
+
+function openLibrarySelector() {
+  librarySelectorOpen.value = true;
+}
+
 const scanQueryErrorMessage = computed(() => {
   const error = infiniteBrowseQuery.error.value;
   if (!error) return "";
@@ -1147,9 +1154,10 @@ useIntersectionObserver(
         v-else-if="hasNoPath"
         type="no-path"
         title="No library selected"
-        description="Select a registered library, or add one to start browsing."
-        action-label="Manage Libraries"
-        @action="router.push('/admin/libraries')"
+        description="Choose a library from Active library to load albums and photos."
+        action-label="Choose Library"
+        action-icon="FolderOpen"
+        @action="openLibrarySelector"
       />
 
       <!-- Not Loaded Yet -->
@@ -1173,6 +1181,7 @@ useIntersectionObserver(
     </div>
 
     <VideoPlayerDialog v-model:open="videoPlayerOpen" :video="selectedVideo" />
+    <ResponsiveLibrarySelector v-model="librarySelectorOpen" />
   </div>
 </template>
 
