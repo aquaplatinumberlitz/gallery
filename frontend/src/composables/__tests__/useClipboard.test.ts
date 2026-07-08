@@ -38,29 +38,23 @@ describe("useClipboard", () => {
 
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
-      value: { write: vi.fn().mockResolvedValue(undefined) },
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
     });
-
-    globalThis.ClipboardItem = class {
-      types: string[];
-      items = {} as Record<string, string>;
-      constructor(items: Record<string, string>) {
-        this.items = items;
-        this.types = Object.keys(items);
-      }
-    } as unknown as typeof ClipboardItem;
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: vi.fn().mockReturnValue(true),
+    });
   });
 
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
-    delete (globalThis as Record<string, unknown>).ClipboardItem;
   });
 
-  function setClipboardWrite(mockFn: unknown) {
+  function setClipboardWriteText(mockFn: unknown) {
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
-      value: { write: mockFn },
+      value: { writeText: mockFn },
     });
   }
 
@@ -77,12 +71,27 @@ describe("useClipboard", () => {
   });
 
   it("copies via clipboard API and flips copyStatus to true", async () => {
-    const write = vi.fn().mockResolvedValue(undefined);
-    setClipboardWrite(write);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    setClipboardWriteText(writeText);
     const { result } = withSetup(() => useClipboard());
     await Promise.resolve();
     await result.copyText("hello", "prompt");
-    expect(write).toHaveBeenCalledWith(expect.arrayContaining([expect.any(globalThis.ClipboardItem)]));
+    expect(writeText).toHaveBeenCalledWith("hello");
+    expect(result.copyStatus.value.prompt).toBe(true);
+  });
+
+  it("falls back to execCommand when clipboard API rejects", async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error("denied"));
+    const execCommand = vi.fn().mockReturnValue(true);
+    setClipboardWriteText(writeText);
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: execCommand,
+    });
+    const { result } = withSetup(() => useClipboard());
+    await Promise.resolve();
+    await result.copyText("hello", "prompt");
+    expect(execCommand).toHaveBeenCalledWith("copy");
     expect(result.copyStatus.value.prompt).toBe(true);
   });
 
@@ -131,8 +140,12 @@ describe("useClipboard", () => {
   });
 
   it("shows an error toast when the clipboard API call fails", async () => {
-    const write = vi.fn().mockRejectedValue(new Error("denied"));
-    setClipboardWrite(write);
+    const writeText = vi.fn().mockRejectedValue(new Error("denied"));
+    setClipboardWriteText(writeText);
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: vi.fn().mockReturnValue(false),
+    });
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const { result } = withSetup(() => useClipboard());
     await Promise.resolve();

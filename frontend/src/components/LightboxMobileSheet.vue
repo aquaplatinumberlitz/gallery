@@ -273,7 +273,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                     type="button"
                     class="inline-copy-button"
                     aria-label="Copy prompt"
-                    @click.stop="props.copyText(props.meta?.prompt, 'prompt')"
+                    @click.stop.prevent="props.copyText(props.meta?.prompt, 'prompt')"
                   >
                     <span class="copy-icon-stack inline-copy-icon" :class="{ 'is-copied': props.copyStatus['prompt'] }">
                       <Check
@@ -314,7 +314,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                     type="button"
                     class="inline-copy-button"
                     aria-label="Copy negative prompt"
-                    @click.stop="props.copyText(props.meta?.negative_prompt, 'neg')"
+                    @click.stop.prevent="props.copyText(props.meta?.negative_prompt, 'neg')"
                   >
                     <span class="copy-icon-stack inline-copy-icon" :class="{ 'is-copied': props.copyStatus['neg'] }">
                       <Check :size="14" :stroke-width="1.5" class="copy-icon copy-icon-check" aria-hidden="true" />
@@ -363,9 +363,9 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                     data-testid="seed-row"
                     role="button"
                     tabindex="0"
-                    @click="props.copyText(String(props.meta.params.Seed), 'seed')"
-                    @keydown.enter.prevent="props.copyText(String(props.meta.params.Seed), 'seed')"
-                    @keydown.space.prevent="props.copyText(String(props.meta.params.Seed), 'seed')"
+                    @click.stop.prevent="props.copyText(String(props.meta.params.Seed), 'seed')"
+                    @keydown.enter.stop.prevent="props.copyText(String(props.meta.params.Seed), 'seed')"
+                    @keydown.space.stop.prevent="props.copyText(String(props.meta.params.Seed), 'seed')"
                   >
                     <span class="label">Seed</span>
                     <span class="value">{{ props.meta.params.Seed }}</span>

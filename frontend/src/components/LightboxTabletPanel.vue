@@ -141,9 +141,9 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                       class="param-pill metadata-copyable"
                       role="button"
                       tabindex="0"
-                      @click="props.copyText(String(props.meta.params.Seed), 'seed')"
-                      @keydown.enter.prevent="props.copyText(String(props.meta.params.Seed), 'seed')"
-                      @keydown.space.prevent="props.copyText(String(props.meta.params.Seed), 'seed')"
+                      @click.stop.prevent="props.copyText(String(props.meta.params.Seed), 'seed')"
+                      @keydown.enter.stop.prevent="props.copyText(String(props.meta.params.Seed), 'seed')"
+                      @keydown.space.stop.prevent="props.copyText(String(props.meta.params.Seed), 'seed')"
                     >
                       <span class="value">{{ props.meta.params.Seed }}</span>
                       <span class="copy-icon-stack inline-copy-icon" :class="{ 'is-copied': props.copyStatus['seed'] }">
@@ -251,9 +251,9 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                     class="tablet-section-top metadata-copyable"
                     role="button"
                     tabindex="0"
-                    @click="props.copyText(props.meta?.prompt, 'prompt')"
-                    @keydown.enter.prevent="props.copyText(props.meta?.prompt, 'prompt')"
-                    @keydown.space.prevent="props.copyText(props.meta?.prompt, 'prompt')"
+                    @click.stop.prevent="props.copyText(props.meta?.prompt, 'prompt')"
+                    @keydown.enter.stop.prevent="props.copyText(props.meta?.prompt, 'prompt')"
+                    @keydown.space.stop.prevent="props.copyText(props.meta?.prompt, 'prompt')"
                   >
                     <label class="tablet-label">Prompt</label>
                     <span class="copy-icon-stack inline-copy-icon" :class="{ 'is-copied': props.copyStatus['prompt'] }">
@@ -284,9 +284,9 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                     class="tablet-section-top metadata-copyable"
                     role="button"
                     tabindex="0"
-                    @click="props.copyText(props.meta?.negative_prompt, 'neg')"
-                    @keydown.enter.prevent="props.copyText(props.meta?.negative_prompt, 'neg')"
-                    @keydown.space.prevent="props.copyText(props.meta?.negative_prompt, 'neg')"
+                    @click.stop.prevent="props.copyText(props.meta?.negative_prompt, 'neg')"
+                    @keydown.enter.stop.prevent="props.copyText(props.meta?.negative_prompt, 'neg')"
+                    @keydown.space.stop.prevent="props.copyText(props.meta?.negative_prompt, 'neg')"
                   >
                     <label class="tablet-label negative-label">Negative Prompt</label>
                     <span class="copy-icon-stack inline-copy-icon" :class="{ 'is-copied': props.copyStatus['neg'] }">

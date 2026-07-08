@@ -161,7 +161,7 @@ const modelCount = computed(() => {
                   type="button"
                   class="copy-btn"
                   aria-label="Copy prompt"
-                  @click="props.copyText(props.meta?.prompt, 'prompt')"
+                  @click.stop.prevent="props.copyText(props.meta?.prompt, 'prompt')"
                 >
                   <span class="copy-icon-stack" :class="{ 'is-copied': props.copyStatus['prompt'] }">
                     <Check :stroke-width="1.5" class="copy-icon copy-icon-check icon-sm" aria-hidden="true" />
@@ -192,7 +192,7 @@ const modelCount = computed(() => {
                   type="button"
                   class="copy-btn"
                   aria-label="Copy negative prompt"
-                  @click="props.copyText(props.meta?.negative_prompt, 'neg')"
+                  @click.stop.prevent="props.copyText(props.meta?.negative_prompt, 'neg')"
                 >
                   <span class="copy-icon-stack" :class="{ 'is-copied': props.copyStatus['neg'] }">
                     <Check :stroke-width="1.5" class="copy-icon copy-icon-check icon-sm" aria-hidden="true" />
@@ -242,7 +242,7 @@ const modelCount = computed(() => {
                     <button
                       class="icon-btn"
                       aria-label="Copy seed"
-                      @click="props.copyText(String(props.meta.params.Seed), 'seed')"
+                      @click.stop.prevent="props.copyText(String(props.meta.params.Seed), 'seed')"
                     >
                       <span
                         class="copy-icon-stack"
