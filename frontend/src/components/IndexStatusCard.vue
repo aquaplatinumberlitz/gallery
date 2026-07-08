@@ -88,6 +88,7 @@ const processingProgressPercent = computed(() =>
 );
 
 const bodyText = computed(() => {
+  if (props.contractError || props.isError) return props.errorMessage || "Failed to load status";
   if (!props.status) return "Loading...";
   if (isScanning.value) {
     const completed = props.status.scan.completed_units ?? 0;

@@ -87,6 +87,15 @@ const PRESENTATIONS: Record<SummaryState, CatalogStatusPresentation> = {
   },
 };
 
+export const CATALOG_STATUS_UNAVAILABLE_PRESENTATION: CatalogStatusPresentation = {
+  label: "Unavailable",
+  variant: "destructive",
+  tone: "red",
+  indicator: "error",
+  showPulse: false,
+  meaning: "The app cannot reach the server to refresh catalog status.",
+};
+
 export function getCatalogStatusPresentation(state: SummaryState | null | undefined): CatalogStatusPresentation {
   if (!state) return PRESENTATIONS.unknown;
   return PRESENTATIONS[state] ?? PRESENTATIONS.unknown;

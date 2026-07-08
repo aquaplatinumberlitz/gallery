@@ -224,6 +224,43 @@ describe("IndexStatusPanel", () => {
     expect(wrapper.text()).toBeTruthy();
   });
 
+  it("shows unavailable presentation when status refresh fails with cached ready data", async () => {
+    mockIsErrorValue.value = true;
+    mockErrorValue.value = new Error("Can't connect to server");
+
+    const IndexStatusPanel = (await import("../IndexStatusPanel.vue")).default;
+    const queryClient = createIsolatedQueryClient();
+    const wrapper = mount(IndexStatusPanel, {
+      global: {
+        plugins: [[VueQueryPlugin, { queryClient }]],
+        stubs: {
+          Button: { template: "<button><slot /></button>" },
+          Badge: { template: "<span><slot /></span>" },
+          Popover: { template: "<div><slot /></div>" },
+          PopoverTrigger: { template: "<div><slot /></div>" },
+          PopoverContent: { template: "<div class='popover-content'><slot /></div>" },
+          IndexStatusBadge: {
+            props: ["presentation"],
+            template: "<span data-testid='status-badge'>{{ presentation.label }} {{ presentation.indicator }}</span>",
+          },
+          IndexStatusCard: { template: "<div class='status-card'><slot /></div>" },
+          PillIndicator: {
+            props: ["variant", "pulse"],
+            template: "<span data-testid='status-dot'>{{ variant }} {{ pulse }}</span>",
+          },
+          Database: { template: "<span>db</span>" },
+          Loader: { template: "<span>loader</span>" },
+          AlertCircle: { template: "<span>alert</span>" },
+        },
+      },
+    });
+
+    expect(wrapper.get('[data-testid="catalog-status-icon-indicator"]').text()).toBe("error false");
+    expect(wrapper.get('[data-testid="status-badge"]').text()).toBe("Unavailable error");
+    expect(wrapper.text()).toContain("Can't connect to server");
+    expect(wrapper.get('[data-testid="status-badge"]').text()).not.toContain("Ready");
+  });
+
   it("shows Update library without a rebuild action and calls scanLibrary", async () => {
     const IndexStatusPanel = (await import("../IndexStatusPanel.vue")).default;
     const { scanLibrary } = await import("@/services/api");

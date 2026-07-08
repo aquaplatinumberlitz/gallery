@@ -2,7 +2,7 @@ import { mount } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import { nextTick } from "vue";
 import IndexStatusCard from "../IndexStatusCard.vue";
-import { getCatalogStatusPresentation } from "@/lib/catalog/labels";
+import { CATALOG_STATUS_UNAVAILABLE_PRESENTATION, getCatalogStatusPresentation } from "@/lib/catalog/labels";
 import type { UnifiedStatus } from "@/lib/catalog/status";
 
 function makeStatus(overrides: Partial<UnifiedStatus> = {}): UnifiedStatus {
@@ -62,11 +62,12 @@ function indexingStatus(): UnifiedStatus {
   });
 }
 
-function mountCard(status: UnifiedStatus) {
+function mountCard(status: UnifiedStatus, propOverrides: Record<string, unknown> = {}) {
   return mount(IndexStatusCard, {
     props: {
       status,
       presentation: getCatalogStatusPresentation(status.summary_state),
+      ...propOverrides,
     },
     global: {
       stubs: {
@@ -83,6 +84,17 @@ function mountCard(status: UnifiedStatus) {
 }
 
 describe("IndexStatusCard completion progress", () => {
+  it("shows the connection error instead of stale ready text", () => {
+    const wrapper = mountCard(makeStatus(), {
+      presentation: CATALOG_STATUS_UNAVAILABLE_PRESENTATION,
+      isError: true,
+      errorMessage: "Can't connect to server",
+    });
+
+    expect(wrapper.text()).toContain("Can't connect to server");
+    expect(wrapper.text()).not.toContain("All metadata ready");
+  });
+
   it("lingers at 100% briefly after indexing completes", async () => {
     vi.useFakeTimers();
     try {

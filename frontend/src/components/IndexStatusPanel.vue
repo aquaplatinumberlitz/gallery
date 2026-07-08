@@ -13,7 +13,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { queryClient } from "@/query";
 import { normalizeQueryPath, queryKeys } from "@/query/keys";
 import { scanLibrary } from "@/services/api";
-import { getCatalogStatusPresentation } from "@/lib/catalog/labels";
+import { CATALOG_STATUS_UNAVAILABLE_PRESENTATION, getCatalogStatusPresentation } from "@/lib/catalog/labels";
 import { STATUS_CONTRACT_ERROR_MESSAGE, isStatusContractError } from "@/lib/catalog/contractGuard";
 import { formatLibraryTimestamp } from "@/utils/libraryStatus";
 import type { UnifiedStatus } from "@/lib/catalog/status";
@@ -42,7 +42,7 @@ const isLibraryScope = computed(() => !normalizedPath.value || isSingleImportPat
 const statusScopePath = computed(() => (isLibraryScope.value ? null : pathRef.value));
 const queryEnabled = computed(() => Boolean(libraryId.value));
 
-const { data, isLoading, isError, error, refetch, contractError } = useCatalogStatusQuery(
+const { data, isLoading, error, refetch, contractError } = useCatalogStatusQuery(
   libraryId,
   statusScopePath,
   queryEnabled,
@@ -50,6 +50,11 @@ const { data, isLoading, isError, error, refetch, contractError } = useCatalogSt
 
 const status = computed<UnifiedStatus | null>(() => data.value?.status ?? null);
 const presentation = computed(() => getCatalogStatusPresentation(status.value?.summary_state ?? null));
+const statusLoadError = computed(() => contractError.value ?? (error.value as Error | null));
+const hasStatusLoadError = computed(() => Boolean(statusLoadError.value));
+const effectivePresentation = computed(() =>
+  hasStatusLoadError.value ? CATALOG_STATUS_UNAVAILABLE_PRESENTATION : presentation.value,
+);
 const globalWorkOutsideScope = computed(() => status.value?.metadata.global_active_outside_scope ?? false);
 const mediaFilesFound = computed(() => status.value?.metadata.total_assets ?? 0);
 const mediaMetadataReady = computed(() => status.value?.metadata.ready_assets ?? 0);
@@ -62,7 +67,7 @@ const isIndexing = computed(
 const isScanning = computed(() => status.value?.scan.state === "queued" || status.value?.scan.state === "scanning");
 const errorMessage = computed(() => {
   if (contractError.value) return STATUS_CONTRACT_ERROR_MESSAGE;
-  return (error.value as Error | null)?.message || "Failed to load status";
+  return statusLoadError.value?.message || "Failed to load status";
 });
 
 const showDetails = ref(false);
@@ -150,12 +155,12 @@ function formatCount(value: number) {
   <IndexStatusCard
     v-if="variant === 'card'"
     :status="status"
-    :presentation="presentation"
+    :presentation="effectivePresentation"
     :path="path"
     :is-library-scope="isLibraryScope"
     :scope-label="scopeLabel"
     :is-loading="isLoading"
-    :is-error="isError"
+    :is-error="hasStatusLoadError"
     :error-message="errorMessage"
     :global-work-outside-scope="globalWorkOutsideScope"
     :action-pending="actionPending"
@@ -178,15 +183,15 @@ function formatCount(value: number) {
               <span class="relative inline-flex">
                 <Database class="size-3.5" data-testid="catalog-database-icon" />
                 <PillIndicator
-                  :variant="presentation.indicator"
-                  :pulse="presentation.showPulse"
+                  :variant="effectivePresentation.indicator"
+                  :pulse="effectivePresentation.showPulse"
                   class="absolute -bottom-0.5 -right-0.5 hidden group-data-[collapsible=icon]:flex"
                   aria-hidden="true"
                   data-testid="catalog-status-icon-indicator"
                 />
               </span>
               <IndexStatusBadge
-                :presentation="presentation"
+                :presentation="effectivePresentation"
                 size="compact"
                 class="group-data-[collapsible=icon]:hidden"
               />
@@ -207,7 +212,7 @@ function formatCount(value: number) {
         <span>{{ STATUS_CONTRACT_ERROR_MESSAGE }}</span>
       </div>
 
-      <div v-else-if="isError" class="flex items-start gap-2 text-sm">
+      <div v-else-if="hasStatusLoadError" class="flex items-start gap-2 text-sm">
         <AlertCircle class="size-4 text-destructive shrink-0 mt-0.5" />
         <span class="text-destructive">{{ errorMessage }}</span>
       </div>
@@ -218,7 +223,7 @@ function formatCount(value: number) {
             <Database class="size-4 text-muted-foreground" />
             <span class="text-sm font-medium">File catalog</span>
           </div>
-          <IndexStatusBadge :presentation="presentation" />
+          <IndexStatusBadge :presentation="effectivePresentation" />
         </div>
 
         <div class="space-y-1.5">
