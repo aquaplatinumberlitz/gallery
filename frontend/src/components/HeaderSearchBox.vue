@@ -181,7 +181,7 @@ const hasQuery = computed(() => props.modelValue.length > 0);
     height: 36px;
     padding: 0 10px;
     gap: 6px;
-    border: 1px solid rgba(0, 0, 0, 0.12);
+    border: 1px solid var(--input);
     border-radius: 10px;
     background: var(--card);
     transition:

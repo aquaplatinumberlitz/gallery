@@ -275,7 +275,7 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
 }
 
 .sort-option:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
 }
 
 .sort-option.active {
@@ -303,7 +303,7 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
 }
 
 .density-option:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
 }
 
 .density-option.active {

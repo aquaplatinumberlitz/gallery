@@ -1227,7 +1227,7 @@ useIntersectionObserver(
   justify-content: center;
 
   &:hover {
-    background: rgba(0, 0, 0, 0.05);
+    background: color-mix(in srgb, var(--foreground) 5%, transparent);
   }
 }
 
@@ -1446,7 +1446,7 @@ useIntersectionObserver(
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  background: rgba(0, 0, 0, 0.04);
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
   color: var(--foreground);
   border-radius: 10px;
 }

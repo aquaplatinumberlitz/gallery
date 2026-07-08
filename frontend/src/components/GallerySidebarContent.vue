@@ -76,7 +76,7 @@ const indexStatusVariant = computed(() => (isMobile.value || isCollapsed.value ?
   gap: 6px;
   padding: 6px 10px;
   border-radius: 12px;
-  background: rgba(0, 0, 0, 0.04);
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
   font-size: 12px;
 }
 
