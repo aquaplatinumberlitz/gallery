@@ -1,11 +1,16 @@
 import { ref } from "vue";
 import { useToast } from "./useToast";
 
+interface CopyTextOptions {
+  fallbackRoot?: HTMLElement | null;
+}
+
 export function useClipboard() {
   const toast = useToast();
   const copyStatus = ref<Record<string, boolean>>({});
 
   function getCopyLabel(id: string): string {
+    if (id.startsWith("seed:")) return "Seed";
     switch (id) {
       case "prompt":
         return "Prompt";
@@ -20,7 +25,7 @@ export function useClipboard() {
     }
   }
 
-  async function writeClipboardText(text: string) {
+  async function writeClipboardText(text: string, options: CopyTextOptions = {}) {
     if (navigator.clipboard?.writeText) {
       try {
         await navigator.clipboard.writeText(text);
@@ -38,13 +43,17 @@ export function useClipboard() {
     textarea.style.top = "0";
     textarea.style.left = "-9999px";
     textarea.style.opacity = "0";
-    document.body.appendChild(textarea);
+    const fallbackRoot = options.fallbackRoot ?? document.body;
+    fallbackRoot.appendChild(textarea);
 
     const previousSelection = document.getSelection()?.rangeCount ? document.getSelection()?.getRangeAt(0) : null;
     textarea.focus();
     textarea.select();
 
     try {
+      const hasTextareaSelection =
+        document.activeElement === textarea && textarea.selectionStart === 0 && textarea.selectionEnd === text.length;
+      if (!hasTextareaSelection) throw new Error("Clipboard fallback could not retain textarea selection");
       const copied = document.execCommand?.("copy") === true;
       if (!copied) throw new Error("Clipboard fallback returned false");
     } finally {
@@ -57,10 +66,10 @@ export function useClipboard() {
     }
   }
 
-  async function copyText(text: string | undefined, id: string) {
+  async function copyText(text: string | undefined, id: string, options: CopyTextOptions = {}) {
     if (!text) return;
     try {
-      await writeClipboardText(String(text));
+      await writeClipboardText(String(text), options);
 
       copyStatus.value[id] = true;
       const label = getCopyLabel(id);

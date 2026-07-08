@@ -58,6 +58,10 @@ describe("useClipboard", () => {
     });
   }
 
+  function forceClipboardFallback() {
+    setClipboardWriteText(vi.fn().mockRejectedValue(new Error("denied")));
+  }
+
   it("does nothing when text is undefined", async () => {
     const { result } = withSetup(() => useClipboard());
     await result.copyText(undefined, "prompt");
@@ -81,9 +85,8 @@ describe("useClipboard", () => {
   });
 
   it("falls back to execCommand when clipboard API rejects", async () => {
-    const writeText = vi.fn().mockRejectedValue(new Error("denied"));
     const execCommand = vi.fn().mockReturnValue(true);
-    setClipboardWriteText(writeText);
+    forceClipboardFallback();
     Object.defineProperty(document, "execCommand", {
       configurable: true,
       value: execCommand,
@@ -93,6 +96,50 @@ describe("useClipboard", () => {
     await result.copyText("hello", "prompt");
     expect(execCommand).toHaveBeenCalledWith("copy");
     expect(result.copyStatus.value.prompt).toBe(true);
+  });
+
+  it("uses the provided fallback root for legacy clipboard writes", async () => {
+    forceClipboardFallback();
+    const fallbackRoot = document.createElement("div");
+    document.body.appendChild(fallbackRoot);
+    const execCommand = vi.fn(() => {
+      expect(fallbackRoot.querySelector("textarea")).not.toBeNull();
+      return true;
+    });
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: execCommand,
+    });
+    const { result } = withSetup(() => useClipboard());
+    await Promise.resolve();
+    await result.copyText("hello", "prompt", { fallbackRoot });
+    expect(execCommand).toHaveBeenCalledWith("copy");
+    expect(result.copyStatus.value.prompt).toBe(true);
+    fallbackRoot.remove();
+  });
+
+  it("does not report success when fallback focus is stolen before copy", async () => {
+    forceClipboardFallback();
+    const focusTarget = document.createElement("button");
+    document.body.appendChild(focusTarget);
+    const focusSpy = vi.spyOn(HTMLTextAreaElement.prototype, "focus").mockImplementation(() => {
+      focusTarget.focus();
+    });
+    const execCommand = vi.fn().mockReturnValue(true);
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: execCommand,
+    });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { result } = withSetup(() => useClipboard());
+    await Promise.resolve();
+    await result.copyText("hello", "prompt");
+    expect(execCommand).not.toHaveBeenCalled();
+    expect(result.copyStatus.value.prompt).toBeUndefined();
+    expect(mocks.mockSonnerError).toHaveBeenCalledWith("Copy failed", expect.any(Object));
+    focusSpy.mockRestore();
+    errorSpy.mockRestore();
+    focusTarget.remove();
   });
 
   it("shows a success toast with a per-id label after copying", async () => {
@@ -140,8 +187,7 @@ describe("useClipboard", () => {
   });
 
   it("shows an error toast when the clipboard API call fails", async () => {
-    const writeText = vi.fn().mockRejectedValue(new Error("denied"));
-    setClipboardWriteText(writeText);
+    forceClipboardFallback();
     Object.defineProperty(document, "execCommand", {
       configurable: true,
       value: vi.fn().mockReturnValue(false),

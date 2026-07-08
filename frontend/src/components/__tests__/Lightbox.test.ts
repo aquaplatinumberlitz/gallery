@@ -6,6 +6,10 @@ import { createIsolatedQueryClient } from "@/test/queryClient";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { FocusScope } from "reka-ui";
 
+const clipboardMocks = vi.hoisted(() => ({
+  copyText: vi.fn(),
+}));
+
 /* ============================================================
    FocusScope tests (kept from original)
    ============================================================ */
@@ -138,7 +142,7 @@ vi.mock("@/composables/useDevice", () => ({
 }));
 
 vi.mock("@/composables/useClipboard", () => ({
-  useClipboard: () => ({ copyStatus: {}, copyText: vi.fn() }),
+  useClipboard: () => ({ copyStatus: {}, copyText: clipboardMocks.copyText }),
 }));
 
 vi.mock("@/composables/usePhotoMetadataQuery", () => ({
@@ -161,8 +165,11 @@ const STUBS = {
   Teleport: { template: "<div><slot /></div>" },
   Transition: { template: "<div><slot /></div>" },
   FocusScope: { template: "<div><slot /></div>" },
-  PhotoSwipeViewer: { template: "<div data-testid='pswp-viewer' />" },
-  LightboxDesktopPanel: { template: "<div data-testid='desktop-panel' />" },
+  PhotoSwipeViewer: { template: "<div data-testid='pswp-viewer' class='pswp pswp--open' />" },
+  LightboxDesktopPanel: {
+    props: ["copyText"],
+    template: "<button data-testid='desktop-panel' @click=\"copyText('prompt text', 'prompt')\">Copy</button>",
+  },
   LightboxTabletPanel: { template: "<div data-testid='tablet-panel' />" },
   LightboxMobileSheet: { template: "<div data-testid='mobile-sheet' />" },
   MobilePhotoSwipe: { template: "<div data-testid='mobile-pswp' />" },
@@ -202,6 +209,13 @@ describe("Lightbox component", () => {
   it("renders desktop panel on desktop", async () => {
     const wrapper = await mountSubject();
     expect(wrapper.find('[data-testid="desktop-panel"]').exists()).toBe(true);
+  });
+
+  it("passes the open PhotoSwipe element as clipboard fallback root", async () => {
+    const wrapper = await mountSubject();
+    await wrapper.find('[data-testid="desktop-panel"]').trigger("click");
+    const fallbackRoot = wrapper.find(".pswp.pswp--open").element;
+    expect(clipboardMocks.copyText).toHaveBeenCalledWith("prompt text", "prompt", { fallbackRoot });
   });
 
   it("renders image counter with correct format on desktop", async () => {

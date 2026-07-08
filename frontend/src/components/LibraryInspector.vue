@@ -9,7 +9,7 @@ import {
   type VisibilityState,
 } from "@tanstack/vue-table";
 import { useVirtualizer } from "@tanstack/vue-virtual";
-import { ArrowUpDown, Columns3, Copy, ExternalLink, MoreHorizontal, Search, X } from "lucide-vue-next";
+import { ArrowUpDown, Check, Columns3, Copy, ExternalLink, MoreHorizontal, Search, X } from "lucide-vue-next";
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
 import Input from "@/components/ui/Input.vue";
@@ -53,7 +53,7 @@ import type {
 
 const galleryStore = useGalleryStore();
 const lightboxStore = useLightboxStore();
-const { copyText } = useClipboard();
+const { copyStatus, copyText } = useClipboard();
 const toast = useToast();
 
 const query = computed({
@@ -110,6 +110,7 @@ const detailEnabled = ref(false);
 const rowMenuOpen = ref<Record<string, boolean>>({});
 const tableShellRef = ref<HTMLElement | null>(null);
 const hasRestoredScroll = ref(false);
+let latestCopyFallbackRoot: HTMLElement | null = null;
 
 const inspectorQuery = useInfiniteLibraryInspectorQuery(query, scope, currentPath, limit, inspectorSort);
 const metadataQuery = useLibraryInspectorMetadataQuery(detailPath, detailEnabled);
@@ -576,28 +577,60 @@ function displayResources(resources: LibraryInspectorResource[], fallbackPreview
     .filter((item) => item.name);
 }
 
+function seedCopyId(row: LibraryInspectorRow) {
+  return `seed:${row.path}`;
+}
+
+function getCopyFallbackRoot(event?: Event) {
+  if (!event) return null;
+  const candidates = [event.currentTarget, event.target, ...event.composedPath()];
+  for (const candidate of candidates) {
+    if (!(candidate instanceof HTMLElement)) continue;
+    return candidate.closest<HTMLElement>('[role="menuitem"], [role="menu"]') ?? candidate;
+  }
+  return null;
+}
+
+function resolveCopyFallbackRoot(event?: Event) {
+  return getCopyFallbackRoot(event) ?? (latestCopyFallbackRoot?.isConnected ? latestCopyFallbackRoot : null);
+}
+
+function captureCopyFallbackRoot(event: Event) {
+  latestCopyFallbackRoot = getCopyFallbackRoot(event);
+}
+
+function copyMetadataText(event: Event, text: string | undefined, id: string) {
+  return copyText(text, id, { fallbackRoot: resolveCopyFallbackRoot(event) });
+}
+
+function copySeed(event: Event, row: LibraryInspectorRow) {
+  return copyText(row.seed, seedCopyId(row), { fallbackRoot: resolveCopyFallbackRoot(event) });
+}
+
 async function copyDetail(
   row: LibraryInspectorRow,
   kind: "prompt" | "negative" | "metadata" | "loras",
+  event?: Event,
 ): Promise<boolean> {
   try {
+    const fallbackRoot = resolveCopyFallbackRoot(event);
     const detail = await queryClient.fetchQuery({
       queryKey: queryKeys.libraryInspectorMetadata(row.path),
       queryFn: () => fetchLibraryInspectorMetadata(row.path),
     });
     if (kind === "prompt") {
-      await copyText(detail.prompt, "prompt");
+      await copyText(detail.prompt, "prompt", { fallbackRoot });
       return true;
     }
     if (kind === "negative") {
-      await copyText(detail.negative_prompt, "neg");
+      await copyText(detail.negative_prompt, "neg", { fallbackRoot });
       return true;
     }
     if (kind === "loras") {
-      await copyText(formatResources(detail.loras), "loras");
+      await copyText(formatResources(detail.loras), "loras", { fallbackRoot });
       return true;
     }
-    await copyText(composeMetadata(detail), "metadata");
+    await copyText(composeMetadata(detail), "metadata", { fallbackRoot });
     return true;
   } catch {
     toast.error("Unable to load metadata", "The indexed metadata detail could not be fetched.");
@@ -611,7 +644,7 @@ function handleCopyDetailSelect(
   kind: "prompt" | "negative" | "metadata" | "loras",
 ) {
   event.preventDefault();
-  copyDetail(row, kind).then((ok) => {
+  copyDetail(row, kind, event).then((ok) => {
     if (ok) rowMenuOpen.value[row.path] = false;
   });
 }
@@ -870,7 +903,7 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                           <Button
                             size="sm"
                             variant="secondary"
-                            @click="copyText(visibleTableRows[virtualRow.index].original.path, 'path')"
+                            @click="copyMetadataText($event, visibleTableRows[virtualRow.index].original.path, 'path')"
                           >
                             <Copy class="size-4" /> Copy full path
                           </Button>
@@ -939,21 +972,21 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                           <Button
                             size="sm"
                             variant="secondary"
-                            @click="copyDetail(visibleTableRows[virtualRow.index].original, 'prompt')"
+                            @click="copyDetail(visibleTableRows[virtualRow.index].original, 'prompt', $event)"
                           >
                             Copy prompt
                           </Button>
                           <Button
                             size="sm"
                             variant="secondary"
-                            @click="copyDetail(visibleTableRows[virtualRow.index].original, 'negative')"
+                            @click="copyDetail(visibleTableRows[virtualRow.index].original, 'negative', $event)"
                           >
                             Copy negative
                           </Button>
                           <Button
                             size="sm"
                             variant="secondary"
-                            @click="copyDetail(visibleTableRows[virtualRow.index].original, 'metadata')"
+                            @click="copyDetail(visibleTableRows[virtualRow.index].original, 'metadata', $event)"
                           >
                             Copy full metadata
                           </Button>
@@ -1038,14 +1071,14 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                           <Button
                             size="sm"
                             variant="secondary"
-                            @click="copyDetail(visibleTableRows[virtualRow.index].original, 'loras')"
+                            @click="copyDetail(visibleTableRows[virtualRow.index].original, 'loras', $event)"
                           >
                             Copy LoRA list
                           </Button>
                           <Button
                             size="sm"
                             variant="secondary"
-                            @click="copyDetail(visibleTableRows[virtualRow.index].original, 'metadata')"
+                            @click="copyDetail(visibleTableRows[virtualRow.index].original, 'metadata', $event)"
                           >
                             Copy full metadata
                           </Button>
@@ -1062,10 +1095,16 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                       class="inline-flex cursor-copy items-center gap-1 rounded-sm font-mono text-xs hover:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                       type="button"
                       :aria-label="`Copy seed ${visibleTableRows[virtualRow.index].original.seed}`"
-                      @click.stop="copyText(visibleTableRows[virtualRow.index].original.seed, 'seed')"
+                      @click.stop="copySeed($event, visibleTableRows[virtualRow.index].original)"
                     >
                       <span>{{ visibleTableRows[virtualRow.index].original.seed }}</span>
-                      <Copy class="seed-copy-icon size-3" aria-hidden="true" />
+                      <span
+                        class="seed-copy-icon"
+                        :class="{ 'is-copied': copyStatus[seedCopyId(visibleTableRows[virtualRow.index].original)] }"
+                      >
+                        <Check class="seed-copy-check size-3" aria-hidden="true" />
+                        <Copy class="seed-copy-default size-3" aria-hidden="true" />
+                      </span>
                     </button>
                   </TooltipTrigger>
                   <TooltipContent>Copy seed</TooltipContent>
@@ -1104,12 +1143,14 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                     <DropdownMenuSeparator />
                     <DropdownMenuLabel class="text-xs text-muted-foreground">Copy basic</DropdownMenuLabel>
                     <DropdownMenuGroup>
-                      <DropdownMenuItem @click="copyText(visibleTableRows[virtualRow.index].original.path, 'path')">
+                      <DropdownMenuItem
+                        @click="copyMetadataText($event, visibleTableRows[virtualRow.index].original.path, 'path')"
+                      >
                         <Copy class="size-4" /> Copy path
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         v-if="visibleTableRows[virtualRow.index].original.seed"
-                        @click="copyText(visibleTableRows[virtualRow.index].original.seed, 'seed')"
+                        @click="copySeed($event, visibleTableRows[virtualRow.index].original)"
                       >
                         <Copy class="size-4" /> Copy seed
                       </DropdownMenuItem>
@@ -1119,6 +1160,8 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                     <DropdownMenuGroup>
                       <DropdownMenuItem
                         v-if="visibleTableRows[virtualRow.index].original.has_prompt"
+                        @pointerdown="captureCopyFallbackRoot"
+                        @focus="captureCopyFallbackRoot"
                         @select="
                           (event: Event) =>
                             handleCopyDetailSelect(event, visibleTableRows[virtualRow.index].original, 'prompt')
@@ -1128,6 +1171,8 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         v-if="visibleTableRows[virtualRow.index].original.has_negative"
+                        @pointerdown="captureCopyFallbackRoot"
+                        @focus="captureCopyFallbackRoot"
                         @select="
                           (event: Event) =>
                             handleCopyDetailSelect(event, visibleTableRows[virtualRow.index].original, 'negative')
@@ -1137,6 +1182,8 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         v-if="visibleTableRows[virtualRow.index].original.has_lora"
+                        @pointerdown="captureCopyFallbackRoot"
+                        @focus="captureCopyFallbackRoot"
                         @select="
                           (event: Event) =>
                             handleCopyDetailSelect(event, visibleTableRows[virtualRow.index].original, 'loras')
@@ -1145,6 +1192,8 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                         <Copy class="size-4" /> Copy LoRA list
                       </DropdownMenuItem>
                       <DropdownMenuItem
+                        @pointerdown="captureCopyFallbackRoot"
+                        @focus="captureCopyFallbackRoot"
                         @select="
                           (event: Event) =>
                             handleCopyDetailSelect(event, visibleTableRows[virtualRow.index].original, 'metadata')
@@ -1568,12 +1617,40 @@ button.metadata-header-control:focus-visible {
 }
 
 .seed-copy-icon {
+  display: inline-grid;
+  width: 0.75rem;
+  height: 0.75rem;
+  place-items: center;
   opacity: 0;
   transition: opacity 120ms ease;
 }
 
+.seed-copy-check,
+.seed-copy-default {
+  grid-area: 1 / 1;
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.seed-copy-check {
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+.seed-copy-icon.is-copied .seed-copy-default {
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+.seed-copy-icon.is-copied .seed-copy-check {
+  opacity: 1;
+  transform: scale(1);
+}
+
 .col-seed button:hover .seed-copy-icon,
-.col-seed button:focus-visible .seed-copy-icon {
+.col-seed button:focus-visible .seed-copy-icon,
+.col-seed button .seed-copy-icon.is-copied {
   opacity: 0.55;
 }
 

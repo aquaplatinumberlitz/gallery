@@ -64,6 +64,14 @@ const desktopPaddingFn = (_viewportSize: { x: number; y: number }, _itemData: un
   right: isFullscreen.value ? 0 : DESKTOP_METADATA_WIDTH,
 });
 
+function getLightboxClipboardFallbackRoot() {
+  return lightboxRef.value?.querySelector<HTMLElement>(".pswp.pswp--open") ?? null;
+}
+
+function copyLightboxText(text: string | undefined, id: string) {
+  return copyText(text, id, { fallbackRoot: getLightboxClipboardFallbackRoot() });
+}
+
 function handleClose() {
   if (isFullscreen.value) {
     exitFullscreen();
@@ -287,7 +295,7 @@ function handleToggleFullscreen() {
               :can-fullscreen="canFullscreen"
               :is-fullscreen="isFullscreen"
               :copy-status="copyStatus"
-              :copy-text="copyText"
+              :copy-text="copyLightboxText"
               @close="handleClose"
               @toggle-fullscreen="handleToggleFullscreen"
             />
@@ -332,7 +340,7 @@ function handleToggleFullscreen() {
               :date-text="dateText"
               :gen-time-text="genTimeText"
               :copy-status="copyStatus"
-              :copy-text="copyText"
+              :copy-text="copyLightboxText"
               @close="handleSheetClosed"
             />
             <!-- Image counter for screen readers -->
@@ -359,7 +367,7 @@ function handleToggleFullscreen() {
               :meta="meta"
               :is-loading="isLoading"
               :copy-status="copyStatus"
-              :copy-text="copyText"
+              :copy-text="copyLightboxText"
               @close="handleSheetClosed"
             />
           </template>
