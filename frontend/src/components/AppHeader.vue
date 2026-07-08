@@ -390,7 +390,7 @@ function handleClearAll() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        class="advanced-search-btn search-action-btn"
+                        class="advanced-search-btn search-action-btn size-7 p-0"
                         type="button"
                         :class="{ 'text-primary': isFieldedSearchActive }"
                         aria-label="Advanced Search"
