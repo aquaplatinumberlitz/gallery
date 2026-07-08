@@ -380,7 +380,7 @@ function formatMiddlePath(value: string, maxLength = 34) {
   margin: 0;
   border-radius: var(--gallery-radius-md);
   background: var(--gallery-warning-bg);
-  color: #92400e;
+  color: var(--gallery-warning-fg);
   padding: 7px 9px;
   font-size: 11px;
   line-height: 1.35;

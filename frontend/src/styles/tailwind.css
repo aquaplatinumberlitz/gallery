@@ -52,10 +52,13 @@
   /* Semantic — keep existing gallery values for non-shadcn use */
   --color-success: var(--gallery-success);
   --color-success-bg: var(--gallery-success-bg);
+  --color-success-fg: var(--gallery-success-fg);
   --color-warning: var(--gallery-warning);
   --color-warning-bg: var(--gallery-warning-bg);
+  --color-warning-fg: var(--gallery-warning-fg);
   --color-error: var(--gallery-error);
   --color-error-bg: var(--gallery-error-bg);
+  --color-error-fg: var(--gallery-error-fg);
   --color-info: var(--gallery-info);
   --color-info-bg: var(--gallery-info-bg);
 

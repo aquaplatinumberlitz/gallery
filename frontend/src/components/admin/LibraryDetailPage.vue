@@ -330,7 +330,7 @@ function estimatedAssets(): number | undefined {
 
 <template>
   <main
-    class="h-full overflow-y-auto rounded-xl bg-card p-4 text-foreground shadow-sm ring-1 ring-border/70 sm:p-6"
+    class="h-full overflow-y-auto rounded-xl bg-card p-4 text-foreground shadow-sm ring-1 ring-border sm:p-6"
     aria-labelledby="library-heading"
   >
     <div class="mx-auto max-w-6xl space-y-6">
@@ -338,7 +338,7 @@ function estimatedAssets(): number | undefined {
 
       <div
         v-if="!libraryId || libraryQuery.isError.value"
-        class="grid min-h-72 place-items-center rounded-lg border border-dashed border-border/60 bg-card p-8 text-center shadow-sm"
+        class="grid min-h-72 place-items-center rounded-lg border border-dashed border-border bg-card p-8 text-center shadow-sm"
       >
         <div class="space-y-3">
           <h2 class="text-xl font-semibold">Library not found</h2>
@@ -373,14 +373,14 @@ function estimatedAssets(): number | undefined {
           <div class="flex flex-wrap gap-2">
             <Button
               variant="outline"
-              class="border-border/80 bg-card text-foreground shadow-sm hover:bg-muted/70"
+              class="border-border bg-card text-foreground shadow-sm hover:bg-muted/70"
               @click="useInGallery"
             >
               <Images data-icon="inline-start" /> Open gallery
             </Button>
             <Button
               variant="outline"
-              class="border-border/80 bg-card text-foreground shadow-sm hover:bg-muted/70"
+              class="border-border bg-card text-foreground shadow-sm hover:bg-muted/70"
               :disabled="busy"
               @click="scanMutation.mutate({ id: library.id })"
             >
@@ -388,7 +388,7 @@ function estimatedAssets(): number | undefined {
             </Button>
             <Button
               variant="outline"
-              class="border-border/80 bg-card text-foreground shadow-sm hover:bg-muted/70"
+              class="border-border bg-card text-foreground shadow-sm hover:bg-muted/70"
               @click="editOpen = true"
             >
               <Pencil data-icon="inline-start" /> Edit
@@ -581,7 +581,7 @@ function estimatedAssets(): number | undefined {
                   <div
                     v-for="tile in statusTiles"
                     :key="tile.key"
-                    class="rounded-md border border-border/70 bg-muted/60 p-3"
+                    class="rounded-md border border-border bg-muted/60 p-3"
                   >
                     <p class="text-xs font-medium text-muted-foreground">{{ tile.label }}</p>
                     <p class="mt-1 flex items-center gap-1.5 font-semibold" :class="statusTileTone[tile.tone]">
@@ -625,7 +625,7 @@ function estimatedAssets(): number | undefined {
                 </div>
 
                 <template v-if="thumbnails">
-                  <div class="rounded-md border border-border/70 bg-muted/60 p-3">
+                  <div class="rounded-md border border-border bg-muted/60 p-3">
                     <div class="flex items-start justify-between gap-3">
                       <div class="min-w-0">
                         <div class="flex min-w-0 items-center gap-2.5">
@@ -662,15 +662,15 @@ function estimatedAssets(): number | undefined {
                     "
                   />
                   <div class="grid gap-3 text-sm sm:grid-cols-3">
-                    <div class="rounded-md border border-border/70 bg-muted/60 p-3">
+                    <div class="rounded-md border border-border bg-muted/60 p-3">
                       <p class="text-xs font-medium text-muted-foreground">Cache size</p>
                       <p class="mt-1 font-semibold text-foreground">{{ formatBytes(thumbnails.quota_used_bytes) }}</p>
                     </div>
-                    <div class="rounded-md border border-border/70 bg-muted/60 p-3">
+                    <div class="rounded-md border border-border bg-muted/60 p-3">
                       <p class="text-xs font-medium text-muted-foreground">Limit</p>
                       <p class="mt-1 font-semibold text-foreground">{{ formatBytes(thumbnails.quota_bytes) }}</p>
                     </div>
-                    <div class="rounded-md border border-border/70 bg-muted/60 p-3">
+                    <div class="rounded-md border border-border bg-muted/60 p-3">
                       <p class="text-xs font-medium text-muted-foreground">{{ derivativeCacheState.label }}</p>
                       <p class="mt-1 font-semibold" :class="derivativeCacheState.tone">
                         {{ derivativeCacheState.value }}
@@ -707,7 +707,7 @@ function estimatedAssets(): number | undefined {
             <Button
               variant="outline"
               size="sm"
-              class="border-border/80 bg-card text-foreground shadow-sm hover:bg-muted/70"
+              class="border-border bg-card text-foreground shadow-sm hover:bg-muted/70"
               @click="editOpen = true"
             >
               <Pencil data-icon="inline-start" />
@@ -725,7 +725,7 @@ function estimatedAssets(): number | undefined {
                   <div
                     v-for="path in library.import_paths"
                     :key="path.id"
-                    class="flex min-w-0 items-center gap-2 rounded-md border border-border/70 bg-muted/60 px-3 py-2"
+                    class="flex min-w-0 items-center gap-2 rounded-md border border-border bg-muted/60 px-3 py-2"
                   >
                     <OverflowTooltip :text="path.path" class="min-w-0 flex-1 font-mono text-xs" align="start">
                       {{ path.path }}
@@ -759,7 +759,7 @@ function estimatedAssets(): number | undefined {
                     {{ pattern }}
                   </code>
                 </div>
-                <div v-else class="mt-3 rounded-md border border-dashed border-border/70 bg-muted/30 p-3">
+                <div v-else class="mt-3 rounded-md border border-dashed border-border bg-muted/30 p-3">
                   <p class="text-sm text-muted-foreground">None configured</p>
                   <Button variant="ghost" size="sm" class="mt-2 h-8 px-2" @click="editOpen = true">Add pattern</Button>
                 </div>
@@ -780,7 +780,7 @@ function estimatedAssets(): number | undefined {
                   :to="{ name: 'admin-library-jobs', params: { id: library.id } }"
                   variant="outline"
                   size="sm"
-                  class="border-border/80 bg-card text-foreground shadow-sm hover:bg-muted/70"
+                  class="border-border bg-card text-foreground shadow-sm hover:bg-muted/70"
                 >
                   View all jobs
                 </ButtonLink>

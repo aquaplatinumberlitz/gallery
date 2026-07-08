@@ -90,7 +90,7 @@ function created(library: RegisteredLibrary) {
 
 <template>
   <main
-    class="h-full overflow-y-auto rounded-xl bg-card p-4 text-foreground shadow-sm ring-1 ring-border/70 sm:p-6"
+    class="h-full overflow-y-auto rounded-xl bg-card p-4 text-foreground shadow-sm ring-1 ring-border sm:p-6"
     aria-labelledby="libraries-heading"
   >
     <div class="mx-auto max-w-7xl space-y-6">
@@ -105,7 +105,7 @@ function created(library: RegisteredLibrary) {
         <div class="flex flex-wrap gap-2">
           <Button
             variant="outline"
-            class="border-border/80 bg-card text-foreground shadow-sm hover:bg-muted/70"
+            class="border-border bg-card text-foreground shadow-sm hover:bg-muted/70"
             :disabled="scanAllMutation.isPending.value || libraries.length === 0"
             @click="scanAllMutation.mutate()"
           >
@@ -177,7 +177,7 @@ function created(library: RegisteredLibrary) {
 
       <section
         v-else-if="libraries.length === 0"
-        class="grid min-h-72 place-items-center rounded-lg border border-dashed border-border/60 bg-card p-8 text-center shadow-sm"
+        class="grid min-h-72 place-items-center rounded-lg border border-dashed border-border bg-card p-8 text-center shadow-sm"
       >
         <div class="max-w-md space-y-3">
           <Library class="mx-auto size-10 text-muted-foreground" />

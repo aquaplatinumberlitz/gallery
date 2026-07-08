@@ -142,7 +142,7 @@ const needsRefreshCount = computed(() => {
 
 <template>
   <main
-    class="h-full overflow-y-auto rounded-xl bg-card p-4 text-foreground shadow-sm ring-1 ring-border/70 sm:p-6"
+    class="h-full overflow-y-auto rounded-xl bg-card p-4 text-foreground shadow-sm ring-1 ring-border sm:p-6"
     aria-labelledby="maintenance-heading"
   >
     <div class="mx-auto max-w-6xl space-y-6">
@@ -159,7 +159,7 @@ const needsRefreshCount = computed(() => {
         <div class="flex flex-wrap gap-2">
           <Button
             variant="outline"
-            class="h-9 border-border/80 bg-card px-4 py-2 text-sm text-foreground shadow-sm transition-all has-[>svg]:px-3 hover:bg-muted/70"
+            class="h-9 border-border bg-card px-4 py-2 text-sm text-foreground shadow-sm transition-all has-[>svg]:px-3 hover:bg-muted/70"
             :disabled="rebuildMutation.isPending.value"
             @click="rebuildOpen = true"
           >
@@ -287,7 +287,7 @@ const needsRefreshCount = computed(() => {
             <div class="mt-4">
               <Button
                 variant="outline"
-                class="border-border/80 bg-card text-foreground shadow-sm hover:bg-muted/70"
+                class="border-border bg-card text-foreground shadow-sm hover:bg-muted/70"
                 :disabled="fileHealthMutation.isPending.value"
                 @click="fileHealthMutation.mutateAsync()"
               >
@@ -330,7 +330,7 @@ const needsRefreshCount = computed(() => {
             </p>
           </div>
           <div class="mt-4 grid gap-4 text-sm sm:grid-cols-4">
-            <div v-for="item in repairKeys" :key="item.key" class="rounded-md border border-border/70 bg-muted/60 p-3">
+            <div v-for="item in repairKeys" :key="item.key" class="rounded-md border border-border bg-muted/60 p-3">
               <p class="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
                 {{ item.label }}
                 <Tooltip>
@@ -696,7 +696,7 @@ const needsRefreshCount = computed(() => {
                 :to="{ name: 'admin-jobs' }"
                 variant="outline"
                 size="sm"
-                class="border-border/80 bg-card text-foreground shadow-sm hover:bg-muted/70"
+                class="border-border bg-card text-foreground shadow-sm hover:bg-muted/70"
               >
                 View all jobs
               </ButtonLink>
