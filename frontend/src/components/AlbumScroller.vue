@@ -16,8 +16,9 @@ const emit = defineEmits<{
 }>();
 
 // ── Collapse state — persist to localStorage via VueUse ──
-const COLLAPSE_KEY = "gallery-albums-collapsed";
-const collapsed = useStorage(COLLAPSE_KEY, true);
+// v2 resets the first-run default to expanded so albums are visibly present.
+const COLLAPSE_KEY = "gallery-albums-collapsed-v2";
+const collapsed = useStorage(COLLAPSE_KEY, false);
 
 function toggleCollapsed() {
   collapsed.value = !collapsed.value;

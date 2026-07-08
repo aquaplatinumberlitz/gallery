@@ -195,7 +195,16 @@ describe("GalleryGrid", () => {
           VideoCard: { template: "<div class='video-card' />" },
           SkeletonLoader: { template: "<div class='skeleton-loader' />" },
           Breadcrumb: { template: "<div class='breadcrumb-stub'><slot /><slot name='actions' /></div>" },
-          EmptyState: { template: "<div class='empty-state' />" },
+          EmptyState: {
+            props: ["title", "description", "actionLabel", "actionIcon"],
+            emits: ["action"],
+            template:
+              "<div class='empty-state'><p data-testid='empty-title'>{{ title }}</p><p data-testid='empty-description'>{{ description }}</p><button v-if='actionLabel' data-testid='empty-action' @click=\"$emit('action')\">{{ actionLabel }}</button><span data-testid='empty-action-icon'>{{ actionIcon }}</span></div>",
+          },
+          ResponsiveLibrarySelector: {
+            props: ["modelValue"],
+            template: "<div data-testid='library-selector' :data-open='String(modelValue)' />",
+          },
           SortSelect: {
             props: ["modelValue", "ariaLabel", "prefix", "triggerLabel", "triggerClass"],
             template: "<select :aria-label='ariaLabel' />",
@@ -242,6 +251,27 @@ describe("GalleryGrid", () => {
   it("shows open-in-explorer button on desktop", async () => {
     const wrapper = await mountSubject();
     expect(wrapper.find('[aria-label="Open current folder in file explorer"]').exists()).toBe(true);
+  });
+
+  it("opens the library selector from the no-library empty state", async () => {
+    const wrapper = await mountSubject({
+      store: {
+        activeLibraryId: null,
+        activeImportPathId: null,
+        activeLibraryHydrated: true,
+        currentBrowsePath: "",
+      },
+    });
+
+    expect(wrapper.get("[data-testid='empty-title']").text()).toBe("No library selected");
+    expect(wrapper.get("[data-testid='empty-description']").text()).toBe(
+      "Choose a library from Active library to load albums and photos.",
+    );
+    expect(wrapper.get("[data-testid='empty-action']").text()).toBe("Choose Library");
+
+    await wrapper.get("[data-testid='empty-action']").trigger("click");
+
+    expect(wrapper.get("[data-testid='library-selector']").attributes("data-open")).toBe("true");
   });
 
   it("shows SortSelect on desktop toolbar", async () => {
