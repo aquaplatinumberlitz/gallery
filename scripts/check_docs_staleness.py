@@ -82,6 +82,32 @@ def check_vue_sonner_in_thirparty() -> list[str]:
     return []
 
 
+def check_agents_handoff() -> list[str]:
+    """Check that root AGENTS.md keeps the AI handoff guardrails discoverable."""
+    agents = REPO_ROOT / "AGENTS.md"
+    if not agents.exists():
+        return ["STALE: root AGENTS.md is missing; AI agent handoff guardrails must stay discoverable"]
+
+    text = agents.read_text(encoding="utf-8")
+    normalized_text = " ".join(text.split())
+    required_patterns: list[tuple[str, str]] = [
+        ("## Reading Order", "must define a reading order"),
+        ("docs/archived/", "must warn that archived docs are historical"),
+        ("docs/research/", "must warn that research docs are historical/contextual"),
+        ("./test.sh docs", "must include the docs validation command"),
+        ("./test.sh lint", "must include the lint validation command"),
+        ("Never revert user changes", "must protect unrelated user work"),
+        ("Backend is FastAPI with SQLite", "must state backend/runtime ownership"),
+        ("Frontend server state belongs in TanStack Query", "must state frontend state ownership"),
+        ("Pinia owns UI/navigation state", "must state frontend UI state ownership"),
+    ]
+    errors: list[str] = []
+    for pattern, reason in required_patterns:
+        if pattern not in normalized_text:
+            errors.append(f"STALE [AGENTS.md]: missing {pattern!r} - {reason}")
+    return errors
+
+
 def main() -> int:
     """Scan docs for stale patterns and report violations."""
     failed = False
@@ -118,6 +144,11 @@ def main() -> int:
 
     # Check vue-sonner presence in THIRD_PARTY_LIBRARIES.md
     for err in check_vue_sonner_in_thirparty():
+        print(err)
+        failed = True
+
+    # Check root AI-agent handoff guardrails.
+    for err in check_agents_handoff():
         print(err)
         failed = True
 

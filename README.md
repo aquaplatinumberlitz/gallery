@@ -227,6 +227,7 @@ query parameters return `422`.
 
 ## Documentation
 
+- [AI Agent Handoff](AGENTS.md) - repo working rules, reading order, source-of-truth guardrails, and test minimums for AI agents
 - [Documentation Index](docs/README.md) - maintained references, testing, research, reports, plans, and archived context
 - [Architecture](docs/ARCHITECTURE.md) - frontend/backend boundaries, data flow, and runtime contracts
 - [Testing Guide](docs/testing/README.md) - test selection, performance testing, catalog, and debug tools

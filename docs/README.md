@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-07-07
+Last reviewed: 2026-07-08
 
 Use this page as the entry point for project documentation. It gives the
 project mental model first, then points to maintained references for details.
@@ -53,6 +53,7 @@ Register library
 
 | Need | Read |
 |---|---|
+| AI agent handoff, repo working rules, source-of-truth guardrails | [AI Agent Handoff](../AGENTS.md) |
 | Runtime architecture, routes, data flow, frontend state ownership | [Architecture](ARCHITECTURE.md) |
 | Environment variables and defaults | [Configuration](CONFIGURATION.md) |
 | Parser precedence, supported generators, normalized metadata shape | [Metadata Parsing](METADATA_PARSING.md) |
