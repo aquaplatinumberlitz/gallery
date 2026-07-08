@@ -283,18 +283,15 @@ pre {
   font-family: var(--font-code);
 }
 
-.sidebar ::-webkit-scrollbar,
 .tree-container ::-webkit-scrollbar {
   width: 6px;
 }
 
-.sidebar ::-webkit-scrollbar-thumb,
 .tree-container ::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--foreground) 18%, transparent);
   border-radius: 6px;
 }
 
-.sidebar ::-webkit-scrollbar-track,
 .tree-container ::-webkit-scrollbar-track {
   background: color-mix(in srgb, var(--foreground) 4%, transparent);
 }

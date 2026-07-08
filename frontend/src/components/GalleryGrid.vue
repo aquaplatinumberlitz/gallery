@@ -1406,12 +1406,12 @@ useIntersectionObserver(
 }
 
 .scroller::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.15);
+  background: color-mix(in srgb, var(--foreground) 15%, transparent);
   border-radius: 6px;
 }
 
 .scroller::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.25);
+  background: color-mix(in srgb, var(--foreground) 25%, transparent);
 }
 
 .folders-only-container {

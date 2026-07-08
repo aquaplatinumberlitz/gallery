@@ -4,46 +4,44 @@
  * shadcn-vue components reference standard shadcn CSS variable names
  * (--background, --foreground, --primary, --muted, --accent, etc.).
  *
- * This file provides NEUTRAL shadcn-vue pixel-level defaults.
- * Gallery warm/orange identity is reserved for the brand hero and
- * explicitly approved brand surfaces, NOT mapped into shadcn tokens.
+ * Warm-tinted neutral palette — chroma 0.008–0.025 toward hue 49–75
+ * gives the museum/gallery warmth without entering the cream/sand band
+ * (C < 0.06). Neutrals stay restrained; accent carries a subtle peach
+ * warmth toward the brand's hue family.
  *
  * Colors only — radius, shadow, and transition are handled by upstream
  * shadcn utility classes.
- *
- * Policy: Standard UI components use shadcn-vue pixel-level defaults.
- * Legacy gallery warm identity is reserved for the brand hero only.
  *
  * Imported AFTER tokens.css, BEFORE Tailwind and main.scss.
  */
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.147 0.004 49.25);
+  --background: oklch(0.995 0.008 75);
+  --foreground: oklch(0.20 0.02 50);
 
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.147 0.004 49.25);
+  --card: oklch(0.995 0.008 75);
+  --card-foreground: oklch(0.20 0.02 50);
 
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.147 0.004 49.25);
+  --popover: oklch(0.995 0.008 75);
+  --popover-foreground: oklch(0.20 0.02 50);
 
-  --primary: oklch(0.216 0.006 56.043);
-  --primary-foreground: oklch(0.985 0.001 106.423);
+  --primary: oklch(0.22 0.02 50);
+  --primary-foreground: oklch(0.985 0.008 75);
 
-  --secondary: oklch(0.97 0.001 106.424);
-  --secondary-foreground: oklch(0.216 0.006 56.043);
+  --secondary: oklch(0.96 0.012 75);
+  --secondary-foreground: oklch(0.22 0.02 50);
 
-  --muted: oklch(0.97 0.001 106.424);
-  --muted-foreground: oklch(0.553 0.013 58.071);
+  --muted: oklch(0.96 0.012 75);
+  --muted-foreground: oklch(0.52 0.02 55);
 
-  --accent: oklch(0.97 0.001 106.424);
-  --accent-foreground: oklch(0.216 0.006 56.043);
+  --accent: oklch(0.95 0.025 60);
+  --accent-foreground: oklch(0.22 0.02 50);
 
   --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0.001 106.423);
+  --destructive-foreground: oklch(0.985 0.008 75);
 
-  --border: oklch(0.923 0.003 48.717);
-  --input: oklch(0.923 0.003 48.717);
+  --border: oklch(0.90 0.012 72);
+  --input: oklch(0.90 0.012 72);
   --ring: oklch(0.709 0.01 56.259);
 
   --radius: 0.625rem;
@@ -56,59 +54,59 @@
   --chart-5: oklch(0.769 0.188 70.08);
 
   /* shadcn sidebar-* tokens (light) */
-  --sidebar: oklch(0.985 0.001 106.423);
-  --sidebar-foreground: oklch(0.147 0.004 49.25);
-  --sidebar-primary: oklch(0.216 0.006 56.043);
-  --sidebar-primary-foreground: oklch(0.985 0.001 106.423);
-  --sidebar-accent: oklch(0.97 0.001 106.424);
-  --sidebar-accent-foreground: oklch(0.216 0.006 56.043);
-  --sidebar-border: oklch(0.923 0.003 48.717);
+  --sidebar: oklch(0.98 0.01 75);
+  --sidebar-foreground: oklch(0.20 0.02 50);
+  --sidebar-primary: oklch(0.22 0.02 50);
+  --sidebar-primary-foreground: oklch(0.985 0.008 75);
+  --sidebar-accent: oklch(0.95 0.025 60);
+  --sidebar-accent-foreground: oklch(0.22 0.02 50);
+  --sidebar-border: oklch(0.90 0.012 72);
   --sidebar-ring: oklch(0.709 0.01 56.259);
 }
 
 [data-theme="dark"] {
-  --background: oklch(0.147 0.004 49.25);
-  --foreground: oklch(0.985 0.001 106.423);
+  --background: oklch(0.115 0.008 283);
+  --foreground: oklch(0.880 0.208 157);
 
-  --card: oklch(0.216 0.006 56.043);
-  --card-foreground: oklch(0.985 0.001 106.423);
+  --card: oklch(0.159 0.008 283);
+  --card-foreground: oklch(1 0 90);
 
-  --popover: oklch(0.216 0.006 56.043);
-  --popover-foreground: oklch(0.985 0.001 106.423);
+  --popover: oklch(0.115 0.008 283);
+  --popover-foreground: oklch(0.880 0.208 157);
 
-  --primary: oklch(0.923 0.003 48.717);
-  --primary-foreground: oklch(0.216 0.006 56.043);
+  --primary: oklch(0.58 0.28 312);
+  --primary-foreground: oklch(1 0 90);
 
-  --secondary: oklch(0.268 0.007 34.298);
-  --secondary-foreground: oklch(0.985 0.001 106.423);
+  --secondary: oklch(0.739 0.158 235);
+  --secondary-foreground: oklch(0.115 0.008 283);
 
-  --muted: oklch(0.268 0.007 34.298);
-  --muted-foreground: oklch(0.709 0.01 56.259);
+  --muted: oklch(0.218 0.008 283);
+  --muted-foreground: oklch(0.62 0.015 157);
 
-  --accent: oklch(0.268 0.007 34.298);
-  --accent-foreground: oklch(0.985 0.001 106.423);
+  --accent: oklch(0.30 0.10 341);
+  --accent-foreground: oklch(0.880 0.208 157);
 
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0.001 106.423);
+  --destructive: oklch(0.52 0.25 22);
+  --destructive-foreground: oklch(1 0 90);
 
-  --border: oklch(0.52 0.006 49.25);
-  --input: oklch(0.54 0.006 49.25);
-  --ring: oklch(0.62 0.013 58.071);
+  --border: oklch(0.50 0.02 283);
+  --input: oklch(0.50 0.02 283);
+  --ring: oklch(0.608 0.297 312);
 
   /* shadcn chart-* tokens (dark) */
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
+  --chart-1: oklch(0.608 0.297 312);
+  --chart-2: oklch(0.880 0.208 157);
+  --chart-3: oklch(0.739 0.158 235);
+  --chart-4: oklch(0.56 0.29 341);
+  --chart-5: oklch(0.96 0.18 100);
 
   /* shadcn sidebar-* tokens (dark) */
-  --sidebar: oklch(0.165 0.005 49.25);
-  --sidebar-foreground: oklch(0.985 0.001 106.423);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0.001 106.423);
-  --sidebar-accent: oklch(0.268 0.007 34.298);
-  --sidebar-accent-foreground: oklch(0.985 0.001 106.423);
-  --sidebar-border: oklch(0.52 0.006 49.25);
-  --sidebar-ring: oklch(0.62 0.013 58.071);
+  --sidebar: oklch(0.085 0.008 283);
+  --sidebar-foreground: oklch(0.627 0.01 157);
+  --sidebar-primary: oklch(0.608 0.297 312);
+  --sidebar-primary-foreground: oklch(1 0 90);
+  --sidebar-accent: oklch(0.30 0.10 341);
+  --sidebar-accent-foreground: oklch(0.880 0.208 157);
+  --sidebar-border: oklch(0.48 0.02 283);
+  --sidebar-ring: oklch(0.608 0.297 312);
 }
