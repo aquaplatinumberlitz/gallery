@@ -167,6 +167,7 @@ async function installStubbedGallery(page: Page) {
           root: rootPath,
           albums: [],
           photos,
+          media: [...photos, ...promptResults],
           prompt: promptResults,
         }),
       });

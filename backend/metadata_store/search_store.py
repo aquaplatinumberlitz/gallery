@@ -833,7 +833,9 @@ def search_index_fielded(
             )
         else:
             album_rows = []
-        media_rows, root, has_more = _search_fielded_media_page(conn, parsed, normalized_scope, root_path, limit, cursor)
+        media_rows, root, has_more = _search_fielded_media_page(
+            conn, parsed, normalized_scope, root_path, limit, cursor
+        )
 
     format_root = root if root is not None else Path(os.sep)
     media = _format_media_rows(media_rows, format_root)

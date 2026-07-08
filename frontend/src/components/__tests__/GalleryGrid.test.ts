@@ -19,6 +19,7 @@ let mockHasActivePage = { value: true };
 const mockRefetch = vi.fn();
 const mockFetchNextPage = vi.fn();
 const mockUseUnifiedSearchQuery = vi.hoisted(() => vi.fn());
+const mockRouterPush = vi.hoisted(() => vi.fn());
 
 vi.mock("@/composables/useInfiniteBrowseQuery", () => ({
   useInfiniteBrowseQuery: () => ({
@@ -146,6 +147,12 @@ vi.mock("@/stores/gallery", () => ({
   useGalleryStore: () => mockStore,
 }));
 
+vi.mock("vue-router", () => ({
+  useRouter: () => ({
+    push: mockRouterPush,
+  }),
+}));
+
 function defaultStoreValues() {
   return {
     errorMessage: "",
@@ -253,7 +260,7 @@ describe("GalleryGrid", () => {
     expect(wrapper.find('[aria-label="Open current folder in file explorer"]').exists()).toBe(true);
   });
 
-  it("opens the library selector from the no-library empty state", async () => {
+  it("opens library management from the no-library empty state", async () => {
     const wrapper = await mountSubject({
       store: {
         activeLibraryId: null,
@@ -265,13 +272,13 @@ describe("GalleryGrid", () => {
 
     expect(wrapper.get("[data-testid='empty-title']").text()).toBe("No library selected");
     expect(wrapper.get("[data-testid='empty-description']").text()).toBe(
-      "Choose a library from Active library to load albums and photos.",
+      "Add or choose a registered library before browsing albums and photos.",
     );
-    expect(wrapper.get("[data-testid='empty-action']").text()).toBe("Choose Library");
+    expect(wrapper.get("[data-testid='empty-action']").text()).toBe("Manage Libraries");
 
     await wrapper.get("[data-testid='empty-action']").trigger("click");
 
-    expect(wrapper.get("[data-testid='library-selector']").attributes("data-open")).toBe("true");
+    expect(mockRouterPush).toHaveBeenCalledWith("/admin/libraries");
   });
 
   it("shows SortSelect on desktop toolbar", async () => {

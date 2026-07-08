@@ -118,9 +118,7 @@ function created(library: RegisteredLibrary) {
       </header>
 
       <section aria-label="Gallery statistics">
-        <dl
-          class="grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-border ring-1 ring-border sm:grid-cols-4"
-        >
+        <dl class="grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-border ring-1 ring-border sm:grid-cols-4">
           <div class="bg-card p-3">
             <dt class="text-xs text-muted-foreground">Libraries</dt>
             <dd class="mt-0.5 text-sm font-semibold tabular-nums text-foreground">

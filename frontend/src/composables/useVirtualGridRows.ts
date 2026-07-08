@@ -17,7 +17,7 @@ interface UseVirtualGridRowsOptions<TRow extends VirtualGridRow> {
   measureDeps?: WatchSource[];
 }
 
-export const chunkItems = <T,>(items: readonly T[], chunkSize: number): T[][] => {
+export const chunkItems = <T>(items: readonly T[], chunkSize: number): T[][] => {
   const size = Math.max(1, chunkSize);
   const rows: T[][] = [];
   for (let i = 0; i < items.length; i += size) {
@@ -26,7 +26,7 @@ export const chunkItems = <T,>(items: readonly T[], chunkSize: number): T[][] =>
   return rows;
 };
 
-export const chunkGridRows = <T,>(
+export const chunkGridRows = <T>(
   items: readonly T[],
   chunkSize: number,
   createId: (items: readonly T[], rowIndex: number, startIndex: number) => string,
