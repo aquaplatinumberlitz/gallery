@@ -242,6 +242,35 @@ def test_library_inspector_indexes_lora_from_json_when_lora_text_empty(
     assert [item["name"] for item in search_resp.json()["rows"]] == ["json-lora.png"]
 
 
+def test_lora_resource_rows_dedupe_params_lora_and_lora_text():
+    from backend.metadata_store._resources import _resource_rows_from_metadata
+
+    metadata = {
+        "params": {
+            "Lora": [
+                "ba_character/ba_shintanikai_illustriousXL:0.7",
+                "style/Aiiko - Blue Archive Style - Anime:0.7",
+                "style/ba_background:1.0",
+            ]
+        }
+    }
+    rows = _resource_rows_from_metadata(
+        json.dumps(metadata, ensure_ascii=False),
+        (
+            "ba_character/ba_shintanikai_illustriousXL:0.7, "
+            "style/Aiiko - Blue Archive Style - Anime:0.7, "
+            "style/ba_background:1.0"
+        ),
+        0,
+    )
+
+    assert [(row["name"], row["weight"]) for row in rows] == [
+        ("ba_character/ba_shintanikai_illustriousXL", "0.7"),
+        ("style/Aiiko - Blue Archive Style - Anime", "0.7"),
+        ("style/ba_background", "1.0"),
+    ]
+
+
 def test_library_inspector_accepts_gallery_sort_contract(
     isolated_app: TestClient,
     isolated_gallery_root: Path,

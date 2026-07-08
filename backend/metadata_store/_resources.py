@@ -36,8 +36,15 @@ def _iter_metadata_loras(metadata: Any) -> list[dict[str, Any]]:
                     }
                 )
             elif isinstance(item, str) and item.strip():
+                name, weight = _split_lora_name_weight(item)
                 loras.append(
-                    {"name": item.strip(), "hash": None, "resource_hash": None, "weight": None, "strength": None}
+                    {
+                        "name": name,
+                        "hash": None,
+                        "resource_hash": None,
+                        "weight": weight or None,
+                        "strength": weight or None,
+                    }
                 )
 
     return loras
@@ -56,6 +63,16 @@ def _normalize_resource_kind(value: Any) -> str:
     if kind:
         return kind[:64]
     return "resource"
+
+
+def _split_lora_name_weight(value: str) -> tuple[str, str]:
+    text = value.strip()
+    if not text:
+        return "", ""
+    match = re.match(r"^(?P<name>.+):(?P<weight>[+-]?(?:\d+(?:\.\d+)?|\.\d+))$", text)
+    if not match:
+        return text, ""
+    return match.group("name").strip(), match.group("weight").strip()
 
 
 def _resource_raw_json(item: Any) -> str:
@@ -141,7 +158,7 @@ def _resource_rows_from_metadata(
     }
 
     for text_item in _split_lora_text(lora_text):
-        name = text_item.split(":", 1)[0].strip() if ":" in text_item else text_item.strip()
+        name, weight = _split_lora_name_weight(text_item)
         if not name:
             continue
         key = ("lora", name.lower(), "", "")
@@ -154,8 +171,8 @@ def _resource_rows_from_metadata(
                 "name": name,
                 "hash": "",
                 "resource_hash": "",
-                "weight": text_item.split(":", 1)[1].strip() if ":" in text_item else "",
-                "strength": text_item.split(":", 1)[1].strip() if ":" in text_item else "",
+                "weight": weight,
+                "strength": weight,
                 "raw_json": "",
             }
         )

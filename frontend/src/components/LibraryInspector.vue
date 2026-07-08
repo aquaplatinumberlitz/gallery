@@ -551,7 +551,7 @@ function formatResources(resources: LibraryInspectorResource[]) {
     .map((item) => {
       const hash = item.resource_hash || item.hash;
       const weight = item.weight ?? item.strength;
-      return [item.name, hash, weight !== null && weight !== undefined ? `weight ${weight}` : ""]
+      return [item.name, hash, weight !== null && weight !== undefined && `${weight}` ? `weight ${weight}` : ""]
         .filter(Boolean)
         .join(" | ");
     })
@@ -559,9 +559,26 @@ function formatResources(resources: LibraryInspectorResource[]) {
     .join("\n");
 }
 
+function displayResources(resources: LibraryInspectorResource[], fallbackPreview = "") {
+  if (resources.length) {
+    return resources
+      .map((item) => ({
+        name: item.name || "",
+        hash: item.resource_hash || item.hash || "",
+        weight: item.weight ?? item.strength ?? "",
+      }))
+      .filter((item) => item.name || item.hash || item.weight !== "");
+  }
+
+  return fallbackPreview
+    .split(",")
+    .map((name) => ({ name: name.trim(), hash: "", weight: "" }))
+    .filter((item) => item.name);
+}
+
 async function copyDetail(
   row: LibraryInspectorRow,
-  kind: "prompt" | "negative" | "metadata" | "loras" | "hashes",
+  kind: "prompt" | "negative" | "metadata" | "loras",
 ): Promise<boolean> {
   try {
     const detail = await queryClient.fetchQuery({
@@ -580,14 +597,6 @@ async function copyDetail(
       await copyText(formatResources(detail.loras), "loras");
       return true;
     }
-    if (kind === "hashes") {
-      const hashes = [...detail.loras, ...detail.resources]
-        .map((item) => item.resource_hash || item.hash)
-        .filter(Boolean)
-        .join("\n");
-      await copyText(hashes, "hashes");
-      return true;
-    }
     await copyText(composeMetadata(detail), "metadata");
     return true;
   } catch {
@@ -599,7 +608,7 @@ async function copyDetail(
 function handleCopyDetailSelect(
   event: Event,
   row: LibraryInspectorRow,
-  kind: "prompt" | "negative" | "metadata" | "loras" | "hashes",
+  kind: "prompt" | "negative" | "metadata" | "loras",
 ) {
   event.preventDefault();
   copyDetail(row, kind).then((ok) => {
@@ -943,7 +952,7 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                           </Button>
                           <Button
                             size="sm"
-                            variant="outline"
+                            variant="secondary"
                             @click="copyDetail(visibleTableRows[virtualRow.index].original, 'metadata')"
                           >
                             Copy full metadata
@@ -1004,10 +1013,27 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                       </div>
                       <div v-else class="space-y-3">
                         <p class="text-sm font-medium">LoRA resources</p>
-                        <pre class="metadata-block">{{
-                          formatResources(metadataQuery.data.value?.loras || []) ||
-                          visibleTableRows[virtualRow.index].original.lora_preview
-                        }}</pre>
+                        <ul class="lora-resource-list">
+                          <li
+                            v-for="resource in displayResources(
+                              metadataQuery.data.value?.loras || [],
+                              visibleTableRows[virtualRow.index].original.lora_preview,
+                            )"
+                            :key="`${resource.name}-${resource.hash}-${resource.weight}`"
+                            class="lora-resource-item"
+                          >
+                            <span class="lora-resource-bullet" aria-hidden="true"></span>
+                            <span class="lora-resource-main">
+                              <span class="lora-resource-name">{{ resource.name || resource.hash }}</span>
+                              <span v-if="resource.hash && resource.name" class="lora-resource-hash">
+                                {{ resource.hash }}
+                              </span>
+                            </span>
+                            <span v-if="resource.weight !== ''" class="lora-resource-weight">
+                              {{ resource.weight }}
+                            </span>
+                          </li>
+                        </ul>
                         <div class="flex flex-wrap gap-2">
                           <Button
                             size="sm"
@@ -1019,13 +1045,6 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                           <Button
                             size="sm"
                             variant="secondary"
-                            @click="copyDetail(visibleTableRows[virtualRow.index].original, 'hashes')"
-                          >
-                            Copy resource hashes
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
                             @click="copyDetail(visibleTableRows[virtualRow.index].original, 'metadata')"
                           >
                             Copy full metadata
@@ -1569,6 +1588,69 @@ button.metadata-header-control:focus-visible {
   font-size: 12px;
   line-height: 1.5;
   color: var(--foreground);
+}
+
+.lora-resource-list {
+  display: flex;
+  max-height: 240px;
+  flex-direction: column;
+  gap: 6px;
+  overflow: auto;
+  border-radius: 6px;
+  background: var(--muted);
+  padding: 8px;
+}
+
+.lora-resource-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--background) 54%, transparent);
+  padding: 7px 8px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.lora-resource-bullet {
+  width: 5px;
+  height: 5px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: var(--muted-foreground);
+  opacity: 0.65;
+}
+
+.lora-resource-main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lora-resource-name {
+  overflow-wrap: anywhere;
+  color: var(--foreground);
+  font-weight: 500;
+}
+
+.lora-resource-hash {
+  overflow-wrap: anywhere;
+  color: var(--muted-foreground);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 11px;
+}
+
+.lora-resource-weight {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 70%, transparent);
+  color: var(--accent-foreground);
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 @media (max-width: 900px) {
