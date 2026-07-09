@@ -42,6 +42,7 @@ import { fetchLibraryInspectorMetadata, getThumbnailUrl } from "@/services/api";
 import { queryClient } from "@/query";
 import { queryKeys } from "@/query/keys";
 import { clearScopeRebuildMarker, getScopeRebuildStartedAt } from "@/utils/indexMaintenance";
+import { fitMiddleTruncate, tableCellFont } from "@/utils/textTruncation";
 import { logIndexRebuildDebug } from "@/debug/indexRebuildDebug";
 import { logLightboxNavDebug, summarizeLightboxItems } from "@/debug/lightboxNavDebug";
 import type {
@@ -305,7 +306,7 @@ type HideableColumnId = "prompt" | "model" | "seed" | "dimensions" | "mtime";
 
 const HIDEABLE_COLUMNS: { id: HideableColumnId; label: string; width: number }[] = [
   { id: "prompt", label: "Prompt", width: 390 },
-  { id: "model", label: "Model", width: 150 },
+  { id: "model", label: "Model", width: 210 },
   { id: "seed", label: "Seed", width: 110 },
   { id: "dimensions", label: "Size", width: 96 },
   { id: "mtime", label: "Modified", width: 160 },
@@ -508,6 +509,37 @@ function formatDimensions(row: LibraryInspectorRow) {
 
 function modelLabel(row: LibraryInspectorRow) {
   return row.model || row.tool || "Unknown";
+}
+
+const MODEL_FILE_EXTENSIONS = [".safetensors", ".ckpt", ".pth", ".pt", ".gguf", ".bin", ".onnx", ".lora"];
+
+// col-model is 210px with 12px horizontal padding => ~186px of text room.
+const MODEL_CELL_TEXT_WIDTH_PX = 184;
+const MODEL_CELL_FONT = tableCellFont(500, 13);
+
+function modelDisplayLabel(row: LibraryInspectorRow): string {
+  const full = modelLabel(row);
+  if (full === "Unknown") return full;
+  let label = full;
+  const slashIndex = Math.max(label.lastIndexOf("/"), label.lastIndexOf("\\"));
+  if (slashIndex >= 0) label = label.slice(slashIndex + 1);
+  for (const ext of MODEL_FILE_EXTENSIONS) {
+    if (label.toLowerCase().endsWith(ext)) {
+      label = label.slice(0, -ext.length);
+      break;
+    }
+  }
+  label = label.trim() || full;
+  return fitMiddleTruncate(label, MODEL_CELL_TEXT_WIDTH_PX, MODEL_CELL_FONT);
+}
+
+// col-name is 280px with 12px padding, a 44px thumb and a 12px gap =>
+// ~200px of text room.
+const FILENAME_CELL_TEXT_WIDTH_PX = 196;
+const FILENAME_CELL_FONT = tableCellFont(500, 13);
+
+function fileDisplayName(name: string): string {
+  return fitMiddleTruncate(name, FILENAME_CELL_TEXT_WIDTH_PX, FILENAME_CELL_FONT);
 }
 
 function folderLabel(row: LibraryInspectorRow) {
@@ -889,15 +921,22 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                     />
                   </button>
                   <div class="file-cell-content min-w-0">
-                    <button
-                      class="long-text-trigger file-name-trigger"
-                      type="button"
-                      @click.stop="openImage(visibleTableRows[virtualRow.index].original)"
-                    >
-                      <span class="long-text-preview truncate">{{
-                        visibleTableRows[virtualRow.index].original.name
-                      }}</span>
-                    </button>
+                    <Tooltip>
+                      <TooltipTrigger as-child>
+                        <button
+                          class="long-text-trigger file-name-trigger"
+                          type="button"
+                          @click.stop="openImage(visibleTableRows[virtualRow.index].original)"
+                        >
+                          <span class="long-text-preview middle-truncate-span">{{
+                            fileDisplayName(visibleTableRows[virtualRow.index].original.name)
+                          }}</span>
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent class="max-w-[28rem] break-all">
+                        {{ visibleTableRows[virtualRow.index].original.name }}
+                      </TooltipContent>
+                    </Tooltip>
                     <Popover
                       @update:open="(open) => open && (selectedPath = visibleTableRows[virtualRow.index].original.path)"
                     >
@@ -926,7 +965,7 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                 </div>
               </TableCell>
               <TableCell v-if="table.getColumn('prompt')?.getIsVisible()" class="table-cell col-prompt">
-                <div class="prompt-cell min-w-0 overflow-hidden">
+                <div class="prompt-cell min-w-0">
                   <Popover
                     v-if="
                       visibleTableRows[virtualRow.index].original.has_prompt ||
@@ -941,7 +980,7 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                         data-testid="prompt-trigger"
                         @click.stop
                       >
-                        <span class="long-text-preview truncate whitespace-nowrap" data-testid="prompt-preview">{{
+                        <span class="prompt-preview-text" data-testid="prompt-preview">{{
                           visibleTableRows[virtualRow.index].original.prompt_preview || "No prompt metadata"
                         }}</span>
                       </button>
@@ -1010,14 +1049,23 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
               </TableCell>
               <TableCell v-if="table.getColumn('model')?.getIsVisible()" class="table-cell col-model">
                 <div class="space-y-1">
-                  <span
-                    :class="[
-                      'block truncate font-medium',
-                      modelLabel(visibleTableRows[virtualRow.index].original) === 'Unknown' && 'text-muted-foreground',
-                    ]"
-                  >
-                    {{ modelLabel(visibleTableRows[virtualRow.index].original) }}
-                  </span>
+                  <Tooltip>
+                    <TooltipTrigger as-child>
+                      <span
+                        :class="[
+                          'middle-truncate-span block font-medium',
+                          modelLabel(visibleTableRows[virtualRow.index].original) === 'Unknown' &&
+                            'text-muted-foreground',
+                        ]"
+                        tabindex="0"
+                      >
+                        {{ modelDisplayLabel(visibleTableRows[virtualRow.index].original) }}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent class="max-w-[28rem] break-all">
+                      {{ modelLabel(visibleTableRows[virtualRow.index].original) }}
+                    </TooltipContent>
+                  </Tooltip>
                   <Popover
                     v-if="visibleTableRows[virtualRow.index].original.has_lora"
                     @update:open="(open) => openDetail(visibleTableRows[virtualRow.index].original.path, open)"
@@ -1523,8 +1571,8 @@ button.metadata-header-control:focus-visible {
 }
 
 .col-name {
-  width: 360px;
-  max-width: 360px;
+  width: 280px;
+  max-width: 280px;
 }
 
 .col-prompt {
@@ -1533,8 +1581,8 @@ button.metadata-header-control:focus-visible {
 }
 
 .col-model {
-  width: 150px;
-  max-width: 150px;
+  width: 210px;
+  max-width: 210px;
 }
 
 .col-seed {
@@ -1579,7 +1627,6 @@ button.metadata-header-control:focus-visible {
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
   text-align: left;
 }
 
@@ -1588,10 +1635,8 @@ button.metadata-header-control:focus-visible {
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
 }
 
-.col-model > div,
 .col-seed > button,
 .col-dimensions,
 .col-mtime {
@@ -1599,6 +1644,11 @@ button.metadata-header-control:focus-visible {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.col-model > div {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .file-name-trigger {
@@ -1628,6 +1678,30 @@ button.metadata-header-control:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.middle-truncate-span {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: clip;
+}
+
+.prompt-preview-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--foreground);
+  word-break: break-word;
 }
 
 .seed-copy-icon {

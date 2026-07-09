@@ -253,7 +253,7 @@ function handleToggleFullscreen() {
 <template>
   <Teleport to="body">
     <Transition name="fade">
-      <FocusScope v-if="show" :trapped="true" :loop="true">
+      <FocusScope v-if="show" :trapped="true" :loop="true" as-child>
         <div
           ref="lightboxRef"
           data-testid="lightbox"
@@ -404,6 +404,10 @@ function handleToggleFullscreen() {
   align-items: center;
   justify-content: center;
   background: #000;
+}
+
+.lightbox-overlay:focus {
+  outline: none;
 }
 
 .fs-controls {

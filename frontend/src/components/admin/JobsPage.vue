@@ -17,10 +17,7 @@ useLibraryEvents();
 </script>
 
 <template>
-  <main
-    class="h-full overflow-y-auto rounded-xl border border-border bg-card p-4 sm:p-6"
-    aria-labelledby="jobs-heading"
-  >
+  <main class="h-full overflow-y-auto p-4 sm:p-6" aria-labelledby="jobs-heading">
     <div class="mx-auto max-w-6xl space-y-6">
       <ButtonLink to="/admin/maintenance" variant="ghost" class="-ml-3"> <ArrowLeft /> Maintenance </ButtonLink>
 

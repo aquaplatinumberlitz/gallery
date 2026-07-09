@@ -329,10 +329,7 @@ function estimatedAssets(): number | undefined {
 </script>
 
 <template>
-  <main
-    class="h-full overflow-y-auto rounded-xl bg-card p-4 text-foreground shadow-sm ring-1 ring-border sm:p-6"
-    aria-labelledby="library-heading"
-  >
+  <main class="h-full overflow-y-auto p-4 text-foreground sm:p-6" aria-labelledby="library-heading">
     <div class="mx-auto max-w-6xl space-y-6">
       <ButtonLink to="/admin/libraries" variant="ghost" class="-ml-3"><ArrowLeft /> Libraries</ButtonLink>
 
@@ -761,7 +758,14 @@ function estimatedAssets(): number | undefined {
                 </div>
                 <div v-else class="mt-3 rounded-md border border-dashed border-border bg-muted/30 p-3">
                   <p class="text-sm text-muted-foreground">None configured</p>
-                  <Button variant="ghost" size="sm" class="mt-2 h-8 px-2" @click="editOpen = true">Add pattern</Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    class="mt-2 h-8 border-border bg-card px-2"
+                    @click="editOpen = true"
+                  >
+                    Add pattern
+                  </Button>
                 </div>
               </CardContent>
             </Card>

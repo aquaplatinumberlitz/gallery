@@ -41,7 +41,7 @@ const emit = defineEmits<{
       <SidebarRail />
     </Sidebar>
 
-    <SidebarInset id="main-content" tabindex="-1" class="content">
+    <SidebarInset id="main-content" class="content">
       <AppHeader
         :is-mobile="false"
         :is-sidebar-open="isSidebarOpen"

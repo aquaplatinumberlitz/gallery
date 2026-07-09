@@ -10,9 +10,9 @@ if __name__ == "__main__":
 
     port_env = _os.getenv("PORT")
     try:
-        port_val = int(port_env) if port_env else 8000
+        port_val = int(port_env) if port_env else 4701
     except ValueError:
-        port_val = 8000
+        port_val = 4701
 
     host = "0.0.0.0"
     reload_flag = not PRODUCTION

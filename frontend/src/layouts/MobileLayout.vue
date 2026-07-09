@@ -47,7 +47,7 @@ const emit = defineEmits<{
       </div>
     </Sidebar>
 
-    <SidebarInset id="main-content" tabindex="-1" class="content" :class="{ 'bars-hidden': !barsVisible }">
+    <SidebarInset id="main-content" class="content" :class="{ 'bars-hidden': !barsVisible }">
       <MobileHeader
         :is-dark="theme === 'dark'"
         :search-query="searchQuery"

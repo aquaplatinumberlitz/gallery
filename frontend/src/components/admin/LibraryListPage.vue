@@ -89,10 +89,7 @@ function created(library: RegisteredLibrary) {
 </script>
 
 <template>
-  <main
-    class="h-full overflow-y-auto rounded-xl bg-card p-4 text-foreground shadow-sm ring-1 ring-border sm:p-6"
-    aria-labelledby="libraries-heading"
-  >
+  <main class="h-full overflow-y-auto p-4 text-foreground sm:p-6" aria-labelledby="libraries-heading">
     <div class="mx-auto max-w-7xl space-y-6">
       <header class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="min-w-0">

@@ -71,6 +71,17 @@ contributors. Read it before planning or editing.
   `./test.sh fast` before handing off larger changes.
 - Full release-style validation is `./test.sh full`.
 
+## Remote Access (VPS)
+
+- VPS forwards ports **4701-4800** ra internet.
+- **Backend** luôn chạy port **4701**, **Frontend** (Vite) port **4702**.
+- Nginx port 80 proxy: `/` → `127.0.0.1:4702`, `/api` → `127.0.0.1:4701`.
+- Mỗi lần restart chạy 2 lệnh:
+  ```bash
+  screen -dmS gallery-backend bash -c "cd /home/ubuntu/gallery-repo && backend/.venv_linux/bin/python -m uvicorn backend.main:app --host 0.0.0.0 --port 4701"
+  screen -dmS gallery-frontend bash -c "cd /home/ubuntu/gallery-repo/frontend && ./node_modules/.bin/vite --host 0.0.0.0 --port 4702"
+  ```
+
 ## Docs Checklist
 
 - API, route, env var, runtime, or ownership changes must update maintained docs.

@@ -133,6 +133,8 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
 
 <template>
   <TooltipProvider :delay-duration="300" :skip-delay-duration="100">
+    <a v-if="!showIntro" href="#main-content" class="skip-link">Skip to main content</a>
+
     <!-- Intro Screen -->
     <IntroScreen v-if="showIntro" v-model:visible="showIntro" :force-url="introPreviewUrl" @enter="handleIntroEnter" />
 

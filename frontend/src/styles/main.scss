@@ -302,7 +302,21 @@ pre {
    ========================================================================== */
 
 /* Focus visible - shadcn components use focus-visible:outline-none + focus-visible:ring-* */
-/* Legacy non-shadcn controls get default browser focus indicator */
+/* Low-specificity fallback keeps native/custom controls aligned with the app ring. */
+:where(
+  a[href],
+  button,
+  input,
+  select,
+  textarea,
+  summary,
+  [contenteditable="true"],
+  [tabindex]:not([tabindex="-1"])
+):focus-visible {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: var(--focus-ring-shadow);
+}
 
 /* Skip link styles (if placed in body) */
 .skip-link {

@@ -370,18 +370,18 @@ test.describe("LibraryInspector", () => {
       .poll(() =>
         promptTrigger.evaluate((element) => {
           const style = getComputedStyle(element);
-          return [style.display, style.overflow, style.maxWidth];
+          return [style.display, style.maxWidth];
         }),
       )
-      .toEqual(["block", "hidden", "100%"]);
+      .toEqual(["block", "100%"]);
     await expect
       .poll(() =>
         promptText.evaluate((element) => {
           const style = getComputedStyle(element);
-          return [style.overflow, style.textOverflow, style.whiteSpace];
+          return [style.overflow, (style as unknown as { webkitLineClamp: string }).webkitLineClamp];
         }),
       )
-      .toEqual(["hidden", "ellipsis", "nowrap"]);
+      .toEqual(["hidden", "2"]);
 
     const scrollMetrics = await page.locator(".table-shell").evaluate((element) => {
       element.scrollTop = 120;

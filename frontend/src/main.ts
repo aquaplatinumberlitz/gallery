@@ -53,4 +53,9 @@ if (import.meta.env.DEV) {
 app.use(createPinia());
 app.use(router);
 installVueQuery(app);
-app.mount("#app");
+
+// Resolve the browser's initial URL before App setup reads route metadata.
+// Otherwise a hard reload on a lazy route can briefly render the gallery intro.
+router.isReady().then(() => {
+  app.mount("#app");
+});

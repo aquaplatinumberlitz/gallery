@@ -24,10 +24,7 @@ const jobs = computed(() => jobsQuery.data.value ?? []);
 </script>
 
 <template>
-  <main
-    class="h-full overflow-y-auto rounded-xl border border-border bg-card p-4 sm:p-6"
-    aria-labelledby="library-jobs-heading"
-  >
+  <main class="h-full overflow-y-auto p-4 sm:p-6" aria-labelledby="library-jobs-heading">
     <div class="mx-auto max-w-6xl space-y-6">
       <ButtonLink :to="{ name: 'admin-library-detail', params: { id } }" variant="ghost" class="-ml-3">
         <ArrowLeft /> Library details

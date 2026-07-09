@@ -33,7 +33,7 @@ const emit = defineEmits<{
     v-bind="$attrs"
     :variant="variant"
     :size="size"
-    :class="props.class"
+    :class="['border border-border/60', props.class]"
     :aria-label="copied ? successAriaLabel : label"
     :data-copied="copied ? 'true' : 'false'"
     @pointerdown.stop

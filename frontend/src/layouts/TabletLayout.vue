@@ -40,7 +40,7 @@ const emit = defineEmits<{
       </div>
     </Sidebar>
 
-    <SidebarInset id="main-content" tabindex="-1" class="content">
+    <SidebarInset id="main-content" class="content">
       <TabletHeader
         :is-dark="theme === 'dark'"
         :search-query="searchQuery"
