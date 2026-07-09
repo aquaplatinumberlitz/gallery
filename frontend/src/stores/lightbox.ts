@@ -14,6 +14,8 @@ type NeighborPreload = { controller: AbortController };
 
 const neighborPreloadsByState = new WeakMap<object, Map<string, NeighborPreload>>();
 
+const cloneLightboxItem = (item: FileNode): FileNode => ({ ...item });
+
 const getActiveNeighborPreloads = (state: object): Map<string, NeighborPreload> => {
   const existing = neighborPreloadsByState.get(state);
   if (existing) return existing;
@@ -85,7 +87,7 @@ export const useLightboxStore = defineStore("lightbox", {
       this.isOpen = true;
 
       // Setup navigation
-      this.galleryItems = items.filter((i) => i.type === "image");
+      this.galleryItems = items.filter((i) => i.type === "image").map(cloneLightboxItem);
       const candidateIndex = typeof preferredIndex === "number" && preferredIndex >= 0 ? preferredIndex : -1;
       const preferredItem = candidateIndex >= 0 ? this.galleryItems[candidateIndex] : undefined;
       this.currentIndex =

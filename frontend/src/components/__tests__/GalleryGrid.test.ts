@@ -3,19 +3,20 @@ import { setActivePinia, createPinia } from "pinia";
 import { mount } from "@vue/test-utils";
 import { createIsolatedQueryClient } from "@/test/queryClient";
 import { VueQueryPlugin } from "@tanstack/vue-query";
+import { ref } from "vue";
 import { fuzzySearchFileNodes } from "@/utils/fuzzySearch";
 
-let mockIsLoading = { value: false };
-let mockIsFetching = { value: false };
-let mockIsSuccess = { value: true };
-let mockIsPending = { value: false };
-let mockHasNextPage = { value: false };
-let mockIsFetchingNextPage = { value: false };
-let mockError = { value: null };
-let mockFolders: any = { value: [] };
-let mockMedia: any = { value: [] };
-let mockActiveFolderPath: any = { value: null };
-let mockHasActivePage = { value: true };
+let mockIsLoading = ref(false);
+let mockIsFetching = ref(false);
+let mockIsSuccess = ref(true);
+let mockIsPending = ref(false);
+let mockHasNextPage = ref(false);
+let mockIsFetchingNextPage = ref(false);
+let mockError = ref(null);
+let mockFolders: any = ref([]);
+let mockMedia: any = ref([]);
+let mockActiveFolderPath: any = ref(null);
+let mockHasActivePage = ref(true);
 const mockRefetch = vi.fn();
 const mockFetchNextPage = vi.fn();
 const mockUseUnifiedSearchQuery = vi.hoisted(() => vi.fn());
@@ -60,9 +61,9 @@ mockUseUnifiedSearchQuery.mockImplementation(() => ({
 
 vi.mock("@/composables/useColumnResize", () => ({
   useColumnResize: () => ({
-    columnCount: { value: 4 },
-    sliderLevel: { value: 0 },
-    rowHeight: { value: 200 },
+    columnCount: ref(4),
+    sliderLevel: ref(0),
+    rowHeight: ref(200),
     setGridRef: vi.fn(),
   }),
   PHOTO_GRID_LEVELS: [{ level: 0, label: "Compact", columns: 4 }],
@@ -167,17 +168,17 @@ describe("GalleryGrid", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
-    mockIsLoading = { value: false };
-    mockIsFetching = { value: false };
-    mockIsSuccess = { value: true };
-    mockIsPending = { value: false };
-    mockHasNextPage = { value: false };
-    mockIsFetchingNextPage = { value: false };
-    mockError = { value: null };
-    mockFolders = { value: [] };
-    mockMedia = { value: [] };
-    mockActiveFolderPath = { value: null };
-    mockHasActivePage = { value: true };
+    mockIsLoading = ref(false);
+    mockIsFetching = ref(false);
+    mockIsSuccess = ref(true);
+    mockIsPending = ref(false);
+    mockHasNextPage = ref(false);
+    mockIsFetchingNextPage = ref(false);
+    mockError = ref(null);
+    mockFolders = ref([]);
+    mockMedia = ref([]);
+    mockActiveFolderPath = ref(null);
+    mockHasActivePage = ref(true);
     mockUseUnifiedSearchQuery.mockClear();
     Object.assign(mockStore, defaultStoreValues());
   });
@@ -233,7 +234,7 @@ describe("GalleryGrid", () => {
   }
 
   it("shows loading badge when loading", async () => {
-    mockIsLoading = { value: true };
+    mockIsLoading = ref(true);
     const wrapper = await mountSubject();
     expect(wrapper.text()).toContain("Loading");
   });
@@ -300,12 +301,8 @@ describe("GalleryGrid", () => {
   });
 
   it("does not run client fuzzy search when the search query is empty", async () => {
-    mockFolders = {
-      value: [{ name: "Mika", path: "/photos/mika", type: "folder", has_children: false }],
-    };
-    mockMedia = {
-      value: [{ name: "mika.png", path: "/photos/mika.png", type: "image", mtime: 1 }],
-    };
+    mockFolders = ref([{ name: "Mika", path: "/photos/mika", type: "folder", has_children: false }]);
+    mockMedia = ref([{ name: "mika.png", path: "/photos/mika.png", type: "image", mtime: 1 }]);
 
     await mountSubject({ store: { searchQuery: "" } });
 
@@ -313,12 +310,8 @@ describe("GalleryGrid", () => {
   });
 
   it("does not switch to search filtering for a one-character draft query", async () => {
-    mockFolders = {
-      value: [{ name: "Mika", path: "/photos/mika", type: "folder", has_children: false }],
-    };
-    mockMedia = {
-      value: [{ name: "mika.png", path: "/photos/mika.png", type: "image", mtime: 1 }],
-    };
+    mockFolders = ref([{ name: "Mika", path: "/photos/mika", type: "folder", has_children: false }]);
+    mockMedia = ref([{ name: "mika.png", path: "/photos/mika.png", type: "image", mtime: 1 }]);
 
     const wrapper = await mountSubject({ store: { searchQuery: "m", submittedSearchQuery: "" } });
 
@@ -327,12 +320,8 @@ describe("GalleryGrid", () => {
   });
 
   it("keeps a two-character query as draft until debounce settles", async () => {
-    mockFolders = {
-      value: [{ name: "Mika", path: "/photos/mika", type: "folder", has_children: false }],
-    };
-    mockMedia = {
-      value: [{ name: "mika.png", path: "/photos/mika.png", type: "image", mtime: 1 }],
-    };
+    mockFolders = ref([{ name: "Mika", path: "/photos/mika", type: "folder", has_children: false }]);
+    mockMedia = ref([{ name: "mika.png", path: "/photos/mika.png", type: "image", mtime: 1 }]);
 
     const wrapper = await mountSubject({ store: { searchQuery: "mi", submittedSearchQuery: "" } });
 
@@ -343,12 +332,8 @@ describe("GalleryGrid", () => {
   });
 
   it("allows a one-character query after explicit submit", async () => {
-    mockFolders = {
-      value: [{ name: "Mika", path: "/photos/mika", type: "folder", has_children: false }],
-    };
-    mockMedia = {
-      value: [{ name: "mika.png", path: "/photos/mika.png", type: "image", mtime: 1 }],
-    };
+    mockFolders = ref([{ name: "Mika", path: "/photos/mika", type: "folder", has_children: false }]);
+    mockMedia = ref([{ name: "mika.png", path: "/photos/mika.png", type: "image", mtime: 1 }]);
 
     await mountSubject({ store: { searchQuery: "m", submittedSearchQuery: "m" } });
 

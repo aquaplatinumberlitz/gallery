@@ -7,7 +7,7 @@ defineOptions({ inheritAttrs: false });
 
 const props = withDefaults(
   defineProps<{
-    copied: boolean;
+    copied?: boolean;
     label: string;
     copiedLabel?: string;
     successAriaLabel: string;
@@ -16,6 +16,7 @@ const props = withDefaults(
     class?: HTMLAttributes["class"];
   }>(),
   {
+    copied: false,
     copiedLabel: "Copied",
     variant: "secondary",
     size: "sm",

@@ -73,6 +73,20 @@ describe("useLightboxStore", () => {
       expect(store.currentIndex).toBe(1);
     });
 
+    it("clones source items so remembered dimensions do not mutate query-owned objects", () => {
+      const store = useLightboxStore();
+      const source = Object.freeze(makeImage({ path: "/a.png", width: null, height: null }));
+
+      store.open(source, [source]);
+      store.rememberDimensions("/a.png", { width: 1024, height: 768, source: "metadata" });
+
+      expect(store.galleryItems[0]).not.toBe(source);
+      expect(store.galleryItems[0]!.width).toBe(1024);
+      expect(store.galleryItems[0]!.height).toBe(768);
+      expect(source.width).toBeNull();
+      expect(source.height).toBeNull();
+    });
+
     it("uses preferredIndex when its item path matches the requested path", () => {
       const store = useLightboxStore();
       const items = [makeImage({ path: "/a.png" }), makeImage({ path: "/b.png" })];

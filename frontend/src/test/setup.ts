@@ -29,6 +29,17 @@ type WriteableWindow = Window & {
   PointerEvent?: typeof PointerEvent;
 };
 
+const vueWarnings: string[] = [];
+
+function isAnonymousTestStubPropertyWarning(text: string): boolean {
+  const isAnonymousStub = text.includes("at <Anonymous");
+  return (
+    isAnonymousStub &&
+    (text.includes("was accessed during render but is not defined on instance") ||
+      text.includes("Extraneous non-props attributes"))
+  );
+}
+
 config.global.stubs = {
   ...(config.global.stubs ?? {}),
   Tooltip: { template: "<span><slot /></span>" },
@@ -106,6 +117,14 @@ const MutationObserverShim = class {
 } as unknown as typeof MutationObserver;
 
 beforeEach(() => {
+  vueWarnings.length = 0;
+  vi.spyOn(console, "warn").mockImplementation((...args: unknown[]) => {
+    const text = args.map((arg) => (typeof arg === "string" ? arg : String(arg))).join(" ");
+    if (text.includes("[Vue warn]") && !isAnonymousTestStubPropertyWarning(text)) {
+      vueWarnings.push(text);
+    }
+  });
+
   const w = window as WriteableWindow;
 
   // jsdom does not implement matchMedia; vueuse/reka-ui rely on it.
@@ -196,6 +215,13 @@ afterEach(() => {
   delete (window as Partial<Window> & { __GALLERY_DEBUG_LIGHTBOX_NAV?: boolean }).__GALLERY_DEBUG_LIGHTBOX_NAV;
   // Clear DOM so mounted wrappers/leftover nodes from one test do not bleed into the next.
   document.body.innerHTML = "";
+  if (vueWarnings.length > 0) {
+    const message = `Unexpected Vue warnings detected:\n${vueWarnings.join("\n")}`;
+    vueWarnings.length = 0;
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+    throw new Error(message);
+  }
   vi.restoreAllMocks();
   vi.useRealTimers();
 });

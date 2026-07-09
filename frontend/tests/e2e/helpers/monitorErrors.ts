@@ -7,6 +7,7 @@ const NYC_OUTPUT = path.resolve(".nyc_output");
 export interface MonitoredErrors {
   pageErrors: string[];
   consoleErrors: string[];
+  vueWarnings: string[];
   apiErrors: string[];
 }
 
@@ -18,6 +19,7 @@ export const test = base.extend<{
       const monitored: MonitoredErrors = {
         pageErrors: [],
         consoleErrors: [],
+        vueWarnings: [],
         apiErrors: [],
       };
 
@@ -28,6 +30,8 @@ export const test = base.extend<{
       page.on("console", (msg) => {
         if (msg.type() === "error") {
           monitored.consoleErrors.push(`[CONSOLE_ERROR] ${msg.text()}`);
+        } else if (msg.type() === "warning" && msg.text().includes("[Vue warn]")) {
+          monitored.vueWarnings.push(`[VUE_WARN] ${msg.text()}`);
         }
       });
 
@@ -59,6 +63,9 @@ export const test = base.extend<{
 
       if (monitored.pageErrors.length > 0) {
         throw new Error("Unhandled page errors detected:\n" + monitored.pageErrors.join("\n"));
+      }
+      if (monitored.vueWarnings.length > 0) {
+        throw new Error("Vue warnings detected:\n" + monitored.vueWarnings.join("\n"));
       }
     },
     { auto: true },
