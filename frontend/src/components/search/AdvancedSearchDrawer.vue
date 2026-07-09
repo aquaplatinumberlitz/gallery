@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, watch } from "vue";
 import { useForm, useStore } from "@tanstack/vue-form";
-import { X, Search, RotateCcw } from "lucide-vue-next";
+import { Search, RotateCcw } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
-import IconTooltipButton from "@/components/ui/IconTooltipButton.vue";
 import Input from "@/components/ui/Input.vue";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useFacetsQuery } from "@/composables/useFacetsQuery";
 import { useActiveLibrarySelection } from "@/composables/useActiveLibrarySelection";
 import type { FieldFilter, FacetEntry } from "@/types";
@@ -324,6 +324,12 @@ function handleCancel() {
   emit("close");
 }
 
+function handleOpenChange(open: boolean) {
+  if (!open) {
+    handleCancel();
+  }
+}
+
 const formState = useStore(form.store);
 const isDirty = computed(() => formState.value.isDirty);
 
@@ -338,602 +344,560 @@ function applyAspectRatio(ratio: string) {
 </script>
 
 <template>
-  <Teleport to="body">
-    <div
-      v-if="isOpen"
-      class="advanced-search-overlay"
-      data-testid="advanced-search-overlay"
-      tabindex="-1"
-      @click.self="handleCancel"
-      @keydown.escape="handleCancel"
+  <Sheet :open="isOpen" :modal="false" @update:open="handleOpenChange">
+    <SheetContent
+      side="right"
+      class="advanced-search-drawer w-[420px] max-w-[90vw] p-0 sm:max-w-[420px]"
+      data-testid="advanced-search-drawer"
     >
-      <div
-        class="advanced-search-drawer"
-        role="dialog"
-        aria-label="Advanced Search"
-        data-testid="advanced-search-drawer"
-      >
-        <div class="advanced-search-header">
-          <h2 class="text-base font-semibold">Advanced Search</h2>
-          <IconTooltipButton
-            variant="ghost"
-            size="icon"
-            type="button"
-            label="Close advanced search"
-            @click="handleCancel"
-          >
-            <X class="size-4" />
-          </IconTooltipButton>
-        </div>
+      <SheetHeader class="advanced-search-header">
+        <SheetTitle class="text-base font-semibold">Advanced Search</SheetTitle>
+        <SheetDescription class="sr-only"> Build detailed metadata and file filters for the gallery. </SheetDescription>
+      </SheetHeader>
 
-        <div class="advanced-search-body">
-          <form @submit.prevent="form.handleSubmit()">
-            <!-- Text Fields -->
-            <fieldset class="field-group">
-              <legend class="field-group-label">Text Fields</legend>
-              <div class="field-grid">
-                <form.Field name="prompt" v-slot="{ field }">
-                  <label class="field-label" for="advanced-search-prompt">Prompt</label>
-                  <Input
-                    id="advanced-search-prompt"
-                    :model-value="field.state.value"
-                    @update:model-value="(v: string) => field.handleChange(v)"
-                    placeholder="e.g. blue archive"
-                    type="text"
-                    variant="default"
-                    class="field-input"
-                  />
-                </form.Field>
-                <form.Field name="negative" v-slot="{ field }">
-                  <label class="field-label" for="advanced-search-negative">Negative Prompt</label>
-                  <Input
-                    id="advanced-search-negative"
-                    :model-value="field.state.value"
-                    @update:model-value="(v: string) => field.handleChange(v)"
-                    placeholder="e.g. blurry, watermark"
-                    type="text"
-                    variant="default"
-                    class="field-input"
-                  />
-                </form.Field>
-                <form.Field name="model" v-slot="{ field }">
-                  <label class="field-label" for="advanced-search-model">Model</label>
-                  <Input
-                    id="advanced-search-model"
-                    :model-value="field.state.value"
-                    @update:model-value="(v: string) => field.handleChange(v)"
-                    placeholder="e.g. PonyXL"
-                    type="text"
-                    variant="default"
-                    class="field-input"
-                    :list="'model-datalist'"
-                  />
-                  <datalist id="model-datalist">
-                    <option v-for="opt in facetModelOptions" :key="opt" :value="opt" />
-                  </datalist>
-                </form.Field>
-                <form.Field name="sampler" v-slot="{ field }">
-                  <label class="field-label" for="advanced-search-sampler">Sampler</label>
-                  <Input
-                    id="advanced-search-sampler"
-                    :model-value="field.state.value"
-                    @update:model-value="(v: string) => field.handleChange(v)"
-                    placeholder="e.g. Euler a"
-                    type="text"
-                    variant="default"
-                    class="field-input"
-                    :list="'sampler-datalist'"
-                  />
-                  <datalist id="sampler-datalist">
-                    <option v-for="opt in facetSamplerOptions" :key="opt" :value="opt" />
-                  </datalist>
-                </form.Field>
-                <form.Field name="scheduler" v-slot="{ field }">
-                  <label class="field-label" for="advanced-search-scheduler">Scheduler</label>
-                  <Input
-                    id="advanced-search-scheduler"
-                    :model-value="field.state.value"
-                    @update:model-value="(v: string) => field.handleChange(v)"
-                    placeholder="e.g. Karras"
-                    type="text"
-                    variant="default"
-                    class="field-input"
-                    :list="'scheduler-datalist'"
-                  />
-                  <datalist id="scheduler-datalist">
-                    <option v-for="opt in facetSchedulerOptions" :key="opt" :value="opt" />
-                  </datalist>
-                </form.Field>
-                <form.Field name="lora" v-slot="{ field }">
-                  <label class="field-label" for="advanced-search-lora">LoRA</label>
-                  <Input
-                    id="advanced-search-lora"
-                    :model-value="field.state.value"
-                    @update:model-value="(v: string) => field.handleChange(v)"
-                    placeholder="LoRA name"
-                    type="text"
-                    variant="default"
-                    class="field-input"
-                  />
-                </form.Field>
-                <form.Field name="vae" v-slot="{ field }">
-                  <label class="field-label" for="advanced-search-vae">VAE</label>
-                  <Input
-                    id="advanced-search-vae"
-                    :model-value="field.state.value"
-                    @update:model-value="(v: string) => field.handleChange(v)"
-                    placeholder="VAE name"
-                    type="text"
-                    variant="default"
-                    class="field-input"
-                  />
-                </form.Field>
-                <form.Field name="folder" v-slot="{ field }">
-                  <label class="field-label" for="advanced-search-folder">Folder</label>
-                  <Input
-                    id="advanced-search-folder"
-                    :model-value="field.state.value"
-                    @update:model-value="(v: string) => field.handleChange(v)"
-                    placeholder="Folder name"
-                    type="text"
-                    variant="default"
-                    class="field-input"
-                  />
-                </form.Field>
-                <form.Field name="name" v-slot="{ field }">
-                  <label class="field-label" for="advanced-search-name">Name</label>
-                  <Input
-                    id="advanced-search-name"
-                    :model-value="field.state.value"
-                    @update:model-value="(v: string) => field.handleChange(v)"
-                    placeholder="File name"
-                    type="text"
-                    variant="default"
-                    class="field-input"
-                  />
-                </form.Field>
-              </div>
-            </fieldset>
-
-            <!-- Numeric Fields -->
-            <fieldset class="field-group">
-              <legend class="field-group-label">Numeric Fields</legend>
-              <div class="field-grid">
-                <form.Field name="seed" v-slot="{ field: f }">
-                  <label class="field-label" for="advanced-search-seed">Seed</label>
-                  <div class="numeric-row">
-                    <select
-                      id="advanced-search-seed-op"
-                      class="numeric-op-select"
-                      :value="f.state.value.op"
-                      aria-label="Seed operator"
-                      @change="
-                        f.handleChange({ value: f.state.value.value, op: ($event.target as HTMLSelectElement).value })
-                      "
-                    >
-                      <option v-for="op in NUMERIC_OPS" :key="op.value" :value="op.value">
-                        {{ op.label }}
-                      </option>
-                    </select>
-                    <Input
-                      id="advanced-search-seed"
-                      :model-value="f.state.value.value"
-                      @update:model-value="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
-                      placeholder="12345"
-                      type="text"
-                      variant="default"
-                      class="field-input numeric-input"
-                    />
-                  </div>
-                  <p v-if="f.state.meta.errors?.length" class="field-error">
-                    {{ f.state.meta.errors[0] }}
-                  </p>
-                </form.Field>
-                <form.Field name="steps" v-slot="{ field: f }">
-                  <label class="field-label" for="advanced-search-steps">Steps</label>
-                  <div class="numeric-row">
-                    <select
-                      id="advanced-search-steps-op"
-                      class="numeric-op-select"
-                      :value="f.state.value.op"
-                      aria-label="Steps operator"
-                      @change="
-                        f.handleChange({ value: f.state.value.value, op: ($event.target as HTMLSelectElement).value })
-                      "
-                    >
-                      <option v-for="op in NUMERIC_OPS" :key="op.value" :value="op.value">
-                        {{ op.label }}
-                      </option>
-                    </select>
-                    <Input
-                      id="advanced-search-steps"
-                      :model-value="f.state.value.value"
-                      @update:model-value="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
-                      placeholder="30"
-                      type="text"
-                      variant="default"
-                      class="field-input numeric-input"
-                    />
-                  </div>
-                  <p v-if="f.state.meta.errors?.length" class="field-error">
-                    {{ f.state.meta.errors[0] }}
-                  </p>
-                </form.Field>
-                <form.Field name="cfg" v-slot="{ field: f }">
-                  <label class="field-label" for="advanced-search-cfg">CFG Scale</label>
-                  <div class="numeric-row">
-                    <select
-                      id="advanced-search-cfg-op"
-                      class="numeric-op-select"
-                      :value="f.state.value.op"
-                      aria-label="CFG Scale operator"
-                      @change="
-                        f.handleChange({ value: f.state.value.value, op: ($event.target as HTMLSelectElement).value })
-                      "
-                    >
-                      <option v-for="op in NUMERIC_OPS" :key="op.value" :value="op.value">
-                        {{ op.label }}
-                      </option>
-                    </select>
-                    <Input
-                      id="advanced-search-cfg"
-                      :model-value="f.state.value.value"
-                      @update:model-value="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
-                      placeholder="7.5"
-                      type="text"
-                      variant="default"
-                      class="field-input numeric-input"
-                    />
-                  </div>
-                  <p v-if="f.state.meta.errors?.length" class="field-error">
-                    {{ f.state.meta.errors[0] }}
-                  </p>
-                </form.Field>
-                <form.Field name="clip_skip" v-slot="{ field: f }">
-                  <label class="field-label" for="advanced-search-clip-skip">Clip Skip</label>
-                  <div class="numeric-row">
-                    <select
-                      id="advanced-search-clip-skip-op"
-                      class="numeric-op-select"
-                      :value="f.state.value.op"
-                      aria-label="Clip Skip operator"
-                      @change="
-                        f.handleChange({ value: f.state.value.value, op: ($event.target as HTMLSelectElement).value })
-                      "
-                    >
-                      <option v-for="op in NUMERIC_OPS" :key="op.value" :value="op.value">
-                        {{ op.label }}
-                      </option>
-                    </select>
-                    <Input
-                      id="advanced-search-clip-skip"
-                      :model-value="f.state.value.value"
-                      @update:model-value="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
-                      placeholder="2"
-                      type="text"
-                      variant="default"
-                      class="field-input numeric-input"
-                    />
-                  </div>
-                  <p v-if="f.state.meta.errors?.length" class="field-error">
-                    {{ f.state.meta.errors[0] }}
-                  </p>
-                </form.Field>
-                <form.Field name="denoising_strength" v-slot="{ field: f }">
-                  <label class="field-label" for="advanced-search-denoising-strength">Denoising Strength</label>
-                  <div class="numeric-row">
-                    <select
-                      id="advanced-search-denoising-strength-op"
-                      class="numeric-op-select"
-                      :value="f.state.value.op"
-                      aria-label="Denoising Strength operator"
-                      @change="
-                        f.handleChange({ value: f.state.value.value, op: ($event.target as HTMLSelectElement).value })
-                      "
-                    >
-                      <option v-for="op in NUMERIC_OPS" :key="op.value" :value="op.value">
-                        {{ op.label }}
-                      </option>
-                    </select>
-                    <Input
-                      id="advanced-search-denoising-strength"
-                      :model-value="f.state.value.value"
-                      @update:model-value="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
-                      placeholder="0.75"
-                      type="text"
-                      variant="default"
-                      class="field-input numeric-input"
-                    />
-                  </div>
-                  <p v-if="f.state.meta.errors?.length" class="field-error">
-                    {{ f.state.meta.errors[0] }}
-                  </p>
-                </form.Field>
-                <form.Field name="hires_upscale" v-slot="{ field: f }">
-                  <label class="field-label" for="advanced-search-hires-upscale">HiRes Upscale</label>
-                  <div class="numeric-row">
-                    <select
-                      id="advanced-search-hires-upscale-op"
-                      class="numeric-op-select"
-                      :value="f.state.value.op"
-                      aria-label="HiRes Upscale operator"
-                      @change="
-                        f.handleChange({ value: f.state.value.value, op: ($event.target as HTMLSelectElement).value })
-                      "
-                    >
-                      <option v-for="op in NUMERIC_OPS" :key="op.value" :value="op.value">
-                        {{ op.label }}
-                      </option>
-                    </select>
-                    <Input
-                      id="advanced-search-hires-upscale"
-                      :model-value="f.state.value.value"
-                      @update:model-value="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
-                      placeholder="2"
-                      type="text"
-                      variant="default"
-                      class="field-input numeric-input"
-                    />
-                  </div>
-                  <p v-if="f.state.meta.errors?.length" class="field-error">
-                    {{ f.state.meta.errors[0] }}
-                  </p>
-                </form.Field>
-                <form.Field name="hires_steps" v-slot="{ field: f }">
-                  <label class="field-label" for="advanced-search-hires-steps">HiRes Steps</label>
-                  <div class="numeric-row">
-                    <select
-                      id="advanced-search-hires-steps-op"
-                      class="numeric-op-select"
-                      :value="f.state.value.op"
-                      aria-label="HiRes Steps operator"
-                      @change="
-                        f.handleChange({ value: f.state.value.value, op: ($event.target as HTMLSelectElement).value })
-                      "
-                    >
-                      <option v-for="op in NUMERIC_OPS" :key="op.value" :value="op.value">
-                        {{ op.label }}
-                      </option>
-                    </select>
-                    <Input
-                      id="advanced-search-hires-steps"
-                      :model-value="f.state.value.value"
-                      @update:model-value="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
-                      placeholder="10"
-                      type="text"
-                      variant="default"
-                      class="field-input numeric-input"
-                    />
-                  </div>
-                  <p v-if="f.state.meta.errors?.length" class="field-error">
-                    {{ f.state.meta.errors[0] }}
-                  </p>
-                </form.Field>
-              </div>
-            </fieldset>
-
-            <!-- Dimensions -->
-            <fieldset class="field-group">
-              <legend class="field-group-label">Dimensions</legend>
-              <div class="field-grid">
-                <form.Field name="width" v-slot="{ field: f }">
-                  <label class="field-label" for="advanced-search-width">Width</label>
-                  <div class="numeric-row">
-                    <select
-                      id="advanced-search-width-op"
-                      class="numeric-op-select"
-                      :value="f.state.value.op"
-                      aria-label="Width operator"
-                      @change="
-                        f.handleChange({ value: f.state.value.value, op: ($event.target as HTMLSelectElement).value })
-                      "
-                    >
-                      <option v-for="op in NUMERIC_OPS" :key="op.value" :value="op.value">
-                        {{ op.label }}
-                      </option>
-                    </select>
-                    <Input
-                      id="advanced-search-width"
-                      :model-value="f.state.value.value"
-                      @update:model-value="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
-                      placeholder="1024"
-                      type="text"
-                      variant="default"
-                      class="field-input numeric-input"
-                    />
-                  </div>
-                  <p v-if="f.state.meta.errors?.length" class="field-error">
-                    {{ f.state.meta.errors[0] }}
-                  </p>
-                </form.Field>
-                <form.Field name="height" v-slot="{ field: f }">
-                  <label class="field-label" for="advanced-search-height">Height</label>
-                  <div class="numeric-row">
-                    <select
-                      id="advanced-search-height-op"
-                      class="numeric-op-select"
-                      :value="f.state.value.op"
-                      aria-label="Height operator"
-                      @change="
-                        f.handleChange({ value: f.state.value.value, op: ($event.target as HTMLSelectElement).value })
-                      "
-                    >
-                      <option v-for="op in NUMERIC_OPS" :key="op.value" :value="op.value">
-                        {{ op.label }}
-                      </option>
-                    </select>
-                    <Input
-                      id="advanced-search-height"
-                      :model-value="f.state.value.value"
-                      @update:model-value="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
-                      placeholder="768"
-                      type="text"
-                      variant="default"
-                      class="field-input numeric-input"
-                    />
-                  </div>
-                  <p v-if="f.state.meta.errors?.length" class="field-error">
-                    {{ f.state.meta.errors[0] }}
-                  </p>
-                </form.Field>
-                <form.Field name="size" v-slot="{ field }">
-                  <label class="field-label" for="advanced-search-size">Size</label>
-                  <Input
-                    id="advanced-search-size"
-                    :model-value="field.state.value"
-                    @update:model-value="(v: string) => field.handleChange(v)"
-                    placeholder="e.g. 1024x768"
-                    type="text"
-                    variant="default"
-                    class="field-input"
-                  />
-                  <p v-if="field.state.meta.errors?.length" class="field-error">
-                    {{ field.state.meta.errors[0] }}
-                  </p>
-                </form.Field>
-              </div>
-            </fieldset>
-
-            <!-- Aspect Ratio -->
-            <fieldset class="field-group">
-              <legend class="field-group-label">Aspect Ratio</legend>
-              <form.Field name="ratio" v-slot="{ field }">
-                <label class="field-label" for="advanced-search-ratio">Ratio</label>
+      <div class="advanced-search-body">
+        <form @submit.prevent="form.handleSubmit()">
+          <!-- Text Fields -->
+          <fieldset class="field-group">
+            <legend class="field-group-label">Text Fields</legend>
+            <div class="field-grid">
+              <form.Field name="prompt" v-slot="{ field }">
+                <label class="field-label" for="advanced-search-prompt">Prompt</label>
                 <Input
-                  id="advanced-search-ratio"
+                  id="advanced-search-prompt"
                   :model-value="field.state.value"
                   @update:model-value="(v: string) => field.handleChange(v)"
-                  placeholder="e.g. 16:9"
+                  placeholder="e.g. blue archive"
                   type="text"
                   variant="default"
                   class="field-input"
                 />
-                <div class="aspect-ratio-row">
-                  <button
-                    v-for="ratio in aspectRatios"
-                    :key="ratio.value"
-                    type="button"
-                    class="aspect-ratio-btn"
-                    :aria-pressed="field.state.value === ratio.value"
-                    @click="applyAspectRatio(ratio.value)"
-                  >
-                    {{ ratio.label }}
-                  </button>
-                </div>
               </form.Field>
-            </fieldset>
-
-            <!-- Date -->
-            <fieldset class="field-group">
-              <legend class="field-group-label">Date</legend>
-              <div class="field-grid">
-                <form.Field name="date" v-slot="{ field }">
-                  <label class="field-label" for="advanced-search-date">Date</label>
-                  <Input
-                    id="advanced-search-date"
-                    :model-value="field.state.value"
-                    @update:model-value="(v: string) => field.handleChange(v)"
-                    placeholder="e.g. 2024-01-15"
-                    type="text"
-                    variant="default"
-                    class="field-input"
-                  />
-                </form.Field>
-              </div>
-            </fieldset>
-
-            <!-- Generic / Power-user Fields -->
-            <fieldset class="field-group">
-              <legend class="field-group-label">Generic / Power-user</legend>
-              <div class="field-grid">
-                <form.Field name="param" v-slot="{ field }">
-                  <label class="field-label" for="advanced-search-param">Param</label>
-                  <Input
-                    id="advanced-search-param"
-                    :model-value="field.state.value"
-                    @update:model-value="(v: string) => field.handleChange(v)"
-                    placeholder="Custom parameter value"
-                    type="text"
-                    variant="default"
-                    class="field-input"
-                  />
-                </form.Field>
-                <form.Field name="advanced" v-slot="{ field }">
-                  <label class="field-label" for="advanced-search-advanced">Advanced</label>
-                  <Input
-                    id="advanced-search-advanced"
-                    :model-value="field.state.value"
-                    @update:model-value="(v: string) => field.handleChange(v)"
-                    placeholder="Advanced field value"
-                    type="text"
-                    variant="default"
-                    class="field-input"
-                  />
-                </form.Field>
-                <form.Field name="raw" v-slot="{ field }">
-                  <label class="field-label" for="advanced-search-raw">Raw Query</label>
-                  <Input
-                    id="advanced-search-raw"
-                    :model-value="field.state.value"
-                    @update:model-value="(v: string) => field.handleChange(v)"
-                    placeholder="e.g. model:PonyXL sampler:Euler a"
-                    type="text"
-                    variant="default"
-                    class="field-input"
-                  />
-                </form.Field>
-              </div>
-            </fieldset>
-
-            <!-- Actions -->
-            <div class="advanced-search-actions">
-              <Button type="button" variant="outline" size="sm" @click="handleReset">
-                <RotateCcw class="size-3.5 mr-1" />
-                Reset
-              </Button>
-              <div class="flex gap-2">
-                <Button type="button" variant="ghost" size="sm" @click="handleCancel"> Cancel </Button>
-                <Button type="submit" variant="default" size="sm" :disabled="!(isDirty && formState.isValid)">
-                  <Search class="size-3.5 mr-1" />
-                  Apply
-                </Button>
-              </div>
+              <form.Field name="negative" v-slot="{ field }">
+                <label class="field-label" for="advanced-search-negative">Negative Prompt</label>
+                <Input
+                  id="advanced-search-negative"
+                  :model-value="field.state.value"
+                  @update:model-value="(v: string) => field.handleChange(v)"
+                  placeholder="e.g. blurry, watermark"
+                  type="text"
+                  variant="default"
+                  class="field-input"
+                />
+              </form.Field>
+              <form.Field name="model" v-slot="{ field }">
+                <label class="field-label" for="advanced-search-model">Model</label>
+                <Input
+                  id="advanced-search-model"
+                  :model-value="field.state.value"
+                  @update:model-value="(v: string) => field.handleChange(v)"
+                  placeholder="e.g. PonyXL"
+                  type="text"
+                  variant="default"
+                  class="field-input"
+                  :list="'model-datalist'"
+                />
+                <datalist id="model-datalist">
+                  <option v-for="opt in facetModelOptions" :key="opt" :value="opt" />
+                </datalist>
+              </form.Field>
+              <form.Field name="sampler" v-slot="{ field }">
+                <label class="field-label" for="advanced-search-sampler">Sampler</label>
+                <Input
+                  id="advanced-search-sampler"
+                  :model-value="field.state.value"
+                  @update:model-value="(v: string) => field.handleChange(v)"
+                  placeholder="e.g. Euler a"
+                  type="text"
+                  variant="default"
+                  class="field-input"
+                  :list="'sampler-datalist'"
+                />
+                <datalist id="sampler-datalist">
+                  <option v-for="opt in facetSamplerOptions" :key="opt" :value="opt" />
+                </datalist>
+              </form.Field>
+              <form.Field name="scheduler" v-slot="{ field }">
+                <label class="field-label" for="advanced-search-scheduler">Scheduler</label>
+                <Input
+                  id="advanced-search-scheduler"
+                  :model-value="field.state.value"
+                  @update:model-value="(v: string) => field.handleChange(v)"
+                  placeholder="e.g. Karras"
+                  type="text"
+                  variant="default"
+                  class="field-input"
+                  :list="'scheduler-datalist'"
+                />
+                <datalist id="scheduler-datalist">
+                  <option v-for="opt in facetSchedulerOptions" :key="opt" :value="opt" />
+                </datalist>
+              </form.Field>
+              <form.Field name="lora" v-slot="{ field }">
+                <label class="field-label" for="advanced-search-lora">LoRA</label>
+                <Input
+                  id="advanced-search-lora"
+                  :model-value="field.state.value"
+                  @update:model-value="(v: string) => field.handleChange(v)"
+                  placeholder="LoRA name"
+                  type="text"
+                  variant="default"
+                  class="field-input"
+                />
+              </form.Field>
+              <form.Field name="vae" v-slot="{ field }">
+                <label class="field-label" for="advanced-search-vae">VAE</label>
+                <Input
+                  id="advanced-search-vae"
+                  :model-value="field.state.value"
+                  @update:model-value="(v: string) => field.handleChange(v)"
+                  placeholder="VAE name"
+                  type="text"
+                  variant="default"
+                  class="field-input"
+                />
+              </form.Field>
+              <form.Field name="folder" v-slot="{ field }">
+                <label class="field-label" for="advanced-search-folder">Folder</label>
+                <Input
+                  id="advanced-search-folder"
+                  :model-value="field.state.value"
+                  @update:model-value="(v: string) => field.handleChange(v)"
+                  placeholder="Folder name"
+                  type="text"
+                  variant="default"
+                  class="field-input"
+                />
+              </form.Field>
+              <form.Field name="name" v-slot="{ field }">
+                <label class="field-label" for="advanced-search-name">Name</label>
+                <Input
+                  id="advanced-search-name"
+                  :model-value="field.state.value"
+                  @update:model-value="(v: string) => field.handleChange(v)"
+                  placeholder="File name"
+                  type="text"
+                  variant="default"
+                  class="field-input"
+                />
+              </form.Field>
             </div>
-          </form>
-        </div>
+          </fieldset>
+
+          <!-- Numeric Fields -->
+          <fieldset class="field-group">
+            <legend class="field-group-label">Numeric Fields</legend>
+            <div class="field-grid">
+              <form.Field name="seed" v-slot="{ field: f }">
+                <label class="field-label" for="advanced-search-seed">Seed</label>
+                <div class="numeric-row">
+                  <select
+                    id="advanced-search-seed-op"
+                    class="numeric-op-select"
+                    :value="f.state.value.op"
+                    aria-label="Seed operator"
+                    @change="
+                      f.handleChange({ value: f.state.value.value, op: ($event.target as HTMLSelectElement).value })
+                    "
+                  >
+                    <option v-for="op in NUMERIC_OPS" :key="op.value" :value="op.value">
+                      {{ op.label }}
+                    </option>
+                  </select>
+                  <Input
+                    id="advanced-search-seed"
+                    :model-value="f.state.value.value"
+                    @update:model-value="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
+                    placeholder="12345"
+                    type="text"
+                    variant="default"
+                    class="field-input numeric-input"
+                  />
+                </div>
+                <p v-if="f.state.meta.errors?.length" class="field-error">
+                  {{ f.state.meta.errors[0] }}
+                </p>
+              </form.Field>
+              <form.Field name="steps" v-slot="{ field: f }">
+                <label class="field-label" for="advanced-search-steps">Steps</label>
+                <div class="numeric-row">
+                  <select
+                    id="advanced-search-steps-op"
+                    class="numeric-op-select"
+                    :value="f.state.value.op"
+                    aria-label="Steps operator"
+                    @change="
+                      f.handleChange({ value: f.state.value.value, op: ($event.target as HTMLSelectElement).value })
+                    "
+                  >
+                    <option v-for="op in NUMERIC_OPS" :key="op.value" :value="op.value">
+                      {{ op.label }}
+                    </option>
+                  </select>
+                  <Input
+                    id="advanced-search-steps"
+                    :model-value="f.state.value.value"
+                    @update:model-value="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
+                    placeholder="30"
+                    type="text"
+                    variant="default"
+                    class="field-input numeric-input"
+                  />
+                </div>
+                <p v-if="f.state.meta.errors?.length" class="field-error">
+                  {{ f.state.meta.errors[0] }}
+                </p>
+              </form.Field>
+              <form.Field name="cfg" v-slot="{ field: f }">
+                <label class="field-label" for="advanced-search-cfg">CFG Scale</label>
+                <div class="numeric-row">
+                  <select
+                    id="advanced-search-cfg-op"
+                    class="numeric-op-select"
+                    :value="f.state.value.op"
+                    aria-label="CFG Scale operator"
+                    @change="
+                      f.handleChange({ value: f.state.value.value, op: ($event.target as HTMLSelectElement).value })
+                    "
+                  >
+                    <option v-for="op in NUMERIC_OPS" :key="op.value" :value="op.value">
+                      {{ op.label }}
+                    </option>
+                  </select>
+                  <Input
+                    id="advanced-search-cfg"
+                    :model-value="f.state.value.value"
+                    @update:model-value="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
+                    placeholder="7.5"
+                    type="text"
+                    variant="default"
+                    class="field-input numeric-input"
+                  />
+                </div>
+                <p v-if="f.state.meta.errors?.length" class="field-error">
+                  {{ f.state.meta.errors[0] }}
+                </p>
+              </form.Field>
+              <form.Field name="clip_skip" v-slot="{ field: f }">
+                <label class="field-label" for="advanced-search-clip-skip">Clip Skip</label>
+                <div class="numeric-row">
+                  <select
+                    id="advanced-search-clip-skip-op"
+                    class="numeric-op-select"
+                    :value="f.state.value.op"
+                    aria-label="Clip Skip operator"
+                    @change="
+                      f.handleChange({ value: f.state.value.value, op: ($event.target as HTMLSelectElement).value })
+                    "
+                  >
+                    <option v-for="op in NUMERIC_OPS" :key="op.value" :value="op.value">
+                      {{ op.label }}
+                    </option>
+                  </select>
+                  <Input
+                    id="advanced-search-clip-skip"
+                    :model-value="f.state.value.value"
+                    @update:model-value="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
+                    placeholder="2"
+                    type="text"
+                    variant="default"
+                    class="field-input numeric-input"
+                  />
+                </div>
+                <p v-if="f.state.meta.errors?.length" class="field-error">
+                  {{ f.state.meta.errors[0] }}
+                </p>
+              </form.Field>
+              <form.Field name="denoising_strength" v-slot="{ field: f }">
+                <label class="field-label" for="advanced-search-denoising-strength">Denoising Strength</label>
+                <div class="numeric-row">
+                  <select
+                    id="advanced-search-denoising-strength-op"
+                    class="numeric-op-select"
+                    :value="f.state.value.op"
+                    aria-label="Denoising Strength operator"
+                    @change="
+                      f.handleChange({ value: f.state.value.value, op: ($event.target as HTMLSelectElement).value })
+                    "
+                  >
+                    <option v-for="op in NUMERIC_OPS" :key="op.value" :value="op.value">
+                      {{ op.label }}
+                    </option>
+                  </select>
+                  <Input
+                    id="advanced-search-denoising-strength"
+                    :model-value="f.state.value.value"
+                    @update:model-value="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
+                    placeholder="0.75"
+                    type="text"
+                    variant="default"
+                    class="field-input numeric-input"
+                  />
+                </div>
+                <p v-if="f.state.meta.errors?.length" class="field-error">
+                  {{ f.state.meta.errors[0] }}
+                </p>
+              </form.Field>
+              <form.Field name="hires_upscale" v-slot="{ field: f }">
+                <label class="field-label" for="advanced-search-hires-upscale">HiRes Upscale</label>
+                <div class="numeric-row">
+                  <select
+                    id="advanced-search-hires-upscale-op"
+                    class="numeric-op-select"
+                    :value="f.state.value.op"
+                    aria-label="HiRes Upscale operator"
+                    @change="
+                      f.handleChange({ value: f.state.value.value, op: ($event.target as HTMLSelectElement).value })
+                    "
+                  >
+                    <option v-for="op in NUMERIC_OPS" :key="op.value" :value="op.value">
+                      {{ op.label }}
+                    </option>
+                  </select>
+                  <Input
+                    id="advanced-search-hires-upscale"
+                    :model-value="f.state.value.value"
+                    @update:model-value="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
+                    placeholder="2"
+                    type="text"
+                    variant="default"
+                    class="field-input numeric-input"
+                  />
+                </div>
+                <p v-if="f.state.meta.errors?.length" class="field-error">
+                  {{ f.state.meta.errors[0] }}
+                </p>
+              </form.Field>
+              <form.Field name="hires_steps" v-slot="{ field: f }">
+                <label class="field-label" for="advanced-search-hires-steps">HiRes Steps</label>
+                <div class="numeric-row">
+                  <select
+                    id="advanced-search-hires-steps-op"
+                    class="numeric-op-select"
+                    :value="f.state.value.op"
+                    aria-label="HiRes Steps operator"
+                    @change="
+                      f.handleChange({ value: f.state.value.value, op: ($event.target as HTMLSelectElement).value })
+                    "
+                  >
+                    <option v-for="op in NUMERIC_OPS" :key="op.value" :value="op.value">
+                      {{ op.label }}
+                    </option>
+                  </select>
+                  <Input
+                    id="advanced-search-hires-steps"
+                    :model-value="f.state.value.value"
+                    @update:model-value="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
+                    placeholder="10"
+                    type="text"
+                    variant="default"
+                    class="field-input numeric-input"
+                  />
+                </div>
+                <p v-if="f.state.meta.errors?.length" class="field-error">
+                  {{ f.state.meta.errors[0] }}
+                </p>
+              </form.Field>
+            </div>
+          </fieldset>
+
+          <!-- Dimensions -->
+          <fieldset class="field-group">
+            <legend class="field-group-label">Dimensions</legend>
+            <div class="field-grid">
+              <form.Field name="width" v-slot="{ field: f }">
+                <label class="field-label" for="advanced-search-width">Width</label>
+                <div class="numeric-row">
+                  <select
+                    id="advanced-search-width-op"
+                    class="numeric-op-select"
+                    :value="f.state.value.op"
+                    aria-label="Width operator"
+                    @change="
+                      f.handleChange({ value: f.state.value.value, op: ($event.target as HTMLSelectElement).value })
+                    "
+                  >
+                    <option v-for="op in NUMERIC_OPS" :key="op.value" :value="op.value">
+                      {{ op.label }}
+                    </option>
+                  </select>
+                  <Input
+                    id="advanced-search-width"
+                    :model-value="f.state.value.value"
+                    @update:model-value="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
+                    placeholder="1024"
+                    type="text"
+                    variant="default"
+                    class="field-input numeric-input"
+                  />
+                </div>
+                <p v-if="f.state.meta.errors?.length" class="field-error">
+                  {{ f.state.meta.errors[0] }}
+                </p>
+              </form.Field>
+              <form.Field name="height" v-slot="{ field: f }">
+                <label class="field-label" for="advanced-search-height">Height</label>
+                <div class="numeric-row">
+                  <select
+                    id="advanced-search-height-op"
+                    class="numeric-op-select"
+                    :value="f.state.value.op"
+                    aria-label="Height operator"
+                    @change="
+                      f.handleChange({ value: f.state.value.value, op: ($event.target as HTMLSelectElement).value })
+                    "
+                  >
+                    <option v-for="op in NUMERIC_OPS" :key="op.value" :value="op.value">
+                      {{ op.label }}
+                    </option>
+                  </select>
+                  <Input
+                    id="advanced-search-height"
+                    :model-value="f.state.value.value"
+                    @update:model-value="(v: string) => f.handleChange({ value: v, op: f.state.value.op })"
+                    placeholder="768"
+                    type="text"
+                    variant="default"
+                    class="field-input numeric-input"
+                  />
+                </div>
+                <p v-if="f.state.meta.errors?.length" class="field-error">
+                  {{ f.state.meta.errors[0] }}
+                </p>
+              </form.Field>
+              <form.Field name="size" v-slot="{ field }">
+                <label class="field-label" for="advanced-search-size">Size</label>
+                <Input
+                  id="advanced-search-size"
+                  :model-value="field.state.value"
+                  @update:model-value="(v: string) => field.handleChange(v)"
+                  placeholder="e.g. 1024x768"
+                  type="text"
+                  variant="default"
+                  class="field-input"
+                />
+                <p v-if="field.state.meta.errors?.length" class="field-error">
+                  {{ field.state.meta.errors[0] }}
+                </p>
+              </form.Field>
+            </div>
+          </fieldset>
+
+          <!-- Aspect Ratio -->
+          <fieldset class="field-group">
+            <legend class="field-group-label">Aspect Ratio</legend>
+            <form.Field name="ratio" v-slot="{ field }">
+              <label class="field-label" for="advanced-search-ratio">Ratio</label>
+              <Input
+                id="advanced-search-ratio"
+                :model-value="field.state.value"
+                @update:model-value="(v: string) => field.handleChange(v)"
+                placeholder="e.g. 16:9"
+                type="text"
+                variant="default"
+                class="field-input"
+              />
+              <div class="aspect-ratio-row">
+                <button
+                  v-for="ratio in aspectRatios"
+                  :key="ratio.value"
+                  type="button"
+                  class="aspect-ratio-btn"
+                  :aria-pressed="field.state.value === ratio.value"
+                  @click="applyAspectRatio(ratio.value)"
+                >
+                  {{ ratio.label }}
+                </button>
+              </div>
+            </form.Field>
+          </fieldset>
+
+          <!-- Date -->
+          <fieldset class="field-group">
+            <legend class="field-group-label">Date</legend>
+            <div class="field-grid">
+              <form.Field name="date" v-slot="{ field }">
+                <label class="field-label" for="advanced-search-date">Date</label>
+                <Input
+                  id="advanced-search-date"
+                  :model-value="field.state.value"
+                  @update:model-value="(v: string) => field.handleChange(v)"
+                  placeholder="e.g. 2024-01-15"
+                  type="text"
+                  variant="default"
+                  class="field-input"
+                />
+              </form.Field>
+            </div>
+          </fieldset>
+
+          <!-- Generic / Power-user Fields -->
+          <fieldset class="field-group">
+            <legend class="field-group-label">Generic / Power-user</legend>
+            <div class="field-grid">
+              <form.Field name="param" v-slot="{ field }">
+                <label class="field-label" for="advanced-search-param">Param</label>
+                <Input
+                  id="advanced-search-param"
+                  :model-value="field.state.value"
+                  @update:model-value="(v: string) => field.handleChange(v)"
+                  placeholder="Custom parameter value"
+                  type="text"
+                  variant="default"
+                  class="field-input"
+                />
+              </form.Field>
+              <form.Field name="advanced" v-slot="{ field }">
+                <label class="field-label" for="advanced-search-advanced">Advanced</label>
+                <Input
+                  id="advanced-search-advanced"
+                  :model-value="field.state.value"
+                  @update:model-value="(v: string) => field.handleChange(v)"
+                  placeholder="Advanced field value"
+                  type="text"
+                  variant="default"
+                  class="field-input"
+                />
+              </form.Field>
+              <form.Field name="raw" v-slot="{ field }">
+                <label class="field-label" for="advanced-search-raw">Raw Query</label>
+                <Input
+                  id="advanced-search-raw"
+                  :model-value="field.state.value"
+                  @update:model-value="(v: string) => field.handleChange(v)"
+                  placeholder="e.g. model:PonyXL sampler:Euler a"
+                  type="text"
+                  variant="default"
+                  class="field-input"
+                />
+              </form.Field>
+            </div>
+          </fieldset>
+
+          <!-- Actions -->
+          <div class="advanced-search-actions">
+            <Button type="button" variant="outline" size="sm" @click="handleReset">
+              <RotateCcw class="size-3.5 mr-1" />
+              Reset
+            </Button>
+            <div class="flex gap-2">
+              <Button type="button" variant="ghost" size="sm" @click="handleCancel"> Cancel </Button>
+              <Button type="submit" variant="default" size="sm" :disabled="!(isDirty && formState.isValid)">
+                <Search class="size-3.5 mr-1" />
+                Apply
+              </Button>
+            </div>
+          </div>
+        </form>
       </div>
-    </div>
-  </Teleport>
+    </SheetContent>
+  </Sheet>
 </template>
 
 <style scoped>
-.advanced-search-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  background: rgba(0, 0, 0, 0.3);
-  display: flex;
-  justify-content: flex-end;
-}
-
 .advanced-search-drawer {
-  width: 420px;
-  max-width: 90vw;
-  height: 100%;
-  background: var(--background, hsl(0 0% 100%));
-  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.12);
   display: flex;
   flex-direction: column;
-  animation: slideInRight 200ms ease-out;
-}
-
-@keyframes slideInRight {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
 }
 
 .advanced-search-header {
@@ -943,6 +907,7 @@ function applyAspectRatio(ratio: string) {
   padding: 16px 20px;
   border-bottom: 1px solid var(--border, hsl(0 0% 89.8%));
   flex-shrink: 0;
+  text-align: left;
 }
 
 .advanced-search-body {

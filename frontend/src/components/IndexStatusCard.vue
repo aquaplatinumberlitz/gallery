@@ -7,6 +7,7 @@ import IndexProgressBar from "@/components/IndexProgressBar.vue";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { CatalogStatusPresentation } from "@/lib/catalog/labels";
 import type { UnifiedStatus } from "@/lib/catalog/status";
+import { motion } from "motion-v";
 
 const props = defineProps<{
   status: UnifiedStatus | null;
@@ -136,9 +137,23 @@ const bodyText = computed(() => {
           {{ bodyText }}
         </span>
 
-        <Transition name="index-progress-linger">
+        <motion.div
+          :initial="false"
+          :animate="{
+            height: showProcessingProgress ? 'auto' : 0,
+            opacity: showProcessingProgress ? 1 : 0,
+          }"
+          :transition="{
+            type: 'spring',
+            stiffness: 420,
+            damping: 38,
+            opacity: { type: 'tween', duration: 0.16 },
+          }"
+          :style="{ overflow: 'hidden' }"
+          :aria-hidden="!showProcessingProgress"
+        >
           <IndexProgressBar v-if="showProcessingProgress" :percent="processingProgressPercent" />
-        </Transition>
+        </motion.div>
 
         <span class="index-status-card__details">Details</span>
       </button>
@@ -219,20 +234,5 @@ const bodyText = computed(() => {
   font-size: 12px;
   font-weight: 600;
   line-height: 1.2;
-}
-
-.index-progress-linger-enter-active,
-.index-progress-linger-leave-active {
-  max-height: 8px;
-  overflow: hidden;
-  transition:
-    opacity 180ms ease,
-    max-height 180ms ease;
-}
-
-.index-progress-linger-enter-from,
-.index-progress-linger-leave-to {
-  max-height: 0;
-  opacity: 0;
 }
 </style>

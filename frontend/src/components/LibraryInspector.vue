@@ -44,6 +44,7 @@ import { queryClient } from "@/query";
 import { queryKeys } from "@/query/keys";
 import { clearScopeRebuildMarker, getScopeRebuildStartedAt } from "@/utils/indexMaintenance";
 import { fitMiddleTruncate, tableCellFont } from "@/utils/textTruncation";
+import { motion } from "motion-v";
 import { logIndexRebuildDebug } from "@/debug/indexRebuildDebug";
 import { logLightboxNavDebug, summarizeLightboxItems } from "@/debug/lightboxNavDebug";
 import type {
@@ -116,7 +117,9 @@ const tableShellRef = ref<HTMLElement | null>(null);
 const hasRestoredScroll = ref(false);
 let latestCopyFallbackRoot: HTMLElement | null = null;
 
-const { isHeaderCollapsed: isInspectorHeaderCollapsed } = useCollapsibleHeader(tableShellRef);
+const { isHeaderCollapsed: isInspectorHeaderCollapsed } = useCollapsibleHeader(tableShellRef, {
+  collapseScrollY: 48,
+});
 
 const inspectorQuery = useInfiniteLibraryInspectorQuery(query, scope, currentPath, limit, inspectorSort);
 const metadataQuery = useLibraryInspectorMetadataQuery(detailPath, detailEnabled);
@@ -713,7 +716,24 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
 
 <template>
   <section class="library-inspector" aria-labelledby="library-inspector-title">
-    <div class="inspector-header" :class="{ 'is-collapsed': isInspectorHeaderCollapsed }">
+    <motion.div
+      class="inspector-header"
+      :initial="false"
+      :animate="{
+        height: isInspectorHeaderCollapsed ? 0 : 'auto',
+        opacity: isInspectorHeaderCollapsed ? 0 : 1,
+        y: isInspectorHeaderCollapsed ? -8 : 0,
+      }"
+      :transition="{
+        type: 'spring',
+        stiffness: 400,
+        damping: 35,
+        opacity: { type: 'tween', duration: 0.2, ease: [0.4, 0, 0.6, 1] },
+      }"
+      :style="{ overflow: 'hidden' }"
+      :inert="isInspectorHeaderCollapsed"
+      :aria-hidden="isInspectorHeaderCollapsed"
+    >
       <div class="inspector-heading">
         <div class="min-w-0">
           <h2 id="library-inspector-title" class="truncate text-xl font-semibold tracking-normal">Photo Details</h2>
@@ -722,7 +742,7 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
           </p>
         </div>
       </div>
-    </div>
+    </motion.div>
 
     <div class="table-toolbar">
       <div class="inspector-search relative">
@@ -1337,23 +1357,6 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
   justify-content: space-between;
   gap: 12px;
   padding-bottom: 2px;
-  max-height: 80px;
-  opacity: 1;
-  overflow: hidden;
-  transform: translateY(0);
-  transition:
-    max-height 200ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 180ms ease,
-    transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
-    padding-bottom 200ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.inspector-header.is-collapsed {
-  max-height: 0;
-  opacity: 0;
-  padding-bottom: 0;
-  pointer-events: none;
-  transform: translateY(-8px);
 }
 
 .inspector-heading {

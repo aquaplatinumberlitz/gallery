@@ -7,6 +7,7 @@ import SearchScopeSelect from "./SearchScopeSelect.vue";
 import { useGalleryStore } from "../stores/gallery";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useRouteChrome } from "@/composables/useRouteChrome";
+import { AnimatePresence, motion } from "motion-v";
 
 interface Props {
   isDark: boolean;
@@ -106,10 +107,9 @@ function onSearchInput(e: Event) {
 <template>
   <header class="tablet-header" :class="{ 'search-active': isSearchActive }" data-testid="tablet-header">
     <!-- Left: hamburger -->
-    <Tooltip>
+    <Tooltip v-if="!isSearchActive">
       <TooltipTrigger as-child>
         <button
-          v-show="!isSearchActive"
           ref="searchBtnRef"
           class="th-btn th-hamburger"
           @click="emit('toggle-sidebar')"
@@ -121,11 +121,18 @@ function onSearchInput(e: Event) {
       <TooltipContent>Toggle sidebar</TooltipContent>
     </Tooltip>
 
-    <Tooltip>
+    <Tooltip v-if="isSearchActive">
       <TooltipTrigger as-child>
-        <button v-show="isSearchActive" class="th-btn th-back-btn" @click="closeSearch" aria-label="Close search">
+        <motion.button
+          class="th-btn th-back-btn"
+          :initial="{ opacity: 0, x: -6 }"
+          :animate="{ opacity: 1, x: 0 }"
+          :transition="{ type: 'spring', stiffness: 500, damping: 36, opacity: { type: 'tween', duration: 0.16 } }"
+          @click="closeSearch"
+          aria-label="Close search"
+        >
           <ArrowLeft class="th-header-icon" />
-        </button>
+        </motion.button>
       </TooltipTrigger>
       <TooltipContent>Close search</TooltipContent>
     </Tooltip>
@@ -143,7 +150,13 @@ function onSearchInput(e: Event) {
     </div>
 
     <!-- Center: expandable search input (search mode) -->
-    <div v-show="isSearchActive" class="th-search-expanded">
+    <motion.div
+      v-if="isSearchActive"
+      class="th-search-expanded"
+      :initial="{ opacity: 0, scaleX: 0.72 }"
+      :animate="{ opacity: 1, scaleX: 1 }"
+      :transition="{ type: 'spring', stiffness: 520, damping: 38, opacity: { type: 'tween', duration: 0.16 } }"
+    >
       <div class="th-search-input-wrap">
         <Loader2 v-if="searchLoading" class="th-search-icon th-search-loading" />
         <Search v-else class="th-search-icon" />
@@ -170,7 +183,7 @@ function onSearchInput(e: Event) {
           @update:model-value="emit('scope-change', $event)"
         />
       </div>
-    </div>
+    </motion.div>
 
     <!-- Right: actions (hidden in search mode) -->
     <div v-show="!isSearchActive" class="th-actions">
@@ -220,15 +233,19 @@ function onSearchInput(e: Event) {
   </header>
 
   <!-- Focus overlay -->
-  <Transition name="th-overlay-fade">
-    <div
+  <AnimatePresence :initial="false">
+    <motion.div
       v-if="isSearchActive"
       class="th-search-overlay"
       :class="{ 'th-search-has-query': hasQuery }"
+      :initial="{ opacity: 0 }"
+      :animate="{ opacity: 1 }"
+      :exit="{ opacity: 0 }"
+      :transition="{ duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }"
       @click="handleOverlayClick"
       @touchend.prevent="handleOverlayClick"
     />
-  </Transition>
+  </AnimatePresence>
 </template>
 
 <style scoped>
@@ -329,19 +346,7 @@ function onSearchInput(e: Event) {
   flex: 1;
   display: flex;
   align-items: center;
-  animation: thSearchBarIn 200ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
   transform-origin: right center;
-}
-
-@keyframes thSearchBarIn {
-  from {
-    opacity: 0;
-    transform: scaleX(0.7);
-  }
-  to {
-    opacity: 1;
-    transform: scaleX(1);
-  }
 }
 
 .th-search-input-wrap {
@@ -439,24 +444,6 @@ function onSearchInput(e: Event) {
 }
 
 /* ============================================================
-   Back button (search mode)
-   ============================================================ */
-.th-back-btn {
-  animation: thBackBtnIn 200ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-}
-
-@keyframes thBackBtnIn {
-  from {
-    opacity: 0;
-    transform: translateX(-6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-/* ============================================================
    Focus overlay
    ============================================================ */
 .th-search-overlay {
@@ -485,26 +472,6 @@ function onSearchInput(e: Event) {
   pointer-events: none;
 }
 
-/* Overlay transition */
-.th-overlay-fade-enter-active {
-  transition:
-    opacity 200ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    backdrop-filter 200ms ease;
-}
-
-.th-overlay-fade-leave-active {
-  transition:
-    opacity 150ms ease,
-    backdrop-filter 150ms ease;
-}
-
-.th-overlay-fade-enter-from,
-.th-overlay-fade-leave-to {
-  opacity: 0;
-  backdrop-filter: blur(0px);
-  -webkit-backdrop-filter: blur(0px);
-}
-
 /* ============================================================
    Tablet: larger touch targets (44×44)
    ============================================================ */
@@ -519,21 +486,8 @@ function onSearchInput(e: Event) {
    Reduced motion
    ============================================================ */
 @media (prefers-reduced-motion: reduce) {
-  .th-search-expanded {
-    animation: none;
-  }
-
-  .th-back-btn {
-    animation: none;
-  }
-
   .th-search-loading {
     animation: none;
-  }
-
-  .th-overlay-fade-enter-active,
-  .th-overlay-fade-leave-active {
-    transition: opacity 150ms ease;
   }
 }
 </style>

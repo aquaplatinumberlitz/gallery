@@ -48,6 +48,7 @@ import { useRouteChrome } from "@/composables/useRouteChrome";
 import { galleryScrollContainerRefKey } from "@/injectionKeys";
 import { useCollapsibleHeader } from "@/composables/useCollapsibleHeader";
 import { useInfiniteBrowseQuery } from "@/composables/useInfiniteBrowseQuery";
+import { motion } from "motion-v";
 
 interface Props {
   isMobile: boolean;
@@ -256,7 +257,24 @@ function handleClearAll() {
     }"
   >
     <template v-if="showGalleryHeader">
-      <div class="expanded-header" :aria-hidden="isHeaderCollapsed" :inert="isHeaderCollapsed">
+      <motion.div
+        class="expanded-header"
+        :initial="false"
+        :animate="{
+          height: isHeaderCollapsed ? 0 : 'auto',
+          opacity: isHeaderCollapsed ? 0 : 1,
+          y: isHeaderCollapsed ? -8 : 0,
+        }"
+        :transition="{
+          type: 'spring',
+          stiffness: 400,
+          damping: 35,
+          opacity: { type: 'tween', duration: 0.2, ease: [0.4, 0, 0.6, 1] },
+        }"
+        :style="{ overflow: 'hidden' }"
+        :aria-hidden="isHeaderCollapsed"
+        :inert="isHeaderCollapsed"
+      >
         <div class="expanded-primary">
           <div class="header-left flex items-center gap-3">
             <Tooltip>
@@ -516,9 +534,26 @@ function handleClearAll() {
             <span>{{ isBrowseRefetching && !isBrowseLoading ? "Refreshing" : "Loading" }}</span>
           </Badge>
         </div>
-      </div>
+      </motion.div>
 
-      <div class="compact-header" :aria-hidden="!isHeaderCollapsed" :inert="!isHeaderCollapsed">
+      <motion.div
+        class="compact-header"
+        :initial="false"
+        :animate="{
+          height: isHeaderCollapsed ? 'auto' : 0,
+          opacity: isHeaderCollapsed ? 1 : 0,
+          y: isHeaderCollapsed ? 0 : 8,
+        }"
+        :transition="{
+          type: 'spring',
+          stiffness: 400,
+          damping: 35,
+          opacity: { type: 'tween', duration: 0.2, ease: [0.4, 0, 0.6, 1] },
+        }"
+        :style="{ overflow: 'hidden' }"
+        :aria-hidden="!isHeaderCollapsed"
+        :inert="!isHeaderCollapsed"
+      >
         <div class="nav-group inline-flex items-center gap-2">
           <Tooltip>
             <TooltipTrigger as-child>
@@ -623,7 +658,7 @@ function handleClearAll() {
             <span>{{ isBrowseRefetching && !isBrowseLoading ? "Refreshing" : "Loading" }}</span>
           </Badge>
         </div>
-      </div>
+      </motion.div>
     </template>
 
     <template v-else>
@@ -779,21 +814,6 @@ function handleClearAll() {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  max-height: 180px;
-  overflow: hidden;
-  opacity: 1;
-  transform: translateY(0);
-  transition:
-    max-height 200ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 180ms ease,
-    transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.is-collapsed .expanded-header {
-  max-height: 0;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(-8px);
 }
 
 .expanded-primary {
@@ -810,25 +830,6 @@ function handleClearAll() {
   gap: 8px;
   min-width: 0;
   width: 100%;
-  height: 0;
-  max-height: 0;
-  opacity: 0;
-  overflow: hidden;
-  pointer-events: none;
-  transform: translateY(8px);
-  transition:
-    height 200ms cubic-bezier(0.22, 1, 0.36, 1),
-    max-height 200ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 180ms ease,
-    transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.is-collapsed .compact-header {
-  height: 54px;
-  max-height: 56px;
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateY(0);
 }
 
 .gallery-toolbar {
@@ -1004,9 +1005,7 @@ h1 {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .gallery-header.is-gallery-header,
-  .expanded-header,
-  .compact-header {
+  .gallery-header.is-gallery-header {
     transition: none;
   }
 

@@ -6,6 +6,7 @@ import GallerySectionHeader from "./GallerySectionHeader.vue";
 import AlbumCarouselDesktop from "./AlbumCarouselDesktop.vue";
 import AlbumScrollerNative from "./AlbumScrollerNative.vue";
 import { useDevice } from "../composables/useDevice";
+import { motion } from "motion-v";
 
 defineProps<{
   folders: FileNode[];
@@ -44,16 +45,30 @@ const { isMobile, isTablet } = useDevice();
         :collapsed="collapsed"
       />
     </button>
-    <Transition name="album-collapse">
-      <div v-show="!collapsed">
-        <AlbumCarouselDesktop
-          v-if="!isMobile && !isTablet"
-          :folders="folders"
-          @open-folder="(path: string) => emit('open-folder', path)"
-        />
-        <AlbumScrollerNative v-else :folders="folders" @open-folder="(path: string) => emit('open-folder', path)" />
-      </div>
-    </Transition>
+    <motion.div
+      :initial="false"
+      :animate="{
+        height: collapsed ? 0 : 'auto',
+        opacity: collapsed ? 0 : 1,
+        y: collapsed ? -6 : 0,
+      }"
+      :transition="{
+        type: 'spring',
+        stiffness: 380,
+        damping: 34,
+        opacity: { type: 'tween', duration: 0.18, ease: [0.4, 0, 0.6, 1] },
+      }"
+      :style="{ overflow: 'hidden' }"
+      :aria-hidden="collapsed"
+      :inert="collapsed"
+    >
+      <AlbumCarouselDesktop
+        v-if="!isMobile && !isTablet"
+        :folders="folders"
+        @open-folder="(path: string) => emit('open-folder', path)"
+      />
+      <AlbumScrollerNative v-else :folders="folders" @open-folder="(path: string) => emit('open-folder', path)" />
+    </motion.div>
   </section>
 </template>
 
@@ -76,28 +91,5 @@ const { isMobile, isTablet } = useDevice();
   text-align: left;
   position: relative;
   z-index: 3;
-}
-
-/* ── Collapse animation ── */
-.album-collapse-enter-active,
-.album-collapse-leave-active {
-  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: hidden;
-}
-
-.album-collapse-enter-from,
-.album-collapse-leave-to {
-  max-height: 0;
-  opacity: 0;
-  margin-top: 0;
-  margin-bottom: 0;
-  padding-top: 0;
-  padding-bottom: 0;
-}
-
-.album-collapse-enter-to,
-.album-collapse-leave-from {
-  max-height: 600px;
-  opacity: 1;
 }
 </style>

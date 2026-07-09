@@ -6,6 +6,7 @@ import { useGalleryStore } from "../stores/gallery";
 import SortDropdown from "./SortDropdown.vue";
 import SearchScopeSelect from "./SearchScopeSelect.vue";
 import type { SortValue } from "../types";
+import { AnimatePresence, motion } from "motion-v";
 
 interface Props {
   isDark: boolean;
@@ -130,9 +131,17 @@ const gallerySortValue = computed<SortValue>({
     >
       <Menu />
     </button>
-    <button v-else class="mh-btn search-focus-back" @click="closeSearch" aria-label="Close search">
+    <motion.button
+      v-else
+      class="mh-btn search-focus-back"
+      :initial="{ opacity: 0, x: -6 }"
+      :animate="{ opacity: 1, x: 0 }"
+      :transition="{ type: 'spring', stiffness: 500, damping: 36, opacity: { type: 'tween', duration: 0.16 } }"
+      @click="closeSearch"
+      aria-label="Close search"
+    >
       <ArrowLeft />
-    </button>
+    </motion.button>
 
     <!-- Center: search area -->
     <div class="mh-search">
@@ -147,7 +156,13 @@ const gallerySortValue = computed<SortValue>({
       >
         <Search />
       </button>
-      <div v-else class="search-focus-bar">
+      <motion.div
+        v-else
+        class="search-focus-bar"
+        :initial="{ opacity: 0, scaleX: 0.72 }"
+        :animate="{ opacity: 1, scaleX: 1 }"
+        :transition="{ type: 'spring', stiffness: 520, damping: 38, opacity: { type: 'tween', duration: 0.16 } }"
+      >
         <div class="search-focus-input-wrap">
           <Loader2 v-if="searchLoading" class="search-focus-input-icon search-focus-loading" />
           <Search v-else class="search-focus-input-icon" />
@@ -174,7 +189,7 @@ const gallerySortValue = computed<SortValue>({
             @update:model-value="emit('scope-change', $event)"
           />
         </div>
-      </div>
+      </motion.div>
     </div>
 
     <RouterLink
@@ -215,16 +230,20 @@ const gallerySortValue = computed<SortValue>({
   </header>
 
   <!-- Focus overlay — sibling element outside header -->
-  <Transition name="overlay-fade">
-    <div
+  <AnimatePresence :initial="false">
+    <motion.div
       v-if="isSearchActive"
       ref="overlayRef"
       class="search-focus-overlay"
       :class="{ 'search-focus-has-query': hasQuery }"
+      :initial="{ opacity: 0 }"
+      :animate="{ opacity: 1 }"
+      :exit="{ opacity: 0 }"
+      :transition="{ duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }"
       @click="handleOverlayClick"
       @touchend.prevent="handleOverlayClick"
     />
-  </Transition>
+  </AnimatePresence>
 </template>
 
 <style scoped>
@@ -351,19 +370,7 @@ const gallerySortValue = computed<SortValue>({
   flex: 1;
   display: flex;
   align-items: center;
-  animation: searchBarExpand 200ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
   transform-origin: right center;
-}
-
-@keyframes searchBarExpand {
-  from {
-    opacity: 0;
-    transform: scaleX(0.7);
-  }
-  to {
-    opacity: 1;
-    transform: scaleX(1);
-  }
 }
 
 /* ============================================================
@@ -490,18 +497,6 @@ const gallerySortValue = computed<SortValue>({
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  animation: backBtnIn 200ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-}
-
-@keyframes backBtnIn {
-  from {
-    opacity: 0;
-    transform: translateX(-6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
 }
 
 .search-focus-back:hover {
@@ -552,46 +547,11 @@ const gallerySortValue = computed<SortValue>({
 }
 
 /* ============================================================
-   Overlay fade transition
-   ============================================================ */
-.overlay-fade-enter-active {
-  transition:
-    opacity 200ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    backdrop-filter 200ms ease;
-}
-
-.overlay-fade-leave-active {
-  transition:
-    opacity 150ms ease,
-    backdrop-filter 150ms ease;
-}
-
-.overlay-fade-enter-from,
-.overlay-fade-leave-to {
-  opacity: 0;
-  backdrop-filter: blur(0px);
-  -webkit-backdrop-filter: blur(0px);
-}
-
-/* ============================================================
    Reduced motion
    ============================================================ */
 @media (prefers-reduced-motion: reduce) {
-  .search-focus-bar {
-    animation: none;
-  }
-
-  .search-focus-back {
-    animation: none;
-  }
-
   .search-focus-loading {
     animation: none;
-  }
-
-  .overlay-fade-enter-active,
-  .overlay-fade-leave-active {
-    transition: opacity 150ms ease;
   }
 }
 

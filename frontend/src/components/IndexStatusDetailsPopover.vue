@@ -8,6 +8,7 @@ import { formatLibraryTimestamp } from "@/utils/libraryStatus";
 import type { CatalogStatusPresentation } from "@/lib/catalog/labels";
 import { STATUS_CONTRACT_ERROR_MESSAGE } from "@/lib/catalog/contractGuard";
 import type { UnifiedStatus } from "@/lib/catalog/status";
+import { motion } from "motion-v";
 
 const props = defineProps<{
   status: UnifiedStatus | null;
@@ -166,7 +167,21 @@ function formatMiddlePath(value: string, maxLength = 34) {
         </Tooltip>
       </div>
 
-      <Transition name="index-details-progress-linger">
+      <motion.div
+        :initial="false"
+        :animate="{
+          height: showProcessingProgress ? 'auto' : 0,
+          opacity: showProcessingProgress ? 1 : 0,
+        }"
+        :transition="{
+          type: 'spring',
+          stiffness: 420,
+          damping: 38,
+          opacity: { type: 'tween', duration: 0.16 },
+        }"
+        :style="{ overflow: 'hidden' }"
+        :aria-hidden="!showProcessingProgress"
+      >
         <div v-if="showProcessingProgress" class="index-details__section">
           <p class="index-details__section-label">Processing</p>
           <p class="index-details__muted" style="margin: 0; font-size: 12px">
@@ -174,7 +189,7 @@ function formatMiddlePath(value: string, maxLength = 34) {
           </p>
           <IndexProgressBar :percent="processingProgressPercent" />
         </div>
-      </Transition>
+      </motion.div>
 
       <div class="index-details__section">
         <p class="index-details__section-label">Location</p>
@@ -389,20 +404,5 @@ function formatMiddlePath(value: string, maxLength = 34) {
 
 .index-details__actions {
   padding-top: 2px;
-}
-
-.index-details-progress-linger-enter-active,
-.index-details-progress-linger-leave-active {
-  max-height: 72px;
-  overflow: hidden;
-  transition:
-    opacity 180ms ease,
-    max-height 180ms ease;
-}
-
-.index-details-progress-linger-enter-from,
-.index-details-progress-linger-leave-to {
-  max-height: 0;
-  opacity: 0;
 }
 </style>

@@ -18,6 +18,7 @@ import { useRouter } from "vue-router";
 import { useLibrariesQuery } from "./composables/admin/useLibrariesQuery";
 import { useRouteChrome } from "@/composables/useRouteChrome";
 import { useSidebarTreeQuery } from "./composables/useSidebarTreeQuery";
+import { MotionConfig } from "motion-v";
 
 const Lightbox = defineAsyncComponent(() => import("./components/Lightbox.vue"));
 const showDevtools = import.meta.env.DEV || import.meta.env.VITE_DEVTOOLS === "true";
@@ -132,86 +133,93 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
 </script>
 
 <template>
-  <TooltipProvider :delay-duration="300" :skip-delay-duration="100">
-    <a v-if="!showIntro" href="#main-content" class="skip-link">Skip to main content</a>
+  <MotionConfig reduced-motion="user">
+    <TooltipProvider :delay-duration="300" :skip-delay-duration="100">
+      <a v-if="!showIntro" href="#main-content" class="skip-link">Skip to main content</a>
 
-    <!-- Intro Screen -->
-    <IntroScreen v-if="showIntro" v-model:visible="showIntro" :force-url="introPreviewUrl" @enter="handleIntroEnter" />
+      <!-- Intro Screen -->
+      <IntroScreen
+        v-if="showIntro"
+        v-model:visible="showIntro"
+        :force-url="introPreviewUrl"
+        @enter="handleIntroEnter"
+      />
 
-    <!-- Main App Layout -->
-    <MobileLayout
-      v-else-if="isMobile"
-      :theme="resolvedTheme"
-      :is-sidebar-open="isSidebarOpen"
-      :tree="tree"
-      :is-loading="isLoading"
-      :has-active-library="hasActiveLibrary"
-      :current-path="currentPath"
-      :search-query="galleryStore.searchQuery"
-      :search-scope="galleryStore.searchScope"
-      :search-loading="galleryStore.searchLoading"
-      :bars-visible="barsVisible"
-      :can-back="canBack"
-      :can-forward="canForward"
-      :show-back-to-gallery="showBackToGallery"
-      @update:search-query="galleryStore.setSearchQuery($event)"
-      @scope-change="galleryStore.setSearchScope($event)"
-      @update:sidebar-open="isSidebarOpen = $event"
-      @toggle-sidebar="toggleSidebar"
-      @toggle-theme="toggleTheme"
-      @back="galleryStore.goBack()"
-      @forward="galleryStore.goForward()"
-      @open-folder="galleryStore.openInExplorer()"
-    />
+      <!-- Main App Layout -->
+      <MobileLayout
+        v-else-if="isMobile"
+        :theme="resolvedTheme"
+        :is-sidebar-open="isSidebarOpen"
+        :tree="tree"
+        :is-loading="isLoading"
+        :has-active-library="hasActiveLibrary"
+        :current-path="currentPath"
+        :search-query="galleryStore.searchQuery"
+        :search-scope="galleryStore.searchScope"
+        :search-loading="galleryStore.searchLoading"
+        :bars-visible="barsVisible"
+        :can-back="canBack"
+        :can-forward="canForward"
+        :show-back-to-gallery="showBackToGallery"
+        @update:search-query="galleryStore.setSearchQuery($event)"
+        @scope-change="galleryStore.setSearchScope($event)"
+        @update:sidebar-open="isSidebarOpen = $event"
+        @toggle-sidebar="toggleSidebar"
+        @toggle-theme="toggleTheme"
+        @back="galleryStore.goBack()"
+        @forward="galleryStore.goForward()"
+        @open-folder="galleryStore.openInExplorer()"
+      />
 
-    <TabletLayout
-      v-else-if="isTablet"
-      :theme="resolvedTheme"
-      :is-sidebar-open="isSidebarOpen"
-      :tree="tree"
-      :is-loading="isLoading"
-      :has-active-library="hasActiveLibrary"
-      :current-path="currentPath"
-      :search-query="galleryStore.searchQuery"
-      :search-scope="galleryStore.searchScope"
-      :search-loading="galleryStore.searchLoading"
-      @update:search-query="galleryStore.setSearchQuery($event)"
-      @scope-change="galleryStore.setSearchScope($event)"
-      @update:sidebar-open="isSidebarOpen = $event"
-      @toggle-sidebar="toggleSidebar"
-      @toggle-theme="toggleTheme"
-      @open-settings="isSettingsOpen = true"
-    />
+      <TabletLayout
+        v-else-if="isTablet"
+        :theme="resolvedTheme"
+        :is-sidebar-open="isSidebarOpen"
+        :tree="tree"
+        :is-loading="isLoading"
+        :has-active-library="hasActiveLibrary"
+        :current-path="currentPath"
+        :search-query="galleryStore.searchQuery"
+        :search-scope="galleryStore.searchScope"
+        :search-loading="galleryStore.searchLoading"
+        @update:search-query="galleryStore.setSearchQuery($event)"
+        @scope-change="galleryStore.setSearchScope($event)"
+        @update:sidebar-open="isSidebarOpen = $event"
+        @toggle-sidebar="toggleSidebar"
+        @toggle-theme="toggleTheme"
+        @open-settings="isSettingsOpen = true"
+      />
 
-    <DesktopLayout
-      v-else
-      :theme="resolvedTheme"
-      :is-sidebar-open="isSidebarOpen"
-      :tree="tree"
-      :is-loading="isLoading"
-      :has-active-library="hasActiveLibrary"
-      :current-path="currentPath"
-      :search-query="galleryStore.searchQuery"
-      :search-scope="galleryStore.searchScope"
-      :search-loading="galleryStore.searchLoading"
-      @update:search-query="galleryStore.setSearchQuery($event)"
-      @scope-change="galleryStore.setSearchScope($event)"
-      @update:sidebar-open="isSidebarOpen = $event"
-      @toggle-sidebar="toggleSidebar"
-      @toggle-theme="toggleTheme"
-      @open-settings="isSettingsOpen = true"
-    />
+      <DesktopLayout
+        v-else
+        :theme="resolvedTheme"
+        :is-sidebar-open="isSidebarOpen"
+        :tree="tree"
+        :is-loading="isLoading"
+        :has-active-library="hasActiveLibrary"
+        :current-path="currentPath"
+        :search-query="galleryStore.searchQuery"
+        :search-scope="galleryStore.searchScope"
+        :search-loading="galleryStore.searchLoading"
+        @update:search-query="galleryStore.setSearchQuery($event)"
+        @scope-change="galleryStore.setSearchScope($event)"
+        @update:sidebar-open="isSidebarOpen = $event"
+        @toggle-sidebar="toggleSidebar"
+        @toggle-theme="toggleTheme"
+        @open-settings="isSettingsOpen = true"
+      />
 
-    <Lightbox />
-    <GalleryToaster v-if="!isMobile" />
-    <SettingsModal :is-open="isSettingsOpen" @close="isSettingsOpen = false" @preview="handlePreviewIntro" />
-    <component
-      :is="VueQueryDevtools"
-      v-if="showDevtools && VueQueryDevtools"
-      button-position="bottom-right"
-      position="bottom"
-    />
-  </TooltipProvider>
+      <Lightbox />
+      <GalleryToaster v-if="!isMobile" />
+      <SettingsModal :is-open="isSettingsOpen" @close="isSettingsOpen = false" @preview="handlePreviewIntro" />
+      <component
+        :is="VueQueryDevtools"
+        v-if="showDevtools && VueQueryDevtools"
+        button-position="bottom-right"
+        position="bottom"
+      />
+    </TooltipProvider>
+  </MotionConfig>
 </template>
 
 <style scoped>

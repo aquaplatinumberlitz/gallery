@@ -3,6 +3,13 @@ import type { SortValue } from "../types";
 import SortSelect from "./SortSelect.vue";
 import { ArrowLeft, ArrowRight, ChevronDown, LayoutGrid, Check } from "lucide-vue-next";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface DensityOption {
   level: number;
@@ -20,7 +27,7 @@ interface Props {
   showDensityMenu: boolean;
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
 
 const emit = defineEmits<{
   back: [];
@@ -34,22 +41,9 @@ const selectDensity = (level: number) => {
   emit("selectDensity", level);
 };
 
-// Density menu keyboard navigation
-const handleDensityMenuKeydown = (e: KeyboardEvent) => {
-  if (e.key === "Escape") {
+const handleDensityOpenChange = (open: boolean) => {
+  if (open !== props.showDensityMenu) {
     emit("toggleDensityMenu");
-  } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-    e.preventDefault();
-    const menu = e.currentTarget as HTMLElement;
-    const buttons = menu.querySelectorAll("button");
-    if (buttons.length) {
-      const currentIndex = Array.from(buttons).findIndex((b) => b === document.activeElement);
-      const nextIndex =
-        e.key === "ArrowDown"
-          ? (currentIndex + 1) % buttons.length
-          : (currentIndex - 1 + buttons.length) % buttons.length;
-      (buttons[nextIndex] as HTMLElement).focus();
-    }
   }
 };
 </script>
@@ -85,20 +79,17 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
     />
 
     <!-- Density dropdown -->
-    <div class="density-dropdown" :class="{ open: showDensityMenu }">
-      <button
-        class="tgt-trigger"
-        @click.stop="emit('toggleDensityMenu')"
-        aria-haspopup="true"
-        :aria-expanded="showDensityMenu"
-      >
-        <LayoutGrid class="tgt-trigger-icon" />
-        <span class="tgt-trigger-label">{{ columnCount }} cols</span>
-        <ChevronDown class="tgt-chevron" />
-      </button>
-      <Transition name="dropdown">
-        <div v-if="showDensityMenu" class="density-menu" @keydown="handleDensityMenuKeydown">
-          <button
+    <DropdownMenu :open="showDensityMenu" @update:open="handleDensityOpenChange">
+      <DropdownMenuTrigger as-child>
+        <button class="tgt-trigger" :class="{ open: showDensityMenu }" aria-label="Change gallery density">
+          <LayoutGrid class="tgt-trigger-icon" />
+          <span class="tgt-trigger-label">{{ columnCount }} cols</span>
+          <ChevronDown class="tgt-chevron" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent class="w-[180px]" align="end" :side-offset="6">
+        <DropdownMenuGroup>
+          <DropdownMenuItem
             v-for="option in densityOptions"
             :key="option.level"
             class="density-option"
@@ -108,10 +99,10 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
             <LayoutGrid class="tgt-option-icon" />
             <span>{{ option.columns }} columns</span>
             <Check v-if="sliderLevel === option.level" class="density-check tgt-check-icon" />
-          </button>
-        </div>
-      </Transition>
-    </div>
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   </div>
 </template>
 
@@ -204,7 +195,7 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
 }
 
 .sort-dropdown.open .tgt-trigger,
-.density-dropdown.open .tgt-trigger {
+.tgt-trigger.open {
   border-color: var(--ring);
   box-shadow: 0 4px 12px color-mix(in srgb, var(--ring) 25%, transparent);
 }
@@ -214,7 +205,7 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
 }
 
 .sort-dropdown.open .tgt-chevron,
-.density-dropdown.open .tgt-chevron {
+.tgt-trigger.open .tgt-chevron {
   transform: rotate(180deg);
 }
 
@@ -225,25 +216,7 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
   position: relative;
 }
 
-.density-dropdown {
-  position: relative;
-}
-
 .sort-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  min-width: 180px;
-  background: var(--popover);
-  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  border-radius: 12px;
-  box-shadow: var(--gallery-shadow-lg, 0 10px 40px rgba(0, 0, 0, 0.15));
-  padding: 6px;
-  z-index: 100;
-  overflow: hidden;
-}
-
-.density-menu {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
@@ -312,19 +285,6 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
   font-weight: 500;
 }
 
-/* Dropdown animation */
-.dropdown-enter-active,
-.dropdown-leave-active {
-  transition: all 0.2s ease;
-  transform-origin: top right;
-}
-
-.dropdown-enter-from,
-.dropdown-leave-to {
-  opacity: 0;
-  transform: scale(0.95) translateY(-4px);
-}
-
 /* Focus styles */
 .tgt-btn:focus-visible,
 .tgt-trigger:focus-visible,
@@ -388,11 +348,6 @@ const handleDensityMenuKeydown = (e: KeyboardEvent) => {
   }
 
   .tgt-chevron {
-    transition: none;
-  }
-
-  .dropdown-enter-active,
-  .dropdown-leave-active {
     transition: none;
   }
 }
