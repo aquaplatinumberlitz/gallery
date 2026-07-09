@@ -586,7 +586,11 @@ function getCopyFallbackRoot(event?: Event) {
   const candidates = [event.currentTarget, event.target, ...event.composedPath()];
   for (const candidate of candidates) {
     if (!(candidate instanceof HTMLElement)) continue;
-    return candidate.closest<HTMLElement>('[role="menuitem"], [role="menu"]') ?? candidate;
+    return (
+      candidate.closest<HTMLElement>(
+        '[data-slot="dropdown-menu-content"], [data-slot="popover-content"], [role="menu"], [role="dialog"]',
+      ) ?? candidate
+    );
   }
   return null;
 }
@@ -607,6 +611,17 @@ function copySeed(event: Event, row: LibraryInspectorRow) {
   return copyText(row.seed, seedCopyId(row), { fallbackRoot: resolveCopyFallbackRoot(event) });
 }
 
+function handleCopyBasicSelect(event: Event, row: LibraryInspectorRow, kind: "path" | "seed") {
+  event.preventDefault();
+  const ok =
+    kind === "path"
+      ? copyMetadataText(event, row.path, "path")
+      : copyText(row.seed, seedCopyId(row), { fallbackRoot: resolveCopyFallbackRoot(event) });
+  ok.then((copied) => {
+    if (copied) rowMenuOpen.value[row.path] = false;
+  });
+}
+
 async function copyDetail(
   row: LibraryInspectorRow,
   kind: "prompt" | "negative" | "metadata" | "loras",
@@ -619,19 +634,15 @@ async function copyDetail(
       queryFn: () => fetchLibraryInspectorMetadata(row.path),
     });
     if (kind === "prompt") {
-      await copyText(detail.prompt, "prompt", { fallbackRoot });
-      return true;
+      return copyText(detail.prompt, "prompt", { fallbackRoot });
     }
     if (kind === "negative") {
-      await copyText(detail.negative_prompt, "neg", { fallbackRoot });
-      return true;
+      return copyText(detail.negative_prompt, "neg", { fallbackRoot });
     }
     if (kind === "loras") {
-      await copyText(formatResources(detail.loras), "loras", { fallbackRoot });
-      return true;
+      return copyText(formatResources(detail.loras), "loras", { fallbackRoot });
     }
-    await copyText(composeMetadata(detail), "metadata", { fallbackRoot });
-    return true;
+    return copyText(composeMetadata(detail), "metadata", { fallbackRoot });
   } catch {
     toast.error("Unable to load metadata", "The indexed metadata detail could not be fetched.");
     return false;
@@ -1144,13 +1155,19 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                     <DropdownMenuLabel class="text-xs text-muted-foreground">Copy basic</DropdownMenuLabel>
                     <DropdownMenuGroup>
                       <DropdownMenuItem
-                        @click="copyMetadataText($event, visibleTableRows[virtualRow.index].original.path, 'path')"
+                        @select="
+                          (event: Event) =>
+                            handleCopyBasicSelect(event, visibleTableRows[virtualRow.index].original, 'path')
+                        "
                       >
                         <Copy class="size-4" /> Copy path
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         v-if="visibleTableRows[virtualRow.index].original.seed"
-                        @click="copySeed($event, visibleTableRows[virtualRow.index].original)"
+                        @select="
+                          (event: Event) =>
+                            handleCopyBasicSelect(event, visibleTableRows[virtualRow.index].original, 'seed')
+                        "
                       >
                         <Copy class="size-4" /> Copy seed
                       </DropdownMenuItem>

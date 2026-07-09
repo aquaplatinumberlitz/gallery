@@ -24,7 +24,7 @@ const props = defineProps<{
   meta: MetadataResponse | null;
   isLoading: boolean;
   copyStatus: Record<string, boolean>;
-  copyText: (text: string | undefined, id: string) => Promise<void>;
+  copyText: (text: string | undefined, id: string) => Promise<boolean>;
 }>();
 
 const emit = defineEmits<{

@@ -64,13 +64,15 @@ describe("useClipboard", () => {
 
   it("does nothing when text is undefined", async () => {
     const { result } = withSetup(() => useClipboard());
-    await result.copyText(undefined, "prompt");
+    const copied = await result.copyText(undefined, "prompt");
+    expect(copied).toBe(false);
     expect(result.copyStatus.value).toEqual({});
   });
 
   it("does nothing when text is empty", async () => {
     const { result } = withSetup(() => useClipboard());
-    await result.copyText("", "prompt");
+    const copied = await result.copyText("", "prompt");
+    expect(copied).toBe(false);
     expect(result.copyStatus.value).toEqual({});
   });
 
@@ -79,8 +81,9 @@ describe("useClipboard", () => {
     setClipboardWriteText(writeText);
     const { result } = withSetup(() => useClipboard());
     await Promise.resolve();
-    await result.copyText("hello", "prompt");
+    const copied = await result.copyText("hello", "prompt");
     expect(writeText).toHaveBeenCalledWith("hello");
+    expect(copied).toBe(true);
     expect(result.copyStatus.value.prompt).toBe(true);
   });
 
@@ -93,8 +96,9 @@ describe("useClipboard", () => {
     });
     const { result } = withSetup(() => useClipboard());
     await Promise.resolve();
-    await result.copyText("hello", "prompt");
+    const copied = await result.copyText("hello", "prompt");
     expect(execCommand).toHaveBeenCalledWith("copy");
+    expect(copied).toBe(true);
     expect(result.copyStatus.value.prompt).toBe(true);
   });
 
@@ -112,10 +116,63 @@ describe("useClipboard", () => {
     });
     const { result } = withSetup(() => useClipboard());
     await Promise.resolve();
-    await result.copyText("hello", "prompt", { fallbackRoot });
+    const copied = await result.copyText("hello", "prompt", { fallbackRoot });
     expect(execCommand).toHaveBeenCalledWith("copy");
+    expect(copied).toBe(true);
     expect(result.copyStatus.value.prompt).toBe(true);
     fallbackRoot.remove();
+  });
+
+  it("falls back to document body when the provided fallback root is detached", async () => {
+    forceClipboardFallback();
+    const detachedRoot = document.createElement("div");
+    const execCommand = vi.fn(() => {
+      expect(document.body.querySelector("textarea")).not.toBeNull();
+      expect(detachedRoot.querySelector("textarea")).toBeNull();
+      return true;
+    });
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: execCommand,
+    });
+    const { result } = withSetup(() => useClipboard());
+    await Promise.resolve();
+    const copied = await result.copyText("hello", "prompt", { fallbackRoot: detachedRoot });
+    expect(copied).toBe(true);
+  });
+
+  it("does not append fallback textareas inside interactive elements", async () => {
+    forceClipboardFallback();
+    const buttonRoot = document.createElement("button");
+    document.body.appendChild(buttonRoot);
+    const execCommand = vi.fn(() => {
+      expect(buttonRoot.querySelector("textarea")).toBeNull();
+      expect(document.body.querySelector("textarea")).not.toBeNull();
+      return true;
+    });
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: execCommand,
+    });
+    const { result } = withSetup(() => useClipboard());
+    await Promise.resolve();
+    const copied = await result.copyText("hello", "prompt", { fallbackRoot: buttonRoot });
+    expect(copied).toBe(true);
+    buttonRoot.remove();
+  });
+
+  it("keeps fallback selection valid for CRLF text", async () => {
+    forceClipboardFallback();
+    const execCommand = vi.fn().mockReturnValue(true);
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: execCommand,
+    });
+    const { result } = withSetup(() => useClipboard());
+    await Promise.resolve();
+    const copied = await result.copyText("hello\r\nworld", "prompt");
+    expect(copied).toBe(true);
+    expect(execCommand).toHaveBeenCalledWith("copy");
   });
 
   it("does not report success when fallback focus is stolen before copy", async () => {
@@ -133,8 +190,9 @@ describe("useClipboard", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const { result } = withSetup(() => useClipboard());
     await Promise.resolve();
-    await result.copyText("hello", "prompt");
+    const copied = await result.copyText("hello", "prompt");
     expect(execCommand).not.toHaveBeenCalled();
+    expect(copied).toBe(false);
     expect(result.copyStatus.value.prompt).toBeUndefined();
     expect(mocks.mockSonnerError).toHaveBeenCalledWith("Copy failed", expect.any(Object));
     focusSpy.mockRestore();
@@ -195,7 +253,8 @@ describe("useClipboard", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const { result } = withSetup(() => useClipboard());
     await Promise.resolve();
-    await result.copyText("hello", "prompt");
+    const copied = await result.copyText("hello", "prompt");
+    expect(copied).toBe(false);
     expect(result.copyStatus.value.prompt).toBeUndefined();
     expect(mocks.mockSonnerError).toHaveBeenCalledWith("Copy failed", expect.any(Object));
     errorSpy.mockRestore();

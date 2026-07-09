@@ -45,7 +45,7 @@ const props = defineProps<{
   canFullscreen: boolean;
   isFullscreen: boolean;
   copyStatus: Record<string, boolean>;
-  copyText: (text: string | undefined, id: string) => Promise<void>;
+  copyText: (text: string | undefined, id: string) => Promise<boolean>;
 }>();
 
 const emit = defineEmits<{

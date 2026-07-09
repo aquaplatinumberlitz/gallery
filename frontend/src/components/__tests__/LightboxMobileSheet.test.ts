@@ -37,7 +37,7 @@ function makeMeta(overrides: Partial<MetadataResponse> = {}): MetadataResponse {
 }
 
 function createWrapper(props: Record<string, unknown> = {}) {
-  const copyText: (text: string | undefined, id: string) => Promise<void> = (props.copyText as any) || vi.fn();
+  const copyText: (text: string | undefined, id: string) => Promise<boolean> = (props.copyText as any) || vi.fn();
   return mount(LightboxMobileSheet, {
     props: {
       meta: null,

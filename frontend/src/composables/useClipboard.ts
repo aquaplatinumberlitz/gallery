@@ -2,8 +2,28 @@ import { ref } from "vue";
 import { useToast } from "./useToast";
 
 interface CopyTextOptions {
-  fallbackRoot?: HTMLElement | null;
+  fallbackRoot?: Element | null;
 }
+
+const INTERACTIVE_FALLBACK_ROOT_SELECTOR = [
+  "button",
+  "input",
+  "select",
+  "textarea",
+  "a[href]",
+  '[role="button"]',
+  '[role="menuitem"]',
+  '[role="option"]',
+].join(", ");
+
+const STABLE_FALLBACK_ROOT_SELECTOR = [
+  '[data-slot="dropdown-menu-content"]',
+  '[data-slot="popover-content"]',
+  '[role="menu"]',
+  '[role="dialog"]',
+  ".pswp.pswp--open",
+  ".lightbox-overlay",
+].join(", ");
 
 export function useClipboard() {
   const toast = useToast();
@@ -25,6 +45,23 @@ export function useClipboard() {
     }
   }
 
+  function getValidFallbackRoot(candidate?: Element | null) {
+    if (!(candidate instanceof HTMLElement) || !candidate.isConnected) {
+      return document.body;
+    }
+
+    if (!candidate.matches(INTERACTIVE_FALLBACK_ROOT_SELECTOR)) {
+      return candidate;
+    }
+
+    const stableRoot = candidate.closest<HTMLElement>(STABLE_FALLBACK_ROOT_SELECTOR);
+    if (stableRoot?.isConnected && !stableRoot.matches(INTERACTIVE_FALLBACK_ROOT_SELECTOR)) {
+      return stableRoot;
+    }
+
+    return candidate.parentElement?.isConnected ? candidate.parentElement : document.body;
+  }
+
   async function writeClipboardText(text: string, options: CopyTextOptions = {}) {
     if (navigator.clipboard?.writeText) {
       try {
@@ -43,7 +80,7 @@ export function useClipboard() {
     textarea.style.top = "0";
     textarea.style.left = "-9999px";
     textarea.style.opacity = "0";
-    const fallbackRoot = options.fallbackRoot ?? document.body;
+    const fallbackRoot = getValidFallbackRoot(options.fallbackRoot);
     fallbackRoot.appendChild(textarea);
 
     const previousSelection = document.getSelection()?.rangeCount ? document.getSelection()?.getRangeAt(0) : null;
@@ -52,7 +89,9 @@ export function useClipboard() {
 
     try {
       const hasTextareaSelection =
-        document.activeElement === textarea && textarea.selectionStart === 0 && textarea.selectionEnd === text.length;
+        document.activeElement === textarea &&
+        textarea.selectionStart === 0 &&
+        textarea.selectionEnd === textarea.value.length;
       if (!hasTextareaSelection) throw new Error("Clipboard fallback could not retain textarea selection");
       const copied = document.execCommand?.("copy") === true;
       if (!copied) throw new Error("Clipboard fallback returned false");
@@ -66,8 +105,8 @@ export function useClipboard() {
     }
   }
 
-  async function copyText(text: string | undefined, id: string, options: CopyTextOptions = {}) {
-    if (!text) return;
+  async function copyText(text: string | undefined, id: string, options: CopyTextOptions = {}): Promise<boolean> {
+    if (!text) return false;
     try {
       await writeClipboardText(String(text), options);
 
@@ -77,9 +116,11 @@ export function useClipboard() {
       setTimeout(() => {
         copyStatus.value[id] = false;
       }, 1500);
+      return true;
     } catch (e) {
       console.error("Copy failed", e);
       toast.error("Copy failed", "Unable to copy to clipboard");
+      return false;
     }
   }
 
