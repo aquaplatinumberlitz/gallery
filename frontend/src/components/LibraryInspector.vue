@@ -728,6 +728,8 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
       <div class="inspector-search relative">
         <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/80" />
         <Input
+          id="metadata-table-search"
+          name="metadata-table-search"
           v-model="query"
           type="search"
           class="inspector-search-input h-10 pl-9 pr-9 shadow-sm focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"

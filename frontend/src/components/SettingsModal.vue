@@ -169,7 +169,14 @@ async function handleResetCatalog() {
 
           <FieldGroup class="gap-3">
             <label :class="optionCardClass(introMode === 'auto')">
-              <input type="radio" v-model="introMode" value="auto" class="sr-only" />
+              <input
+                id="settings-intro-auto"
+                v-model="introMode"
+                type="radio"
+                name="intro-mode"
+                value="auto"
+                class="sr-only"
+              />
               <span :class="optionMarkClass(introMode === 'auto')" aria-hidden="true">
                 <span v-if="introMode === 'auto'" class="size-2 rounded-full bg-primary"></span>
               </span>
@@ -180,7 +187,14 @@ async function handleResetCatalog() {
             </label>
 
             <label :class="optionCardClass(introMode === 'disabled')">
-              <input type="radio" v-model="introMode" value="disabled" class="sr-only" />
+              <input
+                id="settings-intro-disabled"
+                v-model="introMode"
+                type="radio"
+                name="intro-mode"
+                value="disabled"
+                class="sr-only"
+              />
               <span :class="optionMarkClass(introMode === 'disabled')" aria-hidden="true">
                 <span v-if="introMode === 'disabled'" class="size-2 rounded-full bg-primary"></span>
               </span>
@@ -191,7 +205,14 @@ async function handleResetCatalog() {
             </label>
 
             <label :class="optionCardClass(introMode === 'manual')">
-              <input type="radio" v-model="introMode" value="manual" class="sr-only" />
+              <input
+                id="settings-intro-manual"
+                v-model="introMode"
+                type="radio"
+                name="intro-mode"
+                value="manual"
+                class="sr-only"
+              />
               <span :class="optionMarkClass(introMode === 'manual')" aria-hidden="true">
                 <span v-if="introMode === 'manual'" class="size-2 rounded-full bg-primary"></span>
               </span>
@@ -246,7 +267,13 @@ async function handleResetCatalog() {
           </div>
 
           <label :class="optionCardClass(alwaysLoadOriginal)">
-            <input type="checkbox" v-model="alwaysLoadOriginal" class="sr-only" />
+            <input
+              id="settings-always-load-original"
+              v-model="alwaysLoadOriginal"
+              type="checkbox"
+              name="always-load-original"
+              class="sr-only"
+            />
             <span :class="optionMarkClass(alwaysLoadOriginal)" aria-hidden="true">
               <span v-if="alwaysLoadOriginal" class="size-2 rounded-full bg-primary"></span>
             </span>

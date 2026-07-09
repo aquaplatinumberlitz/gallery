@@ -152,6 +152,8 @@ const gallerySortValue = computed<SortValue>({
           <Loader2 v-if="searchLoading" class="search-focus-input-icon search-focus-loading" />
           <Search v-else class="search-focus-input-icon" />
           <input
+            id="mobile-gallery-search"
+            name="gallery-search"
             ref="searchInputRef"
             :value="searchQuery"
             @input="onSearchInput"

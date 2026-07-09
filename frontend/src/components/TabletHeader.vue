@@ -148,6 +148,8 @@ function onSearchInput(e: Event) {
         <Loader2 v-if="searchLoading" class="th-search-icon th-search-loading" />
         <Search v-else class="th-search-icon" />
         <input
+          id="tablet-gallery-search"
+          name="gallery-search"
           ref="searchInputRef"
           :value="searchQuery"
           @input="onSearchInput"
