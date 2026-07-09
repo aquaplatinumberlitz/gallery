@@ -117,9 +117,7 @@ const tableShellRef = ref<HTMLElement | null>(null);
 const hasRestoredScroll = ref(false);
 let latestCopyFallbackRoot: HTMLElement | null = null;
 
-const { isHeaderCollapsed: isInspectorHeaderCollapsed } = useCollapsibleHeader(tableShellRef, {
-  collapseScrollY: 48,
-});
+const { isHeaderCollapsed: isInspectorHeaderCollapsed } = useCollapsibleHeader(tableShellRef);
 
 const inspectorQuery = useInfiniteLibraryInspectorQuery(query, scope, currentPath, limit, inspectorSort);
 const metadataQuery = useLibraryInspectorMetadataQuery(detailPath, detailEnabled);
