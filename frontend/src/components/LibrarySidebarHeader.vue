@@ -34,6 +34,15 @@ function selectImportPath(value: unknown) {
   const importPath = library?.import_paths.find((item) => item.id === Number(value));
   if (library && importPath) galleryStore.setActiveImportPath(importPath, library);
 }
+
+// Open the library selector modal. Blur the current focus first so reka-ui's
+// hideOthers (which sets aria-hidden on the rest of the page) does not leave a
+// focused descendant inside the now-hidden sidebar — that triggers a Chrome
+// "Blocked aria-hidden" a11y warning.
+function openLibrarySelector() {
+  (document.activeElement as HTMLElement | null)?.blur();
+  sheetOpen.value = true;
+}
 </script>
 
 <template>
@@ -70,7 +79,7 @@ function selectImportPath(value: unknown) {
         <button
           type="button"
           class="flex w-full items-center gap-2 rounded-lg bg-sidebar-accent/45 p-3 text-left shadow-sm ring-1 ring-sidebar-border/55 transition-colors hover:bg-sidebar-accent/70"
-          @click="sheetOpen = true"
+          @click="openLibrarySelector"
         >
           <FolderOpen class="size-4 shrink-0 text-primary" />
           <span class="min-w-0 flex-1">
