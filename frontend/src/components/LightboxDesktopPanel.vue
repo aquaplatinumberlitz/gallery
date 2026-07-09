@@ -11,8 +11,6 @@ import {
   Calendar,
   Clock,
   MessageSquareText,
-  Check,
-  Copy,
   MessageSquareOff,
   SlidersHorizontal,
   ChevronDown,
@@ -32,6 +30,7 @@ import {
   getExtraParamKeys,
   EMPTY_SECTION_TEXT,
 } from "../composables/useMetadataSections";
+import CopyStateIcon from "@/components/ui/CopyStateIcon.vue";
 import OverflowTooltip from "@/components/ui/OverflowTooltip.vue";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -163,10 +162,7 @@ const modelCount = computed(() => {
                   aria-label="Copy prompt"
                   @click.stop.prevent="props.copyText(props.meta?.prompt, 'prompt')"
                 >
-                  <span class="copy-icon-stack" :class="{ 'is-copied': props.copyStatus['prompt'] }">
-                    <Check :stroke-width="1.5" class="copy-icon copy-icon-check icon-sm" aria-hidden="true" />
-                    <Copy :stroke-width="1.5" class="copy-icon copy-icon-copy icon-sm" aria-hidden="true" />
-                  </span>
+                  <CopyStateIcon :copied="props.copyStatus['prompt']" class="copy-icon-stack" />
                 </button>
               </TooltipTrigger>
               <TooltipContent>Copy prompt</TooltipContent>
@@ -194,10 +190,7 @@ const modelCount = computed(() => {
                   aria-label="Copy negative prompt"
                   @click.stop.prevent="props.copyText(props.meta?.negative_prompt, 'neg')"
                 >
-                  <span class="copy-icon-stack" :class="{ 'is-copied': props.copyStatus['neg'] }">
-                    <Check :stroke-width="1.5" class="copy-icon copy-icon-check icon-sm" aria-hidden="true" />
-                    <Copy :stroke-width="1.5" class="copy-icon copy-icon-copy icon-sm" aria-hidden="true" />
-                  </span>
+                  <CopyStateIcon :copied="props.copyStatus['neg']" class="copy-icon-stack" />
                 </button>
               </TooltipTrigger>
               <TooltipContent>Copy negative prompt</TooltipContent>
@@ -244,14 +237,12 @@ const modelCount = computed(() => {
                       aria-label="Copy seed"
                       @click.stop.prevent="props.copyText(String(props.meta.params.Seed), 'seed')"
                     >
-                      <span
+                      <CopyStateIcon
+                        :copied="props.copyStatus['seed']"
+                        :default-icon="Sprout"
                         class="copy-icon-stack"
                         style="--copy-icon-stack-size: var(--gallery-icon-xs)"
-                        :class="{ 'is-copied': props.copyStatus['seed'] }"
-                      >
-                        <Check :stroke-width="1.5" class="copy-icon copy-icon-check icon-xs" aria-hidden="true" />
-                        <Sprout :stroke-width="1.5" class="copy-icon copy-icon-copy icon-xs" aria-hidden="true" />
-                      </span>
+                      />
                     </button>
                   </TooltipTrigger>
                   <TooltipContent>Copy seed</TooltipContent>

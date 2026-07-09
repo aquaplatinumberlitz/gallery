@@ -5,6 +5,16 @@ import { createIsolatedQueryClient } from "@/test/queryClient";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import LibraryInspector from "../LibraryInspector.vue";
 
+const clipboardMocks = vi.hoisted(() => ({
+  copyText: vi.fn(),
+  copyStatus: {} as Record<string, boolean>,
+}));
+
+const queryMocks = vi.hoisted(() => ({
+  fetchQuery: vi.fn(),
+  prefetchQuery: vi.fn(),
+}));
+
 function mockInspectorData(overrides = {}) {
   return {
     rows: [
@@ -67,6 +77,24 @@ const mockInspectorRefetch = vi.fn();
 const mockInspectorFetchNext = vi.fn();
 const mockRowsRef = { value: mockRowsData };
 
+vi.mock("@tanstack/vue-virtual", () => ({
+  useVirtualizer: () => ({
+    value: {
+      getVirtualItems: () =>
+        mockRowsRef.value.map((row, index) => ({
+          index,
+          key: row.path,
+          size: 64,
+          start: index * 64,
+          end: (index + 1) * 64,
+        })),
+      getTotalSize: () => mockRowsRef.value.length * 64,
+      measure: vi.fn(),
+      scrollToOffset: vi.fn(),
+    },
+  }),
+}));
+
 vi.mock("@/composables/useInfiniteLibraryInspectorQuery", () => ({
   useInfiniteLibraryInspectorQuery: () => ({
     data: mockInspectorDataValue,
@@ -100,7 +128,7 @@ vi.mock("@/composables/useCatalogStatusQuery", () => ({
 }));
 
 vi.mock("@/composables/useClipboard", () => ({
-  useClipboard: () => ({ copyStatus: {}, copyText: vi.fn() }),
+  useClipboard: () => ({ copyStatus: clipboardMocks.copyStatus, copyText: clipboardMocks.copyText }),
 }));
 
 vi.mock("@/composables/useToast", () => ({
@@ -113,7 +141,7 @@ vi.mock("@/services/api", () => ({
 }));
 
 vi.mock("@/query", () => ({
-  queryClient: { fetchQuery: vi.fn(), prefetchQuery: vi.fn() },
+  queryClient: queryMocks,
 }));
 
 vi.mock("@/query/keys", () => ({
@@ -153,7 +181,7 @@ const defaultStubs = {
   SortSelect: { template: "<select class='sort-select' />" },
   Popover: { template: "<div><slot /></div>" },
   PopoverTrigger: { template: "<div><slot /></div>" },
-  PopoverContent: { template: "<div><slot /></div>" },
+  PopoverContent: { template: '<div data-slot="popover-content"><slot /></div>' },
   Tooltip: { template: "<span><slot /></span>" },
   TooltipTrigger: { template: "<span><slot /></span>" },
   TooltipContent: { template: "<span><slot /></span>" },
@@ -165,9 +193,12 @@ const defaultStubs = {
   TableRow: { template: "<tr><slot /></tr>" },
   DropdownMenu: { template: "<div><slot /></div>" },
   DropdownMenuCheckboxItem: { template: "<div><slot /></div>" },
-  DropdownMenuContent: { template: "<div><slot /></div>" },
+  DropdownMenuContent: { template: '<div data-slot="dropdown-menu-content"><slot /></div>' },
   DropdownMenuGroup: { template: "<div><slot /></div>" },
-  DropdownMenuItem: { template: "<div><slot /></div>" },
+  DropdownMenuItem: {
+    emits: ["select"],
+    template: '<div data-slot="dropdown-menu-item" tabindex="0" @click="$emit(\'select\', $event)"><slot /></div>',
+  },
   DropdownMenuLabel: { template: "<div><slot /></div>" },
   DropdownMenuSeparator: { template: "<hr />" },
   DropdownMenuTrigger: { template: "<div><slot /></div>" },
@@ -193,9 +224,25 @@ function mountSubject(stubs: Record<string, unknown> = {}): VueWrapper {
   });
 }
 
+function getDropdownItem(wrapper: VueWrapper, label: string) {
+  const item = wrapper
+    .findAll('[data-slot="dropdown-menu-item"]')
+    .find((candidate) => candidate.text().includes(label));
+  expect(item, `Expected dropdown item "${label}" to exist`).toBeTruthy();
+  return item!;
+}
+
 describe("LibraryInspector", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clipboardMocks.copyText.mockResolvedValue(true);
+    clipboardMocks.copyStatus = {};
+    queryMocks.fetchQuery.mockResolvedValue({
+      prompt: "full prompt",
+      negative_prompt: "bad hands",
+      loras: [{ name: "detailer", hash: "abc123", weight: "0.8" }],
+      params: { Seed: 12345 },
+    });
     mockInspectorDataValue = { value: mockInspectorData() };
     mockInspectorIsLoading = { value: false };
     mockInspectorIsError = { value: false };
@@ -242,5 +289,107 @@ describe("LibraryInspector", () => {
   it("renders prompt filter select", () => {
     const wrapper = mountSubject();
     expect(wrapper.text()).toContain("All prompts");
+  });
+
+  it("maps copy status to distinct success labels", () => {
+    clipboardMocks.copyStatus = {
+      path: true,
+      prompt: true,
+      neg: true,
+      loras: true,
+      metadata: true,
+    };
+    const wrapper = mountSubject();
+
+    for (const label of [
+      "Path copied",
+      "Prompt copied",
+      "Negative prompt copied",
+      "LoRA list copied",
+      "Metadata copied",
+    ]) {
+      expect(wrapper.find(`button[aria-label="${label}"]`).exists(), `Expected "${label}" state`).toBe(true);
+    }
+  });
+
+  it.each([
+    ["Copy prompt", "full prompt", "prompt"],
+    ["Copy negative", "bad hands", "neg"],
+    ["Copy LoRA list", "detailer | abc123 | weight 0.8", "loras"],
+  ])("maps the %s action to its clipboard handler", async (buttonLabel, expectedText, copyId) => {
+    const wrapper = mountSubject();
+
+    await wrapper.get(`button[aria-label="${buttonLabel}"]`).trigger("click");
+    await vi.waitFor(() => {
+      expect(clipboardMocks.copyText).toHaveBeenCalledWith(
+        expectedText,
+        copyId,
+        expect.objectContaining({ fallbackRoot: expect.any(HTMLElement) }),
+      );
+    });
+  });
+
+  it("maps the full path action directly to the path clipboard handler", async () => {
+    const wrapper = mountSubject();
+    const newestRow = mockRowsData[1];
+
+    await wrapper.get('button[aria-label="Copy full path"]').trigger("click");
+
+    expect(clipboardMocks.copyText).toHaveBeenCalledWith(
+      newestRow.path,
+      "path",
+      expect.objectContaining({ fallbackRoot: expect.any(HTMLElement) }),
+    );
+  });
+
+  it("maps the metadata action to composed metadata copy", async () => {
+    const wrapper = mountSubject();
+
+    await wrapper.get('button[aria-label="Copy all metadata"]').trigger("click");
+    await vi.waitFor(() => {
+      expect(clipboardMocks.copyText).toHaveBeenCalledWith(
+        expect.stringContaining("Negative prompt: bad hands"),
+        "metadata",
+        expect.objectContaining({ fallbackRoot: expect.any(HTMLElement) }),
+      );
+    });
+  });
+
+  it("copies row path from the actions menu with the dropdown content as fallback root", async () => {
+    const wrapper = mountSubject();
+    const copyPathItem = getDropdownItem(wrapper, "Copy path");
+    const newestRow = mockRowsData[1];
+
+    await copyPathItem.trigger("pointerdown");
+    await copyPathItem.trigger("click");
+
+    expect(clipboardMocks.copyText).toHaveBeenCalledWith(
+      newestRow.path,
+      "path",
+      expect.objectContaining({
+        fallbackRoot: expect.any(HTMLElement),
+      }),
+    );
+    const options = clipboardMocks.copyText.mock.calls[0][2] as { fallbackRoot?: Element | null };
+    expect(options.fallbackRoot).toBe(copyPathItem.element.closest('[data-slot="dropdown-menu-content"]'));
+  });
+
+  it("copies row seed from the actions menu with the dropdown content as fallback root", async () => {
+    const wrapper = mountSubject();
+    const copySeedItem = getDropdownItem(wrapper, "Copy seed");
+    const newestRow = mockRowsData[1];
+
+    await copySeedItem.trigger("pointerdown");
+    await copySeedItem.trigger("click");
+
+    expect(clipboardMocks.copyText).toHaveBeenCalledWith(
+      newestRow.seed,
+      `seed:${newestRow.path}`,
+      expect.objectContaining({
+        fallbackRoot: expect.any(HTMLElement),
+      }),
+    );
+    const options = clipboardMocks.copyText.mock.calls[0][2] as { fallbackRoot?: Element | null };
+    expect(options.fallbackRoot).toBe(copySeedItem.element.closest('[data-slot="dropdown-menu-content"]'));
   });
 });

@@ -14,6 +14,6 @@ if __name__ == "__main__":
     except ValueError:
         port_val = 8000
 
-    host = "0.0.0.0" if PRODUCTION else "127.0.0.1"
+    host = "0.0.0.0"
     reload_flag = not PRODUCTION
     uvicorn.run("backend.main:app", host=host, port=port_val, reload=reload_flag)

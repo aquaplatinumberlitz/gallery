@@ -4,7 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath, URL } from "node:url";
 import vitePluginIstanbul from "vite-plugin-istanbul";
 
-const DEV_PORT = Number(process.env.VITE_PORT) || 5173;
+const DEV_PORT = Number(process.env.VITE_PORT) || 4702;
 const API_TARGET = process.env.VITE_API_URL || "http://localhost:4180";
 
 const plugins = [tailwindcss(), vue()];
@@ -26,7 +26,7 @@ export default defineConfig({
     },
   },
   server: {
-    host: "127.0.0.1",
+    host: "0.0.0.0",
     port: DEV_PORT,
     strictPort: true,
     allowedHosts: ["150.230.56.153"],

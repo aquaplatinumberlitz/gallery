@@ -123,6 +123,29 @@ describe("useClipboard", () => {
     fallbackRoot.remove();
   });
 
+  it("restores focus to the active element after legacy clipboard writes", async () => {
+    forceClipboardFallback();
+    const fallbackRoot = document.createElement("div");
+    const trigger = document.createElement("button");
+    fallbackRoot.appendChild(trigger);
+    document.body.appendChild(fallbackRoot);
+    trigger.focus();
+    const execCommand = vi.fn(() => {
+      expect(document.activeElement).toBe(fallbackRoot.querySelector("textarea"));
+      return true;
+    });
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: execCommand,
+    });
+    const { result } = withSetup(() => useClipboard());
+    await Promise.resolve();
+    const copied = await result.copyText("hello", "prompt", { fallbackRoot });
+    expect(copied).toBe(true);
+    expect(document.activeElement).toBe(trigger);
+    fallbackRoot.remove();
+  });
+
   it("falls back to document body when the provided fallback root is detached", async () => {
     forceClipboardFallback();
     const detachedRoot = document.createElement("div");
@@ -226,6 +249,13 @@ describe("useClipboard", () => {
     await Promise.resolve();
     await result.copyText("/some/path", "path");
     expect(mocks.mockSonnerSuccess).toHaveBeenCalledWith(expect.stringMatching(/^Path/), expect.any(Object));
+  });
+
+  it("uses the 'LoRA list' label for the loras id", async () => {
+    const { result } = withSetup(() => useClipboard());
+    await Promise.resolve();
+    await result.copyText("door-detail", "loras");
+    expect(mocks.mockSonnerSuccess).toHaveBeenCalledWith(expect.stringMatching(/^LoRA list/), expect.any(Object));
   });
 
   it("uses the generic 'Text' label for unknown ids", async () => {

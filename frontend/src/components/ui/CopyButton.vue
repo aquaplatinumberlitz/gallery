@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, type HTMLAttributes } from "vue";
-import { Check, Copy } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
+import CopyStateIcon from "@/components/ui/CopyStateIcon.vue";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useClipboard } from "@/composables/useClipboard";
 
@@ -40,22 +40,7 @@ async function handleCopy() {
   <Tooltip>
     <TooltipTrigger as-child>
       <Button :variant="variant" :size="size" :class="props.class" :aria-label="ariaLabel" @click="handleCopy">
-        <span class="relative inline-grid size-4 place-items-center">
-          <Check
-            aria-hidden="true"
-            :class="[
-              'col-start-1 row-start-1 text-[var(--gallery-success)] transition-all duration-200',
-              copied ? 'scale-100 opacity-100' : 'scale-75 opacity-0',
-            ]"
-          />
-          <Copy
-            aria-hidden="true"
-            :class="[
-              'col-start-1 row-start-1 transition-all duration-200',
-              copied ? 'scale-75 opacity-0' : 'scale-100 opacity-100',
-            ]"
-          />
-        </span>
+        <CopyStateIcon :copied="copied" />
         <slot v-if="$slots.default" :copied="copied">
           {{ copied ? copiedLabel : label }}
         </slot>

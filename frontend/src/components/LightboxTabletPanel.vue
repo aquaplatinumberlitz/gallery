@@ -3,7 +3,7 @@ import { ref, computed } from "vue";
 import { loraHighlighter } from "../utils/loraHighlighter";
 import ExpandableText from "./ExpandableText.vue";
 import type { MetadataResponse } from "../types";
-import { Loader, X, Calendar, Clock, Maximize, Check, Copy, TriangleAlert, ChevronDown } from "lucide-vue-next";
+import { Loader, X, Calendar, Clock, Maximize, TriangleAlert, ChevronDown } from "lucide-vue-next";
 import {
   hasCoreParams,
   hasSecondaryParams,
@@ -13,6 +13,7 @@ import {
   getExtraParamKeys,
   EMPTY_SECTION_TEXT,
 } from "../composables/useMetadataSections";
+import CopyStateIcon from "@/components/ui/CopyStateIcon.vue";
 import OverflowTooltip from "@/components/ui/OverflowTooltip.vue";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -146,10 +147,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                       @keydown.space.stop.prevent="props.copyText(String(props.meta.params.Seed), 'seed')"
                     >
                       <span class="value">{{ props.meta.params.Seed }}</span>
-                      <span class="copy-icon-stack inline-copy-icon" :class="{ 'is-copied': props.copyStatus['seed'] }">
-                        <Check :stroke-width="1.5" :size="14" class="copy-icon copy-icon-check" aria-hidden="true" />
-                        <Copy :stroke-width="1.5" :size="14" class="copy-icon copy-icon-copy" aria-hidden="true" />
-                      </span>
+                      <CopyStateIcon :copied="props.copyStatus['seed']" class="copy-icon-stack inline-copy-icon" />
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>Copy seed</TooltipContent>
@@ -256,10 +254,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                     @keydown.space.stop.prevent="props.copyText(props.meta?.prompt, 'prompt')"
                   >
                     <label class="tablet-label">Prompt</label>
-                    <span class="copy-icon-stack inline-copy-icon" :class="{ 'is-copied': props.copyStatus['prompt'] }">
-                      <Check :stroke-width="1.5" :size="14" class="copy-icon copy-icon-check" aria-hidden="true" />
-                      <Copy :stroke-width="1.5" :size="14" class="copy-icon copy-icon-copy" aria-hidden="true" />
-                    </span>
+                    <CopyStateIcon :copied="props.copyStatus['prompt']" class="copy-icon-stack inline-copy-icon" />
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>Copy prompt</TooltipContent>
@@ -289,10 +284,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                     @keydown.space.stop.prevent="props.copyText(props.meta?.negative_prompt, 'neg')"
                   >
                     <label class="tablet-label negative-label">Negative Prompt</label>
-                    <span class="copy-icon-stack inline-copy-icon" :class="{ 'is-copied': props.copyStatus['neg'] }">
-                      <Check :stroke-width="1.5" :size="14" class="copy-icon copy-icon-check" aria-hidden="true" />
-                      <Copy :stroke-width="1.5" :size="14" class="copy-icon copy-icon-copy" aria-hidden="true" />
-                    </span>
+                    <CopyStateIcon :copied="props.copyStatus['neg']" class="copy-icon-stack inline-copy-icon" />
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>Copy negative prompt</TooltipContent>

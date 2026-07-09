@@ -40,6 +40,10 @@ export function useClipboard() {
         return "Seed";
       case "path":
         return "Path";
+      case "loras":
+        return "LoRA list";
+      case "metadata":
+        return "Metadata";
       default:
         return "Text";
     }
@@ -83,6 +87,7 @@ export function useClipboard() {
     const fallbackRoot = getValidFallbackRoot(options.fallbackRoot);
     fallbackRoot.appendChild(textarea);
 
+    const previousActiveElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previousSelection = document.getSelection()?.rangeCount ? document.getSelection()?.getRangeAt(0) : null;
     textarea.focus();
     textarea.select();
@@ -96,6 +101,9 @@ export function useClipboard() {
       const copied = document.execCommand?.("copy") === true;
       if (!copied) throw new Error("Clipboard fallback returned false");
     } finally {
+      if (previousActiveElement?.isConnected) {
+        previousActiveElement.focus({ preventScroll: true });
+      }
       textarea.remove();
       if (previousSelection) {
         const selection = document.getSelection();

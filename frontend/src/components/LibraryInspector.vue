@@ -9,7 +9,7 @@ import {
   type VisibilityState,
 } from "@tanstack/vue-table";
 import { useVirtualizer } from "@tanstack/vue-virtual";
-import { ArrowUpDown, Check, Columns3, Copy, ExternalLink, MoreHorizontal, Search, X } from "lucide-vue-next";
+import { ArrowUpDown, Columns3, Copy, ExternalLink, MoreHorizontal, Search, X } from "lucide-vue-next";
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
 import Input from "@/components/ui/Input.vue";
@@ -29,6 +29,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import CopyActionButton from "@/components/ui/CopyActionButton.vue";
+import CopyStateIcon from "@/components/ui/CopyStateIcon.vue";
 import { useClipboard } from "@/composables/useClipboard";
 import { useCatalogStatusQuery } from "@/composables/useCatalogStatusQuery";
 import { useToast } from "@/composables/useToast";
@@ -911,13 +913,12 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                           <p class="break-all text-sm">
                             {{ visibleTableRows[virtualRow.index].original.path }}
                           </p>
-                          <Button
-                            size="sm"
-                            variant="secondary"
+                          <CopyActionButton
+                            :copied="copyStatus['path']"
+                            label="Copy full path"
+                            success-aria-label="Path copied"
                             @click="copyMetadataText($event, visibleTableRows[virtualRow.index].original.path, 'path')"
-                          >
-                            <Copy class="size-4" /> Copy full path
-                          </Button>
+                          />
                         </div>
                       </PopoverContent>
                     </Popover>
@@ -980,27 +981,24 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                           </p>
                         </div>
                         <div class="flex flex-wrap gap-2">
-                          <Button
-                            size="sm"
-                            variant="secondary"
+                          <CopyActionButton
+                            :copied="copyStatus['prompt']"
+                            label="Copy prompt"
+                            success-aria-label="Prompt copied"
                             @click="copyDetail(visibleTableRows[virtualRow.index].original, 'prompt', $event)"
-                          >
-                            Copy prompt
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="secondary"
+                          />
+                          <CopyActionButton
+                            :copied="copyStatus['neg']"
+                            label="Copy negative"
+                            success-aria-label="Negative prompt copied"
                             @click="copyDetail(visibleTableRows[virtualRow.index].original, 'negative', $event)"
-                          >
-                            Copy negative
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="secondary"
+                          />
+                          <CopyActionButton
+                            :copied="copyStatus['metadata']"
+                            label="Copy all metadata"
+                            success-aria-label="Metadata copied"
                             @click="copyDetail(visibleTableRows[virtualRow.index].original, 'metadata', $event)"
-                          >
-                            Copy full metadata
-                          </Button>
+                          />
                         </div>
                       </div>
                     </PopoverContent>
@@ -1079,20 +1077,18 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                           </li>
                         </ul>
                         <div class="flex flex-wrap gap-2">
-                          <Button
-                            size="sm"
-                            variant="secondary"
+                          <CopyActionButton
+                            :copied="copyStatus['loras']"
+                            label="Copy LoRA list"
+                            success-aria-label="LoRA list copied"
                             @click="copyDetail(visibleTableRows[virtualRow.index].original, 'loras', $event)"
-                          >
-                            Copy LoRA list
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="secondary"
+                          />
+                          <CopyActionButton
+                            :copied="copyStatus['metadata']"
+                            label="Copy all metadata"
+                            success-aria-label="Metadata copied"
                             @click="copyDetail(visibleTableRows[virtualRow.index].original, 'metadata', $event)"
-                          >
-                            Copy full metadata
-                          </Button>
+                          />
                         </div>
                       </div>
                     </PopoverContent>
@@ -1109,13 +1105,10 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                       @click.stop="copySeed($event, visibleTableRows[virtualRow.index].original)"
                     >
                       <span>{{ visibleTableRows[virtualRow.index].original.seed }}</span>
-                      <span
-                        class="seed-copy-icon"
-                        :class="{ 'is-copied': copyStatus[seedCopyId(visibleTableRows[virtualRow.index].original)] }"
-                      >
-                        <Check class="seed-copy-check size-3" aria-hidden="true" />
-                        <Copy class="seed-copy-default size-3" aria-hidden="true" />
-                      </span>
+                      <CopyStateIcon
+                        :copied="copyStatus[seedCopyId(visibleTableRows[virtualRow.index].original)]"
+                        class="seed-copy-icon size-3"
+                      />
                     </button>
                   </TooltipTrigger>
                   <TooltipContent>Copy seed</TooltipContent>
@@ -1155,6 +1148,8 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                     <DropdownMenuLabel class="text-xs text-muted-foreground">Copy basic</DropdownMenuLabel>
                     <DropdownMenuGroup>
                       <DropdownMenuItem
+                        @pointerdown="captureCopyFallbackRoot"
+                        @focus="captureCopyFallbackRoot"
                         @select="
                           (event: Event) =>
                             handleCopyBasicSelect(event, visibleTableRows[virtualRow.index].original, 'path')
@@ -1164,6 +1159,8 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         v-if="visibleTableRows[virtualRow.index].original.seed"
+                        @pointerdown="captureCopyFallbackRoot"
+                        @focus="captureCopyFallbackRoot"
                         @select="
                           (event: Event) =>
                             handleCopyBasicSelect(event, visibleTableRows[virtualRow.index].original, 'seed')
@@ -1634,41 +1631,23 @@ button.metadata-header-control:focus-visible {
 }
 
 .seed-copy-icon {
-  display: inline-grid;
-  width: 0.75rem;
-  height: 0.75rem;
-  place-items: center;
   opacity: 0;
-  transition: opacity 120ms ease;
-}
-
-.seed-copy-check,
-.seed-copy-default {
-  grid-area: 1 / 1;
-  transition:
-    opacity 120ms ease,
-    transform 120ms ease;
-}
-
-.seed-copy-check {
-  opacity: 0;
-  transform: scale(0.8);
-}
-
-.seed-copy-icon.is-copied .seed-copy-default {
-  opacity: 0;
-  transform: scale(0.8);
-}
-
-.seed-copy-icon.is-copied .seed-copy-check {
-  opacity: 1;
-  transform: scale(1);
+  transition: opacity var(--gallery-timing-normal) ease;
 }
 
 .col-seed button:hover .seed-copy-icon,
-.col-seed button:focus-visible .seed-copy-icon,
-.col-seed button .seed-copy-icon.is-copied {
+.col-seed button:focus-visible .seed-copy-icon {
   opacity: 0.55;
+}
+
+.col-seed button .seed-copy-icon[data-copied="true"] {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seed-copy-icon {
+    transition: none;
+  }
 }
 
 .metadata-block {

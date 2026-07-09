@@ -63,6 +63,10 @@ type LightboxNavDebugEvent = {
   key?: string;
 };
 
+type StubbedInspectorOptions = {
+  rejectClipboardWriteText?: boolean;
+};
+
 const makeRow = (name: string, folder: string, mtime: number, overrides: Partial<InspectorRow> = {}): InspectorRow => ({
   path: `${rootPath}/${folder}/${name}`,
   name,
@@ -154,9 +158,9 @@ function detailForPath(path: string) {
   };
 }
 
-async function installStubbedInspector(page: Page) {
+async function installStubbedInspector(page: Page, options: StubbedInspectorOptions = {}) {
   const requests: string[] = [];
-  await page.addInitScript(() => {
+  await page.addInitScript((initOptions: StubbedInspectorOptions) => {
     localStorage.setItem("intro_mode", "disabled");
     localStorage.setItem("gallery-active-library-id", "1");
     localStorage.setItem("gallery-active-import-path-id", "10");
@@ -165,6 +169,9 @@ async function installStubbedInspector(page: Page) {
       configurable: true,
       value: {
         write: async (items: ClipboardItem[]) => {
+          if (initOptions.rejectClipboardWriteText) {
+            throw new Error("forced clipboard API rejection");
+          }
           if (items.length > 0) {
             const item = items[0];
             if (item.types.includes("text/plain")) {
@@ -174,11 +181,26 @@ async function installStubbedInspector(page: Page) {
           }
         },
         writeText: async (text: string) => {
+          if (initOptions.rejectClipboardWriteText) {
+            throw new Error("forced clipboard API rejection");
+          }
           (window as Window & { __copiedText?: string }).__copiedText = text;
         },
       },
     });
-  });
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: (command: string) => {
+        if (command !== "copy") return false;
+        const active = document.activeElement;
+        if (active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement) {
+          (window as Window & { __copiedText?: string }).__copiedText = active.value;
+          return true;
+        }
+        return false;
+      },
+    });
+  }, options);
 
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
@@ -374,7 +396,7 @@ test.describe("LibraryInspector", () => {
   });
 
   test("sorts, searches, and keeps prompt and LoRA detail on demand", async ({ page }) => {
-    const requests = await installStubbedInspector(page);
+    const requests = await installStubbedInspector(page, { rejectClipboardWriteText: true });
 
     await page.goto(`${baseUrl}/metadata`, { waitUntil: "domcontentloaded" });
 
@@ -382,34 +404,100 @@ test.describe("LibraryInspector", () => {
     await page.locator("thead").getByRole("button", { name: "File, not sorted" }).click();
     await expect(page.locator("tbody tr").first()).toContainText("ancient-door.png");
 
+    await page.locator("tbody tr").first().locator(".folder-path-trigger").click();
+    const pathPopover = page.locator('[data-slot="popover-content"]').filter({ hasText: baseRows[1].path });
+    await pathPopover.getByRole("button", { name: "Copy full path" }).click();
+    await expect
+      .poll(() => page.evaluate(() => (window as Window & { __copiedText?: string }).__copiedText ?? ""))
+      .toBe(baseRows[1].path);
+    await page.waitForTimeout(300);
+    await expect(pathPopover).toHaveAttribute("data-state", "open");
+    await expect(pathPopover.getByRole("button", { name: "Path copied" })).toBeFocused();
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(1600);
+
     const promptTrigger = page.getByText("cinematic warm light, old wooden door", { exact: false });
     await promptTrigger.click();
-    await expect(page.getByText("full prompt detail")).toBeVisible();
-    await expect(page.getByText("bad hands, watermark")).toBeVisible();
+    const promptPopover = page.locator('[data-slot="popover-content"]').filter({ hasText: "full prompt detail" });
+    await expect(promptPopover.getByText("full prompt detail")).toBeVisible();
+    await expect(promptPopover.getByText("bad hands, watermark")).toBeVisible();
 
     const detailRequestsBeforeCopy = metadataRequests(requests).length;
-    await page.getByRole("button", { name: "Copy prompt" }).click();
+    await promptPopover.getByRole("button", { name: "Copy prompt" }).click();
     await expect
       .poll(() => page.evaluate(() => (window as Window & { __copiedText?: string }).__copiedText ?? ""))
       .toContain("full prompt detail");
-    await page.getByRole("button", { name: "Copy negative" }).click();
+    await page.waitForTimeout(300);
+    await expect(promptPopover).toHaveAttribute("data-state", "open");
+    await expect(promptPopover.getByRole("button", { name: "Prompt copied" })).toBeFocused();
+
+    await promptPopover.getByRole("button", { name: "Copy negative" }).click();
     await expect
       .poll(() => page.evaluate(() => (window as Window & { __copiedText?: string }).__copiedText ?? ""))
       .toBe("bad hands, watermark");
-    await page.getByRole("button", { name: "Copy full metadata" }).click();
+    await page.waitForTimeout(300);
+    await expect(promptPopover).toHaveAttribute("data-state", "open");
+    await expect(promptPopover.getByRole("button", { name: "Negative prompt copied" })).toBeFocused();
+
+    await promptPopover.getByRole("button", { name: "Copy all metadata" }).click();
     await expect
       .poll(() => page.evaluate(() => (window as Window & { __copiedText?: string }).__copiedText ?? ""))
       .toContain("Negative prompt: bad hands, watermark");
+    await page.waitForTimeout(300);
+    await expect(promptPopover).toHaveAttribute("data-state", "open");
+    await expect(promptPopover.getByRole("button", { name: "Metadata copied" })).toBeFocused();
     expect(metadataRequests(requests).length).toBeGreaterThanOrEqual(detailRequestsBeforeCopy);
 
     await page.keyboard.press("Escape");
+    await page.waitForTimeout(1600);
     await page.getByText("LoRA 2").click();
-    await expect(page.getByText("door-detail")).toBeVisible();
-    await expect(page.getByText("abc123")).toBeVisible();
+    const loraPopover = page.locator('[data-slot="popover-content"]').filter({ hasText: "LoRA resources" });
+    await expect(loraPopover.getByText("door-detail")).toBeVisible();
+    await expect(loraPopover.getByText("abc123")).toBeVisible();
+    await expect(loraPopover.getByRole("button", { name: "Copy all metadata" })).toBeVisible();
+    await loraPopover.getByRole("button", { name: "Copy LoRA list" }).click();
+    await expect
+      .poll(() => page.evaluate(() => (window as Window & { __copiedText?: string }).__copiedText ?? ""))
+      .toContain("door-detail");
+    await page.waitForTimeout(300);
+    await expect(loraPopover).toHaveAttribute("data-state", "open");
+    await expect(loraPopover.getByRole("button", { name: "LoRA list copied" })).toBeFocused();
+    await expect(loraPopover.getByRole("button", { name: "Copy all metadata" })).toBeVisible();
+    await expect(page.getByText("LoRA list copied")).toBeVisible();
+    await expect(loraPopover.getByText("door-detail")).toBeVisible();
+    await loraPopover.getByRole("button", { name: "Copy all metadata" }).click();
+    await expect
+      .poll(() => page.evaluate(() => (window as Window & { __copiedText?: string }).__copiedText ?? ""))
+      .toContain("Negative prompt: bad hands, watermark");
+    await page.waitForTimeout(300);
+    await expect(loraPopover).toHaveAttribute("data-state", "open");
+    await expect(loraPopover.getByRole("button", { name: "Metadata copied" })).toBeFocused();
+    await expect(loraPopover.getByText("door-detail")).toBeVisible();
 
     await page.getByLabel("Search metadata table").fill("blue forest");
     await expect(page.locator("tbody tr")).toHaveCount(1);
     await expect(page.locator("tbody tr").first()).toContainText("blue-forest.png");
+  });
+
+  test("copies row path and seed from the actions menu when the Clipboard API falls back", async ({ page }) => {
+    await installStubbedInspector(page, { rejectClipboardWriteText: true });
+
+    await page.goto(`${baseUrl}/metadata`, { waitUntil: "domcontentloaded" });
+    await expect(page.locator("tbody tr").first()).toContainText(baseRows[0].name);
+
+    await page.getByRole("button", { name: "Row actions" }).first().click();
+    await page.getByRole("menuitem", { name: /Copy path/ }).click();
+    await expect
+      .poll(() => page.evaluate(() => (window as Window & { __copiedText?: string }).__copiedText ?? ""))
+      .toBe(baseRows[0].path);
+    await expect(page.getByText("Copy failed")).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Row actions" }).first().click();
+    await page.getByRole("menuitem", { name: /Copy seed/ }).click();
+    await expect
+      .poll(() => page.evaluate(() => (window as Window & { __copiedText?: string }).__copiedText ?? ""))
+      .toBe(baseRows[0].seed);
+    await expect(page.getByText("Copy failed")).toHaveCount(0);
   });
 
   test("opens lightbox in the current visible table order", async ({ page }) => {

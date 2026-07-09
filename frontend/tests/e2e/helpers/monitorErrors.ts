@@ -22,7 +22,7 @@ export const test = base.extend<{
       };
 
       page.on("pageerror", (err) => {
-        monitored.pageErrors.push(`[PAGE_ERROR] ${err.message}`);
+        monitored.pageErrors.push(`[PAGE_ERROR] ${err.stack || err.message}`);
       });
 
       page.on("console", (msg) => {
