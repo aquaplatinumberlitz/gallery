@@ -14,7 +14,7 @@ import { shouldAlwaysLoadOriginal, type LightboxDimensions, type PhotoSwipeImage
 interface MockPswpInstance {
   currIndex: number;
   currSlide: null | Record<string, unknown>;
-  options: { dataSource: unknown[] };
+  options: Record<string, unknown> & { dataSource: unknown[] };
   init: ReturnType<typeof vi.fn>;
   destroy: ReturnType<typeof vi.fn>;
   goTo: ReturnType<typeof vi.fn>;
@@ -43,7 +43,7 @@ vi.mock("photoswipe", () => ({
     const instance: MockPswpInstance = {
       currIndex: index,
       currSlide: null,
-      options: { dataSource },
+      options: { ...opts, dataSource },
       init: vi.fn(() => {
         const handlers = pswpEventHandlers.get(instance)?.get("uiRegister");
         if (handlers) {
@@ -227,6 +227,19 @@ describe("usePhotoSwipe", () => {
 
     isOpenRef.value = true;
     await vi.waitFor(() => expect(result.pswp.value).not.toBeNull());
+  });
+
+  it("zooms on image click and only closes from the backdrop", async () => {
+    const { isOpenRef } = setup([makeItem("/img1.png", "img1.png")], 0, false);
+
+    isOpenRef.value = true;
+    await vi.waitFor(() => expect(pswpInstances.length).toBe(1));
+
+    expect(pswpInstances[0].options).toMatchObject({
+      imageClickAction: "zoom",
+      clickToCloseNonZoomable: false,
+      bgClickAction: "close",
+    });
   });
 
   it("destroys PhotoSwipe when isOpen becomes false", async () => {

@@ -80,7 +80,7 @@ export function galleryLightboxDOMReport(): void {
   });
 
   console.log("---- .pswp active-slide ----");
-  const activeSlide = document.querySelector('.pswp__item--active, [aria-selected="true"]');
+  const activeSlide = document.querySelector('.pswp .pswp__item:not([aria-hidden="true"])');
   console.log("Found:", !!activeSlide, activeSlide);
 
   console.log("---- Summary ----");

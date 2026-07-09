@@ -373,6 +373,11 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
       bgOpacity: 1,
       preload: [1, 1],
       ...photoSwipeOptions,
+      // Keep image clicks dedicated to zoom. Closing remains available through
+      // the backdrop, explicit close controls, and Escape.
+      imageClickAction: "zoom",
+      clickToCloseNonZoomable: false,
+      bgClickAction: "close",
     });
     pswp.value = instance;
     lastReportedPhotoSwipeIndex = instance.currIndex;

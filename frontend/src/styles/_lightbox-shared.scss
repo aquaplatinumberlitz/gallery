@@ -23,6 +23,26 @@
   pointer-events: none !important;
 }
 
+/* A non-zoomable image is inert; do not imply that clicking it will zoom out. */
+.pswp--click-to-zoom:not(.pswp--zoom-allowed) .pswp__img {
+  cursor: default;
+}
+
+/*
+ * PhotoSwipe commits the final zoom level by resizing the image and resetting
+ * its parent scale to 1. Keep both surfaces on stable compositor layers so
+ * Chromium does not leave pixels from the pre-resize edge after zoom-out.
+ */
+.pswp__zoom-wrap,
+.pswp__img {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+.pswp__img {
+  transform: translateZ(0);
+}
+
 /* Loading & Error states (used in both desktop sidebar and mobile sheet) */
 .meta-loading,
 .meta-error {
