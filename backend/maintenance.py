@@ -54,6 +54,7 @@ class FileHealthIssues(BaseModel):
     model_config = ConfigDict(extra="forbid")
     missing_source_files: int
     generated_image_missing: int
+    generated_image_abandoned: int = 0
     metadata_mismatch: int
     orphaned_work_item: int
     generated_image_job_mismatch: int
@@ -66,6 +67,8 @@ class FileHealthRepairs(BaseModel):
     repaired: int
     requeued: int
     failed: int
+    skipped: int = 0
+    recovered: int = 0
     unchanged: int
 
 

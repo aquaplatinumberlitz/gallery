@@ -402,3 +402,159 @@ def test_expired_claim_with_exhausted_attempts_becomes_failed(
             (derivative_id,),
         ).fetchone()
     assert job == ("failed", "attempts_exhausted", None, None)
+
+
+def test_claim_does_not_scan_the_whole_queue_before_selecting_valid_work(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    _, asset_id = _catalog_image(isolated_gallery_root)
+    scheduler = DerivativeScheduler()
+    thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
+    scheduler.schedule_derivative(asset_id, "thumbnail", str(thumbnail["name"]))
+
+    def fail_reconcile() -> None:
+        raise AssertionError("valid claims must not run full queued-job reconciliation")
+
+    monkeypatch.setattr(scheduler, "_reconcile_queued_jobs", fail_reconcile)
+
+    assert scheduler._claim_job() is not None
+
+
+def test_transient_failure_uses_exactly_three_attempts_with_backoff(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    _, asset_id = _catalog_image(isolated_gallery_root)
+    scheduler = DerivativeScheduler()
+    thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
+    derivative_id = scheduler.schedule_derivative(asset_id, "thumbnail", str(thumbnail["name"]))
+    delays: list[float] = []
+    monkeypatch.setattr(scheduler._stop_event, "wait", lambda delay: delays.append(delay) or False)
+
+    for expected_attempt in (1, 2, 3):
+        job = scheduler._claim_job()
+        assert job is not None
+        assert job["job_attempts"] == expected_attempt
+        scheduler._handle_failure(job, OSError("temporary I/O failure"))
+
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        job_row = conn.execute(
+            "SELECT state, attempts, result_code FROM derivative_jobs WHERE derivative_id = ?",
+            (derivative_id,),
+        ).fetchone()
+    assert job_row == ("failed", 3, "attempts_exhausted")
+    assert delays == [1, 2]
+
+
+def test_recovery_cannot_overwrite_a_claim_that_completed_after_selection(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    _, asset_id = _catalog_image(isolated_gallery_root)
+    scheduler = DerivativeScheduler()
+    thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
+    derivative_id = scheduler.schedule_derivative(asset_id, "thumbnail", str(thumbnail["name"]))
+    job = scheduler._claim_job("worker-that-will-finish")
+    assert job is not None
+
+    def complete_selected_claim(_row: sqlite3.Row) -> None:
+        with sqlite3.connect(isolated_metadata_db) as conn:
+            conn.execute(
+                """
+                UPDATE derivative_jobs
+                SET state = 'done', claim_token = NULL, claimed_by = NULL, lease_expires_at = NULL
+                WHERE id = ?
+                """,
+                (job["job_id"],),
+            )
+            conn.execute("UPDATE asset_derivatives SET status = 'ready' WHERE id = ?", (derivative_id,))
+        return None
+
+    monkeypatch.setattr(scheduler, "_inapplicable_result", complete_selected_claim)
+
+    assert scheduler._recover_running_jobs(claimed_by="worker-that-will-finish") == 0
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        recovered_job = conn.execute(
+            "SELECT state FROM derivative_jobs WHERE id = ?",
+            (job["job_id"],),
+        ).fetchone()
+        derivative = conn.execute(
+            "SELECT status FROM asset_derivatives WHERE id = ?",
+            (derivative_id,),
+        ).fetchone()
+    assert recovered_job == ("done",)
+    assert derivative == ("ready",)
+
+
+def test_warm_library_continues_when_asset_becomes_inactive_during_scheduling(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    _, first_asset_id = _catalog_image(isolated_gallery_root)
+    second_image = isolated_gallery_root / "second.png"
+    create_test_png(second_image, size=(80, 60))
+    stat = second_image.stat()
+    assert index_file(
+        second_image,
+        second_image.name,
+        second_image.parent,
+        "photo",
+        stat.st_mtime,
+        stat.st_size,
+        80,
+        60,
+    )
+    scheduler = DerivativeScheduler()
+    original_schedule = scheduler.schedule_derivative
+    first_call = True
+
+    def schedule_with_inactive_race(*args, **kwargs):
+        nonlocal first_call
+        if first_call:
+            first_call = False
+            with sqlite3.connect(isolated_metadata_db) as conn:
+                conn.execute("UPDATE assets SET offline = 1 WHERE id = ?", (first_asset_id,))
+            raise KeyError(first_asset_id)
+        return original_schedule(*args, **kwargs)
+
+    monkeypatch.setattr(scheduler, "schedule_derivative", schedule_with_inactive_race)
+    result = scheduler.warm_library(list_libraries()[0]["id"])
+
+    expected = sum(len(variants) for variants in DERIVATIVE_VARIANTS.values())
+    assert result["derivatives_considered"] == expected
+
+
+def test_library_status_ignores_historical_failed_attempt_after_success(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    _, asset_id = _catalog_image(isolated_gallery_root)
+    scheduler = DerivativeScheduler()
+    thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
+    derivative_id = scheduler.schedule_derivative(asset_id, "thumbnail", str(thumbnail["name"]))
+    failed_job = scheduler._claim_job()
+    assert failed_job is not None
+    scheduler._handle_failure(failed_job, RuntimeError("first attempt failed"))
+
+    scheduler.schedule_derivative(asset_id, "thumbnail", str(thumbnail["name"]))
+    successful_job = scheduler._claim_job()
+    assert successful_job is not None
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute(
+            "UPDATE derivative_jobs SET state = 'done' WHERE id = ?",
+            (successful_job["job_id"],),
+        )
+        conn.execute(
+            "UPDATE asset_derivatives SET status = 'ready' WHERE id = ?",
+            (derivative_id,),
+        )
+
+    status = scheduler.library_status(list_libraries()[0]["id"])
+    assert status["failed_jobs"] == 0
+    assert status["queued_jobs"] == 0
+    assert status["running_jobs"] == 0

@@ -19,12 +19,20 @@ const loadFixture = <T>(name: string): T => JSON.parse(readFileSync(backendFixtu
 const EXPECTED_ISSUE_KEYS: (keyof FileHealthIssues)[] = [
   "missing_source_files",
   "generated_image_missing",
+  "generated_image_abandoned",
   "metadata_mismatch",
   "orphaned_work_item",
   "generated_image_job_mismatch",
 ];
 
-const EXPECTED_REPAIR_KEYS: (keyof FileHealthRepairs)[] = ["repaired", "requeued", "failed", "unchanged"];
+const EXPECTED_REPAIR_KEYS: (keyof FileHealthRepairs)[] = [
+  "repaired",
+  "requeued",
+  "failed",
+  "skipped",
+  "recovered",
+  "unchanged",
+];
 
 const EXPECTED_RUN_KEYS: (keyof FileHealthRun)[] = [
   "id",

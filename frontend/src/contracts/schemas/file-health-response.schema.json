@@ -30,6 +30,7 @@
       "required": [
         "missing_source_files",
         "generated_image_missing",
+        "generated_image_abandoned",
         "metadata_mismatch",
         "orphaned_work_item",
         "generated_image_job_mismatch"
@@ -37,6 +38,7 @@
       "properties": {
         "missing_source_files": { "type": "integer", "minimum": 0 },
         "generated_image_missing": { "type": "integer", "minimum": 0 },
+        "generated_image_abandoned": { "type": "integer", "minimum": 0 },
         "metadata_mismatch": { "type": "integer", "minimum": 0 },
         "orphaned_work_item": { "type": "integer", "minimum": 0 },
         "generated_image_job_mismatch": { "type": "integer", "minimum": 0 }
@@ -45,11 +47,13 @@
     },
     "FileHealthRepairs": {
       "type": "object",
-      "required": ["repaired", "requeued", "failed", "unchanged"],
+      "required": ["repaired", "requeued", "failed", "skipped", "recovered", "unchanged"],
       "properties": {
         "repaired": { "type": "integer", "minimum": 0 },
         "requeued": { "type": "integer", "minimum": 0 },
         "failed": { "type": "integer", "minimum": 0 },
+        "skipped": { "type": "integer", "minimum": 0 },
+        "recovered": { "type": "integer", "minimum": 0 },
         "unchanged": { "type": "integer", "minimum": 0 }
       },
       "additionalProperties": false

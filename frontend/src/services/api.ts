@@ -29,6 +29,7 @@ import type {
 export interface FileHealthIssues {
   missing_source_files: number;
   generated_image_missing: number;
+  generated_image_abandoned: number;
   metadata_mismatch: number;
   orphaned_work_item: number;
   generated_image_job_mismatch: number;
@@ -38,6 +39,8 @@ export interface FileHealthRepairs {
   repaired: number;
   requeued: number;
   failed: number;
+  skipped: number;
+  recovered: number;
   unchanged: number;
 }
 

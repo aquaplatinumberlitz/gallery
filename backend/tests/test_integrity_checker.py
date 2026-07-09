@@ -545,11 +545,19 @@ class TestRunAndPersist:
         assert set(summary["issues"].keys()) == {
             "missing_source_files",
             "generated_image_missing",
+            "generated_image_abandoned",
             "metadata_mismatch",
             "orphaned_work_item",
             "generated_image_job_mismatch",
         }
-        assert set(summary["repairs"].keys()) == {"repaired", "requeued", "failed", "unchanged"}
+        assert set(summary["repairs"].keys()) == {
+            "repaired",
+            "requeued",
+            "failed",
+            "skipped",
+            "recovered",
+            "unchanged",
+        }
         assert summary["started_at"] is not None
         assert summary["finished_at"] is not None
         with _DB_LOCK, _connect() as conn:
@@ -562,12 +570,13 @@ class TestRunAndPersist:
         assert set(issues.keys()) == {
             "missing_source_files",
             "generated_image_missing",
+            "generated_image_abandoned",
             "metadata_mismatch",
             "orphaned_work_item",
             "generated_image_job_mismatch",
         }
         repairs = json.loads(row["repairs_json"])
-        assert set(repairs.keys()) == {"repaired", "requeued", "failed", "unchanged"}
+        assert set(repairs.keys()) == {"repaired", "requeued", "failed", "skipped", "recovered", "unchanged"}
 
     def test_run_and_persist_error_records_error(self, _checker, monkeypatch):
         checker = _checker

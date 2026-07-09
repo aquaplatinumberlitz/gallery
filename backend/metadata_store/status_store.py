@@ -849,6 +849,10 @@ def build_global_runtime() -> GlobalRuntime:
                 JOIN assets a ON a.id = d.asset_id
                 WHERE a.type = 'image' AND a.deleted_at IS NULL AND a.offline = 0
                   AND d.source_mtime_ns = a.mtime_ns AND d.source_size = a.size
+                  AND j.id = (
+                      SELECT max(latest.id) FROM derivative_jobs latest
+                      WHERE latest.derivative_id = j.derivative_id
+                  )
                 GROUP BY j.state
                 """
             ).fetchall()

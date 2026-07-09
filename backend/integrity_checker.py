@@ -68,25 +68,35 @@ class IntegrityChecker:
             issues = {
                 "missing_source_files": results.get("job_active_no_file", 0),
                 "generated_image_missing": results.get("derivative_ready_no_file", 0),
+                "generated_image_abandoned": results.get("derivative_abandoned_jobs", 0),
                 "metadata_mismatch": results.get("asset_done_but_no_metadata", 0),
                 "orphaned_work_item": results.get("job_active_no_asset", 0),
                 "generated_image_job_mismatch": results.get("derivative_done_not_ready", 0),
             }
             repaired = results.get("job_done_asset_not_done", 0) + results.get("derivative_done_repaired", 0)
-            requeued = results.get("asset_done_but_no_metadata", 0) + results.get("derivative_ready_no_file", 0)
+            requeued = (
+                results.get("asset_done_but_no_metadata", 0)
+                + results.get("derivative_ready_requeued", 0)
+                + results.get("derivative_abandoned_requeued", 0)
+            )
             failed = (
                 results.get("job_active_no_asset", 0)
                 + results.get("job_active_no_file", 0)
                 + results.get("derivative_done_failed", 0)
+                + results.get("derivative_abandoned_failed", 0)
             )
+            skipped = results.get("derivative_ready_skipped", 0) + results.get("derivative_abandoned_skipped", 0)
+            recovered = results.get("derivative_abandoned_jobs", 0)
             total_issues = sum(issues.values())
-            unchanged = total_issues - repaired - requeued - failed
+            unchanged = total_issues - repaired - requeued - failed - skipped
             if unchanged < 0:
                 unchanged = 0
             repairs = {
                 "repaired": repaired,
                 "requeued": requeued,
                 "failed": failed,
+                "skipped": skipped,
+                "recovered": recovered,
                 "unchanged": unchanged,
             }
             summary["finished_at"] = time.time()
@@ -99,11 +109,19 @@ class IntegrityChecker:
             summary["issues"] = {
                 "missing_source_files": 0,
                 "generated_image_missing": 0,
+                "generated_image_abandoned": 0,
                 "metadata_mismatch": 0,
                 "orphaned_work_item": 0,
                 "generated_image_job_mismatch": 0,
             }
-            summary["repairs"] = {"repaired": 0, "requeued": 0, "failed": 0, "unchanged": 0}
+            summary["repairs"] = {
+                "repaired": 0,
+                "requeued": 0,
+                "failed": 0,
+                "skipped": 0,
+                "recovered": 0,
+                "unchanged": 0,
+            }
         finally:
             try:
                 with _DB_LOCK, _connect() as conn:
@@ -131,7 +149,10 @@ class IntegrityChecker:
             total["asset_done_but_no_metadata"] = self._check_asset_done_no_metadata(conn)
             total["job_done_asset_not_done"] = self._check_job_done_asset_not_done(conn)
             total["job_active_no_asset"] = self._check_job_active_no_asset(conn)
-            total["derivative_ready_no_file"] = self._check_derivative_ready_no_file(conn)
+            derivative_ready = self._check_derivative_ready_no_file_details(conn)
+            total["derivative_ready_no_file"] = derivative_ready["requeued"] + derivative_ready["skipped"]
+            total["derivative_ready_requeued"] = derivative_ready["requeued"]
+            total["derivative_ready_skipped"] = derivative_ready["skipped"]
             abandoned = self._check_abandoned_derivative_jobs(conn)
             total["derivative_abandoned_jobs"] = sum(abandoned.values())
             total["derivative_abandoned_requeued"] = abandoned["requeued"]
@@ -233,6 +254,11 @@ class IntegrityChecker:
         return len(rows)
 
     def _check_derivative_ready_no_file(self, conn) -> int:
+        """Repair missing ready files and return the number requeued."""
+        return self._check_derivative_ready_no_file_details(conn)["requeued"]
+
+    def _check_derivative_ready_no_file_details(self, conn) -> dict[str, int]:
+        """Repair missing ready files and return outcome-specific counters."""
         rows = conn.execute("""
             SELECT d.id, d.cache_path, d.source_mtime_ns, d.source_size,
                    a.id AS asset_id, a.path, a.type, a.deleted_at, a.offline, a.mtime_ns, a.size
@@ -240,7 +266,7 @@ class IntegrityChecker:
             LEFT JOIN assets a ON a.id = d.asset_id
             WHERE d.status = 'ready'
         """).fetchall()
-        requeued = 0
+        counts = {"requeued": 0, "skipped": 0}
         for row in rows:
             if row["cache_path"] is None or not Path(row["cache_path"]).is_file():
                 derivative_id = row["id"]
@@ -266,6 +292,7 @@ class IntegrityChecker:
                         """,
                         (result_code, message, derivative_id),
                     )
+                    counts["skipped"] += 1
                     continue
                 # Clear stale cache fields on the catalog row
                 conn.execute(
@@ -294,13 +321,13 @@ class IntegrityChecker:
                         """,
                         (derivative_id,),
                     )
-                requeued += 1
-        return requeued
+                counts["requeued"] += 1
+        return counts
 
     def _check_abandoned_derivative_jobs(self, conn) -> dict[str, int]:
         rows = conn.execute(
             """
-            SELECT j.id AS job_id, j.attempts, d.id AS derivative_id,
+            SELECT j.id AS job_id, j.attempts, j.claim_token, d.id AS derivative_id,
                    d.source_mtime_ns, d.source_size, a.id AS asset_id, a.path,
                    a.type, a.deleted_at, a.offline, a.mtime_ns, a.size
             FROM derivative_jobs j
@@ -320,7 +347,7 @@ class IntegrityChecker:
             else:
                 state = "queued"
             message = f"integrity: recovered abandoned derivative ({result_code or 'retry'})"
-            conn.execute(
+            transitioned = conn.execute(
                 """
                 UPDATE derivative_jobs
                 SET state = ?, result_code = ?, error = ?, claimed_by = NULL,
@@ -328,18 +355,19 @@ class IntegrityChecker:
                     started_at = CASE WHEN ? = 'queued' THEN NULL ELSE started_at END,
                     completed_at = CASE WHEN ? IN ('skipped', 'failed') THEN julianday('now') ELSE NULL END,
                     updated_at = julianday('now')
-                WHERE id = ? AND state = 'running'
+                WHERE id = ? AND state = 'running' AND claim_token IS ?
                 """,
-                (state, result_code, message, state, state, row["job_id"]),
+                (state, result_code, message, state, state, row["job_id"], row["claim_token"]),
             )
-            conn.execute(
-                """
-                UPDATE asset_derivatives SET status = ?, last_error = ?,
-                    updated_at = julianday('now') WHERE id = ?
-                """,
-                (state, message, row["derivative_id"]),
-            )
-            counts["requeued" if state == "queued" else state] += 1
+            if transitioned.rowcount == 1:
+                conn.execute(
+                    """
+                    UPDATE asset_derivatives SET status = ?, last_error = ?,
+                        updated_at = julianday('now') WHERE id = ?
+                    """,
+                    (state, message, row["derivative_id"]),
+                )
+                counts["requeued" if state == "queued" else state] += 1
         return counts
 
     @staticmethod

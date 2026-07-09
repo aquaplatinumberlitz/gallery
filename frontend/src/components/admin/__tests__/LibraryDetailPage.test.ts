@@ -284,7 +284,7 @@ describe("LibraryDetailPage", () => {
     const wrapper = mountSubject();
     expect(wrapper.text()).toContain("Overview");
     expect(wrapper.text()).toContain("Status");
-    expect(wrapper.text()).toContain("Thumbnails");
+    expect(wrapper.text()).toContain("Generated images");
     expect(wrapper.text()).toContain("All systems available");
     expect(wrapper.text()).toContain("File catalog is current");
     expect(wrapper.text()).toContain("80");
@@ -461,9 +461,10 @@ describe("LibraryDetailPage", () => {
   it("renders derivative cache with full data", () => {
     mockGeneratedImagesData = mockGeneratedImages;
     const wrapper = mountSubject();
-    expect(wrapper.text()).toContain("Thumbnails");
+    expect(wrapper.text()).toContain("Generated images");
+    expect(wrapper.text()).toContain("75/100 cached");
     expect(wrapper.text()).toContain("74/100 cached");
-    expect(wrapper.text()).toContain("26 thumbnails missing");
+    expect(wrapper.text()).toContain("25 thumbnails missing");
     expect(wrapper.text()).toContain("Build missing thumbnails");
     expect(wrapper.find(".bg-warning").exists()).toBe(true);
     expect(wrapper.find(".bg-primary").exists()).toBe(false);
@@ -485,6 +486,23 @@ describe("LibraryDetailPage", () => {
     const wrapper = mountSubject();
 
     expect(wrapper.get('[role="alert"]').text()).toContain("No generated-image worker is available");
+  });
+
+  it("does not offer thumbnail work when only previews are missing", () => {
+    mockGeneratedImagesData = {
+      ...mockGeneratedImages,
+      ready_derivatives: 125,
+      by_kind: {
+        thumbnail: { ready_derivatives: 100, expected_derivatives: 100 },
+        preview: { ready_derivatives: 25, expected_derivatives: 100 },
+      },
+    };
+    const wrapper = mountSubject();
+
+    expect(wrapper.text()).toContain("100/100 cached");
+    expect(wrapper.text()).toContain("25/100 cached");
+    expect(wrapper.text()).not.toContain("thumbnails missing");
+    expect(wrapper.text()).not.toContain("Build missing thumbnails");
   });
 
   it("renders jobs with actual data", () => {

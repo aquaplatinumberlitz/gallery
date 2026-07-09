@@ -39,11 +39,12 @@ def _reset_checker() -> None:
 FILE_HEALTH_ISSUES = {
     "missing_source_files",
     "generated_image_missing",
+    "generated_image_abandoned",
     "metadata_mismatch",
     "orphaned_work_item",
     "generated_image_job_mismatch",
 }
-FILE_HEALTH_REPAIRS = {"repaired", "requeued", "failed", "unchanged"}
+FILE_HEALTH_REPAIRS = {"repaired", "requeued", "failed", "skipped", "recovered", "unchanged"}
 
 
 def _make_dummy_run(trigger: str = "manual", now: float | None = None) -> dict:

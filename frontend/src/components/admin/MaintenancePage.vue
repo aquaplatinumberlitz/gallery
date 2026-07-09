@@ -75,6 +75,11 @@ const fileIssueKeys = [
     description: "Thumbnail cache records marked ready while the cached file is missing.",
   },
   {
+    key: "generated_image_abandoned" as const,
+    label: "Abandoned generated-image jobs",
+    description: "Running thumbnail or preview jobs whose worker claim expired.",
+  },
+  {
     key: "metadata_mismatch" as const,
     label: "Metadata mismatch",
     description: "Cataloged assets marked done but missing a matching extracted metadata row.",
@@ -108,8 +113,18 @@ const repairKeys = [
     description: "Work items marked failed because the source asset or generated file could not be found.",
   },
   {
+    key: "skipped" as const,
+    label: "Marked skipped",
+    description: "Generated-image work made inapplicable by an offline, missing, or changed source.",
+  },
+  {
+    key: "recovered" as const,
+    label: "Recovered claims",
+    description: "Expired generated-image claims returned to a durable queued, skipped, or failed state.",
+  },
+  {
     key: "unchanged" as const,
-    label: "Skipped / unchanged",
+    label: "Unchanged",
     description: "Problems that were counted but did not need a state change in this run.",
   },
 ] as const;

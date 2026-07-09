@@ -54,11 +54,12 @@ def _reset_checker() -> None:
 FILE_HEALTH_ISSUES = {
     "missing_source_files",
     "generated_image_missing",
+    "generated_image_abandoned",
     "metadata_mismatch",
     "orphaned_work_item",
     "generated_image_job_mismatch",
 }
-FILE_HEALTH_REPAIRS = {"repaired", "requeued", "failed", "unchanged"}
+FILE_HEALTH_REPAIRS = {"repaired", "requeued", "failed", "skipped", "recovered", "unchanged"}
 
 
 _LIBRARY_ID: int | None = None
@@ -452,6 +453,79 @@ class TestCheckJobActiveNoFile:
 # ===================================================================
 
 
+class TestAbandonedDerivativeRecovery:
+    def test_completed_claim_is_not_overwritten_after_recovery_selection(
+        self,
+        isolated_metadata_db: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = tmp_path / "source.png"
+        source.write_bytes(b"x" * 1024)
+        stat = source.stat()
+        with _DB_LOCK, _connect() as conn:
+            _asset_row(conn, str(source), mtime_ns=stat.st_mtime_ns, size=stat.st_size)
+            asset_id = conn.execute("SELECT id FROM assets WHERE path = ?", (str(source),)).fetchone()[0]
+            derivative_id = _derivative_row(
+                conn,
+                asset_id,
+                status="running",
+                source_mtime_ns=stat.st_mtime_ns,
+            )
+            _derivative_job_row(conn, derivative_id, state="running")
+            job_id = conn.execute(
+                "SELECT id FROM derivative_jobs WHERE derivative_id = ?",
+                (derivative_id,),
+            ).fetchone()[0]
+            conn.execute(
+                """
+                UPDATE derivative_jobs
+                SET attempts = 1, claimed_by = 'worker', claim_token = 'old-token',
+                    lease_expires_at = julianday('now') - 1
+                WHERE id = ?
+                """,
+                (job_id,),
+            )
+
+        def complete_claim(_row: sqlite3.Row) -> None:
+            with sqlite3.connect(isolated_metadata_db) as conn:
+                conn.execute(
+                    """
+                    UPDATE derivative_jobs
+                    SET state = 'done', claimed_by = NULL, claim_token = NULL, lease_expires_at = NULL
+                    WHERE id = ?
+                    """,
+                    (job_id,),
+                )
+                conn.execute(
+                    "UPDATE asset_derivatives SET status = 'ready' WHERE id = ?",
+                    (derivative_id,),
+                )
+            return None
+
+        monkeypatch.setattr(integrity_checker, "_derivative_inapplicable_result", complete_claim)
+
+        with _DB_LOCK, _connect() as conn:
+            result = integrity_checker._check_abandoned_derivative_jobs(conn)
+
+        assert result == {"requeued": 0, "skipped": 0, "failed": 0}
+        with _DB_LOCK, _connect() as conn:
+            assert (
+                conn.execute(
+                    "SELECT state FROM derivative_jobs WHERE id = ?",
+                    (job_id,),
+                ).fetchone()["state"]
+                == "done"
+            )
+            assert (
+                conn.execute(
+                    "SELECT status FROM asset_derivatives WHERE id = ?",
+                    (derivative_id,),
+                ).fetchone()["status"]
+                == "ready"
+            )
+
+
 class TestRunAllChecks:
     def test_returns_all_eight_keys_with_int_values(self) -> None:
         results = integrity_checker.run_all_checks()
@@ -460,6 +534,8 @@ class TestRunAllChecks:
             "job_done_asset_not_done",
             "job_active_no_asset",
             "derivative_ready_no_file",
+            "derivative_ready_requeued",
+            "derivative_ready_skipped",
             "derivative_done_not_ready",
             "derivative_done_repaired",
             "derivative_done_failed",

@@ -251,22 +251,30 @@ const thumbnailDerivativeStatus = computed(() => {
   const currentStatus = thumbnails.value;
   if (!currentStatus) return { ready: 0, expected: 0 };
 
-  const byKind = currentStatus.by_kind
-    ? Object.values(currentStatus.by_kind).filter(
-        (kind): kind is { ready_derivatives: number; expected_derivatives: number } => Boolean(kind),
-      )
-    : [];
-  if (byKind.length === 0) {
-    return {
-      ready: currentStatus.ready_derivatives,
-      expected: currentStatus.expected_derivatives,
-    };
-  }
-
+  const thumbnailStatus = currentStatus.by_kind?.thumbnail;
   return {
-    ready: Math.min(...byKind.map((kind) => kind.ready_derivatives)),
-    expected: byKind[0]?.expected_derivatives ?? 0,
+    ready: thumbnailStatus?.ready_derivatives ?? currentStatus.ready_derivatives,
+    expected: thumbnailStatus?.expected_derivatives ?? currentStatus.expected_derivatives,
   };
+});
+const derivativeCoverageRows = computed(() => {
+  const currentStatus = thumbnails.value;
+  if (!currentStatus?.by_kind) return [];
+
+  return (["thumbnail", "preview"] as const)
+    .map((kind) => {
+      const status = currentStatus.by_kind?.[kind];
+      if (!status) return null;
+      const ratio = status.expected_derivatives > 0 ? status.ready_derivatives / status.expected_derivatives : 0;
+      return {
+        kind,
+        label: kind === "thumbnail" ? "Thumbnails" : "Previews",
+        ready: status.ready_derivatives,
+        expected: status.expected_derivatives,
+        ratio,
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => row !== null);
 });
 const thumbnailReady = computed(() => thumbnailDerivativeStatus.value.ready);
 const thumbnailExpected = computed(() => thumbnailDerivativeStatus.value.expected);
@@ -282,22 +290,17 @@ const derivativeCoverageRatio = computed(() => {
 const derivativeCoverageLabel = computed(() =>
   hasDerivativeExpectation.value ? formatPercent(derivativeCoverageRatio.value) : "Not measured",
 );
-const derivativeSummaryLabel = computed(() =>
-  hasDerivativeExpectation.value
-    ? `${formatAssetCount(thumbnailReady.value)}/${formatAssetCount(thumbnailExpected.value)} cached`
-    : "Not measured yet",
-);
 const derivativeCacheState = computed(() =>
   !hasDerivativeExpectation.value
     ? {
-        label: "Cache state",
+        label: "Thumbnail state",
         value: "Unknown",
         detail: "Run a scan to measure thumbnail needs",
         tone: "text-muted-foreground",
       }
     : thumbnailMissing.value > 0
       ? {
-          label: "Missing",
+          label: "Thumbnail state",
           value: `${formatAssetCount(thumbnailMissing.value)} thumbnails`,
           detail: "Build required",
           tone: "text-warning",
@@ -603,8 +606,10 @@ function estimatedAssets(): number | undefined {
               <div class="space-y-4">
                 <div class="flex items-start justify-between gap-3">
                   <div>
-                    <h3 class="text-sm font-semibold text-foreground">Thumbnails</h3>
-                    <p class="mt-1 text-sm text-muted-foreground">Cached previews used for faster browsing.</p>
+                    <h3 class="text-sm font-semibold text-foreground">Generated images</h3>
+                    <p class="mt-1 text-sm text-muted-foreground">
+                      Cached thumbnails and previews used while browsing.
+                    </p>
                   </div>
                   <Tooltip>
                     <TooltipTrigger as-child>
@@ -625,42 +630,36 @@ function estimatedAssets(): number | undefined {
                 </div>
 
                 <template v-if="thumbnails">
-                  <div class="rounded-md border border-border bg-muted/60 p-3">
-                    <div class="flex items-start justify-between gap-3">
-                      <div class="min-w-0">
+                  <div
+                    v-if="derivativeCoverageRows.length"
+                    class="divide-y divide-border rounded-md border border-border bg-muted/60"
+                  >
+                    <div v-for="row in derivativeCoverageRows" :key="row.kind" class="space-y-2 p-3">
+                      <div class="flex items-center justify-between gap-3">
                         <div class="flex min-w-0 items-center gap-2.5">
                           <ImageIcon class="size-4 shrink-0 text-foreground/70" aria-hidden="true" />
-                          <p class="font-semibold text-foreground">{{ derivativeSummaryLabel }}</p>
+                          <p class="font-medium text-foreground">{{ row.label }}</p>
                         </div>
-                        <p v-if="thumbnailMissing > 0" class="mt-1 text-sm text-muted-foreground">
-                          {{ formatAssetCount(thumbnailMissing) }} thumbnails missing
+                        <p class="shrink-0 text-sm font-semibold tabular-nums text-foreground">
+                          {{ formatAssetCount(row.ready) }}/{{ formatAssetCount(row.expected) }} cached
                         </p>
                       </div>
-                      <p
-                        class="shrink-0 text-sm font-semibold tabular-nums"
-                        :class="[
-                          hasDerivativeExpectation
-                            ? derivativeCoverageRatio >= 1
-                              ? 'text-success'
-                              : 'text-warning'
-                            : 'text-muted-foreground',
-                        ]"
-                      >
-                        {{ derivativeCoverageLabel }}
-                      </p>
+                      <Progress
+                        :model-value="Math.round(row.ratio * 100)"
+                        class="h-2 bg-muted"
+                        :indicator-class="row.ratio >= 1 ? 'bg-success' : 'bg-warning'"
+                      />
                     </div>
                   </div>
-                  <Progress
-                    :model-value="Math.round(derivativeCoverageRatio * 100)"
-                    class="h-2 bg-muted"
-                    :indicator-class="
-                      hasDerivativeExpectation
-                        ? derivativeCoverageRatio >= 1
-                          ? 'bg-success'
-                          : 'bg-warning'
-                        : 'bg-muted'
-                    "
-                  />
+                  <div v-else class="rounded-md border border-border bg-muted/60 p-3">
+                    <p class="font-semibold text-foreground">
+                      {{ formatAssetCount(thumbnailReady) }}/{{ formatAssetCount(thumbnailExpected) }} cached
+                    </p>
+                    <p class="mt-1 text-sm text-muted-foreground">{{ derivativeCoverageLabel }}</p>
+                  </div>
+                  <p v-if="thumbnailMissing > 0" class="text-sm text-muted-foreground">
+                    {{ formatAssetCount(thumbnailMissing) }} thumbnails missing
+                  </p>
                   <div class="grid gap-3 text-sm sm:grid-cols-3">
                     <div class="rounded-md border border-border bg-muted/60 p-3">
                       <p class="text-xs font-medium text-muted-foreground">Cache size</p>

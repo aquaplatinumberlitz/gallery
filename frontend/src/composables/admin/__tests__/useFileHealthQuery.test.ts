@@ -15,6 +15,7 @@ const mockRun = {
   issues: {
     missing_source_files: 0,
     generated_image_missing: 2,
+    generated_image_abandoned: 1,
     metadata_mismatch: 1,
     orphaned_work_item: 0,
     generated_image_job_mismatch: 3,
@@ -23,6 +24,8 @@ const mockRun = {
     repaired: 3,
     requeued: 2,
     failed: 0,
+    skipped: 1,
+    recovered: 1,
     unchanged: 1,
   },
 };
