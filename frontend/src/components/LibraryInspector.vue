@@ -32,6 +32,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import CopyActionButton from "@/components/ui/CopyActionButton.vue";
 import CopyStateIcon from "@/components/ui/CopyStateIcon.vue";
 import { useClipboard } from "@/composables/useClipboard";
+import { useCollapsibleHeader } from "@/composables/useCollapsibleHeader";
 import { useCatalogStatusQuery } from "@/composables/useCatalogStatusQuery";
 import { useToast } from "@/composables/useToast";
 import { useLibraryInspectorMetadataQuery } from "@/composables/useLibraryInspectorMetadataQuery";
@@ -114,6 +115,8 @@ const rowMenuOpen = ref<Record<string, boolean>>({});
 const tableShellRef = ref<HTMLElement | null>(null);
 const hasRestoredScroll = ref(false);
 let latestCopyFallbackRoot: HTMLElement | null = null;
+
+const { isHeaderCollapsed: isInspectorHeaderCollapsed } = useCollapsibleHeader(tableShellRef);
 
 const inspectorQuery = useInfiniteLibraryInspectorQuery(query, scope, currentPath, limit, inspectorSort);
 const metadataQuery = useLibraryInspectorMetadataQuery(detailPath, detailEnabled);
@@ -710,7 +713,7 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
 
 <template>
   <section class="library-inspector" aria-labelledby="library-inspector-title">
-    <div class="inspector-header">
+    <div class="inspector-header" :class="{ 'is-collapsed': isInspectorHeaderCollapsed }">
       <div class="inspector-heading">
         <div class="min-w-0">
           <h2 id="library-inspector-title" class="truncate text-xl font-semibold tracking-normal">Photo Details</h2>
@@ -1304,6 +1307,23 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
   justify-content: space-between;
   gap: 12px;
   padding-bottom: 2px;
+  max-height: 80px;
+  opacity: 1;
+  overflow: hidden;
+  transform: translateY(0);
+  transition:
+    max-height 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms ease,
+    transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    padding-bottom 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.inspector-header.is-collapsed {
+  max-height: 0;
+  opacity: 0;
+  padding-bottom: 0;
+  pointer-events: none;
+  transform: translateY(-8px);
 }
 
 .inspector-heading {

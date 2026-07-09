@@ -260,7 +260,7 @@ describe("GalleryGrid", () => {
     expect(wrapper.find('[aria-label="Open current folder in file explorer"]').exists()).toBe(true);
   });
 
-  it("opens library management from the no-library empty state", async () => {
+  it("opens the library selector from the no-library empty state", async () => {
     const wrapper = await mountSubject({
       store: {
         activeLibraryId: null,
@@ -274,11 +274,13 @@ describe("GalleryGrid", () => {
     expect(wrapper.get("[data-testid='empty-description']").text()).toBe(
       "Add or choose a registered library before browsing albums and photos.",
     );
-    expect(wrapper.get("[data-testid='empty-action']").text()).toBe("Manage Libraries");
+    expect(wrapper.get("[data-testid='empty-action']").text()).toBe("Choose Library");
+    expect(wrapper.get("[data-testid='library-selector']").attributes("data-open")).toBe("false");
 
     await wrapper.get("[data-testid='empty-action']").trigger("click");
 
-    expect(mockRouterPush).toHaveBeenCalledWith("/admin/libraries");
+    expect(wrapper.get("[data-testid='library-selector']").attributes("data-open")).toBe("true");
+    expect(mockRouterPush).not.toHaveBeenCalled();
   });
 
   it("shows SortSelect on desktop toolbar", async () => {

@@ -750,12 +750,6 @@ function handleClearAll() {
   align-items: start;
   gap: 12px;
   flex-shrink: 0;
-}
-
-.gallery-header.is-gallery-header {
-  display: block;
-  container: gallery-header / inline-size;
-  overflow: hidden;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   background: color-mix(in srgb, var(--background) 80%, transparent);
   box-shadow: 0 2px 8px color-mix(in srgb, black 5%, transparent);
@@ -765,6 +759,12 @@ function handleClearAll() {
     min-height 200ms cubic-bezier(0.22, 1, 0.36, 1),
     background-color 200ms cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.gallery-header.is-gallery-header {
+  display: block;
+  container: gallery-header / inline-size;
+  overflow: hidden;
 }
 
 .gallery-header.is-gallery-header.is-expanded {

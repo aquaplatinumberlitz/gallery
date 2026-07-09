@@ -400,8 +400,8 @@ const noSearchResults = computed(
     searchMediaResults.value.length === 0,
 );
 
-function openLibraryManager() {
-  void router.push("/admin/libraries");
+function openLibrarySelector() {
+  librarySelectorOpen.value = true;
 }
 
 const scanQueryErrorMessage = computed(() => {
@@ -1155,9 +1155,9 @@ useIntersectionObserver(
         type="no-path"
         title="No library selected"
         description="Add or choose a registered library before browsing albums and photos."
-        action-label="Manage Libraries"
+        action-label="Choose Library"
         action-icon="FolderOpen"
-        @action="openLibraryManager"
+        @action="openLibrarySelector"
       />
 
       <!-- Not Loaded Yet -->
