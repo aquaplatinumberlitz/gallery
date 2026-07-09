@@ -191,6 +191,25 @@ def test_library_status_excludes_legacy_variants(
     assert status["quota_used_bytes"] == current_bytes
 
 
+def test_library_status_excludes_offline_assets(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    _, asset_id = _catalog_image(isolated_gallery_root)
+    library_id = list_libraries()[0]["id"]
+    scheduler = DerivativeScheduler(quota_bytes=1024)
+
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute("UPDATE assets SET offline = 1 WHERE id = ?", (asset_id,))
+
+    assert scheduler.warm_library(library_id)["assets"] == 0
+    status = scheduler.library_status(library_id)
+    assert status["total_assets"] == 0
+    assert status["ready_derivatives"] == 0
+    assert status["expected_derivatives"] == 0
+    assert all(kind["expected_derivatives"] == 0 for kind in status["by_kind"].values())
+
+
 def test_derivative_variant_uses_named_and_custom_variants():
     thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
     assert (

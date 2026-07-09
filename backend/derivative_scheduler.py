@@ -319,7 +319,10 @@ class DerivativeScheduler:
                 raise KeyError(library_id)
             total_assets = int(
                 conn.execute(
-                    "SELECT count(*) FROM assets WHERE library_id = ? AND type = 'image' AND deleted_at IS NULL",
+                    """
+                    SELECT count(*) FROM assets
+                    WHERE library_id = ? AND type = 'image' AND deleted_at IS NULL AND offline = 0
+                    """,
                     (library_id,),
                 ).fetchone()[0]
             )
@@ -330,7 +333,8 @@ class DerivativeScheduler:
                     f"""
                     SELECT d.kind, d.cache_path, d.byte_size
                     FROM asset_derivatives d JOIN assets a ON a.id = d.asset_id
-                    WHERE a.library_id = ? AND d.status = 'ready'
+                    WHERE a.library_id = ? AND a.deleted_at IS NULL AND a.offline = 0
+                      AND d.status = 'ready'
                       AND d.source_mtime_ns = a.mtime_ns
                       AND d.source_size = a.size
                       AND d.cache_path IS NOT NULL
