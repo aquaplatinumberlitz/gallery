@@ -361,6 +361,14 @@ export interface GeneratedImagesStatus {
   quota_bytes: number;
   quota_used_bytes: number;
   quota_utilization: number;
+  queued_jobs: number;
+  running_jobs: number;
+  failed_jobs: number;
+  skipped_jobs: number;
+  configured_worker_count: number;
+  alive_worker_count: number;
+  worker_healthy: boolean;
+  oldest_running_age_seconds: number | null;
 }
 
 export type GeneratedImageKind = "thumbnail" | "preview";

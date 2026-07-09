@@ -150,6 +150,14 @@ class GlobalRuntime(TypedDict):
     watcher_healthy: bool
     watcher_issue: str | None
     scheduled_reconciliation_enabled: bool
+    derivative_configured_worker_count: int
+    derivative_worker_count: int
+    derivative_active_jobs: int
+    derivative_queue_depth: int
+    derivative_failed_jobs: int
+    derivative_skipped_jobs: int
+    derivative_stale_running_jobs: int
+    derivative_oldest_running_age_seconds: float | None
 
 
 class StatusResponseEnvelope(TypedDict):
@@ -806,6 +814,7 @@ def build_global_runtime() -> GlobalRuntime:
     """Return process and durable-queue runtime status for one response envelope."""
     initialize_database()
     from ..config import GALLERY_CATALOG_SERVICE_ENABLED
+    from ..derivative_scheduler import scheduler as derivative_scheduler
     from ..indexer import get_indexer_runtime_status
     from ..refresh import get_refresh_status
     from ..scan_worker import ensure_running, runtime_status
@@ -830,6 +839,35 @@ def build_global_runtime() -> GlobalRuntime:
                 """
             ).fetchone()[0]
         )
+        derivative_counts = {
+            str(row["state"]): int(row["count"])
+            for row in conn.execute(
+                """
+                SELECT j.state, count(*) AS count
+                FROM derivative_jobs j
+                JOIN asset_derivatives d ON d.id = j.derivative_id
+                JOIN assets a ON a.id = d.asset_id
+                WHERE a.type = 'image' AND a.deleted_at IS NULL AND a.offline = 0
+                  AND d.source_mtime_ns = a.mtime_ns AND d.source_size = a.size
+                GROUP BY j.state
+                """
+            ).fetchall()
+        }
+        derivative_stale = int(
+            conn.execute(
+                """
+                SELECT count(*) FROM derivative_jobs
+                WHERE state = 'running'
+                  AND (lease_expires_at IS NULL OR lease_expires_at <= julianday('now'))
+                """
+            ).fetchone()[0]
+        )
+        oldest_derivative = conn.execute(
+            """
+            SELECT max((julianday('now') - started_at) * 86400)
+            FROM derivative_jobs WHERE state = 'running' AND started_at IS NOT NULL
+            """
+        ).fetchone()[0]
 
     metadata_runtime = get_indexer_runtime_status()
     watcher = get_watcher_status()
@@ -858,6 +896,16 @@ def build_global_runtime() -> GlobalRuntime:
         "watcher_healthy": watcher_healthy,
         "watcher_issue": watcher_issue,
         "scheduled_reconciliation_enabled": bool(refresh["enabled"]),
+        "derivative_configured_worker_count": derivative_scheduler.worker_count,
+        "derivative_worker_count": derivative_scheduler.alive_worker_count(),
+        "derivative_active_jobs": derivative_counts.get("running", 0),
+        "derivative_queue_depth": derivative_counts.get("queued", 0),
+        "derivative_failed_jobs": derivative_counts.get("failed", 0),
+        "derivative_skipped_jobs": derivative_counts.get("skipped", 0),
+        "derivative_stale_running_jobs": derivative_stale,
+        "derivative_oldest_running_age_seconds": (
+            max(0.0, float(oldest_derivative)) if oldest_derivative is not None else None
+        ),
     }
 
 

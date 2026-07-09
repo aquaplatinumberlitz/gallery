@@ -159,6 +159,13 @@ def _ensure_post_v1_additive_columns(conn: sqlite3.Connection) -> None:
     _ensure_column(conn, "metadata_index_jobs", "library_id", "INTEGER")
     _ensure_column(conn, "metadata_index_jobs", "priority", "INTEGER NOT NULL DEFAULT 3")
     _ensure_catalog_schema(conn)
+    _ensure_column(conn, "derivative_jobs", "result_code", "TEXT")
+    _ensure_column(conn, "derivative_jobs", "claimed_by", "TEXT")
+    _ensure_column(conn, "derivative_jobs", "claim_token", "TEXT")
+    _ensure_column(conn, "derivative_jobs", "lease_expires_at", "REAL")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_derivative_jobs_state_lease ON derivative_jobs(state, lease_expires_at)"
+    )
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_metadata_index_jobs_claim  ON metadata_index_jobs(state, priority, queued_at)"
     )
@@ -476,12 +483,18 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
               state TEXT NOT NULL DEFAULT 'queued',
               attempts INTEGER NOT NULL DEFAULT 0,
               error TEXT,
+              result_code TEXT,
+              claimed_by TEXT,
+              claim_token TEXT,
+              lease_expires_at REAL,
               created_at REAL NOT NULL DEFAULT (julianday('now')),
               updated_at REAL NOT NULL DEFAULT (julianday('now')),
               started_at REAL,
               completed_at REAL
             );
             CREATE INDEX IF NOT EXISTS idx_derivative_jobs_state ON derivative_jobs(state, priority);
+            CREATE INDEX IF NOT EXISTS idx_derivative_jobs_state_lease
+              ON derivative_jobs(state, lease_expires_at);
 
             CREATE TABLE IF NOT EXISTS catalog_rebuild_entries (
               job_id INTEGER NOT NULL REFERENCES library_jobs(id) ON DELETE CASCADE,

@@ -132,6 +132,11 @@ class IntegrityChecker:
             total["job_done_asset_not_done"] = self._check_job_done_asset_not_done(conn)
             total["job_active_no_asset"] = self._check_job_active_no_asset(conn)
             total["derivative_ready_no_file"] = self._check_derivative_ready_no_file(conn)
+            abandoned = self._check_abandoned_derivative_jobs(conn)
+            total["derivative_abandoned_jobs"] = sum(abandoned.values())
+            total["derivative_abandoned_requeued"] = abandoned["requeued"]
+            total["derivative_abandoned_skipped"] = abandoned["skipped"]
+            total["derivative_abandoned_failed"] = abandoned["failed"]
             result = self._check_derivative_job_done_not_ready(conn)
             total["derivative_done_not_ready"] = result["repaired"] + result["failed"]
             total["derivative_done_repaired"] = result["repaired"]
@@ -229,23 +234,48 @@ class IntegrityChecker:
 
     def _check_derivative_ready_no_file(self, conn) -> int:
         rows = conn.execute("""
-            SELECT id, cache_path FROM asset_derivatives
-            WHERE status = 'ready'
+            SELECT d.id, d.cache_path, d.source_mtime_ns, d.source_size,
+                   a.id AS asset_id, a.path, a.type, a.deleted_at, a.offline, a.mtime_ns, a.size
+            FROM asset_derivatives d
+            LEFT JOIN assets a ON a.id = d.asset_id
+            WHERE d.status = 'ready'
         """).fetchall()
         requeued = 0
-        now = time.time()
         for row in rows:
             if row["cache_path"] is None or not Path(row["cache_path"]).is_file():
                 derivative_id = row["id"]
+                result_code = self._derivative_inapplicable_result(row)
+                if result_code is not None:
+                    message = f"integrity: derivative is no longer applicable ({result_code})"
+                    conn.execute(
+                        """
+                        UPDATE asset_derivatives
+                        SET status = 'skipped', cache_path = NULL, byte_size = NULL,
+                            last_error = ?, updated_at = julianday('now')
+                        WHERE id = ?
+                        """,
+                        (message, derivative_id),
+                    )
+                    conn.execute(
+                        """
+                        UPDATE derivative_jobs
+                        SET state = 'skipped', result_code = ?, error = ?,
+                            claimed_by = NULL, claim_token = NULL, lease_expires_at = NULL,
+                            completed_at = julianday('now'), updated_at = julianday('now')
+                        WHERE derivative_id = ? AND state IN ('queued', 'running')
+                        """,
+                        (result_code, message, derivative_id),
+                    )
+                    continue
                 # Clear stale cache fields on the catalog row
                 conn.execute(
                     """
                     UPDATE asset_derivatives
                     SET status = 'queued', cache_path = NULL, byte_size = NULL,
-                        last_error = ?, updated_at = ?
+                        last_error = ?, updated_at = julianday('now')
                     WHERE id = ?
                     """,
-                    ("integrity: file missing", now, derivative_id),
+                    ("integrity: file missing", derivative_id),
                 )
                 # Reuse existing queued/running derivative_jobs row if one exists
                 existing = conn.execute(
@@ -267,6 +297,70 @@ class IntegrityChecker:
                 requeued += 1
         return requeued
 
+    def _check_abandoned_derivative_jobs(self, conn) -> dict[str, int]:
+        rows = conn.execute(
+            """
+            SELECT j.id AS job_id, j.attempts, d.id AS derivative_id,
+                   d.source_mtime_ns, d.source_size, a.id AS asset_id, a.path,
+                   a.type, a.deleted_at, a.offline, a.mtime_ns, a.size
+            FROM derivative_jobs j
+            JOIN asset_derivatives d ON d.id = j.derivative_id
+            LEFT JOIN assets a ON a.id = d.asset_id
+            WHERE j.state = 'running'
+              AND (j.lease_expires_at IS NULL OR j.lease_expires_at <= julianday('now'))
+            """
+        ).fetchall()
+        counts = {"requeued": 0, "skipped": 0, "failed": 0}
+        for row in rows:
+            result_code = self._derivative_inapplicable_result(row)
+            if result_code is not None:
+                state = "skipped"
+            elif int(row["attempts"]) >= 3:
+                state, result_code = "failed", "attempts_exhausted"
+            else:
+                state = "queued"
+            message = f"integrity: recovered abandoned derivative ({result_code or 'retry'})"
+            conn.execute(
+                """
+                UPDATE derivative_jobs
+                SET state = ?, result_code = ?, error = ?, claimed_by = NULL,
+                    claim_token = NULL, lease_expires_at = NULL,
+                    started_at = CASE WHEN ? = 'queued' THEN NULL ELSE started_at END,
+                    completed_at = CASE WHEN ? IN ('skipped', 'failed') THEN julianday('now') ELSE NULL END,
+                    updated_at = julianday('now')
+                WHERE id = ? AND state = 'running'
+                """,
+                (state, result_code, message, state, state, row["job_id"]),
+            )
+            conn.execute(
+                """
+                UPDATE asset_derivatives SET status = ?, last_error = ?,
+                    updated_at = julianday('now') WHERE id = ?
+                """,
+                (state, message, row["derivative_id"]),
+            )
+            counts["requeued" if state == "queued" else state] += 1
+        return counts
+
+    @staticmethod
+    def _derivative_inapplicable_result(row) -> str | None:
+        if row["asset_id"] is None or row["deleted_at"] is not None or row["offline"] or row["type"] != "image":
+            return "asset_inactive"
+        try:
+            stat = Path(row["path"]).stat()
+        except OSError:
+            return "source_missing"
+        if (
+            row["mtime_ns"] is None
+            or row["size"] is None
+            or float(stat.st_mtime_ns) != float(row["source_mtime_ns"])
+            or stat.st_size != int(row["source_size"])
+            or float(row["mtime_ns"]) != float(row["source_mtime_ns"])
+            or int(row["size"]) != int(row["source_size"])
+        ):
+            return "source_changed"
+        return None
+
     def _check_derivative_job_done_not_ready(self, conn) -> dict[str, int]:
         rows = conn.execute("""
             SELECT ad.id, ad.cache_path, dj.id AS job_id
@@ -275,20 +369,21 @@ class IntegrityChecker:
             WHERE dj.state = 'done'
               AND ad.status != 'ready'
         """).fetchall()
-        now = time.time()
         repaired = 0
         failed = 0
         for row in rows:
             if row["cache_path"] is not None and Path(row["cache_path"]).is_file():
                 conn.execute(
-                    "UPDATE asset_derivatives SET status = 'ready', updated_at = ? WHERE id = ? AND status != 'ready'",
-                    (now, row["id"]),
+                    "UPDATE asset_derivatives SET status = 'ready', updated_at = julianday('now') "
+                    "WHERE id = ? AND status != 'ready'",
+                    (row["id"],),
                 )
                 repaired += 1
             else:
                 conn.execute(
-                    "UPDATE derivative_jobs SET state = 'failed', error = ?, updated_at = ? WHERE id = ? AND state = 'done'",
-                    ("integrity: cache file missing", now, row["job_id"]),
+                    "UPDATE derivative_jobs SET state = 'failed', error = ?, result_code = 'internal_error', "
+                    "updated_at = julianday('now') WHERE id = ? AND state = 'done'",
+                    ("integrity: cache file missing", row["job_id"]),
                 )
                 failed += 1
         return {"repaired": repaired, "failed": failed}

@@ -68,6 +68,14 @@ def _global_runtime() -> dict[str, Any]:
         "watcher_healthy": True,
         "watcher_issue": None,
         "scheduled_reconciliation_enabled": True,
+        "derivative_configured_worker_count": 3,
+        "derivative_worker_count": 3,
+        "derivative_active_jobs": 0,
+        "derivative_queue_depth": 0,
+        "derivative_failed_jobs": 0,
+        "derivative_skipped_jobs": 0,
+        "derivative_stale_running_jobs": 0,
+        "derivative_oldest_running_age_seconds": None,
     }
 
 

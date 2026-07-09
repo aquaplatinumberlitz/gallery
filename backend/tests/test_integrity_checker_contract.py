@@ -310,7 +310,7 @@ class TestCheckDerivativeReadyNoFile:
             count = integrity_checker._check_derivative_ready_no_file(conn)
         assert count == 0
 
-    def test_detects_and_requeues_when_file_missing(self, tmp_path: Path) -> None:
+    def test_missing_source_is_skipped_when_cache_is_missing(self, tmp_path: Path) -> None:
         missing = str(tmp_path / "missing.webp")
         with _DB_LOCK, _connect() as conn:
             _asset_row(conn, str(tmp_path / "asset.png"))
@@ -318,10 +318,10 @@ class TestCheckDerivativeReadyNoFile:
             _derivative_row(conn, asset_id, cache_path=missing, status="ready")
         with _DB_LOCK, _connect() as conn:
             count = integrity_checker._check_derivative_ready_no_file(conn)
-        assert count == 1
+        assert count == 0
         with _DB_LOCK, _connect() as conn:
             row = conn.execute("SELECT status, cache_path, byte_size FROM asset_derivatives").fetchone()
-            assert row["status"] == "queued"
+            assert row["status"] == "skipped"
             assert row["cache_path"] is None
 
     def test_unaffected_row_left_alone(self, tmp_path: Path) -> None:
@@ -335,7 +335,7 @@ class TestCheckDerivativeReadyNoFile:
             bad_id = _derivative_row(conn, asset_id, cache_path=missing, status="ready", source_mtime_ns=2)
         with _DB_LOCK, _connect() as conn:
             count = integrity_checker._check_derivative_ready_no_file(conn)
-        assert count == 1
+        assert count == 0
         with _DB_LOCK, _connect() as conn:
             assert (
                 conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (good_id,)).fetchone()["status"]
@@ -343,7 +343,7 @@ class TestCheckDerivativeReadyNoFile:
             )
             assert (
                 conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (bad_id,)).fetchone()["status"]
-                == "queued"
+                == "skipped"
             )
 
 
@@ -464,6 +464,10 @@ class TestRunAllChecks:
             "derivative_done_repaired",
             "derivative_done_failed",
             "job_active_no_file",
+            "derivative_abandoned_jobs",
+            "derivative_abandoned_requeued",
+            "derivative_abandoned_skipped",
+            "derivative_abandoned_failed",
         }
         assert set(results.keys()) == expected_keys
         for val in results.values():

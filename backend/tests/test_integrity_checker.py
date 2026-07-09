@@ -103,8 +103,10 @@ class TestAssetDoneNoMetadata:
         lib = create_library([root], name="Lib")
         lib_id = int(lib["id"])
         path = str(root / "img.png")
-        size = 1024
-        mtime_ns = int(time.time() * 1e9)
+        Path(path).write_bytes(b"x" * 1024)
+        source_stat = Path(path).stat()
+        size = source_stat.st_size
+        mtime_ns = source_stat.st_mtime_ns
         with _DB_LOCK, _connect() as conn:
             _asset_row(conn, path, lib_id, mtime_ns, size, metadata_state="done")
         with _DB_LOCK, _connect() as conn:
@@ -121,8 +123,10 @@ class TestAssetDoneNoMetadata:
         lib = create_library([root], name="Lib")
         lib_id = int(lib["id"])
         path = str(root / "img.png")
-        size = 1024
-        mtime_ns = int(time.time() * 1e9)
+        Path(path).write_bytes(b"x" * 1024)
+        source_stat = Path(path).stat()
+        size = source_stat.st_size
+        mtime_ns = source_stat.st_mtime_ns
         with _DB_LOCK, _connect() as conn:
             _asset_row(conn, path, lib_id, mtime_ns, size, metadata_state="done")
             _image_metadata_row(conn, path, mtime_ns, size)
@@ -157,8 +161,10 @@ class TestJobDoneAssetNotDone:
         lib = create_library([root], name="Lib")
         lib_id = int(lib["id"])
         path = str(root / "img.png")
-        size = 1024
-        mtime_ns = int(time.time() * 1e9)
+        Path(path).write_bytes(b"x" * 1024)
+        source_stat = Path(path).stat()
+        size = source_stat.st_size
+        mtime_ns = source_stat.st_mtime_ns
         with _DB_LOCK, _connect() as conn:
             _asset_row(conn, path, lib_id, mtime_ns, size, metadata_state="pending")
             _image_metadata_row(conn, path, mtime_ns, size)
@@ -175,8 +181,10 @@ class TestJobDoneAssetNotDone:
         lib = create_library([root], name="Lib")
         lib_id = int(lib["id"])
         path = str(root / "img.png")
-        size = 1024
-        mtime_ns = int(time.time() * 1e9)
+        Path(path).write_bytes(b"x" * 1024)
+        source_stat = Path(path).stat()
+        size = source_stat.st_size
+        mtime_ns = source_stat.st_mtime_ns
         with _DB_LOCK, _connect() as conn:
             _asset_row(conn, path, lib_id, mtime_ns, size, metadata_state="pending")
             _metadata_job_row(conn, path, state="done", mtime_ns=mtime_ns, size=size)
@@ -228,8 +236,10 @@ class TestDerivativeReadyNoFile:
         lib = create_library([root], name="Lib")
         lib_id = int(lib["id"])
         path = str(root / "img.png")
-        size = 1024
-        mtime_ns = int(time.time() * 1e9)
+        Path(path).write_bytes(b"x" * 1024)
+        source_stat = Path(path).stat()
+        size = source_stat.st_size
+        mtime_ns = source_stat.st_mtime_ns
         missing_path = str(root / "missing.webp")
         with _DB_LOCK, _connect() as conn:
             _asset_row(conn, path, lib_id, mtime_ns, size)
@@ -259,14 +269,41 @@ class TestDerivativeReadyNoFile:
             assert dj is not None, "derivative_jobs row should exist"
             assert dj["state"] == "queued"
 
+    def test_missing_cache_for_offline_asset_is_skipped(self, _checker, isolated_gallery_root: Path):
+        root = isolated_gallery_root
+        source = root / "offline.png"
+        source.write_bytes(b"x" * 1024)
+        stat = source.stat()
+        lib_id = int(create_library([root], name="Lib")["id"])
+        with _DB_LOCK, _connect() as conn:
+            _asset_row(conn, str(source), lib_id, stat.st_mtime_ns, stat.st_size)
+            asset_id = conn.execute("SELECT id FROM assets WHERE path = ?", (str(source),)).fetchone()[0]
+            conn.execute("UPDATE assets SET offline = 1 WHERE id = ?", (asset_id,))
+            conn.execute(
+                """
+                INSERT INTO asset_derivatives (
+                  asset_id, kind, variant, source_mtime_ns, source_size, status,
+                  cache_path, max_long_edge, format, quality
+                ) VALUES (?, 'thumbnail', 'thumb_512', ?, ?, 'ready', NULL, 512, 'webp', 85)
+                """,
+                (asset_id, stat.st_mtime_ns, stat.st_size),
+            )
+            assert _checker._check_derivative_ready_no_file(conn) == 0
+            derivative = conn.execute("SELECT status FROM asset_derivatives").fetchone()
+            jobs = conn.execute("SELECT count(*) FROM derivative_jobs").fetchone()[0]
+        assert derivative["status"] == "skipped"
+        assert jobs == 0
+
     def test_derivative_requeue_does_not_duplicate_active_job(self, _checker, isolated_gallery_root: Path):
         """When a derivative_jobs row is already queued/running, no duplicate is created."""
         root = isolated_gallery_root
         lib = create_library([root], name="Lib")
         lib_id = int(lib["id"])
         path = str(root / "img.png")
-        size = 1024
-        mtime_ns = int(time.time() * 1e9)
+        Path(path).write_bytes(b"x" * 1024)
+        source_stat = Path(path).stat()
+        size = source_stat.st_size
+        mtime_ns = source_stat.st_mtime_ns
         missing_path = str(root / "missing.webp")
         with _DB_LOCK, _connect() as conn:
             _asset_row(conn, path, lib_id, mtime_ns, size)
@@ -301,8 +338,10 @@ class TestDerivativeReadyNoFile:
         lib = create_library([root], name="Lib")
         lib_id = int(lib["id"])
         path = str(root / "img.png")
-        size = 1024
-        mtime_ns = int(time.time() * 1e9)
+        Path(path).write_bytes(b"x" * 1024)
+        source_stat = Path(path).stat()
+        size = source_stat.st_size
+        mtime_ns = source_stat.st_mtime_ns
         with _DB_LOCK, _connect() as conn:
             _asset_row(conn, path, lib_id, mtime_ns, size)
             asset_id = conn.execute("SELECT id FROM assets WHERE path = ?", (path,)).fetchone()[0]

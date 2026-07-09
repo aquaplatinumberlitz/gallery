@@ -136,6 +136,41 @@ describe("MaintenancePage", () => {
     expect(wrapper.text()).toContain("Tracks which source files exist in registered libraries.");
   });
 
+  it("renders generated-image worker and queue diagnostics", () => {
+    mockRuntimeData = {
+      global_runtime: {
+        catalog_worker_count: 1,
+        catalog_active_jobs: 0,
+        catalog_queue_depth: 0,
+        metadata_worker_count: 1,
+        metadata_active_jobs: 0,
+        metadata_queue_depth: 0,
+        metadata_staged_queue_depth: 0,
+        watcher_enabled: true,
+        watcher_healthy: true,
+        watcher_issue: null,
+        scheduled_reconciliation_enabled: true,
+        derivative_configured_worker_count: 3,
+        derivative_worker_count: 2,
+        derivative_active_jobs: 1,
+        derivative_queue_depth: 4,
+        derivative_failed_jobs: 2,
+        derivative_skipped_jobs: 1,
+        derivative_stale_running_jobs: 1,
+        derivative_oldest_running_age_seconds: 30,
+      },
+      metadata_lifecycle: null,
+    };
+
+    const wrapper = mountSubject();
+    const generatedImages = wrapper
+      .findAll('[data-slot="card"]')
+      .find((card) => card.text().includes("Thumbnail and preview queue health."));
+    expect(generatedImages?.text()).toContain("2/3");
+    expect(generatedImages?.text()).toContain("Queue depth");
+    expect(generatedImages?.text()).toContain("Stale running jobs");
+  });
+
   it("shows only Rebuild and Clear imported-data action buttons", () => {
     const wrapper = mountSubject();
     const actionLabels = wrapper

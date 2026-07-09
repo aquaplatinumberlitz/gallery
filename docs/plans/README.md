@@ -2,7 +2,7 @@
 
 Status: Maintained index
 
-Last reviewed: 2026-07-07
+Last reviewed: 2026-07-09
 
 This directory is reserved for proposed, active, or blocked implementation
 plans.

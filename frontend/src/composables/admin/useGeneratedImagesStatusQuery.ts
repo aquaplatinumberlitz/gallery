@@ -6,8 +6,8 @@ import { ACTIVE_POLL_INTERVAL } from "@/lib/catalog/polling";
 import type { GeneratedImagesStatus } from "@/types";
 
 export function generatedImagesNeedActivePolling(data: GeneratedImagesStatus | undefined): boolean {
-  if (!data || data.expected_derivatives <= 0) return false;
-  return data.ready_derivatives < data.expected_derivatives;
+  if (!data) return false;
+  return data.queued_jobs > 0 || data.running_jobs > 0;
 }
 
 export function useGeneratedImagesStatusQuery(libraryId: MaybeRefOrGetter<number | null | undefined>) {

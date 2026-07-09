@@ -7,6 +7,7 @@ import sqlite3
 import sys
 import threading
 import time
+import uuid
 from contextlib import suppress
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,9 @@ from .errors import APIError
 from .metadata_store import _connect, initialize_database
 
 logger = logging.getLogger(__name__)
+_LEASE_DAYS = 15 / (24 * 60)
+_SUPERVISOR_INTERVAL_SECONDS = 30
+_MAX_ATTEMPTS = 3
 
 
 def _ensure_database() -> None:
@@ -61,6 +65,8 @@ class DerivativeScheduler:
         self._generating_paths: set[str] = set()
         self._served_paths: set[str] = set()
         self._threads: list[threading.Thread] = []
+        self._supervisor_thread: threading.Thread | None = None
+        self._instance_id = uuid.uuid4().hex
 
     def start(self) -> None:
         """Start workers and recover jobs interrupted by a prior process."""
@@ -68,40 +74,58 @@ class DerivativeScheduler:
             if any(thread.is_alive() for thread in self._threads):
                 return
             _ensure_database()
-            with _connect() as conn:
-                conn.execute(
-                    "UPDATE derivative_jobs SET state = 'queued', started_at = NULL, updated_at = julianday('now') "
-                    "WHERE state = 'running'"
-                )
-                conn.execute(
-                    "UPDATE asset_derivatives SET status = 'queued', updated_at = julianday('now') "
-                    "WHERE status = 'running'"
-                )
+            self._recover_running_jobs()
             self._stop_event.clear()
-            self._threads = [
-                threading.Thread(target=self._worker_loop, name=f"derivative-worker-{index + 1}", daemon=True)
-                for index in range(self.worker_count)
-            ]
+            self._threads = [self._new_worker(index + 1) for index in range(self.worker_count)]
             for thread in self._threads:
                 thread.start()
+            self._supervisor_thread = threading.Thread(
+                target=self._supervisor_loop,
+                name="derivative-supervisor",
+                daemon=True,
+            )
+            self._supervisor_thread.start()
             self._wake_event.set()
 
     def stop(self) -> None:
         """Stop workers and wait briefly for in-flight generation to finish."""
         with self._lifecycle_lock:
             threads = self._threads
+            supervisor = self._supervisor_thread
             self._stop_event.set()
             self._wake_event.set()
         deadline = time.monotonic() + 1
         for thread in threads:
-            thread.join(timeout=max(0.0, deadline - time.monotonic()))
+            with suppress(RuntimeError):
+                thread.join(timeout=max(0.0, deadline - time.monotonic()))
+        if supervisor is not None:
+            with suppress(RuntimeError):
+                supervisor.join(timeout=max(0.0, deadline - time.monotonic()))
         with self._lifecycle_lock:
             self._threads = [thread for thread in threads if thread.is_alive()]
+            self._supervisor_thread = supervisor if supervisor is not None and supervisor.is_alive() else None
 
     def is_running(self) -> bool:
         """Return whether at least one configured worker is alive."""
         with self._lifecycle_lock:
             return any(thread.is_alive() for thread in self._threads)
+
+    def alive_worker_count(self) -> int:
+        """Return the current number of alive derivative workers."""
+        with self._lifecycle_lock:
+            return sum(thread.is_alive() for thread in self._threads)
+
+    def _worker_id(self, slot: int) -> str:
+        return f"{self._instance_id}:derivative-worker-{slot}"
+
+    def _new_worker(self, slot: int) -> threading.Thread:
+        worker_id = self._worker_id(slot)
+        return threading.Thread(
+            target=self._worker_loop,
+            args=(worker_id,),
+            name=f"derivative-worker-{slot}",
+            daemon=True,
+        )
 
     def schedule_derivative(
         self,
@@ -125,7 +149,10 @@ class DerivativeScheduler:
         _ensure_database()
         with _connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
-            asset = conn.execute("SELECT path FROM assets WHERE id = ? AND deleted_at IS NULL", (asset_id,)).fetchone()
+            asset = conn.execute(
+                "SELECT path FROM assets WHERE id = ? AND type = 'image' AND deleted_at IS NULL AND offline = 0",
+                (asset_id,),
+            ).fetchone()
             if asset is None:
                 raise KeyError(asset_id)
             source = Path(asset["path"])
@@ -241,7 +268,8 @@ class DerivativeScheduler:
         _ensure_database()
         with _connect() as conn:
             row = conn.execute(
-                "SELECT id FROM assets WHERE path = ? AND type = 'image' AND deleted_at IS NULL ORDER BY id LIMIT 1",
+                "SELECT id FROM assets WHERE path = ? AND type = 'image' "
+                "AND deleted_at IS NULL AND offline = 0 ORDER BY id LIMIT 1",
                 (str(path.resolve()),),
             ).fetchone()
         return int(row["id"]) if row else None
@@ -251,7 +279,7 @@ class DerivativeScheduler:
         _ensure_database()
         with _connect() as conn:
             row = conn.execute(
-                "SELECT path FROM assets WHERE id = ? AND type = 'image' AND deleted_at IS NULL",
+                "SELECT path FROM assets WHERE id = ? AND type = 'image' AND deleted_at IS NULL AND offline = 0",
                 (asset_id,),
             ).fetchone()
         return Path(row["path"]) if row else None
@@ -304,7 +332,7 @@ class DerivativeScheduler:
             result["kind"] = kind
         return result
 
-    def library_status(self, library_id: int) -> dict[str, int | float | dict[str, dict[str, int]]]:
+    def library_status(self, library_id: int) -> dict[str, Any]:
         """Return warm coverage and quota utilization for one library."""
         _ensure_database()
         configured_variants = [
@@ -354,6 +382,32 @@ class DerivativeScheduler:
                     used += row["byte_size"] or 0
                     if row["kind"] in by_kind:
                         by_kind[str(row["kind"])]["ready_derivatives"] += 1
+            job_counts = {"queued": 0, "running": 0, "failed": 0, "skipped": 0}
+            oldest_running_age_seconds: float | None = None
+            if configured_variants:
+                lifecycle_rows = conn.execute(
+                    f"""
+                    SELECT j.state, count(*) AS count,
+                           max(CASE WHEN j.state = 'running'
+                               THEN (julianday('now') - j.started_at) * 86400 END) AS oldest_age
+                    FROM derivative_jobs j
+                    JOIN asset_derivatives d ON d.id = j.derivative_id
+                    JOIN assets a ON a.id = d.asset_id
+                    WHERE a.library_id = ? AND a.type = 'image'
+                      AND a.deleted_at IS NULL AND a.offline = 0
+                      AND d.source_mtime_ns = a.mtime_ns AND d.source_size = a.size
+                      AND ({variant_filter})
+                    GROUP BY j.state
+                    """,
+                    (library_id, *variant_params),
+                ).fetchall()
+                for row in lifecycle_rows:
+                    state = str(row["state"])
+                    if state in job_counts:
+                        job_counts[state] = int(row["count"])
+                    if state == "running" and row["oldest_age"] is not None:
+                        oldest_running_age_seconds = max(0.0, float(row["oldest_age"]))
+            alive_workers = self.alive_worker_count()
         return {
             "library_id": library_id,
             "total_assets": total_assets,
@@ -363,6 +417,14 @@ class DerivativeScheduler:
             "quota_bytes": self.quota_bytes,
             "quota_used_bytes": used,
             "quota_utilization": used / self.quota_bytes if self.quota_bytes else 0.0,
+            "queued_jobs": job_counts["queued"],
+            "running_jobs": job_counts["running"],
+            "failed_jobs": job_counts["failed"],
+            "skipped_jobs": job_counts["skipped"],
+            "configured_worker_count": self.worker_count,
+            "alive_worker_count": alive_workers,
+            "worker_healthy": alive_workers > 0,
+            "oldest_running_age_seconds": oldest_running_age_seconds,
         }
 
     def rebuild_stale(self) -> int:
@@ -434,8 +496,10 @@ class DerivativeScheduler:
             "disk_entries_cleared": disk_entries,
         }
 
-    def _claim_job(self) -> sqlite3.Row | None:
+    def _claim_job(self, worker_id: str | None = None) -> sqlite3.Row | None:
         _ensure_database()
+        worker_id = worker_id or f"{self._instance_id}:{threading.current_thread().name}"
+        self._reconcile_queued_jobs()
         with _connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
@@ -445,56 +509,219 @@ class DerivativeScheduler:
                 JOIN asset_derivatives d ON d.id = j.derivative_id
                 JOIN assets a ON a.id = d.asset_id
                 WHERE j.state = 'queued'
+                  AND a.type = 'image' AND a.deleted_at IS NULL AND a.offline = 0
+                  AND d.source_mtime_ns = a.mtime_ns AND d.source_size = a.size
                 ORDER BY j.priority ASC, j.created_at ASC, j.id ASC LIMIT 1
                 """
             ).fetchone()
             if row is None:
                 return None
             attempts = int(row["job_attempts"]) + 1
+            claim_token = uuid.uuid4().hex
             conn.execute(
                 """
                 UPDATE derivative_jobs SET state = 'running', attempts = ?, started_at = julianday('now'),
-                  updated_at = julianday('now') WHERE id = ?
+                  completed_at = NULL, error = NULL, result_code = NULL, claimed_by = ?,
+                  claim_token = ?, lease_expires_at = julianday('now') + ?,
+                  updated_at = julianday('now') WHERE id = ? AND state = 'queued'
                 """,
-                (attempts, row["job_id"]),
+                (attempts, worker_id, claim_token, _LEASE_DAYS, row["job_id"]),
             )
             conn.execute(
                 "UPDATE asset_derivatives SET status = 'running', attempts = ?, updated_at = julianday('now') WHERE id = ?",
                 (attempts, row["id"]),
             )
-            return row
+            return conn.execute(
+                """
+                SELECT j.id AS job_id, j.attempts AS job_attempts, d.*, a.path AS source_path,
+                       j.claimed_by, j.claim_token, j.lease_expires_at
+                FROM derivative_jobs j
+                JOIN asset_derivatives d ON d.id = j.derivative_id
+                JOIN assets a ON a.id = d.asset_id
+                WHERE j.id = ? AND j.claim_token = ?
+                """,
+                (row["job_id"], claim_token),
+            ).fetchone()
 
-    def _worker_loop(self) -> None:
+    def _worker_loop(self, worker_id: str | None = None) -> None:
         while not self._stop_event.is_set():
             try:
-                job = self._claim_job()
-            except sqlite3.OperationalError:
-                logger.exception("Derivative worker could not read the job queue")
+                job = self._claim_job(worker_id)
+            except Exception:  # noqa: BLE001
+                logger.exception("Derivative worker could not claim a job")
                 self._stop_event.wait(0.5)
                 continue
             if job is None:
                 self._wake_event.clear()
                 self._wake_event.wait(timeout=1)
                 continue
-            self._run_job(job)
+            try:
+                self._run_job(job)
+            except Exception:  # noqa: BLE001
+                # _run_job owns normal handler failures. This final boundary
+                # protects worker availability if failure persistence itself
+                # raises; startup/lease recovery repairs the abandoned claim.
+                logger.exception("Unexpected exception escaped derivative job %s", job["job_id"])
+
+    def _supervisor_loop(self) -> None:
+        """Recover abandoned claims and restore the configured worker count."""
+        while not self._stop_event.wait(_SUPERVISOR_INTERVAL_SECONDS):
+            try:
+                self._supervise_once()
+            except Exception:  # noqa: BLE001
+                logger.exception("Derivative supervisor iteration failed")
+
+    def _supervise_once(self) -> None:
+        dead_worker_ids: list[str] = []
+        replacements: list[threading.Thread] = []
+        with self._lifecycle_lock:
+            alive: list[threading.Thread] = []
+            alive_slots: set[int] = set()
+            for thread in self._threads:
+                slot = int(thread.name.rsplit("-", 1)[-1])
+                if thread.is_alive():
+                    alive.append(thread)
+                    alive_slots.add(slot)
+                else:
+                    dead_worker_ids.append(self._worker_id(slot))
+            for slot in range(1, self.worker_count + 1):
+                if slot not in alive_slots and not self._stop_event.is_set():
+                    replacement = self._new_worker(slot)
+                    alive.append(replacement)
+                    replacements.append(replacement)
+            self._threads = alive
+        for worker_id in dead_worker_ids:
+            self._recover_running_jobs(claimed_by=worker_id)
+        self._recover_running_jobs(expired_only=True)
+        for thread in replacements:
+            thread.start()
+        if replacements:
+            logger.warning("Restored %s derivative worker(s)", len(replacements))
+            self._wake_event.set()
+
+    def _reconcile_queued_jobs(self) -> None:
+        """Terminalize queued work that no longer references an active/current source."""
+        with _connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT j.id AS job_id, d.id AS derivative_id, d.source_mtime_ns, d.source_size,
+                       a.id AS asset_id, a.path, a.type, a.deleted_at, a.offline, a.mtime_ns, a.size
+                FROM derivative_jobs j
+                JOIN asset_derivatives d ON d.id = j.derivative_id
+                LEFT JOIN assets a ON a.id = d.asset_id
+                WHERE j.state = 'queued'
+                """
+            ).fetchall()
+            for row in rows:
+                result_code = self._inapplicable_result(row)
+                if result_code is None:
+                    continue
+                message = f"queued derivative is no longer applicable: {result_code}"
+                conn.execute(
+                    """
+                    UPDATE derivative_jobs SET state = 'skipped', result_code = ?, error = ?,
+                      completed_at = julianday('now'), updated_at = julianday('now')
+                    WHERE id = ? AND state = 'queued'
+                    """,
+                    (result_code, message, row["job_id"]),
+                )
+                conn.execute(
+                    "UPDATE asset_derivatives SET status = 'skipped', last_error = ?, "
+                    "updated_at = julianday('now') WHERE id = ?",
+                    (message, row["derivative_id"]),
+                )
+
+    def _recover_running_jobs(self, *, claimed_by: str | None = None, expired_only: bool = False) -> int:
+        """Recover abandoned claims using the same policy at startup and runtime."""
+        _ensure_database()
+        recovered = 0
+        with _connect() as conn:
+            clauses = ["j.state = 'running'"]
+            params: list[Any] = []
+            if claimed_by is not None:
+                clauses.append("j.claimed_by = ?")
+                params.append(claimed_by)
+            elif expired_only:
+                clauses.append("(j.lease_expires_at IS NULL OR j.lease_expires_at <= julianday('now'))")
+            rows = conn.execute(
+                f"""
+                SELECT j.id AS job_id, j.attempts AS job_attempts, d.id AS derivative_id,
+                       d.source_mtime_ns, d.source_size, a.id AS asset_id, a.path, a.type,
+                       a.deleted_at, a.offline, a.mtime_ns, a.size
+                FROM derivative_jobs j
+                JOIN asset_derivatives d ON d.id = j.derivative_id
+                LEFT JOIN assets a ON a.id = d.asset_id
+                WHERE {" AND ".join(clauses)}
+                """,
+                params,
+            ).fetchall()
+            for row in rows:
+                result_code = self._inapplicable_result(row)
+                if result_code is not None:
+                    state = "skipped"
+                elif int(row["job_attempts"]) >= _MAX_ATTEMPTS:
+                    state, result_code = "failed", "attempts_exhausted"
+                else:
+                    state = "queued"
+                message = f"recovered abandoned derivative claim: {result_code or 'retry'}"
+                conn.execute(
+                    """
+                    UPDATE derivative_jobs SET state = ?, result_code = ?, error = ?,
+                      claimed_by = NULL, claim_token = NULL, lease_expires_at = NULL,
+                      started_at = CASE WHEN ? = 'queued' THEN NULL ELSE started_at END,
+                      completed_at = CASE WHEN ? IN ('skipped', 'failed') THEN julianday('now') ELSE NULL END,
+                      updated_at = julianday('now') WHERE id = ? AND state = 'running'
+                    """,
+                    (state, result_code, message, state, state, row["job_id"]),
+                )
+                conn.execute(
+                    "UPDATE asset_derivatives SET status = ?, last_error = ?, updated_at = julianday('now') WHERE id = ?",
+                    (state, message, row["derivative_id"]),
+                )
+                recovered += 1
+        if recovered:
+            self._wake_event.set()
+        return recovered
+
+    @staticmethod
+    def _inapplicable_result(row: sqlite3.Row) -> str | None:
+        if row["asset_id"] is None or row["deleted_at"] is not None or row["offline"] or row["type"] != "image":
+            return "asset_inactive"
+        path = Path(row["path"])
+        try:
+            stat = path.stat()
+        except OSError:
+            return "source_missing"
+        if (
+            float(stat.st_mtime_ns) != float(row["source_mtime_ns"])
+            or stat.st_size != int(row["source_size"])
+            or row["mtime_ns"] is None
+            or row["size"] is None
+            or float(row["mtime_ns"]) != float(row["source_mtime_ns"])
+            or int(row["size"]) != int(row["source_size"])
+        ):
+            return "source_changed"
+        return None
 
     def _run_job(self, job: sqlite3.Row) -> None:
         from .thumbnails import derivative_cache_path, generate_derivative
 
         source = Path(job["source_path"])
-        cache_path = str(
-            derivative_cache_path(
-                source,
-                kind=job["kind"],
-                max_long_edge=int(job["max_long_edge"]),
-                quality=int(job["quality"]),
-                format=job["format"],
-            )
-        )
-        with self._file_lock:
-            self._generating_paths.add(cache_path)
+        cache_path: str | None = None
         succeeded = False
         try:
+            self._validate_claimed_source(job, source)
+            cache_path = str(
+                derivative_cache_path(
+                    source,
+                    kind=job["kind"],
+                    max_long_edge=int(job["max_long_edge"]),
+                    quality=int(job["quality"]),
+                    format=job["format"],
+                )
+            )
+            with self._file_lock:
+                self._generating_paths.add(cache_path)
             derivative_bytes = generate_derivative(
                 source,
                 kind=job["kind"],
@@ -503,7 +730,19 @@ class DerivativeScheduler:
                 format=job["format"],
                 no_upscale=True,
             )
+            self._validate_claimed_source(job, source)
             with _connect() as conn:
+                completed = conn.execute(
+                    """
+                    UPDATE derivative_jobs SET state = 'done', error = NULL, completed_at = julianday('now'),
+                      result_code = NULL, claimed_by = NULL, claim_token = NULL, lease_expires_at = NULL,
+                      updated_at = julianday('now') WHERE id = ? AND state = 'running' AND claim_token = ?
+                    """,
+                    (job["job_id"], job["claim_token"]),
+                )
+                if completed.rowcount != 1:
+                    logger.info("Ignored stale completion for derivative job %s", job["job_id"])
+                    return
                 conn.execute(
                     """
                     UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = ?,
@@ -512,44 +751,78 @@ class DerivativeScheduler:
                     """,
                     (cache_path, len(derivative_bytes), job["id"]),
                 )
-                conn.execute(
-                    """
-                    UPDATE derivative_jobs SET state = 'done', error = NULL, completed_at = julianday('now'),
-                      updated_at = julianday('now') WHERE id = ?
-                    """,
-                    (job["job_id"],),
-                )
             succeeded = True
         except Exception as exc:  # noqa: BLE001
             self._handle_failure(job, exc)
         finally:
-            with self._file_lock:
-                self._generating_paths.discard(cache_path)
+            if cache_path is not None:
+                with self._file_lock:
+                    self._generating_paths.discard(cache_path)
             if succeeded:
                 self._enforce_quota()
 
+    def _validate_claimed_source(self, job: sqlite3.Row, source: Path) -> None:
+        """Revalidate applicability after claim and before cache/render work."""
+        with _connect() as conn:
+            asset = conn.execute(
+                "SELECT path, mtime_ns, size FROM assets "
+                "WHERE id = ? AND type = 'image' AND deleted_at IS NULL AND offline = 0",
+                (job["asset_id"],),
+            ).fetchone()
+        if asset is None:
+            raise _DerivativeSkip("asset_inactive", "asset is deleted, offline, or no longer an image")
+        try:
+            stat = source.stat()
+        except FileNotFoundError as exc:
+            raise _DerivativeSkip("source_missing", f"source file is missing: {source}") from exc
+        if (
+            str(asset["path"]) != str(source)
+            or float(stat.st_mtime_ns) != float(job["source_mtime_ns"])
+            or stat.st_size != int(job["source_size"])
+        ):
+            raise _DerivativeSkip("source_changed", "source identity changed after derivative was queued")
+
     def _handle_failure(self, job: sqlite3.Row, exc: Exception) -> None:
         attempts = int(job["job_attempts"]) + 1
-        permanent = isinstance(exc, (FileNotFoundError, UnidentifiedImageError)) or (
-            isinstance(exc, APIError) and exc.status_code < 500
-        )
-        retry = not permanent and attempts < 3 and not self._stop_event.is_set()
+        if isinstance(exc, _DerivativeSkip):
+            state, result_code, retry = "skipped", exc.result_code, False
+        elif isinstance(exc, (FileNotFoundError,)):
+            state, result_code, retry = "skipped", "source_missing", False
+        elif isinstance(exc, UnidentifiedImageError) or (isinstance(exc, APIError) and exc.status_code < 500):
+            state, result_code, retry = "failed", "invalid_source", False
+        else:
+            transient = isinstance(exc, (OSError, sqlite3.OperationalError))
+            retry = transient and attempts < 3 and not self._stop_event.is_set()
+            state = "queued" if retry else "failed"
+            result_code = None if retry else ("attempts_exhausted" if transient else "internal_error")
         if retry:
             self._stop_event.wait(2 ** (attempts - 1))
-        state = "queued" if retry else "failed"
         with _connect() as conn:
-            conn.execute(
-                "UPDATE derivative_jobs SET state = ?, error = ?, updated_at = julianday('now') WHERE id = ?",
-                (state, str(exc), job["job_id"]),
+            transitioned = conn.execute(
+                """
+                UPDATE derivative_jobs SET state = ?, error = ?, result_code = ?,
+                  completed_at = CASE WHEN ? IN ('skipped', 'failed') THEN julianday('now') ELSE NULL END,
+                  started_at = CASE WHEN ? = 'queued' THEN NULL ELSE started_at END,
+                  claimed_by = NULL, claim_token = NULL, lease_expires_at = NULL,
+                  updated_at = julianday('now')
+                WHERE id = ? AND state = 'running' AND claim_token = ?
+                """,
+                (state, str(exc), result_code, state, state, job["job_id"], job["claim_token"]),
             )
-            conn.execute(
-                "UPDATE asset_derivatives SET status = ?, last_error = ?, updated_at = julianday('now') WHERE id = ?",
-                (state, str(exc), job["id"]),
-            )
+            if transitioned.rowcount == 1:
+                conn.execute(
+                    "UPDATE asset_derivatives SET status = ?, last_error = ?, updated_at = julianday('now') WHERE id = ?",
+                    (state, str(exc), job["id"]),
+                )
+            else:
+                logger.info("Ignored stale failure for derivative job %s", job["job_id"])
+                return
         if retry:
             self._wake_event.set()
+        elif state == "skipped":
+            logger.info("Derivative job %s skipped (%s): %s", job["job_id"], result_code, exc)
         else:
-            logger.warning("Derivative job %s failed permanently: %s", job["job_id"], exc)
+            logger.warning("Derivative job %s failed permanently (%s): %s", job["job_id"], result_code, exc)
 
     def _enforce_quota(self) -> None:
         with _connect() as conn:
@@ -587,3 +860,11 @@ class DerivativeScheduler:
 
 
 scheduler = DerivativeScheduler()
+
+
+class _DerivativeSkip(Exception):
+    """Controlled terminal outcome for work that is no longer applicable."""
+
+    def __init__(self, result_code: str, message: str):
+        super().__init__(message)
+        self.result_code = result_code

@@ -8,6 +8,7 @@ import {
   FileChartColumn,
   FileWarning,
   HardDrive,
+  Images,
   Info,
   Loader2,
   RefreshCw,
@@ -308,6 +309,68 @@ const needsRefreshCount = computed(() => {
                 </TooltipContent>
               </Tooltip>
             </p>
+          </CardContent>
+        </Card>
+
+        <Card class="gap-0 py-0">
+          <CardContent class="p-5">
+            <div class="space-y-1">
+              <div class="flex items-center gap-2">
+                <Images class="size-5 text-foreground/70" />
+                <h3 class="font-semibold text-foreground">Generated images</h3>
+              </div>
+              <p class="text-sm text-muted-foreground">Thumbnail and preview queue health.</p>
+            </div>
+            <dl v-if="runtimeQuery.data.value" class="mt-4 grid gap-3 text-sm">
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-muted-foreground">Workers</dt>
+                <dd class="font-semibold tabular-nums text-foreground">
+                  {{ runtimeQuery.data.value.global_runtime.derivative_worker_count }}/{{
+                    runtimeQuery.data.value.global_runtime.derivative_configured_worker_count
+                  }}
+                </dd>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-muted-foreground">Active jobs</dt>
+                <dd class="font-semibold tabular-nums text-foreground">
+                  {{ runtimeQuery.data.value.global_runtime.derivative_active_jobs }}
+                </dd>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-muted-foreground">Queue depth</dt>
+                <dd class="font-semibold tabular-nums text-foreground">
+                  {{ runtimeQuery.data.value.global_runtime.derivative_queue_depth }}
+                </dd>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-muted-foreground">Failed jobs</dt>
+                <dd
+                  class="font-semibold tabular-nums"
+                  :class="
+                    runtimeQuery.data.value.global_runtime.derivative_failed_jobs > 0
+                      ? 'text-destructive'
+                      : 'text-foreground'
+                  "
+                >
+                  {{ runtimeQuery.data.value.global_runtime.derivative_failed_jobs }}
+                </dd>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-muted-foreground">Stale running jobs</dt>
+                <dd
+                  class="font-semibold tabular-nums"
+                  :class="
+                    runtimeQuery.data.value.global_runtime.derivative_stale_running_jobs > 0
+                      ? 'text-destructive'
+                      : 'text-foreground'
+                  "
+                >
+                  {{ runtimeQuery.data.value.global_runtime.derivative_stale_running_jobs }}
+                </dd>
+              </div>
+            </dl>
+            <Skeleton v-else-if="runtimeQuery.isPending.value" class="mt-4 h-32 w-full" />
+            <p v-else class="mt-4 text-sm text-muted-foreground">Generated-image diagnostics unavailable.</p>
           </CardContent>
         </Card>
       </div>

@@ -271,6 +271,9 @@ const thumbnailDerivativeStatus = computed(() => {
 const thumbnailReady = computed(() => thumbnailDerivativeStatus.value.ready);
 const thumbnailExpected = computed(() => thumbnailDerivativeStatus.value.expected);
 const thumbnailMissing = computed(() => Math.max(0, thumbnailExpected.value - thumbnailReady.value));
+const derivativeWorkerUnavailable = computed(
+  () => thumbnailMissing.value > 0 && thumbnails.value !== null && !thumbnails.value.worker_healthy,
+);
 const hasDerivativeExpectation = computed(() => thumbnailExpected.value > 0);
 const derivativeCoverageRatio = computed(() => {
   if (!thumbnailExpected.value) return 0;
@@ -675,12 +678,27 @@ function estimatedAssets(): number | undefined {
                       <p class="mt-1 text-xs text-muted-foreground">{{ derivativeCacheState.detail }}</p>
                     </div>
                   </div>
+                  <div
+                    v-if="derivativeWorkerUnavailable"
+                    class="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive"
+                    role="alert"
+                  >
+                    <AlertTriangle class="mt-0.5 size-4 shrink-0" />
+                    <p>No generated-image worker is available. New thumbnail jobs cannot progress.</p>
+                  </div>
+                  <p
+                    v-if="thumbnails.queued_jobs || thumbnails.running_jobs || thumbnails.failed_jobs"
+                    class="text-sm text-muted-foreground"
+                  >
+                    {{ thumbnails.queued_jobs }} queued · {{ thumbnails.running_jobs }} running ·
+                    {{ thumbnails.failed_jobs }} failed
+                  </p>
                   <Button
                     v-if="thumbnailMissing > 0"
                     variant="outline"
                     size="sm"
                     :disabled="warmMutation.isPending.value"
-                    @click="warmMutation.mutate()"
+                    @click="warmMutation.mutate('thumbnail')"
                   >
                     <RefreshCw v-if="warmMutation.isPending.value" class="animate-spin" data-icon="inline-start" />
                     <ImageIcon v-else data-icon="inline-start" />

@@ -16,6 +16,7 @@ coverage fields.
 from __future__ import annotations
 
 import sqlite3
+import threading
 from pathlib import Path
 
 import pytest
@@ -87,6 +88,14 @@ def test_schedule_coalesces_jobs_and_reports_library_status(
         "quota_bytes": 1024,
         "quota_used_bytes": 0,
         "quota_utilization": 0.0,
+        "queued_jobs": 1,
+        "running_jobs": 0,
+        "failed_jobs": 0,
+        "skipped_jobs": 0,
+        "configured_worker_count": 8,
+        "alive_worker_count": 0,
+        "worker_healthy": False,
+        "oldest_running_age_seconds": None,
     }
     with pytest.raises(KeyError):
         scheduler.library_status(999_999)
@@ -222,3 +231,174 @@ def test_derivative_variant_uses_named_and_custom_variants():
         == thumbnail["name"]
     )
     assert derivative_variant("thumbnail", 333, 71, "jpeg") == "edge-333-q-71-jpeg"
+
+
+def test_missing_source_after_claim_is_skipped_without_escaping(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    image, asset_id = _catalog_image(isolated_gallery_root)
+    scheduler = DerivativeScheduler()
+    thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
+    derivative_id = scheduler.schedule_derivative(asset_id, "thumbnail", str(thumbnail["name"]))
+    job = scheduler._claim_job()
+    assert job is not None
+
+    image.unlink()
+    scheduler._run_job(job)
+
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        derivative = conn.execute(
+            "SELECT status, last_error FROM asset_derivatives WHERE id = ?",
+            (derivative_id,),
+        ).fetchone()
+        queued_job = conn.execute(
+            "SELECT state, result_code FROM derivative_jobs WHERE id = ?",
+            (job["job_id"],),
+        ).fetchone()
+    assert derivative[0] == "skipped"
+    assert queued_job == ("skipped", "source_missing")
+
+
+def test_worker_loop_contains_job_exception_and_processes_next_job(monkeypatch: pytest.MonkeyPatch):
+    scheduler = DerivativeScheduler()
+    jobs = iter(({"job_id": 1}, {"job_id": 2}, None))
+    processed: list[int] = []
+
+    monkeypatch.setattr(scheduler, "_claim_job", lambda _worker_id=None: next(jobs))
+
+    def run_job(job):
+        processed.append(job["job_id"])
+        if job["job_id"] == 1:
+            raise RuntimeError("handler escaped")
+        scheduler._stop_event.set()
+
+    monkeypatch.setattr(scheduler, "_run_job", run_job)
+    scheduler._worker_loop()
+
+    assert processed == [1, 2]
+
+
+def test_claim_skips_job_when_asset_becomes_offline(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    _, asset_id = _catalog_image(isolated_gallery_root)
+    scheduler = DerivativeScheduler()
+    thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
+    derivative_id = scheduler.schedule_derivative(asset_id, "thumbnail", str(thumbnail["name"]))
+
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute("UPDATE assets SET offline = 1 WHERE id = ?", (asset_id,))
+
+    assert scheduler._claim_job() is None
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        job = conn.execute(
+            "SELECT state, result_code FROM derivative_jobs WHERE derivative_id = ?",
+            (derivative_id,),
+        ).fetchone()
+        derivative = conn.execute(
+            "SELECT status FROM asset_derivatives WHERE id = ?",
+            (derivative_id,),
+        ).fetchone()
+    assert job == ("skipped", "asset_inactive")
+    assert derivative == ("skipped",)
+
+
+def test_startup_recovers_current_running_job(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    _, asset_id = _catalog_image(isolated_gallery_root)
+    scheduler = DerivativeScheduler(worker_count=1)
+    thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
+    derivative_id = scheduler.schedule_derivative(asset_id, "thumbnail", str(thumbnail["name"]))
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute(
+            """
+            UPDATE derivative_jobs
+            SET state = 'running', attempts = 1, claimed_by = 'dead-worker',
+                claim_token = 'dead-token', lease_expires_at = julianday('now') - 1
+            WHERE derivative_id = ?
+            """,
+            (derivative_id,),
+        )
+        conn.execute("UPDATE asset_derivatives SET status = 'running' WHERE id = ?", (derivative_id,))
+
+    monkeypatch.setattr(threading.Thread, "start", lambda self: None)
+    scheduler.start()
+    scheduler.stop()
+
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        job = conn.execute(
+            "SELECT state, claimed_by, claim_token, lease_expires_at FROM derivative_jobs WHERE derivative_id = ?",
+            (derivative_id,),
+        ).fetchone()
+    assert job == ("queued", None, None, None)
+
+
+def test_obsolete_claim_token_cannot_overwrite_newer_claim(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    _, asset_id = _catalog_image(isolated_gallery_root)
+    scheduler = DerivativeScheduler()
+    thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
+    derivative_id = scheduler.schedule_derivative(asset_id, "thumbnail", str(thumbnail["name"]))
+    stale_job = scheduler._claim_job("old-worker")
+    assert stale_job is not None
+
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute(
+            """
+            UPDATE derivative_jobs
+            SET state = 'queued', claimed_by = NULL, claim_token = NULL, lease_expires_at = NULL
+            WHERE id = ?
+            """,
+            (stale_job["job_id"],),
+        )
+        conn.execute("UPDATE asset_derivatives SET status = 'queued' WHERE id = ?", (derivative_id,))
+    current_job = scheduler._claim_job("new-worker")
+    assert current_job is not None
+
+    scheduler._handle_failure(stale_job, RuntimeError("late failure"))
+
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        job = conn.execute(
+            "SELECT state, claimed_by, claim_token FROM derivative_jobs WHERE id = ?",
+            (stale_job["job_id"],),
+        ).fetchone()
+        derivative = conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (derivative_id,)).fetchone()
+    assert job == ("running", "new-worker", current_job["claim_token"])
+    assert derivative == ("running",)
+
+
+def test_expired_claim_with_exhausted_attempts_becomes_failed(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    _, asset_id = _catalog_image(isolated_gallery_root)
+    scheduler = DerivativeScheduler()
+    thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
+    derivative_id = scheduler.schedule_derivative(asset_id, "thumbnail", str(thumbnail["name"]))
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute(
+            """
+            UPDATE derivative_jobs
+            SET state = 'running', attempts = 3, claimed_by = 'dead-worker',
+                claim_token = 'dead-token', lease_expires_at = julianday('now') - 1
+            WHERE derivative_id = ?
+            """,
+            (derivative_id,),
+        )
+        conn.execute("UPDATE asset_derivatives SET status = 'running' WHERE id = ?", (derivative_id,))
+
+    assert scheduler._recover_running_jobs(expired_only=True) == 1
+
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        job = conn.execute(
+            "SELECT state, result_code, claimed_by, claim_token FROM derivative_jobs WHERE derivative_id = ?",
+            (derivative_id,),
+        ).fetchone()
+    assert job == ("failed", "attempts_exhausted", None, None)

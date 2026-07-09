@@ -17,6 +17,14 @@ const mockStatus = {
   quota_bytes: 1_073_741_824,
   quota_used_bytes: 256_000_000,
   quota_utilization: 0.238,
+  queued_jobs: 0,
+  running_jobs: 0,
+  failed_jobs: 0,
+  skipped_jobs: 0,
+  configured_worker_count: 3,
+  alive_worker_count: 3,
+  worker_healthy: true,
+  oldest_running_age_seconds: null,
 };
 
 function setup(id: number | null, retry = 1) {
@@ -40,17 +48,19 @@ beforeEach(() => {
 });
 
 describe("useGeneratedImagesStatusQuery", () => {
-  it("polls only while derivative coverage is incomplete", () => {
+  it("polls only while derivative jobs are active", () => {
     expect(generatedImagesNeedActivePolling(undefined)).toBe(false);
-    expect(generatedImagesNeedActivePolling({ ...mockStatus, expected_derivatives: 0, ready_derivatives: 0 })).toBe(
-      false,
-    );
-    expect(generatedImagesNeedActivePolling({ ...mockStatus, expected_derivatives: 200, ready_derivatives: 45 })).toBe(
-      true,
-    );
-    expect(generatedImagesNeedActivePolling({ ...mockStatus, expected_derivatives: 200, ready_derivatives: 200 })).toBe(
-      false,
-    );
+    expect(generatedImagesNeedActivePolling({ ...mockStatus, queued_jobs: 0, running_jobs: 0 })).toBe(false);
+    expect(generatedImagesNeedActivePolling({ ...mockStatus, queued_jobs: 1 })).toBe(true);
+    expect(generatedImagesNeedActivePolling({ ...mockStatus, running_jobs: 1 })).toBe(true);
+    expect(
+      generatedImagesNeedActivePolling({
+        ...mockStatus,
+        expected_derivatives: 200,
+        ready_derivatives: 45,
+        failed_jobs: 2,
+      }),
+    ).toBe(false);
   });
 
   it("fetches status when library id is provided", async () => {

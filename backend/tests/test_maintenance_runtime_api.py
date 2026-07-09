@@ -58,6 +58,14 @@ class TestGetMaintenanceRuntime:
         assert "metadata_worker_count" in gr
         assert "metadata_queue_depth" in gr
         assert "metadata_staged_queue_depth" in gr
+        assert "derivative_configured_worker_count" in gr
+        assert "derivative_worker_count" in gr
+        assert "derivative_active_jobs" in gr
+        assert "derivative_queue_depth" in gr
+        assert "derivative_failed_jobs" in gr
+        assert "derivative_skipped_jobs" in gr
+        assert "derivative_stale_running_jobs" in gr
+        assert "derivative_oldest_running_age_seconds" in gr
 
     def test_global_runtime_counts_executable_catalog_jobs_only(
         self,

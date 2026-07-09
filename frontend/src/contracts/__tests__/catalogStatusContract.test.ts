@@ -67,6 +67,14 @@ const globalRuntime = {
   watcher_healthy: true,
   watcher_issue: null,
   scheduled_reconciliation_enabled: true,
+  derivative_configured_worker_count: 3,
+  derivative_worker_count: 3,
+  derivative_active_jobs: 0,
+  derivative_queue_depth: 0,
+  derivative_failed_jobs: 0,
+  derivative_skipped_jobs: 0,
+  derivative_stale_running_jobs: 0,
+  derivative_oldest_running_age_seconds: null,
 } satisfies GlobalRuntime;
 
 describe("catalog status contract fixtures", () => {

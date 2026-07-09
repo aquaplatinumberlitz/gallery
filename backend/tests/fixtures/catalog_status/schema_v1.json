@@ -292,7 +292,15 @@
         "watcher_enabled",
         "watcher_healthy",
         "watcher_issue",
-        "scheduled_reconciliation_enabled"
+        "scheduled_reconciliation_enabled",
+        "derivative_configured_worker_count",
+        "derivative_worker_count",
+        "derivative_active_jobs",
+        "derivative_queue_depth",
+        "derivative_failed_jobs",
+        "derivative_skipped_jobs",
+        "derivative_stale_running_jobs",
+        "derivative_oldest_running_age_seconds"
       ],
       "properties": {
         "catalog_worker_count": {
@@ -338,6 +346,38 @@
         },
         "scheduled_reconciliation_enabled": {
           "type": "boolean"
+        },
+        "derivative_configured_worker_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "derivative_worker_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "derivative_active_jobs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "derivative_queue_depth": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "derivative_failed_jobs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "derivative_skipped_jobs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "derivative_stale_running_jobs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "derivative_oldest_running_age_seconds": {
+          "type": ["number", "null"],
+          "minimum": 0
         }
       }
     },

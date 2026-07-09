@@ -111,6 +111,14 @@ const mockGeneratedImages = {
   quota_used_bytes: 524288000,
   quota_bytes: 1073741824,
   quota_utilization: 0.488,
+  queued_jobs: 0,
+  running_jobs: 0,
+  failed_jobs: 0,
+  skipped_jobs: 0,
+  configured_worker_count: 3,
+  alive_worker_count: 3,
+  worker_healthy: true,
+  oldest_running_age_seconds: null,
 };
 
 let mockLibraryData: typeof mockLibrary | null = mockLibrary;
@@ -469,7 +477,14 @@ describe("LibraryDetailPage", () => {
 
     await buildButton!.trigger("click");
 
-    expect(warmMutateMock).toHaveBeenCalledWith();
+    expect(warmMutateMock).toHaveBeenCalledWith("thumbnail");
+  });
+
+  it("warns when thumbnails are missing and derivative workers are unhealthy", () => {
+    mockGeneratedImagesData = { ...mockGeneratedImages, alive_worker_count: 0, worker_healthy: false };
+    const wrapper = mountSubject();
+
+    expect(wrapper.get('[role="alert"]').text()).toContain("No generated-image worker is available");
   });
 
   it("renders jobs with actual data", () => {

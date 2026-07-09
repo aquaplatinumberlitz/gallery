@@ -9,6 +9,7 @@ export function runtimeHasActiveWork(data: MaintenanceRuntimeResponse | undefine
   const gr = data.global_runtime;
   if (gr.catalog_active_jobs > 0 || gr.catalog_queue_depth > 0) return true;
   if (gr.metadata_active_jobs > 0 || gr.metadata_queue_depth > 0) return true;
+  if (gr.derivative_active_jobs > 0 || gr.derivative_queue_depth > 0) return true;
   const lc = data.metadata_lifecycle;
   if (lc) {
     if (lc.queued_metadata_jobs > 0 || lc.running_metadata_jobs > 0) return true;

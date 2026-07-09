@@ -95,6 +95,14 @@ export interface GlobalRuntime {
   watcher_healthy: boolean;
   watcher_issue: string | null;
   scheduled_reconciliation_enabled: boolean;
+  derivative_configured_worker_count: number;
+  derivative_worker_count: number;
+  derivative_active_jobs: number;
+  derivative_queue_depth: number;
+  derivative_failed_jobs: number;
+  derivative_skipped_jobs: number;
+  derivative_stale_running_jobs: number;
+  derivative_oldest_running_age_seconds: number | null;
 }
 
 export interface MetadataLifecycle {

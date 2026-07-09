@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-07-08
+Last reviewed: 2026-07-09
 
 Historical Library Management V1 handoff context is retained in the
 [archived implementation status](archived/CODEX_LIBRARY_MANAGEMENT_IMPLEMENTATION_STATUS.md).
@@ -20,7 +20,7 @@ and startup recovery.
 
 The worker claims jobs directly from SQLite — no in-memory queue bridges the
 DB to the runtime. This mirrors how `DerivativeScheduler._claim_job()` claims
-from `derivative_jobs` (`derivative_scheduler.py:392-420`).
+from `derivative_jobs`.
 
 ```
 dispatch_metadata_index_paths(paths, priority)
@@ -89,6 +89,33 @@ mismatches between `assets`, `image_metadata`, `metadata_index_jobs`,
 files and active metadata jobs whose source file or asset row disappeared. Each
 daemon or manual run persists a summary into `integrity_check_runs`, which backs
 the Maintenance file-health API.
+
+## Derivative Lifecycle
+
+### Owner: `backend/derivative_scheduler.py`
+
+Thumbnail and preview work is a durable SQLite state machine. A queued job is
+claimed with a process/worker owner, unique claim token, and 15-minute lease.
+Rendering runs outside database transactions. Completion, retry, skip, and
+failure writes are fenced by the claim token so an expired worker cannot
+overwrite a newer claim.
+
+The lifecycle states are `queued`, `running`, `done`, `skipped`, and `failed`.
+Inactive, missing, or superseded sources become `skipped` with a machine-readable
+result code. Invalid sources and exhausted or internal failures become
+`failed`. Transient SQLite/I/O failures retry at most three attempts.
+
+Every source-dependent operation, including cache-path calculation, is inside
+the job exception boundary. The worker loop has an additional catch-all, so one
+bad source cannot terminate a worker. A supervisor runs every 30 seconds,
+recovers claims owned by dead workers or expired leases, and restores the
+configured worker count. Startup applies the same recovery policy before
+workers claim new jobs.
+
+Scheduling, claiming, status, and integrity repair all require an active image
+asset whose `mtime_ns` and size match the derivative source identity. The
+integrity checker requeues missing cache files only for current sources;
+inactive, missing, and superseded sources are skipped instead.
 
 ## Overview
 
@@ -202,7 +229,7 @@ Backend modules are mostly flat, with selected domain packages.
 | `GET /api/libraries/{id}/stats`           | Return aggregate media statistics for one library                     | `libraries.py`      |
 | `GET /api/libraries/{id}/jobs`            | Return recent jobs for one library                                    | `libraries.py`      |
 | `DELETE /api/libraries/{id}?confirm=true` | Unregister catalog data without deleting source files                 | `libraries.py`      |
-| `GET /api/derivatives/status`             | Return derivative warm coverage and quota use for a library           | `libraries.py`      |
+| `GET /api/derivatives/status`             | Return library derivative coverage, quota, job counts, and worker health | `libraries.py`      |
 | `POST /api/derivatives/warm`              | Queue default derivatives for a library; optional `kind=thumbnail\|preview` limits scope | `libraries.py`      |
 | `POST /api/maintenance/imported-data/clear` | Clear imported catalog, metadata, and generated-image data          | `maintenance.py`    |
 | `POST /api/maintenance/imported-data/rebuild` | Clear imported data and queue whole-library rebuild jobs          | `maintenance.py`    |
@@ -217,6 +244,7 @@ Backend modules are mostly flat, with selected domain packages.
 - `ENABLE_PROFILER=0` by default. When enabled, selected endpoints are profiled with pyinstrument and HTML reports are written to `backend/profiles/`.
 - Original images are served only by `/api/image`; thumbnails and previews are generated derivatives.
 - Derivative cache keys include kind, cache version, resolved path, mtime, size, long-edge target, format, and quality. WebP files persist under `backend/.cache/thumbnails/`.
+- Derivative claims use fenced tokens and 15-minute leases. Missing/inactive/current-source races terminate only their job; the supervisor replaces dead workers and recovers abandoned claims.
 - The metadata DB defaults to `backend/.cache/gallery_metadata.db` and can be overridden with `GALLERY_METADATA_DB`.
 - SQLite uses WAL mode and stores both file index rows and normalized metadata rows. FTS5 tables cover folder/photo names and metadata text.
 - Registered libraries store ordered roots in `library_import_paths`. Relative globstar exclusions live in `library_exclusion_patterns`.
@@ -320,6 +348,7 @@ Core keys:
 -> POST /api/maintenance/catalog/reset from Settings Danger Zone
 -> GET /api/maintenance/file-health for latest File issues and Repair results
 -> POST /api/maintenance/file-health/check from Check files
+-> GET /api/maintenance/runtime for catalog, metadata, and generated-image worker/queue health
 ```
 
 Primary admin UI labels intentionally avoid backend terms such as derivatives,
