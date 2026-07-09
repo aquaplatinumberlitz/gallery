@@ -1013,30 +1013,58 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                       </div>
                       <div v-else class="space-y-4">
                         <div>
-                          <p class="mb-1 text-sm font-medium">Prompt</p>
+                          <div class="mb-1 flex items-center justify-between gap-2">
+                            <p class="text-sm font-medium">Prompt</p>
+                            <Tooltip>
+                              <TooltipTrigger as-child>
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  class="size-7 rounded-sm text-muted-foreground hover:text-foreground"
+                                  :aria-label="copyStatus['prompt'] ? 'Prompt copied' : 'Copy prompt'"
+                                  :data-copied="copyStatus['prompt'] ? 'true' : 'false'"
+                                  @pointerdown.stop
+                                  @click.stop.prevent="
+                                    copyDetail(visibleTableRows[virtualRow.index].original, 'prompt', $event)
+                                  "
+                                >
+                                  <CopyStateIcon :copied="copyStatus['prompt']" class="size-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Copy prompt</TooltipContent>
+                            </Tooltip>
+                          </div>
                           <p class="metadata-block">
                             {{ metadataQuery.data.value?.prompt || "No prompt metadata" }}
                           </p>
                         </div>
-                        <div v-if="metadataQuery.data.value?.negative_prompt">
-                          <p class="mb-1 text-sm font-medium">Negative prompt</p>
+                        <div>
+                          <div class="mb-1 flex items-center justify-between gap-2">
+                            <p class="text-sm font-medium">Negative prompt</p>
+                            <Tooltip>
+                              <TooltipTrigger as-child>
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  class="size-7 rounded-sm text-muted-foreground hover:text-foreground"
+                                  :aria-label="copyStatus['neg'] ? 'Negative prompt copied' : 'Copy negative'"
+                                  :data-copied="copyStatus['neg'] ? 'true' : 'false'"
+                                  @pointerdown.stop
+                                  @click.stop.prevent="
+                                    copyDetail(visibleTableRows[virtualRow.index].original, 'negative', $event)
+                                  "
+                                >
+                                  <CopyStateIcon :copied="copyStatus['neg']" class="size-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Copy negative prompt</TooltipContent>
+                            </Tooltip>
+                          </div>
                           <p class="metadata-block">
-                            {{ metadataQuery.data.value.negative_prompt }}
+                            {{ metadataQuery.data.value?.negative_prompt || "No negative prompt metadata" }}
                           </p>
                         </div>
-                        <div class="flex flex-wrap gap-2">
-                          <CopyActionButton
-                            :copied="copyStatus['prompt']"
-                            label="Copy prompt"
-                            success-aria-label="Prompt copied"
-                            @click="copyDetail(visibleTableRows[virtualRow.index].original, 'prompt', $event)"
-                          />
-                          <CopyActionButton
-                            :copied="copyStatus['neg']"
-                            label="Copy negative"
-                            success-aria-label="Negative prompt copied"
-                            @click="copyDetail(visibleTableRows[virtualRow.index].original, 'negative', $event)"
-                          />
+                        <div class="flex justify-end">
                           <CopyActionButton
                             :copied="copyStatus['metadata']"
                             label="Copy all metadata"
