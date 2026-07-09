@@ -139,10 +139,14 @@ class IntegrityChecker:
     def run_all_checks(self) -> dict[str, int]:
         """Run all checks and return a dict mapping check name to issue count.
 
-        Keys: asset_done_but_no_metadata, job_done_asset_not_done,
-        job_active_no_asset, derivative_ready_no_file,
-        derivative_done_not_ready, derivative_done_repaired,
-        derivative_done_failed, job_active_no_file.
+        Keys:
+        asset_done_but_no_metadata, job_done_asset_not_done,
+        job_active_no_asset, job_active_no_file,
+        derivative_ready_no_file, derivative_ready_requeued,
+        derivative_ready_skipped, derivative_abandoned_jobs,
+        derivative_abandoned_requeued, derivative_abandoned_skipped,
+        derivative_abandoned_failed, derivative_done_not_ready,
+        derivative_done_repaired, derivative_done_failed.
         """
         total = {}
         with _DB_LOCK, _connect() as conn:
