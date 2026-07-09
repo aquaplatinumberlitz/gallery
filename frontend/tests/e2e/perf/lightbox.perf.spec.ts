@@ -51,6 +51,7 @@ async function navigateToAlbum(page: Page) {
   });
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+  await page.waitForLoadState("networkidle");
 
   const enterBtn = page.getByRole("button", { name: /enter gallery/i });
   if (await enterBtn.isVisible().catch(() => false)) {

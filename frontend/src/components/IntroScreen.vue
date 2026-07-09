@@ -170,6 +170,7 @@ onMounted(() => {
   height: 100%;
   border: none;
   display: block;
+  pointer-events: none;
 }
 
 .enter-overlay {

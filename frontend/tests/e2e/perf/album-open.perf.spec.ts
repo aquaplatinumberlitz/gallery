@@ -82,6 +82,7 @@ async function runOneIteration(page: import("@playwright/test").Page): Promise<I
   const tracker = installApiNetworkTracker(page, clickTime);
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+  await page.waitForLoadState("networkidle");
 
   const enterBtn = page.getByRole("button", { name: /enter gallery/i });
   if (await enterBtn.isVisible().catch(() => false)) {
