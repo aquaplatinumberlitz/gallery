@@ -277,7 +277,7 @@ test.describe("AdvancedSearchDrawer", () => {
     await expect(drawer.getByRole("button", { name: "Cancel" })).toBeVisible();
     await expect(drawer.getByRole("button", { name: "Apply" })).toBeVisible();
 
-    await page.getByLabel("Close advanced search").click();
+    await page.getByLabel("Close").click();
     await expect(drawer).not.toBeVisible({ timeout: 5_000 });
   });
 
@@ -512,7 +512,7 @@ test.describe("AdvancedSearchDrawer", () => {
     const drawer = page.getByRole("dialog", { name: "Advanced Search" });
     await expect(drawer).toBeVisible({ timeout: 5_000 });
 
-    await page.getByLabel("Close advanced search").click();
+    await page.getByLabel("Close").click();
     await expect(drawer).not.toBeVisible({ timeout: 5_000 });
 
     // Clear and verify gallery returns

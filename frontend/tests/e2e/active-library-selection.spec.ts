@@ -127,12 +127,7 @@ test("no-library state provides a management CTA without arbitrary path entry", 
   await page.goto(baseUrl);
 
   await expect(page.getByText("No library selected")).toBeVisible();
-  await expect(
-    page
-      .getByRole("link", { name: "Manage Libraries" })
-      .or(page.getByRole("button", { name: "Manage Libraries" }))
-      .first(),
-  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "Add Library" })).toBeVisible();
   await expect(page.getByRole("textbox")).toHaveCount(0);
 });
 

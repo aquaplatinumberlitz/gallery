@@ -430,7 +430,7 @@ test.describe("imported-data maintenance verification", () => {
     expect(state.libraries).toHaveLength(1);
 
     await page.goto(`${baseUrl}/admin/libraries`, { waitUntil: "domcontentloaded" });
-    await expect(page.getByText("Imported Library")).toBeVisible();
+    await expect(page.getByText("Imported Library").first()).toBeVisible();
 
     await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("photo-card")).toHaveCount(0);
@@ -506,7 +506,7 @@ test.describe("imported-data maintenance verification", () => {
         ),
       )
       .toEqual([null, null, null, null, null, null]);
-    await page.getByRole("button", { name: "Manage Libraries" }).click();
+    await page.getByRole("link", { name: "Manage Libraries" }).click();
     await expect(page).toHaveURL(/\/admin\/libraries$/);
     await expect(page.getByText("No libraries registered")).toBeVisible();
     await page.getByRole("button", { name: "Add library" }).last().click();

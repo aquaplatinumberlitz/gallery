@@ -2,7 +2,10 @@
   "catalog_alignment": {
     "cataloged_uncollected_tests": [],
     "missing_catalog_files": [],
-    "uncataloged_files": []
+    "uncataloged_files": [
+      "frontend/src/components/ui/__tests__/CopyActionButton.test.ts",
+      "frontend/src/utils/__tests__/textTruncation.test.ts"
+    ]
   },
   "commands": {
     "backend": {
@@ -45,14 +48,14 @@
   },
   "counts": {
     "backend_test_files": 53,
-    "backend_tests": 916,
-    "catalog_entries": 172,
+    "backend_tests": 918,
+    "catalog_entries": 174,
     "frontend_test_files": 25,
-    "frontend_tests": 160,
-    "important_files": 174,
+    "frontend_tests": 161,
+    "important_files": 178,
     "perf_reports": 0,
-    "vitest_test_files": 82,
-    "vitest_tests": 925
+    "vitest_test_files": 86,
+    "vitest_tests": 971
   },
   "coverage": {
     "backend_modules_below_threshold": [],
@@ -68,7 +71,7 @@
     },
     "frontend_summary_found": true
   },
-  "generated_at": "2026-07-08T02:10:45+00:00",
+  "generated_at": "2026-07-09T07:51:00+00:00",
   "matrix": [
     {
       "backend": "OK",
