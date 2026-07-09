@@ -82,17 +82,23 @@ async function runOneIteration(page: import("@playwright/test").Page): Promise<I
   const tracker = installApiNetworkTracker(page, clickTime);
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
-  await page.waitForLoadState("networkidle");
 
   const enterBtn = page.getByRole("button", { name: /enter gallery/i });
+  const album = page.getByText(albumName, { exact: false }).first();
+  await expect
+    .poll(
+      async () =>
+        (await enterBtn.isVisible().catch(() => false)) || (await album.isVisible().catch(() => false)),
+      { timeout: 15000 },
+    )
+    .toBe(true);
+
   if (await enterBtn.isVisible().catch(() => false)) {
     await enterBtn.click();
-    await page.waitForURL("**/");
-    await page.waitForLoadState("networkidle");
+    await expect(album).toBeVisible({ timeout: 15000 });
     await page.waitForTimeout(1000);
   }
 
-  const album = page.getByText(albumName, { exact: false }).first();
   await expect(album).toBeVisible({ timeout: 15000 });
 
   tracker.clear();

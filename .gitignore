@@ -23,6 +23,8 @@ package-lock.json
 data/
 gallery-e2e-backend.log
 index.html
+probe.mjs
+probe*.mjs
 Thumbs.db
 
 # IDE
