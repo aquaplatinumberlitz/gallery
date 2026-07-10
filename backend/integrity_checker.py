@@ -192,15 +192,16 @@ class IntegrityChecker:
 
         expected_summary = (
             scheduler.reconcile_desired_derivatives(asset_ids=expected_ids, reason="integrity")
-            if expected_ids else None
+            if expected_ids
+            else None
         )
         queued_summary = (
-            scheduler.reconcile_desired_derivatives(asset_ids=queued_ids, reason="integrity")
-            if queued_ids else None
+            scheduler.reconcile_desired_derivatives(asset_ids=queued_ids, reason="integrity") if queued_ids else None
         )
         deferred_summary = (
             scheduler.reconcile_desired_derivatives(asset_ids=deferred_ids, reason="integrity")
-            if deferred_ids else None
+            if deferred_ids
+            else None
         )
         total["derivative_expected_row_missing"] = len(expected_ids)
         total["derivative_expected_row_created"] = expected_summary.created_derivative_rows if expected_summary else 0
@@ -208,8 +209,7 @@ class IntegrityChecker:
         total["derivative_queued_without_job_repaired"] = queued_summary.requeued_without_job if queued_summary else 0
         total["derivative_policy_deferred"] = len(deferred_ids)
         total["derivative_policy_deferred_requeued"] = (
-            (deferred_summary.created_jobs + deferred_summary.requeued_without_job)
-            if deferred_summary else 0
+            (deferred_summary.created_jobs + deferred_summary.requeued_without_job) if deferred_summary else 0
         )
         return total
 
@@ -242,9 +242,9 @@ class IntegrityChecker:
     @staticmethod
     def _find_queued_without_job(conn) -> list[int]:
         return [
-            int(row["asset_id"])
+            int(row["id"])
             for row in conn.execute(
-                """SELECT DISTINCT d.asset_id FROM asset_derivatives d
+                """SELECT d.id FROM asset_derivatives d
                JOIN assets a ON a.id = d.asset_id
                WHERE d.status = 'queued' AND a.deleted_at IS NULL AND a.offline = 0
                  AND a.type = 'image' AND NOT EXISTS (
@@ -558,28 +558,24 @@ class IntegrityChecker:
 
     def _check_derivative_queued_without_job(self, conn) -> int:
         """Repair ``queued`` derivatives whose latest job is not queued/running."""
-        from .derivative_scheduler import DerivativeScheduler
+        from .derivative_scheduler import scheduler
 
-        rows = conn.execute(
-            """
-            SELECT DISTINCT d.asset_id FROM asset_derivatives d
-            JOIN assets a ON a.id = d.asset_id
-            WHERE d.status = 'queued'
-              AND a.deleted_at IS NULL AND a.offline = 0 AND a.type = 'image'
-              AND NOT EXISTS (
-                SELECT 1 FROM derivative_jobs j
-                WHERE j.derivative_id = d.id AND j.state IN ('queued', 'running')
-              )
-            """
-        ).fetchall()
-        if not rows:
+        derivative_ids = [
+            int(row["id"])
+            for row in conn.execute(
+                """SELECT d.id FROM asset_derivatives d
+               JOIN assets a ON a.id = d.asset_id
+               WHERE d.status = 'queued'
+                 AND a.deleted_at IS NULL AND a.offline = 0 AND a.type = 'image'
+                 AND NOT EXISTS (
+                   SELECT 1 FROM derivative_jobs j
+                   WHERE j.derivative_id = d.id AND j.state IN ('queued', 'running')
+                 )"""
+            ).fetchall()
+        ]
+        if not derivative_ids:
             return 0
-        asset_ids = [int(row["asset_id"]) for row in rows]
-        return (
-            DerivativeScheduler()
-            .reconcile_desired_derivatives(asset_ids=asset_ids, reason="integrity")
-            .requeued_without_job
-        )
+        return scheduler.repair_derivative_consistency(derivative_ids)
 
     def _check_derivative_policy_deferred(self, conn) -> int:
         """Reconsider ``deferred_capacity``/``evicted`` current derivatives when capacity allows.

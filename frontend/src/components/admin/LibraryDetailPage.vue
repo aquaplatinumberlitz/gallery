@@ -269,6 +269,15 @@ const derivativeCoverageRows = computed(() => {
 const thumbnailReady = computed(() => thumbnails.value?.ready_derivatives ?? 0);
 const thumbnailExpected = computed(() => thumbnails.value?.expected_derivatives ?? 0);
 const thumbnailMissing = computed(() => thumbnails.value?.actionable_missing_derivatives ?? 0);
+const informationalGap = computed(() => {
+  if (!thumbnails.value) return 0;
+  return Math.max(0, (thumbnails.value.expected_derivatives ?? 0) - (thumbnails.value.ready_derivatives ?? 0));
+});
+const showGenerateMissing = computed(() => {
+  if (!thumbnails.value) return false;
+  if (thumbnails.value.policy === "on_demand") return informationalGap.value > 0;
+  return thumbnailMissing.value > 0;
+});
 const derivativeWorkerUnavailable = computed(
   () =>
     thumbnails.value !== null &&
@@ -289,7 +298,10 @@ const derivativeCacheState = computed(() =>
     ? {
         label: "Generated images",
         value: "On demand",
-        detail: "Images are created when requested; cached coverage is informational",
+        detail:
+          informationalGap.value > 0
+            ? `${formatAssetCount(informationalGap.value)} images will be prepared on first view; cached coverage is informational`
+            : "Cached coverage is informational; images are created when requested",
         tone: "text-muted-foreground",
       }
     : !hasDerivativeExpectation.value
@@ -679,8 +691,8 @@ function estimatedAssets(): number | undefined {
                     </p>
                     <p class="mt-1 text-sm text-muted-foreground">{{ derivativeCoverageLabel }}</p>
                   </div>
-                  <p v-if="thumbnailMissing > 0" class="text-sm text-muted-foreground">
-                    {{ formatAssetCount(thumbnailMissing) }} generated images missing
+                  <p v-if="showGenerateMissing" class="text-sm text-muted-foreground">
+                    {{ formatAssetCount(thumbnailMissing || informationalGap) }} generated images missing
                   </p>
                   <div class="grid gap-3 text-sm sm:grid-cols-3">
                     <div class="rounded-md border border-border bg-muted/60 p-3">
@@ -715,7 +727,7 @@ function estimatedAssets(): number | undefined {
                     {{ thumbnails.failed_jobs }} failed
                   </p>
                   <Button
-                    v-if="thumbnailMissing > 0"
+                    v-if="showGenerateMissing"
                     variant="outline"
                     size="sm"
                     :disabled="warmMutation.isPending.value"

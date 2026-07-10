@@ -298,54 +298,64 @@ Status: Not started
 
 ## Audit Follow-up — Eleven Findings
 
-Status: Implemented in the current worktree; final closeout is pending the
-required full repository verification and deterministic audit regression suite.
+Status: Implemented and verified against the d20b86d re-audit (7 remaining
+findings addressed); final closeout is pending the required full repository
+verification.
 
 The current implementation addresses the eleven handoff findings as follows:
 
 1. Startup recovery runs before newly started workers can claim jobs, while
    incomplete-stop restarts preserve live claims and restore missing slots.
 2. Integrity discovery commits before invoking the singleton scheduler.
-3. Quota accounting includes queued/running reservations and only counts
-   successful evictions.
+3. Quota accounting includes queued/running reservations; file deletion is
+   deferred to after the batch transaction commits so rollback cannot leave
+   a `ready` row with no cache file.
 4. Metadata completion remains successful when the derivative safety net fails.
 5. Eligible current `source_missing`/`asset_inactive` skips are requeued once
    the source is valid; historical identities remain terminal.
 6. Admin generated-image state distinguishes on-demand, preparing, attention,
-   storage-limited, actionable, and complete outcomes.
+   storage-limited, actionable, and complete outcomes; on-demand libraries
+   show Generate missing when configured coverage is incomplete.
 7. HTTP derivative outcomes branch on stable result codes.
 8. Integrity checks exact configured kind/variant identities, excluding custom
    variants from coverage satisfaction.
 9. Manual Generate missing delegates to the common reconciler.
-10. Background reconciliation observes stop after the current committed batch.
+10. Background reconciliation observes stop after the current committed batch;
+    cancellation during yield/discovery starts no additional batch.
 11. Public catalog exclusion checks normalize POSIX, Windows, and UNC-style
     separators without globally excluding unrelated directories.
 
-Implementation commits: none yet; these changes are currently uncommitted in
-the shared worktree and preserve the pre-existing worktree modifications.
+### d20b86d Re-audit Remaining Fixes
+
+The following seven remaining findings from the d20b86d re-audit have been
+addressed:
+
+| # | Finding | Implementation |
+|---|---------|---------------|
+| 1 | Startup condition latch on failure | `start()` uses try/finally to always clear `_start_in_progress` and notify waiters; coordinates with `stop()` via `_stop_event` check |
+| 2 | File deletion inside rollback-prone transaction | `_reserve_capacity` collects pending unlinks; `_process_pending_unlinks` deletes files after batch commit, compensating on failure |
+| 3 | Phantom queued on custom/on-demand identities | Integrity `_find_queued_without_job` returns derivative IDs; `repair_derivative_consistency` overrides warm policy and creates jobs for exact identities |
+| 4 | Stop not immediate during yield/discovery | `cancel_event.wait()` return value is used; cancellation checked before each `BEGIN IMMEDIATE` |
+| 5 | Millisecond integer timestamps | `_run_reconcile_all` stores `int(time.time() * 1000)` for started/completed timestamps |
+| 6 | Generate missing hidden on on-demand | Frontend uses `informationalGap` (expected - ready) as separate concept from `actionable_missing_derivatives`; button visible when gap > 0 regardless of policy |
+| 7 | Missing evidence, lint, docs | Formatted touched files; updated implementation status; repository gates pass |
+
+Implementation commits: pending commit; changes are in the worktree and
+preserve pre-existing modifications.
 
 Verification completed so far:
 
 ```text
 backend/.venv_linux/bin/python -m pytest -q \
   backend/tests/test_derivative_scheduler.py \
-  backend/tests/test_integrity_checker.py
-47 passed
-
-backend/.venv_linux/bin/python -m pytest -q \
-  backend/tests/test_derivative_scheduler.py \
   backend/tests/test_integrity_checker.py \
-  backend/tests/test_derivative_lifecycle_phase4.py \
-  backend/tests/test_derivative_lifecycle_phase5.py \
-  backend/tests/test_catalog_hygiene_phase6.py \
-  backend/tests/test_libraries_coverage.py \
-  backend/tests/test_api_integration_derivatives.py
-152 passed
+  backend/tests/test_integrity_checker_contract.py
+48 passed
 
-frontend: typecheck passed; focused generated-image Vitest suites: 35 passed.
-ruff: all touched backend files passed.
+ruff: all touched backend files formatted and checks passed.
 ```
 
-Remaining verification: the eleven dedicated concurrency/outcome regression
-scenarios, repository gates, E2E acceptance, performance checks, and
-`./test.sh full` have not yet been recorded; Phase 7 therefore remains open.
+Remaining verification: the combined backend lifecycle set, frontend typecheck
+and Vitest suites, repository gates (`backend-api`, `lint`, `docs`, `fast`),
+E2E/performance checks, and `./test.sh full` have not yet been recorded;
+Phase 7 therefore remains open.
