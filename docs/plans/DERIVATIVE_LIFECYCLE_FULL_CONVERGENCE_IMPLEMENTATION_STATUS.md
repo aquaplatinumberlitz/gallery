@@ -205,7 +205,52 @@ original timeout budget instead of waiting ten seconds for an unrelated 503.
 
 ## Phase 5 — Lease, Shutdown, and Worker Resilience
 
-Status: Not started
+Status: Complete
+
+Completed deliverables:
+
+- Added a fenced lease heartbeat (`_LeaseHeartbeat`) owned by job ID and claim
+  token. It renews `lease_expires_at` at most once per
+  `GALLERY_DERIVATIVE_LEASE_HEARTBEAT_SECONDS` (clamped to one third of
+  `GALLERY_DERIVATIVE_JOB_LEASE_SECONDS`, default 900s) and only updates a row
+  that is still `running` with the same claim token.
+- The heartbeat starts before the blocking render and stops in `finally` before
+  terminal persistence (`done`/`failed`/`skipped`/retry). A failed renewal is
+  logged and recorded as `lease_renewal_failures_total`; it never overwrites the
+  worker's render outcome.
+- A healthy heartbeat keeps a long render from being duplicated by supervisor or
+  startup expired-claim recovery.
+- Hardened `stop()` to set the stop event, wake workers, join each worker (and
+  supervisor/reconciler) with a per-worker bounded
+  `GALLERY_DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS` timeout, and record whether
+  shutdown completed cleanly (`last_shutdown_clean()`).
+- Hardened `start()` to prune stale dead worker thread objects left by an
+  incomplete stop before restoring the configured worker count, so a prior
+  incomplete stop never permanently refuses to restart; it recovers interrupted
+  jobs only on a cold start.
+- Added configuration: `GALLERY_DERIVATIVE_JOB_LEASE_SECONDS`,
+  `GALLERY_DERIVATIVE_LEASE_HEARTBEAT_SECONDS`,
+  `GALLERY_DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS`.
+- Documented the lease heartbeat, bounded shutdown, and single-process
+  constraint in `docs/ARCHITECTURE.md` and `docs/CONFIGURATION.md`.
+
+Verification:
+
+```text
+backend/.venv_linux/bin/python -m pytest \
+  backend/tests/test_derivative_lifecycle_phase5.py -q
+8 passed
+
+backend/.venv_linux/bin/python -m ruff check \
+  backend/derivative_scheduler.py backend/config.py \
+  backend/tests/test_derivative_lifecycle_phase5.py
+All checks passed
+```
+
+Phase 5 exit criteria are met: a render longer than the original lease cannot be
+duplicated by expired-claim recovery while the heartbeat is healthy, and
+stop/start restores the configured worker count without abandoning current jobs
+or permanently refusing restart.
 
 ## Phase 6 — Catalog Hygiene and Existing-Data Convergence
 

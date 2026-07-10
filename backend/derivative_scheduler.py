@@ -21,11 +21,14 @@ if not __package__:
     __package__ = "backend"
 
 from .config import (
+    DERIVATIVE_JOB_LEASE_SECONDS,
+    DERIVATIVE_LEASE_HEARTBEAT_SECONDS,
     DERIVATIVE_QUOTA_BYTES,
     DERIVATIVE_RECONCILE_BATCH_SIZE,
     DERIVATIVE_RECONCILE_ENABLED,
     DERIVATIVE_RECONCILE_INTERVAL_SECONDS,
     DERIVATIVE_RECONCILE_YIELD_SECONDS,
+    DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS,
     DERIVATIVE_VARIANTS,
     DERIVATIVE_WORKER_COUNT,
     THUMBNAIL_CACHE_DIR,
@@ -34,9 +37,13 @@ from .errors import APIError
 from .metadata_store import _connect, initialize_database
 
 logger = logging.getLogger(__name__)
-_LEASE_DAYS = 15 / (24 * 60)
 _SUPERVISOR_INTERVAL_SECONDS = 30
 _MAX_ATTEMPTS = 3
+
+
+def _lease_days() -> float:
+    """Return the configured job lease duration expressed in Julian days."""
+    return float(DERIVATIVE_JOB_LEASE_SECONDS) / 86400.0
 
 
 @dataclass
@@ -107,54 +114,95 @@ class DerivativeScheduler:
             "last_reconcile_completed_at": None,
             "last_reconcile_status": None,
             "last_reconcile_created_jobs": 0,
+            "lease_renewal_failures_total": 0,
         }
+        self._lease_renewal_failures: int = 0
+        self._shutdown_clean: bool | None = None
         self._instance_id = uuid.uuid4().hex
 
     def start(self) -> None:
-        """Start workers and recover jobs interrupted by a prior process."""
+        """Start workers and recover jobs interrupted by a prior process.
+
+        A restart after an incomplete stop must not permanently refuse to restore
+        missing worker slots because a stale thread object remains in ``_threads``.
+        Dead thread objects are pruned first, then one worker thread is created per
+        missing slot so the configured worker count is restored exactly.
+        """
         with self._lifecycle_lock:
-            if any(thread.is_alive() for thread in self._threads):
-                return
+            # Drop stale dead thread objects left behind by an incomplete stop.
+            self._threads = [thread for thread in self._threads if thread.is_alive()]
+            cold_start = not self._threads
+            alive_slots: set[int] = set()
+            for thread in self._threads:
+                try:
+                    alive_slots.add(int(thread.name.rsplit("-", 1)[-1]))
+                except (ValueError, IndexError):
+                    continue
+            self._stop_event.clear()
+            self._wake_event.set()
+            replacements: list[threading.Thread] = []
+            for slot in range(1, self.worker_count + 1):
+                if slot not in alive_slots:
+                    worker = self._new_worker(slot)
+                    self._threads.append(worker)
+                    replacements.append(worker)
+            for worker in replacements:
+                worker.start()
+            if self._supervisor_thread is None or not self._supervisor_thread.is_alive():
+                self._supervisor_thread = threading.Thread(
+                    target=self._supervisor_loop,
+                    name="derivative-supervisor",
+                    daemon=True,
+                )
+                self._supervisor_thread.start()
+            self._start_reconciler()
+        if cold_start:
             _ensure_database()
             self._reconcile_queued_jobs()
             self._recover_running_jobs()
-            self._stop_event.clear()
-            self._threads = [self._new_worker(index + 1) for index in range(self.worker_count)]
-            for thread in self._threads:
-                thread.start()
-            self._supervisor_thread = threading.Thread(
-                target=self._supervisor_loop,
-                name="derivative-supervisor",
-                daemon=True,
-            )
-            self._supervisor_thread.start()
-            self._wake_event.set()
-            self._start_reconciler()
 
     def stop(self) -> None:
-        """Stop workers and wait briefly for in-flight generation to finish."""
+        """Stop workers and wait a bounded timeout per worker.
+
+        Sets the stop event so no new claims begin, wakes all workers, then joins
+        each worker (and the supervisor/reconciler) with a per-worker bounded
+        timeout. Records whether shutdown completed cleanly so callers can detect
+        an incomplete stop that left in-flight renders running.
+        """
         with self._lifecycle_lock:
-            threads = self._threads
+            threads = list(self._threads)
             supervisor = self._supervisor_thread
             reconciler = self._reconciler_thread
             self._stop_event.set()
             self._reconciler_stop_event.set()
             self._wake_event.set()
-        deadline = time.monotonic() + 1
+        clean = True
         for thread in threads:
             with suppress(RuntimeError):
-                thread.join(timeout=max(0.0, deadline - time.monotonic()))
+                thread.join(timeout=DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS)
+            if thread.is_alive():
+                clean = False
         if supervisor is not None:
             with suppress(RuntimeError):
-                supervisor.join(timeout=max(0.0, deadline - time.monotonic()))
+                supervisor.join(timeout=DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS)
+            if supervisor.is_alive():
+                clean = False
         if reconciler is not None:
             with suppress(RuntimeError):
-                reconciler.join(timeout=max(0.0, deadline - time.monotonic()))
+                reconciler.join(timeout=DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS)
+            if reconciler.is_alive():
+                clean = False
         with self._lifecycle_lock:
             self._threads = [thread for thread in threads if thread.is_alive()]
             self._supervisor_thread = supervisor if supervisor is not None and supervisor.is_alive() else None
             self._reconciler_thread = reconciler if reconciler is not None and reconciler.is_alive() else None
             self._reconcile_status["running"] = bool(self._reconciler_thread)
+            self._shutdown_clean = clean
+
+    def last_shutdown_clean(self) -> bool | None:
+        """Return whether the most recent stop() completed within its timeout."""
+        with self._lifecycle_lock:
+            return self._shutdown_clean
 
     def is_running(self) -> bool:
         """Return whether at least one configured worker is alive."""
@@ -169,7 +217,9 @@ class DerivativeScheduler:
     def reconciliation_status(self) -> dict[str, Any]:
         """Return bounded desired-state runtime diagnostics."""
         with self._lifecycle_lock:
-            return dict(self._reconcile_status)
+            status = dict(self._reconcile_status)
+            status["lease_renewal_failures_total"] = self._lease_renewal_failures
+            return status
 
     def _start_reconciler(self) -> None:
         """Start startup catch-up and periodic reconciliation without blocking readiness."""
@@ -968,7 +1018,7 @@ class DerivativeScheduler:
                   claim_token = ?, lease_expires_at = julianday('now') + ?,
                   updated_at = julianday('now') WHERE id = ? AND state = 'queued'
                 """,
-                (attempts, worker_id, claim_token, _LEASE_DAYS, row["job_id"]),
+                (attempts, worker_id, claim_token, _lease_days(), row["job_id"]),
             )
             conn.execute(
                 "UPDATE asset_derivatives SET status = 'running', attempts = ?, updated_at = julianday('now') WHERE id = ?",
@@ -1097,7 +1147,7 @@ class DerivativeScheduler:
                 clauses.append("j.claimed_by = ?")
                 params.append(claimed_by)
             elif expired_only:
-                clauses.append("(j.lease_expires_at IS NULL OR j.lease_expires_at <= julianday('now'))")
+                clauses.append("(j.lease_expires_at IS NULL OR j.lease_expires_at <= julianday('now'))")  # noqa: E501
             rows = conn.execute(
                 f"""
                 SELECT j.id AS job_id, j.attempts AS job_attempts, j.claim_token,
@@ -1162,12 +1212,46 @@ class DerivativeScheduler:
             return "source_changed"
         return None
 
+    def _renew_lease(self, job_id: int, claim_token: str) -> bool:
+        """Extend the lease of a still-running, still-owned derivative claim.
+
+        Returns True only when the matching running row with the same claim token
+        was found and updated. A claim that already completed, failed, or was
+        fenced by recovery is not touched. A database error is recorded as a lease
+        renewal failure but never overwrites the worker's render outcome; fenced
+        recovery arbitrates instead.
+        """
+        _ensure_database()
+        try:
+            with _connect() as conn:
+                result = conn.execute(
+                    """
+                    UPDATE derivative_jobs
+                    SET lease_expires_at = julianday('now') + ?
+                    WHERE id = ? AND state = 'running' AND claim_token = ?
+                    """,
+                    (_lease_days(), job_id, claim_token),
+                )
+                renewed = result.rowcount == 1
+        except sqlite3.Error:
+            logger.warning("Derivative lease renewal failed for job %s", job_id)
+            with self._lifecycle_lock:
+                self._lease_renewal_failures += 1
+                self._reconcile_status["lease_renewal_failures_total"] = self._lease_renewal_failures
+            renewed = False
+        if not renewed:
+            logger.debug("Derivative lease renewal found no matching running claim for job %s", job_id)
+        return renewed
+
     def _run_job(self, job: sqlite3.Row) -> None:
         from .thumbnails import derivative_cache_path, generate_derivative
 
         source = Path(job["source_path"])
         cache_path: str | None = None
         succeeded = False
+        heartbeat = _LeaseHeartbeat(
+            self, job["job_id"], job["claim_token"], DERIVATIVE_LEASE_HEARTBEAT_SECONDS
+        )
         try:
             self._validate_claimed_source(job, source)
             cache_path = str(
@@ -1181,6 +1265,7 @@ class DerivativeScheduler:
             )
             with self._file_lock:
                 self._generating_paths.add(cache_path)
+            heartbeat.start()
             derivative_bytes = generate_derivative(
                 source,
                 kind=job["kind"],
@@ -1189,6 +1274,7 @@ class DerivativeScheduler:
                 format=job["format"],
                 no_upscale=True,
             )
+            heartbeat.stop()
             self._validate_claimed_source(job, source)
             with _connect() as conn:
                 completed = conn.execute(
@@ -1212,6 +1298,7 @@ class DerivativeScheduler:
                 )
             succeeded = True
         except Exception as exc:  # noqa: BLE001
+            heartbeat.stop()
             self._handle_failure(job, exc)
         finally:
             if cache_path is not None:
@@ -1328,6 +1415,42 @@ class DerivativeScheduler:
 
 
 scheduler = DerivativeScheduler()
+
+
+class _LeaseHeartbeat:
+    """Lightweight lease renewal owned by one claimed derivative job.
+
+    The heartbeat runs on its own daemon thread and renews ``lease_expires_at``
+    at most every ``interval_seconds`` (bounded to one third of the lease). It
+    only updates a row that is still ``running`` with the same claim token, so a
+    long render cannot be duplicated by expired-claim recovery while the heartbeat
+    is healthy. The heartbeat stops before the worker persists its terminal
+    outcome; a failed renewal is logged, not used to overwrite render state.
+    """
+
+    def __init__(self, scheduler: DerivativeScheduler, job_id: int, claim_token: str, interval_seconds: float):
+        self._scheduler = scheduler
+        self._job_id = job_id
+        self._claim_token = claim_token
+        self._interval = max(0.05, float(interval_seconds))
+        self._stop_event = threading.Event()
+        self._thread = threading.Thread(
+            target=self._loop,
+            name=f"derivative-lease-{job_id}",
+            daemon=True,
+        )
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop_event.set()
+        if self._thread.is_alive():
+            self._thread.join(timeout=max(0.0, self._interval + 0.5))
+
+    def _loop(self) -> None:
+        while not self._stop_event.wait(self._interval):
+            self._scheduler._renew_lease(self._job_id, self._claim_token)
 
 
 class _DerivativeSkip(Exception):

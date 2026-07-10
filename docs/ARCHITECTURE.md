@@ -95,10 +95,18 @@ the Maintenance file-health API.
 ### Owner: `backend/derivative_scheduler.py`
 
 Thumbnail and preview work is a durable SQLite state machine. A queued job is
-claimed with a process/worker owner, unique claim token, and 15-minute lease.
-Rendering runs outside database transactions. Completion, retry, skip, and
-failure writes are fenced by the claim token so an expired worker cannot
-overwrite a newer claim.
+claimed with a process/worker owner, unique claim token, and a configurable lease
+(default 900 seconds). Rendering runs outside database transactions. Completion,
+retry, skip, and failure writes are fenced by the claim token so an expired
+worker cannot overwrite a newer claim.
+
+While a worker renders, a fenced lease heartbeat owned by the job ID and claim
+token renews `lease_expires_at` at most once per heartbeat interval (clamped to
+one third of the lease). The heartbeat only updates a row that is still `running`
+with the same claim token, stops before the worker persists its terminal outcome,
+and never overwrites render state on a failed renewal. A healthy heartbeat keeps
+a long render from being duplicated by supervisor or startup recovery when the
+original lease would otherwise expire.
 
 The lifecycle states are `queued`, `running`, `done`, `skipped`, and `failed`.
 Inactive, missing, or superseded sources become `skipped` with a machine-readable
@@ -111,6 +119,18 @@ bad source cannot terminate a worker. A supervisor runs every 30 seconds,
 recovers claims owned by dead workers or expired leases, and restores the
 configured worker count. Startup applies the same recovery policy before
 workers claim new jobs.
+
+`stop()` sets the stop event, wakes all workers, and joins each worker (and the
+supervisor/reconciler) with a per-worker bounded timeout. It records whether
+shutdown completed cleanly; a timeout leaves in-flight renders running rather
+than abandoning them. `start()` prunes stale dead worker thread objects left by
+an incomplete stop before restoring the configured worker count, so a prior
+incomplete stop never permanently refuses to restart.
+
+This lifecycle assumes the maintained single-process deployment: one backend
+process owns the derivative workers, the SQLite queue, and all claim leases. It
+does not support multiple Uvicorn/Gunicorn processes sharing one derivative
+queue; claim fencing and the lease heartbeat are correct only within one process.
 
 Scheduling, claiming, status, and integrity repair all require an active image
 asset whose `mtime_ns` and size match the derivative source identity. The
