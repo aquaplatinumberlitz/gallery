@@ -39,9 +39,7 @@ from .metadata_store import _connect, initialize_database
 logger = logging.getLogger(__name__)
 _SUPERVISOR_INTERVAL_SECONDS = 30
 _MAX_ATTEMPTS = 3
-_CAPACITY_DEFERRED_AUTOMATIC_REASONS = frozenset(
-    {"periodic", "catalog_scan", "catalog_rebuild", "metadata_completion"}
-)
+_CAPACITY_DEFERRED_AUTOMATIC_REASONS = frozenset({"periodic", "catalog_scan", "catalog_rebuild", "metadata_completion"})
 
 
 def _lease_days() -> float:
@@ -714,11 +712,7 @@ class DerivativeScheduler:
                     (priority, job["id"]),
                 )
             return derivative_id, "active"
-        if (
-            derivative["status"] in {"deferred_capacity", "evicted"}
-            and deferrable
-            and not reconsider_deferred_capacity
-        ):
+        if derivative["status"] in {"deferred_capacity", "evicted"} and deferrable and not reconsider_deferred_capacity:
             return derivative_id, "deferred_capacity"
         if derivative["status"] in {"deferred_capacity", "evicted"} or deferrable:
             estimated_bytes = estimated_bytes or self._estimate_new_derivative_bytes(conn)
@@ -1085,8 +1079,7 @@ class DerivativeScheduler:
                                 "priority": priority,
                                 "retry_failed": retry_failed,
                                 "deferrable": True,
-                                "reconsider_deferred_capacity": reason
-                                not in _CAPACITY_DEFERRED_AUTOMATIC_REASONS,
+                                "reconsider_deferred_capacity": reason not in _CAPACITY_DEFERRED_AUTOMATIC_REASONS,
                                 "estimated_bytes": estimated_bytes,
                             }
                             _derivative_id, outcome = self._coalesce_derivative_job(conn, **coalesce_args)

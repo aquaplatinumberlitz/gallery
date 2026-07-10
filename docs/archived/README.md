@@ -2,7 +2,7 @@
 
 Status: Maintained index
 
-Last reviewed: 2026-07-09
+Last reviewed: 2026-07-10
 
 This directory retains completed or superseded plans, historical contracts,
 and dated reports. These files preserve implementation context but do not
@@ -34,3 +34,18 @@ Notable groups include:
   filterable media.
 - Gallery Browse Lifecycle Manager — deferred frontend browse-lifecycle
   refactor criteria retained as historical tech-debt context.
+- Derivative Lifecycle Full Convergence Plan — 7-phase end-to-end
+  implementation for desired thumbnail/preview work creation, reconciliation,
+  policy-aware status, quota/request lifecycle, generated test-artifact
+  exclusions, lease/shutdown resilience, existing-data convergence, and final
+  closeout verification.
+- Derivative Lifecycle Full Convergence Implementation Status — phase-gated
+  execution record and verification results for the derivative lifecycle
+  convergence.
+- Derivative Lifecycle Audit Fix Handoff Prompt — copy-ready OpenCode handoff
+  for the eleven audited scheduler, integrity, quota, HTTP, Admin-state,
+  reconciliation, and catalog-hygiene follow-up fixes.
+- Derivative Lifecycle d98c741 Re-audit Fix Handoff Prompt — copy-ready
+  OpenCode handoff for post-commit eviction finalization, protected unlink,
+  bounded linearizable start/stop, exact integrity repair reporting, and
+  missing regression/closeout evidence.

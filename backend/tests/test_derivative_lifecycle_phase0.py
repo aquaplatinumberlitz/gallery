@@ -152,9 +152,7 @@ def test_phase_7_scan_converges_thumbnail_and_preview_files(
     assert catalog_service.run_once() is True
 
     with sqlite3.connect(isolated_metadata_db) as conn:
-        rows = conn.execute(
-            "SELECT kind, status FROM asset_derivatives ORDER BY kind"
-        ).fetchall()
+        rows = conn.execute("SELECT kind, status FROM asset_derivatives ORDER BY kind").fetchall()
     assert rows == [("preview", "queued"), ("thumbnail", "queued")]
 
     scheduler = DerivativeScheduler(worker_count=1)
