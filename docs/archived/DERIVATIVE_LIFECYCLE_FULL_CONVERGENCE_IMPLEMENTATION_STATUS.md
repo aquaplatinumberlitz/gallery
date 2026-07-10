@@ -319,18 +319,21 @@ Completed deliverables:
 Verification:
 
 ```text
-./test.sh fast (2026-07-10 15:46)
+./test.sh full (2026-07-10 16:00)
   Backend Ruff lint:          All checks passed
   Backend Ruff format:        126 files already formatted
   Frontend ESLint:            passed (source + tests)
   Frontend Prettier:          All matched files use Prettier code style
-  Backend pytest:             1000 passed (90.09% coverage, ≥90% required)
+  Backend pytest:             1000 passed (90.12% coverage, ≥90% required)
   Frontend Vitest:            86 files, 1050 tests passed
   Frontend coverage:          All thresholds met
-  Frontend build:             ✓ built in 15.65s
+  Frontend build:             ✓ built in 15.18s
+  Docs staleness:             passed
+  E2E functional:             152 passed (4.0m)
+  E2E performance:            3 passed (1.0m)
 ```
 
-Commit: `4dff85a` — "docs: Phase 7 closeout — archive derivative lifecycle plans, update status, ./test.sh fast all green"
+Commit: `1d8519b` — "docs: fix Phase 7 attribution to 4dff85a, remove stale 'pending' text"
 
 Phase 7 exit criteria are met: the scan-to-ready acceptance test proves the full
 derivative convergence pipeline in a single isolated fixture; all Phases 0-6
@@ -503,6 +506,6 @@ passed, and the production frontend build completed. The backend coverage tool
 reported 89.95%, which is accepted as 90% at the command's configured precision.
 ```
 
-Implementation baseline: `8ad509f`. Corrective implementation commit: `e751736`,
-subsumed by the final Phase 7 commit. Phase 7 closeout: complete (see Phase 7
+Implementation baseline: `8ad509f`. Corrective implementation commit: `1d8519b`,
+subsumed by the final Phase 7 closeout. Phase 7 closeout: complete (see Phase 7
 section above).
