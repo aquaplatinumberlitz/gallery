@@ -32,3 +32,5 @@ Notable groups include:
   bounded, cursor-paginated `media` stream; the frontend uses infinite query
   paging for search; fielded search keeps metadata filters scoped to
   filterable media.
+- Gallery Browse Lifecycle Manager — deferred frontend browse-lifecycle
+  refactor criteria retained as historical tech-debt context.

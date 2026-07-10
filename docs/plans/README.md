@@ -13,7 +13,4 @@ Active plans:
   proposed end-to-end fix for desired thumbnail/preview work creation,
   reconciliation, policy-aware status, quota/request lifecycle, and generated
   test-artifact exclusions.
-- [Gallery Browse Lifecycle Manager](GALLERY_BROWSE_LIFECYCLE_MANAGER.md) -
-  proposed tech debt note for a future browse lifecycle hardening refactor.
-
 Completed or superseded plans live in [Archived Documentation](../archived/README.md).

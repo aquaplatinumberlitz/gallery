@@ -1,8 +1,12 @@
 # Gallery Browse Lifecycle Manager
 
-Status: Proposed tech debt note
+Status: Archived tech debt note
 
 Last reviewed: 2026-07-02
+Archived: 2026-07-10
+
+Current source of truth: [Architecture](../ARCHITECTURE.md), maintained
+frontend documentation, and the frontend source files.
 
 ## Context
 
