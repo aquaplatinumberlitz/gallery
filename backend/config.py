@@ -38,6 +38,16 @@ DERIVATIVE_VARIANTS = {
     "thumbnail": [{"name": "thumb_512", "max_long_edge": 512, "quality": 78}],
     "preview": [{"name": "preview_1440", "max_long_edge": 1440, "quality": 86}],
 }
+DERIVATIVE_RECONCILE_ENABLED = _env_flag("GALLERY_DERIVATIVE_RECONCILE_ENABLED", default=True)
+DERIVATIVE_RECONCILE_INTERVAL_SECONDS = max(
+    300, int(os.getenv("GALLERY_DERIVATIVE_RECONCILE_INTERVAL_SECONDS", "21600"))
+)
+DERIVATIVE_RECONCILE_BATCH_SIZE = max(
+    25, min(int(os.getenv("GALLERY_DERIVATIVE_RECONCILE_BATCH_SIZE", "250")), 2000)
+)
+DERIVATIVE_RECONCILE_YIELD_SECONDS = max(
+    0.0, float(os.getenv("GALLERY_DERIVATIVE_RECONCILE_YIELD_SECONDS", "0.02"))
+)
 
 SCAN_PERF_LOGS_ENABLED = os.getenv("SCAN_PERF_LOGS", "1" if os.getenv("PRODUCTION") != "1" else "0").lower() not in {
     "0",

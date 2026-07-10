@@ -10,6 +10,7 @@ from typing import Any
 
 from .catalog_maintenance_gate import release_maintenance_gate, try_acquire_maintenance_gate
 from .config import (
+    DERIVATIVE_RECONCILE_ENABLED,
     GALLERY_CATALOG_JOB_MAX_QUEUE_WAIT_SECONDS,
     GALLERY_CATALOG_SERVICE_ENABLED,
     GALLERY_CATALOG_WORKERS,
@@ -254,6 +255,22 @@ def _scan_paths_for_job(job: dict[str, Any]) -> tuple[int, list[str]]:
     return library_id, [str(Path(scope_path).resolve())]
 
 
+def _reconcile_derivatives_after_catalog_commit(job: dict[str, Any], library_id: int) -> None:
+    """Apply the scheduler policy only after successful catalog activation."""
+    if not DERIVATIVE_RECONCILE_ENABLED:
+        return
+    from .derivative_scheduler import scheduler
+
+    try:
+        scope_path = job.get("scope_path")
+        scheduler.reconcile_desired_derivatives(
+            **({"scope_path": scope_path} if scope_path else {"library_id": library_id}),
+            reason=f"catalog_{job['type']}",
+        )
+    except Exception:  # noqa: BLE001
+        LOGGER.exception("Derivative reconciliation failed after catalog job %s", job["id"])
+
+
 def execute_scan_job(job: dict[str, Any]) -> bool:
     """Run one claimed scan job through the catalog-owned pipeline."""
     job_id = int(job["id"])
@@ -318,6 +335,7 @@ def execute_scan_job(job: dict[str, Any]) -> bool:
             message=success_message,
             counters=counters,
         )
+        _reconcile_derivatives_after_catalog_commit(job, library_id)
         return True
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("Catalog scan job %s failed: %s", job_id, exc)
@@ -419,6 +437,7 @@ def execute_rebuild_job(job: dict[str, Any]) -> bool:
             message=success_message,
             counters=counters,
         )
+        _reconcile_derivatives_after_catalog_commit(job, library_id)
         return True
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("Catalog rebuild job %s failed: %s", job_id, exc)

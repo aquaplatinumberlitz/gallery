@@ -11,9 +11,16 @@ vi.mock("@/services/api", () => ({
 
 const mockStatus = {
   library_id: 1,
+  warm_enabled: true,
+  policy: "warm" as const,
+  converged: false,
   total_assets: 100,
   ready_derivatives: 45,
   expected_derivatives: 200,
+  desired_derivatives: 200,
+  actionable_missing_derivatives: 155,
+  deferred_derivatives: 0,
+  terminal_failed_derivatives: 0,
   quota_bytes: 1_073_741_824,
   quota_used_bytes: 256_000_000,
   quota_utilization: 0.238,

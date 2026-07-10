@@ -76,27 +76,15 @@ def test_schedule_coalesces_jobs_and_reports_library_status(
 
     library_id = list_libraries()[0]["id"]
     status = scheduler.library_status(library_id)
-    assert status == {
-        "library_id": library_id,
-        "total_assets": 1,
-        "ready_derivatives": 0,
-        "expected_derivatives": sum(len(variants) for variants in DERIVATIVE_VARIANTS.values()),
-        "by_kind": {
-            "thumbnail": {"ready_derivatives": 0, "expected_derivatives": len(DERIVATIVE_VARIANTS["thumbnail"])},
-            "preview": {"ready_derivatives": 0, "expected_derivatives": len(DERIVATIVE_VARIANTS["preview"])},
-        },
-        "quota_bytes": 1024,
-        "quota_used_bytes": 0,
-        "quota_utilization": 0.0,
-        "queued_jobs": 1,
-        "running_jobs": 0,
-        "failed_jobs": 0,
-        "skipped_jobs": 0,
-        "configured_worker_count": 8,
-        "alive_worker_count": 0,
-        "worker_healthy": False,
-        "oldest_running_age_seconds": None,
-    }
+    assert status["library_id"] == library_id
+    assert status["policy"] == "warm"
+    assert status["converged"] is False
+    assert status["actionable_missing_derivatives"] == 1
+    assert status["expected_derivatives"] == sum(len(variants) for variants in DERIVATIVE_VARIANTS.values())
+    assert status["by_kind"]["thumbnail"]["queued_derivatives"] == 1
+    assert status["by_kind"]["preview"]["missing_derivatives"] == 1
+    assert status["queued_jobs"] == 1
+    assert status["quota_bytes"] == 1024
     with pytest.raises(KeyError):
         scheduler.library_status(999_999)
     with pytest.raises(KeyError):
@@ -231,6 +219,125 @@ def test_derivative_variant_uses_named_and_custom_variants():
         == thumbnail["name"]
     )
     assert derivative_variant("thumbnail", 333, 71, "jpeg") == "edge-333-q-71-jpeg"
+
+
+def test_reconcile_current_variants_is_idempotent(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    _image, _asset_id = _catalog_image(isolated_gallery_root)
+    scheduler = DerivativeScheduler()
+    library_id = list_libraries()[0]["id"]
+
+    first = scheduler.reconcile_desired_derivatives(library_id=library_id, reason="phase_1")
+    second = scheduler.reconcile_desired_derivatives(library_id=library_id, reason="phase_1")
+
+    assert first.created_derivative_rows == 2
+    assert first.created_jobs == 2
+    assert second.created_derivative_rows == 0
+    assert second.created_jobs == 0
+    assert second.already_active == 2
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        assert conn.execute("SELECT count(*) FROM asset_derivatives").fetchone()[0] == 2
+        assert conn.execute("SELECT count(*) FROM derivative_jobs").fetchone()[0] == 2
+
+
+def test_reconcile_repairs_ready_file_and_job_row_gaps(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+    tmp_path: Path,
+):
+    _image, asset_id = _catalog_image(isolated_gallery_root)
+    scheduler = DerivativeScheduler()
+    thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
+    derivative_id = scheduler.schedule_derivative(asset_id, "thumbnail", str(thumbnail["name"]))
+    missing_cache = tmp_path / "missing.webp"
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute(
+            "UPDATE asset_derivatives SET status = 'ready', cache_path = ? WHERE id = ?",
+            (str(missing_cache), derivative_id),
+        )
+        conn.execute("DELETE FROM derivative_jobs WHERE derivative_id = ?", (derivative_id,))
+
+    summary = scheduler.reconcile_desired_derivatives(
+        asset_ids=[asset_id], kinds=["thumbnail"], reason="phase_1"
+    )
+
+    assert summary.requeued_without_job == 1
+    assert summary.created_jobs == 1
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        assert conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (derivative_id,)).fetchone()[0] == "queued"
+        assert conn.execute("SELECT count(*) FROM derivative_jobs WHERE derivative_id = ?", (derivative_id,)).fetchone()[0] == 1
+
+
+def test_reconcile_keeps_current_terminal_failure_without_explicit_retry(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    _image, asset_id = _catalog_image(isolated_gallery_root)
+    scheduler = DerivativeScheduler()
+    library_id = list_libraries()[0]["id"]
+    thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
+    derivative_id = scheduler.schedule_derivative(asset_id, "thumbnail", str(thumbnail["name"]))
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute("UPDATE asset_derivatives SET status = 'failed' WHERE id = ?", (derivative_id,))
+        conn.execute("UPDATE derivative_jobs SET state = 'failed' WHERE derivative_id = ?", (derivative_id,))
+
+    summary = scheduler.reconcile_desired_derivatives(library_id=library_id, reason="phase_1")
+
+    assert summary.terminal_failed == 1
+    assert summary.created_jobs == 1  # The preview remains absent and is scheduled.
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        assert conn.execute("SELECT count(*) FROM derivative_jobs WHERE derivative_id = ?", (derivative_id,)).fetchone()[0] == 1
+
+
+def test_automatic_reconcile_respects_warm_enabled_but_manual_warm_overrides_it(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    _image, _asset_id = _catalog_image(isolated_gallery_root)
+    scheduler = DerivativeScheduler()
+    library_id = list_libraries()[0]["id"]
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute("UPDATE libraries SET warm_enabled = 0 WHERE id = ?", (library_id,))
+
+    automatic = scheduler.reconcile_desired_derivatives(library_id=library_id, reason="phase_2")
+    manual = scheduler.warm_library(library_id)
+
+    assert automatic.created_jobs == 0
+    assert manual["derivatives_considered"] == sum(len(variants) for variants in DERIVATIVE_VARIANTS.values())
+
+
+def test_library_status_makes_preview_only_warm_gap_actionable_and_on_demand_informational(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+    tmp_path: Path,
+):
+    _image, asset_id = _catalog_image(isolated_gallery_root)
+    scheduler = DerivativeScheduler()
+    library_id = list_libraries()[0]["id"]
+    thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
+    derivative_id = scheduler.schedule_derivative(asset_id, "thumbnail", str(thumbnail["name"]))
+    cache_path = tmp_path / "thumbnail.webp"
+    cache_path.write_bytes(b"ready")
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute(
+            "UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = 5 WHERE id = ?",
+            (str(cache_path), derivative_id),
+        )
+
+    warm = scheduler.library_status(library_id)
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute("UPDATE libraries SET warm_enabled = 0 WHERE id = ?", (library_id,))
+    on_demand = scheduler.library_status(library_id)
+
+    assert warm["by_kind"]["preview"]["missing_derivatives"] == 1
+    assert warm["actionable_missing_derivatives"] == 1
+    assert warm["converged"] is False
+    assert on_demand["policy"] == "on_demand"
+    assert on_demand["desired_derivatives"] == 0
+    assert on_demand["actionable_missing_derivatives"] == 0
+    assert on_demand["converged"] is True
 
 
 def test_missing_source_after_claim_is_skipped_without_escaping(

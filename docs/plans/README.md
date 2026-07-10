@@ -13,4 +13,6 @@ Active plans:
   proposed end-to-end fix for desired thumbnail/preview work creation,
   reconciliation, policy-aware status, quota/request lifecycle, and generated
   test-artifact exclusions.
+- [Derivative Lifecycle Implementation Status](DERIVATIVE_LIFECYCLE_FULL_CONVERGENCE_IMPLEMENTATION_STATUS.md) -
+  phase-gated execution record and verification results.
 Completed or superseded plans live in [Archived Documentation](../archived/README.md).

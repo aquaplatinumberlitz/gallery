@@ -260,12 +260,14 @@ export interface LibraryCreateRequest {
   import_paths?: string[];
   exclusion_patterns?: string[];
   name?: string;
+  warm_enabled?: boolean;
 }
 
 export interface LibraryUpdateRequest {
   name?: string;
   import_paths?: string[];
   exclusion_patterns?: string[];
+  warm_enabled?: boolean;
 }
 
 export interface LibraryStats {
@@ -346,15 +348,28 @@ export interface LibraryInspectorResource {
 
 export interface GeneratedImagesStatus {
   library_id: number;
+  warm_enabled: boolean;
+  policy: "warm" | "on_demand";
+  converged: boolean;
   total_assets: number;
   ready_derivatives: number;
   expected_derivatives: number;
+  desired_derivatives: number;
+  actionable_missing_derivatives: number;
+  deferred_derivatives: number;
+  terminal_failed_derivatives: number;
   by_kind?: Partial<
     Record<
       "thumbnail" | "preview",
       {
         ready_derivatives: number;
         expected_derivatives: number;
+        desired_derivatives: number;
+        missing_derivatives: number;
+        queued_derivatives: number;
+        running_derivatives: number;
+        failed_derivatives: number;
+        deferred_derivatives: number;
       }
     >
   >;

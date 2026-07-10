@@ -342,6 +342,17 @@ class MetadataLifecycleWorker:
             # Complete job + materialize asset state in another short transaction
             with _DB_LOCK, _connect() as conn:
                 complete_metadata_job(conn, job)
+                asset = conn.execute(
+                    "SELECT id FROM assets WHERE path = ? AND type = 'image' AND deleted_at IS NULL AND offline = 0",
+                    (job.path,),
+                ).fetchone()
+            if asset is not None:
+                from .derivative_scheduler import scheduler
+
+                scheduler.reconcile_desired_derivatives(
+                    asset_ids=[int(asset["id"])],
+                    reason="metadata_completion",
+                )
         except Exception as exc:  # noqa: BLE001
             self._logger.exception("Metadata job %s failed: %s", job.path, exc)
             try:

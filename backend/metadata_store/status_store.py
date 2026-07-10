@@ -821,6 +821,7 @@ def build_global_runtime() -> GlobalRuntime:
     from ..watcher import get_watcher_status
 
     catalog_runtime = ensure_running(service_enabled=True) if GALLERY_CATALOG_SERVICE_ENABLED else runtime_status()
+    derivative_reconcile = derivative_scheduler.reconciliation_status()
 
     with _DB_LOCK, _connect() as conn:
         catalog_running = int(
@@ -910,6 +911,12 @@ def build_global_runtime() -> GlobalRuntime:
         "derivative_oldest_running_age_seconds": (
             max(0.0, float(oldest_derivative)) if oldest_derivative is not None else None
         ),
+        "derivative_reconcile_enabled": bool(derivative_reconcile["enabled"]),
+        "derivative_reconcile_running": bool(derivative_reconcile["running"]),
+        "derivative_last_reconcile_started_at": derivative_reconcile["last_reconcile_started_at"],
+        "derivative_last_reconcile_completed_at": derivative_reconcile["last_reconcile_completed_at"],
+        "derivative_last_reconcile_status": derivative_reconcile["last_reconcile_status"],
+        "derivative_last_reconcile_created_jobs": int(derivative_reconcile["last_reconcile_created_jobs"]),
     }
 
 

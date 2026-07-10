@@ -8,7 +8,9 @@ import sys
 import threading
 import time
 import uuid
+from collections.abc import Sequence
 from contextlib import suppress
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -18,7 +20,16 @@ if not __package__:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     __package__ = "backend"
 
-from .config import DERIVATIVE_QUOTA_BYTES, DERIVATIVE_VARIANTS, DERIVATIVE_WORKER_COUNT, THUMBNAIL_CACHE_DIR
+from .config import (
+    DERIVATIVE_QUOTA_BYTES,
+    DERIVATIVE_RECONCILE_BATCH_SIZE,
+    DERIVATIVE_RECONCILE_ENABLED,
+    DERIVATIVE_RECONCILE_INTERVAL_SECONDS,
+    DERIVATIVE_RECONCILE_YIELD_SECONDS,
+    DERIVATIVE_VARIANTS,
+    DERIVATIVE_WORKER_COUNT,
+    THUMBNAIL_CACHE_DIR,
+)
 from .errors import APIError
 from .metadata_store import _connect, initialize_database
 
@@ -26,6 +37,27 @@ logger = logging.getLogger(__name__)
 _LEASE_DAYS = 15 / (24 * 60)
 _SUPERVISOR_INTERVAL_SECONDS = 30
 _MAX_ATTEMPTS = 3
+
+
+@dataclass
+class DerivativeReconcileSummary:
+    """Bounded counters from one configured derivative reconciliation pass."""
+
+    assets_considered: int = 0
+    desired_derivatives: int = 0
+    already_ready: int = 0
+    already_active: int = 0
+    created_derivative_rows: int = 0
+    created_jobs: int = 0
+    requeued_without_job: int = 0
+    terminal_failed: int = 0
+    terminal_skipped: int = 0
+    deferred_capacity: int = 0
+    source_unavailable: int = 0
+
+    def as_dict(self) -> dict[str, int]:
+        """Serialize counters without candidate path data."""
+        return asdict(self)
 
 
 def _ensure_database() -> None:
@@ -66,6 +98,16 @@ class DerivativeScheduler:
         self._served_paths: set[str] = set()
         self._threads: list[threading.Thread] = []
         self._supervisor_thread: threading.Thread | None = None
+        self._reconciler_thread: threading.Thread | None = None
+        self._reconciler_stop_event = threading.Event()
+        self._reconcile_status: dict[str, Any] = {
+            "enabled": DERIVATIVE_RECONCILE_ENABLED,
+            "running": False,
+            "last_reconcile_started_at": None,
+            "last_reconcile_completed_at": None,
+            "last_reconcile_status": None,
+            "last_reconcile_created_jobs": 0,
+        }
         self._instance_id = uuid.uuid4().hex
 
     def start(self) -> None:
@@ -87,13 +129,16 @@ class DerivativeScheduler:
             )
             self._supervisor_thread.start()
             self._wake_event.set()
+            self._start_reconciler()
 
     def stop(self) -> None:
         """Stop workers and wait briefly for in-flight generation to finish."""
         with self._lifecycle_lock:
             threads = self._threads
             supervisor = self._supervisor_thread
+            reconciler = self._reconciler_thread
             self._stop_event.set()
+            self._reconciler_stop_event.set()
             self._wake_event.set()
         deadline = time.monotonic() + 1
         for thread in threads:
@@ -102,9 +147,14 @@ class DerivativeScheduler:
         if supervisor is not None:
             with suppress(RuntimeError):
                 supervisor.join(timeout=max(0.0, deadline - time.monotonic()))
+        if reconciler is not None:
+            with suppress(RuntimeError):
+                reconciler.join(timeout=max(0.0, deadline - time.monotonic()))
         with self._lifecycle_lock:
             self._threads = [thread for thread in threads if thread.is_alive()]
             self._supervisor_thread = supervisor if supervisor is not None and supervisor.is_alive() else None
+            self._reconciler_thread = reconciler if reconciler is not None and reconciler.is_alive() else None
+            self._reconcile_status["running"] = bool(self._reconciler_thread)
 
     def is_running(self) -> bool:
         """Return whether at least one configured worker is alive."""
@@ -115,6 +165,68 @@ class DerivativeScheduler:
         """Return the current number of alive derivative workers."""
         with self._lifecycle_lock:
             return sum(thread.is_alive() for thread in self._threads)
+
+    def reconciliation_status(self) -> dict[str, Any]:
+        """Return bounded desired-state runtime diagnostics."""
+        with self._lifecycle_lock:
+            return dict(self._reconcile_status)
+
+    def _start_reconciler(self) -> None:
+        """Start startup catch-up and periodic reconciliation without blocking readiness."""
+        if not DERIVATIVE_RECONCILE_ENABLED:
+            return
+        if self._reconciler_thread is not None and self._reconciler_thread.is_alive():
+            return
+        self._reconciler_stop_event.clear()
+        self._reconciler_thread = threading.Thread(
+            target=self._reconciler_loop,
+            name="derivative-reconciler",
+            daemon=True,
+        )
+        self._reconciler_thread.start()
+
+    def _reconciler_loop(self) -> None:
+        first = True
+        while not self._reconciler_stop_event.is_set():
+            self._run_reconcile_all("startup" if first else "periodic")
+            first = False
+            if self._reconciler_stop_event.wait(DERIVATIVE_RECONCILE_INTERVAL_SECONDS):
+                break
+        with self._lifecycle_lock:
+            self._reconcile_status["running"] = False
+
+    def _run_reconcile_all(self, reason: str) -> None:
+        """Apply automatic desired-state policy to all warm-enabled libraries."""
+        from .metadata_store import list_libraries
+
+        with self._lifecycle_lock:
+            self._reconcile_status.update(
+                running=True,
+                last_reconcile_started_at=time.time(),
+                last_reconcile_status="running",
+                last_reconcile_created_jobs=0,
+            )
+        created_jobs = 0
+        try:
+            for library in list_libraries():
+                if self._reconciler_stop_event.is_set():
+                    break
+                if not bool(library["warm_enabled"]):
+                    continue
+                created_jobs += self.reconcile_desired_derivatives(
+                    library_id=int(library["id"]), reason=reason
+                ).created_jobs
+            status = "ok"
+        except Exception:  # noqa: BLE001
+            logger.exception("Derivative %s reconciliation failed", reason)
+            status = "error"
+        with self._lifecycle_lock:
+            self._reconcile_status.update(
+                running=False,
+                last_reconcile_completed_at=time.time(),
+                last_reconcile_status=status,
+                last_reconcile_created_jobs=created_jobs,
+            )
 
     def _worker_id(self, slot: int) -> str:
         return f"{self._instance_id}:derivative-worker-{slot}"
@@ -127,6 +239,86 @@ class DerivativeScheduler:
             name=f"derivative-worker-{slot}",
             daemon=True,
         )
+
+    @staticmethod
+    def _configured_variants(kinds: Sequence[str] | None) -> list[tuple[str, dict[str, Any]]]:
+        """Validate and flatten the configured variants requested by a caller."""
+        selected_kinds = list(DERIVATIVE_VARIANTS) if kinds is None else list(kinds)
+        unknown = next((kind for kind in selected_kinds if kind not in DERIVATIVE_VARIANTS), None)
+        if unknown is not None:
+            raise ValueError(f"Unsupported derivative kind: {unknown}")
+        return [(kind, variant) for kind in selected_kinds for variant in DERIVATIVE_VARIANTS[kind]]
+
+    def _coalesce_derivative_job(
+        self,
+        conn: sqlite3.Connection,
+        *,
+        asset_id: int,
+        kind: str,
+        variant: str,
+        source_mtime_ns: float,
+        source_size: int,
+        max_long_edge: int,
+        quality: int,
+        format: str,
+        priority: int,
+        retry_failed: bool,
+    ) -> tuple[int, str]:
+        """Create or repair one identity while the caller owns a write transaction."""
+        inserted = conn.execute(
+            """
+            INSERT INTO asset_derivatives (
+              asset_id, kind, variant, source_mtime_ns, source_size, format,
+              quality, max_long_edge, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued')
+            ON CONFLICT(asset_id, kind, variant, source_mtime_ns, source_size) DO NOTHING
+            """,
+            (asset_id, kind, variant, source_mtime_ns, source_size, format, quality, max_long_edge),
+        ).rowcount == 1
+        derivative = conn.execute(
+            """
+            SELECT id, status, cache_path FROM asset_derivatives
+            WHERE asset_id = ? AND kind = ? AND variant = ?
+              AND source_mtime_ns = ? AND source_size = ?
+            """,
+            (asset_id, kind, variant, source_mtime_ns, source_size),
+        ).fetchone()
+        if derivative is None:
+            raise RuntimeError("Derivative identity was not available after insert")
+        derivative_id = int(derivative["id"])
+        if derivative["status"] == "ready" and derivative["cache_path"] and Path(derivative["cache_path"]).is_file():
+            return derivative_id, "ready"
+        if derivative["status"] in {"failed", "skipped"} and not retry_failed:
+            return derivative_id, str(derivative["status"])
+        job = conn.execute(
+            """
+            SELECT id, priority FROM derivative_jobs
+            WHERE derivative_id = ? AND state IN ('queued', 'running')
+            ORDER BY id DESC LIMIT 1
+            """,
+            (derivative_id,),
+        ).fetchone()
+        if job is not None:
+            if priority < int(job["priority"]):
+                conn.execute(
+                    "UPDATE derivative_jobs SET priority = ?, updated_at = julianday('now') WHERE id = ?",
+                    (priority, job["priority"]),
+                )
+            return derivative_id, "active"
+        conn.execute(
+            "INSERT INTO derivative_jobs (derivative_id, priority, state) VALUES (?, ?, 'queued')",
+            (derivative_id, priority),
+        )
+        conn.execute(
+            """
+            UPDATE asset_derivatives
+            SET status = 'queued', cache_path = NULL, byte_size = NULL, last_error = NULL,
+                updated_at = julianday('now')
+            WHERE id = ?
+            """,
+            (derivative_id,),
+        )
+        return derivative_id, "created" if inserted else "requeued"
 
     def schedule_derivative(
         self,
@@ -149,67 +341,35 @@ class DerivativeScheduler:
         format = format or "webp"
         _ensure_database()
         with _connect() as conn:
-            conn.execute("BEGIN IMMEDIATE")
             asset = conn.execute(
                 "SELECT path FROM assets WHERE id = ? AND type = 'image' AND deleted_at IS NULL AND offline = 0",
                 (asset_id,),
             ).fetchone()
-            if asset is None:
+        if asset is None:
+            raise KeyError(asset_id)
+        stat = Path(asset["path"]).stat()
+        with _connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            current = conn.execute(
+                "SELECT 1 FROM assets WHERE id = ? AND type = 'image' AND deleted_at IS NULL AND offline = 0",
+                (asset_id,),
+            ).fetchone()
+            if current is None:
                 raise KeyError(asset_id)
-            source = Path(asset["path"])
-            stat = source.stat()
-            source_mtime_ns = float(stat.st_mtime_ns)
-            conn.execute(
-                """
-                INSERT INTO asset_derivatives (
-                  asset_id, kind, variant, source_mtime_ns, source_size, format,
-                  quality, max_long_edge, status
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued')
-                ON CONFLICT(asset_id, kind, variant, source_mtime_ns, source_size) DO NOTHING
-                """,
-                (asset_id, kind, variant, source_mtime_ns, stat.st_size, format, quality, max_long_edge),
+            derivative_id, _outcome = self._coalesce_derivative_job(
+                conn,
+                asset_id=asset_id,
+                kind=kind,
+                variant=variant,
+                source_mtime_ns=float(stat.st_mtime_ns),
+                source_size=stat.st_size,
+                max_long_edge=max_long_edge,
+                quality=quality,
+                format=format,
+                priority=priority,
+                retry_failed=True,
             )
-            derivative = conn.execute(
-                """
-                SELECT id, status, cache_path FROM asset_derivatives
-                WHERE asset_id = ? AND kind = ? AND variant = ?
-                  AND source_mtime_ns = ? AND source_size = ?
-                """,
-                (asset_id, kind, variant, source_mtime_ns, stat.st_size),
-            ).fetchone()
-            derivative_id = int(derivative["id"])
-            if (
-                derivative["status"] == "ready"
-                and derivative["cache_path"]
-                and Path(derivative["cache_path"]).is_file()
-            ):
-                return derivative_id
-            job = conn.execute(
-                """
-                SELECT id, priority FROM derivative_jobs
-                WHERE derivative_id = ? AND state IN ('queued', 'running')
-                ORDER BY id DESC LIMIT 1
-                """,
-                (derivative_id,),
-            ).fetchone()
-            if job is not None:
-                if priority < int(job["priority"]):
-                    conn.execute(
-                        "UPDATE derivative_jobs SET priority = ?, updated_at = julianday('now') WHERE id = ?",
-                        (priority, job["id"]),
-                    )
-                self._wake_event.set()
-                return derivative_id
-            conn.execute(
-                "INSERT INTO derivative_jobs (derivative_id, priority, state) VALUES (?, ?, 'queued')",
-                (derivative_id, priority),
-            )
-            conn.execute(
-                "UPDATE asset_derivatives SET status = 'queued', last_error = NULL, updated_at = julianday('now') "
-                "WHERE id = ?",
-                (derivative_id,),
-            )
-        self._wake_event.set()
+            self._wake_event.set()
         return derivative_id
 
     def get_derivative_status(self, asset_id: int, kind: str, variant: str) -> str | None:
@@ -295,6 +455,129 @@ class DerivativeScheduler:
         with self._file_lock:
             self._served_paths.discard(cache_path)
 
+    def reconcile_desired_derivatives(
+        self,
+        *,
+        library_id: int | None = None,
+        scope_path: str | None = None,
+        asset_ids: Sequence[int] | None = None,
+        kinds: Sequence[str] | None = None,
+        priority: int = 3,
+        retry_failed: bool = False,
+        reason: str,
+        respect_warm_policy: bool = True,
+    ) -> DerivativeReconcileSummary:
+        """Create/coalesce the configured current variants for exactly one scope."""
+        if sum(value is not None for value in (library_id, scope_path, asset_ids)) != 1:
+            raise ValueError("Exactly one of library_id, scope_path, or asset_ids is required")
+        variants = self._configured_variants(kinds)
+        priority = max(0, min(priority, 3))
+        _ensure_database()
+        with _connect() as conn:
+            scope_clause = ""
+            scope_params: list[Any] = []
+            if scope_path is not None:
+                from .metadata_store import get_library_for_path
+
+                library = get_library_for_path(scope_path)
+                if library is None:
+                    raise KeyError(scope_path)
+                library_id = int(library["id"])
+                path = str(Path(scope_path).resolve())
+                escaped_path = path.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+                scope_clause = " AND (a.path = ? OR a.path LIKE ? ESCAPE '\\')"
+                scope_params = [path, escaped_path.rstrip("/") + "/%"]
+            if library_id is not None:
+                library = conn.execute("SELECT warm_enabled FROM libraries WHERE id = ?", (library_id,)).fetchone()
+                if library is None:
+                    raise KeyError(library_id)
+                if respect_warm_policy and not bool(library["warm_enabled"]):
+                    return DerivativeReconcileSummary()
+                where = "a.library_id = ?"
+                params: list[Any] = [library_id, *scope_params]
+            else:
+                requested_ids = [int(asset_id) for asset_id in asset_ids or ()]
+                if not requested_ids:
+                    return DerivativeReconcileSummary()
+                where = f"a.id IN ({', '.join('?' for _ in requested_ids)})"
+                if respect_warm_policy:
+                    where += " AND EXISTS (SELECT 1 FROM libraries l WHERE l.id = a.library_id AND l.warm_enabled = 1)"
+                params = [*requested_ids, *scope_params]
+            assets = conn.execute(
+                f"""
+                SELECT a.id, a.path, a.mtime_ns, a.size
+                FROM assets a
+                WHERE {where} AND a.type = 'image' AND a.deleted_at IS NULL AND a.offline = 0
+                {scope_clause}
+                ORDER BY a.id
+                """,
+                params,
+            ).fetchall()
+
+        summary = DerivativeReconcileSummary(assets_considered=len(assets))
+        candidates: list[tuple[int, float, int]] = []
+        for asset in assets:
+            try:
+                stat = Path(asset["path"]).stat()
+            except OSError:
+                summary.source_unavailable += len(variants)
+                continue
+            if asset["mtime_ns"] is None or asset["size"] is None or (
+                float(asset["mtime_ns"]) != float(stat.st_mtime_ns) or int(asset["size"]) != stat.st_size
+            ):
+                summary.source_unavailable += len(variants)
+                continue
+            candidates.append((int(asset["id"]), float(stat.st_mtime_ns), stat.st_size))
+        summary.desired_derivatives = len(candidates) * len(variants)
+
+        for offset in range(0, len(candidates), DERIVATIVE_RECONCILE_BATCH_SIZE):
+            with _connect() as conn:
+                conn.execute("BEGIN IMMEDIATE")
+                for asset_id, mtime_ns, size in candidates[offset : offset + DERIVATIVE_RECONCILE_BATCH_SIZE]:
+                    current = conn.execute(
+                        """
+                        SELECT 1 FROM assets
+                        WHERE id = ? AND type = 'image' AND deleted_at IS NULL AND offline = 0
+                          AND mtime_ns = ? AND size = ?
+                        """,
+                        (asset_id, mtime_ns, size),
+                    ).fetchone()
+                    if current is None:
+                        summary.source_unavailable += len(variants)
+                        continue
+                    for kind, variant in variants:
+                        _derivative_id, outcome = self._coalesce_derivative_job(
+                            conn,
+                            asset_id=asset_id,
+                            kind=kind,
+                            variant=str(variant["name"]),
+                            source_mtime_ns=mtime_ns,
+                            source_size=size,
+                            max_long_edge=int(variant["max_long_edge"]),
+                            quality=int(variant["quality"]),
+                            format="webp",
+                            priority=priority,
+                            retry_failed=retry_failed,
+                        )
+                        if outcome == "ready":
+                            summary.already_ready += 1
+                        elif outcome == "active":
+                            summary.already_active += 1
+                        elif outcome == "created":
+                            summary.created_derivative_rows += 1
+                            summary.created_jobs += 1
+                        elif outcome == "requeued":
+                            summary.requeued_without_job += 1
+                            summary.created_jobs += 1
+                        elif outcome == "failed":
+                            summary.terminal_failed += 1
+                        elif outcome == "skipped":
+                            summary.terminal_skipped += 1
+            self._wake_event.set()
+            if offset + DERIVATIVE_RECONCILE_BATCH_SIZE < len(candidates) and DERIVATIVE_RECONCILE_YIELD_SECONDS:
+                time.sleep(DERIVATIVE_RECONCILE_YIELD_SECONDS)
+        return summary
+
     def warm_library(self, library_id: int, kind: str | None = None) -> dict[str, int | str | None]:
         """Schedule default derivative variants for a library.
 
@@ -340,12 +623,24 @@ class DerivativeScheduler:
             (kind, str(variant["name"])) for kind, variants in DERIVATIVE_VARIANTS.items() for variant in variants
         ]
         by_kind: dict[str, dict[str, int]] = {
-            kind: {"ready_derivatives": 0, "expected_derivatives": 0} for kind in DERIVATIVE_VARIANTS
+            kind: {
+                "ready_derivatives": 0,
+                "expected_derivatives": 0,
+                "desired_derivatives": 0,
+                "missing_derivatives": 0,
+                "queued_derivatives": 0,
+                "running_derivatives": 0,
+                "failed_derivatives": 0,
+                "deferred_derivatives": 0,
+            }
+            for kind in DERIVATIVE_VARIANTS
         }
         expected_derivatives_per_asset = len(configured_variants)
         with _connect() as conn:
-            if conn.execute("SELECT 1 FROM libraries WHERE id = ?", (library_id,)).fetchone() is None:
+            library = conn.execute("SELECT warm_enabled FROM libraries WHERE id = ?", (library_id,)).fetchone()
+            if library is None:
                 raise KeyError(library_id)
+            warm_enabled = bool(library["warm_enabled"])
             total_assets = int(
                 conn.execute(
                     """
@@ -358,31 +653,45 @@ class DerivativeScheduler:
             if configured_variants:
                 variant_filter = " OR ".join("(d.kind = ? AND d.variant = ?)" for _ in configured_variants)
                 variant_params = [value for pair in configured_variants for value in pair]
-                ready_rows = conn.execute(
+                derivative_rows = conn.execute(
                     f"""
-                    SELECT d.kind, d.cache_path, d.byte_size
+                    SELECT d.kind, d.status, d.cache_path, d.byte_size,
+                      (SELECT j.state FROM derivative_jobs j WHERE j.derivative_id = d.id ORDER BY j.id DESC LIMIT 1)
+                        AS latest_job_state
                     FROM asset_derivatives d JOIN assets a ON a.id = d.asset_id
-                    WHERE a.library_id = ? AND a.deleted_at IS NULL AND a.offline = 0
-                      AND d.status = 'ready'
+                    WHERE a.library_id = ? AND a.type = 'image' AND a.deleted_at IS NULL AND a.offline = 0
                       AND d.source_mtime_ns = a.mtime_ns
                       AND d.source_size = a.size
-                      AND d.cache_path IS NOT NULL
                       AND ({variant_filter})
                     """,
                     (library_id, *variant_params),
                 ).fetchall()
             else:
-                ready_rows = []
+                derivative_rows = []
             ready = 0
             used = 0
+            queued_without_job_by_kind = dict.fromkeys(DERIVATIVE_VARIANTS, 0)
             for kind, variants in DERIVATIVE_VARIANTS.items():
                 by_kind[kind]["expected_derivatives"] = total_assets * len(variants)
-            for row in ready_rows:
-                if Path(row["cache_path"]).is_file():
+                by_kind[kind]["desired_derivatives"] = total_assets * len(variants) if warm_enabled else 0
+            for row in derivative_rows:
+                kind = str(row["kind"])
+                if row["status"] == "ready" and row["cache_path"] and Path(row["cache_path"]).is_file():
                     ready += 1
                     used += row["byte_size"] or 0
-                    if row["kind"] in by_kind:
-                        by_kind[str(row["kind"])]["ready_derivatives"] += 1
+                    by_kind[kind]["ready_derivatives"] += 1
+                elif row["status"] == "queued":
+                    by_kind[kind]["queued_derivatives"] += 1
+                    if row["latest_job_state"] not in {"queued", "running"}:
+                        queued_without_job_by_kind[kind] += 1
+                elif row["status"] == "running":
+                    by_kind[kind]["running_derivatives"] += 1
+                    if row["latest_job_state"] != "running":
+                        queued_without_job_by_kind[kind] += 1
+                elif row["status"] == "failed":
+                    by_kind[kind]["failed_derivatives"] += 1
+                elif row["status"] == "deferred_capacity":
+                    by_kind[kind]["deferred_derivatives"] += 1
             job_counts = {"queued": 0, "running": 0, "failed": 0, "skipped": 0}
             oldest_running_age_seconds: float | None = None
             if configured_variants:
@@ -413,11 +722,32 @@ class DerivativeScheduler:
                     if state == "running" and row["oldest_age"] is not None:
                         oldest_running_age_seconds = max(0.0, float(row["oldest_age"]))
             alive_workers = self.alive_worker_count()
+        desired = total_assets * expected_derivatives_per_asset if warm_enabled else 0
+        actionable_missing = 0
+        terminal_failed = 0
+        deferred = 0
+        for kind, values in by_kind.items():
+            current_missing = max(0, values["expected_derivatives"] - values["ready_derivatives"])
+            values["missing_derivatives"] = current_missing
+            terminal_failed += values["failed_derivatives"]
+            deferred += values["deferred_derivatives"]
+            if warm_enabled:
+                active = values["queued_derivatives"] + values["running_derivatives"]
+                active -= queued_without_job_by_kind[kind]
+                terminal = values["failed_derivatives"] + values["deferred_derivatives"]
+                actionable_missing += max(0, current_missing - active - terminal)
         return {
             "library_id": library_id,
+            "warm_enabled": warm_enabled,
+            "policy": "warm" if warm_enabled else "on_demand",
+            "converged": not warm_enabled or actionable_missing == 0,
             "total_assets": total_assets,
             "ready_derivatives": ready,
             "expected_derivatives": total_assets * expected_derivatives_per_asset,
+            "desired_derivatives": desired,
+            "actionable_missing_derivatives": actionable_missing,
+            "deferred_derivatives": deferred,
+            "terminal_failed_derivatives": terminal_failed,
             "by_kind": by_kind,
             "quota_bytes": self.quota_bytes,
             "quota_used_bytes": used,

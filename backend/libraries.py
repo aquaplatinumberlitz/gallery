@@ -51,6 +51,7 @@ class LibraryCreate(BaseModel):
     import_paths: list[str] | None = None
     exclusion_patterns: list[str] = Field(default_factory=list)
     name: str | None = None
+    warm_enabled: bool = True
 
 
 class LibraryUpdate(BaseModel):
@@ -61,6 +62,7 @@ class LibraryUpdate(BaseModel):
     name: str | None = None
     import_paths: list[str] | None = None
     exclusion_patterns: list[str] | None = None
+    warm_enabled: bool | None = None
 
 
 class LibraryScanRequest(BaseModel):
@@ -309,6 +311,7 @@ async def api_register_library(payload: LibraryCreate):
             normalized_paths,
             name=_trim_value(payload.name) if payload.name is not None else None,
             exclusion_patterns=normalized_patterns,
+            warm_enabled=payload.warm_enabled,
             queue_initial_scan=True,
         )
     except LibraryOverlapError as exc:
@@ -528,6 +531,7 @@ async def _api_update_library(library_id: int, payload: LibraryUpdate):
             name=_trim_value(payload.name) if payload.name is not None else None,
             import_paths=normalized_paths,
             exclusion_patterns=normalized_patterns,
+            warm_enabled=payload.warm_enabled,
         )
     except LibraryOverlapError as exc:
         raise APIError(409, "library_overlap", str(exc)) from exc
@@ -535,6 +539,12 @@ async def _api_update_library(library_id: int, payload: LibraryUpdate):
         raise APIError(404, ErrorType.NOT_FOUND, "Library not found")
     if payload.import_paths is not None:
         await run_in_threadpool(file_watcher.reconcile_watcher)
+    if payload.warm_enabled is True and not bool(library["warm_enabled"]):
+        await run_in_threadpool(
+            scheduler.reconcile_desired_derivatives,
+            library_id=library_id,
+            reason="warm_policy_enabled",
+        )
     return updated
 
 

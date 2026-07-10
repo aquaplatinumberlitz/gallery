@@ -96,16 +96,35 @@ const mockJobs = [
 ];
 
 const mockGeneratedImages = {
+  warm_enabled: true,
+  policy: "warm" as const,
+  converged: false,
   ready_derivatives: 149,
   expected_derivatives: 200,
+  desired_derivatives: 200,
+  actionable_missing_derivatives: 51,
+  deferred_derivatives: 0,
+  terminal_failed_derivatives: 0,
   by_kind: {
     thumbnail: {
       ready_derivatives: 75,
       expected_derivatives: 100,
+      desired_derivatives: 100,
+      missing_derivatives: 25,
+      queued_derivatives: 0,
+      running_derivatives: 0,
+      failed_derivatives: 0,
+      deferred_derivatives: 0,
     },
     preview: {
       ready_derivatives: 74,
       expected_derivatives: 100,
+      desired_derivatives: 100,
+      missing_derivatives: 26,
+      queued_derivatives: 0,
+      running_derivatives: 0,
+      failed_derivatives: 0,
+      deferred_derivatives: 0,
     },
   },
   quota_used_bytes: 524288000,
@@ -464,21 +483,21 @@ describe("LibraryDetailPage", () => {
     expect(wrapper.text()).toContain("Generated images");
     expect(wrapper.text()).toContain("75/100 cached");
     expect(wrapper.text()).toContain("74/100 cached");
-    expect(wrapper.text()).toContain("25 thumbnails missing");
-    expect(wrapper.text()).toContain("Build missing thumbnails");
+    expect(wrapper.text()).toContain("51 generated images missing");
+    expect(wrapper.text()).toContain("Generate missing images");
     expect(wrapper.find(".bg-warning").exists()).toBe(true);
     expect(wrapper.find(".bg-primary").exists()).toBe(false);
   });
 
-  it("queues all missing thumbnails from the thumbnail action", async () => {
+  it("queues all missing generated images from the shared action", async () => {
     mockGeneratedImagesData = mockGeneratedImages;
     const wrapper = mountSubject();
-    const buildButton = wrapper.findAll("button").find((button) => button.text().includes("Build missing thumbnails"));
+    const buildButton = wrapper.findAll("button").find((button) => button.text().includes("Generate missing images"));
     expect(buildButton).not.toBeUndefined();
 
     await buildButton!.trigger("click");
 
-    expect(warmMutateMock).toHaveBeenCalledWith("thumbnail");
+    expect(warmMutateMock).toHaveBeenCalledWith();
   });
 
   it("warns when thumbnails are missing and derivative workers are unhealthy", () => {
@@ -488,21 +507,37 @@ describe("LibraryDetailPage", () => {
     expect(wrapper.get('[role="alert"]').text()).toContain("No generated-image worker is available");
   });
 
-  it("does not offer thumbnail work when only previews are missing", () => {
+  it("shows preview-only coverage and generated-image actionability", () => {
     mockGeneratedImagesData = {
       ...mockGeneratedImages,
       ready_derivatives: 125,
+      actionable_missing_derivatives: 75,
       by_kind: {
-        thumbnail: { ready_derivatives: 100, expected_derivatives: 100 },
-        preview: { ready_derivatives: 25, expected_derivatives: 100 },
+        thumbnail: { ...mockGeneratedImages.by_kind.thumbnail, ready_derivatives: 100, expected_derivatives: 100 },
+        preview: { ...mockGeneratedImages.by_kind.preview, ready_derivatives: 25, expected_derivatives: 100 },
       },
     };
     const wrapper = mountSubject();
 
     expect(wrapper.text()).toContain("100/100 cached");
     expect(wrapper.text()).toContain("25/100 cached");
-    expect(wrapper.text()).not.toContain("thumbnails missing");
-    expect(wrapper.text()).not.toContain("Build missing thumbnails");
+    expect(wrapper.text()).toContain("75 generated images missing");
+    expect(wrapper.text()).toContain("Generate missing images");
+  });
+
+  it("Phase 3: makes a preview-only generated-image gap actionable", () => {
+    mockGeneratedImagesData = {
+      ...mockGeneratedImages,
+      ready_derivatives: 125,
+      actionable_missing_derivatives: 75,
+      by_kind: {
+        thumbnail: { ...mockGeneratedImages.by_kind.thumbnail, ready_derivatives: 100, expected_derivatives: 100 },
+        preview: { ...mockGeneratedImages.by_kind.preview, ready_derivatives: 25, expected_derivatives: 100 },
+      },
+    };
+    const wrapper = mountSubject();
+
+    expect(wrapper.text()).toContain("Generate missing images");
   });
 
   it("renders jobs with actual data", () => {

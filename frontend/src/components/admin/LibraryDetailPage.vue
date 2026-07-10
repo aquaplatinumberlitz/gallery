@@ -247,16 +247,6 @@ const statusTiles = computed<
 });
 
 const thumbnails = computed(() => generatedImagesQuery.data.value ?? null);
-const thumbnailDerivativeStatus = computed(() => {
-  const currentStatus = thumbnails.value;
-  if (!currentStatus) return { ready: 0, expected: 0 };
-
-  const thumbnailStatus = currentStatus.by_kind?.thumbnail;
-  return {
-    ready: thumbnailStatus?.ready_derivatives ?? currentStatus.ready_derivatives,
-    expected: thumbnailStatus?.expected_derivatives ?? currentStatus.expected_derivatives,
-  };
-});
 const derivativeCoverageRows = computed(() => {
   const currentStatus = thumbnails.value;
   if (!currentStatus?.by_kind) return [];
@@ -276,9 +266,9 @@ const derivativeCoverageRows = computed(() => {
     })
     .filter((row): row is NonNullable<typeof row> => row !== null);
 });
-const thumbnailReady = computed(() => thumbnailDerivativeStatus.value.ready);
-const thumbnailExpected = computed(() => thumbnailDerivativeStatus.value.expected);
-const thumbnailMissing = computed(() => Math.max(0, thumbnailExpected.value - thumbnailReady.value));
+const thumbnailReady = computed(() => thumbnails.value?.ready_derivatives ?? 0);
+const thumbnailExpected = computed(() => thumbnails.value?.expected_derivatives ?? 0);
+const thumbnailMissing = computed(() => thumbnails.value?.actionable_missing_derivatives ?? 0);
 const derivativeWorkerUnavailable = computed(
   () => thumbnailMissing.value > 0 && thumbnails.value !== null && !thumbnails.value.worker_healthy,
 );
@@ -293,22 +283,29 @@ const derivativeCoverageLabel = computed(() =>
 const derivativeCacheState = computed(() =>
   !hasDerivativeExpectation.value
     ? {
-        label: "Thumbnail state",
+        label: "Generated images",
         value: "Unknown",
-        detail: "Run a scan to measure thumbnail needs",
+        detail: "Run a scan to measure generated-image needs",
         tone: "text-muted-foreground",
       }
-    : thumbnailMissing.value > 0
+    : thumbnails.value?.policy === "on_demand"
       ? {
-          label: "Thumbnail state",
-          value: `${formatAssetCount(thumbnailMissing.value)} thumbnails`,
-          detail: "Build required",
+          label: "Generated images",
+          value: "On demand",
+          detail: "Images are created when requested; cached coverage is informational",
+          tone: "text-muted-foreground",
+        }
+      : thumbnailMissing.value > 0
+      ? {
+          label: "Generated images",
+          value: `${formatAssetCount(thumbnailMissing.value)} missing`,
+          detail: "Generation is needed",
           tone: "text-warning",
         }
       : {
-          label: "Cache state",
+          label: "Generated images",
           value: "Complete",
-          detail: "No missing thumbnails",
+          detail: "Thumbnails and previews are ready",
           tone: "text-success",
         },
 );
@@ -658,7 +655,7 @@ function estimatedAssets(): number | undefined {
                     <p class="mt-1 text-sm text-muted-foreground">{{ derivativeCoverageLabel }}</p>
                   </div>
                   <p v-if="thumbnailMissing > 0" class="text-sm text-muted-foreground">
-                    {{ formatAssetCount(thumbnailMissing) }} thumbnails missing
+                    {{ formatAssetCount(thumbnailMissing) }} generated images missing
                   </p>
                   <div class="grid gap-3 text-sm sm:grid-cols-3">
                     <div class="rounded-md border border-border bg-muted/60 p-3">
@@ -683,7 +680,7 @@ function estimatedAssets(): number | undefined {
                     role="alert"
                   >
                     <AlertTriangle class="mt-0.5 size-4 shrink-0" />
-                    <p>No generated-image worker is available. New thumbnail jobs cannot progress.</p>
+                    <p>No generated-image worker is available. New generated-image jobs cannot progress.</p>
                   </div>
                   <p
                     v-if="thumbnails.queued_jobs || thumbnails.running_jobs || thumbnails.failed_jobs"
@@ -697,11 +694,11 @@ function estimatedAssets(): number | undefined {
                     variant="outline"
                     size="sm"
                     :disabled="warmMutation.isPending.value"
-                    @click="warmMutation.mutate('thumbnail')"
+                    @click="warmMutation.mutate()"
                   >
                     <RefreshCw v-if="warmMutation.isPending.value" class="animate-spin" data-icon="inline-start" />
                     <ImageIcon v-else data-icon="inline-start" />
-                    {{ warmMutation.isPending.value ? "Queuing thumbnails..." : "Build missing thumbnails" }}
+                    {{ warmMutation.isPending.value ? "Queuing images..." : "Generate missing images" }}
                   </Button>
                 </template>
                 <Skeleton v-else class="h-32 w-full" />

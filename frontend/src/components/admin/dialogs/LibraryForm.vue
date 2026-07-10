@@ -20,6 +20,7 @@ const emit = defineEmits<{ saved: [library: RegisteredLibrary]; cancel: [] }>();
 const name = ref("");
 const importPaths = ref<string[]>([""]);
 const exclusionPatterns = ref<string[]>([]);
+const warmEnabled = ref(true);
 const serverError = ref("");
 const validation = ref<LibraryValidationResult | null>(null);
 const submitAndScan = ref(false);
@@ -31,6 +32,7 @@ watch(
     name.value = library?.name ?? "";
     importPaths.value = library?.import_paths.map((item) => item.path) ?? [""];
     exclusionPatterns.value = [...(library?.exclusion_patterns ?? [])];
+    warmEnabled.value = library?.warm_enabled !== 0;
     serverError.value = "";
     validation.value = null;
   },
@@ -193,6 +195,7 @@ function payload(): LibraryUpdateRequest {
     name: cleanValue(name.value),
     import_paths: normalizedPaths.value,
     exclusion_patterns: normalizedPatterns.value,
+    warm_enabled: warmEnabled.value,
   };
 }
 
@@ -418,6 +421,23 @@ async function submit(scanAfterCreate = false) {
           </Field>
         </FieldGroup>
         <FieldError v-for="error in exclusionPatternGroupErrors" :key="error">{{ error }}</FieldError>
+      </FieldSet>
+
+      <Separator />
+
+      <FieldSet>
+        <FieldLegend variant="label">Generated images</FieldLegend>
+        <Field>
+          <div class="flex items-start justify-between gap-4 rounded-md border p-3">
+            <FieldContent class="gap-1">
+              <FieldLabel for="library-warm-enabled">Prepare generated images in background</FieldLabel>
+              <p class="text-xs text-muted-foreground">
+                Creates thumbnails and previews after updates. This uses storage and CPU in the background.
+              </p>
+            </FieldContent>
+            <input id="library-warm-enabled" v-model="warmEnabled" type="checkbox" class="mt-1 size-4" />
+          </div>
+        </Field>
       </FieldSet>
 
       <Alert v-if="serverError" variant="destructive">

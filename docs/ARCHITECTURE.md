@@ -229,8 +229,8 @@ Backend modules are mostly flat, with selected domain packages.
 | `GET /api/libraries/{id}/stats`           | Return aggregate media statistics for one library                     | `libraries.py`      |
 | `GET /api/libraries/{id}/jobs`            | Return recent jobs for one library                                    | `libraries.py`      |
 | `DELETE /api/libraries/{id}?confirm=true` | Unregister catalog data without deleting source files                 | `libraries.py`      |
-| `GET /api/derivatives/status`             | Return library derivative coverage, quota, job counts, and worker health | `libraries.py`      |
-| `POST /api/derivatives/warm`              | Queue default derivatives for a library; optional `kind=thumbnail\|preview` limits scope | `libraries.py`      |
+| `GET /api/derivatives/status`             | Return policy-aware thumbnail/preview coverage, convergence, quota, job counts, and worker health | `libraries.py`      |
+| `POST /api/derivatives/warm`              | Explicitly queue missing configured images for one library; optional `kind=thumbnail\|preview` limits scope | `libraries.py`      |
 | `POST /api/maintenance/imported-data/clear` | Clear imported catalog, metadata, and generated-image data          | `maintenance.py`    |
 | `POST /api/maintenance/imported-data/rebuild` | Clear imported data and queue whole-library rebuild jobs          | `maintenance.py`    |
 | `POST /api/maintenance/catalog/reset`     | Reset catalog database data, including registered libraries           | `maintenance.py`    |

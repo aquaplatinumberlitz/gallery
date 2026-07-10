@@ -324,6 +324,7 @@ def create_library(
     *,
     name: str | None = None,
     exclusion_patterns: list[str] | None = None,
+    warm_enabled: bool = True,
     queue_initial_scan: bool = False,
 ) -> dict[str, Any]:
     """Create one library with ordered import paths and exclusion patterns."""
@@ -343,10 +344,10 @@ def create_library(
         cursor = conn.execute(
             """
             INSERT INTO libraries (
-              name, state, created_at, updated_at
-            ) VALUES (?, 'discovering', ?, ?)
+              name, state, warm_enabled, created_at, updated_at
+            ) VALUES (?, 'discovering', ?, ?, ?)
             """,
-            (display_name, now, now),
+            (display_name, int(warm_enabled), now, now),
         )
         library_id = int(cursor.lastrowid)
         _replace_library_paths_conn(conn, library_id, canonical_paths, now=now)
@@ -376,6 +377,7 @@ def update_library(
     name: str | None = None,
     import_paths: list[str | Path] | None = None,
     exclusion_patterns: list[str] | None = None,
+    warm_enabled: bool | None = None,
 ) -> dict[str, Any] | None:
     """Replace supplied library fields and reconcile existing catalog scope."""
     canonical_paths = [str(Path(path).resolve()) for path in import_paths] if import_paths is not None else None
@@ -401,6 +403,11 @@ def update_library(
             conn.execute(
                 "UPDATE libraries SET name = ?, updated_at = ? WHERE id = ?",
                 (name.strip(), now, library_id),
+            )
+        if warm_enabled is not None:
+            conn.execute(
+                "UPDATE libraries SET warm_enabled = ?, updated_at = ? WHERE id = ?",
+                (int(warm_enabled), now, library_id),
             )
         if canonical_paths is not None or patterns is not None:
             _reconcile_library_configuration_conn(conn, library_id)
