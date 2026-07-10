@@ -195,9 +195,7 @@ class IntegrityChecker:
             if expected_ids
             else None
         )
-        queued_summary = (
-            scheduler.reconcile_desired_derivatives(asset_ids=queued_ids, reason="integrity") if queued_ids else None
-        )
+        queued_repaired = scheduler.repair_derivative_consistency(queued_ids) if queued_ids else 0
         deferred_summary = (
             scheduler.reconcile_desired_derivatives(asset_ids=deferred_ids, reason="integrity")
             if deferred_ids
@@ -206,7 +204,7 @@ class IntegrityChecker:
         total["derivative_expected_row_missing"] = len(expected_ids)
         total["derivative_expected_row_created"] = expected_summary.created_derivative_rows if expected_summary else 0
         total["derivative_queued_without_job"] = len(queued_ids)
-        total["derivative_queued_without_job_repaired"] = queued_summary.requeued_without_job if queued_summary else 0
+        total["derivative_queued_without_job_repaired"] = queued_repaired
         total["derivative_policy_deferred"] = len(deferred_ids)
         total["derivative_policy_deferred_requeued"] = (
             (deferred_summary.created_jobs + deferred_summary.requeued_without_job) if deferred_summary else 0

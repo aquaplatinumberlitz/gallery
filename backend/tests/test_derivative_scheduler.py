@@ -672,3 +672,157 @@ def test_library_status_ignores_historical_failed_attempt_after_success(
     assert status["failed_jobs"] == 0
     assert status["queued_jobs"] == 0
     assert status["running_jobs"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Workstream 1 + 2: Rollback-safe eviction and insufficient-capacity rejection
+# ---------------------------------------------------------------------------
+
+
+def test_rollback_after_eviction_does_not_cause_stale_unlink(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Workstream 1: eviction UPDATE in a rolled-back tx must not cause file deletion."""
+    import backend.derivative_scheduler as scheduler_module
+
+    image, asset_id = _catalog_image(isolated_gallery_root)
+    cache_root = tmp_path / "derivative-cache"
+    cache_root.mkdir()
+    monkeypatch.setattr(scheduler_module, "THUMBNAIL_CACHE_DIR", cache_root)
+
+    scheduler = DerivativeScheduler(quota_bytes=300)
+    thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
+    preview = DERIVATIVE_VARIANTS["preview"][0]
+    thumb_variant = str(thumbnail["name"])
+    prev_variant = str(preview["name"])
+
+    id1 = scheduler.schedule_derivative(asset_id, "thumbnail", thumb_variant)
+    id2 = scheduler.schedule_derivative(asset_id, "preview", prev_variant)
+    cf1 = cache_root / "f1.webp"
+    cf2 = cache_root / "f2.webp"
+    cf1.write_bytes(b"x" * 200)
+    cf2.write_bytes(b"x" * 200)
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute("UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = 200 WHERE id = ?", (str(cf1), id1))
+        conn.execute("UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = 200 WHERE id = ?", (str(cf2), id2))
+
+    conn = sqlite3.connect(isolated_metadata_db)
+    conn.row_factory = sqlite3.Row
+    conn.execute("BEGIN IMMEDIATE")
+    reservable, evicted = scheduler._reserve_capacity(conn, 200)
+    assert reservable, "capacity should be reservable"
+    for cp, _, _ in evicted:
+        assert Path(cp).exists(), "file should exist before rollback"
+    conn.rollback()
+    conn.close()
+
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        ready = conn.execute("SELECT count(*) FROM asset_derivatives WHERE status = 'ready'").fetchone()[0]
+    assert ready == 2, "rollback should restore evicted rows to ready"
+    assert cf1.exists(), "file should still exist"
+    assert cf2.exists(), "file should still exist"
+
+
+def test_insufficient_eligible_bytes_returns_not_reservable(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Workstream 2: need 250 bytes, only 100 eligible -> not reservable, no eviction."""
+    import backend.derivative_scheduler as scheduler_module
+
+    image, asset_id = _catalog_image(isolated_gallery_root)
+    cache_root = tmp_path / "derivative-cache"
+    cache_root.mkdir()
+    monkeypatch.setattr(scheduler_module, "THUMBNAIL_CACHE_DIR", cache_root)
+
+    scheduler = DerivativeScheduler(quota_bytes=200)
+    thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
+    variant = str(thumbnail["name"])
+
+    did = scheduler.schedule_derivative(asset_id, "thumbnail", variant)
+    cf = cache_root / "f.webp"
+    cf.write_bytes(b"x" * 100)
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute("UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = 100 WHERE id = ?", (str(cf), did))
+
+    conn = sqlite3.connect(isolated_metadata_db)
+    conn.row_factory = sqlite3.Row
+    conn.execute("BEGIN IMMEDIATE")
+    reservable, evicted = scheduler._reserve_capacity(conn, 250)
+    conn.commit()
+    conn.close()
+    assert not reservable, "need 250, only 100 eligible -> not reservable"
+    assert len(evicted) == 0, "no eviction should happen"
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        ready = conn.execute("SELECT count(*) FROM asset_derivatives WHERE status = 'ready'").fetchone()[0]
+    assert ready == 1, "ready row should be preserved"
+    assert cf.exists(), "cache file should still exist"
+
+
+# ---------------------------------------------------------------------------
+# Workstream 4: concurrent start/stop linearizability
+# ---------------------------------------------------------------------------
+
+
+class TestStartStopLinearizability:
+
+    def test_stop_during_cold_start_launches_no_workers(self, monkeypatch: pytest.MonkeyPatch):
+        import backend.derivative_scheduler as scheduler_module
+
+        scheduler = DerivativeScheduler(worker_count=2)
+        blocker_event = threading.Event()
+        recovery_done = threading.Event()
+        original_ensure = scheduler_module._ensure_database
+
+        def blocked_ensure():
+            recovery_done.set()
+            blocker_event.wait(timeout=5)
+            original_ensure()
+
+        monkeypatch.setattr(scheduler_module, "_ensure_database", blocked_ensure)
+
+        start_thread = threading.Thread(target=scheduler.start, daemon=True)
+        start_thread.start()
+        recovery_done.wait(timeout=2)
+
+        scheduler.stop()
+        assert scheduler.last_shutdown_clean() is True
+
+        blocker_event.set()
+        start_thread.join(timeout=3)
+
+        assert scheduler.alive_worker_count() == 0
+
+    def test_fresh_start_after_cancelled_generation_works(self, monkeypatch: pytest.MonkeyPatch):
+        import backend.derivative_scheduler as scheduler_module
+
+        scheduler = DerivativeScheduler(worker_count=1)
+        blocker_event = threading.Event()
+        recovery_done = threading.Event()
+        original_ensure = scheduler_module._ensure_database
+
+        def blocked_ensure():
+            recovery_done.set()
+            blocker_event.wait(timeout=5)
+            original_ensure()
+
+        monkeypatch.setattr(scheduler_module, "_ensure_database", blocked_ensure)
+
+        start_thread = threading.Thread(target=scheduler.start, daemon=True)
+        start_thread.start()
+        recovery_done.wait(timeout=2)
+        scheduler.stop()
+        blocker_event.set()
+        start_thread.join(timeout=3)
+
+        assert scheduler.alive_worker_count() == 0
+
+        monkeypatch.undo()
+        scheduler.start()
+        assert scheduler.alive_worker_count() == 1
+        scheduler.stop()
