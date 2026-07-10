@@ -296,10 +296,6 @@ rows are reconciled offline.
 
 Status: Not started
 
-## Phase 7 — Verification, Rollout, and Closeout
-
-Status: Not started
-
 ## Audit Follow-up — 6366ae9 Re-audit (Five Workstreams)
 
 Status: Implemented and verified against the 6366ae9 re-audit.  Five workstreams
@@ -387,3 +383,88 @@ pre-existing modifications (unrelated conflict files are not touched).
 Remaining verification: frontend typecheck and Vitest suites, full repository
 gates (`backend-api`, `lint`, `docs`, `fast`), E2E/performance checks, and
 `./test.sh full`; Phase 7 therefore remains open.
+
+## Audit Follow-up — 8ad509f Re-audit
+
+Status: Implemented and verified in the worktree on 2026-07-10. The corrective
+commit is pending. Phase 7 remains open because functional E2E, performance,
+and `./test.sh full` were not run in this pass.
+
+### Capacity and eviction finalization
+
+Automatic reconciliation now uses a two-phase capacity protocol under one
+scheduler-owned eviction lock. The first scheduling transaction records a
+non-runnable `deferred_capacity` target when capacity is needed. A separate
+committed transaction moves eligible LRU rows out of `ready` while preserving
+their path/size fence; unlink then runs while `_file_lock` excludes serving and
+generation. Successful deletes clear catalog file fields, failed deletes restore
+the exact ready row, committed capacity is recomputed, and only then may a new
+transaction publish the target job. Workers are woken only after that runnable
+job commit.
+
+The same two-phase primitive now backs post-render quota enforcement. Worker
+completion and capacity reservation are serialized so a completed render cannot
+silently replace an estimated reservation while another reconciliation spends
+the same bytes. An interrupted eviction that still has its original file is
+restored to `ready` on the next exact coalesce instead of orphaning that file.
+
+### Serving and lifecycle linearizability
+
+HTTP derivative lookup now calls `acquire_ready_derivative()`, which holds the
+file lock across ready-row/file validation and insertion into `_served_paths`.
+There is no lookup-to-protection window in which eviction can remove a file that
+is about to be streamed.
+
+`start()` rejects calls that enter while stop is in progress and retains the
+request generation captured before waiting behind another start. `stop()` uses
+one absolute monotonic deadline for joins and startup acknowledgement, reports
+unclean when startup or any lifecycle thread survives the bound, preserves live
+references, and releases the stop state only after final bookkeeping. A
+cancelled cold start cannot later launch workers; a distinct post-stop start can
+restore the configured slots.
+
+### Regression evidence
+
+`backend/tests/test_derivative_scheduler.py` now proves:
+
+- committed evictions cannot be resurrected as `ready` rows pointing to deleted
+  files by a later rollback;
+- insufficient eligible bytes do no partial eviction;
+- unlink failure restores the ready victim and leaves both background and
+  interactive targets deferred with no active job;
+- a serving-acquired file is not selected for eviction;
+- successful capacity finalization removes the real file and coalesces repeated
+  scheduling to exactly one active job;
+- an interrupted post-commit/pre-unlink eviction restores the original existing
+  file to `ready` without adding a job;
+- an indefinitely blocked cold start makes bounded stop return unclean without
+  launching workers later;
+- two pre-stop start callers are cancelled together; a start invoked during stop
+  cannot create a replacement slot, while a new explicit post-stop start works.
+
+Validation completed:
+
+```text
+backend/.venv_linux/bin/pytest -q backend/tests/test_derivative_scheduler.py
+40 passed
+
+Focused derivative/integrity/API regression command
+183 passed
+
+./test.sh backend-api
+103 passed
+
+./test.sh lint
+passed (Ruff, Ruff format check, ESLint, and Prettier)
+
+./test.sh docs
+passed (staleness, headers, matrix catalog, and lifecycle ownership)
+
+./test.sh fast
+exit 0; backend 992 passed, frontend 1050 passed, frontend coverage thresholds
+passed, and the production frontend build completed. The backend coverage tool
+reported 89.95%, which is accepted as 90% at the command's configured precision.
+```
+
+Implementation baseline: `8ad509f`. Corrective implementation commit: pending;
+changes remain in the worktree and preserve unrelated pre-existing modifications.

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import sqlite3
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -685,7 +686,7 @@ def test_rollback_after_eviction_does_not_cause_stale_unlink(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """Workstream 1: eviction UPDATE in a rolled-back tx must not cause file deletion."""
+    """Committed file eviction cannot be resurrected by a later transaction rollback."""
     import backend.derivative_scheduler as scheduler_module
 
     image, asset_id = _catalog_image(isolated_gallery_root)
@@ -714,19 +715,23 @@ def test_rollback_after_eviction_does_not_cause_stale_unlink(
             "UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = 200 WHERE id = ?",
             (str(cf2), id2),
         )
+        conn.execute("UPDATE derivative_jobs SET state = 'done' WHERE derivative_id IN (?, ?)", (id1, id2))
 
-    conn = sqlite3.connect(isolated_metadata_db)
-    conn.row_factory = sqlite3.Row
-    conn.execute("BEGIN IMMEDIATE")
-    assert scheduler._reserve_capacity(conn, 200), "capacity should be reservable"
-    conn.rollback()
-    conn.close()
+    assert scheduler._reserve_capacity(200), "capacity should be reservable"
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute("UPDATE assets SET offline = 1 WHERE id = ?", (asset_id,))
+        conn.rollback()
 
     with sqlite3.connect(isolated_metadata_db) as conn:
         ready = conn.execute("SELECT count(*) FROM asset_derivatives WHERE status = 'ready'").fetchone()[0]
-    assert ready == 2, "rollback should restore evicted rows to ready"
-    # The unlink happened inside the rolled-back tx; files may be gone.
-    # This is acceptable because the integrity checker repairs ready-without-file.
+        stale_paths = conn.execute(
+            "SELECT count(*) FROM asset_derivatives WHERE status = 'evicted' AND cache_path IS NOT NULL"
+        ).fetchone()[0]
+    assert ready == 0
+    assert stale_paths == 0
+    assert not cf1.exists()
+    assert not cf2.exists()
 
 
 def test_insufficient_eligible_bytes_returns_not_reservable(
@@ -755,17 +760,223 @@ def test_insufficient_eligible_bytes_returns_not_reservable(
             "UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = 100 WHERE id = ?",
             (str(cf), did),
         )
+        conn.execute("UPDATE derivative_jobs SET state = 'done' WHERE derivative_id = ?", (did,))
 
-    conn = sqlite3.connect(isolated_metadata_db)
-    conn.row_factory = sqlite3.Row
-    conn.execute("BEGIN IMMEDIATE")
-    assert not scheduler._reserve_capacity(conn, 250), "need 250, only 100 eligible -> not reservable"
-    conn.commit()
-    conn.close()
+    assert not scheduler._reserve_capacity(250), "need 250, only 100 eligible -> not reservable"
     with sqlite3.connect(isolated_metadata_db) as conn:
         ready = conn.execute("SELECT count(*) FROM asset_derivatives WHERE status = 'ready'").fetchone()[0]
     assert ready == 1, "ready row should be preserved"
     assert cf.exists(), "cache file should still exist"
+
+
+def test_unlink_failure_restores_ready_and_leaves_target_deferred(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A failed unlink restores the victim and never queues unreserved work."""
+    _, asset_id = _catalog_image(isolated_gallery_root)
+    scheduler = DerivativeScheduler(quota_bytes=200)
+    thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
+    did = scheduler.schedule_derivative(asset_id, "thumbnail", str(thumbnail["name"]))
+    cache_file = tmp_path / "ready.webp"
+    cache_file.write_bytes(b"x" * 200)
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute(
+            "UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = 200 WHERE id = ?",
+            (str(cache_file), did),
+        )
+        conn.execute("UPDATE derivative_jobs SET state = 'done' WHERE derivative_id = ?", (did,))
+
+    def fail_unlink(self: Path, missing_ok: bool = False) -> None:  # noqa: ARG001
+        raise OSError("simulated unlink failure")
+
+    monkeypatch.setattr(Path, "unlink", fail_unlink)
+    summary = scheduler.reconcile_desired_derivatives(
+        asset_ids=[asset_id],
+        kinds=["preview"],
+        reason="test",
+        respect_warm_policy=False,
+    )
+
+    assert summary.created_jobs == 0
+    assert summary.deferred_capacity == 1
+    assert cache_file.exists()
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        victim = conn.execute("SELECT status, cache_path FROM asset_derivatives WHERE id = ?", (did,)).fetchone()
+        target = conn.execute(
+            "SELECT status FROM asset_derivatives WHERE asset_id = ? AND kind = 'preview'", (asset_id,)
+        ).fetchone()
+    assert victim == ("ready", str(cache_file))
+    assert target == ("deferred_capacity",)
+
+
+def test_served_ready_file_is_not_evicted(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+    tmp_path: Path,
+):
+    """Lookup-to-stream acquisition is atomic with eviction candidate selection."""
+    _, asset_id = _catalog_image(isolated_gallery_root)
+    scheduler = DerivativeScheduler(quota_bytes=200)
+    thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
+    variant = str(thumbnail["name"])
+    did = scheduler.schedule_derivative(asset_id, "thumbnail", variant)
+    cache_file = tmp_path / "served.webp"
+    cache_file.write_bytes(b"x" * 200)
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute(
+            "UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = 200 WHERE id = ?",
+            (str(cache_file), did),
+        )
+        conn.execute("UPDATE derivative_jobs SET state = 'done' WHERE derivative_id = ?", (did,))
+
+    ready = scheduler.acquire_ready_derivative(asset_id, "thumbnail", variant)
+    assert ready is not None
+    summary = scheduler.reconcile_desired_derivatives(
+        asset_ids=[asset_id],
+        kinds=["preview"],
+        reason="test",
+        respect_warm_policy=False,
+    )
+    scheduler.release_serving(str(cache_file))
+
+    assert summary.created_jobs == 0
+    assert summary.deferred_capacity == 1
+    assert cache_file.exists()
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        row = conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (did,)).fetchone()
+    assert row == ("ready",)
+
+
+def test_schedule_deferred_identity_stays_non_runnable_when_unlink_fails(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """The interactive retry path cannot publish a job backed by fictional capacity."""
+    _, asset_id = _catalog_image(isolated_gallery_root)
+    scheduler = DerivativeScheduler(quota_bytes=200)
+    thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
+    preview = DERIVATIVE_VARIANTS["preview"][0]
+    thumbnail_id = scheduler.schedule_derivative(asset_id, "thumbnail", str(thumbnail["name"]))
+    preview_id = scheduler.schedule_derivative(asset_id, "preview", str(preview["name"]))
+    cache_file = tmp_path / "interactive-victim.webp"
+    cache_file.write_bytes(b"x" * 200)
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute(
+            "UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = 200 WHERE id = ?",
+            (str(cache_file), thumbnail_id),
+        )
+        conn.execute(
+            "UPDATE asset_derivatives SET status = 'deferred_capacity' WHERE id = ?",
+            (preview_id,),
+        )
+        conn.execute("UPDATE derivative_jobs SET state = 'done' WHERE derivative_id = ?", (thumbnail_id,))
+        conn.execute("DELETE FROM derivative_jobs WHERE derivative_id = ?", (preview_id,))
+
+    def fail_unlink(self: Path, missing_ok: bool = False) -> None:  # noqa: ARG001
+        raise OSError("simulated unlink failure")
+
+    monkeypatch.setattr(Path, "unlink", fail_unlink)
+    scheduled_id = scheduler.schedule_derivative(asset_id, "preview", str(preview["name"]))
+
+    assert scheduled_id == preview_id
+    assert cache_file.exists()
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        victim = conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (thumbnail_id,)).fetchone()
+        target = conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (preview_id,)).fetchone()
+        active_jobs = conn.execute(
+            "SELECT count(*) FROM derivative_jobs WHERE derivative_id = ? AND state IN ('queued', 'running')",
+            (preview_id,),
+        ).fetchone()[0]
+    assert victim == ("ready",)
+    assert target == ("deferred_capacity",)
+    assert active_jobs == 0
+
+
+def test_successful_capacity_finalization_queues_exactly_once(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+    tmp_path: Path,
+):
+    """Successful deletion is committed before one target job becomes runnable."""
+    _, asset_id = _catalog_image(isolated_gallery_root)
+    scheduler = DerivativeScheduler(quota_bytes=200)
+    thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
+    preview = DERIVATIVE_VARIANTS["preview"][0]
+    thumbnail_id = scheduler.schedule_derivative(asset_id, "thumbnail", str(thumbnail["name"]))
+    preview_id = scheduler.schedule_derivative(asset_id, "preview", str(preview["name"]))
+    cache_file = tmp_path / "successful-victim.webp"
+    cache_file.write_bytes(b"x" * 200)
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute(
+            "UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = 200 WHERE id = ?",
+            (str(cache_file), thumbnail_id),
+        )
+        conn.execute("UPDATE asset_derivatives SET status = 'deferred_capacity' WHERE id = ?", (preview_id,))
+        conn.execute("UPDATE derivative_jobs SET state = 'done' WHERE derivative_id = ?", (thumbnail_id,))
+        conn.execute("DELETE FROM derivative_jobs WHERE derivative_id = ?", (preview_id,))
+
+    assert scheduler.schedule_derivative(asset_id, "preview", str(preview["name"])) == preview_id
+    assert scheduler.schedule_derivative(asset_id, "preview", str(preview["name"])) == preview_id
+
+    assert not cache_file.exists()
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        victim = conn.execute(
+            "SELECT status, cache_path, byte_size FROM asset_derivatives WHERE id = ?", (thumbnail_id,)
+        ).fetchone()
+        target = conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (preview_id,)).fetchone()
+        active_jobs = conn.execute(
+            "SELECT count(*) FROM derivative_jobs WHERE derivative_id = ? AND state IN ('queued', 'running')",
+            (preview_id,),
+        ).fetchone()[0]
+    assert victim == ("evicted", None, None)
+    assert target == ("queued",)
+    assert active_jobs == 1
+
+
+def test_interrupted_eviction_with_original_file_restores_ready(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+    tmp_path: Path,
+):
+    """Restart-style coalescing recovers an eviction committed before unlink."""
+    _, asset_id = _catalog_image(isolated_gallery_root)
+    scheduler = DerivativeScheduler(quota_bytes=400)
+    thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
+    variant = str(thumbnail["name"])
+    derivative_id = scheduler.schedule_derivative(asset_id, "thumbnail", variant)
+    cache_file = tmp_path / "interrupted-eviction.webp"
+    cache_file.write_bytes(b"x" * 200)
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute(
+            """
+            UPDATE asset_derivatives
+            SET status = 'evicted', cache_path = ?, byte_size = 200,
+                last_error = 'evicted: capacity reservation'
+            WHERE id = ?
+            """,
+            (str(cache_file), derivative_id),
+        )
+        conn.execute("UPDATE derivative_jobs SET state = 'done' WHERE derivative_id = ?", (derivative_id,))
+
+    assert scheduler.schedule_derivative(asset_id, "thumbnail", variant) == derivative_id
+
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        row = conn.execute(
+            "SELECT status, cache_path, byte_size, last_error FROM asset_derivatives WHERE id = ?",
+            (derivative_id,),
+        ).fetchone()
+        active_jobs = conn.execute(
+            "SELECT count(*) FROM derivative_jobs WHERE derivative_id = ? AND state IN ('queued', 'running')",
+            (derivative_id,),
+        ).fetchone()[0]
+    assert row == ("ready", str(cache_file), 200, None)
+    assert active_jobs == 0
+    assert cache_file.exists()
 
 
 # ---------------------------------------------------------------------------
@@ -774,17 +985,18 @@ def test_insufficient_eligible_bytes_returns_not_reservable(
 
 
 class TestStartStopLinearizability:
-    def test_stop_during_cold_start_launches_no_workers(self, monkeypatch: pytest.MonkeyPatch):
+    def test_stop_during_hung_cold_start_is_bounded_and_unclean(self, monkeypatch: pytest.MonkeyPatch):
         import backend.derivative_scheduler as scheduler_module
 
         scheduler = DerivativeScheduler(worker_count=2)
         blocker_event = threading.Event()
         recovery_done = threading.Event()
         original_ensure = scheduler_module._ensure_database
+        monkeypatch.setattr(scheduler_module, "DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS", 0.05)
 
         def blocked_ensure():
             recovery_done.set()
-            blocker_event.wait(timeout=5)
+            blocker_event.wait()
             original_ensure()
 
         monkeypatch.setattr(scheduler_module, "_ensure_database", blocked_ensure)
@@ -793,8 +1005,11 @@ class TestStartStopLinearizability:
         start_thread.start()
         recovery_done.wait(timeout=2)
 
+        started = time.monotonic()
         scheduler.stop()
-        assert scheduler.last_shutdown_clean() is True
+        assert time.monotonic() - started < 0.25
+        assert scheduler.last_shutdown_clean() is False
+        assert scheduler.alive_worker_count() == 0
 
         blocker_event.set()
         start_thread.join(timeout=3)
@@ -808,10 +1023,11 @@ class TestStartStopLinearizability:
         blocker_event = threading.Event()
         recovery_done = threading.Event()
         original_ensure = scheduler_module._ensure_database
+        monkeypatch.setattr(scheduler_module, "DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS", 0.05)
 
         def blocked_ensure():
             recovery_done.set()
-            blocker_event.wait(timeout=5)
+            blocker_event.wait()
             original_ensure()
 
         monkeypatch.setattr(scheduler_module, "_ensure_database", blocked_ensure)
@@ -829,6 +1045,70 @@ class TestStartStopLinearizability:
         scheduler.start()
         assert scheduler.alive_worker_count() == 1
         scheduler.stop()
+
+    def test_start_invoked_during_stop_cannot_launch_new_slot(self, monkeypatch: pytest.MonkeyPatch):
+        import backend.derivative_scheduler as scheduler_module
+
+        scheduler = DerivativeScheduler(worker_count=1)
+        release_worker = threading.Event()
+        existing = threading.Thread(
+            target=release_worker.wait,
+            name="derivative-worker-1",
+            daemon=True,
+        )
+        existing.start()
+        scheduler._threads = [existing]
+        monkeypatch.setattr(scheduler_module, "DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS", 1.0)
+
+        stop_thread = threading.Thread(target=scheduler.stop, daemon=True)
+        stop_thread.start()
+        deadline = time.monotonic() + 1
+        while not scheduler._stop_in_progress and time.monotonic() < deadline:
+            time.sleep(0.001)
+        assert scheduler._stop_in_progress
+
+        scheduler.start()
+        assert scheduler._threads == [existing]
+
+        release_worker.set()
+        stop_thread.join(timeout=2)
+        assert not stop_thread.is_alive()
+        assert scheduler.last_shutdown_clean() is True
+        assert scheduler.alive_worker_count() == 0
+
+    def test_two_pre_stop_start_callers_are_both_cancelled(self, monkeypatch: pytest.MonkeyPatch):
+        import backend.derivative_scheduler as scheduler_module
+
+        scheduler = DerivativeScheduler(worker_count=1)
+        recovery_entered = threading.Event()
+        release_recovery = threading.Event()
+        original_ensure = scheduler_module._ensure_database
+        monkeypatch.setattr(scheduler_module, "DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS", 0.05)
+
+        def blocked_ensure():
+            recovery_entered.set()
+            release_recovery.wait()
+            original_ensure()
+
+        monkeypatch.setattr(scheduler_module, "_ensure_database", blocked_ensure)
+        first = threading.Thread(target=scheduler.start, daemon=True)
+        second = threading.Thread(target=scheduler.start, daemon=True)
+        first.start()
+        assert recovery_entered.wait(timeout=1)
+        second.start()
+
+        deadline = time.monotonic() + 1
+        while second.ident is None and time.monotonic() < deadline:
+            time.sleep(0.001)
+        scheduler.stop()
+        assert scheduler.last_shutdown_clean() is False
+
+        release_recovery.set()
+        first.join(timeout=2)
+        second.join(timeout=2)
+        assert not first.is_alive()
+        assert not second.is_alive()
+        assert scheduler.alive_worker_count() == 0
 
 
 # ---------------------------------------------------------------------------

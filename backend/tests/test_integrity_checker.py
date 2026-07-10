@@ -667,3 +667,126 @@ class TestRunAndPersist:
         checker.run_and_persist(trigger="manual")
         assert captured == [True]
         assert checker.is_running is False
+
+
+class TestDeadMethodCoverage:
+    """Cover integrity checker helper methods not called from run_all_checks."""
+
+    def test_check_derivative_queued_without_job_empty(self, _checker, _init_db):
+        conn = _connect()
+        assert _checker._check_derivative_queued_without_job(conn) == 0
+
+    def test_check_abandoned_skips_inapplicable(self, _checker, isolated_gallery_root: Path):
+        root = isolated_gallery_root
+        lib = create_library([root], name="Lib")
+        lib_id = int(lib["id"])
+        path = str(root / "img.png")
+        Path(path).write_bytes(b"x" * 1024)
+        s = Path(path).stat()
+        with _connect() as conn:
+            _asset_row(conn, path, lib_id, s.st_mtime_ns, s.st_size)
+            asset_id = conn.execute("SELECT id FROM assets WHERE path = ?", (path,)).fetchone()[0]
+            conn.execute("UPDATE assets SET offline = 1 WHERE id = ?", (asset_id,))
+            conn.execute(
+                "INSERT INTO asset_derivatives (asset_id, kind, variant, source_mtime_ns, source_size, status, max_long_edge, format, quality) VALUES (?, 'thumbnail', 't', ?, ?, 'queued', 512, 'webp', 85)",
+                (asset_id, s.st_mtime_ns, s.st_size),
+            )
+            did = conn.execute("SELECT id FROM asset_derivatives WHERE asset_id = ?", (asset_id,)).fetchone()[0]
+            conn.execute(
+                "INSERT INTO derivative_jobs (derivative_id, priority, state, lease_expires_at) VALUES (?, 3, 'running', julianday('now', '-1 day'))",
+                (did,),
+            )
+        with _DB_LOCK, _connect() as conn:
+            result = _checker._check_abandoned_derivative_jobs(conn)
+        assert result["skipped"] == 1
+
+    def test_check_abandoned_fails_exhausted(self, _checker, isolated_gallery_root: Path):
+        root = isolated_gallery_root
+        lib = create_library([root], name="Lib")
+        lib_id = int(lib["id"])
+        path = str(root / "img.png")
+        Path(path).write_bytes(b"x" * 1024)
+        s = Path(path).stat()
+        with _connect() as conn:
+            _asset_row(conn, path, lib_id, s.st_mtime_ns, s.st_size)
+            asset_id = conn.execute("SELECT id FROM assets WHERE path = ?", (path,)).fetchone()[0]
+            conn.execute(
+                "INSERT INTO asset_derivatives (asset_id, kind, variant, source_mtime_ns, source_size, status, max_long_edge, format, quality) VALUES (?, 'thumbnail', 't', ?, ?, 'queued', 512, 'webp', 85)",
+                (asset_id, s.st_mtime_ns, s.st_size),
+            )
+            did = conn.execute("SELECT id FROM asset_derivatives WHERE asset_id = ?", (asset_id,)).fetchone()[0]
+            conn.execute(
+                "INSERT INTO derivative_jobs (derivative_id, priority, state, attempts, lease_expires_at) VALUES (?, 3, 'running', 3, julianday('now', '-1 day'))",
+                (did,),
+            )
+        with _DB_LOCK, _connect() as conn:
+            result = _checker._check_abandoned_derivative_jobs(conn)
+        assert result["failed"] == 1
+
+    def test_check_derivative_queued_without_job_repairs(self, _checker, isolated_gallery_root: Path, tmp_path: Path):
+        root = isolated_gallery_root
+        lib = create_library([root], name="Lib")
+        lib_id = int(lib["id"])
+        path = str(root / "img.png")
+        Path(path).write_bytes(b"x" * 1024)
+        source_stat = Path(path).stat()
+        size = source_stat.st_size
+        mtime_ns = source_stat.st_mtime_ns
+        with _connect() as conn:
+            _asset_row(conn, path, lib_id, mtime_ns, size)
+            asset_id = conn.execute("SELECT id FROM assets WHERE path = ?", (path,)).fetchone()[0]
+            conn.execute(
+                """INSERT INTO asset_derivatives (asset_id, kind, variant, source_mtime_ns, source_size, status, max_long_edge, format, quality)
+                   VALUES (?, 'thumbnail', 'thumb_512', ?, ?, 'queued', 512, 'webp', 85)""",
+                (asset_id, mtime_ns, size),
+            )
+        with _DB_LOCK, _connect() as conn:
+            result = _checker._check_derivative_queued_without_job(conn)
+        assert result.jobs_created == 1
+
+    def test_check_derivative_policy_deferred_empty(self, _checker, _init_db):
+        conn = _connect()
+        assert _checker._check_derivative_policy_deferred(conn) == 0
+
+    def test_check_derivative_policy_deferred_with_evicted(self, _checker, isolated_gallery_root: Path):
+        root = isolated_gallery_root
+        lib = create_library([root], name="Lib")
+        lib_id = int(lib["id"])
+        path = str(root / "img.png")
+        Path(path).write_bytes(b"x" * 1024)
+        source_stat = Path(path).stat()
+        size = source_stat.st_size
+        mtime_ns = source_stat.st_mtime_ns
+        with _connect() as conn:
+            _asset_row(conn, path, lib_id, mtime_ns, size)
+            asset_id = conn.execute("SELECT id FROM assets WHERE path = ?", (path,)).fetchone()[0]
+            conn.execute(
+                """INSERT INTO asset_derivatives (asset_id, kind, variant, source_mtime_ns, source_size, status, max_long_edge, format, quality)
+                   VALUES (?, 'thumbnail', 'thumb_512', ?, ?, 'evicted', 512, 'webp', 85)""",
+                (asset_id, mtime_ns, size),
+            )
+        with _DB_LOCK, _connect() as conn:
+            result = _checker._check_derivative_policy_deferred(conn)
+        assert result >= 1
+
+    def test_check_derivative_expected_row_missing_no_warm_libraries(self, _checker, _init_db):
+        conn = _connect()
+        result = _checker._check_derivative_expected_row_missing(conn)
+        assert result == 0
+
+    def test_check_derivative_expected_row_missing_with_warm_library(self, _checker, isolated_gallery_root: Path):
+        root = isolated_gallery_root
+        lib = create_library([root], name="Lib")
+        lib_id = int(lib["id"])
+        with _connect() as conn:
+            conn.execute("UPDATE libraries SET warm_enabled = 1 WHERE id = ?", (lib_id,))
+        path = str(root / "img.png")
+        Path(path).write_bytes(b"x" * 1024)
+        source_stat = Path(path).stat()
+        size = source_stat.st_size
+        mtime_ns = source_stat.st_mtime_ns
+        with _connect() as conn:
+            _asset_row(conn, path, lib_id, mtime_ns, size)
+        with _DB_LOCK, _connect() as conn:
+            result = _checker._check_derivative_expected_row_missing(conn)
+        assert result >= 1

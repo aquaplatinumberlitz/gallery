@@ -302,7 +302,7 @@ async def _serve_derivative(
         return Response(status_code=304, headers=headers)
 
     if asset_id is not None and (explicit_asset_id or scheduler.is_running()):
-        ready = await run_in_threadpool(scheduler.get_ready_derivative, asset_id, kind, variant)
+        ready = await run_in_threadpool(scheduler.acquire_ready_derivative, asset_id, kind, variant)
         if ready is None:
             try:
                 derivative_id = await run_in_threadpool(
@@ -328,7 +328,7 @@ async def _serve_derivative(
                         return None
                     state = outcome["derivative_state"]
                     if state == "ready" and outcome.get("cache_path") and Path(outcome["cache_path"]).is_file():
-                        return scheduler.get_ready_derivative(asset_id, kind, variant)
+                        return scheduler.acquire_ready_derivative(asset_id, kind, variant)
                     if state == "failed":
                         return ("failed", outcome)
                     if state == "deferred_capacity":
@@ -381,7 +381,6 @@ async def _serve_derivative(
         if ready is None:
             raise APIError(503, ErrorType.SERVER_ERROR, "Derivative generation timed out")
         cache_path = str(ready["cache_path"])
-        scheduler.acquire_serving(cache_path)
         return FileResponse(
             cache_path,
             media_type=DERIVATIVE_MEDIA_TYPES[normalized_format],

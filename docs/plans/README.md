@@ -18,4 +18,8 @@ Active plans:
 - [Derivative Lifecycle Audit Fix Handoff Prompt](DERIVATIVE_LIFECYCLE_AUDIT_FIX_HANDOFF_PROMPT.md) -
   copy-ready OpenCode handoff for the eleven audited scheduler, integrity,
   quota, HTTP, Admin-state, reconciliation, and catalog-hygiene follow-up fixes.
+- [Derivative Lifecycle d98c741 Re-audit Fix Handoff Prompt](DERIVATIVE_LIFECYCLE_D98C741_REAUDIT_FIX_HANDOFF_PROMPT.md) -
+  copy-ready OpenCode handoff for post-commit eviction finalization, protected
+  unlink, bounded linearizable start/stop, exact integrity repair reporting,
+  and missing regression/closeout evidence.
 Completed or superseded plans live in [Archived Documentation](../archived/README.md).
