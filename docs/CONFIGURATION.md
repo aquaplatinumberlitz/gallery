@@ -79,6 +79,28 @@ curl -I https://150.230.56.153/
 | `GALLERY_METADATA_DB`                                  | path                    | `backend/.cache/gallery_metadata.db`                  | SQLite metadata/index database.                                                                          |
 | `GALLERY_INDEX_EXCLUDE_DIRS`                           | comma-separated names   | unset                                                 | Additional directory names excluded from indexing.                                                       |
 | `GALLERY_INDEX_EXCLUDE_PATTERNS`                       | comma-separated globs   | unset                                                 | Additional path/name patterns excluded from indexing.                                                    |
+
+### Default repository index exclusions
+
+Gallery ships repository-specific default excluded path segments so mutable
+build and test-output directories never enter a default library catalog:
+
+- `frontend/coverage`
+- `frontend/test-results`
+- `frontend/playwright-report`
+
+These are path *segments* (the exact `frontend/<segment>` sequence), not a global
+ban on any directory named `coverage`, `test-results`, or `playwright-report`
+elsewhere in the filesystem. A `coverage` directory outside `frontend/`, or
+`frontend/<other>/coverage`, is still indexed. The segments are normalized for
+POSIX and Windows-style (backslash) paths.
+
+`GALLERY_INDEX_EXCLUDE_PATTERNS` appends additional glob patterns, and each
+registered library may carry its own per-library exclusion patterns; both apply
+alongside the defaults. Reconciliation marks already-cataloged paths that now
+match an exclusion (default or per-library) as offline catalog rows without
+deleting the source files on disk, so they no longer contribute to expected or
+desired derivative coverage.
 | `GALLERY_METADATA_INDEXER_ENABLED`                     | boolean flag            | true                                                  | Enables durable metadata job dispatch and worker processing.                                             |
 | `GALLERY_METADATA_INDEXER_BATCH_SIZE`                  | integer, clamped 1–64   | `8`                                                   | Legacy metadata batch-size setting; the current DB-claim worker processes one claimed job per worker loop. |
 | `GALLERY_METADATA_INDEXER_WORKER_SLEEP_SECONDS`        | float, minimum 0        | `0.01`                                                | Worker sleep interval.                                                                                   |

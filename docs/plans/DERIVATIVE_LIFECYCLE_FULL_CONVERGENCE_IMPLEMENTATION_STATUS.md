@@ -254,7 +254,43 @@ or permanently refusing restart.
 
 ## Phase 6 — Catalog Hygiene and Existing-Data Convergence
 
-Status: Not started
+Status: Complete
+
+Completed deliverables:
+
+- Added repository-specific default excluded index segments
+  `frontend/coverage`, `frontend/test-results`, and `frontend/playwright-report`
+  to `DEFAULT_INDEX_EXCLUDED_SEGMENTS` in `backend/files.py`.
+- The segments are exact `frontend/<segment>` path sequences, not a global ban
+  on any directory with those names outside the known repository layout; both
+  POSIX and Windows-style (backslash) path normalization are covered by the
+  existing `_path_parts`/`_contains_segment`/`_configured_excluded_segments`
+  helpers.
+- A normal scan reconciles already-indexed matching artifacts to offline
+  (inactive) catalog rows without deleting the source files on disk, so they
+  no longer contribute to expected or desired derivative coverage.
+- Documented the default repository exclusions and per-library exclusion
+  override behavior in `docs/CONFIGURATION.md`, including that source files are
+  preserved during reconciliation.
+
+Verification:
+
+```text
+backend/.venv_linux/bin/python -m pytest \
+  backend/tests/test_catalog_hygiene_phase6.py -q
+11 passed
+
+backend/.venv_linux/bin/python -m ruff check \
+  backend/files.py backend/metadata_store/rebuild_store.py \
+  backend/tests/test_catalog_hygiene_phase6.py
+All checks passed
+```
+
+Phase 6 exit criteria are met: `frontend/coverage`, `frontend/test-results`, and
+`frontend/playwright-report` cannot re-enter a default gallery-repo library, and
+re-running frontend tests no longer changes library 1 expected derivative
+coverage because the generated artifacts are excluded and pre-existing artifact
+rows are reconciled offline.
 
 ## Phase 7 — Verification, Rollout, and Closeout
 

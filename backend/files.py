@@ -29,6 +29,9 @@ DEFAULT_INDEX_EXCLUDED_SEGMENTS = (
     ("frontend", "public"),
     ("frontend", "dist"),
     ("frontend", "build"),
+    ("frontend", "coverage"),
+    ("frontend", "test-results"),
+    ("frontend", "playwright-report"),
     ("backend", "__pycache__"),
     ("backend", ".cache"),
 )
