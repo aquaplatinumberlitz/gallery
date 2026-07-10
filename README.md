@@ -1,6 +1,6 @@
 # AI Art Gallery
 
-Last reviewed: 2026-07-08
+Last reviewed: 2026-07-10
 
 A local-first web gallery for browsing AI-generated image and video collections. It pairs a FastAPI backend for registered-library management, mixed-media scanning, image derivatives, video streaming/posters, indexed metadata search, and read-only metadata inspection with a Vue 3 frontend that provides a responsive TanStack Virtual gallery, PhotoSwipe-based image lightbox, native video player, and virtualized desktop Library Inspector.
 
@@ -50,7 +50,7 @@ Backend:
 python3 -m venv backend/.venv_linux
 source backend/.venv_linux/bin/activate
 pip install -r backend/requirements.txt
-python3 -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
+FRONTEND_PORT=4702 python3 -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 4701
 ```
 
 Backend development tools:
@@ -65,10 +65,11 @@ Frontend:
 ```bash
 cd frontend
 corepack pnpm install
-VITE_API_URL=http://127.0.0.1:8000 corepack pnpm run dev
+corepack pnpm run dev
 ```
 
-Open `http://localhost:5173`.
+Open `http://localhost:4702`. The Vite dev proxy forwards `/api` to the backend
+on `http://127.0.0.1:4701`.
 
 All-in-one launcher:
 
@@ -76,13 +77,17 @@ All-in-one launcher:
 python3 start.py
 ```
 
+The launcher always uses backend port `4701` and frontend port `4702`. If either
+port is already occupied, it reports the conflict and exits instead of moving to
+another port.
+
 Production:
 
 ```bash
 cd frontend
 corepack pnpm run build
 cd ..
-PRODUCTION=1 python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
+PRODUCTION=1 python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 4701
 ```
 
 In production mode the backend serves `frontend/dist/` as a static SPA with client-side routing fallback.

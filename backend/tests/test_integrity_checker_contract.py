@@ -58,6 +58,9 @@ FILE_HEALTH_ISSUES = {
     "metadata_mismatch",
     "orphaned_work_item",
     "generated_image_job_mismatch",
+    "generated_image_expected_row_missing",
+    "generated_image_queued_without_job",
+    "generated_image_policy_deferred",
 }
 FILE_HEALTH_REPAIRS = {"repaired", "requeued", "failed", "skipped", "recovered", "unchanged"}
 
@@ -527,7 +530,7 @@ class TestAbandonedDerivativeRecovery:
 
 
 class TestRunAllChecks:
-    def test_returns_all_eight_keys_with_int_values(self) -> None:
+    def test_returns_all_twenty_keys_with_int_values(self) -> None:
         results = integrity_checker.run_all_checks()
         expected_keys = {
             "asset_done_but_no_metadata",
@@ -544,6 +547,12 @@ class TestRunAllChecks:
             "derivative_abandoned_requeued",
             "derivative_abandoned_skipped",
             "derivative_abandoned_failed",
+            "derivative_expected_row_missing",
+            "derivative_expected_row_created",
+            "derivative_queued_without_job",
+            "derivative_queued_without_job_repaired",
+            "derivative_policy_deferred",
+            "derivative_policy_deferred_requeued",
         }
         assert set(results.keys()) == expected_keys
         for val in results.values():

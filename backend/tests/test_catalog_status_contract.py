@@ -76,6 +76,12 @@ def _global_runtime() -> dict[str, Any]:
         "derivative_skipped_jobs": 0,
         "derivative_stale_running_jobs": 0,
         "derivative_oldest_running_age_seconds": None,
+        "derivative_reconcile_enabled": True,
+        "derivative_reconcile_running": False,
+        "derivative_last_reconcile_started_at": None,
+        "derivative_last_reconcile_completed_at": None,
+        "derivative_last_reconcile_status": None,
+        "derivative_last_reconcile_created_jobs": 0,
     }
 
 

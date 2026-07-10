@@ -3,7 +3,7 @@
 Status: Maintained
 
 Last verified against `backend/config.py`, `frontend/vite.config.ts`, frontend
-environment reads, and the server nginx site config: 2026-07-08.
+environment reads, and the server nginx site config: 2026-07-10.
 
 Boolean flags parsed by `_env_flag()` treat `0`, `false`, `no`, and `off`
 case-insensitively as false; any other provided value is true. Flags documented as
@@ -11,44 +11,50 @@ case-insensitively as false; any other provided value is true. Flags documented 
 
 ## Server runtime topology
 
-The VPS public entrypoint is nginx on `150.230.56.153`. Port 80 redirects to
-HTTPS. In production, nginx serves the built SPA from `frontend/dist/` and
-proxies only API traffic to FastAPI.
+The VPS forwards ports `4701-4800`. Gallery reserves fixed port `4701` for the
+FastAPI backend and fixed port `4702` for the Vite frontend. The public nginx
+entrypoint on `150.230.56.153` proxies both services in the current VPS
+development topology.
 
 | Public path | nginx behavior | Service | Standard purpose |
 | ----------- | -------------- | ------- | ---------------- |
-| `/api` | Proxy to `http://127.0.0.1:4180` | Backend | FastAPI/uvicorn API server for `backend.main:app`. |
-| `/` | Serve `frontend/dist/` with SPA fallback | Frontend | Production Vue build. |
+| `/api` | Proxy to `http://127.0.0.1:4701` | Backend | FastAPI/uvicorn API server for `backend.main:app`. |
+| `/` | Proxy to `http://127.0.0.1:4702` | Frontend | Vite development server. |
 
-For development-only Vite access, run the frontend on `127.0.0.1:4173` or the
-default Vite port and let the Vite dev proxy forward `/api` to the backend.
+The production nginx template serves `frontend/dist/` directly and keeps only
+the `/api` proxy to `127.0.0.1:4701`.
 
 Standard backend command from the repo root:
 
 ```bash
 cd /home/ubuntu/gallery-repo
-PORT=4180 FRONTEND_PORT=4173 backend/.venv_linux/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 4180
+PORT=4701 FRONTEND_PORT=4702 backend/.venv_linux/bin/python -m uvicorn backend.main:app --host 0.0.0.0 --port 4701
 ```
 
 Development frontend command from `frontend/`:
 
 ```bash
 cd /home/ubuntu/gallery-repo/frontend
-VITE_PORT=4173 corepack pnpm exec vite --host 127.0.0.1 --port 4173
+VITE_PORT=4702 corepack pnpm exec vite --host 0.0.0.0 --port 4702
 ```
 
 Do not set `VITE_API_URL` for the public VPS nginx path unless deliberately
 bypassing same-origin routing. With `VITE_API_URL` unset, browser API calls use
-same-origin `/api`, and nginx forwards them to `127.0.0.1:4180`. The Vite dev
-proxy also defaults `/api` to `http://localhost:4180` for direct local access to
+same-origin `/api`, and nginx forwards them to `127.0.0.1:4701`. The Vite dev
+proxy also defaults `/api` to `http://localhost:4701` for direct local access to
 the frontend dev server.
+
+`python3 start.py` uses exactly `4701` and `4702`. It checks both ports before
+setup and again before launching the services. If either port is occupied, it
+prints the conflicting service and exits with status `1`; it never increments
+to another port.
 
 Useful health checks:
 
 ```bash
-curl http://127.0.0.1:4180/api/health
-curl https://150.230.56.153/api/health
-curl -I https://150.230.56.153/
+curl http://127.0.0.1:4701/api/health
+curl http://150.230.56.153/api/health
+curl -I http://150.230.56.153/
 ```
 
 ## Backend environment variables
@@ -56,7 +62,7 @@ curl -I https://150.230.56.153/
 | Variable                                               | Type                    | Default                                               | Behavior                                                                                                 |
 | ------------------------------------------------------ | ----------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `PRODUCTION`                                           | boolean (`"1"`)         | `0`                                                   | Enables production mode; also changes the default for metrics.                                           |
-| `PORT`                                                 | integer                 | `8000` in `backend/main.py` fallback                  | Uvicorn port when running `python3 -m backend.main` directly.                                            |
+| `PORT`                                                 | integer                 | `4701` in `backend/main.py` fallback                  | Uvicorn port when running `python3 -m backend.main` directly.                                            |
 | `FRONTEND_ORIGIN`                                      | URL/string              | unset                                                 | Extra CORS origin; trailing slash is stripped.                                                           |
 | `FRONTEND_PORT`                                        | integer/string          | unset                                                 | Adds localhost and 127.0.0.1 CORS origins for the active frontend port.                                  |
 | `ENABLE_METRICS`                                       | boolean flag            | true unless `PRODUCTION=1`                            | Enables optional Prometheus instrumentation.                                                             |
@@ -147,8 +153,8 @@ fallback for malformed numbers.
 
 | Variable                          | Type               | Default                                                                        | Behavior                                                              |
 | --------------------------------- | ------------------ | ------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
-| `VITE_API_URL`                    | URL/string         | empty in `frontend/.env`; dev proxy target defaults to `http://localhost:4180` | Browser API base URL and Vite `/api` proxy target.                    |
-| `VITE_PORT`                       | number             | `5173`                                                                         | Vite development-server port.                                         |
+| `VITE_API_URL`                    | URL/string         | empty in `frontend/.env`; dev proxy target defaults to `http://localhost:4701` | Browser API base URL and Vite `/api` proxy target.                    |
+| `VITE_PORT`                       | number             | `4702`                                                                         | Vite development-server port; `strictPort` prevents automatic fallback. |
 | `VITE_COVERAGE`                   | boolean (`"true"`) | false                                                                          | Enables Istanbul instrumentation and coverage-specific test behavior. |
 | `VITE_MOBILE_NO_HMR`              | boolean (`"1"`)    | false                                                                          | Disables Vite HMR for the `dev:mobile` workflow.                      |
 | `VITE_EXPOSE_LIGHTBOX_TEST_HOOKS` | boolean (`"1"`)    | false                                                                          | Exposes lightbox test hooks outside Vite test mode.                   |

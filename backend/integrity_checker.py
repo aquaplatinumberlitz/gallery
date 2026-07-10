@@ -162,6 +162,10 @@ class IntegrityChecker:
         derivative_done_repaired, derivative_done_failed.
         """
         total = {}
+        # All checks that mutate metadata/catalog rows finish before desired
+        # derivative reconciliation starts.  The reconciler opens its own
+        # BEGIN IMMEDIATE transaction; calling it while this connection owns
+        # pending writes self-deadlocks SQLite.
         with _DB_LOCK, _connect() as conn:
             total["asset_done_but_no_metadata"] = self._check_asset_done_no_metadata(conn)
             total["job_done_asset_not_done"] = self._check_job_done_asset_not_done(conn)
@@ -180,10 +184,88 @@ class IntegrityChecker:
             total["derivative_done_repaired"] = result["repaired"]
             total["derivative_done_failed"] = result["failed"]
             total["job_active_no_file"] = self._check_job_active_no_file(conn)
-            total["derivative_expected_row_missing"] = self._check_derivative_expected_row_missing(conn)
-            total["derivative_queued_without_job"] = self._check_derivative_queued_without_job(conn)
-            total["derivative_policy_deferred"] = self._check_derivative_policy_deferred(conn)
+            expected_ids = self._find_expected_row_missing(conn)
+            queued_ids = self._find_queued_without_job(conn)
+            deferred_ids = self._find_policy_deferred(conn)
+
+        from .derivative_scheduler import scheduler
+
+        expected_summary = (
+            scheduler.reconcile_desired_derivatives(asset_ids=expected_ids, reason="integrity")
+            if expected_ids else None
+        )
+        queued_summary = (
+            scheduler.reconcile_desired_derivatives(asset_ids=queued_ids, reason="integrity")
+            if queued_ids else None
+        )
+        deferred_summary = (
+            scheduler.reconcile_desired_derivatives(asset_ids=deferred_ids, reason="integrity")
+            if deferred_ids else None
+        )
+        total["derivative_expected_row_missing"] = len(expected_ids)
+        total["derivative_expected_row_created"] = expected_summary.created_derivative_rows if expected_summary else 0
+        total["derivative_queued_without_job"] = len(queued_ids)
+        total["derivative_queued_without_job_repaired"] = queued_summary.requeued_without_job if queued_summary else 0
+        total["derivative_policy_deferred"] = len(deferred_ids)
+        total["derivative_policy_deferred_requeued"] = (
+            (deferred_summary.created_jobs + deferred_summary.requeued_without_job)
+            if deferred_summary else 0
+        )
         return total
+
+    @staticmethod
+    def _find_expected_row_missing(conn) -> list[int]:
+        """Find assets missing an exact configured kind/variant identity."""
+        configured = [
+            (kind, str(variant["name"])) for kind, variants in DERIVATIVE_VARIANTS.items() for variant in variants
+        ]
+        rows = conn.execute(
+            """SELECT a.id, a.mtime_ns, a.size FROM assets a
+               JOIN libraries l ON l.id = a.library_id
+               WHERE l.warm_enabled = 1 AND a.type = 'image'
+                 AND a.deleted_at IS NULL AND a.offline = 0
+                 AND a.mtime_ns IS NOT NULL AND a.size IS NOT NULL"""
+        ).fetchall()
+        missing: list[int] = []
+        for row in rows:
+            present = {
+                (d["kind"], d["variant"])
+                for d in conn.execute(
+                    "SELECT kind, variant FROM asset_derivatives WHERE asset_id = ? AND source_mtime_ns = ? AND source_size = ?",
+                    (row["id"], row["mtime_ns"], row["size"]),
+                ).fetchall()
+            }
+            if any(identity not in present for identity in configured):
+                missing.append(int(row["id"]))
+        return missing
+
+    @staticmethod
+    def _find_queued_without_job(conn) -> list[int]:
+        return [
+            int(row["asset_id"])
+            for row in conn.execute(
+                """SELECT DISTINCT d.asset_id FROM asset_derivatives d
+               JOIN assets a ON a.id = d.asset_id
+               WHERE d.status = 'queued' AND a.deleted_at IS NULL AND a.offline = 0
+                 AND a.type = 'image' AND NOT EXISTS (
+                   SELECT 1 FROM derivative_jobs j WHERE j.derivative_id = d.id
+                     AND j.state IN ('queued', 'running'))"""
+            ).fetchall()
+        ]
+
+    @staticmethod
+    def _find_policy_deferred(conn) -> list[int]:
+        return [
+            int(row["asset_id"])
+            for row in conn.execute(
+                """SELECT DISTINCT d.asset_id FROM asset_derivatives d
+               JOIN assets a ON a.id = d.asset_id
+               JOIN libraries l ON l.id = a.library_id
+               WHERE d.status IN ('deferred_capacity', 'evicted')
+                 AND l.warm_enabled = 1 AND a.deleted_at IS NULL AND a.offline = 0
+                 AND a.type = 'image'"""
+            ).fetchall()
+        ]
 
     def _check_asset_done_no_metadata(self, conn) -> int:
         rows = conn.execute(f"""
@@ -467,9 +549,11 @@ class IntegrityChecker:
             if not rows:
                 continue
             asset_ids = [int(row["id"]) for row in rows]
-            created += DerivativeScheduler().reconcile_desired_derivatives(
-                asset_ids=asset_ids, reason="integrity"
-            ).created_derivative_rows
+            created += (
+                DerivativeScheduler()
+                .reconcile_desired_derivatives(asset_ids=asset_ids, reason="integrity")
+                .created_derivative_rows
+            )
         return created
 
     def _check_derivative_queued_without_job(self, conn) -> int:
@@ -491,9 +575,11 @@ class IntegrityChecker:
         if not rows:
             return 0
         asset_ids = [int(row["asset_id"]) for row in rows]
-        return DerivativeScheduler().reconcile_desired_derivatives(
-            asset_ids=asset_ids, reason="integrity"
-        ).requeued_without_job
+        return (
+            DerivativeScheduler()
+            .reconcile_desired_derivatives(asset_ids=asset_ids, reason="integrity")
+            .requeued_without_job
+        )
 
     def _check_derivative_policy_deferred(self, conn) -> int:
         """Reconsider ``deferred_capacity``/``evicted`` current derivatives when capacity allows.

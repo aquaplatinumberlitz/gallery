@@ -52,7 +52,12 @@ def _configured_excluded_segments() -> tuple[tuple[str, ...], ...]:
 
 
 def _path_parts(path: str | Path) -> tuple[str, ...]:
-    return tuple(part for part in Path(path).parts if part not in {"", Path(path).anchor})
+    # Normalize separators before handing the value to pathlib.  pathlib uses
+    # the host OS parser, so a Windows path supplied to a POSIX server would
+    # otherwise remain one opaque filename and bypass repository exclusions.
+    normalized = str(path).replace("\\", "/")
+    parsed = Path(normalized)
+    return tuple(part for part in parsed.parts if part not in {"", parsed.anchor, "/"})
 
 
 def _contains_segment(parts: tuple[str, ...], segment: tuple[str, ...]) -> bool:

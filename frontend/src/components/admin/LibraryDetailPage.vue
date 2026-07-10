@@ -270,7 +270,11 @@ const thumbnailReady = computed(() => thumbnails.value?.ready_derivatives ?? 0);
 const thumbnailExpected = computed(() => thumbnails.value?.expected_derivatives ?? 0);
 const thumbnailMissing = computed(() => thumbnails.value?.actionable_missing_derivatives ?? 0);
 const derivativeWorkerUnavailable = computed(
-  () => thumbnailMissing.value > 0 && thumbnails.value !== null && !thumbnails.value.worker_healthy,
+  () =>
+    thumbnails.value !== null &&
+    thumbnails.value.policy === "warm" &&
+    (thumbnailMissing.value > 0 || thumbnails.value.queued_jobs > 0 || thumbnails.value.running_jobs > 0) &&
+    !thumbnails.value.worker_healthy,
 );
 const hasDerivativeExpectation = computed(() => thumbnailExpected.value > 0);
 const derivativeCoverageRatio = computed(() => {
@@ -281,33 +285,54 @@ const derivativeCoverageLabel = computed(() =>
   hasDerivativeExpectation.value ? formatPercent(derivativeCoverageRatio.value) : "Not measured",
 );
 const derivativeCacheState = computed(() =>
-  !hasDerivativeExpectation.value
+  thumbnails.value?.policy === "on_demand"
     ? {
         label: "Generated images",
-        value: "Unknown",
-        detail: "Run a scan to measure generated-image needs",
+        value: "On demand",
+        detail: "Images are created when requested; cached coverage is informational",
         tone: "text-muted-foreground",
       }
-    : thumbnails.value?.policy === "on_demand"
+    : !hasDerivativeExpectation.value
       ? {
           label: "Generated images",
-          value: "On demand",
-          detail: "Images are created when requested; cached coverage is informational",
+          value: "Unknown",
+          detail: "Run a scan to measure generated-image needs",
           tone: "text-muted-foreground",
         }
-      : thumbnailMissing.value > 0
-      ? {
-          label: "Generated images",
-          value: `${formatAssetCount(thumbnailMissing.value)} missing`,
-          detail: "Generation is needed",
-          tone: "text-warning",
-        }
-      : {
-          label: "Generated images",
-          value: "Complete",
-          detail: "Thumbnails and previews are ready",
-          tone: "text-success",
-        },
+      : (thumbnails.value?.deferred_derivatives ?? 0) > 0
+        ? {
+            label: "Generated images",
+            value: "Storage limited",
+            detail: `${formatAssetCount(thumbnails.value?.deferred_derivatives ?? 0)} waiting for capacity`,
+            tone: "text-warning",
+          }
+        : (thumbnails.value?.terminal_failed_derivatives ?? 0) > 0 || derivativeWorkerUnavailable.value
+          ? {
+              label: "Generated images",
+              value: "Needs attention",
+              detail: "Some generated images cannot progress",
+              tone: "text-destructive",
+            }
+          : (thumbnails.value?.queued_jobs ?? 0) > 0 || (thumbnails.value?.running_jobs ?? 0) > 0
+            ? {
+                label: "Generated images",
+                value: "Preparing",
+                detail: "Generated images are being prepared",
+                tone: "text-warning",
+              }
+            : thumbnailMissing.value > 0
+              ? {
+                  label: "Generated images",
+                  value: `${formatAssetCount(thumbnailMissing.value)} missing`,
+                  detail: "Generation is needed",
+                  tone: "text-warning",
+                }
+              : {
+                  label: "Generated images",
+                  value: "Complete",
+                  detail: "Thumbnails and previews are ready",
+                  tone: "text-success",
+                },
 );
 const hasUnavailableFiles = computed(() => (statsQuery.data.value?.offline_assets ?? 0) > 0);
 

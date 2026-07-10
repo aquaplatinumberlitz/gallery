@@ -300,7 +300,13 @@
         "derivative_failed_jobs",
         "derivative_skipped_jobs",
         "derivative_stale_running_jobs",
-        "derivative_oldest_running_age_seconds"
+        "derivative_oldest_running_age_seconds",
+        "derivative_reconcile_enabled",
+        "derivative_reconcile_running",
+        "derivative_last_reconcile_started_at",
+        "derivative_last_reconcile_completed_at",
+        "derivative_last_reconcile_status",
+        "derivative_last_reconcile_created_jobs"
       ],
       "properties": {
         "catalog_worker_count": {
@@ -377,6 +383,27 @@
         },
         "derivative_oldest_running_age_seconds": {
           "type": ["number", "null"],
+          "minimum": 0
+        },
+        "derivative_reconcile_enabled": {
+          "type": "boolean"
+        },
+        "derivative_reconcile_running": {
+          "type": "boolean"
+        },
+        "derivative_last_reconcile_started_at": {
+          "type": ["integer", "null"],
+          "minimum": 10000000000
+        },
+        "derivative_last_reconcile_completed_at": {
+          "type": ["integer", "null"],
+          "minimum": 10000000000
+        },
+        "derivative_last_reconcile_status": {
+          "type": ["string", "null"]
+        },
+        "derivative_last_reconcile_created_jobs": {
+          "type": "integer",
           "minimum": 0
         }
       }

@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-06-22
+Last reviewed: 2026-07-10
 
 Debug helpers must stay gated and off by default. Prefer these tools before adding new console logging, and remove temporary investigation code once the diagnosis is complete.
 
@@ -89,7 +89,7 @@ Purpose: Captures page lifecycle, WebSocket/HMR activity, errors, navigation, to
 Enable:
 
 ```text
-http://localhost:5173/?debugReload=1
+http://localhost:4702/?debugReload=1
 ```
 
 Persistent enable:
@@ -157,13 +157,13 @@ Purpose: Loads the Eruda mobile console for mobile browser debugging.
 Enable:
 
 ```text
-http://localhost:5173/?eruda=1
+http://localhost:4702/?eruda=1
 ```
 
 Disable:
 
 ```text
-http://localhost:5173/?eruda=0
+http://localhost:4702/?eruda=0
 ```
 
 or:
@@ -191,7 +191,7 @@ Purpose: Displays a local overlay with SVG icon metrics for tablet/mobile header
 Enable:
 
 ```text
-http://localhost:5173/?iconDebug=1
+http://localhost:4702/?iconDebug=1
 ```
 
 Disable: Remove `iconDebug=1` from the URL and reload.

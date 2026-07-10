@@ -58,6 +58,9 @@ class FileHealthIssues(BaseModel):
     metadata_mismatch: int
     orphaned_work_item: int
     generated_image_job_mismatch: int
+    generated_image_expected_row_missing: int = 0
+    generated_image_queued_without_job: int = 0
+    generated_image_policy_deferred: int = 0
 
 
 class FileHealthRepairs(BaseModel):

@@ -43,6 +43,9 @@ FILE_HEALTH_ISSUES = {
     "metadata_mismatch",
     "orphaned_work_item",
     "generated_image_job_mismatch",
+    "generated_image_expected_row_missing",
+    "generated_image_queued_without_job",
+    "generated_image_policy_deferred",
 }
 FILE_HEALTH_REPAIRS = {"repaired", "requeued", "failed", "skipped", "recovered", "unchanged"}
 

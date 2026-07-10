@@ -80,8 +80,14 @@ def test_background_reconcile_defers_when_quota_exceeded(
     assert summary.deferred_capacity == 2
     assert summary.created_jobs == 0
     with _connect(isolated_metadata_db) as conn:
-        states = {row["status"] for row in conn.execute("SELECT status FROM asset_derivatives WHERE asset_id = ?", (asset_id,))}
-        jobs = conn.execute("SELECT count(*) FROM derivative_jobs j JOIN asset_derivatives d ON d.id = j.derivative_id WHERE d.asset_id = ?", (asset_id,)).fetchone()[0]
+        states = {
+            row["status"]
+            for row in conn.execute("SELECT status FROM asset_derivatives WHERE asset_id = ?", (asset_id,))
+        }
+        jobs = conn.execute(
+            "SELECT count(*) FROM derivative_jobs j JOIN asset_derivatives d ON d.id = j.derivative_id WHERE d.asset_id = ?",
+            (asset_id,),
+        ).fetchone()[0]
     assert states == {"deferred_capacity"}
     assert jobs == 0
 
@@ -99,7 +105,10 @@ def test_quota_increase_reconsiders_deferred_work(
     assert summary.created_jobs == 2
     assert summary.deferred_capacity == 0
     with sqlite3.connect(isolated_metadata_db) as conn:
-        jobs = conn.execute("SELECT count(*) FROM derivative_jobs j JOIN asset_derivatives d ON d.id = j.derivative_id WHERE d.asset_id = ?", (asset_id,)).fetchone()[0]
+        jobs = conn.execute(
+            "SELECT count(*) FROM derivative_jobs j JOIN asset_derivatives d ON d.id = j.derivative_id WHERE d.asset_id = ?",
+            (asset_id,),
+        ).fetchone()[0]
     assert jobs == 2
 
 

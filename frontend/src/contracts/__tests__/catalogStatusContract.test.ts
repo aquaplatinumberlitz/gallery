@@ -75,6 +75,12 @@ const globalRuntime = {
   derivative_skipped_jobs: 0,
   derivative_stale_running_jobs: 0,
   derivative_oldest_running_age_seconds: null,
+  derivative_reconcile_enabled: true,
+  derivative_reconcile_running: false,
+  derivative_last_reconcile_started_at: null,
+  derivative_last_reconcile_completed_at: null,
+  derivative_last_reconcile_status: null,
+  derivative_last_reconcile_created_jobs: 0,
 } satisfies GlobalRuntime;
 
 describe("catalog status contract fixtures", () => {

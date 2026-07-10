@@ -259,15 +259,19 @@ def test_reconcile_repairs_ready_file_and_job_row_gaps(
         )
         conn.execute("DELETE FROM derivative_jobs WHERE derivative_id = ?", (derivative_id,))
 
-    summary = scheduler.reconcile_desired_derivatives(
-        asset_ids=[asset_id], kinds=["thumbnail"], reason="phase_1"
-    )
+    summary = scheduler.reconcile_desired_derivatives(asset_ids=[asset_id], kinds=["thumbnail"], reason="phase_1")
 
     assert summary.requeued_without_job == 1
     assert summary.created_jobs == 1
     with sqlite3.connect(isolated_metadata_db) as conn:
-        assert conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (derivative_id,)).fetchone()[0] == "queued"
-        assert conn.execute("SELECT count(*) FROM derivative_jobs WHERE derivative_id = ?", (derivative_id,)).fetchone()[0] == 1
+        assert (
+            conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (derivative_id,)).fetchone()[0]
+            == "queued"
+        )
+        assert (
+            conn.execute("SELECT count(*) FROM derivative_jobs WHERE derivative_id = ?", (derivative_id,)).fetchone()[0]
+            == 1
+        )
 
 
 def test_reconcile_keeps_current_terminal_failure_without_explicit_retry(
@@ -288,7 +292,10 @@ def test_reconcile_keeps_current_terminal_failure_without_explicit_retry(
     assert summary.terminal_failed == 1
     assert summary.created_jobs == 1  # The preview remains absent and is scheduled.
     with sqlite3.connect(isolated_metadata_db) as conn:
-        assert conn.execute("SELECT count(*) FROM derivative_jobs WHERE derivative_id = ?", (derivative_id,)).fetchone()[0] == 1
+        assert (
+            conn.execute("SELECT count(*) FROM derivative_jobs WHERE derivative_id = ?", (derivative_id,)).fetchone()[0]
+            == 1
+        )
 
 
 def test_automatic_reconcile_respects_warm_enabled_but_manual_warm_overrides_it(

@@ -119,6 +119,12 @@ def test_default_exclusions_are_repository_specific():
 
 def test_windows_style_separator_normalization():
     """Backslash paths and configured backslash patterns normalize to the same exclusion."""
+    # Exercise the public helper, not only an already-split tuple.
+    assert files_module.is_index_excluded_path(r"C:\\repo\\frontend\\coverage\\asset.png")
+    assert files_module.is_index_excluded_path(r"C:\\repo\\frontend\\test-results\\asset.png")
+    assert files_module.is_index_excluded_path(r"C:\\repo\\frontend\\playwright-report\\asset.png")
+    assert files_module.is_index_excluded_path(r"\\server\\share\\frontend\\coverage\\asset.png")
+    assert not files_module.is_index_excluded_path(r"C:\\repo\\photos\\coverage\\asset.png")
     # Default segment matching is separator-agnostic on the resolved parts.
     assert files_module._contains_segment(
         ("C:\\", "frontend", "coverage", "asset.png"),
@@ -169,11 +175,14 @@ def test_per_library_exclusion_pattern_still_applies(isolated_gallery_root: Path
         patterns,
     )
     # Neither default nor per-library: not excluded.
-    assert files_module.is_index_excluded_path(
-        isolated_gallery_root / "photos" / "real.png",
-        import_root,
-        patterns,
-    ) is False
+    assert (
+        files_module.is_index_excluded_path(
+            isolated_gallery_root / "photos" / "real.png",
+            import_root,
+            patterns,
+        )
+        is False
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -240,9 +249,7 @@ def test_scan_reconciles_already_indexed_test_artifacts_offline(
         include_metadata=False,
         collected_asset_paths=post_upgrade_discovered,
     )
-    assert "frontend/coverage/artifact.png" not in {
-        p.split(str(root) + "/")[-1] for p in post_upgrade_discovered
-    }
+    assert "frontend/coverage/artifact.png" not in {p.split(str(root) + "/")[-1] for p in post_upgrade_discovered}
     reconcile_library_assets(library_id, post_upgrade_discovered, scope_path=None)
 
     with _connect(isolated_metadata_db) as conn:
@@ -255,7 +262,11 @@ def test_scan_reconciles_already_indexed_test_artifacts_offline(
             (library_id, f"%{root}/frontend/%".replace("/", f"{os.sep}")),
         ).fetchall()
         # Source files on disk must remain untouched.
-        for sub in ("frontend/coverage/artifact.png", "frontend/test-results/a.png", "frontend/playwright-report/b.png"):
+        for sub in (
+            "frontend/coverage/artifact.png",
+            "frontend/test-results/a.png",
+            "frontend/playwright-report/b.png",
+        ):
             assert (root / sub).is_file()
 
     assert active_after == 1  # only the real image remains an active asset

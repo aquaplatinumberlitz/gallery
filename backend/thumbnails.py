@@ -357,7 +357,12 @@ async def _serve_derivative(
             if isinstance(wait_result, tuple):
                 outcome_kind, outcome = wait_result
                 if outcome_kind == "failed":
-                    raise APIError(400, ErrorType.INVALID_FILE, failure_message)
+                    result_code = outcome.get("result_code")
+                    if result_code == "invalid_source":
+                        raise APIError(400, ErrorType.INVALID_FILE, failure_message)
+                    if result_code in {"attempts_exhausted", "internal_error"}:
+                        raise APIError(500, ErrorType.SERVER_ERROR, "Generated image worker failed")
+                    raise APIError(500, ErrorType.SERVER_ERROR, "Generated image generation failed")
                 if outcome_kind == "deferred":
                     raise APIError(
                         507,
@@ -368,7 +373,9 @@ async def _serve_derivative(
                     result_code = outcome.get("result_code")
                     if result_code in ("source_missing", "asset_inactive"):
                         raise APIError(404, ErrorType.NOT_FOUND, "Image file not found")
-                    raise APIError(503, ErrorType.SERVER_ERROR, "Derivative generation timed out")
+                    if result_code == "source_changed":
+                        raise APIError(409, ErrorType.SERVER_ERROR, "Image changed while its derivative was generated")
+                    raise APIError(500, ErrorType.SERVER_ERROR, "Generated image request reached a terminal state")
                 return None
             ready = wait_result
         if ready is None:

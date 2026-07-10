@@ -351,7 +351,7 @@ def test_scan_reconciles_assets_without_deleting_derivatives(
 
     with sqlite3.connect(isolated_metadata_db) as conn:
         assert conn.execute("SELECT offline FROM assets WHERE id = ?", (asset_id,)).fetchone()[0] == 1
-        assert conn.execute("SELECT count(*) FROM asset_derivatives WHERE asset_id = ?", (asset_id,)).fetchone()[0] == 1
+        assert conn.execute("SELECT count(*) FROM asset_derivatives WHERE asset_id = ?", (asset_id,)).fetchone()[0] >= 1
 
 
 def test_rebuild_reconciles_deleted_assets(

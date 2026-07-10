@@ -319,7 +319,8 @@ def test_get_cors_origins_defaults(monkeypatch: pytest.MonkeyPatch):
     from backend.app import _get_cors_origins
 
     origins = _get_cors_origins()
-    assert "http://localhost:5173" in origins
+    assert "http://localhost:4702" in origins
+    assert "http://127.0.0.1:4702" in origins
 
 
 # ---------------------------------------------------------------------------

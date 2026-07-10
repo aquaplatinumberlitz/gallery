@@ -15,4 +15,7 @@ Active plans:
   test-artifact exclusions.
 - [Derivative Lifecycle Implementation Status](DERIVATIVE_LIFECYCLE_FULL_CONVERGENCE_IMPLEMENTATION_STATUS.md) -
   phase-gated execution record and verification results.
+- [Derivative Lifecycle Audit Fix Handoff Prompt](DERIVATIVE_LIFECYCLE_AUDIT_FIX_HANDOFF_PROMPT.md) -
+  copy-ready OpenCode handoff for the eleven audited scheduler, integrity,
+  quota, HTTP, Admin-state, reconciliation, and catalog-hygiene follow-up fixes.
 Completed or superseded plans live in [Archived Documentation](../archived/README.md).

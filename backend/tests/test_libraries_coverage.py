@@ -756,6 +756,7 @@ def test_derivative_status_stale_source_not_counted(isolated_app: TestClient, is
                 "stale derivative source version must differ from current asset"
             )
             # cache_path may exist from old generate, but that's fine (rebuild_stale will cleanup)
+    deriv_scheduler.stop()
 
 
 def test_derivative_ready_cache_file_deleted(isolated_app: TestClient, isolated_gallery_root: Path):
@@ -777,7 +778,7 @@ def test_derivative_ready_cache_file_deleted(isolated_app: TestClient, isolated_
     with _connect() as conn:
         conn.execute(
             """INSERT INTO assets (library_id, path, name, parent_path, type, mtime_ns, size, metadata_state)
-               VALUES (?, ?, ?, ?, 'image', ?, ?, 'pending')""",
+                VALUES (?, ?, ?, ?, 'image', ?, ?, 'pending')""",
             (library_id, str(photo), "img.png", str(root), photo_stat.st_mtime_ns, photo_stat.st_size),
         )
         asset_id = int(conn.execute("SELECT last_insert_rowid()").fetchone()[0])
@@ -820,3 +821,4 @@ def test_derivative_ready_cache_file_deleted(isolated_app: TestClient, isolated_
             (asset_id,),
         ).fetchone()[0]
     assert still_ready > 0, "DB rows should still be marked ready (integrity checker will reconcile later)"
+    deriv_scheduler.stop()

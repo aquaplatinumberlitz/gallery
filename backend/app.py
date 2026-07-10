@@ -56,13 +56,13 @@ def _get_cors_origins() -> list[str]:
         )
 
     if not origins:
-        origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+        origins = ["http://localhost:4702", "http://127.0.0.1:4702"]
 
     return origins
 
 
 VPS_IP = "http://150.230.56.153"
-VPS_ORIGINS = [VPS_IP, f"{VPS_IP}:4180", f"{VPS_IP}:4173", f"{VPS_IP}:5173", f"{VPS_IP}:4701", f"{VPS_IP}:4702"]
+VPS_ORIGINS = [VPS_IP, f"{VPS_IP}:4701", f"{VPS_IP}:4702"]
 
 app = FastAPI(title="Museum Art Gallery API")
 

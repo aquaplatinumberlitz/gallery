@@ -111,7 +111,7 @@ def bench_inspector_metadata(base_url: str, image_path: str | None, iterations: 
 
 def main() -> int:
     """Run search benchmarks and enforce their configured budgets."""
-    base_url = os.getenv("GALLERY_API_BASE_URL", "http://localhost:8000")
+    base_url = os.getenv("GALLERY_API_BASE_URL", "http://localhost:4701")
     iterations = int(os.getenv("GALLERY_PERF_BENCH_SEARCH_ITERATIONS", "10"))
     query = os.getenv("GALLERY_PERF_BENCH_SEARCH_QUERY", "a")
     search_budget = float(os.getenv("GALLERY_PERF_SEARCH_P95_BUDGET_MS", str(budget_for("search", "p95_ms"))))

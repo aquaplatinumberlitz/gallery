@@ -81,7 +81,9 @@ def test_lease_heartbeat_prevents_duplicate_render_after_lease_expiry(
 
     monkeypatch.setattr(thumbnails_module, "generate_derivative", slow_render)
 
-    derivative_id = scheduler.schedule_derivative(asset_id, "thumbnail", str(DERIVATIVE_VARIANTS["thumbnail"][0]["name"]))
+    derivative_id = scheduler.schedule_derivative(
+        asset_id, "thumbnail", str(DERIVATIVE_VARIANTS["thumbnail"][0]["name"])
+    )
     job = scheduler._claim_job()
     assert job is not None
 
@@ -92,9 +94,7 @@ def test_lease_heartbeat_prevents_duplicate_render_after_lease_expiry(
     time.sleep(1.5)
     assert scheduler._recover_running_jobs(expired_only=True) == 0
     with _connect(isolated_metadata_db) as conn:
-        running = conn.execute(
-            "SELECT state FROM derivative_jobs WHERE id = ?", (job["job_id"],)
-        ).fetchone()[0]
+        running = conn.execute("SELECT state FROM derivative_jobs WHERE id = ?", (job["job_id"],)).fetchone()[0]
         assert running == "running"
 
     finished.wait(timeout=5)
@@ -105,9 +105,7 @@ def test_lease_heartbeat_prevents_duplicate_render_after_lease_expiry(
             "SELECT state FROM derivative_jobs WHERE derivative_id = ? ORDER BY id DESC LIMIT 1",
             (derivative_id,),
         ).fetchone()
-        derivative = conn.execute(
-            "SELECT status FROM asset_derivatives WHERE id = ?", (derivative_id,)
-        ).fetchone()
+        derivative = conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (derivative_id,)).fetchone()
     assert job_row["state"] == "done"
     assert derivative["status"] == "ready"
 
@@ -137,7 +135,9 @@ def test_heartbeat_renews_lease_during_long_render_and_stops_after_done(
 
     monkeypatch.setattr(thumbnails_module, "generate_derivative", slow_render)
 
-    derivative_id = scheduler.schedule_derivative(asset_id, "thumbnail", str(DERIVATIVE_VARIANTS["thumbnail"][0]["name"]))
+    derivative_id = scheduler.schedule_derivative(
+        asset_id, "thumbnail", str(DERIVATIVE_VARIANTS["thumbnail"][0]["name"])
+    )
     job = scheduler._claim_job()
     render_thread = threading.Thread(target=scheduler._run_job, args=(job,))
     render_thread.start()
@@ -152,9 +152,9 @@ def test_heartbeat_renews_lease_during_long_render_and_stops_after_done(
     assert len(renew_calls) == renew_after_completion  # Heartbeat stopped; no further renewals.
 
     with _connect(isolated_metadata_db) as conn:
-        assert conn.execute(
-            "SELECT status FROM asset_derivatives WHERE id = ?", (derivative_id,)
-        ).fetchone()[0] == "ready"
+        assert (
+            conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (derivative_id,)).fetchone()[0] == "ready"
+        )
 
 
 def test_heartbeat_stops_on_failed_render(
@@ -182,7 +182,9 @@ def test_heartbeat_stops_on_failed_render(
 
     monkeypatch.setattr(thumbnails_module, "generate_derivative", failing_render)
 
-    derivative_id = scheduler.schedule_derivative(asset_id, "thumbnail", str(DERIVATIVE_VARIANTS["thumbnail"][0]["name"]))
+    derivative_id = scheduler.schedule_derivative(
+        asset_id, "thumbnail", str(DERIVATIVE_VARIANTS["thumbnail"][0]["name"])
+    )
     job = scheduler._claim_job()
     render_thread = threading.Thread(target=scheduler._run_job, args=(job,))
     render_thread.start()
@@ -293,18 +295,19 @@ def test_start_after_incomplete_stop_restores_workers_and_preserves_jobs(
     derivative_id = None
     with _connect(isolated_metadata_db) as conn:
         derivative_id = int(
-            conn.execute(
-                "SELECT id FROM asset_derivatives WHERE asset_id = ?", (asset_id,)
-            ).fetchone()[0]
+            conn.execute("SELECT id FROM asset_derivatives WHERE asset_id = ?", (asset_id,)).fetchone()[0]
         )
     blocked.set()
 
     for _ in range(100):
         with _connect(isolated_metadata_db) as conn:
-            if conn.execute(
-                "SELECT count(*) FROM derivative_jobs WHERE derivative_id = ? AND state = 'done'",
-                (derivative_id,),
-            ).fetchone()[0] >= 1:
+            if (
+                conn.execute(
+                    "SELECT count(*) FROM derivative_jobs WHERE derivative_id = ? AND state = 'done'",
+                    (derivative_id,),
+                ).fetchone()[0]
+                >= 1
+            ):
                 break
         time.sleep(0.05)
 
@@ -312,9 +315,7 @@ def test_start_after_incomplete_stop_restores_workers_and_preserves_jobs(
         job_count = conn.execute(
             "SELECT count(*) FROM derivative_jobs WHERE derivative_id = ?", (derivative_id,)
         ).fetchone()[0]
-        status = conn.execute(
-            "SELECT status FROM asset_derivatives WHERE id = ?", (derivative_id,)
-        ).fetchone()[0]
+        status = conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (derivative_id,)).fetchone()[0]
     assert job_count == 1  # No duplicate job created by the restart.
     assert status == "ready"
     scheduler.stop()

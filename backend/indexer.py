@@ -349,10 +349,18 @@ class MetadataLifecycleWorker:
             if asset is not None:
                 from .derivative_scheduler import scheduler
 
-                scheduler.reconcile_desired_derivatives(
-                    asset_ids=[int(asset["id"])],
-                    reason="metadata_completion",
-                )
+                try:
+                    scheduler.reconcile_desired_derivatives(
+                        asset_ids=[int(asset["id"])],
+                        reason="metadata_completion",
+                    )
+                except Exception:  # noqa: BLE001
+                    # Metadata completion is durable and must not be rewritten
+                    # as failed because the derivative safety net is unavailable.
+                    self._logger.exception(
+                        "Derivative safety-net reconciliation failed after metadata completion for %s",
+                        job.path,
+                    )
         except Exception as exc:  # noqa: BLE001
             self._logger.exception("Metadata job %s failed: %s", job.path, exc)
             try:

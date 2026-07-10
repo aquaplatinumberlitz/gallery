@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-06-26
+Last reviewed: 2026-07-10
 
 This document describes how to measure and profile Gallery API performance.
 
@@ -69,7 +69,7 @@ The backend exposes Prometheus metrics at `/metrics` when enabled.
 ENABLE_METRICS=1
 
 # Check it works:
-curl http://localhost:8000/metrics
+curl http://localhost:4701/metrics
 ```
 
 Metrics include:
@@ -112,7 +112,7 @@ catalog-backed and requires a registered `library_id`.
 ```bash
 # Replace library_id/path with values from your local catalog.
 time curl -sS \
-  "http://localhost:8000/api/browse?library_id=1&path=/absolute/path/to/local/album&limit=200" \
+  "http://localhost:4701/api/browse?library_id=1&path=/absolute/path/to/local/album&limit=200" \
   >/tmp/gallery-browse.json
 ```
 
@@ -306,7 +306,7 @@ corepack pnpm run perf:lightbox
 | `PROFILE_ENDPOINTS`                             | `/api/browse,/api/metadata,/api/thumbnail,/api/preview` | Comma-separated endpoints to profile                                      |
 | `GALLERY_METADATA_DB`                           | `backend/.cache/gallery_metadata.db`                  | Path to SQLite metadata cache DB                                          |
 | `GALLERY_BASE_URL`                              | `http://localhost:5173`                               | Frontend URL for Playwright tests                                         |
-| `GALLERY_API_BASE_URL`                          | `http://localhost:8000`                               | Backend API URL for perf scripts                                          |
+| `GALLERY_API_BASE_URL`                          | `http://localhost:4701`                               | Backend API URL for standalone perf scripts                               |
 | `GALLERY_PERF_ALBUM_NAME`                       | `Test Album`                                         | Album name for Playwright test                                            |
 | `GALLERY_PERF_ALBUM_PATH`                       | `""`                                                  | Album path to filter browse/thumbnail samples; prevents root-browse pollution |
 | `GALLERY_PERF_ALBUM_SAMPLES`                    | `5`                                                   | Iterations for album-open perf spec (p95 aggregation)                     |

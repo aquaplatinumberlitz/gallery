@@ -295,3 +295,57 @@ rows are reconciled offline.
 ## Phase 7 — Verification, Rollout, and Closeout
 
 Status: Not started
+
+## Audit Follow-up — Eleven Findings
+
+Status: Implemented in the current worktree; final closeout is pending the
+required full repository verification and deterministic audit regression suite.
+
+The current implementation addresses the eleven handoff findings as follows:
+
+1. Startup recovery runs before newly started workers can claim jobs, while
+   incomplete-stop restarts preserve live claims and restore missing slots.
+2. Integrity discovery commits before invoking the singleton scheduler.
+3. Quota accounting includes queued/running reservations and only counts
+   successful evictions.
+4. Metadata completion remains successful when the derivative safety net fails.
+5. Eligible current `source_missing`/`asset_inactive` skips are requeued once
+   the source is valid; historical identities remain terminal.
+6. Admin generated-image state distinguishes on-demand, preparing, attention,
+   storage-limited, actionable, and complete outcomes.
+7. HTTP derivative outcomes branch on stable result codes.
+8. Integrity checks exact configured kind/variant identities, excluding custom
+   variants from coverage satisfaction.
+9. Manual Generate missing delegates to the common reconciler.
+10. Background reconciliation observes stop after the current committed batch.
+11. Public catalog exclusion checks normalize POSIX, Windows, and UNC-style
+    separators without globally excluding unrelated directories.
+
+Implementation commits: none yet; these changes are currently uncommitted in
+the shared worktree and preserve the pre-existing worktree modifications.
+
+Verification completed so far:
+
+```text
+backend/.venv_linux/bin/python -m pytest -q \
+  backend/tests/test_derivative_scheduler.py \
+  backend/tests/test_integrity_checker.py
+47 passed
+
+backend/.venv_linux/bin/python -m pytest -q \
+  backend/tests/test_derivative_scheduler.py \
+  backend/tests/test_integrity_checker.py \
+  backend/tests/test_derivative_lifecycle_phase4.py \
+  backend/tests/test_derivative_lifecycle_phase5.py \
+  backend/tests/test_catalog_hygiene_phase6.py \
+  backend/tests/test_libraries_coverage.py \
+  backend/tests/test_api_integration_derivatives.py
+152 passed
+
+frontend: typecheck passed; focused generated-image Vitest suites: 35 passed.
+ruff: all touched backend files passed.
+```
+
+Remaining verification: the eleven dedicated concurrency/outcome regression
+scenarios, repository gates, E2E acceptance, performance checks, and
+`./test.sh full` have not yet been recorded; Phase 7 therefore remains open.

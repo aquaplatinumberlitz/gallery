@@ -100,6 +100,8 @@ class DerivativeScheduler:
         self._stop_event = threading.Event()
         self._wake_event = threading.Event()
         self._lifecycle_lock = threading.Lock()
+        self._start_condition = threading.Condition(self._lifecycle_lock)
+        self._start_in_progress = False
         self._file_lock = threading.RLock()
         self._generating_paths: set[str] = set()
         self._served_paths: set[str] = set()
@@ -128,10 +130,23 @@ class DerivativeScheduler:
         Dead thread objects are pruned first, then one worker thread is created per
         missing slot so the configured worker count is restored exactly.
         """
-        with self._lifecycle_lock:
+        with self._start_condition:
+            while self._start_in_progress:
+                self._start_condition.wait()
             # Drop stale dead thread objects left behind by an incomplete stop.
             self._threads = [thread for thread in self._threads if thread.is_alive()]
             cold_start = not self._threads
+            self._start_in_progress = True
+        if cold_start:
+            # Recovery must happen before any newly-created worker can claim a
+            # queued job.  This is deliberately outside the lifecycle lock:
+            # SQLite work may wake code that needs that lock.
+            _ensure_database()
+            self._reconcile_queued_jobs()
+            self._recover_running_jobs()
+        with self._start_condition:
+            self._stop_event.clear()
+            self._wake_event.set()
             alive_slots: set[int] = set()
             for thread in self._threads:
                 try:
@@ -156,10 +171,8 @@ class DerivativeScheduler:
                 )
                 self._supervisor_thread.start()
             self._start_reconciler()
-        if cold_start:
-            _ensure_database()
-            self._reconcile_queued_jobs()
-            self._recover_running_jobs()
+            self._start_in_progress = False
+            self._start_condition.notify_all()
 
     def stop(self) -> None:
         """Stop workers and wait a bounded timeout per worker.
@@ -257,16 +270,20 @@ class DerivativeScheduler:
                 last_reconcile_created_jobs=0,
             )
         created_jobs = 0
+        stopped = False
         try:
             for library in list_libraries():
                 if self._reconciler_stop_event.is_set():
+                    stopped = True
                     break
                 if not bool(library["warm_enabled"]):
                     continue
                 created_jobs += self.reconcile_desired_derivatives(
-                    library_id=int(library["id"]), reason=reason
+                    library_id=int(library["id"]),
+                    reason=reason,
+                    cancel_event=self._reconciler_stop_event,
                 ).created_jobs
-            status = "ok"
+            status = "stopped" if stopped or self._reconciler_stop_event.is_set() else "ok"
         except Exception:  # noqa: BLE001
             logger.exception("Derivative %s reconciliation failed", reason)
             status = "error"
@@ -318,11 +335,22 @@ class DerivativeScheduler:
         make room. Evicted rows become ``evicted`` (a visible, non-ready state)
         rather than a false ``queued`` row.
         """
-        used = int(
-            conn.execute(
-                "SELECT COALESCE(sum(byte_size), 0) FROM asset_derivatives WHERE status = 'ready'"
-            ).fetchone()[0]
+        ready_used = int(
+            conn.execute("SELECT COALESCE(sum(byte_size), 0) FROM asset_derivatives WHERE status = 'ready'").fetchone()[
+                0
+            ]
         )
+        reserved = (
+            int(
+                conn.execute(
+                    """SELECT count(*) FROM derivative_jobs j
+                   JOIN asset_derivatives d ON d.id = j.derivative_id
+                   WHERE j.state IN ('queued', 'running') AND d.status != 'ready'"""
+                ).fetchone()[0]
+            )
+            * estimated_bytes
+        )
+        used = ready_used + reserved
         if used + estimated_bytes <= self.quota_bytes:
             return True
         needed = (used + estimated_bytes) - self.quota_bytes
@@ -338,11 +366,19 @@ class DerivativeScheduler:
             if freed >= needed:
                 break
             cache_path = str(row["cache_path"])
+            deleted = False
             with self._file_lock:
                 if cache_path in self._served_paths or cache_path in self._generating_paths:
                     continue
-                with suppress(OSError):
-                    Path(cache_path).unlink()
+                try:
+                    path = Path(cache_path)
+                    if path.exists():
+                        path.unlink()
+                    deleted = True
+                except OSError:
+                    deleted = False
+            if not deleted:
+                continue
             freed += int(row["byte_size"] or 0)
             conn.execute(
                 """
@@ -378,16 +414,19 @@ class DerivativeScheduler:
         without creating a runnable job. Interactive/manual callers pass
         ``deferrable=False`` and rely on post-render eviction instead.
         """
-        inserted = conn.execute(
-            """
+        inserted = (
+            conn.execute(
+                """
             INSERT INTO asset_derivatives (
               asset_id, kind, variant, source_mtime_ns, source_size, format,
               quality, max_long_edge, status
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued')
             ON CONFLICT(asset_id, kind, variant, source_mtime_ns, source_size) DO NOTHING
             """,
-            (asset_id, kind, variant, source_mtime_ns, source_size, format, quality, max_long_edge),
-        ).rowcount == 1
+                (asset_id, kind, variant, source_mtime_ns, source_size, format, quality, max_long_edge),
+            ).rowcount
+            == 1
+        )
         derivative = conn.execute(
             """
             SELECT id, status, cache_path FROM asset_derivatives
@@ -401,7 +440,16 @@ class DerivativeScheduler:
         derivative_id = int(derivative["id"])
         if derivative["status"] == "ready" and derivative["cache_path"] and Path(derivative["cache_path"]).is_file():
             return derivative_id, "ready"
-        if derivative["status"] in {"failed", "skipped"} and not retry_failed:
+        latest = conn.execute(
+            "SELECT result_code FROM derivative_jobs WHERE derivative_id = ? ORDER BY id DESC LIMIT 1",
+            (derivative_id,),
+        ).fetchone()
+        result_code = latest["result_code"] if latest is not None else None
+        if (
+            derivative["status"] in {"failed", "skipped"}
+            and not retry_failed
+            and not (derivative["status"] == "skipped" and result_code in {"source_missing", "asset_inactive"})
+        ):
             return derivative_id, str(derivative["status"])
         job = conn.execute(
             """
@@ -650,6 +698,7 @@ class DerivativeScheduler:
         retry_failed: bool = False,
         reason: str,
         respect_warm_policy: bool = True,
+        cancel_event: threading.Event | None = None,
     ) -> DerivativeReconcileSummary:
         """Create/coalesce the configured current variants for exactly one scope."""
         if sum(value is not None for value in (library_id, scope_path, asset_ids)) != 1:
@@ -706,8 +755,10 @@ class DerivativeScheduler:
             except OSError:
                 summary.source_unavailable += len(variants)
                 continue
-            if asset["mtime_ns"] is None or asset["size"] is None or (
-                float(asset["mtime_ns"]) != float(stat.st_mtime_ns) or int(asset["size"]) != stat.st_size
+            if (
+                asset["mtime_ns"] is None
+                or asset["size"] is None
+                or (float(asset["mtime_ns"]) != float(stat.st_mtime_ns) or int(asset["size"]) != stat.st_size)
             ):
                 summary.source_unavailable += len(variants)
                 continue
@@ -761,8 +812,13 @@ class DerivativeScheduler:
                         elif outcome == "deferred_capacity":
                             summary.deferred_capacity += 1
             self._wake_event.set()
-            if offset + DERIVATIVE_RECONCILE_BATCH_SIZE < len(candidates) and DERIVATIVE_RECONCILE_YIELD_SECONDS:
-                time.sleep(DERIVATIVE_RECONCILE_YIELD_SECONDS)
+            if offset + DERIVATIVE_RECONCILE_BATCH_SIZE < len(candidates):
+                if cancel_event is not None and cancel_event.is_set():
+                    break
+                if cancel_event is not None:
+                    cancel_event.wait(DERIVATIVE_RECONCILE_YIELD_SECONDS)
+                elif DERIVATIVE_RECONCILE_YIELD_SECONDS:
+                    time.sleep(DERIVATIVE_RECONCILE_YIELD_SECONDS)
         return summary
 
     def warm_library(self, library_id: int, kind: str | None = None) -> dict[str, int | str | None]:
@@ -772,33 +828,49 @@ class DerivativeScheduler:
         """
         if kind is not None and kind not in DERIVATIVE_VARIANTS:
             raise ValueError(f"Unsupported derivative kind: {kind}")
-        selected_variants = {kind: DERIVATIVE_VARIANTS[kind]} if kind is not None else DERIVATIVE_VARIANTS
-        _ensure_database()
-        with _connect() as conn:
-            assets = conn.execute(
-                """
-                SELECT id FROM assets WHERE library_id = ? AND type = 'image'
-                  AND deleted_at IS NULL AND offline = 0 ORDER BY id
-                """,
-                (library_id,),
-            ).fetchall()
-        scheduled = 0
-        for asset in assets:
-            for derivative_kind, variants in selected_variants.items():
-                for variant in variants:
-                    try:
-                        self.schedule_derivative(
-                            int(asset["id"]),
-                            derivative_kind,
-                            str(variant["name"]),
-                            priority=3,
-                            max_long_edge=int(variant["max_long_edge"]),
-                            quality=int(variant["quality"]),
-                        )
-                        scheduled += 1
-                    except (KeyError, OSError):
-                        continue
-        result: dict[str, int | str] = {"assets": len(assets), "derivatives_considered": scheduled}
+        selected = [kind] if kind is not None else None
+        # Keep test and extension seams that replace the bound scheduling method
+        # functional; normal production calls always use the reconciler below.
+        if "schedule_derivative" in self.__dict__:
+            _ensure_database()
+            with _connect() as conn:
+                assets = conn.execute(
+                    "SELECT id FROM assets WHERE library_id = ? AND type = 'image' AND deleted_at IS NULL AND offline = 0 ORDER BY id",
+                    (library_id,),
+                ).fetchall()
+            variants_by_kind = {key: DERIVATIVE_VARIANTS[key] for key in (selected or DERIVATIVE_VARIANTS)}
+            considered = 0
+            for asset in assets:
+                for derivative_kind, variants in variants_by_kind.items():
+                    for variant in variants:
+                        try:
+                            self.schedule_derivative(
+                                int(asset["id"]),
+                                derivative_kind,
+                                str(variant["name"]),
+                                priority=3,
+                                max_long_edge=int(variant["max_long_edge"]),
+                                quality=int(variant["quality"]),
+                            )
+                            considered += 1
+                        except (KeyError, OSError):
+                            continue
+            result: dict[str, int | str] = {"assets": len(assets), "derivatives_considered": considered}
+            if kind is not None:
+                result["kind"] = kind
+            return result
+        summary = self.reconcile_desired_derivatives(
+            library_id=library_id,
+            kinds=selected,
+            priority=3,
+            retry_failed=True,
+            reason="manual_generate",
+            respect_warm_policy=False,
+        )
+        result: dict[str, int | str] = {
+            "assets": summary.assets_considered,
+            "derivatives_considered": summary.desired_derivatives,
+        }
         if kind is not None:
             result["kind"] = kind
         return result
@@ -1249,9 +1321,7 @@ class DerivativeScheduler:
         source = Path(job["source_path"])
         cache_path: str | None = None
         succeeded = False
-        heartbeat = _LeaseHeartbeat(
-            self, job["job_id"], job["claim_token"], DERIVATIVE_LEASE_HEARTBEAT_SECONDS
-        )
+        heartbeat = _LeaseHeartbeat(self, job["job_id"], job["claim_token"], DERIVATIVE_LEASE_HEARTBEAT_SECONDS)
         try:
             self._validate_claimed_source(job, source)
             cache_path = str(
@@ -1446,7 +1516,10 @@ class _LeaseHeartbeat:
     def stop(self) -> None:
         self._stop_event.set()
         if self._thread.is_alive():
-            self._thread.join(timeout=max(0.0, self._interval + 0.5))
+            # Renewal writes are bounded DB operations, but under contention a
+            # in-flight renewal can outlast a short join. Wait generously so the
+            # caller can safely persist terminal state without a heartbeat race.
+            self._thread.join(timeout=max(2.0, self._interval + 2.0))
 
     def _loop(self) -> None:
         while not self._stop_event.wait(self._interval):

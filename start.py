@@ -87,17 +87,24 @@ def mark_os():
         OS_MARK_FILE.write_text(OS_NAME)
 
 
-def find_free_port(start_port: int) -> int:
-    """Return the first localhost port available at or above `start_port`."""
-    port = start_port
-    while port <= 65535:
+def ensure_fixed_ports_available() -> None:
+    """Fail clearly when a required development port is already occupied."""
+    occupied: list[str] = []
+    required_ports = (("Backend", BACKEND_PORT), ("Frontend", FRONTEND_PORT))
+
+    for service, port in required_ports:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             try:
                 sock.bind(("127.0.0.1", port))
-                return port
             except OSError:
-                port += 1
-    raise RuntimeError("No free port available.")
+                occupied.append(f"{service} port {port}")
+
+    if occupied:
+        joined_ports = ", ".join(occupied)
+        raise RuntimeError(
+            f"Required fixed port(s) already in use: {joined_ports}. "
+            "Stop the process using the port(s), then run start.py again."
+        )
 
 
 # -----------------------------------------------
@@ -216,13 +223,12 @@ def setup_frontend():
 
 
 def start_servers(python_exec, pkg_manager):
-    """Start backend and frontend development servers on free local ports."""
+    """Start backend and frontend development servers on their fixed ports."""
     print("\n[3/4] Starting servers...")
 
-    backend_port = find_free_port(BACKEND_PORT)
-    frontend_port = find_free_port(FRONTEND_PORT)
-    if frontend_port == backend_port:
-        frontend_port = find_free_port(frontend_port + 1)
+    ensure_fixed_ports_available()
+    backend_port = BACKEND_PORT
+    frontend_port = FRONTEND_PORT
 
     print(f"   Starting Backend API (Port {backend_port})...")
     backend_env = os.environ.copy()
@@ -256,6 +262,7 @@ def start_servers(python_exec, pkg_manager):
 def main():
     """Prepare dependencies, start both servers, and keep them running until interrupted."""
     try:
+        ensure_fixed_ports_available()
         python_exec = setup_backend()
         pkg_manager = setup_frontend()
         be_proc, fe_proc, be_port, fe_port = start_servers(python_exec, pkg_manager)
@@ -270,6 +277,9 @@ def main():
         while True:
             time.sleep(1)
 
+    except RuntimeError as exc:
+        print(f"\nERROR: {exc}")
+        sys.exit(1)
     except KeyboardInterrupt:
         print("\nStopping...")
         try:

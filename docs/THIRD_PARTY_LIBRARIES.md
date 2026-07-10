@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-06-24
+Last reviewed: 2026-07-10
 
 This document records how major third-party libraries are used in the current codebase and which integration contracts should not be changed casually.
 
@@ -59,10 +59,13 @@ FastAPI owns API routing, middleware, CORS, metrics/profiling hooks, and static 
 Run targets:
 
 ```bash
-python3 -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
+python3 -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 4701
 ```
 
-`start.py` uses this form from repo root and sets `FRONTEND_PORT` so CORS includes the actual dev frontend port.
+`start.py` uses this form from repo root, fixes the backend/frontend ports at
+`4701`/`4702`, and sets `FRONTEND_PORT` so CORS includes the frontend origin. If
+either fixed port is occupied, the launcher exits instead of selecting another
+port.
 
 ### Pillow
 
@@ -136,7 +139,7 @@ with the gallery's built-in dependency/cache/build exclusions.
 `pyinstrument` profiling is opt-in:
 
 ```bash
-ENABLE_PROFILER=1 PROFILE_ENDPOINTS=/api/browse,/api/metadata python3 -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+ENABLE_PROFILER=1 PROFILE_ENDPOINTS=/api/browse,/api/metadata python3 -m uvicorn backend.main:app --host 127.0.0.1 --port 4701
 ```
 
 Profiles are written to `backend/profiles/`.

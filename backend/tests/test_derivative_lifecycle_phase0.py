@@ -3,6 +3,19 @@
 These tests intentionally separate observed baseline behavior from the target
 contracts. Strict xfails are removed only by the phase that owns the relevant
 production behavior; an XPASS is therefore a review signal, not a silent pass.
+
+Purpose:
+Characterizes the current thumbnail-complete / preview-row-missing gap and the
+source-change historical-terminalization gap before any reconciler exists.
+
+Guarantees:
+* the baseline can report a desired preview with no current row and no job
+* a source change leaves historical variants terminal without current work
+* target contracts for reconcile/scan/startup/quota/request remain xfailed until implemented
+
+Run when:
+* changing derivative lifecycle convergence behavior or the Phase 0 contracts
+* touching scan completion, startup catch-up, quota eviction, or HTTP wait lifecycle
 """
 
 from __future__ import annotations
@@ -116,9 +129,7 @@ def test_target_successful_scan_queues_thumbnail_and_preview(
     catalog_service.queue_scan(library_id, trigger="manual")
     assert catalog_service.run_once() is True
     with sqlite3.connect(isolated_metadata_db) as conn:
-        rows = conn.execute(
-            "SELECT kind, count(*) FROM asset_derivatives GROUP BY kind ORDER BY kind"
-        ).fetchall()
+        rows = conn.execute("SELECT kind, count(*) FROM asset_derivatives GROUP BY kind ORDER BY kind").fetchall()
     assert rows == [("preview", 1), ("thumbnail", 1)]
 
 
@@ -165,7 +176,9 @@ def test_target_quota_eviction_never_leaves_queued_derivative_without_job(
     scheduler._enforce_quota()
     with sqlite3.connect(isolated_metadata_db) as conn:
         state = conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (derivative_id,)).fetchone()[0]
-        jobs = conn.execute("SELECT count(*) FROM derivative_jobs WHERE derivative_id = ?", (derivative_id,)).fetchone()[0]
+        jobs = conn.execute(
+            "SELECT count(*) FROM derivative_jobs WHERE derivative_id = ?", (derivative_id,)
+        ).fetchone()[0]
     assert state == "evicted"
     assert jobs == 0
 

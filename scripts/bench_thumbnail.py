@@ -53,7 +53,7 @@ def _fetch_thumbnail(base_url: str, image_path: str, max_long_edge: int) -> tupl
 
 def main() -> int:
     """Run thumbnail benchmarks and enforce their configured budgets."""
-    base_url = os.getenv("GALLERY_API_BASE_URL", "http://localhost:8000")
+    base_url = os.getenv("GALLERY_API_BASE_URL", "http://localhost:4701")
     image_folder = os.getenv(
         "GALLERY_PERF_BENCH_THUMBNAIL_FOLDER",
         "/home/ubuntu/gallery-repo/test-images/a1111",

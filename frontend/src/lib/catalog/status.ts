@@ -103,6 +103,12 @@ export interface GlobalRuntime {
   derivative_skipped_jobs: number;
   derivative_stale_running_jobs: number;
   derivative_oldest_running_age_seconds: number | null;
+  derivative_reconcile_enabled: boolean;
+  derivative_reconcile_running: boolean;
+  derivative_last_reconcile_started_at: number | null;
+  derivative_last_reconcile_completed_at: number | null;
+  derivative_last_reconcile_status: string | null;
+  derivative_last_reconcile_created_jobs: number;
 }
 
 export interface MetadataLifecycle {

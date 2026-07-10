@@ -5,7 +5,7 @@ import { fileURLToPath, URL } from "node:url";
 import vitePluginIstanbul from "vite-plugin-istanbul";
 
 const DEV_PORT = Number(process.env.VITE_PORT) || 4702;
-const API_TARGET = process.env.VITE_API_URL || "http://localhost:4180";
+const API_TARGET = process.env.VITE_API_URL || "http://localhost:4701";
 
 const plugins = [tailwindcss(), vue()];
 if (process.env.VITE_COVERAGE === "true") {
@@ -40,7 +40,7 @@ export default defineConfig({
   },
   preview: {
     host: "127.0.0.1",
-    port: 4173,
+    port: DEV_PORT,
     strictPort: true,
   },
 });

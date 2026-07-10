@@ -86,11 +86,9 @@ async function runOneIteration(page: import("@playwright/test").Page): Promise<I
   const enterBtn = page.getByRole("button", { name: /enter gallery/i });
   const album = page.getByText(albumName, { exact: false }).first();
   await expect
-    .poll(
-      async () =>
-        (await enterBtn.isVisible().catch(() => false)) || (await album.isVisible().catch(() => false)),
-      { timeout: 15000 },
-    )
+    .poll(async () => (await enterBtn.isVisible().catch(() => false)) || (await album.isVisible().catch(() => false)), {
+      timeout: 15000,
+    })
     .toBe(true);
 
   if (await enterBtn.isVisible().catch(() => false)) {
